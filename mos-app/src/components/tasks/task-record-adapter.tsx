@@ -183,8 +183,9 @@ export interface TaskRecordLabels {
   /** Lifecycle-aware primary action shown IN PLACE OF markComplete on an already-Done task
    *  (#751 AC-031: Reopen IS the header primary on a Done task, not a quiet secondary). */
   reopen: string
-  /** Pinned-header meta-line prefixes (#751 AC-031, mockup "PIC Cahya · Supervisor Dewi · due
-   *  Fri 28 Aug"). The owning-group item is unlabeled, so it needs no prefix key. */
+  /** Pinned-header meta-line prefixes (#751 AC-031, mockup "PIC <first name> · Supervisor
+   *  <first name> · due Fri 28 Aug"). The owning-group item is unlabeled, so it needs no
+   *  prefix key. */
   metaPic: string
   metaSupervisor: string
   metaDue: string

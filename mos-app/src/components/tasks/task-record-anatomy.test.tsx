@@ -19,9 +19,12 @@ const DECLARED = ['content', 'ownership', 'relations', 'checklist', 'activity'] 
 
 const PIC = 'p-pic'
 const SUPERVISOR = 'p-sup'
+// Synthetic fixture labels (never live staff names): clearly test-only so the anatomy
+// tests never accidentally publish a person-like name paired with a real ownership role
+// into a public repo (#751 round-4 security finding).
 const people: PersonOption[] = [
-  { id: PIC, full_name: 'Riri' },
-  { id: SUPERVISOR, full_name: 'Wayan Kusuma' },
+  { id: PIC, full_name: 'Fixture PIC' },
+  { id: SUPERVISOR, full_name: 'Fixture Supervisor' },
 ]
 const businessUnits: BusinessUnitOption[] = [{ id: 'bu-retail', name: 'Retail Ops' }]
 
@@ -227,8 +230,8 @@ describe('Ticket #751 AC-031 — the pinned header: meta line, status pill-dropd
     const meta = container.querySelector(`${HEADER} [data-record-meta]`)
     expect(meta, 'the pinned header carries a meta line').toBeTruthy()
     expect(meta!.textContent).toContain('Retail Ops')
-    expect(meta!.textContent).toContain('PIC Riri')
-    expect(meta!.textContent).toContain('Supervisor Wayan')
+    expect(meta!.textContent).toContain('PIC Fixture')
+    expect(meta!.textContent).toContain('Supervisor Fixture')
     expect(meta!.textContent).toContain('due Fri 28 Aug')
     expect(meta!.textContent).toContain('5h')
   })
