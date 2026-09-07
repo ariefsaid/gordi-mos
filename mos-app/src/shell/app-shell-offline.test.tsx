@@ -8,10 +8,12 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { Suspense, useEffect, useState, type ComponentType } from 'react'
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { lazyPage } from '@/router'
+import { RouteErrorBoundary } from '@/components/RouteErrorBoundary'
+import { ProtectedRoute } from '@/auth/protected-route'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
 vi.mock('@/lib/db/directory', () => ({
@@ -36,8 +38,9 @@ function authenticate() {
         id: '40000000-0000-0000-0000-000000000001',
         org_id: '10000000-0000-0000-0000-000000000001',
         user_id: 'auth-user-001',
-        full_name: 'Cahya Cafe',
-        email: 'cahya@example.test',
+        // Synthetic fixture — clearly not a real person. This repo is public.
+        full_name: 'Fixture Cafe',
+        email: 'fixture.cafe@example.test',
         archived_at: null,
         must_change_password: false,
         created_at: '2026-01-01T00:00:00Z',
@@ -158,6 +161,80 @@ describe('AC-025 — a rejected data read is an error inside the frame', () => {
     await screen.findByText('This screen stopped working')
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
     expect(screen.queryByText('Couldn’t reach the server')).toBeNull()
+  })
+
+  // Round-2 defect (#802): a route LOADER (react-router `loader:` — not a component-mount fetch)
+  // that rejects with a network error was caught by the errorElement on the OUTER ProtectedRoute
+  // route, whose element (ProtectedRoute) is the one react-router replaces — AppShell disappears
+  // and the fallback loses the rail + header. The fix moves the errorElement down to every direct
+  // child of AppShell (see router.tsx `withShellErrorBoundary`), so the errored child's element is
+  // the one that gets replaced and AppShell (its parent) stays mounted.
+  //
+  // Two tests together lock the fix: the structural one below reads the real route table and
+  // proves EVERY direct child of AppShell carries the shell-preserving errorElement, so removing
+  // the wrap in router.tsx goes red here; the behavioural one after it mounts the same shape
+  // (ProtectedRoute > AppShell > child with a rejecting loader) and proves the frame survives.
+  it('the real route table carries errorElement on every direct child of AppShell', async () => {
+    const { routeConfig } = await import('@/router')
+    const protectedEntry = routeConfig.find(
+      (r) =>
+        Array.isArray(r.children) &&
+        r.children.some(
+          (c) => Array.isArray(c.children) && c.children.some((cc) => cc.path === 'work/tasks'),
+        ),
+    )!
+    const shell = protectedEntry.children!.find((c) => Array.isArray(c.children))!
+    expect(shell.children!.length).toBeGreaterThan(0)
+    for (const child of shell.children!) {
+      // Anything that could carry a react-router loader has to catch its rejection INSIDE the
+      // shell — the outer boundary above ProtectedRoute would strip the rail and header.
+      expect(child.errorElement).toEqual(<RouteErrorBoundary />)
+    }
+  })
+
+  it('a route loader that rejects with a network error renders inside the shell frame', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    authenticate()
+    const loader = vi
+      .fn<() => Promise<null>>()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValue(null)
+    const router = createMemoryRouter(
+      [
+        {
+          element: <ProtectedRoute />,
+          errorElement: <RouteErrorBoundary />,
+          children: [
+            {
+              element: <AppShell />,
+              children: [
+                {
+                  index: true,
+                  element: <div>page</div>,
+                  loader,
+                  errorElement: <RouteErrorBoundary />,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      { initialEntries: ['/'] },
+    )
+    const { container } = render(
+      <I18nProvider>
+        <RouterProvider router={router} />
+      </I18nProvider>,
+    )
+
+    // The in-frame network state renders in AppShell's outlet — with rail + header intact.
+    await screen.findByText('Couldn’t reach the server')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(container.querySelector('header')).not.toBeNull()
+    expect(container.querySelector('aside')).not.toBeNull()
+    // The out-of-shell crash fallback never rendered.
+    expect(container.querySelector('.error-boundary')).toBeNull()
+    expect(screen.queryByText('This screen stopped working')).toBeNull()
   })
 
   // The regression for the round-1 defect (#802): every route is `React.lazy` (`lazyPage` in

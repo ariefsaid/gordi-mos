@@ -39,11 +39,9 @@ export interface NetworkErrorStateProps {
 }
 
 /**
- * The one "couldn't reach the server" state. It is `ErrorState` with a fixed sentence pair, so
- * every surface that loses the network says the same thing with the same Retry — the crash
- * fallback is reserved for exceptions in rendering (DESIGN.md § Components → State conformance
- * matrix). `network.retry` (Retry) rather than `common.retry` (Try again): this control re-issues
- * one read, and the label names that.
+ * The one "couldn't reach the server" state: `ErrorState` with the fixed sentence pair every
+ * offline surface says. See lib/network-error.ts. `network.retry` (Retry) rather than
+ * `common.retry` (Try again) — this control re-issues one read and its label names that.
  */
 export function NetworkErrorState({ onRetry, className }: NetworkErrorStateProps) {
   const t = useT()

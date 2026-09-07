@@ -195,7 +195,13 @@ const routeTable: RouteObject[] = [
       {
         element: <AppShell />,
         handle: infrastructureHandle('layout'),
-        children: [
+        // Each direct child of AppShell carries `errorElement: <RouteErrorBoundary />` so a loader
+        // rejection (a `fetch` that failed on the network, or any other loader throw) is caught
+        // INSIDE the shell frame: react-router replaces the errored route's element with the
+        // errorElement, and its PARENT (AppShell) still renders — rail + header + context row stay
+        // mounted. The outer boundary at ProtectedRoute stays for render exceptions above the
+        // shell. See lib/network-error.ts.
+        children: withShellErrorBoundary([
           // Home (#191, PORT-023 — the one entry this PR changes). HomePage is now v4's ported
           // design: the region/attention model (needs-you, failed checks, my work today) in
           // whichever of Focused/Overview/List the viewer has chosen. Eager, still,
@@ -504,11 +510,26 @@ const routeTable: RouteObject[] = [
           // Not-found sits INSIDE the AppShell layout route (AC-021), so a mistyped path keeps
           // the rail and the header and the viewer can navigate out of it.
           { path: '*', element: withSuspense(<NotFoundPage />), handle: infrastructureHandle('not-found') },
-        ],
+        ]),
       },
     ],
   },
 ]
+
+/**
+ * Adds `errorElement: <RouteErrorBoundary />` to each route that lacks one, without touching any
+ * other field (element/path/handle/children stay identical). Applied at the shell-child seam so a
+ * loader rejection is caught INSIDE AppShell — see the comment on the `children:` line that calls
+ * this. See lib/network-error.ts for the "offline is an error, not a crash" rationale.
+ */
+function withShellErrorBoundary(routes: RouteObject[]): RouteObject[] {
+  return routes.map(
+    (route): RouteObject => ({
+      ...route,
+      errorElement: route.errorElement ?? <RouteErrorBoundary />,
+    }),
+  )
+}
 
 // ── The ship gate, applied (#444) ────────────────────────────────────────────────────────────
 //

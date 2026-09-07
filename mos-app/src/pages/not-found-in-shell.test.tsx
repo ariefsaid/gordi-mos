@@ -34,8 +34,9 @@ function renderNotFoundInShell() {
         id: '40000000-0000-0000-0000-000000000009',
         org_id: '10000000-0000-0000-0000-000000000001',
         user_id: 'auth-user-009',
-        full_name: 'Finance Viewer',
-        email: 'finance@example.test',
+        // Synthetic fixture — clearly not a real person. This repo is public.
+        full_name: 'Fixture Finance',
+        email: 'fixture.finance@example.test',
         archived_at: null,
         must_change_password: false,
         created_at: '2026-01-01T00:00:00Z',

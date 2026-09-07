@@ -1,15 +1,11 @@
 /**
  * ContentErrorBoundary — the shell's guard around region 3 (the page Outlet).
  *
- * A read that failed because the network did stops here: it renders `NetworkErrorState` inside the
- * page frame, so the rail, the header and the context row stay exactly where they were and Retry
- * re-issues the read. Anything else is rethrown to the crash boundary above the shell, because the
- * crash fallback is reserved for exceptions in rendering (DESIGN.md § Components → State
- * conformance matrix) and this boundary has nothing useful to say about them.
+ * Network read → in-frame `NetworkErrorState`; anything else is rethrown to the crash boundary
+ * above the shell. See lib/network-error.ts.
  *
- * Retry remounts the subtree by changing its key: a page's read runs on mount, so a plain state
- * reset would put the failed tree back on screen without re-reading. The keyed wrapper is
- * `display: contents`, so it adds no box to the shell's flex column.
+ * Retry remounts the subtree by changing its key so a page's on-mount read re-runs; the keyed
+ * wrapper is `display: contents` so it adds no box to the shell's flex column.
  */
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { PageFrame } from './page-frame'

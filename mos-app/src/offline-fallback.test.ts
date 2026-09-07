@@ -4,6 +4,10 @@
 // hold: the page itself must carry the brand block, the sentence and the control, and the worker
 // must actually name it. `public/` is copied verbatim into the build output by Vite, so the file
 // asserted here is byte-for-byte the one that ships.
+//
+// The visible-DOM assertions parse OFFLINE_HTML into an actual document rather than string-matching
+// the file — the earlier `toContain('MOS needs a connection')` passed on the <title> alone, so
+// deleting the visible <h1> was silent. Querying rendered elements turns any such deletion red.
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, it, expect } from 'vitest'
@@ -11,16 +15,32 @@ import { describe, it, expect } from 'vitest'
 const OFFLINE_HTML = readFileSync(resolve(process.cwd(), 'public/offline.html'), 'utf8')
 const SW = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8')
 
+function parse(html: string): Document {
+  return new DOMParser().parseFromString(html, 'text/html')
+}
+
 describe('AC-027 — the offline fallback document', () => {
   it('carries the brand block, the sentence and the one control', () => {
-    expect(OFFLINE_HTML).toContain('Gordi MOS')
-    expect(OFFLINE_HTML).toMatch(/class="mark-square">G</)
-    expect(OFFLINE_HTML).toMatch(/class="mark-dot"/)
-    expect(OFFLINE_HTML).toContain('MOS needs a connection')
-    expect(OFFLINE_HTML).toContain('Try again')
+    const doc = parse(OFFLINE_HTML)
+    // The visible heading — not the <title>, which the earlier assertion accidentally matched.
+    const heading = doc.querySelector('h1#title')
+    expect(heading).not.toBeNull()
+    expect(heading!.textContent).toBe('MOS needs a connection')
+    // The one control.
+    const retry = doc.querySelector('button#retry')
+    expect(retry).not.toBeNull()
+    expect(retry!.textContent).toBe('Try again')
+    // The brand block: wordmark + navy square with "G" + orange dot.
+    const brand = doc.querySelector('.brand')
+    expect(brand).not.toBeNull()
+    expect(brand!.querySelector('.wordmark')!.textContent).toBe('Gordi MOS')
+    expect(brand!.querySelector('.mark-square')!.textContent).toBe('G')
+    expect(brand!.querySelector('.mark-dot')).not.toBeNull()
   })
 
   it('says the same thing in Indonesian', () => {
+    // Indonesian copy is swapped by the inline <script> at runtime based on the persisted locale,
+    // so it lives as string literals in the script body rather than as pre-rendered DOM nodes.
     expect(OFFLINE_HTML).toContain('MOS membutuhkan koneksi')
     expect(OFFLINE_HTML).toContain('Coba lagi')
   })

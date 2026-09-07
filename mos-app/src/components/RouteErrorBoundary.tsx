@@ -38,9 +38,8 @@ export function RouteErrorBoundary() {
     }),
   })
 
-  // Offline is an error, not a crash: a read that failed on the network gets the in-frame
-  // ErrorState with Retry, never the full-screen crash screen (DESIGN.md § Components → State
-  // conformance matrix). Retry re-issues the read.
+  // Network read → in-frame NetworkErrorState with Retry; anything else → the crash screen.
+  // See lib/network-error.ts.
   if (isNetworkError(error)) {
     return (
       <PageFrame>
