@@ -227,8 +227,9 @@ describe('router — Money gates (dev security series preserved)', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money'),
     )!
+    // #797: admin is users-and-settings and is not a money arm.
     expect(gate.element).toEqual(
-      <RequireAccessRole anyOf={['finance', 'admin', 'manager', 'supervisor']} />,
+      <RequireAccessRole anyOf={['finance', 'manager', 'supervisor']} />,
     )
   })
 

@@ -4,7 +4,7 @@
 -- the subject is the seed itself. begin;...rollback; keeps it read-only.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(18);
 
 -- The seed admin row exists despite the admin-only RLS rule AND the self-escalation guard: the seed
 -- runs under a connection that bypasses RLS, and the guard's self-assign check is keyed on
@@ -14,6 +14,15 @@ select ok(
   exists (select 1 from shared.person_access_roles
            where person_id = '40000000-0000-0000-0000-000000000000' and access_role = 'admin'),
   'the seed grants admin to the owner stand-in, past the admin-only RLS and the self-assign guard');
+
+-- #797: Money read means holding manager. admin is users-and-settings and reads no money, so the
+-- Director's Money walk works only because the seed grants manager BESIDE admin.
+select is(
+  (select string_agg(access_role::text, ',' order by access_role)
+     from shared.person_access_roles
+    where person_id = '40000000-0000-0000-0000-000000000000'),
+  'admin,manager',
+  'the Director persona holds admin AND manager — settings seat plus the money-read tier, nothing else');
 
 select is(
   (select granted_by from shared.person_access_roles
