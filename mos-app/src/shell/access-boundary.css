@@ -1,0 +1,28 @@
+/* Access boundary — the quiet dashed panel (DESIGN.md § Navigation, Access boundary state).
+   Dashed, not filled: the border says "nothing lives here for you" without the weight of an
+   error. It reuses the state-kit `blank` archetype whole; only the frame is skinned. */
+.access-boundary .empty-state-frame {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px 20px;
+  box-sizing: border-box;
+}
+
+/* Phone (≤390 included): the panel and its one control run the full column. A 440px frame and a
+   content-width button both leave the panel floating in a 390px viewport. */
+@media (max-width: 767.98px) {
+  .access-boundary {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .access-boundary .empty-state-frame {
+    width: 100%;
+    max-width: 100%;
+  }
+  .access-boundary .empty-actions {
+    width: 100%;
+  }
+  .access-boundary .empty-actions .btn {
+    width: 100%;
+  }
+}

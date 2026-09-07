@@ -348,6 +348,11 @@ export function destinationForPath(pathname: string): Destination | null {
   // `/work/projects` to the Work destination and, with `sectionForPath` already closed, print
   // "Work · Tasks" over a surface that is neither.
   if (isShipGated(pathname)) return null
+  return destinationOwning(pathname)
+}
+
+/** The owner scan itself, with no gate asked. Shared by the two callers below. */
+function destinationOwning(pathname: string): Destination | null {
   for (const d of ALL_DESTINATIONS) {
     const candidates = [...d.links, ...(d.children ?? [])]
     for (const link of candidates) {
@@ -359,4 +364,19 @@ export function destinationForPath(pathname: string): Destination | null {
     }
   }
   return null
+}
+
+/**
+ * The AREA a path belongs to, named for a viewer standing outside it (`access-boundary.tsx`).
+ *
+ * Destination-level, not link-level: `/admin/people` is "Admin Settings", the area an admin would
+ * grant, not "People", a screen the viewer has never seen named.
+ *
+ * It asks no gate — neither the ship gate nor the destination's own `anyOf`. Both are exactly the
+ * conditions under which a boundary renders, so `destinationForPath`'s fail-closed `null` would
+ * leave the panel unable to name what the viewer just hit. Naming an area is not exposing it: the
+ * area's label is already in the catalog every viewer downloads.
+ */
+export function areaTitleKeyForPath(pathname: string): MessageKey | null {
+  return destinationOwning(pathname)?.labelKey ?? null
 }

@@ -377,6 +377,13 @@ export const messages = {
     // built yet — distinct from a 404, which is a path that will never exist.
     'stub.notInSlice': 'Not in this slice yet',
     'stub.comingLater': '${name} lands in a later build step.',
+    // The access-boundary state (shell/access-boundary.tsx) — a route the router admits but the
+    // viewer's access does not. Copy names the AREA, never the data inside it.
+    'access.required': 'Access required',
+    'access.outside': '${area} is outside your access',
+    'access.askAdmin': 'An admin changes access in Admin Settings.',
+    'access.backToHome': 'Back to Home',
+    'access.areaFallback': 'This area',
     'dest.admin': 'Admin Settings',
     'dest.cafe': 'Café',
     'dest.ecommerce': 'Ecommerce',
@@ -1646,6 +1653,11 @@ export const messages = {
     'leaveGuard.discard': 'Buang dan keluar',
     'stub.notInSlice': 'Belum ada di slice ini',
     'stub.comingLater': '${name} hadir di tahap build berikutnya.',
+    'access.required': 'Perlu akses',
+    'access.outside': '${area} berada di luar akses Anda',
+    'access.askAdmin': 'Admin mengubah akses di Pengaturan Admin.',
+    'access.backToHome': 'Kembali ke Beranda',
+    'access.areaFallback': 'Area ini',
     'dest.admin': 'Pengaturan Admin',
     'dest.cafe': 'Kafe',
     'dest.ecommerce': 'Ecommerce',
