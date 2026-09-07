@@ -813,6 +813,10 @@ export const messages = {
     'tasks.record.meta.supervisor': 'Supervisor',
     'tasks.record.meta.due': 'due',
     'tasks.record.unassigned': 'Unassigned',
+    // AC-042: pushed onto the panel stack by a Task record's Source chip. The Project/Process
+    // and Objective kinds have no bespoke record host yet, so the parent frame carries an
+    // identity-only body while the shared host owns Back to the Task verbatim.
+    'tasks.record.parentComingSoon': "This record view lands with its own ticket. Back returns to the task.",
     'tasks.dueLabel': "Due",
     'tasks.empty.archivedCopy': "Archived tasks would appear here.",
     'tasks.empty.archivedTitle': "No archived tasks.",
@@ -2072,6 +2076,7 @@ export const messages = {
     'tasks.record.meta.supervisor': 'Supervisor',
     'tasks.record.meta.due': 'jatuh tempo',
     'tasks.record.unassigned': 'Belum ditugaskan',
+    'tasks.record.parentComingSoon': "Tampilan catatan ini menyusul di tiketnya sendiri. Kembali membuka tugas.",
     'tasks.dueLabel': "Jatuh tempo",
     'tasks.empty.archivedCopy': "Tugas yang diarsipkan akan muncul di sini.",
     'tasks.empty.archivedTitle': "Tidak ada tugas yang diarsipkan.",

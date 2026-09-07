@@ -31,10 +31,21 @@ vi.mock('../../lib/comments/postComment', () => ({
   listComments: vi.fn(),
   postComment: vi.fn(),
 }))
+// AC-042: the record loads the work-line / objective catalogs to resolve the Source chip label
+// and dispatch the panel-stack push. The tests never assert against a real Supabase, so the reads
+// resolve to an empty list by default; a test that needs the chip populated overrides these.
+vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn().mockResolvedValue([]) }))
+vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn().mockResolvedValue([]) }))
+vi.mock('../../lib/db/signals', () => ({ listAuthorTeams: vi.fn().mockResolvedValue([]) }))
+vi.mock('../../lib/db/processes', () => ({ listTaskDefs: vi.fn().mockResolvedValue([]) }))
 
 import { getTask, createTask, updateTaskStatus, updateTaskFields, toggleChecklistItem, unarchiveTask, archiveTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import { listComments, postComment } from '@/lib/comments/postComment'
+import { listObjectives } from '@/lib/db/objectives'
+import { listWorkLines } from '@/lib/db/work-lines'
+import { listAuthorTeams } from '@/lib/db/signals'
+import { listTaskDefs } from '@/lib/db/processes'
 import { TaskSurface } from './task-surface'
 
 const mockGetTask = vi.mocked(getTask)
@@ -101,6 +112,13 @@ beforeEach(() => {
   mockPostComment.mockResolvedValue('comment-new')
   mockUpdateTaskStatus.mockResolvedValue()
   mockCreateTask.mockResolvedValue('new-task-id')
+  // AC-042: the surface's non-blocking catalog reads must resolve to real (empty) promises so a
+  // test that does not need them (the majority) still lets the record hydrate; a test that DOES
+  // need them (the AC-042 Source-chip suite) overrides listWorkLines / listObjectives itself.
+  vi.mocked(listObjectives).mockResolvedValue([])
+  vi.mocked(listWorkLines).mockResolvedValue([])
+  vi.mocked(listAuthorTeams).mockResolvedValue([])
+  vi.mocked(listTaskDefs).mockResolvedValue([])
 })
 
 function LocationProbe() {
@@ -901,5 +919,104 @@ describe('TaskSurface — create mode', () => {
     // no native chrome) — its error border lives on the mk-select wrapper (Select.css
     // .mk-select--error), not on the bare <select> element itself.
     expect(bu.closest('.mk-select')).toHaveClass('mk-select--error')
+  })
+})
+
+describe('TaskSurface — AC-042: the Source chip opens the parent in the panel stack', () => {
+  it('activating Source pushes the parent Project/Process onto the SAME session; Back returns to the Task', async () => {
+    const { useEffect, useRef } = await import('react')
+    const { OverlayHostProvider, OverlayHostSlot, useOverlayHost } = await import('@/shell/overlay-host')
+    // A task with a real work_line_id, and a work-line catalog that carries the parent name — the
+    // Source chip only renders once the derived attribution resolves against a loaded catalog.
+    const task = makeTask({ work_line_id: 'wl-1' })
+    mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+    vi.mocked(listWorkLines).mockResolvedValue([{ id: 'wl-1', name: 'New menu launch', type: 'project' }])
+
+    // The task IS the ambient record in real life (opened via host.openRoot by TasksWorkspace);
+    // seed the SAME shape here so the Source chip's push lands on top of a real Task frame —
+    // otherwise `push` no-ops on a session-less host, and the test measures the wrong thing.
+    let overlayApi!: ReturnType<typeof useOverlayHost>
+    function OverlayProbe() {
+      overlayApi = useOverlayHost()
+      return null
+    }
+    function TaskSessionSeed() {
+      const api = useOverlayHost()
+      // `api` re-memoizes on every session change, so a plain `[api]` dep list would loop:
+      // seed → session changes → api re-memoizes → effect fires → seed again → …
+      // The guard ref runs the openRoot ONCE, exactly the shape the shell's task-workspace uses.
+      const seeded = useRef(false)
+      useEffect(() => {
+        if (seeded.current) return
+        seeded.current = true
+        void api.openRoot({
+          key: 'task:task-abc',
+          owner: 'tasks',
+          tenant: 'record',
+          label: 'Task',
+          content: <TaskSurface taskId="task-abc" mode="view" width="full" showPanelUtility={false} />,
+        }, 'ephemeral')
+      }, [api])
+      return null
+    }
+
+    render(
+      <I18nProvider>
+        <AuthContext.Provider value={authedState}>
+          <MemoryRouter initialEntries={['/work/tasks/task-abc']}>
+            <OverlayHostProvider>
+              <OverlayProbe />
+              <TaskSessionSeed />
+              <OverlayHostSlot owner="tasks" />
+            </OverlayHostProvider>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+
+    // The record has hydrated and its Source chip is a real <button> — never a `?q=` anchor.
+    await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
+    const chip = await waitFor(() => {
+      const el = document.querySelector('[data-field-link="source"]') as HTMLButtonElement | null
+      if (!el) throw new Error('Source chip not rendered yet')
+      return el
+    })
+    expect(chip.tagName).toBe('BUTTON')
+
+    // Before activation the top frame is the Task itself (one frame in the session).
+    expect(overlayApi.session?.frames.length).toBe(1)
+    expect(overlayApi.session?.frames.at(-1)?.entry.key).toBe('task:task-abc')
+
+    fireEvent.click(chip)
+    // The parent is pushed on top of the Task — two frames now, the parent's real name at the top.
+    await waitFor(() => {
+      expect(overlayApi.session?.frames.length).toBe(2)
+      expect(overlayApi.session?.frames.at(-1)?.entry.key).toBe('work-line:wl-1')
+    })
+    expect(document.querySelector('[data-parent-record="workLine"]')).not.toBeNull()
+
+    // Back pops the pushed parent frame; the Task is the top again — the Source chip is back.
+    await overlayApi.back()
+    await waitFor(() => {
+      expect(overlayApi.session?.frames.length).toBe(1)
+      expect(overlayApi.session?.frames.at(-1)?.entry.key).toBe('task:task-abc')
+    })
+    expect(document.querySelector('[data-parent-record="workLine"]')).toBeNull()
+  })
+
+  it('with no OverlayHost mounted, the Source chip degrades to plain text (no button, no `?q=` navigation)', async () => {
+    const task = makeTask({ work_line_id: 'wl-1' })
+    mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+    vi.mocked(listWorkLines).mockResolvedValue([{ id: 'wl-1', name: 'New menu launch', type: 'project' }])
+    renderSurface()
+    await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
+    // The chip must NEVER fall back to a `?q=` anchor — the whole point of AC-042 is that Source
+    // opens the parent in the SAME panel stack, not that it navigates away to a search page.
+    await waitFor(() => {
+      const cell = document.querySelector('[data-field-key="source"]')
+      expect(cell?.textContent).toContain('New menu launch')
+    })
+    expect(document.querySelector('[data-field-link="source"]')).toBeNull()
+    expect(document.querySelector('a[href*="q="]')).toBeNull()
   })
 })

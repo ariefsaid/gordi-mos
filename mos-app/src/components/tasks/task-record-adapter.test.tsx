@@ -18,9 +18,13 @@ import type { RecordFieldSpec, RecordViewerAdapter } from '@/components/records/
 const PIC = 'p-pic'
 const SUPERVISOR = 'p-sup'
 
+// Synthetic fixture labels (never live staff names): clearly test-only so the adapter tests
+// never publish a person-like name paired with a real ownership role into a public repo
+// (#751 round-4 security finding, #756 round-2). The Team picker fixture and every persona
+// added downstream follow the same rule.
 const people: PersonOption[] = [
-  { id: PIC, full_name: 'Riri' },
-  { id: SUPERVISOR, full_name: 'Wayan Kusuma' },
+  { id: PIC, full_name: 'Fixture PIC' },
+  { id: SUPERVISOR, full_name: 'Fixture Supervisor' },
 ]
 const businessUnits: BusinessUnitOption[] = [
   { id: 'bu-retail', name: 'Retail Ops' },
@@ -104,8 +108,8 @@ describe('createTaskRecordAdapter', () => {
     // #756 AC-036: the editable Business Unit field is gone; BU rides beneath the owning
     // Team as its "BU: <name>" subline (see the AC-036 suite below for the direct assertion).
     expect(fieldsOf(adapter).find((f) => f.key === 'businessUnit')).toBeUndefined()
-    expect(fieldByKey(adapter, 'pic').displayValue).toBe('Riri')
-    expect(fieldByKey(adapter, 'supervisor').displayValue).toBe('Wayan Kusuma')
+    expect(fieldByKey(adapter, 'pic').displayValue).toBe('Fixture PIC')
+    expect(fieldByKey(adapter, 'supervisor').displayValue).toBe('Fixture Supervisor')
     expect(fieldByKey(adapter, 'status').displayValue).toBe('Open')
     expect(fieldByKey(adapter, 'dueDate').value).toBe('2026-07-25')
 
@@ -285,10 +289,10 @@ describe('createTaskRecordAdapter — AC-061 on the record: edit/archive follow 
 
   it('AC-061 delta: the record PIC picker offers self + downline (like the inline picker); Supervisor keeps the full list', () => {
     const everyone: PersonOption[] = [
-      { id: PIC, full_name: 'Riri' },
-      { id: SUPERVISOR, full_name: 'Wayan Kusuma' },
-      { id: 'mgr', full_name: 'Made Manager' },
-      { id: 'p-out', full_name: 'Far Away' },
+      { id: PIC, full_name: 'Fixture PIC' },
+      { id: SUPERVISOR, full_name: 'Fixture Supervisor' },
+      { id: 'mgr', full_name: 'Fixture Manager' },
+      { id: 'p-out', full_name: 'Fixture Outsider' },
     ]
     const { container, unmount } = render(
       <I18nProvider>
@@ -479,7 +483,7 @@ describe('createTaskRecordAdapter — #756 AC-037: "Created by <first name> · <
     }))
     const created = fieldByKey(adapter, 'createdBy')
     expect(created.editable).toBe(false)
-    expect(created.displayValue).toBe('Created by Riri · fmt(2026-07-19T00:00:00Z)')
+    expect(created.displayValue).toBe('Created by Fixture · fmt(2026-07-19T00:00:00Z)')
     // At the foot of Ownership — after Supervisor.
     expect(fieldKeysInOrder(adapter, 'ownership')).toEqual([
       'team', 'pic', 'supervisor', 'createdBy',
@@ -516,7 +520,7 @@ describe('createTaskRecordAdapter — #756 AC-039: Supervisor names inheritance 
   const PARENT_A = 'p-parent-a'
   const peopleWithParent: PersonOption[] = [
     ...people,
-    { id: PARENT_A, full_name: 'Dewi Wulan' },
+    { id: PARENT_A, full_name: 'Fixture Parent-Supervisor' },
   ]
 
   it('renders "inherited from <first name>" beneath Supervisor when its value equals the parent Project/Process Accountable', () => {
@@ -526,7 +530,7 @@ describe('createTaskRecordAdapter — #756 AC-039: Supervisor names inheritance 
       people: peopleWithParent,
       parentAccountablePersonId: PARENT_A,
     }))
-    expect(fieldByKey(adapter, 'supervisor').helperText).toBe('inherited from Dewi')
+    expect(fieldByKey(adapter, 'supervisor').helperText).toBe('inherited from Fixture')
   })
 
   it('renders NO hint when Supervisor is a deliberate override (differs from the parent Accountable)', () => {
@@ -578,11 +582,11 @@ describe('createTaskRecordAdapter — #756 AC-040: field commit renders Saving �
 })
 
 describe('createTaskRecordAdapter — #756 AC-041: a peer sees PIC/Supervisor/Due/Team as values with no edit control and one reason line', () => {
-  it("Bulan (a peer) reads every ownership value read-only — the Team field is present but not editable — with the ONE record-level reason", () => {
-    // "Bulan" = a viewer who is neither PIC nor Supervisor and has no downline over the PIC. The
+  it("a peer reads every ownership value read-only — the Team field is present but not editable — with the ONE record-level reason", () => {
+    // A peer = a viewer who is neither PIC nor Supervisor and has no downline over the PIC. The
     // whole record is read-only; the shared editable policy strips every affordance without
     // stamping a per-field reason — one line at the whole-record level explains why.
-    const adapter = createTaskRecordAdapter(makeInput({ viewerId: 'bulan', downlineIds: [] }))
+    const adapter = createTaskRecordAdapter(makeInput({ viewerId: 'fixture-peer', downlineIds: [] }))
     expect(adapter.permission.readOnly).toBe(true)
     expect(adapter.permission.reason).toMatch(/permission/i)
     for (const key of ['team', 'pic', 'supervisor', 'dueDate'] as const) {
@@ -594,21 +598,33 @@ describe('createTaskRecordAdapter — #756 AC-041: a peer sees PIC/Supervisor/Du
   })
 })
 
-describe('createTaskRecordAdapter — #756 AC-042: Source is a link chip that opens the parent', () => {
-  it('renders Source as a read-only chip carrying a linkHref when a work line names the parent', () => {
+describe('createTaskRecordAdapter — #756 AC-042: Source is a chip that opens the parent in the panel stack', () => {
+  it('renders Source as a read-only chip carrying a linkAction when a work line names the parent', () => {
+    // AC-042: the Source chip opens the parent record IN THE PANEL STACK. The adapter takes an
+    // `openSource` seam that returns a click ACTIVATOR — the surface wires the concrete panel-stack
+    // push (task-surface.tsx: `useOptionalOverlayHost().push`), the adapter carries only the callback.
+    // A search-URL fallback (`?q=…`) is the wrong behaviour: it navigates AWAY from the task instead
+    // of layering the parent record on top of it, so the field never carries a `linkHref` for Source.
+    const activate = vi.fn()
     const task = makeTask({ work_line_id: 'wl-1' })
+    const openSource = vi.fn(({ workLineId }: { workLineId: string | null }) =>
+      workLineId ? activate : null,
+    )
     const adapter = createTaskRecordAdapter(makeInput({
       detail: makeDetail(task),
       workLines: [{ id: 'wl-1', name: 'New menu launch', type: 'project' }],
-      buildSourceHref: ({ workLineId }) => workLineId ? `/parent/${workLineId}` : null,
+      openSource,
     }))
     const source = fieldByKey(adapter, 'source')
     expect(source.editable).toBe(false)
     expect(source.displayValue).toBe('New menu launch')
-    expect(source.linkHref).toBe('/parent/wl-1')
+    expect(source.linkHref).toBeUndefined()
+    expect(source.linkAction).toBe(activate)
+    expect(openSource).toHaveBeenCalledWith({ workLineId: 'wl-1', objectiveId: null })
   })
 
-  it('renders as a real anchor in the DOM (a link the viewer can activate)', () => {
+  it('renders as a button in the DOM and activating it invokes the linkAction (a panel-stack push)', () => {
+    const activate = vi.fn()
     const task = makeTask({ work_line_id: 'wl-1' })
     render(
       <I18nProvider>
@@ -616,18 +632,38 @@ describe('createTaskRecordAdapter — #756 AC-042: Source is a link chip that op
           adapter={createTaskRecordAdapter(makeInput({
             detail: makeDetail(task),
             workLines: [{ id: 'wl-1', name: 'New menu launch', type: 'project' }],
-            buildSourceHref: ({ workLineId }) => workLineId ? `/work/projects?q=New%20menu%20launch` : null,
+            openSource: () => activate,
           }))}
           mode="page"
           headingLevel={1}
         />
       </I18nProvider>,
     )
-    // The field cell renders as a real <a> so ⌘/Ctrl-click, right-click, tab focus and screen
-    // reader "link" semantics all come for free.
-    const chip = document.querySelector('[data-field-link="source"]') as HTMLAnchorElement
+    // The field cell renders as a real <button> — a `?q=` anchor would silently navigate away from
+    // the task instead of layering the parent record on top of it. Clicking the button invokes the
+    // adapter's linkAction, which the live task-surface wires to a panel-stack push (proven end-to-
+    // end in task-surface.test.tsx's AC-042 "the Source chip opens the parent" suite).
+    const chip = document.querySelector('[data-field-link="source"]') as HTMLButtonElement
     expect(chip).not.toBeNull()
-    expect(chip.tagName).toBe('A')
-    expect(chip.getAttribute('href')).toBe('/work/projects?q=New%20menu%20launch')
+    expect(chip.tagName).toBe('BUTTON')
+    expect(chip.getAttribute('href')).toBeNull()
+    fireEvent.click(chip)
+    expect(activate).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves Source as plain text (no button, no href) when `openSource` returns null (missing host / unknown parent)', () => {
+    // A surface without an OverlayHost (a standalone test/embed render) passes an openSource that
+    // returns null; the chip must degrade to plain text, never a dead anchor or a bare button that
+    // does nothing on click.
+    const task = makeTask({ work_line_id: 'wl-1' })
+    const adapter = createTaskRecordAdapter(makeInput({
+      detail: makeDetail(task),
+      workLines: [{ id: 'wl-1', name: 'New menu launch', type: 'project' }],
+      openSource: () => null,
+    }))
+    const source = fieldByKey(adapter, 'source')
+    expect(source.displayValue).toBe('New menu launch')
+    expect(source.linkAction).toBeUndefined()
+    expect(source.linkHref).toBeUndefined()
   })
 })

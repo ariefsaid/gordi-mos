@@ -219,7 +219,11 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
     // record anatomy regression). No fallback text; a field with nothing to explain shows none.
     const reason = spec.readOnlyReason
     // AC-042: Source is a link chip that navigates to the parent — a read-only field whose
-    // value CARRIES an href (never an editable picker's `href`, which would be a category error).
+    // value CARRIES an activator (a `linkAction` opening the parent in the shared panel stack)
+    // or, as the legacy fallback, an `href`. `linkAction` takes precedence so a chip with an
+    // action never degrades to a bare href navigation. Neither is ever set on an editable
+    // picker (that would be a category error).
+    const linkAction = spec.linkAction
     const linkHref = spec.linkHref
     const valueNode = renderValueNode(spec)
     return (
@@ -236,6 +240,16 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
         <div className="record-field__value-cell">
           {heading ? (
             <h1 className="record-field__value record-field__heading">{valueNode}</h1>
+          ) : linkAction ? (
+            <button
+              type="button"
+              className="record-field__value record-field__link-chip"
+              aria-labelledby={labelId}
+              data-field-link={spec.key}
+              onClick={linkAction}
+            >
+              {valueNode}
+            </button>
           ) : linkHref ? (
             <a
               href={linkHref}

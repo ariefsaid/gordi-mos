@@ -51,16 +51,24 @@ export interface RecordFieldSpec {
   readOnlyReason?: string
   required?: boolean
   /** A quiet subline shown BENEATH the field's value — a derived fact adjacent to the value
-   *  it qualifies ("BU: Retail Ops" beneath Team; "inherited from Dewi" beneath Supervisor
-   *  when it equals the parent Project/Process Accountable, OD-REDESIGN-41). Renders in both
+   *  it qualifies ("BU: Retail Ops" beneath Team; "inherited from <parent Supervisor>"
+   *  beneath Supervisor when it equals the parent Project/Process Accountable,
+   *  OD-REDESIGN-41). Renders in both
    *  read-only and editable modes. Distinct from `readOnlyReason` (which fires only when
    *  editable is false and names a permission/lifecycle restriction, not a derived fact). */
   helperText?: string
-  /** A read-only link chip destination (Task record "Source" field, AC-042). When set on a
+  /** A read-only link chip destination (legacy: Task record "Source" field). When set on a
    *  non-editable field the value renders inside an `<a href={linkHref}>` element so the
-   *  chip acts as a navigation into the parent record instead of a static string. Ignored
-   *  when the field is editable (an editable field is a picker, not a link). */
+   *  chip acts as a navigation. Ignored when the field is editable (an editable field is a
+   *  picker, not a link), and ignored when `linkAction` is set (which takes precedence so
+   *  the chip pushes into the shared panel stack instead of a bare href). */
   linkHref?: string
+  /** A read-only chip activator (Task record "Source" field, AC-042). When set on a
+   *  non-editable field the value renders as a `<button>` whose click invokes this callback
+   *  — the seam the tenant uses to open the parent record on the shared panel stack (Back
+   *  returns to the current record). Takes precedence over `linkHref` so a chip with an
+   *  action never degrades to a bare navigation. Ignored when the field is editable. */
+  linkAction?: () => void
 }
 
 export interface RecordMetadataSection {

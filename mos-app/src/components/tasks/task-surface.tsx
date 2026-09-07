@@ -24,6 +24,8 @@ import { canEdit } from './task-permissions'
 import { createTaskRecordAdapter, createTaskFieldCommit, type TaskViewerFieldKey, type ViewerTeamOption } from './task-record-adapter'
 import { RecordViewer } from '@/components/records/record-viewer'
 import type { RecordContentSlot, RecordViewerAdapter } from '@/components/records/record-viewer.types'
+import { useOptionalOverlayHost } from '@/shell/overlay-host'
+import type { OverlayEntry } from '@/shell/overlay-host'
 import { ChecklistCard } from './checklist-card'
 import { TaskActivity } from './task-activity'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
@@ -97,6 +99,23 @@ function DetailSkeleton() {
   )
 }
 
+// AC-042: identity-only body for a Project/Process or Objective pushed onto the shared panel
+// stack by the Task record's Source chip. The parent kinds have no bespoke record host yet, so
+// the pushed content stays minimal — real name + honest "record view coming with its own
+// ticket" line — while the shared RecordPanelHost owns Back/Close/focus verbatim. The push is
+// what the AC-042 seam guarantees now; the richer body lands with the parent kinds' own tickets.
+function ParentRecordBody({ kind, name }: { kind: 'workLine' | 'objective'; name: string }) {
+  const t = useT()
+  const typeLabel = kind === 'workLine' ? t('tasks.filter.projectProcess') : t('tasks.objective')
+  return (
+    <div className="record-parent-stub" data-parent-record={kind}>
+      <p className="record-parent-stub__type">{typeLabel}</p>
+      <h2 className="record-parent-stub__title">{name}</h2>
+      <p className="record-parent-stub__body">{t('tasks.record.parentComingSoon')}</p>
+    </div>
+  )
+}
+
 export function TaskSurface(props: TaskSurfaceProps) {
   if (props.mode === 'create') return <CreateSurface {...props} />
   return <ViewSurface {...props} />
@@ -116,6 +135,11 @@ function ViewSurface({
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
   const t = useT()
   const { locale } = useI18n()
+  // AC-042: the surface owns the OverlayHost seam so the Source chip pushes the parent record
+  // into the SAME panel stack the Task record is mounted on (Back returns to the Task). The
+  // hook is optional so a standalone-page render outside any host (test/embed) still works —
+  // the chip then simply reads as plain text (no push, no `?q=` fallback).
+  const overlayHost = useOptionalOverlayHost()
 
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -372,17 +396,44 @@ function ViewSurface({
       workLines: workLinesDir,
       viewerTeams: eligibleViewerTeams,
       parentAccountablePersonId: parentAccountable,
-      // AC-042: Source link → the parent Project/Process catalog row (the projects surface
-      // hosts the record). Objective-only tasks route to /work/objectives. A future work-line
-      // record panel can swap this for a panel-stack opener without touching the adapter.
-      buildSourceHref: ({ workLineId, objectiveId }) => {
+      // AC-042: Source chip → the parent record (Project/Process or Objective) opened in the
+      // SAME shared panel stack that hosts the Task record. `push` adds a new frame on top of
+      // this Task; the host's Back control pops back to the Task. A missing host (standalone
+      // render / embed) returns null so the chip degrades to plain text — never a `?q=` search
+      // link. The parent kinds have no bespoke record host yet, so the pushed entry mounts a
+      // minimal identity-only body carrying the parent's real name; the shared host chrome
+      // provides Back and Close verbatim.
+      openSource: ({ workLineId, objectiveId }) => {
+        if (!overlayHost) return null
         if (workLineId) {
-          const name = workLinesDir.find((wl) => wl.id === workLineId)?.name
-          return name ? `/work/projects?q=${encodeURIComponent(name)}` : null
+          const parent = workLinesDir.find((wl) => wl.id === workLineId)
+          if (!parent) return null
+          return () => {
+            const entry: OverlayEntry = {
+              key: `work-line:${parent.id}`,
+              owner: 'tasks',
+              tenant: 'record',
+              label: parent.name,
+              title: parent.name,
+              content: <ParentRecordBody kind="workLine" name={parent.name} />,
+            }
+            void overlayHost.push(entry)
+          }
         }
         if (objectiveId) {
-          const name = objectivesDir.find((o) => o.id === objectiveId)?.name
-          return name ? `/work/objectives?q=${encodeURIComponent(name)}` : null
+          const parent = objectivesDir.find((o) => o.id === objectiveId)
+          if (!parent) return null
+          return () => {
+            const entry: OverlayEntry = {
+              key: `objective:${parent.id}`,
+              owner: 'tasks',
+              tenant: 'record',
+              label: parent.name,
+              title: parent.name,
+              content: <ParentRecordBody kind="objective" name={parent.name} />,
+            }
+            void overlayHost.push(entry)
+          }
         }
         return null
       },
@@ -489,7 +540,7 @@ function ViewSurface({
   }, [
     data, localTask, localChecklist, viewerId, downlineIds, peopleDirectory, busDirectory,
     objectivesDir, workLinesDir, viewerTeamsDir, generatedFromLabel, comments, now, editable,
-    t, locale, checklistError,
+    t, locale, checklistError, overlayHost,
   ])
 
   const commitField = createTaskFieldCommit({

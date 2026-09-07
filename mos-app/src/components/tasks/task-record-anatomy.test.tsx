@@ -21,7 +21,7 @@ const PIC = 'p-pic'
 const SUPERVISOR = 'p-sup'
 // Synthetic fixture labels (never live staff names): clearly test-only so the anatomy
 // tests never accidentally publish a person-like name paired with a real ownership role
-// into a public repo (#751 round-4 security finding).
+// into a public repo (#751 round-4 security finding, #756 round-2).
 const people: PersonOption[] = [
   { id: PIC, full_name: 'Fixture PIC' },
   { id: SUPERVISOR, full_name: 'Fixture Supervisor' },

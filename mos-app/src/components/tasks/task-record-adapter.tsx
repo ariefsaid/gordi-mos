@@ -105,13 +105,14 @@ export interface TaskRecordAdapterInput {
    */
   generatedFromLabel?: string | null
   /**
-   * #756 AC-042: build a link into the task's parent Project/Process (the Source chip's
-   * destination — the record navigates the parent record via the panel stack, OD-REDESIGN-41).
-   * The adapter delegates route composition to the caller so an unknown parent kind (a bare
-   * Objective) is the caller's job to route or return null. The chip renders only when this
-   * returns a non-null href.
+   * #756 AC-042: build an ACTIVATOR that opens the task's parent Project/Process in the shared
+   * panel stack (OD-REDESIGN-41 — Back returns to the Task). The adapter delegates the stack
+   * push to the caller (the surface owns the OverlayHost seam) so an unknown parent kind or an
+   * absent host is the caller's job to route or return null. The chip renders as a real
+   * `<button>` only when this returns a non-null callback; a `null` result leaves the Source
+   * chip as plain text (never a dead link, never a `?q=` search-page navigation).
    */
-  buildSourceHref?: (input: { workLineId: string | null; objectiveId: string | null }) => string | null
+  openSource?: (input: { workLineId: string | null; objectiveId: string | null }) => (() => void) | null
   /**
    * Formats an ISO `YYYY-MM-DD` into the record's DISPLAY string. The live TaskSurface passes the
    * SAME `task-formatters.formatDate` family the table row uses (V3 owner-eyes item 2) so a record's
@@ -456,7 +457,7 @@ function statusLabel(s: TaskStatus, L: TaskRecordLabels): string {
 export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordViewerAdapter {
   const {
     detail, viewerId, downlineIds, people, businessUnits, objectives = [], workLines = [], team,
-    viewerTeams = [], parentAccountablePersonId, buildSourceHref,
+    viewerTeams = [], parentAccountablePersonId, openSource,
   } = input
   const formatDate = input.formatDate ?? ((iso: string) => iso)
   const formatAge = input.formatAge
@@ -542,8 +543,8 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
   //    parent in the panel stack; rendered only when a real attribution exists). The empty
   //    relation renders its DERIVED state word ("Ad hoc"), never the noneMarker em dash: an
   //    unattributed task is honestly ad hoc, not unattributable.
-  const sourceHref = sourceDisplay
-    ? (buildSourceHref?.({ workLineId: task.work_line_id, objectiveId: task.objective_id }) ?? null)
+  const sourceActivator = sourceDisplay
+    ? (openSource?.({ workLineId: task.work_line_id, objectiveId: task.objective_id }) ?? null)
     : null
   const relations: RecordMetadataSection = {
     id: 'relations',
@@ -581,11 +582,12 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
             readOnlyReason: undefined,
           }]
         : []),
-      // Source — AC-042: a read-only chip that navigates to the parent (Project/Process or
-      // Objective) in the panel stack. Rendered only when a real attribution EXISTS; a bare
-      // ad-hoc task carries no Source row (the Project/Process and Objective rows above already
-      // say "Ad hoc"). `linkHref` is the seam — the caller composes the concrete route via
-      // buildSourceHref; without a href the chip degrades to plain text (never a dead link).
+      // Source — AC-042: a read-only chip that opens the parent (Project/Process or Objective)
+      // in the shared panel stack (Back returns to the Task). Rendered only when a real
+      // attribution EXISTS; a bare ad-hoc task carries no Source row (the Project/Process and
+      // Objective rows above already say "Ad hoc"). `linkAction` is the seam — the caller
+      // (task-surface.tsx) composes the concrete OverlayHost push via `openSource`; without an
+      // activator the chip degrades to plain text (never a dead link, never a `?q=` navigation).
       ...(sourceDisplay
         ? [{
             key: 'source',
@@ -595,7 +597,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
             displayValue: sourceDisplay,
             editable: false,
             readOnlyReason: undefined,
-            linkHref: sourceHref ?? undefined,
+            linkAction: sourceActivator ?? undefined,
           }]
         : []),
     ],
