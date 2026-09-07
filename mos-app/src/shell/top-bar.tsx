@@ -3,8 +3,9 @@ import { useRailCompact } from './use-rail-compact'
 import { SHOW_ASSISTANT } from '@/config/features'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { useT } from '@/i18n/use-t'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useUnreadCount } from '@/hooks/useUnreadCount'
+import { useIsDesktop } from './use-is-desktop'
 import { useOptionalOverlayHost } from './overlay-host'
 import { InboxTriageConnected } from '@/components/inbox/inbox-triage-connected'
 import './top-bar.css'
@@ -129,8 +130,48 @@ function NotificationBell() {
   const navigate = useNavigate()
   const t = useT()
   const host = useOptionalOverlayHost()
+  const isPhone = !useIsDesktop()
   const { unreadCount } = useUnreadCount()
   const label = unreadCount > 0 ? t('topBar.inboxUnread', { count: unreadCount }) : t('dest.inbox')
+
+  const bellContent = (
+    <>
+      <BellIcon />
+      {unreadCount > 0 ? (
+        <span
+          aria-hidden="true"
+          className="absolute rounded-full bg-primary text-primary-foreground"
+          style={{
+            top: 2,
+            right: 2,
+            minWidth: 15,
+            height: 15,
+            fontSize: 9,
+            lineHeight: '15px',
+            fontWeight: 600,
+            textAlign: 'center',
+            padding: '0 3px',
+          }}
+        >
+          {unreadCount > 9 ? '9+' : unreadCount}
+        </span>
+      ) : null}
+    </>
+  )
+
+  if (isPhone) {
+    return (
+      <Link
+        to="/inbox"
+        aria-label={label}
+        title={label}
+        className="tap-target-phone tap-target-phone--icon relative flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground flex-none"
+        style={{ width: 32, height: 32 }}
+      >
+        {bellContent}
+      </Link>
+    )
+  }
 
   const openInbox = () => {
     // No host mounted → full route; desktop with a host → ephemeral quick triage in context.
@@ -160,26 +201,7 @@ function NotificationBell() {
       style={{ width: 32, height: 32 }}
       onClick={openInbox}
     >
-      <BellIcon />
-      {unreadCount > 0 ? (
-        <span
-          aria-hidden="true"
-          className="absolute rounded-full bg-primary text-primary-foreground"
-          style={{
-            top: 2,
-            right: 2,
-            minWidth: 15,
-            height: 15,
-            fontSize: 9,
-            lineHeight: '15px',
-            fontWeight: 600,
-            textAlign: 'center',
-            padding: '0 3px',
-          }}
-        >
-          {unreadCount > 9 ? '9+' : unreadCount}
-        </span>
-      ) : null}
+      {bellContent}
     </button>
   )
 }

@@ -1,9 +1,9 @@
-// AC-V3-006 / AC-RPH-4 — the Inbox bell quick-opens the SAME InboxTriage surface as an ephemeral
-// root in the ONE shared overlay host (no URL mutation, focus returns to the bell on close, a row
-// pushes the canonical record, internal Back returns to triage); a render without a mounted host
-// falls back to the full `/inbox` route. The compact header and bottom tab both remain phone doors.
-// Isolated file so the mocks don't perturb the broader top-bar layout tests.
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+// AC-069 / AC-070 / AC-071 — this file pins the phone bell as a link to `/inbox` and the desktop
+// bell as a quick panel in the ONE shared overlay host (no URL mutation, focus returns to the bell
+// on close, a row pushes the canonical record, internal Back returns to triage). A render without
+// a mounted host falls back to the full `/inbox` route. Isolated so the mocks don't perturb broader
+// top-bar layout tests.
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -24,6 +24,16 @@ import { useNotifications } from '@/hooks/useNotifications'
 const mockUse = vi.mocked(useNotifications)
 
 import { TopBar } from './top-bar'
+
+const originalMatchMedia = window.matchMedia
+
+afterEach(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: originalMatchMedia,
+  })
+})
 
 function notif(over: Partial<NotificationRow> = {}): NotificationRow {
   return {
@@ -56,6 +66,21 @@ function LocationProbe() {
   return <span data-testid="loc">{loc.pathname}</span>
 }
 
+function stubViewport(width: 767 | 768) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: query === '(min-width: 768px)' ? width === 768 : false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+}
+
 function renderShell() {
   return render(
     <I18nProvider>
@@ -76,10 +101,36 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockUse.mockReturnValue(hook())
   mockUnreadCount.mockReturnValue({ unreadCount: 0, loading: false, refresh: vi.fn() })
+  stubViewport(768)
 })
 
-describe('Inbox bell — two doors (AC-V3-006 / AC-RPH-4)', () => {
+describe('Inbox bell — phone link / desktop quick panel (AC-069/070/071)', () => {
+  it('AC-069: phone bell is a link to Inbox and does not mount the quick panel', () => {
+    stubViewport(767)
+    mockNarrow.mockReturnValue(true)
+    mockUnreadCount.mockReturnValue({ unreadCount: 2, loading: false, refresh: vi.fn() })
+    renderShell()
+
+    const bell = screen.getByRole('link', { name: 'Inbox, 2 unread' })
+    expect(bell).toHaveAttribute('href', '/inbox')
+    fireEvent.click(bell)
+    expect(screen.getByTestId('loc')).toHaveTextContent('/inbox')
+    expect(screen.queryByRole('group', { name: /filter notifications/i })).toBeNull()
+  })
+
+  it.each([
+    { width: 767 as const, role: 'link' as const },
+    { width: 768 as const, role: 'button' as const },
+  ])('real useIsDesktop seam at $widthpx renders the bell as a $role', ({ width, role }) => {
+    stubViewport(width)
+    mockNarrow.mockReturnValue(true)
+    renderShell()
+
+    expect(screen.getByRole(role, { name: 'Inbox' })).toBeInTheDocument()
+  })
+
   it('desktop: opens quick triage in the shared host without mutating the URL', () => {
+    stubViewport(768)
     mockNarrow.mockReturnValue(false)
     renderShell()
 
@@ -108,7 +159,8 @@ describe('Inbox bell — two doors (AC-V3-006 / AC-RPH-4)', () => {
     expect(document.querySelectorAll('[data-overlay-host]').length).toBe(1)
   })
 
-  it('AC-051: bell badge renders the shared unread figure', () => {
+  it('AC-051: desktop button renders the shared unread figure', () => {
+    stubViewport(768)
     mockNarrow.mockReturnValue(true)
     mockUnreadCount.mockReturnValue({ unreadCount: 2, loading: false, refresh: vi.fn() })
     mockUse.mockReturnValue(hook({ notifications: [notif(), notif({ id: 'n2', title: 'Hiring plan' })], unreadCount: 2 }))
@@ -120,6 +172,7 @@ describe('Inbox bell — two doors (AC-V3-006 / AC-RPH-4)', () => {
   })
 
   it('desktop: closing the quick triage returns focus to the bell', () => {
+    stubViewport(768)
     mockNarrow.mockReturnValue(false)
     renderShell()
 

@@ -11,6 +11,8 @@ import { useAuth } from '@/auth/use-auth'
 vi.mock('./use-is-narrow')
 import { useIsNarrow } from './use-is-narrow'
 
+vi.mock('./use-is-desktop', () => ({ useIsDesktop: () => true }))
+
 // OD-REDESIGN-84.2 (P1-1): TopBar reads the rail's generic wide-width regime (the brand
 // column's width must track Rail's own compact boundary). Mocked + defaulted to wide below so
 // every pre-existing test keeps rendering the full-width brand unless it opts into compact.

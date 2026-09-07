@@ -12,6 +12,8 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { AssistantPanel } from '@/components/assistant/AssistantPanel'
 
+vi.mock('./use-is-desktop', () => ({ useIsDesktop: () => true }))
+
 // Mutable flag via a getter so each test toggles SHOW_ASSISTANT without a module reset.
 const flag = { SHOW_ASSISTANT: true }
 vi.mock('@/config/features', () => ({
