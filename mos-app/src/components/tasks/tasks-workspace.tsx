@@ -168,14 +168,11 @@ export function TasksWorkspace({
   const roleDefaultView = auth.status === 'authenticated'
     ? getTaskDefaultView({ accessRoles, hasReport: auth.viewer.isManager })
     : 'all'
-  const initialQuery = useMemo(() => {
-    const legacy = queryFromLegacySavedView(savedView)
-    if (legacy) return legacy
-    if (currentSearch === '') {
-      return { ...TASK_COLLECTION_NEUTRAL_QUERY, view: roleDefaultView }
-    }
-    return undefined
-  }, [currentSearch, roleDefaultView, savedView])
+  // When this applies — the URL pins no `view` — is the engine's call, in one place (#749).
+  const initialQuery = useMemo(
+    () => queryFromLegacySavedView(savedView) ?? { ...TASK_COLLECTION_NEUTRAL_QUERY, view: roleDefaultView },
+    [roleDefaultView, savedView],
+  )
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [draftTask, setDraftTask] = useState<TaskListRow | null>(null)
   const [draftLinkError, setDraftLinkError] = useState(false)
