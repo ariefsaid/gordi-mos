@@ -351,19 +351,23 @@ export function destinationForPath(pathname: string): Destination | null {
   return destinationOwning(pathname)
 }
 
-/** The owner scan itself, with no gate asked. Shared by the two callers below. */
-function destinationOwning(pathname: string): Destination | null {
-  for (const d of ALL_DESTINATIONS) {
-    const candidates = [...d.links, ...(d.children ?? [])]
+/** The owner scan itself, with no gate asked. Shared by the callers below. */
+function ownerOf(pathname: string): { destination: Destination; link: Section } | null {
+  for (const destination of ALL_DESTINATIONS) {
+    const candidates = [...destination.links, ...(destination.children ?? [])]
     for (const link of candidates) {
       if (link.path === '/') {
-        if (pathname === '/') return d
+        if (pathname === '/') return { destination, link }
       } else if (pathname === link.path || pathname.startsWith(link.path + '/')) {
-        return d
+        return { destination, link }
       }
     }
   }
   return null
+}
+
+function destinationOwning(pathname: string): Destination | null {
+  return ownerOf(pathname)?.destination ?? null
 }
 
 /**
@@ -379,4 +383,19 @@ function destinationOwning(pathname: string): Destination | null {
  */
 export function areaTitleKeyForPath(pathname: string): MessageKey | null {
   return destinationOwning(pathname)?.labelKey ?? null
+}
+
+/**
+ * The LINK a path IS, named for a viewer standing outside it — the altitude a CAPABILITY gate
+ * denies at (`access-boundary.tsx`).
+ *
+ * A capability gate closes one link inside a destination the viewer holds. At `/work/projects` the
+ * rail beside the panel lists Work, expanded and marked active, so "Work is outside your access"
+ * contradicts the screen it is printed on. The denied thing is Projects & Processes.
+ *
+ * Null when no link owns the path; the caller falls back to `areaTitleKeyForPath`, which is the
+ * right altitude for a gate that closes a whole destination.
+ */
+export function linkTitleKeyForPath(pathname: string): MessageKey | null {
+  return ownerOf(pathname)?.link.labelKey ?? null
 }

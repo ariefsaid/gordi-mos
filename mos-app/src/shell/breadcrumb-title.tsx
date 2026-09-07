@@ -2,9 +2,11 @@
  * Breadcrumb chrome context (ADR-0013 D1 / OD-P4-9).
  *
  * Provides a lightweight cross-cutting channel so deep-mounted surfaces can push resolved
- * breadcrumb content up to the shell Breadcrumb without a global store. Two independent slots:
+ * breadcrumb content up to the shell Breadcrumb without a global store. Three independent slots:
  *   - title         — the resolved record title (TaskSurface owns this; task-drawer.tsx writes it).
  *   - collectionLeaf — the active saved-view label for a collection route (Tasks owns this today).
+ *   - boundaryLabel — the one label the access boundary is naming (access-boundary.tsx owns it),
+ *     which REPLACES the whole trail rather than extending it — see useSetBoundaryLabel.
  * They are separate fields, not a shared shape: a record title and a collection-view leaf are
  * different kinds of breadcrumb content and can be live at once (e.g. a Task drawer open over the
  * Tasks list). Their VALUES are independent — writing one never touches the other's field or
@@ -19,6 +21,8 @@
  *   useSetBreadcrumbTitle() — writer hook; sets on mount/title-change, clears on unmount.
  *   useCollectionLeaf()     — reader; returns the current collection leaf or null.
  *   useSetCollectionLeaf()  — writer hook; sets on mount/change, clears on unmount.
+ *   useBoundaryLabel()      — reader; returns the access boundary's label or null.
+ *   useSetBoundaryLabel()   — writer hook; sets on mount/change, clears on unmount.
  */
 
 // Context files intentionally mix a Provider component with reader/writer hooks —
@@ -38,6 +42,8 @@ type BreadcrumbTitleContextValue = {
   setTitle: (title: string | null) => void
   collectionLeaf: CollectionLeaf | null
   setCollectionLeaf: (leaf: CollectionLeaf | null, owner: LeafOwner) => void
+  boundaryLabel: string | null
+  setBoundaryLabel: (label: string | null) => void
 }
 
 const BreadcrumbTitleContext = createContext<BreadcrumbTitleContextValue | null>(null)
@@ -46,7 +52,9 @@ const BreadcrumbTitleContext = createContext<BreadcrumbTitleContextValue | null>
 export function BreadcrumbTitleProvider({ children }: { children: ReactNode }) {
   const [title, setTitle] = useState<string | null>(null)
   const [collectionLeaf, setCollectionLeaf] = useState<CollectionLeaf | null>(null)
+  const [boundaryLabel, setBoundaryLabel] = useState<string | null>(null)
   const setTitleStable = useCallback((t: string | null) => setTitle(t), [])
+  const setBoundaryLabelStable = useCallback((l: string | null) => setBoundaryLabel(l), [])
 
   // Tracks which writer currently owns the leaf slot, so a stale/second writer's cleanup can't
   // wipe a leaf some OTHER, still-mounted publisher owns (only matters once a second collection
@@ -67,8 +75,12 @@ export function BreadcrumbTitleProvider({ children }: { children: ReactNode }) {
   // slots' notifications from each other — see the "NOTIFICATIONS are not [independent]" note
   // above — that would need two separate contexts, which this channel doesn't need yet.
   const value = useMemo<BreadcrumbTitleContextValue>(
-    () => ({ title, setTitle: setTitleStable, collectionLeaf, setCollectionLeaf: setCollectionLeafStable }),
-    [title, setTitleStable, collectionLeaf, setCollectionLeafStable],
+    () => ({
+      title, setTitle: setTitleStable,
+      collectionLeaf, setCollectionLeaf: setCollectionLeafStable,
+      boundaryLabel, setBoundaryLabel: setBoundaryLabelStable,
+    }),
+    [title, setTitleStable, collectionLeaf, setCollectionLeafStable, boundaryLabel, setBoundaryLabelStable],
   )
 
   return (
@@ -134,4 +146,33 @@ export function useSetCollectionLeaf(leaf: CollectionLeaf | null): void {
     // same values every render (the common case) must not retrigger the effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setCollectionLeaf, label, hasNonDefaultView])
+}
+
+/** Read the access boundary's label, or null when no boundary is mounted. */
+export function useBoundaryLabel(): string | null {
+  const ctx = useContext(BreadcrumbTitleContext)
+  return ctx?.boundaryLabel ?? null
+}
+
+/**
+ * Writer hook, owned by AccessBoundary. Pass the label the panel itself prints, or null when this
+ * render is not a boundary.
+ *
+ * The shell chrome must not out-name the panel: on `/admin/people` the boundary says `Admin
+ * Settings` while the crumb would otherwise read `People`, a screen the viewer has never been
+ * shown the name of, and on `/work/projects` the trail would read `Work · Projects & Processes`
+ * over a panel that names one denied link. So this label REPLACES the trail rather than extending
+ * it (breadcrumb.tsx) — one name for the thing the viewer just hit, in both places that name it.
+ *
+ * useLayoutEffect for the same reason as the collection leaf: the crumb must not paint the
+ * withheld name for a frame before the boundary's label lands.
+ */
+export function useSetBoundaryLabel(label: string | null): void {
+  const ctx = useContext(BreadcrumbTitleContext)
+  const setBoundaryLabel = ctx?.setBoundaryLabel
+
+  useLayoutEffect(() => {
+    setBoundaryLabel?.(label)
+    return () => setBoundaryLabel?.(null)
+  }, [label, setBoundaryLabel])
 }

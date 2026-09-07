@@ -15,6 +15,9 @@ export function RequireCapability({ capability }: { capability: string }) {
   const auth = useAuth()
   // See RequireAccessRole: pre-auth is not a denial, so it stays a redirect.
   if (auth.status !== 'authenticated') return <Navigate to="/" replace />
-  if (!can(auth.viewer.accessRoles, capability)) return <AccessBoundary />
+  // `scope="link"`: this gate closes ONE link inside a destination the viewer holds — at
+  // /work/projects the rail beside the panel lists Work, expanded and active. Naming the
+  // destination here would deny something the same screen shows the viewer holding.
+  if (!can(auth.viewer.accessRoles, capability)) return <AccessBoundary scope="link" />
   return <Outlet />
 }

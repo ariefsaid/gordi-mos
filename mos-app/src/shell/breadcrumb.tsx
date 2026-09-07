@@ -1,7 +1,7 @@
 import { useLocation } from 'react-router-dom'
 import { sectionForPath } from './sections'
 import { destinationForPath, allModules, primaryModuleForViewer } from './destinations'
-import { useBreadcrumbTitle, useCollectionLeaf } from './breadcrumb-title'
+import { useBreadcrumbTitle, useCollectionLeaf, useBoundaryLabel } from './breadcrumb-title'
 import { useIsNarrow } from './use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -19,6 +19,7 @@ export function Breadcrumb() {
   const isNarrow = useIsNarrow()
   const t = useT()
   const collectionLeaf = useCollectionLeaf()
+  const boundaryLabel = useBoundaryLabel()
 
   const destination = destinationForPath(pathname)
   // No destination → nothing to show (unknown/404 path — FIX-4 preserved).
@@ -49,10 +50,15 @@ export function Breadcrumb() {
       !allModules(viewer.accessRoles).some((m) => m.id === destination.id)
   }
 
-  const destLabel = t(destination.labelKey)
-  const crumbs: string[] = [destLabel]
+  // A denied deep link is named ONCE, by the panel, and the trail says the same word: the crumb
+  // must not print the screen the boundary withholds (`People` over an `Admin Settings` panel) nor
+  // add ancestors the panel does not claim (breadcrumb-title.tsx, useSetBoundaryLabel).
+  const crumbs: string[] = boundaryLabel ? [boundaryLabel] : [t(destination.labelKey)]
 
-  if (destination.id === 'work') {
+  if (boundaryLabel) {
+    // The label is the whole trail. No child leaf, no record title, no saved view: none of them
+    // is on screen behind the panel.
+  } else if (destination.id === 'work') {
     // Work child label (Signals/Tasks/Projects & Processes/Objectives) — record routes
     // resolve to their owning child (e.g. /work/tasks/123 → Tasks).
     const child = sectionForPath(pathname)

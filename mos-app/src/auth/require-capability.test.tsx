@@ -51,10 +51,15 @@ function renderGuard(initialEntry: string, capability: string) {
 /**
  * The viewer stayed where they typed, and was told why. Nothing navigated: the catch-all Landing
  * route never mounts, so this fails the moment the guard goes back to forwarding.
+ *
+ * `denied` is the LINK this gate closed, not the destination it sits in — a capability gate closes
+ * one link inside a destination the viewer holds, and the rail beside the panel shows them holding
+ * it (`shell/destinations.tsx`, linkTitleKeyForPath).
  */
-function expectAccessBoundaryInPlace() {
+function expectAccessBoundaryInPlace(denied: string) {
   expect(screen.queryByTestId('landing')).not.toBeInTheDocument()
-  expect(screen.getByText('Work is outside your access')).toBeInTheDocument()
+  expect(screen.getByText(`${denied} is outside your access`)).toBeInTheDocument()
+  expect(screen.queryByText('Work is outside your access')).not.toBeInTheDocument()
 }
 
 describe('RequireCapability', () => {
@@ -62,7 +67,7 @@ describe('RequireCapability', () => {
     mockUseAuth.mockReturnValue(authed([]))
     renderGuard('/work/objectives', 'objective.manage')
     expect(screen.queryByTestId('protected')).not.toBeInTheDocument()
-    expectAccessBoundaryInPlace()
+    expectAccessBoundaryInPlace('Objectives')
   })
 
   it('AC-302: allows admin into /work/objectives', () => {
@@ -87,7 +92,7 @@ describe('RequireCapability', () => {
     mockUseAuth.mockReturnValue(authed(['member']))
     renderGuard('/work/objectives', 'objective.manage')
     expect(screen.queryByTestId('protected')).not.toBeInTheDocument()
-    expectAccessBoundaryInPlace()
+    expectAccessBoundaryInPlace('Objectives')
   })
 
   it('AC-302: allows ops_lead into /work/projects-processes with workline.manage', () => {
