@@ -57,7 +57,7 @@ function LocationProbe() {
   return <div data-testid="location">{loc.pathname}</div>
 }
 
-function setAuth(opts: { accessRoles: string[]; affiliated: string[] }) {
+function setAuth(opts: { accessRoles: string[]; affiliated: string[]; canReadCafePushes?: boolean }) {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -76,6 +76,7 @@ function setAuth(opts: { accessRoles: string[]; affiliated: string[] }) {
       isManager: false,
       accessRoles: opts.accessRoles,
       affiliated: opts.affiliated,
+      canReadCafePushes: opts.canReadCafePushes ?? opts.accessRoles.some((r) => r === 'ops_lead' || r === 'admin'),
     },
     signOut: vi.fn(),
   })
@@ -114,7 +115,7 @@ afterEach(() => {
 
 describe('AC-022 (#755): the `+` launcher offers the Café capture only to viewers the write gate admits', () => {
   it('AC-022: Sales (unaffiliated, no ops roles) gets Ask Deputy · Share Signal · Create task and NO Café capture', () => {
-    setAuth({ accessRoles: [], affiliated: [] })
+    setAuth({ accessRoles: [], affiliated: [], canReadCafePushes: false })
     renderShellAtHome()
 
     openLauncher()
@@ -126,7 +127,7 @@ describe('AC-022 (#755): the `+` launcher offers the Café capture only to viewe
   })
 
   it('AC-022: a Café Ops lead (`ops_lead`) sees the Café capture action', () => {
-    setAuth({ accessRoles: ['ops_lead'], affiliated: [] })
+    setAuth({ accessRoles: ['ops_lead'], affiliated: [], canReadCafePushes: false })
     renderShellAtHome()
 
     openLauncher()
@@ -134,7 +135,7 @@ describe('AC-022 (#755): the `+` launcher offers the Café capture only to viewe
   })
 
   it('AC-022: an affiliated member (no access role) sees it too — affiliation alone admits', () => {
-    setAuth({ accessRoles: [], affiliated: ['cafe'] })
+    setAuth({ accessRoles: [], affiliated: ['cafe'], canReadCafePushes: false })
     renderShellAtHome()
 
     openLauncher()
@@ -144,7 +145,7 @@ describe('AC-022 (#755): the `+` launcher offers the Café capture only to viewe
 
 describe('AC-407: the shipped shell offers the floor a one-tap Café log capture path', () => {
   it('AC-407: phone Home → an affiliated member taps the launcher entry and lands on /cafe/log', () => {
-    setAuth({ accessRoles: [], affiliated: ['cafe'] })
+    setAuth({ accessRoles: [], affiliated: ['cafe'], canReadCafePushes: false })
     renderShellAtHome()
     expect(screen.getByTestId('location')).toHaveTextContent('/')
 

@@ -34,7 +34,12 @@ import type { EsbPushRow } from '@/lib/db/kitchen-pushes'
 const mockUseAuth = vi.mocked(useAuth)
 const mockListPushes = vi.mocked(listEsbPushes)
 
-function viewer(accessRoles: string[]): AuthState {
+function viewer(accessRoles: string[], canReadCafePushes?: boolean): AuthState {
+  // The viewer's outbox-read fact is the ONE mirror of the integrations.esb_push select policy
+  // (#785): ops_lead/admin AND a manager whose position sits in a Retail Ops business unit. The
+  // helper defaults it to the accessRole arm so existing ops_lead/admin cases pass unchanged;
+  // pass true explicitly to model a Retail Ops manager (whose role → BU lookup the DB owns).
+  const admittedByRole = accessRoles.some((r) => r === 'ops_lead' || r === 'admin')
   return {
     status: 'authenticated',
     viewer: {
@@ -53,6 +58,7 @@ function viewer(accessRoles: string[]): AuthState {
       isManager: false,
       accessRoles,
       affiliated: [],
+      canReadCafePushes: canReadCafePushes ?? admittedByRole,
     },
     signOut: vi.fn(),
   } as AuthState
@@ -181,8 +187,8 @@ describe('KitchenPushesPage — auth', () => {
 
 // ── Role gate (FR-074 / AC-007) ───────────────────────────────────────────────
 
-describe('KitchenPushesPage — role gate (AC-007)', () => {
-  it('member → forbidden panel, no read call', async () => {
+describe('KitchenPushesPage — read gate (#785 AC-060 / FR-074)', () => {
+  it('AC-060: a member → restricted panel; the copy names the three admitted groups; no read call', async () => {
     mockUseAuth.mockReturnValue(viewer(['member']))
     render(
       <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/pushes']}>
@@ -190,26 +196,62 @@ describe('KitchenPushesPage — role gate (AC-007)', () => {
       </MemoryRouter>,
     )
     expect(await screen.findByRole('region', { name: /access restricted/i })).toBeInTheDocument()
-    expect(screen.getByText(/available to ops leads/i)).toBeInTheDocument()
+    expect(screen.getByText(/ops leads, admins and Retail Ops managers/i)).toBeInTheDocument()
     expect(screen.getByRole('region')).not.toHaveTextContent(/\bESB\b/i)
     expect(mockListPushes).not.toHaveBeenCalled()
   })
 
-  it('ops_lead → allowed, triggers the read', async () => {
+  it('AC-060: an ops lead is admitted and the read fires', async () => {
     mockUseAuth.mockReturnValue(viewer(['ops_lead']))
     render(<KitchenPushesPage />)
     await waitFor(() => expect(mockListPushes).toHaveBeenCalled())
-    expect(screen.queryByText(/available to ops leads/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/ops leads, admins and Retail Ops managers/i)).not.toBeInTheDocument()
   })
 
-  it('admin → allowed, triggers the read', async () => {
+  it('AC-060: an admin is admitted and the read fires', async () => {
     mockUseAuth.mockReturnValue(viewer(['admin']))
     render(<KitchenPushesPage />)
     await waitFor(() => expect(mockListPushes).toHaveBeenCalled())
-    expect(screen.queryByText(/available to ops leads/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/ops leads, admins and Retail Ops managers/i)).not.toBeInTheDocument()
   })
 
-  it('forbidden panel has a back-to-log link', async () => {
+  it('AC-060: a Retail Ops manager (admitted by the viewer read fact) sees the table with no escalate hint — the read-only reader', async () => {
+    // The viewer fact mirrors the DB rule; a manager whose position sits in Retail Ops is admitted
+    // for READ. Actions (the dead-letter escalate hint) still gate on the capability — ops_lead
+    // and admin only. This is the reader who sees the table but nothing to act on.
+    mockUseAuth.mockReturnValue(viewer(['manager'], true))
+    mockListPushes.mockResolvedValue([DEAD_LETTER_ROW])
+    render(<KitchenPushesPage />)
+    await screen.findByText('PR-20260621-002')
+    // Read-only view: no restricted panel, table is present with the dead-letter row.
+    expect(screen.queryByText(/ops leads, admins and Retail Ops managers/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    // The escalate hint is a capability affordance — hidden for the read-only viewer.
+    expect(screen.queryByText(/escalate to platform/i)).not.toBeInTheDocument()
+  })
+
+  it('AC-060: an ops lead sees the escalate hint on a dead-letter row — actions stay on the capability arm', async () => {
+    mockUseAuth.mockReturnValue(viewer(['ops_lead']))
+    mockListPushes.mockResolvedValue([DEAD_LETTER_ROW])
+    render(<KitchenPushesPage />)
+    await screen.findByText('PR-20260621-002')
+    expect(screen.getByText(/escalate to platform/i)).toBeInTheDocument()
+  })
+
+  it('AC-060: a plain manager without the outbox read fact stays restricted — the client mirrors the fact, never re-derives the rule', async () => {
+    // A manager NOT in a Retail Ops BU still holds the 'manager' access role but is NOT admitted
+    // by the outbox rule. The client reads the ONE fact and shows the restricted panel.
+    mockUseAuth.mockReturnValue(viewer(['manager'], false))
+    render(
+      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/pushes']}>
+        <KitchenPushesPage />
+      </MemoryRouter>,
+    )
+    expect(await screen.findByRole('region', { name: /access restricted/i })).toBeInTheDocument()
+    expect(mockListPushes).not.toHaveBeenCalled()
+  })
+
+  it('restricted panel has a back-to-log link', async () => {
     mockUseAuth.mockReturnValue(viewer(['member']))
     render(
       <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/pushes']}>
@@ -312,6 +354,38 @@ describe('KitchenPushesPage — populated (FR-074)', () => {
     mockListPushes.mockResolvedValue([POSTED_ROW])
     render(<KitchenPushesPage />)
     expect(await screen.findByText('1 push · 0 queued')).toBeInTheDocument()
+  })
+
+  it('AC-061: three queued pushes read "3 pushes · 3 queued"', async () => {
+    // Three pending rows, none of them held — the tally line says both counts, in words.
+    const P1 = { ...PENDING_ROW, id: 'push-q1', source_ref: 'PR-Q-001' }
+    const P2 = { ...PENDING_ROW, id: 'push-q2', source_ref: 'PR-Q-002' }
+    const P3 = { ...PENDING_ROW, id: 'push-q3', source_ref: 'PR-Q-003' }
+    mockListPushes.mockResolvedValue([P1, P2, P3])
+    render(<KitchenPushesPage />)
+    await screen.findByText('PR-Q-001')
+    expect(screen.getByText('3 pushes · 3 queued')).toBeInTheDocument()
+  })
+
+  it('AC-061 (ID): the Indonesian tally reads "3 push · 3 menunggu"', async () => {
+    const P1 = { ...PENDING_ROW, id: 'push-q1', source_ref: 'PR-Q-001' }
+    const P2 = { ...PENDING_ROW, id: 'push-q2', source_ref: 'PR-Q-002' }
+    const P3 = { ...PENDING_ROW, id: 'push-q3', source_ref: 'PR-Q-003' }
+    mockListPushes.mockResolvedValue([P1, P2, P3])
+    localStorage.setItem('mos.locale', 'id')
+    try {
+      render(
+        <MemoryRouter>
+          <I18nProvider>
+            <KitchenPushesPage />
+          </I18nProvider>
+        </MemoryRouter>,
+      )
+      await screen.findByText('PR-Q-001')
+      expect(screen.getByText('3 push · 3 menunggu')).toBeInTheDocument()
+    } finally {
+      localStorage.clear()
+    }
   })
 
   it('RI-IXD-6: desktop pushes uses the shared DataTable branch, not a kitchen-local table wrapper', async () => {

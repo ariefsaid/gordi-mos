@@ -75,6 +75,7 @@ function setAuthAs(accessRoles: string[], roleNames: string[]) {
       isManager: false,
       accessRoles,
       affiliated: roleNames.some((name) => /barista|cafe ops lead/i.test(name)) ? ['cafe'] : [],
+      canReadCafePushes: accessRoles.some((r) => r === 'ops_lead' || r === 'admin'),
     },
     signOut: vi.fn(),
   })

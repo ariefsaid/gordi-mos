@@ -673,8 +673,8 @@ export const messages = {
     'kitchen.pushes.env.goo': 'GOO',
     'kitchen.pushes.escalate': 'Escalate to platform',
     'kitchen.pushes.escalateAria': 'Manual intervention required',
-    'kitchen.pushes.leadsOnly': 'Pushes is available to ops leads only.',
-    'kitchen.pushes.leadsOnlyMsg': 'Ops leads and admins can see what was sent to the outlet system.',
+    'kitchen.pushes.leadsOnly': 'Pushes is restricted.',
+    'kitchen.pushes.leadsOnlyMsg': 'Ops leads, admins and Retail Ops managers can see what was sent to the outlet system.',
     // A held (intra-branch) movement has no ERP document and never will (FR-052/053) — said
     // in words, so it cannot be read as "not posted yet".
     'kitchen.pushes.noErpDoc': 'no ERP document',
@@ -1925,8 +1925,8 @@ export const messages = {
     'kitchen.pushes.env.goo': 'GOO',
     'kitchen.pushes.escalate': 'Eskalasi ke platform',
     'kitchen.pushes.escalateAria': 'Perlu penanganan manual',
-    'kitchen.pushes.leadsOnly': 'Antrean hanya tersedia untuk ops lead.',
-    'kitchen.pushes.leadsOnlyMsg': 'Ops lead dan admin dapat melihat kiriman ke sistem outlet.',
+    'kitchen.pushes.leadsOnly': 'Antrean dibatasi.',
+    'kitchen.pushes.leadsOnlyMsg': 'Ops lead, admin dan manajer Retail Ops dapat melihat kiriman ke sistem outlet.',
     'kitchen.pushes.noErpDoc': 'tanpa dokumen ERP',
     'kitchen.pushes.restrictedAria': 'Akses dibatasi',
     'kitchen.pushes.signInMsg': 'Anda perlu masuk untuk melihat antrean Kafe.',

@@ -60,6 +60,12 @@ export interface ViewerResult {
    *  viewers; a failed read fails closed ([] — never undefined) because RLS, never this field,
    *  refuses writes. Required so every capture selector can default-closed on it. */
   affiliated: string[]
+  /** Café pushes read admission (#785): true when the outbox select policy would admit the
+   *  viewer — ops_lead/admin or a manager whose position sits in a Retail Ops business unit.
+   *  The SAME predicate the integrations.esb_push select policy consults, asked once here so
+   *  no surface (Pushes page, Review's batch notice link) re-derives it. Fail closed to false;
+   *  RLS, not this field, is the read authority. */
+  canReadCafePushes: boolean
 }
 
 // resolveViewer: read the person by user_id, their held roles, and derive isManager.
@@ -80,7 +86,7 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
     // Warn on RLS/read error so misconfiguration doesn't silently masquerade as an orphan.
     if (personError) console.warn('viewer: person read failed', personError)
     // Orphan: no people row or read error → fail closed, no throw
-    return { person: null, roles: [], isManager: false, accessRoles: [], affiliated: [] }
+    return { person: null, roles: [], isManager: false, accessRoles: [], affiliated: [], canReadCafePushes: false }
   }
 
   // 2. Fetch the person's held role_ids ordered by created_at asc (FR-007 — earliest-assigned first).
@@ -136,11 +142,21 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
   // The affiliation answer resolves ONCE, here (#744 FR-004): shared.is_cafe_affiliated() is the
   // same predicate the write policies consult, so no surface re-derives it. Fail closed: a failed
   // read answers unaffiliated — RLS, not this field, is the write authority (NFR-001).
-  const { data: affiliatedRpc, error: affiliationError } = await supabase
-    .schema('shared')
-    .rpc('is_cafe_affiliated')
+  // The pushes read fact rides the same pattern (#785): shared.can_read_cafe_pushes() runs the
+  // SAME predicate the integrations.esb_push select policy consults, so no surface (the Pushes
+  // page's gate, Review's batch-notice link) re-derives the rule. Both fail closed to
+  // their negative answer; RLS is the read authority.
+  const [
+    { data: affiliatedRpc, error: affiliationError },
+    { data: pushesReadRpc, error: pushesReadError },
+  ] = await Promise.all([
+    supabase.schema('shared').rpc('is_cafe_affiliated'),
+    supabase.schema('shared').rpc('can_read_cafe_pushes'),
+  ])
   if (affiliationError) console.warn('viewer: affiliation read failed', affiliationError)
+  if (pushesReadError) console.warn('viewer: pushes read fact failed', pushesReadError)
   const affiliated = affiliatedRpc === true ? ['cafe'] : []
+  const canReadCafePushes = pushesReadRpc === true
   // accessRoles carries STORED access-role grants only (the JWT claim). The derived reporting-line
   // manager is exposed via the separate `isManager` boolean and MUST NOT be merged in here: since
   // ADR-0050 the string 'manager' is also a stored financial-visibility grant, and conflating the two
@@ -154,5 +170,6 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
     isManager,
     accessRoles,
     affiliated,
+    canReadCafePushes,
   }
 }

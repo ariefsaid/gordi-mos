@@ -91,7 +91,11 @@ function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
 }
 
-function viewer(accessRoles: string[]): AuthState {
+function viewer(accessRoles: string[], canReadCafePushes?: boolean): AuthState {
+  // The viewer's outbox-read fact mirrors the integrations.esb_push select policy (#785).
+  // Defaults to the accessRole arm so existing ops_lead/admin cases pass unchanged; a test that
+  // wants to exercise the "plain-text" branch of the batch notice can pass `false` explicitly.
+  const admittedByRole = accessRoles.some((r) => r === 'ops_lead' || r === 'admin')
   return {
     status: 'authenticated',
     viewer: {
@@ -104,6 +108,7 @@ function viewer(accessRoles: string[]): AuthState {
       isManager: false,
       accessRoles,
       affiliated: [],
+      canReadCafePushes: canReadCafePushes ?? admittedByRole,
     },
     signOut: vi.fn(),
   } as AuthState
@@ -356,6 +361,61 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     // re-fetched the queue (now empty)
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2))
   })
+  it('AC-062: the approved-batch notice links to /cafe/pushes when the viewer is admitted by the outbox read fact', async () => {
+    // An ops_lead is admitted by the same predicate the outbox select policy runs, so the batch
+    // notice becomes a link — one click carries the reader to the row it named. RLS, not this
+    // link, is the read authority.
+    mockUseAuth.mockReturnValue(viewer(['ops_lead']))
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-777' })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
+    // The notice text is now a link — the link's accessible name is the notice line.
+    const link = await screen.findByRole('link', { name: /Approved · batch PR-20260620-777/ })
+    expect(link).toHaveAttribute('href', '/cafe/pushes')
+  })
+
+  it('AC-062: the approved-batch notice stays plain text when the viewer is NOT admitted by the outbox read fact', async () => {
+    // A supervisor holds the reviewer capability but is NOT in the pushes readers set. Their
+    // default stream is set so the row's decision controls actually render (FR-041). The notice
+    // text is the same shape and words as the linked variant, just no <a> — identical in shape
+    // to #783.
+    mockUseAuth.mockReturnValue(viewer(['supervisor'], false))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-778' })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
+    // Wait for the notice text
+    expect(await screen.findByText(/Approved · batch PR-20260620-778/)).toBeInTheDocument()
+    // And prove it is NOT a link.
+    expect(screen.queryByRole('link', { name: /Approved · batch PR-20260620-778/ })).toBeNull()
+  })
+
+  it('AC-062 (ID): the Indonesian batch notice links to /cafe/pushes for an admitted reader', async () => {
+    // The link is a shape rule, not an English string — the Indonesian catalog carries the same
+    // shape ("Disetujui · batch …") and it too becomes a link for the admitted reader.
+    mockUseAuth.mockReturnValue(viewer(['ops_lead']))
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-779' })
+    localStorage.setItem('mos.locale', 'id')
+    try {
+      render(<KitchenReviewPage />, { wrapper })
+      await screen.findByText('Nasi Goreng')
+      // The action button label came from the ID catalog: "Setujui ${item}" (Approve).
+      fireEvent.click(screen.getByRole('button', { name: /Setujui Nasi Goreng/i }))
+      const link = await screen.findByRole('link', { name: /Disetujui · batch PR-20260620-779/ })
+      expect(link).toHaveAttribute('href', '/cafe/pushes')
+    } finally {
+      localStorage.clear()
+    }
+  })
+
   it('AC-040: off-plan approve reveals a required note + blocks until filled', async () => {
     // folded from the retired kitchen-review-row suite (the page now owns the row)
     mockList.mockResolvedValue([PROD_LOG]) // qty 8

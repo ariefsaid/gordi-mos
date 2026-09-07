@@ -38,6 +38,7 @@ function setAuthAs(accessRoles: string[] = [], roleNames: string[] = [], affilia
         reports_to_role_id: null, created_at: '', updated_at: '',
       })),
       isManager: false, accessRoles, affiliated,
+      canReadCafePushes: accessRoles.some((r) => r === 'ops_lead' || r === 'admin'),
     },
     signOut: vi.fn(),
   })

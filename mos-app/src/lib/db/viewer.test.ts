@@ -557,4 +557,77 @@ describe('resolveViewer', () => {
       expect(result.affiliated).toEqual([])
     })
   })
-}) 
+
+  // #785 — the Café pushes read admission rides the viewer payload once, mirroring the
+  // integrations.esb_push select policy via shared.can_read_cafe_pushes(). Both the Pushes
+  // page's gate and Review's batch-notice link read this ONE fact.
+  describe('ticket #785 — can_read_cafe_pushes rides the viewer payload once', () => {
+    function mockPeopleRead(): void {
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'people') {
+          return asChain({
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: personRow, error: null }),
+          })
+        }
+        return asChain({
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          then: (resolve: (v: unknown) => unknown) =>
+            Promise.resolve({ data: [], error: null }).then(resolve),
+        })
+      })
+    }
+
+    it('resolveViewer asks shared.can_read_cafe_pushes() and lifts a true answer onto the payload', async () => {
+      mockPeopleRead()
+      mockRpc.mockImplementation((name: string) =>
+        Promise.resolve({ data: name === 'can_read_cafe_pushes', error: null }),
+      )
+
+      const result = await resolveViewer(USER_ID)
+
+      expect(mockRpc).toHaveBeenCalledWith('can_read_cafe_pushes')
+      expect(result.canReadCafePushes).toBe(true)
+    })
+
+    it('a false answer carries onto the payload as false — the same predicate the outbox policy runs', async () => {
+      mockPeopleRead()
+      mockRpc.mockResolvedValue({ data: false, error: null })
+
+      const result = await resolveViewer(USER_ID)
+
+      expect(result.canReadCafePushes).toBe(false)
+    })
+
+    it('a read failure fails closed to false — RLS, not this field, is the read authority', async () => {
+      mockPeopleRead()
+      mockRpc.mockResolvedValue({ data: null, error: { message: 'rls read failed' } })
+
+      const result = await resolveViewer(USER_ID)
+
+      expect(result.canReadCafePushes).toBe(false)
+    })
+
+    it('an orphan viewer carries canReadCafePushes: false — the payload shape is total', async () => {
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'people') {
+          return asChain({
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          })
+        }
+        throw new Error(`Unexpected table: ${table}`)
+      })
+
+      const result = await resolveViewer(USER_ID)
+
+      expect(result.person).toBeNull()
+      expect(result.canReadCafePushes).toBe(false)
+    })
+  })
+})
+

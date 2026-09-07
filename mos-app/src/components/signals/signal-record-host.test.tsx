@@ -90,7 +90,7 @@ function authedViewer(personId = VIEWER_ID): Extract<AuthState, { status: 'authe
         id: personId, org_id: 'org-1', user_id: 'u1', full_name: 'Author One', email: null,
         archived_at: null, must_change_password: false, created_at: '', updated_at: '',
       },
-      roles: [], isManager: false, accessRoles: [], affiliated: [],
+      roles: [], isManager: false, accessRoles: [], affiliated: [], canReadCafePushes: false
     },
     signOut: vi.fn(),
   }

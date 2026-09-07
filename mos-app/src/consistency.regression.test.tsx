@@ -46,7 +46,7 @@ const authedState: AuthState = {
     roles: [],
     isManager: false,
     accessRoles: [],
-    affiliated: [],
+    affiliated: [], canReadCafePushes: false
   },
   signOut: async () => {},
 }

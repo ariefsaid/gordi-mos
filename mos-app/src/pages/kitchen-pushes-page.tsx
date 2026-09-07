@@ -133,7 +133,10 @@ function formatDate(iso: string | null): string {
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
-function pushColumns(t: ReturnType<typeof useT>): DataTableColumn<EsbPushRow>[] {
+// canAct gates the row-level escalate HINT (the only affordance the surface owns). A read-only
+// viewer (a Retail Ops manager admitted by the outbox rule) sees the same data — the dead-letter
+// tint stays; the hint that says "pick this up" does not, because it is an ops_lead/admin move.
+function pushColumns(t: ReturnType<typeof useT>, canAct: boolean): DataTableColumn<EsbPushRow>[] {
   return [
     {
       key: 'source_ref',
@@ -188,7 +191,7 @@ function pushColumns(t: ReturnType<typeof useT>): DataTableColumn<EsbPushRow>[] 
         return (
           <>
             <span className="kpu-cell-muted">{row.last_error}</span>
-            {isDeadLetter && (
+            {isDeadLetter && canAct && (
               <span className="kpu-escalate-hint" aria-label={t('kitchen.pushes.escalateAria')}>
                 {t('kitchen.pushes.escalate')}
               </span>
@@ -239,7 +242,7 @@ function pushColumns(t: ReturnType<typeof useT>): DataTableColumn<EsbPushRow>[] 
 // push — right for reading one record, wrong for running down a long outbox during
 // triage. Head line: batch ref + status; ONE muted meta line: env, endpoint,
 // retries, created/posted; the error + escalate block ONLY when the row carries one.
-function pushCardRenderer(t: ReturnType<typeof useT>) {
+function pushCardRenderer(t: ReturnType<typeof useT>, canAct: boolean) {
   return function renderPushCard(row: EsbPushRow) {
     const isDeadLetter = row.status === 'dead_letter'
     const showError = (row.status === 'failed' || isDeadLetter) && row.last_error
@@ -269,7 +272,7 @@ function pushCardRenderer(t: ReturnType<typeof useT>) {
         {showError && (
           <div className="kpu-card-error">
             <span className="kpu-cell-muted">{row.last_error}</span>
-            {isDeadLetter && (
+            {isDeadLetter && canAct && (
               <span className="kpu-escalate-hint" aria-label={t('kitchen.pushes.escalateAria')}>
                 {t('kitchen.pushes.escalate')}
               </span>
@@ -292,9 +295,14 @@ export function KitchenPushesPage() {
   const auth = useAuth()
   const isDesktop = useIsDesktop()
 
-  // ── Role gate (FR-074 / AC-007) — ops_lead/admin only ──────────────────────
+  // ── Read gate (#785 AC-060) — the ONE viewer fact mirrors the outbox select policy:
+  // ops_lead/admin OR a manager whose position sits in a Retail Ops business unit. The client
+  // does NOT re-derive the rule; it reads the fact resolved once during viewer resolution.
+  // Actions (the dead-letter escalate hint) still gate on the capability — read admission does
+  // not grant them. RLS remains the authority for both.
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const allowed = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
+  const canRead = auth.status === 'authenticated' && auth.viewer.canReadCafePushes
+  const canAct = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
 
   const [rows, setRows] = useState<EsbPushRow[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
@@ -311,11 +319,11 @@ export function KitchenPushesPage() {
     }
   }, [])
 
-  // Only trigger the read when allowed (a member never triggers the outbox read).
+  // Only trigger the read when the fact admits it (a member never triggers the outbox read).
   useEffect(() => {
-    if (auth.status !== 'authenticated' || !allowed) return
+    if (auth.status !== 'authenticated' || !canRead) return
     fetchPushes()
-  }, [auth.status, allowed, fetchPushes, retryKey])
+  }, [auth.status, canRead, fetchPushes, retryKey])
 
   // ── Auth loading ────────────────────────────────────────────────────────────
   if (auth.status === 'loading') {
@@ -337,8 +345,9 @@ export function KitchenPushesPage() {
     )
   }
 
-  // ── Forbidden (non-lead) — intent is clear, NOT an empty table ─────────────
-  if (!allowed) {
+  // ── Restricted (not admitted by the outbox read fact) — intent is clear, NOT an empty
+  //    table. Copy names the three admitted groups so the reader knows who to ask.
+  if (!canRead) {
     return (
       <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
         <div className="kpu-block kpu-forbidden" role="region" aria-label={t('kitchen.pushes.restrictedAria')}>
@@ -416,10 +425,10 @@ export function KitchenPushesPage() {
           </p>
           <div className="kpu-cols-host">
             <DataTable
-              columns={pushColumns(t)}
+              columns={pushColumns(t, canAct)}
               rows={rows}
               isDesktop={isDesktop}
-              renderCard={pushCardRenderer(t)}
+              renderCard={pushCardRenderer(t, canAct)}
               // #416: fixed-layout column widths — the table fits its frame instead of
               // pushing Created/Posted off screen behind a page-wide scrollbar.
               tableClassName="kpu-cols"

@@ -51,7 +51,7 @@ import { KitchenPushesPage } from './kitchen-pushes-page'
 
 const auth = { status: 'authenticated', viewer: {
   person: { id: 'p', org_id: 'o', user_id: 'u', full_name: 'Budi', email: 'budi@example.test', archived_at: null, must_change_password: false, created_at: '', updated_at: '' },
-  roles: [], isManager: false, accessRoles: ['ops_lead'], affiliated: ['cafe'],
+  roles: [], isManager: false, accessRoles: ['ops_lead'], affiliated: ['cafe'], canReadCafePushes: true
 }, signOut: vi.fn() } as unknown as AuthState
 
 const ITEMS: WipItemOption[] = [

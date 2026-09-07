@@ -384,7 +384,17 @@ export function KitchenReviewPage() {
   // (`action_type`, a plain string, DD-WAY-13), not a fixed three-literal enum.
   const [bulkAction, setBulkAction] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
-  const [notice, setNotice] = useState('')
+  // ReactNode so an "Approved · batch …" line can render as a link to /cafe/pushes for viewers
+  // the outbox read rule admits (#785 AC-062). Any other notice stays a plain string.
+  const [notice, setNotice] = useState<ReactNode>('')
+  const canReadCafePushes = auth.status === 'authenticated' && auth.viewer.canReadCafePushes
+  // The approved-batch line: linked when the same predicate the outbox select policy runs
+  // admits this viewer; plain text otherwise. Kept in the shape #783 also builds against.
+  const approvedNotice = useCallback((label: string): ReactNode => (
+    canReadCafePushes
+      ? <Link to="/cafe/pushes" className="kr-notice-link">{label}</Link>
+      : label
+  ), [canReadCafePushes])
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const isDesktop = useIsDesktop()
 
@@ -540,7 +550,7 @@ export function KitchenReviewPage() {
     try {
       const { batch_id } = await approveKitchenLog(logId, reviewNote)
       removeRow(logId)
-      setNotice(t('kitchen.review.notice.approved', { batchId: batch_id }))
+      setNotice(approvedNotice(t('kitchen.review.notice.approved', { batchId: batch_id })))
     } catch (err) {
       handleDecisionError(err)
     } finally {
@@ -660,9 +670,11 @@ export function KitchenReviewPage() {
       setNotice(t('kitchen.review.notice.bulkTruth', { approved, failed, stale: stale.length }))
     } else if (approved > 0) {
       setNotice(
-        approved === 1
-          ? t('kitchen.review.notice.approved', { batchId: batches[0] ?? '—' })
-          : t('kitchen.review.notice.bulkApproved', { approved, batchId: batches.join(', ') }),
+        approvedNotice(
+          approved === 1
+            ? t('kitchen.review.notice.approved', { batchId: batches[0] ?? '—' })
+            : t('kitchen.review.notice.bulkApproved', { approved, batchId: batches.join(', ') }),
+        ),
       )
     }
     if (stale.length > 0) setRetryKey(k => k + 1)

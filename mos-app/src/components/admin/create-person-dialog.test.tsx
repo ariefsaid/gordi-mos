@@ -40,7 +40,7 @@ const ADMIN_VIEWER: AuthState = {
     roles: [],
     isManager: false,
     accessRoles: ['admin'],
-    affiliated: [],
+    affiliated: [], canReadCafePushes: false
   },
   signOut: vi.fn(),
 }

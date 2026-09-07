@@ -43,6 +43,18 @@
   border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
   color: var(--status-won-text);
 }
+/* #785: when the batch notice links to Pushes for an admitted reader, the whole line
+   IS the link — inherit the success text color and underline so the affordance reads
+   without switching the notice out of its tint. */
+.kr-notice-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.kr-notice-link:hover,
+.kr-notice-link:focus-visible {
+  text-decoration-thickness: 2px;
+}
 .kr-banner-error {
   background: color-mix(in srgb, var(--destructive) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);

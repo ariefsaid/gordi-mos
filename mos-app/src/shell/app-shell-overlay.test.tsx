@@ -53,7 +53,7 @@ function renderShell(page: React.ReactNode) {
       roles: [],
       isManager: false,
       accessRoles: [],
-      affiliated: [],
+      affiliated: [], canReadCafePushes: false
     },
     signOut: vi.fn(),
   })

@@ -42,6 +42,7 @@ function setAuth(accessRoles: string[] = [], affiliated: string[] = ['cafe']) {
       // #744: the default persona works a café line, so scope resolves to "Café" — from the
       // affiliation payload, never the role NAME.
       affiliated,
+      canReadCafePushes: accessRoles.some((r) => r === 'ops_lead' || r === 'admin'),
     },
     signOut: vi.fn(),
   })
@@ -206,7 +207,7 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
         roles: [{ id: 'r0', org_id: 'o1', business_unit_id: null, name: 'Managing Director', reports_to_role_id: null, created_at: '', updated_at: '' }],
         isManager: true,
         accessRoles: ['admin'],
-        affiliated: [],
+        affiliated: [], canReadCafePushes: false
       },
       signOut: vi.fn(),
     })
@@ -241,7 +242,7 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
         roles: [{ id: 'r5', org_id: 'o1', business_unit_id: 'bu-cafe', name: 'Kitchen Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
         isManager: false,
         accessRoles: [],
-        affiliated: ['cafe'],
+        affiliated: ['cafe'], canReadCafePushes: false
       },
       signOut: vi.fn(),
     })
@@ -262,7 +263,7 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
         roles: [{ id: 'r4', org_id: 'o1', business_unit_id: 'bu-b2b-sales', name: 'Sales Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
         isManager: false,
         accessRoles: [],
-        affiliated: [],
+        affiliated: [], canReadCafePushes: false
       },
       signOut: vi.fn(),
     })

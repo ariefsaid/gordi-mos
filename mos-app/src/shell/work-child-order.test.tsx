@@ -86,7 +86,7 @@ function setAuth() {
       roles: [{ id: 'r0', org_id: 'o1', business_unit_id: 'bu', name: 'Managing Director', reports_to_role_id: null, created_at: '', updated_at: '' }],
       isManager: false,
       accessRoles: CURRENT_ROLES,
-      affiliated: [],
+      affiliated: [], canReadCafePushes: false
     },
     signOut: vi.fn(),
   })

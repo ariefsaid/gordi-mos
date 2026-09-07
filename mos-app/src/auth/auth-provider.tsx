@@ -51,6 +51,7 @@ export function AuthProvider({ children }: Props) {
           isManager: result.isManager,
           accessRoles: result.accessRoles,
           affiliated: result.affiliated,
+          canReadCafePushes: result.canReadCafePushes,
         },
         signOut: handleSignOut,
       })
@@ -85,6 +86,7 @@ export function AuthProvider({ children }: Props) {
             isManager: result.isManager,
             accessRoles: result.accessRoles,
             affiliated: result.affiliated,
+            canReadCafePushes: result.canReadCafePushes,
           },
           signOut: handleSignOut,
         })
