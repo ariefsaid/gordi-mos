@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { StreamBandState, StreamItem } from '@/lib/home-stream'
 import type { MessageKey } from '@/i18n/messages'
 
@@ -59,6 +60,13 @@ export interface HomeRegion {
    *  region that names a remainder must be able to show it. `count` rides along only where the
    *  region has an honest full-scope figure (my-work's "My open tasks · N →"). */
   drillTo?: HomeRegionDrillTo
+  /** Optional content rendered BEFORE the region's task rows (RegionRows). Used by needs-you to
+   *  mount the Home Needs-you-now Signal rows (#773 / AC-019) — Signals are ranked into the same
+   *  region as the task attention bands, sharing its heading. The row component is null-safe when
+   *  it has nothing to render; `preludeHasContent` says whether it renders anything, so the
+   *  region's empty state (task rows empty AND nothing in the prelude) stays correct. */
+  prelude?: ReactNode
+  preludeHasContent?: boolean
 }
 
 export interface HomeRegionInput {
@@ -77,6 +85,15 @@ export interface HomeRegionInput {
   /** The viewer's FULL open-task count (all owned, non-Done tasks) — feeds my-work's drill link.
    *  Absent (no link) when the caller has no honest count to report yet. */
   myWorkFullCount?: number
+  /** The pre-rendered Signal attention rows the needs-you region mounts BEFORE its task rows
+   *  (#773 / AC-019). HomePage owns the ONE loader + the ack write; this input is presentational
+   *  only so the region model stays framework-agnostic. */
+  needsYouPrelude?: ReactNode
+  /** How many Signal attention rows the prelude renders — added into the needs-you region's
+   *  count so the tab/tile figure reconciles with what a viewer can see below it. Undefined
+   *  while the Signal read has not succeeded (same DIV-G5 rule the task count follows); a
+   *  successful empty read is `0`. */
+  needsYouPreludeCount?: number
 }
 
 export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
@@ -93,12 +110,30 @@ export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
   const countOf = (items: StreamItem[], state: StreamBandState) =>
     state === 'ready' ? items.length : null
 
+  // The needs-you region's count union — task attention items plus Signal attention rows the
+  // prelude renders (#773). Both reads share the region's heading, so the count states them both.
+  // When a prelude is wired in and its read has NOT succeeded (its count is undefined), the union
+  // is not knowable and the count is null (DIV-G5). When no prelude is wired at all (undefined
+  // node, undefined count), the region reads as before: taskCount only.
+  const needsYouTaskCount = countOf(needsYouItems, needsYouState)
+  const preludeMounted = input.needsYouPrelude !== undefined
+  const needsYouCount =
+    needsYouTaskCount === null
+      ? null
+      : !preludeMounted
+        ? needsYouTaskCount
+        : input.needsYouPreludeCount === undefined
+          ? null
+          : needsYouTaskCount + input.needsYouPreludeCount
+
   return [
     {
       id: 'needs-you', labelKey: 'home.region.needsYou', items: needsYouItems,
-      count: countOf(needsYouItems, needsYouState),
+      count: needsYouCount,
       state: needsYouState, onRetry: retryNeedsYou,
       drillTo: drillTo('needs-you'),
+      prelude: input.needsYouPrelude,
+      preludeHasContent: (input.needsYouPreludeCount ?? 0) > 0,
     },
     {
       id: 'failed-checks', labelKey: 'home.stream.band.failedChecks', items: input.failedChecks,

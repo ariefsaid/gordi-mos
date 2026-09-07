@@ -19,22 +19,28 @@ select plan(26);
 -- A Retail Ops Head role (arm 3 of is_team_lead requires: business_unit_id = target's BU AND
 -- reports_to_role_id IS NULL). The production seed's only such root role is Managing Director,
 -- whose BU is NULL, so no persona exists to exercise arm 3 without this insert.
+--
+-- Fixture-owned ids (the 00000000-…-0000000061xx range) — separate from every id the production
+-- seed and the dev seeds already claim, following the `_test_seed_*` fixtures in
+-- 20260805000008_mos_test_seed.sql. Round 1 used 30000000-…-0000000006 for the role, which is
+-- 'Café Opener (demo)' in seed.dev-cafe-opening.sql; the primary-key collision aborted the
+-- transaction before any of AC-016..AC-018's assertions ran.
 insert into shared.roles (id, org_id, business_unit_id, name, reports_to_role_id) values
-  ('30000000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000001',
-   '20000000-0000-0000-0000-000000000014', 'Retail Ops Head', null);
+  ('00000000-0000-0000-0000-000000006100', '10000000-0000-0000-0000-000000000001',
+   '20000000-0000-0000-0000-000000000014', 'Retail Ops Head (test)', null);
 
 insert into shared.people (id, org_id, full_name, email) values
-  ('40000000-0000-0000-0000-000000000020', '10000000-0000-0000-0000-000000000001',
-   'Rana RetailHead', 'rana.retailhead.dev@example.test');
+  ('00000000-0000-0000-0000-000000006101', '10000000-0000-0000-0000-000000000001',
+   'Rana RetailHead (test)', 'rana.retailhead.test@example.test');
 
 insert into shared.person_roles (org_id, person_id, role_id) values
   ('10000000-0000-0000-0000-000000000001',
-   '40000000-0000-0000-0000-000000000020',
-   '30000000-0000-0000-0000-000000000006');
+   '00000000-0000-0000-0000-000000006101',
+   '00000000-0000-0000-0000-000000006100');
 
 insert into shared.person_access_roles (org_id, person_id, access_role) values
   ('10000000-0000-0000-0000-000000000001',
-   '40000000-0000-0000-0000-000000000020', 'member');
+   '00000000-0000-0000-0000-000000006101', 'member');
 
 -- Cikal Bar team id resolved by code (the seed creates it via shared.seed_stream_teams()).
 -- Materialize into a temp so pgTAP asserts can join without repeating the lookup.
@@ -126,7 +132,7 @@ select ok(
   'AC-017 Bulan reads is_mentioned = true (Seen ✓ chip renders prompted)');
 
 -- Retail Ops head sees it (arm 3 of is_team_lead — unit head).
-set local request.jwt.claims = '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000020","access_roles":["member"]}';
+set local request.jwt.claims = '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"00000000-0000-0000-0000-000000006101","access_roles":["member"]}';
 select is((select count(*)::int from mos.home_attention_signals() where id = '00000000-0000-0000-0000-000000006002'),
   1, 'AC-017 Retail Ops head sees the Urgent Signal (is_team_lead arm 3)');
 -- The head is NOT a mentioned viewer here — is_mentioned is false, so the chip renders plain.
@@ -153,7 +159,7 @@ select is((select count(*)::int from mos.home_attention_signals() where id = '00
 set local request.jwt.claims = '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000000","access_roles":["admin"]}';
 select is((select count(*)::int from mos.home_attention_signals() where id = '00000000-0000-0000-0000-000000006002'),
   0, 'AC-017 Dewi (admin) no longer sees the Urgent Signal after a lead''s ack');
-set local request.jwt.claims = '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000020","access_roles":["member"]}';
+set local request.jwt.claims = '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"00000000-0000-0000-0000-000000006101","access_roles":["member"]}';
 select is((select count(*)::int from mos.home_attention_signals() where id = '00000000-0000-0000-0000-000000006002'),
   0, 'AC-017 Retail Ops head no longer sees the Urgent Signal after a lead''s ack');
 

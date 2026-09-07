@@ -47,9 +47,10 @@ import { listNotifications } from '@/lib/db/notifications'
 
 vi.mock('../lib/db/home-attention-data', () => ({
   loadFailedChecksForViewer: vi.fn(),
+  loadHomeAttentionSignals: vi.fn(),
   CAFE_LOG_ROUTE: '/cafe/log',
 }))
-import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
+import { loadFailedChecksForViewer, loadHomeAttentionSignals } from '@/lib/db/home-attention-data'
 
 // Partial mock, mirroring home-page.test.tsx: only the two reads are controlled; the module's
 // other exports (feed ordering) stay real for whichever module imports them at load.
@@ -57,8 +58,9 @@ vi.mock('../lib/db/signals', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/db/signals')>()),
   listReadableSignals: vi.fn(),
   listAllTeams: vi.fn(),
+  acknowledgeSignal: vi.fn(),
 }))
-import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
+import { listReadableSignals, listAllTeams, acknowledgeSignal } from '@/lib/db/signals'
 
 vi.mock('../shell/signal-composer-host', () => ({
   useSignalComposer: () => ({ open: vi.fn(), close: vi.fn(), isOpen: false, postCount: 0 }),
@@ -111,8 +113,10 @@ beforeEach(() => {
   vi.mocked(getRoles).mockResolvedValue([])
   vi.mocked(listNotifications).mockResolvedValue([])
   vi.mocked(loadFailedChecksForViewer).mockResolvedValue([])
+  vi.mocked(loadHomeAttentionSignals).mockResolvedValue([])
   vi.mocked(listReadableSignals).mockResolvedValue([])
   vi.mocked(listAllTeams).mockResolvedValue([])
+  vi.mocked(acknowledgeSignal).mockResolvedValue(undefined)
 })
 
 // ("issue 301" not "#301" in the title: the design-token lint bans #-hex-shaped string literals.)

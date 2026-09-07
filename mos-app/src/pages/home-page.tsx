@@ -39,8 +39,11 @@ import { viewerAdmittedToRoute } from '@/shell/destinations'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { loadFailedChecksForViewer, CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
-import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
+import {
+  loadFailedChecksForViewer, CAFE_LOG_ROUTE, loadHomeAttentionSignals,
+  type HomeAttentionSignal,
+} from '@/lib/db/home-attention-data'
+import { listReadableSignals, listAllTeams, acknowledgeSignal } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople, getRoles } from '@/lib/db/directory'
 import type { RoleScopeRow } from '@/lib/db/directory'
@@ -61,6 +64,7 @@ import { HomeOverview } from '@/components/home/home-overview'
 import { HomeList } from '@/components/home/home-list'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import { signalTaskCreateHref } from '@/components/signals/signal-task-intent'
+import { HomeNeedsAttentionSignals } from '@/components/home/home-needs-attention-signals'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
 import { isShipGated } from '@/lib/ship-gate'
 import './home-page.css'
@@ -217,6 +221,55 @@ export function HomePage() {
     loadSignals()
   }, [loadSignals])
 
+  // ── Home Needs-you-now Signals (#773 / OD-WAY-96 (3, 6)) ─────────────────────
+  // The ONE loader for the attention Signal rows the needs-you region mounts BEFORE its task
+  // rows. The DB (mos.home_attention_signals) owns the read gate + the two arms; this layer
+  // just fetches, renders, and refetches after a Seen ✓ ack. Same in-flight/token/retry shape
+  // as every other loader here so a stale response from a superseded viewer can never win.
+  const [attentionSignals, setAttentionSignals] = useState<HomeAttentionSignal[]>([])
+  const [attentionSignalsState, setAttentionSignalsState] = useState<FetchState>('loading')
+  const attentionSignalsInFlightRef = useRef(false)
+  const attentionSignalsTokenRef = useRef(0)
+
+  const loadAttentionSignals = useCallback(() => {
+    if (!personId || attentionSignalsInFlightRef.current) return
+    attentionSignalsInFlightRef.current = true
+    const token = ++attentionSignalsTokenRef.current
+    setAttentionSignalsState('loading')
+    loadHomeAttentionSignals()
+      .then(rows => {
+        if (!isMountedRef.current || attentionSignalsTokenRef.current !== token) return
+        setAttentionSignals(rows)
+        setAttentionSignalsState('ready')
+      })
+      .catch(() => {
+        if (!isMountedRef.current || attentionSignalsTokenRef.current !== token) return
+        setAttentionSignalsState('error')
+      })
+      .finally(() => {
+        if (attentionSignalsTokenRef.current === token) attentionSignalsInFlightRef.current = false
+      })
+  }, [personId])
+
+  useEffect(() => {
+    attentionSignalsTokenRef.current += 1
+    attentionSignalsInFlightRef.current = false
+    loadAttentionSignals()
+  }, [loadAttentionSignals])
+
+  // Seen ✓ toggle: idempotent ack (23505 is swallowed inside acknowledgeSignal) then refetch, so
+  // the row disappears from THIS viewer's Needs you now on the next paint. A lead's ack clears
+  // it for every lead; a mentioned viewer's ack clears only their view — the DB decides which
+  // side of that split runs, this handler is the same either way.
+  const onSeenAttentionSignal = useCallback((signalId: string) => {
+    void acknowledgeSignal(signalId).then(() => {
+      if (!isMountedRef.current) return
+      loadAttentionSignals()
+    // A failed ack leaves the row where it was rather than silently declaring success — a next
+    // click retries the same write (idempotent on the server anyway).
+    }).catch(() => { /* noop — the row stays until the next successful ack */ })
+  }, [loadAttentionSignals])
+
   // ── Display directory (Luna J01/J02 decision context) — the SAME shared read the app already
   // uses. Best-effort ENRICHMENT only: decorates task rows with the PIC (Responsible) + owning-BU
   // caption; its absence never blocks or errors a band (rows just render without the meta line).
@@ -318,6 +371,22 @@ export function HomePage() {
   // items rendered in the region) — feeds the restored "My open tasks · N →" drill link.
   const openCount = ready && personId ? openTaskCount(tasks, personId) : 0
 
+  // The Signal attention rows for the needs-you region (#773 / AC-019). Pre-built here so the
+  // region model stays presentation-agnostic; the row component is null-safe when it has nothing
+  // to render, and the prelude's count is only knowable once the read has succeeded (DIV-G5).
+  // Memoized so its identity survives unrelated re-renders — otherwise the `regions` useMemo
+  // below would rebuild on every render, defeating its whole purpose.
+  const attentionSignalsReady = attentionSignalsState === 'ready'
+  const attentionAuthorNames = directory.people ?? NO_NAMES
+  const attentionSignalsNode = useMemo(() => (
+    <HomeNeedsAttentionSignals
+      signals={attentionSignals}
+      authorNamesById={attentionAuthorNames}
+      teamNamesById={teamNames}
+      onSeen={onSeenAttentionSignal}
+    />
+  ), [attentionSignals, attentionAuthorNames, teamNames, onSeenAttentionSignal])
+
   // The ONE region model shared by all three arrangements (FR-930) — a layout chooses how to
   // present these regions, never which of them exist (NFR-924 parity). needs-you and my-work share
   // the ONE tasks-projection state + retry (DIV-G5); failed-checks carries its own.
@@ -328,10 +397,13 @@ export function HomePage() {
       taskState, onRetryTasks: loadTasks,
       failedChecksState: failedChecksBand.state, onRetryFailedChecks: loadFailedChecks,
       myWorkFullCount: ready ? openCount : undefined,
+      needsYouPrelude: attentionSignalsNode,
+      needsYouPreludeCount: attentionSignalsReady ? attentionSignals.length : undefined,
     }),
     [
       overdue, dueToday, blocked, myWork, failedChecksBand,
       taskState, loadTasks, loadFailedChecks, ready, openCount,
+      attentionSignalsNode, attentionSignalsReady, attentionSignals.length,
     ],
   )
 

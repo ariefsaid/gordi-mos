@@ -84,7 +84,9 @@ export function RegionRows({ region, items }: {
   // A ready region with nothing in it must SAY so. Rendering an empty <ul> left a blank tab body
   // (Focused), a hollow card (Overview) and a dangling band heading (List) — none of which
   // distinguishes "clear" from "broken", which is the whole point of keeping the region (FR-929).
-  if (rows.length === 0) {
+  // A prelude that renders content (#773 — Signal attention rows above the task rows) means the
+  // region is NOT empty even if the task rows are; the all-clear line would be wrong.
+  if (rows.length === 0 && !region.preludeHasContent) {
     // The state-kit EmptyState in its compact `stream-all-clear` treatment — the SAME primitive the
     // attention group already uses for an all-clear, rather than a plain muted <p> that reads as
     // leftover text. `nested`: the band around it is already the labelled landmark, so this must
@@ -103,6 +105,7 @@ export function RegionRows({ region, items }: {
       />
     )
   }
+  const prelude = region.prelude ?? null
   // Overview renders a region's top rows only. Stating the remainder keeps the tile honest at the
   // volume OD-V4-7 exists for (product principle: numbers traceable or visibly absent) — and the
   // fact IS the affordance: naming N items and then offering no route to them is a dead end
@@ -112,11 +115,14 @@ export function RegionRows({ region, items }: {
   const hidden = region.items.length - rows.length
   return (
     <>
-      <ul className="stream-band-list">
-        {rows.map((i) => (
-          <StreamRow key={i.id} item={i} hidePic={HIDE_PIC[region.id]} reasonStyle={REASON_STYLE[region.id]} />
-        ))}
-      </ul>
+      {prelude}
+      {rows.length > 0 && (
+        <ul className="stream-band-list">
+          {rows.map((i) => (
+            <StreamRow key={i.id} item={i} hidePic={HIDE_PIC[region.id]} reasonStyle={REASON_STYLE[region.id]} />
+          ))}
+        </ul>
+      )}
       {hidden > 0 && (region.drillTo
         // The visible text is the same short fact ("5 more →"); the accessible name names the
         // region too, so the link's purpose survives being read out of its surrounding tile.

@@ -72,10 +72,15 @@ const mockListNotifications = vi.mocked(listNotifications)
 
 vi.mock('../lib/db/home-attention-data', () => ({
   loadFailedChecksForViewer: vi.fn(),
+  loadHomeAttentionSignals: vi.fn(),
   CAFE_LOG_ROUTE: '/cafe/log',
 }))
-import { loadFailedChecksForViewer, CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
+import {
+  loadFailedChecksForViewer, loadHomeAttentionSignals, CAFE_LOG_ROUTE,
+} from '@/lib/db/home-attention-data'
+import type { HomeAttentionSignal } from '@/lib/db/home-attention-data'
 const mockLoadFailedChecks = vi.mocked(loadFailedChecksForViewer)
+const mockLoadAttentionSignals = vi.mocked(loadHomeAttentionSignals)
 
 // The shared admission authority (#246) — the test asks it the same question Home asks, so the
 // expectation tracks the route, never a hand-copied role list.
@@ -88,11 +93,13 @@ vi.mock('../lib/db/signals', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/db/signals')>()),
   listReadableSignals: vi.fn(),
   listAllTeams: vi.fn(),
+  acknowledgeSignal: vi.fn(),
 }))
-import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
+import { listReadableSignals, listAllTeams, acknowledgeSignal } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 const mockListSignals = vi.mocked(listReadableSignals)
 const mockListAllTeams = vi.mocked(listAllTeams)
+const mockAcknowledgeSignal = vi.mocked(acknowledgeSignal)
 
 // Home mounts inside AppShell's SignalComposerHost in the app; these page tests render HomePage
 // alone, so the composer door is stubbed to the one thing the feed asks of it.
@@ -226,6 +233,8 @@ beforeEach(() => {
   mockLoadFailedChecks.mockResolvedValue([])
   mockListSignals.mockResolvedValue([])
   mockListAllTeams.mockResolvedValue([])
+  mockLoadAttentionSignals.mockResolvedValue([])
+  mockAcknowledgeSignal.mockResolvedValue(undefined)
 })
 
 describe('AC-H01/OD-17: Home never renders the revenue/margin KPI tiles nor calls the finance DAL', () => {
@@ -311,6 +320,8 @@ describe('Issue 246 / OD-WAY-51: Home\'s failed-checks band agrees with what /ca
       mockLoadFailedChecks.mockResolvedValue([failedCheck])
       mockListSignals.mockResolvedValue([])
       mockListAllTeams.mockResolvedValue([])
+      mockLoadAttentionSignals.mockResolvedValue([])
+      mockAcknowledgeSignal.mockResolvedValue(undefined)
       const { unmount } = await renderHome(withRole(name))
       await screen.findByRole('tablist')
       await userEvent.click(screen.getByRole('tab', { name: /failed checks/i }))
@@ -680,5 +691,73 @@ describe('issue 444 mechanism: the door component itself never learned about the
     )
     const link = screen.getByRole('link', { name: /see progress/i })
     expect(link.getAttribute('href')).toBe('/work/objectives')
+  })
+})
+
+// #773 AC-019 — the Needs-you-now Signal row is MOUNTED on Home, not just built. The isolated
+// row/toggle grammar is covered by components/home/home-needs-attention-signals.test.tsx; this
+// block asserts the wiring the real HomePage owns: mos.home_attention_signals is READ into the
+// needs-you region, the row renders inside "Needs you now", and toggling Seen ✓ ack's the
+// Signal AND refetches so the row disappears from THIS viewer's tab.
+describe('AC-019: Needs-attention Signal rows mount inside the "Needs you now" region', () => {
+  const CIKAL_TEAM = '00000000-0000-0000-0000-000000006201'
+  const CAHYA_ID = financeViewer.viewer.person.id
+
+  function attentionSignalRow(overrides: Partial<HomeAttentionSignal> = {}): HomeAttentionSignal {
+    return {
+      id: 'signal-attn-1',
+      owning_team_id: CIKAL_TEAM,
+      author_id: CAHYA_ID,
+      body: 'Cikal grinder is jammed',
+      occurred_at: '2026-09-07T05:00:00Z',
+      attention: 'Needs attention',
+      category: null,
+      is_mentioned: false,
+      ...overrides,
+    }
+  }
+
+  it('the Signal row lives in the "Needs you now" tab with its attention pill + Seen ✓ chip', async () => {
+    mockLoadAttentionSignals.mockResolvedValue([attentionSignalRow()])
+    mockGetPeople.mockResolvedValue([{ id: CAHYA_ID, full_name: 'Cahya Cafe' }])
+    mockListAllTeams.mockResolvedValue([
+      { id: CIKAL_TEAM, name: 'Cikal Bar', business_unit_id: 'bu-cafe', site_id: null, is_primary: false },
+    ])
+
+    await renderHome(financeViewer)
+    const tab = await screen.findByRole('tab', { name: /needs you now/i })
+    // The tab count adds the Signal into the region total (0 tasks + 1 Signal = 1).
+    expect(tab.textContent).toMatch(/1/)
+    await userEvent.click(tab)
+
+    // The row is the shared home-signal-row anatomy under this tab's panel, and it carries the
+    // attention pill + Seen ✓ chip that the row grammar owns.
+    const list = await screen.findByTestId('home-needs-attention-signals')
+    expect(within(list).getByText('Cikal grinder is jammed')).toBeInTheDocument()
+    expect(within(list).getByText(/needs attention/i)).toHaveClass('home-signal-attention--needs-attention')
+    expect(within(list).getByRole('button', { name: /seen/i })).toBeInTheDocument()
+  })
+
+  it('toggling Seen ✓ calls acknowledgeSignal(id) and refetches — the row disappears', async () => {
+    mockLoadAttentionSignals
+      .mockResolvedValueOnce([attentionSignalRow()])
+      // After the ack, the DB no longer returns the row for this caller.
+      .mockResolvedValueOnce([])
+    mockGetPeople.mockResolvedValue([{ id: CAHYA_ID, full_name: 'Cahya Cafe' }])
+    mockListAllTeams.mockResolvedValue([
+      { id: CIKAL_TEAM, name: 'Cikal Bar', business_unit_id: 'bu-cafe', site_id: null, is_primary: false },
+    ])
+
+    await renderHome(financeViewer)
+    await userEvent.click(await screen.findByRole('tab', { name: /needs you now/i }))
+    const list = await screen.findByTestId('home-needs-attention-signals')
+    expect(within(list).getByText('Cikal grinder is jammed')).toBeInTheDocument()
+
+    await userEvent.click(within(list).getByRole('button', { name: /seen/i }))
+
+    expect(mockAcknowledgeSignal).toHaveBeenCalledExactlyOnceWith('signal-attn-1')
+    await waitFor(() =>
+      expect(screen.queryByTestId('home-needs-attention-signals')).toBeNull())
+    expect(screen.queryByText('Cikal grinder is jammed')).toBeNull()
   })
 })

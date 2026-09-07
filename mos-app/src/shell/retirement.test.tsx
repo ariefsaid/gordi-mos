@@ -58,6 +58,7 @@ vi.mock('@/lib/db/notifications', () => ({
 }))
 vi.mock('@/lib/db/home-attention-data', () => ({
   loadFailedChecksForViewer: vi.fn().mockResolvedValue([]),
+  loadHomeAttentionSignals: vi.fn().mockResolvedValue([]),
   CAFE_LOG_ROUTE: '/cafe/log',
 }))
 // PARTIAL mock: the feed's ranking (`orderSignalsForFeed`) must stay the production one;
@@ -67,6 +68,7 @@ vi.mock('@/lib/db/signals', async (importOriginal) => ({
   listReadableSignals: vi.fn().mockResolvedValue([]),
   listAllTeams: vi.fn().mockResolvedValue([]),
   searchSignalsByBody: vi.fn().mockResolvedValue([]),
+  acknowledgeSignal: vi.fn().mockResolvedValue(undefined),
 }))
 vi.mock('@/lib/db/follow-ups', () => ({
   searchFollowUpsByCounterparty: vi.fn().mockResolvedValue([]),
