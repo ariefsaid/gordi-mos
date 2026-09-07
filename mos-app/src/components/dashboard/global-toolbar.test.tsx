@@ -196,6 +196,25 @@ describe('GlobalToolbar (AC-011)', () => {
     expect(screen.queryByLabelText('From')).toBeNull()
   })
 
+  it('AC-050 (#804): phone Range sheet seeds from clamped to earliest when the data window is shorter than 30 days', () => {
+    // Data window is only 5 days (2026-06-26 to 2026-07-01). The seeded "from" must equal
+    // the earliest available day, not 29 days before "to" (which would be before the data).
+    const shortBounds = { earliest: '2026-06-26', latest: '2026-07-01' }
+    render(
+      <GlobalToolbar
+        cut="Branch"
+        onCutChange={vi.fn()}
+        window={WINDOW}
+        onWindowChange={vi.fn()}
+        bounds={shortBounds}
+      />,
+    )
+    fireEvent.click(screen.getByRole('tab', { name: 'Range' }))
+    const sheet = screen.getByRole('dialog', { name: /custom range/i })
+    const from = within(sheet).getByLabelText('From')
+    expect(from).toHaveValue(shortBounds.earliest)
+  })
+
   it('on desktop the range pair stays inline beside the seg — no sheet, no separate row', () => {
     stubViewport(true)
     const { container } = render(

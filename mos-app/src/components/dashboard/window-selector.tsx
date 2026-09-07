@@ -7,7 +7,7 @@
 // {kind:'custom', from, to}. Reuses the `seg` grammar (CutToggle's tablist shape).
 import { useRef, type KeyboardEvent } from 'react'
 import type { WindowSpec } from '@/lib/dashboard'
-import { isoDaysBefore } from '@/lib/trailing-window'
+import { seedBoundsRange } from '@/lib/trailing-window'
 import { useT } from '@/i18n/use-t'
 import { Chevron } from '@/shell/icons'
 import './window-selector.css'
@@ -81,11 +81,7 @@ export function WindowSelector({
         onRangeOpen()
         return
       }
-      // Seed the custom range from the bounds (latest reporting day back ~30d by default,
-      // clamped to the available window) so the picker opens on a valid range.
-      const latest = bounds?.latest ?? isoDaysFromToday(-1)
-      const earliest = bounds?.earliest ?? isoDaysFromToday(-60)
-      const seededFrom = isoDaysBefore(latest, Math.min(29, daysBetween(earliest, latest)))
+      const { from: seededFrom, to: latest } = seedBoundsRange(bounds)
       onChange({ kind: 'custom', from: seededFrom, to: latest })
       return
     }
@@ -186,17 +182,3 @@ export function WindowRangeFields({
   )
 }
 
-// ── tiny ISO date helper (no Date.now() for reporting math; bounds come from rows) ─
-function isoDaysFromToday(delta: number): string {
-  // Only used as a fallback when bounds are null (no rows yet) — never for the
-  // reporting-period anchor (that's bounds.latest from the rows, FR-005).
-  const d = new Date()
-  d.setUTCDate(d.getUTCDate() + delta)
-  return d.toISOString().slice(0, 10)
-}
-
-function daysBetween(earliestIso: string, latestIso: string): number {
-  const a = new Date(`${earliestIso}T00:00:00Z`).getTime()
-  const b = new Date(`${latestIso}T00:00:00Z`).getTime()
-  return Math.max(0, Math.round((b - a) / 86_400_000))
-}

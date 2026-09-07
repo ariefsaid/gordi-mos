@@ -13,7 +13,6 @@ import {
   resolveWindow,
   compareWindow,
   availableWindowBounds,
-  formatGrossMarginValue,
   formatMarginPct,
   DEFAULT_WINDOW,
 } from '@/lib/dashboard'
@@ -314,15 +313,6 @@ describe('aggregateByCut', () => {
 })
 
 // ── Display helpers ──────────────────────────────────────────────────────────────
-describe('formatGrossMarginValue', () => {
-  it('formats a non-null amount compactly', () => {
-    expect(formatGrossMarginValue(28_000_000)).toBe('Rp 28 jt')
-  })
-  it('returns em-dash for null (sync-gap)', () => {
-    expect(formatGrossMarginValue(null)).toBe('—')
-  })
-})
-
 describe('formatMarginPct', () => {
   it('formats a percentage with comma decimal', () => {
     expect(formatMarginPct(0.423)).toBe('42,3%')

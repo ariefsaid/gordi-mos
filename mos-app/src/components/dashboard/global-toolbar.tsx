@@ -15,9 +15,9 @@ import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import { Button } from '@/components/ui/button'
 import { ModalShell } from '@/components/ui/modal-shell'
+import { seedBoundsRange } from '@/lib/trailing-window'
 import { CutToggle } from './cut-toggle'
 import { WindowSelector, WindowRangeFields } from './window-selector'
-import { isoDaysBefore } from '@/lib/trailing-window'
 import './global-toolbar.css'
 
 export interface GlobalToolbarProps {
@@ -30,14 +30,13 @@ export interface GlobalToolbarProps {
 
 const CUT_OPTIONS: Array<'Branch' | 'Channel' | 'Activity'> = ['Branch', 'Channel', 'Activity']
 
-/** The range the sheet opens on: the live custom window, else the tail of the snapshot window. */
+/** The range the sheet opens on: the live custom window, else the tail of the snapshot window clamped to earliest. */
 function seedRange(
   value: WindowSpec,
   bounds: { earliest: string; latest: string } | null,
 ): { from: string; to: string } {
   if (value.kind === 'custom') return { from: value.from, to: value.to }
-  const to = bounds?.latest ?? ''
-  return { from: to ? isoDaysBefore(to, 29) : '', to }
+  return seedBoundsRange(bounds)
 }
 
 export function GlobalToolbar({

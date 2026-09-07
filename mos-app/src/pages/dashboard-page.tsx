@@ -529,7 +529,7 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
 // A reporting tile states its own basis and its own as-of, and a figure with no basis is
 // ABSENT — never "—". The em-dash is the defect this replaces: it tells a reader a number
 // exists here and is being withheld, when the truth is that the snapshot carries none. So
-// `value: null` IS the absence, in one place, rather than nine call sites each choosing a
+// `value: null` IS the absence, in one place, rather than each call site choosing a
 // placeholder.
 type MoneyTile = Omit<KPITileProps, 'value' | 'basis' | 'asOf'> & {
   id: string
@@ -551,8 +551,8 @@ function renderMoneyTiles(tiles: MoneyTile[], asOf: string | null) {
     ))
 }
 
-// ── The persistent chrome (toolbar + tabs) — renders in every state so the user sees
-//    structure even in loading/empty/error (mockup STATE NOTES, FR-011/AC-011). ─────
+// ── The persistent chrome (toolbar + tabs) — renders in loading and error so the user
+//    sees structure while the page resolves (mockup STATE NOTES, FR-011/AC-011). ─────
 interface DashboardChromeProps {
   cut: DashboardCut
   onCut: (c: DashboardCut) => void
