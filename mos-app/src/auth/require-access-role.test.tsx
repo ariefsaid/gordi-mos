@@ -1,5 +1,6 @@
-// RequireAccessRole guard tests (OD-C-2). Generic anyOf gate nested under
-// ProtectedRoute: a session holding ANY listed role sees the outlet, else → /.
+// RequireAccessRole guard tests (OD-C-2). Generic anyOf gate nested under ProtectedRoute: a
+// session holding ANY listed role sees the outlet; an authenticated session that holds none meets
+// the access boundary in place (#800); a session that is not authenticated yet still redirects.
 
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -55,11 +56,14 @@ describe('RequireAccessRole', () => {
     expect(screen.getByTestId('content')).toBeInTheDocument()
   })
 
-  it('redirects to / when the viewer holds none of the allowed roles', () => {
+  it('shows the access boundary in place, not a bounce home, when the viewer holds none of the allowed roles', () => {
     mockUseAuth.mockReturnValue(authed(['member']))
     renderGuard(['ops_lead', 'admin'])
     expect(screen.queryByTestId('content')).not.toBeInTheDocument()
-    expect(screen.getByTestId('home')).toBeInTheDocument()
+    expect(screen.queryByTestId('home')).not.toBeInTheDocument()
+    // `/catalog` belongs to no destination — the boundary still names an area rather than
+    // rendering a sentence with a hole in it.
+    expect(screen.getByText('This area is outside your access')).toBeInTheDocument()
   })
 
   it('redirects to / while loading (no protected content flash)', () => {

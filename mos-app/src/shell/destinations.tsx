@@ -348,15 +348,54 @@ export function destinationForPath(pathname: string): Destination | null {
   // `/work/projects` to the Work destination and, with `sectionForPath` already closed, print
   // "Work · Tasks" over a surface that is neither.
   if (isShipGated(pathname)) return null
-  for (const d of ALL_DESTINATIONS) {
-    const candidates = [...d.links, ...(d.children ?? [])]
+  return destinationOwning(pathname)
+}
+
+/** The owner scan itself, with no gate asked. Shared by the callers below. */
+function ownerOf(pathname: string): { destination: Destination; link: Section } | null {
+  for (const destination of ALL_DESTINATIONS) {
+    const candidates = [...destination.links, ...(destination.children ?? [])]
     for (const link of candidates) {
       if (link.path === '/') {
-        if (pathname === '/') return d
+        if (pathname === '/') return { destination, link }
       } else if (pathname === link.path || pathname.startsWith(link.path + '/')) {
-        return d
+        return { destination, link }
       }
     }
   }
   return null
+}
+
+function destinationOwning(pathname: string): Destination | null {
+  return ownerOf(pathname)?.destination ?? null
+}
+
+/**
+ * The AREA a path belongs to, named for a viewer standing outside it (`access-boundary.tsx`).
+ *
+ * Destination-level, not link-level: `/admin/people` is "Admin Settings", the area an admin would
+ * grant, not "People", a screen the viewer has never seen named.
+ *
+ * It asks no gate — neither the ship gate nor the destination's own `anyOf`. Both are exactly the
+ * conditions under which a boundary renders, so `destinationForPath`'s fail-closed `null` would
+ * leave the panel unable to name what the viewer just hit. Naming an area is not exposing it: the
+ * area's label is already in the catalog every viewer downloads.
+ */
+export function areaTitleKeyForPath(pathname: string): MessageKey | null {
+  return destinationOwning(pathname)?.labelKey ?? null
+}
+
+/**
+ * The LINK a path IS, named for a viewer standing outside it — the altitude a CAPABILITY gate
+ * denies at (`access-boundary.tsx`).
+ *
+ * A capability gate closes one link inside a destination the viewer holds. At `/work/projects` the
+ * rail beside the panel lists Work, expanded and marked active, so "Work is outside your access"
+ * contradicts the screen it is printed on. The denied thing is Projects & Processes.
+ *
+ * Null when no link owns the path; the caller falls back to `areaTitleKeyForPath`, which is the
+ * right altitude for a gate that closes a whole destination.
+ */
+export function linkTitleKeyForPath(pathname: string): MessageKey | null {
+  return ownerOf(pathname)?.link.labelKey ?? null
 }

@@ -4,8 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 
 vi.mock('./use-auth')
 import { useAuth } from './use-auth'
-import { RequireCapability, CAPABILITY_FALLBACK_PATH } from './require-capability'
-import { expectOneHop } from '@/test/route-table'
+import { RequireCapability } from './require-capability'
 
 const mockUseAuth = vi.mocked(useAuth)
 
@@ -27,10 +26,10 @@ function authed(accessRoles: string[]) {
   }
 }
 
-// Where the bounce lands, reported rather than asserted here. The harness deliberately mounts NO
-// destination of its own: a stub route mounted inside this file proves only that <Navigate> fired,
-// and stays green even when the production router serves nothing at that path (#217). The landing
-// path is instead resolved against the real table by `expectLandsOnALiveSurface` below.
+// Where a redirect lands, reported rather than asserted here. A capability miss no longer
+// redirects at all (#800) — it renders the access boundary in place, which is why the
+// "lands on a live surface" contract this file used to carry is gone rather than relaxed: there
+// is no landing route left to keep alive. The catch-all survives for the pre-auth redirect below.
 function Landing() {
   return <div data-testid="landing">{useLocation().pathname}</div>
 }
@@ -50,26 +49,25 @@ function renderGuard(initialEntry: string, capability: string) {
 }
 
 /**
- * The bounce landed somewhere the PRODUCTION route table (src/router.tsx) actually serves — not the
- * not-found catch-all, and not another redirect. Delete that route from the real table and this
- * goes red, which is the whole point: the guard must not trade a hidden route for a dead end.
+ * The viewer stayed where they typed, and was told why. Nothing navigated: the catch-all Landing
+ * route never mounts, so this fails the moment the guard goes back to forwarding.
+ *
+ * `denied` is the LINK this gate closed, not the destination it sits in — a capability gate closes
+ * one link inside a destination the viewer holds, and the rail beside the panel shows them holding
+ * it (`shell/destinations.tsx`, linkTitleKeyForPath).
  */
-function expectLandsOnALiveSurface() {
-  const landed = screen.getByTestId('landing').textContent!
-  expect(landed).toBe(CAPABILITY_FALLBACK_PATH)
-  // The same one-hop contract the redirect map is held to (#220): the landing path must exist in
-  // the production table, must not be the not-found catch-all, must not be a second redirect, and
-  // must not sit behind a gate of its own — bouncing onto a gated surface is bouncing onto another
-  // bounce. The bounce originates from an ungated capability miss, so `/` is the honest source.
-  expectOneHop('/', landed)
+function expectAccessBoundaryInPlace(denied: string) {
+  expect(screen.queryByTestId('landing')).not.toBeInTheDocument()
+  expect(screen.getByText(`${denied} is outside your access`)).toBeInTheDocument()
+  expect(screen.queryByText('Work is outside your access')).not.toBeInTheDocument()
 }
 
 describe('RequireCapability', () => {
-  it('AC-002 (#179, #217): a viewer without the capability lands on a surface the production router serves', () => {
+  it('AC-002 (#179, #217, #800): a viewer without the capability meets the boundary where they are', () => {
     mockUseAuth.mockReturnValue(authed([]))
     renderGuard('/work/objectives', 'objective.manage')
     expect(screen.queryByTestId('protected')).not.toBeInTheDocument()
-    expectLandsOnALiveSurface()
+    expectAccessBoundaryInPlace('Objectives')
   })
 
   it('AC-302: allows admin into /work/objectives', () => {
@@ -90,11 +88,11 @@ describe('RequireCapability', () => {
     expect(screen.getByTestId('protected')).toBeInTheDocument()
   })
 
-  it('AC-302: redirects member from /work/objectives without objective.manage', () => {
+  it('AC-302: holds member out of /work/objectives without objective.manage', () => {
     mockUseAuth.mockReturnValue(authed(['member']))
     renderGuard('/work/objectives', 'objective.manage')
     expect(screen.queryByTestId('protected')).not.toBeInTheDocument()
-    expectLandsOnALiveSurface()
+    expectAccessBoundaryInPlace('Objectives')
   })
 
   it('AC-302: allows ops_lead into /work/projects-processes with workline.manage', () => {
@@ -103,10 +101,10 @@ describe('RequireCapability', () => {
     expect(screen.getByTestId('protected')).toBeInTheDocument()
   })
 
-  it('AC-302: redirects while loading (no protected flash)', () => {
+  it('AC-302: redirects while loading (no protected flash, and no boundary for a viewer who may hold it)', () => {
     mockUseAuth.mockReturnValue({ status: 'loading' } as never)
     renderGuard('/work/objectives', 'objective.manage')
     expect(screen.queryByTestId('protected')).not.toBeInTheDocument()
-    expectLandsOnALiveSurface()
+    expect(screen.getByTestId('landing')).toHaveTextContent('/')
   })
 })
