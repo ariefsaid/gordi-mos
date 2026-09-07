@@ -16,18 +16,22 @@ vi.mock('@/lib/db/signals', async () => {
     listAllTeams: vi.fn(),
     getTeamSite: vi.fn(),
     createSignal: vi.fn(),
+    loadMentionRosters: vi.fn(),
     dedupeRecipients: actual.dedupeRecipients, // real (pure) implementation — the point under test
   }
 })
+vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
 vi.mock('@/lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
 }))
 
-import { listReadableAuthorTeams, listAuthorTeams, listAllTeams, getTeamSite, createSignal } from '@/lib/db/signals'
+import { listReadableAuthorTeams, listAuthorTeams, listAllTeams, getTeamSite, createSignal, loadMentionRosters } from '@/lib/db/signals'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { SignalComposer } from './signal-composer'
 import { ModalShell } from '@/components/ui/modal-shell'
+import { SignalComposerHost, useSignalComposer } from '@/shell/signal-composer-host'
+import { useAuth } from '@/auth/use-auth'
 
 
 const mockListReadableAuthorTeams = vi.mocked(listReadableAuthorTeams)
@@ -35,6 +39,8 @@ const mockListAuthorTeams = vi.mocked(listAuthorTeams)
 const mockListAllTeams = vi.mocked(listAllTeams)
 const mockGetTeamSite = vi.mocked(getTeamSite)
 const mockCreateSignal = vi.mocked(createSignal)
+const mockLoadMentionRosters = vi.mocked(loadMentionRosters)
+const mockUseAuth = vi.mocked(useAuth)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
 
@@ -67,6 +73,19 @@ function renderComposer(props: Partial<React.ComponentProps<typeof SignalCompose
   )
 }
 
+function ComposerLauncher() {
+  const { open } = useSignalComposer()
+  return <button type="button" onClick={() => open()}>open-composer</button>
+}
+
+function renderRealComposerHost() {
+  mockUseAuth.mockReturnValue({
+    status: 'authenticated',
+    viewer: { person: { id: AUTHOR_ID, full_name: 'Author One' }, accessRoles: [] },
+  } as never)
+  return render(<I18nProvider><SignalComposerHost><ComposerLauncher /></SignalComposerHost></I18nProvider>)
+}
+
 beforeEach(() => {
   window.localStorage.setItem('mos.locale', 'en')
   vi.resetAllMocks()
@@ -77,6 +96,7 @@ beforeEach(() => {
   mockGetBusinessUnits.mockResolvedValue(BUS)
   mockGetPeople.mockResolvedValue(PEOPLE)
   mockCreateSignal.mockResolvedValue('signal-new')
+  mockLoadMentionRosters.mockResolvedValue({ teamMembers: {}, buMembers: {} })
 })
 
 describe('SignalComposer — repost prefill', () => {
@@ -485,7 +505,7 @@ describe('SignalComposer — acceptance pins (#768)', () => {
     renderComposer()
     await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
     expect(screen.getByTestId('signal-composer').querySelectorAll('input')).toHaveLength(0)
-    expect(screen.getByTestId('signal-composer').querySelector('.signal-composer-foot')?.querySelectorAll('input')).toHaveLength(0)
+    expect(screen.getByTestId('signal-composer').querySelector('.signal-composer-foot')?.querySelectorAll('button, input, a')).toHaveLength(1)
     await userEvent.click(screen.getByRole('button', { name: /Just now/i }))
     expect(screen.getByTestId('signal-composer').querySelectorAll('input')).toHaveLength(1)
     expect(screen.getByTestId('signal-composer').querySelectorAll('input[type="file"]')).toHaveLength(0)
@@ -504,11 +524,13 @@ describe('SignalComposer — acceptance pins (#768)', () => {
   })
 
   it('AC-056/057: exact focusable inventory is five for one team and six for multiple teams', async () => {
-    render(<I18nProvider><ModalShell open onClose={() => {}} ariaLabel="Share Signal"><button type="button">Close</button><SignalComposer authorId={AUTHOR_ID} authorName="Author One" /></ModalShell></I18nProvider>)
+    renderRealComposerHost()
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
     await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
     expect(screen.getByRole('dialog').querySelectorAll('button, textarea, select, input')).toHaveLength(5)
     mockListReadableAuthorTeams.mockResolvedValue(TEAMS)
-    render(<I18nProvider><ModalShell open onClose={() => {}} ariaLabel="Share Signal"><button type="button">Close</button><SignalComposer authorId={AUTHOR_ID} authorName="Author One" /></ModalShell></I18nProvider>)
+    renderRealComposerHost()
+    await userEvent.click(screen.getAllByRole('button', { name: 'open-composer' })[1])
     await waitFor(() => expect(screen.getAllByRole('combobox', { name: /team/i })).toHaveLength(1))
     expect(screen.getAllByRole('dialog')[1].querySelectorAll('button, textarea, select, input')).toHaveLength(6)
   })
@@ -542,6 +564,7 @@ describe('SignalComposer — acceptance pins (#768)', () => {
     expect(composerCss).toMatch(/\.signal-composer-pill\s*\{[^}]*height:\s*44px[^}]*min-height:\s*44px/)
     expect(composerCss).toMatch(/\.signal-location-pill\s*\{[^}]*cursor: default/)
     expect(composerCss).toMatch(/@media \(max-width: 767\.98px\)[\s\S]*\.signal-composer-mention-anchor\s*\{[^}]*flex: 1/)
+    expect(composerCss).toMatch(/@media \(max-width: 767\.98px\)[\s\S]*\.signal-composer-foot\s*\{[^}]*position: sticky;[^}]*bottom: 0/)
     expect(hostCss).toMatch(/@media \(max-width: 767\.98px\)/)
     expect(hostCss).toMatch(/\.signal-composer-host-panel > \.signal-composer\s*\{[^}]*flex: 1[^}]*min-height: 0/)
   })

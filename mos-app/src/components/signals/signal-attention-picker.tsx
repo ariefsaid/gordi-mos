@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { attentionLabel } from './signal-attention-label'
 import { type Attention } from '@/lib/db/signals.types'
@@ -16,10 +17,29 @@ export function SignalAttentionPicker({ value, onChange }: SignalAttentionPicker
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const [popoverPosition, setPopoverPosition] = useState({ left: 0, top: 0 })
+  useLayoutEffect(() => {
+    if (!open) return
+    const positionPopover = () => {
+      const trigger = triggerRef.current
+      if (!trigger) return
+      const rect = trigger.getBoundingClientRect()
+      const width = popoverRef.current?.getBoundingClientRect().width ?? 220
+      setPopoverPosition({
+        left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)),
+        top: rect.bottom + 4,
+      })
+    }
+    positionPopover()
+    window.addEventListener('resize', positionPopover)
+    window.addEventListener('scroll', positionPopover, true)
+    return () => { window.removeEventListener('resize', positionPopover); window.removeEventListener('scroll', positionPopover, true) }
+  }, [open])
   useEffect(() => {
     if (!open) return
     const closeOutside = (event: MouseEvent) => {
-      if (!(event.target instanceof Node) || !pickerRef.current?.contains(event.target)) {
+      if (!(event.target instanceof Node) || (!pickerRef.current?.contains(event.target) && !popoverRef.current?.contains(event.target))) {
         setOpen(false)
         triggerRef.current?.focus()
       }
@@ -46,8 +66,8 @@ export function SignalAttentionPicker({ value, onChange }: SignalAttentionPicker
       >
         {attentionLabel(t, value)} {t('signals.attention.caret')}
       </button>
-      {open && (
-        <div role="menu" aria-label={t('signals.attention.label')} className="signal-attention-popover">
+      {open && createPortal(
+        <div ref={popoverRef} role="menu" aria-label={t('signals.attention.label')} className="signal-attention-popover" style={popoverPosition}>
           {ATTENTIONS.map((attention) => (
             <button
               type="button"
@@ -60,7 +80,8 @@ export function SignalAttentionPicker({ value, onChange }: SignalAttentionPicker
               <span>{t(attention === 'FYI' ? 'signals.attention.meaning.fyi' : attention === 'Urgent' ? 'signals.attention.meaning.urgent' : 'signals.attention.meaning.needs-attention')}</span>
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

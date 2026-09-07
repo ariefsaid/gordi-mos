@@ -126,7 +126,7 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
   // [^}]* (never [\s\S]*) so the match cannot cross into a LATER rule in the same file/media body.
   it('issue 708: raises the Signal composer attention pills to a ≥44px width floor on phone', () => {
     const body = mediaBody(attentionPickerCss, '@media (max-width: 767.98px)')
-    expect(body).toMatch(/\.signal-attention-picker-option[^}]*min-width:\s*44px/)
+    expect(body).toMatch(/\.signal-attention-pill[^}]*min-width:\s*44px/)
   })
 
   // #708: `.record-panel-btn` already rests at 44×44 (P1-2), but the `@media (pointer: fine)`
