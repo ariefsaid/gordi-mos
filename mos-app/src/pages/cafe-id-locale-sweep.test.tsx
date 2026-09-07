@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
@@ -17,7 +17,10 @@ vi.mock('@/lib/use-cafe-stream', () => {
   }
   return { useCafeStream: () => state }
 })
-vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn().mockResolvedValue([]) }))
+vi.mock('@/lib/db/branches', () => {
+  const branch = { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' }
+  return { listActiveBranches: vi.fn().mockResolvedValue([branch]) }
+})
 vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn().mockResolvedValue(null) }))
 vi.mock('@/lib/db/kitchen-logs', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
@@ -28,7 +31,10 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
   }
 })
 vi.mock('@/lib/db/kitchen-plans', () => ({ listKitchenPlans: vi.fn(), listPesanan: vi.fn(), upsertKitchenPlan: vi.fn() }))
-vi.mock('@/lib/db/kitchen-pushes', () => ({ listEsbPushes: vi.fn() }))
+vi.mock('@/lib/db/kitchen-pushes', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/db/kitchen-pushes')>('@/lib/db/kitchen-pushes')
+  return { ...actual, listEsbPushes: vi.fn() }
+})
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
 vi.mock('@/lib/db/stream-completeness', () => ({ listStreamCompleteness: vi.fn().mockResolvedValue([]), confirmStreamComplete: vi.fn() }))
 
@@ -101,7 +107,8 @@ describe('AC-063/AC-064: Café pages stay Indonesian end to end', () => {
     localStorage.setItem('mos.locale', locale)
     for (const [name, Page] of pages) {
       const { container } = render(<MemoryRouter><I18nProvider><Page /></I18nProvider></MemoryRouter>)
-      await waitFor(() => expect(container.textContent).not.toMatch(denyList), { timeout: 3000 })
+      await screen.findByText(name === 'Pushes' ? 'batch-1' : 'Dish One')
+      expect(container.textContent).not.toMatch(denyList)
       expect(container.textContent).toContain(streamWord)
       if (name === 'Plan') expect(container.querySelector('.dt-group-label, .dt-cards-group-label')?.textContent).toContain(categoryLabel)
       if (name === 'Log') expect(container.textContent).toContain(stockLabel)
