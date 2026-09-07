@@ -40,7 +40,7 @@ export const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
 // reporting.sales_margin_daily (MONEY_READ_POLICY_MIGRATION) state the same two lists, and
 // capabilities.test.ts reads that file to pin them equal. Every shell surface that decides whether
 // Money renders reads these through canViewRevenue / REVENUE_VIEW_ROLES, never its own literal.
-export const MONEY_READ_POLICY_MIGRATION = '20260907000001_reporting_money_read_roles.sql'
+export const MONEY_READ_POLICY_MIGRATION = '20260907000002_reporting_money_read_roles.sql'
 
 /** Roles that admit to Revenue VIEW. supervisor is scoped by RLS to their own grants. */
 export const REVENUE_VIEW_ROLES = ['finance', 'manager', 'supervisor'] as const
