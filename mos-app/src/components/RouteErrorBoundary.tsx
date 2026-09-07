@@ -6,8 +6,11 @@
  * ErrorBoundary wrapping <App/> in main.tsx (belt+suspenders).
  */
 
-import { useRouteError } from 'react-router-dom'
+import { useRevalidator, useRouteError } from 'react-router-dom'
 import { reportError } from '@/lib/telemetry'
+import { isNetworkError } from '@/lib/network-error'
+import { PageFrame } from '@/shell/page-frame'
+import { NetworkErrorState } from '@/components/ui/state-kit'
 import { ErrorFallback } from './ErrorFallback'
 
 /**
@@ -23,6 +26,7 @@ function isRouteError(error: unknown): error is { status?: number; statusText?: 
 
 export function RouteErrorBoundary() {
   const error = useRouteError()
+  const revalidator = useRevalidator()
 
   // Report to telemetry
   reportError(error, {
@@ -33,6 +37,17 @@ export function RouteErrorBoundary() {
       statusText: error.statusText,
     }),
   })
+
+  // Offline is an error, not a crash: a read that failed on the network gets the in-frame
+  // ErrorState with Retry, never the full-screen crash screen (DESIGN.md § Components → State
+  // conformance matrix). Retry re-issues the read.
+  if (isNetworkError(error)) {
+    return (
+      <PageFrame>
+        <NetworkErrorState onRetry={() => revalidator.revalidate()} />
+      </PageFrame>
+    )
+  }
 
   return <ErrorFallback />
 }

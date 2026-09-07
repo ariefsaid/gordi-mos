@@ -79,12 +79,12 @@ describe('NotFoundPage — heading contract (#411)', () => {
     renderPage()
     const h1s = screen.getAllByRole('heading', { level: 1 })
     expect(h1s).toHaveLength(1)
-    expect(h1s[0]).toHaveTextContent('Page not found')
+    expect(h1s[0]).toHaveTextContent('That page isn’t here')
   })
 
   it('the h1 is localized with the rest of the surface', () => {
     localStorage.setItem('mos.locale', 'id')
     renderPage()
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Halaman tidak ditemukan')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Halaman ini tidak ada')
   })
 })

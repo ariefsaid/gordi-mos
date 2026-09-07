@@ -1323,6 +1323,8 @@ Responsive behavior preserves meaning, not just pixels: a collection adapter may
 | Focused record | RecordViewer identity, metadata, content, relations, activity, actions | Viewer anatomy remains visible while content loads | EmptyState is domain-specific and does not become a blank record shell | ErrorState explains failure and offers Retry | Read-only is a first-class viewer state | Saving/Saved/validation/retry appear beside the field/action | Archived/retracted status remains explicit with the canonical URL |
 | Management | Shared frame/head around people, definitions, catalogs, profile, or admin list | Loading preserves frame and list structure | EmptyState has one truthful next action; filtered-empty preserves filters | ErrorState supports Retry without losing the management query | Unauthorized actions are omitted or explained as read-only | Direct-edit feedback is local and visible | Archive/retract is reversible where the domain permits it |
 
+**Offline is an error, not a crash.** A failed fetch renders `ErrorState` with `Retry` inside the page frame; the rail and header stay. While the browser reports offline, the header shows one muted line `You're offline`. The crash boundary is reserved for exceptions in rendering.
+
 The state-kit components (`EmptyState`, `ErrorState`, `SkeletonRows`, and `LoadingShell`) are the default state primitives. A domain may add meaning, but it must preserve the shared geometry, type roles, focus behavior, and one clear next action. **A region or tile that renders a subset of a collection follows the same contract** — see § Components → Home arrangements (v4) for the four-state region body those primitives compose into.
 
 ### Anti-slop limits

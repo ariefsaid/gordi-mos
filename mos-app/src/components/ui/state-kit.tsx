@@ -33,6 +33,35 @@ export function ErrorState({ message, onRetry, retryLabel, className }: ErrorSta
   )
 }
 
+export interface NetworkErrorStateProps {
+  onRetry?: () => void
+  className?: string
+}
+
+/**
+ * The one "couldn't reach the server" state. It is `ErrorState` with a fixed sentence pair, so
+ * every surface that loses the network says the same thing with the same Retry — the crash
+ * fallback is reserved for exceptions in rendering (DESIGN.md § Components → State conformance
+ * matrix). `network.retry` (Retry) rather than `common.retry` (Try again): this control re-issues
+ * one read, and the label names that.
+ */
+export function NetworkErrorState({ onRetry, className }: NetworkErrorStateProps) {
+  const t = useT()
+  return (
+    <ErrorState
+      className={className}
+      message={
+        <>
+          <b className="network-error-title">{t('network.error.title')}</b>{' '}
+          <span className="network-error-copy">{t('network.error.copy')}</span>
+        </>
+      }
+      onRetry={onRetry}
+      retryLabel={t('network.retry')}
+    />
+  )
+}
+
 export type EmptyStateVariant = 'quiet' | 'next-step' | 'awaiting' | 'blank'
 
 /** A pickable starter prompt (the Assistant's empty-state suggestions — v4 cohesion item #2). */

@@ -21,6 +21,10 @@
   display: flex; align-items: center; gap: 12px; padding: 16px 20px; font-size: var(--font-size-body);
 }
 .error-state-text { color: var(--status-lost-text); flex: 1; }
+/* NetworkErrorState — the sentence pair inside the shared error row: the failure first, the one
+   thing the reader can do second, muted so the two do not compete. */
+.network-error-title { font-weight: 600; }
+.network-error-copy { color: var(--muted-foreground); }
 
 .empty-state {
   display: flex; justify-content: center; align-items: center;

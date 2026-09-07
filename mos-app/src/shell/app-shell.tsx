@@ -6,6 +6,8 @@ import { ContextRow } from './context-row'
 import { MobileDrawer } from './mobile-drawer'
 import { BottomTabBar } from './bottom-tab-bar'
 import { useRailCompact } from './use-rail-compact'
+import { useIsOffline } from './use-is-offline'
+import { ContentErrorBoundary } from './content-error-boundary'
 import { CommandMenu } from '@/components/command/command-menu'
 import { useCommandMenu } from '@/components/command/use-command-menu'
 import { BreadcrumbTitleProvider } from './breadcrumb-title'
@@ -121,6 +123,11 @@ function ShellContent() {
   // preference — `useRailCompact` — because the top bar's brand column reads the SAME answer to
   // keep the header divider on the rail boundary, and two copies of the expression would drift.
   const { isNarrow, compact: railCompact, collapsible: railCollapsible } = useRailCompact()
+  const t = useT()
+  // Offline is a header fact, not a page fact: the one muted line sits in the header block, above
+  // both rail and content, and is absent entirely while online (DESIGN.md § Components → State
+  // conformance matrix). Its own auto-height grid row so it never eats the content's height.
+  const isOffline = useIsOffline()
   // v4 shell rebuild (Task 1): the header hamburger is gone — the bottom-tab More button is
   // the drawer's sole opener now, so there's only ever one opener to track focus-return for.
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -168,15 +175,28 @@ function ShellContent() {
             ? 'minmax(0, 1fr)'
             : `${railCompact ? 'var(--rail-w-compact)' : 'var(--rail-w)'} minmax(0, 1fr)`,
           gridTemplateRows: isNarrow
-            ? 'var(--header-h) minmax(0, 1fr) var(--tabbar-h)'
-            : 'var(--header-h) minmax(0, 1fr)',
+            ? `var(--header-h)${isOffline ? ' auto' : ''} minmax(0, 1fr) var(--tabbar-h)`
+            : `var(--header-h)${isOffline ? ' auto' : ''} minmax(0, 1fr)`,
           gridTemplateAreas: isNarrow
-            ? '"topbar" "main" "tabbar"'
-            : '"topbar topbar" "rail main"',
+            ? `"topbar"${isOffline ? ' "offline"' : ''} "main" "tabbar"`
+            : `"topbar topbar"${isOffline ? ' "offline offline"' : ''} "rail main"`,
         }}
       >
         {/* TopBar — grid-area: topbar, spans full width across both columns (ADR-0013 D1) */}
         <TopBar onOpenSearch={() => openWithMode('search')} />
+
+        {/* The offline line — one muted sentence under the header, never a banner with an action:
+            there is nothing to press, and it disappears the moment the connection returns. */}
+        {isOffline && (
+          <div
+            role="status"
+            data-anatomy="offline-line"
+            className="text-muted-foreground border-b border-border px-4 py-1"
+            style={{ gridArea: 'offline' }}
+          >
+            {t('shell.offline')}
+          </div>
+        )}
 
         {/* Rail — grid-area: rail, row 2 col 1; hidden at <920px (drawer is the nav);
             icon-only compact regime at 920–1099.98px (OD-REDESIGN-84.2 / P1-1). */}
@@ -199,7 +219,11 @@ function ShellContent() {
             data-anatomy="content"
             className="min-w-0 flex-1 min-h-0 overflow-hidden flex flex-col focus:outline-none"
           >
-            <Outlet />
+            {/* A read that fails because the network did renders its error HERE, inside the frame
+                — the rail, the header and the context row above are untouched. */}
+            <ContentErrorBoundary>
+              <Outlet />
+            </ContentErrorBoundary>
           </div>
         </div>
 

@@ -61,6 +61,12 @@ export function ContextRow() {
   // context signal.
   const headOwnsContext = pageOwnsJobSentence(pathname)
 
+  // A path that does not exist has no scope. On the 404 the crumb had nothing to resolve against,
+  // so it fell through to the viewer's role name and rendered as a chip labelling the reader
+  // ("Finance Lead") beside a message about a broken link — the one place in the app where the
+  // scope signal was about the person rather than the work. The sentence stands alone there.
+  const scopeless = jobKey === 'job.notFound'
+
   return (
     <div
       role="region"
@@ -75,7 +81,7 @@ export function ContextRow() {
           proportionally and "Admin" collapsed to "Ad…" on phone width). The maxWidth ceiling
           is only a safety net for an unusually long real-role scope (F3/P1) — ordinary scope
           values ("Café", "Admin") always render in full. */}
-      {!headOwnsContext && scope && (
+      {!headOwnsContext && !scopeless && scope && (
         <span
           className="ctx-scope truncate text-muted-foreground"
           style={{ fontSize: 13, flex: 'none', maxWidth: '60%' }}
