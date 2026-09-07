@@ -39,24 +39,46 @@ const ops = () => supabase.schema('ops')
 // ── Editor: plans for one date, one stream ────────────────────────────────────
 
 /**
+ * Response of listKitchenPlans (#784, OD-WAY-95 (7)): the plan cells for the stream in
+ * view PLUS a viewer fact on the payload — `viewerSupervises` is `ops.is_stream_reviewer`
+ * for the same (branch, activity), the exact predicate the DB write policy checks. The
+ * editor gates its qty inputs on this fact so the affordance mirrors the rule from ONE
+ * viewer read, never a second client-side derivation of who reviews which stream.
+ */
+export interface KitchenPlanPayload {
+  cells: PlanCell[]
+  viewerSupervises: boolean
+}
+
+/**
  * List the plan cells for a single date within ONE (branch, activity) production stream
  * (OD-WAY-28) — the S2 editor's current state (FR-030). The date-only read this replaces
  * summed every stream's plan into one number the moment more than one stream existed.
  * Returns one PlanCell per existing ops.kitchen_plans row, carrying its `id` so a
- * subsequent edit UPDATEs the same row (the replace-by-id half of the upsert).
- * RLS scopes the read to the caller's org. Throws on PostgREST error.
+ * subsequent edit UPDATEs the same row (the replace-by-id half of the upsert). Also
+ * returns `viewerSupervises` — the ops.is_stream_reviewer(branch_id, activity) fact for
+ * the SAME stream, mirroring the plan-write policy verbatim (#784, OD-WAY-95 (7)).
+ * RLS scopes the read to the caller's org. Throws on a plan-read error; a failing
+ * is_stream_reviewer RPC degrades to `viewerSupervises: false` so a missing viewer fact
+ * never blocks reading the plan.
  */
 export async function listKitchenPlans(
   logDate: string,
   stream: ProductionStream,
-): Promise<PlanCell[]> {
-  const { data, error } = await ops()
-    .from('kitchen_plans')
-    .select('id,wip_item_id,action,destination_branch_id,qty_porsi')
-    .eq('log_date', logDate)
-    .eq('branch_id', stream.branch.id)
-    .eq('activity', stream.activity)
-  if (error) throw new Error(`listKitchenPlans failed — ${error.message}`)
+): Promise<KitchenPlanPayload> {
+  const [planResp, reviewerResp] = await Promise.all([
+    ops()
+      .from('kitchen_plans')
+      .select('id,wip_item_id,action,destination_branch_id,qty_porsi')
+      .eq('log_date', logDate)
+      .eq('branch_id', stream.branch.id)
+      .eq('activity', stream.activity),
+    ops().rpc('is_stream_reviewer', {
+      p_branch_id: stream.branch.id,
+      p_activity: stream.activity,
+    }),
+  ])
+  if (planResp.error) throw new Error(`listKitchenPlans failed — ${planResp.error.message}`)
   type Raw = {
     id: string
     wip_item_id: string
@@ -64,12 +86,14 @@ export async function listKitchenPlans(
     destination_branch_id: string | null
     qty_porsi: number
   }
-  return ((data ?? []) as Raw[]).map(r => ({
+  const cells = ((planResp.data ?? []) as Raw[]).map(r => ({
     id: r.id,
     wip_item_id: r.wip_item_id,
     movement: { action: r.action, destinationBranchId: r.destination_branch_id },
     qty_porsi: r.qty_porsi,
   }))
+  const viewerSupervises = reviewerResp.error ? false : reviewerResp.data === true
+  return { cells, viewerSupervises }
 }
 
 // ── Pesanan: the 14-day forward read horizon (member read-only, AC-024) ───────

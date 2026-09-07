@@ -121,7 +121,7 @@ beforeEach(() => {
   mockBranches.mockResolvedValue(BRANCHES)
   mockStreamPairs.mockResolvedValue(STREAM_PAIRS)
   mockDefaultStream.mockResolvedValue(OWN_STREAM)
-  mockPlans.mockResolvedValue([])
+  mockPlans.mockResolvedValue({ cells: [], viewerSupervises: true })
   mockPesanan.mockResolvedValue([])
   mockUpsert.mockResolvedValue('new-id')
 })
@@ -195,7 +195,7 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
 // ── ops_lead → editor mode (FR-030/031) ───────────────────────────────────────
 describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
   it('loads active items + the date plan; renders one editable qty per item', async () => {
-    mockPlans.mockResolvedValue(PLAN_CELLS)
+    mockPlans.mockResolvedValue({ cells: PLAN_CELLS, viewerSupervises: true })
     render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     await waitFor(() => expect(mockPlans).toHaveBeenCalled())
@@ -227,7 +227,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
   })
 
   it('does not save when the value is unchanged (no needless write)', async () => {
-    mockPlans.mockResolvedValue(PLAN_CELLS)
+    mockPlans.mockResolvedValue({ cells: PLAN_CELLS, viewerSupervises: true })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
@@ -272,7 +272,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
   })
 
   it('empty: ops_lead sees an editable blank grid — unplanned reads BLANK (greyed "0" placeholder), not a hard zero', async () => {
-    mockPlans.mockResolvedValue([])
+    mockPlans.mockResolvedValue({ cells: [], viewerSupervises: true })
     render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     // DD-5 data-honesty: qty 0 = "nothing planned" → the field is genuinely blank with a
@@ -329,7 +329,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
 
   it('DD-5/I5: Escape discards the draft and restores the saved qty — never saves', async () => {
     const user = userEvent.setup()
-    mockPlans.mockResolvedValue(PLAN_CELLS)
+    mockPlans.mockResolvedValue({ cells: PLAN_CELLS, viewerSupervises: true })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
@@ -365,7 +365,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
 describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
   beforeEach(() => {
     mockUseAuth.mockReturnValue(viewer(['ops_lead']))
-    mockPlans.mockResolvedValue(PLAN_CELLS)
+    mockPlans.mockResolvedValue({ cells: PLAN_CELLS, viewerSupervises: true })
   })
   // Restore the default phone matchMedia stub after any desktop override so test
   // order can't leak the branch (mirrors the log page test's afterEach).
@@ -451,7 +451,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
         dispatchEvent: () => false,
       }),
     })
-    mockPlans.mockResolvedValue([])
+    mockPlans.mockResolvedValue({ cells: [], viewerSupervises: true })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const band = screen.getByRole('group', { name: /planning summary/i })
@@ -459,7 +459,11 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     expect(screen.queryByText(/no plan created yet/i)).toBeNull()
   })
 
-  it('explains an empty plan as a live-entered absence', async () => {
+  // AC-059 (ticket #784): the summary line stands alone. When nothing is planned but items exist,
+  // the editor shows `Planned total 0` on the summary — it is NOT doubled by a floating
+  // `Nothing planned yet` sentence above/around the summary. That sentence lives only inside a
+  // true empty-state body (asserted by the pesanan empty-state test below).
+  it('AC-059: `Planned total 0` line stands alone — no `Nothing planned yet` floats above the summary', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       configurable: true,
@@ -472,11 +476,21 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
         dispatchEvent: () => false,
       }),
     })
-    mockPlans.mockResolvedValue([])
+    mockPlans.mockResolvedValue({ cells: [], viewerSupervises: true })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
-    expect(screen.getByText('Nothing planned yet')).toBeInTheDocument()
+    const band = screen.getByRole('group', { name: /planning summary/i })
+    expect(within(band).getByText(/planned total/i)).toBeInTheDocument()
+    expect(within(band).getAllByText('0').length).toBeGreaterThan(0)
+    // Any occurrence of "Nothing planned yet" must live inside an empty-state body; since
+    // items exist there is no empty-state on the editor, so the sentence must not appear.
+    const nothing = screen.queryAllByText(/nothing planned yet/i)
+    for (const node of nothing) {
+      expect(node.closest('[data-testid="empty-state"]')).not.toBeNull()
+    }
+    // The retired floating class is gone.
+    expect(document.querySelector('.kp-nothing-planned')).toBeNull()
   })
 
   it('groups dishes by category (F2 categories render as group headers)', async () => {
@@ -499,12 +513,84 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     expect(panel.textContent).toContain('there is no submit button')
   })
 
-  it('(#401) the editor dish name drills to the Café log (/cafe/log?q=<dish>)', async () => {
+  // AC-058 (ticket #784): item names are plain text — no per-row link. The desktop group
+  // header carries ONE `See these in Log →` link per group; the phone carries none (the Café
+  // tab is one tap away). The retired per-row drill was a link per dish; that class is gone.
+  it('AC-058: item names are plain text — no per-row link, no retired .kp-row-link class', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    expect(
-      screen.getByRole('link', { name: /see ayam bakar in the café log/i }),
-    ).toHaveAttribute('href', '/cafe/log?q=Ayam%20Bakar')
+    // no per-row drill: the retired aria-labelled `See … in the Café log` link is gone
+    expect(screen.queryByRole('link', { name: /see ayam bakar in the café log/i })).toBeNull()
+    expect(document.querySelector('.kp-row-link')).toBeNull()
+  })
+
+  // AC-058 desktop: one `See these in Log →` link per group header — the group-header shortcut
+  // to the Log. ITEMS has one group ('Main'), so exactly one such link appears.
+  it('AC-058: desktop group header carries one `See these in Log →` link per group', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const links = screen.getAllByRole('link', { name: /see these in log/i })
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAttribute('href', '/cafe/log')
+  })
+
+  it('AC-058: phone carries no `See these in Log →` link (the Café tab is one tap away)', async () => {
+    // default matchMedia mock (phone) — no override
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.queryAllByRole('link', { name: /see these in log/i })).toHaveLength(0)
+  })
+
+  // AC-058 scale check: 32 rows / one group on desktop → 32 qty controls, one group-header
+  // link, no per-row link. The scenario the ticket names verbatim (1440-wide with 32 rows).
+  it('AC-058: 32 rows on desktop render 32 qty controls, one group-header link, zero row links', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+    const many: WipItemOption[] = Array.from({ length: 32 }, (_, i) => ({
+      id: `w-${i}`,
+      name: `Dish ${i + 1}`,
+      category: 'Main',
+    }))
+    mockItems.mockResolvedValue(many)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Dish 1')
+    expect(screen.getAllByRole('spinbutton')).toHaveLength(32)
+    expect(screen.getAllByRole('link', { name: /see these in log/i })).toHaveLength(1)
+    expect(document.querySelector('.kp-row-link')).toBeNull()
   })
 
   it('phone (default matchMedia): renders the cards branch, NOT the desktop table', async () => {
@@ -582,13 +668,13 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
   })
 
-  it('(#401) the pesanan item name drills to the Café log too', async () => {
+  // AC-058 (ticket #784): pesanan item names are plain text too — no per-row link.
+  it('AC-058: pesanan item names are plain text — no per-row link, no retired .kp-row-link', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    expect(
-      screen.getByRole('link', { name: /see ayam bakar in the café log/i }),
-    ).toHaveAttribute('href', '/cafe/log?q=Ayam%20Bakar')
+    expect(screen.queryByRole('link', { name: /see ayam bakar in the café log/i })).toBeNull()
+    expect(document.querySelector('.kp-row-link')).toBeNull()
   })
 
   it('(#401) a member can find a dish by name — search narrows the horizon (Nielsen Café·Plan 16/32: ~231 rows, no way to narrow)', async () => {
@@ -653,7 +739,7 @@ describe('KitchenPlanPage — locale id (#401)', () => {
   beforeEach(() => {
     localStorage.setItem('mos.locale', 'id')
     mockUseAuth.mockReturnValue(viewer(['ops_lead']))
-    mockPlans.mockResolvedValue(PLAN_CELLS)
+    mockPlans.mockResolvedValue({ cells: PLAN_CELLS, viewerSupervises: true })
   })
   afterEach(() => localStorage.clear())
 
@@ -754,7 +840,7 @@ describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar
 // ── #548 FR-007/AC-007: Plan's phone face is the compact capture row ───────
 describe('FR-007/AC-007: Plan\'s phone face is the compact capture row', () => {
   it('AC-007: phone width with planned items → each row is the compact capture row (identity + typed field/unit), not the generic record card', async () => {
-    mockPlans.mockResolvedValue(PLAN_CELLS) // Ayam Bakar planned 12
+    mockPlans.mockResolvedValue({ cells: PLAN_CELLS, viewerSupervises: true }) // Ayam Bakar planned 12
     render(<KitchenPlanPage />, { wrapper })
     const card = (await screen.findByText('Ayam Bakar')).closest('.dt-card')
     expect(card).not.toBeNull()
@@ -769,5 +855,96 @@ describe('FR-007/AC-007: Plan\'s phone face is the compact capture row', () => {
     expect(screen.getByText('Nasi Goreng').closest('.dt-card--compact')).not.toBeNull()
     // no per-card field label: the generic <dl> fallback is gone
     expect(document.querySelector('.dt-card-detail')).toBeNull()
+  })
+})
+
+// ── #784 AC-057: the stream's supervisor edits her plan; a kitchen hand reads the horizon;
+// a Finance viewer reads with the one-line reason. The edit affordance mirrors the DB rule
+// from ONE viewer fact on the payload (viewerSupervises) — no second client derivation. ────
+describe('(#784) AC-057: the stream supervisor edits, others read', () => {
+  it('AC-057: Sinta the stream supervisor gets editable qty fields and can save when the payload says she supervises', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockPlans.mockResolvedValue({ cells: PLAN_CELLS, viewerSupervises: true })
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    expect(input).toBeEnabled()
+    fireEvent.change(input, { target: { value: '18' } })
+    fireEvent.blur(input)
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalled())
+    expect(mockUpsert.mock.calls[0][0].qty_porsi).toBe(18)
+  })
+
+  it('AC-057: a supervisor viewing a stream the payload says she does NOT supervise sees the fields disabled — never a second client-side derivation', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    // The DB refuses; the payload carries that refusal — client mirrors it, nothing more.
+    mockPlans.mockResolvedValue({ cells: PLAN_CELLS, viewerSupervises: false })
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    expect(input).toBeDisabled()
+  })
+
+  it('AC-057: Kartika the kitchen hand (member) reads the 14-day horizon — no editable fields', async () => {
+    mockUseAuth.mockReturnValue(viewer(['member']))
+    mockPesanan.mockResolvedValue(PESANAN)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+    // horizon read confirmed
+    expect(mockPesanan.mock.calls[0][1]).toBe(14)
+  })
+
+  it('AC-057: Fitri the Finance viewer reads with the one-line reason — no edit affordance', async () => {
+    mockUseAuth.mockReturnValue(viewer(['finance']))
+    mockPesanan.mockResolvedValue(PESANAN)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    // the one-line reason renders (English catalog copy)
+    expect(screen.getByText(/read-only/i)).toBeInTheDocument()
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+  })
+})
+
+// ── #784 AC-059 (both locales): "Nothing planned yet" ONLY inside the empty-state body ────
+describe('(#784) AC-059: the summary line stands alone in both locales', () => {
+  it('id: the summary reads `Total rencana 0` alone — no `Belum ada rencana` floats above it', async () => {
+    localStorage.setItem('mos.locale', 'id')
+    try {
+      Object.defineProperty(window, 'matchMedia', {
+        writable: true,
+        configurable: true,
+        value: (query: string) => ({
+          matches: query === '(min-width: 768px)',
+          media: query,
+          onchange: null,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+        }),
+      })
+      mockUseAuth.mockReturnValue(viewer(['ops_lead']))
+      mockPlans.mockResolvedValue({ cells: [], viewerSupervises: true })
+      render(<KitchenPlanPage />, { wrapper })
+      await screen.findByText('Ayam Bakar')
+      const band = screen.getByRole('group', { name: /ringkasan perencanaan/i })
+      expect(within(band).getByText('Total rencana')).toBeInTheDocument()
+      // The Indonesian "Belum ada rencana" (= "Nothing planned yet") must not float on the editor.
+      const nothing = screen.queryAllByText(/belum ada rencana/i)
+      for (const node of nothing) {
+        expect(node.closest('[data-testid="empty-state"]')).not.toBeNull()
+      }
+      expect(document.querySelector('.kp-nothing-planned')).toBeNull()
+    } finally {
+      localStorage.clear()
+    }
+  })
+
+  it('the pesanan empty-state body carries `Nothing planned yet` (the sentence has ONE home)', async () => {
+    mockUseAuth.mockReturnValue(viewer(['member']))
+    mockPesanan.mockResolvedValue([])
+    render(<KitchenPlanPage />, { wrapper })
+    const empty = await screen.findByTestId('empty-state')
+    expect(within(empty).getByText(/nothing planned yet/i)).toBeInTheDocument()
   })
 })

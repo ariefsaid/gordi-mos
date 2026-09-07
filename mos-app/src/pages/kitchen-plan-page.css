@@ -31,12 +31,6 @@
   min-width: 0;
 }
 
-.kp-nothing-planned {
-  font-size: var(--font-size-control);
-  color: var(--muted-foreground);
-  margin: 4px 0 8px;
-}
-
 /* ── Scope block: the movement (mirrors kitchen-log-page.css .kl-scope). The stream
    moved to the page head with #440 — same reasoning, stated there. ── */
 .kp-scope {
@@ -119,30 +113,18 @@
   line-height: 1.2;
 }
 
-/* ── #401: the dish name is a drill link into /cafe/log?q=<dish> on BOTH faces —
-   links-in-context blue (DESIGN.md Action Blue) + underline, keeping the name's own
-   type ramp via the co-classed .kp-name. ── */
-.kp-row-link {
+/* ── #784 AC-058: item names are plain text — no per-row drill link. The desktop group
+   header carries ONE `See these in Log →` shortcut per group; the phone carries none (the
+   Café tab is one tap away). Links-in-context blue (DESIGN.md Action Blue), body-sm/500,
+   underline; alignment leaves it beside the group label in the row already rendered by
+   DataTable's `.dt-group-actions` slot. ── */
+.kp-group-log-link {
   color: var(--primary);
   text-decoration: underline;
+  font-size: var(--font-size-body-sm);
+  font-weight: 500;
 }
-@media (max-width: 767.98px) {
-  /* Keep the compact label unchanged while the invisible tap floor reaches 44px. */
-  .kp-row-link {
-    position: relative;
-  }
-  .kp-row-link::before {
-    content: '';
-    position: absolute;
-    left: -12px;
-    right: -12px;
-    top: 50%;
-    height: 44px;
-    transform: translateY(-50%);
-  }
-}
-
-.kp-row-link:focus-visible {
+.kp-group-log-link:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
   border-radius: var(--radius-sm);

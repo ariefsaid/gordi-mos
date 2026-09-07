@@ -86,7 +86,9 @@ beforeEach(() => {
   vi.mocked(fetchDefaultStream).mockResolvedValue(OWN_STREAM)
   vi.mocked(fetchKitchenStock).mockResolvedValue([])
   vi.mocked(listActiveWipItems).mockResolvedValue([{ id: 'w1', name: 'Ayam Bakar', category: 'Main' }])
-  vi.mocked(listKitchenPlans).mockResolvedValue([])
+  // #784: listKitchenPlans returns { cells, viewerSupervises } — the viewer fact rides
+  // the payload so the edit affordance mirrors the DB rule from ONE read.
+  vi.mocked(listKitchenPlans).mockResolvedValue({ cells: [], viewerSupervises: true })
   vi.mocked(listPesanan).mockResolvedValue([])
 })
 

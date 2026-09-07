@@ -5,8 +5,9 @@
 //    .kl-dish-name/.kl-dish-cat fix already killed — the fix landed there only).
 //  • KP-BANNER — offline and save-failed use the SAME amber/red vocabulary as
 //    Café · Log (warning / destructive tokens), never a plain grey box.
-//  • KP-ROWLINK — a dish name styled as a drill link is links-in-context blue
-//    (DESIGN.md Action Blue) with an underline, not foreground text.
+//  • KP-GROUP-LOG-LINK (#784 AC-058) — the group-header "See these in Log" is the
+//    links-in-context vocabulary (Action Blue + underline), replacing the retired
+//    per-row .kp-row-link on both faces.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -44,10 +45,15 @@ describe('KP-BANNER: same warning vocabulary as Café · Log (amber offline, red
   })
 })
 
-describe('KP-ROWLINK: the drill link is links-in-context blue with an underline', () => {
-  it('.kp-row-link declares primary colour + underline', () => {
-    const body = ruleBody('.kp-row-link')
+describe('KP-GROUP-LOG-LINK: the group-header shortcut is links-in-context blue + underline (#784 AC-058)', () => {
+  it('.kp-group-log-link declares primary colour + underline', () => {
+    const body = ruleBody('.kp-group-log-link')
     expect(body).toMatch(/color:\s*var\(--primary\)/)
     expect(body).toMatch(/text-decoration:\s*underline/)
+  })
+
+  it('the retired per-row .kp-row-link rule is gone — item names are plain text', () => {
+    // A stripped-comment css slice — the rule body must not exist any more.
+    expect(css).not.toMatch(/\.kp-row-link\s*\{/)
   })
 })

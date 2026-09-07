@@ -95,7 +95,7 @@ describe('AC-063/AC-064: Café pages stay Indonesian end to end', () => {
     vi.mocked(resolveKitchenBuId).mockResolvedValue('bu')
     vi.mocked(listSubmittedKitchenLogs).mockResolvedValue([REVIEW_ROW])
     vi.mocked(fetchKitchenStock).mockResolvedValue([STOCK_ROW])
-    vi.mocked(listKitchenPlans).mockResolvedValue(PLAN_CELLS)
+    vi.mocked(listKitchenPlans).mockResolvedValue({ cells: PLAN_CELLS, viewerSupervises: true })
     vi.mocked(listEsbPushes).mockResolvedValue([PUSH_ROW])
     vi.mocked(getPeople).mockResolvedValue([{ id: 'person-1', full_name: 'Budi' }])
   })

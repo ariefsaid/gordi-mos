@@ -115,12 +115,24 @@ function assertNoServerStamps(payloads: unknown[]) {
 
 beforeEach(() => vi.clearAllMocks())
 
+// The full-schema mock has to serve BOTH the plan read (`.from('kitchen_plans')`) and the
+// per-request viewer fact (`.rpc('is_stream_reviewer')`) — the payload carries both so the
+// page never derives write authority a second way (ticket #784, mirroring the DB rule).
+function makeSchemaWithRpc(
+  responses: Record<string, { data: unknown; error: unknown }[]>,
+  rpc: { data: unknown; error: unknown },
+  rec: Recorder,
+): { from: unknown; rpc: unknown } {
+  const base = makeSchema(responses, rec) as { from: unknown }
+  return { ...base, rpc: vi.fn(() => Promise.resolve(rpc)) }
+}
+
 // ── listKitchenPlans (editor — one date, one stream) ──────────────────────────
 describe('listKitchenPlans', () => {
-  it('reads ops.kitchen_plans scoped to the stream → PlanCell[] keyed by movement (#247)', async () => {
+  it('reads ops.kitchen_plans scoped to the stream + the viewer fact (viewerSupervises) → PlanCell[] keyed by movement (#247, #784)', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
-      makeSchema(
+      makeSchemaWithRpc(
         {
           kitchen_plans: [
             {
@@ -132,15 +144,18 @@ describe('listKitchenPlans', () => {
             },
           ],
         },
+        { data: true, error: null },
         rec,
       ) as never,
     )
-    const cells = await listKitchenPlans('2026-06-20', STREAM)
+    const { cells, viewerSupervises } = await listKitchenPlans('2026-06-20', STREAM)
     expect(cells).toHaveLength(2)
     expect(cells[0]).toEqual({
       id: 'pl1', wip_item_id: 'w1', movement: { action: 'produce', destinationBranchId: null }, qty_porsi: 12,
     })
     expect(cells[1].movement).toEqual({ action: 'transfer', destinationBranchId: RADIANT_ID })
+    // the viewer fact rides the payload — the DB rule is not re-derived on the client
+    expect(viewerSupervises).toBe(true)
     // never selects the removed action_type column (#247)
     expect(rec.selects.join(' ')).not.toMatch(/action_type/)
     expect(rec.eqs).toContainEqual(['log_date', '2026-06-20'])
@@ -148,18 +163,54 @@ describe('listKitchenPlans', () => {
     expect(rec.eqs).toContainEqual(['activity', 'kitchen'])
   })
 
-  it('returns [] when no plan rows', async () => {
+  it('returns { cells: [], viewerSupervises: false } when no plan rows and the viewer does not supervise', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
-      makeSchema({ kitchen_plans: [{ data: [], error: null }] }, rec) as never,
+      makeSchemaWithRpc(
+        { kitchen_plans: [{ data: [], error: null }] },
+        { data: false, error: null },
+        rec,
+      ) as never,
     )
-    expect(await listKitchenPlans('2026-06-20', STREAM)).toEqual([])
+    const result = await listKitchenPlans('2026-06-20', STREAM)
+    expect(result).toEqual({ cells: [], viewerSupervises: false })
   })
 
-  it('throws on error', async () => {
+  it('viewerSupervises is a boolean — a null RPC result reads as false (never leaves the caller to guess)', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
-      makeSchema({ kitchen_plans: [{ data: null, error: { message: 'boom' } }] }, rec) as never,
+      makeSchemaWithRpc(
+        { kitchen_plans: [{ data: [], error: null }] },
+        { data: null, error: null },
+        rec,
+      ) as never,
+    )
+    const { viewerSupervises } = await listKitchenPlans('2026-06-20', STREAM)
+    expect(viewerSupervises).toBe(false)
+  })
+
+  it('viewerSupervises defaults to false when the RPC errors — reading the plan is still allowed', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchemaWithRpc(
+        { kitchen_plans: [{ data: [], error: null }] },
+        { data: null, error: { message: 'permission denied' } },
+        rec,
+      ) as never,
+    )
+    const { cells, viewerSupervises } = await listKitchenPlans('2026-06-20', STREAM)
+    expect(cells).toEqual([])
+    expect(viewerSupervises).toBe(false)
+  })
+
+  it('throws on plan-read error', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchemaWithRpc(
+        { kitchen_plans: [{ data: null, error: { message: 'boom' } }] },
+        { data: false, error: null },
+        rec,
+      ) as never,
     )
     await expect(listKitchenPlans('2026-06-20', STREAM)).rejects.toThrow('listKitchenPlans failed')
   })

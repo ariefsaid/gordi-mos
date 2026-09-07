@@ -158,9 +158,12 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
   })
 
   it('issue \u0023705: gives Plan item links a real 44px phone hit box without changing their visual box', () => {
-    const body = mediaBody(kitchenPlanCss, '@media (max-width: 767.98px)')
-    expect(body).toMatch(/\.kp-row-link\s*\{[^}]*position:\s*relative/)
-    expect(body).toMatch(/\.kp-row-link::before\s*\{[^}]*height:\s*44px[^}]*transform:\s*translateY\(-50%\)/)
+    // ticket 784 AC-058 retires issue 705: Plan item names are plain text on both faces,
+    // so the per-row .kp-row-link (with its phone hit-box for one) is gone. The desktop
+    // shortcut moves to the group header; the phone carries none, because the Café tab
+    // reaches the Log in one tap. Assert its absence across the whole sheet.
+    expect(kitchenPlanCss).not.toMatch(/\.kp-row-link\s*\{/)
+    expect(kitchenPlanCss).not.toMatch(/\.kp-row-link::before/)
   })
 
   it('ticket 702: keeps the record edit affordance floor on phone for fine pointers', () => {

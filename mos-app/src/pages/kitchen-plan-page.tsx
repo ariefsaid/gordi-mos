@@ -39,7 +39,6 @@ import type {
 import { PESANAN_HORIZON_DAYS } from '@/lib/db/kitchen-logs.types'
 import {
   deriveActionLabel,
-  movementKey,
   movementsEqual,
   movementsForStream,
   PRODUCE,
@@ -79,9 +78,17 @@ export function KitchenPlanPage() {
   useDocumentTitle(t('common.docTitle', { page: `${t('nav.cafe.plan')} · ${t('nav.cafe')}` }))
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
 
-  // Role split (member-read / lead-edit). RLS is the authority; this picks the face.
+  // Face split (member-read / editor). RLS is the authority; this picks which face renders.
+  // #784 / OD-WAY-95 (7): the plan-write policy admits ops_lead, admin AND the stream's
+  // reviewer (a supervisor holding a live membership in the branch stream). The editor face
+  // therefore admits `supervisor` too — the per-stream write gate inside the editor mirrors
+  // the DB rule from a viewer fact on the plan payload (viewerSupervises), never a second
+  // client-side derivation of who reviews which stream.
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const canEdit = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
+  const canEdit =
+    accessRoles.includes('ops_lead') ||
+    accessRoles.includes('admin') ||
+    accessRoles.includes('supervisor')
 
   if (auth.status === 'loading') {
     return (
@@ -109,6 +116,7 @@ export function KitchenPlanPage() {
 // ════════════════════════════════════════════════════════════════════════════
 function PlanEditor() {
   const t = useT()
+  const auth = useAuth()
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
   const [logDate] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
   // The enumerable stream catalog (FR-005) — the head picker's options (#440). The branch
@@ -120,6 +128,10 @@ function PlanEditor() {
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [items, setItems] = useState<WipItemOption[]>([])
   const [cells, setCells] = useState<PlanCell[]>([])
+  // #784: viewerSupervises rides the payload — the DB write rule (ops.is_stream_reviewer for
+  // this stream) mirrored as one fact, per-stream. ops_lead/admin bypass this via the role
+  // check below; nobody else may edit until the payload says so.
+  const [viewerSupervises, setViewerSupervises] = useState(false)
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
   const [savingId, setSavingId] = useState<string | null>(null) // wip_item_id mid-save
@@ -134,12 +146,10 @@ function PlanEditor() {
   const [search, setSearch] = useSearchParamState('q', '')
   const [category, setCategory] = useSearchParamState('category', 'All')
   // #401 / DD-WAY-40: the figures band is the Metric summary rule (two numbers for
-  // the current movement) — the retired word-tiles are gone. Pure derivation over
-  // `cells`; the human "nothing planned" sentence stays the page note below.
+  // the current movement) — the retired word-tiles are gone. Pure derivation over `cells`.
+  // #784 AC-059: the floating "nothing planned" sentence retires with its derived flag —
+  // the summary line ("Planned total 0") speaks the same fact once, standing alone.
   const summary = usePlanSummary(cells, movement)
-  const hasPlannedItems = cells.some(
-    cell => movementKey(cell.movement) === movementKey(movement) && cell.qty_porsi > 0,
-  )
 
   useEffect(() => {
     function on() { setIsOnline(true) }
@@ -160,11 +170,14 @@ function PlanEditor() {
     setLoad({ kind: 'loading' })
     try {
       const [itemRows, catalog] = await Promise.all([listActiveWipItems(), resolveStream()])
-      const planCells = catalog.stream ? await listKitchenPlans(logDate, catalog.stream) : []
+      const payload = catalog.stream
+        ? await listKitchenPlans(logDate, catalog.stream)
+        : { cells: [], viewerSupervises: false }
       setItems(itemRows)
       adoptStream(catalog)
       setMovement(PRODUCE)
-      setCells(planCells)
+      setCells(payload.cells)
+      setViewerSupervises(payload.viewerSupervises)
       setLoad({ kind: 'ready' })
     } catch {
       setLoad({ kind: 'error' })
@@ -174,14 +187,16 @@ function PlanEditor() {
   useEffect(() => { fetchEditor() }, [fetchEditor, retryKey])
 
   // Switching the stream re-reads the plan — a different (branch, activity) has its own
-  // plan rows entirely, same as the capture surface's applyStream (#196).
+  // plan rows entirely, same as the capture surface's applyStream (#196). The payload's
+  // viewerSupervises fact re-arrives with the cells so the edit gate follows the stream.
   const applyStream = useCallback(async (nextStream: ProductionStream) => {
     chooseStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
     setLoad({ kind: 'loading' })
     try {
-      const planCells = await listKitchenPlans(logDate, nextStream)
-      setCells(planCells)
+      const payload = await listKitchenPlans(logDate, nextStream)
+      setCells(payload.cells)
+      setViewerSupervises(payload.viewerSupervises)
       setLoad({ kind: 'ready' })
     } catch {
       setLoad({ kind: 'error' })
@@ -248,32 +263,43 @@ function PlanEditor() {
   )
   const categories = ['All', ...Array.from(new Set(items.map(i => i.category ?? '').filter(Boolean)))
     .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b)))]
+  // #784 AC-058: on desktop each group header carries ONE `See these in Log →` link — the
+  // group-level shortcut to the Log surface. The phone carries none (the Café tab is one tap
+  // away). The link is not row-scoped: rows themselves render item names as plain text.
   const planGroups: DataTableGroup<WipItemOption>[] = useMemo(
     () => groupByCategory(visible).map(g => ({
       key: g.cat ?? '__uncategorised__',
       label: g.cat ? kitchenCategoryLabel(t, g.cat) : g.cat,
       rows: g.rows,
+      headerActions: isDesktop ? (
+        <Link to="/cafe/log" className="kp-group-log-link">
+          {t('kitchen.plan.seeInLog')}
+        </Link>
+      ) : undefined,
     })),
-    [visible, t],
+    [visible, t, isDesktop],
   )
+
+  // #784: the plan-write gate mirrors the DB rule — ops_lead/admin bypass, else the
+  // payload's viewerSupervises fact decides for the stream in view. The client never derives
+  // "who reviews which stream" a second way; the DB says so via ops.is_stream_reviewer, and
+  // listKitchenPlans returns the answer on the plan payload. Offline still pre-disables.
+  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const isLeadOrAdmin = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
+  const canWriteHere = isLeadOrAdmin || viewerSupervises
+  const fieldDisabled = !isOnline || !canWriteHere
 
   const planColumns: DataTableColumn<WipItemOption>[] = [
     {
       key: 'dish',
       header: t('kitchen.plan.col.item'),
       cardLabel: '',
+      // #784 AC-058: item names are plain text — no per-row drill link. The Log shortcut
+      // lives on the desktop group header (headerActions), not per row; the phone carries
+      // none because the Café tab reaches the Log in one tap.
       render: item => (
         <span className="kp-dish">
-          {/* #401: plan and log are two disconnected screens without this — the name
-              drills into the capture surface, pre-searched. aria-label speaks the
-              destination; the visible text stays the dish name. */}
-          <Link
-            to={`/cafe/log?q=${encodeURIComponent(item.name)}`}
-            className="kp-name kp-row-link"
-            aria-label={t('kitchen.plan.row.logAria', { item: item.name })}
-          >
-            {item.name}
-          </Link>
+          <span className="kp-name">{item.name}</span>
           {item.category && <span className="kp-cat">{kitchenCategoryLabel(t, item.category)}</span>}
         </span>
       ),
@@ -303,7 +329,9 @@ function PlanEditor() {
               // #548 FR-006: entry stays live without a stream (Log's grammar) — the commit
               // attempt raises the alert; only offline pre-disables the field. Committed value
               // unchanged: it renders beside the field at the page.
-              disabled={!isOnline}
+              // #784: also disabled when the payload says the viewer does not supervise this
+              // stream — the DB write would refuse and the affordance mirrors that refusal.
+              disabled={fieldDisabled}
               onSave={next => saveCell(item.id, next)}
               dense={isDesktop}
             />
@@ -332,20 +360,15 @@ function PlanEditor() {
     return (
       <div className="kp-card">
         <div className="kp-card-head">
+          {/* #784 AC-058: item names are plain text — no per-row link on phone either. */}
           <span className="kp-card-name">
-            <Link
-              to={`/cafe/log?q=${encodeURIComponent(item.name)}`}
-              className="kp-row-link"
-              aria-label={t('kitchen.plan.row.logAria', { item: item.name })}
-            >
-              {item.name}
-            </Link>
+            <span className="kp-name">{item.name}</span>
             {item.category && <span className="kp-card-cat">{kitchenCategoryLabel(t, item.category)}</span>}
           </span>
           <PlanQtyField
             itemName={item.name}
             qty={qtyOf(item.id)}
-            disabled={!isOnline}
+            disabled={fieldDisabled}
             onSave={next => saveCell(item.id, next)}
           />
         </div>
@@ -387,9 +410,9 @@ function PlanEditor() {
       }
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
     >
-      {load.kind === 'ready' && items.length > 0 && !hasPlannedItems && (
-        <p className="kp-nothing-planned">{t('kitchen.plan.nothingPlannedYet')}</p>
-      )}
+      {/* #784 AC-059: the summary line stands alone — a floating `Nothing planned yet` above
+          it doubles the same fact "Planned total 0" already speaks. That sentence lives only
+          inside the true-empty state (the horizon's EmptyState body). */}
       {/* #401 / DD-WAY-40: Plan is an ACT surface — its figures render as the DESIGN.md
           Metric summary rule: one inline line, no card, no width branch, never a tile
           row (OD-WAY-74 #2). No delta: a capture band has no state worth acting on. */}
@@ -545,6 +568,8 @@ function PesananView() {
     .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b)))]
 
   // Group the flat rows by date (already date-sorted by the query) for the read view.
+  // #784 AC-058: on desktop each group header carries ONE `See these in Log →` link; the
+  // phone carries none (the Café tab is one tap away).
   const pesananGroups: DataTableGroup<PesananRow>[] = useMemo(() => {
     const byDate = new Map<string, PesananRow[]>()
     for (const r of visible) {
@@ -557,11 +582,17 @@ function PesananView() {
       label: date,
       count: dateRows.length,
       rows: dateRows,
+      headerActions: isDesktop ? (
+        <Link to="/cafe/log" className="kp-group-log-link">
+          {t('kitchen.plan.seeInLog')}
+        </Link>
+      ) : undefined,
     }))
-  }, [visible])
+  }, [visible, isDesktop, t])
 
   // Read-only pesanan columns: Item (name + category sub-label) · Action · Planned.
   // No edit affordance (AC-024) — the qty is a plain tabular number, no stepper.
+  // #784 AC-058: item names are plain text — no per-row link on either face.
   const pesananColumns: DataTableColumn<PesananRow>[] = [
     {
       key: 'item',
@@ -569,13 +600,7 @@ function PesananView() {
       cardLabel: '',
       render: r => (
         <span className="kp-dish">
-          <Link
-            to={`/cafe/log?q=${encodeURIComponent(r.wip_item_name)}`}
-            className="kp-name kp-row-link"
-            aria-label={t('kitchen.plan.row.logAria', { item: r.wip_item_name })}
-          >
-            {r.wip_item_name}
-          </Link>
+          <span className="kp-name">{r.wip_item_name}</span>
           {r.category && <span className="kp-cat">{kitchenCategoryLabel(t, r.category)}</span>}
         </span>
       ),
