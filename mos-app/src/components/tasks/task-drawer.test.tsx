@@ -166,6 +166,21 @@ describe('TaskDrawer (AC-101, AC-102)', () => {
     expect(document.querySelector('.record-doc')).toBeNull()
     expect(document.querySelector('.dw-surface')).toBeTruthy()
   })
+
+  it('AC-043 (issue 756): an unknown task id renders "Task not found" INSIDE the record frame, with a way back', async () => {
+    // The DB miss (or an id nobody may read) surfaces as a rejected getTask; the drawer must
+    // still show its record chrome — same aside, same host — with the honest not-found copy
+    // and a Link that returns to the collection. Never a blank overlay, never a bare route change.
+    mockGetTask.mockRejectedValue(new Error('PGRST116 not found'))
+    renderAt('/work/tasks/unknown-id')
+    const aside = await screen.findByRole('complementary', { name: /task detail/i })
+    // The not-found copy renders INSIDE the same drawer aside — the record frame is preserved.
+    expect(within(aside).getByText(/task not found/i)).toBeInTheDocument()
+    // The "way back" — a link to the tasks collection sits inside the drawer.
+    const back = within(aside).getByRole('link', { name: /all tasks/i })
+    expect(back).toBeInTheDocument()
+    expect(back.getAttribute('href')).toMatch(/\/work\/tasks/)
+  })
 })
 
 // GAP-2 (OD-REDESIGN-91 #7): expand-in-place is RETIRED. The drawer stays the compact stacked

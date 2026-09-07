@@ -67,6 +67,10 @@ function renderRecord(overrides: Partial<TaskRecordAdapterInput> = {}) {
     downlineIds: [],
     people,
     businessUnits,
+    // #756 AC-036: hand the writer at least one eligible team so the Team picker is genuinely
+    // editable on the editable path (no honest-migration reason line appears where the whole
+    // record is editable — the GUARD-R4 floor holds). Read-only viewers still read the same team.
+    viewerTeams: [{ id: 't-cafe', label: 'Café Operations', businessUnitId: 'bu-retail' }],
     onUpdateField: vi.fn(async () => {}),
     onUpdateStatus: vi.fn(async () => {}),
     onArchive: vi.fn(async () => {}),

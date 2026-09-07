@@ -140,6 +140,10 @@ export type TaskFieldsPatch = Partial<Pick<
   TaskListRow, 'title' | 'description' | 'due_date' | 'business_unit_id'
   | 'responsible_person_id' | 'accountable_person_id'
   | 'objective_id' | 'work_line_id'
+  // #756: Team is the owning field the record edits (AC-036); the write flows through
+  // updateTaskFields exactly like the other single-column patches. The DB's same-org +
+  // BU-equal rule is the write-time authority (mos._guard_tasks).
+  | 'team_id'
 >>
 
 /** Edit non-RACI/non-status fields, then log a `field_edited` event (FR-055). */

@@ -12,13 +12,16 @@ export interface WorkLineRow {
   name: string
   type: 'project' | 'process'
   objective_id?: string | null
+  // #756 AC-039: the Project/Process Accountable — the person Supervisor inheritance
+  // resolves against (OD-REDESIGN-41). Nullable; a Project/Process may be catalog-only.
+  accountable_person_id?: string | null
 }
 
 /** List active (non-archived) work lines ordered by name (org-readable via RLS). */
 export async function listWorkLines(): Promise<WorkLineRow[]> {
   const { data, error } = await mos()
     .from('work_lines')
-    .select('id,name,type,objective_id')
+    .select('id,name,type,objective_id,accountable_person_id')
     .is('archived_at', null)
     .order('name')
   if (error) throw new Error(`listWorkLines failed — ${error.message}`)

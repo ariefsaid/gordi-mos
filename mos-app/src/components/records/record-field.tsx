@@ -218,6 +218,10 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
     // crowding out the actual ownership/provenance story the E7 record anatomy wants (F2:
     // record anatomy regression). No fallback text; a field with nothing to explain shows none.
     const reason = spec.readOnlyReason
+    // AC-042: Source is a link chip that navigates to the parent — a read-only field whose
+    // value CARRIES an href (never an editable picker's `href`, which would be a category error).
+    const linkHref = spec.linkHref
+    const valueNode = renderValueNode(spec)
     return (
       <div
         className="record-field record-field--readonly"
@@ -231,11 +235,23 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
         </span>
         <div className="record-field__value-cell">
           {heading ? (
-            <h1 className="record-field__value record-field__heading">{renderValueNode(spec)}</h1>
+            <h1 className="record-field__value record-field__heading">{valueNode}</h1>
+          ) : linkHref ? (
+            <a
+              href={linkHref}
+              className="record-field__value record-field__link-chip"
+              aria-labelledby={labelId}
+              data-field-link={spec.key}
+            >
+              {valueNode}
+            </a>
           ) : (
             <div className="record-field__value" aria-labelledby={labelId}>
-              {renderValueNode(spec)}
+              {valueNode}
             </div>
+          )}
+          {spec.helperText && (
+            <p className="record-field__helper" data-field-helper={spec.key}>{spec.helperText}</p>
           )}
           {reason && <p className="record-field__reason">{reason}</p>}
         </div>
@@ -277,6 +293,9 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
               {PENCIL}
             </span>
           </button>
+          {spec.helperText && (
+            <p className="record-field__helper" data-field-helper={spec.key}>{spec.helperText}</p>
+          )}
           {feedback}
         </div>
       </div>
@@ -408,6 +427,9 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
           />
         )}
 
+        {spec.helperText && (
+          <p className="record-field__helper" data-field-helper={spec.key}>{spec.helperText}</p>
+        )}
         {feedback}
       </div>
     </div>

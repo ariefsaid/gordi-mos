@@ -31,6 +31,11 @@ export interface TaskRow {
   // structurally satisfiable by any pre-existing TaskListRow literal without a cast.
   process_run_id?: string | null
   generated_from_task_def_id?: string | null
+  // #756: the executing Team (mos.tasks.team_id, ADR-0051 gate). Nullable — legacy rows and
+  // any created-without-a-team path carry null; a supplied team_id is guarded same-org + BU-equal
+  // by mos._guard_tasks. Kept optional so pre-existing TaskRow literals stay structurally
+  // satisfiable (same discipline as the occurrence-provenance columns above).
+  team_id?: string | null
 }
 export interface ChecklistItemRow {
   id: string

@@ -28,12 +28,17 @@ vi.mock('../../lib/comments/postComment', () => ({
 }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
+// #756 AC-036: TaskSurface loads the writer's teams for the record's Team picker. The
+// standalone signals mock keeps this suite self-contained (no real supabase call slips in
+// when the real-module fallback is loaded).
+vi.mock('../../lib/db/signals', () => ({ listAuthorTeams: vi.fn() }))
 
 import { getTask, updateTaskStatus, updateTaskFields } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import { listComments } from '@/lib/comments/postComment'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
+import { listAuthorTeams } from '@/lib/db/signals'
 import { TaskSurface } from './task-surface'
 
 const VIEWER_ID = 'pic-person'
@@ -86,10 +91,14 @@ beforeEach(() => {
   vi.mocked(listWorkLines).mockResolvedValue([{ id: 'process-opening', name: 'Today opening', type: 'process' }])
   vi.mocked(updateTaskStatus).mockResolvedValue()
   vi.mocked(updateTaskFields).mockResolvedValue()
+  // #756 AC-036: default an empty viewer-teams list. Tests that assert Team picker options
+  // override per-case; the default keeps the picker in the honest "no eligible team" read-only
+  // state, so pre-existing legacy assertions do not need to know about it.
+  vi.mocked(listAuthorTeams).mockResolvedValue([])
 })
 
 describe('OD-REDESIGN-62 — typed Task record', () => {
-  it('§Task-11: shows PIC, Supervisor, Due, source, completion, and reassignment — NO Team field (Issue-8 gate), without Task RACI grammar', async () => {
+  it('§Task-11 (superseded by #756 AC-036): Team IS the owning field, Business Unit rides beneath it as "BU: <name>", PIC/Supervisor/Due/source/completion/reassignment still work — without Task RACI grammar', async () => {
     const task = makeTask()
     vi.mocked(getTask)
       .mockResolvedValueOnce({ task, checklist: [], events: [] })
@@ -105,11 +114,12 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { name: task.title })).toBeInTheDocument())
 
-    // DELIBERATE goal change (record-collection plan §Task-11): the live Task record renders NO Team
-    // field until Issue 8 supplies the real team_id contract. Business Unit ("Café Operations", the
-    // name of BU `team-cafe`) is DISTINCT and still renders; only the Team field is gone.
-    expect(screen.queryByText('Team')).toBeNull()
-    expect(screen.getAllByText('Café Operations').length).toBeGreaterThan(0)
+    // DELIBERATE goal change (#756 AC-036): Team IS a first-class ownership field on the Task
+    // record, and Business Unit rides beneath it as a "BU: <name>" subline — never a separate
+    // editable BU row. The BU name "Café Operations" still renders (as the subline), and the
+    // Team label reads once (as the field's own label). This supersedes the earlier §Task-11 gate.
+    expect(screen.getByText('Team')).toBeInTheDocument()
+    expect(screen.getByText('BU: Café Operations')).toBeInTheDocument()
     expect(screen.getByTestId('record-details').querySelector('[data-record-header="pinned"]')).toBeTruthy()
     expect(screen.getByRole('tablist')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Details' })).toBeInTheDocument()

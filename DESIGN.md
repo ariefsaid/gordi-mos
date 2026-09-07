@@ -877,6 +877,9 @@ heading, a bespoke card, or two CTAs for one empty is out of grammar.
   the four, with **no accent tint**, so it never reads as an earned all-clear (`quiet`) or as
   pending work (`awaiting`).
 
+**A7 (2026-09-07, ticket #756):**
+> **Empty relation.** A missing optional relation renders its derived state word ("Ad hoc"), never "—".
+
 **Rule.** One route, one empty frame, one action maximum. The archetypes vary only the message and
 whether the single action slot is absent or populated; spacing, type, icon treatment and body
 measure stay shared. Reuse existing `state-kit` / button / spacing / type tokens only — no new

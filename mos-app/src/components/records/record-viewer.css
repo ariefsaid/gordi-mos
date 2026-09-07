@@ -206,6 +206,41 @@
   color: var(--muted-foreground);
 }
 
+/* Derived subline beneath a field's value (#756: "BU: <unit>" beneath Team; "inherited from
+   <name>" beneath a Supervisor that mirrors the parent Project/Process Accountable). Same
+   register as the reason line — quiet, one-line — but stated as a fact adjacent to the value
+   it qualifies, not as a permission restriction. */
+.record-field__helper {
+  margin: 0;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+
+/* Source link chip (AC-042). The value renders inside an <a>, styled to match the entity
+   chip's shape so a reader sees "a chip that navigates" — never a bare underline in the
+   document. Hover/focus surface the chip's own affordance. */
+.record-field__link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-inline-start: -9px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  font-size: var(--rec-kv-value-size);
+  color: var(--foreground);
+  text-decoration: none;
+}
+.record-field__link-chip:hover {
+  background: var(--muted);
+  border-color: var(--accent);
+}
+.record-field__link-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 /* ── Field: edit mode — the existing controls (unchanged 44px floor / NFR-V3-006) ───────── */
 .record-field__control {
   min-height: 44px;

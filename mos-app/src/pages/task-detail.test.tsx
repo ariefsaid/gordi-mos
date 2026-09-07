@@ -205,9 +205,10 @@ describe('AC-070 — detail page renders task fields', () => {
     activateFieldByKey('dueDate')
     expect(screen.getByLabelText('Due')).toHaveValue('2026-06-20')
 
-    // Business unit (resolved from directory) — a value-first Ownership field in the record
-    // document (the old TaskDetail identity sub-line is gone; the RecordViewer header owns identity).
-    expect(screen.getAllByText('Cafe Operations').length).toBeGreaterThan(0)
+    // Business unit (resolved from directory) — #756 AC-036: BU is no longer its own row; it
+    // rides beneath the owning Team as a "BU: <name>" subline. The name is still resolved from
+    // the directory and rendered in the Ownership section, so the goal (BU is visible) holds.
+    expect(screen.getByText('BU: Cafe Operations')).toBeInTheDocument()
 
     // PIC and Supervisor names (resolved from directory) — value-first person <select>s reached by
     // activating each row; query the select value (the name appears in multiple <option>s).

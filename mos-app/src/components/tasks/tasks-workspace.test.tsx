@@ -38,6 +38,10 @@ vi.mock('../../lib/db/tasks', () => ({
 }))
 vi.mock('../../lib/db/signals', () => ({
   linkSignalTask: vi.fn(),
+  // #756 AC-036: TaskSurface loads the writer's teams for the record's Team picker; the
+  // workspace suite mocks the signals module wholesale, so this export must exist even when
+  // no test cares about its result (an empty list is the honest "no eligible team" state).
+  listAuthorTeams: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
@@ -55,7 +59,7 @@ vi.mock('@/lib/db/user-views-collection', () => ({
 }))
 
 import { listTasks, getTask, createTask, updateTaskFields } from '@/lib/db/tasks'
-import { linkSignalTask } from '@/lib/db/signals'
+import { linkSignalTask, listAuthorTeams } from '@/lib/db/signals'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
@@ -207,6 +211,10 @@ beforeEach(() => {
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
+  // #756 AC-036: TaskSurface loads the writer's teams; vi.resetAllMocks() above wipes the
+  // factory-time mockResolvedValue, so re-arm the default per-suite (an empty list is the honest
+  // "no eligible team" state — tests that assert Team picker options can override per-case).
+  vi.mocked(listAuthorTeams).mockResolvedValue([])
   mockListCollectionViews.mockResolvedValue([])
 })
 

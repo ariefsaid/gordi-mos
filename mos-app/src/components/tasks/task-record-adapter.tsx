@@ -41,10 +41,24 @@ export type TaskViewerFieldKey =
   | 'supervisor'
   | 'projectProcess'
   | 'objective'
+  // #756 AC-036: Team is the owning editable field — the record commits `team_id` and the
+  // DB's same-org + BU-equal guard is authoritative (mos._guard_tasks).
+  | 'team'
 
 export interface TaskTeamView {
   id: string
   label: string
+}
+
+/** A team the viewer may re-home this task to (AC-036) — the picker is scoped to the writer's
+ *  own teams because the DB's team-write RLS refuses everything else, and further filtered to
+ *  the task's own BU because a cross-BU pick is rejected by mos._guard_tasks. Callers filter
+ *  before handing the list to the adapter; the adapter takes the pre-filtered set as truth. */
+export interface ViewerTeamOption {
+  id: string
+  label: string
+  /** The team's business_unit_id — used to render the "BU: <name>" subline beneath the value. */
+  businessUnitId: string
 }
 
 export interface TaskRecordAdapterInput {
@@ -67,6 +81,22 @@ export interface TaskRecordAdapterInput {
    */
   team?: TaskTeamView | null
   /**
+   * #756 AC-036: the viewer's own teams the Team picker may commit — pre-filtered by the
+   * writer's BU (a cross-BU pick is refused by mos._guard_tasks). Empty or omitted means
+   * the writer has no eligible team; the Team field then STILL renders (never hidden) but
+   * as a read-only "Team not assigned yet" — the honest data-migration state, not a fake
+   * value. Providing this list is what makes the Team picker editable in the first place.
+   */
+  viewerTeams?: readonly ViewerTeamOption[]
+  /**
+   * The Project/Process Accountable (mos.work_lines.accountable_person_id) — Supervisor
+   * inheritance resolves against this (OD-REDESIGN-41, AC-039). The adapter accepts it
+   * OPTIONAL: `undefined` means "we don't know yet" (no inheritance hint rendered) and
+   * `null` means "the parent has no A" (also no hint). A non-null value opts in only when
+   * it equals this task's accountable_person_id — the exact "inherited from …" fact.
+   */
+  parentAccountablePersonId?: string | null
+  /**
    * The generating `mos.process_task_defs.title` for a task materialized by
    * `mos.spawn_process_run` / `mos.resolve_pending_task` (ADR-0051 Step 6, real
    * `task.generated_from_task_def_id`). Omit or pass null for a hand-created (ad hoc)
@@ -74,6 +104,14 @@ export interface TaskRecordAdapterInput {
    * conditional (E7 record grammar), never a fabricated placeholder.
    */
   generatedFromLabel?: string | null
+  /**
+   * #756 AC-042: build a link into the task's parent Project/Process (the Source chip's
+   * destination — the record navigates the parent record via the panel stack, OD-REDESIGN-41).
+   * The adapter delegates route composition to the caller so an unknown parent kind (a bare
+   * Objective) is the caller's job to route or return null. The chip renders only when this
+   * returns a non-null href.
+   */
+  buildSourceHref?: (input: { workLineId: string | null; objectiveId: string | null }) => string | null
   /**
    * Formats an ISO `YYYY-MM-DD` into the record's DISPLAY string. The live TaskSurface passes the
    * SAME `task-formatters.formatDate` family the table row uses (V3 owner-eyes item 2) so a record's
@@ -116,9 +154,6 @@ function metaShortName(people: readonly PersonOption[], id: string | null, unass
   const person = people.find((p) => p.id === id)
   return person ? firstName(person.full_name) : unassigned
 }
-function buOptions(bus: readonly BusinessUnitOption[]): RecordFieldOption[] {
-  return bus.map((b) => ({ value: b.id, label: b.name }))
-}
 function buName(bus: readonly BusinessUnitOption[], id: string, noneMarker = '—'): string {
   return bus.find((b) => b.id === id)?.name ?? noneMarker
 }
@@ -151,6 +186,18 @@ export interface TaskFieldLabels {
   teamFromRecord: string
   teamMigration: string
   dueDate: string
+  /** #756 AC-036: the "BU: <name>" subline beneath the Team value — a derived fact,
+   *  not the editable BU field (which was removed from Ownership). */
+  buPrefix: (buName: string) => string
+  /** #756 AC-039: the "inherited from <first name>" subline beneath Supervisor when its
+   *  value equals the parent Project/Process Accountable. Absent otherwise (no hint). */
+  supervisorInherited: (firstName: string) => string
+  /** #756 AC-037: the Ownership "Created by <first name> · <date>" line. */
+  createdBy: string
+  createdByLine: (firstName: string, date: string) => string
+  /** #756 AC-038 / DESIGN.md A7: a missing optional relation renders its derived state
+   *  word ("Ad hoc"), never "—". Used for Project/Process and Objective. */
+  adHoc: string
 }
 
 /** i18n-able labels for the FULL Task record adapter's chrome — section titles, the
@@ -238,6 +285,11 @@ const DEFAULT_TASK_FIELD_LABELS: TaskFieldLabels = {
   teamFromRecord: 'Team is set from the task record',
   teamMigration: 'No team is assigned to this task yet (data migration).',
   dueDate: 'Due date',
+  buPrefix: (name) => `BU: ${name}`,
+  supervisorInherited: (name) => `inherited from ${name}`,
+  createdBy: 'Created by',
+  createdByLine: (name, date) => `Created by ${name} · ${date}`,
+  adHoc: 'Ad hoc',
 }
 
 /** The honest Team field spec — Business Unit is NEVER relabelled Team; a real task.team_id lookup
@@ -260,34 +312,92 @@ export function teamOwnershipField(
   }
 }
 
-/** The Task ownership fields — Business Unit, PIC, Supervisor — shared by the full record adapter
- *  and the metadata-only panel adapter.
+/** The Task ownership fields — Team (with BU subline), PIC, Supervisor, Created by — shared by
+ *  the full record adapter and any metadata-only panel adapter that follows the same anatomy.
  *
- *  §Task-11 (Issue-8 gate): the Team field is NOT rendered here until Issue 8 supplies the real
- *  mos.tasks.team_id contract. The `team` input is still ACCEPTED so the adapter's internal model
- *  stays honest (see teamOwnershipField above), but no Team field is projected into the record UI. */
-function ownershipFields(
-  task: Pick<TaskListRow, 'business_unit_id' | 'responsible_person_id' | 'accountable_person_id'>,
-  editable: boolean,
-  viewerId: string,
-  downlineIds: readonly string[],
-  people: readonly PersonOption[],
-  businessUnits: readonly BusinessUnitOption[],
-  // `_team` is accepted (callers still supply it, so the internal model stays honest — the Issue-8
-  // seam via teamOwnershipField) but intentionally NOT rendered until Issue 8's real team_id
-  // contract lands (record-collection plan §Task-11).
-  _team: TaskTeamView | null | undefined,
-  labels: TaskFieldLabels = DEFAULT_TASK_FIELD_LABELS,
-): RecordFieldSpec[] {
+ *  #756 AC-036/037/039: Team is the owning EDITABLE field (picker scoped to the viewer's own
+ *  teams and filtered to the task's BU — the DB's same-org + BU-equal guard is authoritative).
+ *  Business Unit is NOT rendered as an editable field of its own — it appears ONLY as a "BU:
+ *  <name>" subline beneath Team, because it is derived from the team, not chosen. Supervisor
+ *  carries an "inherited from <first name>" subline when it mirrors the parent Project/Process
+ *  Accountable (never when it doesn't). Created by is a read-only line at the foot of the
+ *  section — a factual attribution, not a lifecycle event. */
+function ownershipFields(input: {
+  task: Pick<TaskListRow, 'business_unit_id' | 'responsible_person_id' | 'accountable_person_id'
+    | 'created_by' | 'created_at' | 'team_id'>
+  editable: boolean
+  viewerId: string
+  downlineIds: readonly string[]
+  people: readonly PersonOption[]
+  businessUnits: readonly BusinessUnitOption[]
+  team: TaskTeamView | null | undefined
+  viewerTeams: readonly ViewerTeamOption[]
+  parentAccountablePersonId: string | null | undefined
+  formatDate: (iso: string) => string
+  labels: TaskFieldLabels
+}): RecordFieldSpec[] {
+  const {
+    task, editable, viewerId, downlineIds, people, businessUnits, team, viewerTeams,
+    parentAccountablePersonId, formatDate, labels,
+  } = input
+
+  // Team — editable ONLY when the writer has at least one eligible team AND the whole record is
+  // editable; otherwise the honest read-only migration/no-team state (never a fabricated value).
+  const teamCanEdit = editable && viewerTeams.length > 0
+  const teamValue = task.team_id ?? team?.id ?? null
+  const teamDisplay = teamValue
+    ? (viewerTeams.find((t) => t.id === teamValue)?.label ?? team?.label ?? labels.teamUnassigned)
+    : labels.teamUnassigned
+  const teamBu = teamValue
+    ? viewerTeams.find((t) => t.id === teamValue)?.businessUnitId
+    : null
+  // BU subline — resolved from the picked team when available (the derived fact), falling back
+  // to the task's own BU column (the pre-#756 fossil that still tells the same story).
+  const buForSubline = teamBu ?? task.business_unit_id
+  const teamField: RecordFieldSpec = {
+    key: 'team',
+    label: labels.team,
+    control: 'select',
+    value: teamValue,
+    displayValue: teamDisplay,
+    options: viewerTeams.map((t) => ({ value: t.id, label: t.label })),
+    editable: teamCanEdit,
+    helperText: labels.buPrefix(buName(businessUnits, buForSubline, labels.teamUnassigned)),
+    // When the record is editable but the writer has no eligible team, name why the picker is
+    // absent — the "honest data-migration state" copy is exactly this seam (see teamOwnershipField).
+    readOnlyReason: !teamCanEdit && editable ? labels.teamMigration : undefined,
+  }
+
+  const supervisorField: RecordFieldSpec = editableSpec(editable, {
+    key: 'supervisor',
+    label: labels.supervisor,
+    control: 'person',
+    value: task.accountable_person_id,
+    displayValue: personName(people, task.accountable_person_id),
+    options: personOptions(people),
+    // AC-039: the "inherited from …" hint fires ONLY when this task's Supervisor equals the
+    // parent Project/Process Accountable — every other case (no parent, parent has no A, or a
+    // deliberate override) carries NO hint (silence is the honest neutral, not an em dash).
+    helperText: parentAccountablePersonId && parentAccountablePersonId === task.accountable_person_id
+      ? labels.supervisorInherited(firstName(personName(people, parentAccountablePersonId, labels.teamUnassigned)))
+      : undefined,
+  })
+
+  // AC-037: "Created by <first name> · <date>", read-only. Rendered at the FOOT of the section
+  // per the ticket's field order — a factual attribution, never a lifecycle button.
+  const creatorName = personName(people, task.created_by, labels.teamUnassigned)
+  const createdField: RecordFieldSpec = {
+    key: 'createdBy',
+    label: labels.createdBy,
+    control: 'text',
+    value: task.created_by,
+    displayValue: labels.createdByLine(firstName(creatorName), formatDate(task.created_at)),
+    editable: false,
+    // The line itself is the derived fact — no permission reason, no BU subline.
+  }
+
   return [
-    editableSpec(editable, {
-      key: 'businessUnit',
-      label: labels.businessUnit,
-      control: 'select',
-      value: task.business_unit_id,
-      displayValue: buName(businessUnits, task.business_unit_id),
-      options: buOptions(businessUnits),
-    }),
+    teamField,
     editableSpec(editable, {
       key: 'pic',
       label: labels.pic,
@@ -298,14 +408,8 @@ function ownershipFields(
       // self + downline — the only values the DB's PIC-value clause accepts from this writer.
       options: personOptions(picOptions(viewerId, people, downlineIds)),
     }),
-    editableSpec(editable, {
-      key: 'supervisor',
-      label: labels.supervisor,
-      control: 'person',
-      value: task.accountable_person_id,
-      displayValue: personName(people, task.accountable_person_id),
-      options: personOptions(people),
-    }),
+    supervisorField,
+    createdField,
   ]
 }
 
@@ -350,10 +454,13 @@ function statusLabel(s: TaskStatus, L: TaskRecordLabels): string {
 }
 
 export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordViewerAdapter {
-  const { detail, viewerId, downlineIds, people, businessUnits, objectives = [], workLines = [], team } = input
+  const {
+    detail, viewerId, downlineIds, people, businessUnits, objectives = [], workLines = [], team,
+    viewerTeams = [], parentAccountablePersonId, buildSourceHref,
+  } = input
   const formatDate = input.formatDate ?? ((iso: string) => iso)
   const formatAge = input.formatAge
-  const labels = input.labels ?? DEFAULT_TASK_FIELD_LABELS
+  const labels = { ...DEFAULT_TASK_FIELD_LABELS, ...(input.labels ?? {}) }
   const L = { ...DEFAULT_TASK_RECORD_LABELS, ...input.recordLabels }
   const task = detail.task
   const archived = task.archived_at !== null
@@ -417,17 +524,27 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     ],
   }
 
-  // 2. Ownership — Business Unit · PIC · Supervisor. Team stays gated off until Issue 8's real
-  //    team_id contract (§Task-11). The oracle's accessible name is "Task ownership".
+  // 2. Ownership — Team (with "BU: <unit>" subline) · PIC · Supervisor (· inherited from <name>
+  //    when it mirrors the parent Project/Process Accountable) · Created by <first name> · <date>.
+  //    #756 AC-036: Team is the owning editable field; the editable Business Unit row is gone.
+  //    The oracle's accessible name is "Task ownership".
   const ownership: RecordMetadataSection = {
     id: 'ownership',
     label: L.ownershipSection,
-    fields: ownershipFields(task, editable, viewerId, downlineIds, people, businessUnits, team, labels),
+    fields: ownershipFields({
+      task, editable, viewerId, downlineIds, people, businessUnits, team, viewerTeams,
+      parentAccountablePersonId, formatDate, labels,
+    }),
   }
 
-  // 3. Relations — Project/Process · Objective (settable navigational links) · Generated-by ·
-  //    Source (read-only provenance), each rendered WHERE the datum exists. Source/Generated-by
-  //    carry no per-field reason (LAW-6 / F3 — one whole-record note only).
+  // 3. Relations — Project/Process · Objective (settable navigational links, "Ad hoc" when
+  //    missing, AC-038 / DESIGN.md A7) · Generated-by · Source link chip (AC-042 — opens the
+  //    parent in the panel stack; rendered only when a real attribution exists). The empty
+  //    relation renders its DERIVED state word ("Ad hoc"), never the noneMarker em dash: an
+  //    unattributed task is honestly ad hoc, not unattributable.
+  const sourceHref = sourceDisplay
+    ? (buildSourceHref?.({ workLineId: task.work_line_id, objectiveId: task.objective_id }) ?? null)
+    : null
   const relations: RecordMetadataSection = {
     id: 'relations',
     label: L.relatedSection,
@@ -437,7 +554,10 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
         label: L.projectProcessField,
         control: 'relation',
         value: task.work_line_id,
-        displayValue: workLineName ?? L.noneMarker,
+        // AC-038: an unattributed Project/Process shows "Ad hoc" as its derived state word.
+        // The option-list null entry keeps its em-dash so the picker still reads "no attribution"
+        // in the drop-down (a picker's null option is a separate register from the value chip).
+        displayValue: workLineName ?? labels.adHoc,
         options: [{ value: '', label: L.noneMarker }, ...workLines.map((row) => ({ value: row.id, label: row.name }))],
       }),
       editSpec({
@@ -445,7 +565,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
         label: L.objectiveField,
         control: 'relation',
         value: task.objective_id,
-        displayValue: objectiveName ?? L.noneMarker,
+        displayValue: objectiveName ?? labels.adHoc,
         options: [{ value: '', label: L.noneMarker }, ...objectives.map((row) => ({ value: row.id, label: row.name }))],
       }),
       // Conditional (E7 record grammar) — rendered only when the real generating task
@@ -461,9 +581,11 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
             readOnlyReason: undefined,
           }]
         : []),
-      // Source/provenance — read-only derived summary naming the real work-line/objective
-      // attribution. Rendered only when such an attribution exists; a hand-created task with no
-      // work line or objective carries no Source row (no naked "Ad hoc" placeholder).
+      // Source — AC-042: a read-only chip that navigates to the parent (Project/Process or
+      // Objective) in the panel stack. Rendered only when a real attribution EXISTS; a bare
+      // ad-hoc task carries no Source row (the Project/Process and Objective rows above already
+      // say "Ad hoc"). `linkHref` is the seam — the caller composes the concrete route via
+      // buildSourceHref; without a href the chip degrades to plain text (never a dead link).
       ...(sourceDisplay
         ? [{
             key: 'source',
@@ -473,6 +595,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
             displayValue: sourceDisplay,
             editable: false,
             readOnlyReason: undefined,
+            linkHref: sourceHref ?? undefined,
           }]
         : []),
     ],

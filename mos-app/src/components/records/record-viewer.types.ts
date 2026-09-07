@@ -50,6 +50,17 @@ export interface RecordFieldSpec {
   /** Why a non-editable field is read-only — surfaced honestly, never hidden. */
   readOnlyReason?: string
   required?: boolean
+  /** A quiet subline shown BENEATH the field's value — a derived fact adjacent to the value
+   *  it qualifies ("BU: Retail Ops" beneath Team; "inherited from Dewi" beneath Supervisor
+   *  when it equals the parent Project/Process Accountable, OD-REDESIGN-41). Renders in both
+   *  read-only and editable modes. Distinct from `readOnlyReason` (which fires only when
+   *  editable is false and names a permission/lifecycle restriction, not a derived fact). */
+  helperText?: string
+  /** A read-only link chip destination (Task record "Source" field, AC-042). When set on a
+   *  non-editable field the value renders inside an `<a href={linkHref}>` element so the
+   *  chip acts as a navigation into the parent record instead of a static string. Ignored
+   *  when the field is editable (an editable field is a picker, not a link). */
+  linkHref?: string
 }
 
 export interface RecordMetadataSection {

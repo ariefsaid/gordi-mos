@@ -786,9 +786,10 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     expect(screen.queryByText('Review and update this task.')).toBeNull()
     expect(screen.queryByText('Focused record')).toBeNull()
 
-    // Typed Task context is preserved (Team = Kitchen); no collection/table shell.
-    // Value-first grammar: Team renders as text/chip value, not a permanent select.
-    expect(screen.getAllByText('Kitchen').length).toBeGreaterThan(0)
+    // Typed Task context is preserved; no collection/table shell. #756 AC-036: BU is no longer
+    // an editable Ownership field of its own — it rides beneath the owning Team as a "BU:
+    // <name>" subline, so the Kitchen name still renders (in that derived subline).
+    expect(screen.getByText('BU: Kitchen')).toBeInTheDocument()
     expect(document.querySelector('tbody tr.task-row')).toBeNull()
     expect(document.querySelector('.record-viewer--page')).toBeTruthy()
   })

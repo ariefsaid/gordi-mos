@@ -64,7 +64,9 @@ describe('listWorkLines', () => {
 
     expect(result).toEqual(rows)
     expect(rec.fromTables).toContain('work_lines')
-    expect(rec.selects).toContain('id,name,type,objective_id')
+    // #756 AC-039: the Project/Process Accountable is Supervisor's inheritance source, so the
+    // list query now includes accountable_person_id (mos.work_lines.accountable_person_id).
+    expect(rec.selects).toContain('id,name,type,objective_id,accountable_person_id')
   })
 
   it('filters archived (archived_at is null) and orders by name', async () => {

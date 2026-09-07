@@ -15,7 +15,7 @@
  *   FR-250: lookups load non-blocking — form is usable before they resolve
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -348,8 +348,8 @@ describe('FR-247/248 — detail edit: Objective inline select', () => {
   })
 })
 
-describe('FR-249 — detail panel shows "—" when both fields are null (read-only)', () => {
-  it('FR-249: read-only viewer sees "—" for null work_line_id and null objective_id', async () => {
+describe('FR-249 — detail panel names a null relation with its derived state word (superseded by #756 AC-038)', () => {
+  it('FR-249 (superseded by #756 AC-038 / DESIGN.md A7): read-only viewer sees "Ad hoc" for null work_line_id and null objective_id, never "—"', async () => {
     // A non-editor viewer (task owned by someone else) gets read-only text fields.
     const task = makeTask({ work_line_id: null, objective_id: null,
       responsible_person_id: 'other-id', accountable_person_id: 'other-id' })
@@ -362,13 +362,19 @@ describe('FR-249 — detail panel shows "—" when both fields are null (read-on
       </AuthContext.Provider>,
     )
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    // FR-249: null fields render an explicit null-indicator (not blank). Work-line and Objective
-    // render "—"; Due renders the more informative "No due date" (task-record-adapter.tsx:185
-    // sets displayValue: task.due_date ?? 'No due date'). Both satisfy the FR-249 goal — a null
-    // field is visibly marked, not empty.
-    const dashes = screen.getAllByText('—')
-    // Work-line "—" + Objective "—" (Due uses "No due date" instead of "—")
-    expect(dashes.length).toBeGreaterThanOrEqual(2)
+    // DELIBERATE goal change (#756 AC-038): a missing optional RELATION renders its derived
+    // state word ("Ad hoc"), never the em dash — the FR-249 goal (a null field is visibly
+    // marked, not empty) survives; only the STATE WORD for Project/Process and Objective moved
+    // from "—" to "Ad hoc". A7's scope is relations; Description keeps its own "—" fallback,
+    // and Due keeps "No due date".
+    expect(screen.getAllByText('Ad hoc').length).toBeGreaterThanOrEqual(2)
+    // The two relation rows carry Ad hoc, not the em dash.
+    const projectProcess = document.querySelector('[data-field-key="projectProcess"]') as HTMLElement
+    const objective = document.querySelector('[data-field-key="objective"]') as HTMLElement
+    expect(within(projectProcess).getByText('Ad hoc')).toBeInTheDocument()
+    expect(within(objective).getByText('Ad hoc')).toBeInTheDocument()
+    expect(within(projectProcess).queryByText('—')).toBeNull()
+    expect(within(objective).queryByText('—')).toBeNull()
     expect(screen.getByText('No due date')).toBeInTheDocument()
   })
 })

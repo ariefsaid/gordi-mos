@@ -50,6 +50,11 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'followUps.record.title', // Follow-up — product term
   'tasks.checklistTitle', // Checklist
   'tasks.feed.checklist', // Checklist
+  // #756: "Ad hoc" is a borrowed Latin term used the same in both locales; the "BU: ${name}"
+  // subline is a template whose only word is the "BU" abbreviation (identical) — the name is
+  // interpolated live.
+  'tasks.field.adHoc', // Ad hoc — borrowed Latin term
+  'tasks.field.buPrefix', // BU: ${name} — abbreviation template
   'tasks.filter.sortPic', // PIC A–Z
   'tasks.filter.sortStatus', // Status
   'tasks.filter.status', // Status

@@ -11,6 +11,7 @@ import {
   createTaskFieldCommit,
   teamOwnershipField,
   type TaskRecordAdapterInput,
+  type ViewerTeamOption,
 } from './task-record-adapter'
 import type { RecordFieldSpec, RecordViewerAdapter } from '@/components/records/record-viewer.types'
 
@@ -24,6 +25,13 @@ const people: PersonOption[] = [
 const businessUnits: BusinessUnitOption[] = [
   { id: 'bu-retail', name: 'Retail Ops' },
   { id: 'bu-hq', name: 'HQ Ops' },
+]
+// #756: the writer's viewer-teams the Team picker offers by default. Filtered to the task's
+// BU (Retail Ops) already — the surface is the pre-filter site (mos._guard_tasks stays the
+// authority).
+const VIEWER_TEAMS: ViewerTeamOption[] = [
+  { id: 't-cafe', label: 'Café Operations', businessUnitId: 'bu-retail' },
+  { id: 't-bar', label: 'Bar Team', businessUnitId: 'bu-retail' },
 ]
 
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
@@ -58,6 +66,9 @@ function makeInput(overrides: Partial<TaskRecordAdapterInput> = {}): TaskRecordA
     downlineIds: [],
     people,
     businessUnits,
+    // #756: default viewer teams so the Team picker's editable path is exercised by default;
+    // an individual test that wants the honest "no eligible team" state passes `viewerTeams: []`.
+    viewerTeams: VIEWER_TEAMS,
     onUpdateField: vi.fn(async () => {}),
     onUpdateStatus: vi.fn(async () => {}),
     onArchive: vi.fn(async () => {}),
@@ -84,13 +95,15 @@ function fieldByKey(adapter: RecordViewerAdapter, key: string): RecordFieldSpec 
 // coverage is retained by the createTaskRecordAdapter suite below.
 
 describe('createTaskRecordAdapter', () => {
-  it('FR-V3-003 / TaskAdapterContract: renders Task identity, BU, PIC/Supervisor/status/due, checklist, events, actions', () => {
+  it('FR-V3-003 / TaskAdapterContract: renders Task identity, PIC/Supervisor/status/due, checklist, events, actions', () => {
     const adapter = createTaskRecordAdapter(makeInput())
     expect(adapter.kind).toBe('task')
     expect(adapter.title).toBe('Restock oat milk')
     expect(adapter.typeLabel).toBe('Task')
 
-    expect(fieldByKey(adapter, 'businessUnit').displayValue).toBe('Retail Ops')
+    // #756 AC-036: the editable Business Unit field is gone; BU rides beneath the owning
+    // Team as its "BU: <name>" subline (see the AC-036 suite below for the direct assertion).
+    expect(fieldsOf(adapter).find((f) => f.key === 'businessUnit')).toBeUndefined()
     expect(fieldByKey(adapter, 'pic').displayValue).toBe('Riri')
     expect(fieldByKey(adapter, 'supervisor').displayValue).toBe('Wayan Kusuma')
     expect(fieldByKey(adapter, 'status').displayValue).toBe('Open')
@@ -154,13 +167,11 @@ describe('createTaskRecordAdapter', () => {
     }
   })
 
-  it('§Task-11: PIC/Supervisor labels, Business Unit present, NO Team field before Issue 8, no RACI, checklist inherits ownership', () => {
+  it('§Task-11 (#756 deliberate goal): Team is the owning field — Business Unit rides as its subline, PIC/Supervisor keep their labels, no RACI leaks, checklist inherits ownership', () => {
     const adapter = createTaskRecordAdapter(makeInput())
-    const bu = fieldByKey(adapter, 'businessUnit')
-    expect(bu.label).toBe('Business Unit')
-    // DELIBERATE goal change (§Task-11): no visible Team field until Issue 8's team_id contract.
-    expect(fieldsOf(adapter).find((f) => f.key === 'team')).toBeUndefined()
-    for (const f of fieldsOf(adapter)) expect(f.label).not.toMatch(/^team$/i)
+    // #756 deliberate goal change: Team IS a first-class ownership field; no editable BU row.
+    expect(fieldsOf(adapter).find((f) => f.key === 'team')).toBeDefined()
+    expect(fieldsOf(adapter).find((f) => f.key === 'businessUnit')).toBeUndefined()
 
     expect(fieldByKey(adapter, 'pic').label).toBe('Person in charge (PIC)')
     expect(fieldByKey(adapter, 'supervisor').label).toBe('Supervisor')
@@ -177,14 +188,6 @@ describe('createTaskRecordAdapter', () => {
     expect(screen.queryByText('Supervisor')).not.toBeInTheDocument()
   })
 
-  it('§Task-11 (Issue-8 gate): a real Team lookup is accepted but renders no Team field yet', () => {
-    // DELIBERATE goal change (§Task-11): the adapter still accepts a team input (internal model
-    // preserved) but does not render a Team field until Issue 8's team_id contract lands.
-    const adapter = createTaskRecordAdapter(makeInput({ team: { id: 't-1', label: 'Café Operations' } }))
-    expect(fieldsOf(adapter).find((f) => f.key === 'team')).toBeUndefined()
-    expect(fieldByKey(adapter, 'businessUnit').displayValue).toBe('Retail Ops')
-  })
-
   it('AC-V3-009: an archived Task is read-only, keeps hierarchy, and only offers unarchive', () => {
     const task = makeTask({ archived_at: '2026-07-20T10:00:00Z' })
     // A manager above the PIC may unarchive; the record is still read-only because it is archived.
@@ -193,7 +196,9 @@ describe('createTaskRecordAdapter', () => {
     expect(adapter.permission.reason).toMatch(/archived/i)
     // Editable metadata is now read-only, but values/hierarchy are preserved.
     expect(fieldByKey(adapter, 'pic').editable).toBe(false)
-    expect(fieldByKey(adapter, 'businessUnit').displayValue).toBe('Retail Ops')
+    // BU rides beneath the Team as its subline (AC-036); on an archived record the Team is
+    // still read-only, and the BU subline is still the derived truth.
+    expect(fieldByKey(adapter, 'team').helperText).toBe('BU: Retail Ops')
     // Only unarchive is allowed; complete/archive are gone.
     expect(adapter.permission.allowedActionIds).toContain('unarchive')
     expect(adapter.permission.allowedActionIds).not.toContain('complete')
@@ -404,12 +409,225 @@ describe('createTaskFieldCommit — AC-V3-008: domain-facing keys reach the righ
     await commit('supervisor', 'p-new-2')
     expect(onUpdateField).toHaveBeenCalledWith('supervisor', 'p-new-2')
 
-    await commit('businessUnit', 'bu-hq')
-    expect(onUpdateField).toHaveBeenCalledWith('businessUnit', 'bu-hq')
+    // #756 AC-036: the Team commit key routes through the same field-patch path so the write
+    // pipeline (updateTaskFields → team_id) exists on this seam.
+    await commit('team', 't-cafe')
+    expect(onUpdateField).toHaveBeenCalledWith('team', 't-cafe')
 
     await commit('status', 'Done')
     expect(onUpdateStatus).toHaveBeenCalledWith('Done')
     // status never leaks into the field patch path.
     expect(onUpdateField).not.toHaveBeenCalledWith('status', expect.anything())
+  })
+})
+
+// #756 — Task record fields ticket. The AC coverage tests below assert the record's Details tab
+// speaks the domain: Team is the owning field, BU rides beneath it, Created by is shown, "Ad hoc"
+// replaces "—" on an unattributed relation, Supervisor names its inheritance, Source is a link
+// chip, and the honest read-only mirror survives the redesign.
+
+function fieldKeysInOrder(adapter: RecordViewerAdapter, sectionId: string): string[] {
+  const section = adapter.contentSlots.find((s) => s.id === sectionId)?.section
+  return section ? section.fields.map((f) => f.key) : []
+}
+
+describe('createTaskRecordAdapter — #756 AC-036: Team is the owning field, BU rides beneath it', () => {
+  it('the Ownership section leads with Team (an editable picker), no editable Business Unit row, PIC, Supervisor, Created by — in that order', () => {
+    const adapter = createTaskRecordAdapter(makeInput())
+    // Field order in the Ownership content slot section.
+    expect(fieldKeysInOrder(adapter, 'ownership')).toEqual([
+      'team', 'pic', 'supervisor', 'createdBy',
+    ])
+    // No editable Business Unit field anywhere on the record.
+    expect(fieldsOf(adapter).find((f) => f.key === 'businessUnit')).toBeUndefined()
+  })
+
+  it('the Team picker is EDITABLE, offers ONLY the viewer\'s teams, and carries a "BU: <unit>" subline', () => {
+    const adapter = createTaskRecordAdapter(makeInput())
+    const team = fieldByKey(adapter, 'team')
+    expect(team.editable).toBe(true)
+    expect(team.control).toBe('select')
+    expect(team.options?.map((o) => o.value)).toEqual(['t-cafe', 't-bar'])
+    // The subline is the derived BU fact — "BU: Retail Ops" — rendered as helperText,
+    // not as a permission reason (the value is legitimately editable).
+    expect(team.helperText).toBe('BU: Retail Ops')
+    expect(team.readOnlyReason).toBeUndefined()
+  })
+
+  it('a real team_id resolves the picker\'s selected label from the viewer-teams set', () => {
+    const task = makeTask({ team_id: 't-bar' })
+    const adapter = createTaskRecordAdapter(makeInput({ detail: makeDetail(task) }))
+    const team = fieldByKey(adapter, 'team')
+    expect(team.value).toBe('t-bar')
+    expect(team.displayValue).toBe('Bar Team')
+  })
+
+  it('when the writer has NO eligible team, the Team field stays visible but read-only with the honest migration copy — never a fabricated value', () => {
+    const adapter = createTaskRecordAdapter(makeInput({ viewerTeams: [] }))
+    const team = fieldByKey(adapter, 'team')
+    expect(team.editable).toBe(false)
+    expect(team.readOnlyReason).toMatch(/no team is assigned/i)
+    // BU subline still resolves from the task's own BU column — the derived fact never lies.
+    expect(team.helperText).toBe('BU: Retail Ops')
+  })
+})
+
+describe('createTaskRecordAdapter — #756 AC-037: "Created by <first name> · <date>" reads in Ownership, read-only', () => {
+  it('renders "Created by <first name> · <date>" using the caller\'s date formatter, at the foot of the Ownership section', () => {
+    const adapter = createTaskRecordAdapter(makeInput({
+      formatDate: (iso) => `fmt(${iso})`,
+    }))
+    const created = fieldByKey(adapter, 'createdBy')
+    expect(created.editable).toBe(false)
+    expect(created.displayValue).toBe('Created by Riri · fmt(2026-07-19T00:00:00Z)')
+    // At the foot of Ownership — after Supervisor.
+    expect(fieldKeysInOrder(adapter, 'ownership')).toEqual([
+      'team', 'pic', 'supervisor', 'createdBy',
+    ])
+  })
+})
+
+describe('createTaskRecordAdapter — #756 AC-038 / DESIGN.md A7: missing optional relation reads "Ad hoc", never "—"', () => {
+  it('renders Project/Process as "Ad hoc" when the task has no work_line_id', () => {
+    const adapter = createTaskRecordAdapter(makeInput())
+    expect(fieldByKey(adapter, 'projectProcess').displayValue).toBe('Ad hoc')
+    expect(fieldByKey(adapter, 'projectProcess').displayValue).not.toBe('—')
+  })
+
+  it('renders Objective as "Ad hoc" when the task has no objective_id', () => {
+    const adapter = createTaskRecordAdapter(makeInput())
+    expect(fieldByKey(adapter, 'objective').displayValue).toBe('Ad hoc')
+    expect(fieldByKey(adapter, 'objective').displayValue).not.toBe('—')
+  })
+
+  it('keeps the real name when a relation IS attributed — the "Ad hoc" state word appears only in absence', () => {
+    const task = makeTask({ work_line_id: 'wl-1', objective_id: 'ob-1' })
+    const adapter = createTaskRecordAdapter(makeInput({
+      detail: makeDetail(task),
+      workLines: [{ id: 'wl-1', name: 'New menu launch', type: 'project' }],
+      objectives: [{ id: 'ob-1', name: '2026 growth' }],
+    }))
+    expect(fieldByKey(adapter, 'projectProcess').displayValue).toBe('New menu launch')
+    expect(fieldByKey(adapter, 'objective').displayValue).toBe('2026 growth')
+  })
+})
+
+describe('createTaskRecordAdapter — #756 AC-039: Supervisor names inheritance only when it mirrors the parent Accountable', () => {
+  const PARENT_A = 'p-parent-a'
+  const peopleWithParent: PersonOption[] = [
+    ...people,
+    { id: PARENT_A, full_name: 'Dewi Wulan' },
+  ]
+
+  it('renders "inherited from <first name>" beneath Supervisor when its value equals the parent Project/Process Accountable', () => {
+    const task = makeTask({ accountable_person_id: PARENT_A })
+    const adapter = createTaskRecordAdapter(makeInput({
+      detail: makeDetail(task),
+      people: peopleWithParent,
+      parentAccountablePersonId: PARENT_A,
+    }))
+    expect(fieldByKey(adapter, 'supervisor').helperText).toBe('inherited from Dewi')
+  })
+
+  it('renders NO hint when Supervisor is a deliberate override (differs from the parent Accountable)', () => {
+    const task = makeTask({ accountable_person_id: SUPERVISOR })
+    const adapter = createTaskRecordAdapter(makeInput({
+      detail: makeDetail(task),
+      people: peopleWithParent,
+      parentAccountablePersonId: PARENT_A,
+    }))
+    expect(fieldByKey(adapter, 'supervisor').helperText).toBeUndefined()
+  })
+
+  it('renders NO hint when the task has no parent (parentAccountablePersonId is null)', () => {
+    const adapter = createTaskRecordAdapter(makeInput({ parentAccountablePersonId: null }))
+    expect(fieldByKey(adapter, 'supervisor').helperText).toBeUndefined()
+  })
+})
+
+describe('createTaskRecordAdapter — #756 AC-040: field commit renders Saving → Saved (or error + Retry) beside the field', () => {
+  // AC-040 is a UI contract on the shared RecordField primitive — a successful commit renders
+  // Saving → Saved; a rejected commit stays in edit mode, PRESERVES the draft, shows an error,
+  // and exposes Retry. The adapter's job is to route commits through the shared seam so this
+  // feedback appears on EVERY editable field, including the new Team picker. The behavior test
+  // below drives the real RecordViewer with a rejecting commit and asserts the error/retry pair.
+  it('a rejected Team commit stays in edit mode, PRESERVES the value, and exposes an error + Retry pair on the Team field', async () => {
+    const onUpdateField = vi.fn<(field: string, value: string | null) => Promise<void>>()
+      .mockRejectedValue(new Error('team write refused'))
+    render(
+      <I18nProvider>
+        <RecordViewer
+          adapter={createTaskRecordAdapter(makeInput({ onUpdateField }))}
+          mode="page"
+          headingLevel={1}
+          onCommitField={async (key, value) => {
+            if (key === 'team') await onUpdateField('team', value === null ? null : String(value))
+          }}
+        />
+      </I18nProvider>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Team' }))
+    const teamSelect = screen.getByRole('combobox')
+    fireEvent.change(teamSelect, { target: { value: 't-bar' } })
+    await screen.findByRole('alert')
+    // The error + Retry pair carries the failed commit — feedback beside the SAME field.
+    expect(screen.getByRole('alert')).toHaveTextContent(/couldn.t save/i)
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+    expect(onUpdateField).toHaveBeenCalledWith('team', 't-bar')
+  })
+})
+
+describe('createTaskRecordAdapter — #756 AC-041: a peer sees PIC/Supervisor/Due/Team as values with no edit control and one reason line', () => {
+  it("Bulan (a peer) reads every ownership value read-only — the Team field is present but not editable — with the ONE record-level reason", () => {
+    // "Bulan" = a viewer who is neither PIC nor Supervisor and has no downline over the PIC. The
+    // whole record is read-only; the shared editable policy strips every affordance without
+    // stamping a per-field reason — one line at the whole-record level explains why.
+    const adapter = createTaskRecordAdapter(makeInput({ viewerId: 'bulan', downlineIds: [] }))
+    expect(adapter.permission.readOnly).toBe(true)
+    expect(adapter.permission.reason).toMatch(/permission/i)
+    for (const key of ['team', 'pic', 'supervisor', 'dueDate'] as const) {
+      expect(fieldByKey(adapter, key).editable).toBe(false)
+    }
+    // Team still carries the derived BU subline — a fact, not a reason line — so the read-only
+    // rendering reads the same story as the writer's.
+    expect(fieldByKey(adapter, 'team').helperText).toBe('BU: Retail Ops')
+  })
+})
+
+describe('createTaskRecordAdapter — #756 AC-042: Source is a link chip that opens the parent', () => {
+  it('renders Source as a read-only chip carrying a linkHref when a work line names the parent', () => {
+    const task = makeTask({ work_line_id: 'wl-1' })
+    const adapter = createTaskRecordAdapter(makeInput({
+      detail: makeDetail(task),
+      workLines: [{ id: 'wl-1', name: 'New menu launch', type: 'project' }],
+      buildSourceHref: ({ workLineId }) => workLineId ? `/parent/${workLineId}` : null,
+    }))
+    const source = fieldByKey(adapter, 'source')
+    expect(source.editable).toBe(false)
+    expect(source.displayValue).toBe('New menu launch')
+    expect(source.linkHref).toBe('/parent/wl-1')
+  })
+
+  it('renders as a real anchor in the DOM (a link the viewer can activate)', () => {
+    const task = makeTask({ work_line_id: 'wl-1' })
+    render(
+      <I18nProvider>
+        <RecordViewer
+          adapter={createTaskRecordAdapter(makeInput({
+            detail: makeDetail(task),
+            workLines: [{ id: 'wl-1', name: 'New menu launch', type: 'project' }],
+            buildSourceHref: ({ workLineId }) => workLineId ? `/work/projects?q=New%20menu%20launch` : null,
+          }))}
+          mode="page"
+          headingLevel={1}
+        />
+      </I18nProvider>,
+    )
+    // The field cell renders as a real <a> so ⌘/Ctrl-click, right-click, tab focus and screen
+    // reader "link" semantics all come for free.
+    const chip = document.querySelector('[data-field-link="source"]') as HTMLAnchorElement
+    expect(chip).not.toBeNull()
+    expect(chip.tagName).toBe('A')
+    expect(chip.getAttribute('href')).toBe('/work/projects?q=New%20menu%20launch')
   })
 })
