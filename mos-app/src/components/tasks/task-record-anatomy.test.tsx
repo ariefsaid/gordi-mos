@@ -232,6 +232,19 @@ describe('Ticket #751 AC-031 — the pinned header: meta line, status pill-dropd
     expect(meta!.textContent).toContain('5h')
   })
 
+  it('an unassigned PIC passes through whole — "Belum ditugaskan", never "Belum" (firstName shortens only a person)', () => {
+    const { container } = renderRecord({
+      detail: makeDetail(makeTask({ responsible_person_id: undefined, accountable_person_id: undefined })),
+      recordLabels: { unassigned: 'Belum ditugaskan' },
+    })
+    const meta = container.querySelector(`${HEADER} [data-record-meta]`)
+    expect(meta!.textContent).toContain('PIC Belum ditugaskan')
+    expect(meta!.textContent).toContain('Supervisor Belum ditugaskan')
+    // The truncated first word is exactly the defect: firstName splits on the first space,
+    // so the broken render reads "PIC Belum · …" — the marker cut mid-phrase.
+    expect(meta!.textContent).not.toMatch(/PIC Belum(?! d)/)
+  })
+
   it('one .btn-primary "Mark complete", a status pill-dropdown, and a ⋯ menu holding Archive · Open full page · Copy link', () => {
     // The Supervisor both edits (→ Mark complete primary) and may archive (#742) — the persona
     // that sees the menu's full inventory.

@@ -107,7 +107,14 @@ function personOptions(people: readonly PersonOption[]): RecordFieldOption[] {
   return people.map((p) => ({ value: p.id, label: p.full_name }))
 }
 function personName(people: readonly PersonOption[], id: string | null, unassigned = 'Unassigned'): string {
-  return people.find((p) => p.id === id)?.full_name ?? unassigned ?? 'Unassigned'
+  return people.find((p) => p.id === id)?.full_name ?? unassigned
+}
+/** The pinned-header meta shows a person's FIRST name — but the unassigned marker is not a name
+ *  and passes through whole ("Belum ditugaskan", never "Belum": firstName splits on the first
+ *  space, which truncated the Bahasa marker to a bare "Belum"). */
+function metaShortName(people: readonly PersonOption[], id: string | null, unassigned: string): string {
+  const person = people.find((p) => p.id === id)
+  return person ? firstName(person.full_name) : unassigned
 }
 function buOptions(bus: readonly BusinessUnitOption[]): RecordFieldOption[] {
   return bus.map((b) => ({ value: b.id, label: b.name }))
@@ -474,12 +481,10 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
   // Supervisor · due · activity age. mos.tasks has no team_id yet (Issue 8), so the owning-group
   // slot shows the real team label when the lookup exists, otherwise the task's business unit —
   // the owning group the winning mockup draws ("Retail Ops"), never a fabricated team.
-  const picName = personName(people, task.responsible_person_id, L.unassigned)
-  const supervisorName = personName(people, task.accountable_person_id, L.unassigned)
   const metaItems = [
     team?.label ?? buName(businessUnits, task.business_unit_id, L.noneMarker),
-    `${L.metaPic} ${firstName(picName)}`,
-    `${L.metaSupervisor} ${firstName(supervisorName)}`,
+    `${L.metaPic} ${metaShortName(people, task.responsible_person_id, L.unassigned)}`,
+    `${L.metaSupervisor} ${metaShortName(people, task.accountable_person_id, L.unassigned)}`,
     task.due_date ? `${L.metaDue} ${formatDate(task.due_date)}` : null,
     task.last_activity_at && formatAge ? formatAge(task.last_activity_at) : null,
   ].filter((item): item is string => item !== null)

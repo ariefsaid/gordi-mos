@@ -181,6 +181,121 @@ test.describe('desktop geometry guards', () => {
   })
 })
 
+// ── #751 round 3 — the pinned header is a STRUCTURE, not a sticky offset ──────────────────
+// The record is one bounded column flex: pinned header + tab strip are non-scrolling siblings
+// above a body that is flex:1 · min-height:0 · overflow:auto. Round 2 pinned this with a
+// CSS-string regex (`top: var(--header-h)`) whose green state WAS the broken render — the offset
+// displaced the header 56px down over the tabs, and `.record-doc` (a never-scrolling scrollport)
+// could not hold a sticky child at all. The oracle is the rendered box, measured here on the real
+// stack at both record surfaces: the 1440 split drawer and the 390 standalone page.
+test.describe('pinned record header geometry (#751)', () => {
+  // Same service-key SQL seam the GUARD-743 guard below uses (ENV_743/SUPABASE_URL_743 are the
+  // generic .env.e2e reads this file already loads).
+  async function seedLongTask751(): Promise<string> {
+    const taskId = '75100000-0000-0000-0000-000000000001'
+    await sql743(`
+      delete from mos.tasks where id = '${taskId}';
+      insert into mos.tasks (
+        id, org_id, title, business_unit_id, status,
+        responsible_person_id, accountable_person_id, consulted_person_ids, informed_person_ids,
+        description, due_date, created_by
+      )
+      select '${taskId}', '${ORG_743}', 'Guard pinned header 751', bu.id, 'Open',
+             '${VIEWER.personId}', '${VIEWER.personId}', '{}', '{}',
+             'Guard 751 long body. ' || repeat('Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore. ', 80),
+             '2026-12-01', '${VIEWER.personId}'
+      from (select id from shared.business_units where org_id = '${ORG_743}' order by id limit 1) bu;
+    `)
+    return taskId
+  }
+
+  async function assertPinnedRecordGeometry(page: Page, label: string) {
+    const header = page.locator('[data-record-header="pinned"]')
+    const tabs = page.locator('.record-viewer__tabs')
+    const body = page.locator('.record-viewer__body')
+    await expect(header).toBeVisible()
+    await expect(tabs).toBeVisible()
+
+    // Vacuity guard: the body must genuinely overflow, or "scroll 400px" scrolls nothing.
+    const overflow = await body.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }))
+    expect(
+      overflow.scrollHeight,
+      `${label}: the record body must overflow its scrollport by more than the scroll step`,
+    ).toBeGreaterThan(overflow.clientHeight + 400)
+
+    const headerBefore = (await header.boundingBox())!
+    await body.evaluate((el) => { el.scrollTop = 400 })
+    await expect.poll(async () => body.evaluate((el) => el.scrollTop), {
+      message: `${label}: the record body must actually be the scroller`,
+    }).toBeGreaterThanOrEqual(400)
+
+    const headerAfter = (await header.boundingBox())!
+    expect(headerAfter.y, `${label}: the header holds still while the body scrolls`).toBeCloseTo(headerBefore.y, 0)
+    expect(headerAfter.y, `${label}: the header stays on screen`).toBeGreaterThanOrEqual(0)
+
+    const tabsBox = (await tabs.boundingBox())!
+    const viewportHeight = page.viewportSize()!.height
+    expect(tabsBox.height, `${label}: the tab strip is rendered, not covered`).toBeGreaterThanOrEqual(40)
+    expect(
+      tabsBox.y,
+      `${label}: the tab strip sits fully below the header bottom`,
+    ).toBeGreaterThanOrEqual(headerAfter.y + headerAfter.height - 1)
+    expect(tabsBox.y + tabsBox.height, `${label}: the tab strip is fully on screen`).toBeLessThanOrEqual(viewportHeight)
+    const bodyBox = (await body.boundingBox())!
+    expect(bodyBox.y, `${label}: the body is the sibling BELOW the tab strip`).toBeGreaterThanOrEqual(tabsBox.y + tabsBox.height - 1)
+    // Review artifact: the scrolled render, on disk for the Director's round (test-results/ is
+    // gitignored; the round brief copies these into the session scratch dir).
+    await page.screenshot({ path: `test-results/751-pinned-${label.startsWith('390') ? '390-page' : '1440-drawer'}-scrolled.png` })
+
+    // 390 only: status pill · primary · ⋯ share ONE ≥44px control row (the measured twin of the
+    // deleted CSS-string "phone keeps … one control row" regex).
+    if (label.startsWith('390')) {
+      const row = await page.locator('[data-record-header="pinned"] .record-viewer__pinned-status')
+        .evaluate((element) =>
+          Array.from(element.querySelectorAll<HTMLElement>('.record-field__pill, .btn-primary, .record-viewer__overflow'))
+            .map((control) => {
+              const rect = control.getBoundingClientRect()
+              return { top: Math.round(rect.top), height: Math.round(rect.height) }
+            }),
+        )
+      expect(row.length, '390: pill · primary · ⋯ all render').toBe(3)
+      expect([...new Set(row.map(({ top }) => top))], '390: one control row — every control shares one top').toHaveLength(1)
+      for (const { height } of row) expect(height, '390: every header control meets the 44px floor').toBeGreaterThanOrEqual(44)
+    }
+  }
+
+  test('GUARD-PINNED: scrolling the record body leaves the header fixed and the tab strip visible below it — 1440 drawer and 390 page', async ({ page }) => {
+    test.setTimeout(120_000)
+    const taskId = await seedLongTask751()
+
+    await loginAs(page, VIEWER.email, VIEWER.password)
+
+    // 1440 — the split drawer (?record=), the in-list triage surface.
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('work/tasks')
+    await page.waitForURL(/\/work\/tasks$/)
+    await page.getByRole('button', { name: 'All', exact: true }).click()
+    // Scope the collection to the seeded row so table windowing can never hide it.
+    await page.getByRole('searchbox', { name: 'Search tasks' }).fill('Guard pinned header 751')
+    const row = page.locator('tr.task-row', { hasText: 'Guard pinned header 751' })
+    await expect(row).toBeVisible()
+    await row.locator('td.td-supervisor').click()
+    await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}/)
+    const drawer = page.getByRole('complementary', { name: /task detail/i })
+    await expect(drawer.getByRole('heading', { name: 'Guard pinned header 751' })).toBeVisible()
+    await assertPinnedRecordGeometry(page, '1440 drawer')
+
+    // 390 — the standalone record page (the direct /work/tasks/:id surface).
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto(`work/tasks/${taskId}`)
+    await page.waitForURL(new RegExp(`/work/tasks/${taskId}$`))
+    await expect(page.getByRole('heading', { level: 1, name: 'Guard pinned header 751' })).toBeVisible()
+    await assertPinnedRecordGeometry(page, '390 page')
+
+    await sql743(`delete from mos.tasks where id = '${taskId}'`)
+  })
+})
+
 // ── #743 — the Tasks toolbar geometry (Director ruling, round 3) ─────────────────────────────
 // The toolbar is TWO rows in every state and neither row wraps at 1440: with "Include archived"
 // moved INSIDE the Status popover and the runs-due pill gone from the toolbar, the inventory is
