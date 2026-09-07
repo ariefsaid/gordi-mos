@@ -94,6 +94,9 @@ export type TasksTableBodyProps = {
   recordSearch: string
   now: Date
   buMap: Map<string, string>
+  /** #760 AC-048 — threaded through to MobileGroupedCards' phone-card owning-group slot.
+   * Same lookup shape the record adapter uses; a missing entry falls back to the BU name. */
+  teamNameByTaskId?: Map<string, string>
   personMap: Map<string, string>
   isCollapsed: (key: string) => boolean
   toggleCollapsed: (key: string) => void
@@ -129,7 +132,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     showWorkline = false, showObjective = false, showActivity = false, columnSpan,
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     onOpenTask,
-    groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
+    groups, recordSearch, now, buMap, teamNameByTaskId, personMap, isCollapsed, toggleCollapsed,
     openAddTask, setOverdueOnly,
     workLineMap, objectiveMap, workloadSummary, createHref, onAssignPending, provenanceByTaskDefId,
     onEditTitle, draftTaskId, onDiscardNewTask, viewerHasNoDownline,
@@ -189,6 +192,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
         onOpenTask={onOpenTask}
         now={now}
         buMap={buMap}
+        teamNameByTaskId={teamNameByTaskId}
         personMap={personMap}
         isCollapsed={isCollapsed}
         toggleCollapsed={toggleCollapsed}

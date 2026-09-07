@@ -60,6 +60,15 @@ export type MobileGroupedCardsProps = {
   onOpenTask?: (taskId: string) => void
   now: Date
   buMap: Map<string, string>
+  /**
+   * #760 AC-048 — resolved Team name per task id, the SAME lookup shape as `buMap`.
+   * The phone card names the owning Team; when the lookup has no entry (pre-Issue-8, or a task
+   * whose team_id has not yet been resolved), the card falls back to the Business Unit —
+   * mirrors the record adapter's pinned-header owning-group pattern
+   * (`team?.label ?? buName(...)`, task-record-adapter.tsx §metaItems). Never inline a second
+   * lookup — this map is populated by the same caller that populates `buMap`.
+   */
+  teamNameByTaskId?: Map<string, string>
   personMap: Map<string, string>
   isCollapsed: (key: string) => boolean
   toggleCollapsed: (key: string) => void
@@ -92,6 +101,10 @@ type TaskCardProps = {
   task: TaskListRow
   now: Date
   buName: string
+  /** #760 AC-048 — the owning Team's resolved NAME (see MobileGroupedCardsProps.teamNameByTaskId).
+   * When missing (undefined / '') the card falls back to `buName`, the record adapter's
+   * `team?.label ?? buName(...)` pattern (task-record-adapter.tsx §metaItems). */
+  teamName?: string
   rName: string
   recordSearch?: string
   onOpenTask: (taskId: string) => void
@@ -106,7 +119,7 @@ type TaskCardProps = {
   viewerHasNoDownline?: boolean
 }
 
-function TaskCard({ task, now, buName, rName, recordSearch = '', provenanceRoleName, onOpenTask, onEditTitle, isNew = false, onDiscardNewTask, onCreateError, viewerHasNoDownline = false }: TaskCardProps) {
+function TaskCard({ task, now, buName, teamName, rName, recordSearch = '', provenanceRoleName, onOpenTask, onEditTitle, isNew = false, onDiscardNewTask, onCreateError, viewerHasNoDownline = false }: TaskCardProps) {
   const t = useT()
   const { locale } = useI18n()
   const ds = dueStatus(task.due_date, now)
@@ -159,10 +172,14 @@ function TaskCard({ task, now, buName, rName, recordSearch = '', provenanceRoleN
           )}
           <StatusPill status={task.status} />
         </div>
-        <span className="task-bu">{buName}</span>
-        {/* #760 AC-048 — the phone card is title · status · Team · PIC · Due. Supervisor moves
-            to the record (record viewer's Ownership section) so the card fits four above the fold
-            at 390×844 (~120px per card). See DESIGN.md § Responsive grammar Phone bullet. */}
+        {/* #760 AC-048 — the phone card names the owning Team (title · status · Team · PIC · Due).
+            The Team is the same lookup the record adapter's pinned-header owning-group meta uses
+            (task-record-adapter.tsx §metaItems: `team?.label ?? buName(...)`), so a task whose
+            Team lookup has no entry falls back to its Business Unit — never a fabricated Team.
+            Supervisor moves to the record (record viewer's Ownership section) so the card fits
+            four above the fold at 390×844 (~120px per card). See DESIGN.md § Responsive grammar
+            Phone bullet. */}
+        <span className="task-team">{teamName || buName}</span>
         <dl className="task-card-meta collection-grammar-card-details">
           <span className="task-card-meta-pair">
             <dt>{t('tasks.pic')}</dt>
@@ -193,7 +210,7 @@ function TaskCard({ task, now, buName, rName, recordSearch = '', provenanceRoleN
  * CSS: uses the existing .mgc-* classes from TasksWorkspace.css.
  */
 export function MobileGroupedCards({
-  groups, recordSearch = '', now, buMap, personMap,
+  groups, recordSearch = '', now, buMap, teamNameByTaskId, personMap,
   isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly,
   onAssignPending, provenanceByTaskDefId, onOpenTask, onEditTitle, draftTaskId, onDiscardNewTask,
   viewerHasNoDownline = false,
@@ -219,6 +236,7 @@ export function MobileGroupedCards({
               task={task}
               now={now}
               buName={buMap.get(task.business_unit_id) ?? ''}
+              teamName={teamNameByTaskId?.get(task.id)}
               rName={personMap.get(task.responsible_person_id) ?? ''}
               recordSearch={recordSearch}
               onOpenTask={openTask}
@@ -319,6 +337,7 @@ export function MobileGroupedCards({
                 task={task}
                 now={now}
                 buName={buMap.get(task.business_unit_id) ?? ''}
+                teamName={teamNameByTaskId?.get(task.id)}
                 rName={personMap.get(task.responsible_person_id) ?? ''}
                 recordSearch={recordSearch}
                 onOpenTask={openTask}

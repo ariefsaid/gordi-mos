@@ -16,6 +16,9 @@
  *                 — uupm ux-guidelines "Touch Target Size: minimum 44×44px" (High)
  *   GUARD-SEARCH   the dish search keeps its usable measure (≥160px) and composes WITH the
  *                 category filter on one row (Café · Log + Plan, desktop + phone) — #378
+ *   GUARD-760-FOUR-CARDS  four Tasks phone cards fit above the 844px fold at 390 — the
+ *                 rendered-pixel twin of the CSS-token contract in mobile-grouped-cards.test.tsx
+ *                 (AC-048, ticket #760)
  *
  * Structural twins (jsdom, always-on): guard-r1-split-parity.css.test.ts,
  * guard-one-solid-primary.test.tsx, guard-r3-toolbar-label-gap.css.test.ts,
@@ -481,6 +484,108 @@ test.describe('tasks toolbar geometry — ticket 743', () => {
       innerWidth: window.innerWidth,
     }))
     expect(pageScroll.scrollWidth).toBe(pageScroll.innerWidth)
+  })
+})
+
+// ── #760 GUARD-760-FOUR-CARDS — the phone-card fold contract ─────────────────────────
+// AC-048 says the Tasks phone card is title · status · Team · PIC · Due and four cards fit
+// above the fold at 390×844. jsdom cannot paint layout, so its twin here (mobile-grouped-
+// cards.test.tsx "card min/max height tokens hold") can only assert the CSS TOKENS each
+// part brings to the sum. The four-cards-above-the-fold claim is a RENDERED-PIXEL claim —
+// only a real browser can measure it. This guard does exactly that: seed four Tasks,
+// render /work/tasks at 390×844, take each card's bottom, and prove the fourth card's
+// bottom edge sits inside the 844px fold. Each card's height stays inside the range the
+// twin's CSS tokens compose to (~120–130px composed, allowance 100–170px covers font-metric
+// jitter across engines without letting a regression to the pre-#760 ~180px card pass). The
+// try/finally seed follows the same pattern the earlier tasks guards use so a failed run
+// never leaves the fixture rows behind for the next run.
+test.describe('phone-card fold — GUARD-760-FOUR-CARDS', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
+
+  const CARD_MIN_HEIGHT = 100
+  const CARD_MAX_HEIGHT = 170
+  const FOLD_760 = 844
+  const CARD_IDS_760 = [
+    '76000000-0000-0000-0000-000000000001',
+    '76000000-0000-0000-0000-000000000002',
+    '76000000-0000-0000-0000-000000000003',
+    '76000000-0000-0000-0000-000000000004',
+  ]
+
+  test('GUARD-760-FOUR-CARDS: at 390×844 with ≥4 rows, the 4th phone card ends inside the 844px fold and every card sits in the composed height range', async ({ page }) => {
+    test.setTimeout(60_000)
+
+    // Seed four Own-viewer tasks so the collection paints ≥4 phone cards for VIEWER (own
+    // tasks → independent of shared seed state, same posture as GUARD-R1 above).
+    const ids = CARD_IDS_760.map((id) => `'${id}'`).join(',')
+    await sql743(`delete from mos.tasks where id in (${ids});`)
+    await sql743(`
+      insert into mos.tasks (
+        id, org_id, title, business_unit_id, status,
+        responsible_person_id, accountable_person_id, consulted_person_ids, informed_person_ids,
+        description, due_date, created_by
+      )
+      select
+        c.id, '${ORG_743}', 'Guard 760 four-cards ' || c.n, bu.id, 'Open',
+        '${VIEWER.personId}', '${VIEWER.personId}', '{}', '{}',
+        null, null, '${VIEWER.personId}'
+      from (values
+        ('76000000-0000-0000-0000-000000000001'::uuid, 1),
+        ('76000000-0000-0000-0000-000000000002'::uuid, 2),
+        ('76000000-0000-0000-0000-000000000003'::uuid, 3),
+        ('76000000-0000-0000-0000-000000000004'::uuid, 4)
+      ) as c(id, n)
+      cross join (select id from shared.business_units where org_id = '${ORG_743}' order by id limit 1) bu;
+    `)
+
+    try {
+      await loginAs(page, VIEWER.email, VIEWER.password)
+      await page.goto('work/tasks')
+      await page.waitForURL(/\/work\/tasks$/)
+
+      // The card list must actually mount — the phone reflow is `useIsDesktop()` under
+      // (min-width: 768px), so at 390 the DataTable single-renders the card branch (DESIGN.md
+      // § DataTable reflow). Wait for four cards before measuring, so the seeded set is in
+      // the DOM (windowing here is a plain flex list, not virtualization — no scroll needed).
+      const cards = page.locator('[data-testid="task-card"]')
+      await expect
+        .poll(async () => await cards.count(), {
+          message: 'GUARD-760: expected at least 4 phone cards to render for the seeded rows',
+          timeout: 15_000,
+        })
+        .toBeGreaterThanOrEqual(4)
+
+      const geometry = await cards.evaluateAll((elements) =>
+        elements.slice(0, 4).map((element) => {
+          const rect = element.getBoundingClientRect()
+          return { top: rect.top, bottom: rect.bottom, height: rect.height }
+        }),
+      )
+      expect(geometry.length, 'GUARD-760: exactly four cards under measure').toBe(4)
+
+      // The four-cards-above-the-fold claim: the fourth card's bottom sits inside 844.
+      const fourth = geometry[3]
+      expect(
+        fourth.bottom,
+        `GUARD-760: the fourth phone card must end inside the 844px fold (got bottom=${fourth.bottom})`,
+      ).toBeLessThanOrEqual(FOLD_760)
+
+      // Each card is inside the documented composed-height range — a regression to the
+      // pre-#760 ~180px card would flunk the max; a card that collapses below ~100px would
+      // flunk the min (both catch a real geometry regression, no wiggle for one-off jitter).
+      for (const [index, card] of geometry.entries()) {
+        expect(
+          card.height,
+          `GUARD-760: card #${index + 1} height ${card.height}px must sit in [${CARD_MIN_HEIGHT}, ${CARD_MAX_HEIGHT}]`,
+        ).toBeGreaterThanOrEqual(CARD_MIN_HEIGHT)
+        expect(
+          card.height,
+          `GUARD-760: card #${index + 1} height ${card.height}px must sit in [${CARD_MIN_HEIGHT}, ${CARD_MAX_HEIGHT}]`,
+        ).toBeLessThanOrEqual(CARD_MAX_HEIGHT)
+      }
+    } finally {
+      await sql743(`delete from mos.tasks where id in (${ids});`)
+    }
   })
 })
 

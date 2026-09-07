@@ -343,8 +343,15 @@ describe('MobileGroupedCards', () => {
   // record (record viewer's Ownership section), so ~120px per card fits four above the fold at
   // 390×844. The CSS contract below anchors the geometry that keeps the four-card floor honest.
   describe('Ticket #760 AC-048 — phone card fields (title · status · Team · PIC · Due, no Supervisor)', () => {
-    it('renders title, status pill, Team (BU), PIC label, Due label — and NO Supervisor line', () => {
+    it('the card names the owning Team, NOT the Business Unit, and shows PIC + Due (no Supervisor)', () => {
+      // The Team lookup lives on the caller (teamNameByTaskId), the SAME shape as buMap — mirrors
+      // the record adapter's `team?.label ?? buName(...)` pattern (task-record-adapter.tsx). We
+      // seed distinct names so the assertion below cannot pass by accident: a mutation that swaps
+      // the card back to `buName` renders "Kitchen BU", not "Kitchen Team", and the negative
+      // assertion below turns it red.
       renderCards({
+        buMap: new Map([['bu-1', 'Kitchen BU']]),
+        teamNameByTaskId: new Map([['task-a', 'Kitchen Team']]),
         groups: [{
           key: '__flat__', label: 'Tasks',
           rows: [makeTask({ id: 'task-a', title: 'Design the review sheet', due_date: '2026-08-01' })],
@@ -356,8 +363,13 @@ describe('MobileGroupedCards', () => {
       expect(card.querySelector('.collection-grammar-title')).toHaveTextContent('Design the review sheet')
       // Status pill
       expect(card.querySelector('.status-pill')).not.toBeNull()
-      // Team (BU) — the team's name renders as the .task-bu line
-      expect(card.querySelector('.task-bu')).toHaveTextContent('Kitchen')
+      // The owning-Team line renders the Team NAME, on a class that says Team (not `.task-bu`).
+      expect(card.querySelector('.task-team')).toHaveTextContent('Kitchen Team')
+      // The Business Unit name must NOT appear anywhere on the card — the mutation guard: swap
+      // the code back to `buName` and this line goes red on "Kitchen BU".
+      expect(card.textContent).not.toMatch(/Kitchen BU/)
+      // The retired class must not survive the rename either.
+      expect(card.querySelector('.task-bu')).toBeNull()
       // Meta: PIC + Due — Supervisor is removed
       const dts = Array.from(card.querySelectorAll('.task-card-meta dt')).map((el) => el.textContent)
       expect(dts).toEqual(['PIC', 'Due'])
@@ -366,17 +378,28 @@ describe('MobileGroupedCards', () => {
       expect(card.querySelector('.task-card-meta')?.textContent).not.toMatch(/Supervisor/)
     })
 
-    // CSS contract for the ~120px per-card floor at 390×844. jsdom can't paint layout, so the
-    // math is pinned as the parts that compose the card at phone width: outer link padding
-    // (12px + 12px = 24px), the head min-height (44px), the Team line height-plus-margin (about
-    // 20px), plus the stacked meta gap (4px between two rows). The label font is 12px, which at
-    // line-height 1.3 (index.css --line-height-tight) is ≈15.6px per row, so 2 rows ≈ 31.2px.
-    // Total ≈ 24 + 44 + 20 + (8 margin-top) + (2 × 15.6 + 4) ≈ 131px. That gives 6 cards in 844
-    // once the shell chrome (top bar 56 + toolbar door trigger 44 + bottom tabs 64 ≈ 164) is
-    // subtracted (844 − 164 = 680; 680 / 131 ≈ 5). Four fits comfortably. Removing the third
-    // meta pair (Supervisor) was the change that took the card back under the four-above-the-fold
-    // budget from the old ~150–160px.
-    it('CSS contract: the parts summed at phone width keep the card near 120px so four fit above the fold at 390×844', () => {
+    it('when the Team lookup has no entry for a task, the card falls back to the Business Unit — the record adapter pattern', () => {
+      // Pre-Issue-8 (or an unresolved lookup): the caller's teamNameByTaskId simply lacks an
+      // entry for this task, so the card honestly shows the owning BU — the same fallback the
+      // record adapter's pinned-header meta uses (`team?.label ?? buName(...)`).
+      renderCards({
+        buMap: new Map([['bu-1', 'Kitchen BU']]),
+        teamNameByTaskId: new Map<string, string>(),
+        groups: [{
+          key: '__flat__', label: 'Tasks',
+          rows: [makeTask({ id: 'task-a', title: 'No team lookup yet', due_date: null })],
+          overdue: 0, prefillParam: '',
+        }],
+      })
+      const card = document.querySelector('[data-testid="task-card"]') as HTMLElement
+      expect(card.querySelector('.task-team')).toHaveTextContent('Kitchen BU')
+    })
+
+    // Renamed (round-2 review): the previous title claimed to prove "four cards above the fold at
+    // 390×844", but jsdom cannot paint layout — it can only prove the token contract each part
+    // brings to the sum. That's what this test does. The rendered-pixel proof lives in
+    // e2e/guards.geometry.spec.ts (GUARD-760-FOUR-CARDS) where a real browser can measure it.
+    it('card min/max height tokens hold: outer padding + head min-height + stacked meta gap', () => {
       const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
       // Outer link padding is 12px 16px — the row/card floor, ≥ 44 min-height.
       expect(css).toMatch(/\.task-card-link\s*\{[^}]*padding:\s*12px 16px[\s\S]*?min-height:\s*44px/)
@@ -387,10 +410,6 @@ describe('MobileGroupedCards', () => {
       // The <599.98px phone media query stacks the pairs at a 4px vertical gap — this is the rule
       // that keeps the two remaining pairs (PIC + Due) compact instead of wrapping side-by-side.
       expect(css).toMatch(/@media\s*\(max-width:\s*599\.98px\)[\s\S]*?\.task-card-meta[\s\S]*?flex-direction:\s*column[\s\S]*?gap:\s*4px/)
-      // Removing the Supervisor pair leaves TWO meta pairs — the DOM count above (dts.length === 2)
-      // is what actually pins the height in the composed tree; the CSS parts above pin the tokens
-      // that add up around it. Together they give a ~120–130px card, so 844 − 164 (chrome) / 130 ≈ 5
-      // rows — four above the fold with room to spare.
     })
   })
 })

@@ -403,7 +403,7 @@
   background: var(--secondary); color: var(--muted-foreground);
   font-size: var(--font-size-overline); font-weight: 500; white-space: nowrap; flex: none;
 }
-.task-bu { display: block; font-size: var(--font-size-label); color: var(--muted-foreground); margin-top: 2px; }
+.task-team { display: block; font-size: var(--font-size-label); color: var(--muted-foreground); margin-top: 2px; }
 
 /* ── Owner cell ── */
 .owner { display: flex; align-items: center; gap: 8px; }
