@@ -33,37 +33,54 @@ export interface WorkLineAdminRow {
   type: 'project' | 'process'
   objective_id?: string | null
   archived_at: string | null
+  business_unit_id?: string | null
+  accountable_person_id?: string | null
 }
+
+/** Ownership a Project/Process carries (#801): unit and Accountable person — each optional. */
+export interface WorkLineOwnership {
+  business_unit_id?: string | null
+  accountable_person_id?: string | null
+}
+
+const ADMIN_COLUMNS = 'id,name,type,objective_id,archived_at,business_unit_id,accountable_person_id'
 
 /** List ALL work lines (active + archived) for the management surface — active first, then by name. */
 export async function listWorkLinesAll(): Promise<WorkLineAdminRow[]> {
   const { data, error } = await mos()
     .from('work_lines')
-    .select('id,name,type,objective_id,archived_at')
+    .select(ADMIN_COLUMNS)
     .order('archived_at', { nullsFirst: true })
     .order('name')
   if (error) throw new Error(`listWorkLinesAll failed — ${error.message}`)
   return (data ?? []) as unknown as WorkLineAdminRow[]
 }
 
-/** Create a work line (org_id stamped by the DB). Returns the new row. */
+/** Create a work line (org_id stamped by the DB; who may write in a unit is RLS's call). Returns the new row. */
 export async function createWorkLine(
   name: string,
   type: 'project' | 'process',
+  ownership: WorkLineOwnership = {},
 ): Promise<WorkLineAdminRow> {
   const { data, error } = await mos()
     .from('work_lines')
-    .insert({ name, type })
-    .select('id,name,type,objective_id,archived_at')
+    .insert({ name, type, ...ownership })
+    .select(ADMIN_COLUMNS)
     .single()
   if (error) throw new Error(`createWorkLine failed — ${error.message}`)
   return data as unknown as WorkLineAdminRow
 }
 
-/** Rename a work line. (type is immutable after creation — FR-014.) */
+/** Rename a work line. */
 export async function renameWorkLine(id: string, name: string): Promise<void> {
   const { error } = await mos().from('work_lines').update({ name }).eq('id', id)
   if (error) throw new Error(`renameWorkLine failed — ${error.message}`)
+}
+
+/** Change a work line's type. The database refuses it once an occurrence exists (#801). */
+export async function setWorkLineType(id: string, type: 'project' | 'process'): Promise<void> {
+  const { error } = await mos().from('work_lines').update({ type }).eq('id', id)
+  if (error) throw new Error(`setWorkLineType failed — ${error.message}`)
 }
 
 /** Archive / unarchive a work line (soft — toggles archived_at). */

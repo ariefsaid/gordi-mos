@@ -6,7 +6,7 @@ vi.mock('../supabase', () => {
 })
 
 import {
-  listWorkLines, listWorkLinesAll, createWorkLine, renameWorkLine, setWorkLineArchived,
+  listWorkLines, listWorkLinesAll, createWorkLine, renameWorkLine, setWorkLineArchived, setWorkLineType,
 } from './work-lines'
 import { supabase } from '@/lib/supabase'
 
@@ -116,7 +116,7 @@ describe('listWorkLinesAll (management)', () => {
     const result = await listWorkLinesAll()
 
     expect(result).toEqual(rows)
-    expect(rec.selects).toContain('id,name,type,objective_id,archived_at')
+    expect(rec.selects).toContain('id,name,type,objective_id,archived_at,business_unit_id,accountable_person_id')
     expect(rec.orders).toContainEqual(['archived_at', { nullsFirst: true }])
     expect(rec.orders).toContainEqual(['name', undefined])
   })
@@ -141,6 +141,15 @@ describe('createWorkLine', () => {
     expect(rec.inserts[0]).not.toHaveProperty('org_id')
   })
 
+  it('carries unit and Accountable person when given (#801)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: {}, error: null }] }, rec) as never)
+
+    await createWorkLine('Kitchen Opening', 'process', { business_unit_id: 'bu-1', accountable_person_id: 'p-1' })
+
+    expect(rec.inserts).toEqual([{ name: 'Kitchen Opening', type: 'process', business_unit_id: 'bu-1', accountable_person_id: 'p-1' }])
+  })
+
   it('throws on error', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: { message: 'denied' } }] }, rec) as never)
@@ -148,8 +157,26 @@ describe('createWorkLine', () => {
   })
 })
 
+describe('setWorkLineType', () => {
+  it('updates type by id — the lock once a run exists is the database\'s (#801)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: null }] }, rec) as never)
+
+    await setWorkLineType('wl-1', 'process')
+
+    expect(rec.updates).toEqual([{ type: 'process' }])
+    expect(rec.eqs).toContainEqual(['id', 'wl-1'])
+  })
+
+  it('surfaces the refusal', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: { message: 'type is locked once an occurrence exists' } }] }, rec) as never)
+    await expect(setWorkLineType('wl-1', 'project')).rejects.toThrow(/setWorkLineType failed — type is locked/)
+  })
+})
+
 describe('renameWorkLine', () => {
-  it('updates name by id (no type change — FR-014)', async () => {
+  it('updates name by id', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: null }] }, rec) as never)
 
