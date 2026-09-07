@@ -187,7 +187,7 @@ describe('issue 444 ship gate — the route and the nav close from the same swit
     expect(survivors, 'gated paths that still render a surface').toEqual([])
   })
 
-  it('no redirect anywhere in the table names a gated path — a gated doormat is a dead end', () => {
+  it('AC-052 (#804 regression pin): no redirect anywhere in the table names a gated path — a gated doormat is a dead end', () => {
     // `/dashboard` → `/money` used to be a live retired path. With Money gated it would forward a
     // viewer onto a route that forwards them again; the gate re-points it at Home instead.
     const naming = flattenRoutes()

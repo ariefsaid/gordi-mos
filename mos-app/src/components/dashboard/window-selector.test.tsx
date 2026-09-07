@@ -74,7 +74,7 @@ describe('WindowSelector — preset seg', () => {
     expect(onChange).toHaveBeenCalledWith({ kind: 'preset', days: 30 })
   })
 
-  it('r5 F-4: focus FOLLOWS selection — "Custom" is genuinely arrow-reachable (ArrowRight from 60d)', () => {
+  it('r5 F-4: focus FOLLOWS selection — "Range" is genuinely arrow-reachable (ArrowRight from 60d)', () => {
     const onChange = vi.fn()
     render(
       <WindowSelector
@@ -86,17 +86,17 @@ describe('WindowSelector — preset seg', () => {
     const tab60 = screen.getByRole('tab', { name: /60d/i })
     tab60.focus()
     fireEvent.keyDown(tab60, { key: 'ArrowRight' })
-    // Selection emitted the seeded custom spec AND focus landed on the Custom tab —
+    // Selection emitted the seeded custom spec AND focus landed on the Range tab —
     // never stranded on the old tabIndex=-1 button.
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'custom' }),
     )
-    expect(screen.getByRole('tab', { name: /custom/i })).toHaveFocus()
+    expect(screen.getByRole('tab', { name: /range/i })).toHaveFocus()
   })
 })
 
 describe('WindowSelector — custom date range', () => {
-  it('DO F12 (OD-91 #25): when the window is custom, the Custom tab carries the selected state (white-card style binds to aria-selected)', () => {
+  it('DO F12 (OD-91 #25): when the window is custom, the Range tab carries the selected state (white-card style binds to aria-selected)', () => {
     render(
       <WindowSelector
         value={{ kind: 'custom', from: '2026-06-10', to: '2026-06-20' }}
@@ -104,13 +104,13 @@ describe('WindowSelector — custom date range', () => {
         bounds={BOUNDS}
       />,
     )
-    // The Custom tab — not a preset — owns aria-selected while custom is active; the seg's
+    // The Range tab — not a preset — owns aria-selected while custom is active; the seg's
     // `[aria-selected='true']` white-card rule follows it, so the active tab reads as selected.
-    expect(screen.getByRole('tab', { name: /custom/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /range/i })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tab', { name: /30d/i })).toHaveAttribute('aria-selected', 'false')
   })
 
-  it('DO-21: hideRange suppresses the inline pair so the composition can place it on its own row', () => {
+  it('hideRange suppresses the inline pair so the composition can place it in its own surface', () => {
     const { container } = render(
       <WindowSelector
         value={{ kind: 'custom', from: '2026-06-10', to: '2026-06-20' }}
@@ -121,10 +121,10 @@ describe('WindowSelector — custom date range', () => {
     )
     expect(container.querySelector('.window-selector-range')).toBeNull()
     // The seg itself is untouched — only the pair moves.
-    expect(screen.getByRole('tab', { name: /custom/i })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /range/i })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('renders a Custom button', () => {
+  it('renders a Range button', () => {
     render(
       <WindowSelector
         value={{ kind: 'preset', days: 30 }}
@@ -132,10 +132,10 @@ describe('WindowSelector — custom date range', () => {
         bounds={BOUNDS}
       />,
     )
-    expect(screen.getByRole('tab', { name: /custom/i })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /range/i })).toBeInTheDocument()
   })
 
-  it('AC-014: selecting Custom emits a custom spec seeded from the bounds', () => {
+  it('AC-014: selecting Range emits a custom spec seeded from the bounds', () => {
     const onChange = vi.fn()
     render(
       <WindowSelector
@@ -144,7 +144,7 @@ describe('WindowSelector — custom date range', () => {
         bounds={BOUNDS}
       />,
     )
-    fireEvent.click(screen.getByRole('tab', { name: /custom/i }))
+    fireEvent.click(screen.getByRole('tab', { name: /range/i }))
     const spec = onChange.mock.calls[0][0] as WindowSpec
     expect(spec.kind).toBe('custom')
     if (spec.kind === 'custom') {
@@ -153,7 +153,7 @@ describe('WindowSelector — custom date range', () => {
     }
   })
 
-  it('AC-014: when Custom is active, two bounded date inputs render', () => {
+  it('AC-014: when a range is active, two bounded date inputs render', () => {
     render(
       <WindowSelector
         value={{ kind: 'custom', from: '2026-06-10', to: '2026-06-20' }}
@@ -200,6 +200,44 @@ describe('WindowSelector — custom date range', () => {
     const spec = onChange.mock.calls[0][0] as WindowSpec
     expect(spec.kind).toBe('custom')
     if (spec.kind === 'custom') expect(spec.to).toBe('2026-06-25')
+  })
+
+  it('AC-050 (#804): with onRangeOpen the Range tab DEFERS — it opens the composition\'s sheet and commits nothing', () => {
+    const onChange = vi.fn()
+    const onRangeOpen = vi.fn()
+    render(
+      <WindowSelector
+        value={{ kind: 'preset', days: 30 }}
+        onChange={onChange}
+        bounds={BOUNDS}
+        hideRange
+        onRangeOpen={onRangeOpen}
+      />,
+    )
+    fireEvent.click(screen.getByRole('tab', { name: /range/i }))
+    expect(onRangeOpen).toHaveBeenCalledTimes(1)
+    // Nothing is committed until the sheet's Apply — a half-picked range never re-queries.
+    expect(onChange).not.toHaveBeenCalled()
+    // 30d keeps the selected state; Range is a door, not the current window.
+    expect(screen.getByRole('tab', { name: /30d/i })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('AC-050 (#804): the deferred Range tab carries the ONE shared disclosure chevron (RI-IXD-1), out of its accessible name', () => {
+    const { container } = render(
+      <WindowSelector
+        value={{ kind: 'preset', days: 30 }}
+        onChange={vi.fn()}
+        bounds={BOUNDS}
+        hideRange
+        onRangeOpen={vi.fn()}
+      />,
+    )
+    // Inline SVG, aria-hidden — the tab is still named "Range", not "Range ▾".
+    const tab = screen.getByRole('tab', { name: 'Range' })
+    expect(tab.querySelector('svg.window-selector-caret')).not.toBeNull()
+    expect(container.textContent).not.toMatch(/[▸▾▴]/)
+    // A committed Range (no sheet) keeps the bare seg — the chevron promises a surface.
+    expect(screen.getByRole('tab', { name: '30d' }).querySelector('svg')).toBeNull()
   })
 
   it('AC-014: handles null bounds gracefully (no crash)', () => {

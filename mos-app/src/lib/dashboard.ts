@@ -286,16 +286,7 @@ export function aggregateByCut(
     .sort((a, b) => b.revenue - a.revenue)
 }
 
-// ── Display formatting helpers (basis-labelling) ─────────────────────────────────
-/** Human-readable basis label for a COGS basis (FR-008). */
-export function basisLabel(basis: CogsBasis): string {
-  switch (basis) {
-    case 'interim-stock-movement': return 'interim — stock-movement'
-    case 'budget-bom': return 'budget — BOM'
-    case 'certified-gl': return 'certified — GL'
-  }
-}
-
+// ── Display formatting helpers ───────────────────────────────────────────────────
 /** Formats a gross-margin amount for a KPITile value, with null-safe handling. */
 export function formatGrossMarginValue(amount: number | null): string {
   return amount == null ? '—' : formatIDRCompact(amount)

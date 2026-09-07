@@ -29,6 +29,7 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'inbox.target.type.followUp', // AR Follow-up — product term
   'followUps.counterparty', // Counterparty — domain term, no adopted id label yet
   'money.footnote.interim', // Interim
+  'money.basis.interim', // interim — the same borrowed word in both locales
   'breadcrumb.detail', // Detail
   'dest.ecommerce', // Ecommerce
   'dest.inbox', // Inbox — pinned tab label per OD-WAY-93 (10)

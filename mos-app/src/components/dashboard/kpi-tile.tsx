@@ -12,6 +12,7 @@ import { Pill, type PillTone } from '@/components/ui/pill'
 import { HelpTip } from '@/components/ui/help-tip'
 import { BasisChip } from './basis-chip'
 import { DQBadge, type DqState } from './dq-badge'
+import { FreshnessLabel } from './freshness-label'
 import './kpi-tile.css'
 
 export interface KPITileDelta {
@@ -37,6 +38,9 @@ export interface KPITileProps {
   basis?: { label: string }
   /** FR-008/024: a DQ badge from bom_coverage_pct on GM/COGS tiles. */
   dq?: DqState
+  /** #804: the snapshot this figure was read from. A reporting tile states its own as-of —
+   *  the head sentence covers the page, not the tile a reader is looking at. */
+  asOf?: string
   /** Composition-owned hook (grid placement, surface-local sizing). The tile never styles
    *  itself from this — GRID PLACEMENT IS THE PAGE'S CONCERN, not the tile's, so a page that
    *  needs one tile to span two tracks passes a class rather than the tile growing a `span` prop. */
@@ -60,6 +64,7 @@ export function KPITile({
   selected = false,
   basis,
   dq,
+  asOf,
   className: extraClassName,
 }: KPITileProps) {
   if (state === 'loading') {
@@ -97,10 +102,11 @@ export function KPITile({
         </Pill>
       )}
       {sub && <span className="kpi-tile-sub">{sub}</span>}
-      {(basis || dq) && (
+      {(basis || dq || asOf) && (
         <span className="kpi-tile-foot">
           {basis && <BasisChip label={basis.label} />}
           {dq && <DQBadge dq={dq} />}
+          {asOf && <FreshnessLabel asOf={asOf} />}
         </span>
       )}
     </>

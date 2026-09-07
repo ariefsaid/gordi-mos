@@ -77,3 +77,10 @@
   background: var(--secondary);
   cursor: not-allowed;
 }
+
+/* The deferred Range tab's disclosure chevron (the ONE shared icon) sits beside its label. */
+.window-selector-caret {
+  margin-left: 4px;
+  flex: none;
+  vertical-align: -1px;
+}
