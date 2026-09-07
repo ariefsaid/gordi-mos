@@ -502,7 +502,7 @@ create table mos.notifications (
   created_at  timestamptz not null default now()
 );
 comment on table mos.notifications is
-  'The owner-private notification inbox (ADR-0019 D9). Content is immutable once delivered; read_at and handled_at are the only mutable columns. Cross-owner delivery goes through mos.create_notification, never a direct insert.';
+  'The owner-private notification inbox (ADR-0019 D9). Content is immutable once delivered; read_at and handled_at are the only mutable columns. Two write paths reach this table: (a) the owner inserts a self-addressed row (owner_id = current_person_id) via the notifications_insert policy — the app RPCs use this; (b) cross-owner delivery is trigger-owned — mos._guard_signals inserts the retract notification directly under SECURITY DEFINER, and mos.create_notification is the SECURITY DEFINER RPC callers invoke for mention delivery.';
 comment on column mos.notifications.handled_at is
   'Set when the owner explicitly triaged this row out of their active Inbox queue. NULL = still active (including read-but-unhandled). PRIVATE notification state only — never Task completion, Signal acknowledgement, approval or ownership.';
 create index mos_notifications_owner_unread_idx    on mos.notifications (owner_id) where read_at is null;

@@ -539,6 +539,26 @@ describe('resolveViewer', () => {
       expect(result.affiliated).toEqual([])
     })
 
+    // Mirrors the affiliation fail-closed shape above: a failed viewer_lead_team_ids RPC MUST land
+    // as leadsTeamIds: [] (never undefined, never the pre-error partial), because RLS — never this
+    // field — is the retract authority. Without this pin, a fail-open mutation
+    // (`leadsError ? resolvedLeadTeamIds : resolvedLeadTeamIds`) would pass every other test in the
+    // file: the shared mockRpc default returns non-array data that already collapses to [].
+    it('a leads read error fails closed to leadsTeamIds: [] — RLS, never this field, is the retract authority', async () => {
+      mockPeopleRead()
+      mockRpc.mockImplementation((name: string) => {
+        if (name === 'viewer_lead_team_ids') {
+          return Promise.resolve({ data: null, error: { message: 'rls read failed' } })
+        }
+        return Promise.resolve({ data: false, error: null })
+      })
+
+      const result = await resolveViewer(USER_ID)
+
+      expect(result.leadsTeamIds).toEqual([])
+      expect(result.leadTeamIdsError).toBe('Lead permissions could not be confirmed.')
+    })
+
     it('an orphan viewer carries affiliated: [], leadsTeamIds: [], leadTeamIdsError: null — the payload shape is total', async () => {
       mockFrom.mockImplementation((table: string) => {
         if (table === 'people') {

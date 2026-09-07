@@ -1,7 +1,7 @@
 -- Ticket #767 AC-001..AC-009: post scope, lead predicate, retract guard and tombstone read.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(23);
+select plan(25);
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_signal_tree();
 
@@ -23,7 +23,13 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select lives_ok($$ insert into mos.signals (owning_team_id, occurred_at, body) values ('00000000-0000-0000-0000-000000005b02',now(),'lead same unit') $$, 'AC-002 lead posts to any Team in own unit');
 select throws_ok($$ insert into mos.signals (owning_team_id, occurred_at, body) values ('00000000-0000-0000-0000-000000005b03',now(),'lead other unit') $$, '42501', null, 'AC-002 lead cannot cross unit without capability');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["ops_lead"]}';
-select lives_ok($$ insert into mos.signals (owning_team_id, occurred_at, body) values ('00000000-0000-0000-0000-000000005b03',now(),'capability post') $$, 'AC-002 signal.mention_bu holder with a different JWT can post cross-unit');
+select lives_ok($$ insert into mos.signals (owning_team_id, occurred_at, body) values ('00000000-0000-0000-0000-000000005b03',now(),'own-membership post') $$, 'AC-002 an ops_lead posts cross-unit into a Team they are a member of — own-membership arm; the pure capability arm is isolated below');
+-- d2 holds Lead R (Unit-1) and a membership in 5b01 (Unit-1) — no membership or role in Unit-2 —
+-- so the ONLY arm of mos.can_post_signal_for_team that could admit d2 to 5b03 (Unit-2) is
+-- shared.can('signal.create_for_team'). Cross-references the refusal above where the same actor
+-- holds only ["supervisor"] (no signal.create_for_team) and is denied.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
+select lives_ok($$ insert into mos.signals (owning_team_id, occurred_at, body) values ('00000000-0000-0000-0000-000000005b03',now(),'capability-only post') $$, 'AC-002 a signal.create_for_team holder who is neither a member nor a lead of the target Team posts cross-unit — capability arm alone; refused counterpart is the preceding "lead cannot cross unit without capability"');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["supervisor"]}';
 select set_eq($$ select id from mos.teams_author_can_read_back() $$, array['00000000-0000-0000-0000-000000005b01','00000000-0000-0000-0000-000000005b02']::uuid[], 'AC-003 destination list returns exactly the lead''s unit');
 
@@ -89,6 +95,31 @@ select is((select count(*)::int from mos.viewer_lead_team_ids()),
   'AC-009 Dewi leads every Team in her line');
 set local request.jwt.claims = '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000007","access_roles":["member"]}';
 select is((select count(*)::int from mos.viewer_lead_team_ids()), 0, 'AC-009 Bulan leads no Team');
+
+-- Pins AC-009's Cikal Bar arm on the production seed row that says Cahya belongs to that Team.
+-- Without this, deleting `('40000000-0000-0000-0000-000000000001', 'cikal_bar', false)` from
+-- supabase/seed.sql leaves the assertion above green (Cahya leads Cikal Bar via her hq_operations
+-- home-team, which shares the retail_ops BU with Cikal Bar), so the seed row would drift into
+-- being ornamental. Both facts must hold: the membership row AND the lead-scope entry.
+set local request.jwt.claims = '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000001","access_roles":["ops_lead"]}';
+select ok(
+  exists (
+    select 1
+    from shared.team_memberships m
+    join shared.teams t on t.id = m.team_id
+    where m.person_id = '40000000-0000-0000-0000-000000000001'
+      and t.org_id = '10000000-0000-0000-0000-000000000001'
+      and t.code = 'cikal_bar'
+      and t.archived_at is null
+  )
+  and exists (
+    select 1
+    from mos.viewer_lead_team_ids() ids
+    join shared.teams t on t.id = ids
+    where t.code = 'cikal_bar'
+  ),
+  'AC-009 Cahya''s seeded cikal_bar membership anchors her Cikal Bar lead scope — the membership row and the lead entry must both hold'
+);
 
 select * from finish();
 rollback;

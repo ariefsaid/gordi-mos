@@ -266,7 +266,7 @@ create policy signals_update_author on mos.signals
   -- Authors, owning-Team peers, and retract authorities reach the guard; it rejects unauthorized changes loudly.
   with check (org_id = shared.current_org_id());
 comment on policy signals_update_author on mos.signals is
-  'USING is deliberately org-wide so an unauthorized author/peer UPDATE reaches mos._guard_signals and raises 42501; the guard is the write authority. WITH CHECK preserves the same-org narrowing.';
+  'USING admits the same-org author, an owning-Team peer, a signal.retract holder, or a Team lead — so an unauthorized attempt still reaches mos._guard_signals and raises 42501; the guard is the write authority. WITH CHECK preserves the same-org narrowing.';
 
 -- DOWN (copy into a transaction to restore the released predecessor):
 -- drop index if exists mos.notifications_signal_retracted_once;
