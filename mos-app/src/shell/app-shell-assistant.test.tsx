@@ -45,7 +45,7 @@ const viewer = {
   roles: [],
   isManager: false,
   accessRoles: [],
-  affiliated: [],
+  affiliated: [], hasEmail: true,
 }
 
 function setNarrow(matches: boolean) {

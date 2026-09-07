@@ -4,6 +4,7 @@
 // Throws on any PostgREST/RPC error so callers can surface failures.
 
 import { supabase } from '@/lib/supabase'
+import { SYNTHETIC_EMAIL_DOMAIN } from '@/lib/sign-in-name'
 import type { AdminPersonRow, CreatePersonInput, LoginStatus, RoleOption, RevenueScopeOption, TeamOption, TeamMembership } from './admin-users.types'
 
 const shared = () => supabase.schema('shared')
@@ -16,6 +17,9 @@ const reporting = () => supabase.schema('reporting')
 const SAFE_RPC_MESSAGES = new Set<string>([
   'admin access role required',
   'person not found in your org',
+  'a primary team is required',
+  'team not found in your org',
+  'full name is required',
   'person already has a login',
   'person has no email to provision a login for',
   'email already in use',
@@ -44,7 +48,7 @@ function surface(action: string, error: { message?: string } | null | undefined)
 // ── Email synthesis (FR-021) ──────────────────────────────────────────────────
 
 /**
- * Derive a synthetic @ops.gordi.local email from a full name.
+ * Derive a synthetic sign-in address (`@` + SYNTHETIC_EMAIL_DOMAIN) from a full name.
  * Slug: lowercase, spaces → dashes, strip non [a-z0-9-].
  * If the base is taken, appends -2, -3, … (FR-021 uniqueness).
  */
@@ -53,12 +57,12 @@ export function synthesizeEmail(fullName: string, taken?: Set<string>): string {
     .toLowerCase()
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-]/g, '')
-  const base = `${slug}@ops.gordi.local`
+  const base = `${slug}@${SYNTHETIC_EMAIL_DOMAIN}`
   if (!taken || !taken.has(base)) return base
 
   let n = 2
   while (true) {
-    const candidate = `${slug}-${n}@ops.gordi.local`
+    const candidate = `${slug}-${n}@${SYNTHETIC_EMAIL_DOMAIN}`
     if (!taken.has(candidate)) return candidate
     n++
   }
@@ -207,26 +211,20 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
 // ── Create person (FR-020/021) ────────────────────────────────────────────────
 
 /**
- * Insert a new person row + optional initial access roles.
- * Returns the new person's id.
- * Never sends org_id (DB stamps) or user_id (RPC-only).
+ * Create a person WITH their primary Team, Positions and access role in one call (#798).
+ * The RPC refuses a missing team before writing anything; the message comes back verbatim.
+ * Returns the new person's id. Never sends org_id (the RPC reads the session's).
  */
 export async function createPerson(input: CreatePersonInput): Promise<string> {
-  const { data, error } = await shared()
-    .from('people')
-    .insert({ full_name: input.full_name, email: input.email })
-    .select('id')
-    .single()
+  const { data, error } = await shared().rpc('admin_create_person', {
+    p_full_name: input.full_name,
+    p_email: input.email,
+    p_team_id: input.team_id,
+    p_position_ids: input.position_ids ?? [],
+    p_access_role: input.access_role ?? 'member',
+  })
   if (error) throw surface('create person', error)
-
-  const personId = (data as { id: string }).id
-
-  // Grant initial roles (if any)
-  for (const role of input.access_roles) {
-    await grantRole(personId, role)
-  }
-
-  return personId
+  return data as string
 }
 
 // ── Login RPCs (FR-022/030/040) ───────────────────────────────────────────────

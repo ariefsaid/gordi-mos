@@ -6,8 +6,9 @@
 -- provisions real accounts via the gitignored production seed and keeps open
 -- signup disabled (L5 hardening) — this file never runs there.
 --
--- Password for EVERY persona: Passw0rd!dev  (mirrors mos-app DemoLogin.tsx).
--- Fictional .test emails only — NEVER real PII (matches seed.sql header rule).
+-- Password for EVERY persona: Passw0rd!dev  (mirrors mos-app demo-personas.ts).
+-- Fictional .test emails only — NEVER real PII (matches seed.sql header rule). The one
+-- `@ops.gordi.local` row is the no-email persona: its sign-in name IS its synthetic address.
 -- Idempotent: reuses an existing auth user for the email if one already exists.
 
 do $$
@@ -17,7 +18,8 @@ declare
   uid uuid;
 begin
   for rec in
-    select id, email from shared.people where email like '%.dev@example.test'
+    select id, email from shared.people
+     where email like '%.dev@example.test' or email like '%@ops.gordi.local'
   loop
     select u.id into uid from auth.users u where u.email = rec.email;
 

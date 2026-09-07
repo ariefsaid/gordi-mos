@@ -83,7 +83,7 @@ function memberViewer() {
         id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'U', email: null,
         must_change_password: false, archived_at: null, created_at: '', updated_at: '',
       },
-      roles: [], isManager: false, accessRoles: [], affiliated: [],
+      roles: [], isManager: false, accessRoles: [], affiliated: [], hasEmail: true,
     },
     signOut: vi.fn(),
   })

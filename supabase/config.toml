@@ -214,9 +214,10 @@ enable_anonymous_sign_ins = false
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
 minimum_password_length = 8
-# Passwords that do not meet the following requirements will be rejected as weak. Supported values
-# are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = "lower_upper_letters_digits"
+# The password rule is 8+ characters and nothing else — no character classes, no rotation. Pinned by
+# mos-app/src/lib/auth-config.test.ts. Supported values if that rule ever changes: `letters_digits`,
+# `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`.
+password_requirements = ""
 
 # Configure passkey sign-ins.
 # [auth.passkey]

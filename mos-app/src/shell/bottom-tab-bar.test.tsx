@@ -37,7 +37,7 @@ function setAuthAs(accessRoles: string[] = [], roleNames: string[] = [], affilia
         id: `r${i}`, org_id: 'o1', business_unit_id: `bu${i}`, name,
         reports_to_role_id: null, created_at: '', updated_at: '',
       })),
-      isManager: false, accessRoles, affiliated,
+      isManager: false, accessRoles, affiliated, hasEmail: true,
     },
     signOut: vi.fn(),
   })

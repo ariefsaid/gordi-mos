@@ -30,6 +30,7 @@ function setAuthAs(accessRoles: string[] = [], roleNames: string[] | string = 'B
       isManager: false,
       accessRoles,
       affiliated: names.some((n) => /barista|cafe ops lead/i.test(n)) ? ['cafe'] : [],
+      hasEmail: true,
     },
     signOut: vi.fn(),
   })
@@ -460,7 +461,7 @@ describe('AC-005/HIGH-1: sign-out affordance is mounted in the rail footer and i
         roles: [{ id: 'r1', org_id: 'o1', business_unit_id: 'bu-cafe', name: 'Cafe Ops Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
         isManager: false,
         accessRoles: ['admin'],
-        affiliated: [],
+        affiliated: [], hasEmail: true,
       },
       signOut,
     })

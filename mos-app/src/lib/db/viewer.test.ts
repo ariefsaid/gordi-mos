@@ -539,6 +539,42 @@ describe('resolveViewer', () => {
       expect(result.affiliated).toEqual([])
     })
 
+    it('AC-009: hasEmail is true for a real-email person', async () => {
+      mockPeopleRead()
+      mockRpc.mockResolvedValue({ data: false, error: null })
+
+      const result = await resolveViewer(USER_ID)
+
+      expect(result.hasEmail).toBe(true)
+    })
+
+    it('AC-009: hasEmail is false for a sign-in-name account — the synthetic address is the fact', async () => {
+      mockFrom.mockImplementation((table: string) => {
+        if (table === 'people') {
+          return asChain({
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({
+              data: { ...personRow, email: 'wulan-warung@ops.gordi.local' },
+              error: null,
+            }),
+          })
+        }
+        return asChain({
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          then: (resolve: (v: unknown) => unknown) =>
+            Promise.resolve({ data: [], error: null }).then(resolve),
+        })
+      })
+      mockRpc.mockResolvedValue({ data: true, error: null })
+
+      const result = await resolveViewer(USER_ID)
+
+      expect(result.hasEmail).toBe(false)
+    })
+
     it('an orphan viewer carries affiliated: [] — the payload shape is total', async () => {
       mockFrom.mockImplementation((table: string) => {
         if (table === 'people') {

@@ -113,10 +113,13 @@ export function CreatePersonDialog({
 
     let personId: string
     try {
+      // The RPC needs a primary Team and this dialog has no Team picker yet — that rewire is its
+      // own ticket. Until then the call is refused with 'a primary team is required', shown inline.
       personId = await createPerson({
         full_name: fullName.trim(),
         email: resolvedEmail,
-        access_roles: Array.from(selectedRoles),
+        team_id: null,
+        access_role: Array.from(selectedRoles)[0] ?? 'member',
       })
     } catch (err) {
       // Nothing was written — the honest "couldn't create this person, try again" path.

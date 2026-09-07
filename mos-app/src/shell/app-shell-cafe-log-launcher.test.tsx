@@ -76,6 +76,7 @@ function setAuth(opts: { accessRoles: string[]; affiliated: string[] }) {
       isManager: false,
       accessRoles: opts.accessRoles,
       affiliated: opts.affiliated,
+      hasEmail: true,
     },
     signOut: vi.fn(),
   })

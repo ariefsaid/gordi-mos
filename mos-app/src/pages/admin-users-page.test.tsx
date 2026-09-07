@@ -62,7 +62,7 @@ const ADMIN_VIEWER: AuthState = {
     roles: [],
     isManager: false,
     accessRoles: ['admin'],
-    affiliated: [],
+    affiliated: [], hasEmail: true,
   },
   signOut: vi.fn(),
 }

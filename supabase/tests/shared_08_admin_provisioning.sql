@@ -5,7 +5,7 @@
 -- refuse a target outside the caller's org, and to leave no partial state behind when it refuses.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(19);
 
 -- Fixture: two orgs, each with one admin holding a login, plus targets.
 insert into shared.orgs (id, name, slug) values
@@ -47,6 +47,15 @@ select is(
   (select user_id from shared.people where id = '00000000-0000-0000-0000-00000000ea01'),
   null, 'the refused create-login left no auth link — it failed before writing, not after');
 
+-- AC-007 (#798): the login RPCs stay admin-only — an ops_lead has no provisioning arm.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ea","person_id":"00000000-0000-0000-0000-00000000ea01","access_roles":["ops_lead"]}';
+select throws_ok($$ select shared.admin_create_login('00000000-0000-0000-0000-00000000ea01') $$,
+  '42501', 'admin access role required', 'admin_create_login refuses an ops_lead');
+select throws_ok($$ select shared.admin_reset_password('00000000-0000-0000-0000-00000000ea0d') $$,
+  '42501', 'admin access role required', 'admin_reset_password refuses an ops_lead');
+select throws_ok($$ select shared.admin_set_login_enabled('00000000-0000-0000-0000-00000000ea0d', false) $$,
+  '42501', 'admin access role required', 'admin_set_login_enabled refuses an ops_lead');
+
 -- Even an ADMIN app session cannot set people.user_id by a direct write: the auth link is an
 -- RPC-only seam, which is what keeps the provisioning path auditable.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ea","person_id":"00000000-0000-0000-0000-00000000ea0d","access_roles":["admin"]}';
@@ -71,8 +80,9 @@ select throws_ok($$ select shared.admin_set_login_enabled('00000000-0000-0000-00
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- Round trip, and what provisioning does NOT grant
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
-select lives_ok($$ select shared.admin_create_login('00000000-0000-0000-0000-00000000ea01') $$,
-  'an admin provisions a login for a person in their own org');
+-- The password rule is 8+ characters (#798): the generated temp password has to clear the floor.
+select cmp_ok(length(shared.admin_create_login('00000000-0000-0000-0000-00000000ea01')), '>=', 8,
+  'an admin provisions a login for a person in their own org, with a temp password of 8+ chars');
 select isnt(
   (select user_id from shared.people where id = '00000000-0000-0000-0000-00000000ea01'),
   null, '...and the person is linked to the new auth user');

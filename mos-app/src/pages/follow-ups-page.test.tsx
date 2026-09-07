@@ -54,7 +54,7 @@ const viewer: AuthState = {
     roles: [{ id: 'r1', org_id: 'org-1', business_unit_id: 'bu-sales', name: 'Sales Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
     isManager: false,
     accessRoles: [],
-    affiliated: [],
+    affiliated: [], hasEmail: true,
   },
   signOut: vi.fn(),
 }

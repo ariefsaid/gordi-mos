@@ -30,7 +30,7 @@ function setViewer() {
       ],
       isManager: true,
       accessRoles: ['ops_lead'],
-      affiliated: [],
+      affiliated: [], hasEmail: true,
     },
     signOut: vi.fn(),
   })

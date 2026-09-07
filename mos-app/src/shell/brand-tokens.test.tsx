@@ -39,7 +39,7 @@ function renderRailAtPath(path: string) {
       roles: [],
       isManager: false,
       accessRoles: [],
-      affiliated: [],
+      affiliated: [], hasEmail: true,
     },
     signOut: vi.fn(),
   })

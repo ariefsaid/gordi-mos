@@ -1,5 +1,6 @@
 import type { RolesRow, PeopleRow } from '@/lib/database.types'
 import { supabase } from '@/lib/supabase'
+import { hasRealEmail } from '@/lib/sign-in-name'
 
 // deriveIsManager: true iff any role the viewer holds is the reports_to_role_id of some role
 // that is itself currently held (heldRoleIds). Union over all viewer roles.
@@ -60,6 +61,9 @@ export interface ViewerResult {
    *  viewers; a failed read fails closed ([] — never undefined) because RLS, never this field,
    *  refuses writes. Required so every capture selector can default-closed on it. */
   affiliated: string[]
+  /** False for a sign-in-name account (the stored address is synthetic, #798): Profile withholds
+   *  the self-service password change, because only an admin reset can change it. */
+  hasEmail: boolean
 }
 
 // resolveViewer: read the person by user_id, their held roles, and derive isManager.
@@ -80,7 +84,7 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
     // Warn on RLS/read error so misconfiguration doesn't silently masquerade as an orphan.
     if (personError) console.warn('viewer: person read failed', personError)
     // Orphan: no people row or read error → fail closed, no throw
-    return { person: null, roles: [], isManager: false, accessRoles: [], affiliated: [] }
+    return { person: null, roles: [], isManager: false, accessRoles: [], affiliated: [], hasEmail: false }
   }
 
   // 2. Fetch the person's held role_ids ordered by created_at asc (FR-007 — earliest-assigned first).
@@ -154,5 +158,6 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
     isManager,
     accessRoles,
     affiliated,
+    hasEmail: hasRealEmail(person.email),
   }
 }

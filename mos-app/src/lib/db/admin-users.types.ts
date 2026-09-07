@@ -25,7 +25,10 @@ export interface AdminPersonRow {
 export interface CreatePersonInput {
   full_name: string
   email: string | null // null when "no email" → caller passes synthetic (FR-021)
-  access_roles: string[] // never 'manager'
+  /** The primary Team. Required by the RPC — a person is created WITH a team or not at all (#798). */
+  team_id: string | null
+  position_ids?: string[]
+  access_role?: string // default 'member'
 }
 
 export const ASSIGNABLE_ROLES = ['member', 'ops_lead', 'admin', 'finance', 'manager', 'supervisor'] as const

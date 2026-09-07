@@ -110,7 +110,7 @@ const archiveAuth: AuthState = {
       id: 'viewer-1', org_id: 'org-1', user_id: 'user-1', full_name: 'Viewer', email: 'viewer@example.test',
       must_change_password: false, archived_at: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
     },
-    roles: [], isManager: false, accessRoles: [], affiliated: [],
+    roles: [], isManager: false, accessRoles: [], affiliated: [], hasEmail: true,
   },
   signOut: async () => {},
 }

@@ -242,7 +242,10 @@ insert into shared.people (id, org_id, full_name, email) values
   ('40000000-0000-0000-0000-00000000001a', '10000000-0000-0000-0000-000000000001', 'Maya Marketing',   'maya.dev@example.test'),
   ('40000000-0000-0000-0000-00000000001b', '10000000-0000-0000-0000-000000000001', 'Miko Marketing',   'miko.dev@example.test'),
   ('40000000-0000-0000-0000-00000000001c', '10000000-0000-0000-0000-000000000001', 'Putri People',     'putri.dev@example.test'),
-  ('40000000-0000-0000-0000-00000000001d', '10000000-0000-0000-0000-000000000001', 'Farid Finance',    'farid.dev@example.test')
+  ('40000000-0000-0000-0000-00000000001d', '10000000-0000-0000-0000-000000000001', 'Farid Finance',    'farid.dev@example.test'),
+  -- The no-email café member (#798): signs in with a sign-in name — the synthetic address is the
+  -- stored email, and `Staff (no email)` on the demo login is this row.
+  ('40000000-0000-0000-0000-00000000001e', '10000000-0000-0000-0000-000000000001', 'Wulan Warung',     'wulan-warung@ops.gordi.local')
 on conflict (id) do nothing;
 
 -- Jabatan for the new roster. Resolved by role NAME, not id: the tier roles are created by
@@ -274,7 +277,8 @@ from (values
   ('40000000-0000-0000-0000-00000000001a', 'Marketing Lead'),
   ('40000000-0000-0000-0000-00000000001b', 'Marketing Lead'),
   ('40000000-0000-0000-0000-00000000001c', 'People Lead'),
-  ('40000000-0000-0000-0000-00000000001d', 'Finance Associate')
+  ('40000000-0000-0000-0000-00000000001d', 'Finance Associate'),
+  ('40000000-0000-0000-0000-00000000001e', 'Kitchen Staff')
 ) as p(person_id, role_name)
 join shared.roles r
   on r.org_id = '10000000-0000-0000-0000-000000000001' and r.name = p.role_name
@@ -310,7 +314,8 @@ from (values
   ('40000000-0000-0000-0000-00000000001a', 'manager'),      -- Maya   owns Marketing
   ('40000000-0000-0000-0000-00000000001b', 'member'),
   ('40000000-0000-0000-0000-00000000001c', 'manager'),      -- Putri  owns People
-  ('40000000-0000-0000-0000-00000000001d', 'finance')       -- Farid  the second finance seat
+  ('40000000-0000-0000-0000-00000000001d', 'finance'),      -- Farid  the second finance seat
+  ('40000000-0000-0000-0000-00000000001e', 'member')
 ) as p(person_id, access_role)
 on conflict (person_id, access_role) do nothing;
 
@@ -353,6 +358,7 @@ from (values
   ('40000000-0000-0000-0000-00000000000d', 'hq_operations',      false),
   ('40000000-0000-0000-0000-00000000000e', 'hq_operations',      false),
   ('40000000-0000-0000-0000-00000000000f', 'hq_operations',      false),
+  ('40000000-0000-0000-0000-00000000001e', 'hq_operations',      false),
   -- Radiant floor.
   ('40000000-0000-0000-0000-000000000010', 'radiant_operations', false),
   ('40000000-0000-0000-0000-000000000011', 'radiant_operations', false),
@@ -390,6 +396,7 @@ from (values
   ('40000000-0000-0000-0000-00000000000b', 'gordi_hq_kitchen',    true),
   ('40000000-0000-0000-0000-00000000000c', 'gordi_hq_kitchen',    true),
   ('40000000-0000-0000-0000-00000000000d', 'gordi_hq_kitchen',    true),
+  ('40000000-0000-0000-0000-00000000001e', 'gordi_hq_kitchen',    true),
   ('40000000-0000-0000-0000-000000000002', 'gordi_hq_kitchen',    false),   -- Krishna: LEAD, not line staff
   ('40000000-0000-0000-0000-00000000000e', 'rumah_rames_kitchen', true),
   ('40000000-0000-0000-0000-00000000000f', 'rumah_rames_kitchen', true),

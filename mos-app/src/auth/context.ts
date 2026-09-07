@@ -7,7 +7,15 @@ export type AuthState =
   | { status: 'orphan'; signOut: () => Promise<void> }
   | {
       status: 'authenticated'
-      viewer: { person: PeopleRow; roles: RolesRow[]; isManager: boolean; accessRoles: string[]; affiliated: string[] }
+      viewer: {
+        person: PeopleRow
+        roles: RolesRow[]
+        isManager: boolean
+        accessRoles: string[]
+        affiliated: string[]
+        /** False for a sign-in-name account — its password changes only by admin reset (#798). */
+        hasEmail: boolean
+      }
       signOut: () => Promise<void>
     }
   // PASSWORD_RECOVERY flow: session exists, user must set a new password before accessing the app.

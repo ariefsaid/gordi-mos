@@ -81,7 +81,7 @@ const role: RolesRow = {
 }
 const authedState: AuthState = {
   status: 'authenticated',
-  viewer: { person: VIEWER_PERSON, roles: [role], isManager: false, accessRoles: [], affiliated: [] },
+  viewer: { person: VIEWER_PERSON, roles: [role], isManager: false, accessRoles: [], affiliated: [], hasEmail: true },
   signOut: async () => {},
 }
 

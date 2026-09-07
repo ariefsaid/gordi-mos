@@ -35,16 +35,26 @@ describe('DemoLogin — dev-only one-click sign-in panel', () => {
         'Roastery',
         'Sales',
         'Finance',
+        'Staff (no email)',
       ]),
     )
     // generic mockup labels must NOT leak in
     expect(labels).not.toContain('Executive')
     expect(labels).not.toContain('Engineer')
     expect(labels).not.toContain('Project Manager')
-    // every persona maps to a fictional dev email (never real PII)
+    // every persona maps to a fictional dev email or the synthetic sign-in domain (never real PII)
     for (const p of DEMO_PERSONAS) {
-      expect(p.email).toMatch(/\.dev@example\.test$/)
+      expect(p.email).toMatch(/\.dev@example\.test$|@ops\.gordi\.local$/)
     }
+  })
+
+  it('AC-010: the no-email persona signs in with a sign-in name, not a real address', async () => {
+    const onPick = vi.fn()
+    const user = userEvent.setup()
+    render(<DemoLogin onPick={onPick} busyEmail={null} disabled={false} />)
+
+    await user.click(screen.getByRole('button', { name: 'Staff (no email)' }))
+    expect(onPick).toHaveBeenCalledWith('wulan-warung@ops.gordi.local')
   })
 
   it('clicking a persona calls onPick with that persona email', async () => {

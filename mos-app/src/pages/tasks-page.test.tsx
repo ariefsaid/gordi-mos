@@ -102,7 +102,7 @@ const mockRole: RolesRow = {
 
 const authedState: AuthState = {
   status: 'authenticated',
-  viewer: { person: mockPerson, roles: [mockRole], isManager: false, accessRoles: [], affiliated: [] },
+  viewer: { person: mockPerson, roles: [mockRole], isManager: false, accessRoles: [], affiliated: [], hasEmail: true },
   signOut: async () => {},
 }
 

@@ -191,25 +191,54 @@ describe('listAdminPeople', () => {
 })
 
 // ── createPerson ──────────────────────────────────────────────────────────────
-describe('createPerson', () => {
-  it('inserts into shared.people and returns the new id', async () => {
-    const schemaObj = makeSharedSchema({
-      people: { data: { id: 'new-id' }, error: null },
-      person_access_roles: { data: null, error: null },
-    })
+describe('createPerson (#798 — one RPC, person + primary Team + Positions + access role)', () => {
+  it('calls admin_create_person on the shared schema with the team and returns the new id', async () => {
+    const schemaObj = makeSharedSchema({}, { data: 'new-id', error: null })
     schemaMock.mockReturnValue(schemaObj as never)
 
-    const id = await createPerson({ full_name: 'New Person', email: 'new@example.test', access_roles: [] })
+    const id = await createPerson({
+      full_name: 'New Person',
+      email: 'new@example.test',
+      team_id: 'team-1',
+      position_ids: ['pos-1'],
+      access_role: 'ops_lead',
+    })
     expect(id).toBe('new-id')
     expect(schemaMock).toHaveBeenCalledWith('shared')
+    expect(schemaObj.rpc).toHaveBeenCalledWith('admin_create_person', {
+      p_full_name: 'New Person',
+      p_email: 'new@example.test',
+      p_team_id: 'team-1',
+      p_position_ids: ['pos-1'],
+      p_access_role: 'ops_lead',
+    })
+    // No direct table write — the RPC owns every row.
+    expect(schemaObj.from).not.toHaveBeenCalled()
   })
 
-  it('throws on insert error', async () => {
-    const schemaObj = makeSharedSchema({
-      people: { data: null, error: { message: 'insert failed' } },
-    })
+  it('defaults to no Positions and the member role', async () => {
+    const schemaObj = makeSharedSchema({}, { data: 'new-id', error: null })
     schemaMock.mockReturnValue(schemaObj as never)
-    await expect(createPerson({ full_name: 'X', email: null, access_roles: [] })).rejects.toThrow(/Couldn't create person/)
+
+    await createPerson({ full_name: 'X', email: null, team_id: 'team-1' })
+    expect(schemaObj.rpc).toHaveBeenCalledWith(
+      'admin_create_person',
+      expect.objectContaining({ p_position_ids: [], p_access_role: 'member' }),
+    )
+  })
+
+  it("surfaces the RPC's team refusal verbatim — the admin needs to know what was missing", async () => {
+    const schemaObj = makeSharedSchema({}, { data: null, error: { message: 'a primary team is required' } })
+    schemaMock.mockReturnValue(schemaObj as never)
+    await expect(createPerson({ full_name: 'X', email: null, team_id: null })).rejects.toThrow(
+      'a primary team is required',
+    )
+  })
+
+  it('throws a generic message on any other RPC error', async () => {
+    const schemaObj = makeSharedSchema({}, { data: null, error: { message: 'insert failed' } })
+    schemaMock.mockReturnValue(schemaObj as never)
+    await expect(createPerson({ full_name: 'X', email: null, team_id: 't' })).rejects.toThrow(/Couldn't create person/)
   })
 })
 

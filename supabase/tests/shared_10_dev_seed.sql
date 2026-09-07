@@ -4,7 +4,7 @@
 -- the subject is the seed itself. begin;...rollback; keeps it read-only.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(20);
 
 -- The seed admin row exists despite the admin-only RLS rule AND the self-escalation guard: the seed
 -- runs under a connection that bypasses RLS, and the guard's self-assign check is keyed on
@@ -169,6 +169,26 @@ select ok(
            where person_id = '40000000-0000-0000-0000-00000000000a'
              and access_role = 'supervisor'),
   'Sinta has the supervisor access role');
+
+-- AC-010 (#798): the no-email persona behind the `Staff (no email)` demo button signs in with a
+-- sign-in name — the synthetic address IS the stored email — and works a stream as primary.
+select is(
+  (select email from shared.people where id = '40000000-0000-0000-0000-00000000001e'),
+  'wulan-warung@ops.gordi.local',
+  'the no-email persona carries the synthetic sign-in address, nothing else');
+select ok(
+  exists (select 1 from shared.people p join auth.users u on u.id = p.user_id
+           where p.id = '40000000-0000-0000-0000-00000000001e'
+             and u.email = p.email),
+  '...and has a login under that sign-in name, so the demo button can sign in');
+select is(
+  (select count(*)::int from shared.team_memberships m
+     join shared.teams t on t.id = m.team_id
+    where m.person_id = '40000000-0000-0000-0000-00000000001e'
+      and m.is_primary and m.effective_to is null
+      and t.branch_id is not null and t.activity is not null),
+  1,
+  '...and a live PRIMARY membership on a production stream, so capture resolves a default');
 
 select * from finish();
 rollback;
