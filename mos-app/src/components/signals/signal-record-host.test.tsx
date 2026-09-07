@@ -250,19 +250,23 @@ describe('SignalRecordHost — Acknowledge wiring (FR-412)', () => {
 })
 
 describe('SignalRecordHost — Add category wiring (correctSignal, FR-410)', () => {
-  it('lets the author raise attention and records the correction', async () => {
+  it('lets the author raise attention via the pill-dropdown in ONE click and records the correction (AC-036)', async () => {
     mockCorrectSignal.mockResolvedValue(undefined)
     mockUseAuth.mockReturnValue(authedViewer('person-dewi'))
     renderHost()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
 
     mockGetSignal.mockResolvedValueOnce({ signal: { ...baseSignal, attention: 'Urgent', edited_at: '2026-07-16T05:00:00Z' }, mentions: [], acknowledgements: [], tasks: [] })
-    await userEvent.click(screen.getByRole('button', { name: /edit attention/i }))
-    await userEvent.click(screen.getByRole('button', { name: /Needs attention/i }))
+    // AC-036: for the author the attention control IS the pill-dropdown — the revealed-pill
+    // ghost step ("Edit attention" → pill → choice) is gone; the pill is the first and only control.
+    expect(screen.queryByRole('button', { name: /edit attention/i })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: /needs attention/i }))
     await userEvent.click(screen.getByRole('menuitem', { name: /Urgent/i }))
 
     expect(mockCorrectSignal).toHaveBeenCalledWith(SIGNAL_ID, { attention: 'Urgent' })
-    await waitFor(() => expect(screen.getByText('Urgent')).toBeInTheDocument())
+    // The control reflects the pick — the pill now reads Urgent with its urgent tint (the ghost
+    // span this test used to wait for is gone; the pill IS the control).
+    await waitFor(() => expect(screen.getByRole('button', { name: /Urgent/i })).toHaveClass('signal-attention-pill--urgent'))
   })
 
   it('offers the attention editor to the author only — a signal.retract deputy gets no editor (gate refuses non-author content, 42501)', async () => {
@@ -273,6 +277,11 @@ describe('SignalRecordHost — Add category wiring (correctSignal, FR-410)', () 
     await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
 
     expect(screen.queryByRole('button', { name: /edit attention/i })).toBeNull()
+    // …and no editable pill either — a non-author gets the read-only attention pill (a span),
+    // never a control (AC-036's other arm).
+    expect(screen.queryByRole('button', { name: /needs attention/i })).toBeNull()
+    expect(screen.getByText('Needs attention', { selector: '.signal-attention' })).toBeInTheDocument()
+    expect(mockCorrectSignal).not.toBeNull()
     expect(mockCorrectSignal).not.toHaveBeenCalled()
   })
 

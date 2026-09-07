@@ -454,6 +454,10 @@ describe('SignalComposer — pill grammar (#768)', () => {
     const attentionButton = screen.getByRole('button', { name: /FYI/i })
     await userEvent.click(attentionButton)
     expect(screen.getByRole('menu')).toHaveTextContent(/Needs attention/i)
+    // #768 round 5: the menu renders INLINE in the pill row — the same mechanism as the occurred
+    // popover — so inside the composer dialog it stays inside the modal's Tab trap and above its
+    // own surface. A document.body portal (round 4) took it out of both.
+    expect(screen.getByRole('menu').closest('.signal-composer-pill-row')).not.toBeNull()
     await userEvent.click(screen.getByRole('menuitem', { name: /Urgent/i }))
     const urgentButton = screen.getByRole('button', { name: /Urgent/i })
     expect(urgentButton).toHaveClass('signal-attention-pill--urgent')
