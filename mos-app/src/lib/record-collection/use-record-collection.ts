@@ -13,6 +13,9 @@ import type {
   RecordCollectionDescriptor,
 } from './types'
 
+/** The URL key every collection schema serializes its saved view under. */
+const VIEW_QUERY_KEY = 'view'
+
 export interface UseRecordCollectionOptions<
   TRecord,
   TId extends string,
@@ -25,7 +28,10 @@ export interface UseRecordCollectionOptions<
   descriptor: RecordCollectionDescriptor<TRecord, TId, TQuery, TContext, TGroup, TAction, TPresentation>
   urlMode: 'synced' | 'fixed'
   fixedQuery?: TQuery
-  /** Initial typed query used by compatibility embedders when the URL has no collection query. */
+  /**
+   * Typed query the collection opens on while the URL pins no saved view (`?view=`) — the seam a
+   * role default lands through. Keys the URL does pin still win over it.
+   */
   initialQuery?: TQuery
   /** Phone hosts are state-constrained to the collection's default presentation. */
   isDesktop?: boolean
@@ -81,9 +87,14 @@ export function useRecordCollection<
     if (urlMode === 'fixed' && fixedQuery) {
       query = fixedQuery
       desired = presentationOf(fixedQuery, descriptor.defaultPresentation)
-    } else if (initialQuery && location.search === '') {
-      query = initialQuery
-      desired = presentationOf(initialQuery, descriptor.defaultPresentation)
+    } else if (initialQuery && !searchParams.has(VIEW_QUERY_KEY)) {
+      // The initial query applies while the URL pins no saved view. Gating on the whole search
+      // string instead dropped it for any link carrying only `?q=` or `?record=`, landing the
+      // viewer on the collection's widest scope (#749). Keys the URL does pin still win.
+      const parsed = descriptor.query.parse(new URLSearchParams(searchParams), descriptor.defaultPresentation)
+      const fromUrl = parsed.ok ? parsed.query : parsed.query ?? descriptor.query.neutral
+      query = mergeOverNeutral(initialQuery, fromUrl, descriptor.query.neutral)
+      desired = presentationOf(query, descriptor.defaultPresentation)
     } else {
       const parsed = descriptor.query.parse(new URLSearchParams(searchParams), descriptor.defaultPresentation)
       query = parsed.ok ? parsed.query : parsed.query ?? descriptor.query.neutral
@@ -180,6 +191,15 @@ export function useRecordCollection<
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controller, location.search, urlMode])
+}
+
+/** Every key the URL actually pins (value differs from the schema neutral) overrides `base`. */
+function mergeOverNeutral<TQuery extends object>(base: TQuery, fromUrl: TQuery, neutral: TQuery): TQuery {
+  const merged = { ...base }
+  for (const key of Object.keys(fromUrl) as (keyof TQuery)[]) {
+    if (fromUrl[key] !== neutral[key]) merged[key] = fromUrl[key]
+  }
+  return merged
 }
 
 function presentationOf<TQuery extends object, TPresentation extends string>(

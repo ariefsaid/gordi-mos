@@ -9,7 +9,7 @@ describe('getTaskDefaultView (AC-013)', () => {
     [['manager'], false, 'team-work'],
     [['member'], true, 'team-work'],
     [['admin'], true, 'all'],
-  ] as const)('selects the role default', (accessRoles, hasReport, expected) => {
+  ] as const)('roles [%s], hasReport %s → %s', (accessRoles, hasReport, expected) => {
     expect(getTaskDefaultView({ accessRoles, hasReport })).toBe(expected)
   })
 })

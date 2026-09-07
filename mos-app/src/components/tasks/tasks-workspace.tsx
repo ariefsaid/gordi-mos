@@ -168,14 +168,23 @@ export function TasksWorkspace({
   const roleDefaultView = auth.status === 'authenticated'
     ? getTaskDefaultView({ accessRoles, hasReport: auth.viewer.isManager })
     : 'all'
-  const initialQuery = useMemo(() => {
-    const legacy = queryFromLegacySavedView(savedView)
-    if (legacy) return legacy
-    if (currentSearch === '') {
-      return { ...TASK_COLLECTION_NEUTRAL_QUERY, view: roleDefaultView }
-    }
-    return undefined
-  }, [currentSearch, roleDefaultView, savedView])
+  // A record- or draft-intent landing (`/work/tasks/:id`, `?record=`, `/work/tasks/new`, `?create=1`)
+  // must not be rewritten by the role default: #750's record-open and draft-row navigations own the
+  // URL there, and stamping `view=` would race them (opening the wrong surface, or losing `create=1`
+  // before the redirect can seat the draft row). The role default still stands for a bare landing.
+  const initialSearch = useMemo(() => new URLSearchParams(currentSearch), [currentSearch])
+  const landingHasRecordOrDraftIntent = Boolean(selectedId)
+    || Boolean(drawerOpen)
+    || initialSearch.has('record')
+    || initialSearch.get('create') === '1'
+  const initialQuery = useMemo(
+    () => queryFromLegacySavedView(savedView) ?? (
+      landingHasRecordOrDraftIntent
+        ? undefined
+        : { ...TASK_COLLECTION_NEUTRAL_QUERY, view: roleDefaultView }
+    ),
+    [landingHasRecordOrDraftIntent, roleDefaultView, savedView],
+  )
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [draftTask, setDraftTask] = useState<TaskListRow | null>(null)
   const [draftLinkError, setDraftLinkError] = useState(false)
@@ -299,6 +308,10 @@ export function TasksWorkspace({
     if (!splitLayout) {
       const next = new URLSearchParams(params)
       next.delete('record')
+      // The record page's URL is its own canonical artefact — the collection saved view lives at
+      // /work/tasks (browser Back returns to it), not stamped onto the record path. Dropping `view`
+      // here keeps the role default from leaking into a click that opens the standalone page (#749).
+      next.delete('view')
       const search = next.toString()
       navigate({ pathname: `/work/tasks/${taskId}`, search: search ? `?${search}` : '' }, { state: { taskSurface: 'page' } })
       return

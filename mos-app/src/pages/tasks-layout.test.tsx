@@ -886,3 +886,68 @@ describe('TasksLayout — AC-021: Back names the origin', () => {
     expect(back).toHaveAttribute('href', '/work/tasks')
   })
 })
+
+// ── AC-013 (#749): the landing view is the viewer's role default ─────────────────────────────
+// Rendered through the real route element, so a change that neuters getTaskDefaultView shows up
+// here as the wrong chip and the wrong URL — the layer the AC is written at.
+describe('TasksLayout — AC-013: each persona tier lands on its own default view', () => {
+  function personaState(accessRoles: string[], isManager: boolean): AuthState {
+    return {
+      status: 'authenticated',
+      viewer: { person: mockPerson, roles: [mockRole], isManager, accessRoles, affiliated: [] },
+      signOut: async () => {},
+    }
+  }
+
+  function renderAsPersona(auth: AuthState, path: string, onLocationChange: (path: string) => void) {
+    return render(
+      <AuthContext.Provider value={auth}>
+        <MemoryRouter initialEntries={[path]}>
+          <OverlayHostProvider>
+            <LocationRecorder onChange={onLocationChange} />
+            <Routes>
+              <Route path="/work/tasks" element={<TasksLayout />}>
+                <Route path="new" element={<TaskDrawer mode="create" />} />
+                <Route path=":taskId" element={<TaskDrawer mode="view" />} />
+              </Route>
+            </Routes>
+          </OverlayHostProvider>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    )
+  }
+
+  // 'admin' is the director/admin tier's access role — there is no separate 'director' role.
+  it.each([
+    ['member', 'My work', ['member'], false, 'my-work'],
+    ['lead', 'Team work', ['ops_lead'], false, 'team-work'],
+    ['manager', 'Team work', ['member'], true, 'team-work'],
+    ['director/admin', 'All', ['admin'], false, 'all'],
+  ] as const)('a %s lands on %s', async (_tier, chip, accessRoles, isManager, viewSlug) => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
+    let url = ''
+    renderAsPersona(personaState([...accessRoles], isManager), '/work/tasks', (next) => { url = next })
+
+    const active = await screen.findByRole('button', { name: chip, pressed: true })
+    expect(active).toBeInTheDocument()
+    // All is the schema neutral, so the codec writes no `view` key for it.
+    const viewInUrl = () => new URLSearchParams(url.split('?')[1] ?? '').get('view') ?? 'all'
+    await waitFor(() => expect(viewInUrl()).toBe(viewSlug))
+  })
+
+  it('applies to any URL that pins no view — a lead opening ?q= still lands on Team work', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
+    let url = ''
+    renderAsPersona(personaState(['ops_lead'], false), '/work/tasks?q=', (next) => { url = next })
+
+    expect(await screen.findByRole('button', { name: 'Team work', pressed: true })).toBeInTheDocument()
+    await waitFor(() => expect(url).toContain('view=team-work'))
+  })
+
+  it('a URL that pins a view keeps it — the role default never overrides an explicit link', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
+    renderAsPersona(personaState(['ops_lead'], false), '/work/tasks?view=all', () => {})
+
+    expect(await screen.findByRole('button', { name: 'All', pressed: true })).toBeInTheDocument()
+  })
+})

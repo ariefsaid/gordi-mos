@@ -35,6 +35,9 @@ function makeClient(byTable: Record<string, Result>, rec: Rec) {
 
 function freshRec(): Rec { return { tables: [], selects: [], filters: [] } }
 
+const TEAM_ID = '50000000-0000-0000-0000-000000000001'
+const BU_ID = '60000000-0000-0000-0000-000000000001'
+
 beforeEach(() => vi.clearAllMocks())
 
 describe('getRailCounts — the one cheap rail aggregate', () => {
@@ -77,8 +80,32 @@ describe('getRailCounts — the one cheap rail aggregate', () => {
   it('AC-014: Team work count uses team ids plus the legacy BU fallback', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeClient({ tasks: { count: 4, error: null } }, rec) as never)
+    await getRailCounts('40000000-0000-0000-0000-000000000001', 'team-work', [TEAM_ID], [BU_ID])
+    expect(rec.filters).toContain(
+      `or:team_id.in.(${TEAM_ID}),and(team_id.is.null,business_unit_id.in.(${BU_ID}))`,
+    )
+  })
+
+  it('keeps a non-uuid id out of the or() filter string, the same guard personId gets', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeClient({ tasks: { count: 4, error: null } }, rec) as never)
+    await getRailCounts(
+      '40000000-0000-0000-0000-000000000001',
+      'team-work',
+      [TEAM_ID, 'team-cafe,responsible_person_id.not.is.null'],
+      [BU_ID],
+    )
+    expect(rec.filters).toContain(
+      `or:team_id.in.(${TEAM_ID}),and(team_id.is.null,business_unit_id.in.(${BU_ID}))`,
+    )
+  })
+
+  it('reads zero rows rather than the org when no id survives the uuid guard', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeClient({ tasks: { count: 0, error: null } }, rec) as never)
     await getRailCounts('40000000-0000-0000-0000-000000000001', 'team-work', ['team-cafe'], ['bu-retail'])
-    expect(rec.filters).toContain('or:team_id.in.(team-cafe),and(team_id.is.null,business_unit_id.in.(bu-retail))')
+    expect(rec.filters).toContain('in:id=')
+    expect(rec.filters.some((f) => f.startsWith('or:'))).toBe(false)
   })
 
   it('coalesces a null count to 0', async () => {

@@ -13,8 +13,9 @@ export function useRailCounts(): RailCounts | null {
   const authed = auth.status === 'authenticated'
   const viewer = authed && 'viewer' in auth ? auth.viewer : null
   const personId = viewer?.person?.id
-  const viewerAccessRoles = viewer?.accessRoles
-  const viewerRoles = viewerAccessRoles?.join(',')
+  // The roles reach the effect as ONE stable string; the array's identity changes every auth
+  // render and would re-fire the fetch on nothing.
+  const viewerRoles = viewer?.accessRoles?.join(',') ?? ''
   const viewerIsManager = viewer?.isManager
   const [counts, setCounts] = useState<RailCounts | null>(null)
 
@@ -24,7 +25,7 @@ export function useRailCounts(): RailCounts | null {
     // OD-WAY-94(3) resolution: the badge is the default view's count, not a separate
     // viewer-owned aggregate. This selector is shared with TasksWorkspace's landing view.
     const defaultView = getTaskDefaultView({
-      accessRoles: viewerAccessRoles ?? [],
+      accessRoles: viewerRoles === '' ? [] : viewerRoles.split(','),
       hasReport: viewerIsManager ?? false,
     })
     const teams = defaultView === 'team-work' && personId
@@ -39,7 +40,7 @@ export function useRailCounts(): RailCounts | null {
       .then((next) => { if (live) setCounts(next) })
       .catch(() => { if (live) setCounts(null) })
     return () => { live = false }
-  }, [authed, personId, viewerAccessRoles, viewerRoles, viewerIsManager])
+  }, [authed, personId, viewerRoles, viewerIsManager])
 
   return counts
 }
