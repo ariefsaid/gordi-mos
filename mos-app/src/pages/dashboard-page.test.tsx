@@ -151,9 +151,9 @@ function renderDashboard(accessRoles: string[], initialPath = '/money') {
 beforeEach(() => {
   vi.clearAllMocks()
   setDesktop()
-  // Default viewer holds admin (both revenue + margin) so the tests that don't name a role
-  // exercise the FULL page (finance-view behavior unchanged, ADR-0051 D4).
-  mockUseAuth.mockReturnValue(authViewer(['admin']))
+  // Default viewer holds manager (both revenue + margin) so the tests that don't name a role
+  // exercise the FULL page (ADR-0051 D4; #797 — admin alone holds neither).
+  mockUseAuth.mockReturnValue(authViewer(['manager']))
 })
 
 describe('DashboardPage — data layer usage', () => {
@@ -404,7 +404,7 @@ describe('AC-329: supervisor gets a revenue-only dashboard (ADR-0051 D4)', () =>
   })
 
   it('a manager — the WIDER revenue-view tier — still reaches the page and still sees revenue', async () => {
-    // The route admits finance, admin, manager and supervisor (AC-127 / ADR-0050 D8,
+    // The route admits finance, manager and supervisor (AC-127 / ADR-0050 D8,
     // AC-326 / ADR-0051). A port that narrowed the page to finance|admin would leave a
     // manager staring at an empty render rather than being bounced, which is why the
     // page's own behaviour for a manager is pinned here and not only at the route.

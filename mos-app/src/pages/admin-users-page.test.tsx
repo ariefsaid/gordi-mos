@@ -146,6 +146,36 @@ describe('AdminUsersPage (AC-060)', () => {
     expect(screen.queryByText('Budi Santoso')).not.toBeInTheDocument()
   })
 
+  // AC-043 (#803): a load is not a reason to blank the controls. The head and the toolbar are
+  // chrome the admin can already act on; only the LIST is unknown, so only the list is skeleton.
+  it('AC-043: the head and the toolbar stay rendered while the list loads — only the list is skeleton', () => {
+    mockListAdminPeople.mockReturnValue(new Promise(() => {}))
+    renderPage()
+
+    expect(screen.getByRole('heading', { level: 1, name: 'People' })).toBeInTheDocument()
+    expect(screen.getByText('Manage who can sign in and what they can do.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /add person/i })).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: /search people/i })).toBeInTheDocument()
+    expect(screen.getByRole('tablist', { name: /status filter/i })).toBeInTheDocument()
+    expect(screen.getAllByRole('tab')).toHaveLength(5)
+
+    // The list area — and nothing else — is the busy region.
+    expect(screen.getByRole('status', { name: /loading/i })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  // AC-041 (#803), page half: the ONE filled primary on this page is `+ Add person`, in the head.
+  it('AC-041: the page carries exactly one filled primary, and it is the head’s Add person', async () => {
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    renderPage()
+    await screen.findByText('Budi Santoso')
+
+    const primaries = document.querySelectorAll('.btn-primary')
+    expect(primaries).toHaveLength(1)
+    expect(primaries[0].textContent).toMatch(/add person/i)
+    expect(primaries[0].closest('.content-header, .ch-action')).not.toBeNull()
+  })
+
   it('AC-060: renders each login status distinctly — active, none, disabled, archived', async () => {
     const user = userEvent.setup()
     mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)

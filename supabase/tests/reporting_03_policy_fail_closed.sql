@@ -11,7 +11,7 @@
 -- is equally consistent with an empty table, a missing grant, or a policy that denies everyone.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(25);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -54,9 +54,12 @@ select is((select count(*)::int from reporting.sales_daily_revenue), 0,
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
 select is((select count(*)::int from reporting.sales_margin_daily), 1,
   'finance reads the margin row — the control for the margin negatives');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}';
 select is((select count(*)::int from reporting.sales_margin_daily), 1,
-  'and so does admin — the two widest arms are checked on every table, because a policy that admits only one of them is a plausible-looking mistake');
+  'and so does manager — the two money arms are checked on every table, because a policy that admits only one of them is a plausible-looking mistake');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select is((select count(*)::int from reporting.sales_margin_daily), 0,
+  'sales_margin_daily_select: admin reads zero margin rows — the users-and-settings role is not a money tier (#797)');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","ops_lead"]}';
 select is((select count(*)::int from reporting.sales_margin_daily), 0,

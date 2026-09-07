@@ -105,7 +105,7 @@ describe('listObjectivesAll (management)', () => {
     const result = await listObjectivesAll()
 
     expect(result).toEqual(rows)
-    expect(rec.selects).toContain('id,name,archived_at')
+    expect(rec.selects).toContain('id,name,archived_at,business_unit_id,accountable_person_id,period_year')
     expect(rec.orders).toContainEqual(['archived_at', { nullsFirst: true }])
     expect(rec.orders).toContainEqual(['name', undefined])
   })
@@ -134,6 +134,15 @@ describe('createObjective', () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: null, error: { message: 'denied' } }] }, rec) as never)
     await expect(createObjective('X')).rejects.toThrow(/createObjective failed — denied/)
+  })
+
+  it('carries unit, owner and year when given (#801)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: {}, error: null }] }, rec) as never)
+
+    await createObjective('Kitchen Waste Down', { business_unit_id: 'bu-1', accountable_person_id: 'p-1', period_year: 2026 })
+
+    expect(rec.inserts).toEqual([{ name: 'Kitchen Waste Down', business_unit_id: 'bu-1', accountable_person_id: 'p-1', period_year: 2026 }])
   })
 })
 

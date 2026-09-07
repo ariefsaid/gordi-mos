@@ -135,7 +135,7 @@ function renderPage() {
 // ── Confirm gates (item 2) ─────────────────────────────────────────────────────
 
 describe('AdminUsersPage — confirm dialogs', () => {
-  it('reset-password opens a confirm dialog before firing the RPC', async () => {
+  it('AC-046: reset-password opens a confirm dialog before firing the RPC', async () => {
     const user = userEvent.setup()
     mockListAdminPeople.mockResolvedValue(TWO_PEOPLE)
     renderPage()
@@ -171,7 +171,7 @@ describe('AdminUsersPage — confirm dialogs', () => {
     await waitFor(() => expect(mockResetPassword).toHaveBeenCalledWith('p-member'))
   })
 
-  it('disable-login opens a confirm dialog before firing the RPC', async () => {
+  it('AC-046: disable-login opens a confirm dialog before firing the RPC', async () => {
     const user = userEvent.setup()
     mockListAdminPeople.mockResolvedValue(TWO_PEOPLE)
     renderPage()
@@ -185,7 +185,7 @@ describe('AdminUsersPage — confirm dialogs', () => {
     expect(mockSetLoginEnabled).not.toHaveBeenCalled()
   })
 
-  it('archive opens a confirm dialog before firing the RPC', async () => {
+  it('AC-046: archive opens a confirm dialog before firing the RPC', async () => {
     const user = userEvent.setup()
     mockListAdminPeople.mockResolvedValue(TWO_PEOPLE)
     renderPage()
@@ -320,7 +320,7 @@ describe('AdminUsersPage — success toasts', () => {
 // ── aria-describedby on alertdialog reveal (item 7) ──────────────────────────
 
 describe('AdminUsersPage — password reveal a11y', () => {
-  it('the alertdialog element has aria-describedby pointing at the warning', async () => {
+  it('AC-046: the temp-password reveal alertdialog has aria-describedby pointing at the warning', async () => {
     const user = userEvent.setup()
     const disabledPerson: AdminPersonRow = { ...TWO_PEOPLE[1], login: 'none' }
     mockListAdminPeople.mockResolvedValue([TWO_PEOPLE[0], disabledPerson])

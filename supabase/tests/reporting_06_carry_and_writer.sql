@@ -95,7 +95,7 @@ insert into reporting.sales_daily_revenue
   ('00000000-0000-0000-0000-0000000000b1','2026-07-01','POS','GKI','RRS','B''s own RRS',99,9900000.00,'2026-07-01 04:00:00+07');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}';
 select set_eq($$ select branch_code from reporting.list_revenue_branches() $$,
   array['RRS','GRI'],
   'the picker lists each branch ONCE however many days it has billed, and only the caller''s org — two days of Rumah Rames is one option');

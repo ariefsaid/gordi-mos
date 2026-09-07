@@ -74,7 +74,7 @@ describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () =
     // it passes even if someone edits the constant, which is exactly the drift these cases exist to
     // catch. So: the POLICY is pinned with a literal, and the fact that the rail CONSUMES the same
     // constant the /money route gate reads is pinned separately.
-    expect(money.anyOf).toEqual(['finance', 'admin', 'manager', 'supervisor']) // the POLICY
+    expect(money.anyOf).toEqual(['finance', 'manager', 'supervisor']) // the POLICY (#797: no admin)
     expect(money.anyOf).toBe(REVENUE_VIEW_ROLES) // consumes the CONSTANT
     expect(isLive(money, [])).toBe(false)
     expect(isLive(money, ['member'])).toBe(false)
@@ -105,6 +105,20 @@ describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () =
   it('AC-327: supervisor holds revenue-only VIEW visibility on the Money destination (ADR-0051)', () => {
     const money = DESTINATIONS.find((d) => d.id === 'money')!
     expect(money.anyOf).toContain('supervisor')
+  })
+
+  // #797 / OD-WAY-98 (1): admin is users-and-settings and holds no Money read of its own. Asserted
+  // on the registry (the ship gate hides Money from everyone through isLive) AND through the gate
+  // with the ship gate lifted, so the role decision is proven on its own rather than masked.
+  it('AC-004 (#797): the Money root admits manager and not admin alone', () => {
+    const money = DESTINATIONS.find((d) => d.id === 'money')!
+    expect(money.anyOf).not.toContain('admin')
+    expect(money.anyOf).toContain('manager')
+    const tasks = DESTINATIONS.find((d) => d.id === 'work')!.links[0]
+    const unGated = { ...money, primaryPath: tasks.path, links: [tasks] }
+    expect(isLive(unGated, ['manager'])).toBe(true)
+    expect(isLive(unGated, ['admin', 'manager'])).toBe(true)
+    expect(isLive(unGated, ['admin'])).toBe(false)
   })
 
   // The rail and the route must admit the same set, or Money is reachable by URL and invisible in
