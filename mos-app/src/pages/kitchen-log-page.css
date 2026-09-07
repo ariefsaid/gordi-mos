@@ -346,3 +346,35 @@
 @media (max-width: 390px) {
   .kl-scope { width: 100%; }
 }
+
+/* ── #781 opening door row (DESIGN.md § Navigation A1) ────────────────────────
+   A door row is a `.btn-outline`-weight row with three cues: eyebrow · state · one
+   verb (state is deferred to the record itself here — see kitchen-log-page.tsx).
+   Full-width tap target at ≤390 so the door does not compete with the capture
+   list's own compact rows; on desktop it takes its natural width so the row does
+   not read as a banner. */
+.kl-door {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+  justify-content: space-between;
+  width: auto;
+  align-self: flex-start;
+  min-height: 44px;
+  text-decoration: none;
+}
+.kl-door-eyebrow {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.kl-door-verb {
+  color: var(--foreground);
+  font-size: var(--font-size-control);
+  font-weight: 600;
+}
+@media (max-width: 390px) {
+  .kl-door { width: 100%; align-self: stretch; }
+}

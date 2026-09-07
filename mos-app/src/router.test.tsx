@@ -317,6 +317,38 @@ describe('router — /admin redirects from inside AdminRoute', () => {
   })
 })
 
+// AC-014 (#781, OD-WAY-95 (1)): /cafe IS the capture list now, so /cafe/log is a
+// redirect there — deep links (including the failed-checks band's rejected-log route
+// and any bookmarks) land at /cafe in one hop with their query preserved. And /cafe/log
+// is no longer a page entry in the route table: a redirect that leaves a real page behind
+// it would forward the person onto the surface twice.
+describe('AC-014 (#781): /cafe/log redirects to /cafe with query preserved; no page entry survives', () => {
+  it('/cafe/log?q=something arrives at /cafe?q=something in one hop', () => {
+    const flat = flattenRoutes().find((f) => f.path === '/cafe/log')
+    expect(flat, '/cafe/log missing from the route table').toBeDefined()
+    const el = flat!.route.element
+    expect(isRedirect(el)).toBe(true)
+    expect(redirectProps(el).to).toBe('/cafe')
+    expectOneHop('/cafe/log', '/cafe')
+  })
+
+  it('/kitchen/log stays a redirect, and it names /cafe (not the old /cafe/log)', () => {
+    const flat = flattenRoutes().find((f) => f.path === '/kitchen/log')
+    expect(flat).toBeDefined()
+    expect(isRedirect(flat!.route.element)).toBe(true)
+    expect(redirectProps(flat!.route.element).to).toBe('/cafe')
+  })
+
+  it('the /cafe/log page module does not appear in the wiring — there is no surface behind the redirect', () => {
+    // Every non-redirect page route in the surface table (see router-lazy.test.tsx) is
+    // enumerated separately; this checks the DECLARATION here that /cafe/log's element is a
+    // redirect, so the OLD page wiring never comes back as a second entry.
+    const cafeLogEntries = allRoutes(routeConfig).filter((r) => r.path === 'cafe/log')
+    expect(cafeLogEntries).toHaveLength(1)
+    expect(isRedirect(cafeLogEntries[0].element)).toBe(true)
+  })
+})
+
 // AC-001 (#179, #217, OD-WAY-32): the cascade SCREEN is cut; the PATH keeps its doormat.
 describe('router — the retired cascade path (OD-WAY-32)', () => {
   it('AC-001: no PAGE is served at a cascade path — a redirect away is all there is', () => {

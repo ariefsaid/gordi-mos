@@ -268,7 +268,7 @@ function PlanEditor() {
               drills into the capture surface, pre-searched. aria-label speaks the
               destination; the visible text stays the dish name. */}
           <Link
-            to={`/cafe/log?q=${encodeURIComponent(item.name)}`}
+            to={`/cafe?q=${encodeURIComponent(item.name)}`}
             className="kp-name kp-row-link"
             aria-label={t('kitchen.plan.row.logAria', { item: item.name })}
           >
@@ -334,7 +334,7 @@ function PlanEditor() {
         <div className="kp-card-head">
           <span className="kp-card-name">
             <Link
-              to={`/cafe/log?q=${encodeURIComponent(item.name)}`}
+              to={`/cafe?q=${encodeURIComponent(item.name)}`}
               className="kp-row-link"
               aria-label={t('kitchen.plan.row.logAria', { item: item.name })}
             >
@@ -570,7 +570,7 @@ function PesananView() {
       render: r => (
         <span className="kp-dish">
           <Link
-            to={`/cafe/log?q=${encodeURIComponent(r.wip_item_name)}`}
+            to={`/cafe?q=${encodeURIComponent(r.wip_item_name)}`}
             className="kp-name kp-row-link"
             aria-label={t('kitchen.plan.row.logAria', { item: r.wip_item_name })}
           >
@@ -612,7 +612,7 @@ function PesananView() {
         <p className="kp-readonly-note">
           {t('kitchen.plan.pesanan.readOnlyNote', { days: PESANAN_HORIZON_DAYS })}
         </p>
-        <Link to="/cafe/log" className="btn btn-outline kp-readonly-cta">
+        <Link to="/cafe" className="btn btn-outline kp-readonly-cta">
           {t('kitchen.plan.pesanan.readOnlyCta')}
         </Link>
       </div>

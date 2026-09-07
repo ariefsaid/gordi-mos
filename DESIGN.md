@@ -660,6 +660,8 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 
 > **Module children collapse (shell judgment #738).** A Module's child rows render only while that Module is the current destination or the viewer is affiliated with its Business Unit; otherwise the Module renders as its root row alone, with the shared `Chevron` pointing right. The icon-only compact rail never renders children — roots only. The phone More drawer follows the same rule. A viewer's phone tab set equals their rail's visible destination roots for that viewer (Rule 9): the two surfaces never disagree on whether a Module is present for them.
 
+> **Module root is the module's capture job.** A Module's root route renders the work its members do most — the capture list for Café — never a menu of doors. Secondary journeys (an opening, a review queue) are door rows inside that root or rail children, and a door row is a `.btn-outline`-weight row: eyebrow · state · one verb, whose click opens the record that holds the work. A Module never has a screen whose only content is context selectors.
+
 > **Rail counts are the viewer's own.** A trailing count badge states the viewer's count (my open tasks, my unread) — never an org total. A destination with no personal count carries no badge.
 - **Rail collapse is the user's, not only the viewport's (#442).** The icon-only rendering above was reachable only by shrinking the window into the 920–1099.98px band — at the widths where the rail is most worth trading for content, the user had no say. A **collapse toggle** now sits at the rail's top edge and turns that SAME compact rendering on. There is exactly one collapsed style; this is the switch, not a second look.
 
@@ -777,6 +779,8 @@ user has entered something to diverge from expectation.
 
 *When to use it:* the surface's phone job is high-frequency capture across many rows. The default
 `<dl>` card stays correct for **reading** a record, where labelled field/value pairs are the point.
+
+> **Scope is a statement, not a control.** The books a capture surface writes into (Café: the production stream) render as text in the page head — `Rumah Rames · Dapur` — derived from the person's primary Team. A switch, where the person is allowed one, is a text link beside the statement that opens a picker of the streams they may write to; the picker never lists a stream that cannot produce, and a placeholder such as "Choose stream…" never renders. A person with no stream sees the `blank` empty state and no form.
 
 ### Row status as text (v4, 2026-07-27)
 In a dense collection where a status applies to **every** row at rest, render it as toned text

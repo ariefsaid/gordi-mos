@@ -60,7 +60,7 @@ beforeEach(() => vi.clearAllMocks())
 const VIEWER = '40000000-0000-0000-0000-000000000001'
 
 describe('AC-507: loadFailedChecksForViewer — rejected kitchen_logs, RLS-readable set', () => {
-  it("(a)(b)(c): filters status='Rejected', never sends org_id, maps to AttentionItems routed to /cafe/log", async () => {
+  it("(a)(b)(c): filters status='Rejected', never sends org_id, maps to AttentionItems routed to /cafe (the Log now)", async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
@@ -83,8 +83,8 @@ describe('AC-507: loadFailedChecksForViewer — rejected kitchen_logs, RLS-reada
     expect(rec.selects.some((s) => s.includes('action_label'))).toBe(true)
     expect(rec.selects.some((s) => s.includes('action_type'))).toBe(false)
     expect(result).toEqual([
-      { id: 'log-1', title: 'Production · 2026-07-16', meta: 'wrong qty', route: '/cafe/log' },
-      { id: 'log-2', title: 'Transfer to Bungur · 2026-07-15', meta: undefined, route: '/cafe/log' },
+      { id: 'log-1', title: 'Production · 2026-07-16', meta: 'wrong qty', route: '/cafe' },
+      { id: 'log-2', title: 'Transfer to Bungur · 2026-07-15', meta: undefined, route: '/cafe' },
     ])
   })
 

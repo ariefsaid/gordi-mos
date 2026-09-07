@@ -137,10 +137,11 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/money/pricing', PricingPage, 'dev'],
   ['/money/follow-ups', FollowUpsPage, 'dev'],
   ['/inbox', InboxPage, 'dev'],
-  // /cafe has no dev counterpart — it is v4's own opening surface (#196, PORT-023), never a
-  // dev-carried or stub component, so it gets a provenance of its own rather than a false 'dev'.
-  ['/cafe', CafeOpeningPage, 'v4'],
-  ['/cafe/log', KitchenLogPage, 'dev'],
+  // #781 (OD-WAY-95 (1)(3)): /cafe IS the capture list now (the Log), and the opening record
+  // moved to /cafe/opening — a door row inside /cafe opens it. /cafe/log stays a router redirect,
+  // handled by allRedirects rather than by this wiring table.
+  ['/cafe', KitchenLogPage, 'dev'],
+  ['/cafe/opening', CafeOpeningPage, 'v4'],
   ['/cafe/plan', KitchenPlanPage, 'dev'],
   ['/cafe/stock', KitchenStockPage, 'dev'],
   ['/cafe/review', KitchenReviewPage, 'dev'],

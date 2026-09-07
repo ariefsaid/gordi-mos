@@ -279,12 +279,15 @@ describe('phone drawer glyphs (issue 457 part 1, the More drawer)', () => {
     // a phone has to a module's own screens.
     expect(hrefs).toEqual(expect.arrayContaining(['/', '/work/tasks', '/inbox']))
     expect(hrefs.some((h) => h.startsWith('/admin'))).toBe(true)
-    // The maximal drawer: no module is promoted for this viewer, so Café's own row renders here
-    // alongside all five children. If a promoted module ever crept back into the fixture this
-    // would go red rather than quietly shrinking the sweep.
+    // Issue 781: the module ROOT IS the capture list (the Log), and the four rail children are
+    // Plan · Stock · Review · Pushes. Log is not a child anymore and Opening moved to
+    // /cafe/opening (a door row inside the module root, not a rail child). The Café PARENT
+    // row is omitted here because affiliated:['cafe'] promotes Café to the bottom-tab slot
+    // and the drawer never repeats the promoted module.
     expect(hrefs).toEqual(
-      expect.arrayContaining(['/cafe', '/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes']),
+      expect.arrayContaining(['/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes']),
     )
+    expect(hrefs).not.toContain('/cafe/log')
     // Same ship-gate vacuity check the rail carries: without it, "unique" would be a claim about
     // today's visible drawer rather than the one switch day produces.
     expect(hrefs, 'ship-gate mock is not in effect').toEqual(
@@ -300,14 +303,16 @@ describe('phone drawer glyphs (issue 457 part 1, the More drawer)', () => {
 
   it("each Café child's mark is its own on the phone too", () => {
     const links = phoneDrawerGlyphs()
-    const cup = links.find((l) => l.href === '/cafe')?.glyph
-    expect(cup, 'the Café module row is missing from the drawer').toBeTruthy()
+    // Issue 781: the four rail children — Log is not a child anymore (it IS /cafe), and Opening
+    // moved out of the rail to a door row inside the module root. The parent /cafe row is
+    // omitted from this drawer because Café is promoted to the bottom-tab slot for this
+    // affiliated viewer; we compare children to the compact rail's Café cup instead.
     const children = links.filter((l) => l.href.startsWith('/cafe/'))
     expect(children.map((c) => c.href).sort()).toEqual(
-      ['/cafe/log', '/cafe/plan', '/cafe/pushes', '/cafe/review', '/cafe/stock'],
+      ['/cafe/plan', '/cafe/pushes', '/cafe/review', '/cafe/stock'],
     )
-    for (const child of children) {
-      expect(child.glyph, `${child.href} draws the Café cup`).not.toBe(cup)
-    }
+    // Every child draws a distinct mark — no duplicated glyphs among the four.
+    const glyphs = new Set(children.map((c) => c.glyph))
+    expect(glyphs.size, 'a Café child borrows another child\'s mark').toBe(children.length)
   })
 })

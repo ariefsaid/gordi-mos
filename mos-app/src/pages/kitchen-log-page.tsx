@@ -149,12 +149,14 @@ export function KitchenLogPage() {
   const t = useT()
   // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
   // the catalog's own docTitle convention (tasks-layout, signals-archive).
-  useDocumentTitle(t('common.docTitle', { page: `${t('nav.cafe.log')} · ${t('nav.cafe')}` }))
+  // #781: /cafe IS the Log now, so the tab name is simply the module — a "Log · Café" tab
+  // over a page that IS the module reads as though there were another Café to compare it to.
+  useDocumentTitle(t('common.docTitle', { page: t('nav.cafe') }))
   const isDesktop = useIsDesktop()
-  // I18N sweep: the H1 was a literal "Café · Log" — mixed-locale in `id` (breadcrumb
-  // correctly translated the module/page, the heading below it did not). Reuses the
-  // existing nav.cafe.* family rather than adding a duplicate composed key.
-  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.log')}`
+  // #781 / DESIGN.md § Compact capture row A2: the head's STATEMENT is the module name (the
+  // stream statement rides in the head's status row beside it), never "Café · Log" — the page
+  // IS the Log now, so restating that here would just say "Café · Café".
+  const pageTitle = t('dest.cafe')
 
   // The (branch, activity) production stream every captured row belongs to (OD-WAY-28), and
   // the movement within it (DD-WAY-13). The default is the person's OWN stream — their live
@@ -386,18 +388,28 @@ export function KitchenLogPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logDate, wipItems])
 
-  // The stream picker (FR-003/005) — ONE definition, rendered in the page head in EVERY
-  // state including while a switch's read is in flight: a slow stream's fetch must never
-  // unmount the control that lets the person leave that stream (default-not-wall).
-  // #440: it is the shared <CafeStreamBar> now — the same statement-and-switch every Café
-  // surface carries, in the same place, so a person who walks Log → Plan → Stock reads the
-  // stream in one spot instead of guessing on two thirds of the module.
+  // The stream STATEMENT (and, where the person is allowed one, its switch) — ONE definition,
+  // rendered in the page head in EVERY state including while a switch's read is in flight: a
+  // slow stream's fetch must never unmount the affordance that lets the person leave that
+  // stream (default-not-wall).
+  // #781 / DESIGN.md § Compact capture row A2: the stream is a STATEMENT beside a text-link
+  // "switch", not a select — the picker lists only PRODUCING streams (Radiant · Kitchen has no
+  // plans to make; it is a destination, not an origin), and a placeholder such as
+  // "Choose stream…" never renders. A viewer who cannot switch (their books are their books)
+  // sees the statement alone; the no-stream case renders a `blank` state (below), not an
+  // empty head.
+  // #781 (OD-WAY-95 (3)): the switch is offered only to people who may WRITE to a stream —
+  // "a switch, where the person is allowed one" (DESIGN.md A2). Unaffiliated readers see the
+  // statement alone; a reader has no books to switch INTO. Kitchen hands with only one
+  // producing stream also see no switch: there is nothing to switch to.
+  const producingOptions = streamOptions.filter(s => s.produces === true)
+  const canSwitchStream = canCapture && producingOptions.length > 1
   const streamPicker = (
     <CafeStreamBar
-      options={streamOptions}
+      mode="statement"
       stream={stream}
-      onChange={next => { void applyStream(next) }}
-      disabled={status.kind === 'submitting'}
+      options={canSwitchStream ? producingOptions : undefined}
+      onChange={canSwitchStream ? next => { void applyStream(next) } : undefined}
     />
   )
 
@@ -584,12 +596,54 @@ export function KitchenLogPage() {
     )
   }
 
+  // ── #781 blank: capture-entitled viewer with NO stream Team (Krishna case) ─────
+  // A person the module admits to write (affiliated, or an ops lead who found no producing
+  // stream to fall back to) but with no stream to write INTO. No form, no strip, no toolbar —
+  // an "unstreamed" surface for a Team the person is not yet on. The opening door still
+  // renders when the viewer has one to open (they are canCapture, so there is a team-scoped
+  // opening for them). Unaffiliated viewers (Fitri) fall through to the read-only render, not
+  // to this state — they are not being asked to join a Team.
+  if (canCapture && stream === null) {
+    return (
+      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="empty" meta={<span className="kl-date tabular">{logDate}</span>}>
+        <div className="kl-page">
+          <OfflineBanner show={!isOnline} />
+          <CafeOpeningDoor />
+          <EmptyState variant="blank" title={t('kitchen.log.noStream.title')} />
+        </div>
+      </PageFamilyFrame>
+    )
+  }
+
+  // ── #781 blank: the resolved stream RECEIVES, it does not produce (Cahya on Radiant · Kitchen)
+  // The stream Team exists and admits the viewer to its books, but the Team's own rule is
+  // that it never files a produce (the roastery's kitchen is a downstream inventory, not an
+  // origin — DD-WAY-13/movementsForStream). No form, no strip, no toolbar; a single Stock link
+  // to the surface where receives-only books actually have a step. The opening door still
+  // renders — this Team's opening does not care whether it produces.
+  if (canCapture && stream !== null && stream.produces === false) {
+    return (
+      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="empty" meta={<span className="kl-date tabular">{logDate}</span>}>
+        <div className="kl-page">
+          <OfflineBanner show={!isOnline} />
+          <CafeOpeningDoor />
+          <EmptyState variant="blank" title={t('kitchen.log.receivesOnly.title')}>
+            <Link to="/cafe/stock" className="btn btn-outline btn-touch kl-touch">
+              {t('kitchen.log.receivesOnly.stockLink')}
+            </Link>
+          </EmptyState>
+        </div>
+      </PageFamilyFrame>
+    )
+  }
+
   // ── Empty state (no WIP items) — no KPI strip (nothing to derive, plan §7) ────
   if (wipItems.length === 0) {
     return (
       <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="empty" meta={<span className="kl-date tabular">{logDate}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
+          {canCapture && <CafeOpeningDoor />}
           {/* 'blank' — no WIP items are configured yet (an ops-lead task), not a source that
               fills on its own; never 'quiet' ✓, which would misread as "nothing to log,
               all done" instead of "nothing CAN be logged until items exist". */}
@@ -826,6 +880,12 @@ export function KitchenLogPage() {
         <RouteLeaveGuard when={stagedCount > 0} message={t('kitchen.log.leave.confirm')} />
         <OfflineBanner show={!isOnline} />
 
+        {/* #781 / DESIGN.md § Navigation A1: the opening door row. A Module never opens on a
+            menu of doors, so the opening — a secondary journey the Café audience walks
+            infrequently — rides here as a `.btn-outline`-weight row, right above the capture
+            list, and stays absent for viewers with no path into it (Fitri, plain readers). */}
+        {canCapture && <CafeOpeningDoor />}
+
         {/* The strip is a submitted-production claim, so keep it absent until this action has
             saved day entries. In particular, an empty strip is more honest than a band that
             DD-7 guards could mistake for staged capture state. */}
@@ -1012,6 +1072,25 @@ function OfflineBanner({ show }: { show: boolean }) {
     <div role="alert" aria-label={t('kitchen.log.offline.aria')} className="kl-banner kl-banner-offline kl-block">
       {t('kitchen.log.offline.banner')}
     </div>
+  )
+}
+
+/**
+ * The opening door row — #781 / DESIGN.md § Navigation A1.
+ *
+ * "A door row is a `.btn-outline`-weight row: eyebrow · state · one verb, whose click opens the
+ * record that holds the work." The eyebrow states which door this is (today's opening); the
+ * verb opens the opening record page. State is left to the opening surface itself — mirroring
+ * it here would be a second source of truth for whether the opening has started, and the two
+ * surfaces have already been asked to agree once by shipping /cafe/opening as the live record.
+ */
+function CafeOpeningDoor() {
+  const t = useT()
+  return (
+    <Link to="/cafe/opening" className="btn btn-outline kl-door">
+      <span className="kl-door-eyebrow">{t('cafe.opening.door.eyebrow')}</span>
+      <span className="kl-door-verb">{t('cafe.opening.door.open')}</span>
+    </Link>
   )
 }
 

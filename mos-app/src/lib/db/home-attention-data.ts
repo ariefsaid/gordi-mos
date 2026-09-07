@@ -5,7 +5,10 @@ const ops = () => supabase.schema('ops')
 // Café route the barista returns to in order to re-log a rejected check (RATIFY-3 — v1 failed-check
 // source). Exported so Home decides whether to render the band by asking what THIS route admits
 // (`viewerAdmittedToRoute`, OD-WAY-51) — one route constant, never a second copy to drift from.
-export const CAFE_LOG_ROUTE = '/cafe/log'
+// #781: the capture list IS /cafe now (OD-WAY-95); the historical /cafe/log path still redirects
+// there for deep links, but the name points at the real destination so a rejected-log click makes
+// one hop, not two.
+export const CAFE_LOG_ROUTE = '/cafe'
 
 // `action_label` is `ops.action_label(ops.kitchen_logs)` — a PostgREST computed column, not a
 // stored one. #191 port note: v4 authored this file against a stored `action_type` column; the

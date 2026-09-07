@@ -170,7 +170,7 @@ describe('KitchenReviewPage — role gate (FR-003/044)', () => {
     expect(mockList).not.toHaveBeenCalled()
     // Back to Log must resolve via the SPA router — not a raw href that causes a full reload
     const backLink = screen.getByRole('link', { name: /back to log/i })
-    expect(backLink).toHaveAttribute('href', '/mos/cafe/log')
+    expect(backLink).toHaveAttribute('href', '/mos/cafe')
   })
 
   it('an admin is allowed (not forbidden)', async () => {

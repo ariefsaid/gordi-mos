@@ -5,8 +5,8 @@ import { isShipGated } from '@/lib/ship-gate'
 import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
   MoneyIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
-  ProfileIcon, PeopleIcon, OpeningIcon,
-  LogIcon, PlanIcon, StockIcon, ReviewIcon, DispatchIcon,
+  ProfileIcon, PeopleIcon,
+  PlanIcon, StockIcon, ReviewIcon, DispatchIcon,
 } from './icons'
 
 export interface Section {
@@ -54,23 +54,14 @@ export const SECTIONS: Section[] = [
 ]
 
 /**
- * Café Module sections — Opening (Step 7, RATIFY-7D — the "Start today's opening" home at the
- * exact /cafe path) + 5 screens re-homed from /kitchen/* to /cafe/* (OD-15). Role visibility
- * (Review: ops_lead/admin/supervisor · Pushes: ops_lead/admin) is enforced in the rail; all 6 are in this list for
- * breadcrumb resolution regardless of role. Every label flows through the i18n catalog (FR-440)
- * via its labelKey. sectionForPath resolves the exact /cafe path to Opening (not the generic
- * SECTIONS "Café" root entry — CAFE_SECTIONS is scanned first) and picks the most specific
- * (longest) prefix match for any /cafe/* sub-route, so Opening never shadows Log/Plan/etc.
+ * Café Module sections — the rail children of the Café module (#781, OD-WAY-95 (1)(3)). Log and
+ * Opening are ABSENT: /cafe IS the capture list (the Log), and the opening is a door row inside
+ * that root, never a rail child. Plan · Stock is what every affiliated member sees; Review adds
+ * for reviewers, Pushes for outbox readers. Role visibility mirrors each screen's route gate
+ * (Review: ops_lead/admin/supervisor · Pushes: ops_lead/admin). Every label flows through the
+ * i18n catalog (FR-440) via its labelKey.
  */
 export const CAFE_SECTIONS: Section[] = [
-  // The module's own cup stays on Opening — that leaf IS the module's front door, and the rail
-  // draws it as the Café parent. The five working screens each carry their OWN minted mark
-  // (icons.tsx, issue 457 part 1): drawing CafeIcon five more times made the icon-only compact
-  // rail a column of identical cups told apart by tooltip alone, and #439 made the icon the sole
-  // rung carrier in that regime. Not borrowed marks — a borrowed one is either a live duplicate
-  // or a duplicate waiting for its twin to leave SHIP_GATED_PATHS.
-  { path: '/cafe', label: 'Opening', labelKey: 'nav.cafe.opening', Icon: OpeningIcon },
-  { path: '/cafe/log', label: 'Log', labelKey: 'nav.cafe.log', Icon: LogIcon },
   { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: PlanIcon },
   { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: StockIcon },
   // `anyOf` matches each one's OWN route gate exactly (router.tsx: two RequireAccessRole
