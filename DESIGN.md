@@ -1253,7 +1253,7 @@ RecordViewer is the shared presentation and editing contract over separate typed
 
 | RecordViewer region | Contract |
 |---|---|
-| Identity and type | Make the record name, type, status, and current context clear without exposing internal system nouns as the primary label. |
+| Pinned header (panel and page alike) | Title (inline-editable, two-line clamp, `overflow-wrap: normal` — never a mid-word break), a one-line meta (owning Team · PIC · due · last activity age), then one control row: status pill-dropdown · the record's single primary lifecycle action (Mark complete / Reopen) · overflow ⋯ (Archive, Open full page, Copy link). Tabs carry counts (Checklist 1/4 · Activity 3). While a record panel is open, the page head's primary drops to `.btn-outline` — one blue per screen. |
 | Ordered metadata and relations | Render typed metadata and typed relation links in a stable order. Relation navigation stays in the same panel stack and exposes an internal Back control. |
 | Content | Render authored sections/blocks through an allow-listed domain renderer. Structured authored content is the Issue 10 concern; do not invent a universal JSON renderer in Issue 1. |
 | Activity/history | Show meaningful activity or history when the domain supports it, using the shared activity treatment rather than a page-local timeline identity. |

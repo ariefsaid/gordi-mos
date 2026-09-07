@@ -32,15 +32,13 @@ describe('AC-030: the pinned title clamps at two lines with overflow-wrap: norma
     )
   })
 
-  it('the pinned header stays below the fixed app bar while scrolling', () => {
-    expect(css).toMatch(/\.record-viewer__pinned-header\s*\{[^}]*position:\s*sticky[^}]*top:\s*var\(--header-h\)/)
-  })
-
-  it('phone keeps status, primary, and overflow in one control row', () => {
-    const phone = css.match(/@media\s*\(max-width:\s*390px\)\s*\{([\s\S]*)/)?.[1] ?? ''
-    expect(phone).not.toMatch(/\.record-viewer__pinned-header[^}]*flex-direction:\s*column/)
-    expect(phone).toMatch(/\.record-viewer__pinned-status[^}]*flex-wrap:\s*nowrap/)
-  })
+  // NOTE (#751 round 3): there is deliberately NO CSS-string test here for the pinned header's
+  // scroll behaviour. The round-2 test asserted the literal `position: sticky; top:
+  // var(--header-h)` in this sheet — and that value was the BROKEN render: `.record-doc` never
+  // scrolls (no scrollport, so no pinning) and the offset displaced the header 56px DOWN over
+  // the tab strip. A regex over a stylesheet is not a geometry test; the oracle is the rendered
+  // box in e2e/guards.geometry.spec.ts ("pinned record header geometry"), which scrolls the real
+  // record body and measures header/tabs at 1440 and 390.
 
   it('the pinned-title scope overrides the value wrap so words stay whole', () => {
     // The defect: the base value rule's `overflow-wrap: anywhere` breaks "Replace" mid-word.
