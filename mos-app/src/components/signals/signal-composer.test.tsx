@@ -301,7 +301,7 @@ describe('SignalComposer — safe retry after a failed post (CQ IMPORTANT-1)', (
 })
 
 describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
-  it('opens a grouped Person/Team/BU popover on "@" with a type badge per option', async () => {
+  it('opens a grouped Person/Team/BU popover on "@" with the type label in the group header only', async () => {
     renderComposer()
     await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
@@ -446,6 +446,8 @@ describe('SignalComposer — pill grammar (#768)', () => {
     renderComposer()
     await waitFor(() => expect(screen.getAllByRole('combobox', { name: /team/i })).toHaveLength(1))
     expect(screen.getAllByRole('combobox', { name: /team/i })[0]).toHaveValue('')
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /team/i }), 'team-radiant')
+    expect(screen.getByText(/Owning Team: Radiant Operations/i)).toBeInTheDocument()
   })
 
   it('AC-058/059: attention tint, overlay ownership, picked time format, and posted occurred_at', async () => {

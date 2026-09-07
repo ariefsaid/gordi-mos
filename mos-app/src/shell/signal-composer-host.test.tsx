@@ -106,10 +106,13 @@ describe('SignalComposerHost — one command, many entry points (C1, AC-428 back
     expect(screen.queryByTestId('signal-composer-stub')).not.toBeInTheDocument()
   })
 
-  it('Escape/close with a body asks to discard; Keep editing restores textarea focus and Discard closes', async () => {
+  it('Escape/close/backdrop with a body asks to discard; Keep editing restores textarea focus and Discard closes', async () => {
     renderHost(authedViewer)
     await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
     await userEvent.click(screen.getByRole('button', { name: 'make-dirty' }))
+    await userEvent.click(screen.getByTestId('modal-shell-scrim'))
+    expect(screen.getByRole('heading', { name: 'Discard this Signal?' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }))
     await userEvent.click(screen.getByRole('button', { name: /close/i }))
     expect(screen.getByRole('heading', { name: 'Discard this Signal?' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }))

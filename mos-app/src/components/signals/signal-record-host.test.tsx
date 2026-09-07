@@ -281,7 +281,6 @@ describe('SignalRecordHost — Add category wiring (correctSignal, FR-410)', () 
     // never a control (AC-036's other arm).
     expect(screen.queryByRole('button', { name: /needs attention/i })).toBeNull()
     expect(screen.getByText('Needs attention', { selector: '.signal-attention' })).toBeInTheDocument()
-    expect(mockCorrectSignal).not.toBeNull()
     expect(mockCorrectSignal).not.toHaveBeenCalled()
   })
 
