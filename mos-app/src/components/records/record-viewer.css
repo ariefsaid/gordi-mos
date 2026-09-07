@@ -291,12 +291,21 @@
   min-height: 44px;
 }
 
-/* ── RecordViewer shell ─────────────────────────────────────────────────────────────────── */
+/* ── RecordViewer shell ─────────────────────────────────────────────────────────────── */
+/* The record is ONE bounded column flex (the #751 round-3 structural pin): the pinned header
+   and the tab strip are non-scrolling siblings (flex: none) ABOVE a body that scrolls itself
+   (flex: 1 1 auto · min-height: 0 · overflow: auto). A `position: sticky` header can never pin
+   here — sticky needs a scrollport, and the wrappers above the record clip without scrolling —
+   so the SCROLLER IS THE BODY, and every bounded host (split drawer, modal sheet, record page)
+   merely passes its height down: wrapper → viewer → body. Hosts without a bounded height give
+   the viewer auto height; the body then never scrolls and nothing else changes. */
 .record-viewer {
   display: flex;
   flex-direction: column;
   gap: 0;
   min-width: 0;
+  flex: 1 1 auto;
+  min-height: 0;
   background: var(--card);
 }
 
@@ -320,11 +329,11 @@
   max-width: 72ch;
 }
 
-/* Task Variant B: the action header and section tabs remain visible while the record body scrolls. */
+/* Task Variant B: the action header and section tabs remain visible while the record body scrolls.
+   The header is a NON-SCROLLING sibling of the body (the scroller is .record-viewer__body, below),
+   so it stays put by STRUCTURE — no sticky offset to displace it down over the tab strip. */
 .record-viewer__pinned-header {
-  position: sticky;
-  top: var(--header-h);
-  z-index: 2;
+  flex: none;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -374,7 +383,13 @@
   font-size: var(--font-size-body-lg); white-space: nowrap; cursor: pointer;
 }
 .record-viewer__overflow-item:hover { background: var(--accent); }
-.record-viewer__tabs { position: sticky; top: 0; z-index: 1; display: flex; gap: 2px; padding: 0 20px; background: var(--card); border-bottom: 1px solid var(--border); }
+/* The tab strip is the second non-scrolling sibling — pinned for free by the flex layout above
+   the scrolling body (never a sticky offset: `top` displaces a sticky box DOWN from its flow
+   position, which is exactly what covered this strip in round 2). */
+.record-viewer__tabs { flex: none; display: flex; gap: 2px; padding: 0 20px; background: var(--card); border-bottom: 1px solid var(--border); }
+/* The ONE record-body scroller: everything under the tab strip (metadata, relations, content
+   slots, activity) scrolls INSIDE this box while the header and tabs hold still. */
+.record-viewer__body { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .record-viewer__tabs button { min-height: 44px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted-foreground); font: inherit; cursor: pointer; }
 .record-viewer__tabs button.is-active { color: var(--foreground); font-weight: 600; border-bottom-color: var(--primary); }
 

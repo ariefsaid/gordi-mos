@@ -381,7 +381,7 @@ export function RecordViewer({
         </header>
       )}
       {taskAnatomy ? (
-        <div id={`record-panel-${activeTab}`} role="tabpanel" aria-labelledby={`record-tab-${activeTab}`} tabIndex={0}>
+        <div id={`record-panel-${activeTab}`} role="tabpanel" aria-labelledby={`record-tab-${activeTab}`} tabIndex={0} className="record-viewer__body">
           {body}
         </div>
       ) : body}

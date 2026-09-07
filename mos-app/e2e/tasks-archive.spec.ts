@@ -1,6 +1,6 @@
-// AC-091: Archive a task → leaves the default list; findable via "Show archived"
+// AC-091: Archive a task → leaves the default list; findable via Status → "Include archived"
 // Natural journey: VIEWER (who is A on the seeded task) archives it from detail,
-// confirms it disappears from the default list, then re-finds it via the archived toggle.
+// confirms it disappears from the default list, then re-finds it via the archived filter.
 // No row is destroyed (the task remains readable under archived filter).
 // Requires the live stack (supabase start) and the seed from global-setup.ts.
 //
@@ -52,10 +52,13 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   await page.waitForTimeout(1_000)
   await expect(page.getByText(taskTitle)).not.toBeVisible()
 
-  // ── 5. Toggle "Show archived" — task reappears ──────────────────────────────
-  // Desktop secondary filters, including Show archived, render inline.
-  const archivedToggle = page.getByLabel(/show archived/i)
-  await archivedToggle.check()
+  // ── 5. Status popover → "Include archived" — task reappears ─────────────
+  // #743: the toolbar checkbox is GONE — "Include archived" is an ADDITIVE choice inside
+  // the Status dropdown's popover (AC-008: a popover's boxes are not toolbar controls).
+  const statusTrigger = page.getByRole('button', { name: 'Status', exact: true })
+  await statusTrigger.click()
+  await page.getByRole('checkbox', { name: /include archived/i }).check()
+  await statusTrigger.click() // close the popover so the row is clickable
 
   // The archived task should now be visible
   await expect(page.getByText(taskTitle)).toBeVisible({ timeout: 10_000 })

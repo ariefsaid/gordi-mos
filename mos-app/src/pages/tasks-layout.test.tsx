@@ -858,7 +858,13 @@ describe('Ticket #751 AC-033 — one blue per screen', () => {
     const trigger = within(drawer).getByRole('button', { name: /more actions/i })
     fireEvent.click(trigger)
     const menu = within(drawer).getByRole('menu')
-    fireEvent.keyDown(menu, { key: 'Escape' })
+    // A real user's Escape lands on the FOCUSED menuitem — a DESCENDANT of the menu — never on
+    // the menu element itself. Dispatching there makes the capture-phase flag load-bearing: in
+    // bubble phase the panel host's own Esc listener (an ancestor of the menu) would see the
+    // event first and close the whole drawer, not just the menu.
+    const focusedItem = document.activeElement as HTMLElement
+    expect(menu.contains(focusedItem), 'focus enters the menu on open').toBe(true)
+    fireEvent.keyDown(focusedItem, { key: 'Escape' })
     expect(within(drawer).queryByRole('menu')).toBeNull()
     expect(screen.getByRole('complementary', { name: /task detail/i })).toBeInTheDocument()
     expect(currentPath).toBe('/work/tasks?record=task-1')
