@@ -341,6 +341,14 @@
   .collection-toolbar__primary { align-items: stretch; flex-wrap: wrap; padding: 8px; }
   .collection-toolbar__presentations,
   .collection-toolbar__views { max-width: 100%; }
+  /* #770: inside the phone "View & filters" door the chip strip WRAPS instead of scrolling. At 390
+     the four view chips overrun the panel by ~60px, and the strip's scroll left the last one
+     ("I posted") cut at the panel edge — in a disclosure panel there is vertical room to spend and
+     nothing else competing for the row. The desktop strip keeps its scroll behaviour. */
+  .collection-mobile-options-panel .collection-toolbar__views {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
   .collection-toolbar__primary-spacer { display: none; }
   .collection-toolbar__query { justify-content: flex-start; padding: 8px; }
   .collection-toolbar__filter-group { width: 100%; }

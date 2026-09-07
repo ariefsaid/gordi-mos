@@ -88,7 +88,11 @@
   display: flex;
   flex-direction: column;
 }
-.home-signal-row + .home-signal-row {
+/* #770: the <li> is a plain list item again — it carries no role, so the <ul> still announces
+   "list, N items" — and its single child IS the row surface that activates the record. The divider
+   therefore hangs off the item pair, not the row pair. */
+.home-signal-item { min-width: 0; }
+.home-signal-item + .home-signal-item > .home-signal-row {
   border-top: 1px solid var(--row-divider);
 }
 

@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useAuth } from '@/auth/use-auth'
-import { can } from '@/lib/capabilities'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsWideOverlayWidth } from '@/shell/use-is-wide-overlay-width'
@@ -19,6 +18,7 @@ import {
   CollectionToolbarSearchField,
   type CollectionToolbarSearch,
 } from '@/components/record-collection/collection-toolbar'
+import { listReadableAuthorTeams } from '@/lib/db/signals'
 import { SIGNAL_CATEGORIES } from '@/lib/db/signals.types'
 import {
   signalCollectionDescriptor,
@@ -150,9 +150,20 @@ export function SignalsArchivePage() {
     onSort: (sort, direction) => setQuery({ sort, direction }),
   }
 
-  // #770 AC-030: "Share the first one" appears only when the viewer actually holds `signal.create_for_team`.
-  // A member-only viewer sees the plain "No Signals yet." line — no dead affordance.
-  const canPost = auth.status === 'authenticated' && can(auth.viewer.accessRoles, 'signal.create_for_team')
+  // #770 AC-030: "Share the first one" asks the SAME question the `Share Signal` primary and the
+  // composer ask — does this viewer hold at least one Team they may post into and read back? An
+  // access role answers a different question (`signal.create_for_team` is the composer's
+  // wide-mention privilege), which left a member with a Team facing an empty state whose only way
+  // out was missing while the page rendered her a working primary.
+  const [canPost, setCanPost] = useState(false)
+  useEffect(() => {
+    if (!viewerId) { setCanPost(false); return }
+    let cancelled = false
+    listReadableAuthorTeams(viewerId)
+      .then((teams) => { if (!cancelled) setCanPost(teams.length > 0) })
+      .catch(() => { if (!cancelled) setCanPost(false) })
+    return () => { cancelled = true }
+  }, [viewerId])
 
   // The list-search query minus ?record= — shared by the canonical-page redirect and the
   // panel's "Open full page" escalation, so the search state (q / retracted) survives the jump.
@@ -257,16 +268,15 @@ export function SignalsArchivePage() {
     onChange: (q) => setQuery({ q }),
   }
 
-  const signalToolbar = (
+  // One toolbar definition, built twice. D-D2 / Rule 7: the ONE compose door for /work/signals
+  // lives in the toolbar, so it is present in BOTH Table and Feed (it used to appear only as the
+  // in-feed row and vanish in Table); the in-feed "Share a Signal" row is now ambient-only (Home
+  // tail) — see SignalFeedRows. #770 AC-029 / DESIGN.md P2: the phone door NEVER carries the
+  // surface primary, so the door's copy is built WITHOUT `primaryAction` — the launcher owns
+  // `Share Signal` on phone.
+  const buildSignalToolbar = (primaryAction?: ReactNode) => (
     <CollectionToolbar
-      // D-D2 / Rule 7: the ONE compose door for /work/signals lives in the toolbar, so it is present
-      // in BOTH Table and Feed (it used to appear only as the in-feed row and vanish in Table). The
-      // in-feed "Share a Signal" row is now ambient-only (Home tail) — see SignalFeedRows.
-      primaryAction={(
-        <Button variant="primary" onClick={() => openSignalComposer()}>
-          {t('signals.action.share')}
-        </Button>
-      )}
+      primaryAction={primaryAction}
       // #581: on phone this same toolbar instance renders INSIDE the "View & filters" door — the
       // search field is already planted outside it (see signalControls below), so skip the
       // toolbar's own copy there. Desktop renders the toolbar standalone and keeps its search row.
@@ -368,7 +378,11 @@ export function SignalsArchivePage() {
   // OUTSIDE that door — findable without opening it — while view options stay behind it. The
   // collection toolbar itself stays unchanged for desktop, which keeps the full E7 control row.
   const signalDisclosure = signalDisclosureSummary()
-  const signalControls = isDesktop ? signalToolbar : (
+  const signalControls = isDesktop ? buildSignalToolbar(
+    <Button variant="primary" onClick={() => openSignalComposer()}>
+      {t('signals.action.share')}
+    </Button>,
+  ) : (
     <>
       <CollectionToolbarSearchField search={signalSearch} />
       <ViewOptionsDisclosure
@@ -385,7 +399,7 @@ export function SignalsArchivePage() {
         chevronClassName="collection-mobile-options-chevron"
         panelClassName="collection-mobile-options-panel"
       >
-        {signalToolbar}
+        {buildSignalToolbar()}
       </ViewOptionsDisclosure>
     </>
   )

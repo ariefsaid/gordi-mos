@@ -35,6 +35,11 @@ export type TaskCollectionSavedQuery = Pick<
   'view' | 'q' | 'businessUnitId' | 'status' | 'picId' | 'supervisorId'
   | 'includeArchived' | 'overdueOnly' | 'occurrenceId'
 >
+// #770: `showRetracted` is deliberately absent — the retired switch has no field to save, and a
+// retracted Signal is reached through the `Retracted` view, which a saved view stores as `view`.
+// A spec saved before the switch died still validates (unknown query keys are ignored) and now
+// resolves through the view chip; the same goes for a bookmarked `?retracted=1`, which parses
+// without error and simply carries no filter.
 export type SignalCollectionSavedQuery = Pick<
   SignalCollectionQuery,
   'view' | 'q' | 'attention' | 'category' | 'teamId'

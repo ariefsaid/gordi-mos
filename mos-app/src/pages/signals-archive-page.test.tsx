@@ -14,7 +14,11 @@ import type { PersonOption } from '@/lib/db/directory'
 
 vi.mock('@/lib/db/signals', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/db/signals')>()
-  return { ...actual, listReadableSignals: vi.fn(), listAllTeams: vi.fn(), correctSignal: vi.fn() }
+  return {
+    ...actual,
+    listReadableSignals: vi.fn(), listAllTeams: vi.fn(), correctSignal: vi.fn(),
+    listReadableAuthorTeams: vi.fn(),
+  }
 })
 vi.mock('@/lib/db/directory', () => ({
   getPeople: vi.fn(),
@@ -60,7 +64,7 @@ vi.mock('@/components/signals/signal-record-host', async () => {
   }
 })
 
-import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
+import { listReadableSignals, listAllTeams, listReadableAuthorTeams } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
 import { listCollectionViews } from '@/lib/db/user-views-collection'
 import type { PersistedCollectionView } from '@/lib/record-collection/collection-view-spec'
@@ -69,6 +73,7 @@ import { signalCollectionDescriptor } from '@/components/signals/signal-collecti
 
 const mockListReadableSignals = vi.mocked(listReadableSignals)
 const mockListAllTeams = vi.mocked(listAllTeams)
+const mockListReadableAuthorTeams = vi.mocked(listReadableAuthorTeams)
 const mockGetPeople = vi.mocked(getPeople)
 const mockListCollectionViews = vi.mocked(listCollectionViews)
 
@@ -170,6 +175,11 @@ beforeEach(() => {
   mockListAllTeams.mockResolvedValue([
     { id: 'team-hq', name: 'HQ Operations', business_unit_id: 'bu-1', site_id: null, is_primary: false },
     { id: 'team-radiant', name: 'Radiant Operations', business_unit_id: 'bu-1', site_id: null, is_primary: false },
+  ])
+  // AC-030's predicate: the viewer's eligible authoring Teams. Every persona in this file can
+  // post into HQ Operations unless a test says otherwise.
+  mockListReadableAuthorTeams.mockResolvedValue([
+    { id: 'team-hq', name: 'HQ Operations', business_unit_id: 'bu-1', site_id: null, is_primary: true },
   ])
   mockGetPeople.mockResolvedValue(PEOPLE)
   mockListCollectionViews.mockResolvedValue([])
@@ -874,7 +884,10 @@ describe('Ticket 770 — the two-row Signals archive toolbar (AC-021 … AC-033)
     expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument()
   })
 
-  it('AC-025/AC-026 — seven Feed rows carry zero buttons; ONE activation target per row; meta plain text; Home + archive share the component', async () => {
+  // AC-026 (Home and archive are ONE component) is owned by signal-feed-rows-no-avatar.test.tsx's
+  // "Home's ambient column and the archive Feed render byte-identical row markup" — it renders both
+  // surfaces from one fixture and diffs the row subtree. This page test owns AC-025.
+  it('AC-025 — seven Feed rows carry zero buttons; ONE activation target per row; meta plain text; the archive variant class is the only difference', async () => {
     renderPage('/work/signals', null, dewiAuth)
     await waitFor(() => expect(screen.getByText(/card reader/i)).toBeInTheDocument())
 
@@ -891,8 +904,7 @@ describe('Ticket 770 — the two-row Signals archive toolbar (AC-021 … AC-033)
       // No "Visible to <Team>" line.
       expect(rowEl.textContent).not.toMatch(/Visible to/)
     }
-    // AC-026: Home and archive render through ONE component — the marker class the shared
-    // component owns is present, and only the archive variant class differs.
+    // The shared component's own marker class is present, with the archive variant on top of it.
     const feed = screen.getByTestId('signal-feed')
     expect(feed.classList.contains('home-signal-feed')).toBe(true)
     expect(feed.classList.contains('home-signal-feed--archive')).toBe(true)
@@ -938,19 +950,33 @@ describe('Ticket 770 — the two-row Signals archive toolbar (AC-021 … AC-033)
     const options = screen.getByRole('button', { name: /view & filters/i })
     expect(options).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
-    // The door never carries the `Share Signal` primary — the launcher owns it on phone.
-    expect(within(options.parentElement as HTMLElement).queryByRole('button', { name: /share signal/i })).not.toBeInTheDocument()
 
-    // Rows: zero buttons, whole surface activates. Row height respects the 44px coarse-pointer floor
-    // (`padding: var(--row-pad-y, 10px) 4px` above the min-height ensures it — asserted via CSS below).
+    // Open the door and read what is actually inside it. The panel is where the primary landed,
+    // so the negative is scoped to the panel — scoped to the TRIGGER's parent it passes whether or
+    // not the primary is there, which is how a shipped `Share Signal` in the door read green.
+    await userEvent.click(options)
+    const panel = document.getElementById('mobile-signal-options-panel') as HTMLElement
+    expect(panel, 'the "View & filters" panel renders when open').toBeTruthy()
+    // Door = view chips · Team · Category · Save view. No `Share Signal` (the launcher owns the
+    // primary on phone), no switch — DESIGN.md § DB-view toolbar controls.
+    expect(within(panel).queryAllByRole('button').map((el) => (el.textContent ?? '').trim()))
+      .toEqual(['All', 'Needs attention', 'Retracted', 'I posted', 'Save view'])
+    expect(within(panel).queryByRole('button', { name: /share signal/i })).toBeNull()
+    expect(within(panel).queryAllByRole('combobox').map((el) => el.getAttribute('aria-label')))
+      .toEqual(['Team', 'Category'])
+    expect(within(panel).queryAllByRole('switch')).toHaveLength(0)
+
+    // Rows: zero buttons, whole surface activates.
     const feedRows = document.querySelectorAll('.home-signal-row:not(.home-signal-row--retracted)')
     expect(feedRows.length).toBe(7)
     for (const feedRow of Array.from(feedRows)) {
       expect(feedRow.querySelectorAll('button')).toHaveLength(0)
       expect(feedRow.querySelectorAll('a')).toHaveLength(0)
     }
-    // ≤9 controls in <main> at 390 with seven rows — row activation targets don't count against
-    // the toolbar budget (see AC-021's control-count rationale).
+    // ≤9 controls in <main> at 390 with seven rows, door OPEN — search · the door · four view
+    // chips · Team · Category · Save view is exactly 9, and the budget only closes because the
+    // primary is not among them. Row activation targets don't count against the toolbar budget
+    // (see AC-021's control-count rationale).
     const main = document.querySelector('main[data-page-family="workspace"]') as HTMLElement
     const rowActivationTargets = new Set(
       Array.from(main.querySelectorAll('.home-signal-row[role="button"]')),
@@ -968,20 +994,27 @@ describe('Ticket 770 — the two-row Signals archive toolbar (AC-021 … AC-033)
 
   it('AC-030 — empty scope: "No Signals yet." with "Share the first one" ONLY when the viewer can post', async () => {
     mockListReadableSignals.mockResolvedValue([])
-    renderPage('/work/signals', null, dewiAuth)
-    const emptyForPoster = await screen.findByTestId('empty-state')
-    expect(within(emptyForPoster).getByText(/no signals yet/i)).toBeInTheDocument()
-    expect(within(emptyForPoster).getByRole('button', { name: /share the first one/i })).toBeInTheDocument()
-
-    // A viewer without `signal.create_for_team` gets the empty title alone — no dead affordance.
+    // A plain member with ONE eligible Team can post, so she gets the way out. Posting rights are
+    // Teams, not access roles: `signal.create_for_team` is the composer's wide-mention privilege,
+    // and gating on it hid the empty state's only action from every member the page simultaneously
+    // rendered a working `Share Signal` primary.
     const memberAuth: AuthState = {
       ...dewiAuth,
       viewer: { ...dewiAuth.viewer, accessRoles: ['member'], isManager: false },
     }
     const memberView = renderPage('/work/signals', null, memberAuth)
-    const emptyForMember = await within(memberView.container).findByTestId('empty-state')
-    expect(within(emptyForMember).getByText(/no signals yet/i)).toBeInTheDocument()
-    expect(within(emptyForMember).queryByRole('button', { name: /share the first one/i })).toBeNull()
+    const emptyForPoster = await within(memberView.container).findByTestId('empty-state')
+    expect(within(emptyForPoster).getByText(/no signals yet/i)).toBeInTheDocument()
+    await waitFor(() => expect(
+      within(emptyForPoster).getByRole('button', { name: /share the first one/i }),
+    ).toBeInTheDocument())
+
+    // A viewer with no eligible authoring Team gets the empty title alone — no dead affordance.
+    mockListReadableAuthorTeams.mockResolvedValue([])
+    const readerView = renderPage('/work/signals', null, dewiAuth)
+    const emptyForReader = await within(readerView.container).findByTestId('empty-state')
+    expect(within(emptyForReader).getByText(/no signals yet/i)).toBeInTheDocument()
+    expect(within(emptyForReader).queryByRole('button', { name: /share the first one/i })).toBeNull()
   })
 
   it('AC-031 — ID locale: eight category families translate; "Perlu perhatian" and "Mendesak" surface; Team placeholder Indonesian; FYI stays', async () => {
@@ -1049,10 +1082,12 @@ describe('Ticket 770 — the two-row Signals archive toolbar (AC-021 … AC-033)
 
   it('AC-033 — DESIGN.md carries the P1 (Signal row) and P2 (DB-view toolbar) amendments verbatim', () => {
     const design = readFileSync(resolve(__dirname, '..', '..', '..', 'DESIGN.md'), 'utf8')
-    // P1: the ONE row anatomy — no controls, plain-text meta, Home + archive one component.
-    expect(design).toMatch(/The row carries no controls: its whole surface opens the record, and `Create task`, `Add category`, `Acknowledge` live on the record alone\./)
-    expect(design).toMatch(/The meta line is plain text — author · Team · occurred \(`dd Mon HH:MM`\) · category when set — never bordered chips, and never a visibility sentence\./)
-    expect(design).toMatch(/Home and the archive render the same component; a difference between them is a defect\./)
+    // P1 adds the pieces AC-064's pre-existing amendment ("Home rows carry no per-row actions…",
+    // owner law from #746) doesn't yet cover: the `dd Mon HH:MM` occurred shape, the
+    // no-bordered-chips rule, `Acknowledge` on the record, and the ONE-component invariant. The
+    // no-controls rule itself stays owned by AC-064, so P1 doesn't restate it and the § Signal row
+    // section no longer states the rule twice.
+    expect(design).toMatch(/The meta line is plain text — author · Team · occurred \(`dd Mon HH:MM`\) · category when set — never bordered chips\. `Acknowledge` also lives on the record\. Home and the archive render the same component; a difference between them is a defect\./)
     // P2: the two-row Signals toolbar contract.
     expect(design).toMatch(/The Signals archive uses the two-row collection toolbar\./)
     expect(design).toMatch(/Row 1: `All · Needs attention · Retracted · I posted` then user views/)

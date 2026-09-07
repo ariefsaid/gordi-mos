@@ -949,6 +949,8 @@ with a `See N more →` door at its foot carrying any active filter through. An 
 is the wall of text again, rotated 90°. The `/work/signals` archive Feed **is** the collection and is
 never capped.
 
+The meta line is plain text — author · Team · occurred (`dd Mon HH:MM`) · category when set — never bordered chips. `Acknowledge` also lives on the record. Home and the archive render the same component; a difference between them is a defect.
+
 The feed's toolbar is a search field plus a **`+ Signal` button in the shared `.btn-outline`
 secondary variant**. It is deliberately *not* the action blue: this is a door in an **ambient** tail,
 and painted primary it became the loudest thing on Home — the eye landed on it before the overdue
@@ -959,8 +961,6 @@ single full-width rounded row read as search and behaved as a composer, so the t
 their own controls — owner, 2026-07-28.)*
 
 Home rows carry **no per-row actions and no visibility line**; `Create task` and `Add category` live on the Signal record and the archive Feed. The row's whole surface opens the record.
-
-The row carries no controls: its whole surface opens the record, and `Create task`, `Add category`, `Acknowledge` live on the record alone. The meta line is plain text — author · Team · occurred (`dd Mon HH:MM`) · category when set — never bordered chips, and never a visibility sentence. Home and the archive render the same component; a difference between them is a defect.
 
 The archive's Urgent row treatment (`warning/7%` fill + a 2px `warning` left rule) is **Urgent
 only** — Needs-attention keeps its amber pill on a calm, unfilled row so the fill escalates Urgent

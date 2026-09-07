@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { EmptyState } from '@/components/ui/state-kit'
-import { formatWibDateTime } from '@/lib/wib-time'
+import { formatWibDayMonthTime } from '@/lib/format/date'
 import { orderSignalsForFeed } from '@/lib/db/signals'
 import { attentionSlug, type SignalRow } from '@/lib/db/signals.types'
 import { signalMatchesText } from './signal-collection-adapter'
@@ -129,10 +129,12 @@ export function SignalFeedRows({
           {capped.map((signal) => {
             if (signal.retracted_at) {
               return (
-                <li key={signal.id} className="home-signal-row home-signal-row--retracted" data-signal-id={signal.id}>
-                  <p className="home-signal-tombstone">
-                    {t('signals.retracted')} {signal.retract_reason ? <span>{signal.retract_reason}</span> : null}
-                  </p>
+                <li key={signal.id} className="home-signal-item">
+                  <div className="home-signal-row home-signal-row--retracted" data-signal-id={signal.id}>
+                    <p className="home-signal-tombstone">
+                      {t('signals.retracted')} {signal.retract_reason ? <span>{signal.retract_reason}</span> : null}
+                    </p>
+                  </div>
                 </li>
               )
             }
@@ -143,62 +145,65 @@ export function SignalFeedRows({
             // The CSS treatment is scoped to `.home-signal-feed--archive`, so tagging the row here
             // is inert on Home and lights up only in the archive Feed.
             const attentionRow = signal.attention === 'Urgent' ? ' home-signal-row--urgent' : ''
-            // AC-025/AC-026 (#770): ONE activation target per row — the row itself is the button
-            // across BOTH variants. Home and archive render the same markup; only the variant
-            // class differs (the fill). No inner body <button>, no per-row action buttons.
+            // AC-025/AC-026 (#770): ONE activation target per row — the row surface itself is the
+            // button across BOTH variants, and it is the <li>'s single child, so it fills the row
+            // while the <li> keeps the `listitem` semantics the surrounding <ul> announces. No
+            // inner body <button>, no per-row action buttons. Home and archive render the same
+            // markup; only the variant class on the feed container differs (the Urgent fill).
             const openable = Boolean(onOpen)
             return (
-              <li
-                key={signal.id}
-                className={`home-signal-row${attentionRow}${openable ? ' home-signal-row--open' : ''}`}
-                data-signal-id={signal.id}
-                {...(openable ? {
-                  role: 'button',
-                  tabIndex: 0,
-                  'aria-label': t('signals.card.openSignal', { body: signal.body }),
-                  onClick: () => onOpen!(signal),
-                  onKeyDown: (event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault()
-                      onOpen!(signal)
-                    }
-                  },
-                } : {})}
-              >
-                <div className="home-signal-main">
-                  {/* Body = the row title, one truncated line. Not a button; the row itself opens. */}
-                  <span className="home-signal-body home-signal-body--static">
-                    <span className="home-signal-body-text">{signal.body}</span>
-                  </span>
-                  {/* Meta subline: author · Team · time (· category when set). Each separator is
-                      bound into one non-breaking group with the fact it introduces, so the row can
-                      only wrap BETWEEN facts and can never strand a bare "·" on a line of its own.
-                      Plain text — no bordered chips (#770 AC-025), no "Visible to <Team>" (AC-025:
-                      "no 'Visible to'"). */}
-                  <div className="home-signal-meta">
-                    <span className="home-signal-who-name">{authorName}</span>
-                    {teamName && (
-                      <span className="home-signal-meta-item">
-                        <span className="home-signal-sep" aria-hidden="true">·</span>
-                        <span className="home-signal-team">{teamName}</span>
-                      </span>
-                    )}
-                    <span className="home-signal-meta-item">
-                      <span className="home-signal-sep" aria-hidden="true">·</span>
-                      <span className="home-signal-time">{formatWibDateTime(signal.occurred_at)}</span>
+              <li key={signal.id} className="home-signal-item">
+                <div
+                  className={`home-signal-row${attentionRow}${openable ? ' home-signal-row--open' : ''}`}
+                  data-signal-id={signal.id}
+                  {...(openable ? {
+                    role: 'button',
+                    tabIndex: 0,
+                    'aria-label': t('signals.card.openSignal', { body: signal.body }),
+                    onClick: () => onOpen!(signal),
+                    onKeyDown: (event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        onOpen!(signal)
+                      }
+                    },
+                  } : {})}
+                >
+                  <div className="home-signal-main">
+                    {/* Body = the row title, one truncated line. Not a button; the row itself opens. */}
+                    <span className="home-signal-body home-signal-body--static">
+                      <span className="home-signal-body-text">{signal.body}</span>
                     </span>
-                    {signal.category && (
+                    {/* Meta subline: author · Team · occurred (`dd Mon HH:MM`) (· category when set). Each
+                        separator is bound into one non-breaking group with the fact it introduces, so the row can
+                        only wrap BETWEEN facts and can never strand a bare "·" on a line of its own.
+                        Plain text — no bordered chips (#770 AC-025), no "Visible to <Team>" (AC-025:
+                        "no 'Visible to'"). */}
+                    <div className="home-signal-meta">
+                      <span className="home-signal-who-name">{authorName}</span>
+                      {teamName && (
+                        <span className="home-signal-meta-item">
+                          <span className="home-signal-sep" aria-hidden="true">·</span>
+                          <span className="home-signal-team">{teamName}</span>
+                        </span>
+                      )}
                       <span className="home-signal-meta-item">
                         <span className="home-signal-sep" aria-hidden="true">·</span>
-                        <span className="home-signal-category">{signalCategoryLabel(t, signal.category)}</span>
+                        <span className="home-signal-time">{formatWibDayMonthTime(signal.occurred_at)}</span>
                       </span>
-                    )}
+                      {signal.category && (
+                        <span className="home-signal-meta-item">
+                          <span className="home-signal-sep" aria-hidden="true">·</span>
+                          <span className="home-signal-category">{signalCategoryLabel(t, signal.category)}</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="home-signal-tail">
-                  <span className={`home-signal-attention home-signal-attention--${attentionSlug(signal.attention)}`}>
-                    {attentionLabel(t, signal.attention)}
-                  </span>
+                  <div className="home-signal-tail">
+                    <span className={`home-signal-attention home-signal-attention--${attentionSlug(signal.attention)}`}>
+                      {attentionLabel(t, signal.attention)}
+                    </span>
+                  </div>
                 </div>
               </li>
             )
