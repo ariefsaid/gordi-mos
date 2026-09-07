@@ -72,6 +72,15 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
     sourceFile: 'pages/projects-processes-page.tsx',
     symbol: 'ProjectsProcessesPage',
   },
+  // #806 (OD-WAY-97 (2)): the Project/Process record surface. Classified as a focused
+  // record so ContextRow keeps its silence on this URL just like /work/tasks/:taskId
+  // does — the record's own pinned header carries identity.
+  {
+    path: '/work/projects/:id',
+    family: 'focused-record',
+    sourceFile: 'pages/work-line-record-page.tsx',
+    symbol: 'WorkLineRecordPage',
+  },
 
   // ── Inbox · Work Events · Profile ─────────────────────────────────────────────────────────
   { path: '/inbox', family: 'workspace', sourceFile: 'pages/inbox-page.tsx', symbol: 'InboxPage' },

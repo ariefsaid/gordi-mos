@@ -1312,6 +1312,14 @@ export const messages = {
     'notFound.copy': 'The link may be out of date, or the record may have been archived. Going back usually works.',
     'notFound.back': 'Go back',
     'notFound.home': 'Go to Home',
+    // Project/Process record (ticket #806, OD-WAY-97 (1)(2)(10)).
+    'workLines.record.typeLabel.project': 'Project',
+    'workLines.record.typeLabel.process': 'Process',
+    'workLines.record.loading': 'Loading record',
+    'workLines.record.notFound.title': 'Project or process not found',
+    'workLines.record.notFound.copy': "This record doesn't exist or you don't have access.",
+    'workLines.record.error': "Couldn't load this project or process.",
+    'workLines.record.backToCollection': 'Projects & Processes',
     // The dashboard kit — DataTable + ChartFrame shared strings.
     'common.noRows': 'No rows to show.',
     'table.group.expand': 'Expand ${group}',
@@ -2523,6 +2531,14 @@ export const messages = {
     'notFound.copy': 'Tautannya mungkin sudah usang, atau catatannya sudah diarsipkan. Biasanya kembali ke halaman sebelumnya sudah cukup.',
     'notFound.back': 'Kembali',
     'notFound.home': 'Ke Beranda',
+    // Rekord Proyek/Proses (tiket #806, OD-WAY-97 (1)(2)(10)).
+    'workLines.record.typeLabel.project': 'Proyek',
+    'workLines.record.typeLabel.process': 'Proses',
+    'workLines.record.loading': 'Memuat rekord',
+    'workLines.record.notFound.title': 'Proyek atau proses tidak ditemukan',
+    'workLines.record.notFound.copy': 'Rekord ini tidak ada atau Anda tidak memiliki akses.',
+    'workLines.record.error': 'Tidak dapat memuat proyek atau proses ini.',
+    'workLines.record.backToCollection': 'Proyek & Proses',
     // Kit dasbor — DataTable + ChartFrame.
     'common.noRows': 'Tidak ada baris untuk ditampilkan.',
     'table.group.expand': 'Buka grup ${group}',

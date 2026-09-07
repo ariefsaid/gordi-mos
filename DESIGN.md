@@ -1142,6 +1142,8 @@ role set appears on the corresponding governance detail surface. A Task never us
 Task rows and details use PIC + Supervisor. The R chip's small categorical use of the brand blue is
 within The One Blue Rule budget (it is never an action).
 
+The chip set on a record is A and R only (Consulted / Informed are not fields on the MVP schema). A Process's Steps tab shows each generated-Task definition's PIC **binding** (`role Cafe Ops Lead` or a named person) and states Supervisor inheritance once for the tab (`inherited from <Process A>`), never per step unless overridden (OD-REDESIGN-14).
+
 ### Status and Signal semantics (current)
 Task `StatusPill` represents the record's current state with the shared tinted-status rule. Signal
 entries use source, type, and attention treatment from the same semantic palette; an attention or late
@@ -1236,7 +1238,7 @@ V3 has exactly three page families: **Workspace**, **Focused record**, and **Man
 
 - **Workspace** is the operator surface for scanning, querying, filtering, grouping, sorting, selecting, and acting on a collection or specialized module body. Current route examples include `/`, `/work/tasks`, `/work/signals`, `/events`, `/money`, `/inbox`, `/cafe`, `/ecommerce`, and `/roastery`.
 - **Focused record** is one typed record presented in a panel or canonical page. Current route examples include `/work/tasks/new`, `/work/tasks/:taskId`, `/work/signals/:signalId`, and conditional `/work/follow-ups/:id`.
-- **Management** is people, definitions, catalogs, profile, and administration. Current route examples include `/work/projects`, `/work/objectives`, `/admin/people`, and `/profile`.
+- **Management** is people, definitions, catalogs, profile, and administration. A definition catalog (Projects & Processes, Objectives) is a **collection with records**: its rows open a typed record in the shared RecordViewer (panel at ≥1370, page below and on direct URL — the Tasks regime), and its rows carry no inline management actions. Rename is the record's title edit; Archive lives in the record's overflow. Current route examples include `/work/projects`, `/work/projects/:id`, `/work/objectives`, `/work/objectives/:id`, `/admin/people`, and `/profile`.
 
 Every application route targets one family. Public authentication, redirects, DEV harnesses, and the not-found route are routing infrastructure and are marked not-applicable in the inventory; they do not create a fourth page family.
 

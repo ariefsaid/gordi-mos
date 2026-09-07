@@ -52,19 +52,17 @@ describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () =
     expect(isLive(work, [])).toBe(true)
   })
 
-  // UPDATED, not relaxed. This case used to require `objective.manage` on the Objectives child
-  // too. `OD-V4-1` (owner-ratified 2026-07-27) rules that Objectives are visible to everyone: the
-  // SELECT policy on the objectives table carries only the org_id tenancy seam and no role check,
-  // so every authenticated org member can already read what the server serves, and the rail gate
-  // was hiding a screen the database already permits. Write stays behind `can('objective.manage')`
-  // inside the page's own mutations — that capability is a WRITE gate, not a read one. The
-  // authorizing ruling is cited in destinations.tsx beside the entry. Projects & Processes keeps
-  // its gate, so the assertion below still proves the gate mechanism is live rather than removed.
-  it('Work children: Projects & Processes is capability-gated (workline.manage); Objectives is NOT (OD-V4-1 — visible to everyone)', () => {
+  // UPDATED per OD-WAY-97 (1) / ticket #806: Projects & Processes is now visible to
+  // everyone — the definition catalogs open for every authenticated viewer, same shape
+  // as OD-V4-1 already ruled for Objectives. The `workline.manage` capability was
+  // removed from this rail entry (and from its /work/projects route); write standing is
+  // asked at the record via `canManageDefinition` (mirror of `mos.can_manage_definition`),
+  // never by hiding the link. Neither child carries a `capability`.
+  it('AC-017 (#806): Work children carry NO capability gate — the definition catalogs open for everyone (OD-WAY-97 (1))', () => {
     const work = DESTINATIONS.find((d) => d.id === 'work')!
     const projects = work.children!.find((c) => c.path === '/work/projects')!
     const objectives = work.children!.find((c) => c.path === '/work/objectives')!
-    expect(projects.capability).toBe('workline.manage')
+    expect(projects.capability).toBeUndefined()
     expect(objectives.capability).toBeUndefined()
   })
 

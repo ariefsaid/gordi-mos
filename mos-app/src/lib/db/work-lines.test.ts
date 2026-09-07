@@ -7,6 +7,7 @@ vi.mock('../supabase', () => {
 
 import {
   listWorkLines, listWorkLinesAll, createWorkLine, renameWorkLine, setWorkLineArchived, setWorkLineType,
+  readWorkLine, updateWorkLine,
 } from './work-lines'
 import { supabase } from '@/lib/supabase'
 
@@ -39,6 +40,7 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
     builder.insert = vi.fn((p: unknown) => { rec.inserts.push(p); return builder })
     builder.update = vi.fn((p: unknown) => { rec.updates.push(p); return builder })
     builder.single = vi.fn(() => builder)
+    builder.maybeSingle = vi.fn(() => builder)
     builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result()).then(resolve)
     return builder
   }
@@ -190,6 +192,87 @@ describe('renameWorkLine', () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: { message: 'nope' } }] }, rec) as never)
     await expect(renameWorkLine('wl-1', 'X')).rejects.toThrow(/renameWorkLine failed — nope/)
+  })
+})
+
+describe('readWorkLine (#806 — record surface)', () => {
+  it('returns the full record row for a known id', async () => {
+    const rec = freshRec()
+    const row = {
+      id: 'wl-1', name: 'Brand Refresh', type: 'project',
+      objective_id: 'ob-1', business_unit_id: 'bu-1',
+      accountable_person_id: 'p-1', responsible_person_id: 'p-2',
+      archived_at: null, updated_at: '2026-09-01T00:00:00Z',
+    }
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: row, error: null }] }, rec) as never)
+
+    const result = await readWorkLine('wl-1')
+
+    expect(result).toEqual(row)
+    expect(rec.eqs).toContainEqual(['id', 'wl-1'])
+    expect(rec.selects).toContain('id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id,archived_at,updated_at')
+  })
+
+  it('resolves to null for an unknown id (maybeSingle returns null data + null error)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: null }] }, rec) as never)
+
+    const result = await readWorkLine('wl-missing')
+
+    // The caller renders a not-found INSIDE the record frame; null means the read
+    // succeeded and there is no such row visible to the viewer — never an error.
+    expect(result).toBeNull()
+  })
+
+  it('throws on a non-null PostgREST error (never swallows RLS refusals)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: { message: 'perm denied' } }] }, rec) as never)
+
+    await expect(readWorkLine('wl-1')).rejects.toThrow(/readWorkLine failed — perm denied/)
+  })
+})
+
+describe('updateWorkLine (#806 — record edits)', () => {
+  it('patches only the fields the caller sends (Details tab Saving/Saved is per-field)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: null }] }, rec) as never)
+
+    await updateWorkLine('wl-1', { objective_id: 'ob-2' })
+
+    // No org_id (the DB stamps it), no other field the viewer didn't touch —
+    // any extra key here would let a stale edit race clobber a concurrent one.
+    expect(rec.updates).toEqual([{ objective_id: 'ob-2' }])
+    expect(rec.eqs).toContainEqual(['id', 'wl-1'])
+  })
+
+  it('accepts all five patchable fields (name · unit · accountable · responsible · objective)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: null }] }, rec) as never)
+
+    await updateWorkLine('wl-1', {
+      name: 'Renamed',
+      business_unit_id: 'bu-2',
+      accountable_person_id: 'p-3',
+      responsible_person_id: 'p-4',
+      objective_id: 'ob-9',
+    })
+
+    expect(rec.updates).toEqual([{
+      name: 'Renamed',
+      business_unit_id: 'bu-2',
+      accountable_person_id: 'p-3',
+      responsible_person_id: 'p-4',
+      objective_id: 'ob-9',
+    }])
+  })
+
+  it('surfaces the DB refusal so the record can show its Saving error state', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: { message: 'row-level security' } }] }, rec) as never)
+
+    // The DB is the authority (NFR-004); the client mirror `canManageDefinition` merely
+    // hides the affordance for a viewer whose write would 42501 anyway.
+    await expect(updateWorkLine('wl-1', { name: 'X' })).rejects.toThrow(/updateWorkLine failed — row-level security/)
   })
 })
 

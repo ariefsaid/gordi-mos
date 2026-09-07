@@ -63,7 +63,10 @@ const ROLES = ['admin', 'ops_lead', 'member', 'finance', 'manager', 'supervisor'
 // agrees with whatever order the declaration takes — that looseness is what let the pre-#544
 // order survive #476's unification.
 const FAMILY = ['/work/signals', '/work/tasks', '/work/projects', '/work/objectives']
-const CAPABILITY: Record<string, string | undefined> = { '/work/projects': 'workline.manage' }
+// OD-WAY-97 (1) / ticket #806: Projects & Processes lost its rail-side capability
+// gate — the definition catalogs open for everyone. No path in the Work family carries
+// a capability now; every child renders for every authenticated viewer.
+const CAPABILITY: Record<string, string | undefined> = {}
 // Add a row here when you add a Work child or lift a ship gate — a missing entry renders as
 // `=undefined` in the red, which reads as a label bug rather than a missing literal.
 const LABEL: Record<string, string> = {
