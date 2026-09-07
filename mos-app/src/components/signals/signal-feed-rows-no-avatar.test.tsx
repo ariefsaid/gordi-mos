@@ -104,19 +104,27 @@ describe('AC-062 toolbar CSS contract', () => {
 })
 
 describe('Ticket 770 AC-025/AC-026: the ONE row anatomy — rows carry no controls, ever', () => {
-  it('the archive variant renders the same button-less row grammar as the ambient variant', () => {
+  function renderRow(variant: 'ambient' | 'archive') {
     const { container } = render(
       <I18nProvider>
         <SignalFeedRows
           signals={[row()]}
           authorNamesById={AUTHORS}
           teamNamesById={TEAMS}
-          variant="archive"
+          variant={variant}
           onOpen={vi.fn()}
         />
       </I18nProvider>,
     )
-    const signalRow = container.querySelector('[data-signal-id="signal-1"]') as HTMLElement
+    return {
+      feed: container.querySelector('.home-signal-feed') as HTMLElement,
+      listItem: container.querySelector('.home-signal-item') as HTMLElement,
+      signalRow: container.querySelector('[data-signal-id="signal-1"]') as HTMLElement,
+    }
+  }
+
+  it('the archive variant renders the same button-less row grammar as the ambient variant', () => {
+    const { signalRow, listItem } = renderRow('archive')
     // Zero buttons INSIDE the row — the record has `Create task`, `Add category`, and
     // `Acknowledge`, never the row.
     expect(signalRow.querySelectorAll('button')).toHaveLength(0)
@@ -125,6 +133,23 @@ describe('Ticket 770 AC-025/AC-026: the ONE row anatomy — rows carry no contro
     // catalog name.
     expect(signalRow).toHaveAttribute('role', 'button')
     expect(signalRow.getAttribute('aria-label')).toContain('Open signal:')
+    // The <li> around it stays a plain list item, so the feed's <ul> still announces "list, N
+    // items" to a screen reader — the activation target is its child, not the item itself.
+    expect(listItem.tagName).toBe('LI')
+    expect(listItem.hasAttribute('role')).toBe(false)
+    expect(listItem.parentElement?.tagName).toBe('UL')
+  })
+
+  it("AC-026 — Home's ambient column and the archive Feed render byte-identical row markup from one fixture", () => {
+    // AC-026's real claim is markup identity, so this asserts it directly: ONE fixture through the
+    // ONE component twice, diffing the row subtree. A fork of the row markup for either surface
+    // fails here — a class-marker check on the archive alone could not see it.
+    const ambient = renderRow('ambient')
+    const archive = renderRow('archive')
+    expect(archive.signalRow.outerHTML).toBe(ambient.signalRow.outerHTML)
+    // The ONE permitted difference is the variant class on the feed CONTAINER (the Urgent fill).
+    expect(ambient.feed.className).toBe('home-signal-feed')
+    expect(archive.feed.className).toBe('home-signal-feed home-signal-feed--archive')
   })
 })
 
@@ -147,7 +172,9 @@ describe.each(['ambient', 'archive'] as const)('Signal row (%s) names its author
     expect(within(meta as HTMLElement).getByText('HQ Operations')).toBeInTheDocument()
     // Plain-text spans, not the retired bordered pill chrome.
     expect(meta.querySelector('.home-signal-team')).toHaveTextContent('HQ Operations')
-    expect(meta.querySelector('.home-signal-time')).toHaveTextContent(/2026/)
+    // AC-025 / DESIGN.md § Signal row: the occurred fact is `dd Mon HH:MM` — no year, no WIB
+    // suffix. The fixture's 2026-07-16T02:00:00Z is 09:00 WIB on the 16th.
+    expect(meta.querySelector('.home-signal-time')).toHaveTextContent('16 Jul 09:00')
     expect(meta.querySelector('.home-signal-location-chip')).toBeNull()
     expect(meta.querySelector('.home-signal-time-chip')).toBeNull()
     // AC-025: no visibility sentence on either variant.

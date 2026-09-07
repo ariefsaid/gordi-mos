@@ -46,8 +46,10 @@ export function formatDayMonthYear(iso: string, locale?: Locale): string {
   })
 }
 
-/** "12 Jun 2026, 12:30 WIB" — Asia/Jakarta wall clock with the WIB suffix. */
-export function formatWibDateTime(value: string | Date, locale?: Locale): string {
+// One Jakarta wall clock behind every WIB shape below. The pieces are read as PARTS and joined
+// here rather than handed to a locale pattern, so the separators are the ones the design states —
+// id-ID writes its own time separator as "." — while the month name still follows the locale.
+function wibParts(value: string | Date, locale?: Locale): (type: Intl.DateTimeFormatPartTypes) => string {
   const date = value instanceof Date ? value : new Date(value)
   const parts = new Intl.DateTimeFormat(resolveTag(locale), {
     timeZone: 'Asia/Jakarta',
@@ -58,7 +60,19 @@ export function formatWibDateTime(value: string | Date, locale?: Locale): string
     minute: '2-digit',
     hour12: false,
   }).formatToParts(date)
-  const pick = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((part) => part.type === type)?.value ?? ''
+  return (type) => parts.find((part) => part.type === type)?.value ?? ''
+}
+
+/** "12 Jun 2026, 12:30 WIB" — Asia/Jakarta wall clock with the WIB suffix. */
+export function formatWibDateTime(value: string | Date, locale?: Locale): string {
+  const pick = wibParts(value, locale)
   return `${pick('day')} ${pick('month')} ${pick('year')}, ${pick('hour')}:${pick('minute')} WIB`
+}
+
+/** "05 Sept 01:46" — `dd Mon HH:MM`, the Signal row's meta time (DESIGN.md § Signal row (v4)).
+ *  Same Jakarta clock as formatWibDateTime, without the year and the WIB suffix: the row is a
+ *  scan line beside the author and the Team, not a provenance stamp. */
+export function formatWibDayMonthTime(value: string | Date, locale?: Locale): string {
+  const pick = wibParts(value, locale)
+  return `${pick('day')} ${pick('month')} ${pick('hour')}:${pick('minute')}`
 }

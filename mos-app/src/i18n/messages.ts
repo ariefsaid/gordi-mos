@@ -2287,7 +2287,7 @@ export const messages = {
     'signals.archive.filterTeam': 'Tim',
     'signals.archive.filteredEmpty': 'Tidak ada Sinyal yang cocok dengan filter Anda.',
     'signals.archive.groupLabel': 'Kelompok',
-    'signals.archive.groupNone': 'Tidak',
+    'signals.archive.groupNone': 'Tanpa',
     'signals.archive.loading': 'Memuat Sinyal…',
     'signals.archive.presentationLabel': 'Tampilkan sebagai',
     'signals.archive.savedViews': 'Tampilan tersimpan',
