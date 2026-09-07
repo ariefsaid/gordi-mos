@@ -143,6 +143,15 @@ describe('SignalRecordHost — loading/error states', () => {
     await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
   })
 
+  it('renders the lead-team lookup reason as an alert', async () => {
+    mockUseAuth.mockReturnValue({ ...authedViewer(), viewer: {
+      ...authedViewer().viewer, leadTeamIdsError: 'Lead scope is temporarily unavailable',
+    } })
+    renderHost()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off', { selector: '.signal-message-body' })).toBeInTheDocument())
+    expect(screen.getByRole('alert')).toHaveTextContent('Lead scope is temporarily unavailable')
+  })
+
   it('shows an error state with retry when getSignal fails', async () => {
     mockGetSignal.mockRejectedValueOnce(new Error('boom'))
     renderHost()
