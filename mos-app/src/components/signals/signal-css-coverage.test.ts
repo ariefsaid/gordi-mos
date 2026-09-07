@@ -85,7 +85,7 @@ const SUITES: Suite[] = [
 // className internally (mk-*, empty-state, …) via their own kit CSS, forwarded through as a
 // literal in the component's JSX only incidentally; they're covered by their own component's
 // test, not this Signal-surface pairing.
-const OWNED_PREFIX = /^(signals?-|mention-|type-badge|drawer-|muted-2)/
+const OWNED_PREFIX = /^(signals?-|mention-|drawer-|muted-2)/
 
 describe('Signal CSS coverage — every className a Signal component renders has a matching CSS rule (design-review step-4 regression invariant)', () => {
   for (const suite of SUITES) {
