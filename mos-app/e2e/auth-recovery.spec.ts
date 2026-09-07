@@ -74,7 +74,7 @@ test('AC-005: password-recovery journey — link opens set-password form, rotati
   await page.getByRole('button', { name: /save password/i }).click()
 
   // ── Step 6: lands home authenticated ─────────────────────────────────────
-  // RECOVERY_VIEWER maps to a dedicated e2e person row (Recovery Tester) — name shown in user chip
+  // RECOVERY_VIEWER maps to a dedicated e2e person row — its name is what the user chip shows
   await expect(
     page.getByRole('button', { name: RECOVERY_VIEWER.displayName }),
   ).toBeVisible({ timeout: 15_000 })

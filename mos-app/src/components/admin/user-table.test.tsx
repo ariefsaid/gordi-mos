@@ -8,7 +8,7 @@ import { render, screen, within, waitFor, fireEvent } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
-import type { AdminPersonRow } from '@/lib/db/admin-users.types'
+import type { AdminPersonRow, TeamOption } from '@/lib/db/admin-users.types'
 import { UserTable } from './user-table'
 import { shouldFlipUp } from './menu-position'
 import type { PersonAction } from './user-table'
@@ -110,6 +110,7 @@ function renderTable(
     onAddPerson?: () => void
     isDesktop?: boolean
     initialPath?: string
+    teams?: TeamOption[]
   } = {},
 ) {
   // Control desktop/mobile via the mocked useIsDesktop hook
@@ -122,6 +123,7 @@ function renderTable(
         viewerPersonId={opts.viewerPersonId ?? 'viewer-id'}
         onAction={opts.onAction ?? vi.fn()}
         onAddPerson={opts.onAddPerson ?? vi.fn()}
+        teams={opts.teams}
       />
     </MemoryRouter>,
   )
@@ -170,7 +172,7 @@ describe('UserTable — URL-synced filter/search state (I7 / D-E1)', () => {
 // ── Desktop ⋯ menu tests ──────────────────────────────────────────────────────
 
 describe('UserTable — desktop ⋯ menu', () => {
-  it('opens on click and shows correct actions for active-login person', async () => {
+  it('AC-046: the row ⋯ menu opens on click and shows the right actions for an active login', async () => {
     const user = userEvent.setup()
     const people = [ACTIVE_ADMIN, ACTIVE_MEMBER]
     renderTable(people)
@@ -416,15 +418,11 @@ describe('UserTable — Position + Access columns (AC-126)', () => {
 // ── Mobile action sheet (item 1) ──────────────────────────────────────────────
 
 describe('UserTable — mobile action sheet', () => {
-  it('mobile "Manage" button opens an action sheet with all applicable actions', async () => {
+  it('the card’s ⋯ opens an action sheet with all applicable actions', async () => {
     const user = userEvent.setup()
     renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { isDesktop: false })
 
-    // On mobile, each card has a "Manage" button
-    // Use aria-label "Manage Budi Santoso" to target specific card
-    const manageBtns = screen.getAllByRole('button', { name: /manage/i })
-    // Both admin and member have Manage buttons; click Budi's (2nd)
-    await user.click(manageBtns[1])
+    await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
 
     // Action sheet should be open with actions
     expect(screen.getByRole('menu')).toBeInTheDocument()
@@ -439,8 +437,7 @@ describe('UserTable — mobile action sheet', () => {
     const onAction = vi.fn()
     renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { onAction, isDesktop: false })
 
-    const manageBtns = screen.getAllByRole('button', { name: /manage/i })
-    await user.click(manageBtns[1])
+    await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
 
     await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
 
@@ -452,8 +449,7 @@ describe('UserTable — mobile action sheet', () => {
     const onAction = vi.fn()
     renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { onAction, isDesktop: false })
 
-    const manageBtns = screen.getAllByRole('button', { name: /manage/i })
-    await user.click(manageBtns[1])
+    await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
 
     await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
 
@@ -470,7 +466,7 @@ describe('UserTable — DO-22 row-action reachability', () => {
     mockUseIsCoarsePointer.mockReturnValue(true)
     renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { isDesktop: true })
 
-    expect(screen.getByRole('button', { name: /manage budi santoso/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /more actions for budi santoso/i })).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
@@ -597,5 +593,103 @@ describe('UserTable — ⋯ menu portaled to body', () => {
     const hasPositioning =
       portalWrapper!.style.top !== '' || portalWrapper!.style.bottom !== ''
     expect(hasPositioning).toBe(true)
+  })
+})
+
+// ── #803 — Team on the roster, one ⋯ on the card ─────────────────────────────
+// The roster answers "who is on which team" without opening a dialog, and a phone card
+// carries exactly one action door instead of a full-width button.
+
+const BAR_TEAM: TeamOption = {
+  id: 't-bar',
+  name: 'Gordi HQ Bar',
+  branch_name: 'Gordi HQ',
+  activity: 'bar',
+}
+const OTHER_TEAM: TeamOption = { id: 't-ops', name: 'Ops Desk', branch_name: null, activity: null }
+
+const TEAMED_MEMBER: AdminPersonRow = {
+  ...ACTIVE_MEMBER,
+  teams: [
+    { team_id: OTHER_TEAM.id, is_primary: false },
+    { team_id: BAR_TEAM.id, is_primary: true },
+  ],
+}
+
+describe('AC-040: the desktop roster carries Team', () => {
+  it('AC-040: the columns are Person · Team · Login · Access · Position, then the ⋯ door', () => {
+    renderTable([ACTIVE_ADMIN, TEAMED_MEMBER], { teams: [BAR_TEAM, OTHER_TEAM] })
+    const headers = screen.getAllByRole('columnheader')
+    expect(headers.map((th) => th.textContent?.trim()).filter(Boolean)).toEqual([
+      'Person', 'Team', 'Login', 'Access', 'Position',
+    ])
+    // The last header is the unlabelled ⋯ column, and every row carries that door.
+    expect(headers).toHaveLength(6)
+    expect(screen.getAllByRole('button', { name: /more actions for/i })).toHaveLength(2)
+  })
+
+  it('AC-040: the Team cell names the PRIMARY team, not whichever membership comes first', () => {
+    renderTable([ACTIVE_ADMIN, TEAMED_MEMBER], { teams: [BAR_TEAM, OTHER_TEAM] })
+    expect(screen.getByText('Gordi HQ Bar')).toBeInTheDocument()
+    expect(screen.queryByText('Ops Desk')).not.toBeInTheDocument()
+  })
+
+  it('AC-040: a person with no team reads as an em dash, not a blank cell', () => {
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { teams: [BAR_TEAM] })
+    expect(screen.getAllByLabelText('No team').length).toBeGreaterThan(0)
+  })
+})
+
+describe('AC-041: the phone card is one ⋯, never a button in the card', () => {
+  it('AC-041: the card carries name, status pill, a Team · Position line and Access chips', () => {
+    renderTable([ACTIVE_ADMIN, TEAMED_MEMBER], { isDesktop: false, teams: [BAR_TEAM, OTHER_TEAM] })
+    expect(screen.getByText('Budi Santoso')).toBeInTheDocument()
+    // Team · Position, as ONE line — not a two-column field grid.
+    expect(screen.getByText('Gordi HQ Bar · Barista')).toBeInTheDocument()
+    // Access chips render bare (the "Access" field label is a table-header job).
+    expect(screen.getByText('Member')).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  it('AC-041: no card holds a filled primary, and the ⋯ is the card’s only button', () => {
+    const { container } = renderTable([ACTIVE_ADMIN, TEAMED_MEMBER], {
+      isDesktop: false,
+      teams: [BAR_TEAM],
+    })
+    const cards = container.querySelectorAll('article')
+    expect(cards).toHaveLength(2)
+    for (const card of cards) {
+      expect(card.querySelectorAll('.btn-primary')).toHaveLength(0)
+      const buttons = card.querySelectorAll('button')
+      expect(buttons).toHaveLength(1)
+      expect(buttons[0].getAttribute('aria-label')).toMatch(/^More actions for /)
+      // The coarse-pointer touch floor.
+      expect(buttons[0].style.minHeight).toBe('44px')
+      expect(buttons[0].style.minWidth).toBe('44px')
+    }
+  })
+
+  it('AC-041: the sheet the ⋯ opens carries the email the card no longer spends a line on', async () => {
+    const user = userEvent.setup()
+    renderTable([ACTIVE_ADMIN, TEAMED_MEMBER], { isDesktop: false, teams: [BAR_TEAM] })
+    expect(screen.queryByText('budi@example.test')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
+
+    const header = screen.getByTestId('person-sheet-header')
+    expect(within(header).getByText('Budi Santoso')).toBeInTheDocument()
+    expect(within(header).getByText('budi@example.test')).toBeInTheDocument()
+  })
+})
+
+describe('AC-044: the no-match empty state is neutral, never an all-clear', () => {
+  it('AC-044: a filter that matched nothing does not render the ✓ glyph', async () => {
+    const user = userEvent.setup()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    await user.type(screen.getByRole('searchbox', { name: /search people/i }), 'zzzz')
+
+    const empty = await screen.findByTestId('empty-state')
+    expect(empty.getAttribute('data-empty-variant')).not.toBe('quiet')
+    expect(empty.textContent).not.toContain('✓')
   })
 })

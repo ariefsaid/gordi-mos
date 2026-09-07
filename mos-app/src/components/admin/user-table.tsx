@@ -8,7 +8,8 @@
 // Last-admin guard (item 3, FR-041): disable/archive disabled for sole active admin.
 // ⋯ menu keyboard: the shared useMenuPopover contract (I3) — focus-enter, Arrow/Home/End,
 //   Esc, outside-click, focus return. The menu itself is pure presentation of the items.
-// Mobile action sheet (item 1): Manage button opens same actions as desktop ⋯ menu.
+// Mobile action sheet: one 44px ⋯ per card opens the same actions as the desktop ⋯ menu, under a
+//   header carrying the person's email (the card itself no longer spends a line on it).
 // PeopleToolbar (§2.1): search-mini + ViewTabs status filter, both URL-synced (I7 / D-E1).
 // No-match empty state (§4.1): distinct from org-empty "Just you so far".
 // Access + Position columns (ADR-0050, AC-126): "Access" = access roles (RoleChips), "Position" =
@@ -27,11 +28,11 @@ import { Tag } from '@/components/ui/tag'
 import type { TagColor } from '@/components/ui/tag'
 import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { EmptyState } from '@/components/ui/state-kit'
+import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { ViewTabs } from '@/components/ui/view-tabs'
 import { usePeopleListPresentsCards } from './use-people-list-presents-cards'
 import { localizedRoleMeta } from '@/lib/db/admin-users.types'
-import type { AdminPersonRow, LoginStatus } from '@/lib/db/admin-users.types'
+import type { AdminPersonRow, LoginStatus, TeamOption } from '@/lib/db/admin-users.types'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import './people-toolbar.css'
@@ -129,6 +130,17 @@ function JabatanChips({ jabatan }: { jabatan: { role_id: string; role_name: stri
       ))}
     </span>
   )
+}
+
+// ── Primary Team name ─────────────────────────────────────────────────────────
+// A membership carries only `team_id`, so the name comes from the TeamOption list the page
+// already fetches. The PRIMARY membership is the one that resolves the person's capture stream,
+// so it is the one the roster shows.
+
+function primaryTeamName(person: AdminPersonRow, teams: TeamOption[]): string | null {
+  const primary = person.teams.find((m) => m.is_primary)
+  if (!primary) return null
+  return teams.find((t) => t.id === primary.team_id)?.name ?? null
 }
 
 // ── Last-admin detection helper ───────────────────────────────────────────────
@@ -282,12 +294,16 @@ function PersonActionMenu({
   )
 }
 
-// ── Desktop PersonActions — ⋯ popover button ────────────────────────────────
+// ── PersonActions — the ⋯ popover button, in a table row and on a card ──────
+// One door, one portal, one menu: the card's ⋯ is this same component at the coarse-pointer
+// touch size, so the two presentations can never drift apart.
 
 interface PersonActionsProps {
   person: AdminPersonRow
   people: AdminPersonRow[]
   onAction: (action: PersonAction, person: AdminPersonRow) => void
+  /** `card` = the 44px touch door + an email-bearing sheet header; `row` = the dense table door. */
+  presentation?: 'row' | 'card'
 }
 
 // PortalMenuPosition: computed when the menu opens, drives the fixed wrapper style.
@@ -302,8 +318,9 @@ const MENU_SIDE_MARGIN = 8
 
 const ESTIMATED_MENU_HEIGHT = 200
 
-function PersonActions({ person, people, onAction }: PersonActionsProps) {
+function PersonActions({ person, people, onAction, presentation = 'row' }: PersonActionsProps) {
   const t = useT()
+  const isCard = presentation === 'card'
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState<MenuPosition | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -382,8 +399,16 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
         // DO-22(a) (census admin-people P2-A): persistent low-emphasis rest state — the old
         // `opacity-0` hover-reveal made the row's ONLY action door invisible at rest and
         // unreachable without hover.
-        className="rounded-sm p-1 opacity-60 group-hover/row:opacity-100 focus:opacity-100 hover:opacity-100"
-        style={{ color: 'var(--muted-foreground)' }}
+        className={
+          isCard
+            ? 'rounded-sm inline-flex items-center justify-center shrink-0'
+            : 'rounded-sm p-1 opacity-60 group-hover/row:opacity-100 focus:opacity-100 hover:opacity-100'
+        }
+        style={
+          isCard
+            ? { color: 'var(--muted-foreground)', minWidth: 44, minHeight: 44 }
+            : { color: 'var(--muted-foreground)' }
+        }
         onClick={() => setOpen((v) => !v)}
       >
         ⋯
@@ -391,6 +416,7 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
       {open && createPortal(
         <div
           ref={menuContainerRef}
+          className="flex flex-col gap-1"
           style={{
             position: 'fixed',
             zIndex: 'var(--z-popover)',
@@ -402,6 +428,35 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
             visibility: position ? 'visible' : 'hidden',
           }}
         >
+          {/* Card sheets name who they act on — the card itself spends no line on the email. */}
+          {isCard && (
+            <div
+              data-testid="person-sheet-header"
+              className="rounded-lg px-3 py-2"
+              style={{
+                background: 'var(--card)',
+                border: '1px solid var(--border)',
+                boxShadow: 'var(--shadow-overlay)',
+              }}
+            >
+              <div className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                {person.full_name}
+              </div>
+              {person.email && (
+                <div
+                  className="text-xs"
+                  style={{
+                    color: 'var(--muted-foreground)',
+                    fontFamily: person.email.includes('@ops.gordi.local')
+                      ? 'var(--font-mono)'
+                      : undefined,
+                  }}
+                >
+                  {person.email}
+                </div>
+              )}
+            </div>
+          )}
           <PersonActionMenu
             person={person}
             people={people}
@@ -413,65 +468,6 @@ function PersonActions({ person, people, onAction }: PersonActionsProps) {
         document.body,
       )}
     </div>
-  )
-}
-
-// ── Mobile MobileManageSheet — full action sheet triggered by "Manage" (item 1) ──
-
-interface MobileManageSheetProps {
-  person: AdminPersonRow
-  people: AdminPersonRow[]
-  onAction: (action: PersonAction, person: AdminPersonRow) => void
-}
-
-function MobileManageSheet({ person, people, onAction }: MobileManageSheetProps) {
-  const t = useT()
-  const [open, setOpen] = useState(false)
-  const sheetRef = useRef<HTMLDivElement>(null)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const close = useCallback(() => setOpen(false), [])
-
-  // I3: the same shared menu/popover contract as the desktop ⋯ (focus-enter, Arrow/
-  // Home/End, Esc, outside-click) — the sheet IS the menu container here.
-  useMenuPopover(open, close, sheetRef, triggerRef)
-
-  // Return focus to the trigger on close. Guarded by `wasOpenRef` so this never fires
-  // on first mount (same I7 defect class as the desktop ⋯ menu above).
-  const wasOpenRef = useRef(false)
-  useEffect(() => {
-    if (open) {
-      wasOpenRef.current = true
-      return
-    }
-    if (wasOpenRef.current) triggerRef.current?.focus()
-  }, [open])
-
-  return (
-    <>
-      {/* Native button for ref forwarding (Button primitive doesn't expose ref) */}
-      <button
-        ref={triggerRef}
-        type="button"
-        className="btn btn-outline w-full"
-        style={{ minHeight: 44 }}
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="true"
-        aria-expanded={open}
-        aria-label={t('admin.people.manageFor', { name: person.full_name })}
-      >
-        {t('admin.people.action.manage')}
-      </button>
-      {open && (
-        <div ref={sheetRef} className="mt-1">
-          <PersonActionMenu
-            person={person}
-            people={people}
-            onAction={onAction}
-            onClose={close}
-          />
-        </div>
-      )}
-    </>
   )
 }
 
@@ -498,14 +494,16 @@ function InlineSaved() {
 // be narrower than the chip columns beside it. This line carries a Position column v4 does not
 // (ADR-0050), so v4's 50/15/35 split is redistributed rather than copied — the invariant the
 // guard actually pins is Person ≥ Access, and 38 ≥ 25 holds.
-const COL_WIDTH = { person: '38%', login: '13%', access: '25%', position: '24%' } as const
+const COL_WIDTH = { person: '30%', team: '16%', login: '12%', access: '21%', position: '21%' } as const
 
 function DesktopTable({
   people,
+  teams,
   onAction,
   justSavedId,
 }: {
   people: AdminPersonRow[]
+  teams: TeamOption[]
   onAction: (action: PersonAction, person: AdminPersonRow) => void
   justSavedId: string | null
 }) {
@@ -518,6 +516,9 @@ function DesktopTable({
         <tr style={{ borderBottom: '1px solid var(--border)', height: 38 }}>
           <th scope="col" className={headClass} style={{ ...headStyle, width: COL_WIDTH.person }}>
             {t('admin.people.col.person')}
+          </th>
+          <th scope="col" className={headClass} style={{ ...headStyle, width: COL_WIDTH.team }}>
+            {t('admin.people.col.team')}
           </th>
           <th scope="col" className={headClass} style={{ ...headStyle, width: COL_WIDTH.login }}>
             {t('admin.people.col.login')}
@@ -577,6 +578,13 @@ function DesktopTable({
                 </div>
               </div>
             </td>
+            <td className="px-4 text-sm" style={{ color: 'var(--foreground)' }}>
+              {primaryTeamName(person, teams) ?? (
+                <span style={{ color: 'var(--muted-foreground)' }} aria-label={t('admin.people.team.none')}>
+                  —
+                </span>
+              )}
+            </td>
             <td className="px-4">
               <div className="flex items-center gap-2">
                 <LoginStatusPill status={person.login} />
@@ -603,14 +611,15 @@ function DesktopTable({
 
 function MobileCardList({
   people,
+  teams,
   onAction,
   justSavedId,
 }: {
   people: AdminPersonRow[]
+  teams: TeamOption[]
   onAction: (action: PersonAction, person: AdminPersonRow) => void
   justSavedId: string | null
 }) {
-  const t = useT()
   return (
     <div className="flex flex-col gap-3 p-3">
       {people.map((person) => (
@@ -623,11 +632,11 @@ function MobileCardList({
             boxShadow: 'var(--shadow-rest)',
           }}
         >
-          {/* Head row */}
-          <div className="flex items-center gap-2 mb-2">
+          {/* Head row: identity, status, and the card's ONE action door. */}
+          <div className="flex items-center gap-2">
             <Avatar placeholder={person.full_name} size="sm" />
             <div
-              className="font-medium text-sm flex-1"
+              className="font-medium text-sm flex-1 min-w-0"
               style={{
                 color: 'var(--foreground)',
                 textDecoration: person.archived_at ? 'line-through' : undefined,
@@ -637,53 +646,19 @@ function MobileCardList({
             </div>
             <LoginStatusPill status={person.login} />
             {justSavedId === person.id && <InlineSaved />}
+            <PersonActions person={person} people={people} onAction={onAction} presentation="card" />
           </div>
 
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm mb-3">
-            {person.email && (
-              <>
-                <dt className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>
-                  {t('admin.people.card.email')}
-                </dt>
-                <dd
-                  className="text-xs"
-                  style={{
-                    color: 'var(--foreground)',
-                    fontFamily: person.email.includes('@ops.gordi.local')
-                      ? 'var(--font-mono)'
-                      : undefined,
-                  }}
-                >
-                  {person.email}
-                </dd>
-              </>
-            )}
-            <dt className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>
-              {t('admin.people.card.access')}
-            </dt>
-            <dd>
-              <RoleChips roles={person.access_roles} />
-            </dd>
-            <dt className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>
-              {t('admin.people.card.position')}
-            </dt>
-            <dd>
-              <JabatanChips jabatan={person.jabatan} />
-            </dd>
-            {person.archived_at && (
-              <>
-                <dt className="text-xs font-medium" style={{ color: 'var(--muted-foreground)' }}>
-                  {t('admin.people.card.status')}
-                </dt>
-                <dd className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                  {t('admin.people.card.archived')}
-                </dd>
-              </>
-            )}
-          </dl>
+          {/* Team · Position — the two org facts, as one quiet line rather than a field grid. */}
+          <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+            {[primaryTeamName(person, teams), person.jabatan.map((j) => j.role_name).join(', ')]
+              .filter(Boolean)
+              .join(' · ') || '—'}
+          </p>
 
-          {/* Manage button opens an action sheet — the SAME actions as the ⋯ menu (item 1) */}
-          <MobileManageSheet person={person} people={people} onAction={onAction} />
+          <div className="mt-2">
+            <RoleChips roles={person.access_roles} />
+          </div>
         </article>
       ))}
     </div>
@@ -802,11 +777,23 @@ export interface UserTableProps {
   viewerPersonId: string
   onAction: (action: PersonAction, person: AdminPersonRow) => void
   onAddPerson: () => void
+  /** Resolves each person's primary Team to a name — a membership carries only its team id. */
+  teams?: TeamOption[]
+  /** The list is still in flight: the toolbar stays, the list area is skeleton. */
+  loading?: boolean
   /** GAP-7: the person whose in-place edit just committed → shows an inline "Saved". */
   justSavedId?: string | null
 }
 
-export function UserTable({ people, viewerPersonId, onAction, onAddPerson, justSavedId = null }: UserTableProps) {
+export function UserTable({
+  people,
+  viewerPersonId,
+  onAction,
+  onAddPerson,
+  teams = [],
+  loading = false,
+  justSavedId = null,
+}: UserTableProps) {
   const presentsCards = usePeopleListPresentsCards()
   const t = useT()
 
@@ -851,7 +838,11 @@ export function UserTable({ people, viewerPersonId, onAction, onAddPerson, justS
         onSearchChange={setSearchQuery}
       />
 
-      {isOrgEmpty ? (
+      {loading ? (
+        /* Only the LIST is unknown while people load — the head above and the toolbar just
+           rendered are the controls the admin came for, and blanking them costs a reflow. */
+        <LoadingShell count={6} />
+      ) : isOrgEmpty ? (
         /* Org has only the admin — "Just you so far" */
         <div className="py-16 px-4">
           <EmptyState
@@ -867,6 +858,8 @@ export function UserTable({ people, viewerPersonId, onAction, onAddPerson, justS
         /* Filter applied but no rows match */
         <div className="py-12 px-4">
           <EmptyState
+            // A filter that matched nothing is not an earned all-clear, so never the ✓ glyph.
+            variant="blank"
             title={t('admin.people.empty.noMatch.title')}
             copy={t('admin.people.empty.noMatch.copy')}
           >
@@ -876,9 +869,9 @@ export function UserTable({ people, viewerPersonId, onAction, onAddPerson, justS
           </EmptyState>
         </div>
       ) : presentsCards ? (
-        <MobileCardList people={filteredPeople} onAction={onAction} justSavedId={justSavedId} />
+        <MobileCardList people={filteredPeople} teams={teams} onAction={onAction} justSavedId={justSavedId} />
       ) : (
-        <DesktopTable people={filteredPeople} onAction={onAction} justSavedId={justSavedId} />
+        <DesktopTable people={filteredPeople} teams={teams} onAction={onAction} justSavedId={justSavedId} />
       )}
     </>
   )

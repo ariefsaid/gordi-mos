@@ -62,8 +62,6 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'signals.mention.group.bu', // BU
   'signals.record.revisionDiff', // “${from}” → “${to}” — symbol template
   'admin.people.col.login', // Login
-  'admin.people.card.email', // Email
-  'admin.people.card.status', // Status
   'admin.role.admin', // Admin
   'admin.role.supervisor', // Supervisor
   'admin.create.email', // Email
