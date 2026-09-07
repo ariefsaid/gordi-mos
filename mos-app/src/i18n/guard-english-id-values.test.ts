@@ -69,6 +69,9 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'admin.create.email', // Email
   // #410 review-page chrome: 'Item' is the same word in both locales.
   'kitchen.review.col.item', // Item
+  // ticket 783: the completeness confirmed row is just `${who} · ${when}` — a person's name
+  // and the local time separated by a middot. No locale-varying text lives in it.
+  'kitchen.review.completeness.confirmedTime',
   'kitchen.log.col.item', // Item — same word in both locales (OD-WAY-85)
   'kitchen.plan.col.item', // Item — same word in both locales (OD-WAY-85)
   'kitchen.stock.col.item', // Item — same word in both locales (OD-WAY-85)

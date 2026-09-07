@@ -70,6 +70,11 @@ vi.mock('@/lib/db/stream-completeness', () => ({
 }))
 import { listStreamCompleteness, confirmStreamComplete } from '@/lib/db/stream-completeness'
 
+// #783 (AC-050): a supervisor's picker lists exactly the streams they REVIEW — read from
+// listReviewerStreams. Un-mocked it hits Supabase and the whole page lands in the error state.
+vi.mock('@/lib/db/reviewer-streams', () => ({ listReviewerStreams: vi.fn() }))
+import { listReviewerStreams } from '@/lib/db/reviewer-streams'
+
 import { KitchenReviewPage } from './kitchen-review-page'
 import { rememberStream } from '@/lib/cafe-stream'
 import type { ReviewLogRow } from '@/lib/db/kitchen-logs.types'
@@ -86,6 +91,7 @@ const mockGetPeople = vi.mocked(getPeople)
 const mockBranches = vi.mocked(listActiveBranches)
 const mockCompleteness = vi.mocked(listStreamCompleteness)
 const mockConfirmComplete = vi.mocked(confirmStreamComplete)
+const mockReviewerStreams = vi.mocked(listReviewerStreams)
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
@@ -154,6 +160,10 @@ beforeEach(() => {
   ])
   // #238: no stream has been confirmed complete unless a test says so.
   mockCompleteness.mockResolvedValue([])
+  // #783 (AC-050): reviewer streams default to a supervisor's own bar/kitchen — tests that use
+  // ops_lead/admin fixtures don't consult this (the page skips the read for them), so the
+  // default is safe there too. Supervisor tests override this to the shape they need.
+  mockReviewerStreams.mockResolvedValue([{ branch_id: BRANCH_ID, activity: 'kitchen' }])
 })
 
 describe('KitchenReviewPage — role gate (FR-003/044)', () => {
@@ -356,10 +366,12 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     // re-fetched the queue (now empty)
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2))
   })
-  it('AC-040: off-plan approve reveals a required note + blocks until filled', async () => {
-    // folded from the retired kitchen-review-row suite (the page now owns the row)
-    mockList.mockResolvedValue([PROD_LOG]) // qty 8
-    mockPlan.mockResolvedValue({ w1: { produce: 12 } }) // plan 12 → off-plan
+  it('AC-040 / #783 AC-052: off-plan approve with NO submitter note reveals the required reviewer-note gate + blocks until filled', async () => {
+    // #783: the reviewer-note gate opens only when the submitter left NO note — the submitter's
+    // note already carries the "why", so a second word from the reviewer would be ceremony.
+    const PROD_NO_NOTE: ReviewLogRow = { ...PROD_LOG, id: 'log-prod-nn', notes: null }
+    mockList.mockResolvedValue([PROD_NO_NOTE])
+    mockPlan.mockResolvedValue({ w1: { produce: 12 } }) // plan 12 vs logged 8 → off-plan
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-010' })
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
@@ -371,7 +383,21 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     // #400 v4 copy: the confirm names the OBJECT ("Approve Nasi Goreng"), never a bare
     // "Confirm approve" — same matcher as the idle button because the gate replaces it.
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', 'short on stock'))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod-nn', 'short on stock'))
+  })
+
+  it('ticket 783 AC-052: off-plan approve WITH a submitter note commits on one click — no reviewer note demanded', async () => {
+    // PROD_LOG.notes = 'kurang bahan' — the submitter said why.
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 12 } }) // plan 12 vs logged 8 → off-plan
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-011' })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
+    // No second-note gate opens (the submitter's note is on the row); the RPC fires with null,
+    // just as it does on an on-plan row.
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', null))
+    expect(screen.queryByRole('textbox', { name: /approve note for nasi goreng/i })).toBeNull()
   })
 })
 
@@ -577,6 +603,12 @@ describe('KitchenReviewPage — the stream reads in the page head (#440)', () =>
   it('states the queue\'s stream in the head, canonically, and switching there re-scopes the queue', async () => {
     mockUseAuth.mockReturnValue(viewer(['supervisor']))
     mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
+    // #783 AC-050: this supervisor holds TWO stream memberships, so the picker offers both —
+    // switching between them scopes the queue.
+    mockReviewerStreams.mockResolvedValue([
+      { branch_id: BRANCH_ID, activity: 'kitchen' },
+      { branch_id: RADIANT_ID, activity: 'bar' },
+    ])
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     const { container } = render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
@@ -633,21 +665,25 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     expect(screen.getByText('Es Kopi')).toBeInTheDocument()
   })
 
-  it('FR-040: a supervisor viewing another stream sees its rows WITHOUT decision controls', async () => {
+  it('FR-040 + #783 AC-050: a supervisor of ONE stream never lands on another stream — the picker offers only that one, and "All streams" is not a choice', async () => {
     mockUseAuth.mockReturnValue(viewer(['supervisor']))
     mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
+    // Reviewer streams = the one they supervise. The mock default in beforeEach already sets
+    // this shape; restated here so the test reads on its own.
+    mockReviewerStreams.mockResolvedValue([{ branch_id: BRANCH_ID, activity: 'kitchen' }])
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: 'all' },
-    })
-    await screen.findByText('Es Kopi')
-    // own-stream row keeps its controls; the other stream's row carries the ops-lead marker instead
+    const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
+    // Exactly one option: their own stream. No "All streams".
+    const optionTexts = Array.from(picker.options).map(o => o.textContent)
+    expect(optionTexts).toEqual(['Rumah Rames · Kitchen'])
+    // Their row keeps its controls; the other stream's row never becomes reachable — the picker
+    // has no option that would show it.
     expect(screen.getByRole('button', { name: /approve nasi goreng/i })).toBeInTheDocument()
+    expect(screen.queryByText('Es Kopi')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /approve es kopi/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /reject es kopi/i })).not.toBeInTheDocument()
-    expect(screen.getByText('Ops lead decides')).toBeInTheDocument()
   })
 
   it('FR-043: the production-first gate is PER STREAM — another stream\'s pending production does not lock this one\'s transfer', async () => {
@@ -752,41 +788,60 @@ describe('KitchenReviewPage — offline (FR-005, NFR-008)', () => {
 // one is the server's (ops.can_review_stream) and is owned by pgTAP ops_14 —
 // nothing here is a permission proof, only a display-honesty one.
 // ═════════════════════════════════════════════════════════════════════════════
-describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', () => {
+describe('KitchenReviewPage — per-stream completeness confirmation (FR-031 · #783 AC-053)', () => {
   const OWN_STREAM = `${BRANCH_ID}|kitchen`
 
-  it('FR-031: an unconfirmed stream reads as a plain gap — no warning, and the lead is offered the control', async () => {
+  it('AC-053: an unconfirmed stream reads as a quiet checkbox row at the foot of the queue — nothing in the head is a button, no filled primary on the route', async () => {
     mockUseAuth.mockReturnValue(viewer(['supervisor']))
     mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
-    mockList.mockResolvedValue([PROD_LOG])
-    render(<KitchenReviewPage />, { wrapper })
-    await screen.findByText('Nasi Goreng')
+    // Empty queue — the checkbox row still renders at the foot.
+    mockList.mockResolvedValue([])
+    const { container } = render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText(/nothing to review/i)
 
+    // The completeness affordance is a group with a checkbox INSIDE, at the foot of the queue —
+    // never a button in the head.
     const group = screen.getByRole('group', { name: /item list completeness for this stream/i })
-    expect(group).toHaveTextContent(/item list not confirmed complete yet/i)
-    expect(screen.getByRole('button', { name: /confirm the item list is complete/i })).toBeEnabled()
-    // It gates nothing: the queue's own decision controls are untouched by an unconfirmed list.
-    expect(screen.getByRole('button', { name: /approve nasi goreng/i })).toBeInTheDocument()
+    expect(group).toHaveTextContent(/item list for this stream is complete today/i)
+    const check = within(group).getByRole('checkbox')
+    expect(check).not.toBeChecked()
+    expect(check).toBeEnabled()
+
+    // The page head carries the stream statement + a Select, and NO buttons anywhere.
+    const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
+    expect(within(head).queryAllByRole('button')).toHaveLength(0)
+
+    // The empty queue's ONE filled primary invariant is now zero: no `.btn-primary` on the whole
+    // route. (The bulk action carries the filled primary; here there is no bulk action to offer.)
+    expect(document.querySelectorAll('.btn-primary')).toHaveLength(0)
+
+    // No "Confirm" button by any of its former labels — the checkbox replaced them.
+    expect(screen.queryByRole('button', { name: /confirm the item list is complete/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /confirm again/i })).toBeNull()
   })
 
-  it('FR-031: a confirmed stream names WHO confirmed it and WHEN, and the control becomes a re-confirmation', async () => {
+  it('AC-053: a confirmed stream shows a checked box + name · time (HH:MM WIB), no re-confirm button', async () => {
     mockUseAuth.mockReturnValue(viewer(['supervisor']))
     mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
     mockList.mockResolvedValue([PROD_LOG])
+    // 06:52 WIB = 23:52Z the previous UTC day. Kept explicit so a reader can verify the offset.
     mockCompleteness.mockResolvedValue([
-      { branch_id: BRANCH_ID, activity: 'kitchen', confirmed_by: 'p1', confirmed_at: '2026-08-11T02:30:00Z' },
+      { branch_id: BRANCH_ID, activity: 'kitchen', confirmed_by: 'p1', confirmed_at: '2026-08-10T23:52:00Z' },
     ])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
 
     const group = screen.getByRole('group', { name: /item list completeness for this stream/i })
-    // 02:30Z is 09:30 WIB the SAME day — the date shown is the stream's local one.
-    expect(group).toHaveTextContent(/Item list confirmed complete · Budi Santoso · 2026-08-11/)
-    expect(screen.getByRole('button', { name: /confirm again/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /confirm the item list is complete/i })).not.toBeInTheDocument()
+    const check = within(group).getByRole('checkbox')
+    expect(check).toBeChecked()
+    // Once confirmed the row states the confirmer + local time — never a date here (that lives
+    // in the page meta beside logDate).
+    expect(group).toHaveTextContent(/Budi Santoso · 06:52/)
+    // No re-confirm button — the fact is stated, the row is not a control any more.
+    expect(screen.queryByRole('button', { name: /confirm again/i })).toBeNull()
   })
 
-  it('FR-031: the confirmation names the stream in view — the click sends that stream and nothing else', async () => {
+  it('AC-053: a supervisor of the stream toggles the checkbox and the RPC receives THIS stream', async () => {
     mockUseAuth.mockReturnValue(viewer(['supervisor']))
     mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
     mockList.mockResolvedValue([PROD_LOG])
@@ -796,48 +851,33 @@ describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', 
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
 
-    fireEvent.click(screen.getByRole('button', { name: /confirm the item list is complete/i }))
+    const group = screen.getByRole('group', { name: /item list completeness for this stream/i })
+    fireEvent.click(within(group).getByRole('checkbox'))
     await waitFor(() => expect(mockConfirmComplete).toHaveBeenCalledWith(BRANCH_ID, 'kitchen'))
-    // The recorded fact replaces the gap in place — no queue refetch, because it gates nothing.
-    expect(await screen.findByText(/item list confirmed complete for this stream/i)).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: /item list completeness/i }))
-      .toHaveTextContent(/· Eka · 2026-08-12/)
+    // The confirmation replaces the gap in place — no queue refetch, because the record gates
+    // nothing (DD-WAY-29 owns what appears on a form).
     expect(mockList).toHaveBeenCalledTimes(1)
+    // The row updates to the confirmed shape without a re-fetch.
+    await waitFor(() => expect(within(group).getByRole('checkbox')).toBeChecked())
+    expect(group).toHaveTextContent(/Eka · 08:00/) // 2026-08-12T01:00:00Z → 08:00 WIB
   })
 
-  it("FR-031: a supervisor sees ANOTHER stream's completeness state but is offered no control over it", async () => {
-    mockUseAuth.mockReturnValue(viewer(['supervisor']))
-    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
-    mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
-    render(<KitchenReviewPage />, { wrapper })
-    await screen.findByText('Nasi Goreng')
-    // Move the filter off their own stream, onto (Radiant, bar).
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: `${RADIANT_ID}|bar` },
-    })
-    await screen.findByText('Es Kopi')
-
-    // Read is org-wide on purpose — a gap that only its own lead can see is the tribal
-    // knowledge FR-031 exists to end.
-    expect(screen.getByRole('group', { name: /item list completeness for this stream/i }))
-      .toHaveTextContent(/item list not confirmed complete yet/i)
-    expect(screen.queryByRole('button', { name: /confirm the item list is complete/i })).not.toBeInTheDocument()
-  })
-
-  it('FR-031: with the filter on all streams there is no single list to vouch for, so nothing renders', async () => {
-    mockUseAuth.mockReturnValue(viewer(['ops_lead']))   // opens cross-stream by default
+  it('AC-053: with the filter on All streams (ops_lead default) there is no single list to vouch for — the row does not render', async () => {
+    mockUseAuth.mockReturnValue(viewer(['ops_lead']))
     mockList.mockResolvedValue([PROD_LOG])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
 
-    expect(screen.queryByRole('group', { name: /item list completeness/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /item list completeness/i })).toBeNull()
     // ...and it comes back the moment one stream is named (so the absence above is the
     // filter's doing, not a block that never renders at all).
     fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
       target: { value: OWN_STREAM },
     })
     expect(await screen.findByRole('group', { name: /item list completeness/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /confirm the item list is complete/i })).toBeInTheDocument()
+    // ops_lead is offered the check on every stream — the checkbox is enabled without a stream
+    // reviewer membership.
+    expect(within(screen.getByRole('group', { name: /item list completeness/i })).getByRole('checkbox')).toBeEnabled()
   })
 })
 
@@ -967,7 +1007,9 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
     expect(confirmButton.className).toMatch(/\bkrow-confirm\b/)
   })
 
-  it('approve flow (off-plan): note gate + outcome banner in Indonesian', async () => {
+  it('approve flow (off-plan · #783 AC-052): note gate + outcome banner in Indonesian', async () => {
+    // Off-plan AND no submitter note is what still owes a reviewer note (OD-WAY-95 (6)).
+    mockList.mockResolvedValue([{ ...PROD_LOG, notes: null }])
     mockPlan.mockResolvedValue({ w1: { produce: 12 } }) // 8 ≠ 12 → off-plan → note gate
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-010' })
     render(<KitchenReviewPage />, { wrapper })
@@ -1128,3 +1170,184 @@ describe('issue 587: the row names its own stream in the All-streams view', () =
     expect(document.querySelector('.krow-stream')).toBeNull()
   })
 })
+
+// ═════════════════════════════════════════════════════════════════════════════
+// #783 — Café Review: decision rows.
+// AC-050 · AC-051 · AC-052 (positive path already covered above) · AC-054 · AC-062.
+// The rank/gate rules live in DESIGN.md § Buttons A8; the switch semantics come from
+// OD-WAY-95 (7). Both locales named where the AC demands it.
+// ═════════════════════════════════════════════════════════════════════════════
+describe('ticket 783 Café Review decision rows', () => {
+  it('AC-050: a two-stream supervisor sees exactly their two options — no All streams', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
+    mockReviewerStreams.mockResolvedValue([
+      { branch_id: BRANCH_ID, activity: 'kitchen' },
+      { branch_id: RADIANT_ID, activity: 'bar' },
+    ])
+    mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+
+    const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
+    const texts = Array.from(picker.options).map(o => o.textContent)
+    expect(texts).toEqual(['Rumah Rames · Kitchen', 'Radiant · Bar'])
+    // The page statement + picker together carry "Gordi HQ · Bar" only if the supervisor
+    // holds that; here the statement reads the CURRENT stream's canonical name.
+    expect(picker.selectedOptions[0].textContent).toBe('Rumah Rames · Kitchen')
+  })
+
+  it('AC-050: ops_lead (Cahya) keeps All streams AND every stream', async () => {
+    mockUseAuth.mockReturnValue(viewer(['ops_lead']))
+    mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+
+    const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
+    const texts = Array.from(picker.options).map(o => o.textContent)
+    expect(texts).toContain('All streams')
+    expect(texts).toContain('Rumah Rames · Kitchen')
+    expect(texts).toContain('Radiant · Bar')
+    // and the whole catalog: the queue lists rows from every stream at rest.
+    expect(picker.value).toBe('all')
+    expect(screen.getByText('Es Kopi')).toBeInTheDocument()
+  })
+
+  it('AC-051: with two Submitted rows there is exactly ONE filled primary (the batch action in the group header); per-row Approve is btn-outline, Reject is ghost', async () => {
+    // Two on-plan rows in ONE Production group so the header shows a single bulk button.
+    mockList.mockResolvedValue([PROD_ONPLAN_A, PROD_ONPLAN_B])
+    mockPlan.mockResolvedValue({ wA: { produce: 20 }, wB: { produce: 5 } })
+    mockApproveBulk.mockResolvedValue({ push_group_id: 'g-1', batch_ids: ['B-A', 'B-B'] })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const solids = document.querySelectorAll('.btn-primary')
+    expect(solids).toHaveLength(1)
+    expect(solids[0]).toHaveTextContent(/Approve all on-plan \(2\)/)
+
+    // Per-row rank: outline / ghost.
+    expect(screen.getByRole('button', { name: 'Approve Ayam Bakar' })).toHaveClass('btn-outline')
+    expect(screen.getByRole('button', { name: 'Reject Ayam Bakar' })).toHaveClass('btn-ghost')
+    expect(screen.getByRole('button', { name: 'Approve Sambal' })).toHaveClass('btn-outline')
+    expect(screen.getByRole('button', { name: 'Reject Sambal' })).toHaveClass('btn-ghost')
+  })
+
+  it('AC-051: after approving one row the OTHER row\'s Approve remains outline (never fills up)', async () => {
+    mockList.mockResolvedValue([PROD_ONPLAN_A, PROD_ONPLAN_B])
+    mockPlan.mockResolvedValue({ wA: { produce: 20 }, wB: { produce: 5 } })
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-050' })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Approve Ayam Bakar' }))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-a', null))
+    // The other row is still there, and its Approve stays outline — never filled to compensate.
+    expect(screen.getByRole('button', { name: 'Approve Sambal' })).toHaveClass('btn-outline')
+    expect(screen.getByRole('button', { name: 'Approve Sambal' })).not.toHaveClass('btn-primary')
+  })
+
+  it('AC-052: Reject always asks for a reason (submitter note doesn\'t change that)', async () => {
+    // PROD_LOG carries a submitter note; that only matters for approve.
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } }) // on-plan
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reject Nasi Goreng' }))
+    expect(screen.getByRole('textbox', { name: /reject note for nasi goreng/i })).toBeInTheDocument()
+  })
+
+  it('AC-053 (foot): checkbox is at the FOOT of the queue, below the DataTable — not in the head', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+
+    const foot = screen.getByRole('group', { name: /item list completeness for this stream/i })
+    expect(foot).toHaveClass('kr-complete-foot')
+    // DOM order: the DataTable (desktop `.dt-table` / phone `.dt-cards`) comes BEFORE the
+    // foot checkbox row.
+    const dataTable = document.querySelector('.dt-table, .dt-cards') as HTMLElement
+    expect(dataTable).not.toBeNull()
+    expect(dataTable!.compareDocumentPosition(foot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('AC-054 (ID): the Production group label reads "Produksi" at 390px', async () => {
+    localStorage.setItem('mos.locale', 'id')
+    try {
+      // Card branch (phone) is the default jsdom matchMedia (matches: false); its group label
+      // lives on `.dt-cards-group-label`, distinct from the desktop `.dt-group-label`.
+      mockList.mockResolvedValue([PROD_LOG])
+      mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+      render(<KitchenReviewPage />, { wrapper })
+      await screen.findByText('Nasi Goreng')
+      const labels = Array.from(
+        document.querySelectorAll('.dt-cards-group-label, .dt-group-label'),
+      ).map(el => el.textContent)
+      expect(labels).toContain('Produksi')
+      expect(labels).not.toContain('Production')
+    } finally {
+      localStorage.clear()
+    }
+  })
+
+  it('AC-054 (ID): the phone card labels + variance tag read Indonesian at 390px', async () => {
+    localStorage.setItem('mos.locale', 'id')
+    try {
+      mockList.mockResolvedValue([PROD_LOG])
+      mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+      render(<KitchenReviewPage />, { wrapper })
+      await screen.findByText('Nasi Goreng')
+      expect(screen.getByText('sesuai rencana')).toBeInTheDocument() // on-plan tag
+      expect(screen.getByText('rencana')).toBeInTheDocument()        // qty word
+      expect(screen.getByText(/dicatat/)).toBeInTheDocument()
+    } finally {
+      localStorage.clear()
+    }
+  })
+
+  it('AC-062 (EN): ops_lead sees "Approved · batch …" as a link to /cafe/pushes', async () => {
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-062' })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
+    // The notice IS a link on this route (ops_lead is admitted to /cafe/pushes).
+    const link = await screen.findByRole('link', { name: /Approved · batch PR-20260620-062/ })
+    expect(link).toHaveAttribute('href', '/cafe/pushes')
+  })
+
+  it('AC-062 (EN): a supervisor sees the same notice as plain text — no link', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-062' })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
+    // The notice text still lands; the shape is not a link.
+    expect(await screen.findByText(/Approved · batch PR-20260620-062/)).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Approved · batch/ })).toBeNull()
+  })
+
+  it('AC-062 (ID): the linked notice speaks Indonesian', async () => {
+    localStorage.setItem('mos.locale', 'id')
+    try {
+      mockList.mockResolvedValue([PROD_LOG])
+      mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+      mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-063' })
+      render(<KitchenReviewPage />, { wrapper })
+      await screen.findByText('Nasi Goreng')
+      fireEvent.click(screen.getByRole('button', { name: /Setujui Nasi Goreng/i }))
+      const link = await screen.findByRole('link', { name: /Disetujui · batch PR-20260620-063/ })
+      expect(link).toHaveAttribute('href', '/cafe/pushes')
+    } finally {
+      localStorage.clear()
+    }
+  })
+})
+

@@ -28,9 +28,11 @@ import { fetchDefaultStream } from '@/lib/db/default-stream'
 // this viewer leads it, and the names to render a confirmer with.
 import { listStreamCompleteness, confirmStreamComplete } from '@/lib/db/stream-completeness'
 import type { StreamCompleteness } from '@/lib/db/stream-completeness'
+import { listReviewerStreams } from '@/lib/db/reviewer-streams'
 import { listActiveBranches } from '@/lib/db/branches'
-import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
-import { movementKey, streamKey, streamLabel } from '@/lib/kitchen-action-label'
+import { viewerAdmittedToRoute } from '@/shell/destinations'
+import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow, StreamPair } from '@/lib/db/kitchen-logs.types'
+import { deriveActionLabel, movementKey, streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import type { Translate } from '@/i18n/use-t'
 import { getPeople } from '@/lib/db/directory'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
@@ -101,14 +103,6 @@ function formatTime(iso: string): string {
   const d = new Date(new Date(iso).getTime() + WIB_OFFSET_MS)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
-}
-
-/** Format an ISO timestamp to YYYY-MM-DD (WIB, same fixed offset as formatTime). */
-function formatDate(iso: string): string {
-  const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
-  const d = new Date(new Date(iso).getTime() + WIB_OFFSET_MS)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -205,14 +199,19 @@ function KitchenReviewDecision({
 
   // FR-040 variance — shared with the bulk scope (see isOffPlan).
   const offPlan = isOffPlan(log, planQty)
+  // #783 / OD-WAY-95 (6): a REVIEWER note is required only when the row is off-plan AND the
+  // submitter left none. If the submitter already said WHY they went off-plan, the reviewer
+  // records only a decision — the DB guard has the same shape (see the
+  // `ops._guard_kitchen_review_requirements` amended in the base branch).
+  const submitterLeftANote = !!(log.notes && log.notes.trim())
 
   function startApprove() {
-    if (!offPlan) {
-      // on-plan → approve immediately, no forced note (FR-041)
+    if (!offPlan || submitterLeftANote) {
+      // on-plan OR the submitter's own note answers the WHY — approve without a reviewer note.
       onApprove(log.id, null)
       return
     }
-    // off-plan (AC-040) → reveal the required approve-note gate
+    // off-plan AND no submitter note → reveal the required reviewer-note gate (AC-052).
     setPending('approve')
     setNote('')
     setNoteError(false)
@@ -311,10 +310,13 @@ function KitchenReviewDecision({
             {/* `krow-confirm`: the commit is the one control in the system whose label carries
                 an unbounded interpolated name, so it — and only it — is allowed to set that
                 label over two lines rather than push Cancel out of the card on a phone. The
-                rules, and why truncation is not an option here, live beside the CSS. */}
+                rules, and why truncation is not an option here, live beside the CSS.
+                #783 (DESIGN.md A8): no row control is ever filled — including after a decision
+                moves focus. Approve confirm and reject confirm both wear `.btn-outline`; the
+                surface's ONE filled primary belongs to the group-header bulk action. */}
             <button
               type="button"
-              className={`btn krow-btn krow-confirm ${pending === 'reject' ? 'btn-destructive' : 'btn-primary'}`}
+              className="btn btn-outline krow-btn krow-confirm"
               disabled={submitting}
               onClick={confirm}
             >
@@ -367,7 +369,14 @@ export function KitchenReviewPage() {
   // surface uses (FR-001) — drives the filter's DEFAULT (FR-041) and, for a supervisor,
   // which rows carry decision controls.
   const [streamCatalog, setStreamCatalog] = useState<ProductionStream[]>([])
-  const [ownStreamKey, setOwnStreamKey] = useState<string | null>(null)
+  // #783 AC-054: `deriveActionLabel` needs the full active branch catalog (a transfer destination
+  // may be a branch with no stream Team, e.g. an ecommerce-only branch), so we keep the branches
+  // as their own state alongside the derived stream catalog.
+  const [branches, setBranches] = useState<BranchOption[]>([])
+  // #783 (AC-050) / OD-WAY-95 (7): the streams THIS viewer reviews. For a supervisor with two
+  // stream memberships, this is both — the picker offers exactly them and nothing else. Empty
+  // for ops_lead/admin (they use the full catalog) and for a member who has none.
+  const [reviewerStreamKeys, setReviewerStreamKeys] = useState<Set<string>>(new Set())
   const [streamFilter, setStreamFilter] = useState<string>(ALL_STREAMS)
   // #238 (FR-031): every stream's completeness state, keyed by streamKey. Read org-wide by
   // policy, so one fetch serves the filter wherever it moves.
@@ -384,7 +393,13 @@ export function KitchenReviewPage() {
   // (`action_type`, a plain string, DD-WAY-13), not a fixed three-literal enum.
   const [bulkAction, setBulkAction] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
-  const [notice, setNotice] = useState('')
+  // #783 AC-062: an "Approved · batch …" notice links to Pushes for viewers the outbox rule
+  // admits (ops_lead / admin — the /cafe/pushes route's own gate, the mirror of the DB read
+  // policy for the shape of viewer we render this on), and reads as plain text otherwise.
+  // Other notices (stale, rejected, offline) stay plain text: they name no batch to link to.
+  type Notice = null | { kind: 'plain'; text: string } | { kind: 'approved'; text: string }
+  const [notice, setNotice] = useState<Notice>(null)
+  const canReadPushes = viewerAdmittedToRoute('/cafe/pushes', accessRoles)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const isDesktop = useIsDesktop()
 
@@ -399,12 +414,19 @@ export function KitchenReviewPage() {
   const fetchQueue = useCallback(async () => {
     setLoad({ kind: 'loading' })
     try {
-      const [rows, branchRows, people, pairs, confirmations] = await Promise.all([
+      // #783 (AC-050): only a supervisor needs their reviewer-streams answer to pare the picker.
+      // ops_lead/admin see the whole catalog anyway, so the extra read is skipped for them —
+      // a needless round-trip on the hottest reviewer surface, not just a paranoia fetch.
+      const reviewerStreamsPromise: Promise<StreamPair[]> = isSupervisor && !isLeadOrAdmin
+        ? listReviewerStreams()
+        : Promise.resolve([])
+      const [rows, branchRows, people, pairs, confirmations, reviewerPairs] = await Promise.all([
         listSubmittedKitchenLogs(logDate),
         listActiveBranches(),
         getPeople(),
         listStreamPairs(),
         listStreamCompleteness(),
+        reviewerStreamsPromise,
       ])
       const ownStream = await fetchDefaultStream(branchRows)
       // Fetch the plan baseline for every DISTINCT (branch, activity) stream present in
@@ -424,11 +446,13 @@ export function KitchenReviewPage() {
       )
       const ownKey = ownStream ? streamKey(ownStream.branch.id, ownStream.activity) : null
       const catalog = streamCatalogFrom(pairs, branchRows)
+      const reviewerKeys = new Set(reviewerPairs.map(p => streamKey(p.branch_id, p.activity)))
       setLogs(rows)
       setStreamPlans(new Map(planEntries))
       setPeopleMap(new Map(people.map(p => [p.id, p.full_name])))
       setStreamCatalog(catalog)
-      setOwnStreamKey(ownKey)
+      setBranches(branchRows)
+      setReviewerStreamKeys(reviewerKeys)
       setCompleteness(new Map(confirmations.map(c => [streamKey(c.branch_id, c.activity), c])))
       // FR-041 filter defaults, applied once: a stream supervisor opens on THEIR stream;
       // ops_lead/admin open cross-stream. A supervisor with no stream (no live primary
@@ -436,13 +460,28 @@ export function KitchenReviewPage() {
       // #440: a stream CHOSEN elsewhere in Café this session outranks both — it is an
       // explicit act, where the role defaults are only a guess about what you meant.
       const chosenKey = rememberedStreamKey()
-      const chosen = chosenKey && catalog.some(s => streamKey(s.branch.id, s.activity) === chosenKey)
+      // #783 AC-050: a supervisor never lands on "All streams" (their picker no longer offers
+      // it); nor on a chosen stream outside their reviewer set. So the remembered choice honours
+      // reviewer scoping — a Café stream chosen on another surface admits them here only if it
+      // is one they supervise.
+      const supervisorOnly = !isLeadOrAdmin && isSupervisor
+      const chosen = chosenKey
+        && catalog.some(s => streamKey(s.branch.id, s.activity) === chosenKey)
+        && (!supervisorOnly || reviewerKeys.has(chosenKey))
         ? chosenKey
         : null
       if (!filterInitialized.current) {
         filterInitialized.current = true
         if (chosen) setStreamFilter(chosen)
-        else if (!isLeadOrAdmin && isSupervisor && ownKey) setStreamFilter(ownKey)
+        else if (supervisorOnly) {
+          // The supervisor opens on their own stream when it is one they supervise; otherwise on
+          // the first stream in their reviewer set (their picker has no "All streams" escape).
+          if (ownKey && reviewerKeys.has(ownKey)) setStreamFilter(ownKey)
+          else {
+            const first = catalog.find(s => reviewerKeys.has(streamKey(s.branch.id, s.activity)))
+            if (first) setStreamFilter(streamKey(first.branch.id, first.activity))
+          }
+        }
       }
       setLoad({ kind: 'ready' })
     } catch {
@@ -473,14 +512,16 @@ export function KitchenReviewPage() {
     [pendingProductionStreams],
   )
 
-  // #236 (FR-040): which rows THIS viewer may decide. ops_lead/admin decide everything;
-  // a supervisor decides their own stream's rows. Mirror of the server predicate — the
-  // guard/policy refuses regardless of what renders here (NFR-002).
+  // #236 (FR-040) + #783 OD-WAY-95 (7): which rows THIS viewer may decide. ops_lead/admin
+  // decide everything; a supervisor decides EVERY stream they supervise — a supervisor of two
+  // streams reviews both. Mirror of the server predicate `ops.is_stream_reviewer` (the base
+  // branch's amended version reads open-ended live memberships, not just the primary one) —
+  // the guard/policy refuses regardless of what renders here (NFR-002).
   const canDecide = useCallback(
     (log: ReviewLogRow) =>
       isLeadOrAdmin ||
-      (isSupervisor && ownStreamKey !== null && streamKey(log.branch_id, log.activity) === ownStreamKey),
-    [isLeadOrAdmin, isSupervisor, ownStreamKey],
+      (isSupervisor && reviewerStreamKeys.has(streamKey(log.branch_id, log.activity))),
+    [isLeadOrAdmin, isSupervisor, reviewerStreamKeys],
   )
 
   // ── #238 (FR-031): the stream in view, and whether this viewer may speak for it ────────────
@@ -494,12 +535,12 @@ export function KitchenReviewPage() {
         : streamCatalog.find(s => streamKey(s.branch.id, s.activity) === streamFilter) ?? null,
     [streamFilter, streamCatalog],
   )
-  // The same authority that decides the stream's rows confirms its list (FR-031 via FR-040/041):
-  // its supervisor, or ops_lead/admin. A mirror of ops.can_review_stream — the policy is what
-  // makes it true; this only decides whether offering the control is honest.
+  // The same authority that decides the stream's rows confirms its list (FR-031 via FR-040/041).
+  // A mirror of ops.can_review_stream — the policy is what makes it true; this only decides
+  // whether offering the control is honest. #783: a supervisor of two streams confirms both.
   const canConfirmSelected =
     selectedStream !== null &&
-    (isLeadOrAdmin || (isSupervisor && streamFilter === ownStreamKey))
+    (isLeadOrAdmin || (isSupervisor && reviewerStreamKeys.has(streamFilter)))
 
   // FR-040/041: the displayed queue — one stream, or every stream. Display scoping only;
   // the rows a viewer may DECIDE are canDecide's (and ultimately the server's) business.
@@ -540,7 +581,7 @@ export function KitchenReviewPage() {
     try {
       const { batch_id } = await approveKitchenLog(logId, reviewNote)
       removeRow(logId)
-      setNotice(t('kitchen.review.notice.approved', { batchId: batch_id }))
+      setNotice({ kind: 'approved', text: t('kitchen.review.notice.approved', { batchId: batch_id }) })
     } catch (err) {
       handleDecisionError(err)
     } finally {
@@ -555,7 +596,7 @@ export function KitchenReviewPage() {
     try {
       await rejectKitchenLog(logId, reviewNote)
       removeRow(logId)
-      setNotice(t('kitchen.review.notice.rejected'))
+      setNotice({ kind: 'plain', text: t('kitchen.review.notice.rejected') })
     } catch (err) {
       handleDecisionError(err)
     } finally {
@@ -573,7 +614,7 @@ export function KitchenReviewPage() {
     try {
       const row = await confirmStreamComplete(selectedStream.branch.id, selectedStream.activity)
       setCompleteness(prev => new Map(prev).set(key, row))
-      setNotice(t('kitchen.review.completeness.saved'))
+      setNotice({ kind: 'plain', text: t('kitchen.review.completeness.saved') })
     } catch {
       setActionError(t('kitchen.review.completeness.failed'))
     } finally {
@@ -602,7 +643,7 @@ export function KitchenReviewPage() {
     if (eligible.length === 0) return
     setBulkAction(action)
     setActionError('')
-    setNotice('')
+    setNotice(null)
     let approved = 0
     let failed = 0
     const batches: string[] = []
@@ -657,20 +698,25 @@ export function KitchenReviewPage() {
     }
     setBulkAction(null)
     if (failed > 0 || stale.length > 0) {
-      setNotice(t('kitchen.review.notice.bulkTruth', { approved, failed, stale: stale.length }))
+      setNotice({
+        kind: 'plain',
+        text: t('kitchen.review.notice.bulkTruth', { approved, failed, stale: stale.length }),
+      })
     } else if (approved > 0) {
-      setNotice(
-        approved === 1
-          ? t('kitchen.review.notice.approved', { batchId: batches[0] ?? '—' })
-          : t('kitchen.review.notice.bulkApproved', { approved, batchId: batches.join(', ') }),
-      )
+      setNotice({
+        kind: 'approved',
+        text:
+          approved === 1
+            ? t('kitchen.review.notice.approved', { batchId: batches[0] ?? '—' })
+            : t('kitchen.review.notice.bulkApproved', { approved, batchId: batches.join(', ') }),
+      })
     }
     if (stale.length > 0) setRetryKey(k => k + 1)
   }
 
   function handleDecisionError(err: unknown) {
     if (err instanceof KitchenRpcError && err.code === 'P0003') {
-      setNotice(t('kitchen.review.notice.staleRefresh'))
+      setNotice({ kind: 'plain', text: t('kitchen.review.notice.staleRefresh') })
       setRetryKey(k => k + 1)
       return
     }
@@ -702,9 +748,22 @@ export function KitchenReviewPage() {
       const transferGated = isTransfer(action) && rows.some(rowGated)
       const eligibleCount = bulkEligible(action).length
       const showActions = transferGated || eligibleCount > 0
+      // #783 AC-054: the phone group label reads Indonesian in the ID locale ("Produksi").
+      // The DB-derived `action_type` is English by construction — an ID render sees it verbatim
+      // unless translated at render time. `deriveActionLabel` is the client mirror of the SQL
+      // arm; feeding it the group's shared (action, destination_branch_id) yields the localized
+      // "Produksi" / "Transfer ke …" the surface should carry.
+      const head = rows[0]
+      const label = head
+        ? deriveActionLabel(
+            t,
+            { action: head.action, destinationBranchId: head.destination_branch_id },
+            branches,
+          )
+        : action
       return {
         key: action,
-        label: action,
+        label,
         rows,
         headerActions: showActions
           ? (
@@ -713,7 +772,7 @@ export function KitchenReviewPage() {
                 eligibleCount={eligibleCount}
                 bulkBusy={bulkAction === action}
                 disabled={bulkDisabled}
-                actionLabel={action}
+                actionLabel={label}
                 onBulkApprove={() => handleBulkApprove(action)}
               />
             )
@@ -895,6 +954,17 @@ export function KitchenReviewPage() {
 
   const submittedCount = visibleLogs.length
 
+  // #783 AC-050: the switch beside the statement lists exactly the streams THIS viewer
+  // supervises. A supervisor of two streams sees two options and no cross-stream escape hatch;
+  // ops_lead/admin still see the whole catalog and keep "All streams" (OD-WAY-48 — cross-stream
+  // is their surface's job). A supervisor with no reviewer streams (edge case: their access role
+  // reads supervisor but no live open-ended stream membership yet) sees the empty picker rather
+  // than a synthetic wide-open list they cannot decide on.
+  const pickerOptions: ProductionStream[] = isLeadOrAdmin
+    ? streamCatalog
+    : streamCatalog.filter(s => reviewerStreamKeys.has(streamKey(s.branch.id, s.activity)))
+  const allowAllStreams = isLeadOrAdmin
+
   return (
     <PageFamilyFrame
       family="workspace"
@@ -903,66 +973,24 @@ export function KitchenReviewPage() {
          admin cross-stream, and a stream chosen elsewhere in Café outranks both; either can move
          it. It reads in the head now, like every other Café surface, instead of as a filter chip
          buried above the queue: WHOSE books these rows are is the first thing a reviewer needs.
-         "All streams" stays a first-class choice here — reviewing across streams is this
-         surface's job (OD-WAY-48), and it is the one Café surface that has one. Display scoping
-         only (NFR-002: the decision contract is the server's). */
+         "All streams" stays a first-class choice HERE ONLY for ops_lead/admin (OD-WAY-48): a
+         supervisor's picker lists exactly the streams they supervise, nothing else (#783 AC-050).
+         Display scoping only (NFR-002: the decision contract is the server's). */
       statusRow={
         <CafeStreamBar
-          options={streamCatalog}
+          options={pickerOptions}
           stream={selectedStream}
           allStreams={streamFilter === ALL_STREAMS}
           onChange={next => {
             setStreamFilter(streamKey(next.branch.id, next.activity))
             rememberStream(next) // the whole Café module follows this choice (#440)
           }}
-          onAllStreams={() => setStreamFilter(ALL_STREAMS)}
+          onAllStreams={allowAllStreams ? () => setStreamFilter(ALL_STREAMS) : undefined}
         />
       }
       meta={<span className="kr-date tabular">{logDate}</span>}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : submittedCount === 0 ? 'empty' : 'default'}
     >
-      {load.kind === 'ready' && streamCatalog.length > 0 && (
-        <div className="kr-filter kr-block">
-          {/* #238 (FR-031): the stream lead's completeness confirmation, on the surface that is
-              already theirs. It states what IS true — confirmed, by whom, when — and never what
-              is blocked, because it blocks nothing: DD-WAY-29's coordinate gate alone decides
-              what reaches a capture form (NFR-004). An unconfirmed stream reads as a gap with a
-              name on it, which is the whole point (OD-WAY-47). Shown for one stream at a time;
-              the button appears only for the people the policy would actually accept. */}
-          {selectedStream && (() => {
-            const key = streamKey(selectedStream.branch.id, selectedStream.activity)
-            const confirmed = completeness.get(key) ?? null
-            const busy = confirmingStream === key
-            return (
-              <div className="kr-complete" role="group" aria-label={t('kitchen.review.completeness.aria')}>
-                <span className={`kr-complete-state${confirmed ? ' kr-complete-yes' : ''}`}>
-                  {confirmed
-                    ? t('kitchen.review.completeness.confirmed', {
-                        who: peopleMap.get(confirmed.confirmed_by) ?? '—',
-                        when: formatDate(confirmed.confirmed_at),
-                      })
-                    : t('kitchen.review.completeness.unconfirmed')}
-                </span>
-                {canConfirmSelected && (
-                  <button
-                    type="button"
-                    className="btn btn-outline kr-complete-btn"
-                    disabled={busy || !isOnline}
-                    onClick={handleConfirmComplete}
-                  >
-                    {busy
-                      ? t('kitchen.review.completeness.saving')
-                      : confirmed
-                        ? t('kitchen.review.completeness.reconfirm')
-                        : t('kitchen.review.completeness.confirm')}
-                  </button>
-                )}
-              </div>
-            )
-          })()}
-        </div>
-      )}
-
       {/* #422 / DD-WAY-40: Review is an ACT surface, so its figures render as the DESIGN.md
           Metric summary rule — one inline line, no card, no width branch — never a tile row.
           The delta ("note required to approve") renders only when off-plan rows exist, i.e.
@@ -987,7 +1015,14 @@ export function KitchenReviewPage() {
 
       {notice && (
         <div role="status" aria-live="polite" className="kr-banner kr-banner-notice kr-block">
-          {notice}
+          {/* #783 AC-062: for an "Approved · batch …" notice, the whole line becomes a link to
+              /cafe/pushes when the viewer can read the outbox (ops_lead / admin) — that is where
+              the pushed document lives, and every other Café surface that names a batch already
+              routes there. Plain text otherwise so a supervisor's read never dangles at a route
+              they cannot enter. */}
+          {notice.kind === 'approved' && canReadPushes
+            ? <Link to="/cafe/pushes" className="kr-notice-link">{notice.text}</Link>
+            : notice.text}
         </div>
       )}
 
@@ -1042,6 +1077,48 @@ export function KitchenReviewPage() {
           caption={t('kitchen.review.caption')}
         />
       )}
+
+      {/* #783 AC-053 (FR-031, OD-WAY-95 (9)): the completeness confirmation is a QUIET
+          checkbox row at the FOOT of the queue — never a button in the head. It states what IS
+          true (unconfirmed by default; a name + a time once someone confirms) and gates nothing
+          (DD-WAY-29's coordinate gate alone decides what reaches a capture form, NFR-004). Shown
+          for one stream at a time; the check is offered only to the people the policy would
+          actually accept — a supervisor of the stream, or ops_lead/admin. On "All streams" there
+          is no single list to vouch for, so the row does not render. */}
+      {load.kind === 'ready' && selectedStream && (() => {
+        const key = streamKey(selectedStream.branch.id, selectedStream.activity)
+        const confirmed = completeness.get(key) ?? null
+        const busy = confirmingStream === key
+        const inputId = `kr-complete-${key}`
+        const disabled = !canConfirmSelected || busy || !isOnline || !!confirmed
+        return (
+          <div
+            className="kr-complete-foot kr-block"
+            role="group"
+            aria-label={t('kitchen.review.completeness.aria')}
+          >
+            <label className="kr-complete-check" htmlFor={inputId}>
+              <input
+                id={inputId}
+                type="checkbox"
+                className="kr-complete-input"
+                checked={!!confirmed}
+                disabled={disabled}
+                aria-label={t('kitchen.review.completeness.checkAria')}
+                onChange={(e) => { if (e.target.checked && !confirmed) handleConfirmComplete() }}
+              />
+              <span className={`kr-complete-state${confirmed ? ' kr-complete-yes' : ''}`}>
+                {confirmed
+                  ? t('kitchen.review.completeness.confirmedTime', {
+                      who: peopleMap.get(confirmed.confirmed_by) ?? '—',
+                      when: formatTime(confirmed.confirmed_at),
+                    })
+                  : t('kitchen.review.completeness.today')}
+              </span>
+            </label>
+          </div>
+        )
+      })()}
     </PageFamilyFrame>
   )
 }

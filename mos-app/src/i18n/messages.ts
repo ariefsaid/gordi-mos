@@ -610,13 +610,16 @@ export const messages = {
     // #238 (FR-031): the stream lead's completeness confirmation. Says what IS true, never what
     // is blocked — the record gates nothing, so an unconfirmed stream is a visible gap, not a wall.
     'kitchen.review.completeness.aria': 'Item list completeness for this stream',
-    'kitchen.review.completeness.confirm': 'Confirm the item list is complete',
-    'kitchen.review.completeness.confirmed': 'Item list confirmed complete · ${who} · ${when}',
+    'kitchen.review.completeness.checkAria': 'Mark the item list complete for this stream',
+    // ticket 783 AC-053: at the foot of the queue the checkbox row states the fact as it reads
+    // on the floor — "today, the list is complete". Confirmed → the same sentence, checked,
+    // followed by who did it and the time of day (HH:MM WIB); a date belongs above, next to
+    // `logDate`. The retired keys (confirm, confirmed, reconfirm, saving, unconfirmed) belonged
+    // to the head button + separate confirmed/unconfirmed sentences DESIGN.md A8 replaced.
+    'kitchen.review.completeness.confirmedTime': '${who} · ${when}',
+    'kitchen.review.completeness.today': 'Item list for this stream is complete today',
     'kitchen.review.completeness.failed': 'Could not record the confirmation. Please try again.',
-    'kitchen.review.completeness.reconfirm': 'Confirm again',
     'kitchen.review.completeness.saved': 'Item list confirmed complete for this stream.',
-    'kitchen.review.completeness.saving': 'Saving…',
-    'kitchen.review.completeness.unconfirmed': 'Item list not confirmed complete yet',
     'kitchen.review.empty.copy': 'No submitted logs for ${date}.',
     'kitchen.review.empty.copyStream': 'No submitted logs for ${stream} on ${date}.',
     'kitchen.review.empty.note': 'Pull again to check for newly submitted logs.',
@@ -1867,13 +1870,11 @@ export const messages = {
     'kitchen.review.col.submitter': 'Pengaju',
     'kitchen.review.col.time': 'Waktu',
     'kitchen.review.completeness.aria': 'Kelengkapan daftar item untuk Tim ini',
-    'kitchen.review.completeness.confirm': 'Konfirmasi daftar item sudah lengkap',
-    'kitchen.review.completeness.confirmed': 'Daftar item dikonfirmasi lengkap · ${who} · ${when}',
+    'kitchen.review.completeness.checkAria': 'Tandai daftar item Tim ini sudah lengkap',
+    'kitchen.review.completeness.confirmedTime': '${who} · ${when}',
+    'kitchen.review.completeness.today': 'Daftar item Tim ini sudah lengkap hari ini',
     'kitchen.review.completeness.failed': 'Konfirmasi gagal dicatat. Silakan coba lagi.',
-    'kitchen.review.completeness.reconfirm': 'Konfirmasi ulang',
     'kitchen.review.completeness.saved': 'Daftar item Tim ini dikonfirmasi lengkap.',
-    'kitchen.review.completeness.saving': 'Menyimpan…',
-    'kitchen.review.completeness.unconfirmed': 'Daftar item belum dikonfirmasi lengkap',
     'kitchen.review.empty.copy': 'Tidak ada log yang diajukan untuk ${date}.',
     'kitchen.review.empty.copyStream': 'Tidak ada log yang diajukan untuk ${stream} pada ${date}.',
     'kitchen.review.empty.note': 'Tarik ulang untuk memeriksa log baru yang diajukan.',

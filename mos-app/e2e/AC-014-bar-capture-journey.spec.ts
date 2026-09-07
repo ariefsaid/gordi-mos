@@ -184,12 +184,22 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     await expect(qty).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText(UNIT_NAME, { exact: false }).first()).toBeVisible()
 
-    // ON PLAN, deliberately: qty === plan means no variance note is demanded (FR-014's note gate),
-    // so this journey stays about the cross-stack path and not about the note affordance, which
-    // the RTL suite owns.
+    // #783 AC-056 amendment: OFF-PLAN with a SUBMITTER NOTE. The member logs less than plan and
+    // says why in the note (OD-WAY-95 (6) — the submitter's note is what explains a variance).
+    // On the review side, the supervisor's Approve then commits immediately, with NO second note
+    // gate: an off-plan row a submitter has already annotated does not owe the reviewer more
+    // words on the same row (the DB guard has the same shape — the review-requirements trigger
+    // only demands a reviewer note when the submitter's is null). The cross-stack path this
+    // journey guards is unchanged; only the row's shape shifts, and the "no second note" click
+    // path is what the amendment proves end-to-end.
+    const OFF_PLAN_QTY = PLAN_QTY - 1
+    const SUBMITTER_NOTE = 'kurang bahan hari ini'
     await qty.click()
-    await qty.fill(String(PLAN_QTY))
+    await qty.fill(String(OFF_PLAN_QTY))
     await page.keyboard.press('Tab')
+    const submitterNote = page.getByRole('textbox', { name: new RegExp(`Note for ${ITEM_NAME}`, 'i') })
+    await expect(submitterNote).toBeVisible({ timeout: 10_000 })
+    await submitterNote.fill(SUBMITTER_NOTE)
 
     const submit = page.getByRole('button', { name: /Submit 1 entry/i })
     await expect(submit).toBeEnabled({ timeout: 10_000 })
@@ -201,14 +211,17 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     // The row landed on the member's OWN stream, with themselves as submitter (AC-012's contract,
     // here observed end-to-end rather than in a fixture).
     const [landed] = await sql(
-      `select l.status, l.activity, l.qty_porsi::int as qty, b.code as branch, l.submitted_by::text as sub
+      `select l.status, l.activity, l.qty_porsi::int as qty, b.code as branch, l.submitted_by::text as sub, l.notes
          from ops.kitchen_logs l join shared.branches b on b.id = l.branch_id
         where l.org_id='${ORG}' and l.wip_item_id='${ITEM_ID}' and l.log_date='${today}'`,
     )
     expect(landed).toMatchObject({
-      status: 'Submitted', activity: 'bar', qty: PLAN_QTY,
+      status: 'Submitted', activity: 'bar', qty: OFF_PLAN_QTY,
       branch: BAR_STREAM.branchCode, sub: BAR_MEMBER.personId,
     })
+    // The submitter's note is on the row — this is what the review-side approval relies on
+    // (#783 AC-056: no second reviewer note demanded on an already-noted off-plan row).
+    expect(String(landed.notes ?? '')).toContain(SUBMITTER_NOTE)
 
     // ── SIGNOUT — clear the member's session so the supervisor can log in ─────────────────────
     // RedirectIfAuthed bounces /login back to / while a session is live; clearing localStorage
@@ -241,6 +254,14 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     await expect(approve).toBeEnabled({ timeout: 10_000 })
     await approve.click()
 
+    // #783 AC-056: the row is off-plan AND already noted by the submitter, so ONE click commits —
+    // no reviewer-note gate opens. The gate would render a textarea labelled "Approve note for
+    // ${ITEM_NAME}" (kitchen.review.noteAriaApprove); its absence is what proves the submitter's
+    // note was honoured. The success banner below is the affirmative side of the same claim.
+    await expect(
+      page.getByRole('textbox', { name: new RegExp(`Approve note for ${ITEM_NAME}`, 'i') }),
+    ).toHaveCount(0)
+
     // ── ASSERT THE GOAL (1): the row reaches Approved, with a minted batch ────────────────────
     const dp = today.replace(/-/g, '')
     const notice = page.getByRole('status').filter({ hasText: /Approved/i })
@@ -264,7 +285,7 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
          from ops.kitchen_stock s join shared.branches b on b.id = s.branch_id
         where s.org_id='${ORG}' and s.wip_item_id='${ITEM_ID}' and s.log_date='${today}'`,
     )
-    expect(stock).toMatchObject({ qty: PLAN_QTY, activity: 'bar', branch: BAR_STREAM.branchCode })
+    expect(stock).toMatchObject({ qty: OFF_PLAN_QTY, activity: 'bar', branch: BAR_STREAM.branchCode })
 
     // ...and it is VISIBLE on the stream's stock surface — the number a person actually reads.
     await page.goto('cafe/stock')
@@ -273,7 +294,7 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     await expect(page.getByRole('combobox', { name: /^Activity$/i })).toHaveValue('bar')
     const stockRow = page.getByRole('row', { name: new RegExp(ITEM_NAME, 'i') })
     await expect(stockRow).toBeVisible({ timeout: 15_000 })
-    await expect(stockRow).toContainText(String(PLAN_QTY))
+    await expect(stockRow).toContainText(String(OFF_PLAN_QTY))
 
     // FR-061 (CONTEXT.md trap): the central kitchen is never labelled "HQ" on this surface.
     await expect(page.getByText(/\bStok HQ\b/i)).toHaveCount(0)

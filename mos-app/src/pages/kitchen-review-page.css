@@ -286,6 +286,48 @@ td .krow-stream {
   padding: 4px 10px;
   white-space: nowrap;
 }
+
+/* ── #783 (AC-053, DESIGN.md A8): completeness confirmation — quiet checkbox row at
+   the FOOT of the queue. Deliberately not a button, not a header note: a completeness
+   claim is not a decision on a row, so it must not carry a decision's rank. The
+   checkbox is the standard 16px shell (Inputs / Fields § Checkbox); the label carries
+   the sentence and, once confirmed, the confirmer's name and the local time (HH:MM). */
+.kr-complete-foot {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.kr-complete-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.kr-complete-check:has(input:disabled) {
+  cursor: default;
+}
+.kr-complete-input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: inherit;
+}
+
+/* ── #783 (AC-062): the "Approved · batch …" notice is a link to Pushes for the viewers
+   the outbox rule admits. The banner already carries the success chroma; the link only
+   promotes cursor + underline on hover so the notice's calm shape stays intact. */
+.kr-notice-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.kr-notice-link:hover,
+.kr-notice-link:focus-visible {
+  text-decoration: underline;
+}
+
 .krow-othersstream {
   color: var(--muted-foreground);
   font-size: var(--font-size-control);
