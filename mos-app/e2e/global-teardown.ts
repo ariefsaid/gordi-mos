@@ -206,6 +206,12 @@ export default async function globalTeardown() {
   // a stream-completeness confirmation does NOT (its FK restricts on purpose), so it goes first.
   // The delete runs AFTER the fixture-task and AC-204 clears above — those rows point at these
   // people, and a restricting FK would refuse the delete while they stand.
+  //
+  // Assumption this rests on: no e2e persona ever authors an ops.log_entries row or a
+  // mos.task_events row that survives to this point — both restrict deletes into shared.people
+  // with no ON DELETE clause, and only ops.stream_completeness is cleared below. If a future spec
+  // has an E2E person create a log entry or act on a task event, this delete fails loud (execSql
+  // throws) rather than silently leaving orphaned people — clear that table here too when it does.
   await execSql(`
     DELETE FROM ops.stream_completeness
      WHERE org_id = '${ORG}'
