@@ -128,9 +128,25 @@ export function SignalFeedRows({
         <ul className="home-signal-list">
           {capped.map((signal) => {
             if (signal.retracted_at) {
+              const openable = Boolean(onOpen)
               return (
                 <li key={signal.id} className="home-signal-item">
-                  <div className="home-signal-row home-signal-row--retracted" data-signal-id={signal.id}>
+                  <div
+                    className={`home-signal-row home-signal-row--retracted${openable ? ' home-signal-row--open' : ''}`}
+                    data-signal-id={signal.id}
+                    {...(openable ? {
+                      role: 'button',
+                      tabIndex: 0,
+                      'aria-label': t('signals.card.openSignal', { body: t('signals.retracted') }),
+                      onClick: () => onOpen!(signal),
+                      onKeyDown: (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          onOpen!(signal)
+                        }
+                      },
+                    } : {})}
+                  >
                     <p className="home-signal-tombstone">
                       {t('signals.retracted')} {signal.retract_reason ? <span>{signal.retract_reason}</span> : null}
                     </p>

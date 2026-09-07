@@ -198,3 +198,51 @@ describe.each(['ambient', 'archive'] as const)('Signal row (%s) names its author
     expect(category).toHaveTextContent('Quality')
   })
 })
+
+describe('AC-061 (#770): a retracted (tombstone) row obeys the same "rows open on click" rule as live rows', () => {
+  function retractedRow(): SignalRow {
+    return row({
+      id: 'signal-retracted',
+      retracted_at: '2026-07-20T08:00:00Z',
+      retract_reason: 'Posted in error',
+    })
+  }
+
+  it('a retracted row is keyboard-reachable (tabIndex 0, role=button) and clicking calls onOpen with its id', async () => {
+    const onOpen = vi.fn()
+    const { container } = render(
+      <I18nProvider>
+        <SignalFeedRows
+          signals={[retractedRow()]}
+          authorNamesById={AUTHORS}
+          teamNamesById={TEAMS}
+          onOpen={onOpen}
+        />
+      </I18nProvider>,
+    )
+    const tombstoneRow = container.querySelector('[data-signal-id="signal-retracted"]') as HTMLElement
+    expect(tombstoneRow).not.toBeNull()
+    expect(tombstoneRow).toHaveAttribute('role', 'button')
+    expect(tombstoneRow).toHaveAttribute('tabindex', '0')
+    await userEvent.click(tombstoneRow)
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 'signal-retracted' }))
+  })
+
+  it('a retracted row opens its record on Enter', async () => {
+    const onOpen = vi.fn()
+    const { container } = render(
+      <I18nProvider>
+        <SignalFeedRows
+          signals={[retractedRow()]}
+          authorNamesById={AUTHORS}
+          teamNamesById={TEAMS}
+          onOpen={onOpen}
+        />
+      </I18nProvider>,
+    )
+    const tombstoneRow = container.querySelector('[data-signal-id="signal-retracted"]') as HTMLElement
+    tombstoneRow.focus()
+    await userEvent.keyboard('{Enter}')
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 'signal-retracted' }))
+  })
+})
