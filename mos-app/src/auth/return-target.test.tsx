@@ -30,6 +30,12 @@ describe('AC-012: safeReturnTarget', () => {
     expect(safeReturnTarget('//example.test/steal')).toBe(HOME_TARGET)
     expect(safeReturnTarget('/\\example.test')).toBe(HOME_TARGET)
     expect(safeReturnTarget('work/tasks')).toBe(HOME_TARGET)
+    // URL parsing drops the tab, leaving a protocol-relative target pointing off-app.
+    expect(safeReturnTarget('/\t//evil.test')).toBe(HOME_TARGET)
+    expect(safeReturnTarget('/\n//evil.test')).toBe(HOME_TARGET)
+    expect(safeReturnTarget('%2F%2Fevil')).toBe(HOME_TARGET)
+    expect(safeReturnTarget('/\u0000//evil.test')).toBe(HOME_TARGET)
+    expect(safeReturnTarget(' //evil.test')).toBe(HOME_TARGET)
   })
 
   it('resolves a missing or non-string target to Home', () => {

@@ -1,5 +1,5 @@
 import { useState, useId, useRef, useEffect } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
 import { safeReturnTarget } from '@/auth/return-target'
@@ -42,10 +42,10 @@ function isValidEmail(value: string): boolean {
 }
 
 export function LoginPage() {
-  const navigate = useNavigate()
   const location = useLocation()
-  // Where sign-in lands. ProtectedRoute parked the route it turned away in router state; anything
-  // that is not an in-app route we own resolves to Home (see safeReturnTarget).
+  // The route ProtectedRoute parked in router state, sanitised (see safeReturnTarget). This page
+  // never navigates on success: RedirectIfAuthed owns the landing the moment the auth status
+  // flips, and reads the same state. What is left here is the magic link's redirect target.
   const returnTarget = safeReturnTarget((location.state as { from?: unknown } | null)?.from)
   const emailId = useId()
   const passwordId = useId()
@@ -93,8 +93,6 @@ export function LoginPage() {
       })
       if (authError) {
         setError(mapAuthError(authError))
-      } else {
-        navigate(returnTarget, { replace: true })
       }
     } catch {
       setError(ERR_NETWORK)
@@ -122,8 +120,6 @@ export function LoginPage() {
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
       if (authError) {
         setError(mapAuthError(authError))
-      } else {
-        navigate(returnTarget, { replace: true })
       }
     } catch {
       setError(ERR_NETWORK)
