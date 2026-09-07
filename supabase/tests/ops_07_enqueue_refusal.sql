@@ -33,16 +33,7 @@ select plan(10);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
-insert into shared.business_units (id, org_id, name, code) values ('00000000-0000-0000-0000-00000000bb01','00000000-0000-0000-0000-0000000000a1','Kitchen and Bar','retail_ops') on conflict (id) do nothing;
-insert into shared.branches (id, org_id, code, name) values
-  ('00000000-0000-0000-0000-00000000bf01','00000000-0000-0000-0000-0000000000a1','gordi_hq','Gordi HQ'),
-  ('00000000-0000-0000-0000-00000000bf02','00000000-0000-0000-0000-0000000000a1','rumah_rames','Rumah Rames'),
-  ('00000000-0000-0000-0000-00000000bf03','00000000-0000-0000-0000-0000000000a1','radiant','Radiant')
-on conflict (id) do nothing;
-insert into shared.branches (id, org_id, code, name) values ('00000000-0000-0000-0000-00000000bf09','00000000-0000-0000-0000-0000000000b1','b_branch','B Branch') on conflict (id) do nothing;
-select shared.seed_stream_teams();
-insert into shared.business_units (id, org_id, name, code) values ('00000000-0000-0000-0000-00000000bb09','00000000-0000-0000-0000-0000000000b1','B Kitchen','retail_ops') on conflict (id) do nothing;
-insert into shared.teams (id, org_id, business_unit_id, name, code, branch_id, activity, produces) values ('00000000-0000-0000-0000-00000000bb18','00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-00000000bb09','B Stream','b_stream','00000000-0000-0000-0000-00000000bf09','kitchen',true) on conflict (id) do nothing;
+select ops._test_seed_streams();
 select ops._test_seed_cafe();
 
 -- Fixture reminder: aa01 is imported history — Approved, posted, batch PR-20260601-001, carrying its
