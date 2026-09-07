@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { PicCell, PersonCell } from './pic-cell'
+import { PicCell } from './pic-cell'
 import { StatusPill } from './status-pill'
 import { Chevron } from '@/shell/icons'
 import { Tag } from '@/components/ui/tag'
@@ -93,7 +93,6 @@ type TaskCardProps = {
   now: Date
   buName: string
   rName: string
-  supervisorName: string
   recordSearch?: string
   onOpenTask: (taskId: string) => void
   onEditTitle?: (taskId: string, title: string) => Promise<void>
@@ -107,7 +106,7 @@ type TaskCardProps = {
   viewerHasNoDownline?: boolean
 }
 
-function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '', provenanceRoleName, onOpenTask, onEditTitle, isNew = false, onDiscardNewTask, onCreateError, viewerHasNoDownline = false }: TaskCardProps) {
+function TaskCard({ task, now, buName, rName, recordSearch = '', provenanceRoleName, onOpenTask, onEditTitle, isNew = false, onDiscardNewTask, onCreateError, viewerHasNoDownline = false }: TaskCardProps) {
   const t = useT()
   const { locale } = useI18n()
   const ds = dueStatus(task.due_date, now)
@@ -161,14 +160,9 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
           <StatusPill status={task.status} />
         </div>
         <span className="task-bu">{buName}</span>
-        {/* v4 distill (layout.md/distill.md): PIC + Supervisor + Due are the decision-relevant
-            fields for weekly triage (WHAT GOOD LOOKS LIKE) — the same set the desktop row already
-            settled on (Wave 2c, OD-REDESIGN-61..64). Project/Process, Objective, Source, and the
-            recency "Updated" line were restated metadata that rendered an empty "—" line for every
-            task with no project/objective — noise wearing information's clothes (distill.md
-            "remove redundancy"). Cuts a phone card from ~230px toward ~100px, more than doubling
-            rows visible without scrolling. Full typed metadata still lives one tap away on the
-            record (DESIGN.md "Progressive disclosure"). */}
+        {/* #760 AC-048 — the phone card is title · status · Team · PIC · Due. Supervisor moves
+            to the record (record viewer's Ownership section) so the card fits four above the fold
+            at 390×844 (~120px per card). See DESIGN.md § Responsive grammar Phone bullet. */}
         <dl className="task-card-meta collection-grammar-card-details">
           <span className="task-card-meta-pair">
             <dt>{t('tasks.pic')}</dt>
@@ -176,10 +170,6 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
               <PicCell fullName={rName} provenance={provenanceRoleName} />
               {lockMessage && <span className="task-card-pic-lock">{lockMessage}</span>}
             </dd>
-          </span>
-          <span className="task-card-meta-pair">
-            <dt>{t('tasks.supervisor')}</dt>
-            <dd>{supervisorName ? <PersonCell fullName={supervisorName} /> : '—'}</dd>
           </span>
           <span className="task-card-meta-pair">
             <dt>{t('tasks.dueLabel')}</dt>
@@ -230,7 +220,6 @@ export function MobileGroupedCards({
               now={now}
               buName={buMap.get(task.business_unit_id) ?? ''}
               rName={personMap.get(task.responsible_person_id) ?? ''}
-              supervisorName={personMap.get(task.accountable_person_id) ?? ''}
               recordSearch={recordSearch}
               onOpenTask={openTask}
               provenanceRoleName={provenanceFor(task)}
@@ -331,7 +320,6 @@ export function MobileGroupedCards({
                 now={now}
                 buName={buMap.get(task.business_unit_id) ?? ''}
                 rName={personMap.get(task.responsible_person_id) ?? ''}
-                supervisorName={personMap.get(task.accountable_person_id) ?? ''}
                 recordSearch={recordSearch}
                 onOpenTask={openTask}
                 provenanceRoleName={provenanceFor(task)}

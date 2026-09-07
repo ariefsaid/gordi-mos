@@ -526,11 +526,13 @@ describe('Fix-5 — Mobile card dt labels are visible', () => {
     const srOnlyDts = dts.filter(dt => dt.classList.contains('sr-only'))
     // After fix: 0 dt elements may be sr-only (all are visible label:value)
     expect(srOnlyDts.length).toBe(0)
-    // The dt text content is readable — the current field set is PIC/Supervisor/Due.
+    // #760 AC-048: the current phone-card field set is PIC + Due (Supervisor moved to the
+    // record's Ownership section so four cards fit above the fold at 390×844).
     const dtTexts = dts.map(dt => dt.textContent)
     expect(dtTexts.some(t => /^pic$/i.test(t ?? ''))).toBe(true)
-    expect(dtTexts.some(t => /supervisor/i.test(t ?? ''))).toBe(true)
     expect(dtTexts.some(t => /due/i.test(t ?? ''))).toBe(true)
+    // Supervisor is no longer on the phone card body.
+    expect(dtTexts.some(t => /supervisor/i.test(t ?? ''))).toBe(false)
   })
 
   it('Fix-5: task-card-meta dt elements are not display:none or visually hidden', () => {

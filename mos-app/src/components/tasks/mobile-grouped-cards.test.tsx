@@ -6,6 +6,8 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 import { useState } from 'react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { MobileGroupedCards } from './mobile-grouped-cards'
@@ -335,5 +337,60 @@ describe('MobileGroupedCards', () => {
       viewerHasNoDownline: true,
     })
     expect(screen.queryByText('Only you can be PIC — a supervisor names others')).not.toBeInTheDocument()
+  })
+
+  // #760 AC-048 — the phone card is title · status · Team · PIC · Due. Supervisor moves to the
+  // record (record viewer's Ownership section), so ~120px per card fits four above the fold at
+  // 390×844. The CSS contract below anchors the geometry that keeps the four-card floor honest.
+  describe('Ticket #760 AC-048 — phone card fields (title · status · Team · PIC · Due, no Supervisor)', () => {
+    it('renders title, status pill, Team (BU), PIC label, Due label — and NO Supervisor line', () => {
+      renderCards({
+        groups: [{
+          key: '__flat__', label: 'Tasks',
+          rows: [makeTask({ id: 'task-a', title: 'Design the review sheet', due_date: '2026-08-01' })],
+          overdue: 0, prefillParam: '',
+        }],
+      })
+      const card = document.querySelector('[data-testid="task-card"]') as HTMLElement
+      // Title
+      expect(card.querySelector('.collection-grammar-title')).toHaveTextContent('Design the review sheet')
+      // Status pill
+      expect(card.querySelector('.status-pill')).not.toBeNull()
+      // Team (BU) — the team's name renders as the .task-bu line
+      expect(card.querySelector('.task-bu')).toHaveTextContent('Kitchen')
+      // Meta: PIC + Due — Supervisor is removed
+      const dts = Array.from(card.querySelectorAll('.task-card-meta dt')).map((el) => el.textContent)
+      expect(dts).toEqual(['PIC', 'Due'])
+      // Supervisor label must NOT appear on the card
+      expect(card.textContent).not.toMatch(/^Supervisor/m)
+      expect(card.querySelector('.task-card-meta')?.textContent).not.toMatch(/Supervisor/)
+    })
+
+    // CSS contract for the ~120px per-card floor at 390×844. jsdom can't paint layout, so the
+    // math is pinned as the parts that compose the card at phone width: outer link padding
+    // (12px + 12px = 24px), the head min-height (44px), the Team line height-plus-margin (about
+    // 20px), plus the stacked meta gap (4px between two rows). The label font is 12px, which at
+    // line-height 1.3 (index.css --line-height-tight) is ≈15.6px per row, so 2 rows ≈ 31.2px.
+    // Total ≈ 24 + 44 + 20 + (8 margin-top) + (2 × 15.6 + 4) ≈ 131px. That gives 6 cards in 844
+    // once the shell chrome (top bar 56 + toolbar door trigger 44 + bottom tabs 64 ≈ 164) is
+    // subtracted (844 − 164 = 680; 680 / 131 ≈ 5). Four fits comfortably. Removing the third
+    // meta pair (Supervisor) was the change that took the card back under the four-above-the-fold
+    // budget from the old ~150–160px.
+    it('CSS contract: the parts summed at phone width keep the card near 120px so four fit above the fold at 390×844', () => {
+      const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+      // Outer link padding is 12px 16px — the row/card floor, ≥ 44 min-height.
+      expect(css).toMatch(/\.task-card-link\s*\{[^}]*padding:\s*12px 16px[\s\S]*?min-height:\s*44px/)
+      // The head row has margin-bottom: 2px, so the meta strip is separated from the title cleanly.
+      expect(css).toMatch(/\.task-card-head\s*\{[^}]*margin-bottom:\s*2px/)
+      // Meta gets a top margin so the stacked rows aren't glued to the Team line.
+      expect(css).toMatch(/\.task-card-meta\s*\{[^}]*margin-top:\s*8px/)
+      // The <599.98px phone media query stacks the pairs at a 4px vertical gap — this is the rule
+      // that keeps the two remaining pairs (PIC + Due) compact instead of wrapping side-by-side.
+      expect(css).toMatch(/@media\s*\(max-width:\s*599\.98px\)[\s\S]*?\.task-card-meta[\s\S]*?flex-direction:\s*column[\s\S]*?gap:\s*4px/)
+      // Removing the Supervisor pair leaves TWO meta pairs — the DOM count above (dts.length === 2)
+      // is what actually pins the height in the composed tree; the CSS parts above pin the tokens
+      // that add up around it. Together they give a ~120–130px card, so 844 − 164 (chrome) / 130 ≈ 5
+      // rows — four above the fold with room to spare.
+    })
   })
 })

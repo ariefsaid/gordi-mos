@@ -539,6 +539,67 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     expect(screen.getByRole('combobox', { name: 'Kelompok' })).toBeInTheDocument()
     localStorage.removeItem('mos.locale')
   })
+
+  // #760 AC-052 — DESIGN.md § Responsive grammar → Phone bullet carries amendment A6 verbatim.
+  it('AC-052: DESIGN.md Phone bullet carries amendment A6 verbatim', () => {
+    const design = readFileSync(resolve(process.cwd(), '../DESIGN.md'), 'utf8')
+    expect(design).toContain("The record's primary lifecycle action is inside the first viewport on phone; an action bar below the fields is not a substitute.")
+    // The sentence lives INSIDE the Phone bullet (§ Responsive grammar) — the Phone bullet
+    // is one line ending in the amendment, so the phrase before it stays intact next to it.
+    expect(design).toMatch(/\*\*Phone \(390px and ≤767px\):\*\*[^\n]*no horizontal page overflow is allowed\. The record's primary lifecycle action is inside the first viewport on phone; an action bar below the fields is not a substitute\./)
+  })
+
+  // #760 AC-049 — the phone "View & filters" door has no Fields chooser (cards have no columns
+  // to pick from) and no separate Show archived toggle (Include archived rides the Status
+  // popover per #743). Save view remains; labels stay stacked (OD-REDESIGN-84). The visible
+  // controls are: the door trigger itself + 3 view chips + search + 5 filter selects (Group ·
+  // Business unit · Status · Person · Sort) + Save view + the overdue attention pill = twelve.
+  it('AC-049: the phone door has no Fields, no Show archived; Save view stays; twelve controls in total', async () => {
+    stubMatchMedia(false, false)
+    mockListTasks.mockResolvedValue([makeTask({ title: 'A phone task' })])
+
+    const { container } = renderTable()
+    await waitFor(() => screen.getByText('A phone task'))
+
+    const trigger = screen.getByRole('button', { name: /view & filters|view options/i })
+    // Fields is gone from the door — even after opening it (Desktop still keeps Fields per AC-006).
+    fireEvent.click(trigger)
+    expect(screen.queryByRole('button', { name: /^Fields$/ })).toBeNull()
+    // No independent "Show archived" toggle at the door level (Include archived lives inside the
+    // Status popover per #743 — the door itself does not carry a second archived control).
+    expect(screen.queryByRole('button', { name: /show archived/i })).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: /show archived/i })).toBeNull()
+
+    // Save view stays.
+    expect(screen.getByRole('button', { name: /save view/i })).toBeInTheDocument()
+
+    // Labels stay stacked — every filter shows its own label span above the control
+    // (collection-toolbar.tsx wraps each option-field with the label span at phone width).
+    const optionFields = container.querySelectorAll('.tasks-collection-toolbar .collection-toolbar__option-field')
+    expect(optionFields.length).toBeGreaterThanOrEqual(5)
+    for (const field of Array.from(optionFields)) {
+      expect(field.querySelector(':scope > span')).not.toBeNull()
+    }
+
+    // Twelve controls in total (the door's own trigger + 3 chips + 1 search + 5 filters +
+    // 1 Save view + 1 overdue pill). Fields is intentionally excluded.
+    const chips = container.querySelectorAll('.tasks-collection-toolbar .collection-toolbar__view')
+    const searchBox = container.querySelectorAll('.tasks-collection-toolbar .collection-toolbar__search')
+    const filterSelects = container.querySelectorAll('.tasks-collection-toolbar .collection-toolbar__select')
+    const ghostButtons = container.querySelectorAll('.tasks-collection-toolbar .collection-toolbar__options .btn')
+    const pill = container.querySelectorAll('.tasks-collection-toolbar .overdue-filter-btn')
+    // Door trigger is outside the tasks-collection-toolbar wrapper.
+    const doorTrigger = document.querySelectorAll('.mobile-task-options-trigger')
+    expect(chips).toHaveLength(3)
+    expect(searchBox).toHaveLength(1)
+    expect(filterSelects).toHaveLength(5)
+    // Only Save view remains (Fields is gone) — one ghost text button.
+    expect(ghostButtons).toHaveLength(1)
+    expect(pill).toHaveLength(1)
+    expect(doorTrigger).toHaveLength(1)
+    const total = chips.length + searchBox.length + filterSelects.length + ghostButtons.length + pill.length + doorTrigger.length
+    expect(total).toBe(12)
+  })
 })
 
 // V3 Issue 3, Task 7/8 — Tasks is the Workspace page-family representative.

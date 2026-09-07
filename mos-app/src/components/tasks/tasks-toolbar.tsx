@@ -3,6 +3,7 @@ import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { CollectionToolbar } from '@/components/record-collection/collection-toolbar'
 import type { CollectionToolbarField } from '@/components/record-collection/collection-toolbar'
 import type { CollectionToolbarSavedViews } from '@/components/record-collection/collection-toolbar'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useT } from '@/i18n/use-t'
 import type {
   TaskCollectionGroup,
@@ -70,6 +71,7 @@ export function TasksToolbar({
   savedViews,
 }: TasksToolbarProps) {
   const t = useT()
+  const isDesktop = useIsDesktop()
   const statusLabel = (key: (typeof STATUS_VALUES)[number]['key']) => t(`tasks.status.${key}` as const)
   const groupLabel = (key: (typeof GROUP_VALUES)[number]['key']) => {
     if (key === 'none') return `${t('tasks.filter.group')}: ${t('tasks.filter.none')}`
@@ -129,7 +131,9 @@ export function TasksToolbar({
         onChange: onViewChange,
       }}
       savedViews={savedViews}
-      fields={{
+      // #760 AC-049 — the phone "View & filters" door has no Fields chooser (phone renders CARDS,
+      // and cards have no columns to pick from). Desktop keeps the chooser (AC-006 / #743).
+      fields={isDesktop ? {
         label: t('tasks.fields'),
         visible: query.visibleFields,
         options: [
@@ -144,7 +148,7 @@ export function TasksToolbar({
           { value: 'activity', label: t('tasks.fields.activity') },
         ] satisfies readonly CollectionToolbarField[],
         onToggle: onFieldToggle,
-      }}
+      } : undefined}
       search={{
         label: t('tasks.filter.search'),
         placeholder: t('tasks.filter.searchPlaceholder'),

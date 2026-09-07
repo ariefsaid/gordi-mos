@@ -429,13 +429,16 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
 // clothes". PIC + Supervisor + Due are the decision-relevant fields for weekly triage (the same
 // set the desktop row already settled on, Wave 2c OD-REDESIGN-61..64); full typed metadata is one
 // tap away on the record. This describe block used to assert the pre-distill card shape.
-describe('Mobile cards: detail list is PIC/Supervisor/Due (Work-line/Objective dropped as redundant)', () => {
+describe('Mobile cards: detail list is PIC/Due — #760 dropped Supervisor to the record', () => {
   beforeEach(() => {
     stubMatchMedia(false, false) // mobile viewport
     __resetTasksViewPrefForTests()
   })
 
-  it('mobile card shows PIC, Supervisor, and Due — NOT the Work-line/Objective names', async () => {
+  // #760 AC-048 — the phone card is title · status · Team · PIC · Due. The Supervisor line
+  // moves off the card and onto the record's Ownership section so four cards fit above the
+  // fold at 390×844 (~120px per card). Work-line/Objective stay off the card body as before.
+  it('mobile card shows PIC and Due (Supervisor moved to the record; Work-line/Objective still off)', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Mobile task', work_line_id: 'wl-2', objective_id: 'obj-2' }),
     ])
@@ -443,8 +446,9 @@ describe('Mobile cards: detail list is PIC/Supervisor/Due (Work-line/Objective d
     await waitFor(() => screen.getByText('Mobile task'))
     const card = screen.getByText('Mobile task').closest('article')
     expect(card).toHaveTextContent('PIC')
-    expect(card).toHaveTextContent('Supervisor')
     expect(card).toHaveTextContent('Due')
+    // #760 AC-048 — Supervisor is intentionally NOT on the phone card any more.
+    expect(card?.querySelector('.task-card-meta')?.textContent).not.toMatch(/Supervisor/)
     // The Work-line/Objective NAMES are gone from the card body — they're one tap away on the
     // record, not restated here (distill.md "remove redundancy").
     expect(card).not.toHaveTextContent('New Menu Design')

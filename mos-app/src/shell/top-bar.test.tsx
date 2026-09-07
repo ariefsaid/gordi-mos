@@ -192,6 +192,40 @@ describe('AC-K02: Search trigger opens the command menu', () => {
   })
 })
 
+// #760 AC-051 — the phone header at rest on /work/tasks reads the leaf "Tasks" in full; the
+// search chip yields width by shrinking to the 32×32 icon-only button (#755's leaf-only title
+// contract, verified here for the Tasks route so it stays satisfied by #760's card + door work).
+describe('Ticket #760 AC-051 — phone header shows "Tasks" in full; the search chip shrinks', () => {
+  it('at phone width on /work/tasks the breadcrumb leaf is the untruncated word "Tasks"', () => {
+    mockUseIsNarrow.mockReturnValue(true)
+    const { container } = renderTopBar('/work/tasks')
+    const leaf = container.querySelector('.top-bar__breadcrumb-leaf') as HTMLElement
+    expect(leaf).not.toBeNull()
+    // Leaf-only (no · separator, no "Work" ancestor crumb at phone width).
+    expect(leaf.textContent).toBe('Tasks')
+    const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
+      .filter((el) => el.textContent === '·')
+    expect(separators).toHaveLength(0)
+    expect(screen.queryByText('Work')).toBeNull()
+  })
+
+  it('at phone width the search chip is the icon-only 32×32 button, not the wide 200px placeholder', () => {
+    mockUseIsNarrow.mockReturnValue(true)
+    const { container } = renderTopBar('/work/tasks')
+    const search = screen.getByRole('button', { name: /Search/i }) as HTMLButtonElement
+    // The icon-only variant is 32×32 and carries the phone-tap-target icon class; the wide
+    // desktop variant is 200px wide with an inline placeholder + a ⌘K kbd hint.
+    expect(search.style.width).toBe('32px')
+    expect(search.style.height).toBe('32px')
+    expect(search.className).toMatch(/tap-target-phone--icon/)
+    // The desktop chip's placeholder text is absent.
+    expect(container.querySelector('kbd')).toBeNull()
+    // The leaf and the shrunken chip share the header row — no horizontal overflow.
+    const header = container.querySelector('[data-anatomy="header"]') as HTMLElement
+    expect(header).not.toBeNull()
+  })
+})
+
 // AC-S08: top bar is a <header> banner landmark
 describe('AC-S08: TopBar is a banner landmark', () => {
   it('AC-S08: top bar renders as a <header> banner landmark', () => {

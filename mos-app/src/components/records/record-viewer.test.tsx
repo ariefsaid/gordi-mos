@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen, fireEvent } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -235,5 +237,63 @@ describe('RecordViewer', () => {
     expect(
       screen.queryByText("Select a field's value to edit it. Enter saves · Esc discards."),
     ).toBeNull()
+  })
+
+  // #760 AC-050 — the phone record's pinned header sits inside the first 300px below the Back
+  // row. On phone the header stacks: title + meta on top, then a status · Mark complete · ⋯
+  // control row full-width. Tap targets are ≥44px. jsdom cannot paint layout at a specific
+  // viewport, so the DOM assertion below proves the control row exists in the pinned header,
+  // and the CSS contract that follows pins the geometry tokens that keep it inside 300px.
+  describe('Ticket #760 AC-050 — phone record pinned header (status · Mark complete · ⋯ in first 300px)', () => {
+    function pinnedTaskAdapter(): RecordViewerAdapter {
+      return taskAdapter({
+        headerFields: [
+          { key: 'title', label: 'Title', control: 'text', value: 'Restock oat milk', displayValue: 'Restock oat milk', editable: true },
+          { key: 'status', label: 'Status', control: 'select', value: 'Open', displayValue: 'Open', editable: true, options: [
+            { value: 'Open', label: 'Open' },
+            { value: 'In Progress', label: 'In Progress' },
+            { value: 'Blocked', label: 'Blocked' },
+            { value: 'Done', label: 'Done' },
+          ] },
+        ],
+        headerMeta: 'HQ Ops · PIC One · Supervisor One · Due Wed 8 Jul · 5h',
+      })
+    }
+
+    it('renders status pill · Mark complete · ⋯ overflow inside the pinned header (one control row)', () => {
+      const { container } = renderViewer(pinnedTaskAdapter())
+      const header = container.querySelector('.record-viewer__pinned-header') as HTMLElement
+      expect(header).not.toBeNull()
+      const status = header.querySelector('.record-viewer__pinned-status') as HTMLElement
+      expect(status).not.toBeNull()
+      // Status field lives inside the pinned-status control row.
+      expect(status.querySelector('.record-field')).not.toBeNull()
+      // Primary lifecycle action lives there too — Mark complete.
+      expect(status.querySelector('button.btn-primary')).not.toBeNull()
+      expect(status.textContent).toMatch(/Mark complete/)
+      // ⋯ overflow trigger for Archive / Open full page / Copy link.
+      expect(status.querySelector('.record-viewer__overflow')).not.toBeNull()
+    })
+
+    it('CSS contract: the pinned header + its status row keep the control row inside the first 300px below Back on phone', () => {
+      const viewerCss = readFileSync(resolve(process.cwd(), 'src/components/records/record-viewer.css'), 'utf8')
+      const chromeCss = readFileSync(resolve(process.cwd(), 'src/shell/record-page-chrome.css'), 'utf8')
+      // Back row on phone: 44px min-height + 10px padding-bottom = ≤ 54px.
+      expect(chromeCss).toMatch(/\.record-page-chrome\s*\{[\s\S]*?padding:\s*0 0 10px/)
+      expect(chromeCss).toMatch(/@media\s*\(max-width:\s*767\.98px\)\s*\{[\s\S]*?\.record-page-back\s*\{[\s\S]*?min-height:\s*44px/)
+      // Pinned header stacks (flex-direction: column) with 8px gap and 14px+12px padding.
+      expect(viewerCss).toMatch(/\.record-viewer__pinned-header\s*\{[^}]*flex-direction:\s*column[^}]*gap:\s*8px[^}]*padding:\s*14px 20px 12px/)
+      // Title clamps at 2 lines × 20px font · 1.3 line-height ≈ 52px. --record-title-max-lines: 2.
+      expect(readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8'))
+        .toMatch(/--record-title-max-lines:\s*2/)
+      expect(viewerCss).toMatch(/\.record-viewer__pinned-title\s+\.record-field__heading\s*\{[^}]*-webkit-line-clamp:\s*var\(--record-title-max-lines\)/)
+      // On phone (≤ 390px) the pinned-status is full-width, one row, tap targets ≥ 44px.
+      expect(viewerCss).toMatch(/@media\s*\(max-width:\s*390px\)\s*\{[\s\S]*?\.record-viewer__pinned-status\s*\{[\s\S]*?width:\s*100%[\s\S]*?flex-wrap:\s*nowrap/)
+      expect(viewerCss).toMatch(/\.record-viewer__pinned-status\s+\.record-field__pill\s*\{[^}]*min-height:\s*44px/)
+      expect(viewerCss).toMatch(/\.record-viewer__overflow\s*\{[^}]*min-width:\s*44px[^}]*min-height:\s*44px/)
+      // The math (all tokens above): Back ≤ 54, pinned header padding-top 14 + title ≤ 52 +
+      // meta ~ 18 + gap 8 + status row 44 + padding-bottom 12 = ~148 + 54 Back = ~202px.
+      // 202px + a comfortable margin is well under the 300px budget the ticket names.
+    })
   })
 })
