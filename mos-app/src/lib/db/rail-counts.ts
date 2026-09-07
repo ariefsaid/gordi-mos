@@ -33,15 +33,15 @@ export async function getRailCounts(
     if (defaultView === 'my-work') {
       query = query.or(`responsible_person_id.eq.${personId},accountable_person_id.eq.${personId}`)
     } else if (defaultView === 'team-work') {
-      if (teamIds.length === 0 && teamBusinessUnitIds.length === 0) {
-        query = query.in('id', [])
-      } else {
-        const teamClause = teamIds.length > 0 ? `team_id.in.(${teamIds.join(',')})` : 'team_id.is.null'
-        const buClause = teamBusinessUnitIds.length > 0
-          ? `and(team_id.is.null,business_unit_id.in.(${teamBusinessUnitIds.join(',')}))`
-          : 'team_id.is.null'
-        query = query.or(`${teamClause},${buClause}`)
-      }
+      // An `or()` filter is a string, so only ids that pass the same UUID guard as `personId`
+      // reach it. A viewer with no team scope reads zero rows, never an org-wide fallback.
+      const ids = teamIds.filter((id) => UUID.test(id))
+      const buIds = teamBusinessUnitIds.filter((id) => UUID.test(id))
+      const clauses = [
+        ...(ids.length > 0 ? [`team_id.in.(${ids.join(',')})`] : []),
+        ...(buIds.length > 0 ? [`and(team_id.is.null,business_unit_id.in.(${buIds.join(',')}))`] : []),
+      ]
+      query = clauses.length > 0 ? query.or(clauses.join(',')) : query.in('id', [])
     }
     return query
   })

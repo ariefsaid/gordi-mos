@@ -754,11 +754,8 @@ async function loadTaskCollection(args: {
     // every row's edit affordances. An unauthenticated viewer (null id) runs the SAME read
     // and resolves [] naturally, like every other directory read.
     getDownlinePersonIds(args.viewerId ?? ''),
-    // Team membership is only needed for the Team work scope; avoid an extra directory read for
-    // the other saved views (and keep older embedders compatible).
-    args.query.view === 'team-work'
-      ? getPersonTeams?.(args.viewerId ?? '') ?? Promise.resolve([])
-      : Promise.resolve([]),
+    // Team membership is only needed for the Team work scope; the other saved views skip the read.
+    args.query.view === 'team-work' ? getPersonTeams(args.viewerId ?? '') : Promise.resolve([]),
     listObjectives().catch(() => []),
     listWorkLines().catch(() => []),
   ])
