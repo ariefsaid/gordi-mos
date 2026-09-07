@@ -473,7 +473,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     expect(screen.getByTestId('task-card')).toContainElement(screen.getByText('Manager mobile work item'))
   })
 
-  it('AC-W1-B: member phone keeps overdue filter and clear controls behind View options', async () => {
+  it('AC-W1-B (#754): member phone keeps the attention pill and its breakdown behind View & filters', async () => {
     stubMatchMedia(false, false)
     mockListTasks.mockResolvedValue([
       makeTask({ id: 'late', title: 'Overdue mobile work', due_date: '2020-01-01' }),
@@ -483,16 +483,18 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     renderTable()
     await waitFor(() => screen.getByText('Overdue mobile work'))
 
-    expect(screen.queryByRole('button', { name: /filter to.*overdue/i })).toBeNull()
-    expect(screen.queryByRole('button', { name: /clear overdue filter/i })).toBeNull()
+    // The attention pill lives inside the phone "View & filters" door (OD-REDESIGN-84,
+    // ticket #754). Collapsed, no attention control is in the DOM.
+    expect(screen.queryByRole('button', { name: /need attention/i })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: /view & filters|view options/i }))
-    expect(screen.getByRole('button', { name: /filter to.*overdue/i })).toBeInTheDocument()
+    // Expanded, the ONE pill is present — one overdue task in scope → "1 needs attention".
+    const pill = screen.getByRole('button', { name: /open attention breakdown — 1 need attention/i })
+    expect(pill).toBeInTheDocument()
 
-    // FR-001: the pill IS the filter — clicking presses it (no second clear chip exists).
-    fireEvent.click(screen.getByRole('button', { name: /filter to.*overdue/i }))
-    await waitFor(() => expect(screen.getByRole('button', { name: /filter to.*overdue/i })).toHaveAttribute('aria-pressed', 'true'))
-    expect(screen.queryByRole('button', { name: /clear overdue filter/i })).toBeNull()
+    // Activating the pill opens the popover with an "overdue" line the viewer can act on.
+    fireEvent.click(pill)
+    expect(await screen.findByRole('menuitem', { name: '1 overdue' })).toBeInTheDocument()
   })
 
   // RATIFY-BEFORE-MERGE: Luna 390 audit (d) — one create door. The header "+ Create task" is the
@@ -757,9 +759,10 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     expect(screen.queryByText('Future task')).toBeNull()
     expect(screen.getByRole('button', { name: 'Overdue' })).toHaveAttribute('aria-pressed', 'true')
     ensureViewOptionsOpen()
-    // The overdue-only state lives on the attention pill itself (FR-001) — pressed, not a chip.
-    expect(screen.getByRole('button', { name: /filter to.*overdue/i })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByRole('button', { name: /clear overdue filter/i })).toBeNull()
+    // #754: after applying the Overdue view the pill counts the remaining overdue rows in
+    // scope; it still opens the same popover on activation (no "pressed" state on the pill —
+    // it is a menu trigger, not a toggle).
+    expect(screen.getByRole('button', { name: /open attention breakdown — 1 need attention/i })).toBeInTheDocument()
   })
 
   it('AC-013: the org-visible task set is the All view', async () => {
@@ -845,21 +848,22 @@ describe('Ticket #743 — two-row toolbar grammar', () => {
     expect(toolbar.querySelectorAll('.collection-toolbar__search')).toHaveLength(1) // dropdown-class
     expect(toolbar.querySelectorAll('.collection-toolbar__select')).toHaveLength(5) // dropdown-class: Group · BU · Status · Person · Sort
     expect(toolbar.querySelectorAll('.collection-toolbar__options .btn')).toHaveLength(2) // ghost text: Fields · Save view
-    expect(toolbar.querySelectorAll('.overdue-filter-btn')).toHaveLength(1) // the ONE count pill
+    expect(toolbar.querySelectorAll('.attention-pill')).toHaveLength(1) // the ONE count pill (#754)
     // No checkbox in either row while every popover is closed.
     expect(toolbar.querySelectorAll('input[type="checkbox"]')).toHaveLength(0)
-    expect(screen.getByRole('button', { name: /filter to 1 overdue/i })).toBeInTheDocument()
-    // No active-filter chip (FR-001: the pill carries the pressed state), no presentation switcher.
+    // #754: the ONE pill reads "N need attention" — overdue + blocked in scope.
+    expect(screen.getByRole('button', { name: /open attention breakdown — 1 need attention/i })).toBeInTheDocument()
+    // No active-filter chip, no presentation switcher (still one live presentation).
     expect(toolbar.querySelectorAll('.overdue-chip')).toHaveLength(0)
     expect(screen.queryByRole('tablist')).toBeNull()
     // The head holds the only .btn-primary on the page.
     expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)
   })
 
-  // FR-001 (delta review): "no second pill" holds in EVERY state, not only at rest. Clicking the
-  // attention pill presses the pill itself — exactly one pill/chip-family control, pressed and
-  // tinted, and clicking it again clears. A second active-filter chip must never exist.
-  it('FR-001: clicking the attention pill presses the pill itself — one control, every state', async () => {
+  // FR-001 (delta review, #754): "no second pill" holds in EVERY state. The attention pill is a
+  // menu trigger — clicking it opens/closes an anchored popover, and choosing an item there
+  // applies the corresponding view/filter. The pill itself never grows a sibling chip.
+  it('FR-001 (#754): the attention pill is one control that toggles its popover; choosing an item applies the filter', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Late task', due_date: '2020-01-01' }),
       makeTask({ id: 't2', title: 'Calm task', due_date: '2030-12-31' }),
@@ -867,21 +871,25 @@ describe('Ticket #743 — two-row toolbar grammar', () => {
     const { container } = renderTable()
     await waitFor(() => screen.getByText('Late task'))
 
-    const pill = () => container.querySelector('.overdue-filter-btn') as HTMLButtonElement
-    expect(pill().getAttribute('aria-pressed')).toBe('false')
+    const pill = () => container.querySelector('.attention-pill') as HTMLButtonElement
+    expect(pill().getAttribute('aria-expanded')).toBe('false')
 
+    // Click 1: opens the popover — no filter applied yet, both tasks still visible.
     fireEvent.click(pill())
+    expect(pill().getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByText('Calm task')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '1 overdue' })).toBeInTheDocument()
+
+    // Click 2 on the same trigger: closes the popover, still no filter change.
+    fireEvent.click(pill())
+    expect(pill().getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelectorAll('.attention-pill, .overdue-chip')).toHaveLength(1)
+
+    // Reopen and choose "N overdue" — this is the click that applies the view/filter.
+    fireEvent.click(pill())
+    fireEvent.click(screen.getByRole('menuitem', { name: '1 overdue' }))
     await waitFor(() => expect(screen.queryByText('Calm task')).toBeNull())
-    // Exactly ONE control in the pill/chip family — the pressed pill, never a second chip.
-    expect(container.querySelectorAll('.overdue-filter-btn, .overdue-chip')).toHaveLength(1)
-    expect(pill().getAttribute('aria-pressed')).toBe('true')
-    expect(pill().className).toContain('overdue-filter-btn--active')
-
-    // The same pressed pill clears the filter — still exactly one control.
-    fireEvent.click(pill())
-    await waitFor(() => expect(screen.getByText('Calm task')).toBeInTheDocument())
-    expect(container.querySelectorAll('.overdue-filter-btn, .overdue-chip')).toHaveLength(1)
-    expect(pill().getAttribute('aria-pressed')).toBe('false')
+    expect(container.querySelectorAll('.attention-pill, .overdue-chip')).toHaveLength(1)
   })
 
   it('AC-004 (W-G step 3): search placeholder = accessible label — "Search tasks" / "Cari tugas"', async () => {
@@ -1061,7 +1069,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     })
   })
 
-  it('AC-128: the "N overdue" count is a button that filters to overdue-only and is clearable', async () => {
+  it('AC-128 (#754): the attention popover offers "N overdue"; choosing it applies the Overdue view', async () => {
     const overdueDate = '2020-01-01' // well in the past
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Overdue task', due_date: overdueDate }),
@@ -1078,28 +1086,19 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
       expect(screen.getByText('Normal task')).toBeInTheDocument()
     })
 
-    // The overdue control lives in the toolbar/options surface, not the page head.
-    const overdueBtn = screen.getByRole('button', { name: /filter to.*overdue/i })
-    expect(overdueBtn).toBeInTheDocument()
-    expect(overdueBtn.getAttribute('aria-label')).toMatch(/filter to.*overdue/i)
+    // The attention pill lives in the toolbar/options surface, not the page head.
+    const pill = screen.getByRole('button', { name: /open attention breakdown — 1 need attention/i })
+    expect(pill).toBeInTheDocument()
 
-    // Click it → only overdue rows shown, and the pill ITSELF carries the active state (FR-001).
-    fireEvent.click(overdueBtn)
+    // Open the popover, choose the overdue line — the Overdue view is applied.
+    fireEvent.click(pill)
+    fireEvent.click(screen.getByRole('menuitem', { name: '1 overdue' }))
     await waitFor(() => {
       expect(screen.queryByText('Normal task')).toBeNull()
       expect(screen.getByText('Overdue task')).toBeInTheDocument()
     })
-    expect(overdueBtn).toHaveAttribute('aria-pressed', 'true')
-    expect(overdueBtn.className).toContain('overdue-filter-btn--active')
-    expect(screen.queryByRole('button', { name: /clear overdue filter/i })).toBeNull()
-
-    // Clicking the same pressed pill clears — both tasks visible again.
-    fireEvent.click(overdueBtn)
-    await waitFor(() => {
-      expect(screen.getByText('Normal task')).toBeInTheDocument()
-      expect(screen.getByText('Overdue task')).toBeInTheDocument()
-    })
-    expect(overdueBtn).toHaveAttribute('aria-pressed', 'false')
+    // The chip strip reflects the applied view.
+    expect(screen.getByRole('button', { name: 'Overdue' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('AC-133: Clear filters button resets all filters', async () => {
@@ -1737,10 +1736,11 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
       expect(screen.getByText('Done past due')).toBeInTheDocument()
       expect(screen.getByText('Open past due')).toBeInTheDocument()
     })
-    // The toolbar control counts only the open task, not the Done task.
-    const overdueButton = screen.getByRole('button', { name: /filter to.*overdue/i })
-    expect(overdueButton).toHaveTextContent('1 overdue')
-    expect(overdueButton).not.toHaveTextContent('2 overdue')
+    // The attention pill's breakdown counts only the open task, not the Done task (#754).
+    const pill = screen.getByRole('button', { name: /open attention breakdown — 1 need attention/i })
+    fireEvent.click(pill)
+    expect(screen.getByRole('menuitem', { name: '1 overdue' })).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: '2 overdue' })).toBeNull()
   })
 
   it('RI-1: a Done task with a past due_date does NOT show the red "Overdue ·" row label', async () => {

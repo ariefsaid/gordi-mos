@@ -843,6 +843,16 @@ export const messages = {
     'tasks.field.teamUnassigned': "Team not assigned yet (data migration)",
     'tasks.fields': "Fields",
     'tasks.fields.activity': "Last activity",
+    // #754 (AC-026..028): ONE attention pill — overdue + blocked, one count, popover splits it.
+    // The count and the label render as siblings so the count text can carry the status colour
+    // while the trailing label stays foreground — the trigger's aria-label composes the two.
+    'tasks.attention.label.one': "needs attention",
+    'tasks.attention.label.other': "need attention",
+    'tasks.attention.aria': "Open attention breakdown — ${count} need attention",
+    'tasks.attention.overdue.one': "1 overdue",
+    'tasks.attention.overdue.other': "${count} overdue",
+    'tasks.attention.blocked.one': "1 blocked",
+    'tasks.attention.blocked.other': "${count} blocked",
     'tasks.filter.anyBusinessUnit': "Any business unit",
     'tasks.filter.anyone': "Anyone",
     'tasks.filter.businessUnit': "Business unit",
@@ -2095,6 +2105,14 @@ export const messages = {
     'tasks.field.teamUnassigned': "Tim belum ditetapkan (migrasi data)",
     'tasks.fields': "Kolom",
     'tasks.fields.activity': "Aktivitas terakhir",
+    // #754 (AC-026..028): satu pil perhatian — terlambat + terhambat, popover memilah.
+    'tasks.attention.label.one': "butuh perhatian",
+    'tasks.attention.label.other': "butuh perhatian",
+    'tasks.attention.aria': "Buka rincian perhatian — ${count} butuh perhatian",
+    'tasks.attention.overdue.one': "1 terlambat",
+    'tasks.attention.overdue.other': "${count} terlambat",
+    'tasks.attention.blocked.one': "1 terhambat",
+    'tasks.attention.blocked.other': "${count} terhambat",
     'tasks.filter.anyBusinessUnit': "Semua unit bisnis",
     'tasks.filter.anyone': "Siapa saja",
     'tasks.filter.businessUnit': "Unit bisnis",

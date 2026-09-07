@@ -960,30 +960,32 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     period_key: '2026-07-17', scheduled_date: '2026-07-17',
   }
 
-  it('the toolbar shows exactly ONE pill even when runs are due — the runs pill left the toolbar (#743 r3)', async () => {
+  it('the toolbar shows exactly ONE pill even when runs are due — the runs pill left the toolbar (#743 r3 → #754)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ due_date: '2020-01-01' })])
     mockListDueRuns.mockResolvedValue([DUE_ROW])
     renderPage(CAPABLE_AUTH)
 
-    const overduePill = await screen.findByRole('button', { name: 'Filter to 1 overdue tasks' })
-    expect(overduePill).toBeInTheDocument()
-    // No runs-due control anywhere in the toolbar; the overdue pill performs only its own action.
+    // #754: the ONE pill is the attention pill — "1 need attention" — with no runs-due door.
+    const attentionPill = await screen.findByRole('button', { name: /open attention breakdown — 1 need attention/i })
+    expect(attentionPill).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
-    fireEvent.click(overduePill)
-    await waitFor(() => expect(_capturedLocation?.search).toMatch(/overdue=1/))
+    // Activating the pill and choosing "1 overdue" applies the Overdue view (?view=overdue).
+    fireEvent.click(attentionPill)
+    fireEvent.click(screen.getByRole('menuitem', { name: '1 overdue' }))
+    await waitFor(() => expect(_capturedLocation?.search).toMatch(/view=overdue/))
     expect(_capturedLocation?.search).not.toMatch(/archived=1/)
   })
 
-  it('the overdue pill applies its filter without opening the due-runs disclosure', async () => {
+  it('the attention pill applies its filter without opening the due-runs disclosure (#754)', async () => {
     mockListTasks.mockResolvedValue([makeTask({ due_date: '2020-01-01' })])
     mockListDueRuns.mockResolvedValue([])
     renderPage(CAPABLE_AUTH)
 
-    const pill = await screen.findByRole('button', { name: 'Filter to 1 overdue tasks' })
+    const pill = await screen.findByRole('button', { name: /open attention breakdown — 1 need attention/i })
     fireEvent.click(pill)
-    // FR-001: the pressed pill IS the filter — no second clear chip, no due-runs disclosure.
-    await waitFor(() => expect(pill).toHaveAttribute('aria-pressed', 'true'))
-    expect(screen.queryByRole('button', { name: /clear overdue/i })).not.toBeInTheDocument()
+    // Popover offers the two lines; choosing overdue applies the view. No runs-due door anywhere.
+    fireEvent.click(screen.getByRole('menuitem', { name: '1 overdue' }))
+    await waitFor(() => expect(_capturedLocation?.search).toMatch(/view=overdue/))
     expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
   })
 

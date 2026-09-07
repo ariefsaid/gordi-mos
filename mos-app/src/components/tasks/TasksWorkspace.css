@@ -123,7 +123,8 @@
    sheet — so its winning floor is declared here too, in the component's own stylesheet, where
    the cascade is won (a shared marker class loses to later sheets). */
 @media (max-width: 767.98px) {
-  .tasks-collection-toolbar .overdue-filter-btn { min-height: 44px; }
+  .tasks-collection-toolbar .attention-pill { min-height: 44px; }
+  .tasks-collection-toolbar .attention-popover__item { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .mobile-task-options-chevron { transition: none; }
@@ -518,42 +519,55 @@
   pointer-events: none;
 }
 
-/* ── Overdue filter button (count line, AC-128 / FR-126) ──
-   F5 design fix: shares the toolbar's control-chip grammar (32px, bordered, radius-sm — the
-   same shape as .overdue-filter-btn, DESIGN.md "Tasks toolbar ... bordered filter controls")
-   instead of a bare underlined link. Current rule: one attention pill, per toolbar amendment A1
-   in DESIGN.md § DB-view toolbar controls. */
-.overdue-filter-btn {
-  display: inline-flex; align-items: center; gap: 6px;
+/* ── Attention pill (#754, AC-026..028) ──
+   DESIGN.md § DB-view toolbar controls: "one count pill for attention (outline,
+   status-coloured count text)". The trigger is OUTLINE chrome (border on transparent
+   background) — only the count text carries the status-lost hue; the trailing label
+   stays foreground so the pill does not read as a second filter. Clicking opens an
+   anchored popover — the "N need attention" total is split into "N overdue" and
+   "N blocked" so the click resolves what the user meant. Same 32px control height as
+   every other row-2 control, radius-sm, tap-floored to 44px on phones. */
+.attention-pill-zone {
+  position: relative; display: inline-flex; flex: none;
+}
+.attention-pill {
+  display: inline-flex; align-items: baseline; gap: 6px;
   height: 32px; padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--status-lost-text) 40%, transparent);
+  border: 1px solid var(--input);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--status-lost-text) 8%, transparent);
-  font: inherit;
-  font-size: var(--font-size-body);
-  color: var(--status-lost-text);
-  font-weight: 600;
+  background: transparent;
+  font: inherit; font-size: var(--font-size-body); font-weight: 600;
+  color: var(--foreground);
+  cursor: pointer; white-space: nowrap; flex: none;
+}
+.attention-pill:hover { border-color: var(--border-strong); }
+.attention-pill:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.attention-pill[aria-expanded='true'] { border-color: var(--border-strong); }
+.attention-pill__count { color: var(--status-lost-text); }
+.attention-pill__label { color: var(--foreground); font-weight: 500; }
+
+/* Anchored popover — the two-line breakdown lives here, not in the toolbar row.
+   The audit convention (C20/I3): a menu is a role="menu" popover with role="menuitem"
+   entries. It never grows a third row; it lays out over the table below. */
+.attention-popover {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 50;
+  min-width: 160px; padding: 4px;
+  background: var(--popover); color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
+  display: flex; flex-direction: column;
+}
+.attention-popover__item {
+  display: block; width: 100%; padding: 8px 10px; text-align: left;
+  border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--foreground);
+  font: inherit; font-size: var(--font-size-body); font-weight: 500;
   cursor: pointer;
-  white-space: nowrap;
-  flex: none;
 }
-.overdue-filter-btn:hover {
-  background: color-mix(in srgb, var(--status-lost-text) 14%, transparent);
-}
-.overdue-filter-btn:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-/* FR-001 (#743): the pressed state lives ON the pill — there is no second active-filter chip.
-   Same hue family, deepened, so pressed reads as "this filter is on" at a glance. */
-.overdue-filter-btn--active {
-  background: color-mix(in srgb, var(--status-lost-text) 18%, transparent);
-  border-color: color-mix(in srgb, var(--status-lost-text) 70%, transparent);
-  color: var(--status-lost-text);
-}
-.overdue-filter-btn--active:hover {
-  background: color-mix(in srgb, var(--status-lost-text) 24%, transparent);
-}
+.attention-popover__item:hover:not([disabled]) { background: var(--accent); }
+.attention-popover__item:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.attention-popover__item[disabled] { color: var(--muted-foreground); cursor: default; }
 
 /* ── Empty-state actions (IXD-5/IXD-4, PR-2) ── */
 /* <EmptyState> renders the actions row (.empty-actions lives in CardHead.css); the

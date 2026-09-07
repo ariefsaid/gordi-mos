@@ -1,8 +1,10 @@
+import { useCallback, useRef, useState } from 'react'
 import type { TaskStatus } from '@/lib/db/tasks.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { CollectionToolbar } from '@/components/record-collection/collection-toolbar'
 import type { CollectionToolbarField } from '@/components/record-collection/collection-toolbar'
 import type { CollectionToolbarSavedViews } from '@/components/record-collection/collection-toolbar'
+import { useMenuPopover } from '@/lib/use-menu-popover'
 import { useT } from '@/i18n/use-t'
 import type {
   TaskCollectionGroup,
@@ -21,8 +23,9 @@ export type TasksToolbarProps = {
   onPresentationChange: (next: TaskCollectionPresentation) => void
   onFieldToggle: (field: string, visible: boolean) => void
   overdueCount: number
-  onOverdueFilter: () => void
-  onClearOverdue: () => void
+  blockedCount: number
+  onApplyOverdue: () => void
+  onApplyBlocked: () => void
   buOptions: readonly BusinessUnitOption[]
   personOptions: readonly PersonOption[]
   savedViews?: CollectionToolbarSavedViews
@@ -63,8 +66,9 @@ export function TasksToolbar({
   onPresentationChange,
   onFieldToggle,
   overdueCount,
-  onOverdueFilter,
-  onClearOverdue,
+  blockedCount,
+  onApplyOverdue,
+  onApplyBlocked,
   buOptions,
   personOptions,
   savedViews,
@@ -217,23 +221,89 @@ export function TasksToolbar({
         },
       ]}
       toggles={(
-        <>
-          {/* The ONE tinted element in row 2 (OD-WAY-89) — and the ONE pill in EVERY state
-              (FR-001): the pill itself carries the overdueOnly state (pressed + tinted), so no
-              second active-filter chip ever renders. Clicking toggles the filter both ways.
-              The runs-due pill LEFT the toolbar in this ticket (#743 ruling round 3); #754
-              re-homes the runs source at Home/Café with its own tests. */}
-          <button
-            type="button"
-            className={`overdue-filter-btn${query.overdueOnly ? ' overdue-filter-btn--active' : ''}`}
-            aria-pressed={query.overdueOnly}
-            aria-label={t('tasks.filter.overdueAria', { count: overdueCount })}
-            onClick={query.overdueOnly ? onClearOverdue : onOverdueFilter}
-          >
-            {t('tasks.filter.overdueCount', { count: overdueCount })}
-          </button>
-        </>
+        <AttentionPill
+          overdueCount={overdueCount}
+          blockedCount={blockedCount}
+          onApplyOverdue={onApplyOverdue}
+          onApplyBlocked={onApplyBlocked}
+        />
       )}
     />
+  )
+}
+
+// #754 (AC-026..028) — ONE attention pill on the Tasks toolbar. Its trigger reads
+// "N need attention" (overdue + blocked), outline chrome, status-coloured count text
+// (DESIGN.md § DB-view toolbar controls: "one count pill for attention (outline,
+// status-coloured count text)"). The click opens an anchored popover with two lines —
+// "N overdue" · "N blocked" — and choosing one applies the corresponding view/filter,
+// which the workspace reflects into the URL. Follows the table's scope (the counts are
+// projected off `stats`, so a filtered-empty table renders 0 → nothing at all).
+export interface AttentionPillProps {
+  overdueCount: number
+  blockedCount: number
+  onApplyOverdue: () => void
+  onApplyBlocked: () => void
+}
+
+function AttentionPill({ overdueCount, blockedCount, onApplyOverdue, onApplyBlocked }: AttentionPillProps) {
+  const t = useT()
+  const total = overdueCount + blockedCount
+  const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const close = useCallback(() => {
+    setOpen(false)
+    triggerRef.current?.focus()
+  }, [])
+  useMenuPopover(open, close, menuRef, triggerRef)
+  // AC-028: at zero the pill is absent — never a stale count, never a click target with
+  // nothing behind it (a popover of "0 overdue · 0 blocked" would read as attention).
+  if (total === 0) return null
+  const overdueLabel = t(overdueCount === 1 ? 'tasks.attention.overdue.one' : 'tasks.attention.overdue.other', { count: overdueCount })
+  const blockedLabel = t(blockedCount === 1 ? 'tasks.attention.blocked.one' : 'tasks.attention.blocked.other', { count: blockedCount })
+  const labelText = t(total === 1 ? 'tasks.attention.label.one' : 'tasks.attention.label.other')
+  return (
+    <div className="attention-pill-zone">
+      <button
+        type="button"
+        ref={triggerRef}
+        className="attention-pill"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={t('tasks.attention.aria', { count: total })}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <span className="attention-pill__count tabular-nums">{total}</span>
+        <span className="attention-pill__label">{labelText}</span>
+      </button>
+      {open ? (
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-label={t('tasks.attention.aria', { count: total })}
+          className="attention-popover"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            className="attention-popover__item"
+            disabled={overdueCount === 0}
+            onClick={() => { setOpen(false); onApplyOverdue() }}
+          >
+            {overdueLabel}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="attention-popover__item"
+            disabled={blockedCount === 0}
+            onClick={() => { setOpen(false); onApplyBlocked() }}
+          >
+            {blockedLabel}
+          </button>
+        </div>
+      ) : null}
+    </div>
   )
 }

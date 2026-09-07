@@ -583,6 +583,11 @@ export function TasksWorkspace({
 
   const personOptions = dataContext?.people ?? []
   const buOptions = dataContext?.businessUnits ?? []
+  // #754 (AC-026..028): the ONE attention pill sums overdue + blocked (open) in the current
+  // scope. The Blocked view/filter is a status match (a Blocked task is by definition open, so
+  // no separate open-ness gate is needed) — matches the projector's stats.blocked measurement.
+  const attentionOverdue = stats?.overdue ?? 0
+  const attentionBlocked = stats?.blocked ?? 0
   const tasksToolbar = (
     <TasksToolbar
       query={query}
@@ -594,9 +599,15 @@ export function TasksWorkspace({
           : query.visibleFields.filter((candidate) => candidate !== field)
         setQuery({ visibleFields: next })
       }}
-      overdueCount={stats?.overdue ?? 0}
-      onOverdueFilter={() => setQuery({ overdueOnly: true })}
-      onClearOverdue={() => setQuery({ overdueOnly: false })}
+      overdueCount={attentionOverdue}
+      blockedCount={attentionBlocked}
+      // AC-027: choosing "N overdue" applies the Overdue saved view (URL: ?view=overdue) via
+      // the ONE view-change path (`handleViewChange`) so its `savedViewId` reset and the
+      // `overdueOnly` mirror stay identical to a chip click.
+      onApplyOverdue={() => handleViewChange('overdue')}
+      // AC-027: choosing "N blocked" applies Status=Blocked (URL: ?status=blocked). The saved
+      // view id is cleared so the pill's action does not read as "still on a saved view".
+      onApplyBlocked={() => setQuery({ status: 'Blocked', savedViewId: null })}
       buOptions={buOptions}
       personOptions={personOptions}
       onPresentationChange={(next) => { controller.switchPresentation(next) }}
