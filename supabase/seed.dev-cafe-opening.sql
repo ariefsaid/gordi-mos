@@ -30,9 +30,27 @@ from shared.people p
 where p.email in ('cahya.dev@example.test', 'krishna.dev@example.test')
 on conflict (person_id, role_id) do nothing;
 
+-- ── Krishna's kitchen-stream Team becomes his PRIMARY membership ─────────────────────────────
+-- The kitchen-hand persona walk starts the opening as a PRIMARY member of the branch's stream
+-- Team (OD-WAY-95 (4): primary Team of a stream Team of the branch starts). The generic seed
+-- points Krishna's primary at the back office (LEAD, not line staff), which the gate rightly
+-- refuses; the demo's headline actor is a kitchen hand, so his home is the kitchen line here.
+update shared.team_memberships m
+set is_primary = false
+from shared.people p, shared.teams t
+where m.person_id = p.id and m.team_id = t.id
+  and p.email = 'krishna.dev@example.test'
+  and t.code = 'hq_operations' and m.is_primary;
+update shared.team_memberships m
+set is_primary = true
+from shared.people p, shared.teams t
+where m.person_id = p.id and m.team_id = t.id
+  and p.email = 'krishna.dev@example.test'
+  and t.code = 'gordi_hq_kitchen' and not m.is_primary;
+
 -- ── Cahya's active radiant_operations membership ─────────────────────────────────────────────
--- is_primary FALSE for the same reason seed.dev-processes.sql gives for Dewi's: the gates need
--- only an ACTIVE membership, and a primary would re-point Cahya's default context app-wide.
+-- Secondary on purpose: a primary would re-point Cahya's default context app-wide (seed.sql),
+-- and the café start gate keys on stream Teams, not this org-structure row.
 insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from)
 select '10000000-0000-0000-0000-000000000001', p.id, t.id, false, current_date - 30
 from shared.people p, shared.teams t
@@ -44,9 +62,9 @@ where p.email = 'cahya.dev@example.test'
   );
 
 -- ── The Process, its daily cadence, and the three generated-Task definitions ─────────────────
-insert into mos.work_lines (id, org_id, name, type) values
+insert into mos.work_lines (id, org_id, name, code, type) values
   ('e3000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001',
-   'Café Opening', 'process')
+   'Café Opening', 'cafe_opening', 'process')
 on conflict (id) do nothing;
 
 insert into mos.process_cadences (org_id, work_line_id, cadence_kind, active) values

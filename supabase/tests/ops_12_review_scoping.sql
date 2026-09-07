@@ -21,7 +21,7 @@
 --   Author   ...0d1  member — submitted most fixture rows
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(39);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -56,7 +56,7 @@ insert into ops.kitchen_logs
   (id, org_id, business_unit_id, log_date, branch_id, activity, action, destination_branch_id,
    wip_item_id, qty_porsi, status, submitted_by) values
   ('00000000-0000-0000-0000-00000000ac13','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-20','00000000-0000-0000-0000-00000000bf01','bar','produce',null,'00000000-0000-0000-0000-00000000ab03',3,'Submitted','00000000-0000-0000-0000-0000000000d1'),
-  ('00000000-0000-0000-0000-00000000ac14','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-20','00000000-0000-0000-0000-00000000bf01','bar','produce',null,'00000000-0000-0000-0000-00000000ab03',5,'Submitted','00000000-0000-0000-0000-0000000000d1'),
+  ('00000000-0000-0000-0000-00000000ac14','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-20','00000000-0000-0000-0000-00000000bf01','bar','produce',null,'00000000-0000-0000-0000-00000000ab01',5,'Submitted','00000000-0000-0000-0000-0000000000d1'),
   ('00000000-0000-0000-0000-00000000ac15','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-20','00000000-0000-0000-0000-00000000bf01','bar','transfer','00000000-0000-0000-0000-00000000bf03','00000000-0000-0000-0000-00000000ab03',2,'Submitted','00000000-0000-0000-0000-0000000000d1');
 
 set local role authenticated;
@@ -111,7 +111,7 @@ select throws_ok($$
 
 -- The positive, own stream, RPC path. '-001' is also the no-trace proof: had any refusal above
 -- consumed a sequence number, this would mint -002.
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac12', null),
+select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac12', 'reviewed'),
   'PR-20260620-001',
   'AC-009 (positive): the stream reviewer approves their OWN stream''s row, and nothing before it consumed a mint');
 reset role;
@@ -193,11 +193,17 @@ set local role authenticated;
 -- Cross-stream isolation: (GHQ, bar)'s transfer approves fine once ITS OWN production is decided,
 -- even though (RRS, kitchen)'s production is still Submitted on the very same day. Done by the
 -- stream's own reviewer, so the two features are proven composed.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, qty_porsi)
+values ('2026-06-20', '00000000-0000-0000-0000-00000000ab01', '00000000-0000-0000-0000-00000000bf01', 'bar', 'produce', 1);
+select throws_ok($$select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac14', null)$$,
+  '42501', 'an off-plan approval requires a reviewer note',
+  'AC-012: the plan deviation is refused when neither submitter nor reviewer supplies a note');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}';
 select lives_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac14', null)
+  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac14', 'reviewed')
   $$, 'setup: the (GHQ, bar) reviewer decides the last of their own stream''s production');
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac15', null),
+select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac15', 'reviewed'),
   'TR-20260620-001',
   'AC-010: another stream''s Submitted production does NOT lock this stream''s transfer — same day, approved by its own reviewer');
 
@@ -205,13 +211,13 @@ select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac15', null),
 -- approves — the gate keys on (stream, day), not on the stream's whole backlog.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 select lives_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ad05', null)
+  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ad05', 'reviewed')
   $$, 'AC-010: the SAME stream''s transfer on a DIFFERENT day is not locked — the gate is per stream AND day');
 
 -- Release: one pending row decided by APPROVE, the other by REJECT — both count as decided
 -- (FR-043: "decided", not "approved"), and the lock lifts.
 select lives_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac01', null)
+  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac01', 'reviewed')
   $$, 'AC-010 release setup: one pending production row is Approved...');
 select lives_ok($$
   update ops.kitchen_logs set status = 'Rejected', review_note = 'double-entered'

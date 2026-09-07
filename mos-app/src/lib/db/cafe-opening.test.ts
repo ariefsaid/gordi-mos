@@ -11,10 +11,10 @@ vi.mock('../supabase', () => {
 
 import {
   wibToday, getCafeOpeningProcessId, getTodayOpeningForTeam,
-  startTodayOpening, listStartableCafeTeams,
+  startTodayOpening, listCafeOpeningBranches,
 } from './cafe-opening'
 import { supabase } from '@/lib/supabase'
-import type { DueProcessRun, ProcessRunRollup, SpawnResult } from './processes.types'
+import type { ProcessRunRollup, SpawnResult } from './processes.types'
 
 const schemaMock = vi.mocked(supabase.schema)
 
@@ -72,7 +72,6 @@ beforeEach(() => vi.clearAllMocks())
 const PROCESS_ID = '00000000-0000-0000-0000-00000000c001'
 const TEAM_ID = '00000000-0000-0000-0000-000000005b01'
 const RUN_ID = '00000000-0000-0000-0000-00000000r001'
-
 // ── wibToday (B1) ─────────────────────────────────────────────────────────────
 describe('wibToday', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -158,7 +157,7 @@ describe('getTodayOpeningForTeam', () => {
   })
 })
 
-// ── startTodayOpening / listStartableCafeTeams (B2, AC-711) ──────────────────
+// ── startTodayOpening / listCafeOpeningBranches (B2, AC-711) ──────────────────
 describe('startTodayOpening', () => {
   it('AC-711: calls Step-6 startRun(processId, teamId, wibToday()) and returns the SpawnResult', async () => {
     const rec = freshRec()
@@ -182,17 +181,25 @@ describe('startTodayOpening', () => {
   })
 })
 
-describe('listStartableCafeTeams', () => {
-  it('calls listDueRuns and returns only the rows whose work_line_id matches processId', async () => {
+describe('listCafeOpeningBranches', () => {
+  it('calls mos.cafe_opening_branches() and returns the branch rows (started ones included)', async () => {
     const rec = freshRec()
-    const dueRows: DueProcessRun[] = [
-      { work_line_id: PROCESS_ID, process_name: 'Café Opening', owning_team_id: TEAM_ID, team_name: 'Radiant', period_key: '2026-07-17', scheduled_date: '2026-07-17' },
-      { work_line_id: 'other-process', process_name: 'Café Closing', owning_team_id: TEAM_ID, team_name: 'Radiant', period_key: '2026-07-17', scheduled_date: '2026-07-17' },
+    const branches = [
+      { branch_id: 'b-rad', team_id: TEAM_ID, team_name: 'Radiant', run_id: null, run_status: null },
+      { branch_id: 'b-rr', team_id: 'team-rr', team_name: 'Rumah Rames', run_id: RUN_ID, run_status: 'open' },
     ]
-    mockSupabase({ 'rpc.due_process_runs': [{ data: dueRows, error: null }] }, rec)
+    mockSupabase({ 'rpc.cafe_opening_branches': [{ data: branches, error: null }] }, rec)
 
-    const rows = await listStartableCafeTeams(PROCESS_ID)
+    const rows = await listCafeOpeningBranches()
 
-    expect(rows).toEqual([dueRows[0]])
+    expect(rec.rpcs).toContainEqual(['cafe_opening_branches', undefined])
+    expect(rows).toEqual(branches)
+  })
+
+  it('re-throws when the RPC errors', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.cafe_opening_branches': [{ data: null, error: { message: 'rls denied' } }] }, rec)
+
+    await expect(listCafeOpeningBranches()).rejects.toThrow(/rls denied/)
   })
 })

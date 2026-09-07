@@ -22,7 +22,6 @@ select plan(34);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
-
 set local role authenticated;
 -- Author ...0d1 is an active OwnTeam member and holds `member`, which carries process.start.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
