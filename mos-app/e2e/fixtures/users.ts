@@ -13,6 +13,15 @@ export const VIEWER = {
   personId: '40000000-0000-0000-0000-000000000001', // Cahya Cafe (dual-hat: Cafe Ops + Sales leads)
 }
 
+// AUTHOR persona for #771 AC-015: a Cikal Bar member who posts Signals but is NOT a lead there —
+// so the signal_urgent fan-out lights up Cahya (VIEWER, Cikal Bar lead) rather than the author.
+// Seeded in supabase/seed.sql as Bulan Barista, Cikal Bar member.
+export const AUTHOR = {
+  email: 'bulan.dev@example.test',
+  password: 'Passw0rd!dev',
+  personId: '40000000-0000-0000-0000-000000000007', // Bulan Barista (Cikal Bar member)
+}
+
 // MANAGER: Dewi Director holds the Managing Director role (30000000-…-0000).
 // Cahya (VIEWER) holds Cafe Ops Lead + Sales Lead, both reporting to the MD role
 // → Dewi is isManager=true via deriveIsManager / shared.is_manager_of.

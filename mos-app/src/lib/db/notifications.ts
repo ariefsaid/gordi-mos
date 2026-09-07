@@ -17,12 +17,56 @@ export interface NotificationEntity {
   route: string
 }
 
+/**
+ * The actor whose action produced this delivery — stamped at delivery time (#771 AC-013), so a
+ * later rename of a Person does not rewrite the Inbox rows they authored. Every non-legacy
+ * notification carries one; legacy rows may not, so consumers treat it as optional.
+ */
+export interface NotificationActor {
+  id: string
+  name: string
+}
+
+/**
+ * The five sources that drive the Inbox today (#771). Enumerated as a union so components can
+ * exhaustively steer copy (icon, verb, pill) off `metadata.source` without a string switch that
+ * silently misses a case when a sixth is added.
+ */
+export type NotificationSource =
+  | 'signal_mention'
+  | 'signal_urgent'
+  | 'signal_retracted'
+  | 'task_named'
+  | 'task_comment'
+
+/**
+ * Signals carry attention on every delivery so the Inbox can render the pill without a
+ * roundtrip to the Signal record; other sources do not populate it.
+ */
+export type NotificationAttention = 'FYI' | 'Needs attention' | 'Urgent'
+
+export interface NotificationMetadata {
+  source?: NotificationSource | string
+  actor?: NotificationActor
+  entity?: NotificationEntity
+  attention?: NotificationAttention
+  /** task_named carries which naming role the recipient landed on, so copy can distinguish. */
+  role?: 'PIC' | 'Supervisor'
+  [key: string]: unknown
+}
+
 export interface NotificationRow {
   id: string
   severity: NotificationSeverity
   title: string
   body: string | null
-  metadata: { entity?: NotificationEntity } | Record<string, unknown>
+  /**
+   * The DB stores metadata as an open jsonb (the retract path from #767, the mention fan-out,
+   * and the three #771 sources all write into it). Consumers narrow to `NotificationMetadata`
+   * via type guards when they need typed fields; the row's declared shape stays open so a
+   * legacy row without every field is representable.
+   */
+  metadata: NotificationMetadata | Record<string, unknown>
   read_at: string | null
   /** Set when this viewer explicitly triaged the row out of their queue (OD-WAY-88); null = active. */
   handled_at?: string | null

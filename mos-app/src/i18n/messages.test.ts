@@ -186,3 +186,38 @@ describe('cascade i18n is retired with the surface (#179)', () => {
   })
 
 })
+
+// #771 AC-014: the Inbox copy names the sources that actually drive delivery today (mentions,
+// Task naming, Task comments, Urgent Signals) and no longer promises approvals — the schema has
+// no approval concept yet, and copy that names one is a promise the product cannot keep.
+describe('inbox empty copy and help name the delivered sources (#771 AC-014)', () => {
+  it('EN inbox.emptyCopy and inbox.help never mention "approvals"', () => {
+    expect(messages.en['inbox.emptyCopy']).not.toMatch(/approvals?/i)
+    expect(messages.en['inbox.help']).not.toMatch(/approvals?/i)
+  })
+
+  it('EN inbox.emptyCopy and inbox.help name mentions, Task naming, Task comments, Urgent Signals', () => {
+    for (const key of ['inbox.emptyCopy', 'inbox.help'] as const) {
+      const copy = messages.en[key]
+      expect(copy).toMatch(/mentions/i)
+      expect(copy).toMatch(/Task naming/i)
+      expect(copy).toMatch(/Task comments/i)
+      expect(copy).toMatch(/Urgent Signals/i)
+    }
+  })
+
+  it('ID inbox.emptyCopy and inbox.help never mention "persetujuan"', () => {
+    expect(messages.id['inbox.emptyCopy']).not.toMatch(/persetujuan/i)
+    expect(messages.id['inbox.help']).not.toMatch(/persetujuan/i)
+  })
+
+  it('ID inbox.emptyCopy and inbox.help name sebutan, Penamaan Tugas, Komentar Tugas, Sinyal Mendesak', () => {
+    for (const key of ['inbox.emptyCopy', 'inbox.help'] as const) {
+      const copy = messages.id[key]
+      expect(copy).toMatch(/sebutan/i)
+      expect(copy).toMatch(/Penamaan Tugas/i)
+      expect(copy).toMatch(/Komentar Tugas/i)
+      expect(copy).toMatch(/Sinyal Mendesak/i)
+    }
+  })
+})

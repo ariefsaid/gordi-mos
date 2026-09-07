@@ -106,7 +106,10 @@ describe('InboxPage — shared state kit', () => {
 
     const emptyState = screen.getByTestId('empty-state')
     expect(emptyState).toHaveAttribute('data-empty-variant', 'quiet')
-    expect(screen.getByText(/attention/i)).toBeInTheDocument()
+    // #771 AC-014: the empty state names the sources that drive delivery today (mentions, Task
+    // naming, Task comments, Urgent Signals) instead of the "attention/approvals" line the
+    // pre-#771 copy carried.
+    expect(screen.getByText(/mentions/i)).toBeInTheDocument()
     // The quiet empty state itself carries no call-to-action (no push-to-act when caught up); the
     // only controls on the surface are the persistent filter chips, never an empty-state CTA/link.
     expect(emptyState.querySelector('.empty-actions')).toBeNull()
