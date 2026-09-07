@@ -1,6 +1,6 @@
 /* SignalMentionPicker — the grouped `@` fuzzy dropdown (PORT convergence mention-pop grammar @
    the e7 visual bar, design-review step-4 CRITICAL-1/3). A floating popover, grouped rows with
-   real separation between Person/Team/BU, and styled type badges. Anchored by
+   real separation between Person/Team/BU. Anchored by
    .signal-composer-mention-anchor (position: relative) in signal-composer.css. Keyboard focus
    uses the app's global *:focus-visible ring (index.css) — .mention-row is a real <button>, so
    Tab/Escape and the visible ring both work without any extra wiring (CRITICAL-3). */
@@ -42,17 +42,9 @@
 .mention-row:disabled { opacity: 0.5; cursor: not-allowed; }
 .mention-row .nm { font-weight: 500; color: var(--foreground); }
 
-.type-badge {
-  display: inline-flex; align-items: center; height: 18px; padding: 0 7px; flex: none;
-  border-radius: var(--radius-pill); font-size: var(--font-size-micro); font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.04em;
-}
 /* SYS-4: --text-accent is the theme-invariant mid-blue (--ds-color-blue); on --accent-subtle over
    a dark surface it read 3.1:1. --text-on-accent-tint is the theme-aware pair (mid-blue in light =
    unchanged, light-blue in dark = 8.3:1). */
-.type-badge--person { background: var(--accent-subtle); color: var(--text-on-accent-tint); }
-.type-badge--team { background: color-mix(in srgb, var(--violet) 12%, transparent); color: var(--status-violet-text); }
-.type-badge--bu { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); }
 /* #578: on the active row the person badge's OWN --accent-subtle wash (above) sits on top of the
    row's --accent-subtle wash (same token, same hue) — two stacked 10%-blue layers compound into a
    darker, more saturated blue that measured 3.99:1 against the blue badge text (below AA) with
@@ -61,7 +53,6 @@
    both themes (`--ds-color-blue` / `--ds-font-color-inverted` are both theme-invariant), pinned in
    src/styles/tokens/contrast.test.ts. Team/BU keep their own tint here — their hues don't collide
    with the row's blue wash the way person's does. */
-.mention-row.is-active .type-badge--person { background: var(--ds-color-blue); color: var(--ds-font-color-inverted); }
 
 .mention-empty { padding: 10px 12px; font-size: var(--font-size-mono); color: var(--muted-foreground); } /* typeset: was 12.5px off-ramp; matches the .mention-row list it replaces when empty */
 
