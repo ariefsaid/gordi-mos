@@ -64,3 +64,27 @@ export async function listCafeOpeningBranches(): Promise<CafeOpeningBranch[]> {
   if (error) throw new Error(`listCafeOpeningBranches failed — ${error.message}`)
   return (data ?? []) as CafeOpeningBranch[]
 }
+
+/** The single today-opening for one branch (#789 / OD-WAY-95 (4)): the canonical opening Team is
+ * resolved server-side (kitchen first, otherwise bar — `shared.cafe_opening_team`), so one
+ * opening covers a branch's kitchen and bar together and any member of either sees the SAME row.
+ * Returns null when the caller has no path into the branch (finance, unaffiliated — the RPC's
+ * `cafe_opening_can_start` filter is the authorization mirror) or when Café Opening is not
+ * configured (RATIFY-7C). This resolver is the ONE seam the Café root's door row and the Home
+ * Café door both read (AC-033 pins them by module identity). */
+export interface CafeOpeningForBranch {
+  processId: string
+  teamId: string
+  runId: string | null
+  rollup: ProcessRunRollup | null
+}
+export async function getTodayOpeningForBranch(branchId: string): Promise<CafeOpeningForBranch | null> {
+  const processId = await getCafeOpeningProcessId()
+  if (!processId) return null
+  const rows = await listCafeOpeningBranches()
+  const row = rows.find(r => r.branch_id === branchId)
+  if (!row) return null
+  if (!row.run_id) return { processId, teamId: row.team_id, runId: null, rollup: null }
+  const rollup = await getRunRollup(row.run_id)
+  return { processId, teamId: row.team_id, runId: row.run_id, rollup }
+}

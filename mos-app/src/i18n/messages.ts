@@ -455,16 +455,11 @@ export const messages = {
     'commandMenu.footer.open': 'open',
     'commandMenu.footer.close': 'close',
     // ── Café capture (#196 — the v4 port of the Café opening + production log) ──────────────
-    'cafe.opening.noProcess': 'No café opening is configured for this org yet.',
-    'cafe.opening.noTeam': "You're not on a café branch Team yet — ask your admin to add you.",
-    'cafe.opening.notStartedLead': "Not started yet — start today's opening.",
-    'cafe.opening.notStartedMember': 'Not started yet — no one has started today’s opening.',
+    // #789 retired the standalone cafe-opening-page and its panel: the opening is one door row
+    // on the Café root now. The remaining key here is the start-verb the door row calls when a
+    // capable viewer has no run yet; everything else (noProcess / noTeam / teamCaption /
+    // viewTasks / the two notStarted variants) is gone with the surface.
     'cafe.opening.start': "Start today's opening",
-    // issue 457: the panel is TEAM-scoped, and its caption sat directly under the head's
-    // "Choose stream…" where a stream name is expected — a bare team name there reads as
-    // the chosen stream. The caption now says what it scopes.
-    'cafe.opening.teamCaption': 'Opening · ${team}',
-    'cafe.opening.viewTasks': 'View opening tasks',
     // #440: the axis the whole Café module turns on, named in every Café page head. One word,
     // because the value beside it ("Rumah Rames · Kitchen") is what carries the meaning.
     'cafe.stream.label': 'Stream',
@@ -490,7 +485,6 @@ export const messages = {
     // two holding a private English literal instead.
     'common.what.chart': 'this chart',
     'common.what.table': 'this table',
-    'doc.cafeOps': 'Café Operations',
     'kitchen.actionType.aria': 'Action type',
     // The intra-branch cross-activity movement (FR-013): destination = the origin's OWN
     // branch, qualified with the counterpart activity so it reads as what it is instead of
@@ -569,10 +563,12 @@ export const messages = {
     // only Café step here is Stock (transfers land in it), so the door goes there.
     'kitchen.log.receivesOnly.title': "This stream receives, it doesn't produce.",
     'kitchen.log.receivesOnly.stockLink': 'Open Stock',
-    // #781: the in-page opening door row (DESIGN.md § Navigation A1 — a door row is `.btn-outline`
-    // weight, eyebrow · state · one verb, whose click opens the record that holds the work).
-    'cafe.opening.door.eyebrow': "Today's opening",
-    'cafe.opening.door.open': 'Open',
+    // #789: the door-row's own reading (DESIGN.md § Navigation A1 — a door row is
+    // `.btn-outline` weight, eyebrow · state · one verb, whose click opens the record that holds
+    // the work). `started` reads as one line (`☕ Opening · <Branch> · x/y done`), so a viewer
+    // sees which books the row belongs to right beside the door — head and door never disagree
+    // (DESIGN.md A9). The trailing `→` verb is aria-hidden and lives in its own span.
+    'cafe.opening.doorRow.started': '☕ Opening · ${branch} · ${done}/${total} done',
     'kitchen.log.submit.default': 'Submit',
     'kitchen.log.submit.entry.one': 'Submit ${count} entry',
     'kitchen.log.submit.entry.other': 'Submit ${count} entries',
@@ -1722,13 +1718,8 @@ export const messages = {
     'commandMenu.footer.open': 'buka',
     'commandMenu.footer.close': 'tutup',
     // ── Café capture (#196) ─────────────────────────────────────────────────────────────────
-    'cafe.opening.noProcess': 'Belum ada pembukaan kafe yang dikonfigurasi untuk org ini.',
-    'cafe.opening.noTeam': 'Anda belum tergabung di Tim cabang kafe — hubungi admin untuk ditambahkan.',
-    'cafe.opening.notStartedLead': 'Belum dimulai — mulai pembukaan hari ini.',
-    'cafe.opening.notStartedMember': 'Belum dimulai — belum ada yang memulai pembukaan hari ini.',
+    // #789 mempensiunkan halaman & panel pembukaan mandiri — pembukaan kini satu baris pintu.
     'cafe.opening.start': 'Mulai pembukaan hari ini',
-    'cafe.opening.teamCaption': 'Pembukaan · ${team}',
-    'cafe.opening.viewTasks': 'Lihat tugas pembukaan',
     'cafe.stream.label': 'Tim',
     'cafe.stream.none': 'Pilih Tim di kepala halaman untuk melihat layar ini.',
     // common.loadFailed: same key, same value, already added by the Money/Budget port above
@@ -1746,7 +1737,6 @@ export const messages = {
     // #400 — subjek milik kit dasbor sendiri.
     'common.what.chart': 'grafik ini',
     'common.what.table': 'tabel ini',
-    'doc.cafeOps': 'Operasi Kafe',
     'kitchen.actionType.aria': 'Jenis aksi',
     'kitchen.actionType.intraBranch': 'dalam cabang · ${activity}',
     // issue 449: lihat catatan di katalog en — kualifikasi kini baris sendiri.
@@ -1834,8 +1824,8 @@ export const messages = {
     'kitchen.log.noStream.title': 'Kamu belum masuk tim produksi — minta admin.',
     'kitchen.log.receivesOnly.title': 'Tim ini menerima, bukan memproduksi.',
     'kitchen.log.receivesOnly.stockLink': 'Buka Stok',
-    'cafe.opening.door.eyebrow': 'Pembukaan hari ini',
-    'cafe.opening.door.open': 'Buka',
+    // #789: baris pintu pada Modul Café (kalimat tunggal — cabang ada di seberang kepala).
+    'cafe.opening.doorRow.started': '☕ Pembukaan · ${branch} · ${done}/${total} selesai',
     'kitchen.log.submit.default': 'Kirim',
     'kitchen.log.submit.entry.one': 'Kirim ${count} entri',
     'kitchen.log.submit.entry.other': 'Kirim ${count} entri',

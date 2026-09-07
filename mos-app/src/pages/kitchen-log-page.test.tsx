@@ -43,6 +43,18 @@ vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 // The missing-item report (AC-013) files through the Daily Log data layer — mocked like the rest.
 vi.mock('@/lib/db/ops-log', () => ({ addLogEntry: vi.fn() }))
+// #789: the door row reads the ONE getTodayOpeningForBranch resolver — mocked here so the tests
+// stay pure and never hit supabase from the page's shell.
+vi.mock('@/lib/db/cafe-opening', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/db/cafe-opening')>('@/lib/db/cafe-opening')
+  return {
+    ...actual,
+    getTodayOpeningForBranch: vi.fn().mockResolvedValue(null),
+    startTodayOpening: vi.fn(),
+  }
+})
+import { getTodayOpeningForBranch } from '@/lib/db/cafe-opening'
+const mockGetTodayOpeningForBranch = vi.mocked(getTodayOpeningForBranch)
 import {
   listCaptureFormItems,
   fetchActualsMap,
@@ -2175,8 +2187,9 @@ describe('Issue 781 persona sweep — the head + blank states per person (AC-015
     expect(screen.getByRole('status').textContent ?? '').toMatch(/read Café records/i)
     // No switch link — she is not writing to any stream.
     expect(screen.queryByRole('button', { name: /production stream/i })).toBeNull()
-    // No opening door — the door is only for capture-entitled viewers.
-    expect(screen.queryByRole('link', { name: /today.?s opening/i })).toBeNull()
+    // #789: no opening door — the door row is only mounted for capture-entitled viewers.
+    expect(screen.queryByRole('button', { name: /start today.?s opening/i })).toBeNull()
+    expect(screen.queryByText(/☕ Opening/)).toBeNull()
     // Submit is disabled (or absent).
     const submit = screen.queryByRole('button', { name: /^submit/i })
     if (submit) expect(submit).toBeDisabled()
@@ -2187,6 +2200,11 @@ describe('Issue 781 persona sweep — the head + blank states per person (AC-015
     // switch onto it — receives-only rules the form off (there is no produce to file), but the
     // opening door stays because the Team has an opening regardless.
     rememberStream({ branch: BRANCH_RADIANT, activity: 'kitchen', produces: false })
+    // #789: the door row calls the resolver with the stream's branch id. Radiant has a
+    // canonical opening Team but no run yet — the row reads as `Start today's opening`.
+    mockGetTodayOpeningForBranch.mockResolvedValue({
+      processId: 'p-1', teamId: 't-rad', runId: null, rollup: null,
+    })
     await renderPage(CAHYA)
     await waitFor(() =>
       expect(screen.getByText(/receives, it doesn't produce/i)).toBeInTheDocument(),
@@ -2194,8 +2212,12 @@ describe('Issue 781 persona sweep — the head + blank states per person (AC-015
     // Stock link is the door out of this state.
     const stockLink = screen.getByRole('link', { name: /open stock/i })
     expect(stockLink).toHaveAttribute('href', '/cafe/stock')
-    // The opening door renders here too — a receives-only Team still opens.
-    expect(screen.getByRole('link', { name: /today.?s opening/i })).toHaveAttribute('href', '/cafe/opening')
+    // #789: the opening door row is mounted (an ops lead is capable + affiliated). Since the
+    // resolver was seeded with the receives-only branch, the door reads `Start today's opening`.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /start today.?s opening/i })).toBeInTheDocument()
+    })
+    expect(mockGetTodayOpeningForBranch).toHaveBeenCalledWith(BRANCH_RADIANT.id)
     // No form, no capture band.
     expect(screen.queryByRole('spinbutton', { name: /quantity produced/i })).toBeNull()
   })

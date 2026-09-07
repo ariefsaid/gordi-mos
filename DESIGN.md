@@ -1008,6 +1008,7 @@ regardless of state. See § Operations event tokens for the side-stripe exceptio
   desktop row and ~180px per phone card, and pushed the list off the screen. (v4)
 - **Don't** ship the generic `<dl>` record card on a surface whose phone job is running a long
   capture list — supply a compact row through `renderCard` instead. (v4)
+- **Don't** put two scopes on one screen. A screen is written in one set of books (one branch, one stream); a head that names one and a body that names another is a defect, not context.
 
 ---
 

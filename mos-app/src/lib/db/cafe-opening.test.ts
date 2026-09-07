@@ -11,7 +11,7 @@ vi.mock('../supabase', () => {
 
 import {
   wibToday, getCafeOpeningProcessId, getTodayOpeningForTeam,
-  startTodayOpening, listCafeOpeningBranches,
+  startTodayOpening, listCafeOpeningBranches, getTodayOpeningForBranch,
 } from './cafe-opening'
 import { supabase } from '@/lib/supabase'
 import type { ProcessRunRollup, SpawnResult } from './processes.types'
@@ -201,5 +201,65 @@ describe('listCafeOpeningBranches', () => {
     mockSupabase({ 'rpc.cafe_opening_branches': [{ data: null, error: { message: 'rls denied' } }] }, rec)
 
     await expect(listCafeOpeningBranches()).rejects.toThrow(/rls denied/)
+  })
+})
+
+// ── getTodayOpeningForBranch (#789) ───────────────────────────────────────────
+// The one resolver the Café root's door row and the Home Café door both read
+// (AC-033 pins them by module identity). The canonical opening Team is
+// resolved server-side (`shared.cafe_opening_team`), so one opening covers a
+// branch's kitchen and bar together.
+describe('getTodayOpeningForBranch', () => {
+  const rollup: ProcessRunRollup = {
+    process_run_id: RUN_ID, caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+    status: 'open', total: 9, open: 5, in_progress: 0, blocked: 0, done: 4,
+    overdue: 0, pending_unresolved: 0, completion_pct: 44,
+  }
+
+  it('resolves the canonical opening Team for the branch and returns started + rollup when the run exists', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'mos.work_lines': [{ data: { id: PROCESS_ID }, error: null }],
+      'rpc.cafe_opening_branches': [{ data: [
+        { branch_id: 'b-rad', team_id: TEAM_ID, team_name: 'Radiant', run_id: null, run_status: null },
+        { branch_id: 'b-rr', team_id: 'team-rr', team_name: 'Rumah Rames', run_id: RUN_ID, run_status: 'open' },
+      ], error: null }],
+      'mos.process_run_rollup': [{ data: rollup, error: null }],
+    }, rec)
+
+    const result = await getTodayOpeningForBranch('b-rr')
+
+    expect(result).toEqual({ processId: PROCESS_ID, teamId: 'team-rr', runId: RUN_ID, rollup })
+  })
+
+  it('returns runId:null / rollup:null when the branch is authorized but the opening has not started', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'mos.work_lines': [{ data: { id: PROCESS_ID }, error: null }],
+      'rpc.cafe_opening_branches': [{ data: [
+        { branch_id: 'b-rad', team_id: TEAM_ID, team_name: 'Radiant', run_id: null, run_status: null },
+      ], error: null }],
+    }, rec)
+
+    const result = await getTodayOpeningForBranch('b-rad')
+
+    expect(result).toEqual({ processId: PROCESS_ID, teamId: TEAM_ID, runId: null, rollup: null })
+  })
+
+  it('returns null when the caller sees no row for the branch (the RPC is the authorization mirror)', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'mos.work_lines': [{ data: { id: PROCESS_ID }, error: null }],
+      'rpc.cafe_opening_branches': [{ data: [], error: null }],
+    }, rec)
+
+    expect(await getTodayOpeningForBranch('b-rad')).toBeNull()
+  })
+
+  it('returns null when Café Opening is not configured (RATIFY-7C)', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.work_lines': [{ data: null, error: null }] }, rec)
+
+    expect(await getTodayOpeningForBranch('b-rad')).toBeNull()
   })
 })

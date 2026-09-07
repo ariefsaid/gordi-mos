@@ -71,6 +71,7 @@ import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { HelpTip } from '@/components/ui/help-tip'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
+import { CafeOpeningDoorRow } from '@/components/cafe/cafe-opening-door-row'
 import './kitchen-log-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007)
@@ -608,7 +609,8 @@ export function KitchenLogPage() {
       <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="empty" meta={<span className="kl-date tabular">{logDate}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
-          <CafeOpeningDoor />
+          {/* #789: no stream is chosen yet, so there is no branch to open an opening on either;
+              the row waits until the stream picker resolves. */}
           <EmptyState variant="blank" title={t('kitchen.log.noStream.title')} />
         </div>
       </PageFamilyFrame>
@@ -626,7 +628,9 @@ export function KitchenLogPage() {
       <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="empty" meta={<span className="kl-date tabular">{logDate}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
-          <CafeOpeningDoor />
+          {/* #789: the door row still renders — a receives-only Team has an opening like any
+              other; the branch is the stream's branch. */}
+          <CafeOpeningDoorRow branch={stream.branch} />
           <EmptyState variant="blank" title={t('kitchen.log.receivesOnly.title')}>
             <Link to="/cafe/stock" className="btn btn-outline btn-touch kl-touch">
               {t('kitchen.log.receivesOnly.stockLink')}
@@ -643,7 +647,7 @@ export function KitchenLogPage() {
       <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="empty" meta={<span className="kl-date tabular">{logDate}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
-          {canCapture && <CafeOpeningDoor />}
+          {canCapture && stream && <CafeOpeningDoorRow branch={stream.branch} />}
           {/* 'blank' — no WIP items are configured yet (an ops-lead task), not a source that
               fills on its own; never 'quiet' ✓, which would misread as "nothing to log,
               all done" instead of "nothing CAN be logged until items exist". */}
@@ -880,11 +884,13 @@ export function KitchenLogPage() {
         <RouteLeaveGuard when={stagedCount > 0} message={t('kitchen.log.leave.confirm')} />
         <OfflineBanner show={!isOnline} />
 
-        {/* #781 / DESIGN.md § Navigation A1: the opening door row. A Module never opens on a
+        {/* #789 / DESIGN.md § Navigation A1: the opening door row. A Module never opens on a
             menu of doors, so the opening — a secondary journey the Café audience walks
             infrequently — rides here as a `.btn-outline`-weight row, right above the capture
-            list, and stays absent for viewers with no path into it (Fitri, plain readers). */}
-        {canCapture && <CafeOpeningDoor />}
+            list, and stays absent for viewers with no path into it (Fitri, plain readers). The
+            branch is the branch of the stream in view so head and door never disagree
+            (DESIGN.md A9); an ops lead switching streams sees the door follow. */}
+        {canCapture && stream && <CafeOpeningDoorRow branch={stream.branch} />}
 
         {/* The strip is a submitted-production claim, so keep it absent until this action has
             saved day entries. In particular, an empty strip is more honest than a band that
@@ -1072,25 +1078,6 @@ function OfflineBanner({ show }: { show: boolean }) {
     <div role="alert" aria-label={t('kitchen.log.offline.aria')} className="kl-banner kl-banner-offline kl-block">
       {t('kitchen.log.offline.banner')}
     </div>
-  )
-}
-
-/**
- * The opening door row — #781 / DESIGN.md § Navigation A1.
- *
- * "A door row is a `.btn-outline`-weight row: eyebrow · state · one verb, whose click opens the
- * record that holds the work." The eyebrow states which door this is (today's opening); the
- * verb opens the opening record page. State is left to the opening surface itself — mirroring
- * it here would be a second source of truth for whether the opening has started, and the two
- * surfaces have already been asked to agree once by shipping /cafe/opening as the live record.
- */
-function CafeOpeningDoor() {
-  const t = useT()
-  return (
-    <Link to="/cafe/opening" className="btn btn-outline kl-door">
-      <span className="kl-door-eyebrow">{t('cafe.opening.door.eyebrow')}</span>
-      <span className="kl-door-verb">{t('cafe.opening.door.open')}</span>
-    </Link>
   )
 }
 

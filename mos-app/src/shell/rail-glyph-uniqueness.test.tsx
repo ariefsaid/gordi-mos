@@ -280,10 +280,11 @@ describe('phone drawer glyphs (issue 457 part 1, the More drawer)', () => {
     expect(hrefs).toEqual(expect.arrayContaining(['/', '/work/tasks', '/inbox']))
     expect(hrefs.some((h) => h.startsWith('/admin'))).toBe(true)
     // Issue 781: the module ROOT IS the capture list (the Log), and the four rail children are
-    // Plan · Stock · Review · Pushes. Log is not a child anymore and Opening moved to
-    // /cafe/opening (a door row inside the module root, not a rail child). The Café PARENT
-    // row is omitted here because affiliated:['cafe'] promotes Café to the bottom-tab slot
-    // and the drawer never repeats the promoted module.
+    // Plan · Stock · Review · Pushes. Log is not a child anymore. #789 retires /cafe/opening
+    // as a page — the door row inside the module root activates directly into the run's Task
+    // record — so the opening never appears as a rail child either. The Café PARENT row is
+    // omitted here because affiliated:['cafe'] promotes Café to the bottom-tab slot and the
+    // drawer never repeats the promoted module.
     expect(hrefs).toEqual(
       expect.arrayContaining(['/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes']),
     )

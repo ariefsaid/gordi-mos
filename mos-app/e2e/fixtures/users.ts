@@ -13,6 +13,17 @@ export const VIEWER = {
   personId: '40000000-0000-0000-0000-000000000001', // Cahya Cafe (dual-hat: Cafe Ops + Sales leads)
 }
 
+// KITCHEN_HAND: Kartika Kitchen — a Rumah Rames kitchen hand (primary member of
+// rumah_rames_kitchen per seed.sql, `member` access role). Used by the AC-720/AC-032
+// (#789) rewrite to prove the "kitchen hand starts, a same-branch bar member sees it
+// as started" journey — she starts the opening for Rumah Rames branch, BAR_MEMBER
+// (Rumah Rames bar) then reads the row as already started. Provisioned in global-setup.
+export const KITCHEN_HAND = {
+  email: 'kartika.dev@example.test',
+  password: 'Passw0rd!dev',
+  personId: '40000000-0000-0000-0000-00000000000e', // Kartika Kitchen (rumah_rames_kitchen primary)
+}
+
 // MANAGER: Dewi Director holds the Managing Director role (30000000-…-0000).
 // Cahya (VIEWER) holds Cafe Ops Lead + Sales Lead, both reporting to the MD role
 // → Dewi is isManager=true via deriveIsManager / shared.is_manager_of.

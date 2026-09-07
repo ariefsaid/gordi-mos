@@ -45,6 +45,10 @@ const DEV_PERSONAS = [
   'rama.dev@example.test',
   'sari.dev@example.test',
   'fitri.dev@example.test',
+  // #789 (AC-032): Kartika is the kitchen-hand journey's Rumah Rames actor — primary member
+  // of rumah_rames_kitchen (seed.sql), a line-staff member access role. Ensures she has a
+  // dev auth user + gets linked to the seeded person by the LIKE '%.dev@example.test' step.
+  'kartika.dev@example.test',
 ]
 
 function loadEnvFile(path: string): Record<string, string> {

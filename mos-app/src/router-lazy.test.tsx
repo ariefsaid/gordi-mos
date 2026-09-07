@@ -36,7 +36,6 @@ import { KitchenPlanPage } from './pages/kitchen-plan-page'
 import { KitchenStockPage } from './pages/kitchen-stock-page'
 import { KitchenReviewPage } from './pages/kitchen-review-page'
 import { KitchenPushesPage } from './pages/kitchen-pushes-page'
-import { CafeOpeningPage } from './pages/cafe-opening-page'
 import { DashboardPage } from './pages/dashboard-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
@@ -137,11 +136,11 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/money/pricing', PricingPage, 'dev'],
   ['/money/follow-ups', FollowUpsPage, 'dev'],
   ['/inbox', InboxPage, 'dev'],
-  // #781 (OD-WAY-95 (1)(3)): /cafe IS the capture list now (the Log), and the opening record
-  // moved to /cafe/opening — a door row inside /cafe opens it. /cafe/log stays a router redirect,
-  // handled by allRedirects rather than by this wiring table.
+  // #781 (OD-WAY-95 (1)(3)): /cafe IS the capture list now (the Log). #789 retires
+  // /cafe/opening as a page — a door row inside /cafe activates into the run's Task record —
+  // and the path is now a router redirect (handled by allRedirects), not a wired page.
+  // /cafe/log stays a router redirect too.
   ['/cafe', KitchenLogPage, 'dev'],
-  ['/cafe/opening', CafeOpeningPage, 'v4'],
   ['/cafe/plan', KitchenPlanPage, 'dev'],
   ['/cafe/stock', KitchenStockPage, 'dev'],
   ['/cafe/review', KitchenReviewPage, 'dev'],

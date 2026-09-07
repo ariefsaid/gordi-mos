@@ -85,8 +85,10 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
   { path: '/money/pricing', family: 'workspace', sourceFile: 'pages/pricing-page.tsx', symbol: 'PricingPage' },
 
   // ── Café ──────────────────────────────────────────────────────────────────────────────────
+  // #789 retired /cafe/opening as a page — a door row inside /cafe activates into the run's
+  // Task record — so it is no longer in the page-family registry: the router redirects the
+  // path to /cafe instead.
   { path: '/cafe', family: 'workspace', sourceFile: 'pages/kitchen-log-page.tsx', symbol: 'KitchenLogPage' },
-  { path: '/cafe/opening', family: 'workspace', sourceFile: 'pages/cafe-opening-page.tsx', symbol: 'CafeOpeningPage' },
   { path: '/cafe/plan', family: 'workspace', sourceFile: 'pages/kitchen-plan-page.tsx', symbol: 'KitchenPlanPage' },
   { path: '/cafe/stock', family: 'workspace', sourceFile: 'pages/kitchen-stock-page.tsx', symbol: 'KitchenStockPage' },
   {

@@ -76,9 +76,6 @@ const ProjectsProcessesPage = lazyPage(() =>
 )
 const InboxPage = lazyPage(() => import('./pages/inbox-page').then((m) => ({ default: m.InboxPage })))
 
-const CafeOpeningPage = lazyPage(() =>
-  import('./pages/cafe-opening-page').then((m) => ({ default: m.CafeOpeningPage })),
-)
 const KitchenLogPage = lazyPage(() => import('./pages/kitchen-log-page').then((m) => ({ default: m.KitchenLogPage })))
 const KitchenPlanPage = lazyPage(() => import('./pages/kitchen-plan-page').then((m) => ({ default: m.KitchenPlanPage })))
 const KitchenReviewPage = lazyPage(() =>
@@ -364,15 +361,18 @@ const routeTable: RouteObject[] = [
           // ── Café (Kitchen re-homed) ─────────────────────────────────────────────────────
           // /cafe is the Café module's capture list — the Log (#781, OD-WAY-95). A Module's root
           // renders the work its members do most, never a menu of doors; the opening is a door
-          // row inside that root, and the review queue is a rail child. /cafe/log therefore
-          // redirects here (deep links stay working, in one hop, with the query preserved), and
-          // the opening lives at /cafe/opening for the in-page door row to open.
+          // row inside that root (#789), and the review queue is a rail child. /cafe/log
+          // therefore redirects here (deep links stay working, in one hop, with the query
+          // preserved), and /cafe/opening redirects here too — the opening is no longer its own
+          // page: activating the door row on /cafe opens the run's Task record in the record
+          // grammar (drawer ≥1370, page below, phone full-screen), which is the destination the
+          // deep link now names.
           {
             path: 'cafe',
             element: withSuspense(<KitchenLogPage />),
             handle: pageHandle('workspace'),
           },
-          { path: 'cafe/opening', element: withSuspense(<CafeOpeningPage />), handle: pageHandle('workspace') },
+          { path: 'cafe/opening', element: <RouteRedirect to="/cafe" />, handle: redirectHandle('/cafe') },
           { path: 'cafe/log', element: <RouteRedirect to="/cafe" />, handle: redirectHandle('/cafe') },
           { path: 'cafe/plan', element: withSuspense(<KitchenPlanPage />), handle: pageHandle('workspace') },
           { path: 'cafe/stock', element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
