@@ -5,19 +5,12 @@
 -- the stream dimension.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(18);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
-insert into shared.business_units (id, org_id, name, code) values ('00000000-0000-0000-0000-00000000bb01','00000000-0000-0000-0000-0000000000a1','Kitchen and Bar','retail_ops') on conflict (id) do nothing;
-insert into shared.branches (id, org_id, code, name) values
-  ('00000000-0000-0000-0000-00000000bf01','00000000-0000-0000-0000-0000000000a1','gordi_hq','Gordi HQ'),
-  ('00000000-0000-0000-0000-00000000bf02','00000000-0000-0000-0000-0000000000a1','rumah_rames','Rumah Rames'),
-  ('00000000-0000-0000-0000-00000000bf03','00000000-0000-0000-0000-0000000000a1','radiant','Radiant')
-on conflict (id) do nothing;
-insert into shared.branches (id, org_id, code, name) values ('00000000-0000-0000-0000-00000000bf09','00000000-0000-0000-0000-0000000000b1','b_branch','B Branch') on conflict (id) do nothing;
-select shared.seed_stream_teams();
+select ops._test_seed_streams();
 select ops._test_seed_daily_log();
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -72,7 +65,7 @@ select hasnt_column('ops','log_entries','branch_id',
 -- The sign convention, unchanged from the incumbent and now expressed on the stored model: a produce
 -- adds to the stream's on-hand and a transfer subtracts from it, whatever its destination. A
 -- transfer within one branch's books still subtracts — no ERP document is produced, but the WIP has
--- left the kitchen's hands, and that is the number the floor is asking for.
+-- left the origin stream's hands, and that is the number the floor is asking for.
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
 
@@ -128,9 +121,15 @@ update ops.kitchen_logs set status = 'Approved' where id = '00000000-0000-0000-0
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
 select is(
   ops.stock_available_for_date('00000000-0000-0000-0000-00000000ab01','2026-06-25',
+                               '00000000-0000-0000-0000-00000000bf02','bar'),
+  -3::numeric(12,2),
+  'and a WITHIN-branch transfer subtracts from its ORIGIN stream''s books — ac05 is the incumbent''s "Transfer to Bungur", which the ERP never sees; the books rules (#777) let only a bar move within its branch, so it nets on the Rumah Rames bar''s books');
+
+select is(
+  ops.stock_available_for_date('00000000-0000-0000-0000-00000000ab01','2026-06-25',
                                '00000000-0000-0000-0000-00000000bf02','kitchen'),
-  10::numeric(12,2),
-  'and a WITHIN-branch transfer subtracts too — the ERP records nothing, but the WIP has still left the kitchen''s hands');
+  13::numeric(12,2),
+  '...and the kitchen''s books are untouched by it — a bar movement is not a kitchen fact, which is the per-stream separation the whole dimension exists to enforce');
 
 -- The read is explicitly org-scoped rather than relying on the caller's RLS context, so a definer
 -- path and a member session get the same answer instead of silently different ones.

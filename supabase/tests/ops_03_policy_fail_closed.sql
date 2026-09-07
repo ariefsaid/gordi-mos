@@ -32,25 +32,15 @@ select plan(38);
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
-insert into shared.business_units (id, org_id, name, code) values ('00000000-0000-0000-0000-00000000bb01','00000000-0000-0000-0000-0000000000a1','Kitchen and Bar','retail_ops') on conflict (id) do nothing;
-insert into shared.branches (id, org_id, code, name) values
-  ('00000000-0000-0000-0000-00000000bf01','00000000-0000-0000-0000-0000000000a1','gordi_hq','Gordi HQ'),
-  ('00000000-0000-0000-0000-00000000bf02','00000000-0000-0000-0000-0000000000a1','rumah_rames','Rumah Rames'),
-  ('00000000-0000-0000-0000-00000000bf03','00000000-0000-0000-0000-0000000000a1','radiant','Radiant')
-on conflict (id) do nothing;
-insert into shared.branches (id, org_id, code, name) values ('00000000-0000-0000-0000-00000000bf09','00000000-0000-0000-0000-0000000000b1','b_branch','B Branch') on conflict (id) do nothing;
-select shared.seed_stream_teams();
+select ops._test_seed_streams();
 select ops._test_seed_daily_log();
 
 -- #744: the production-log and floor-record insert gates now arm on stream-Team affiliation, so
 -- the persona the write assertions run as needs a live membership. Peer ...0d4 (plain member, no
 -- access roles) is that affiliated member; Author ...0d1 stays membership-free, which is exactly
 -- what makes her the honest unaffiliated-refused subject in both sections below.
-insert into shared.teams (id, org_id, business_unit_id, name, code, branch_id, activity) values
-  ('00000000-0000-0000-0000-00000000aa21','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','Ops03 Fixture Stream','ops03_fixture_stream',
-   '00000000-0000-0000-0000-00000000bf01','bar');
 insert into shared.team_memberships (org_id, person_id, team_id, is_primary) values
-  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d4','00000000-0000-0000-0000-00000000aa21',true);
+  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d4',(select id from shared.teams where org_id = '00000000-0000-0000-0000-0000000000a1' and code = 'gordi_hq_bar'),true);
 
 set local role authenticated;
 

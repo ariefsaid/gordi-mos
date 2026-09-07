@@ -24,21 +24,12 @@
 -- DirectMgr ...0d2 holds ops_lead. Org B's log ...ac09 is the cross-tenant subject.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(45);
+select plan(46);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
-insert into shared.business_units (id, org_id, name, code) values ('00000000-0000-0000-0000-00000000bb01','00000000-0000-0000-0000-0000000000a1','Kitchen and Bar','retail_ops') on conflict (id) do nothing;
-insert into shared.branches (id, org_id, code, name) values
-  ('00000000-0000-0000-0000-00000000bf01','00000000-0000-0000-0000-0000000000a1','gordi_hq','Gordi HQ'),
-  ('00000000-0000-0000-0000-00000000bf02','00000000-0000-0000-0000-0000000000a1','rumah_rames','Rumah Rames'),
-  ('00000000-0000-0000-0000-00000000bf03','00000000-0000-0000-0000-0000000000a1','radiant','Radiant')
-on conflict (id) do nothing;
-insert into shared.branches (id, org_id, code, name) values ('00000000-0000-0000-0000-00000000bf09','00000000-0000-0000-0000-0000000000b1','b_branch','B Branch') on conflict (id) do nothing;
-select shared.seed_stream_teams();
-insert into shared.business_units (id, org_id, name, code) values ('00000000-0000-0000-0000-00000000bb09','00000000-0000-0000-0000-0000000000b1','B Kitchen','retail_ops') on conflict (id) do nothing;
-insert into shared.teams (id, org_id, business_unit_id, name, code, branch_id, activity, produces) values ('00000000-0000-0000-0000-00000000bb18','00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-00000000bb09','B Stream','b_stream','00000000-0000-0000-0000-00000000bf09','kitchen',true) on conflict (id) do nothing;
+select ops._test_seed_streams();
 select ops._test_seed_cafe();
 
 -- The owner's view of the outbox before anything is approved. Read as the owner deliberately: every
@@ -215,14 +206,15 @@ select is((select count(*)::int from integrations.esb_push where source_ref = 'T
 -- G. Stock is recomputed per PRODUCTION STREAM (OD-WAY-28)
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- Approved so far on (Rumah Rames, kitchen) / item ab01 / 2026-06-20: produce 12, produce 8,
--- produce 5, transfer out 4, transfer out 3 = 18. A transfer subtracts whatever its destination, including the
--- no-op: no ERP document is produced, but the WIP has left the kitchen's hands.
+-- produce 5, transfer out 4 = 21. The incumbent's within-branch transfer is no longer a kitchen
+-- row — the books rules (#777) let only a bar move within its own branch — so it nets on the
+-- Rumah Rames BAR's books, read below the kitchen ones.
 select is((select usable_qty from ops.kitchen_stock
             where org_id = '00000000-0000-0000-0000-0000000000a1' and log_date = '2026-06-20'
               and wip_item_id = '00000000-0000-0000-0000-00000000ab01'
               and branch_id = '00000000-0000-0000-0000-00000000bf02' and activity = 'kitchen'),
-  18::numeric(12,2),
-  'FR-062: the stream''s end-of-day balance nets every Approved movement, the no-op transfer included');
+  21::numeric(12,2),
+  'FR-062: the stream''s end-of-day balance nets every Approved movement');
 
 -- The same item, the same date, a DIFFERENT branch's books. On the prior chains the recompute summed
 -- by (org, item, date) alone, which would have written 20 into both rows.
@@ -240,8 +232,15 @@ select is((select usable_qty from ops.kitchen_stock
             where org_id = '00000000-0000-0000-0000-0000000000a1' and log_date = '2026-06-20'
               and wip_item_id = '00000000-0000-0000-0000-00000000ab01'
               and branch_id = '00000000-0000-0000-0000-00000000bf02' and activity = 'kitchen'),
-  18::numeric(12,2),
-  '...and Rumah Rames''s is still 18 — the two streams do not sum into each other, which is the COGS defect this dimension exists to stop');
+  21::numeric(12,2),
+  '...and Rumah Rames''s is still 21 — the two streams do not sum into each other, which is the COGS defect this dimension exists to stop');
+
+select is((select usable_qty from ops.kitchen_stock
+            where org_id = '00000000-0000-0000-0000-0000000000a1' and log_date = '2026-06-20'
+              and wip_item_id = '00000000-0000-0000-0000-00000000ab01'
+              and branch_id = '00000000-0000-0000-0000-00000000bf02' and activity = 'bar'),
+  -3::numeric(12,2),
+  'the incumbent''s within-branch transfer nets on the BAR''s books — a separate stored row, because the stream is the key');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- H. Nothing else in the org gained an outbox row
@@ -297,9 +296,10 @@ select throws_ok($$
 --
 --   1. The arms hold for a stream the incumbent never captured. Both rows below are (Gordi HQ,
 --      bar) — the intra-branch one is what a barista files when they hand cut fruit to their own
---      branch's kitchen, and it is the first time that movement can exist as a row at all. If the
---      endpoint rule had quietly grown an activity term, this is where it would show: same branch
---      pair as ac05, different activity, and the answer must be identical.
+--      branch's kitchen. The incumbent's own within-branch movement is a bar row now too (ac05,
+--      Rumah Rames bar): the books rules (#777) let only a bar move within its branch. If the
+--      endpoint rule had quietly grown any term beyond origin branch = destination branch, this
+--      is where it would show.
 --   2. A HELD row has no ERP document and is not waiting for one (FR-050/053). Endpoint alone
 --      does not say that — a row can carry 'noop' and still have been posted by a worker that
 --      decided to try. The document fields are what the claim is actually about, and they are
@@ -350,8 +350,9 @@ select row_eq($$
   'AC-008: ...and it enqueues a real transfer through the normal dispatch path — pending, with the destination on the message, exactly as a kitchen cross-branch transfer does');
 
 -- ── The sweep: no held row anywhere has an ERP document ──────────────────────────────────────
--- Both no-ops in this file — the incumbent's carried kitchen case and the new bar one — read at
--- once. A posting arm added later for intra-branch movements (the move FR-053 forbids) turns this
+-- Both no-ops in this file — the incumbent's within-branch case (ac05, a Rumah Rames bar row
+-- now) and the new Gordi HQ bar one — read at once. A posting arm added later for intra-branch
+-- movements (the move FR-053 forbids) turns this
 -- red on the first approval it touches, whatever surface produced the row.
 -- Both counts, deliberately: "none of them has a document" is satisfied by an outbox with no held
 -- rows in it at all, and that is the reading a future refactor would silently drift into.
@@ -361,7 +362,7 @@ select row_eq($$
          count(*) filter (where esb_doc_num is not null or posted_at is not null)::int
     from integrations.esb_push where endpoint = 'noop' $$,
   row(2, 0)::record,
-  'FR-053: BOTH held movements — the incumbent''s carried kitchen one and the new bar one — are in the outbox, and NEITHER carries an ERP document; the intra-branch posting arm does not exist and is not to be built');
+  'FR-053: BOTH held movements — the incumbent''s within-branch one and the new Gordi HQ bar one — are in the outbox, and NEITHER carries an ERP document; the intra-branch posting arm does not exist and is not to be built');
 
 select * from finish();
 rollback;

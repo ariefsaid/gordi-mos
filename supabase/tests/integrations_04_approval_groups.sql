@@ -6,16 +6,7 @@ select plan(20);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
-insert into shared.business_units (id, org_id, name, code) values ('00000000-0000-0000-0000-00000000bb01','00000000-0000-0000-0000-0000000000a1','Kitchen and Bar','retail_ops') on conflict (id) do nothing;
-insert into shared.branches (id, org_id, code, name) values
-  ('00000000-0000-0000-0000-00000000bf01','00000000-0000-0000-0000-0000000000a1','gordi_hq','Gordi HQ'),
-  ('00000000-0000-0000-0000-00000000bf02','00000000-0000-0000-0000-0000000000a1','rumah_rames','Rumah Rames'),
-  ('00000000-0000-0000-0000-00000000bf03','00000000-0000-0000-0000-0000000000a1','radiant','Radiant')
-on conflict (id) do nothing;
-insert into shared.branches (id, org_id, code, name) values ('00000000-0000-0000-0000-00000000bf09','00000000-0000-0000-0000-0000000000b1','b_branch','B Branch') on conflict (id) do nothing;
-select shared.seed_stream_teams();
-insert into shared.business_units (id, org_id, name, code) values ('00000000-0000-0000-0000-00000000bb09','00000000-0000-0000-0000-0000000000b1','B Kitchen','retail_ops') on conflict (id) do nothing;
-insert into shared.teams (id, org_id, business_unit_id, name, code, branch_id, activity, produces) values ('00000000-0000-0000-0000-00000000bb18','00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-00000000bb09','B Stream','b_stream','00000000-0000-0000-0000-00000000bf09','kitchen',true) on conflict (id) do nothing;
+select ops._test_seed_streams();
 select ops._test_seed_cafe();
 select ok((select relrowsecurity from pg_class where oid='integrations.esb_push_groups'::regclass),
   'approval groups have RLS enabled');
@@ -80,7 +71,7 @@ values
 select throws_ok($$select ops.approve_kitchen_logs(array['00000000-0000-0000-0000-00000000e708'::uuid,'00000000-0000-0000-0000-00000000e709'::uuid], null)$$, '22023', null,
   'two cross-branch transfers refuse mixed destinations');
 insert into ops.kitchen_logs (id, business_unit_id, log_date, branch_id, activity, action, destination_branch_id, wip_item_id, qty_porsi)
-values ('00000000-0000-0000-0000-00000000e705','00000000-0000-0000-0000-00000000bb01','2026-06-24','00000000-0000-0000-0000-00000000bf02','kitchen','transfer','00000000-0000-0000-0000-00000000bf02','00000000-0000-0000-0000-00000000ab01',1);
+values ('00000000-0000-0000-0000-00000000e705','00000000-0000-0000-0000-00000000bb01','2026-06-24','00000000-0000-0000-0000-00000000bf02','bar','transfer','00000000-0000-0000-0000-00000000bf02','00000000-0000-0000-0000-00000000ab01',1);
 select throws_ok($$select ops.approve_kitchen_logs(array['00000000-0000-0000-0000-00000000e705'::uuid], null)$$, '22023', null,
   'noop-only approval does not leave a pending group');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';

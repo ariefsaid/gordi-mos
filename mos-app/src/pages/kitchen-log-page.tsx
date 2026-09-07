@@ -873,16 +873,8 @@ export function KitchenLogPage() {
             ariaLabel={t('kitchen.log.toolbarAria')}
           >
             {stream && <div className="kl-scope">
-              {/* The movement control IS the destination picker (FR-013): produce, then a
-                  transfer to every branch in the catalog — cross-branch to any other, and
-                  intra-branch cross-activity to the origin's own, offered the same way from
-                  the bar surface and the kitchen surface because the destination is a branch
-                  and nothing else (OD-WAY-44). `origin` is what lets the own-branch entry be
-                  read as "to our kitchen"/"to our bar" rather than as a duplicate of the
-                  person's own branch name; it changes no stored value. Approved, an
-                  intra-branch movement is HELD — no ERP document ever (FR-050/053). */}
-              {stream && (
-                <MovementSeg
+              {/* Movement choices are derived from this producing stream's allowed books. */}
+              <MovementSeg
                   value={movement}
                   options={movementsForStream(stream, streamOptions)}
                   branches={branches}
@@ -890,7 +882,6 @@ export function KitchenLogPage() {
                   onChange={handleMovementChange}
                   disabled={isSubmitting}
                 />
-              )}
             </div>}
           </KitchenToolbar>
           <DataTable
