@@ -249,6 +249,7 @@ const NO_NAV_ENTRY_BY_DESIGN: Record<string, string> = {
   '/work/tasks/new': 'record door — opened by the create action, not a nav entry',
   '/work/tasks/:taskId': 'record door — opened from the Tasks table or a deep link',
   '/work/projects/:id': 'record door (#806, OD-WAY-97 (2)) — opened from the Projects & Processes collection or a deep link, never from nav',
+  '/work/objectives/:id': 'record door (#813, OD-WAY-97 (2)(5)(7)) — opened from the Objectives collection or a deep link, never from nav',
   // Corrected: the previous reason said "reached from the Money surface itself", which is false.
   // The Detail tab does not navigate to this PATH — it writes `?tab=detail` onto the current one
   // via setSearchParams. Nothing in the app links `/money/detail`; breadcrumb.tsx only renders a

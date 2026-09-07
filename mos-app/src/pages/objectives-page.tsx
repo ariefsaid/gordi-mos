@@ -19,7 +19,6 @@ import { can } from '@/lib/capabilities'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
-import { HelpTip } from '@/components/ui/help-tip'
 import { Button } from '@/components/ui/button'
 import { TextInput } from '@/components/ui/text-input'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
@@ -179,11 +178,9 @@ export function ObjectivesPage() {
       family="management"
       title={t('nav.work.objectives')}
       jobSentence={t('job.objectives')}
-      /* onboard (2026-07-28): Objectives scored 18/40 (the app's weakest surface) and OD-V4-1
-         has just made it visible to EVERY role, so most of its readers are meeting it for the
-         first time. The one thing they cannot infer from the screen is that the cascade is
-         walked through the records rather than shown on a screen of its own. */
-      meta={<HelpTip label={t('objectives.help')} />}
+      /* onboard #813 (AC-045): the head `?` tip is gone, its one useful sentence
+         lives in the true-empty copy where a first-time reader meets it in the
+         same breath as the invitation to name the first Objective. */
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
 

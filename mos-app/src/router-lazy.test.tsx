@@ -31,6 +31,7 @@ import { FollowUpsPage } from './pages/follow-ups-page'
 import { ObjectivesPage } from './pages/objectives-page'
 import { ProjectsProcessesPage } from './pages/projects-processes-page'
 import { WorkLineRecordPage } from './pages/work-line-record-page'
+import { ObjectiveRecordPage } from './pages/objective-record-page'
 import { InboxPage } from './pages/inbox-page'
 import { KitchenLogPage } from './pages/kitchen-log-page'
 import { KitchenPlanPage } from './pages/kitchen-plan-page'
@@ -130,6 +131,9 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/work/signals', SignalsArchivePage, 'v4'],
   ['/work/signals/:signalId', SignalRecordPage, 'v4'],
   ['/work/objectives', ObjectivesPage, 'dev'],
+  // #813 (OD-WAY-97 (2)(5)(7)): the Objective record surface — the shared RecordViewer,
+  // wired via the new page module. Not-found rides INSIDE the record frame.
+  ['/work/objectives/:id', ObjectiveRecordPage, 'v4'],
   ['/work/projects', ProjectsProcessesPage, 'dev'],
   // #806 (OD-WAY-97 (2)): the Project/Process record surface — the shared RecordViewer,
   // wired via the new page module. Not-found rides INSIDE the record frame.

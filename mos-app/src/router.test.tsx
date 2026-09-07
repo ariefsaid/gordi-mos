@@ -222,6 +222,16 @@ describe('router — Work catalog gates', () => {
     expect(gatesOnPath('/work/projects/:id')).toEqual([])
   })
 
+  it('AC-048 (#813): /work/objectives/:id renders the record surface, no read gate', () => {
+    // OD-V4-1 already opened /work/objectives to every authenticated viewer; the
+    // record route sits alongside its collection at the same open standing — one
+    // hop, no capability — so a direct URL for any viewer's own visible record
+    // resolves to the RecordViewer (which owns the not-found INSIDE its frame for
+    // an unknown id). Editability inside the record is asked via canManageDefinition.
+    expect(flattenRoutes().find((f) => f.path === '/work/objectives/:id')).toBeDefined()
+    expect(gatesOnPath('/work/objectives/:id')).toEqual([])
+  })
+
   it('the retired catalog spellings are one-hop redirects to /work/projects, not chained', () => {
     const inside = shellChildren()
       .filter((r) => typeof r.path === 'string' && (r.path === 'work/projects-processes' || r.path === 'projects-processes'))

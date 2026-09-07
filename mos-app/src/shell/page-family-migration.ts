@@ -66,6 +66,15 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
     sourceFile: 'pages/objectives-page.tsx',
     symbol: 'ObjectivesPage',
   },
+  // #813 (OD-WAY-97 (2)(5)(7)): the Objective record surface. Classified as a focused
+  // record so ContextRow keeps its silence on this URL just like /work/tasks/:taskId
+  // and /work/projects/:id do — the record's own pinned header carries identity.
+  {
+    path: '/work/objectives/:id',
+    family: 'focused-record',
+    sourceFile: 'pages/objective-record-page.tsx',
+    symbol: 'ObjectiveRecordPage',
+  },
   {
     path: '/work/projects',
     family: 'management',

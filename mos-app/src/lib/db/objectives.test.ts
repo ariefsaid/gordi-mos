@@ -7,6 +7,7 @@ vi.mock('../supabase', () => {
 
 import {
   listObjectives, listObjectivesAll, createObjective, renameObjective, setObjectiveArchived,
+  readObjective, updateObjective,
 } from './objectives'
 import { supabase } from '@/lib/supabase'
 
@@ -39,6 +40,7 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
     builder.insert = vi.fn((p: unknown) => { rec.inserts.push(p); return builder })
     builder.update = vi.fn((p: unknown) => { rec.updates.push(p); return builder })
     builder.single = vi.fn(() => builder)
+    builder.maybeSingle = vi.fn(() => builder)
     builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result()).then(resolve)
     return builder
   }
@@ -161,6 +163,84 @@ describe('renameObjective', () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: null, error: { message: 'nope' } }] }, rec) as never)
     await expect(renameObjective('o-1', 'X')).rejects.toThrow(/renameObjective failed — nope/)
+  })
+})
+
+describe('readObjective (#813 — record surface)', () => {
+  it('returns the full record row for a known id', async () => {
+    const rec = freshRec()
+    const row = {
+      id: 'obj-1', name: 'Grow revenue', archived_at: null,
+      business_unit_id: 'bu-1', accountable_person_id: 'p-1', period_year: 2026,
+      description: 'The one we committed to.', updated_at: '2026-09-01T00:00:00Z',
+    }
+    schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: row, error: null }] }, rec) as never)
+
+    const result = await readObjective('obj-1')
+
+    expect(result).toEqual(row)
+    expect(rec.eqs).toContainEqual(['id', 'obj-1'])
+    expect(rec.selects).toContain(
+      'id,name,archived_at,business_unit_id,accountable_person_id,period_year,description,updated_at',
+    )
+  })
+
+  it('resolves to null for an unknown id (maybeSingle returns null data + null error)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: null, error: null }] }, rec) as never)
+
+    const result = await readObjective('obj-missing')
+
+    // The caller renders a not-found INSIDE the record frame; null means the read
+    // succeeded and there is no such row visible to the viewer — never an error.
+    expect(result).toBeNull()
+  })
+
+  it('throws on a non-null PostgREST error (never swallows RLS refusals)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: null, error: { message: 'perm denied' } }] }, rec) as never)
+
+    await expect(readObjective('obj-1')).rejects.toThrow(/readObjective failed — perm denied/)
+  })
+})
+
+describe('updateObjective (#813 — record edits)', () => {
+  it('patches only the fields the caller sends (Details tab Saving/Saved is per-field)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: null, error: null }] }, rec) as never)
+
+    await updateObjective('obj-1', { period_year: 2027 })
+
+    expect(rec.updates).toEqual([{ period_year: 2027 }])
+    expect(rec.eqs).toContainEqual(['id', 'obj-1'])
+  })
+
+  it('accepts all five patchable fields (name · unit · accountable · year · description)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: null, error: null }] }, rec) as never)
+
+    await updateObjective('obj-1', {
+      name: 'Renamed',
+      business_unit_id: 'bu-2',
+      accountable_person_id: 'p-3',
+      period_year: 2027,
+      description: 'Refined.',
+    })
+
+    expect(rec.updates).toEqual([{
+      name: 'Renamed',
+      business_unit_id: 'bu-2',
+      accountable_person_id: 'p-3',
+      period_year: 2027,
+      description: 'Refined.',
+    }])
+  })
+
+  it('surfaces the DB refusal so the record can show its Saving error state', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: null, error: { message: 'row-level security' } }] }, rec) as never)
+
+    await expect(updateObjective('obj-1', { name: 'X' })).rejects.toThrow(/updateObjective failed — row-level security/)
   })
 })
 

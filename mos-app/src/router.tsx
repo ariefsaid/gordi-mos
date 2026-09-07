@@ -70,6 +70,9 @@ const SignalRecordPage = lazyPage(() =>
 )
 const FollowUpsPage = lazyPage(() => import('./pages/follow-ups-page').then((m) => ({ default: m.FollowUpsPage })))
 const ObjectivesPage = lazyPage(() => import('./pages/objectives-page').then((m) => ({ default: m.ObjectivesPage })))
+const ObjectiveRecordPage = lazyPage(() =>
+  import('./pages/objective-record-page').then((m) => ({ default: m.ObjectiveRecordPage })),
+)
 const ProjectsProcessesPage = lazyPage(() =>
   import('./pages/projects-processes-page').then((m) => ({ default: m.ProjectsProcessesPage })),
 )
@@ -229,6 +232,16 @@ const routeTable: RouteObject[] = [
             path: 'work/objectives',
             element: withSuspense(<ObjectivesPage />),
             handle: pageHandle('management'),
+          },
+          // OD-WAY-97 (2)(5)(7) (owner-ratified, ticket #813): the Objective record.
+          // Renders on the shared RecordViewer regime — panel beside the collection
+          // at ≥1370, page below and on a direct URL, full-screen on phone. An
+          // unknown id falls through to a not-found INSIDE the record frame
+          // (ObjectiveRecordPage owns that fallback, not the router's catch-all).
+          {
+            path: 'work/objectives/:id',
+            element: withSuspense(<ObjectiveRecordPage />),
+            handle: pageHandle('focused-record'),
           },
           // OD-WAY-97 (1) (owner-ratified, ticket #806): Projects & Processes opens for
           // everyone. The read gate is removed — a viewer without write standing gets the

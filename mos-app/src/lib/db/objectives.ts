@@ -82,3 +82,57 @@ export async function setObjectiveArchived(id: string, archived: boolean): Promi
     .eq('id', id)
   if (error) throw new Error(`setObjectiveArchived failed — ${error.message}`)
 }
+
+// ── Record surface (ticket #813) ────────────────────────────────────────────────
+//
+// An Objective opens as a record (`/work/objectives/:id`). `readObjective` fetches
+// the columns the record header + Details tab renders — an unknown id resolves to
+// null (the caller shows a not-found inside the record frame, per the ticket)
+// rather than throwing. `updateObjective` patches only the fields the record edits
+// — `business_unit_id`, `accountable_person_id`, `period_year`, `description`,
+// `name` — and lets the database's RLS decide who may write (mirror of
+// `canManageDefinition`, the client-side affordance seam, #801/#813).
+
+export interface ObjectiveRecord {
+  id: string
+  name: string
+  archived_at: string | null
+  business_unit_id: string | null
+  accountable_person_id: string | null
+  period_year: number | null
+  description: string | null
+  updated_at: string
+}
+
+const RECORD_COLUMNS =
+  'id,name,archived_at,business_unit_id,accountable_person_id,period_year,description,updated_at'
+
+/** Read one objective by id. Returns null when no such row is visible (unknown id, or RLS hides it). */
+export async function readObjective(id: string): Promise<ObjectiveRecord | null> {
+  const { data, error } = await mos()
+    .from('objectives')
+    .select(RECORD_COLUMNS)
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(`readObjective failed — ${error.message}`)
+  return (data as unknown as ObjectiveRecord | null) ?? null
+}
+
+/**
+ * Fields the record allows a writer to patch — every arm optional so the caller can save
+ * one field at a time (per-field Saving/Saved, per the record grammar). `name` is the
+ * inline title edit; the rest are Details-tab fields.
+ */
+export interface ObjectivePatch {
+  name?: string
+  business_unit_id?: string | null
+  accountable_person_id?: string | null
+  period_year?: number | null
+  description?: string | null
+}
+
+/** Patch one or more fields on an objective. Throws on PostgREST error (403 from RLS included). */
+export async function updateObjective(id: string, patch: ObjectivePatch): Promise<void> {
+  const { error } = await mos().from('objectives').update(patch).eq('id', id)
+  if (error) throw new Error(`updateObjective failed — ${error.message}`)
+}
