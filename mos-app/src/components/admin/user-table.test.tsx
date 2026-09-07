@@ -181,7 +181,7 @@ describe('UserTable — desktop ⋯ menu', () => {
 
     // Menu should be open
     const menu = screen.getByRole('menu')
-    expect(within(menu).getByRole('menuitem', { name: /manage access & position/i })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /manage person/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /reset password/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /disable login/i })).toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: /enable login/i })).not.toBeInTheDocument()
@@ -242,13 +242,13 @@ describe('UserTable — desktop ⋯ menu', () => {
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
   })
 
-  it('dispatches manage-roles action when "Manage access & position" clicked', async () => {
+  it('AC-037: dispatches manage-roles action when "Manage person" clicked', async () => {
     const user = userEvent.setup()
     const onAction = vi.fn()
     renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { onAction })
 
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
-    await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
+    await user.click(screen.getByRole('menuitem', { name: /manage person/i }))
 
     expect(onAction).toHaveBeenCalledWith('manage-roles', ACTIVE_MEMBER)
   })
@@ -286,7 +286,7 @@ describe('UserTable — I3 menu contract (useMenuPopover)', () => {
     renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
     await waitFor(() =>
-      expect(screen.getByRole('menuitem', { name: /manage access & position/i })).toHaveFocus(),
+      expect(screen.getByRole('menuitem', { name: /manage person/i })).toHaveFocus(),
     )
   })
 
@@ -294,7 +294,7 @@ describe('UserTable — I3 menu contract (useMenuPopover)', () => {
     const user = userEvent.setup()
     renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
-    await waitFor(() => expect(screen.getByRole('menuitem', { name: /manage access & position/i })).toHaveFocus())
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: /manage person/i })).toHaveFocus())
 
     await user.keyboard('{ArrowDown}')
     expect(screen.getByRole('menuitem', { name: /reset password/i })).toHaveFocus()
@@ -308,12 +308,12 @@ describe('UserTable — I3 menu contract (useMenuPopover)', () => {
     const user = userEvent.setup()
     renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
-    await waitFor(() => expect(screen.getByRole('menuitem', { name: /manage access & position/i })).toHaveFocus())
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: /manage person/i })).toHaveFocus())
 
     await user.keyboard('{End}')
     expect(screen.getByRole('menuitem', { name: /archive/i })).toHaveFocus()
     await user.keyboard('{Home}')
-    expect(screen.getByRole('menuitem', { name: /manage access & position/i })).toHaveFocus()
+    expect(screen.getByRole('menuitem', { name: /manage person/i })).toHaveFocus()
   })
 
   it('closes on outside pointerdown and returns focus to the trigger', async () => {
@@ -428,7 +428,7 @@ describe('UserTable — mobile action sheet', () => {
 
     // Action sheet should be open with actions
     expect(screen.getByRole('menu')).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /manage access & position/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /manage person/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /reset password/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /disable login/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /archive/i })).toBeInTheDocument()
@@ -442,7 +442,7 @@ describe('UserTable — mobile action sheet', () => {
     const manageBtns = screen.getAllByRole('button', { name: /manage/i })
     await user.click(manageBtns[1])
 
-    await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
+    await user.click(screen.getByRole('menuitem', { name: /manage person/i }))
 
     expect(onAction).toHaveBeenCalledWith('manage-roles', ACTIVE_MEMBER)
   })
@@ -455,7 +455,7 @@ describe('UserTable — mobile action sheet', () => {
     const manageBtns = screen.getAllByRole('button', { name: /manage/i })
     await user.click(manageBtns[1])
 
-    await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
+    await user.click(screen.getByRole('menuitem', { name: /manage person/i }))
 
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
   })
@@ -539,7 +539,7 @@ describe('UserTable — ⋯ menu portaled to body', () => {
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
 
     const menu = screen.getByRole('menu')
-    expect(within(menu).getByRole('menuitem', { name: /manage access & position/i })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /manage person/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /reset password/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /disable login/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /archive/i })).toBeInTheDocument()

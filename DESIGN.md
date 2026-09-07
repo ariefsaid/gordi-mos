@@ -785,6 +785,10 @@ dropped. A column of filled pills on every row is colour that marks everything a
 nothing, and it out-shouts the actual controls. Pills remain correct where status is *exceptional*
 or sparse.
 
+### Management dialogs (A-5, 2026-09-07)
+
+**Management dialogs.** A dialog that edits one subject is titled for the subject (`Manage <name>`), never for its first section. Sections run in the order the domain reads them (Teams · Position · Access · scope). An eager-commit row prints `Saved` or `Failed · Retry` beside itself. A phone list card carries one `⋯` icon action (44px), never a full-width button per card, and never a filled `primary`.
+
 ### Home arrangements (v4, `OD-V4-7` / `OD-V4-9`)
 Home is the one surface carrying a **per-person layout preference** (set in `/profile` → Personal).
 Three arrangements — **Focused**, **Overview**, **List** — render the *same* four regions

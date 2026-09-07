@@ -361,7 +361,7 @@ describe('AdminUsersPage — dialog reflects fresh data after a Position toggle'
     await screen.findByText('Riri')
 
     await user.click(screen.getByRole('button', { name: /more actions for riri/i }))
-    await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
+    await user.click(screen.getByRole('menuitem', { name: /manage person/i }))
 
     const box = screen.getByRole('checkbox', { name: /kitchen lead/i })
     expect(box).toHaveAttribute('aria-checked', 'false')
@@ -394,7 +394,7 @@ describe('AdminUsersPage — the Teams section is actually wired through', () =>
     renderPage()
 
     await user.click(await screen.findByRole('button', { name: /More actions for Budi Santoso/i }))
-    await user.click(await screen.findByText(/Manage access & position/i))
+    await user.click(await screen.findByText(/Manage person/i))
 
     // The team the PAGE fetched, rendered by the picker, showing its (branch, activity) pair —
     // and marked Home, which is what resolves this person's default capture stream.

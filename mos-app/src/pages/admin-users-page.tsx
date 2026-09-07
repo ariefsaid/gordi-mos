@@ -295,12 +295,14 @@ export function AdminUsersPage() {
         )}
       </div>
 
-      {/* Create person dialog */}
+      {/* Create person dialog (#808) — asks for Team (required) + Position (optional) up front */}
       <CreatePersonDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onCreated={handlePersonCreated}
         takenEmails={takenEmails}
+        teams={teams}
+        roles={roles}
         onShowToast={showToast}
       />
 

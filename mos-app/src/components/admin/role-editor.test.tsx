@@ -1,9 +1,10 @@
-// RoleEditor tests — TDD, FR-050, AC-050.
+// RoleEditor tests — TDD, FR-050, AC-050 · #808 AC-037/AC-038 additions.
 // Tests: toggle ON calls grantRole, toggle OFF calls revokeRole, self-row disables admin/finance,
-// other rows leave them enabled, 'manager' is never rendered.
+// other rows leave them enabled; the dialog is titled `Manage <name>`, sections run
+// Teams · Position · Access · Revenue scope, per-row Saved / Failed · Retry marker, phone accordion.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { AuthState } from '@/auth/context'
 
@@ -13,8 +14,13 @@ import { useAuth } from '@/auth/use-auth'
 vi.mock('@/lib/db/admin-users', () => ({
   grantRole: vi.fn(),
   revokeRole: vi.fn(),
+  addTeamMembership: vi.fn(),
+  endTeamMembership: vi.fn(),
+  setPrimaryTeam: vi.fn(),
+  assignJabatan: vi.fn(),
+  removeJabatan: vi.fn(),
 }))
-import { grantRole, revokeRole } from '@/lib/db/admin-users'
+import { grantRole, revokeRole, addTeamMembership, endTeamMembership } from '@/lib/db/admin-users'
 
 import { RoleEditor } from './role-editor'
 import type { AdminPersonRow, RevenueScopeOption } from '@/lib/db/admin-users.types'
@@ -22,6 +28,8 @@ import type { AdminPersonRow, RevenueScopeOption } from '@/lib/db/admin-users.ty
 const mockUseAuth = vi.mocked(useAuth)
 const mockGrantRole = vi.mocked(grantRole)
 const mockRevokeRole = vi.mocked(revokeRole)
+const mockAddTeam = vi.mocked(addTeamMembership)
+const mockEndTeam = vi.mocked(endTeamMembership)
 
 const ADMIN_VIEWER: AuthState = {
   status: 'authenticated',
@@ -74,6 +82,27 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(ADMIN_VIEWER)
   mockGrantRole.mockResolvedValue(undefined)
   mockRevokeRole.mockResolvedValue(undefined)
+  mockAddTeam.mockResolvedValue(undefined)
+  mockEndTeam.mockResolvedValue(undefined)
+  // Default matchMedia: desktop (no phone accordion). Individual tests override.
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+})
+
+afterEach(() => {
+  // Restore any test-specific matchMedia
+  // (jsdom's default matchMedia is fine; the setter above is per-test)
 })
 
 function renderEditor(
@@ -369,5 +398,145 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
 
     expect(mockGrantRole).not.toHaveBeenCalled()
     expect(mockRevokeRole).not.toHaveBeenCalled()
+  })
+
+  // ── #808 additions ─────────────────────────────────────────────────────────
+
+  it('AC-037: the dialog is titled `Manage <full name>` — never after its first section', () => {
+    renderEditor({ ...OTHER_PERSON, full_name: 'Bagas Barista' })
+    // The subject-titled heading (A-5).
+    expect(
+      screen.getByRole('heading', { level: 2, name: /manage bagas barista/i }),
+    ).toBeInTheDocument()
+    // And the old "Access level" title is gone as the dialog title.
+    expect(screen.queryByRole('heading', { level: 2, name: /^access level$/i })).toBeNull()
+  })
+
+  it('AC-037: sections render in order — Teams · Position · Access · Revenue scope (scope only for supervisor)', () => {
+    const supervisor = { ...OTHER_PERSON, access_roles: ['supervisor'] }
+    render(
+      <RoleEditor
+        person={supervisor}
+        teams={[
+          { id: 't-hq', name: 'HQ Operations', branch_name: null, activity: null },
+        ]}
+        roles={[{ id: 'r-barista', name: 'Barista' }]}
+        scopeOptions={[]}
+        open
+        onClose={vi.fn()}
+        onDone={vi.fn()}
+      />,
+    )
+    // The four section subheadings (h3) appear in the required order.
+    const h3s = screen.getAllByRole('heading', { level: 3 })
+    const texts = h3s.map((h) => h.textContent?.trim())
+    // Access header is inside RoleEditor; the other three are inside their pickers.
+    const teamsIdx = texts.findIndex((t) => t === 'Teams')
+    const positionIdx = texts.findIndex((t) => t === 'Position')
+    const accessIdx = texts.findIndex((t) => t === 'Access')
+    const scopeIdx = texts.findIndex((t) => t === 'Revenue scope')
+    expect(teamsIdx).toBeGreaterThanOrEqual(0)
+    expect(positionIdx).toBeGreaterThanOrEqual(0)
+    expect(accessIdx).toBeGreaterThanOrEqual(0)
+    expect(scopeIdx).toBeGreaterThanOrEqual(0)
+    // Strict ordering
+    expect(teamsIdx).toBeLessThan(positionIdx)
+    expect(positionIdx).toBeLessThan(accessIdx)
+    expect(accessIdx).toBeLessThan(scopeIdx)
+  })
+
+  it('AC-037: with no supervisor role, the Revenue scope section is absent', () => {
+    renderEditor(OTHER_PERSON)
+    expect(screen.queryByRole('heading', { level: 3, name: /revenue scope/i })).toBeNull()
+  })
+
+  it('AC-037: an Access grant that succeeds prints "Saved" beside the row', async () => {
+    const user = userEvent.setup()
+    renderEditor(OTHER_PERSON)
+    await user.click(screen.getByRole('checkbox', { name: /ops lead/i }))
+    // The row-grammar success channel (DESIGN.md § Management dialogs A-5).
+    await screen.findByText('✓ Saved')
+  })
+
+  it('AC-037: an Access grant that fails prints "Failed · Retry" beside the row', async () => {
+    const user = userEvent.setup()
+    mockGrantRole.mockRejectedValueOnce(new Error('rls denied'))
+    renderEditor(OTHER_PERSON)
+    await user.click(screen.getByRole('checkbox', { name: /ops lead/i }))
+    // The failure marker sits beside the row it belongs to, not the whole dialog.
+    await screen.findByRole('button', { name: /failed · retry/i })
+  })
+
+  it('AC-037: a Teams row save prints "Saved" beside it; a rejected one prints "Failed · Retry"', async () => {
+    const user = userEvent.setup()
+    render(
+      <RoleEditor
+        person={OTHER_PERSON}
+        teams={[
+          { id: 't-hq', name: 'HQ Operations', branch_name: null, activity: null },
+          { id: 't-bar', name: 'Gordi HQ Bar', branch_name: 'Gordi HQ', activity: 'bar' },
+        ]}
+        open
+        onClose={vi.fn()}
+        onDone={vi.fn()}
+      />,
+    )
+    // First, a successful join → "Saved" beside the row.
+    await user.click(screen.getByRole('checkbox', { name: 'HQ Operations' }))
+    await screen.findByText('✓ Saved')
+
+    // Then, a failing join → "Failed · Retry".
+    mockAddTeam.mockRejectedValueOnce(new Error('add to team failed'))
+    await user.click(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' }))
+    await screen.findByRole('button', { name: /failed · retry/i })
+  })
+
+  it('AC-038: at phone width (≤390) sections are accordions with Teams open and others collapsed', () => {
+    // Simulate the phone breakpoint by overriding matchMedia.
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(max-width: 390px)',
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
+
+    render(
+      <RoleEditor
+        person={OTHER_PERSON}
+        teams={[{ id: 't-hq', name: 'HQ Operations', branch_name: null, activity: null }]}
+        roles={[{ id: 'r-barista', name: 'Barista' }]}
+        open
+        onClose={vi.fn()}
+        onDone={vi.fn()}
+      />,
+    )
+
+    // The Teams accordion is expanded, others collapsed.
+    const teamsTrigger = screen.getByRole('button', { name: /^Teams$/i })
+    const positionTrigger = screen.getByRole('button', { name: /^Position$/i })
+    const accessTrigger = screen.getByRole('button', { name: /^Access$/i })
+
+    expect(teamsTrigger).toHaveAttribute('aria-expanded', 'true')
+    expect(positionTrigger).toHaveAttribute('aria-expanded', 'false')
+    expect(accessTrigger).toHaveAttribute('aria-expanded', 'false')
+
+    // And the Teams section body is visible; Position/Access sections are hidden.
+    const teamsSection = document.querySelector('[data-section="teams"]') as HTMLElement
+    const positionSection = document.querySelector('[data-section="position"]') as HTMLElement
+    const accessSection = document.querySelector('[data-section="access"]') as HTMLElement
+
+    expect(teamsSection.getAttribute('data-open')).toBe('true')
+    expect(positionSection.getAttribute('data-open')).toBe('false')
+    expect(accessSection.getAttribute('data-open')).toBe('false')
+
+    // The collapsed sections' bodies carry the `hidden` attribute.
+    expect(within(positionSection).getByRole('checkbox', { name: /barista/i, hidden: true }).closest('[hidden]')).not.toBeNull()
   })
 })

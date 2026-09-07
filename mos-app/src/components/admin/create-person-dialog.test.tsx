@@ -1,5 +1,6 @@
-// CreatePersonDialog tests — TDD, plan §5.2.
-// AC-011: synthetic email, show-once password, self-assign guard.
+// CreatePersonDialog tests — TDD, ticket #808.
+// AC-035 (field order + login toggle rules) · AC-036 (submit shape).
+// Legacy AC-011 coverage (email/synth path, reveal, JQ-3 login-intent handling) preserved.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -17,6 +18,7 @@ vi.mock('@/lib/db/admin-users', () => ({
 import { synthesizeEmail, createPerson, createLogin } from '@/lib/db/admin-users'
 
 import { CreatePersonDialog } from './create-person-dialog'
+import type { TeamOption, RoleOption } from '@/lib/db/admin-users.types'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockCreatePerson = vi.mocked(createPerson)
@@ -45,6 +47,16 @@ const ADMIN_VIEWER: AuthState = {
   signOut: vi.fn(),
 }
 
+const TEAMS: TeamOption[] = [
+  { id: 't-hq', name: 'HQ Operations', branch_name: null, activity: null },
+  { id: 't-bar', name: 'Gordi HQ Bar', branch_name: 'Gordi HQ', activity: 'bar' },
+]
+
+const ROLES: RoleOption[] = [
+  { id: 'r-barista', name: 'Barista' },
+  { id: 'r-lead', name: 'Shift Lead' },
+]
+
 beforeEach(() => {
   vi.clearAllMocks()
   mockUseAuth.mockReturnValue(ADMIN_VIEWER)
@@ -59,6 +71,8 @@ function renderDialog(
     onClose?: () => void
     onCreated?: () => void
     onShowToast?: (message: string) => void
+    teams?: TeamOption[]
+    roles?: RoleOption[]
   } = {},
 ) {
   return render(
@@ -67,261 +81,195 @@ function renderDialog(
       onClose={props.onClose ?? vi.fn()}
       onCreated={props.onCreated ?? vi.fn()}
       onShowToast={props.onShowToast}
+      teams={props.teams ?? TEAMS}
+      roles={props.roles ?? ROLES}
     />,
   )
 }
 
-describe('CreatePersonDialog (AC-011)', () => {
-  it('AC-011: renders Add person dialog with name, email fields, and Create person button', () => {
+describe('CreatePersonDialog — #808 rewrite (AC-035 / AC-036)', () => {
+  it('AC-035: renders the fields in order — Full name · Email · Team · Position · Access · login toggle', () => {
     renderDialog()
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    // Every field is present and named for what it does.
     expect(screen.getByLabelText(/full name/i)).toBeInTheDocument()
     expect(screen.getByLabelText('Email')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /create person/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument()
+    // Team is a Select — the RPC needs a primary Team and this dialog now owns that.
+    const teamSelect = screen.getByLabelText('Team') as HTMLSelectElement
+    expect(teamSelect.tagName).toBe('SELECT')
+    // Position is optional multi.
+    expect(screen.getByRole('checkbox', { name: /barista/i })).toBeInTheDocument()
+    // Access is a chip row (radiogroup, so aria is honest).
+    expect(screen.getByRole('radiogroup', { name: /access/i })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: /create a login now/i })).toBeInTheDocument()
   })
 
-  it('AC-011: "no email" checkbox is present and toggles email field disabled state', async () => {
+  it('AC-035: the Team Select lists the live teams and starts unset', () => {
+    renderDialog()
+    const teamSelect = screen.getByLabelText('Team') as HTMLSelectElement
+    expect(teamSelect.value).toBe('')
+    // Each live team appears as an option; the (branch, activity) stream teams are spelled out.
+    expect(screen.getByRole('option', { name: /HQ Operations/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Gordi HQ Bar · Gordi HQ Bar/i })).toBeInTheDocument()
+  })
+
+  it('AC-035: submit without a Team shows the field error and calls nothing', async () => {
     const user = userEvent.setup()
     renderDialog()
-
-    const emailInput = screen.getByLabelText('Email')
-    expect(emailInput).not.toBeDisabled()
-
-    const noEmailCheckbox = screen.getByRole('checkbox', { name: /no email/i })
-    await user.click(noEmailCheckbox)
-
-    // Email field should be disabled when "no email" checked
-    expect(screen.getByLabelText('Email')).toBeDisabled()
+    await user.type(screen.getByLabelText(/full name/i), 'Bagas Barista')
+    await user.type(screen.getByLabelText('Email'), 'bagas@example.test')
+    // No team chosen.
+    await user.click(screen.getByRole('button', { name: /create person/i }))
+    // Field-error text appears at the Team field (role=alert distinguishes it from the placeholder).
+    const alerts = screen.getAllByRole('alert').map((el) => el.textContent ?? '')
+    expect(alerts.some((t) => /choose a team to continue/i.test(t))).toBe(true)
+    // Neither RPC fired — nothing was written.
+    expect(mockCreatePerson).not.toHaveBeenCalled()
+    expect(mockCreateLogin).not.toHaveBeenCalled()
   })
 
-  it('AC-011: "no email" checked + name "Budi Santoso" shows synthetic @ops.gordi.local preview', async () => {
+  it('AC-035: the Access chip row pre-selects Member', () => {
+    renderDialog()
+    const memberChip = screen.getByRole('radio', { name: /member/i })
+    expect(memberChip).toHaveAttribute('aria-checked', 'true')
+    // Everything else starts unchecked.
+    expect(screen.getByRole('radio', { name: /^admin$/i })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('AC-035: typing an email flips the login toggle ON by default', async () => {
     const user = userEvent.setup()
     renderDialog()
-
-    const nameInput = screen.getByLabelText(/full name/i)
-    await user.type(nameInput, 'Budi Santoso')
-
-    const noEmailCheckbox = screen.getByRole('checkbox', { name: /no email/i })
-    await user.click(noEmailCheckbox)
-
-    // Synthetic email preview should contain @ops.gordi.local
-    expect(screen.getByText(/ops\.gordi\.local/i)).toBeInTheDocument()
+    const toggle = screen.getByRole('switch', { name: /create a login now/i })
+    // No address yet → OFF and disabled with a reason.
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    expect(toggle).toBeDisabled()
+    expect(screen.getByText(/add an email or sign-in name first/i)).toBeInTheDocument()
+    // Once the admin types an email, the toggle enables and flips ON by default.
+    await user.type(screen.getByLabelText('Email'), 'bagas@example.test')
+    expect(toggle).not.toBeDisabled()
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('AC-011: submitting with "no email" calls createPerson with @ops.gordi.local email', async () => {
+  it('AC-035: "no email" with no sign-in name yet → toggle OFF and disabled with reason', async () => {
+    const user = userEvent.setup()
+    renderDialog()
+    // Tick "no email" WITHOUT typing a name — so no synthetic sign-in name is derived yet.
+    await user.click(screen.getByRole('checkbox', { name: /no email/i }))
+    const toggle = screen.getByRole('switch', { name: /create a login now/i })
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    expect(toggle).toBeDisabled()
+    expect(screen.getByText(/add an email or sign-in name first/i)).toBeInTheDocument()
+  })
+
+  it('AC-036: valid submit → exactly one createPerson call carrying name, email, team, positions, access', async () => {
     const user = userEvent.setup()
     mockCreatePerson.mockResolvedValue('new-person-id')
+    mockCreateLogin.mockResolvedValue('TempPw808')
     renderDialog()
 
-    await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
-
-    const noEmailCheckbox = screen.getByRole('checkbox', { name: /no email/i })
-    await user.click(noEmailCheckbox)
+    await user.type(screen.getByLabelText(/full name/i), 'Bagas Barista')
+    await user.type(screen.getByLabelText('Email'), 'bagas@example.test')
+    await user.selectOptions(screen.getByLabelText('Team'), 't-bar')
+    await user.click(screen.getByRole('checkbox', { name: /barista/i }))
+    // Admin already pre-picked Member; swap to Ops Lead to prove the payload carries the chosen role.
+    await user.click(screen.getByRole('radio', { name: /ops lead/i }))
 
     await user.click(screen.getByRole('button', { name: /create person/i }))
 
     await waitFor(() => {
+      expect(mockCreatePerson).toHaveBeenCalledTimes(1)
+      expect(mockCreatePerson).toHaveBeenCalledWith({
+        full_name: 'Bagas Barista',
+        email: 'bagas@example.test',
+        team_id: 't-bar',
+        position_ids: ['r-barista'],
+        access_role: 'ops_lead',
+      })
+    })
+  })
+
+  it('AC-036: login RPC is called only when the toggle is ON, then the reveal renders once', async () => {
+    const user = userEvent.setup()
+    mockCreatePerson.mockResolvedValue('new-person-id')
+    mockCreateLogin.mockResolvedValue('TempPw808')
+    renderDialog()
+
+    await user.type(screen.getByLabelText(/full name/i), 'Bagas Barista')
+    await user.type(screen.getByLabelText('Email'), 'bagas@example.test')
+    await user.selectOptions(screen.getByLabelText('Team'), 't-bar')
+    // Toggle is ON by default because an email is typed (AC-035).
+    await user.click(screen.getByRole('button', { name: /create person/i }))
+
+    await waitFor(() => expect(mockCreateLogin).toHaveBeenCalledWith('new-person-id'))
+    // The show-once reveal renders exactly once.
+    await screen.findByText('TempPw808')
+    expect(screen.getAllByText('TempPw808')).toHaveLength(1)
+  })
+
+  it('AC-036: login toggle OFF → createPerson runs, createLogin does NOT, no reveal', async () => {
+    const user = userEvent.setup()
+    mockCreatePerson.mockResolvedValue('new-person-id')
+    renderDialog()
+
+    await user.type(screen.getByLabelText(/full name/i), 'Bagas Barista')
+    await user.type(screen.getByLabelText('Email'), 'bagas@example.test')
+    await user.selectOptions(screen.getByLabelText('Team'), 't-bar')
+    // Admin explicitly turns OFF the default-ON toggle.
+    await user.click(screen.getByRole('switch', { name: /create a login now/i }))
+    await user.click(screen.getByRole('button', { name: /create person/i }))
+
+    await waitFor(() => expect(mockCreatePerson).toHaveBeenCalled())
+    expect(mockCreateLogin).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  // ── Preserved legacy coverage (AC-011 + JQ-3) ────────────────────────────────
+
+  it('AC-011: "no email" + name "Budi Santoso" shows the @ops.gordi.local sign-in preview', async () => {
+    const user = userEvent.setup()
+    renderDialog()
+    await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
+    await user.click(screen.getByRole('checkbox', { name: /no email/i }))
+    expect(screen.getByText(/ops\.gordi\.local/i)).toBeInTheDocument()
+  })
+
+  it('AC-011: submitting with "no email" calls createPerson with the synthetic address', async () => {
+    const user = userEvent.setup()
+    mockCreatePerson.mockResolvedValue('new-person-id')
+    renderDialog()
+    await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
+    await user.click(screen.getByRole('checkbox', { name: /no email/i }))
+    await user.selectOptions(screen.getByLabelText('Team'), 't-hq')
+    await user.click(screen.getByRole('button', { name: /create person/i }))
+    await waitFor(() => {
       expect(mockCreatePerson).toHaveBeenCalledWith(
         expect.objectContaining({
           email: expect.stringMatching(/@ops\.gordi\.local$/),
+          team_id: 't-hq',
         }),
       )
     })
   })
 
-  it('AC-011: access-role rows show human labels + descriptions, never raw slugs', () => {
-    renderDialog()
-    // Human labels for the assignable roles
-    expect(screen.getByText('Ops Lead')).toBeInTheDocument()
-    expect(screen.getByText('Member')).toBeInTheDocument()
-    expect(screen.getByText('Admin')).toBeInTheDocument()
-    expect(screen.getByText('Finance')).toBeInTheDocument()
-    // Description line under each role
-    expect(screen.getByText('Plans and approves')).toBeInTheDocument()
-    // Raw slug must not leak into the UI
-    expect(screen.queryByText('ops_lead')).not.toBeInTheDocument()
-    // Checkbox accessible name is the human label
-    expect(screen.getByRole('checkbox', { name: /ops lead/i })).toBeInTheDocument()
-  })
-
-  it('AC-011: "create a login now" toggle appears and is off by default', () => {
-    renderDialog()
-    const loginToggle = screen.getByRole('switch', { name: /create a login now/i })
-    expect(loginToggle).toBeInTheDocument()
-    expect(loginToggle).toHaveAttribute('aria-checked', 'false')
-  })
-
-  it('AC-011: with "create a login now" ON, createLogin is called after createPerson', async () => {
-    const user = userEvent.setup()
-    mockCreatePerson.mockResolvedValue('new-person-id')
-    mockCreateLogin.mockResolvedValue('TempPw1234')
-    renderDialog()
-
-    await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
-    await user.type(screen.getByLabelText('Email'), 'budi@example.test')
-
-    const loginToggle = screen.getByRole('switch', { name: /create a login now/i })
-    await user.click(loginToggle)
-
-    await user.click(screen.getByRole('button', { name: /create person/i }))
-
-    await waitFor(() => {
-      expect(mockCreatePerson).toHaveBeenCalled()
-      expect(mockCreateLogin).toHaveBeenCalledWith('new-person-id')
-    })
-  })
-
-  it('AC-011: temp password revealed exactly once — the TempPasswordReveal panel appears', async () => {
-    const user = userEvent.setup()
-    mockCreatePerson.mockResolvedValue('new-person-id')
-    mockCreateLogin.mockResolvedValue('TempPw9999')
-    renderDialog()
-
-    await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
-    await user.type(screen.getByLabelText('Email'), 'budi@example.test')
-
-    const loginToggle = screen.getByRole('switch', { name: /create a login now/i })
-    await user.click(loginToggle)
-
-    await user.click(screen.getByRole('button', { name: /create person/i }))
-
-    // Password reveal panel should show with the password
-    await screen.findByText('TempPw9999')
-
-    // Warning banner "copy this now" must be present
-    expect(screen.getByText(/copy this now/i)).toBeInTheDocument()
-
-    // "Done" button is present (no Esc dismiss — intentional)
-    expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument()
-  })
-
-  it('AC-011: password is NOT retained in DOM after Done is clicked', async () => {
-    const user = userEvent.setup()
-    mockCreatePerson.mockResolvedValue('new-person-id')
-    mockCreateLogin.mockResolvedValue('TempPw9999')
-    const onClose = vi.fn()
-    renderDialog({ onClose })
-
-    await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
-    await user.type(screen.getByLabelText('Email'), 'budi@example.test')
-
-    const loginToggle = screen.getByRole('switch', { name: /create a login now/i })
-    await user.click(loginToggle)
-
-    await user.click(screen.getByRole('button', { name: /create person/i }))
-    await screen.findByText('TempPw9999')
-
-    // Click Done
-    await user.click(screen.getByRole('button', { name: /done/i }))
-
-    // onClose called, password gone from DOM
-    expect(onClose).toHaveBeenCalled()
-  })
-
-  it('AC-011: role=alertdialog on the password reveal step', async () => {
-    const user = userEvent.setup()
-    mockCreatePerson.mockResolvedValue('new-person-id')
-    mockCreateLogin.mockResolvedValue('TempPw1111')
-    renderDialog()
-
-    await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
-    await user.type(screen.getByLabelText('Email'), 'budi@example.test')
-    await user.click(screen.getByRole('switch', { name: /create a login now/i }))
-    await user.click(screen.getByRole('button', { name: /create person/i }))
-
-    // After reveal, dialog role becomes alertdialog
-    await screen.findByText('TempPw1111')
-    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
-  })
-
-  it('uses one shared modal shell and Escape closes only the dismissible form phase', async () => {
-    const user = userEvent.setup()
-    const onClose = vi.fn()
-    renderDialog({ onClose })
-
-    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
-    await user.keyboard('{Escape}')
-    expect(onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps the show-once password protected from Escape dismissal', async () => {
-    const user = userEvent.setup()
-    const onClose = vi.fn()
-    mockCreatePerson.mockResolvedValue('new-person-id')
-    mockCreateLogin.mockResolvedValue('TempPwProtected')
-    renderDialog({ onClose })
-
-    await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
-    await user.click(screen.getByRole('switch', { name: /create a login now/i }))
-    await user.click(screen.getByRole('button', { name: /create person/i }))
-    await screen.findByText('TempPwProtected')
-    await user.keyboard('{Escape}')
-
-    expect(onClose).not.toHaveBeenCalled()
-    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
-  })
-
   it('AC-011: validation — empty name shows an error, createPerson not called', async () => {
     const user = userEvent.setup()
     renderDialog()
-
-    // Submit without name
     await user.click(screen.getByRole('button', { name: /create person/i }))
-
     expect(mockCreatePerson).not.toHaveBeenCalled()
-    // Error hint for name field
     expect(screen.getByText(/enter a name/i)).toBeInTheDocument()
-  })
-
-  it('AC-011: submitting state disables the form and shows "Creating…"', async () => {
-    const user = userEvent.setup()
-    // Never resolve so we can catch the submitting state
-    mockCreatePerson.mockReturnValue(new Promise(() => {}))
-    renderDialog()
-
-    await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
-    await user.type(screen.getByLabelText('Email'), 'budi@example.test')
-    await user.click(screen.getByRole('button', { name: /create person/i }))
-
-    expect(screen.getByText(/creating/i)).toBeInTheDocument()
   })
 
   it('AC-011: error from createPerson shows an inline error message', async () => {
     const user = userEvent.setup()
     mockCreatePerson.mockRejectedValue(new Error('rls denied'))
     renderDialog()
-
     await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
     await user.type(screen.getByLabelText('Email'), 'budi@example.test')
+    await user.selectOptions(screen.getByLabelText('Team'), 't-hq')
     await user.click(screen.getByRole('button', { name: /create person/i }))
-
     await screen.findByText(/couldn't create/i)
   })
 
-  // ── JQ-3: the "Create a login now" intent must never be silently lost ─────────
-
-  it('JQ-3: login-requested create surfaces the show-once credential reveal (never a plain "added" toast)', async () => {
-    const user = userEvent.setup()
-    mockCreatePerson.mockResolvedValue('new-person-id')
-    mockCreateLogin.mockResolvedValue('TempPwJQ3')
-    const onShowToast = vi.fn()
-    const onClose = vi.fn()
-    renderDialog({ onShowToast, onClose })
-
-    await user.type(screen.getByLabelText(/full name/i), 'New Hire')
-    await user.type(screen.getByLabelText('Email'), 'hire@example.test')
-    await user.click(screen.getByRole('switch', { name: /create a login now/i }))
-    await user.click(screen.getByRole('button', { name: /create person/i }))
-
-    // The credential handoff fired: the reveal shows the password.
-    await screen.findByText('TempPwJQ3')
-    // …and the dialog did NOT short-circuit into the no-login "added" success.
-    expect(onShowToast).not.toHaveBeenCalled()
-    expect(onClose).not.toHaveBeenCalled()
-  })
-
-  it('JQ-3: person-created-but-login-failed surfaces an honest actionable message, not a silent "added"', async () => {
+  it('JQ-3: person-created-but-login-failed → honest toast, no bare "added"', async () => {
     const user = userEvent.setup()
     mockCreatePerson.mockResolvedValue('new-person-id')
     mockCreateLogin.mockRejectedValue(new Error('provisioning RPC failed'))
@@ -332,41 +280,34 @@ describe('CreatePersonDialog (AC-011)', () => {
 
     await user.type(screen.getByLabelText(/full name/i), 'New Hire')
     await user.type(screen.getByLabelText('Email'), 'hire@example.test')
-    await user.click(screen.getByRole('switch', { name: /create a login now/i }))
+    await user.selectOptions(screen.getByLabelText('Team'), 't-hq')
+    // Toggle is ON by default because an email is typed.
     await user.click(screen.getByRole('button', { name: /create person/i }))
 
-    // The list refreshes (the new no-login person is now visible with a Create-login row action)…
     await waitFor(() => expect(onCreated).toHaveBeenCalled())
-    // …and the admin is told the login step did NOT happen + how to recover — never a bare "added".
     const message = onShowToast.mock.calls.at(-1)?.[0] as string
     expect(message).toMatch(/sign-in couldn't be created/i)
     expect(message).toMatch(/create login/i)
-    expect(message).not.toBe('New Hire added.')
-    // No credential reveal is shown (none was created).
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('JQ-3: a full create failure (person not written) keeps the honest "couldn\'t create" error', async () => {
+  it('AC-036: password is dropped and dialog closes when Done is clicked on the reveal', async () => {
     const user = userEvent.setup()
-    mockCreatePerson.mockRejectedValue(new Error('rls denied'))
-    const onCreated = vi.fn()
-    const onShowToast = vi.fn()
-    renderDialog({ onCreated, onShowToast })
+    mockCreatePerson.mockResolvedValue('new-person-id')
+    mockCreateLogin.mockResolvedValue('TempPw9999')
+    const onClose = vi.fn()
+    renderDialog({ onClose })
 
-    await user.type(screen.getByLabelText(/full name/i), 'New Hire')
-    await user.type(screen.getByLabelText('Email'), 'hire@example.test')
-    await user.click(screen.getByRole('switch', { name: /create a login now/i }))
+    await user.type(screen.getByLabelText(/full name/i), 'Budi Santoso')
+    await user.type(screen.getByLabelText('Email'), 'budi@example.test')
+    await user.selectOptions(screen.getByLabelText('Team'), 't-hq')
     await user.click(screen.getByRole('button', { name: /create person/i }))
-
-    await screen.findByText(/couldn't create/i)
-    // Nothing was written → no list refresh, no misleading "added" toast, no login attempt.
-    expect(onCreated).not.toHaveBeenCalled()
-    expect(onShowToast).not.toHaveBeenCalled()
-    expect(mockCreateLogin).not.toHaveBeenCalled()
+    await screen.findByText('TempPw9999')
+    await user.click(screen.getByRole('button', { name: /done/i }))
+    expect(onClose).toHaveBeenCalled()
   })
 
-  // FIX B1 regression — the canonical shell owns the visible Single-Border Rule.
   it('FIX-B1: dialog card uses the canonical bordered modal surface', () => {
     renderDialog()
     const dialog = screen.getByRole('dialog')

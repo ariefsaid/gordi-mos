@@ -191,7 +191,7 @@ function PersonActionMenu({
         className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
         onClick={() => dispatch('manage-roles')}
       >
-        {t('admin.people.action.manageAccess')}
+        {t('admin.people.action.managePerson')}
       </button>
 
       <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
