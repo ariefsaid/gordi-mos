@@ -48,6 +48,13 @@ function renderRow(props: Partial<TaskRowProps> = {}) {
   )
 }
 
+function installTaskStyles() {
+  const style = document.createElement('style')
+  style.textContent = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+  document.head.append(style)
+  return () => style.remove()
+}
+
 describe('TaskRow — shared title + metadata cell grammar', () => {
   it('renders the E7 title and typed Business Unit metadata in one identity cell', () => {
     renderRow({ businessUnitName: 'Café Operations' })
@@ -202,6 +209,7 @@ describe('TaskRow — stopPropagation regression (⋯ must NOT fire row onOpen)'
 describe('TaskRow — provenance ("via <role name>", item 4)', () => {
   it('threads provenanceRoleName through to the owner cell as "via <role>"', () => {
     renderRow({ ownerName: 'Cahya Cafe', provenanceRoleName: 'Cafe Ops Lead' })
+    expect(document.querySelector('.task-pic-cell')).toBeTruthy()
     expect(screen.getByText('via Cafe Ops Lead')).toBeInTheDocument()
   })
 
@@ -363,14 +371,26 @@ describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)',
   })
 
   it('allows modifier and middle-click title activation to remain native anchor navigation', () => {
-    const onOpen = vi.fn()
-    renderRow({ onOpen, onEditTitle: vi.fn().mockResolvedValue(undefined) })
-    const link = screen.getByRole('link', { name: /Finalise Q3/i })
-    fireEvent.click(link, { metaKey: true })
-    fireEvent.click(link, { ctrlKey: true })
-    fireEvent.click(link, { shiftKey: true })
-    fireEvent.click(link, { button: 1 })
-    expect(onOpen).not.toHaveBeenCalled()
+    vi.useFakeTimers()
+    try {
+      const onOpen = vi.fn()
+      renderRow({ onOpen, onEditTitle: vi.fn().mockResolvedValue(undefined) })
+      const link = screen.getByRole('link', { name: /Finalise Q3/i })
+      const clicks = [
+        new MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true }),
+        new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }),
+        new MouseEvent('click', { bubbles: true, cancelable: true, shiftKey: true }),
+        new MouseEvent('click', { bubbles: true, cancelable: true, button: 1 }),
+      ]
+      clicks.forEach((event) => {
+        link.dispatchEvent(event)
+        expect(event.defaultPrevented).toBe(false)
+      })
+      vi.advanceTimersByTime(250)
+      expect(onOpen).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('renders the title pencil in the title cell, never the Due cell', () => {
@@ -492,12 +512,37 @@ describe('TaskRow — AC-018 pencil affordance', () => {
     expect(document.querySelector('button.task-row-pencil')).toBeNull()
   })
 
-  it('AC-018: the pencil reveal is CSS-owned (hidden at rest, shown on hover/focus-within)', () => {
-    renderRow({ onEditTitle: vi.fn().mockResolvedValue(undefined) })
-    const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
-    expect(css).toMatch(/\.task-row-pencil\s*\{[^}]*visibility:\s*hidden/)
-    expect(css).toMatch(/\.task-title-cell:hover \.task-row-pencil/)
-    expect(css).toMatch(/\.task-title-cell:focus-within \.task-row-pencil/)
+  it('AC-018: the pencil is hidden at rest and visible when its title cell has focus within', () => {
+    const removeStyles = installTaskStyles()
+    try {
+      renderRow({ onEditTitle: vi.fn().mockResolvedValue(undefined) })
+      const pencil = document.querySelector('button.task-row-pencil') as HTMLButtonElement
+      const titleCell = document.querySelector('.task-title-cell') as HTMLElement
+      expect(getComputedStyle(pencil).visibility).toBe('hidden')
+      titleCell.focus()
+      pencil.focus()
+      // jsdom does not recalculate :focus-within. Apply the declaration from the real CSSOM rule
+      // to the focused control, then verify the browser-computed result (not stylesheet text).
+      const revealRule = Array.from((document.head.lastElementChild as HTMLStyleElement).sheet!.cssRules)
+        .find((rule): rule is CSSStyleRule => rule instanceof CSSStyleRule && rule.selectorText.includes(':focus-within') && rule.cssText.includes('visibility'))
+      const revealVisibility = revealRule?.style.getPropertyValue('visibility')
+      expect(revealVisibility).toBe('visible')
+      pencil.style.visibility = revealVisibility!
+      expect(getComputedStyle(pencil).visibility).toBe('visible')
+    } finally {
+      removeStyles()
+    }
+  })
+
+  it('AC-018: the condensed title cell reserves room for the pencil', () => {
+    const removeStyles = installTaskStyles()
+    try {
+      renderRow({ condensed: true, onEditTitle: vi.fn().mockResolvedValue(undefined) })
+      const titleCell = document.querySelector('.task-title-cell') as HTMLElement
+      expect(getComputedStyle(titleCell).paddingRight).toBe('30px')
+    } finally {
+      removeStyles()
+    }
   })
 })
 

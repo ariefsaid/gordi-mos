@@ -261,22 +261,19 @@
 
 /* ── Table ── */
 /* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop DB-view shows ONLY
-   the decision columns — Task + Status + PIC + Supervisor + Due + menu (6 cols).
+   the decision columns — Task + Status + PIC + Supervisor + Due (5 cols).
    Project/Process, Objective, Team, Source, Activity moved to the record drawer
    (where the typed Task already shows them — OD-62). min-width:0 (was 1284px) so
    width:100% + table-layout:fixed always fit the content area — the decision-critical
    Due column can NEVER be clipped off-screen at 1280px. .tasks-scroll (overflow-x:auto)
    is the safety net only for absurdly narrow shells. */
 .tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 0; }
-/* Priority col widths: menu stays fixed, while the decision columns use proportions so
-   the Task identity column can never collapse to zero at the normal 1024px shell. The previous
-   fixed-pixel sum consumed the entire table (Task measured 0px in the live render). */
-.tasks-table th:nth-child(1), .tasks-table td:nth-child(1) { width: auto; }   /* Task — the identity column absorbs all slack (E7/pre-E7: title never starves) */
+/* The Task identity column absorbs remaining space so it cannot collapse at the normal shell. */
+.tasks-table th:nth-child(1), .tasks-table td:nth-child(1) { width: auto; }   /* Task */
 .tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 12%; }    /* Status */
 .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 15%; }    /* PIC / Ownership */
 .tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { width: 15%; }    /* Supervisor */
 .tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 14%; }    /* Due */
-.tasks-table th:nth-child(6), .tasks-table td:nth-child(6) { width: 40px; }   /* row menu */
 
 /* Intermediate widths: column PRIORITY (Wave 2c) — Task > Status > PIC > Due > Supervisor.
    Supervisor stays in the record drawer/full page; Due must never clip ("Overdue · Mon 13 Jul"). */
@@ -286,9 +283,9 @@
   .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 16%; }
   .tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 21%; }
 }
-/* Split floors keep each decision column and the row menu measurable. */
+/* Split floors keep each decision column measurable. */
 .split:not(.nodrawer) .tasks-table th:nth-child(1),
-.split:not(.nodrawer) .tasks-table td:nth-child(1) { width: 200px; } /* Title inherits the retired menu floor */
+.split:not(.nodrawer) .tasks-table td:nth-child(1) { width: 200px; } /* Title */
 .split:not(.nodrawer) .tasks-table th:nth-child(2),
 .split:not(.nodrawer) .tasks-table td:nth-child(2) { width: 108px; } /* Status */
 .split:not(.nodrawer) .tasks-table th:nth-child(3),
@@ -297,7 +294,6 @@
 .split:not(.nodrawer) .tasks-table td:nth-child(4) { width: 120px; } /* Supervisor */
 .split:not(.nodrawer) .tasks-table th:nth-child(5),
 .split:not(.nodrawer) .tasks-table td:nth-child(5) { width: 104px; } /* Due */
-/* AC-020 (#750): the ⋯ row-menu column is retired — the five decision columns are the grid. */
 /* Due + pencil floors are sized by CLASS, not column position, in every state (split or
    rest): the optional Business Unit column shifts every later column's nth-child index, so
    an nth-child-based floor lands on the wrong column once BU is on — measured on dev at
@@ -315,8 +311,6 @@
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
-/* AC-020 (#750): the ⋯ menu column is gone — its alignment rule retired with it. */
-
 /* Table-header grammar: e7 owns it for the redesign skin (SALVAGE — parity sweep A3,
    2026-07-18): weight 600, h38. This SUPERSEDES the OD-P4-10/ADR-0013 weight-400 overline
    (pre-redesign era, mock-shell-and-table.html) — era discipline: the owning redesign
@@ -357,11 +351,9 @@
 .task-row-link:hover { background: var(--secondary); }
 .task-row-link:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; } /* item #6: dense-table row cell — inset ring (outward +2 clips at the cell edge) */
 
-/* AC-020 (#750) — the one-item ⋯ row menu is retired (button + column + styles). */
-
 /* AC-018 (#750) — the title-edit pencil belongs to the title identity cell. It is revealed by
    title hover/focus, while Due keeps its authored 12px cell padding and never hosts controls. */
-.task-title-cell { position: relative; }
+.task-title-cell { position: relative; padding-right: 30px; }
 .task-row-pencil {
   position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
   width: 24px; height: 24px; flex: none; padding: 0; cursor: pointer;
@@ -411,9 +403,12 @@
 .own-name { font-size: var(--font-size-body-lg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Design fix wave item 4 (OD-65 mockup regression) — the generated-ownership "via <role name>"
    line stacks below the PIC name (never widens the compact owner cell). */
-.owner-name-stack { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow: hidden; }
-.owner-name-stack .own-name { line-height: 1.2; }
-.owner-provenance {
+.task-pic-cell {
+  min-width: 0;
+  overflow: hidden;
+}
+.task-pic-cell .owner-provenance {
+  display: block;
   font-size: var(--font-size-overline); color: var(--muted-foreground); font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }

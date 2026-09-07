@@ -103,12 +103,6 @@
   color: var(--ds-font-color-inverted); display: grid; place-items: center; font-size: var(--font-size-micro); font-weight: 700; flex: none;
 }
 .own-name { font-size: var(--font-size-body-lg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.owner-name-stack { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow: hidden; }
-.owner-name-stack .own-name { line-height: 1.2; }
-.owner-provenance {
-  font-size: var(--font-size-overline); color: var(--muted-foreground); font-weight: 500;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
 
 .collection-grammar-sort-indicator {
   display: inline-block;

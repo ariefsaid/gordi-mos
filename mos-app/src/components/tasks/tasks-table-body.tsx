@@ -260,7 +260,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
               </button>
             </th>
             {/* AC-020 (#750): the ⋯ row-menu column is retired — it held one action. The
-                title-edit pencil (AC-018) rides the Due cell's trailing edge on hover. */}
+                title-edit pencil (AC-018) is rendered in the title cell. */}
           </tr>
         </thead>
         {virtualize ? (
