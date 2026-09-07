@@ -3,6 +3,7 @@
 // Branches on isDesktop (one branch in the DOM — P-4).
 
 import type { KitchenKpis, KitchenKpiStripData, KitchenKpiTileData } from '@/lib/kitchen-kpis'
+import { useT, type Translate } from '@/i18n/use-t'
 import { Pill } from '@/components/ui/pill'
 import './kitchen-kpi-strip.css'
 
@@ -13,12 +14,13 @@ interface KitchenKpiStripProps {
 }
 
 export function KitchenKpiStrip({ kpis, data, isDesktop }: KitchenKpiStripProps) {
-  const resolved = data ?? buildLogKpiStripData(kpis!)
+  const t = useT()
+  const resolved = data ?? buildLogKpiStripData(kpis!, t)
   if (isDesktop) return <DesktopStrip data={resolved} />
   return <PhoneSummary data={resolved} />
 }
 
-function buildLogKpiStripData(kpis: KitchenKpis): KitchenKpiStripData {
+function buildLogKpiStripData(kpis: KitchenKpis, t: Translate): KitchenKpiStripData {
   const {
     plannedTotal, madeOfPlan, madeSoFar, madeOffPlan, pctComplete,
     itemsRemaining, unitsShort, plannedDishCount,
@@ -28,49 +30,49 @@ function buildLogKpiStripData(kpis: KitchenKpis): KitchenKpiStripData {
 
   return {
     ariaLabel: 'Plan vs actual summary',
-    phoneLabel: 'Today',
-    phoneValue: `${plannedDishCount} planned`,
+    phoneLabel: t('kitchen.kpi.today'),
+    phoneValue: `${plannedDishCount} ${t('kitchen.kpi.planned')}`,
     phoneMeta: hasPlan ? `${pctComplete}%` : '—%',
     tiles: [
       {
-        label: 'Planned total',
+        label: t('kitchen.kpi.plannedTotal'),
         value: hasPlan ? String(plannedTotal) : '0',
-        delta: `${plannedDishCount} items`,
+        delta: `${plannedDishCount} ${t('kitchen.kpi.items')}`,
         deltaTone: 'neutral',
         deltaDot: false,
-        sub: 'portions',
+        sub: t('kitchen.kpi.portions'),
       },
       {
-        label: 'Made so far',
+        label: t('kitchen.kpi.made'),
         value: String(madeSoFar),
         delta: hasPlan
           ? behind > 0
-            ? `−${behind} vs plan`
-            : 'on plan'
-          : 'no plan set',
+            ? `−${behind} ${t('kitchen.kpi.vsPlan')}`
+            : t('kitchen.kpi.onPlan')
+          : t('kitchen.kpi.noPlan'),
         deltaTone: hasPlan ? (behind > 0 ? 'destructive' : 'success') : 'neutral',
         deltaDot: hasPlan ? undefined : false,
-        sub: madeOffPlan > 0 ? `+${madeOffPlan} off-plan` : undefined,
+        sub: madeOffPlan > 0 ? `+${madeOffPlan} ${t('kitchen.kpi.offPlan')}` : undefined,
       },
       {
-        label: '% complete',
+        label: t('kitchen.kpi.complete'),
         value: hasPlan ? `${pctComplete}%` : '—%',
-        delta: hasPlan ? `${madeOfPlan} of ${plannedTotal}` : 'no plan set',
+        delta: hasPlan ? `${madeOfPlan} ${t('kitchen.kpi.of')} ${plannedTotal}` : t('kitchen.kpi.noPlan'),
         deltaTone: 'neutral',
         deltaDot: false,
-        sub: 'of plan',
+        sub: t('kitchen.kpi.ofPlan'),
       },
       {
-        label: 'Items remaining',
+        label: t('kitchen.kpi.remaining'),
         value: String(itemsRemaining),
         delta: hasPlan
           ? itemsRemaining > 0
-            ? `−${unitsShort} units short`
-            : 'all on plan'
-          : 'no plan set',
+            ? `−${unitsShort} ${t('kitchen.kpi.unitsShort')}`
+            : t('kitchen.kpi.onPlan')
+          : t('kitchen.kpi.noPlan'),
         deltaTone: hasPlan ? (itemsRemaining > 0 ? 'destructive' : 'success') : 'neutral',
         deltaDot: hasPlan ? undefined : false,
-        sub: 'of target',
+        sub: t('kitchen.kpi.target'),
       },
     ],
   }

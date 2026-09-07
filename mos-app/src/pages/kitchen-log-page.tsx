@@ -63,6 +63,7 @@ import { MovementSeg } from '@/components/kitchen/movement-seg'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { WipItemStepper } from '@/components/kitchen/wip-item-stepper'
 import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
+import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { DataTable, type DataTableColumn, type DataTableGroup } from '@/components/dashboard/data-table'
 import { kitchenStatus } from '@/lib/kitchen-status'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
@@ -640,7 +641,8 @@ export function KitchenLogPage() {
   const offPlanLines = visibleItems.filter(it => (lines[it.id]?.plan_qty ?? 0) <= 0)
   const categories = [
     'All',
-    ...Array.from(new Set(wipItems.map(i => i.category ?? '').filter(Boolean))).sort(),
+    ...Array.from(new Set(wipItems.map(i => i.category ?? '').filter(Boolean)))
+      .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b))),
   ]
 
   const columns: DataTableColumn<CaptureFormItem>[] = [
@@ -651,7 +653,7 @@ export function KitchenLogPage() {
       render: item => (
         <span className="kl-dish">
           <span className="kl-dish-name">{item.name}</span>
-          {item.category && <span className="kl-dish-cat">{item.category}</span>}
+          {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
         </span>
       ),
     },
@@ -737,7 +739,7 @@ export function KitchenLogPage() {
         <div className="kl-card-head">
           <div className="kl-card-identity">
             <span className="kl-card-name">{item.name}</span>
-            {item.category && <span className="kl-card-category">{item.category}</span>}
+            {item.category && <span className="kl-card-category">{kitchenCategoryLabel(t, item.category)}</span>}
           </div>
           <WipItemStepper
             itemName={item.name}
@@ -769,7 +771,7 @@ export function KitchenLogPage() {
             fill (kl-status below). Off-plan rows are now silent at rest, same as planned rows. */}
         <div className="kl-card-meta">
           <span className="kl-card-stock">
-            <span>Stock</span> <strong className="tabular">{line.stok}</strong>
+            <span>{t('kitchen.log.col.stock')}</span> <strong className="tabular">{line.stok}</strong>
           </span>
           {line.qty_porsi > 0 && (
             <span className={`kl-status kl-status--${status.tone}`}>{statusLabel(t, line.qty_porsi, line.plan_qty)}</span>
@@ -864,6 +866,7 @@ export function KitchenLogPage() {
             search={search}
             onSearchChange={setSearch}
             categories={categories}
+            categoryLabel={value => kitchenCategoryLabel(t, value)}
             category={category}
             onCategoryChange={setCategory}
             searchPlaceholder={t('kitchen.log.searchPlaceholder')}
@@ -880,7 +883,7 @@ export function KitchenLogPage() {
                   intra-branch movement is HELD — no ERP document ever (FR-050/053). */}
               <MovementSeg
                 value={movement}
-                options={movementsForStream(branches)}
+                options={movementsForStream(branches, streamOptions)}
                 branches={branches}
                 origin={stream}
                 onChange={handleMovementChange}
