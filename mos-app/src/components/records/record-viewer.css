@@ -349,12 +349,40 @@
 .record-viewer__pinned-status .record-field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .record-viewer__pinned-title .record-field__edit { margin: 0; min-height: 44px; padding: 4px 8px; font-size: var(--font-size-heading); font-weight: 600; }
 .record-viewer__pinned-title .record-field__heading { margin: 0; font: inherit; font-size: var(--font-size-heading); font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--record-title-max-lines); overflow: hidden; }
-.record-viewer__pinned-status { display: flex; align-items: center; gap: 8px; flex: none; }
+/* #751 AC-031 round-4 pin — the pinned-header action row is ONE 44px flex box with
+   align-items: center; the status pill, the primary button and the ⋯ overflow all share
+   that ONE height and ONE vertical alignment. The round-3 CSS split the rule between the
+   row (align-items: center, no height) and the pill (min-height: 44px), and a nested
+   RecordField grid+content-box button ended up 1px taller than its 44px siblings — the
+   audit measured `top: 239` on the pill against `top: 240` on the icon controls. The rule
+   below consolidates: the row itself carries min-height: 44px, and every participant
+   (RecordField wrapper + value-cell + edit button, primary Button, overflow trigger) is
+   flattened to a 44px flex box centred inside the row, never baseline-aligned. */
+.record-viewer__pinned-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: 44px;
+}
+.record-viewer__pinned-status .record-field,
+.record-viewer__pinned-status .record-field__value-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  min-height: 44px;
+  gap: 0;
+}
+.record-viewer__pinned-status .record-field__edit {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  align-items: center;
+}
 .record-field__pill-caret { display: inline-block; width: 0; height: 0; margin-inline-start: 4px; border-inline: 4px solid transparent; border-block-start: 5px solid currentColor; }
-/* In the pinned header the status pill IS the pill-dropdown trigger — raise it from the 22px
-   value chip to the 44px interactive floor here, in the component's own sheet (a shared marker
-   class would lose the cascade to later sheets). */
-.record-viewer__pinned-status .record-field__pill { height: auto; min-height: 44px; }
+/* The status pill IS the pill-dropdown trigger at this scope — raise it from the 22px
+   value chip to the 44px interactive floor and centre it inside the shared row. */
+.record-viewer__pinned-status .record-field__pill { height: auto; min-height: 44px; align-self: center; }
 /* #751 AC-030 — the pinned-title scope overrides the record value's `overflow-wrap: anywhere`
    (the audited "Replac / e…" mid-word break) at (0,2,0) specificity in THIS sheet, so the
    two-line clamp always breaks between words, never inside one. */

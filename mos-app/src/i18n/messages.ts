@@ -808,7 +808,7 @@ export const messages = {
     'tasks.detailsTitle': "Task details",
     'tasks.record.tabsAria': "Task record sections",
     'tasks.record.tab.details': "Details",
-    // #751 — the pinned header meta line ("Retail Ops · PIC Cahya · Supervisor Dewi · due …").
+    // #751 — the pinned header meta line ("Retail Ops · PIC <first name> · Supervisor <first name> · due …").
     'tasks.record.meta.pic': 'PIC',
     'tasks.record.meta.supervisor': 'Supervisor',
     'tasks.record.meta.due': 'due',
