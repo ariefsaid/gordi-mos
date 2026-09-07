@@ -6,7 +6,7 @@
 // `quiet` empty state at zero, error + retry on a failed read — and never prose.
 //
 // Layer: unit (RTL) with the roll-up read mocked — the view's arithmetic is owned by pgTAP
-// (supabase/tests/mos_14_objective_rollup.sql); this file owns what the door renders from it.
+// (supabase/tests/mos_16_objective_progress.sql); this file owns what the door renders from it.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'

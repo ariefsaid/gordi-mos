@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
@@ -7,6 +7,7 @@ import './home-objectives-door.css'
 
 export function HomeObjectivesDoor() {
   const t = useT()
+  const titleId = useId()
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [rows, setRows] = useState<ObjectiveProgress[]>([])
   const load = useCallback(() => {
@@ -15,8 +16,8 @@ export function HomeObjectivesDoor() {
   }, [])
   useEffect(() => { load() }, [load])
   return (
-    <section className="home-objectives-door" aria-labelledby="home-objectives-title">
-      <h2 id="home-objectives-title" className="home-objectives-title">{t('home.objectives.title')}</h2>
+    <section className="home-objectives-door" aria-labelledby={titleId}>
+      <h2 id={titleId} className="home-objectives-title">{t('home.objectives.title')}</h2>
       {state === 'loading' && <LoadingShell count={2} label={t('home.objectives.title')} />}
       {state === 'error' && <ErrorState message={t('home.objectives.error')} onRetry={load} retryLabel={t('home.objectives.retry')} />}
       {state === 'ready' && rows.length === 0 && (

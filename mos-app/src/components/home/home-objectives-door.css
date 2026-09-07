@@ -2,5 +2,5 @@
 .home-objectives-title { font-family: var(--font-display); font-size: var(--font-size-body-lg); font-weight: 600; margin: 0 0 6px; }
 .home-objectives-rows { display: grid; gap: 4px; }
 .home-objective-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--foreground); text-decoration: none; }
-.home-objective-row:hover { background: var(--accent); }
+.home-objective-row:hover { background: var(--secondary); }
 .home-objective-row:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }

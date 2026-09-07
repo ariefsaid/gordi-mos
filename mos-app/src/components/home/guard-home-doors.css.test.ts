@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 // ── Home doors CSS + doc contracts (ticket #757) ────────────────────────────────────────────
@@ -15,6 +15,12 @@ function stripped(path: string): string {
 const CAFE_CSS = stripped('src/components/home/home-cafe-door.css')
 const CAFE_TSX = readFileSync(resolve(process.cwd(), 'src/components/home/home-cafe-door.tsx'), 'utf8')
 const OBJECTIVES_CSS = stripped('src/components/home/home-objectives-door.css')
+const HOME_CSS = [
+  stripped('src/pages/home-page.css'),
+  ...readdirSync(resolve(process.cwd(), 'src/components/home'))
+    .filter((file) => file.endsWith('.css'))
+    .map((file) => stripped(`src/components/home/${file}`)),
+].join('\n')
 
 describe('the Café door meets the phone contract through the winning rule', () => {
   // The floor for a `.btn-outline` row is Button.css's `@media (max-width: 767.98px) .btn
@@ -22,8 +28,16 @@ describe('the Café door meets the phone contract through the winning rule', () 
   // The door's own stylesheet must therefore never set a competing height.
   it('the door reuses .btn/.btn-outline (so the shared 44px floor applies) and sets no height of its own', () => {
     expect(CAFE_TSX).toMatch(/className="btn btn-outline home-cafe-door"/)
-    expect(CAFE_CSS).not.toMatch(/[^-]height\s*:/)
-    expect(CAFE_CSS).not.toMatch(/max-height\s*:/)
+    expect(CAFE_CSS).not.toMatch(/(?:^|[;{])\s*height\s*:/)
+    expect(CAFE_CSS).not.toMatch(/(?:^|[;{])\s*max-height\s*:/)
+  })
+})
+
+describe('Home row hovers use the muted surface', () => {
+  it('no Home hover rule paints the accent token as its background', () => {
+    for (const rule of HOME_CSS.match(/[^{}]*:hover[^{}]*\{[^{}]*\}/g) ?? []) {
+      expect(rule).not.toMatch(/background\s*:[^;]*var\(--accent\b/)
+    }
   })
 })
 

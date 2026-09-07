@@ -185,6 +185,10 @@ const noScopeViewer: AuthState = {
   ...financeViewer,
   viewer: { ...financeViewer.viewer, accessRoles: ['member'], roles: [ANALYST_ROLE] },
 }
+const manageCapabilityViewer: AuthState = {
+  ...noScopeViewer,
+  viewer: { ...noScopeViewer.viewer, accessRoles: ['ops_lead'] },
+}
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
@@ -644,6 +648,12 @@ describe('AC-204 (4): the shipped Home carries the Objectives roll-up door', () 
     expect(await screen.findByRole('region', { name: 'Objectives' })).toBe(objectivesDoor())
   })
 
+  it('a manage-capability viewer gets the door even without a role-chain scope', async () => {
+    await renderHome(manageCapabilityViewer)
+    await screen.findByRole('tablist')
+    expect(await screen.findByRole('region', { name: 'Objectives' })).toBeInTheDocument()
+  })
+
   it('a member who steers no scope is handed no door', async () => {
     await renderHome(noScopeViewer)
     await screen.findByRole('tablist')
@@ -661,6 +671,22 @@ describe('AC-204 (4): the shipped Home carries the Objectives roll-up door', () 
     await screen.findByRole('region', { name: 'Objectives' })
     // List, not Focused — the arrangement really did change under it.
     expect(screen.queryByRole('tablist')).toBeNull()
+  })
+})
+
+describe('AC-074: Home mounts the Café door only for viewers admitted by the affiliation seam', () => {
+  it('an unaffiliated viewer gets no Café door', async () => {
+    mockGetCafeDoor.mockResolvedValue({ branchName: 'Gordi HQ', done: 1, total: 2 })
+    await renderHome(financeViewer)
+    await screen.findByRole('tablist')
+    await waitFor(() => expect(mockGetCafeDoor).not.toHaveBeenCalled())
+    expect(screen.queryByRole('link', { name: /café gordi hq/i })).toBeNull()
+  })
+
+  it('a Café-affiliated viewer gets the mounted door', async () => {
+    mockGetCafeDoor.mockResolvedValue({ branchName: 'Gordi HQ', done: 1, total: 2 })
+    await renderHome(baristaViewer)
+    expect(await screen.findByRole('link', { name: /café gordi hq/i })).toBeInTheDocument()
   })
 })
 

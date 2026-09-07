@@ -5,7 +5,7 @@
 // x/y = today's opening run at that branch, the whole row a link to /cafe.
 //
 // Layer: unit (RTL) with the facts read mocked — the branch/roll-up composition is owned by
-// cafe-opening.test.ts; this file owns what the door renders from it, and the mounting rule.
+// home-page.test.tsx; this file owns what the door renders from it.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'

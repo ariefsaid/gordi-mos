@@ -36,6 +36,7 @@ import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { can } from '@/lib/capabilities'
+import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -91,7 +92,7 @@ export function HomePage() {
   // nav. This replaces `viewerSeesCafe`, which decided by regex over job-role NAME strings — the
   // mechanism OD-WAY-51 removed after measuring that 5 of 10 real job roles matched no module at
   // all, leaving viewers the route fully admitted with no signal.
-  const seesCafe = viewer?.accessRoles.includes('admin') || viewer?.affiliated.includes('cafe')
+  const seesCafe = viewer != null && (viewer.accessRoles.includes('admin') || viewer.affiliated.includes('cafe'))
 
   // Shared unmount guard for every retryable loader (never setState after unmount). Set true in the
   // effect BODY (not just useRef's initial value) so StrictMode's mount→cleanup→remount cycle doesn't
@@ -399,7 +400,7 @@ export function HomePage() {
                 aside is a single stacked node, so its absence closes up rather than leaving a
                 hole — the Signals feed simply starts at the top of the column. */}
             {holdsCockpitScope && !isShipGated('/work/objectives') && <HomeObjectivesDoor />}
-            {viewer?.affiliated.includes('cafe') && viewer.accessRoles.includes('member') && <HomeCafeDoor />}
+            {viewer && canCaptureCafe(viewer) && <HomeCafeDoor />}
             <SignalFeedSection
               signals={signals}
               authorNamesById={directory.people ?? NO_NAMES}
