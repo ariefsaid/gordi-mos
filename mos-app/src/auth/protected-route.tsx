@@ -1,17 +1,18 @@
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from './use-auth'
 import { OrphanScreen } from './orphan-screen'
 import { SetPasswordScreen } from './set-password-screen'
 
 // FR-010/011/013/016: gate for all protected routes.
 // loading → neutral loading indicator (no protected content flash, FR-013)
-// unauthenticated → redirect to /login (FR-010)
+// unauthenticated → redirect to /login, carrying the route asked for (FR-010)
 // orphan → blocked orphan screen (FR-016)
 // recovering → redirect to /recovery (audit L1: password must be set before accessing the app)
 // authenticated + must_change_password → blocked set-password screen (#131)
 // authenticated → render the route (Outlet)
 export function ProtectedRoute() {
   const auth = useAuth()
+  const location = useLocation()
 
   if (auth.status === 'loading') {
     return (
@@ -22,7 +23,16 @@ export function ProtectedRoute() {
   }
 
   if (auth.status === 'unauthenticated') {
-    return <Navigate to="/login" replace />
+    // The route asked for travels in router state, never the URL: a `?next=` on a public form is
+    // an open-redirect surface and it leaks the person's destination into logs and referrers.
+    // /login decides what to do with it — see safeReturnTarget in return-target.ts.
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: `${location.pathname}${location.search}` }}
+      />
+    )
   }
 
   if (auth.status === 'recovering') {

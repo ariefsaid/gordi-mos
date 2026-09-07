@@ -969,6 +969,10 @@ only** — Needs-attention keeps its amber pill on a calm, unfilled row so the f
 above it. Every archive row reserves a 2px *transparent* left rule so all rows stay left-aligned
 regardless of state. See § Operations event tokens for the side-stripe exception this is scoped to.
 
+### Auth surfaces
+
+**Auth card.** Sign in, recovery and the forced set-password screen share one anatomy: the brand block (28px logo square · `Gordi MOS` · `MANAGEMENT OS` overline) above one `card` of 360px max width, centred; one Heading, one muted sentence, labelled fields with the label on its own row, exactly one filled `primary` button, every alternative path as a `primary`-text link, and a muted footer line that names a **role** (`Contact your admin`), never a person. Result states replace the card body (`✓ … is on its way` · `Back to sign in`); they never stack under the form. Password fields state their rule under the field before any error (`At least 8 characters`) and carry a show/hide toggle. No demo, seed or environment affordance renders outside `import.meta.env.DEV`.
+
 ## Do's and Don'ts
 
 ### Do:

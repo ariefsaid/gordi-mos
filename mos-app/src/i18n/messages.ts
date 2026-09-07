@@ -1355,6 +1355,18 @@ export const messages = {
     'table.group.expand': 'Expand ${group}',
     'table.group.collapse': 'Collapse ${group}',
     'chart.empty': 'No data for this cut.',
+    // Auth surfaces. The footer and the orphan body name a ROLE, never a person: the person on
+    // the other end changes, and a name in the chrome is an identity a signed-out stranger can
+    // read off the login screen.
+    'auth.footer': 'Trouble signing in? Contact your admin.',
+    'auth.orphan.body': "We couldn't find your Gordi MOS profile. Contact your admin to get set up.",
+    'auth.password.rule': 'At least 8 characters',
+    'auth.password.tooShort': 'Password must be at least 8 characters.',
+    'auth.password.mismatch': "Passwords don't match.",
+    'auth.password.showNew': 'Show password',
+    'auth.password.hideNew': 'Hide password',
+    'auth.password.showConfirm': 'Show password confirmation',
+    'auth.password.hideConfirm': 'Hide password confirmation',
   },
   id: {
     'dest.home': 'Beranda',
@@ -2596,6 +2608,16 @@ export const messages = {
     'table.group.expand': 'Buka grup ${group}',
     'table.group.collapse': 'Tutup grup ${group}',
     'chart.empty': 'Tidak ada data untuk irisan ini.',
+    // Permukaan auth — footer dan badan orphan menyebut PERAN, bukan orang.
+    'auth.footer': 'Ada kendala masuk? Hubungi admin kamu.',
+    'auth.orphan.body': 'Kami tidak menemukan profil Gordi MOS kamu. Hubungi admin kamu untuk disiapkan.',
+    'auth.password.rule': 'Minimal 8 karakter',
+    'auth.password.tooShort': 'Kata sandi minimal 8 karakter.',
+    'auth.password.mismatch': 'Kata sandi tidak cocok.',
+    'auth.password.showNew': 'Tampilkan kata sandi',
+    'auth.password.hideNew': 'Sembunyikan kata sandi',
+    'auth.password.showConfirm': 'Tampilkan konfirmasi kata sandi',
+    'auth.password.hideConfirm': 'Sembunyikan konfirmasi kata sandi',
   },
 } as const
 

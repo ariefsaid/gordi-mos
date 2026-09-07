@@ -87,7 +87,7 @@ describe('must_change_password gate', () => {
     expect(screen.queryByRole('heading', { name: /set a new password/i })).not.toBeInTheDocument()
   })
 
-  it('keeps sign-out reachable, so a user who cannot choose a password is not trapped', async () => {
+  it('AC-017 pin: keeps sign-out reachable, so a user who cannot choose a password is not trapped', async () => {
     const signOut = authed(true)
     renderApp()
 
@@ -113,15 +113,17 @@ describe('must_change_password gate', () => {
     authed(true)
     mockUpdateUser.mockResolvedValue({
       data: { user: null },
-      error: { code: 'weak_password', message: 'Password is too short.' },
+      error: { code: 'weak_password', message: 'Password is too weak.' },
     } as never)
     renderApp()
 
-    await userEvent.type(screen.getByLabelText(/new password/i), 'short')
-    await userEvent.type(screen.getByLabelText(/confirm password/i), 'short')
+    // Rule-length, so the client rule lets it through and Auth is the one that rejects it —
+    // which is what this test is about.
+    await userEvent.type(screen.getByLabelText(/new password/i), 'password1')
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'password1')
     await userEvent.click(screen.getByRole('button', { name: /save password/i }))
 
-    expect(await screen.findByText(/too short/i)).toBeInTheDocument()
+    expect(await screen.findByText(/too weak/i)).toBeInTheDocument()
     expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
     expect(location.reload).not.toHaveBeenCalled()
   })
