@@ -121,9 +121,12 @@ returns table(destination_branch_id uuid) language sql stable security invoker s
         or (b.id <> o.branch_id and b.id in (select branch_id from bar_branches))
       ))
     )
-  order by b.code;
+  -- Ordered by name, not code: this is the same order `movementsForStream` produces by walking
+  -- the app's branch catalog (`listActiveBranches`, name-sorted) — the two never need to agree by
+  -- coincidence.
+  order by b.name;
 $$;
-comment on function ops.allowed_kitchen_destinations(uuid,uuid,text) is 'One Café derivation: producing kitchens send to other stream branches; producing bars send to their own kitchen-backed branch and other bar branches. Non-producing streams and Roastery send nowhere.';
+comment on function ops.allowed_kitchen_destinations(uuid,uuid,text) is 'One Café derivation: producing kitchens send to other stream branches; producing bars send to their own kitchen-backed branch and other bar branches. Non-producing streams and Roastery send nowhere. Ordered by branch name, matching movementsForStream''s catalog order.';
 grant execute on function ops.allowed_kitchen_destinations(uuid,uuid,text) to authenticated;
 
 create or replace function ops._test_seed_streams()
@@ -498,20 +501,31 @@ begin
       raise exception 'reviewed_by must belong to the same org as the kitchen log' using errcode = '23514';
     end if;
   end if;
-  if new.branch_id is not null and new.activity is not null then
-    select t.produces into v_produces from shared.teams t
-     where t.org_id = new.org_id and t.branch_id = new.branch_id
-       and t.activity = new.activity and t.archived_at is null;
-    if v_produces is distinct from true then
-      raise exception 'the production stream does not produce' using errcode = '42501';
+  -- #832: both arms below re-check the row's stream against the CURRENT catalog. Run unconditionally
+  -- they also re-run on a status decision or any other non-coordinate edit — so a row already
+  -- Submitted/Approved on a stream that later stops producing (or loses this destination from its
+  -- allowed set) could never be approved, rejected, or otherwise touched again (42501 forever). A
+  -- row's stream and movement are only ever SET on INSERT or on a coordinate-changing UPDATE (the
+  -- freezes above forbid changing them once Submitted, and once decided at all), so gating on
+  -- exactly those two cases re-validates every write that could plant a new (stream, destination)
+  -- pair while leaving a decision on an already-planted pair free to proceed.
+  if tg_op = 'INSERT' or (old.branch_id, old.activity, old.action, old.destination_branch_id)
+       is distinct from (new.branch_id, new.activity, new.action, new.destination_branch_id) then
+    if new.branch_id is not null and new.activity is not null then
+      select t.produces into v_produces from shared.teams t
+       where t.org_id = new.org_id and t.branch_id = new.branch_id
+         and t.activity = new.activity and t.archived_at is null;
+      if v_produces is distinct from true then
+        raise exception 'the production stream does not produce' using errcode = '42501';
+      end if;
     end if;
-  end if;
-  if new.action = 'transfer' and new.branch_id is not null and new.activity is not null and not exists (
-    select 1 from ops.allowed_kitchen_destinations(new.org_id, new.branch_id, new.activity) d
-     where d.destination_branch_id = new.destination_branch_id
-  ) then
-    raise exception 'the destination is outside the production stream''s allowed books'
-      using errcode = '42501';
+    if new.action = 'transfer' and new.branch_id is not null and new.activity is not null and not exists (
+      select 1 from ops.allowed_kitchen_destinations(new.org_id, new.branch_id, new.activity) d
+       where d.destination_branch_id = new.destination_branch_id
+    ) then
+      raise exception 'the destination is outside the production stream''s allowed books'
+        using errcode = '42501';
+    end if;
   end if;
   return new;
 end;
@@ -566,30 +580,35 @@ begin
       raise exception 'plan_by must belong to the same org as the kitchen plan' using errcode = '23514';
     end if;
   end if;
-  if new.branch_id is not null and new.activity is not null then
-    select t.produces into v_produces from shared.teams t
-     where t.org_id = new.org_id and t.branch_id = new.branch_id
-       and t.activity = new.activity and t.archived_at is null;
-    if v_produces is distinct from true then
-      raise exception 'the production stream does not produce' using errcode = '42501';
+  -- #832: same re-check-on-move rule as ops._guard_kitchen_log (see its comment) — INSERT, or an
+  -- UPDATE that changes the row's stream or movement, never a plan edit that leaves both alone.
+  if tg_op = 'INSERT' or (old.branch_id, old.activity, old.action, old.destination_branch_id)
+       is distinct from (new.branch_id, new.activity, new.action, new.destination_branch_id) then
+    if new.branch_id is not null and new.activity is not null then
+      select t.produces into v_produces from shared.teams t
+       where t.org_id = new.org_id and t.branch_id = new.branch_id
+         and t.activity = new.activity and t.archived_at is null;
+      if v_produces is distinct from true then
+        raise exception 'the production stream does not produce' using errcode = '42501';
+      end if;
     end if;
-  end if;
-  if new.action = 'transfer' and new.branch_id is not null and new.activity is not null and not exists (
-    select 1 from ops.allowed_kitchen_destinations(new.org_id, new.branch_id, new.activity) d
-     where d.destination_branch_id = new.destination_branch_id
-  ) then
-    raise exception 'the destination is outside the production stream''s allowed books'
-      using errcode = '42501';
+    if new.action = 'transfer' and new.branch_id is not null and new.activity is not null and not exists (
+      select 1 from ops.allowed_kitchen_destinations(new.org_id, new.branch_id, new.activity) d
+       where d.destination_branch_id = new.destination_branch_id
+    ) then
+      raise exception 'the destination is outside the production stream''s allowed books'
+        using errcode = '42501';
+    end if;
   end if;
   return new;
 end;
 $$;
 comment on function ops._guard_kitchen_plan() is
-  'Guard arms: org_id/source immutable on UPDATE (42501); wip_item_id, branch_id, destination_branch_id and plan_by same-org (23514); producing stream required (42501); transfer destination must be in ops.allowed_kitchen_destinations (42501). SECURITY INVOKER.';
+  'Guard arms: org_id/source immutable on UPDATE (42501); wip_item_id, branch_id, destination_branch_id and plan_by same-org (23514); on INSERT or a change to (branch_id, activity, action, destination_branch_id) only — producing stream required (42501), transfer destination must be in ops.allowed_kitchen_destinations (42501). SECURITY INVOKER.';
 
 
 comment on function ops._guard_kitchen_log() is
-  'Guard arms: submitted_by/org_id/source immutable on UPDATE (42501); status decisions require the stream reviewer or ops_lead/admin, preserve reviewed facts, and enforce per-stream ordering (42501/P0004); rejected rows receive reviewer provenance; same-org business_unit_id, wip_item_id, branch_id, destination_branch_id, submitted_by and reviewed_by (23514); producing stream required (42501); transfer destination must be in ops.allowed_kitchen_destinations (42501). SECURITY INVOKER.';
+  'Guard arms: submitted_by/org_id/source immutable on UPDATE (42501); status decisions require the stream reviewer or ops_lead/admin, preserve reviewed facts, and enforce per-stream ordering (42501/P0004); rejected rows receive reviewer provenance; same-org business_unit_id, wip_item_id, branch_id, destination_branch_id, submitted_by and reviewed_by (23514); on INSERT or a change to (branch_id, activity, action, destination_branch_id) only — producing stream required (42501), transfer destination must be in ops.allowed_kitchen_destinations (42501). SECURITY INVOKER.';
 
 
 -- DOWN (exact inverse of the UP above). Every line is commented SQL: strip the leading "-- " and

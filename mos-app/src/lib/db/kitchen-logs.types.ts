@@ -34,7 +34,7 @@ export interface BranchOption {
 export interface ProductionStream {
   branch: BranchOption
   activity: ProductionActivity
-  /** Database-owned producer fact; absent only in legacy test fixtures. */
+  /** Database-owned producer fact; absent when the stream did not come from the catalog. */
   produces?: boolean
 }
 
