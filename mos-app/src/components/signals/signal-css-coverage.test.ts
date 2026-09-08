@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { attentionSlug, type Attention, type MentionKind } from '@/lib/db/signals.types'
+import { attentionSlug, type Attention } from '@/lib/db/signals.types'
 
 // REGRESSION INVARIANT (design-review step-4, reviewer-mandated): "markup without skin" — a
 // component ships a className with no matching CSS rule anywhere the app actually loads it —
@@ -32,9 +32,6 @@ const SIGNAL_ATTENTION_CLASSES = [
   'signal-attention',
   ...ATTENTION_VALUES.map((a) => `signal-attention--${attentionSlug(a)}`),
 ]
-const MENTION_KIND_VALUES: MentionKind[] = ['person', 'team', 'bu']
-// signal-mention-picker.tsx: `type-badge type-badge--${kind}`
-const TYPE_BADGE_CLASSES = ['type-badge', ...MENTION_KIND_VALUES.map((k) => `type-badge--${k}`)]
 // signal-table-presentation.tsx: `signal-table-attention signal-table-attention--${slug}` + row states.
 const SIGNAL_TABLE_CLASSES = [
   'signal-table-attention',
@@ -51,7 +48,13 @@ const SUITES: Suite[] = [
   // fossil-delete list). Their CSS files remain — category-picker and signal-record share rules.
   { component: 'src/components/signals/signal-table-presentation.tsx', css: ['src/components/signals/signal-table-presentation.css'], extraClasses: SIGNAL_TABLE_CLASSES },
   { component: 'src/components/signals/signal-composer.tsx', css: ['src/components/signals/signal-composer.css'] },
-  { component: 'src/components/signals/signal-mention-picker.tsx', css: ['src/components/signals/signal-mention-picker.css'], extraClasses: TYPE_BADGE_CLASSES },
+  {
+    component: 'src/components/signals/signal-attention-picker.tsx',
+    css: ['src/components/signals/signal-attention-picker.css'],
+    extraClasses: ['signal-attention-pill', ...ATTENTION_VALUES.map((a) => `signal-attention-pill--${a.toLowerCase().replace(/\s+/g, '-')}`), 'signal-attention-popover', 'signal-attention-popover--flip-up', 'signal-attention-choice'],
+    ignoreClasses: ['signal-composer-pill'],
+  },
+  { component: 'src/components/signals/signal-mention-picker.tsx', css: ['src/components/signals/signal-mention-picker.css'] },
   { component: 'src/components/signals/signal-category-picker.tsx', css: ['src/components/signals/signal-card.css'] },
   {
     component: 'src/components/signals/signal-record.tsx',
@@ -82,7 +85,7 @@ const SUITES: Suite[] = [
 // className internally (mk-*, empty-state, …) via their own kit CSS, forwarded through as a
 // literal in the component's JSX only incidentally; they're covered by their own component's
 // test, not this Signal-surface pairing.
-const OWNED_PREFIX = /^(signals?-|mention-|type-badge|drawer-|muted-2)/
+const OWNED_PREFIX = /^(signals?-|mention-|drawer-|muted-2)/
 
 describe('Signal CSS coverage — every className a Signal component renders has a matching CSS rule (design-review step-4 regression invariant)', () => {
   for (const suite of SUITES) {

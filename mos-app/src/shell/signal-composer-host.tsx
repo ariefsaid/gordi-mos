@@ -1,7 +1,7 @@
 // Context files intentionally mix a Provider component with a reader hook —
 // the react-refresh rule is suppressed per the established pattern (breadcrumb-title.tsx).
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { can } from '@/lib/capabilities'
@@ -10,6 +10,7 @@ import type { StagedMention } from '@/lib/db/signals.types'
 import { SignalComposer } from '@/components/signals/signal-composer'
 import { IconButton } from '@/components/ui/icon-button'
 import { ModalShell } from '@/components/ui/modal-shell'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { CloseIcon } from '@/shell/icons'
 import './signal-composer-host.css'
 
@@ -50,11 +51,19 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   const [postCount, setPostCount] = useState(0)
   const [rosters, setRosters] = useState<MentionRosters>(EMPTY_ROSTERS)
   const [prefill, setPrefill] = useState<SignalComposerPrefill | undefined>()
+  const [composerDirty, setComposerDirty] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
+  const composerTextareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const close = useCallback(() => { setIsOpen(false); setPrefill(undefined) }, [])
+  const close = useCallback(() => {
+    if (composerDirty) { setDiscardOpen(true); return }
+    setIsOpen(false); setPrefill(undefined)
+  }, [composerDirty])
   const open = useCallback((nextPrefill?: SignalComposerPrefill) => { setPrefill(nextPrefill); setIsOpen(true) }, [])
   // On a successful Share: bump the post counter (watched by the feed/archive) then close.
-  const handleShared = useCallback(() => { setPostCount((n) => n + 1); setPrefill(undefined); setIsOpen(false) }, [])
+  const handleShared = useCallback(() => {
+    setPostCount((n) => n + 1); setPrefill(undefined); setComposerDirty(false); setIsOpen(false)
+  }, [])
 
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
 
@@ -82,7 +91,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
           onClose={close}
           ariaLabel={t('signals.action.share')}
           closeOnBackdrop
-          closeOnEscape
+          closeOnEscape={!discardOpen}
           surface="centered"
           phoneMode="fullscreen"
         >
@@ -94,6 +103,8 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
               </IconButton>
             </div>
             <SignalComposer
+              onDirtyChange={setComposerDirty}
+              textareaRef={composerTextareaRef}
               authorId={viewer.person.id}
               authorName={viewer.person.full_name}
               canMentionBu={can(accessRoles, 'signal.mention_bu')}
@@ -106,6 +117,21 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
           </div>
         </ModalShell>
       )}
+      <ConfirmDialog
+        open={discardOpen}
+        title={t('signals.composer.discardTitle')}
+        body={t('signals.composer.discardBody')}
+        confirmLabel={t('signals.composer.discardConfirm')}
+        cancelLabel={t('signals.composer.keepEditing')}
+        tone="destructive"
+        onCancel={() => {
+          setDiscardOpen(false)
+          // ConfirmDialog's ModalShell returns focus to its invoker during unmount; refocus after
+          // that cleanup so Keep editing returns to the draft, not the composer close button.
+          setTimeout(() => composerTextareaRef.current?.focus(), 0)
+        }}
+        onConfirm={async () => { setDiscardOpen(false); setComposerDirty(false); setIsOpen(false); setPrefill(undefined) }}
+      />
     </SignalComposerContext.Provider>
   )
 }

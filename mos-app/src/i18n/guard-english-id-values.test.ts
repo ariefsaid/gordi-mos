@@ -59,7 +59,7 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'tasks.pic', // PIC
   'tasks.status.label', // Status
   'tasks.supervisor', // Supervisor
-  'signals.composer.occurredHint', // WIB
+  'signals.attention.caret', // disclosure symbol
   'signals.mention.group.bu', // BU
   'signals.record.revisionDiff', // “${from}” → “${to}” — symbol template
   'admin.people.col.login', // Login

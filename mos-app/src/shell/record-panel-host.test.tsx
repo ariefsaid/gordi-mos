@@ -49,6 +49,11 @@ describe('RecordPanelHost — dual modal regime (FR-1)', () => {
     expect(aside.getAttribute('role')).toBeNull()
     expect(aside.getAttribute('aria-modal')).toBeNull()
     expect(aside).toHaveClass('drawer')
+    // #768 round 5: the in-flow split aside must paint as one atomic stacking layer (see the
+    // .drawer-split rule) so an inline picker popover inside the record stays over the feed.
+    expect(aside).toHaveClass('drawer-split')
+    const hostCss = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
+    expect(hostCss).toMatch(/\.drawer-split\s*\{[^}]*isolation:\s*isolate/)
     expect(document.querySelector('.drawer-scrim')).toBeNull()
     expect(document.querySelector('.drawer-modal-root')).toBeNull()
   })

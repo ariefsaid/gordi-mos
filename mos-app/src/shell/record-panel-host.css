@@ -40,6 +40,15 @@
 }
 .record-panel-btn__label { font-size: var(--font-size-label); font-weight: 500; white-space: nowrap; }
 
+/* #768 round 5: the split aside sits in-flow in the page's .record-split grid — no stacking
+ * context of its own — so an inline picker popover inside it (z-index 3, the
+ * .signal-occurred-popover mechanism) would race positioned feed content in the ROOT context.
+ * relative + isolate paints the whole panel as ONE atomic layer above the list beside it; inside
+ * the panel the menu clears the record viewer's own ladder (tabs z 1, pinned status z 2). The
+ * modal regime nests the panel in the fixed .drawer-modal-root and the shell overlay in the fixed
+ * .drawer-shell-split — both already contexts — so this rule only changes the in-flow case. */
+.drawer-split { position: relative; isolation: isolate; }
+
 /* #708: this query carried no width guard, so ANY environment reporting a fine pointer — a
  * resized desktop window, a non-touch mobile emulation — fired it at phone width too, tightening
  * Close/Ask Deputy to 32×32 under the 44px floor. `and (min-width: 768px)` confines the tighten-

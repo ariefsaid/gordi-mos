@@ -698,6 +698,7 @@ Inside the grouped DataTable, each group is introduced by a full-width `<tr>` re
 - **Large segmented (layout switcher):** 40px sticky bar (`abc-seg`), 34px buttons with a letter chip; "on" → white pill + lift, letter chip flips to `primary`. Sticky with a `backdrop-filter` blur over the `secondary/35%` page.
 
 ### Overlays
+- **Share Signal composer.** One modal for every entry point (centered on desktop, full-screen sheet on phone). Anatomy in order: body textarea; a pill row — Location (derived), Occurred (`Just now`, tap to change), Attention (`FYI ▾` → popover with the three levels and a one-line meaning each); the implicit line `Owning Team: X · Author: Y` (a `Owning Team ▾` select only when more than one Team is eligible); the visibility line; a footer with the attach slot (rendered only when storage exists), the category note and `Share Signal`. Closing with a typed body asks before discarding. The sheet pins the footer to its bottom edge on phone.
 - **Temporary search/command:** centered, bounded by the viewport, with the `popover` surface, single border, 12px overlay radius, and overlay shadow. It closes with Escape and returns focus to its launcher.
 
   Desktop palette contents: a search field over tasks, signals and people; **GO TO** listing

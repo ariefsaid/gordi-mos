@@ -44,31 +44,4 @@ describe('mention-row.is-active — legible badge + name (WCAG-AA)', () => {
     expect(css).toMatch(/\.mention-row\.is-active:hover/)
   })
 
-  // Forward guard — passes on the OLD (pre-#578) CSS just as much as the fixed one, since it only
-  // checks that each badge variant declares a background somewhere in the file. It is not #578
-  // evidence; keep it as a tripwire against a FUTURE edit deleting a badge's own tint outright.
-  it('[forward guard] every type-badge variant still declares its own background somewhere', () => {
-    for (const selector of ['.type-badge--person', '.type-badge--team', '.type-badge--bu']) {
-      expect(css).toMatch(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{[^}]*background:`))
-    }
-  })
-
-  it('the active-row person badge gets an opaque override; team/bu do not (#578)', () => {
-    // Person's own badge tint is the SAME --accent-subtle token as the row wash, so stacking the
-    // two compounds into a too-dark, too-blue background (3.99:1 on the badge text — pinned in
-    // contrast.test.ts). Team/BU use a different hue (violet/warning) and are unaffected, so they
-    // must NOT get an active-row override — one would be an unexplained, untested departure from
-    // their own AA-proven tint.
-    expect(css).toMatch(/\.mention-row\.is-active\s+\.type-badge--person\s*\{/)
-    expect(css).not.toMatch(/\.mention-row\.is-active\s+\.type-badge--team/)
-    expect(css).not.toMatch(/\.mention-row\.is-active\s+\.type-badge--bu/)
-  })
-
-  it('the active-row person badge override uses the opaque theme-invariant chip pair (#578)', () => {
-    const overrideIdx = css.indexOf('.mention-row.is-active .type-badge--person')
-    expect(overrideIdx).toBeGreaterThanOrEqual(0)
-    const overrideBody = ruleBody(css.slice(overrideIdx), '.mention-row.is-active .type-badge--person')
-    expect(overrideBody).toMatch(/background:\s*var\(--ds-color-blue\)/)
-    expect(overrideBody).toMatch(/color:\s*var\(--ds-font-color-inverted\)/)
-  })
 })

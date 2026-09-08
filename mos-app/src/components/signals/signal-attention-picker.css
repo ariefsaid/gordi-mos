@@ -1,17 +1,24 @@
-.signal-attention-picker { display: flex; flex-direction: column; gap: 6px; }
-.signal-attention-picker-label { font-size: var(--font-size-label); color: var(--muted-foreground); font-weight: 500; }
-.signal-attention-picker-options { display: flex; flex-wrap: wrap; gap: 6px; }
-.signal-attention-picker-option {
-  min-height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-pill);
-  background: var(--background); color: var(--muted-foreground); font: inherit; font-size: var(--font-size-label);
-  cursor: pointer;
-}
-.signal-attention-picker-option[aria-checked='true'] { border-color: var(--ring); background: var(--secondary); color: var(--foreground); font-weight: 600; }
-.signal-attention-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-
-/* #708: the pill's height already met the 44px phone floor; its content-driven width (43.2px /
-   42.2px measured) did not. Scoped to phone so the desktop 1440 render (already ≥44 by content)
-   is untouched. */
-@media (max-width: 767.98px) {
-  .signal-attention-picker-option { min-width: 44px; }
-}
+.signal-attention-picker { position: relative; }
+/* ONE 44px width floor (#708 census points at this rule) — the old phone media-block duplicate
+   was decoration and is gone (round 5). */
+.signal-attention-pill { min-width: 44px; height: 44px; min-height: 44px; border: 1px solid var(--border); cursor: pointer; }
+.signal-attention-pill--fyi { background: var(--secondary); color: var(--muted-foreground); }
+.signal-attention-pill--needs-attention,
+.signal-attention-pill--urgent { background: color-mix(in srgb, var(--warning) 18%, var(--background)); color: var(--warning-foreground); }
+.signal-attention-pill--urgent { background: color-mix(in srgb, var(--destructive) 14%, var(--background)); color: var(--destructive); }
+/* Same mechanism as .signal-occurred-popover (signal-composer.css): absolute inside the pill's
+   wrapper, local z 3 — above the record viewer's own ladder (tabs z 1, pinned status z 2). No
+   portal and no app z-tier: inside the host surface's stacking context it stacks over that
+   surface (composer dialog, record panel) and can never fall behind a scrim (#768 round 5).
+   Left edge = trigger's left edge, so it opens INTO the panel, never off its left side. */
+.signal-attention-popover { position: absolute; z-index: 3; top: calc(100% + 4px); left: 0; min-width: 220px; padding: 4px; background: var(--popover); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-overlay); }
+/* Applied when the pure flip decision (signal-attention-placement.ts) says downward would cross
+   the available bottom edge (390 case). */
+.signal-attention-popover--flip-up { top: auto; bottom: calc(100% + 4px); }
+/* Applied when the pure pull-in decision says a left-aligned menu would cross the viewport's
+   right edge (390, pill wrapped to the row's right): anchor the menu's RIGHT edge to the
+   trigger's right edge instead — still trigger-anchored, still on screen. */
+.signal-attention-popover--pull-in { left: auto; right: 0; }
+.signal-attention-choice { display: flex; flex-direction: column; align-items: flex-start; width: 100%; min-height: 44px; padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--foreground); text-align: left; cursor: pointer; }
+.signal-attention-choice:hover, .signal-attention-choice:focus-visible { background: var(--accent); outline: 0; }
+.signal-attention-choice span { color: var(--muted-foreground); font-size: var(--font-size-label); }
