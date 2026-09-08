@@ -854,11 +854,11 @@ export const taskCollectionDescriptor: RecordCollectionDescriptor<
   query: taskCollectionQuery,
   savedViews: taskCollectionSavedViews,
   presentations: { table: taskTablePresentation, card: taskCardPresentation },
-  // Only `includeArchived` (server-side row scope) and `groupBy` (occurrence roll-up/provenance
-  // fetch) change what `load()` returns; every other filter/sort/view is applied client-side in the
-  // projector, so those changes reproject the snapshot without refetching tasks and the lookup
-  // tables (business units, people, objectives, work-lines).
-  loadKeys: ['includeArchived', 'groupBy'],
+  // `includeArchived` (server-side row scope), `groupBy` (occurrence roll-up/provenance fetch),
+  // and `view` (Team membership context) change what `load()` returns. Every other filter/sort is
+  // applied client-side in the projector, so those changes reproject the snapshot without
+  // refetching tasks and the lookup tables (business units, people, objectives, work-lines).
+  loadKeys: ['includeArchived', 'groupBy', 'view'],
   load: loadTaskCollection,
   project: (data, query) => projectTaskCollection(data, query),
   getId: (record) => record.id,

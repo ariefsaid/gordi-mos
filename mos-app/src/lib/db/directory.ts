@@ -33,6 +33,7 @@ export async function getPersonTeams(personId: string): Promise<TeamOption[]> {
     .from('team_memberships')
     .select('team_id')
     .eq('person_id', personId)
+    .lte('effective_from', new Date().toISOString().slice(0, 10))
     .is('effective_to', null)
   if (membershipError) throw new Error(`getPersonTeams memberships failed — ${membershipError.message}`)
   const ids = [...new Set((memberships ?? []).map((row: { team_id: string }) => row.team_id))]

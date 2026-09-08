@@ -173,6 +173,10 @@ export function TasksWorkspace({
   // URL there, and stamping `view=` would race them (opening the wrong surface, or losing `create=1`
   // before the redirect can seat the draft row). The role default still stands for a bare landing.
   const initialSearch = useMemo(() => new URLSearchParams(currentSearch), [currentSearch])
+  // The synced collection hook serializes a role default into the URL after a bare landing. Keep
+  // that implicit value out of a standalone record URL, while retaining an explicit link or a view
+  // the user selected through the toolbar.
+  const viewWasExplicitRef = useRef(initialSearch.has('view'))
   const landingHasRecordOrDraftIntent = Boolean(selectedId)
     || Boolean(drawerOpen)
     || initialSearch.has('record')
@@ -254,6 +258,7 @@ export function TasksWorkspace({
   })
 
   const handleViewChange = useCallback((view: TaskCollectionView) => {
+    viewWasExplicitRef.current = true
     setQuery({
       view,
       savedViewId: null,
@@ -308,10 +313,9 @@ export function TasksWorkspace({
     if (!splitLayout) {
       const next = new URLSearchParams(params)
       next.delete('record')
-      // The record page's URL is its own canonical artefact — the collection saved view lives at
-      // /work/tasks (browser Back returns to it), not stamped onto the record path. Dropping `view`
-      // here keeps the role default from leaking into a click that opens the standalone page (#749).
-      next.delete('view')
+      // Preserve the collection query on the standalone record URL so an explicit saved view and
+      // its other filters remain available to the record page's Back affordance.
+      if (!viewWasExplicitRef.current) next.delete('view')
       const search = next.toString()
       navigate({ pathname: `/work/tasks/${taskId}`, search: search ? `?${search}` : '' }, { state: { taskSurface: 'page' } })
       return
@@ -622,7 +626,10 @@ export function TasksWorkspace({
         operation: state.savedViews.operation,
         items: state.savedViews.items.map((item) => ({ id: item.id, name: item.name })),
         onLoad: () => { void controller.loadSavedViews() },
-        onApply: async (id) => { await controller.applySavedView(id) },
+        onApply: async (id) => {
+          viewWasExplicitRef.current = true
+          await controller.applySavedView(id)
+        },
         onSave: async (name) => { await controller.saveCurrentView(name, 'private') },
       }}
     />

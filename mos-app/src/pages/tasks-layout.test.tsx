@@ -321,6 +321,39 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(document.querySelectorAll('.drawer, [role="dialog"]')).toHaveLength(0)
   })
 
+  it('§Task-11: switching from All to Team reloads membership context before projecting rows', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({
+        id: 'task-all',
+        title: 'All scope task',
+        business_unit_id: 'bu-other',
+        responsible_person_id: 'other-id',
+        accountable_person_id: 'other-id',
+      }),
+      makeTask({
+        id: 'task-team',
+        title: 'Team scoped task',
+        team_id: 'team-kitchen',
+        responsible_person_id: 'other-id',
+        accountable_person_id: 'other-id',
+      }),
+    ])
+    vi.mocked(getPersonTeams).mockResolvedValue([
+      { id: 'team-kitchen', name: 'Kitchen', business_unit_id: 'bu-1' },
+    ])
+    renderAt('/work/tasks?view=all')
+
+    await waitFor(() => expect(screen.getByText('All scope task')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Team work' }))
+
+    await waitFor(() => {
+      expect(getPersonTeams).toHaveBeenCalledWith(VIEWER_ID)
+      expect(screen.getByText('Team scoped task')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('All scope task')).toBeNull()
+    expect(mockListTasks).toHaveBeenCalledTimes(2)
+  })
+
   it('AC-304: /work/tasks?view=bogus falls back safely with no active saved-view chip', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Fallback task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' })])
     renderAt('/work/tasks?view=bogus')
@@ -427,6 +460,18 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
     expect(document.querySelector('.split')).toBeNull()
     expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
+  })
+
+  it('preserves an explicit saved view when a standalone row opens the record page', async () => {
+    stubWidths({ split: false, desktop: true })
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open from My work' })])
+    let currentPath = ''
+    renderAtWithLocation('/work/tasks?view=my-work', (path) => { currentPath = path })
+
+    await waitFor(() => expect(screen.getByText('Open from My work')).toBeInTheDocument())
+    fireEvent.click(document.querySelector('tbody tr.task-row td:nth-child(3)')!)
+
+    await waitFor(() => expect(currentPath).toBe('/work/tasks/task-1?view=my-work'))
   })
 
   // Round-4 regression: a drawer opened at/above TASKS_SPLIT_MIN_WIDTH must not survive a
