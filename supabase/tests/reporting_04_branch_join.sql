@@ -28,7 +28,6 @@ select plan(15);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
-select ops._test_seed_streams();
 select ops._test_seed_cafe();   -- branches bf01 Gordi HQ / bf02 Rumah Rames / bf03 Radiant (org A),
                                 -- bf09 B-Branch (org B), and kitchen logs across four streams
 

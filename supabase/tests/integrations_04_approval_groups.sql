@@ -6,7 +6,6 @@ select plan(20);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
-select ops._test_seed_streams();
 select ops._test_seed_cafe();
 select ok((select relrowsecurity from pg_class where oid='integrations.esb_push_groups'::regclass),
   'approval groups have RLS enabled');

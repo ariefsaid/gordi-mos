@@ -34,7 +34,6 @@ select plan(23);
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
-select ops._test_seed_streams();
 select ops._test_seed_cafe();
 delete from shared.teams where org_id = '00000000-0000-0000-0000-0000000000a1' and code = 'radiant_bar';
 

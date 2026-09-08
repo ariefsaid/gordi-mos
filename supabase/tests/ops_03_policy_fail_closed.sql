@@ -32,7 +32,6 @@ select plan(38);
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
-select ops._test_seed_streams();
 select ops._test_seed_daily_log();
 
 -- #744: the production-log and floor-record insert gates now arm on stream-Team affiliation, so

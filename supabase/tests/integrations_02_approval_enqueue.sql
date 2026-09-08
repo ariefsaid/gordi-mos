@@ -29,7 +29,6 @@ select plan(46);
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
-select ops._test_seed_streams();
 select ops._test_seed_cafe();
 
 -- The owner's view of the outbox before anything is approved. Read as the owner deliberately: every

@@ -23,7 +23,6 @@ select plan(20);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
-select ops._test_seed_streams();
 select ops._test_seed_cafe();
 
 -- ── (1) The literals are not stored ──────────────────────────────────────────────────────────

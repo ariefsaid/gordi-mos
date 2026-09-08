@@ -33,7 +33,6 @@ select plan(10);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
-select ops._test_seed_streams();
 select ops._test_seed_cafe();
 
 -- Fixture reminder: aa01 is imported history — Approved, posted, batch PR-20260601-001, carrying its

@@ -20,7 +20,6 @@ select plan(14);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
-select ops._test_seed_streams();
 select ops._test_seed_cafe();
 
 -- ── The marker exists on both tables the import writes ───────────────────────────────────────

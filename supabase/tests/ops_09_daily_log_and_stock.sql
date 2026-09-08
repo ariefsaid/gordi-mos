@@ -5,12 +5,11 @@
 -- the stream dimension.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(19);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
-select ops._test_seed_streams();
 select ops._test_seed_daily_log();
 
 -- AC-012: pin the ruling itself with a real plan row and a quantity deviation. Neither note is

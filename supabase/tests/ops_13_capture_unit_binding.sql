@@ -27,7 +27,6 @@ select plan(17);
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
-select ops._test_seed_streams();
 select ops._test_seed_cafe();
 
 -- #744: the production-log insert gate arms on stream-Team affiliation. Author ...0d1 is this
