@@ -519,13 +519,18 @@ describe('SignalComposer — acceptance pins (#768)', () => {
 
   it('AC-066: renders Indonesian composer labels and attention choices', async () => {
     window.localStorage.setItem('mos.locale', 'id')
+    // Two Teams so the Owning Team select (and its "Pilih tim…" placeholder) actually mounts —
+    // the default single-team author auto-picks and never renders the select at all.
+    mockListReadableAuthorTeams.mockResolvedValue(TEAMS)
     render(<I18nProvider><SignalComposer authorId={AUTHOR_ID} authorName="Author One" /></I18nProvider>)
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByRole('combobox', { name: /tim/i })).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /Baru saja/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /FYI/i })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /FYI/i }))
     expect(screen.getByRole('menu')).toHaveTextContent(/Perlu perhatian/)
     expect(screen.getByRole('menu')).toHaveTextContent(/Mendesak/)
+    expect(screen.getByText('Pilih tim…')).toBeInTheDocument()
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /tim/i }), 'team-hq')
     expect(screen.getByText(/Tim Pemilik:.*Penulis:/i)).toBeInTheDocument()
   })
 
