@@ -286,7 +286,8 @@ describe('GUARD-R2/money (#250): the Money head never shows a naked number, in a
     vi.mocked(listSalesMarginDaily).mockResolvedValue(MONEY_MARGIN)
     renderMoney()
     await findPageInState('default')
-    expectHeadMeta(/^2 branches · as of /)
+    // #804 A-3: the ONE loaded sentence — how much, how fresh, how far.
+    expectHeadMeta(/^2 branches · as of .+ · latest reporting day .+$/)
   })
 
   it('loading: the dash placeholder, never a stale digit', async () => {
@@ -297,12 +298,16 @@ describe('GUARD-R2/money (#250): the Money head never shows a naked number, in a
     expectHeadMeta(DASH)
   })
 
-  it('empty: the dash placeholder, never a "0" pill', async () => {
+  it('empty (#804 A-3): NO meta line at all — no "0" pill, and no dash standing in for a count that does not exist', async () => {
     vi.mocked(listSalesDailyRevenue).mockResolvedValue([])
     vi.mocked(listSalesMarginDaily).mockResolvedValue([])
     renderMoney()
     await findPageInState('empty')
-    expectHeadMeta(DASH)
+    const head = screen.getByTestId('page-head')
+    expect(head.querySelectorAll('.ch-meta-line')).toHaveLength(0)
+    expect(head.textContent).not.toContain(DASH)
+    expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
+    expect(bareNumberLeaves(head)).toHaveLength(0)
   })
 
   it('error: the dash placeholder beside the retry, never a half-loaded count', async () => {

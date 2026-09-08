@@ -2,7 +2,8 @@
    GlobalToolbar — the one toolbar above both tabs (design-plan §2.8, FR-011/AC-011).
    Desktop: single flex row (window group · 1px divider · cut group — NO freshness
    stamp, r5 F-6 redundancy law: head meta + chart own "as of"),
-   carried by the inner .global-toolbar-rail. Flat utility surface — NO resting
+   carried by the inner .global-toolbar-rail. Phone: two full-width rows (#804).
+   Flat utility surface — NO resting
    shadow (Soft-Elevation Rule: shadow only on tiles/chart/table/stub).
    Token-only (DESIGN.md).
    ════════════════════════════════════════════════════════════════════════════ */
@@ -11,8 +12,8 @@
   box-sizing: border-box;
 }
 
-/* The filter row itself. On desktop this IS the whole toolbar; on phone it is the
-   horizontally-scrolling rail while the Custom range row sits below it (DO-21). */
+/* The filter row itself. On desktop this IS the whole toolbar; on phone it wraps into
+   two full-width rows (#804). */
 .global-toolbar-rail {
   display: flex;
   align-items: center;
@@ -41,11 +42,13 @@
   color: var(--muted-foreground);
 }
 
-/* Mobile: sticky filter rail BELOW the tab strip (not over it). The tab strip
-   sticks at top:0 (z-index 2, height 40px); this rail sticks at top:40px so both
-   stay visible. The inner rail scrolls horizontally so the 3-option CutToggle
-   never wraps. The toolbar keeps all 3 cut options on phone (mockup-mobile drops
-   Activity by mistake — design-plan gap G2). */
+/* Phone (#804): the toolbar is TWO full-width rows, not one horizontal scroller —
+   `7d · 30d · 60d · Range ▾` above `CUT Branch · Channel · Activity`. Each group claims a
+   whole row (flex: 1 0 100%), so nothing clips and no label is parked off-canvas; the
+   scroller and its trailing fade are gone with the reason they existed. The rail stays
+   sticky BELOW the 40px tab strip (top: 40px, z-index under it) so both remain visible.
+   All 3 cut options stay on phone (mockup-mobile drops Activity by mistake — design-plan
+   gap G2). The CUT overline returns: with its own row there is room to say what the row is. */
 @media (max-width: 767px) {
   .global-toolbar {
     position: sticky;
@@ -59,33 +62,32 @@
   .global-toolbar-rail {
     gap: 8px;
     padding: 8px 14px;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    /* money-2: with Channel/Activity cut off screen the row previously ended flush with
-       no hint that more pills exist off-canvas (design-plan gap G2's overflow-x:auto had
-       no scroll cue). Fade the trailing 28px so a sliver of the next pill always shows
-       through as a "there's more" affordance — harmless (imperceptible) on the rare frame
-       where the row happens to fit exactly. */
-    mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
+    flex-wrap: wrap;
   }
-  .global-toolbar-divider,
-  .global-toolbar-overline {
-    display: none; /* rail scrolls horizontally; no room for the divider/overline */
+  .global-toolbar-divider {
+    display: none; /* the row break is the separation; a rule between rows would be noise */
   }
   .global-toolbar-group {
-    flex: none;
+    flex: 1 0 100%;
+    min-width: 0;
   }
-  /* DO-21 (money F-4): the Custom From/To pair lives on its OWN full-width row
-     below the rail — never inline in the horizontal scroller, so picking Custom
-     doesn't shove Branch/Channel/Activity off-canvas. Shares the rail's frosted
-     sticky surface; the pair stretches edge-to-edge with the rail's padding. */
-  .global-toolbar-range-row {
-    padding: 0 14px 8px;
-  }
-  .global-toolbar-range-row .window-selector-range {
-    display: flex;
-    width: 100%;
-    justify-content: space-between;
-  }
+}
+
+/* The phone Range sheet body: the bounded From/To pair over a full-width Apply. Apply is
+   what commits — the draft never re-queries the page mid-edit. */
+.global-toolbar-range-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.global-toolbar-range-sheet .window-selector-range {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.global-toolbar-range-sheet .btn {
+  width: 100%;
 }

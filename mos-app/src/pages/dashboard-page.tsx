@@ -49,15 +49,14 @@ import {
   aggregateByCut,
   resolveWindow,
   availableWindowBounds,
-  basisLabel,
-  formatGrossMarginValue,
   formatMarginPct,
   DEFAULT_WINDOW,
   type WindowSpec,
 } from '@/lib/dashboard'
 import { formatIDRCompact, formatDelta, dailySeries, type DashboardCut } from '@/lib/sales-dashboard'
 import { formatPercent } from '@/lib/format/percent'
-import { KPITile } from '@/components/dashboard/kpi-tile'
+import { formatDayMonthYear } from '@/lib/format/date'
+import { KPITile, type KPITileProps } from '@/components/dashboard/kpi-tile'
 import { ChartFrame } from '@/components/dashboard/chart-frame'
 import { DataTable, type DataTableSort } from '@/components/dashboard/data-table'
 import { GlobalToolbar } from '@/components/dashboard/global-toolbar'
@@ -88,9 +87,11 @@ function windowQueryValue(spec: WindowSpec): string {
 }
 
 // GUARD-R2 (census DO-7 · Money): the page head never renders a naked count pill. The
-// cut row-count folds into ONE labeled meta sentence ("5 branches · as of …"), matching
-// the Tasks head ("14 tasks · 2 blocked") — a digit with no attached noun carries no
-// meaning. Loading / empty / error show the "—" placeholder, never a stale bare digit.
+// cut row-count folds into ONE labeled meta sentence ("5 branches · as of … · latest
+// reporting day …"), matching the Tasks head ("14 tasks · 2 blocked") — a digit with no
+// attached noun carries no meaning. Loading / error show the "—" placeholder, never a stale
+// bare digit; EMPTY carries no meta at all (#804 A-3: with no rows there is nothing for a
+// placeholder to stand in for, and "—" reads as a figure withheld).
 // I18N-1: the noun routes through the catalog (singular/plural keys, resolved per locale).
 function cutNoun(cut: DashboardCut, n: number, t: Translate): string {
   const stem = cut === 'Channel' ? 'channel' : cut === 'Activity' ? 'activity' : 'branch'
@@ -104,6 +105,8 @@ function cutLabel(cut: DashboardCut, t: Translate): string {
   return t(`money.cut.${stem}` as MessageKey)
 }
 
+// Loading and error only: the count is UNKNOWN, and the placeholder says so. Empty passes
+// no meta at all (#804 A-3).
 const HEAD_META_PLACEHOLDER = <span className="ch-meta-line tabular-nums">—</span>
 
 interface DashboardTableRow {
@@ -283,16 +286,12 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
   }
 
   // ── Empty (no snapshot rows) ─────────────────────────────────────────────────
+  // #804 A-3: one sentence and one button. No toolbar and no view tabs — a filter over
+  // zero rows filters nothing, and two tabs onto the same emptiness are two doors to the
+  // same room. No head meta either: there is no count to place.
   if (revenueRows.length === 0 || !latestDate || !rev7d || !rev30d || !revKpis) {
     return (
-      <PageFamilyFrame family="workspace" title={t('dest.money')} jobSentence={t('job.money')} meta={HEAD_META_PLACEHOLDER} state="empty">
-        <DashboardChrome
-          cut={cut} onCut={setCut}
-          windowSpec={windowSpec} onWindow={setWindowSpec}
-          bounds={bounds}
-          tab={tab} onTab={setTab}
-          t={t}
-        />
+      <PageFamilyFrame family="workspace" title={t('dest.money')} jobSentence={t('job.money')} state="empty">
         <EmptyState
           variant="awaiting"
           title={t('money.empty.title')}
@@ -314,8 +313,11 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
   // ── Populated ─────────────────────────────────────────────────────────────────
   const delta7d = rev7d ? formatDelta(rev7d.trailing) : null
   const delta30d = rev30d ? formatDelta(rev30d.trailing) : null
-  const basis = basisLabel('interim-stock-movement')
   const gmDelta = gmKpis?.delta
+  // #804 A-3: the basis vocabulary is two words. Revenue is read from the certified sales
+  // snapshot; margin and COGS are stock-movement interim (see the footnote below the row).
+  const CERTIFIED = t('money.basis.certified')
+  const INTERIM = t('money.basis.interim')
   const tableRows = toTableRows(cutRows)
   const sortedRows = sortRows(tableRows, sort)
 
@@ -338,9 +340,13 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
       title={t('dest.money')}
       jobSentence={t('job.money')}
       meta={
+        /* #804 A-3: ONE freshness sentence — how much, how fresh, how far. "as of" is the
+           snapshot's clock; "latest reporting day" is the last day the figures cover, and a
+           reader who confuses the two mis-reads the whole page. */
         <span className="ch-meta-line tabular-nums">
           {cutRows.length} {cutNoun(cut, cutRows.length, t)}
           {snapshotAsOf && <> · <FreshnessLabel asOf={snapshotAsOf} /></>}
+          {' · '}{t('money.head.latestReportingDay')} {formatDayMonthYear(latestDate)}
         </span>
       }
     >
@@ -357,76 +363,96 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
       {tab === 'summary' ? (
         <div className="dash-pane" role="tabpanel" aria-label={t('money.tab.summary')}>
           {/* Revenue KPI row — 7d/30d are fixed-window filter-in-place drivers (FR-006);
-              latestDay/avgCheck/channelMix follow the active window. */}
+              latestDay/avgCheck/channelMix follow the active window. Revenue reads from the
+              certified sales snapshot, so every tile here declares the `certified` basis. */}
           <div className="dash-kpi-grid">
-            <KPITile
-              label={t('money.kpi.rev7d')}
-              value={rev7d ? formatIDRCompact(rev7d.trailing.current) : '—'}
-              delta={delta7d ? { text: delta7d.text, tone: delta7d.tone } : undefined}
-              onClick={() => setWindowSpec(tileWindow(7))}
-              selected={activePresetDays === 7}
-              help={t('money.kpi.rev7d.help')}
-            />
-            <KPITile
-              label={t('money.kpi.rev30d')}
-              value={rev30d ? formatIDRCompact(rev30d.trailing.current) : '—'}
-              delta={delta30d ? { text: delta30d.text, tone: delta30d.tone } : undefined}
-              onClick={() => setWindowSpec(tileWindow(30))}
-              selected={activePresetDays === 30}
-              help={t('money.kpi.rev30d.help')}
-            />
-            <KPITile
-              label={t('money.kpi.latestDay')}
-              value={formatIDRCompact(revKpis.latestDay)}
-              sub={latestDate}
-            />
-            <KPITile
-              label={t('money.kpi.avgCheck')}
-              value={revKpis.avgCheck != null ? formatIDRCompact(revKpis.avgCheck) : '—'}
-              sub={t('money.kpi.avgCheck.sub')}
-              help={t('money.kpi.avgCheck.help')}
-            />
-            <KPITile
-              label={t('money.kpi.channelMix')}
-              value={revKpis.channelMix}
-              sub={t('money.kpi.channelMix.sub')}
-              help={t('money.kpi.channelMix.help')}
-              className="dash-kpi-tile--mix"
-            />
+            {renderMoneyTiles([
+              {
+                id: 'rev7d',
+                label: t('money.kpi.rev7d'),
+                value: formatIDRCompact(rev7d.trailing.current),
+                basis: CERTIFIED,
+                delta: delta7d ? { text: delta7d.text, tone: delta7d.tone } : undefined,
+                onClick: () => setWindowSpec(tileWindow(7)),
+                selected: activePresetDays === 7,
+                help: t('money.kpi.rev7d.help'),
+              },
+              {
+                id: 'rev30d',
+                label: t('money.kpi.rev30d'),
+                value: formatIDRCompact(rev30d.trailing.current),
+                basis: CERTIFIED,
+                delta: delta30d ? { text: delta30d.text, tone: delta30d.tone } : undefined,
+                onClick: () => setWindowSpec(tileWindow(30)),
+                selected: activePresetDays === 30,
+                help: t('money.kpi.rev30d.help'),
+              },
+              {
+                id: 'latestDay',
+                label: t('money.kpi.latestDay'),
+                value: formatIDRCompact(revKpis.latestDay),
+                basis: CERTIFIED,
+                sub: latestDate,
+              },
+              {
+                id: 'avgCheck',
+                label: t('money.kpi.avgCheck'),
+                value: revKpis.avgCheck != null ? formatIDRCompact(revKpis.avgCheck) : null,
+                basis: CERTIFIED,
+                sub: t('money.kpi.avgCheck.sub'),
+                help: t('money.kpi.avgCheck.help'),
+              },
+              {
+                id: 'channelMix',
+                label: t('money.kpi.channelMix'),
+                value: revKpis.channelMix,
+                basis: CERTIFIED,
+                sub: t('money.kpi.channelMix.sub'),
+                help: t('money.kpi.channelMix.help'),
+                className: 'dash-kpi-tile--mix',
+              },
+            ], snapshotAsOf)}
           </div>
 
           {/* Gross margin / COGS row — basis-labelled (AC-008); margin-view only (AC-329,
               ADR-0051 D4 — a supervisor sees revenue, not margin/COGS). The whole row is
-              ABSENT for a revenue-only viewer: four "—" tiles would advertise figures they
+              ABSENT for a revenue-only viewer: four blank tiles would advertise figures they
               are not cleared for, which is worse than not knowing the row exists. */}
           {canSeeMargin && (
             <div className="dash-kpi-grid dash-kpi-grid--gm">
-              <KPITile
-                label={t('money.kpi.gmPct')}
-                value={formatMarginPct(gmKpis?.marginPct ?? null)}
-                basis={{ label: basis }}
-                dq={gmKpis?.dq}
-                help={t('money.kpi.gmPct.help')}
-              />
-              <KPITile
-                label={t('money.kpi.gmAmt')}
-                value={formatGrossMarginValue(gmKpis?.marginAmount ?? null)}
-                delta={gmDelta ? { text: gmDelta.text, tone: gmDelta.tone } : undefined}
-                basis={{ label: basis }}
-                help={t('money.kpi.gmAmt.help')}
-              />
-              <KPITile
-                label={t('money.kpi.cogs')}
-                value={formatGrossMarginValue(gmKpis?.cogsAmount ?? null)}
-                basis={{ label: basis }}
-                help={t('money.kpi.cogs.help')}
-              />
-              <KPITile
-                label={t('money.kpi.bomCoverage')}
-                value={gmKpis?.bomCoveragePct != null ? formatMarginPct(gmKpis.bomCoveragePct) : '—'}
-                dq={gmKpis?.dq}
-                help={t('money.kpi.bomCoverage.help')}
-              />
+              {renderMoneyTiles([
+                {
+                  id: 'gmPct',
+                  label: t('money.kpi.gmPct'),
+                  value: gmKpis?.marginPct != null ? formatMarginPct(gmKpis.marginPct) : null,
+                  basis: INTERIM,
+                  dq: gmKpis?.dq,
+                  help: t('money.kpi.gmPct.help'),
+                },
+                {
+                  id: 'gmAmt',
+                  label: t('money.kpi.gmAmt'),
+                  value: gmKpis?.marginAmount != null ? formatIDRCompact(gmKpis.marginAmount) : null,
+                  basis: INTERIM,
+                  delta: gmDelta ? { text: gmDelta.text, tone: gmDelta.tone } : undefined,
+                  help: t('money.kpi.gmAmt.help'),
+                },
+                {
+                  id: 'cogs',
+                  label: t('money.kpi.cogs'),
+                  value: gmKpis?.cogsAmount != null ? formatIDRCompact(gmKpis.cogsAmount) : null,
+                  basis: INTERIM,
+                  help: t('money.kpi.cogs.help'),
+                },
+                {
+                  id: 'bomCoverage',
+                  label: t('money.kpi.bomCoverage'),
+                  value: gmKpis?.bomCoveragePct != null ? formatMarginPct(gmKpis.bomCoveragePct) : null,
+                  basis: INTERIM,
+                  dq: gmKpis?.dq,
+                  help: t('money.kpi.bomCoverage.help'),
+                },
+              ], snapshotAsOf)}
             </div>
           )}
 
@@ -499,8 +525,34 @@ export function DashboardPage({ defaultTab = 'summary' }: { defaultTab?: 'summar
   )
 }
 
-// ── The persistent chrome (toolbar + tabs) — renders in every state so the user sees
-//    structure even in loading/empty/error (mockup STATE NOTES, FR-011/AC-011). ─────
+// ── Figure tiles (#804 A-3) ────────────────────────────────────────────────────────
+// A reporting tile states its own basis and its own as-of, and a figure with no basis is
+// ABSENT — never "—". The em-dash is the defect this replaces: it tells a reader a number
+// exists here and is being withheld, when the truth is that the snapshot carries none. So
+// `value: null` IS the absence, in one place, rather than each call site choosing a
+// placeholder.
+type MoneyTile = Omit<KPITileProps, 'value' | 'basis' | 'asOf'> & {
+  id: string
+  value: string | null
+  basis: string
+}
+
+function renderMoneyTiles(tiles: MoneyTile[], asOf: string | null) {
+  return tiles
+    .filter(tile => tile.value !== null)
+    .map(({ id, value, basis, ...rest }) => (
+      <KPITile
+        key={id}
+        {...rest}
+        value={value as string}
+        basis={{ label: basis }}
+        asOf={asOf ?? undefined}
+      />
+    ))
+}
+
+// ── The persistent chrome (toolbar + tabs) — renders in loading and error so the user
+//    sees structure while the page resolves (mockup STATE NOTES, FR-011/AC-011). ─────
 interface DashboardChromeProps {
   cut: DashboardCut
   onCut: (c: DashboardCut) => void

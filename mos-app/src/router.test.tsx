@@ -251,7 +251,7 @@ describe('router — Money gates (dev security series preserved)', () => {
     expect(gate.element).not.toEqual(<RequireAccessRole anyOf={['finance', 'admin', 'supervisor']} />)
   })
 
-  it('AC-PB-001: /money/budget + /money/pricing redirect to / while SHOW_PLAN_BUDGET is off', () => {
+  it('AC-PB-001 / AC-052 (#804 regression pin): /money/budget + /money/pricing redirect to / while SHOW_PLAN_BUDGET is off', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money/budget'),
     )!
@@ -263,7 +263,7 @@ describe('router — Money gates (dev security series preserved)', () => {
     )
   })
 
-  it('the retired Money paths redirect from inside the gate that owns their destination', () => {
+  it('AC-052 (#804 regression pin): the retired Money paths — /sales, /dashboard — redirect from inside the gate that owns their destination', () => {
     const readGate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money'),
     )!

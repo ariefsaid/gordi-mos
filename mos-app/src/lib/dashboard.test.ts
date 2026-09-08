@@ -13,8 +13,6 @@ import {
   resolveWindow,
   compareWindow,
   availableWindowBounds,
-  basisLabel,
-  formatGrossMarginValue,
   formatMarginPct,
   DEFAULT_WINDOW,
 } from '@/lib/dashboard'
@@ -213,10 +211,9 @@ describe('computeRevenueKpis', () => {
 
 // ── computeGrossMarginKpis ───────────────────────────────────────────────────────
 describe('computeGrossMarginKpis', () => {
-  it('AC-008: margin tiles carry basis label "interim — stock-movement"', () => {
+  it('AC-008: margin figures declare the interim stock-movement basis', () => {
     const kpis = computeGrossMarginKpis(sixtyDaysMargin(), DEFAULT_WINDOW, LATEST)
     expect(kpis.basis).toBe('interim-stock-movement')
-    expect(basisLabel(kpis.basis)).toBe('interim — stock-movement')
   })
 
   it('computes margin = revenue - cogs over the window', () => {
@@ -316,28 +313,11 @@ describe('aggregateByCut', () => {
 })
 
 // ── Display helpers ──────────────────────────────────────────────────────────────
-describe('formatGrossMarginValue', () => {
-  it('formats a non-null amount compactly', () => {
-    expect(formatGrossMarginValue(28_000_000)).toBe('Rp 28 jt')
-  })
-  it('returns em-dash for null (sync-gap)', () => {
-    expect(formatGrossMarginValue(null)).toBe('—')
-  })
-})
-
 describe('formatMarginPct', () => {
   it('formats a percentage with comma decimal', () => {
     expect(formatMarginPct(0.423)).toBe('42,3%')
   })
   it('returns em-dash for null', () => {
     expect(formatMarginPct(null)).toBe('—')
-  })
-})
-
-describe('basisLabel', () => {
-  it('labels each basis distinctly', () => {
-    expect(basisLabel('interim-stock-movement')).toBe('interim — stock-movement')
-    expect(basisLabel('budget-bom')).toBe('budget — BOM')
-    expect(basisLabel('certified-gl')).toBe('certified — GL')
   })
 })

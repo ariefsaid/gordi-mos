@@ -185,6 +185,36 @@ describe('DashboardPage — states', () => {
     expect(screen.queryByText(/^Rp 0/)).not.toBeInTheDocument()
   })
 
+  it('AC-047 (#804 A-3): empty is ONE sentence and ONE button — head, job sentence, no meta, and no toolbar or view tabs', async () => {
+    mockRev.mockResolvedValue([])
+    mockMarg.mockResolvedValue([])
+    const { container } = renderPage()
+    await screen.findByRole('heading', { name: /no sales snapshot/i })
+
+    // The head still says where you are and what the page is for.
+    expect(screen.getByRole('heading', { level: 1, name: 'Money' })).toBeInTheDocument()
+    expect(screen.getByText(/trust the financial figures/i)).toBeInTheDocument()
+    // …and carries NO meta line — no count, and no "—" standing in for one.
+    const head = screen.getByTestId('page-head')
+    expect(head.querySelectorAll('.ch-meta-line')).toHaveLength(0)
+    expect(head.textContent).not.toContain('—')
+
+    // A control that filters nothing is not a control.
+    expect(screen.queryByRole('toolbar')).toBeNull()
+    expect(screen.queryAllByRole('tablist')).toHaveLength(0)
+
+    // One EmptyState, and exactly one control on the whole page: the refresh.
+    expect(container.querySelectorAll('[data-testid="empty-state"]')).toHaveLength(1)
+    const controls = [...screen.queryAllByRole('button'), ...screen.queryAllByRole('link')]
+    expect(controls.map(c => c.textContent?.trim())).toEqual(['Check for new snapshot'])
+
+    // The copy is exactly one sentence — a second sentence turns this red.
+    const copyEl = screen.getByText('No sales snapshot rows are available yet.')
+    expect(copyEl).toBeInTheDocument()
+    const terminators = (copyEl.textContent ?? '').match(/[.!?]/g)?.length ?? 0
+    expect(terminators).toBe(1)
+  })
+
   it('F11 (OD-91 #24): the awaiting-sync affordance is a REAL refresh — it re-fetches the snapshot and can recover to populated', async () => {
     // Empty on first load, then a real snapshot lands on the refresh re-fetch.
     mockRev.mockResolvedValueOnce([]).mockResolvedValueOnce(sixtyDaysRevenue())
@@ -309,12 +339,13 @@ describe('DashboardPage — populated (desktop, Summary tab)', () => {
     expect(screen.getByText(/POS \d+% · B2B \d+%/)).toBeInTheDocument()
   })
 
-  it('AC-008: GM tiles carry the basis label "interim — stock-movement"', async () => {
+  it('AC-008 (#804 A-3 vocabulary): GM tiles carry the "interim" basis chip', async () => {
     renderPage()
     await screen.findByRole('heading', { name: /daily revenue/i })
-    // Multiple GM/COGS tiles each carry the basis chip.
-    const basisChips = screen.getAllByText('interim — stock-movement')
-    expect(basisChips.length).toBeGreaterThanOrEqual(3) // GM%, GM amt, COGS
+    // GM%, GM amt, COGS and BOM coverage each carry the chip — the basis is two words now
+    // ("certified" · "interim"), with the stock-movement provenance owned by the footnote below.
+    const basisChips = screen.getAllByText('interim')
+    expect(basisChips.length).toBeGreaterThanOrEqual(4)
   })
 
   it('AC-024: GM tiles carry a DQ badge (partial when bom_coverage < 0.9)', async () => {
@@ -340,7 +371,7 @@ describe('DashboardPage — populated (desktop, Summary tab)', () => {
     expect(document.title).toBe('Money — Gordi MOS')
   })
 
-  it('AC-011: renders the global toolbar above the tabs (cut + window)', async () => {
+  it('AC-011 / AC-052 (#804 regression pin): renders the global toolbar above the tabs (cut + window)', async () => {
     renderPage()
     await screen.findByRole('heading', { name: /daily revenue/i })
     expect(screen.getByRole('toolbar', { name: /dashboard filters/i })).toBeInTheDocument()
@@ -448,7 +479,7 @@ describe('DashboardPage — Detail tab', () => {
     mockMarg.mockResolvedValue(sixtyDaysMargin())
   })
 
-  it('AC-015/AC-018: switching to the Detail tab shows the full detail table columns', async () => {
+  it('AC-015/AC-018 / AC-052 (#804 regression pin): switching to the Detail tab shows the full detail table columns', async () => {
     renderPage()
     await screen.findByRole('heading', { name: /daily revenue/i })
     fireEvent.click(screen.getByRole('tab', { name: /detail/i }))
@@ -517,5 +548,122 @@ describe('DashboardPage — locale seam (I18N-1)', () => {
     expect(screen.getAllByRole('columnheader', { name: 'Pendapatan' }).length).toBeGreaterThan(0)
     // The old English strings are gone.
     expect(screen.queryByText('Gross margin %')).toBeNull()
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════════════════
+// #804 A-3 — the loaded head is a freshness sentence, and a figure tile states its basis.
+// ═══════════════════════════════════════════════════════════════════════════════════════
+
+/** Revenue rows across `n` branches — the head's count is the active cut's row count. */
+function branchesRevenue(n: number): SalesDailyRevenueRow[] {
+  const rows: SalesDailyRevenueRow[] = []
+  for (let i = 59; i >= 0; i--) {
+    const d = isoDaysFrom(LATEST, -i)
+    for (let b = 1; b <= n; b++) {
+      rows.push(revRow(d, 'POS', `BR-${b}`, `Branch ${b}`, 1_000_000 * b, 20))
+    }
+  }
+  return rows
+}
+
+describe('DashboardPage — the loaded head sentence (AC-048)', () => {
+  beforeEach(() => setDesktop())
+
+  it('AC-048: five branches read as "5 branches · as of <time> · latest reporting day <date>", with the toolbar and tabs present', async () => {
+    mockRev.mockResolvedValue(branchesRevenue(5))
+    mockMarg.mockResolvedValue(sixtyDaysMargin())
+    renderPage()
+    await screen.findByRole('heading', { name: /daily revenue/i })
+
+    const meta = screen.getByTestId('page-head').querySelectorAll('.ch-meta-line')
+    expect(meta).toHaveLength(1)
+    // One sentence, three clauses: how much, how fresh, how far. "as of" is the snapshot's
+    // clock; "latest reporting day" is the last day the figures cover — different facts, and
+    // a head that states only the first lets a reader date the figures to the wrong day.
+    expect(meta[0].textContent?.trim()).toMatch(
+      /^5 branches · as of .+WIB · latest reporting day 30 Jun 2026$/,
+    )
+
+    // Loaded, the filters and the two views are back.
+    expect(screen.getByRole('toolbar', { name: /dashboard filters/i })).toBeInTheDocument()
+    expect(screen.getByRole('tablist', { name: /money view/i })).toBeInTheDocument()
+  })
+})
+
+describe('DashboardPage — figure tiles carry their basis (AC-049)', () => {
+  beforeEach(() => setDesktop())
+
+  /** Every KPI tile in the two figure grids (the "What's coming" stubs are not figures). */
+  function figureTiles(container: HTMLElement): HTMLElement[] {
+    return [...container.querySelectorAll<HTMLElement>('.dash-kpi-grid .kpi-tile')]
+  }
+
+  it('AC-049: every figure tile carries a basis chip AND its own as-of', async () => {
+    mockRev.mockResolvedValue(sixtyDaysRevenue())
+    mockMarg.mockResolvedValue(sixtyDaysMargin())
+    const { container } = renderPage()
+    await screen.findByRole('heading', { name: /daily revenue/i })
+
+    const tiles = figureTiles(container)
+    expect(tiles).toHaveLength(9) // 5 revenue + 4 margin/COGS
+    for (const tile of tiles) {
+      const label = tile.querySelector('.kpi-tile-label')?.textContent ?? '(unlabelled)'
+      expect(tile.querySelector('.basis-chip'), `${label} has no basis chip`).not.toBeNull()
+      expect(tile.querySelector('.freshness-label'), `${label} has no as-of`).not.toBeNull()
+    }
+    // Revenue is read from the certified sales snapshot; margin and COGS are interim.
+    const revenueChips = container.querySelectorAll('.dash-kpi-grid:not(.dash-kpi-grid--gm) .basis-chip')
+    expect(revenueChips).toHaveLength(5)
+    for (const chip of revenueChips) expect(chip.textContent).toBe('certified')
+    for (const chip of container.querySelectorAll('.dash-kpi-grid--gm .basis-chip')) {
+      expect(chip.textContent).toBe('interim')
+    }
+  })
+
+  it('AC-049: a figure with no basis is ABSENT — never an em-dash tile', async () => {
+    // Zero transactions ⇒ no avg check; no margin rows ⇒ no margin, COGS or BOM coverage.
+    // Those used to draw as "—" tiles, each telling a reader a number was being withheld.
+    const noTxns = sixtyDaysRevenue().map(r => ({ ...r, transactions: 0 }))
+    mockRev.mockResolvedValue(noTxns)
+    mockMarg.mockResolvedValue([])
+    const { container } = renderPage()
+    await screen.findByRole('heading', { name: /daily revenue/i })
+
+    const tiles = figureTiles(container)
+    // The label's own text node — a tile with a "?" help control appends a glyph to the span,
+    // and matching on the whole span would let 'Avg check?' slip past a not.toContain check.
+    const labels = tiles.map(t => t.querySelector('.kpi-tile-label')?.firstChild?.textContent?.trim())
+    expect(labels).not.toContain('Avg check')
+    expect(labels).not.toContain('Gross margin %')
+    expect(labels).not.toContain('Interim COGS')
+    expect(labels).not.toContain('BOM coverage')
+    // Revenue survives — absence is per figure, not a blanked row.
+    expect(labels).toContain('Trailing 7-day revenue')
+    // And no tile in either grid renders the placeholder it replaces.
+    for (const tile of tiles) expect(tile.textContent).not.toContain('—')
+  })
+})
+
+describe('DashboardPage — the loading skeleton keeps the head and toolbar (AC-051)', () => {
+  beforeEach(() => setDesktop())
+
+  it('AC-051: head and toolbar are in the DOM while the figures are skeletons', () => {
+    mockRev.mockReturnValue(new Promise(() => {}))
+    mockMarg.mockReturnValue(new Promise(() => {}))
+    const { container } = renderPage()
+
+    // The page's geometry does not move when the data lands.
+    expect(screen.getByRole('heading', { level: 1, name: 'Money' })).toBeInTheDocument()
+    expect(screen.getByRole('toolbar', { name: /dashboard filters/i })).toBeInTheDocument()
+    expect(screen.getByRole('tablist', { name: /money view/i })).toBeInTheDocument()
+
+    // Figures, chart and table are skeletons under ONE page-level busy status.
+    const status = screen.getByRole('status', { name: /loading/i })
+    expect(status).toHaveAttribute('aria-busy', 'true')
+    expect(status.querySelectorAll('.kpi-tile[aria-busy="true"]')).toHaveLength(5)
+    expect(status.querySelectorAll('.skeleton-row').length).toBeGreaterThan(0)
+    // No figure has been drawn yet — no basis chip is claiming a number exists.
+    expect(container.querySelector('.basis-chip')).toBeNull()
   })
 })

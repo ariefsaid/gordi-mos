@@ -14,7 +14,6 @@ import { formatPercent } from '@/lib/format/percent'
 import {
   activityMap,
   channelMixLabel,
-  formatIDRCompact,
   formatDelta,
   trailingWindow,
   type DashboardCut,
@@ -286,21 +285,7 @@ export function aggregateByCut(
     .sort((a, b) => b.revenue - a.revenue)
 }
 
-// ── Display formatting helpers (basis-labelling) ─────────────────────────────────
-/** Human-readable basis label for a COGS basis (FR-008). */
-export function basisLabel(basis: CogsBasis): string {
-  switch (basis) {
-    case 'interim-stock-movement': return 'interim — stock-movement'
-    case 'budget-bom': return 'budget — BOM'
-    case 'certified-gl': return 'certified — GL'
-  }
-}
-
-/** Formats a gross-margin amount for a KPITile value, with null-safe handling. */
-export function formatGrossMarginValue(amount: number | null): string {
-  return amount == null ? '—' : formatIDRCompact(amount)
-}
-
+// ── Display formatting helpers ───────────────────────────────────────────────────
 /** Formats a margin percentage for display (e.g. "42,3%"). Delegates to the ONE
  * canonical locale-aware percent module (census g-money r5 F-2) — no hand-rolled
  * comma swap. */

@@ -1,8 +1,8 @@
 // Money dashboard specimens — the Layer-2 battery debt for the census r2/r3 Money work:
 // KPITile (value/delta/foot variants, className passthrough, the r3 mix-tile span-2
 // narrow-grid state, the nowrap value clamp), WindowRangeFields (inline desktop pair
-// vs the DO-21 phone range row, custom-active vs quiet-empty), and the GlobalToolbar
-// phone rail + range-row composition (no service imports — pure props, no mocks).
+// vs the phone Range sheet, range-active vs quiet-empty), and the GlobalToolbar's
+// two-row phone composition (no service imports — pure props, no mocks).
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fireEvent, userEvent, within } from 'storybook/test'
@@ -17,7 +17,7 @@ export const v3Matrix = {
     'money.kpi-tile-matrix',
     'money.kpi-mix-span-narrow-grid',
     'money.window-range-placement',
-    'money.toolbar-phone-rail',
+    'money.toolbar-phone-two-rows',
   ],
   states: [
     'kpi-tile.value-label',
@@ -30,10 +30,10 @@ export const v3Matrix = {
     'kpi-tile.mix-span2-phone',
     'kpi-tile.value-clamp-nowrap',
     'window-range.inline-desktop',
-    'window-range.phone-row-below-rail',
+    'window-range.phone-sheet',
     'window-range.custom-active-bounded',
     'window-range.quiet-empty',
-    'toolbar.phone-rail-cut-reachable',
+    'toolbar.phone-two-rows-cut-reachable',
   ],
   responsive: ['desktop1280', 'phone390'],
   canonicalImports: [
@@ -57,8 +57,8 @@ const meta = {
         component:
           'Money-surface specimens: the KPITile signature (display-ready strings + tone enum, ' +
           'never currency math), the census-r3 mix-tile span-2 treatment on narrow grids, and ' +
-          'the DO-21 window-range placement split — inline beside the seg on desktop, a ' +
-          'dedicated row below the phone filter rail so the cut axis stays reachable.',
+          'the window-range placement split — inline beside the seg on desktop, a From · To · ' +
+          'Apply sheet on the phone so the cut axis stays on screen.',
       },
     },
   },
@@ -214,7 +214,7 @@ export const WindowRangeInlineDesktop: Story = {
   render: () => (
     <div className="v3-story-frame">
       <section className="v3-story-section" aria-labelledby="money-range-desktop-title">
-        <h1 id="money-range-desktop-title" className="v3-story-section__title">Custom range — desktop inline</h1>
+        <h1 id="money-range-desktop-title" className="v3-story-section__title">Range — desktop inline</h1>
         <p className="v3-story-section__copy">
           On desktop the bounded From/To pair sits inline beside the seg — one row, no dedicated
           range row. Dates outside the snapshot window are disabled via min/max.
@@ -230,7 +230,6 @@ export const WindowRangeInlineDesktop: Story = {
     const from = canvas.getByLabelText('From')
     // Inline beside the seg — inside the window-selector, no phone range row.
     await expect(from.closest('.window-selector')).not.toBeNull()
-    await expect(canvasElement.querySelector('.global-toolbar-range-row')).toBeNull()
     await expect(canvasElement.querySelectorAll('.window-selector-range')).toHaveLength(1)
     // Bounded to the snapshot window (AC-014 grammar).
     await expect(from).toHaveAttribute('min', BOUNDS.earliest)
@@ -238,15 +237,16 @@ export const WindowRangeInlineDesktop: Story = {
   },
 }
 
-export const WindowRangeRowPhone: Story = {
+export const WindowRangeSheetPhone: Story = {
   render: () => (
     <div className="v3-story-frame">
       <section className="v3-story-section" aria-labelledby="money-range-phone-title">
-        <h1 id="money-range-phone-title" className="v3-story-section__title">Custom range — phone row below the rail</h1>
+        <h1 id="money-range-phone-title" className="v3-story-section__title">Range — phone sheet</h1>
         <p className="v3-story-section__copy">
-          DO-21: picking Custom must not shove Branch/Channel/Activity off-canvas, so on phone the
-          pair leaves the horizontal scroller and takes a dedicated full-width row below the rail.
-          One DOM for the pair — the seg suppresses its inline copy.
+          At phone width the toolbar is two full-width rows — presets and Range above, the cut
+          axis below — and Range opens a From · To · Apply sheet. Apply is what commits, so a
+          half-picked range never re-queries the page, and Branch/Channel/Activity never leave
+          the screen.
         </p>
         <ToolbarHarness initial={CUSTOM} />
       </section>
@@ -256,25 +256,30 @@ export const WindowRangeRowPhone: Story = {
   globals: { viewport: { value: 'phone390' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const from = canvas.getByLabelText('From')
-    const rangeRow = canvasElement.querySelector('.global-toolbar-range-row')
-    const rail = canvasElement.querySelector('.global-toolbar-rail')
-    // The pair renders once, in the range row — never inside the scrolling rail.
-    await expect(rangeRow).not.toBeNull()
-    await expect(rangeRow!.contains(from)).toBe(true)
-    await expect(rail!.contains(from)).toBe(false)
-    await expect(canvasElement.querySelectorAll('.window-selector-range')).toHaveLength(1)
-    // The row sits BELOW the rail (its own line, not inline).
-    await expect(rangeRow!.getBoundingClientRect().top).toBeGreaterThanOrEqual(
-      rail!.getBoundingClientRect().bottom - 1,
+    // Two full-width rows, window above cut.
+    const groups = canvasElement.querySelectorAll('.global-toolbar-rail > .global-toolbar-group')
+    await expect(groups).toHaveLength(2)
+    await expect(groups[0]).toHaveClass('global-toolbar-group--window')
+    await expect(groups[1]).toHaveClass('global-toolbar-group--cut')
+    await expect(groups[0].getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      groups[1].getBoundingClientRect().top + 1,
     )
-    // The cut axis survives Custom mode — the whole point of the split.
+    // Nothing clips: the rail is no wider than the toolbar that holds it.
+    const rail = canvasElement.querySelector('.global-toolbar-rail')!
+    await expect(rail.scrollWidth).toBeLessThanOrEqual(rail.clientWidth + 1)
+
+    // The dates live ONLY in the sheet — the seg shows no inline pair on phone.
+    await expect(canvasElement.querySelector('.window-selector-range')).toBeNull()
+    await fireEvent.click(canvas.getByRole('tab', { name: 'Range' }))
+    const sheet = canvas.getByRole('dialog', { name: 'Custom range' })
+    await expect(within(sheet).getByLabelText('From')).toBeInTheDocument()
+    await expect(within(sheet).getByLabelText('To')).toBeInTheDocument()
+    await expect(within(sheet).getByRole('button', { name: 'Apply' })).toBeInTheDocument()
+
+    // The cut axis is still behind the sheet — the whole point of moving the pair out of the row.
     await expect(canvas.getByRole('tab', { name: 'Branch' })).toBeInTheDocument()
     await expect(canvas.getByRole('tab', { name: 'Channel' })).toBeInTheDocument()
     await expect(canvas.getByRole('tab', { name: 'Activity' })).toBeInTheDocument()
-    // The row pair is live: editing From round-trips through the controlled spec.
-    await fireEvent.change(from, { target: { value: '2026-06-10' } })
-    await expect(from).toHaveValue('2026-06-10')
   },
 }
 

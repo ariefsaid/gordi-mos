@@ -11,6 +11,31 @@ export function isoDaysBefore(dateIso: string, days: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+/** Number of calendar days from `earliestIso` to `latestIso` (both ISO yyyy-mm-dd). */
+export function daysBetween(earliestIso: string, latestIso: string): number {
+  const a = new Date(`${earliestIso}T00:00:00Z`).getTime()
+  const b = new Date(`${latestIso}T00:00:00Z`).getTime()
+  return Math.max(0, Math.round((b - a) / 86_400_000))
+}
+
+/**
+ * Seeds a custom range from the snapshot bounds: latest day back ~30d, clamped to earliest
+ * so the seeded range never exceeds the available data window.
+ * Used by both the desktop inline Range picker and the phone Range sheet.
+ */
+export function seedBoundsRange(bounds: { earliest: string; latest: string } | null): { from: string; to: string } {
+  const today = new Date()
+  const isoToday = (delta: number) => {
+    const d = new Date(today)
+    d.setUTCDate(d.getUTCDate() + delta)
+    return d.toISOString().slice(0, 10)
+  }
+  const to = bounds?.latest ?? isoToday(-1)
+  const earliest = bounds?.earliest ?? isoToday(-60)
+  const from = isoDaysBefore(to, Math.min(29, daysBetween(earliest, to)))
+  return { from, to }
+}
+
 export interface TrailingWindowResult {
   /** value summed over the current trailing window */
   current: number

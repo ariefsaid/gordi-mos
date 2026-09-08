@@ -33,6 +33,12 @@
    tracks every row is full at every width (2-up phone → 2/2/full-row; 3-up →
    3 + 1+2). No ragged trailing voids, value never leaves its tile, no-wrap number
    grammar intact. */
+/* #804 A-3: a figure with no basis is absent, so a whole row can empty out (a viewer whose
+   snapshot carries no margin rows). An empty grid must not leave its gap behind. */
+.dash-kpi-grid:empty {
+  display: none;
+}
+
 .dash-kpi-tile--mix {
   grid-column: span 2;
 }
