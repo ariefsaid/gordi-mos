@@ -10,7 +10,8 @@ import {
   streamKey,
   PRODUCE,
 } from './kitchen-action-label'
-import type { BranchOption, ProductionStream } from './db/kitchen-logs.types'
+import { streamCatalogFrom } from './db/kitchen-logs'
+import type { BranchOption, ProductionStream, StreamPair } from './db/kitchen-logs.types'
 
 describe('streamKey', () => {
   it('joins branchId and activity with a separator', () => {
@@ -34,21 +35,28 @@ const RRS_KITCHEN: ProductionStream = { branch: RRS, activity: 'kitchen', produc
 const RADIANT_KITCHEN: ProductionStream = { branch: RADIANT, activity: 'kitchen', produces: false }
 const GHQ: BranchOption = { id: 'b-ghq', code: 'gordi_hq', name: 'Gordi HQ' }
 const CIKAL: BranchOption = { id: 'b-cikal', code: 'cikal', name: 'Cikal' }
-const GHQ_KITCHEN: ProductionStream = { branch: GHQ, activity: 'kitchen', produces: true }
-const GHQ_BAR: ProductionStream = { branch: GHQ, activity: 'bar', produces: true }
-const CIKAL_BAR: ProductionStream = { branch: CIKAL, activity: 'bar', produces: true }
-const STREAM_CATALOG: ProductionStream[] = [
-  GHQ_KITCHEN, GHQ_BAR, RRS_KITCHEN, RRS_BAR,
-  RADIANT_KITCHEN, { branch: RADIANT, activity: 'bar', produces: true }, CIKAL_BAR,
+// Derived through streamCatalogFrom — the same helper production uses (#777) — rather than
+// hand-ordered, so the fixture's order tracks the real catalog: branch-catalog order
+// (name-sorted, as listActiveBranches returns it) x PRODUCTION_ACTIVITIES ([kitchen, bar]).
+const BRANCHES_NAME_SORTED: BranchOption[] = [CIKAL, GHQ, RADIANT, RRS]
+const PAIRS: StreamPair[] = [
+  { branch_id: GHQ.id, activity: 'kitchen', produces: true },
+  { branch_id: GHQ.id, activity: 'bar', produces: true },
+  { branch_id: RRS.id, activity: 'kitchen', produces: true },
+  { branch_id: RRS.id, activity: 'bar', produces: true },
+  { branch_id: RADIANT.id, activity: 'kitchen', produces: false },
+  { branch_id: RADIANT.id, activity: 'bar', produces: true },
+  { branch_id: CIKAL.id, activity: 'bar', produces: true },
 ]
+const STREAM_CATALOG: ProductionStream[] = streamCatalogFrom(PAIRS, BRANCHES_NAME_SORTED)
 
 describe('movementsForStream', () => {
   it('derives produce plus allowed destinations from the origin and catalog', () => {
     expect(movementsForStream(RRS_KITCHEN, STREAM_CATALOG)).toEqual([
       PRODUCE,
+      { action: 'transfer', destinationBranchId: CIKAL.id },
       { action: 'transfer', destinationBranchId: GHQ.id },
       { action: 'transfer', destinationBranchId: RADIANT.id },
-      { action: 'transfer', destinationBranchId: CIKAL.id },
     ])
   })
 
@@ -67,13 +75,13 @@ describe('movementsForStream', () => {
 
   it('matches the seeded seven-stream destination matrix', () => {
     const expected: Record<string, string[]> = {
-      'gordi_hq|kitchen': [RRS.id, RADIANT.id, CIKAL.id],
-      'rumah_rames|kitchen': [GHQ.id, RADIANT.id, CIKAL.id],
+      'gordi_hq|kitchen': [CIKAL.id, RADIANT.id, RRS.id],
+      'rumah_rames|kitchen': [CIKAL.id, GHQ.id, RADIANT.id],
       'radiant|kitchen': [],
-      'gordi_hq|bar': [GHQ.id, RRS.id, RADIANT.id, CIKAL.id],
-      'rumah_rames|bar': [GHQ.id, RRS.id, RADIANT.id, CIKAL.id],
-      'radiant|bar': [GHQ.id, RRS.id, RADIANT.id, CIKAL.id],
-      'cikal|bar': [GHQ.id, RRS.id, RADIANT.id],
+      'gordi_hq|bar': [CIKAL.id, GHQ.id, RADIANT.id, RRS.id],
+      'rumah_rames|bar': [CIKAL.id, GHQ.id, RADIANT.id, RRS.id],
+      'radiant|bar': [CIKAL.id, GHQ.id, RADIANT.id, RRS.id],
+      'cikal|bar': [GHQ.id, RADIANT.id, RRS.id],
     }
     for (const stream of STREAM_CATALOG) {
       expect(movementsForStream(stream, STREAM_CATALOG).map(m => m.destinationBranchId).filter(Boolean))
