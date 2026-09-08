@@ -230,7 +230,7 @@ describe('B-i: phone tap-target markers are applied at the inline/Tailwind touch
   // Every pattern below is anchored with [^}]* rather than [\s\S]*: [\s\S]* spans the whole media
   // body, so it proves only that the text appears SOMEWHERE after the selector, not that the
   // declaration belongs to that rule. [^}]* cannot cross the closing brace of the block.
-  it('auth-card phone floor (ticket 403): input/button/a ≥44×44 in shared CSS, <a> gets a box)', () => {
+  it('AC-017: auth-card phone floor (ticket 403): input/button/a ≥44×44 in shared CSS, <a> gets a box)', () => {
     const authCss = readFileSync(resolve(process.cwd(), 'src/auth/auth.css'), 'utf8')
     const body = mediaBody(authCss, '@media (max-width: 767.98px)')
     expect(body).toMatch(/\.auth-card :is\(input, button, a\)[^}]*min-height:\s*44px/)

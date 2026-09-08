@@ -1355,6 +1355,26 @@ export const messages = {
     'table.group.expand': 'Expand ${group}',
     'table.group.collapse': 'Collapse ${group}',
     'chart.empty': 'No data for this cut.',
+    // Auth surfaces. The footer and the orphan body name a ROLE, never a person: the person on
+    // the other end changes, and a name in the chrome is an identity a signed-out stranger can
+    // read off the login screen.
+    'auth.footer': 'Trouble signing in? Contact your admin.',
+    'auth.orphan.body': "We couldn't find your Gordi MOS profile. Contact your admin to get set up.",
+    'auth.password.rule': 'At least 8 characters',
+    'auth.password.tooShort': 'Password must be at least 8 characters.',
+    'auth.password.mismatch': "Passwords don't match.",
+    'auth.password.showNew': 'Show password',
+    'auth.password.hideNew': 'Hide password',
+    'auth.password.showConfirm': 'Show password confirmation',
+    'auth.password.hideConfirm': 'Hide password confirmation',
+    // Recovery expired-link card (#799) — all new user-facing strings flow through the catalog.
+    'auth.recovery.expired': 'That link has expired — request a new one.',
+    'auth.recovery.emailLabel': 'Email',
+    'auth.recovery.emailPlaceholder': 'you@example.test',
+    'auth.recovery.requestNewLink': 'Request a new link',
+    'auth.recovery.sending': 'Sending…',
+    'auth.recovery.sent': 'If an account exists for that address, a reset link is on its way.',
+    'auth.backToSignIn': 'Back to sign in',
   },
   id: {
     'dest.home': 'Beranda',
@@ -2596,6 +2616,24 @@ export const messages = {
     'table.group.expand': 'Buka grup ${group}',
     'table.group.collapse': 'Tutup grup ${group}',
     'chart.empty': 'Tidak ada data untuk irisan ini.',
+    // Permukaan auth — footer dan badan orphan menyebut PERAN, bukan orang.
+    'auth.footer': 'Ada kendala masuk? Hubungi admin kamu.',
+    'auth.orphan.body': 'Kami tidak menemukan profil Gordi MOS kamu. Hubungi admin kamu untuk disiapkan.',
+    'auth.password.rule': 'Minimal 8 karakter',
+    'auth.password.tooShort': 'Kata sandi minimal 8 karakter.',
+    'auth.password.mismatch': 'Kata sandi tidak cocok.',
+    'auth.password.showNew': 'Tampilkan kata sandi',
+    'auth.password.hideNew': 'Sembunyikan kata sandi',
+    'auth.password.showConfirm': 'Tampilkan konfirmasi kata sandi',
+    'auth.password.hideConfirm': 'Sembunyikan konfirmasi kata sandi',
+    // Kartu kedaluwarsa recovery (#799)
+    'auth.recovery.expired': 'Tautan sudah kedaluwarsa — minta yang baru.',
+    'auth.recovery.emailLabel': 'Email',
+    'auth.recovery.emailPlaceholder': 'kamu@example.test',
+    'auth.recovery.requestNewLink': 'Minta tautan baru',
+    'auth.recovery.sending': 'Mengirim…',
+    'auth.recovery.sent': 'Jika akun untuk alamat itu ada, tautan reset sudah dalam perjalanan.',
+    'auth.backToSignIn': 'Kembali ke halaman masuk',
   },
 } as const
 

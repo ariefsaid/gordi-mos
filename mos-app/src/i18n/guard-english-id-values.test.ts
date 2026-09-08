@@ -66,6 +66,7 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'admin.role.admin', // Admin
   'admin.role.supervisor', // Supervisor
   'admin.create.email', // Email
+  'auth.recovery.emailLabel', // Email — same word in both locales, matches admin.create.email
   // #410 review-page chrome: 'Item' is the same word in both locales.
   'kitchen.review.col.item', // Item
   'kitchen.log.col.item', // Item — same word in both locales (OD-WAY-85)

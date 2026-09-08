@@ -1,7 +1,8 @@
 import { useState, useId, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
+import { safeReturnTarget } from '@/auth/return-target'
 import { DemoLogin } from './demo-login'
 import { DEMO_PASSWORD } from './demo-personas'
 
@@ -41,7 +42,11 @@ function isValidEmail(value: string): boolean {
 }
 
 export function LoginPage() {
-  const navigate = useNavigate()
+  const location = useLocation()
+  // The route ProtectedRoute parked in router state, sanitised (see safeReturnTarget). This page
+  // never navigates on success: RedirectIfAuthed owns the landing the moment the auth status
+  // flips, and reads the same state. What is left here is the magic link's redirect target.
+  const returnTarget = safeReturnTarget((location.state as { from?: unknown } | null)?.from)
   const emailId = useId()
   const passwordId = useId()
   const errorId = useId()
@@ -88,8 +93,6 @@ export function LoginPage() {
       })
       if (authError) {
         setError(mapAuthError(authError))
-      } else {
-        navigate('/', { replace: true })
       }
     } catch {
       setError(ERR_NETWORK)
@@ -117,8 +120,6 @@ export function LoginPage() {
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
       if (authError) {
         setError(mapAuthError(authError))
-      } else {
-        navigate('/', { replace: true })
       }
     } catch {
       setError(ERR_NETWORK)
@@ -134,7 +135,9 @@ export function LoginPage() {
     try {
       const { error: sendError } = await supabase.auth.signInWithOtp({
         email,
-        options: { shouldCreateUser: false },
+        // The link lands on the route they asked for, so a person who followed a deep link into
+        // MOS from their mail finishes where they started rather than on Home.
+        options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/mos${returnTarget}` },
       })
       // ⚠ DO NOT branch the user-visible outcome on `sendError` (AC-006, and a review of #137
       // caught exactly that). GoTrue answers 200 for an address it has never seen — it attempts
