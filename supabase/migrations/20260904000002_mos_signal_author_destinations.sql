@@ -81,6 +81,11 @@ as $$
   )
 $$;
 
+-- Revoke from PUBLIC, then grant back to authenticated: policy evaluation runs as the calling
+-- role, so without the grant every Signal read fails with permission denied for the function.
+revoke execute on function mos.can_read_signal(uuid) from public, anon, authenticated;
+grant execute on function mos.can_read_signal(uuid) to authenticated;
+
 create or replace function mos.teams_author_can_read_back(
   p_author_id uuid default shared.current_person_id()
 )
