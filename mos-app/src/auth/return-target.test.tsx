@@ -29,6 +29,9 @@ describe('AC-012: safeReturnTarget', () => {
     expect(safeReturnTarget('https://example.test/steal')).toBe(HOME_TARGET)
     expect(safeReturnTarget('//example.test/steal')).toBe(HOME_TARGET)
     expect(safeReturnTarget('/\\example.test')).toBe(HOME_TARGET)
+    // A backslash past the first path segment slips the leading-lookahead check on its own, so
+    // the plain `includes('\\')` scan below it is the one that catches this shape.
+    expect(safeReturnTarget('/work\\evil')).toBe(HOME_TARGET)
     expect(safeReturnTarget('work/tasks')).toBe(HOME_TARGET)
     // URL parsing drops the tab, leaving a protocol-relative target pointing off-app.
     expect(safeReturnTarget('/\t//evil.test')).toBe(HOME_TARGET)

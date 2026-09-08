@@ -66,7 +66,7 @@ function ExpiredCard() {
             className="text-primary font-medium hover:underline"
             style={{ fontSize: 16 }}
           >
-            Back to sign in
+            {t('auth.backToSignIn')}
           </a>
         </AuthCard>
       </AuthShell>
@@ -95,7 +95,7 @@ function ExpiredCard() {
           className="block text-foreground font-semibold mb-1"
           style={{ fontSize: 'var(--font-size-label)' }}
         >
-          Email
+          {t('auth.recovery.emailLabel')}
         </label>
         <input
           id={emailId}
@@ -135,7 +135,7 @@ function ExpiredCard() {
               {t('auth.recovery.sending')}
             </>
           ) : (
-            'Request a new link'
+            t('auth.recovery.requestNewLink')
           )}
         </button>
 
@@ -146,7 +146,7 @@ function ExpiredCard() {
             className="text-primary font-medium hover:underline"
             style={{ fontSize: 16 }}
           >
-            Back to sign in
+            {t('auth.backToSignIn')}
           </a>
         </div>
       </AuthCard>
