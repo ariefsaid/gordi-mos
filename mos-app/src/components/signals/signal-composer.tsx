@@ -189,7 +189,7 @@ export function SignalComposer({
       onShared?.(id)
     } catch (err) {
       const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : ''
-      if (code !== '42501') console.error('Signal share failed', err)
+      if (code !== '42501') console.error('Signal share failed', code || 'unknown')
       setError(code === '42501' ? t('signals.composer.postForbidden') : t('signals.composer.postFailed'))
     } finally {
       setPosting(false)

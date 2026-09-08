@@ -50,6 +50,11 @@ const TEAMS: TeamOption[] = [
   { id: 'team-hq', name: 'HQ Operations', business_unit_id: 'bu-retail', site_id: 'site-hq', is_primary: true },
   { id: 'team-radiant', name: 'Radiant Operations', business_unit_id: 'bu-retail', site_id: 'site-radiant', is_primary: false },
 ]
+// A third Team the author cannot READ BACK — used to prove the owning-Team select is narrowed to
+// listReadableAuthorTeams's result and does not fall back to the wider listAllTeams roster.
+const DOWNTOWN_TEAM: TeamOption = {
+  id: 'team-downtown', name: 'Downtown Operations', business_unit_id: 'bu-retail', site_id: 'site-downtown', is_primary: false,
+}
 // OD-REDESIGN-91 #19: a single eligible Team auto-picks, so the default author is on ONE team —
 // the common journey. The multi-team must-pick journey has its own describe block below.
 const SOLE_TEAM: TeamOption[] = [TEAMS[0]]
@@ -246,6 +251,23 @@ describe('SignalComposer — read-back-only Team options (#715)', () => {
 
     await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), '@')
     expect(await findMentionOption(/Radiant Operations/)).toBeInTheDocument()
+  })
+
+  it('narrows the owning-Team select options to the readable Teams, not the wider listAllTeams roster', async () => {
+    const readableTeams = [TEAMS[0], DOWNTOWN_TEAM] // two readable Teams, Radiant excluded
+    mockListReadableAuthorTeams.mockResolvedValue(readableTeams)
+    mockListAllTeams.mockResolvedValue([...TEAMS, DOWNTOWN_TEAM]) // superset includes Radiant
+    renderComposer({ canCreateForTeam: true })
+    await waitFor(() => {
+      expect(mockListReadableAuthorTeams).toHaveBeenCalledWith(AUTHOR_ID)
+      expect(mockListAllTeams).toHaveBeenCalled()
+    })
+
+    const teamSelect = await screen.findByRole('combobox', { name: /team/i })
+    const optionNames = within(teamSelect).getAllByRole('option').map((o) => o.textContent)
+    expect(optionNames).toContain('HQ Operations')
+    expect(optionNames).toContain('Downtown Operations')
+    expect(optionNames).not.toContain('Radiant Operations')
   })
 
   it('keeps non-membership Teams out of mentions without create_for_team', async () => {

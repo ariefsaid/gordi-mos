@@ -61,7 +61,9 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   }, [composerDirty])
   const open = useCallback((nextPrefill?: SignalComposerPrefill) => { setPrefill(nextPrefill); setIsOpen(true) }, [])
   // On a successful Share: bump the post counter (watched by the feed/archive) then close.
-  const handleShared = useCallback(() => { setPostCount((n) => n + 1); setPrefill(undefined); setIsOpen(false) }, [])
+  const handleShared = useCallback(() => {
+    setPostCount((n) => n + 1); setPrefill(undefined); setComposerDirty(false); setIsOpen(false)
+  }, [])
 
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
 

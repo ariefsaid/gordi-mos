@@ -144,6 +144,19 @@ describe('SignalComposerHost — one command, many entry points (C1, AC-428 back
     expect(screen.queryByTestId('signal-composer-stub')).not.toBeInTheDocument()
   })
 
+  it('a successful share clears the dirty flag, so reopening and closing does not prompt to discard', async () => {
+    renderHost(authedViewer)
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+    await userEvent.click(screen.getByRole('button', { name: 'make-dirty' }))
+    await userEvent.click(screen.getByRole('button', { name: 'stub-share' }))
+    expect(screen.queryByTestId('signal-composer-stub')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('heading', { name: 'Discard this Signal?' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('signal-composer-stub')).not.toBeInTheDocument()
+  })
+
   it('increments postCount on each successful share so feed/archive surfaces reload (AC-430)', async () => {
     renderHost(authedViewer)
     expect(screen.getByTestId('post-count')).toHaveTextContent('0')
