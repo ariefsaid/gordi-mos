@@ -56,6 +56,7 @@
 .signal-record-link-form select:focus-visible,
 .signal-record-link-form .picker__trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .signal-record-link-form .picker { width: 100%; }
+.signal-record-link-form .mk-textinput { width: 100%; }
 
 @media (max-width: 767px) {
   .signal-record-action-controls { width: 100%; }

@@ -42,9 +42,13 @@ const directoryMocks = vi.hoisted(() => ({
 vi.mock('@/lib/db/directory', () => directoryMocks)
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 
-vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn(), createTask: vi.fn() }))
-import { listTasks, createTask } from '@/lib/db/tasks'
-import type { TaskListRow } from '@/lib/db/tasks.types'
+vi.mock('@/lib/db/tasks', () => ({
+  getTaskTitlesByIds: vi.fn(),
+  searchTasksByTitle: vi.fn(),
+  createTask: vi.fn(),
+}))
+import { getTaskTitlesByIds, searchTasksByTitle, createTask } from '@/lib/db/tasks'
+import type { TaskTitleRef } from '@/lib/db/tasks'
 
 vi.mock('@/lib/comments/postComment', () => ({ listComments: vi.fn(), postComment: vi.fn() }))
 import { listComments, postComment } from '@/lib/comments/postComment'
@@ -72,7 +76,8 @@ const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
 const mockGetPersonTeams = directoryMocks.getPersonTeams
 const mockGetTeamsByIds = directoryMocks.getTeamsByIds
-const mockListTasks = vi.mocked(listTasks)
+const mockGetTaskTitlesByIds = vi.mocked(getTaskTitlesByIds)
+const mockSearchTasksByTitle = vi.mocked(searchTasksByTitle)
 const mockCreateTask = vi.mocked(createTask)
 const mockListComments = vi.mocked(listComments)
 const mockPostComment = vi.mocked(postComment)
@@ -143,7 +148,8 @@ beforeEach(() => {
   ])
   mockGetPersonTeams.mockResolvedValue([])
   mockGetTeamsByIds.mockResolvedValue([])
-  mockListTasks.mockResolvedValue([])
+  mockGetTaskTitlesByIds.mockResolvedValue([])
+  mockSearchTasksByTitle.mockResolvedValue([])
   mockCreateTask.mockResolvedValue('task-created')
   mockListComments.mockResolvedValue([])
   mockLoadMentionRosters.mockResolvedValue({ teamMembers: {}, buMembers: {} })
@@ -401,12 +407,16 @@ describe('SignalRecordHost — Create follow-up Task (canonical Task composer, P
 
 describe('SignalRecordHost — related Task read failure', () => {
   it('does not turn a failed Task read into an empty linked-work state and offers retry', async () => {
-    mockListTasks.mockRejectedValueOnce(new Error('network unavailable'))
+    mockGetSignal.mockResolvedValueOnce({
+      signal: baseSignal, mentions: [], acknowledgements: [],
+      tasks: [{ id: 'st1', signal_id: SIGNAL_ID, task_id: 'task-a', created_by: VIEWER_ID }],
+    })
+    mockGetTaskTitlesByIds.mockRejectedValueOnce(new Error('network unavailable'))
     renderHost()
     await screen.findByRole('heading', { name: 'The freezer alarm went off' })
 
     expect(await screen.findByText("Couldn't load linked work.")).toBeInTheDocument()
-    mockListTasks.mockResolvedValueOnce([])
+    mockGetTaskTitlesByIds.mockResolvedValueOnce([])
     await userEvent.click(screen.getByRole('button', { name: /try again/i }))
     await waitFor(() => expect(screen.queryByText("Couldn't load linked work.")).not.toBeInTheDocument())
   })
@@ -414,8 +424,8 @@ describe('SignalRecordHost — related Task read failure', () => {
 
 describe('SignalRecordHost — Link existing Task (linkSignalTask, FR-413)', () => {
   it('opens a Task picker and links the selected Task', async () => {
-    mockListTasks.mockResolvedValue([
-      { id: 'task-a', org_id: 'org-1', title: 'Repair freezer', business_unit_id: BU_ID, status: 'Open', responsible_person_id: 'x', accountable_person_id: 'x', consulted_person_ids: [], informed_person_ids: [], description: null, due_date: null, objective_id: null, work_line_id: null, last_activity_at: '', archived_at: null, created_by: 'x', created_at: '', updated_at: '' },
+    mockSearchTasksByTitle.mockResolvedValue([
+      { id: 'task-a', title: 'Repair freezer', status: 'Open' },
     ])
     mockLinkSignalTask.mockResolvedValue(undefined)
     renderHost()
@@ -423,6 +433,9 @@ describe('SignalRecordHost — Link existing Task (linkSignalTask, FR-413)', () 
 
     await userEvent.click(screen.getByRole('button', { name: /more signal actions/i }))
     await userEvent.click(screen.getByRole('menuitem', { name: /link existing task/i }))
+    expect(mockSearchTasksByTitle).not.toHaveBeenCalled()
+    const search = screen.getByRole('searchbox', { name: /search tasks/i })
+    await userEvent.type(search, 'Repair freezer')
     const picker = await screen.findByRole('combobox', { name: /existing task/i })
     await userEvent.click(picker)
     await userEvent.click(screen.getByRole('option', { name: 'Repair freezer' }))
@@ -434,18 +447,38 @@ describe('SignalRecordHost — Link existing Task (linkSignalTask, FR-413)', () 
     await userEvent.click(screen.getByRole('button', { name: /^link$/i }))
 
     expect(mockLinkSignalTask).toHaveBeenCalledWith(SIGNAL_ID, 'task-a')
+    expect(mockSearchTasksByTitle).toHaveBeenCalledWith('Repair freezer')
+    await waitFor(() => expect(mockGetTaskTitlesByIds).toHaveBeenCalledWith(['task-a']))
+  })
+
+  it('keeps candidate search retryable when the demand-driven Task search fails', async () => {
+    mockSearchTasksByTitle.mockRejectedValueOnce(new Error('search unavailable'))
+    mockSearchTasksByTitle.mockResolvedValueOnce([
+      { id: 'task-a', title: 'Repair freezer', status: 'Open' },
+    ])
+    renderHost()
+    await screen.findByRole('heading', { name: 'The freezer alarm went off' })
+
+    await userEvent.click(screen.getByRole('button', { name: /more signal actions/i }))
+    await userEvent.click(screen.getByRole('menuitem', { name: /link existing task/i }))
+    await userEvent.type(screen.getByRole('searchbox', { name: /search tasks/i }), 'repair')
+
+    expect(await screen.findByText("Couldn't load linked work.")).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /try again/i }))
+    expect(await screen.findByRole('combobox', { name: /existing task/i })).toBeInTheDocument()
+    expect(mockSearchTasksByTitle).toHaveBeenCalledWith('repair')
   })
 })
 
 describe('SignalRecordHost — Linked-work rows (FR-413)', () => {
   it('renders the primary record before the related-task read resolves', async () => {
-    let resolveTasks: (rows: TaskListRow[]) => void = () => undefined
+    let resolveTasks: (rows: TaskTitleRef[]) => void = () => undefined
     mockGetSignal.mockReset()
     mockGetSignal.mockResolvedValue({
       signal: { ...baseSignal, body: 'Primary line\nDeferred details' }, mentions: [], acknowledgements: [],
       tasks: [{ id: 'st1', signal_id: SIGNAL_ID, task_id: 'task-a', created_by: VIEWER_ID }],
     })
-    mockListTasks.mockImplementation(() => new Promise<TaskListRow[]>((resolve) => { resolveTasks = resolve }))
+    mockGetTaskTitlesByIds.mockImplementation(() => new Promise<TaskTitleRef[]>((resolve) => { resolveTasks = resolve }))
 
     renderHost()
     await screen.findByRole('heading', { name: 'Primary line' })
@@ -453,12 +486,8 @@ describe('SignalRecordHost — Linked-work rows (FR-413)', () => {
     expect(screen.queryByText('Primary line', { selector: '.signal-message-body' })).toBeNull()
     expect(screen.getByText(/Loading linked work/i)).toBeInTheDocument()
 
-    resolveTasks([{
-      id: 'task-a', org_id: 'org-1', title: 'Deferred task', business_unit_id: BU_ID, status: 'Open',
-      responsible_person_id: 'x', accountable_person_id: 'x', consulted_person_ids: [], informed_person_ids: [],
-      description: null, due_date: null, objective_id: null, work_line_id: null, last_activity_at: '',
-      archived_at: null, created_by: 'x', created_at: '', updated_at: '',
-    }])
+    resolveTasks([{ id: 'task-a', title: 'Deferred task', status: 'Open' }])
+    expect(mockGetTaskTitlesByIds).toHaveBeenCalledWith(['task-a'])
     expect(await screen.findByRole('link', { name: /Deferred task.*Open/i })).toHaveAttribute('href', '/work/tasks/task-a')
   })
 
@@ -470,9 +499,9 @@ describe('SignalRecordHost — Linked-work rows (FR-413)', () => {
         { id: 'st2', signal_id: SIGNAL_ID, task_id: 'task-b', created_by: VIEWER_ID },
       ],
     })
-    mockListTasks.mockResolvedValue([
-      { id: 'task-a', org_id: 'org-1', title: 'A', business_unit_id: BU_ID, status: 'Open', responsible_person_id: 'x', accountable_person_id: 'x', consulted_person_ids: [], informed_person_ids: [], description: null, due_date: null, objective_id: null, work_line_id: null, last_activity_at: '', archived_at: null, created_by: 'x', created_at: '', updated_at: '' },
-      { id: 'task-b', org_id: 'org-1', title: 'B', business_unit_id: BU_ID, status: 'Done', responsible_person_id: 'x', accountable_person_id: 'x', consulted_person_ids: [], informed_person_ids: [], description: null, due_date: null, objective_id: null, work_line_id: null, last_activity_at: '', archived_at: null, created_by: 'x', created_at: '', updated_at: '' },
+    mockGetTaskTitlesByIds.mockResolvedValue([
+      { id: 'task-a', title: 'A', status: 'Open' },
+      { id: 'task-b', title: 'B', status: 'Done' },
     ])
     renderHost()
     await screen.findByText('A')
@@ -482,6 +511,7 @@ describe('SignalRecordHost — Linked-work rows (FR-413)', () => {
     expect(within(region).getByText('B')).toBeInTheDocument()
     expect(within(region).getByText('Done')).toBeInTheDocument()
     expect(within(region).getByRole('link', { name: /A.*Open/i })).toHaveAttribute('href', '/work/tasks/task-a')
+    expect(mockGetTaskTitlesByIds).toHaveBeenCalledWith(['task-a', 'task-b'])
   })
 })
 

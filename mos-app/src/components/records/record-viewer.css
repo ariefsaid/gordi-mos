@@ -663,6 +663,12 @@
 }
 
 @media (max-width: 767.98px) {
+  .record-viewer__header-actions .btn,
+  .record-viewer__overflow-trigger {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
   .record-viewer__identity,
   .record-viewer__section {
     padding-right: 16px;

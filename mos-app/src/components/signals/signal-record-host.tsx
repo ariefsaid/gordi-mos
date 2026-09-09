@@ -8,6 +8,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Picker } from '@/components/ui/picker'
+import { TextInput } from '@/components/ui/text-input'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { TaskSurface } from '@/components/tasks/task-surface'
 import { TaskOverlayContent } from '@/components/tasks/task-drawer'
@@ -22,8 +23,7 @@ import {
 import type { Attention, SignalCategory, StagedMention } from '@/lib/db/signals.types'
 import type { TeamOption } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople, type BusinessUnitOption, type PersonOption } from '@/lib/db/directory'
-import { listTasks } from '@/lib/db/tasks'
-import type { TaskListRow } from '@/lib/db/tasks.types'
+import { getTaskTitlesByIds, searchTasksByTitle, type TaskTitleRef } from '@/lib/db/tasks'
 import { listComments, postComment, type CommentRow } from '@/lib/comments/postComment'
 import { formatWibDateTime } from '@/lib/wib-time'
 import {
@@ -73,6 +73,11 @@ function readFailureState(error: unknown): Exclude<FetchState, 'loading' | 'read
 
 function personName(people: PersonOption[], id: string, fallback: string): string {
   return people.find((p) => p.id === id)?.full_name ?? fallback
+}
+
+async function readTaskTitlesByIds(taskIds: readonly string[]): Promise<TaskTitleRef[]> {
+  const uniqueIds = [...new Set(taskIds)]
+  return uniqueIds.length > 0 ? getTaskTitlesByIds(uniqueIds) : []
 }
 
 type TaskDraftSession = {
@@ -173,19 +178,27 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
   const [siteName, setSiteName] = useState<string | null>(null)
   const [businessUnits, setBusinessUnits] = useState<BusinessUnitOption[]>([])
   const [people, setPeople] = useState<PersonOption[]>([])
-  const [tasks, setTasks] = useState<TaskListRow[]>([])
+  const [tasks, setTasks] = useState<TaskTitleRef[]>([])
   const [tasksLoaded, setTasksLoaded] = useState(false)
   const [tasksLoadError, setTasksLoadError] = useState(false)
+  const [linkOpen, setLinkOpen] = useState(false)
+  const [linkTaskId, setLinkTaskId] = useState('')
+  const [linkSearch, setLinkSearch] = useState('')
+  const [linkSearchResults, setLinkSearchResults] = useState<TaskTitleRef[]>([])
+  const [linkSearchLoading, setLinkSearchLoading] = useState(false)
+  const [linkSearchError, setLinkSearchError] = useState(false)
+  const [linkSearchRetry, setLinkSearchRetry] = useState(0)
   const [comments, setComments] = useState<CommentRow[]>([])
   const [rosters, setRosters] = useState<MentionRosters>({ teamMembers: {}, buMembers: {} })
   const taskRequestRef = useRef(0)
+  const linkSearchRequestRef = useRef(0)
 
-  const loadRelatedTasks = useCallback(async () => {
+  const loadRelatedTasks = useCallback(async (taskIds: readonly string[]) => {
     const requestId = ++taskRequestRef.current
     setTasksLoaded(false)
     setTasksLoadError(false)
     try {
-      const taskRows = await listTasks({})
+      const taskRows = await readTaskTitlesByIds(taskIds)
       if (requestId !== taskRequestRef.current) return
       setTasks(taskRows)
       setTasksLoaded(true)
@@ -199,8 +212,6 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     }
   }, [])
 
-  const [linkOpen, setLinkOpen] = useState(false)
-  const [linkTaskId, setLinkTaskId] = useState('')
   const [retractOpen, setRetractOpen] = useState(false)
   const [retractReason, setRetractReason] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
@@ -211,7 +222,8 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     setTasksLoaded(false)
     setTasksLoadError(false)
     try {
-      const [nextDetail, taskRows] = await Promise.all([getSignal(signalId), listTasks({})])
+      const nextDetail = await getSignal(signalId)
+      const taskRows = await readTaskTitlesByIds(nextDetail.tasks.map((link) => link.task_id))
       if (requestId !== taskRequestRef.current) return
       setDetail(nextDetail)
       setTasks(taskRows)
@@ -223,6 +235,37 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     }
   }, [signalId])
 
+  useEffect(() => {
+    const requestId = ++linkSearchRequestRef.current
+    if (!linkOpen) return
+    const term = linkSearch.trim()
+    if (!term) {
+      setLinkSearchResults([])
+      setLinkSearchLoading(false)
+      setLinkSearchError(false)
+      return
+    }
+
+    setLinkSearchLoading(true)
+    setLinkSearchError(false)
+    const timeoutId = window.setTimeout(() => {
+      void searchTasksByTitle(term)
+        .then((rows) => {
+          if (requestId !== linkSearchRequestRef.current) return
+          setLinkSearchResults(rows)
+          setLinkSearchLoading(false)
+        })
+        .catch(() => {
+          if (requestId !== linkSearchRequestRef.current) return
+          setLinkSearchResults([])
+          setLinkSearchLoading(false)
+          setLinkSearchError(true)
+        })
+    }, 150)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [linkOpen, linkSearch, linkSearchRetry])
+
   const load = useCallback(() => {
     let cancelled = false
     setState('loading')
@@ -231,6 +274,12 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     setTasksLoadError(false)
     taskRequestRef.current += 1
     setActionError(null)
+    setLinkOpen(false)
+    setLinkTaskId('')
+    setLinkSearch('')
+    setLinkSearchResults([])
+    setLinkSearchLoading(false)
+    setLinkSearchError(false)
     setRevisions([])
     setTeams([])
     setSiteName(null)
@@ -245,8 +294,8 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
         setState('ready')
 
         // The Signal itself is the first paint. Directory, comments, revisions, and site enrich it
-        // later; the potentially large related-task scan is deliberately deferred as a separate
-        // read so a record never waits on the whole Work catalog.
+        // later; linked task titles are resolved by ID in a separate read so a record never waits
+        // on the whole Work catalog.
         void listSignalRevisions(signalId).then((revs) => { if (!cancelled) setRevisions(revs) }).catch(() => {})
         void listAllTeams().then((teamRows) => { if (!cancelled) setTeams(teamRows) }).catch(() => {})
         void getBusinessUnits().then((bus) => { if (!cancelled) setBusinessUnits(bus) }).catch(() => {})
@@ -260,7 +309,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
         void getTeamSite(loadedDetail.signal.owning_team_id).then((site) => {
           if (!cancelled) setSiteName(site?.name ?? null)
         }).catch(() => {})
-        void loadRelatedTasks()
+        void loadRelatedTasks(loadedDetail.tasks.map((link) => link.task_id))
       })
       .catch((error) => { if (!cancelled) setState(readFailureState(error)) })
     return () => { cancelled = true }
@@ -322,7 +371,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
   const statusById = Object.fromEntries(tasks.map((task) => [task.id, task.status]))
   const linkedTasksSummary = tasksLoaded && !tasksLoadError ? summarizeLinkedTasks(taskLinks, statusById) : undefined
   const linkedTaskIds = new Set(taskLinks.map((link) => link.task_id))
-  const linkableTasks = tasksLoadError ? [] : tasks.filter((task) => !linkedTaskIds.has(task.id))
+  const linkableTasks = linkSearchResults.filter((task) => !linkedTaskIds.has(task.id))
 
   function openLinkedTask(taskId: string) {
     const overlayHost = host
@@ -486,6 +535,23 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     void host.push(entry)
   }
 
+  function toggleLinkPicker() {
+    setLinkOpen((open) => {
+      if (open) {
+        setLinkTaskId('')
+        setLinkSearch('')
+        setLinkSearchResults([])
+        setLinkSearchError(false)
+        setLinkSearchLoading(false)
+      }
+      return !open
+    })
+  }
+
+  function retryLinkSearch() {
+    setLinkSearchRetry((retry) => retry + 1)
+  }
+
   async function submitLink() {
     if (!linkTaskId) return
     setActionError(null)
@@ -516,7 +582,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
         {t('signals.record.createFollowUpTask')}
       </Button>
       <SignalOverflowMenu
-        onLinkExistingTask={() => setLinkOpen((open) => !open)}
+        onLinkExistingTask={toggleLinkPicker}
         onRetract={canRetract ? () => setRetractOpen(true) : undefined}
         onCopyLink={() => {
           if (typeof navigator !== 'undefined' && navigator.clipboard) void navigator.clipboard.writeText(new URL(canonicalHref, window.location.origin).href)
@@ -530,28 +596,44 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
   const actionForms = (
     <>
       {linkOpen && (
-        tasksLoadError ? null : linkableTasks.length === 0 ? (
-          <EmptyState title={t('signals.record.noLinkableTasks')} />
-        ) : (
-          <form
-            className="signal-record-link-form"
-            aria-label={t('signals.record.linkExistingTask')}
-            onSubmit={(e) => { e.preventDefault(); void submitLink() }}
-          >
-            <Picker
-              label={t('signals.record.existingTaskLabel')}
-              value={linkTaskId}
-              options={linkableTasks.map((task) => ({ value: task.id, label: task.title }))}
-              placeholder={t('signals.record.existingTaskPlaceholder')}
-              required
-              fullWidth
-              onChange={setLinkTaskId}
-            />
-            <Button type="submit" variant="primary" disabled={!linkTaskId}>
-              {t('signals.record.linkSave')}
-            </Button>
-          </form>
-        )
+        <form
+          className="signal-record-link-form"
+          aria-label={t('signals.record.linkExistingTask')}
+          onSubmit={(e) => { e.preventDefault(); void submitLink() }}
+        >
+          <TextInput
+            type="search"
+            label={t('tasks.filter.search')}
+            placeholder={t('tasks.filter.searchPlaceholder')}
+            value={linkSearch}
+            onChange={(event) => { setLinkSearch(event.target.value); setLinkTaskId('') }}
+            autoFocus
+            fullWidth
+            aria-busy={linkSearchLoading || undefined}
+          />
+          {linkSearchError ? (
+            <ErrorState message={t('signals.record.linkedWorkError')} onRetry={retryLinkSearch} />
+          ) : !linkSearch.trim() ? null : linkSearchLoading ? (
+            <SkeletonRows count={1} />
+          ) : linkableTasks.length === 0 ? (
+            <EmptyState title={t('signals.record.noLinkableTasks')} nested />
+          ) : (
+            <>
+              <Picker
+                label={t('signals.record.existingTaskLabel')}
+                value={linkTaskId}
+                options={linkableTasks.map((task) => ({ value: task.id, label: task.title }))}
+                placeholder={t('signals.record.existingTaskPlaceholder')}
+                required
+                fullWidth
+                onChange={setLinkTaskId}
+              />
+              <Button type="submit" variant="primary" disabled={!linkTaskId}>
+                {t('signals.record.linkSave')}
+              </Button>
+            </>
+          )}
+        </form>
       )}
     </>
   )
@@ -576,7 +658,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
       linkedTasks={linkedTasks}
       linkedTasksLoading={!tasksLoaded && !tasksLoadError && taskLinks.length > 0}
       linkedTasksError={tasksLoadError}
-      onRetryLinkedTasks={() => { void loadRelatedTasks() }}
+      onRetryLinkedTasks={() => { void loadRelatedTasks(taskLinks.map((link) => link.task_id)) }}
       actionForms={actionForms}
     />
   )
