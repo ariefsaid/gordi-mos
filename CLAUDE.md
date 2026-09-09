@@ -33,9 +33,10 @@ independent review → PR → auto-merge to dev → next. Its machinery binds ou
 2. Build. The factory is the default executor for ordinary bounded tickets, dispatched ONLY via
    `bash scripts/factory-run.sh` (never bare `uv run adws/…` — the wrapper carries the gh no-auth
    layer). An explicit owner-authorized separate Codex task/model delegation (for example, a Luna
-   task at max reasoning) is a first-class Director lane: isolate it and keep the same brief,
-   verification, independent review, public-write, and security gates. A Claude subagent dispatch
-   needs a logged lane first — `scripts/lane-exempt.sh` (hook denies otherwise; Explore/Plan free).
+   task at max reasoning) is a first-class Director lane: isolate it, name it in the ticket's
+   in-flight marker, and keep the same brief, verification, independent review, public-write, and
+   security gates. A Claude subagent dispatch additionally needs a logged lane —
+   `scripts/lane-exempt.sh` (hook denies otherwise; Explore/Plan free).
 3. Review: three lenses as independent review, parallel where useful. Never your own read.
 4. A PR needs four stamps: `bash scripts/pre-pr-verify.sh` + one per lens via
    `scripts/record-review.sh --lens spec|code-quality|security` (a reviewer that didn't build
@@ -68,7 +69,10 @@ Commit: <head sha>
 
 Findings in a separate comment, never the PR body. Records certify the exact HEAD: a content push
 staleifies every record. Round 1 is a full independent pass; later rounds are delta-only for named
-fixes or genuinely new risk, and formatting-only changes do not start a review round.
+fixes or genuinely new risk. Formatting/whitespace-only changes, or mechanical artifact refreshes
+with no new authored behavior, do not start a substantive review round; if they move HEAD, the
+independent reviewer must issue an exact-HEAD mechanical confirmation, never edit or reuse a stale
+record.
 
 ## Repo layout
 - `mos-app/` — the app (React 19 + Vite + TypeScript + react-router-dom 7). Run npm/vite here.
