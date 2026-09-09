@@ -4,7 +4,7 @@
 -- journey: member is a baseline category derived from live org membership, not from access_roles.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(41);
+select plan(44);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
@@ -222,6 +222,28 @@ select ok((select retracted_at is not null from mos.signals
 select is((select count(*)::int from mos.signal_mentions
             where signal_id = (select signal_one from authority_ids)), 2,
   'retraction preserves the original audience mentions');
+reset role;
+insert into shared.people (id, org_id, full_name)
+values ('00000000-0000-0000-0000-00000000e018',
+        '00000000-0000-0000-0000-0000000000a1',
+        'Unmentioned person');
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select throws_ok($$
+  insert into mos.signal_mentions (org_id, signal_id, mention_kind, target_person_id)
+  values ('00000000-0000-0000-0000-0000000000a1',
+          (select signal_one from authority_ids), 'person',
+          '00000000-0000-0000-0000-00000000e018')
+$$, '42501', null,
+  'an author cannot add a new audience row after the Signal becomes a tombstone');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000e018","access_roles":["member"]}';
+select is((select count(*)::int from mos.signals
+            where id = (select signal_one from authority_ids)), 0,
+  'a person not in the original audience cannot read a retracted Signal through a new mention');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select is((select count(*)::int from mos.signals
+            where id = (select signal_one from authority_ids)), 1,
+  'a person in the original audience retains read access to the tombstone');
 reset role;
 update shared.teams
    set archived_at = now()
