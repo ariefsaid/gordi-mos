@@ -11,6 +11,7 @@
 -- DOWN (manual, before production):
 --   drop function mos.can_close_process_run_id(uuid);
 --   drop function mos.can_retract_signal(uuid);
+--   drop function mos.can_manage_objective_definition(uuid);
 --   drop function mos.get_signal_post_authority();
 --   drop function mos.get_work_write_scopes();
 --   restore the pre-migration MOS predicates, policies, signal guard, and process start functions;
@@ -875,11 +876,27 @@ as $$
   select shared.role_authority_allows('workline.manage', p_business_unit_id, null, null)
 $$;
 comment on function mos.can_manage_definition(uuid) is
-  'Bounded Project/Process/Objective definition gate: the tenant matrix grants org or own_bu. '
+  'Bounded Project/Process definition gate: the tenant matrix grants org or own_bu. '
   'own_bu is precise for bu_head (root-in-BU) and affiliation-based for tenant-customized categories; '
   'the broad reporting-line manager relation is never an admission. SECURITY INVOKER.';
 revoke execute on function mos.can_manage_definition(uuid) from public, anon;
 grant execute on function mos.can_manage_definition(uuid) to authenticated;
+
+create or replace function mos.can_manage_objective_definition(p_business_unit_id uuid)
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select shared.role_authority_allows('objective.manage', p_business_unit_id, null, null)
+$$;
+comment on function mos.can_manage_objective_definition(uuid) is
+  'Bounded Objective definition gate: the tenant matrix grants objective.manage at org or own_bu. '
+  'It is intentionally separate from the Project/Process workline.manage gate, so tenant settings '
+  'cannot accidentally couple the two write surfaces. SECURITY INVOKER.';
+revoke execute on function mos.can_manage_objective_definition(uuid) from public, anon;
+grant execute on function mos.can_manage_objective_definition(uuid) to authenticated;
 
 create or replace function mos.can_manage_process_definition(p_work_line_id uuid)
 returns boolean
@@ -1197,7 +1214,7 @@ begin
   if tg_op = 'UPDATE'
      and current_user = 'authenticated'
      and new.business_unit_id is distinct from old.business_unit_id
-     and not mos.can_manage_definition(old.business_unit_id) then
+     and not mos.can_manage_objective_definition(old.business_unit_id) then
     raise exception 'the definition''s current unit is not one you manage' using errcode = '42501';
   end if;
   return new;
@@ -1205,7 +1222,7 @@ end;
 $$;
 comment on function mos._guard_objectives() is
   'The ONE guard on mos.objectives: references stay same-org and a direct unit move requires the '
-  'effective matrix on the OLD unit. SECURITY INVOKER.';
+  'effective objective.manage matrix on the OLD unit. SECURITY INVOKER.';
 
 -- Signal retraction is a tombstone transition. The original row and all mention rows remain intact;
 -- only the retraction fields move, and the author is notified through the existing cross-owner path.
@@ -1398,12 +1415,12 @@ drop policy process_task_defs_update_ops_lead_or_admin_or_process_a on mos.proce
 create policy objectives_insert_can_manage_or_unit_lead on mos.objectives
   for insert to authenticated
   with check (org_id = shared.current_org_id()
-              and mos.can_manage_definition(business_unit_id));
+              and mos.can_manage_objective_definition(business_unit_id));
 create policy objectives_update_can_manage_or_unit_lead on mos.objectives
   for update to authenticated
   using  (org_id = shared.current_org_id())
   with check (org_id = shared.current_org_id()
-              and mos.can_manage_definition(business_unit_id));
+              and mos.can_manage_objective_definition(business_unit_id));
 create policy work_lines_insert_can_manage_or_unit_lead on mos.work_lines
   for insert to authenticated
   with check (org_id = shared.current_org_id()
@@ -1416,6 +1433,9 @@ create policy work_lines_update_can_manage_or_unit_lead on mos.work_lines
 comment on policy work_lines_insert_can_manage_or_unit_lead on mos.work_lines is
   'Creating or editing a Project/Process consumes the effective workline.manage matrix for its BU; '
   'org-wide rows require an org scope. Same-org references remain in mos._guard_work_lines.';
+comment on policy objectives_insert_can_manage_or_unit_lead on mos.objectives is
+  'Creating or editing an Objective consumes the effective objective.manage matrix for its BU; '
+  'org-wide rows require an org scope. The guard separately enforces authority on the OLD unit for moves.';
 
 create policy process_cadences_insert_ops_lead_or_admin_or_process_a on mos.process_cadences
   for insert to authenticated

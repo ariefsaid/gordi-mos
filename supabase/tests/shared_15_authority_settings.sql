@@ -4,7 +4,7 @@
 -- `shared`, and their contract must stay narrow even while they feed MOS authorization.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(33);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_signal_tree();
@@ -60,16 +60,62 @@ select is(shared.role_authority_scope('workline.manage', 'member'), 'own_bu',
   'an admin save changes only the current org override');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
 select is(mos.can_manage_definition('00000000-0000-0000-0000-0000000000a2'), true,
-  'the saved member own_bu grant changes the effective definition predicate');
+  'the saved member own_bu Workline grant changes the effective Project/Process predicate');
+select is(mos.can_manage_objective_definition('00000000-0000-0000-0000-0000000000a2'), false,
+  'a Workline-only grant does not authorize Objective writes');
+select lives_ok($$
+  insert into mos.work_lines (name, type, business_unit_id)
+  values ('Tenant override project', 'project', '00000000-0000-0000-0000-0000000000a2')
+$$, 'the saved member own_bu Workline grant changes the Project INSERT policy');
+select throws_ok($$
+  insert into mos.objectives (name, business_unit_id)
+  values ('Objective still denied', '00000000-0000-0000-0000-0000000000a2')
+$$, '42501', null,
+  'a Workline-only grant cannot create an Objective in the same BU');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared.save_role_authority('[{"action":"workline.manage","role":"member","scope":"none"},{"action":"objective.manage","role":"member","scope":"own_bu"}]'::jsonb);
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select is(mos.can_manage_definition('00000000-0000-0000-0000-0000000000a2'), false,
+  'an Objective-only grant does not authorize Project/Process writes');
+select is(mos.can_manage_objective_definition('00000000-0000-0000-0000-0000000000a2'), true,
+  'the saved member own_bu Objective grant changes the effective Objective predicate');
 select lives_ok($$
   insert into mos.objectives (name, business_unit_id)
   values ('Tenant override objective', '00000000-0000-0000-0000-0000000000a2')
-$$, 'the saved member own_bu grant changes the Objective INSERT policy');
+$$, 'the saved member own_bu Objective grant changes the Objective INSERT policy');
 select throws_ok($$
-  insert into mos.objectives (name, business_unit_id)
-  values ('Out of scope objective', '00000000-0000-0000-0000-0000000000a3')
+  insert into mos.work_lines (name, type, business_unit_id)
+  values ('Project still denied', 'project', '00000000-0000-0000-0000-0000000000a2')
 $$, '42501', null,
-  'the saved member own_bu grant remains limited to the member''s active BU');
+  'an Objective-only grant cannot create a Project in the same BU');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared.save_role_authority('[{"action":"workline.manage","role":"member","scope":"own_bu"},{"action":"objective.manage","role":"member","scope":"none"}]'::jsonb);
+select lives_ok($$
+  insert into mos.work_lines (id, name, type, business_unit_id)
+  values ('00000000-0000-0000-0000-00000000a801', 'Source-scope project', 'project',
+          '00000000-0000-0000-0000-0000000000a3')
+$$, 'an admin can seed a Project in the source BU for the old-row scope control');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select throws_ok($$
+  update mos.work_lines
+     set business_unit_id = '00000000-0000-0000-0000-0000000000a2'
+   where id = '00000000-0000-0000-0000-00000000a801'
+$$, '42501', null,
+  'a destination BU grant cannot move a Project out of an unmanaged source BU');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared.save_role_authority('[{"action":"workline.manage","role":"member","scope":"none"},{"action":"objective.manage","role":"member","scope":"own_bu"}]'::jsonb);
+select lives_ok($$
+  insert into mos.objectives (id, name, business_unit_id)
+  values ('00000000-0000-0000-0000-00000000a802', 'Source-scope objective',
+          '00000000-0000-0000-0000-0000000000a3')
+$$, 'an admin can seed an Objective in the source BU for the old-row scope control');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select throws_ok($$
+  update mos.objectives
+     set business_unit_id = '00000000-0000-0000-0000-0000000000a2'
+   where id = '00000000-0000-0000-0000-00000000a802'
+$$, '42501', null,
+  'a destination BU grant cannot move an Objective out of an unmanaged source BU');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
 select throws_ok($$
   select shared.save_role_authority('[{"action":"signal.post","role":"member","scope":"org"},{"action":"signal.post","role":"member","scope":"none"}]'::jsonb)
