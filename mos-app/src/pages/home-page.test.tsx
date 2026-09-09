@@ -306,7 +306,9 @@ describe('AC-H02: a member sees a usable brief and live Signals column', () => {
 
     const brief = await screen.findByTestId('home-daily-brief')
     expect(within(brief).getByText('Restock oat milk')).toBeInTheDocument()
-    expect(within(brief).queryByRole('region', { name: /^My work today/ })).toBeNull()
+    expect(within(brief).getByRole('region', { name: /^My work today/ })).toBeInTheDocument()
+    expect(within(brief).queryByRole('region', { name: /^Needs you now/ })).toBeNull()
+    expect(brief.querySelector('.home-brief-my-work')).toBeNull()
     expect(within(brief).queryByText('Failed checks')).toBeNull()
     expect(within(brief).queryByRole('region', { name: /^Objectives/ })).toBeNull()
 
@@ -333,8 +335,10 @@ describe('AC-H02: a member sees a usable brief and live Signals column', () => {
 
     const brief = await screen.findByTestId('home-daily-brief')
     const cafe = await within(brief).findByTestId('home-cafe-door')
-    expect(within(cafe).getByRole('link', { name: /Café Gordi HQ.*2\/3.*Log production/i }))
+    expect(within(cafe).getByRole('link', { name: /Café Gordi HQ.*2\/3.*View opening/i }))
       .toHaveAttribute('href', '/cafe')
+    expect(within(cafe).getByRole('link', { name: /Log production/i }))
+      .toHaveAttribute('href', '/cafe/log')
     expect(within(brief).queryByText('Failed checks')).toBeNull()
     expect(within(brief).queryByRole('region', { name: /^Objectives/ })).toBeNull()
     const assigned = within(brief).getByText('Restock oat milk')

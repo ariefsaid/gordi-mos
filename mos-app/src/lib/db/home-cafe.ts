@@ -12,17 +12,20 @@ export interface HomeCafeDoorData {
 }
 
 async function primaryTeamId(personId: string): Promise<string | null> {
+  const today = wibToday()
   const { data, error } = await shared()
     .from('team_memberships')
     .select('team_id')
     .eq('person_id', personId)
     .eq('is_primary', true)
-    .lte('effective_from', wibToday())
-    .is('effective_to', null)
-    .limit(1)
-    .maybeSingle()
+    .lte('effective_from', today)
+    .or(`effective_to.is.null,effective_to.gte.${today}`)
   if (error) throw new Error(`home primary stream read failed — ${error.message}`)
-  return (data as { team_id: string } | null)?.team_id ?? null
+  const rows = (data ?? []) as { team_id: string }[]
+  if (rows.length > 1) {
+    throw new Error('home primary stream read failed — ambiguous primary team memberships')
+  }
+  return rows[0]?.team_id ?? null
 }
 
 /** Read the member's actual primary Café stream and today's opening; never starts a run. */

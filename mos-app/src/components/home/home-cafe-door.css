@@ -68,6 +68,30 @@
   margin-top: 8px;
 }
 
+.home-cafe-door-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.home-cafe-door-log-link {
+  justify-self: start;
+  padding: 4px;
+  color: var(--primary);
+  font-size: var(--font-size-control);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.home-cafe-door-log-link:hover {
+  text-decoration: underline;
+}
+
+.home-cafe-door-log-link:focus-visible {
+  border-radius: var(--radius-xs);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 @media (max-width: 480px) {
   .home-cafe-door-link {
     align-items: flex-start;

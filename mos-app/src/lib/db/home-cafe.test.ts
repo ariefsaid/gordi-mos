@@ -26,10 +26,16 @@ function mockPrimaryTeam(data: unknown = { team_id: 'team-1' }, error: unknown =
   builder.select = vi.fn(() => builder)
   builder.eq = vi.fn(() => builder)
   builder.lte = vi.fn(() => builder)
+  builder.or = vi.fn(() => builder)
   builder.is = vi.fn(() => builder)
   builder.limit = vi.fn(() => builder)
   builder.maybeSingle = vi.fn(() => Promise.resolve({ data, error }))
+  builder.then = (resolve: (value: unknown) => unknown) => Promise.resolve({
+    data: data == null ? data : Array.isArray(data) ? data : [data],
+    error,
+  }).then(resolve)
   schemaMock.mockReturnValue({ from: vi.fn(() => builder) } as never)
+  return builder
 }
 
 beforeEach(() => {
@@ -51,6 +57,21 @@ describe('loadHomeCafeDoor', () => {
     expect(result?.branchName).toBe('Gordi HQ')
     expect(openingMock).toHaveBeenCalledWith('process-1', 'team-1')
     expect(streamMock).toHaveBeenCalledWith([{ id: 'branch-1', code: 'gordi_hq', name: 'Gordi HQ' }])
+  })
+
+  it('keeps a primary membership whose effective end date is later than today', async () => {
+    const builder = mockPrimaryTeam({ team_id: 'team-1' })
+
+    await loadHomeCafeDoor('person-1')
+
+    expect(builder.or).toHaveBeenCalledWith('effective_to.is.null,effective_to.gte.2026-09-09')
+  })
+
+  it('fails closed when more than one active primary membership is returned', async () => {
+    mockPrimaryTeam([{ team_id: 'team-1' }, { team_id: 'team-2' }])
+
+    await expect(loadHomeCafeDoor('person-1')).rejects.toThrow(/ambiguous primary team/i)
+    expect(openingMock).not.toHaveBeenCalled()
   })
 
   it('returns an honest empty door when no Café Opening process exists', async () => {

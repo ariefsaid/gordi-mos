@@ -29,15 +29,18 @@ function renderDoor(props: React.ComponentProps<typeof HomeCafeDoor> = {}) {
 }
 
 describe('Home Café door', () => {
-  it('links the real branch opening to Café and shows run progress', () => {
+  it('separates the opening view from the direct production log action', () => {
     renderDoor({ data })
-    expect(screen.getByRole('link', { name: /Café Gordi HQ.*2\/3.*Log production/i }))
+    expect(screen.getByRole('link', { name: /Café Gordi HQ.*2\/3.*View opening/i }))
       .toHaveAttribute('href', '/cafe')
+    expect(screen.getByRole('link', { name: /Log production/i }))
+      .toHaveAttribute('href', '/cafe/log')
   })
 
   it('keeps a not-started opening actionable without inventing a count', () => {
     renderDoor({ data: { ...data, opening: { started: false, runId: null, rollup: null } } })
-    expect(screen.getByRole('link', { name: /not started.*Log production/i })).toHaveAttribute('href', '/cafe')
+    expect(screen.getByRole('link', { name: /not started.*View opening/i })).toHaveAttribute('href', '/cafe')
+    expect(screen.getByRole('link', { name: /Log production/i })).toHaveAttribute('href', '/cafe/log')
     expect(screen.queryByText(/0\//)).toBeNull()
   })
 

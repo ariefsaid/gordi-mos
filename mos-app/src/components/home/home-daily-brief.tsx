@@ -59,6 +59,7 @@ export function HomeDailyBrief({
 
   const memberAssigned: HomeRegion = {
     ...needsYou,
+    labelKey: 'home.stream.band.myWork',
     items: [...needsYou.items, ...myWork.items],
     count: needsYou.count === null || myWork.count === null
       ? null

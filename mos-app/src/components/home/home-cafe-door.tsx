@@ -26,20 +26,25 @@ export function HomeCafeDoor({ state = 'ready', data = null, onRetry }: HomeCafe
       ) : state === 'error' ? (
         <ErrorState message={t('home.cafeDoor.error')} onRetry={onRetry} retryLabel={t('home.cafeDoor.retry')} />
       ) : data ? (
-        <Link to="/cafe" className="home-cafe-door-link">
-          <span className="home-cafe-door-copy">
-            <span className="home-cafe-door-kicker">{t('home.cafeDoor.title', { branch: data.branchName })}</span>
-            <span className="home-cafe-door-checklist">
-              {data.opening.rollup
-                ? t('home.cafeDoor.progress', {
-                    done: data.opening.rollup.done,
-                    total: data.opening.rollup.total,
-                  })
-                : t('home.cafeDoor.notStarted')}
+        <div className="home-cafe-door-actions">
+          <Link to="/cafe" className="home-cafe-door-link">
+            <span className="home-cafe-door-copy">
+              <span className="home-cafe-door-kicker">{t('home.cafeDoor.title', { branch: data.branchName })}</span>
+              <span className="home-cafe-door-checklist">
+                {data.opening.rollup
+                  ? t('home.cafeDoor.progress', {
+                      done: data.opening.rollup.done,
+                      total: data.opening.rollup.total,
+                    })
+                  : t('home.cafeDoor.notStarted')}
+              </span>
             </span>
-          </span>
-          <span className="home-cafe-door-action">{t('home.cafeDoor.action')}</span>
-        </Link>
+            <span className="home-cafe-door-action">{t('home.cafeDoor.viewOpening')}</span>
+          </Link>
+          <Link to="/cafe/log" className="home-cafe-door-log-link">
+            {t('home.cafeDoor.logProduction')}
+          </Link>
+        </div>
       ) : (
         <EmptyState title={t('home.cafeDoor.empty')} variant="blank" nested headingLevel={3} />
       )}

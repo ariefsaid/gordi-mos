@@ -33,6 +33,22 @@ function renderBrief(overrides: Partial<Parameters<typeof buildHomeRegions>[0]> 
 }
 
 describe('HomeDailyBrief', () => {
+  it('labels the member assigned-work union as My work today', () => {
+    const regions = buildHomeRegions({
+      overdue: [item('late')], dueToday: [], blocked: [], myWork: [item('next')], failedChecks: [],
+    })
+    render(
+      <I18nProvider>
+        <MemoryRouter>
+          <HomeDailyBrief regions={regions} feed={feed} composition="member" />
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+
+    expect(screen.getByRole('region', { name: /^My work today/ })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /^Needs you now/ })).toBeNull()
+  })
+
   it('puts attention then My work in the main track and keeps Signals in a subordinate aside', () => {
     const { container } = renderBrief()
     const brief = screen.getByTestId('home-daily-brief')
