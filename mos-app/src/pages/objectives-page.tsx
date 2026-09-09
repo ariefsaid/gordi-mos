@@ -2,7 +2,7 @@
 // Objectives remain readable to every authenticated organisation member. The existing objective
 // manage capability only controls the head Create door and record overflow mutations; the
 // collection itself is never replaced by a permission redirect.
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useRef, useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { can } from '@/lib/capabilities'
 import { useT } from '@/i18n/use-t'
@@ -49,6 +49,7 @@ export function ObjectivesPage() {
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [live, setLive] = useState('')
   const announce = useCallback((message: string) => setLive(message), [])
+  const createButtonRef = useRef<HTMLButtonElement>(null)
   const [draftOpen, setDraftOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newBusinessUnitId, setNewBusinessUnitId] = useState<string | null>(null)
@@ -71,6 +72,7 @@ export function ObjectivesPage() {
   const cancelDraft = () => {
     if (adding) return
     setDraftOpen(false)
+    createButtonRef.current?.focus()
     setAddError('')
   }
   const handleDraftSubmit = async () => {
@@ -85,6 +87,7 @@ export function ObjectivesPage() {
       if (newBusinessUnitId) await objectivesCatalogActions.create(name, newBusinessUnitId)
       else await objectivesCatalogActions.create(name)
       setDraftOpen(false)
+      createButtonRef.current?.focus()
       setNewName('')
       announce(t('catalog.announce.added', { name }))
       controller.setQuery({ ...query, view: 'active', q: '', coverage: 'all' })
@@ -231,7 +234,7 @@ export function ObjectivesPage() {
       family="management"
       title={t('nav.work.objectives')}
       jobSentence={t('job.objectives')}
-      action={canManage ? <Button variant="primary" onClick={openDraft}>{t('catalog.objectives.add')}</Button> : undefined}
+      action={canManage ? <Button ref={createButtonRef} variant="primary" onClick={openDraft}>{t('catalog.objectives.add')}</Button> : undefined}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
       <CatalogCollectionActionsProvider actions={actions}>

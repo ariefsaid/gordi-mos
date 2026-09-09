@@ -139,6 +139,7 @@ describe('Projects & Processes collection-first contract', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Process' }))
     fireEvent.click(within(form).getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(createWorkLine).toHaveBeenCalledWith('Weekly stock opname', 'process'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create project or process' })).toHaveFocus())
   })
 
   it('cancels the focused draft on Escape through the same path as Cancel', async () => {
@@ -152,6 +153,7 @@ describe('Projects & Processes collection-first contract', () => {
 
     expect(screen.queryByRole('form', { name: 'Create project or process' })).toBeNull()
     expect(createWorkLine).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Create project or process' })).toHaveFocus()
   })
 
   it('puts All / Projects / Processes behind the phone view disclosure and filters the rows', async () => {

@@ -4,7 +4,7 @@
 // view axis is All / Projects / Processes, and every row is one real Project/Process record door.
 // Record mutations stay in the record overflow; the collection keeps its scan grammar free of
 // per-row action clusters and relation accordions.
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -47,6 +47,7 @@ export function ProjectsProcessesPage() {
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [live, setLive] = useState('')
   const announce = useCallback((message: string) => setLive(message), [])
+  const createButtonRef = useRef<HTMLButtonElement>(null)
   const [draftOpen, setDraftOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newType, setNewType] = useState<CatalogType>('project')
@@ -70,6 +71,7 @@ export function ProjectsProcessesPage() {
   const cancelDraft = () => {
     if (adding) return
     setDraftOpen(false)
+    createButtonRef.current?.focus()
     setAddError('')
   }
   const handleDraftSubmit = async () => {
@@ -84,6 +86,7 @@ export function ProjectsProcessesPage() {
       if (newObjectiveId) await projectsProcessesCatalogActions.create(name, newType, { objectiveId: newObjectiveId })
       else await projectsProcessesCatalogActions.create(name, newType)
       setDraftOpen(false)
+      createButtonRef.current?.focus()
       setNewName('')
       announce(t('catalog.announce.added', { name }))
       controller.setQuery({ ...query, view: 'active', q: '', type: 'all' })
@@ -223,7 +226,7 @@ export function ProjectsProcessesPage() {
       family="management"
       title={t('nav.work.projects')}
       jobSentence={t('job.projects')}
-      action={<Button variant="primary" onClick={openDraft}>{t('catalog.projects.add')}</Button>}
+      action={<Button ref={createButtonRef} variant="primary" onClick={openDraft}>{t('catalog.projects.add')}</Button>}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
       <CatalogCollectionActionsProvider actions={actions}>

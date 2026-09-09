@@ -101,6 +101,7 @@ describe('Objectives collection-first contract', () => {
     fireEvent.change(within(form).getByRole('textbox', { name: 'Name' }), { target: { value: 'Delight guests' } })
     fireEvent.click(within(form).getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(createObjective).toHaveBeenCalledWith('Delight guests'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create objective' })).toHaveFocus())
   })
 
   it('puts All / With tasks / No tasks behind the phone view disclosure', async () => {
