@@ -387,6 +387,23 @@ describe('TaskSurface — mutation handlers', () => {
   })
 
   // I3: archiving reports the id back to the host (so the table drops the row).
+  it('keeps the record open after failed archive and lets the user retry', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    vi.mocked(archiveTask).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce()
+    const onClose = vi.fn()
+    const onTaskArchived = vi.fn()
+    renderSurface({ onClose, onTaskArchived })
+    fireEvent.click(await screen.findByRole('button', { name: /archive task/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /^archive$/i }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't save")
+    expect(onClose).not.toHaveBeenCalled()
+    expect(onTaskArchived).not.toHaveBeenCalled()
+    fireEvent.click(within(alert).getByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(onTaskArchived).toHaveBeenCalledWith('task-abc'))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('I3: confirming archive calls archiveTask then onTaskArchived with the id', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     vi.mocked(archiveTask).mockResolvedValue(undefined)

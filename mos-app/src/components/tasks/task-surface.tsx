@@ -541,23 +541,35 @@ function ViewSurface({
 
   // ── Archive/unarchive ────────────────────────────────────────────────────
   const [showConfirm, setShowConfirm] = useState(false)
+  const [archiveFailure, setArchiveFailure] = useState<'archive' | 'unarchive' | null>(null)
   async function handleArchive() {
     if (!localTask) return
     try {
+      setArchiveFailure(null)
       await archiveTask(localTask.id, viewerId)
       onTaskArchived?.(localTask.id)  // I3: let the table drop the row + decrement the count
       if (onClose) onClose()
       else navigate({ pathname: '/work/tasks', search: location.search })
-    } catch { /* surface */ }
+    } catch { setArchiveFailure('archive') }
   }
   async function handleUnarchive() {
     if (!localTask) return
     try {
+      setArchiveFailure(null)
       await unarchiveTask(localTask.id, viewerId)
       setLocalTask(t => t ? { ...t, archived_at: null } : t)
       load()
-    } catch { /* surface */ }
+    } catch { setArchiveFailure('unarchive') }
   }
+
+  const archiveFeedback = archiveFailure && (
+    <div className="task-lifecycle-error" role="alert">
+      <span>{t('record.field.saveError')}</span>
+      <button type="button" className="btn btn-ghost" onClick={() => void (archiveFailure === 'archive' ? handleArchive() : handleUnarchive())}>
+        {t('record.field.retry')}
+      </button>
+    </div>
+  )
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (loading) return <DetailSkeleton />
@@ -641,6 +653,7 @@ function ViewSurface({
           </div>
         )}
         {lifecycleStatusFeedback}
+        {archiveFeedback}
 
         {taskViewerAdapter && (
           <div className="record-details record-details-compact" data-testid="record-details">
@@ -739,6 +752,7 @@ function ViewSurface({
         </div>
       )}
       {lifecycleStatusFeedback}
+        {archiveFeedback}
 
       {taskViewerAdapter && (
         <div className="record-doc">

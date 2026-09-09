@@ -67,6 +67,34 @@ describe('TasksToolbar — queue-first disclosure', () => {
     expect(screen.queryByRole('checkbox', { name: 'Task' })).not.toBeInTheDocument()
   })
 
+  it('applies all five filters through styled option menus and keeps Filters open on menu Escape', () => {
+    const props = makeProps()
+    renderToolbar(props)
+    fireEvent.click(screen.getByRole('button', { name: /^filters$/i }))
+    const select = (label: RegExp, option: string) => {
+      const trigger = screen.getByRole('combobox', { name: label })
+      trigger.focus()
+      fireEvent.click(trigger)
+      fireEvent.click(screen.getByRole('option', { name: option }))
+      expect(trigger).toHaveFocus()
+    }
+    select(/^status$/i, 'Blocked')
+    expect(props.onQueryChange).toHaveBeenLastCalledWith({ status: 'Blocked' })
+    select(/business unit/i, 'Café')
+    expect(props.onQueryChange).toHaveBeenLastCalledWith({ businessUnitId: 'bu-1' })
+    select(/^person$/i, 'Raka')
+    expect(props.onQueryChange).toHaveBeenLastCalledWith({ personId: 'person-1' })
+    select(/^group$/i, 'PIC')
+    expect(props.onQueryChange).toHaveBeenLastCalledWith({ groupBy: 'pic' })
+    expect(localStorage.getItem('mos.tasks.groupBy')).toBe('owner')
+    select(/^sort$/i, 'Due latest')
+    expect(props.onQueryChange).toHaveBeenLastCalledWith({ sort: 'due', direction: 'descending' })
+    fireEvent.click(screen.getByRole('combobox', { name: /^sort$/i }))
+    fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' })
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(screen.getByRole('region', { name: /filter this queue/i })).toBeInTheDocument()
+  })
+
   it('states the active subset and clears it without hiding the queue', () => {
     const onClearFilters = vi.fn()
     renderToolbar(makeProps({

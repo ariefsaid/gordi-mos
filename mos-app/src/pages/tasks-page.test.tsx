@@ -159,6 +159,18 @@ function taskFilter(name: RegExp | string) {
   return screen.getByRole('combobox', { name })
 }
 
+function chooseTaskFilter(trigger: HTMLElement, label: string) {
+  fireEvent.click(trigger)
+  fireEvent.click(screen.getByRole('option', { name: label }))
+}
+
+function taskFilterOptions(trigger: HTMLElement) {
+  fireEvent.click(trigger)
+  const labels = screen.getAllByRole('option').map(option => option.textContent)
+  fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' })
+  return labels
+}
+
 // §Task-11: the Team-work chip was removed; All is the org-visible set.
 async function switchToAll() {
   const all = screen.getByRole('tab', { name: 'All' })
@@ -416,7 +428,7 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
     await waitFor(() => screen.getByText('Roastery task'))
 
     const buSelect = taskFilter(/business unit/i)
-    fireEvent.change(buSelect, { target: { value: 'bu-kitchen' } })
+    chooseTaskFilter(buSelect, 'Kitchen BU')
 
     await waitFor(() => {
       expect(screen.queryByText('Roastery task')).toBeNull()
@@ -435,7 +447,7 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
     await waitFor(() => screen.getByText('Kitchen task'))
 
     // Status popover flow (#743 r3): open the trigger, check the Blocked choice.
-    fireEvent.change(taskFilter(/^status$/i), { target: { value: 'Blocked' } })
+    chooseTaskFilter(taskFilter(/^status$/i), 'Blocked')
 
     await waitFor(() => {
       expect(screen.queryByText('Kitchen task')).toBeNull()
@@ -468,7 +480,7 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
 
     // Now apply person filter for the viewer
     const personSelect = taskFilter(/^person$/i)
-    fireEvent.change(personSelect, { target: { value: VIEWER_ID } })
+    chooseTaskFilter(personSelect, 'Arief Said')
 
     await waitFor(() => {
       expect(screen.getByText('Viewer is PIC')).toBeTruthy()
@@ -563,8 +575,8 @@ describe('AC-065 / AC-008 — archived rows hidden by default; Include archived 
     renderPage()
     await waitFor(() => screen.getByText('Active task'))
 
-    const statusSelect = taskFilter(/^status$/i) as HTMLSelectElement
-    fireEvent.change(statusSelect, { target: { value: 'Blocked' } })
+    const statusSelect = taskFilter(/^status$/i)
+    chooseTaskFilter(statusSelect, 'Blocked')
     await waitFor(() => expect(_capturedLocation?.search).toMatch(/status=blocked/))
 
     // The archived option lives in the same disclosed Filters panel and is additive — choosing a
@@ -577,7 +589,7 @@ describe('AC-065 / AC-008 — archived rows hidden by default; Include archived 
     await waitFor(() => expect(_capturedLocation?.search).toMatch(/archived=1/))
     expect(_capturedLocation?.search).toMatch(/status=blocked/)
     // …and both choices read as engaged: the status select still shows Blocked, the box stays checked.
-    expect(statusSelect).toHaveValue('Blocked')
+    expect(statusSelect).toHaveTextContent('Blocked')
     expect((screen.getByRole('checkbox', { name: /include archived/i }) as HTMLInputElement).checked).toBe(true)
     // The re-query honors the archived opt-in, and the Status control never became "__archived".
     await waitFor(() => {
@@ -724,17 +736,17 @@ describe('Fix C1 — directory-sourced BU + Person filter options', () => {
     await waitFor(() => screen.getByText('Roastery task'))
 
     // Both BU options present before filtering (from directory DEFAULT_BUS)
-    const buSelect = taskFilter(/business unit/i) as HTMLSelectElement
-    const optsBefore = Array.from(buSelect.options).map(o => o.text)
+    const buSelect = taskFilter(/business unit/i)
+    const optsBefore = taskFilterOptions(buSelect)
     expect(optsBefore).toContain('Kitchen BU')
     expect(optsBefore).toContain('Roastery BU')
 
     // Apply status filter — only Kitchen tasks remain in the list (popover flow, #743 r3)
-    fireEvent.change(taskFilter(/^status$/i), { target: { value: 'Open' } })
+    chooseTaskFilter(taskFilter(/^status$/i), 'Open')
     await waitFor(() => expect(screen.queryByText('Roastery task')).toBeNull())
 
     // BU options STILL contain both BUs (from directory, not from rows)
-    const optsAfter = Array.from(buSelect.options).map(o => o.text)
+    const optsAfter = taskFilterOptions(buSelect)
     expect(optsAfter).toContain('Kitchen BU')
     expect(optsAfter).toContain('Roastery BU')
   })
@@ -750,8 +762,8 @@ describe('Fix C1 — directory-sourced BU + Person filter options', () => {
     renderPage()
     await waitFor(() => screen.getByText('Task with CI'))
 
-    const personSelect = taskFilter(/^person$/i) as HTMLSelectElement
-    const opts = Array.from(personSelect.options).map(o => o.text)
+    const personSelect = taskFilter(/^person$/i)
+    const opts = taskFilterOptions(personSelect)
     // All people from directory are present, with stable display names.
     expect(opts).toContain('Arief Said')
     expect(opts).toContain('Budi Setiawan')
@@ -831,8 +843,8 @@ describe('archived row treatment — "Archived" chip + muted title', () => {
     renderPage()
     await switchToAll()
 
-    const statusSelect = taskFilter(/^status$/i) as HTMLSelectElement
-    fireEvent.change(statusSelect, { target: { value: 'Blocked' } })
+    const statusSelect = taskFilter(/^status$/i)
+    chooseTaskFilter(statusSelect, 'Blocked')
     fireEvent.click(screen.getByRole('checkbox', { name: /include archived/i }))
 
     await waitFor(() => {
@@ -840,7 +852,7 @@ describe('archived row treatment — "Archived" chip + muted title', () => {
       expect(screen.getByText('Live blocked task')).toBeInTheDocument()
       expect(screen.queryByText('Live open task')).not.toBeInTheDocument()
     })
-    expect(statusSelect).toHaveValue('Blocked')
+    expect(statusSelect).toHaveTextContent('Blocked')
   })
 
   it('DR-1a: desktop — archived task row renders "Archived" tag and muted title; live row does not', async () => {
@@ -1026,7 +1038,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     await switchToAll()
     await waitFor(() => screen.getByText('Open the café'))
 
-    fireEvent.change(taskFilter(/^group$/i), { target: { value: 'occurrence' } })
+    chooseTaskFilter(taskFilter(/^group$/i), 'Occurrence')
 
     await waitFor(() => {
       expect(screen.getByText('Café HQ daily opening · 17 Jul 2026')).toBeInTheDocument()
@@ -1058,7 +1070,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     renderPage()
     await switchToAll()
     await waitFor(() => screen.getByText('Open the café'))
-    fireEvent.change(taskFilter(/^group$/i), { target: { value: 'occurrence' } })
+    chooseTaskFilter(taskFilter(/^group$/i), 'Occurrence')
 
     await waitFor(() => expect(mockListTaskDefs).toHaveBeenCalledWith(['def-1']))
     await waitFor(() => expect(screen.getByText('via Cafe Ops Lead')).toBeInTheDocument())
@@ -1071,7 +1083,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     await switchToAll()
     await waitFor(() => screen.getByText('Ad-hoc task'))
 
-    fireEvent.change(taskFilter(/^group$/i), { target: { value: 'occurrence' } })
+    chooseTaskFilter(taskFilter(/^group$/i), 'Occurrence')
 
     await waitFor(() => {
       expect(screen.getByText('One-off tasks')).toBeInTheDocument()
@@ -1108,7 +1120,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
     renderPage(CAPABLE_AUTH)
     await switchToAll()
     await waitFor(() => screen.getByText('Open the café'))
-    fireEvent.change(taskFilter(/^group$/i), { target: { value: 'occurrence' } })
+    chooseTaskFilter(taskFilter(/^group$/i), 'Occurrence')
     await waitFor(() => screen.getByText('Café HQ daily opening · 17 Jul 2026'))
 
     fireEvent.click(screen.getByRole('button', { name: '1 to assign' }))
@@ -1149,7 +1161,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
     renderPage() // default authedState: accessRoles: []
     await switchToAll()
     await waitFor(() => screen.getByText('Open the café'))
-    fireEvent.change(taskFilter(/^group$/i), { target: { value: 'occurrence' } })
+    chooseTaskFilter(taskFilter(/^group$/i), 'Occurrence')
 
     await waitFor(() => screen.getByText('Café HQ daily opening · 17 Jul 2026'))
     expect(screen.getByText(/1\/1 done/)).toBeInTheDocument()
@@ -1206,7 +1218,7 @@ describe('Step 7 — the ?occurrence=<runId> query param switches to Occurrence 
     await waitFor(() => {
       expect(screen.getByText('Café Opening · 17 Jul 2026')).toBeInTheDocument()
     })
-    expect(taskFilter(/^group$/i)).toHaveValue('occurrence')
+    expect(taskFilter(/^group$/i)).toHaveTextContent('Occurrence')
     expect(document.body.textContent).not.toMatch(/Process Run/)
   })
 })

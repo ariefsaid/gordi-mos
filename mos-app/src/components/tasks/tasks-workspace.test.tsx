@@ -395,6 +395,11 @@ describe('AC-573 — saved-view chrome uses fetched state', () => {
 // The replacement keeps the queue visible and puts advanced controls behind one Filters
 // disclosure. These helpers keep behavior tests focused on outcomes instead of the retired
 // desktop/phone toolbar branches.
+function chooseFilterOption(trigger: HTMLElement, label: string) {
+  fireEvent.click(trigger)
+  fireEvent.click(screen.getByRole('option', { name: label }))
+}
+
 function ensureFiltersOpen() {
   const trigger = screen.getByRole('button', { name: /^filters(?:\s+\d+)?$/i })
   if (trigger.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
@@ -407,7 +412,7 @@ function filterSelect(name: RegExp | string) {
 }
 
 function statusSelect() {
-  return filterSelect(/^status$/i) as HTMLSelectElement
+  return filterSelect(/^status$/i)
 }
 
 // ── F-A / OD-REDESIGN-61 — member phone disclosure (RED) ─────────────────────
@@ -437,7 +442,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     expect(trigger).not.toHaveClass('tasks-queue-toolbar__filters-trigger--active')
 
     fireEvent.click(trigger)
-    fireEvent.change(statusSelect(), { target: { value: 'Blocked' } })
+    chooseFilterOption(statusSelect(), 'Blocked')
     await waitFor(() => expect(trigger).toHaveClass('tasks-queue-toolbar__filters-trigger--active'))
     expect(screen.getByRole('status')).toHaveTextContent(/status/i)
   })
@@ -639,11 +644,11 @@ describe('V3 collection grammar — shared filter controls', () => {
     await waitFor(() => screen.getByText('A task'))
     ensureFiltersOpen()
     const status = statusSelect()
-    expect(status).toHaveValue('')
-    fireEvent.change(status, { target: { value: 'Blocked' } })
+    expect(status).toHaveTextContent('Any status')
+    chooseFilterOption(status, 'Blocked')
     const archived = screen.getByRole('checkbox', { name: /include archived/i }) as HTMLInputElement
     fireEvent.click(archived)
-    expect(status).toHaveValue('Blocked')
+    expect(status).toHaveTextContent('Blocked')
     expect(archived).toBeChecked()
   })
 })
@@ -661,8 +666,8 @@ describe('UI-fidelity chrome — default-flat list (mockup is ungrouped)', () =>
     expect(document.querySelectorAll('tr.grp').length).toBe(0)
     ensureFiltersOpen()
     // Group-by control still defaults to a flat (none) value.
-    const groupSelect = screen.getByRole('combobox', { name: /group/i }) as HTMLSelectElement
-    expect(groupSelect.value).toBe('none')
+    const groupSelect = screen.getByRole('combobox', { name: /group/i })
+    expect(groupSelect).toHaveTextContent('None')
   })
 
   it('choosing a group dimension brings grouping back (capability preserved)', async () => {
@@ -674,7 +679,7 @@ describe('UI-fidelity chrome — default-flat list (mockup is ungrouped)', () =>
     ensureFiltersOpen()
     await switchToAll()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'status' } })
+    chooseFilterOption(groupSelect, 'Status')
     await waitFor(() => {
       // Capability preserved: status grouping still renders. Only Open holds a row;
       // #569 drops empty statuses → exactly one populated group header.
@@ -695,7 +700,8 @@ describe('Task 9 — group-by control in toolbar', () => {
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     expect(groupSelect).toBeInTheDocument()
     // Options carry the "Group: " prefix (AC-005, FR-005)
-    const options = Array.from(groupSelect.querySelectorAll('option')).map(o => o.textContent)
+    fireEvent.click(groupSelect)
+    const options = screen.getAllByRole('option').map(o => o.textContent)
     expect(options).toContain('Status')
     expect(options).toContain('PIC')
     expect(options.some(o => o && /Business unit/i.test(o))).toBe(true)
@@ -706,9 +712,9 @@ describe('Task 9 — group-by control in toolbar', () => {
     renderTable()
     await waitFor(() => screen.getByText('A task'))
     ensureFiltersOpen()
-    const groupSelect = screen.getByRole('combobox', { name: /group/i }) as HTMLSelectElement
+    const groupSelect = screen.getByRole('combobox', { name: /group/i })
     // Default is FLAT to match the signed mockup; grouping is opt-in via the chip.
-    expect(groupSelect.value).toBe('none')
+    expect(groupSelect).toHaveTextContent('None')
   })
 
   it('changing group-by persists the choice to localStorage (flat — no grouping output in PR-2)', async () => {
@@ -717,7 +723,7 @@ describe('Task 9 — group-by control in toolbar', () => {
     await waitFor(() => screen.getByText('A task'))
     ensureFiltersOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'owner' } })
+    chooseFilterOption(groupSelect, 'PIC')
     // Persisted immediately
     expect(localStorage.getItem('mos.tasks.groupBy')).toBe('owner')
     // Output remains flat (no group header rows in PR-2)
@@ -806,15 +812,15 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     await waitFor(() => screen.getByText('Mine task'))
 
     ensureFiltersOpen()
-    fireEvent.change(screen.getByRole('combobox', { name: /group/i }), { target: { value: 'status' } })
-    fireEvent.change(screen.getByRole('combobox', { name: /business unit/i }), { target: { value: 'bu-1' } })
-    fireEvent.change(statusSelect(), { target: { value: 'Blocked' } })
-    fireEvent.change(screen.getByRole('combobox', { name: /person/i }), { target: { value: 'other-id' } })
+    chooseFilterOption(screen.getByRole('combobox', { name: /group/i }), 'Status')
+    chooseFilterOption(screen.getByRole('combobox', { name: /business unit/i }), 'Kitchen')
+    chooseFilterOption(statusSelect(), 'Blocked')
+    chooseFilterOption(screen.getByRole('combobox', { name: /person/i }), 'Budi Setiawan')
 
     await waitFor(() => {
-      expect((screen.getByRole('combobox', { name: /group/i }) as HTMLSelectElement).value).toBe('status')
-      expect(statusSelect()).toHaveValue('Blocked')
-      expect((screen.getByRole('combobox', { name: /person/i }) as HTMLSelectElement).value).toBe('other-id')
+      expect(screen.getByRole('combobox', { name: /group/i })).toHaveTextContent('Status')
+      expect(statusSelect()).toHaveTextContent('Blocked')
+      expect(screen.getByRole('combobox', { name: /person/i })).toHaveTextContent('Budi Setiawan')
     })
     expect(screen.getByRole('tab', { name: 'My work' })).toHaveAttribute('aria-selected', 'true')
     expect(onSavedViewChange).not.toHaveBeenCalled()
@@ -988,7 +994,7 @@ async function switchToAll() {
 function selectGroupBy(value: 'none' | 'status' | 'owner' | 'bu') {
   ensureFiltersOpen()
   const groupSelect = screen.getByRole('combobox', { name: /group/i })
-  fireEvent.change(groupSelect, { target: { value } })
+  chooseFilterOption(groupSelect, { none: 'None', status: 'Status', owner: 'PIC', bu: 'Business unit' }[value])
 }
 
 describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
@@ -1430,7 +1436,7 @@ describe('Task 17 — show all groups incl. empty (AC-124)', () => {
     await waitFor(() => screen.getByText('Mine task'))
     ensureFiltersOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'owner' } })
+    chooseFilterOption(groupSelect, 'PIC')
     await waitFor(() => {
       const groups = Array.from(document.querySelectorAll('tr.grp'))
       const budiHeader = groups.find(g => g.textContent?.includes('Budi'))
@@ -1537,7 +1543,7 @@ describe('Task 19 — "+ Create task" pre-fill (AC-125)', () => {
     await waitFor(() => screen.getByText('Mine task'))
     ensureFiltersOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'owner' } })
+    chooseFilterOption(groupSelect, 'PIC')
     await waitFor(() => {
       const groups = Array.from(container.querySelectorAll('tr.grp .glabel'))
       expect(groups.some(g => g.textContent?.includes('Arief'))).toBe(true)

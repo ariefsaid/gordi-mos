@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Select } from '@/components/ui/select'
+import { TaskFilterSelect } from './task-filter-select'
 import { ErrorState } from '@/components/ui/state-kit'
 import { ViewTabs } from '@/components/ui/view-tabs'
 import type { CollectionViewOperationStatus } from '@/lib/record-collection/types'
@@ -298,75 +298,50 @@ export function TasksToolbar({
           </div>
 
           <div className="tasks-filter-panel__grid">
-            <label className="tasks-filter-field">
+            <div className="tasks-filter-field">
               <span>{t('tasks.filter.status')}</span>
-              <Select
-                aria-label={t('tasks.filter.status')}
-                value={query.status ?? ''}
-                onChange={(event) => onQueryChange({ status: (event.target.value || null) as TaskStatus | null })}
-              >
-                {STATUS_VALUES.map(({ value, key }) => <option key={key} value={value}>{statusLabel(key)}</option>)}
-              </Select>
-            </label>
-
-            <label className="tasks-filter-field">
+              <TaskFilterSelect label={t('tasks.filter.status')} value={query.status ?? ''}
+                options={STATUS_VALUES.map(({ value, key }) => ({ value, label: statusLabel(key) }))}
+                onChange={(value) => onQueryChange({ status: (value || null) as TaskStatus | null })} />
+            </div>
+            <div className="tasks-filter-field">
               <span>{t('tasks.filter.businessUnit')}</span>
-              <Select
-                aria-label={t('tasks.filter.businessUnit')}
-                value={query.businessUnitId ?? ''}
-                onChange={(event) => onQueryChange({ businessUnitId: event.target.value || null })}
-              >
-                <option value="">{t('tasks.filter.anyBusinessUnit')}</option>
-                {buOptions.map((businessUnit) => <option key={businessUnit.id} value={businessUnit.id}>{businessUnit.name}</option>)}
-              </Select>
-            </label>
-
-            <label className="tasks-filter-field">
+              <TaskFilterSelect label={t('tasks.filter.businessUnit')} value={query.businessUnitId ?? ''}
+                options={[{ value: '', label: t('tasks.filter.anyBusinessUnit') }, ...buOptions.map((unit) => ({ value: unit.id, label: unit.name }))]}
+                onChange={(value) => onQueryChange({ businessUnitId: value || null })} />
+            </div>
+            <div className="tasks-filter-field">
               <span>{t('tasks.filter.person')}</span>
-              <Select
-                aria-label={t('tasks.filter.person')}
-                value={query.personId ?? ''}
-                onChange={(event) => onQueryChange({ personId: event.target.value || null })}
-              >
-                <option value="">{t('tasks.filter.anyone')}</option>
-                {personOptions.map((person) => <option key={person.id} value={person.id}>{person.full_name}</option>)}
-              </Select>
-            </label>
-
-            <label className="tasks-filter-field">
+              <TaskFilterSelect label={t('tasks.filter.person')} value={query.personId ?? ''}
+                options={[{ value: '', label: t('tasks.filter.anyone') }, ...personOptions.map((person) => ({ value: person.id, label: person.full_name }))]}
+                onChange={(value) => onQueryChange({ personId: value || null })} />
+            </div>
+            <div className="tasks-filter-field">
               <span>{t('tasks.filter.group')}</span>
-              <Select
-                aria-label={t('tasks.filter.group')}
-                value={query.groupBy === 'pic' ? 'owner' : query.groupBy}
-                onChange={(event) => {
-                  const value = event.target.value
+              <TaskFilterSelect label={t('tasks.filter.group')} value={query.groupBy === 'pic' ? 'owner' : query.groupBy}
+                options={GROUP_VALUES.map(({ value, key }) => ({ value, label: groupLabel(key) }))}
+                onChange={(value) => {
                   onQueryChange({ groupBy: (value === 'owner' ? 'pic' : value) as TaskCollectionGroup })
                   try { localStorage.setItem('mos.tasks.groupBy', value) } catch { /* storage disabled */ }
-                }}
-              >
-                {GROUP_VALUES.map(({ value, key }) => <option key={value} value={value}>{groupLabel(key)}</option>)}
-              </Select>
-            </label>
-
-            <label className="tasks-filter-field">
+                }} />
+            </div>
+            <div className="tasks-filter-field">
               <span>{t('tasks.filter.sort')}</span>
-              <Select
-                aria-label={t('tasks.filter.sort')}
-                value={`${query.sort}:${query.direction}`}
-                onChange={(event) => {
-                  const [sort, direction] = event.target.value.split(':')
+              <TaskFilterSelect label={t('tasks.filter.sort')} value={`${query.sort}:${query.direction}`}
+                options={[
+                  { value: 'due:ascending', label: t('tasks.filter.sortDueSoonest') },
+                  { value: 'due:descending', label: t('tasks.filter.sortDueLatest') },
+                  { value: 'task:ascending', label: t('tasks.filter.sortTask') },
+                  { value: 'status:ascending', label: t('tasks.filter.sortStatus') },
+                  { value: 'pic:ascending', label: t('tasks.filter.sortPic') },
+                  { value: 'supervisor:ascending', label: t('tasks.supervisor') },
+                  { value: 'activity:descending', label: t('tasks.filter.sortActivity') },
+                ]}
+                onChange={(value) => {
+                  const [sort, direction] = value.split(':')
                   onQueryChange({ sort: sort as TaskCollectionSort, direction: direction as SortDir })
-                }}
-              >
-                <option value="due:ascending">{t('tasks.filter.sortDueSoonest')}</option>
-                <option value="due:descending">{t('tasks.filter.sortDueLatest')}</option>
-                <option value="task:ascending">{t('tasks.filter.sortTask')}</option>
-                <option value="status:ascending">{t('tasks.filter.sortStatus')}</option>
-                <option value="pic:ascending">{t('tasks.filter.sortPic')}</option>
-                <option value="supervisor:ascending">{t('tasks.supervisor')}</option>
-                <option value="activity:descending">{t('tasks.filter.sortActivity')}</option>
-              </Select>
-            </label>
+                }} />
+            </div>
 
             <div className="tasks-filter-field tasks-filter-field--checks">
               <span>{t('tasks.toolbar.attention')}</span>

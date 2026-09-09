@@ -170,6 +170,11 @@ beforeEach(() => {
 
 // Group/Sort/toggles are disclosed behind the queue's Filters trigger. Open it when collapsed;
 // the grouping capability itself is unchanged.
+function chooseFilterOption(trigger: HTMLElement, label: string) {
+  fireEvent.click(trigger)
+  fireEvent.click(screen.getByRole('option', { name: label }))
+}
+
 function ensureViewOptionsOpen() {
   const trigger = screen.getByRole('button', { name: /^filters(?:\s+\d+)?$/i })
   if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
@@ -243,10 +248,10 @@ describe('RI-2 — Person filter + groupBy=workline suppresses empty groups', ()
 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
 
     const personSelect = screen.getByRole('combobox', { name: /person/i })
-    fireEvent.change(personSelect, { target: { value: 'maya-id' } })
+    chooseFilterOption(personSelect, 'Maya Rahmawati')
 
     await waitFor(() => {
       const glabels = Array.from(document.querySelectorAll('.glabel')).map(n => n.textContent)
@@ -266,7 +271,7 @@ describe('RI-2 — Person filter + groupBy=workline suppresses empty groups', ()
     await switchToAll()
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     await waitFor(() => {
       const glabels = Array.from(document.querySelectorAll('.glabel')).map(n => n.textContent)
       // #569: the projection drops every zero-row group — the empty wl-process group does
@@ -401,9 +406,9 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     const personSelect = screen.getByRole('combobox', { name: /person/i })
-    fireEvent.change(personSelect, { target: { value: 'maya-id' } })
+    chooseFilterOption(personSelect, 'Maya Rahmawati')
 
     await waitFor(() => {
       const caption = screen.getByRole('status', { name: /workload summary/i })
@@ -427,9 +432,9 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     const personSelect = screen.getByRole('combobox', { name: /person/i })
-    fireEvent.change(personSelect, { target: { value: 'maya-id' } })
+    chooseFilterOption(personSelect, 'Maya Rahmawati')
 
     await waitFor(() => {
       const caption = screen.getByRole('status', { name: /workload summary/i })
@@ -454,9 +459,9 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     const personSelect = screen.getByRole('combobox', { name: /person/i })
-    fireEvent.change(personSelect, { target: { value: 'maya-id' } })
+    chooseFilterOption(personSelect, 'Maya Rahmawati')
 
     await waitFor(() => {
       const caption = screen.getByRole('status', { name: /workload summary/i })
@@ -477,9 +482,9 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     const personSelect = screen.getByRole('combobox', { name: /person/i })
-    fireEvent.change(personSelect, { target: { value: 'maya-id' } })
+    chooseFilterOption(personSelect, 'Maya Rahmawati')
 
     await waitFor(() => {
       const caption = screen.getByRole('status', { name: /workload summary/i })
@@ -617,7 +622,7 @@ describe('Fix-7 — useCascadeCatalogs hook', () => {
     // Trigger a filter change (status filter) — should NOT re-trigger catalog loads.
     ensureViewOptionsOpen()
     const statusSelect = screen.getByRole('combobox', { name: /^status$/i })
-    fireEvent.change(statusSelect, { target: { value: 'Open' } })
+    chooseFilterOption(statusSelect, 'Open')
     await waitFor(() => {}) // allow any async effects to settle
 
     // Catalog calls must NOT increase when a filter changes
