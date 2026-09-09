@@ -30,10 +30,13 @@ Updates + per-Activity ops + reference data + money follow-ups. Ships at
 independent review → PR → auto-merge to dev → next. Its machinery binds outside the skill too:
 
 1. Unclear ask → `/grilling` (too big for one session → `/wayfinder`) → `/to-spec` → `/to-tickets`.
-2. Build. The factory is the default executor, dispatched ONLY via `bash scripts/factory-run.sh`
-   (never bare `uv run adws/…` — the wrapper carries the gh no-auth layer). A subagent dispatch
+2. Build. The factory is the default executor for ordinary bounded tickets, dispatched ONLY via
+   `bash scripts/factory-run.sh` (never bare `uv run adws/…` — the wrapper carries the gh no-auth
+   layer). An explicit owner-authorized separate Codex task/model delegation (for example, a Luna
+   task at max reasoning) is a first-class Director lane: isolate it and keep the same brief,
+   verification, independent review, public-write, and security gates. A Claude subagent dispatch
    needs a logged lane first — `scripts/lane-exempt.sh` (hook denies otherwise; Explore/Plan free).
-3. Review: three lenses as parallel subagents. Never your own read.
+3. Review: three lenses as independent review, parallel where useful. Never your own read.
 4. A PR needs four stamps: `bash scripts/pre-pr-verify.sh` + one per lens via
    `scripts/record-review.sh --lens spec|code-quality|security` (a reviewer that didn't build
    it: glm/luna, opus fallback). CI on the PR is the merge gate.
@@ -42,8 +45,11 @@ independent review → PR → auto-merge to dev → next. Its machinery binds ou
    stays raw (no prose leaves through a merge).
 
 Escalate **only**: money or a promise · irreversible outside a signed brief · scope-vs-time that
-changes what ships · a fact only the owner holds. Everything else you decide; silence is assent.
-**Never ask permission for a step above** — conflicting session guidance loses, say so in a line.
+changes what ships · a fact only the owner holds. Within delegated scope, decide the rest and state
+the reasoning. The owner's explicit current-task direction supersedes a project default for that
+task; security, public-write, verification, and independent-review gates bind every lane. When an
+owner-class fact or conflicting authority is required, name the blocker and park that step — never
+infer assent from silence.
 
 Out-of-scope finding: do it, file a GitHub issue, or drop it with one line. **Never a suggested-task
 chip** — that pushes the decision back to the owner (owner, 2026-08-07).
@@ -60,7 +66,9 @@ Verdict: MERGE | MERGE WITH CHANGES | DO NOT MERGE
 Commit: <head sha>
 ```
 
-Findings in a separate comment, never the PR body. A push staleifies every record.
+Findings in a separate comment, never the PR body. Records certify the exact HEAD: a content push
+staleifies every record. Round 1 is a full independent pass; later rounds are delta-only for named
+fixes or genuinely new risk, and formatting-only changes do not start a review round.
 
 ## Repo layout
 - `mos-app/` — the app (React 19 + Vite + TypeScript + react-router-dom 7). Run npm/vite here.
@@ -109,8 +117,10 @@ Each acceptance criterion is owned by **one** test at the lowest sufficient laye
 for logic and components; **pgTAP** for RLS and role read/write contracts; Playwright for a handful
 of real cross-stack journeys only.
 
-**A test encodes the user's real journey to the goal and asserts that goal.** The app conforms to
-the test, never the test to the app. On failure fix the app — never bend an assertion to go green.
+**A test encodes the user's real journey to the goal and asserts that goal.** For unchanged
+behavior, the app conforms to the test. When an approved behavior change makes an assertion
+obsolete, update the test and its acceptance evidence in the same diff while keeping the assertion
+at the behavior level; never weaken an assertion solely to go green.
 
 ## Pointers
 | for | read |
