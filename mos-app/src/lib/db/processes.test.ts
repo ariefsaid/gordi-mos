@@ -10,9 +10,10 @@ vi.mock('../supabase', () => {
 import {
   startRun, listDueRuns, listPendingTasks, resolvePendingTask,
   getRunRollup, listRunTasks, completeRun, cancelRun, listRunRollups, listTaskDefs,
+  listProcessOccurrenceSummaries, listStartableProcessRuns,
 } from './processes'
 import { supabase } from '@/lib/supabase'
-import type { DueProcessRun, ProcessRunRollup, ProcessRunRow } from './processes.types'
+import type { DueProcessRun, ProcessOccurrenceSummary, ProcessRunRollup, ProcessRunRow } from './processes.types'
 import type { TaskListRow } from './tasks.types'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -354,6 +355,70 @@ describe('listRunRollups', () => {
     mockSupabase({ 'mos.process_run_rollup': [{ data: null, error: { message: 'read failed' } }] }, rec)
 
     await expect(listRunRollups([RUN_ID])).rejects.toThrow(/read failed/)
+  })
+})
+
+describe('listProcessOccurrenceSummaries', () => {
+  const run: ProcessRunRow = {
+    id: RUN_ID, work_line_id: WORK_LINE_ID, owning_team_id: TEAM_ID, period_key: '2026-07-17',
+    caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17', status: 'open',
+    definition_version: 1, started_by: 'person-1', completed_at: null, completed_by: null,
+    cancelled_at: null, cancelled_by: null, cancel_reason: null,
+  }
+  const rollup: ProcessRunRollup = {
+    process_run_id: RUN_ID, caption: run.caption, scheduled_date: run.scheduled_date, status: 'open',
+    total: 3, open: 2, in_progress: 0, blocked: 0, done: 1, overdue: 1,
+    pending_unresolved: 1, completion_pct: 33.3,
+  }
+
+  it('batches run, roll-up, and owning-Team reads into one summary per occurrence', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'mos.process_runs': [{ data: [run], error: null }],
+      'mos.process_run_rollup': [{ data: [rollup], error: null }],
+      'shared.teams': [{ data: [{ id: TEAM_ID, name: 'Café Operations' }], error: null }],
+    }, rec)
+
+    const rows = await listProcessOccurrenceSummaries(WORK_LINE_ID)
+
+    const expected: ProcessOccurrenceSummary[] = [{ run, team_name: 'Café Operations', rollup }]
+    expect(rows).toEqual(expected)
+    expect(rec.fromTables).toContain('mos.process_runs')
+    expect(rec.ins).toContainEqual(['process_run_id', [RUN_ID]])
+    expect(rec.ins).toContainEqual(['id', [TEAM_ID]])
+  })
+
+  it('returns no child reads when the Process has no occurrences', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.process_runs': [{ data: [], error: null }] }, rec)
+
+    await expect(listProcessOccurrenceSummaries(WORK_LINE_ID)).resolves.toEqual([])
+    expect(rec.fromTables).toEqual(['mos.process_runs'])
+  })
+
+  it('surfaces a roll-up failure instead of rendering stale or fabricated counts', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'mos.process_runs': [{ data: [run], error: null }],
+      'mos.process_run_rollup': [{ data: null, error: { message: 'rollup unavailable' } }],
+      'shared.teams': [{ data: [{ id: TEAM_ID, name: 'Café Operations' }], error: null }],
+    }, rec)
+
+    await expect(listProcessOccurrenceSummaries(WORK_LINE_ID)).rejects.toThrow(/rollup unavailable/)
+  })
+})
+
+describe('listStartableProcessRuns', () => {
+  it('reuses the scheduler-free due RPC and narrows it to the current Process', async () => {
+    const rec = freshRec()
+    const due: DueProcessRun[] = [
+      { work_line_id: WORK_LINE_ID, process_name: 'Café Opening', owning_team_id: TEAM_ID, team_name: 'Café Operations', period_key: '2026-07-17', scheduled_date: '2026-07-17' },
+      { work_line_id: 'other-process', process_name: 'Other', owning_team_id: TEAM_ID, team_name: 'Café Operations', period_key: '2026-07-17', scheduled_date: '2026-07-17' },
+    ]
+    mockSupabase({ 'rpc.due_process_runs': [{ data: due, error: null }] }, rec)
+
+    await expect(listStartableProcessRuns(WORK_LINE_ID)).resolves.toEqual([due[0]])
+    expect(rec.rpcs).toContainEqual(['due_process_runs', undefined])
   })
 })
 

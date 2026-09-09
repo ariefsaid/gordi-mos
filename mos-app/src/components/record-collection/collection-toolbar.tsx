@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
-import { Select } from '@/components/ui/select'
+import { Picker } from '@/components/ui/picker'
 import { ViewTabs } from '@/components/ui/view-tabs'
 import type { CollectionViewOperationStatus } from '@/lib/record-collection/types'
 import { useIsDesktop } from '@/shell/use-is-desktop'
@@ -136,6 +136,9 @@ export interface CollectionToolbarProps<
    * and off by default — every other caller (Tasks included) keeps rendering search here.
    */
   hideSearchRow?: boolean
+  /** Work/catalog surfaces already name the view axis in their page head; omit the generic
+   * "View" micro-label so the compact toolbar does not repeat a noun with no added meaning. */
+  hideViewsLabel?: boolean
 }
 
 /**
@@ -168,6 +171,7 @@ export function CollectionToolbar<
   className,
   reserved = false,
   hideSearchRow = false,
+  hideViewsLabel = false,
 }: CollectionToolbarProps<TPresentation, TView>) {
   const t = useT()
   const isDesktop = useIsDesktop()
@@ -217,9 +221,11 @@ export function CollectionToolbar<
             {/* DO-20(c) (objectives F5): "Saved view" is only honest where saved views exist. A host
                 without the savedViews capability (the catalogs' Active/Archived toggle) labels the
                 zone plain "View" instead of promising a feature the surface structurally disables. */}
-            <span className="collection-toolbar__views-label" aria-hidden="true">
-              {t(savedViews ? 'common.savedView' : 'common.view')}
-            </span>
+            {!hideViewsLabel && (
+              <span className="collection-toolbar__views-label" aria-hidden="true">
+                {t(savedViews ? 'common.savedView' : 'common.view')}
+              </span>
+            )}
             {views.options.map((option) => {
               const active = option.value === views.value && !savedViews?.selectedId
               return (
@@ -298,20 +304,18 @@ export function CollectionToolbar<
                   className={`collection-toolbar__option-field${filter.tinted ? ' collection-toolbar__option-field--group' : ''}`}
                 >
                   {!isDesktop ? <span>{filter.label}</span> : null}
-                  {/* ONE dropdown-class control: the trigger borrows the select-box chrome. The
-                      choices render in the anchored Fields-menu popover (audit C20/I3 — never a
-                      new toolbar row), so a closed row holds zero checkboxes. */}
+                  {/* Filter choices stay in the anchored popover until the user opens them. */}
                   <div className="collection-toolbar__select collection-toolbar__choice">
                     <button
                       type="button"
-                      className="mk-select__box collection-toolbar__choice-trigger"
+                      className="collection-toolbar__choice-trigger"
                       aria-label={filter.label}
                       aria-haspopup="true"
                       aria-expanded={openPopoverId === filter.id}
                       onClick={() => setOpenPopoverId(openPopoverId === filter.id ? null : filter.id)}
                     >
-                      <span className="mk-select__field">{filter.display}</span>
-                      <span className="mk-select__chevron" aria-hidden="true">
+                      <span className="collection-toolbar__choice-value">{filter.display}</span>
+                      <span className="collection-toolbar__choice-chevron" aria-hidden="true">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="m6 9 6 6 6-6" />
                         </svg>
@@ -334,23 +338,23 @@ export function CollectionToolbar<
                   </div>
                 </div>
               ) : (
-                <label
+                <div
                   key={filter.id}
                   className={`collection-toolbar__option-field${filter.tinted ? ' collection-toolbar__option-field--group' : ''}`}
                 >
                   {!isDesktop ? <span>{filter.label}</span> : null}
-                  <Select
+                  <Picker
                     id={`collection-filter-${filter.id}`}
-                    aria-label={filter.label}
+                    label={filter.label}
+                    hideLabel
                     value={filter.value}
-                    onChange={(event) => filter.onChange(event.target.value)}
+                    onChange={filter.onChange}
+                    options={filter.options}
+                    fullWidth
                     className="collection-toolbar__select"
-                  >
-                    {filter.options.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </Select>
-                </label>
+                    triggerClassName="collection-toolbar__picker-trigger"
+                  />
+                </div>
               )
             ))}
             {fields ? (

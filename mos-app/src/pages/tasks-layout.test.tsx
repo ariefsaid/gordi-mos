@@ -25,6 +25,8 @@ vi.mock('../lib/db/tasks', () => ({
 vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getPersonTeams: vi.fn(),
+  getTeamsByIds: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 // Cascade catalogs (Task B) — the workspace loads these non-blocking; mock to empty so the
@@ -39,6 +41,7 @@ vi.mock('../lib/comments/postComment', () => ({
 
 import { listTasks, getTask, updateTaskStatus, createTask, archiveTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
+import * as directoryApi from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listComments } from '@/lib/comments/postComment'
@@ -55,6 +58,12 @@ const mockGetTask = vi.mocked(getTask)
 const mockUpdateTaskStatus = vi.mocked(updateTaskStatus)
 const mockCreateTask = vi.mocked(createTask)
 const mockArchiveTask = vi.mocked(archiveTask)
+const directoryMocks = directoryApi as unknown as {
+  getPersonTeams: ReturnType<typeof vi.fn>
+  getTeamsByIds: ReturnType<typeof vi.fn>
+}
+const mockGetPersonTeams = directoryMocks.getPersonTeams
+const mockGetTeamsByIds = directoryMocks.getTeamsByIds
 
 function stubMatchMedia(matches: boolean) {
   Object.defineProperty(window, 'matchMedia', {
@@ -124,6 +133,7 @@ function stubWidths({ split, desktop = true }: { split: boolean; desktop?: boole
 }
 
 const VIEWER_ID = 'viewer-person-id'
+const SUPERVISOR_ID = 'supervisor-person-id'
 const mockPerson: PeopleRow = {
   id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
   email: 'arief@example.test', must_change_password: false, archived_at: null,
@@ -139,7 +149,9 @@ const authedState: AuthState = {
   signOut: async () => {},
 }
 
-function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
+type TaskFixture = TaskListRow & { team_id?: string | null }
+
+function makeTask(overrides: Partial<TaskListRow> & { team_id?: string | null } = {}): TaskFixture {
   return {
     id: 'task-1', org_id: 'org', title: 'Default task',
     business_unit_id: 'bu-1', status: 'Open',
@@ -154,7 +166,11 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 }
 
 const BUS = [{ id: 'bu-1', name: 'Kitchen' }]
-const PEOPLE = [{ id: VIEWER_ID, full_name: 'Arief Said' }]
+const PEOPLE = [
+  { id: VIEWER_ID, full_name: 'Arief Said' },
+  { id: SUPERVISOR_ID, full_name: 'Supervisor Person' },
+]
+const TEAMS = [{ id: 'team-kitchen', name: 'Kitchen Team', businessUnitId: 'bu-1', siteId: null, orgId: 'org', isPrimary: true }]
 
 beforeEach(() => {
   vi.resetAllMocks()
@@ -162,6 +178,8 @@ beforeEach(() => {
   stubMatchMedia(true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
+  mockGetPersonTeams.mockResolvedValue(TEAMS)
+  mockGetTeamsByIds.mockResolvedValue(TEAMS)
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
@@ -309,15 +327,17 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
   })
 
-  it('§Task-11: /work/tasks?view=team degrades to the org-visible All set with no Team-work chip (Issue-8 gate)', async () => {
-    // DELIBERATE goal change (record-collection plan §Task-11): `view=team` is no longer a supported
-    // view; it is rejected on parse and falls back to the org-visible All set. No Team-work chip
-    // exists until Issue 8 lands the real Task team_id contract.
-    mockListTasks.mockResolvedValue([makeTask({ title: 'Shared task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' })])
+  it('§Task-11: the legacy view=team query aliases to Team work and applies real Team membership', async () => {
+    mockListTasks.mockResolvedValue([makeTask({
+      title: 'Shared task',
+      responsible_person_id: 'other-id',
+      accountable_person_id: 'other-id',
+      team_id: 'team-kitchen',
+    })])
     renderAt('/work/tasks?view=team')
     await waitFor(() => screen.getByText('Shared task'))
-    expect(screen.queryByRole('tab', { name: 'Team work' })).toBeNull()
-    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Team work' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'false')
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
     expect(document.querySelectorAll('.drawer, [role="dialog"]')).toHaveLength(0)
   })
@@ -327,8 +347,8 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     renderAt('/work/tasks?view=bogus')
     await waitFor(() => screen.getByText('Fallback task'))
     expect(screen.getByRole('tab', { name: 'My work' })).toHaveAttribute('aria-selected', 'false')
-    // §Task-11: no Team-work chip exists.
-    expect(screen.queryByRole('tab', { name: 'Team work' })).toBeNull()
+    expect(screen.getByRole('tab', { name: 'Team work' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Team work' })).toHaveAttribute('aria-selected', 'false')
     expect(screen.getByRole('tab', { name: 'Overdue' })).toHaveAttribute('aria-selected', 'false')
     expect(screen.queryByRole('tab', { name: 'AR Follow-ups' })).toBeNull()
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
@@ -378,13 +398,14 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     // table row shows the Open status tag initially (soft Tag, .mk-tag)
     const row = () => document.querySelector('tr.task-row.row-selected')
     expect(row()?.querySelector('.mk-tag')?.textContent).toContain('Open')
-    // The shared RecordViewer exposes the status as the same labelled Select in
+    // The shared RecordViewer exposes the status as the same labelled Picker in
     // panel and page modes; scope to the record panel, not the collection toolbar.
     const drawer = screen.getByRole('complementary', { name: /task detail/i })
-    // Value-first grammar: activate the Status field, then the select swaps in.
+    // Value-first grammar: activate the Status field, then the Picker swaps in.
     fireEvent.click(within(drawer as HTMLElement).getByRole('button', { name: /edit status/i }))
-    const status = drawer.querySelector('[data-field-key="status"] select') as HTMLSelectElement
-    fireEvent.change(status, { target: { value: 'Blocked' } })
+    const status = within(drawer as HTMLElement).getByRole('combobox', { name: 'Status' })
+    fireEvent.click(status)
+    fireEvent.click(screen.getByRole('option', { name: 'Blocked' }))
     await waitFor(() => {
       const pill = row()?.querySelector('.mk-tag')
       expect(pill?.textContent).toContain('Blocked')
@@ -569,11 +590,23 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
 
     // Type the title and press Enter — the draft commits through the same createTask path.
     fireEvent.change(titleInput, { target: { value: 'Freshly created' } })
+    // Inline creation requires a real Team and an independently selected Supervisor; choosing
+    // both before Enter exercises the ownership controls instead of relying on a BU/PIC fallback.
+    fireEvent.click(screen.getByRole('combobox', { name: 'Team' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Kitchen Team' }))
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supervisor' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Supervisor Person' }))
     fireEvent.keyDown(titleInput, { key: 'Enter' })
 
     // The new row appears in the table and the count reflects it — no reload.
     await waitFor(() => {
-      expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'Freshly created' }))
+      expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Freshly created',
+        businessUnitId: 'bu-1',
+        teamId: 'team-kitchen',
+        responsiblePersonId: VIEWER_ID,
+        accountablePersonId: SUPERVISOR_ID,
+      }))
     })
     await waitFor(() => {
       expect(screen.getByText('Freshly created')).toBeInTheDocument()
@@ -696,14 +729,19 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
         makeTask({ id: 'task-2', title: 'Archive me' }),
       ])
       .mockResolvedValue([makeTask({ id: 'task-1', title: 'Keep me' })])
-    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-2', title: 'Archive me' }), checklist: [], events: [] })
+    mockGetTask.mockResolvedValue({
+      task: makeTask({ id: 'task-2', title: 'Archive me', responsible_person_id: 'other-id' }),
+      checklist: [],
+      events: [],
+    })
     mockArchiveTask.mockResolvedValue()
     renderAt('/work/tasks/task-2')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
     await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 open · 2 total'))
 
-    // Archive from the drawer foot (collapsed split shows "Archive task")
-    fireEvent.click(screen.getByRole('button', { name: /archive task/i }))
+    // Archive is grouped with the record's other secondary actions.
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /archive task/i }))
     // Confirm the archive dialog
     const confirm = await screen.findByRole('button', { name: /^archive$/i })
     fireEvent.click(confirm)

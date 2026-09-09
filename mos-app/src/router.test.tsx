@@ -214,7 +214,7 @@ describe('router — Work catalog gates', () => {
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'work/projects'),
     )!
     const inside = gate.children!.map((c) => c.path).sort()
-    expect(inside).toEqual(['projects-processes', 'work/projects', 'work/projects-processes'])
+    expect(inside).toEqual(['projects-processes', 'work/projects', 'work/projects-processes', 'work/projects/:workLineId'])
   })
 })
 

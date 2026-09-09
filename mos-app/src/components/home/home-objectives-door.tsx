@@ -54,7 +54,7 @@ export function HomeObjectivesDoor({ state = 'ready', rows = [], onRetry }: Home
           {rows.map((row) => (
             <li key={row.id}>
               <Link
-                to={`/work/objectives?q=${encodeURIComponent(row.name)}`}
+                to={`/work/objectives/${row.id}`}
                 className="home-objective-row tap-floor"
               >
                 <span className="home-objective-name">{row.name}</span>

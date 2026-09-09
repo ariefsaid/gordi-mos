@@ -70,30 +70,48 @@ export interface SignalDetail {
   tasks: SignalTaskLinkRow[]
 }
 
+type SignalReadError = Error & { code?: string }
+
+function wrapSignalReadError(prefix: string, error: unknown): SignalReadError {
+  const source = error && typeof error === 'object'
+    ? error as { message?: unknown; code?: unknown }
+    : null
+  const message = typeof source?.message === 'string' ? source.message : String(error)
+  const wrapped = new Error(`${prefix} — ${message}`) as SignalReadError
+  if (typeof source?.code === 'string') wrapped.code = source.code
+  return wrapped
+}
+
+type SignalNestedRow = SignalRow & {
+  signal_mentions?: SignalMentionRow[] | null
+  signal_acknowledgements?: SignalAckRow[] | null
+  signal_tasks?: SignalTaskLinkRow[] | null
+}
+
 /** Read one Signal plus its mentions, acknowledgements, and linked-task rows (record surface, B15). */
 export async function getSignal(id: string): Promise<SignalDetail> {
-  const { data: signal, error: sErr } = await mos().from('signals').select('*').eq('id', id).single()
-  if (sErr) throw new Error(`getSignal failed — ${sErr.message}`)
+  // Embed the child rows into the primary read. This keeps the record's first paint on one
+  // RLS-governed request and makes a missing/denied Signal unambiguous to the host; the foreign
+  // keys on each bridge table let PostgREST resolve these relationships without extra queries.
+  const { data, error } = await mos()
+    .from('signals')
+    .select('*, signal_mentions(*), signal_acknowledgements(*), signal_tasks(*)')
+    .eq('id', id)
+    .single()
+  if (error) throw wrapSignalReadError('getSignal failed', error)
 
-  // The three child reads are independent — fetch them in parallel (the parent row must resolve
-  // first only because a missing Signal should surface as `getSignal failed`, not a child error).
-  const [
-    { data: mentions, error: mErr },
-    { data: acks, error: aErr },
-    { data: tasks, error: tErr },
-  ] = await Promise.all([
-    mos().from('signal_mentions').select('*').eq('signal_id', id),
-    mos().from('signal_acknowledgements').select('*').eq('signal_id', id),
-    mos().from('signal_tasks').select('*').eq('signal_id', id),
-  ])
-  if (mErr) throw new Error(`getSignal mentions failed — ${mErr.message}`)
-  if (aErr) throw new Error(`getSignal acknowledgements failed — ${aErr.message}`)
-  if (tErr) throw new Error(`getSignal tasks failed — ${tErr.message}`)
+  const row = data as unknown as SignalNestedRow
+  const {
+    signal_mentions: mentions,
+    signal_acknowledgements: acknowledgements,
+    signal_tasks: tasks,
+    ...signal
+  } = row
 
   return {
     signal: signal as unknown as SignalRow,
     mentions: (mentions ?? []) as unknown as SignalMentionRow[],
-    acknowledgements: (acks ?? []) as unknown as SignalAckRow[],
+    acknowledgements: (acknowledgements ?? []) as unknown as SignalAckRow[],
     tasks: (tasks ?? []) as unknown as SignalTaskLinkRow[],
   }
 }

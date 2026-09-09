@@ -51,19 +51,32 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   const [postCount, setPostCount] = useState(0)
   const [rosters, setRosters] = useState<MentionRosters>(EMPTY_ROSTERS)
   const [prefill, setPrefill] = useState<SignalComposerPrefill | undefined>()
-  const [composerDirty, setComposerDirty] = useState(false)
   const [discardOpen, setDiscardOpen] = useState(false)
-  const composerTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const dirtyRef = useRef(false)
 
   const close = useCallback(() => {
-    if (composerDirty) { setDiscardOpen(true); return }
-    setIsOpen(false); setPrefill(undefined)
-  }, [composerDirty])
+    dirtyRef.current = false
+    setDiscardOpen(false)
+    setIsOpen(false)
+    setPrefill(undefined)
+  }, [])
   const open = useCallback((nextPrefill?: SignalComposerPrefill) => { setPrefill(nextPrefill); setIsOpen(true) }, [])
   // On a successful Share: bump the post counter (watched by the feed/archive) then close.
   const handleShared = useCallback(() => {
-    setPostCount((n) => n + 1); setPrefill(undefined); setComposerDirty(false); setIsOpen(false)
+    dirtyRef.current = false
+    setDiscardOpen(false)
+    setPostCount((n) => n + 1)
+    setPrefill(undefined)
+    setIsOpen(false)
   }, [])
+  const handleDirtyChange = useCallback((dirty: boolean) => {
+    dirtyRef.current = dirty
+  }, [])
+  const requestClose = useCallback(() => {
+    if (dirtyRef.current) setDiscardOpen(true)
+    else close()
+  }, [close])
+  const discardAndClose = useCallback(async () => { close() }, [close])
 
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
 
@@ -88,23 +101,21 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
       {isOpen && viewer && (
         <ModalShell
           open
-          onClose={close}
+          onClose={requestClose}
           ariaLabel={t('signals.action.share')}
           closeOnBackdrop
-          closeOnEscape={!discardOpen}
+          closeOnEscape
           surface="centered"
           phoneMode="fullscreen"
         >
           <div className="signal-composer-host-panel">
             <div className="signal-composer-host-head">
               <h2 className="signal-composer-host-title">{t('signals.action.share')}</h2>
-              <IconButton variant="tertiary" ariaLabel={t('signals.composer.close')} onClick={close}>
+              <IconButton variant="tertiary" ariaLabel={t('signals.composer.close')} onClick={requestClose}>
                 <CloseIcon />
               </IconButton>
             </div>
             <SignalComposer
-              onDirtyChange={setComposerDirty}
-              textareaRef={composerTextareaRef}
               authorId={viewer.person.id}
               authorName={viewer.person.full_name}
               canMentionBu={can(accessRoles, 'signal.mention_bu')}
@@ -112,6 +123,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
               teamMembers={rosters.teamMembers}
               buMembers={rosters.buMembers}
               onShared={handleShared}
+              onDirtyChange={handleDirtyChange}
               prefill={prefill}
             />
           </div>
@@ -121,16 +133,10 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
         open={discardOpen}
         title={t('signals.composer.discardTitle')}
         body={t('signals.composer.discardBody')}
-        confirmLabel={t('signals.composer.discardConfirm')}
-        cancelLabel={t('signals.composer.keepEditing')}
-        tone="destructive"
-        onCancel={() => {
-          setDiscardOpen(false)
-          // ConfirmDialog's ModalShell returns focus to its invoker during unmount; refocus after
-          // that cleanup so Keep editing returns to the draft, not the composer close button.
-          setTimeout(() => composerTextareaRef.current?.focus(), 0)
-        }}
-        onConfirm={async () => { setDiscardOpen(false); setComposerDirty(false); setIsOpen(false); setPrefill(undefined) }}
+        confirmLabel={t('signals.composer.discard')}
+        cancelLabel={t('signals.composer.stay')}
+        onConfirm={discardAndClose}
+        onCancel={() => setDiscardOpen(false)}
       />
     </SignalComposerContext.Provider>
   )

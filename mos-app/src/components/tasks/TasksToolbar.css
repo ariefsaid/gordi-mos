@@ -161,6 +161,8 @@
 .tasks-queue-toolbar__clear:focus-visible,
 .tasks-filter-panel__close:focus-visible,
 .tasks-overdue-filter:focus-visible,
+.tasks-attention-trigger:focus-visible,
+.tasks-attention-option:focus-visible,
 .tasks-saved-view:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
@@ -224,6 +226,73 @@
 
 .tasks-filter-field--checks {
   align-items: flex-start;
+}
+
+.tasks-attention-menu {
+  position: relative;
+}
+
+.tasks-attention-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tasks-attention-trigger:hover,
+.tasks-attention-trigger--active {
+  border-color: var(--status-lost-text);
+  background: color-mix(in srgb, var(--destructive) 8%, var(--background));
+  color: var(--status-lost-text);
+}
+
+.tasks-attention-trigger svg {
+  transition: transform var(--dur-fast) ease;
+}
+
+.tasks-attention-trigger[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.tasks-attention-popover {
+  position: absolute;
+  z-index: var(--z-popover);
+  top: calc(100% + 6px);
+  left: 0;
+  display: flex;
+  min-width: 190px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--popover);
+  box-shadow: var(--shadow-overlay);
+}
+
+.tasks-attention-option {
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tasks-attention-option:hover {
+  background: var(--secondary);
 }
 
 .tasks-overdue-filter {
@@ -476,3 +545,5 @@
     transition: none;
   }
 }
+
+.tasks-filter-panel__history { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 12px; }

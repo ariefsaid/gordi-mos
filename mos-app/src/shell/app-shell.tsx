@@ -115,7 +115,7 @@ function OverlayHostRoot({ children }: { children: ReactNode }) {
 
 function ShellContent() {
   const { pathname } = useLocation()
-  const operatingSurface = pathname === '/' || pathname === '/work/tasks' || pathname.startsWith('/work/tasks/')
+  const operatingSurface = pathname === '/' || pathname === '/work' || pathname.startsWith('/work/')
   // OD-REDESIGN-84.2 (P1-1): the intermediate 920–1099.98px regime — desktop rail still
   // mounted (isNarrow is false) but too tight for the full 232px labelled rail — collapses
   // to the ~72px icon-only rail. Reuses the existing split-width breakpoint family (the same

@@ -7,7 +7,14 @@
 -- exists, and does NOT make team_id NOT NULL: unresolved legacy rows require an owner decision
 -- before that enforcement is safe.
 --
--- DOWN (reversible): drop function mos._rehome_task_teams(uuid); drop table mos.task_team_rehome_ledger;
+-- DOWN (safe and reversible): while the ledger still exists, first run
+--   select * from mos._rollback_task_team_rehome('<batch_id>');
+-- and review its restored/skipped counts. It restores only untouched `via-run` rows whose current
+-- Team still equals the migration's assigned Team; a later owner edit is skipped and preserved.
+-- The migration's generated batch id is recoverable before DOWN with:
+--   select distinct batch_id from mos.task_team_rehome_ledger order by batch_id;
+-- Only after that review may the operator drop mos._rollback_task_team_rehome(uuid),
+-- mos._rehome_task_teams(uuid), and mos.task_team_rehome_ledger. Do not drop the ledger first.
 -- Do not drop mos.tasks.team_id: that column belongs to the squashed baseline.
 
 create table mos.task_team_rehome_ledger (
@@ -165,6 +172,54 @@ $$;
 comment on function mos._rehome_task_teams(uuid) is
   'Maintenance-only, fail-closed Task Team rehome. Only run-backed Tasks resolve through a valid same-org process-run owning Team with matching BU. Ad-hoc Tasks remain unresolved, with current active same-org BU candidates recorded for owner ratification.';
 revoke all on function mos._rehome_task_teams(uuid) from public, anon, authenticated;
+
+create or replace function mos._rollback_task_team_rehome(p_batch_id uuid)
+returns table(restored integer, skipped integer)
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row       record;
+  v_restored  integer := 0;
+  v_skipped   integer := 0;
+begin
+  if p_batch_id is null then
+    raise exception 'rollback batch_id is required' using errcode = '22004';
+  end if;
+
+  -- Roll back only automatic run-backed assignments. The current-value predicate is the safety
+  -- barrier: if an owner or another maintenance pass changed the Team after this migration, the
+  -- row is skipped rather than clobbered. The ledger remains available for audit until the caller
+  -- explicitly drops it as the final DOWN step.
+  for v_row in
+    select l.task_id, l.previous_team_id, l.assigned_team_id
+      from mos.task_team_rehome_ledger l
+     where l.batch_id = p_batch_id
+       and l.state = 'auto_resolved'
+       and l.resolution_method = 'via-run'
+     order by l.task_id
+  loop
+    update mos.tasks
+       set team_id = v_row.previous_team_id
+     where id = v_row.task_id
+       and team_id = v_row.assigned_team_id;
+    if found then
+      v_restored := v_restored + 1;
+    else
+      v_skipped := v_skipped + 1;
+    end if;
+  end loop;
+
+  restored := v_restored;
+  skipped := v_skipped;
+  return next;
+end;
+$$;
+
+comment on function mos._rollback_task_team_rehome(uuid) is
+  'Maintenance-only safe DOWN helper. Restores only untouched via-run assignments from one batch; skips rows whose current Team no longer equals the recorded assignment, preserving later owner edits. Keep the ledger until the caller reviews the result.';
+revoke all on function mos._rollback_task_team_rehome(uuid) from public, anon, authenticated;
 
 -- Execute once for rows present at migration time. The result is intentionally returned to the
 -- migration runner as the pre-enforcement evidence: auto_resolved and unresolved counts must be

@@ -12,13 +12,29 @@ export interface WorkLineRow {
   name: string
   type: 'project' | 'process'
   objective_id?: string | null
+  business_unit_id?: string | null
+  accountable_person_id?: string | null
+  responsible_person_id?: string | null
 }
+
+/** Ownership and cascade links a Project/Process carries; all are existing nullable columns. */
+export interface WorkLineOwnership {
+  objective_id?: string | null
+  business_unit_id?: string | null
+  accountable_person_id?: string | null
+  responsible_person_id?: string | null
+}
+
+const ACTIVE_COLUMNS =
+  'id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id'
+const ADMIN_COLUMNS =
+  'id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id,archived_at'
 
 /** List active (non-archived) work lines ordered by name (org-readable via RLS). */
 export async function listWorkLines(): Promise<WorkLineRow[]> {
   const { data, error } = await mos()
     .from('work_lines')
-    .select('id,name,type,objective_id')
+    .select(ACTIVE_COLUMNS)
     .is('archived_at', null)
     .order('name')
   if (error) throw new Error(`listWorkLines failed — ${error.message}`)
@@ -35,15 +51,8 @@ export interface WorkLineAdminRow {
   archived_at: string | null
   business_unit_id?: string | null
   accountable_person_id?: string | null
+  responsible_person_id?: string | null
 }
-
-/** Ownership a Project/Process carries (#801): unit and Accountable person — each optional. */
-export interface WorkLineOwnership {
-  business_unit_id?: string | null
-  accountable_person_id?: string | null
-}
-
-const ADMIN_COLUMNS = 'id,name,type,objective_id,archived_at,business_unit_id,accountable_person_id'
 
 /** List ALL work lines (active + archived) for the management surface — active first, then by name. */
 export async function listWorkLinesAll(): Promise<WorkLineAdminRow[]> {
@@ -56,7 +65,7 @@ export async function listWorkLinesAll(): Promise<WorkLineAdminRow[]> {
   return (data ?? []) as unknown as WorkLineAdminRow[]
 }
 
-/** Create a work line (org_id stamped by the DB; who may write in a unit is RLS's call). Returns the new row. */
+/** Create a work line (org_id stamped by the DB). Returns the new row. */
 export async function createWorkLine(
   name: string,
   type: 'project' | 'process',
@@ -71,16 +80,10 @@ export async function createWorkLine(
   return data as unknown as WorkLineAdminRow
 }
 
-/** Rename a work line. */
+/** Rename a work line. (type is immutable after creation — FR-014.) */
 export async function renameWorkLine(id: string, name: string): Promise<void> {
   const { error } = await mos().from('work_lines').update({ name }).eq('id', id)
   if (error) throw new Error(`renameWorkLine failed — ${error.message}`)
-}
-
-/** Change a work line's type. The database refuses it once an occurrence exists (#801). */
-export async function setWorkLineType(id: string, type: 'project' | 'process'): Promise<void> {
-  const { error } = await mos().from('work_lines').update({ type }).eq('id', id)
-  if (error) throw new Error(`setWorkLineType failed — ${error.message}`)
 }
 
 /** Archive / unarchive a work line (soft — toggles archived_at). */
@@ -90,4 +93,47 @@ export async function setWorkLineArchived(id: string, archived: boolean): Promis
     .update({ archived_at: archived ? new Date().toISOString() : null })
     .eq('id', id)
   if (error) throw new Error(`setWorkLineArchived failed — ${error.message}`)
+}
+
+// ── Record surface ────────────────────────────────────────────────────────────
+
+/** The existing columns rendered by a Project/Process record. */
+export interface WorkLineRecord {
+  id: string
+  name: string
+  type: 'project' | 'process'
+  objective_id: string | null
+  business_unit_id: string | null
+  accountable_person_id: string | null
+  responsible_person_id: string | null
+  archived_at: string | null
+  updated_at: string
+}
+
+const RECORD_COLUMNS =
+  'id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id,archived_at,updated_at'
+
+/** Read one Project/Process; null means no visible row, not a transport error. */
+export async function readWorkLine(id: string): Promise<WorkLineRecord | null> {
+  const { data, error } = await mos()
+    .from('work_lines')
+    .select(RECORD_COLUMNS)
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(`readWorkLine failed — ${error.message}`)
+  return (data as unknown as WorkLineRecord | null) ?? null
+}
+
+/** Fields a Project/Process record may patch; RLS and the database guard remain authoritative. */
+export interface WorkLinePatch {
+  name?: string
+  objective_id?: string | null
+  business_unit_id?: string | null
+  accountable_person_id?: string | null
+  responsible_person_id?: string | null
+}
+
+export async function updateWorkLine(id: string, patch: WorkLinePatch): Promise<void> {
+  const { error } = await mos().from('work_lines').update(patch).eq('id', id)
+  if (error) throw new Error(`updateWorkLine failed — ${error.message}`)
 }

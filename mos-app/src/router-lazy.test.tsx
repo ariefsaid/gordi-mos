@@ -29,6 +29,8 @@ import { ProfilePage } from './pages/profile-page'
 import { EventsWorkspacePage } from './pages/events-workspace-page'
 import { FollowUpsPage } from './pages/follow-ups-page'
 import { ObjectivesPage } from './pages/objectives-page'
+import { ObjectiveRecordPage } from './pages/objective-record-page'
+import { WorkLineRecordPage } from './pages/work-line-record-page'
 import { ProjectsProcessesPage } from './pages/projects-processes-page'
 import { InboxPage } from './pages/inbox-page'
 import { KitchenLogPage } from './pages/kitchen-log-page'
@@ -129,7 +131,9 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/work/signals', SignalsArchivePage, 'v4'],
   ['/work/signals/:signalId', SignalRecordPage, 'v4'],
   ['/work/objectives', ObjectivesPage, 'dev'],
+  ['/work/objectives/:objectiveId', ObjectiveRecordPage, 'redesign'],
   ['/work/projects', ProjectsProcessesPage, 'dev'],
+  ['/work/projects/:workLineId', WorkLineRecordPage, 'redesign'],
   ['/work/events', EventsWorkspacePage, 'dev'], 
   ['/money', DashboardPage, 'dev'],
   ['/money/detail', DashboardPage, 'dev'],

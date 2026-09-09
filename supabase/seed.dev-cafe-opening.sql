@@ -11,8 +11,7 @@
 -- authorization (her `member` access role holds process.start, OD-REDESIGN-71(iii); the Team
 -- membership is what scopes it, ADR-0051 D8) AND what resolves /cafe's Team context for her.
 --
--- ⚠ The Process NAME is load-bearing: getCafeOpeningProcessId (mos-app/src/lib/db/cafe-opening.ts)
--- resolves it by name = 'Café Opening' (RATIFY-7F name-based v1 seam). Renaming it here breaks /cafe.
+-- The stable cafe_opening code resolves this Process independently of its display name.
 --
 -- Fixed UUIDs where the e2e spec hardcodes them (WORK_LINE_ID e3000000-…-0001); people BY EMAIL,
 -- teams BY CODE (generated ids), same as seed.dev-processes.sql. Wired in supabase/config.toml
@@ -30,27 +29,9 @@ from shared.people p
 where p.email in ('cahya.dev@example.test', 'krishna.dev@example.test')
 on conflict (person_id, role_id) do nothing;
 
--- ── Krishna's kitchen-stream Team becomes his PRIMARY membership ─────────────────────────────
--- The kitchen-hand persona walk starts the opening as a PRIMARY member of the branch's stream
--- Team (OD-WAY-95 (4): primary Team of a stream Team of the branch starts). The generic seed
--- points Krishna's primary at the back office (LEAD, not line staff), which the gate rightly
--- refuses; the demo's headline actor is a kitchen hand, so his home is the kitchen line here.
-update shared.team_memberships m
-set is_primary = false
-from shared.people p, shared.teams t
-where m.person_id = p.id and m.team_id = t.id
-  and p.email = 'krishna.dev@example.test'
-  and t.code = 'hq_operations' and m.is_primary;
-update shared.team_memberships m
-set is_primary = true
-from shared.people p, shared.teams t
-where m.person_id = p.id and m.team_id = t.id
-  and p.email = 'krishna.dev@example.test'
-  and t.code = 'gordi_hq_kitchen' and not m.is_primary;
-
 -- ── Cahya's active radiant_operations membership ─────────────────────────────────────────────
--- Secondary on purpose: a primary would re-point Cahya's default context app-wide (seed.sql),
--- and the café start gate keys on stream Teams, not this org-structure row.
+-- is_primary FALSE for the same reason seed.dev-processes.sql gives for Dewi's: the gates need
+-- only an ACTIVE membership, and a primary would re-point Cahya's default context app-wide.
 insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from)
 select '10000000-0000-0000-0000-000000000001', p.id, t.id, false, current_date - 30
 from shared.people p, shared.teams t
@@ -62,10 +43,10 @@ where p.email = 'cahya.dev@example.test'
   );
 
 -- ── The Process, its daily cadence, and the three generated-Task definitions ─────────────────
-insert into mos.work_lines (id, org_id, name, code, type) values
+insert into mos.work_lines (id, org_id, name, type, code) values
   ('e3000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001',
-   'Café Opening', 'cafe_opening', 'process')
-on conflict (id) do nothing;
+   'Café Opening', 'process', 'cafe_opening')
+on conflict (id) do update set code = excluded.code;
 
 insert into mos.process_cadences (org_id, work_line_id, cadence_kind, active) values
   ('10000000-0000-0000-0000-000000000001', 'e3000000-0000-0000-0000-000000000001', 'daily', true)

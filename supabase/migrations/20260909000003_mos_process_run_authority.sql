@@ -1,11 +1,12 @@
 -- Process-run completion/cancellation authority and cancellation audit.
 --
--- The existing start gate remains unchanged: process.start plus active membership of the owning
--- Team (or admin). This migration narrows completion from that start gate to the run's starter,
--- ops_lead, or admin. The Team-lead arm is deliberately not inferred here: the current schema has
--- no Team-lead relation, and the authoritative work-systems spec leaves it dependent on
--- `mos.is_team_lead` (#767). A follow-up migration must extend mos.can_close_process_run once the
--- owner chooses the supported Team-lead identity.
+-- Existing start paths remain unchanged. In particular, Café Opening keeps its historical
+-- branch-specific start gate and canonical Team; other processes keep process.start plus active
+-- membership of the owning Team (or admin). This migration narrows completion from those start
+-- paths to the run's starter, ops_lead, or admin. The Team-lead arm is deliberately not inferred
+-- here: the current schema has no Team-lead relation, and the authoritative work-systems spec
+-- leaves it dependent on `mos.is_team_lead` (#767). A follow-up migration must extend
+-- mos.can_close_process_run once the owner chooses the supported Team-lead identity.
 --
 -- DOWN (manual, before production):
 --   recreate mos.complete_process_run(uuid) from 20260805000007_mos_functions.sql;
@@ -38,8 +39,9 @@ alter table mos.process_runs
 -- update, so new cancellations cannot omit their audit fields.
 
 comment on function mos.can_start_process_for_team(uuid) is
-  'Team-authorization gate for spawn/resolve (ADR-0051 D8). Paired with can(''process.start''), '
-  'never used alone; completion/cancellation use mos.can_close_process_run instead.';
+  'Team-authorization gate for the existing Team-scoped spawn/resolve paths (ADR-0051 D8). '
+  'Café Opening spawn uses its branch gate and canonical Team; completion/cancellation use '
+  'mos.can_close_process_run instead.';
 
 comment on column mos.process_runs.cancelled_at is
   'Server-stamped cancellation time; set only by mos.cancel_process_run.';

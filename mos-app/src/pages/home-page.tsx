@@ -77,10 +77,13 @@ export function HomePage() {
   const { locale } = useI18n()
   const auth = useAuth()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
-  // WIB day-parts per e7's greeting grammar: pagi <11, siang 11-15, sore 15+ (id conventions).
+  // Keep the Indonesian day-part grammar (siang <15, sore 15+) while giving English users the
+  // ordinary afternoon window through 18:00. The catalogs intentionally reuse the evening key for
+  // Indonesian "sore", so the locale controls the cutoff rather than adding another message key.
   const greetingKey = () => {
     const h = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'Asia/Jakarta' }).format(new Date()))
-    return h < 11 ? 'home.greeting.morning' as const : h < 15 ? 'home.greeting.afternoon' as const : 'home.greeting.evening' as const
+    const afternoonCutoff = locale === 'id' ? 15 : 19
+    return h < 11 ? 'home.greeting.morning' as const : h < afternoonCutoff ? 'home.greeting.afternoon' as const : 'home.greeting.evening' as const
   }
   const personId = viewer?.person?.id ?? null
   // Failed checks are an operational exception, not generic `/cafe/log` route admission. The route
@@ -276,8 +279,9 @@ export function HomePage() {
   }, [ready, personId, tasks, today, locale, directory, overdue, dueToday, blocked])
 
   // ── Member Café door ────────────────────────────────────────────────────────
-  // The door is only a member composition affordance. It reads the viewer's real primary stream
-  // and today's existing run; it never starts a process as a side effect of visiting Home.
+  // The door is only a member composition affordance. It reads the viewer's default Café branch,
+  // then the branch's canonical opening run; it never starts a process as a side effect of visiting
+  // Home.
   const cafeMember = Boolean(viewer && !holdsCockpitScope && viewer.affiliated.includes('cafe'))
   const [cafeDoor, setCafeDoor] = useState<HomeCafeDoorData | null>(null)
   const [cafeDoorState, setCafeDoorState] = useState<FetchState>('ready')
@@ -294,7 +298,7 @@ export function HomePage() {
     cafeDoorInFlightRef.current = true
     const token = ++cafeDoorTokenRef.current
     setCafeDoorState('loading')
-    loadHomeCafeDoor(personId)
+    loadHomeCafeDoor()
       .then(data => {
         if (!isMountedRef.current || cafeDoorTokenRef.current !== token) return
         setCafeDoor(data)
@@ -468,7 +472,7 @@ export function HomePage() {
               signals={signals}
               authorNamesById={directory.people ?? NO_NAMES}
               teamNamesById={teamNames}
-              showSearch={false}
+              showSearch={holdsCockpitScope}
               loading={signalsState === 'loading'}
               error={signalsState === 'error'}
               onReload={loadSignals}

@@ -263,12 +263,15 @@ describe('Team-work view query contract', () => {
     expect(parsed.query.view).toBe('my-work')
   })
 
-  it('supports the built-in Completed view through the existing view query contract', () => {
+  it('maps the legacy Completed URL to the All view plus the Done status filter', () => {
     const parsed = taskCollectionDescriptor.query.parse(new URLSearchParams('view=completed'), 'table')
     expect(parsed.ok).toBe(true)
-    if (!parsed.ok) throw new Error('view=completed must parse')
-    expect(parsed.query.view).toBe('completed')
-    expect(taskCollectionDescriptor.query.serialize(parsed.query).get('view')).toBe('completed')
+    if (!parsed.ok) throw new Error('legacy view=completed must be accepted as a compatibility alias')
+    expect(parsed.query.view).toBe('all')
+    expect(parsed.query.status).toBe('Done')
+    const serialized = taskCollectionDescriptor.query.serialize(parsed.query)
+    expect(serialized.get('view')).toBeNull()
+    expect(serialized.get('status')).toBe('done')
   })
 })
 

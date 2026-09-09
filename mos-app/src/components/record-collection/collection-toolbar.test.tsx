@@ -86,7 +86,8 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
     await userEvent.type(screen.getByRole('searchbox', { name: 'Search records' }), 'freezer')
     expect(onSearchChange).toHaveBeenLastCalledWith('freezer')
 
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Team' }), 'ops')
+    await userEvent.click(screen.getByRole('combobox', { name: 'Team' }))
+    await userEvent.click(screen.getByRole('option', { name: 'Operations' }))
     expect(onFilterChange).toHaveBeenCalledWith('ops')
 
     // Saved views live as chips on the same single view axis as the presets — no native popup.
@@ -163,8 +164,10 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     const panel = screen.getByRole('group', { name: /view & filters/i })
     expect(within(panel).getByText('Team')).toBeInTheDocument()
-    expect(within(panel).getByRole('combobox', { name: 'Team' })).toHaveValue('')
-    expect(within(panel).getByRole('option', { name: 'All teams' })).toBeInTheDocument()
+    const team = within(panel).getByRole('combobox', { name: 'Team' })
+    expect(team).toHaveTextContent('All teams')
+    await userEvent.click(team)
+    expect(screen.getByRole('option', { name: 'All teams' })).toBeInTheDocument()
   })
 
   it('omits unsupported capabilities instead of rendering disabled decorative controls', () => {
@@ -431,12 +434,14 @@ describe('CollectionToolbar — desktop keyboard and nested save behavior', () =
     /></I18nProvider>)
   }
 
-  it('traverses desktop controls without stealing native select keys', async () => {
+  it('keeps Picker keyboard interaction local and preserves toolbar traversal', async () => {
     stubDesktop(); renderToolbar()
-    const select = screen.getByRole('combobox', { name: 'Team' })
+    const picker = screen.getByRole('combobox', { name: 'Team' })
     const save = screen.getByRole('button', { name: /save view/i })
-    select.focus(); await userEvent.keyboard('{ArrowDown}'); expect(select).toHaveFocus()
-    save.focus(); await userEvent.keyboard('{ArrowUp}'); expect(select).toHaveFocus()
+    picker.focus(); await userEvent.keyboard('{ArrowDown}')
+    expect(screen.getByRole('listbox', { name: 'Team' })).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    save.focus(); await userEvent.keyboard('{ArrowUp}'); expect(picker).toHaveFocus()
   })
 
   it('Escape closes only the nested save row and keeps desktop options visible', async () => {

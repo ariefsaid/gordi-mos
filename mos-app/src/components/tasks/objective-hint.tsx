@@ -27,15 +27,14 @@ type ObjectiveHintProps = {
  * `guard-no-links-to-retired-paths.test.ts` cannot judge by reading text, and which is why this
  * file is the one exemption that sweep carries for Tasks.
  *
- * The drill is a search-param query rather than a record path because the Objectives catalog has
- * no per-record route: the hint carries a name, and the catalog's own search resolves it.
+ * Use the joined record identity so duplicate or renamed Objectives still open the right record.
  */
 export function ObjectiveHint({ hint, className }: ObjectiveHintProps) {
   const drillable = hint.id != null && !isShipGated('/work/objectives')
   return (
     <span className={className}>
       {drillable
-        ? <Link to={`/work/objectives?q=${encodeURIComponent(hint.name)}`}>{hint.name}</Link>
+        ? <Link to={`/work/objectives/${encodeURIComponent(hint.id!)}`}>{hint.name}</Link>
         : hint.name}
     </span>
   )

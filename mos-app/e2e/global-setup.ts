@@ -1,3 +1,4 @@
+import { DEMO_PASSWORD, DEMO_PERSONAS } from '../src/pages/demo-personas'
 // E2E global setup — PMO-aligned auth model (ADR-0002 D3 + 2026-06-21 dev/e2e isolation fix).
 //
 // OLD flakiness root cause: the previous setup created SEPARATE e2e auth users and then re-pointed
@@ -37,15 +38,8 @@ const __dir = dirname(__filename)
 const ORG = '10000000-0000-0000-0000-000000000001'
 
 // The seeded dev personas e2e logs in as / heals. Mirrors supabase/seed.sql + DemoLogin.tsx.
-const DEV_PASSWORD = 'Passw0rd!dev'
-const DEV_PERSONAS = [
-  'dewi.dev@example.test',
-  'cahya.dev@example.test',
-  'krishna.dev@example.test',
-  'rama.dev@example.test',
-  'sari.dev@example.test',
-  'fitri.dev@example.test',
-]
+const DEV_PASSWORD = DEMO_PASSWORD
+const DEV_PERSONAS = DEMO_PERSONAS.map(({ email }) => email)
 
 function loadEnvFile(path: string): Record<string, string> {
   try {

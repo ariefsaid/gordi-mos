@@ -32,7 +32,7 @@ export function HomeCafeDoor({ state = 'ready', data = null, onRetry }: HomeCafe
               <span className="home-cafe-door-kicker">{t('home.cafeDoor.title', { branch: data.branchName })}</span>
               <span className="home-cafe-door-checklist">
                 {data.opening.rollup
-                  ? t('home.cafeDoor.progress', {
+                  ? data.opening.rollup.total === 0 ? t('home.cafeDoor.noTasks') : t('home.cafeDoor.progress', {
                       done: data.opening.rollup.done,
                       total: data.opening.rollup.total,
                     })
@@ -41,7 +41,7 @@ export function HomeCafeDoor({ state = 'ready', data = null, onRetry }: HomeCafe
             </span>
             <span className="home-cafe-door-action">{t('home.cafeDoor.viewOpening')}</span>
           </Link>
-          <Link to="/cafe/log" className="home-cafe-door-log-link">
+          <Link to="/cafe/log" className="home-cafe-door-log-link tap-floor">
             {t('home.cafeDoor.logProduction')}
           </Link>
         </div>

@@ -99,8 +99,8 @@ describe('AC-062 toolbar CSS contract', () => {
   })
 })
 
-describe('AC-061 archive rows keep record actions', () => {
-  it('keeps Create task and Add category in the archive variant', () => {
+describe('AC-061 archive rows keep one clean record activation', () => {
+  it('removes per-row Create task and category actions from the archive variant', () => {
     render(
       <MemoryRouter>
         <I18nProvider>
@@ -111,12 +111,13 @@ describe('AC-061 archive rows keep record actions', () => {
             variant="archive"
             createTaskHref={() => '/work/tasks/new'}
             onCategorize={vi.fn()}
+            onOpen={vi.fn()}
           />
         </I18nProvider>
       </MemoryRouter>,
     )
-    expect(screen.getByRole('link', { name: /create task/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /add category/i })).toBeInTheDocument()
+    const signalRow = screen.getByRole('button', { name: /open signal: the freezer alarm went off/i })
+    expect(signalRow.querySelectorAll('button, a')).toHaveLength(0)
   })
 })
 
@@ -132,14 +133,19 @@ describe.each(['ambient', 'archive'] as const)('Signal row (%s) names its author
     expect(container.querySelector('.home-signal-avatar')).toBeNull()
   })
 
-  it('the meta line carries the author, location/time chips, and archive visibility', () => {
+  it('the meta line carries the author, time, and the variant-appropriate fact treatment', () => {
     const { container } = renderFeed(variant)
     const meta = container.querySelector('.home-signal-meta')!
     expect(within(meta as HTMLElement).getByText('Author One')).toBeInTheDocument()
     expect(within(meta as HTMLElement).getByText('HQ Operations')).toBeInTheDocument()
-    expect(meta.querySelector('.home-signal-location-chip')).toHaveTextContent('HQ Operations')
-    expect(meta.querySelector('.home-signal-time-chip')).toHaveTextContent(/2026/)
-    if (variant === 'archive') expect(within(meta as HTMLElement).getByText('Visible to HQ Operations')).toBeInTheDocument()
-    else expect(within(meta as HTMLElement).queryByText('Visible to HQ Operations')).not.toBeInTheDocument()
+    if (variant === 'archive') {
+      expect(meta.querySelector('.home-signal-location-chip')).toBeNull()
+      expect(meta.querySelector('.home-signal-time-chip')).toBeNull()
+      expect(meta.querySelectorAll('.home-signal-meta-fact').length).toBeGreaterThan(0)
+      expect(within(meta as HTMLElement).queryByText('Visible to HQ Operations')).not.toBeInTheDocument()
+    } else {
+      expect(meta.querySelector('.home-signal-location-chip')).toHaveTextContent('HQ Operations')
+      expect(meta.querySelector('.home-signal-time-chip')).toHaveTextContent(/2026/)
+    }
   })
 })

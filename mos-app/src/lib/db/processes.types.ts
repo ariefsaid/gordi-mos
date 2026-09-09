@@ -59,6 +59,15 @@ export interface ProcessRunRollup {
   completion_pct: number
 }
 
+/** One render-ready Process occurrence: the run, its derived task counts, and its owning Team.
+ * Counts stay sourced from mos.process_run_rollup; the client never recomputes them from a partial
+ * task list. */
+export interface ProcessOccurrenceSummary {
+  run: ProcessRunRow
+  team_name: string
+  rollup: ProcessRunRollup
+}
+
 /** A batched `mos.process_task_defs` lookup row (design fix wave items 2/4, Rule 11 — shared by
  * listPendingTasks' title resolution and the Occurrence group-by's "via <role>" provenance line). */
 export interface TaskDefLookup {

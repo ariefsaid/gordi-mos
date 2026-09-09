@@ -178,4 +178,19 @@ describe('query-state', () => {
     expect(parsed.ok).toBe(true)
     if (parsed.ok) expect(parsed.query.view).toBe('my-work')
   })
+
+  it('maps legacy Completed URLs to the All view plus the Done status filter', () => {
+    const parsed = readCollectionQuery(
+      taskCollectionQuery,
+      new URLSearchParams('layout=table&view=completed'),
+      'table',
+    )
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) return
+    expect(parsed.query.view).toBe('all')
+    expect(parsed.query.status).toBe('Done')
+    const written = writeCollectionQuery(taskCollectionQuery, parsed.query, new URLSearchParams())
+    expect(written.get('view')).toBeNull()
+    expect(written.get('status')).toBe('done')
+  })
 })

@@ -27,10 +27,11 @@ vi.mock('@/shell/destinations', async (importOriginal) => {
 })
 // DD-WAY-36: scoped flag flip so one test can light the follow-up palette search without
 // disturbing the darkness test below (default stays false).
-const features = vi.hoisted(() => ({ SHOW_FOLLOWUPS: false }))
+const features = vi.hoisted(() => ({ SHOW_FOLLOWUPS: false, SHOW_ASSISTANT: true }))
 vi.mock('@/config/features', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/config/features')>()),
   get SHOW_FOLLOWUPS() { return features.SHOW_FOLLOWUPS },
+  get SHOW_ASSISTANT() { return features.SHOW_ASSISTANT },
 }))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -79,6 +80,7 @@ function renderMenu(onClose = vi.fn(), locale: 'en' | 'id' = 'en', onShareSignal
 }
 
 beforeEach(() => {
+  features.SHOW_ASSISTANT = true
   localStorage.clear()
   vi.clearAllMocks()
   seam.override = null
@@ -348,6 +350,15 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
 
 // ── AC-015: universal actions (verb+object, stable order; no bare Create/Add/New) ──
 describe('AC-015: universal actions — Ask Deputy · Share Signal · Create Task', () => {
+  it.each(['search', 'launcher'] as const)('keeps creation available without an unavailable Deputy in %s mode', (mode) => {
+    features.SHOW_ASSISTANT = false
+    render(<I18nProvider><MemoryRouter>
+      <CommandMenu open mode={mode} onClose={vi.fn()} onShareSignal={vi.fn()} />
+    </MemoryRouter></I18nProvider>)
+    expect(screen.queryByRole('option', { name: /Ask Deputy/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Share.*Signal/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Create.*Task/i })).toBeInTheDocument()
+  })
   it('AC-015: lists the universal actions in stable order (verb+object)', () => {
     renderMenu()
     expect(screen.getByRole('option', { name: /Ask Deputy/i })).toBeInTheDocument()

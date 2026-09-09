@@ -441,11 +441,13 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
     const onEditPic = vi.fn().mockResolvedValue(undefined)
     renderRow({ onEditStatus, onEditPic, personOptions: [{ id: 'p-1', full_name: 'Rina Lestari' }, { id: 'p-2', full_name: 'Dewi Santoso' }] })
     fireEvent.click(screen.getByRole('button', { name: /Blocked/ }))
-    fireEvent.change(screen.getByRole('combobox', { name: 'Edit task status' }), { target: { value: 'Done' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'Edit task status' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Done' }))
     await waitFor(() => expect(onEditStatus).toHaveBeenCalledWith('task-7', 'Done'))
     await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Edit task status' })).toBeNull())
     fireEvent.click(document.querySelector('.td-owner .inline-cell-trigger') as HTMLElement)
-    fireEvent.change(screen.getByRole('combobox', { name: 'Edit task PIC' }), { target: { value: 'p-2' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'Edit task PIC' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Dewi Santoso' }))
     await waitFor(() => expect(onEditPic).toHaveBeenCalledWith('task-7', 'p-2'))
     await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Edit task PIC' })).toBeNull())
     expect(screen.getByRole('button', { name: /Done/ })).toBeInTheDocument()
@@ -454,7 +456,8 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
   it('re-picking the current status closes the editor', () => {
     renderRow({ onEditStatus: vi.fn() })
     fireEvent.click(screen.getByRole('button', { name: /Blocked/ }))
-    fireEvent.change(screen.getByRole('combobox', { name: 'Edit task status' }), { target: { value: 'Blocked' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'Edit task status' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Blocked' }))
     expect(screen.queryByRole('combobox', { name: 'Edit task status' })).toBeNull()
   })
 
@@ -474,10 +477,11 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
     const onEditPic = vi.fn().mockRejectedValue(new Error('write failed'))
     renderRow({ onEditPic, personOptions: [{ id: 'p-1', full_name: 'Rina Lestari' }, { id: 'p-2', full_name: 'Dewi Santoso' }] })
     fireEvent.click(document.querySelector('.td-owner .inline-cell-trigger') as HTMLElement)
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'p-2' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'Edit task PIC' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Dewi Santoso' }))
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/reverted/i))
     expect(screen.getByRole('alert')).toHaveTextContent(/retry/i)
-    expect(screen.getByRole('combobox')).toHaveValue('p-1')
+    expect(screen.getByRole('combobox', { name: 'Edit task PIC' })).toHaveTextContent('Rina Lestari')
   })
 
   it('double-click starts editing and Escape restores the saved title', () => {
@@ -490,6 +494,76 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
     expect(onEditTitle).not.toHaveBeenCalled()
     expect(screen.queryByLabelText('Edit task title')).toBeNull()
     expect(screen.getByText('Finalise Q3 roastery output forecast')).toBeInTheDocument()
+  })
+})
+
+describe('TaskRow — draft title stays put until ownership is complete', () => {
+  it('does not create or lose the title when Team/Supervisor focus changes before Enter', () => {
+    const onEditTitle = vi.fn().mockResolvedValue(undefined)
+    const onValidateNewTask = vi.fn()
+    renderRow({
+      task: makeTask({
+        id: 'new-task-1',
+        title: '',
+        team_id: null,
+        business_unit_id: '',
+        accountable_person_id: '',
+      }),
+      isNew: true,
+      onEditTitle,
+      onEditPic: vi.fn().mockResolvedValue(undefined),
+      onEditTeam: vi.fn().mockResolvedValue(undefined),
+      onEditSupervisor: vi.fn().mockResolvedValue(undefined),
+      onValidateNewTask,
+      teamOptions: [{ id: 'team-1', name: 'Café team', businessUnitId: 'bu-1' }],
+      supervisorOptions: [{ id: 'person-2', full_name: 'Dewi Santoso' }],
+    })
+
+    const title = screen.getByRole('textbox', { name: 'Edit task title' })
+    fireEvent.change(title, { target: { value: 'Ship the café launch' } })
+    fireEvent.blur(title)
+    expect(screen.getByRole('textbox', { name: 'Edit task title' })).toHaveValue('Ship the café launch')
+    expect(onEditTitle).not.toHaveBeenCalled()
+    expect(onValidateNewTask).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Edit task title' }), { key: 'Enter' })
+    expect(onEditTitle).not.toHaveBeenCalled()
+    expect(onValidateNewTask).toHaveBeenCalledWith('new-task-1')
+    expect(screen.getByRole('textbox', { name: 'Edit task title' })).toHaveValue('Ship the café launch')
+  })
+
+  it('keeps the draft editor open after a failed create and retries the same title', async () => {
+    const onEditTitle = vi.fn()
+      .mockRejectedValueOnce(new Error('create failed'))
+      .mockResolvedValueOnce(undefined)
+    const onDiscardNewTask = vi.fn()
+    renderRow({
+      task: makeTask({ id: 'new-task-2', title: '', team_id: 'team-1', accountable_person_id: 'p-1' }),
+      isNew: true,
+      onEditTitle,
+      onDiscardNewTask,
+      onEditTeam: vi.fn().mockResolvedValue(undefined),
+      onEditSupervisor: vi.fn().mockResolvedValue(undefined),
+      teamOptions: [{ id: 'team-1', name: 'Café team', businessUnitId: 'bu-1' }],
+      supervisorOptions: [{ id: 'p-1', full_name: 'Rina Lestari' }],
+      businessUnitName: 'Kitchen',
+    })
+
+    const title = screen.getByRole('textbox', { name: 'Edit task title' })
+    fireEvent.change(title, { target: { value: 'Retry this task' } })
+    fireEvent.keyDown(title, { key: 'Enter' })
+    const retry = await screen.findByRole('button', { name: /retry/i })
+    expect(screen.getByRole('textbox', { name: 'Edit task title' })).toHaveValue('Retry this task')
+    expect(screen.getByRole('combobox', { name: 'Team' })).toHaveTextContent('Café team')
+    expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Rina Lestari')
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+    expect(onDiscardNewTask).not.toHaveBeenCalled()
+
+    fireEvent.click(retry)
+    await waitFor(() => expect(onEditTitle).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'Edit task title' })).toHaveValue('Retry this task')
   })
 })
 

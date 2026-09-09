@@ -42,6 +42,8 @@ vi.mock('../../lib/db/signals', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getPersonTeams: vi.fn().mockResolvedValue([]),
+  getTeamsByIds: vi.fn().mockResolvedValue([]),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
@@ -56,7 +58,7 @@ vi.mock('@/lib/db/user-views-collection', () => ({
 
 import { listTasks, getTask, createTask, updateTaskFields } from '@/lib/db/tasks'
 import { linkSignalTask } from '@/lib/db/signals'
-import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams, getTeamsByIds } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listCollectionViews } from '@/lib/db/user-views-collection'
@@ -111,6 +113,9 @@ const PEOPLE = [
   { id: VIEWER_ID, full_name: 'Arief Said' },
   { id: 'other-id', full_name: 'Budi Setiawan' },
 ]
+const VIEWER_TEAMS = [{
+  id: 'team-1', name: 'Café team', businessUnitId: 'bu-1', siteId: null, orgId: 'org', isPrimary: true,
+}]
 
 function stubMatchMedia(split = true, desktop = true, narrow = !desktop) {
   Object.defineProperty(window, 'matchMedia', {
@@ -173,6 +178,11 @@ function renderTable(
   )
 }
 
+async function chooseDraftSupervisor(name = 'Budi Setiawan') {
+  fireEvent.click(await screen.findByRole('combobox', { name: 'Supervisor' }))
+  fireEvent.click(await screen.findByRole('option', { name }))
+}
+
 // D-A1 (fix work-order item 4) + I2 (#379) share this harness: render at an explicit route and
 // observe the location as the workspace navigates (?record= open/close journeys).
 function renderAt(entries: string[]) {
@@ -199,6 +209,8 @@ function renderAt(entries: string[]) {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  vi.mocked(getPersonTeams).mockResolvedValue(VIEWER_TEAMS)
+  vi.mocked(getTeamsByIds).mockResolvedValue([])
   localStorage.clear()
   __resetTasksViewPrefForTests()
   stubMatchMedia(true, true)
@@ -237,10 +249,17 @@ describe('D3e — Tasks create is an inline title row', () => {
     expect(screen.getAllByRole('textbox')).toHaveLength(1)
 
     fireEvent.change(titleInput, { target: { value: 'New inline task' } })
+    await chooseDraftSupervisor()
     mockCreateTask.mockResolvedValue('created-task')
     fireEvent.keyDown(titleInput, { key: 'Enter' })
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalled())
-    expect(mockCreateTask.mock.calls[0][0]).toMatchObject({ title: 'New inline task' })
+    expect(mockCreateTask.mock.calls[0][0]).toMatchObject({
+      title: 'New inline task',
+      teamId: 'team-1',
+      businessUnitId: 'bu-1',
+      responsiblePersonId: VIEWER_ID,
+      accountablePersonId: 'other-id',
+    })
   })
 
   it('Escape discards the inline row without writing', async () => {
@@ -252,6 +271,49 @@ describe('D3e — Tasks create is an inline title row', () => {
     fireEvent.keyDown(titleInput, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('textbox', { name: /title/i })).toBeNull())
     expect(mockCreateTask).not.toHaveBeenCalled()
+  })
+
+  it('keeps an ambiguous Team and empty Supervisor honest until the user chooses both', async () => {
+    vi.mocked(getPersonTeams).mockResolvedValue([
+      ...VIEWER_TEAMS,
+      { id: 'team-2', name: 'Retail team', businessUnitId: 'bu-2', siteId: null, orgId: 'org', isPrimary: false },
+    ])
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
+    renderTable()
+
+    await waitFor(() => expect(screen.getByText('Existing task')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '+ Create task' }))
+    const title = await screen.findByRole('textbox', { name: /title/i })
+    fireEvent.change(title, { target: { value: 'Choose ownership' } })
+    fireEvent.blur(title)
+    expect(screen.getByRole('textbox', { name: /title/i })).toHaveValue('Choose ownership')
+    expect(screen.getByRole('combobox', { name: 'Team' })).toHaveTextContent(/select team/i)
+    expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent(/select supervisor/i)
+    expect(mockCreateTask).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Team' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Retail team' }))
+    await chooseDraftSupervisor()
+    fireEvent.keyDown(screen.getByRole('textbox', { name: /title/i }), { key: 'Enter' })
+    await waitFor(() => expect(mockCreateTask).toHaveBeenCalled())
+    expect(mockCreateTask.mock.calls[0][0]).toMatchObject({
+      title: 'Choose ownership', teamId: 'team-2', businessUnitId: 'bu-2', accountablePersonId: 'other-id',
+    })
+  })
+
+  it('carries Project Create-task work-line and objective context into the inline create payload', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
+    mockCreateTask.mockResolvedValue('created-project-task')
+    renderTable({}, authedState, ['/work/tasks?create=1&work_line=wl-1&objective_id=obj-1'])
+
+    const title = await screen.findByRole('textbox', { name: /title/i })
+    fireEvent.change(title, { target: { value: 'Project task' } })
+    await chooseDraftSupervisor()
+    fireEvent.keyDown(title, { key: 'Enter' })
+    await waitFor(() => expect(mockCreateTask).toHaveBeenCalled())
+    expect(mockCreateTask.mock.calls[0][0]).toMatchObject({
+      title: 'Project task', workLineId: 'wl-1', objectiveId: 'obj-1', teamId: 'team-1', businessUnitId: 'bu-1',
+    })
   })
 })
 
@@ -265,6 +327,7 @@ describe('Create from Signal convergence', () => {
 
     const title = await screen.findByRole('textbox', { name: /title/i })
     fireEvent.change(title, { target: { value: 'Signal title' } })
+    await chooseDraftSupervisor()
     fireEvent.keyDown(title, { key: 'Enter' })
     await waitFor(() => expect(mockLinkSignalTask).toHaveBeenCalledWith('signal-42', 'created-from-signal'))
   })
@@ -277,6 +340,7 @@ describe('Create from Signal convergence', () => {
     fireEvent.click(await screen.findByRole('button', { name: /create task/i }))
     const title = await screen.findByRole('textbox', { name: /title/i })
     fireEvent.change(title, { target: { value: 'Signal title' } })
+    await chooseDraftSupervisor()
     fireEvent.keyDown(title, { key: 'Enter' })
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
     expect(mockCreateTask).toHaveBeenCalledTimes(1)
@@ -290,9 +354,10 @@ describe('Create from Signal convergence', () => {
     fireEvent.click(await screen.findByRole('button', { name: /create task/i }))
     const title = await screen.findByRole('textbox', { name: /title/i })
     fireEvent.change(title, { target: { value: 'Original' } })
+    await chooseDraftSupervisor()
     fireEvent.keyDown(title, { key: 'Enter' })
     await screen.findByRole('alert')
-    fireEvent.doubleClick(screen.getByText('Original'))
+    expect(screen.getByRole('textbox', { name: /title/i })).toHaveValue('Original')
     const edited = await screen.findByRole('textbox', { name: /title/i })
     fireEvent.change(edited, { target: { value: 'Edited after failure' } })
     fireEvent.keyDown(edited, { key: 'Enter' })
@@ -309,9 +374,10 @@ describe('Create from Signal convergence', () => {
     fireEvent.click(await screen.findByRole('button', { name: /create task/i }))
     const title = await screen.findByRole('textbox', { name: /title/i })
     fireEvent.change(title, { target: { value: 'Original' } })
+    await chooseDraftSupervisor()
     fireEvent.keyDown(title, { key: 'Enter' })
     await screen.findByRole('alert')
-    fireEvent.doubleClick(screen.getByText('Original'))
+    expect(screen.getByRole('textbox', { name: /title/i })).toHaveValue('Original')
     fireEvent.keyDown(await screen.findByRole('textbox', { name: /title/i }), { key: 'Escape' })
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/exists.*unlinked/i))
     expect(screen.queryByRole('textbox', { name: /title/i })).toBeNull()
@@ -326,6 +392,7 @@ describe('Create from Signal convergence', () => {
     fireEvent.click(await screen.findByRole('button', { name: /create task|buat tugas/i }))
     const title = await screen.findByRole('textbox')
     fireEvent.change(title, { target: { value: 'Original' } })
+    await chooseDraftSupervisor('Budi Setiawan')
     fireEvent.keyDown(title, { key: 'Enter' })
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Tugas dibuat, tautan gagal'))
   })
@@ -404,6 +471,16 @@ function ensureFiltersOpen() {
   const trigger = screen.getByRole('button', { name: /^filters(?:\s+\d+)?$/i })
   if (trigger.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
   return screen.getByRole('region', { name: /filter this queue/i })
+}
+
+function openAttentionMenu() {
+  const trigger = screen.getByRole('combobox', { name: /tasks need attention/i })
+  fireEvent.click(trigger)
+  return {
+    trigger,
+    overdue: screen.getByRole('option', { name: /overdue/i }),
+    blocked: screen.getByRole('option', { name: /blocked/i }),
+  }
 }
 
 function filterSelect(name: RegExp | string) {
@@ -492,7 +569,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     expect(screen.getByTestId('task-card')).toContainElement(screen.getByText('Manager mobile work item'))
   })
 
-  it('AC-W1-B: member phone keeps overdue filter and clear controls behind Filters', async () => {
+  it('AC-W1-B: member phone keeps the combined attention menu behind Filters', async () => {
     stubMatchMedia(false, false)
     mockListTasks.mockResolvedValue([
       makeTask({ id: 'late', title: 'Overdue mobile work', due_date: '2020-01-01' }),
@@ -502,16 +579,16 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     renderTable()
     await waitFor(() => screen.getByText('Overdue mobile work'))
 
-    expect(screen.queryByRole('button', { name: /filter to.*overdue/i })).toBeNull()
-    expect(screen.queryByRole('button', { name: /clear overdue filter/i })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: /tasks need attention/i })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: /^filters/i }))
-    expect(screen.getByRole('button', { name: /filter to.*overdue/i })).toBeInTheDocument()
+    const attention = openAttentionMenu()
+    expect(attention.overdue).toBeInTheDocument()
 
-    // FR-001: the pill IS the filter — clicking presses it (no second clear chip exists).
-    fireEvent.click(screen.getByRole('button', { name: /filter to.*overdue/i }))
-    await waitFor(() => expect(screen.getByRole('button', { name: /filter to.*overdue/i })).toHaveAttribute('aria-pressed', 'true'))
-    expect(screen.queryByRole('button', { name: /clear overdue filter/i })).toBeNull()
+    // Attention is one combined surface; choosing Overdue applies the queue scope directly.
+    fireEvent.click(attention.overdue)
+    await waitFor(() => expect(screen.queryByText('Future mobile work')).toBeNull())
+    expect(screen.getByText('Overdue mobile work')).toBeInTheDocument()
   })
 
   // RATIFY-BEFORE-MERGE: Luna 390 audit (d) — one create door. The header "+ Create task" is the
@@ -737,16 +814,15 @@ describe('Task 9 — group-by control in toolbar', () => {
 // ── Task 10 — saved-view mapping + reserved state ─────────────────────────────
 
 describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
-  // #743 AC-002: the AR Follow-ups chip is gone; the chip set is All · My work · Overdue
-  // (Team work is the saved-views ticket's, so its absence stays pinned here).
-  it('§Task-11 + AC-002: renders All / My work / Overdue chips — no Team work, no AR Follow-ups', async () => {
+  // #743 AC-002: the AR Follow-ups chip is gone; the stable scope set also includes Team work.
+  it('§Task-11 + AC-002: renders the four canonical All / My work / Team work / Overdue chips', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
     expect(screen.getByRole('tab', { name: 'All' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'My work' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Overdue' })).toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'Team work' })).toBeNull()
+    expect(screen.getByRole('tab', { name: 'Team work' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'AR Follow-ups' })).toBeNull()
   })
 
@@ -771,14 +847,11 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     expect(screen.queryByText('Future task')).toBeNull()
     expect(screen.getByRole('tab', { name: 'Overdue' })).toHaveAttribute('aria-selected', 'true')
     ensureFiltersOpen()
-    // The overdue-only state lives on the attention pill itself (FR-001) — pressed, not a chip.
-    expect(screen.getByRole('button', { name: /filter to.*overdue/i })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByRole('button', { name: /clear overdue filter/i })).toBeNull()
+    // The combined attention surface exposes the overdue count as a menu item.
+    expect(openAttentionMenu().overdue).toHaveTextContent('1 overdue')
   })
 
-  it('§Task-11: the org-visible task set is the All view (the removed Team-work chip is gone)', async () => {
-    // DELIBERATE goal change (§Task-11): "Team work" no longer exists as a saved view; the
-    // org-visible set is reached via All, which is the default view.
+  it('§Task-11: the org-visible task set is the All view, alongside Team work', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 'mine', title: 'Mine task' }),
       makeTask({ id: 'shared', title: 'Shared task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' }),
@@ -787,7 +860,7 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     await waitFor(() => screen.getByText('Mine task'))
     expect(screen.getByText('Shared task')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.queryByRole('tab', { name: 'Team work' })).toBeNull()
+    expect(screen.getByRole('tab', { name: 'Team work' })).toBeInTheDocument()
   })
 
   // AC-002 (#743, W-D step 3): the retired AR view redirects to the All view — the URL loses
@@ -920,7 +993,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     })
   })
 
-  it('AC-128: the "N overdue" count is a button that filters to overdue-only and is clearable', async () => {
+  it('AC-128: the combined attention menu filters to overdue-only', async () => {
     const overdueDate = '2020-01-01' // well in the past
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Overdue task', due_date: overdueDate }),
@@ -937,29 +1010,20 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
       expect(screen.getByText('Normal task')).toBeInTheDocument()
     })
 
-    // The overdue control lives in the disclosed Filters surface, not the page head.
+    // The combined attention control lives in the disclosed Filters surface, not the page head.
     ensureFiltersOpen()
-    const overdueBtn = screen.getByRole('button', { name: /filter to.*overdue/i })
-    expect(overdueBtn).toBeInTheDocument()
-    expect(overdueBtn.getAttribute('aria-label')).toMatch(/filter to.*overdue/i)
+    const attention = openAttentionMenu()
+    expect(attention.trigger).toBeInTheDocument()
+    expect(attention.trigger.getAttribute('aria-label')).toMatch(/tasks need attention/i)
 
-    // Click it → only overdue rows shown, and the pill ITSELF carries the active state (FR-001).
-    fireEvent.click(overdueBtn)
+    // Choose Overdue → only overdue rows shown through the shared query path.
+    fireEvent.click(attention.overdue)
     await waitFor(() => {
       expect(screen.queryByText('Normal task')).toBeNull()
       expect(screen.getByText('Overdue task')).toBeInTheDocument()
     })
-    expect(overdueBtn).toHaveAttribute('aria-pressed', 'true')
-    expect(overdueBtn.className).toContain('tasks-overdue-filter--active')
-    expect(screen.queryByRole('button', { name: /clear overdue filter/i })).toBeNull()
+    expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
 
-    // Clicking the same pressed pill clears — both tasks visible again.
-    fireEvent.click(overdueBtn)
-    await waitFor(() => {
-      expect(screen.getByText('Normal task')).toBeInTheDocument()
-      expect(screen.getByText('Overdue task')).toBeInTheDocument()
-    })
-    expect(overdueBtn).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('AC-133: Clear filters button resets all filters', async () => {
@@ -1594,11 +1658,11 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
       expect(screen.getByText('Done past due')).toBeInTheDocument()
       expect(screen.getByText('Open past due')).toBeInTheDocument()
     })
-    // The disclosed Filters control counts only the open task, not the Done task.
+    // The disclosed attention control counts only the open task, not the Done task.
     ensureFiltersOpen()
-    const overdueButton = screen.getByRole('button', { name: /filter to.*overdue/i })
-    expect(overdueButton).toHaveTextContent('1 overdue')
-    expect(overdueButton).not.toHaveTextContent('2 overdue')
+    const attention = openAttentionMenu()
+    expect(attention.overdue).toHaveTextContent('1 overdue')
+    expect(attention.overdue).not.toHaveTextContent('2 overdue')
   })
 
   it('RI-1: a Done task with a past due_date does NOT show the red "Overdue ·" row label', async () => {
@@ -1988,11 +2052,12 @@ describe('Ticket #750 — AC-022 in-row PIC/Due edit follows the permission rule
     const picTrigger = document.querySelector('td.td-owner button.inline-cell-trigger') as HTMLButtonElement
     expect(picTrigger, 'PIC cell is editable for the manager above the PIC').toBeTruthy()
     fireEvent.click(picTrigger)
-    const picSelect = screen.getByRole('combobox', { name: 'Edit task PIC' }) as HTMLSelectElement
-    const optionLabels = [...picSelect.options].map((option) => option.textContent)
+    const picSelect = screen.getByRole('combobox', { name: 'Edit task PIC' })
+    fireEvent.click(picSelect)
+    const optionLabels = screen.getAllByRole('option').map((option) => option.textContent)
     expect(optionLabels).toEqual(['Arief Said', 'Rina Barista'])
     // Saves in place through the same updateTaskFields path the record editor uses.
-    fireEvent.change(picSelect, { target: { value: VIEWER_ID } })
+    fireEvent.click(screen.getByRole('option', { name: 'Arief Said' }))
     await waitFor(() => expect(mockUpdateTaskFields).toHaveBeenCalledWith(
       'bar-task', { responsible_person_id: VIEWER_ID }, VIEWER_ID, DOWNLINE_ID,
     ))

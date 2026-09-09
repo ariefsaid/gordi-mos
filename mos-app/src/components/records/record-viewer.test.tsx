@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { RecordViewer } from './record-viewer'
@@ -199,12 +200,13 @@ describe('RecordViewer', () => {
   })
 
   it('FR-V3-012 / OverlayBoundaryContract: commits route through onCommitField by field key', async () => {
+    const user = userEvent.setup()
     const onCommitField = vi.fn(async () => {})
     renderViewer(taskAdapter(), { onCommitField })
     // Value-first: activate the field, then the commit routes through onCommitField by key.
     fireEvent.click(screen.getByRole('button', { name: 'Edit Business Unit' }))
-    const bu = screen.getByLabelText('Business Unit') as HTMLSelectElement
-    fireEvent.change(bu, { target: { value: 'bu-hq' } })
+    await user.click(screen.getByRole('combobox', { name: 'Business Unit' }))
+    await user.click(screen.getByRole('option', { name: 'HQ Ops' }))
     expect(onCommitField).toHaveBeenCalledWith('businessUnit', 'bu-hq')
     // Let the async commit settle so the "Saved" state update is flushed inside act.
     expect(await screen.findByText('Saved')).toBeInTheDocument()

@@ -45,7 +45,8 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
-import { Select } from '@/components/ui/select'
+import { Picker } from '@/components/ui/picker'
+import { Link, useInRouterContext } from 'react-router-dom'
 import { DateField } from '@/components/ui/date-field'
 import type { RecordFieldControl, RecordFieldSpec, RecordValue } from './record-viewer.types'
 import './record-viewer.css'
@@ -248,6 +249,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
 
   // ── Value mode: the document view — value + quiet edit affordance ───────────────────────
   if (!editing) {
+    const linked = Boolean(spec.href && !isEmptyValue(spec))
     const editButton = (
       <button
         type="button"
@@ -259,7 +261,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
         aria-haspopup={spec.control === 'status' ? 'listbox' : undefined}
         onClick={beginEdit}
       >
-        <span id={`${controlId}-value`} className="record-field__value">{renderValueNode(spec)}</span>
+        {!linked && <span id={`${controlId}-value`} className="record-field__value">{renderValueNode(spec)}</span>}
         <span className="record-field__edit-affordance" aria-hidden="true">
           {PENCIL}
         </span>
@@ -280,7 +282,12 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
           {spec.required ? <span aria-hidden="true"> *</span> : null}
         </span>
         <div className="record-field__value-cell">
-          {heading ? <h1 aria-labelledby={`${controlId}-value`} className="record-field__value record-field__heading">{editButton}</h1> : editButton}
+          {linked ? (
+            <div className="record-field__linked-value">
+              <span className="record-field__value">{renderValueNode(spec)}</span>
+              {editButton}
+            </div>
+          ) : heading ? <h1 aria-labelledby={`${controlId}-value`} className="record-field__value record-field__heading">{editButton}</h1> : editButton}
           {feedback}
         </div>
       </div>
@@ -300,31 +307,31 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
           // The wrapper carries the native capture Escape isolation for the picker (a select has
           // no draft to retype, so its Escape simply returns to the value view, shielded from host).
           <div ref={attachFieldEscapeIsolation} className="record-field__select-wrap">
-            <Select
+            <Picker
               id={controlId}
-              className="record-field__select"
+              className="record-field__picker"
+              triggerClassName="record-field__picker-trigger"
               fullWidth
+              hideLabel
               autoFocus
               value={draft}
+              label={spec.label}
               disabled={busy}
-              aria-busy={busy || undefined}
-              aria-required={spec.required || undefined}
-              onChange={(e) => {
-                const next = e.target.value
+              busy={busy}
+              error={status === 'error'}
+              required={spec.required}
+              onChange={(next) => {
                 setDraft(next)
                 void commit(next, false)
               }}
-              onBlur={() => {
-                // Dismissing the picker without a change returns to the value rendering.
-                if (draftRef.current === toInputValue(savedRef.current)) setEditing(false)
+              onOpenChange={(open, reason) => {
+                if (open || reason === 'select') return
+                // Dismissing the picker without a change returns to the value rendering. The
+                // picker consumes Escape locally; this keeps the host panel's Escape path clean.
+                if (draftRef.current === toInputValue(savedRef.current)) cancel()
               }}
-            >
-              {(spec.options ?? []).map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </Select>
+              options={spec.options ?? []}
+            />
           </div>
         ) : spec.control === 'textarea' ? (
           <textarea
@@ -445,21 +452,46 @@ function renderValueNode(spec: RecordFieldSpec): ReactNode {
     // data-status attribute drives the semantic hue in record-viewer.css. It carries the RAW
     // enum `value` (stable, English) — `displayValue` is the locale-facing text (DO-13/I18N-2),
     // so keying the hue off it would break the pill colors outside `en`.
-    return (
+    return wrapValue(spec, (
       <span className="record-field__pill" data-status={typeof spec.value === 'string' ? spec.value : spec.displayValue}>
         <span className="record-field__pill-dot" aria-hidden="true" />
         {spec.displayValue}
         <span aria-hidden="true" className="record-field__pill-caret" />
       </span>
-    )
+    ), empty)
   }
   if (CHIP_CONTROLS.has(spec.control) && !empty) {
-    return <span className="record-field__chip">{spec.displayValue}</span>
+    return wrapValue(spec, <span className="record-field__chip">{spec.displayValue}</span>, empty)
   }
   if (spec.control === 'date' && !empty) {
-    return <span className="record-field__inline-pill">{spec.displayValue}</span>
+    return wrapValue(spec, <span className="record-field__inline-pill">{spec.displayValue}</span>, empty)
   }
-  return <>{spec.displayValue}</>
+  return wrapValue(spec, <>{spec.displayValue}</>, empty)
+}
+
+function wrapValue(spec: RecordFieldSpec, value: ReactNode, empty: boolean): ReactNode {
+  const primary = spec.href && !empty
+    ? <RecordFieldLink href={spec.href} onOpen={spec.onOpen}>{value}</RecordFieldLink>
+    : value
+  if (!spec.subline) return primary
+  return (
+    <span className="record-field__value-stack">
+      <span className="record-field__value-main">{primary}</span>
+      <span className="record-field__subline">{spec.subline}</span>
+    </span>
+  )
+}
+
+function RecordFieldLink({ href, onOpen, children }: { href: string; onOpen?: () => void; children: ReactNode }) {
+  const inRouter = useInRouterContext()
+  const onClick: React.MouseEventHandler<HTMLAnchorElement> = (event) => {
+    if (!onOpen || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    event.preventDefault()
+    onOpen()
+  }
+  return inRouter && href.startsWith('/') && !href.startsWith('//')
+    ? <Link className="record-field__link" to={href} onClick={onClick}>{children}</Link>
+    : <a className="record-field__link" href={href} onClick={onClick}>{children}</a>
 }
 
 function renderFeedback(

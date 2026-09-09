@@ -105,6 +105,25 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
     expect(screen.getByText('Title b')).toBeInTheDocument()
   })
 
+  it('renders actor/source title, type, attention, and a concise source line', () => {
+    renderTriage({ rows: [trow('signal-1', {
+      title: 'You were mentioned in a Signal',
+      body: 'The freezer alarm went off\nInvestigating the grinder.',
+      metadata: {
+        source: 'mention',
+        attention: 'Urgent',
+        actor: { id: 'person-cahya', name: 'Cahya' },
+        entity: { type: 'signal', id: 'signal-1' },
+      },
+    })] })
+    const row = document.querySelector('[data-notification-id="signal-1"]') as HTMLElement
+    expect(within(row).getByText('Cahya mentioned you')).toBeInTheDocument()
+    expect(within(row).getByText('Signal')).toBeInTheDocument()
+    expect(within(row).getByText('Urgent')).toBeInTheDocument()
+    expect(within(row).getByText('The freezer alarm went off')).toBeInTheDocument()
+    expect(within(row).queryByText('Investigating the grinder.')).not.toBeInTheDocument()
+  })
+
   it('issue #583: each row renders its created time in the shared humane-age format, reused not reinvented', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-20T03:00:00Z')) // 3h after row a's created_at

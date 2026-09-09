@@ -210,6 +210,23 @@
   color: var(--muted-foreground);
 }
 
+/* Archive rows are a revisit surface: metadata is one quiet fact line (author · Team · time ·
+   category), not a second visibility/action treatment. The chips remain an ambient-only cue. */
+.home-signal-meta--archive {
+  gap: 6px;
+}
+
+.home-signal-meta--archive .home-signal-meta-fact {
+  display: inline;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
 .home-signal-tail {
   flex: none;
   display: flex;
@@ -256,6 +273,10 @@
 .home-signal-feed--archive .home-signal-row--urgent {
   background: color-mix(in srgb, var(--warning) 7%, transparent);
   border-left-color: var(--warning);
+}
+
+.home-signal-feed--archive .home-signal-row--open {
+  cursor: pointer;
 }
 
 .home-signal-row--retracted { padding: var(--row-pad-y, 10px) 4px; }

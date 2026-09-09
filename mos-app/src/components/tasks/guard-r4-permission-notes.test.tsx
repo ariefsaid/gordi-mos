@@ -11,8 +11,9 @@
  *
  * Structure asserted through the REAL production path — createTaskRecordAdapter rendered by
  * RecordViewer — not a synthetic fixture, so a regression in either layer trips it:
- *   read-only record → exactly 1 footer note, 0 per-field .record-field__reason lines.
- *   editable record  → 0 notes, 0 reason lines.
+ *   read-only record → exactly 1 footer note, 0 per-field permission reason lines.
+ *   editable record  → 0 notes, 0 permission reason lines.
+ *   A Team provenance/migration hint is intentionally allowed on the Team field.
  */
 import { describe, it, expect, vi } from 'vitest'
 import { render } from '@testing-library/react'
@@ -82,29 +83,31 @@ function renderRecord(overrides: Partial<TaskRecordAdapterInput> = {}) {
 }
 
 const notes = () => document.querySelectorAll('.record-viewer__permission-note')
-const fieldReasons = () => document.querySelectorAll('.record-field__reason')
+const permissionFieldReasons = () => document.querySelectorAll(
+  '[data-field-key]:not([data-field-key="team"]) .record-field__reason',
+)
 
 describe('GUARD-R4: a record renders at most ONE not-permitted reason line', () => {
-  it('GUARD-R4: read-only viewer → exactly 1 footer note, 0 per-field reason lines', () => {
+  it('GUARD-R4: read-only viewer → exactly 1 footer note, 0 per-field permission reason lines', () => {
     const adapter = renderRecord({ viewerId: STRANGER })
     expect(adapter.permission.readOnly).toBe(true) // precondition: this IS the read-only path
     expect(notes()).toHaveLength(1)
-    expect(fieldReasons()).toHaveLength(0)
+    expect(permissionFieldReasons()).toHaveLength(0)
   })
 
-  it('GUARD-R4: archived record (read-only for everyone) → still exactly 1 note, 0 per-field reasons', () => {
+  it('GUARD-R4: archived record (read-only for everyone) → still exactly 1 note, 0 per-field permission reasons', () => {
     renderRecord({
       viewerId: PIC, // even the PIC reads an archived record read-only
       detail: makeDetail(makeTask({ archived_at: '2026-07-21T00:00:00Z' })),
     })
     expect(notes()).toHaveLength(1)
-    expect(fieldReasons()).toHaveLength(0)
+    expect(permissionFieldReasons()).toHaveLength(0)
   })
 
   it('GUARD-R4: editable viewer → zero permission noise anywhere', () => {
     const adapter = renderRecord({ viewerId: PIC })
     expect(adapter.permission.readOnly).toBe(false)
     expect(notes()).toHaveLength(0)
-    expect(fieldReasons()).toHaveLength(0)
+    expect(permissionFieldReasons()).toHaveLength(0)
   })
 })

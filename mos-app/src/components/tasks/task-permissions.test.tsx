@@ -27,6 +27,10 @@ describe('task permission oracle (mirrors mos.can_edit_task / the archive clause
     expect(canEdit(t({}), 'a', [])).toBe(true)
     expect(canArchive(t({}), 'a', [])).toBe(true)
   })
+  it('OD-WAY-94: the PIC cannot archive even when also stored as Supervisor', () => {
+    expect(canEdit(t({ accountable_person_id: 'r' }), 'r', [])).toBe(true)
+    expect(canArchive(t({ accountable_person_id: 'r' }), 'r', [])).toBe(false)
+  })
   it('AC-061: a manager above the PIC (the PIC is in their downline) may edit and archive', () => {
     expect(canEdit(t({}), 'x', ['r'])).toBe(true)
     expect(canArchive(t({}), 'x', ['r'])).toBe(true)

@@ -160,10 +160,15 @@ describe('getSignal', () => {
   it('reads the signal row + mentions + acknowledgements + signal_tasks', async () => {
     const rec = freshRec()
     mockSupabase({
-      'mos.signals': [{ data: sampleSignal, error: null }],
-      'mos.signal_mentions': [{ data: [{ id: 'm1' }], error: null }],
-      'mos.signal_acknowledgements': [{ data: [{ id: 'a1' }], error: null }],
-      'mos.signal_tasks': [{ data: [{ id: 'st1' }], error: null }],
+      'mos.signals': [{
+        data: {
+          ...sampleSignal,
+          signal_mentions: [{ id: 'm1' }],
+          signal_acknowledgements: [{ id: 'a1' }],
+          signal_tasks: [{ id: 'st1' }],
+        },
+        error: null,
+      }],
     }, rec)
 
     const out = await getSignal(SIGNAL_ID)
@@ -171,15 +176,23 @@ describe('getSignal', () => {
     expect(out.mentions).toEqual([{ id: 'm1' }])
     expect(out.acknowledgements).toEqual([{ id: 'a1' }])
     expect(out.tasks).toEqual([{ id: 'st1' }])
-    expect(rec.fromTables).toEqual([
-      'mos.signals', 'mos.signal_mentions', 'mos.signal_acknowledgements', 'mos.signal_tasks',
-    ])
+    expect(rec.selects[0]).toContain('signal_mentions(*)')
+    expect(rec.selects[0]).toContain('signal_acknowledgements(*)')
+    expect(rec.selects[0]).toContain('signal_tasks(*)')
   })
 
   it('throws when the signal read errors', async () => {
     const rec = freshRec()
-    mockSupabase({ 'mos.signals': [{ data: null, error: { message: 'nope' } }] }, rec)
-    await expect(getSignal(SIGNAL_ID)).rejects.toThrow(/nope/)
+    mockSupabase({
+      'mos.signals': [{
+        data: null,
+        error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' },
+      }],
+    }, rec)
+    await expect(getSignal(SIGNAL_ID)).rejects.toMatchObject({
+      code: 'PGRST116',
+      message: expect.stringContaining('JSON object requested, multiple (or no) rows returned'),
+    })
   })
 })
 

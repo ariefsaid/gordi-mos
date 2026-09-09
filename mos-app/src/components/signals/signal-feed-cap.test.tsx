@@ -71,11 +71,14 @@ describe('the ambient Signals column caps at 6 and states the remainder', () => 
       .toHaveAttribute('href', '/work/signals?q=Signal+body')
   })
 
-  it('exposes Create Task directly on the posted feed row', async () => {
-    const onCreateTask = vi.fn()
-    renderFeed('archive', 1, { onCreateTask })
-    await userEvent.click(screen.getByRole('button', { name: /create task/i }))
-    expect(onCreateTask).toHaveBeenCalledWith(expect.objectContaining({ id: 'signal-0' }))
+  it('keeps archive rows free of nested row actions', async () => {
+    const onOpen = vi.fn()
+    renderFeed('archive', 1, { onOpen })
+    const signalRow = screen.getByRole('button', { name: /open signal: signal body number 0/i })
+    expect(signalRow).toHaveAttribute('data-signal-id', 'signal-0')
+    expect(signalRow.querySelectorAll('button, a')).toHaveLength(0)
+    await userEvent.click(signalRow)
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 'signal-0' }))
   })
 
   it('the archive Feed is NOT capped — it is the full collection', () => {

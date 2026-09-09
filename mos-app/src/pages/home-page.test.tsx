@@ -296,8 +296,19 @@ describe('AC-H02: a member sees a usable brief and live Signals column', () => {
   it('does not leave the member Home blank', async () => {
     await renderHome(memberViewer)
     expect(await screen.findByTestId('home-daily-brief')).toBeInTheDocument()
-    expect(await screen.findByRole('region', { name: /^Signals · \d+$/ })).toBeInTheDocument()
+    const signals = await screen.findByRole('region', { name: /^Signals · \d+$/ })
+    expect(signals).toBeInTheDocument()
+    expect(within(signals).getByRole('button', { name: /Share a Signal/i })).toBeInTheDocument()
+    expect(within(signals).queryByRole('searchbox', { name: /search signals/i })).toBeNull()
     expect(mockListRevenue).not.toHaveBeenCalled()
+  })
+
+  it('restores Signal search for cockpit viewers while members keep the Share-only toolbar', async () => {
+    await renderHome(financeViewer)
+
+    const signals = await screen.findByRole('region', { name: /^Signals · \d+$/ })
+    expect(within(signals).getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
+    expect(within(signals).getByRole('button', { name: /Share a Signal/i })).toBeInTheDocument()
   })
 
   it('keeps an ordinary member on assigned steps before Signals, without cockpit regions', async () => {
@@ -606,6 +617,27 @@ describe('AC-040 / AC-052: Home identity is day-aware and does not add a mention
     expect(mockListNotifications).not.toHaveBeenCalled()
   })
 
+  it('keeps English in the afternoon at 15:17 WIB while Indonesian says sore', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-09-09T08:17:00.000Z'))
+
+      window.localStorage.setItem('mos.locale', 'en')
+      const english = await renderHome(ownerDirectorViewer)
+      expect(within(screen.getByTestId('page-head')).getByRole('heading', { level: 1 }))
+        .toHaveTextContent('Good afternoon')
+      english.unmount()
+
+      window.localStorage.setItem('mos.locale', 'id')
+      const indonesian = await renderHome(ownerDirectorViewer)
+      expect(within(screen.getByTestId('page-head')).getByRole('heading', { level: 1 }))
+        .toHaveTextContent('Selamat sore')
+      indonesian.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('withholds the header tally while an independent region read fails', async () => {
     mockLoadFailedChecks.mockRejectedValue(new Error('offline'))
     mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
@@ -628,18 +660,18 @@ describe('AC-204 (4): the shipped Home carries the gated Objectives door', () =>
       { id: 'obj-1', name: 'Q3 Growth', done: 2, total: 3 },
     ])
     await renderHome(ownerDirectorViewer)
-    const link = await screen.findByRole('link', { name: /see progress/i })
+    const link = await screen.findByRole('link', { name: /^See all →$/ })
     expect(link).toHaveAttribute('href', '/work/objectives')
     expect(objectivesDoor()).toContainElement(link)
     expect(objectivesDoor()).not.toHaveTextContent(/Progress rolls up from each Objective/i)
     expect(objectivesDoor()).not.toHaveTextContent(/coming/i)
     expect(await within(objectivesDoor()).findByRole('link', { name: /Q3 Growth.*2\/3 done/i }))
-      .toHaveAttribute('href', '/work/objectives?q=Q3%20Growth')
+      .toHaveAttribute('href', '/work/objectives/obj-1')
   })
 
   it('gives a function owner the same door', async () => {
     await renderHome(functionOwnerViewer)
-    const link = await screen.findByRole('link', { name: /see progress/i })
+    const link = await screen.findByRole('link', { name: /^See all →$/ })
     expect(link).toHaveAttribute('href', '/work/objectives')
     expect(objectivesDoor()).toContainElement(link)
   })
@@ -648,7 +680,7 @@ describe('AC-204 (4): the shipped Home carries the gated Objectives door', () =>
     await renderHome(noScopeViewer)
     await screen.findByTestId('home-daily-brief')
     await waitFor(() => expect(mockGetRoles).toHaveBeenCalled())
-    expect(screen.queryByRole('link', { name: /see progress/i })).toBeNull()
+    expect(screen.queryByRole('link', { name: /^See all →$/ })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Objectives' })).toBeNull()
   })
 })
@@ -662,7 +694,7 @@ describe('issue 444 mechanism: the door component owns its canonical destination
         </MemoryRouter>
       </I18nProvider>,
     )
-    expect(screen.getByRole('link', { name: /see progress/i }))
+    expect(screen.getByRole('link', { name: /^See all →$/ }))
       .toHaveAttribute('href', '/work/objectives')
     expect(screen.queryByText(/Progress rolls up from each Objective/i)).toBeNull()
   })

@@ -5,6 +5,7 @@ import { useListboxPopover } from '@/components/ui/use-listbox-popover'
 import { clampPopoverGeometry } from '@/components/ui/clamp-popover-offset'
 import { usePopoverReflow } from '@/components/ui/use-popover-reflow'
 import { SIGNAL_CATEGORIES, type SignalCategory } from '@/lib/db/signals.types'
+import { signalCategoryLabel } from './signal-labels'
 
 // The shared 8-family category affordance (D28), extracted from signal-card + signal-record so the
 // two never drift. When the Signal is uncategorised it renders an "Add category" toggle that opens
@@ -73,7 +74,7 @@ export function SignalCategoryPicker({ category, onCategorize }: SignalCategoryP
   })
 
   if (category) {
-    return <span className="signal-category-pill">{category}</span>
+    return <span className="signal-category-pill">{signalCategoryLabel(t, category)}</span>
   }
 
   return (
@@ -99,7 +100,7 @@ export function SignalCategoryPicker({ category, onCategorize }: SignalCategoryP
               className={`signal-category-option${index === activeIndex ? ' is-active' : ''}`}
               onClick={() => pick(option)}
             >
-              {option}
+              {signalCategoryLabel(t, option)}
             </button>
           ))}
         </div>

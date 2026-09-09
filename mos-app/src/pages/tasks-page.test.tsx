@@ -18,6 +18,8 @@ vi.mock('../lib/db/tasks', () => ({
 vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getPersonTeams: vi.fn().mockResolvedValue([]),
+  getTeamsByIds: vi.fn().mockResolvedValue([]),
   // Design fix wave item 4 — the "via <role name>" provenance line's role-name batch lookup.
   listRoleNames: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
@@ -521,15 +523,13 @@ describe('AC-064 — saved-view chips', () => {
     expect(screen.getByRole('tab', { name: 'My work' })).toHaveAttribute('aria-selected', 'true')
   })
 
-  // #743 AC-002: the AR Follow-ups chip is gone; the chip set is All · My work · Overdue
-  // (Team work stays the saved-views ticket's, so its absence stays pinned here).
-  it('AC-064 / §Task-11: the saved-view chip row renders All / My work / Overdue — no Team work, no AR Follow-ups', async () => {
+  it('the Task scope tabs expose All, My work, Team work and Overdue', async () => {
     renderPage()
     await waitFor(() => screen.getByText('My task'))
     expect(screen.getByRole('tab', { name: 'All' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'My work' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Overdue' })).toBeTruthy()
-    expect(screen.queryByRole('tab', { name: 'Team work' })).toBeNull()
+    expect(screen.getByRole('tab', { name: 'Team work' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'AR Follow-ups' })).toBeNull()
   })
 
@@ -979,7 +979,9 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     renderPage(CAPABLE_AUTH)
 
     openFilters()
-    const overduePill = await screen.findByRole('button', { name: 'Filter to 1 overdue tasks' })
+    const attention = await screen.findByRole('combobox', { name: /tasks need attention/i })
+    fireEvent.click(attention)
+    const overduePill = screen.getByRole('option', { name: '1 overdue' })
     expect(overduePill).toBeInTheDocument()
     // No runs-due control anywhere in the toolbar; the overdue pill performs only its own action.
     expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
@@ -994,10 +996,11 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     renderPage(CAPABLE_AUTH)
 
     openFilters()
-    const pill = await screen.findByRole('button', { name: 'Filter to 1 overdue tasks' })
-    fireEvent.click(pill)
+    const attention = await screen.findByRole('combobox', { name: /tasks need attention/i })
+    fireEvent.click(attention)
+    fireEvent.click(screen.getByRole('option', { name: '1 overdue' }))
     // FR-001: the pressed pill IS the filter — no second clear chip, no due-runs disclosure.
-    await waitFor(() => expect(pill).toHaveAttribute('aria-pressed', 'true'))
+    await waitFor(() => expect(_capturedLocation?.search).toMatch(/overdue=1/))
     expect(screen.queryByRole('button', { name: /clear overdue/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
   })

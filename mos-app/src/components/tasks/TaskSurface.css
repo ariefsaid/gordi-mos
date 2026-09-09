@@ -432,6 +432,8 @@
 .tc-select .mk-select__box { height: 36px; padding: 0 34px 0 12px; }
 .tc-select .mk-select__field { font-size: var(--font-size-touch-input); }
 .tc-select .mk-select__chevron { right: 10px; }
+.tc-picker { width: 100%; }
+.tc-picker .picker__trigger { min-height: 36px; height: 36px; padding: 7px 12px; font-size: var(--font-size-touch-input); }
 .tc-date .mk-date__box { height: 36px; padding: 0 12px; }
 .tc-date .mk-date__display { font-size: var(--font-size-touch-input); }
 

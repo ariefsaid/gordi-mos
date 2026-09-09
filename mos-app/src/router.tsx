@@ -97,6 +97,8 @@ const SignalRecordPage = lazyPage(() =>
 )
 const FollowUpsPage = lazyPage(() => import('./pages/follow-ups-page').then((m) => ({ default: m.FollowUpsPage })))
 const ObjectivesPage = lazyPage(() => import('./pages/objectives-page').then((m) => ({ default: m.ObjectivesPage })))
+const ObjectiveRecordPage = lazyPage(() => import('./pages/objective-record-page').then((m) => ({ default: m.ObjectiveRecordPage })))
+const WorkLineRecordPage = lazyPage(() => import('./pages/work-line-record-page').then((m) => ({ default: m.WorkLineRecordPage })))
 const ProjectsProcessesPage = lazyPage(() =>
   import('./pages/projects-processes-page').then((m) => ({ default: m.ProjectsProcessesPage })),
 )
@@ -260,6 +262,11 @@ const routeTable: RouteObject[] = [
             handle: pageHandle('management'),
           },
           {
+            path: 'work/objectives/:objectiveId',
+            element: withSuspense(<ObjectiveRecordPage />),
+            handle: pageHandle('focused-record'),
+          },
+          {
             element: <RequireCapability capability="workline.manage" />,
             handle: infrastructureHandle('capability'),
             children: [
@@ -267,6 +274,11 @@ const routeTable: RouteObject[] = [
                 path: 'work/projects',
                 element: withSuspense(<ProjectsProcessesPage />),
                 handle: pageHandle('management'),
+              },
+              {
+                path: 'work/projects/:workLineId',
+                element: withSuspense(<WorkLineRecordPage />),
+                handle: pageHandle('focused-record'),
               },
               // Both retired spellings live INSIDE the gate they forward into. Outside it, a
               // viewer without `workline.manage` would be forwarded to /work/projects and

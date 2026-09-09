@@ -40,6 +40,20 @@ describe('SignalCategoryPicker', () => {
     expect(screen.queryByRole('button', { name: /add category/i })).not.toBeInTheDocument()
   })
 
+  it('renders the localized category label in Indonesian while retaining the stored enum', () => {
+    const previousLocale = window.localStorage.getItem('mos.locale')
+    window.localStorage.setItem('mos.locale', 'id')
+    const view = renderPicker({ category: 'Equipment/facility' })
+    try {
+      expect(screen.getByText('Peralatan/fasilitas')).toBeInTheDocument()
+      expect(screen.queryByText('Equipment/facility')).not.toBeInTheDocument()
+    } finally {
+      view.unmount()
+      if (previousLocale === null) window.localStorage.removeItem('mos.locale')
+      else window.localStorage.setItem('mos.locale', previousLocale)
+    }
+  })
+
   // #577: on a right-column feed row the anchor sits close to the viewport's right edge; the
   // popover's `left: 0` CSS default then pushed it (min-width 200px) past the window edge,
   // hard-clipping options mid-word. Stub a narrow viewport + a near-edge anchor rect and assert

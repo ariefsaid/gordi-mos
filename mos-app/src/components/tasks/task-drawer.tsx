@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useParams, useNavigate, useOutletContext } from 'react-router-dom'
-import { TaskSurface } from './task-surface'
+import { TaskSurface, type TaskSurfaceProps } from './task-surface'
 import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
 import { RecordPanelHost } from '@/shell/record-panel-host'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -26,6 +26,7 @@ export type TaskOverlayContentProps = {
   taskId: string
   onClose: () => void
   onOpenPage: () => void
+  onOpenRelated?: TaskSurfaceProps['onOpenRelated']
   onTaskChanged?: (task: TaskListRow) => void
   onTaskCreated?: (id: string) => void
   onTaskArchived?: (id: string) => void
@@ -34,7 +35,7 @@ export type TaskOverlayContentProps = {
 
 /** Task-specific content used by the shell-owned OverlayHostSlot. */
 export function TaskOverlayContent({
-  taskId, onClose, onOpenPage, onTaskChanged, onTaskCreated, onTaskArchived, onLeaveGuardChange,
+  taskId, onClose, onOpenPage, onOpenRelated, onTaskChanged, onTaskCreated, onTaskArchived, onLeaveGuardChange,
 }: TaskOverlayContentProps) {
   const t = useT()
   const dirtyRef = useRef(false)
@@ -85,6 +86,7 @@ export function TaskOverlayContent({
         width="drawer"
         onClose={onClose}
         onOpenPage={onOpenPage}
+        onOpenRelated={onOpenRelated}
         onTaskChanged={onTaskChanged}
         onTaskCreated={onTaskCreated}
         onTaskArchived={onTaskArchived}

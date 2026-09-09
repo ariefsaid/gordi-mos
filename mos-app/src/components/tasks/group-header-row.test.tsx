@@ -34,7 +34,7 @@ describe('GroupHeaderRow', () => {
     if (isShipGated('/work/objectives')) {
       expect(screen.queryByRole('link', { name: 'Grow revenue' })).toBeNull()
     } else {
-      expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives?q=Grow%20revenue')
+      expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives/objective-1')
     }
   })
 

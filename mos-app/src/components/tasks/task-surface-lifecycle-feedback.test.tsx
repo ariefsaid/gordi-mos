@@ -20,6 +20,8 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getPersonTeams: () => Promise.resolve([]),
+  getTeamsByIds: () => Promise.resolve([]),
   getDownlinePersonIds: vi.fn(),
 }))
 vi.mock('../../lib/comments/postComment', () => ({
@@ -181,7 +183,8 @@ describe('TaskSurface lifecycle action feedback', () => {
     renderTask(task)
     await waitFor(() => expect(screen.getByRole('heading', { name: task.title })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: 'Edit Status' }))
-    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'Done' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'Status' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Done' }))
 
     await waitFor(() => expect(updateTaskStatus).toHaveBeenCalledWith(
       task.id, 'Open', 'Done', VIEWER_ID,

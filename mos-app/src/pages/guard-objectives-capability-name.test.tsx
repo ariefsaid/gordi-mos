@@ -80,8 +80,6 @@ async function renderObjectives() {
 
 const writeAffordances = () => [
   screen.queryByRole('button', { name: 'Create objective' }),
-  screen.queryByRole('button', { name: 'Rename Grow revenue' }),
-  screen.queryByRole('button', { name: 'Archive Grow revenue' }),
 ]
 
 describe('GUARD-OBJECTIVE-CAP: Objectives gates writes on objective.manage, not a neighbour', () => {
@@ -101,8 +99,8 @@ describe('GUARD-OBJECTIVE-CAP: Objectives gates writes on objective.manage, not 
     vi.mocked(can).mockImplementation((_roles, capability) => capability !== 'objective.manage')
     await renderObjectives()
     for (const affordance of writeAffordances()) expect(affordance).toBeNull()
-    // …and reading is untouched: the row, its relations disclosure and its trace all still render.
-    expect(screen.getByRole('button', { name: 'Show relations for Grow revenue' })).toBeInTheDocument()
+    // …and reading is untouched: the row remains a canonical record link.
+    expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives/obj-1')
   })
 
   it('grants every write affordance when objective.manage alone is held', async () => {

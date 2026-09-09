@@ -4,7 +4,7 @@ import { searchTasksByTitle } from '@/lib/db/tasks'
 import { searchSignalsByBody } from '@/lib/db/signals'
 import { searchFollowUpsByCounterparty } from '@/lib/db/follow-ups'
 import { searchPeopleByName } from '@/lib/db/directory'
-import { SHOW_FOLLOWUPS } from '@/config/features'
+import { SHOW_ASSISTANT, SHOW_FOLLOWUPS } from '@/config/features'
 import { useAuth } from '@/auth/use-auth'
 import { canViewRevenue } from '@/lib/capabilities'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
@@ -152,15 +152,17 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
   const isSearching = trimmed.length > 0
 
   // Build the action/navigate registries (Memoized so `run` closures stay stable per render).
-  // The three universal actions keep their stable order (Rule 7); the gated Café log entry
+  // Available actions keep their stable order (Rule 7); the gated Café log entry
   // (#407) appends after them, present exactly when the Café write gate admits the viewer.
   const actionItems = useMemo<CommandItem[]>(
     () => {
       const items: CommandItem[] = [
-        { id: 'a-deputy', label: t('commandMenu.action.askDeputy'), Icon: DeputyIcon, kind: 'action', run: () => openPanel() },
         { id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action', run: onShareSignal },
         { id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action', to: '/work/tasks?create=1' },
       ]
+      if (SHOW_ASSISTANT) items.unshift({
+        id: 'a-deputy', label: t('commandMenu.action.askDeputy'), Icon: DeputyIcon, kind: 'action', run: () => openPanel(),
+      })
       return items
     },
     [openPanel, onShareSignal, t],

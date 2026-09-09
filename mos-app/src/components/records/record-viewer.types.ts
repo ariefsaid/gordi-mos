@@ -16,7 +16,7 @@
 //     adapter's persistence edge, never in this contract.
 import type { ReactNode } from 'react'
 
-export type RecordKind = 'task' | 'signal' | 'follow-up'
+export type RecordKind = 'task' | 'signal' | 'follow-up' | 'work-line' | 'objective'
 
 export type RecordViewerMode = 'panel' | 'page'
 
@@ -50,6 +50,12 @@ export interface RecordFieldSpec {
   /** Why a non-editable field is read-only — surfaced honestly, never hidden. */
   readOnlyReason?: string
   required?: boolean
+  /** Optional canonical destination for a resolved related value. */
+  href?: string
+  /** Opens the related record in the originating stack; modified clicks retain href behavior. */
+  onOpen?: () => void
+  /** Quiet provenance line shown beneath the primary value (for example derived BU). */
+  subline?: string
 }
 
 export interface RecordMetadataSection {
@@ -114,6 +120,15 @@ export interface RecordActivityItem {
   label: string
   detail?: string
   occurredAt: string
+  /** Optional canonical destination for an activity's source record. */
+  href?: string
+  /** Opens the source record in the originating stack; modified clicks retain href behavior. */
+  onOpen?: () => void
+}
+
+export interface RecordViewerTab {
+  id: string
+  label: string
 }
 
 export interface RecordPermission {
@@ -143,11 +158,18 @@ export interface RecordViewerAdapter {
   headerContext?: readonly RecordHeaderContextItem[]
   /** Actions promoted into the pinned header; all other allowed actions stay in the footer. */
   headerActionIds?: readonly string[]
+  /** Actions kept behind the pinned overflow menu (archive/unarchive in Tasks). */
+  headerOverflowActionIds?: readonly string[]
+  /** Optional domain-owned tabs. Task keeps its fixed checklist grammar; other live records may
+   * declare their own ordered content regions without reimplementing the tab accessibility. */
+  tabs?: readonly RecordViewerTab[]
   metadata: readonly RecordMetadataSection[]
   relations: readonly RecordRelation[]
   contentSlots: readonly RecordContentSlot[]
   activity: readonly RecordActivityItem[]
   actions: readonly RecordAction[]
+  /** Optional domain-owned footer affordance (e.g. the labelled Deputy door). */
+  footerContent?: ReactNode
   permission: RecordPermission
   state: 'ready' | 'empty' | 'error'
   errorMessage?: string

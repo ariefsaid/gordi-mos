@@ -31,7 +31,8 @@ export interface SignalFeedSectionProps {
   error?: boolean
   /** Re-run the shared signal read (after a categorize correction, a Share elsewhere, or Retry). */
   onReload?: () => void
-  /** Home members keep this ambient feed to the Share door; the archive keeps search. */
+  /** Members keep Home's ambient feed to the Share door; cockpit Home may restore search, and the
+   * archive keeps its own collection search. */
   showSearch?: boolean
 }
 

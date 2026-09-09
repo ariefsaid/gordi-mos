@@ -60,14 +60,14 @@ describe('collection-view-spec validator', () => {
     expect(serializeCollectionViewSpec(shuffled)).toBe(a)
   })
 
-  it('accepts and serializes the built-in Completed task view', () => {
+  it('rejects the retired Completed task view instead of persisting a fifth scope', () => {
     const completed = {
       ...taskSpec,
       query: { ...taskSpec.query, view: 'completed' as const },
     }
     const result = parseCollectionViewSpec(completed)
-    expect(result.ok).toBe(true)
-    expect(serializeCollectionViewSpec(completed)).toContain('"view":"completed"')
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.issues.some((issue) => issue.path === 'query.view')).toBe(true)
   })
 
   it('accepts and serializes the canonical Team-work task view without adding a free-form Team filter', () => {

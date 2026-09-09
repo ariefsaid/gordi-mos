@@ -59,7 +59,6 @@ __pycache__/
 !.env.sample
 # Catch env files that don't START with ".env" (e.g. foo.resend.env) — the patterns above miss those.
 *.env
-!supabase/op.resend.env
 *.pem
 *.key
 *.p12

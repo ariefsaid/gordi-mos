@@ -13,6 +13,9 @@ import { nudgeAgeDays } from './nudge-semantics'
 // #583: the compact "2h"/"3d" age grammar Activity already renders (task-formatters.ts) — reused
 // here rather than inventing a second created-time format for the same row shape.
 import { formatAge } from '@/components/tasks/task-formatters'
+import { attentionLabel } from '@/components/signals/signal-attention-label'
+import { attentionSlug } from '@/lib/db/signals.types'
+import { deriveInboxRowPresentation, type InboxEntityType } from './inbox-row-presentation'
 
 /**
  * InboxTriage — the ONE chrome-free Inbox triage content surface (Issue 7). The same component
@@ -86,6 +89,19 @@ const FILTER_KEY: Record<InboxFilter, 'inbox.filter.all' | 'inbox.filter.unread'
   all: 'inbox.filter.all',
   unread: 'inbox.filter.unread',
   handled: 'inbox.filter.handled',
+}
+
+const ENTITY_KEY: Record<Exclude<InboxEntityType, 'unknown'>, 'inbox.target.type.signal' | 'inbox.target.type.task' | 'inbox.target.type.followUp'> = {
+  signal: 'inbox.target.type.signal',
+  task: 'inbox.target.type.task',
+  follow_up: 'inbox.target.type.followUp',
+}
+
+function metadataSource(row: TriageNotificationRow): string | null {
+  const metadata = row.metadata
+  if (!metadata || typeof metadata !== 'object') return null
+  const source = (metadata as Record<string, unknown>).source
+  return typeof source === 'string' ? source : null
 }
 
 export function InboxTriage({
@@ -204,6 +220,19 @@ export function InboxTriage({
               const isPending = pending.has(n.id)
               const canHandle = onMarkHandled != null && !isHandled(n)
               const ageDays = nudgeAgeDays(n, now) // OD-WAY-86: >= 2 on nudged rows, else null
+              const presentation = deriveInboxRowPresentation(n)
+              const actorTitle = presentation.actorName && presentation.entityType !== 'unknown'
+                ? metadataSource(n) === 'mention'
+                  ? t('inbox.actorMentioned', { name: presentation.actorName })
+                  : t('inbox.actorActivity', {
+                    name: presentation.actorName,
+                    entity: t(ENTITY_KEY[presentation.entityType]),
+                  })
+                : presentation.fallbackTitle
+              const entityLabel = presentation.entityType !== 'unknown'
+                ? t(ENTITY_KEY[presentation.entityType])
+                : null
+              const attention = presentation.attention ? attentionLabel(t, presentation.attention) : null
               return (
                 <li key={n.id} className={`inbox-row${unread ? ' inbox-row--unread' : ''}`} data-notification-id={n.id}>
                   <button
@@ -212,7 +241,7 @@ export function InboxTriage({
                     onClick={() => onOpen(n)}
                     disabled={isPending}
                     aria-busy={isPending || undefined}
-                    aria-label={`${n.title}${unread ? ' (unread)' : ''}${ageDays != null ? ` (${t('inbox.age.days', { count: ageDays })})` : ''}`}
+                    aria-label={`${actorTitle}${entityLabel ? `, ${entityLabel}` : ''}${attention ? `, ${attention}` : ''}${unread ? ' (unread)' : ''}${ageDays != null ? ` (${t('inbox.age.days', { count: ageDays })})` : ''}`}
                   >
                     <span
                       className={`inbox-row__dot inbox-row__dot--${n.severity}`}
@@ -220,7 +249,13 @@ export function InboxTriage({
                     />
                     <span className="inbox-row__content">
                       <span className="inbox-row__titleline">
-                        <span className="inbox-row__title">{n.title}</span>
+                        <span className="inbox-row__title">{actorTitle}</span>
+                        {entityLabel ? <span className="inbox-row__type">{entityLabel}</span> : null}
+                        {attention ? (
+                          <span className={`inbox-row__attention inbox-row__attention--${attentionSlug(presentation.attention!)}`}>
+                            {attention}
+                          </span>
+                        ) : null}
                         {ageDays != null ? (
                           <Pill tone="neutral" dot={false} className="inbox-row__age">
                             {t('inbox.age.days', { count: ageDays })}
@@ -228,7 +263,7 @@ export function InboxTriage({
                         ) : null}
                         <span className="inbox-row__time">{formatAge(n.created_at, now, locale)}</span>
                       </span>
-                      {n.body ? <span className="inbox-row__body">{n.body}</span> : null}
+                      {presentation.sourceLine ? <span className="inbox-row__body">{presentation.sourceLine}</span> : null}
                     </span>
                   </button>
                   {canHandle ? (

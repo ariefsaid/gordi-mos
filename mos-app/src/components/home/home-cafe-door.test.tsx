@@ -33,8 +33,9 @@ describe('Home Café door', () => {
     renderDoor({ data })
     expect(screen.getByRole('link', { name: /Café Gordi HQ.*2\/3.*View opening/i }))
       .toHaveAttribute('href', '/cafe')
-    expect(screen.getByRole('link', { name: /Log production/i }))
-      .toHaveAttribute('href', '/cafe/log')
+    const logLink = screen.getByRole('link', { name: /Log production/i })
+    expect(logLink).toHaveAttribute('href', '/cafe/log')
+    expect(logLink).toHaveClass('tap-floor')
   })
 
   it('keeps a not-started opening actionable without inventing a count', () => {
@@ -42,6 +43,12 @@ describe('Home Café door', () => {
     expect(screen.getByRole('link', { name: /not started.*View opening/i })).toHaveAttribute('href', '/cafe')
     expect(screen.getByRole('link', { name: /Log production/i })).toHaveAttribute('href', '/cafe/log')
     expect(screen.queryByText(/0\//)).toBeNull()
+  })
+
+  it('describes an empty started opening without a misleading zero-over-zero count', () => {
+    renderDoor({ data: { ...data, opening: { ...data.opening, rollup: { ...data.opening.rollup!, total: 0, done: 0, open: 0, completion_pct: 0 } } } })
+    expect(screen.getByRole('link', { name: /No opening tasks assigned yet.*View opening/i })).toHaveAttribute('href', '/cafe')
+    expect(screen.queryByText(/0\/0/)).toBeNull()
   })
 
   it('distinguishes loading, error/retry and no-stream empty states', () => {

@@ -205,6 +205,26 @@
   font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
+.record-field__value-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 2px;
+}
+.record-field__value-main { min-width: 0; }
+.record-field__subline {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 400;
+}
+.record-field__link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 2px;
+}
+.record-field__link:hover { text-decoration-color: currentColor; }
 
 /* ── Field: edit mode — the existing controls (unchanged 44px floor / NFR-V3-006) ───────── */
 .record-field__control {
@@ -233,14 +253,16 @@
   resize: vertical;
 }
 
-/* The shared Select primitive owns its chrome; raise its field to the 44px floor
+/* The shared Picker primitive owns its chrome; raise its trigger to the 44px floor
  * inside a record field (NFR-V3-006). */
 .record-field__select-wrap {
   min-width: 0;
   width: 100%;
 }
 
-.record-field__select .mk-select__field {
+.record-field__picker,
+.record-field__picker-trigger {
+  width: 100%;
   min-height: 44px;
 }
 
@@ -413,6 +435,53 @@
 .record-viewer__pinned-status .record-field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .record-viewer__header-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 .record-viewer__header-actions .btn { min-height: 36px; }
+.record-viewer__overflow { position: relative; flex: none; }
+.record-viewer__overflow-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-heading);
+  line-height: 1;
+  cursor: pointer;
+}
+.record-viewer__overflow-trigger:hover,
+.record-viewer__overflow-trigger[aria-expanded='true'] { background: var(--secondary); }
+.record-viewer__overflow-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.record-viewer__overflow-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  min-width: 180px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--popover);
+  box-shadow: var(--shadow-overlay);
+}
+.record-viewer__overflow-menu button {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.record-viewer__overflow-menu button:hover,
+.record-viewer__overflow-menu button:focus-visible { background: var(--secondary); outline: none; }
+.record-viewer__overflow-menu button:disabled { color: var(--muted-foreground); cursor: not-allowed; }
 .record-field__pill-caret { display: inline-block; width: 0; height: 0; margin-inline-start: 4px; border-inline: 4px solid transparent; border-block-start: 5px solid currentColor; }
 .record-viewer__tabs { display: flex; gap: 2px; padding: 0 20px; background: var(--card); border-bottom: 1px solid var(--border); }
 .record-viewer__tabs button { min-height: 44px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted-foreground); font: inherit; cursor: pointer; }
@@ -422,10 +491,19 @@
  * tenants may differ in fields/content, but never in the title/type/section rhythm. */
 .record-viewer__identity {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
   padding: 18px 20px 16px;
   border-bottom: 1px solid var(--border);
+}
+
+.record-viewer__identity-main {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .record-viewer__eyebrow,
@@ -505,6 +583,17 @@
   color: var(--foreground);
 }
 
+.record-viewer__activity-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 2px;
+}
+
+.record-viewer__activity-link:hover {
+  text-decoration-color: currentColor;
+}
+
 .record-viewer__activity-detail {
   color: var(--muted-foreground);
 }
@@ -527,6 +616,36 @@
 
 .record-viewer__actions .btn {
   min-height: 44px;
+}
+
+.record-deputy-footer {
+  display: grid;
+  gap: 4px;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--border);
+}
+.record-deputy-footer__trigger {
+  display: inline-flex;
+  align-items: center;
+  align-self: start;
+  gap: 8px;
+  width: fit-content;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.record-deputy-footer__trigger:hover { background: var(--secondary); }
+.record-deputy-footer__trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.record-deputy-footer__helper {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
 }
 
 .record-viewer__permission-note {
@@ -584,3 +703,7 @@
   .record-viewer__header-actions .btn { width: 100%; }
   .dw-collapse-split { display: none; }
 }
+.record-field__linked-value { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.record-field__linked-value > .record-field__value { min-width: 0; }
+.record-field__linked-value .record-field__edit { width: 44px; min-width: 44px; flex: none; justify-content: center; }
+.record-field__linked-value .record-field__edit-affordance { opacity: 1; }

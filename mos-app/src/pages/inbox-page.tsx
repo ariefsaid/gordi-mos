@@ -3,7 +3,6 @@ import { useT } from '@/i18n/use-t'
 import { InboxTriageConnected } from '@/components/inbox/inbox-triage-connected'
 import { OverlayHostSlot, useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useIsWideOverlayWidth } from '@/shell/use-is-wide-overlay-width'
-import { HelpTip } from '@/components/ui/help-tip'
 
 /**
  * InboxPage — the Inbox destination (ADR-0019 D2/D9). A to-triage list of the viewer's
@@ -33,12 +32,6 @@ export function InboxPage() {
       family="workspace"
       title={t('inbox.title')}
       jobSentence={t('job.inbox')}
-      // FR-005 / AC-005 (#547): the meta here is ONLY the help glyph, so the generic phone
-      // stack (meta flung to its own full-width row, order 4) strands a lone "?" below the
-      // job sentence — debris. Opt into the shared meta-inline mode: the glyph rides the
-      // title row at 390 exactly as it does on desktop.
-      headClassName="content-header--meta-inline"
-      meta={<HelpTip label={t('inbox.help')} />}
     >
       <div className={splitOpen ? 'record-split' : undefined}>
         <InboxTriageConnected mode="page" />

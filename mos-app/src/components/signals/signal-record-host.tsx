@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useHref, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import { useT } from '@/i18n/use-t'
@@ -7,8 +7,13 @@ import { can } from '@/lib/capabilities'
 import { useI18n } from '@/i18n/I18nProvider'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { Select } from '@/components/ui/select'
+import { Picker } from '@/components/ui/picker'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { TaskSurface } from '@/components/tasks/task-surface'
+import { TaskOverlayContent } from '@/components/tasks/task-drawer'
+import { RecordPanelHost } from '@/shell/record-panel-host'
+import { useOptionalOverlayHost, type OverlayEntry } from '@/shell/overlay-host'
+import type { OverlayLeaveDecision, OverlayLeaveIntent, OverlayOwner } from '@/shell/overlay-navigation'
 import {
   getSignal, listSignalRevisions, listAllTeams, getTeamSite, correctSignal, acknowledgeSignal,
   linkSignalTask, retractSignal, loadMentionRosters, dedupeRecipients, summarizeLinkedTasks,
@@ -22,11 +27,11 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import { listComments, postComment, type CommentRow } from '@/lib/comments/postComment'
 import { formatWibDateTime } from '@/lib/wib-time'
 import {
-  SignalReach, SignalDiscussion, SignalFacts, SignalHistory, type SignalMentionView,
+  SignalReach, SignalDiscussion, SignalFacts, SignalHistory, SignalOverflowMenu,
+  type SignalMentionView, type LinkedTaskView,
 } from './signal-record'
 import { RecordViewer } from '@/components/records/record-viewer'
 import { wrapSignalRecord, firstLine } from './signal-record-adapter'
-import { signalTaskCreateHref } from './signal-task-intent'
 import './signal-record-host.css'
 
 // C3 (KNOWN GAP 2): signal-record.tsx is a set of presentational region renderers — this host is
@@ -47,16 +52,116 @@ export interface SignalRecordHostProps {
   onReload?: () => void
 }
 
-type FetchState = 'loading' | 'ready' | 'error'
+type FetchState = 'loading' | 'ready' | 'error' | 'denied' | 'missing'
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function errorCode(error: unknown): string {
+  if (!error || typeof error !== 'object') return ''
+  const code = (error as { code?: unknown }).code
+  return typeof code === 'string' ? code : ''
+}
+
+function readFailureState(error: unknown): Exclude<FetchState, 'loading' | 'ready'> {
+  const diagnostic = `${errorCode(error)} ${errorText(error)}`
+  if (/42501|permission denied|row-level security|not authorized|forbidden/i.test(diagnostic)) return 'denied'
+  if (/PGRST116|0 rows|no rows|JSON object requested.*(?:multiple|no).*rows returned/i.test(diagnostic)) return 'missing'
+  return 'error'
+}
 
 function personName(people: PersonOption[], id: string, fallback: string): string {
   return people.find((p) => p.id === id)?.full_name ?? fallback
 }
 
+type TaskDraftSession = {
+  dirty: boolean
+  requestConfirmation?: (intent: OverlayLeaveIntent) => Promise<OverlayLeaveDecision>
+  guard: (intent: OverlayLeaveIntent) => Promise<OverlayLeaveDecision>
+}
+
+function createTaskDraftSession(): TaskDraftSession {
+  const session = {} as TaskDraftSession
+  session.dirty = false
+  session.guard = async (intent) => {
+    if (!session.dirty) return { decision: 'allow' }
+    return session.requestConfirmation?.(intent) ?? { decision: 'deny' }
+  }
+  return session
+}
+
+function SignalTaskCreateFrame({
+  signalTitle, businessUnitId, responsiblePersonId, session, onCreated, onLeave,
+}: {
+  signalTitle: string
+  businessUnitId: string
+  responsiblePersonId: string
+  session: TaskDraftSession
+  onCreated: (taskId: string) => void | Promise<void>
+  onLeave: () => void
+}) {
+  const t = useT()
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const resolverRef = useRef<((decision: OverlayLeaveDecision) => void) | null>(null)
+
+  useEffect(() => {
+    session.requestConfirmation = async () => new Promise<OverlayLeaveDecision>((resolve) => {
+      resolverRef.current = resolve
+      setConfirmOpen(true)
+    })
+    return () => {
+      session.requestConfirmation = undefined
+      resolverRef.current?.({ decision: 'deny' })
+      resolverRef.current = null
+    }
+  }, [resolverRef, session])
+
+  const resolveConfirmation = (decision: OverlayLeaveDecision) => {
+    if (decision.decision === 'allow') session.dirty = false
+    setConfirmOpen(false)
+    const resolve = resolverRef.current
+    resolverRef.current = null
+    resolve?.(decision)
+  }
+
+  return (
+    <>
+      <div className="signal-task-create-frame">
+        <p className="signal-task-create-context">{t('signals.record.fromSignal')}: {signalTitle}</p>
+        <TaskSurface
+          taskId={null}
+          mode="create"
+          presentation="panel"
+          width="drawer"
+          showPanelUtility={false}
+          createInitialValues={{ title: signalTitle, businessUnitId, responsiblePersonId }}
+          createRedirect={null}
+          onTaskCreated={(taskId) => { session.dirty = false; void onCreated(taskId) }}
+          onDirtyChange={(dirty) => { session.dirty = dirty }}
+          onRequestLeave={() => { onLeave() }}
+        />
+      </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        title={t('tasks.unsaved.title')}
+        body={t('tasks.unsaved.copy')}
+        confirmLabel={t('tasks.unsaved.discard')}
+        cancelLabel={t('tasks.cancel')}
+        tone="destructive"
+        onConfirm={async () => { resolveConfirmation({ decision: 'allow' }) }}
+        onCancel={() => { resolveConfirmation({ decision: 'deny' }) }}
+      />
+    </>
+  )
+}
+
 export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, onReload }: SignalRecordHostProps) {
   const t = useT()
   const navigate = useNavigate()
+  const canonicalHref = useHref(`/work/signals/${signalId}`)
   const auth = useAuth()
+  const host = useOptionalOverlayHost()
   const { open: openComposer } = useSignalComposer()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const { locale } = useI18n()
@@ -69,45 +174,97 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
   const [businessUnits, setBusinessUnits] = useState<BusinessUnitOption[]>([])
   const [people, setPeople] = useState<PersonOption[]>([])
   const [tasks, setTasks] = useState<TaskListRow[]>([])
+  const [tasksLoaded, setTasksLoaded] = useState(false)
+  const [tasksLoadError, setTasksLoadError] = useState(false)
   const [comments, setComments] = useState<CommentRow[]>([])
   const [rosters, setRosters] = useState<MentionRosters>({ teamMembers: {}, buMembers: {} })
+  const taskRequestRef = useRef(0)
+
+  const loadRelatedTasks = useCallback(async () => {
+    const requestId = ++taskRequestRef.current
+    setTasksLoaded(false)
+    setTasksLoadError(false)
+    try {
+      const taskRows = await listTasks({})
+      if (requestId !== taskRequestRef.current) return
+      setTasks(taskRows)
+      setTasksLoaded(true)
+    } catch {
+      if (requestId !== taskRequestRef.current) return
+      // Keep the distinction between "there are no linked Tasks" and "the Task read failed".
+      // The record remains usable, but Reach must show a retryable failure instead of an empty
+      // linked-work result that looks authoritative.
+      setTasksLoaded(true)
+      setTasksLoadError(true)
+    }
+  }, [])
 
   const [linkOpen, setLinkOpen] = useState(false)
   const [linkTaskId, setLinkTaskId] = useState('')
   const [retractOpen, setRetractOpen] = useState(false)
   const [retractReason, setRetractReason] = useState('')
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [localTaskSession, setLocalTaskSession] = useState<TaskDraftSession | null>(null)
+
+  const refreshTaskProjection = useCallback(async () => {
+    const requestId = ++taskRequestRef.current
+    setTasksLoaded(false)
+    setTasksLoadError(false)
+    try {
+      const [nextDetail, taskRows] = await Promise.all([getSignal(signalId), listTasks({})])
+      if (requestId !== taskRequestRef.current) return
+      setDetail(nextDetail)
+      setTasks(taskRows)
+      setTasksLoaded(true)
+    } catch {
+      if (requestId !== taskRequestRef.current) return
+      setTasksLoaded(true)
+      setTasksLoadError(true)
+    }
+  }, [signalId])
 
   const load = useCallback(() => {
     let cancelled = false
     setState('loading')
+    setDetail(null)
+    setTasksLoaded(false)
+    setTasksLoadError(false)
+    taskRequestRef.current += 1
+    setActionError(null)
+    setRevisions([])
+    setTeams([])
+    setSiteName(null)
+    setBusinessUnits([])
+    setPeople([])
+    setComments([])
+    setRosters({ teamMembers: {}, buMembers: {} })
     getSignal(signalId)
-      .then(async (loadedDetail) => {
-        if (cancelled) return
-        const [revs, teamRows, bus, ppl, taskRows, commentRows, mentionRosters, site] = await Promise.all([
-          listSignalRevisions(signalId),
-          listAllTeams(),
-          getBusinessUnits(),
-          getPeople(),
-          listTasks({}),
-          listComments({ entityType: 'signal', entityId: signalId }),
-          loadMentionRosters(),
-          getTeamSite(loadedDetail.signal.owning_team_id),
-        ])
+      .then((loadedDetail) => {
         if (cancelled) return
         setDetail(loadedDetail)
-        setRevisions(revs)
-        setTeams(teamRows)
-        setBusinessUnits(bus)
-        setPeople(ppl)
-        setTasks(taskRows)
-        setComments(commentRows)
-        setRosters(mentionRosters)
-        setSiteName(site?.name ?? null)
         setState('ready')
+
+        // The Signal itself is the first paint. Directory, comments, revisions, and site enrich it
+        // later; the potentially large related-task scan is deliberately deferred as a separate
+        // read so a record never waits on the whole Work catalog.
+        void listSignalRevisions(signalId).then((revs) => { if (!cancelled) setRevisions(revs) }).catch(() => {})
+        void listAllTeams().then((teamRows) => { if (!cancelled) setTeams(teamRows) }).catch(() => {})
+        void getBusinessUnits().then((bus) => { if (!cancelled) setBusinessUnits(bus) }).catch(() => {})
+        void getPeople().then((ppl) => { if (!cancelled) setPeople(ppl) }).catch(() => {})
+        void listComments({ entityType: 'signal', entityId: signalId }).then((commentRows) => {
+          if (!cancelled) setComments(commentRows)
+        }).catch(() => {})
+        void loadMentionRosters().then((mentionRosters) => {
+          if (!cancelled) setRosters(mentionRosters)
+        }).catch(() => {})
+        void getTeamSite(loadedDetail.signal.owning_team_id).then((site) => {
+          if (!cancelled) setSiteName(site?.name ?? null)
+        }).catch(() => {})
+        void loadRelatedTasks()
       })
-      .catch(() => { if (!cancelled) setState('error') })
+      .catch((error) => { if (!cancelled) setState(readFailureState(error)) })
     return () => { cancelled = true }
-  }, [signalId])
+  }, [loadRelatedTasks, signalId])
 
   useEffect(() => load(), [load])
 
@@ -122,6 +279,17 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
         <SkeletonRows count={4} />
       </div>
     )
+  }
+  if (state === 'denied') {
+    return (
+      <div className="signal-record-unavailable" role="status">
+        <h2>{t('signals.record.accessDeniedTitle')}</h2>
+        <p>{t('signals.record.accessDeniedBody')}</p>
+      </div>
+    )
+  }
+  if (state === 'missing') {
+    return <ErrorState message={t('signals.record.missing')} onRetry={load} />
   }
   if (state === 'error' || !detail) {
     return <ErrorState message={t('signals.archive.error')} onRetry={load} />
@@ -152,16 +320,66 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     : t('signals.composer.visibleTo', { team: teamName })
 
   const statusById = Object.fromEntries(tasks.map((task) => [task.id, task.status]))
-  const linkedTasksSummary = summarizeLinkedTasks(taskLinks, statusById)
+  const linkedTasksSummary = tasksLoaded && !tasksLoadError ? summarizeLinkedTasks(taskLinks, statusById) : undefined
   const linkedTaskIds = new Set(taskLinks.map((link) => link.task_id))
-  const linkableTasks = tasks.filter((task) => !linkedTaskIds.has(task.id))
+  const linkableTasks = tasksLoadError ? [] : tasks.filter((task) => !linkedTaskIds.has(task.id))
+
+  function openLinkedTask(taskId: string) {
+    const overlayHost = host
+    if (!overlayHost?.session) return
+    const pageTo = { pathname: `/work/tasks/${taskId}` }
+    const entry: OverlayEntry = {
+      key: `task:${taskId}`,
+      // This Signal record is already mounted in the Signals slot. Keep that physical slot active
+      // while the nested content uses the canonical Task overlay contract, so Back returns here.
+      owner: 'signals',
+      tenant: 'record',
+      label: t('tasks.detail.title'),
+      title: t('tasks.detail.title'),
+      pageTo,
+      pageState: { taskSurface: 'page' },
+      content: null,
+    }
+    entry.content = (
+      <TaskOverlayContent
+        taskId={taskId}
+        onClose={() => { void overlayHost.back() }}
+        onOpenPage={() => { void overlayHost.openPage(pageTo, entry.pageState) }}
+        onLeaveGuardChange={(guard) => { entry.leaveGuard = guard }}
+      />
+    )
+    void overlayHost.push(entry)
+  }
+
+  const linkedTasks: LinkedTaskView[] = tasksLoaded && !tasksLoadError
+    ? taskLinks.flatMap((link) => {
+      const task = tasks.find((candidate) => candidate.id === link.task_id)
+      return task ? [{
+        id: task.id,
+        title: task.title,
+        status: task.status,
+        href: `/work/tasks/${task.id}`,
+        onOpen: host?.session ? () => { openLinkedTask(task.id) } : undefined,
+      }] : []
+    })
+    : []
+
+  // ── The five JTBD region nodes (retracted ⇒ reach/discussion/history drop; message tombstone +
+  // Facts survive so provenance stays legible, mirroring an archived Task's ownership fields). ──
+  const retracted = signal.retracted_at !== null
+  const canRetract = !retracted && !!viewerId && (signal.author_id === viewerId || (auth.status === 'authenticated' && can(auth.viewer.accessRoles, 'signal.retract')))
 
   async function handleRetract() {
-    await retractSignal(signalId, retractReason.trim())
-    setRetractOpen(false)
-    setRetractReason('')
-    load()
-    onReload?.()
+    setActionError(null)
+    try {
+      await retractSignal(signalId, retractReason.trim())
+      setRetractOpen(false)
+      setRetractReason('')
+      load()
+      onReload?.()
+    } catch {
+      setActionError(t('signals.record.actionError'))
+    }
   }
 
   function openRepost() {
@@ -172,18 +390,33 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
   }
 
   async function handleAcknowledge() {
-    await acknowledgeSignal(signalId)
-    load()
+    setActionError(null)
+    try {
+      await acknowledgeSignal(signalId)
+      load()
+    } catch {
+      setActionError(t('signals.record.actionError'))
+    }
   }
 
   async function handleCategorize(category: SignalCategory) {
-    await correctSignal(signalId, { category })
-    load()
+    setActionError(null)
+    try {
+      await correctSignal(signalId, { category })
+      load()
+    } catch {
+      setActionError(t('signals.record.actionError'))
+    }
   }
 
   async function handleAttentionChange(attention: Attention) {
-    await correctSignal(signalId, { attention })
-    load()
+    setActionError(null)
+    try {
+      await correctSignal(signalId, { attention })
+      load()
+    } catch {
+      setActionError(t('signals.record.actionError'))
+    }
   }
 
   async function handlePostComment(body: string) {
@@ -193,17 +426,77 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     setComments(await listComments({ entityType: 'signal', entityId: signalId }))
   }
 
+  async function finishTaskCreate(taskId: string) {
+    setActionError(null)
+    try {
+      // TaskSurface owns task creation; this host owns the Signal relationship so the return
+      // path can immediately show the new Task under Linked work without changing the Signal URL.
+      await linkSignalTask(signalId, taskId)
+    } catch {
+      setActionError(t('signals.record.actionError'))
+    }
+    void refreshTaskProjection()
+    if (host?.session) {
+      void host.back()
+    } else {
+      setLocalTaskSession(null)
+    }
+  }
+
+  function closeLocalTaskComposer(via: 'explicit-close' | 'escape' = 'explicit-close') {
+    const session = localTaskSession
+    if (!session) return
+    void session.guard({
+      kind: 'close',
+      via,
+      from: { key: `signal-task-create:${signalId}`, owner: 'signals' },
+    }).then((decision) => {
+      if (decision.decision === 'allow') setLocalTaskSession(null)
+    })
+  }
+
   function openTaskComposer() {
     if (!viewerId || !team) return
-    navigate(signalTaskCreateHref(signal, team.business_unit_id, viewerId))
+    const signalTitle = firstLine(signal.body)
+    if (!host?.session) {
+      setLocalTaskSession(createTaskDraftSession())
+      return
+    }
+
+    const session = createTaskDraftSession()
+    const owner: OverlayOwner = host.session.frames.at(-1)?.entry.owner ?? 'signals'
+    const entry: OverlayEntry = {
+      key: `signal-task-create:${signal.id}`,
+      owner,
+      tenant: 'record',
+      label: t('signals.record.createFollowUpTask'),
+      title: t('signals.record.createFollowUpTask'),
+      content: (
+        <SignalTaskCreateFrame
+          signalTitle={signalTitle}
+          businessUnitId={team.business_unit_id}
+          responsiblePersonId={viewerId}
+          session={session}
+          onCreated={(taskId) => { void finishTaskCreate(taskId) }}
+          onLeave={() => { void host.back() }}
+        />
+      ),
+      leaveGuard: session.guard,
+    }
+    void host.push(entry)
   }
 
   async function submitLink() {
     if (!linkTaskId) return
-    await linkSignalTask(signalId, linkTaskId)
-    setLinkOpen(false)
-    setLinkTaskId('')
-    load()
+    setActionError(null)
+    try {
+      await linkSignalTask(signalId, linkTaskId)
+      setLinkOpen(false)
+      setLinkTaskId('')
+      load()
+    } catch {
+      setActionError(t('signals.record.actionError'))
+    }
   }
 
   const revisionViews = revisions.map((rev) => ({
@@ -212,11 +505,32 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
   }))
   const hasAcknowledged = !!viewerId && acknowledgements.some((ack) => ack.person_id === viewerId)
 
+  const recordActionControls = !retracted ? (
+    <div className="signal-record-action-controls" data-signal-actions="true">
+      <Button
+        variant="primary"
+        onClick={openTaskComposer}
+        disabled={!viewerId || !team}
+        aria-busy={!team}
+      >
+        {t('signals.record.createFollowUpTask')}
+      </Button>
+      <SignalOverflowMenu
+        onLinkExistingTask={() => setLinkOpen((open) => !open)}
+        onRetract={canRetract ? () => setRetractOpen(true) : undefined}
+        onCopyLink={() => {
+          if (typeof navigator !== 'undefined' && navigator.clipboard) void navigator.clipboard.writeText(new URL(canonicalHref, window.location.origin).href)
+        }}
+        onOpenFullPage={mode === 'panel' ? () => navigate(`/work/signals/${signal.id}`) : undefined}
+      />
+    </div>
+  ) : null
+
   // Link-existing remains record-local; Task creation uses the one canonical Tasks composer.
   const actionForms = (
     <>
       {linkOpen && (
-        linkableTasks.length === 0 ? (
+        tasksLoadError ? null : linkableTasks.length === 0 ? (
           <EmptyState title={t('signals.record.noLinkableTasks')} />
         ) : (
           <form
@@ -224,16 +538,15 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
             aria-label={t('signals.record.linkExistingTask')}
             onSubmit={(e) => { e.preventDefault(); void submitLink() }}
           >
-            <Select
+            <Picker
               label={t('signals.record.existingTaskLabel')}
               value={linkTaskId}
-              onChange={(e) => setLinkTaskId(e.target.value)}
-            >
-              <option value="">{t('signals.record.existingTaskPlaceholder')}</option>
-              {linkableTasks.map((task) => (
-                <option key={task.id} value={task.id}>{task.title}</option>
-              ))}
-            </Select>
+              options={linkableTasks.map((task) => ({ value: task.id, label: task.title }))}
+              placeholder={t('signals.record.existingTaskPlaceholder')}
+              required
+              fullWidth
+              onChange={setLinkTaskId}
+            />
             <Button type="submit" variant="primary" disabled={!linkTaskId}>
               {t('signals.record.linkSave')}
             </Button>
@@ -243,10 +556,6 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     </>
   )
 
-  // ── The five JTBD region nodes (retracted ⇒ reach/discussion/history drop; message tombstone +
-  // Facts survive so provenance stays legible, mirroring an archived Task's ownership fields). ──
-  const retracted = signal.retracted_at !== null
-  const canRetract = !retracted && !!viewerId && (signal.author_id === viewerId || (auth.status === 'authenticated' && can(auth.viewer.accessRoles, 'signal.retract')))
   // mos._guard_signals (20260805000006) treats attention as AUTHOR-ONLY content — a signal.retract
   // holder who isn't the author gets 42501 — so the editor is offered to the author alone
   // (DESIGN.md: do not render edit affordances that cannot succeed).
@@ -264,9 +573,10 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
         personId: ack.person_id, personName: personName(people, ack.person_id, t('signals.card.unknownAuthor')),
       }))}
       linkedTasksSummary={linkedTasksSummary}
-      onCreateFollowUpTask={openTaskComposer}
-      onLinkExistingTask={() => setLinkOpen((open) => !open)}
-      onRetract={canRetract ? () => setRetractOpen(true) : undefined}
+      linkedTasks={linkedTasks}
+      linkedTasksLoading={!tasksLoaded && !tasksLoadError && taskLinks.length > 0}
+      linkedTasksError={tasksLoadError}
+      onRetryLinkedTasks={() => { void loadRelatedTasks() }}
       actionForms={actionForms}
     />
   )
@@ -303,17 +613,40 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
           facts,
           history,
           onAttentionChange,
+          actionControls: recordActionControls,
           onRepost: retracted ? openRepost : undefined,
+          retractedBy: retracted ? personName(people, signal.author_id, t('signals.card.unknownAuthor')) : null,
+          retractedAtLabel: retracted && signal.retracted_at ? formatWibDateTime(signal.retracted_at) : null,
           // DO-13/I18N-2: the identity type-kicker localizes with the rest of the record chrome.
           typeLabel: t('signals.record.title'),
           tombstoneLabel: t('signals.retracted'),
         })}
         mode={mode}
+        canonicalHref={canonicalHref}
         // SR-8 (mirrors TaskRecordPage): in page mode the RecordViewer identity IS the page's h1
         // (the generic PageFamilyFrame head is hidden), so promote it from the default h2. The
         // in-list panel/drawer keeps h2 (its host chrome owns the surrounding hierarchy).
         headingLevel={mode === 'page' ? 1 : 2}
       />
+      {actionError ? <p className="signal-record-action-error" role="alert">{actionError}</p> : null}
+      {localTaskSession && (
+        <RecordPanelHost
+          label={t('signals.record.createFollowUpTask')}
+          title={t('signals.record.createFollowUpTask')}
+          focusKey={`signal-task-create:${signal.id}`}
+          rootClassName="signal-task-create-local-host"
+          onClose={(via) => { closeLocalTaskComposer(via ?? 'explicit-close') }}
+        >
+          <SignalTaskCreateFrame
+            signalTitle={firstLine(signal.body)}
+            businessUnitId={team?.business_unit_id ?? ''}
+            responsiblePersonId={viewerId ?? ''}
+            session={localTaskSession}
+            onCreated={(taskId) => { void finishTaskCreate(taskId) }}
+            onLeave={() => { closeLocalTaskComposer('explicit-close') }}
+          />
+        </RecordPanelHost>
+      )}
       <ConfirmDialog
         open={retractOpen}
         title={t('signals.record.retractTitle')}

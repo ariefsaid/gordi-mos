@@ -3,9 +3,9 @@
 // These two management surfaces used to render a pre-redesign bespoke inline-add list (New X / Add X
 // / Rename / Archive rows). They now speak the same V3 collection grammar every other collection uses:
 // one typed descriptor per domain owns load / filter (view + name search + type) / a single `list`
-// presentation, and the shared RecordCollectionSurface + CollectionToolbar render it. A catalog row
-// has NO record panel, so record-opening stays dormant and the row's inline management actions remain
-// its primary interaction (supplied by the page through the CatalogCollectionActions context).
+// presentation, and the shared RecordCollectionSurface + CollectionToolbar render it. Catalog rows
+// open their canonical record document through the page-owned shared overlay seam; the descriptor
+// itself remains focused on loading and projecting collection data.
 //
 // Project/Process share ONE collection keyed off `work_lines.type` (the physical table is mos.work_lines
 // — ADR-0015); Objectives are a separate collection. Both carry the FR-422 up/down trace, computed once
@@ -30,6 +30,8 @@ import { readPersistedLocale } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { ObjectiveAdminRow } from '@/lib/db/objectives'
 import type { WorkLineAdminRow } from '@/lib/db/work-lines'
+import { getBusinessUnits, getPeople, type BusinessUnitOption, type PersonOption } from '@/lib/db/directory'
+import { listProcessCollectionFacts, type ProcessCollectionFact } from '@/lib/db/work-records'
 import type {
   CollectionData,
   CollectionProjection,
@@ -51,9 +53,18 @@ export interface CatalogRow {
   name: string
   archived_at: string | null
   type?: CatalogType
+  objectiveId?: string | null
+  businessUnitId?: string | null
+  accountablePersonId?: string | null
+  responsiblePersonId?: string | null
+  periodYear?: number | null
+  cadenceKind?: ProcessCollectionFact['cadence_kind']
+  cadenceActive?: boolean | null
+  nextDueDate?: string | null
+  currentOccurrence?: ProcessCollectionFact['current_occurrence']
 }
 
-export type CatalogView = 'active' | 'archived'
+export type CatalogView = 'active' | 'archived' | 'all'
 export type CatalogTypeFilter = 'all' | CatalogType
 /**
  * OD-V4-1 H7 fix: a "does this record have any linked work" filter. Objectives is the only
@@ -90,6 +101,8 @@ export interface CatalogRelationGroup {
 export interface CatalogRelationTask {
   id: string
   title: string
+  status?: TaskListRow['status']
+  lastActivityAt?: string
 }
 
 /**
@@ -113,6 +126,13 @@ export interface CatalogCollectionContext {
   relationsKind: CatalogRelationsKind
   /** Count-only roll-up per row id — `done` and `total`, never a target or a percentage. */
   progressById: ReadonlyMap<string, CountRollup>
+  /** Latest existing Task activity for the row. Optional for compatibility with pure relation tests. */
+  lastActivityById?: ReadonlyMap<string, string | null>
+  /** Resolved names for the existing BU/person foreign keys; missing values remain honest. */
+  businessUnitsById?: ReadonlyMap<string, string>
+  peopleById?: ReadonlyMap<string, string>
+  businessUnits?: readonly BusinessUnitOption[]
+  objectiveOptions?: readonly { value: string; label: string }[]
 }
 
 /** A projection group — a catalog renders a single flat group (the active view). */
@@ -135,7 +155,7 @@ const CATALOG_NEUTRAL_QUERY: CatalogCollectionQuery = {
   savedViewId: null,
 }
 
-const VIEWS: readonly CatalogView[] = ['active', 'archived']
+const VIEWS: readonly CatalogView[] = ['active', 'archived', 'all']
 const TYPE_FILTERS: readonly CatalogTypeFilter[] = ['all', 'project', 'process']
 const COVERAGE_FILTERS: readonly CatalogCoverageFilter[] = ['all', 'has-tasks', 'no-tasks']
 
@@ -265,7 +285,12 @@ function cascadeLabels(t: Translate): CascadeGroupLabels {
   return { unlinked: t('rollup.group.unlinked'), noWorkLine: t('rollup.group.noWorkLine') }
 }
 
-const relationTask = (task: { id: string; title: string }) => ({ id: task.id, title: task.title })
+const relationTask = (task: Pick<TaskListRow, 'id' | 'title' | 'status' | 'last_activity_at'>) => ({
+  id: task.id,
+  title: task.title,
+  status: task.status,
+  lastActivityAt: task.last_activity_at,
+})
 
 /**
  * Objective → its child Projects/Processes via the direct work-line edge + its own tasks.
@@ -329,6 +354,53 @@ function buildWorkLineRelations(
   return map
 }
 
+function latestActivityById(
+  groups: readonly CascadeGroup<TaskListRow>[],
+  ids: readonly string[],
+  kind: CatalogRelationsKind,
+): Map<string, string | null> {
+  const latest = new Map<string, string | null>(ids.map((id) => [id, null]))
+  for (const group of groups) {
+    const id = kind === 'objective' ? group.objectiveId : group.workLineId
+    if (!id) continue
+    const current = latest.get(id) ?? null
+    for (const task of group.tasks) {
+      if (!current || task.last_activity_at > current) latest.set(id, task.last_activity_at)
+    }
+  }
+  return latest
+}
+
+type ObjectiveCatalogSource = ObjectiveAdminRow & {
+  business_unit_id?: string | null
+  accountable_person_id?: string | null
+  period_year?: number | null
+}
+
+type WorkLineCatalogSource = WorkLineAdminRow & {
+  business_unit_id?: string | null
+  accountable_person_id?: string | null
+  responsible_person_id?: string | null
+}
+
+async function loadDirectoryForRows(rows: readonly CatalogRow[]): Promise<{
+  businessUnitsById: Map<string, string>
+  peopleById: Map<string, string>
+  businessUnits: BusinessUnitOption[]
+}> {
+  const businessUnitIds = new Set(rows.map((row) => row.businessUnitId).filter((id): id is string => Boolean(id)))
+  const personIds = new Set(rows.flatMap((row) => [row.accountablePersonId, row.responsiblePersonId]).filter((id): id is string => Boolean(id)))
+  const [businessUnits, people] = await Promise.all([
+    businessUnitIds.size > 0 ? getBusinessUnits() : Promise.resolve([] as BusinessUnitOption[]),
+    personIds.size > 0 ? getPeople() : Promise.resolve([] as PersonOption[]),
+  ])
+  return {
+    businessUnitsById: new Map(businessUnits.map((unit) => [unit.id, unit.name])),
+    peopleById: new Map(people.map((person) => [person.id, person.full_name])),
+    businessUnits,
+  }
+}
+
 // ── Projection (view + name search + work-line type + task coverage; single flat group) ─────────────
 
 function isFiltered(query: CatalogCollectionQuery, visible: number, total: number): boolean {
@@ -365,12 +437,9 @@ function projectCatalog(
 
 // ── Descriptor scaffolding (saved views are dormant for a catalog) ─────────────────────────────────
 
-// A catalog has no persisted saved views and no record panel (D-A7: catalog rows manage inline —
-// Rename/Archive — with no record door). The engine's descriptor type still requires the saved-view
-// seam structurally, so it is present but inert: the toolbar never exposes saved views, so
-// buildSpec/applySpec are never reached. The opening seam (`viewer`) is simply omitted — the
-// presentations declare `recordOpening: false` and the engine treats a viewer-less descriptor as
-// door-less (D-A6 cleanup: the previous inert buildPanelEntry/toCanonicalPage fossil was deleted).
+// A catalog has no persisted saved views. The engine's descriptor type still requires the saved-view
+// seam structurally, so it is present but inert: the toolbar never exposes saved views, and the page
+// owns record opening through the shared Work overlay seam.
 const inertSavedViews: CollectionSavedViewDescriptor<CatalogCollectionQuery, CatalogPresentation> = {
   enabled: true,
   store: {
@@ -440,7 +509,7 @@ export const objectivesCollectionDescriptor = makeCatalogDescriptor({
   // OD-V4-1 H7: 'coverage' (Has tasks / No tasks) is the one filter dimension Objectives has
   // data for — mirrors Projects/Processes' existing 'type' filter (same CollectionToolbar
   // `filters` mechanism, no second filter grammar).
-  filterKeys: ['coverage'],
+    filterKeys: ['view', 'coverage'],
   load: async () => {
     const [objectives, tasks, workLines] = await Promise.all([
       listObjectivesAll(), listTasks({}), listWorkLinesAll(),
@@ -453,13 +522,28 @@ export const objectivesCollectionDescriptor = makeCatalogDescriptor({
     // to remove, one layer down.
     const groups = buildCascadeGroups({ objectives, workLines, tasks, labels, includeEmptyWorkLines: true })
     const counts = rollUpCounts(groups, { objectives, workLines, labels })
+    const records = objectives.map((objective) => {
+      const source = objective as ObjectiveCatalogSource
+      return {
+        id: source.id,
+        name: source.name,
+        archived_at: source.archived_at,
+        businessUnitId: source.business_unit_id ?? null,
+        accountablePersonId: source.accountable_person_id ?? null,
+        periodYear: source.period_year ?? null,
+      }
+    })
+    const directory = await loadDirectoryForRows(records)
     return {
-      records: objectives.map((o) => ({ id: o.id, name: o.name, archived_at: o.archived_at })),
+      records,
       context: {
         traceById: buildObjectiveDownTrace(groups, t),
         relationsById: buildObjectiveRelations(groups, objectives),
         relationsKind: 'objective',
         progressById: new Map(counts.objectives.map((row) => [row.id, row])),
+        lastActivityById: latestActivityById(groups, objectives.map((row) => row.id), 'objective'),
+        ...directory,
+        objectiveOptions: objectives.map((objective) => ({ value: objective.id, label: objective.name })),
       },
     }
   },
@@ -469,7 +553,9 @@ export const objectivesCollectionDescriptor = makeCatalogDescriptor({
 // export at module-eval throws when the sibling domain's mock omits it. Deferring to call-time means
 // the Objectives page never touches the work-lines mutations, and vice-versa.
 export const objectivesCatalogActions = {
-  create: (name: string) => createObjective(name),
+  create: (name: string, businessUnitId?: string | null) => businessUnitId
+    ? (createObjective as unknown as (value: string, ownership?: { business_unit_id?: string | null }) => Promise<unknown>)(name, { business_unit_id: businessUnitId })
+    : (createObjective as unknown as (value: string) => Promise<unknown>)(name),
   rename: (id: string, name: string) => renameObjective(id, name),
   setArchived: (id: string, archived: boolean) => setObjectiveArchived(id, archived),
 }
@@ -478,7 +564,7 @@ export const objectivesCatalogActions = {
 
 export const projectsProcessesCollectionDescriptor = makeCatalogDescriptor({
   id: 'work_lines',
-  filterKeys: ['type'],
+  filterKeys: ['view', 'type'],
   load: async () => {
     const [workLines, tasks, objectives] = await Promise.all([
       listWorkLinesAll(), listTasks({}), listObjectivesAll(),
@@ -488,20 +574,58 @@ export const projectsProcessesCollectionDescriptor = makeCatalogDescriptor({
     // One construction per load — see the sibling Objectives descriptor above.
     const groups = buildCascadeGroups({ objectives, workLines, tasks, labels, includeEmptyWorkLines: true })
     const counts = rollUpCounts(groups, { objectives, workLines, labels })
+    const records = workLines.map((workLine) => {
+      const source = workLine as WorkLineCatalogSource
+      return {
+        id: source.id,
+        name: source.name,
+        archived_at: source.archived_at,
+        type: source.type,
+        objectiveId: source.objective_id ?? null,
+        businessUnitId: source.business_unit_id ?? null,
+        accountablePersonId: source.accountable_person_id ?? null,
+        responsiblePersonId: source.responsible_person_id ?? null,
+      }
+    })
+    const processIds = records.filter((record) => record.type === 'process').map((record) => record.id)
+    const [directory, processFacts] = await Promise.all([
+      loadDirectoryForRows(records),
+      listProcessCollectionFacts(processIds),
+    ])
+    const factsById = new Map(processFacts.map((fact) => [fact.work_line_id, fact]))
     return {
-      records: workLines.map((w) => ({ id: w.id, name: w.name, archived_at: w.archived_at, type: w.type })),
+      records: records.map((record) => {
+        const fact = factsById.get(record.id)
+        return {
+          ...record,
+          cadenceKind: fact?.cadence_kind ?? null,
+          cadenceActive: fact?.cadence_active ?? null,
+          nextDueDate: fact?.next_due_date ?? null,
+          currentOccurrence: fact?.current_occurrence ?? null,
+        }
+      }),
       context: {
         traceById: buildWorkLineUpTrace(groups, t),
         relationsById: buildWorkLineRelations(groups, workLines),
         relationsKind: 'work_line',
         progressById: new Map(counts.workLines.map((row) => [row.id, row])),
+        lastActivityById: latestActivityById(groups, workLines.map((row) => row.id), 'work_line'),
+        ...directory,
+        objectiveOptions: objectives.map((objective) => ({ value: objective.id, label: objective.name })),
       },
     }
   },
 })
 
 export const projectsProcessesCatalogActions = {
-  create: (name: string, type: CatalogType) => createWorkLine(name, type),
+  create: (name: string, type: CatalogType, metadata?: {
+    objectiveId?: string | null
+    businessUnitId?: string | null
+    accountablePersonId?: string | null
+    responsiblePersonId?: string | null
+  }) => metadata
+    ? (createWorkLine as unknown as (value: string, lineType: CatalogType, fields: typeof metadata) => Promise<unknown>)(name, type, metadata)
+    : (createWorkLine as unknown as (value: string, lineType: CatalogType) => Promise<unknown>)(name, type),
   rename: (id: string, name: string) => renameWorkLine(id, name),
   setArchived: (id: string, archived: boolean) => setWorkLineArchived(id, archived),
 }

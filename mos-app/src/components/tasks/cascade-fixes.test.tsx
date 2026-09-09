@@ -42,6 +42,8 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getPersonTeams: vi.fn(),
+  getTeamsByIds: () => Promise.resolve([]),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/db/objectives', () => ({
@@ -53,6 +55,7 @@ vi.mock('../../lib/db/work-lines', () => ({
 
 import { listTasks } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
+import * as directoryApi from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksWorkspace } from './tasks-workspace'
@@ -102,6 +105,10 @@ const WORK_LINES = [
   { id: 'wl-project', name: 'New Menu Design', type: 'project' as const },
   { id: 'wl-process', name: 'Daily IG Content', type: 'process' as const },
 ]
+
+const mockGetPersonTeams = (directoryApi as unknown as {
+  getPersonTeams: ReturnType<typeof vi.fn>
+}).getPersonTeams
 
 function stubMatchMedia(split = true, desktop = true) {
   Object.defineProperty(window, 'matchMedia', {
@@ -160,6 +167,7 @@ beforeEach(() => {
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
+  mockGetPersonTeams.mockResolvedValue([{ id: 'team-cafe', name: 'Cafe Team', businessUnitId: 'bu-1' }])
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue(OBJECTIVES)
   vi.mocked(listWorkLines).mockResolvedValue(WORK_LINES)
@@ -598,8 +606,10 @@ describe('Fix-6 — Work-line picker options include project/daily cue', () => {
     // F17 (OD-91 #29): the Project/Process picker lives behind the "+ Add context" reveal now.
     fireEvent.click(await screen.findByRole('button', { name: /add context/i }))
     // Wait for work-line select to appear
-    const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
-    const options = Array.from(wlSelect.querySelectorAll('option')).map(o => o.textContent ?? '')
+    await screen.findByRole('combobox', { name: /project\/process/i })
+    fireEvent.click(screen.getByRole('combobox', { name: /project\/process/i }))
+    const options = screen.getAllByRole('option').map(o => o.textContent ?? '')
+    fireEvent.click(screen.getByRole('option', { name: '— None —' }))
     // Options must include the type cue in parentheses
     expect(options.some(o => /project/i.test(o))).toBe(true)
     expect(options.some(o => /daily/i.test(o))).toBe(true)

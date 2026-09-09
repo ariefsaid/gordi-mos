@@ -1,19 +1,9 @@
 import { supabase } from '@/lib/supabase'
-import { getRunRollup, startRun } from './processes'
-import type { ProcessRunRollup, SpawnResult } from './processes.types'
-import { fetchDefaultStream } from './default-stream'
-import { listActiveBranches } from './branches'
-
-export type CafeOpeningBranch = {
-  branch_id: string
-  team_id: string
-  team_name: string
-  run_id: string | null
-  run_status: string | null
-}
+import { getRunRollup, startRun, listDueRuns } from './processes'
+import type { DueProcessRun, ProcessRunRollup, SpawnResult } from './processes.types'
 
 // Café DAL (Step 7 / cafe-retrofit.spec.md). Resolves the "Café Opening" Process + reads today's
-// opening run/roll-up + starts it — REUSES Step 6's processes.ts (startRun/getRunRollup,
+// opening run/roll-up + starts it — REUSES Step 6's processes.ts (startRun/listDueRuns/getRunRollup,
 // Rule 11) rather than re-implementing the spawn/rollup reads. This layer NEVER sends org_id (RLS
 // stamps it) and throws on any non-null PostgREST/RPC error so the UI can surface failures.
 
@@ -27,45 +17,54 @@ export function wibToday(): string {
   return `${shifted.getUTCFullYear()}-${p(shifted.getUTCMonth() + 1)}-${p(shifted.getUTCDate())}`
 }
 
-/** Resolve the "Café Opening" process id by name (org-scoped by RLS). RATIFY-7F: name-based v1 seam
- * — a known fragility (a rename breaks it); a stable work_lines.code is a flagged follow-up. */
+/** Resolve the Café Opening process by its stable work-line code (org-scoped by RLS). */
 export async function getCafeOpeningProcessId(): Promise<string | null> {
   const { data, error } = await mos()
     .from('work_lines').select('id')
-    .eq('type', 'process').eq('name', 'Café Opening').limit(1).maybeSingle()
+    .eq('type', 'process').eq('code', 'cafe_opening').limit(1).maybeSingle()
   if (error) throw new Error(`getCafeOpeningProcessId failed — ${error.message}`)
   return (data as { id: string } | null)?.id ?? null
 }
 
-export interface CafeDoorFacts {
-  branchName: string
-  done: number
-  total: number
+/** Resolve the branch's canonical Café Opening Team through the same shared seam that the
+ * spawn/due RPCs use. Café Opening runs are stored against this Team (live kitchen first, then
+ * live bar), so a viewer's primary stream Team is only the branch context, never the run owner. */
+export async function getCafeOpeningTeamId(branchId: string): Promise<string | null> {
+  const { data, error } = await shared().rpc('cafe_opening_team', { p_branch_id: branchId })
+  if (error) throw new Error(`getCafeOpeningTeamId failed — ${error.message}`)
+  return typeof data === 'string' ? data : null
+}
+
+export interface CafeOpeningTeam {
+  id: string
+  name: string
+}
+
+/** Resolve an authored/membership Team through its branch to the canonical Café Opening Team. */
+export async function resolveCafeOpeningTeamForTeam(teamId: string): Promise<CafeOpeningTeam | null> {
+  const { data: source, error: sourceError } = await shared()
+    .from('teams').select('branch_id').eq('id', teamId).maybeSingle()
+  if (sourceError) throw new Error(`resolveCafeOpeningTeamForTeam source failed — ${sourceError.message}`)
+
+  const branchId = (source as { branch_id: string | null } | null)?.branch_id ?? null
+  if (!branchId) return null
+
+  const openingTeamId = await getCafeOpeningTeamId(branchId)
+  if (!openingTeamId) return null
+
+  const { data: openingTeam, error: openingError } = await shared()
+    .from('teams').select('id,name').eq('id', openingTeamId).maybeSingle()
+  if (openingError) throw new Error(`resolveCafeOpeningTeamForTeam opening failed — ${openingError.message}`)
+
+  const row = openingTeam as { id?: unknown; name?: unknown } | null
+  if (typeof row?.id !== 'string' || typeof row.name !== 'string') return null
+  return { id: row.id, name: row.name }
 }
 
 export interface TodayOpening {
   started: boolean
   runId: string | null
   rollup: ProcessRunRollup | null
-}
-
-/** Facts for Home's Café capture door, resolved from the viewer's primary stream. */
-export async function getViewerCafeDoor(): Promise<CafeDoorFacts | null> {
-  const stream = await fetchDefaultStream(await listActiveBranches())
-  if (!stream) return null
-  const { data: team, error: teamError } = await shared().from('teams')
-    .select('id').eq('branch_id', stream.branch.id).eq('activity', stream.activity).limit(1).maybeSingle()
-  if (teamError) throw new Error(`getViewerCafeDoor team failed — ${teamError.message}`)
-  const teamId = (team as { id: string } | null)?.id
-  if (!teamId) return null
-  const processId = await getCafeOpeningProcessId()
-  if (!processId) return { branchName: stream.branch.name, done: 0, total: 0 }
-  const opening = await getTodayOpeningForTeam(processId, teamId)
-  return {
-    branchName: stream.branch.name,
-    done: opening.rollup?.done ?? 0,
-    total: opening.rollup?.total ?? 0,
-  }
 }
 
 /** Today's (WIB) opening for a branch Team: whether it is started, its run id, and its derived
@@ -87,9 +86,9 @@ export function startTodayOpening(processId: string, teamId: string): Promise<Sp
   return startRun(processId, teamId, wibToday())
 }
 
-/** Branches the caller may start, retaining started openings on the page. */
-export async function listCafeOpeningBranches(): Promise<CafeOpeningBranch[]> {
-  const { data, error } = await mos().rpc('cafe_opening_branches')
-  if (error) throw new Error(`listCafeOpeningBranches failed — ${error.message}`)
-  return (data ?? []) as CafeOpeningBranch[]
+/** Branch Teams for which today's opening is due (not yet started) — the Café-scoped slice of
+ * Step-6's due_process_runs() (AC-711 backing). */
+export async function listStartableCafeTeams(processId: string): Promise<DueProcessRun[]> {
+  const due = await listDueRuns()
+  return due.filter(d => d.work_line_id === processId)
 }

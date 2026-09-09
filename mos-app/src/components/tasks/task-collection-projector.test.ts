@@ -189,12 +189,12 @@ describe('projectTaskCollection — filtering', () => {
     expect(p.visibleRecords.map((r) => r.id).sort()).toEqual(['t-1', 't-3'])
   })
 
-  it('view=completed scopes cleanly to Done tasks', () => {
+  it('status=Done scopes cleanly to completed tasks', () => {
     const rows = [
       ...RAW,
       rawTask({ id: 't-done', title: 'Close the old task', status: 'Done', due_date: '2026-07-01' }),
     ]
-    const p = projectTaskCollection(makeData(rows), q({ view: 'completed' }))
+    const p = projectTaskCollection(makeData(rows), q({ status: 'Done' }))
     expect(p.visibleRecords.map((r) => r.id)).toEqual(['t-done'])
     expect(p.visibleRecordsAreFiltered).toBe(true)
   })

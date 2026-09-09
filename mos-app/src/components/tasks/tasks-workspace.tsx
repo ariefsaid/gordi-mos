@@ -32,11 +32,16 @@ import {
 } from './task-collection-presentation'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import { createTask, updateTaskFields, updateTaskStatus } from '@/lib/db/tasks'
+import { getPersonTeams, type TeamOption } from '@/lib/db/directory'
 import { linkSignalTask } from '@/lib/db/signals'
 import { TaskOverlayContent } from './task-drawer'
+import { useCatalogRecordEntryFactory } from '@/components/catalog/use-catalog-record-overlay'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
 import { getActiveTaskView } from './task-collection-view'
+import { isOwnerDirector } from '@/lib/role-scope'
+import { getTaskDefaultView } from '@/lib/task-default-view'
+import { resolveTeamContext } from '@/lib/team-context'
 
 // D-A1 (fix work-order item 4): the Task record door is URL-addressable via the ?record= query
 // seam — the SAME grammar Signals uses (backlog R6(b) "unify on ?record="), built from the shared
@@ -48,7 +53,8 @@ const taskRouteAdapter = createRecordRouteAdapter({
   pagePath: (id) => `/work/tasks/${id}`,
 })
 
-// §Task-11 (Issue-8 gate): no `team` chip until Issue 8 lands the real Task team_id contract.
+// Team scope is a first-class queue view. The collection adapter remains the compatibility seam
+// while the domain contract is composed by the root branch.
 type TasksSavedViewChip = 'mine' | 'overdue'
 // The one page-state literal for a Task's canonical surface — the entry carries it, and both
 // promotion doors send it, so "which surface am I on" cannot drift between them.
@@ -104,6 +110,19 @@ function legacyViewFor(view: TaskCollectionView): TasksSavedViewChip | 'all' {
   return 'all'
 }
 
+function defaultTaskView(auth: ReturnType<typeof useAuth>, accessRoles: readonly string[]): TaskCollectionView {
+  if (auth.status !== 'authenticated') return 'my-work'
+  return getTaskDefaultView({ accessRoles, hasReport: auth.viewer.isManager, isOwnerDirector: isOwnerDirector(auth.viewer.roles) })
+}
+
+function firstCreateParam(params: URLSearchParams, keys: readonly string[]): string | null {
+  for (const key of keys) {
+    const value = params.get(key)
+    if (value) return value
+  }
+  return null
+}
+
 function taskDisclosureSummary(
   query: TaskCollectionQuery,
   t: ReturnType<typeof useT>,
@@ -115,9 +134,9 @@ function taskDisclosureSummary(
     excludedKeys: ['layout', 'groupBy', 'sort', 'direction', 'view'],
     base,
     // The promoted scope tabs are the queue's base context, not extra constraints. Legacy views
-    // remain an active constraint, while a clear on My work/Completed can leave that tab selected
+    // remain an active constraint, while a clear on a legacy person scope can leave that tab selected
     // without keeping the active-query affordance lit.
-    hasNonDefaultView: query.view !== 'all' && query.view !== 'my-work' && query.view !== 'completed',
+    hasNonDefaultView: !['all', 'my-work', 'team-work', 'overdue'].includes(query.view),
     filterLabel: (currentQuery) => currentQuery.overdueOnly ? t('tasks.saved.overdue')
       : currentQuery.status ? t('tasks.filter.status')
         : currentQuery.businessUnitId ? t('tasks.filter.businessUnit')
@@ -148,6 +167,7 @@ export function TasksWorkspace({
   const navigate = useNavigate()
   const location = useLocation()
   const host = useOverlayHost()
+  const { buildEntry: buildRelatedEntry } = useCatalogRecordEntryFactory({ owner: 'tasks' })
   const auth = useAuth()
   const isDesktop = useIsDesktop()
   // DO-17 (census-sweep R2 tasks FINDING2): the global Action Launcher FAB exists whenever the
@@ -157,15 +177,49 @@ export function TasksWorkspace({
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
   const currentSearch = location.search
-  const initialQuery = useMemo(() => queryFromLegacySavedView(savedView), [savedView])
+  const initialQuery = useMemo(() => {
+    const legacy = queryFromLegacySavedView(savedView)
+    if (legacy) return legacy
+    // An explicit URL view is authoritative. Only seed the role-aware default when the user has
+    // not supplied one, so Overdue/Team/My work links survive reload exactly as written.
+    if (new URLSearchParams(location.search).has('view')) return undefined
+    return { ...TASK_COLLECTION_NEUTRAL_QUERY, view: defaultTaskView(auth, accessRoles) }
+  }, [accessRoles, auth, location.search, savedView])
   const [draftTask, setDraftTask] = useState<TaskListRow | null>(null)
   const [draftLinkError, setDraftLinkError] = useState(false)
+  const [draftValidationError, setDraftValidationError] = useState('')
+  // `null` means the viewer Team directory is still loading; [] is an honest no-eligible-Team
+  // result and must never be replaced with a BU/first-row guess.
+  const [viewerTeams, setViewerTeams] = useState<readonly TeamOption[] | null>(null)
   const [announcement, setAnnouncement] = useState('')
   const draftSourceSignalRef = useRef<string | null>(new URLSearchParams(location.search).get('sourceSignal'))
   const createdDraftTaskRef = useRef<string | null>(null)
   const draftTitleRef = useRef('')
   const createControlRef = useRef<HTMLElement | null>(null)
   const returnFocusAfterDiscard = useRef(false)
+  const pendingCreatePrefillRef = useRef('')
+  const createParamSnapshotRef = useRef<URLSearchParams | null>(
+    new URLSearchParams(location.search).get('create') === '1'
+      ? new URLSearchParams(location.search)
+      : null,
+  )
+
+  useEffect(() => {
+    let active = true
+    if (!viewerId) {
+      setViewerTeams([])
+      return () => { active = false }
+    }
+    setViewerTeams(null)
+    getPersonTeams(viewerId).then((teams) => {
+      if (active) setViewerTeams(teams)
+    }).catch(() => {
+      // A failed directory read is deliberately fail-closed: the draft shows no eligible Team and
+      // cannot manufacture a BU. The title entry remains inline so a later retry/refresh can heal.
+      if (active) setViewerTeams([])
+    })
+    return () => { active = false }
+  }, [viewerId])
 
   const controller = useRecordCollection({
     descriptor: taskCollectionDescriptor,
@@ -210,15 +264,16 @@ export function TasksWorkspace({
     navigate({ pathname: location.pathname, search: next.toString() ? `?${next.toString()}` : '' }, { replace: true })
   }, [location.pathname, location.search, navigate])
 
+  const activeViewLabels = {
+    all: t('tasks.saved.all'),
+    'my-work': t('tasks.saved.mine'),
+    'team-work': t('tasks.saved.team'),
+    overdue: t('tasks.saved.overdue'),
+  } as Parameters<typeof getActiveTaskView>[0]['labels']
   const activeView = getActiveTaskView({
     query: state.query,
     savedViews: state.savedViews.items,
-    labels: {
-      all: t('tasks.saved.all'),
-      'my-work': t('tasks.saved.mine'),
-      overdue: t('tasks.saved.overdue'),
-      completed: t('tasks.saved.completed'),
-    },
+    labels: activeViewLabels,
   })
   useSetCollectionLeaf({
     label: activeView.label,
@@ -241,7 +296,17 @@ export function TasksWorkspace({
   // OverlayHost session (route marker) supplies the focus/Back/leave-guard. This mirrors the Signals
   // archive seam exactly (signals-archive-page.tsx).
   const [params, setParams] = useSearchParams()
-  const createIntentRef = useRef(new URLSearchParams(location.search).get('create') === '1')
+  const createIntentRef = useRef(
+    new URLSearchParams(location.search).get('create') === '1'
+      || location.pathname === '/work/tasks/new',
+  )
+  // The retired /work/tasks/new door redirects into this mounted workspace. Capture the intent
+  // during render so the collection query's URL normalization cannot race the redirect and erase
+  // `create=1` before the inline draft effect sees it.
+  if (params.get('create') === '1') createIntentRef.current = true
+  if (params.get('create') === '1' && !createParamSnapshotRef.current) {
+    createParamSnapshotRef.current = new URLSearchParams(params)
+  }
   const recordId = taskRouteAdapter.readPanelId(location)
   const hadTaskSession = useRef(false)
   const suppressNextOpen = useRef(false)
@@ -326,12 +391,13 @@ export function TasksWorkspace({
         onClose={() => { void host.close() }}
         onOpenPage={() => { void promoteToPage(pageTo, host.openPage) }}
         onTaskChanged={onTaskChanged}
+        onOpenRelated={(related) => { void host.push(buildRelatedEntry(related.kind, related.id, pageSearch())) }}
         onTaskArchived={onTaskArchived}
         onLeaveGuardChange={(guard) => { entry.leaveGuard = guard }}
       />
     )
     return entry
-  }, [recordId, pageSearch, controller.state.data, host, onTaskArchived, onTaskChanged, promoteToPage, t])
+  }, [recordId, pageSearch, controller.state.data, buildRelatedEntry, host, onTaskArchived, onTaskChanged, promoteToPage, t])
 
   // Open (or restore, on hard-load/refresh of ?record=) the record through the shared host. Route
   // mode so the marker is a real history step: Browser Back closes the panel, refresh restores it.
@@ -345,7 +411,7 @@ export function TasksWorkspace({
     }
     if (suppressNextOpen.current) return
     const active = host.session?.frames.at(-1)?.entry
-    if (active?.key === taskEntry.key) return
+    if (host.session?.frames[0]?.entry.key === taskEntry.key) return
     // A genuine browser Back / ✕ / Escape pops the marker one render before the clear effect drops
     // ?record=: the session is gone but recordId still lingers. If we ALREADY had a stably-open
     // session for this record (hadTaskSession), the user closed it — let the clear effect finish
@@ -397,22 +463,72 @@ export function TasksWorkspace({
     controller.retry()
   }, [controller, records, viewerId])
   const onEditPic = useCallback(async (taskId: string, personId: string) => {
+    if (draftTask?.id === taskId) {
+      setDraftTask((current) => current?.id === taskId
+        ? { ...current, responsible_person_id: personId }
+        : current)
+      setDraftValidationError('')
+      return
+    }
     if (!viewerId) throw new Error('inline PIC edit requires an authenticated viewer')
     const previous = records.find((record) => record.id === taskId)?.picId ?? null
     await updateTaskFields(taskId, { responsible_person_id: personId }, viewerId, previous)
     controller.retry()
-  }, [controller, records, viewerId])
+  }, [controller, draftTask?.id, records, viewerId])
+  const onEditTeam = useCallback(async (taskId: string, teamId: string) => {
+    if (draftTask?.id !== taskId) return
+    const selected = viewerTeams?.find((team) => team.id === teamId)
+    setDraftTask((current) => current?.id === taskId
+      ? {
+          ...current,
+          team_id: selected?.id ?? null,
+          // BU is a compatibility projection derived from the selected Team, never a second
+          // independent choice. Clearing Team clears the derived BU as well.
+          business_unit_id: selected?.businessUnitId ?? '',
+        }
+      : current)
+    setDraftValidationError('')
+  }, [draftTask?.id, viewerTeams])
+  const onEditSupervisor = useCallback(async (taskId: string, personId: string) => {
+    if (draftTask?.id !== taskId) return
+    setDraftTask((current) => current?.id === taskId
+      ? { ...current, accountable_person_id: personId }
+      : current)
+    setDraftValidationError('')
+  }, [draftTask?.id])
+  const onValidateNewTask = useCallback((taskId: string) => {
+    if (draftTask?.id !== taskId) return
+    if (!draftTask.team_id || !draftTask.business_unit_id) {
+      setDraftValidationError(t('tasks.create.teamRequired'))
+      return
+    }
+    if (!draftTask.accountable_person_id) {
+      setDraftValidationError(t('tasks.create.supervisorRequired'))
+    }
+  }, [draftTask, t])
   const onEditTitle = useCallback(async (taskId: string, title: string) => {
     if (draftTask?.id === taskId) {
       if (!viewerId) throw new Error('inline task creation requires an authenticated viewer')
       draftTitleRef.current = title
+      if (!draftTask.team_id || !draftTask.business_unit_id) {
+        setDraftValidationError(t('tasks.create.teamRequired'))
+        return
+      }
+      if (!draftTask.accountable_person_id) {
+        setDraftValidationError(t('tasks.create.supervisorRequired'))
+        return
+      }
+      setDraftValidationError('')
       const existingTaskId = createdDraftTaskRef.current
       const createdTaskId = existingTaskId ?? await createTask({
         title,
         businessUnitId: draftTask.business_unit_id,
+        teamId: draftTask.team_id,
         responsiblePersonId: draftTask.responsible_person_id,
         accountablePersonId: draftTask.accountable_person_id,
         createdBy: viewerId,
+        objectiveId: draftTask.objective_id,
+        workLineId: draftTask.work_line_id,
       })
       createdDraftTaskRef.current = createdTaskId
       if (existingTaskId) await updateTaskFields(createdTaskId, { title }, viewerId)
@@ -453,6 +569,7 @@ export function TasksWorkspace({
     createdDraftTaskRef.current = null
     draftTitleRef.current = ''
     setDraftLinkError(false)
+    setDraftValidationError('')
     setDraftTask(null)
   }, [t])
   useEffect(() => {
@@ -469,36 +586,89 @@ export function TasksWorkspace({
   }, [currentSearch, drawerOpen, host, navigate])
   const onNewTask = useCallback((prefillParam = '') => {
     if (!dataContext || draftTask) return
+    if (viewerTeams === null) {
+      // Keep direct button/group-header creates queued while the real Team directory resolves.
+      // The URL-create effect will also retry through this same path; no synthetic BU is shown.
+      createIntentRef.current = true
+      pendingCreatePrefillRef.current = prefillParam
+      return
+    }
     setDraftLinkError(false)
+    setDraftValidationError('')
     setAnnouncement('')
     createdDraftTaskRef.current = null
     draftTitleRef.current = ''
     const firstPerson = dataContext.people[0]?.id ?? viewerId ?? ''
     const prefill = new URLSearchParams(prefillParam)
-    draftSourceSignalRef.current = params.get('sourceSignal') ?? draftSourceSignalRef.current
+    const urlPrefill = createParamSnapshotRef.current ?? params
+    const title = firstCreateParam(prefill, ['title'])
+      ?? firstCreateParam(urlPrefill, ['createTitle', 'title'])
+      ?? ''
+    const hintedBusinessUnitId = firstCreateParam(prefill, ['bu'])
+      ?? firstCreateParam(urlPrefill, ['createBu', 'bu'])
+      ?? query.businessUnitId
+    const explicitTeamId = firstCreateParam(prefill, ['team', 'team_id'])
+      ?? firstCreateParam(urlPrefill, ['team', 'team_id', 'createTeam'])
+    const teamResolution = resolveTeamContext(viewerTeams)
+    const selectedTeam = (explicitTeamId ? viewerTeams.find((team) => team.id === explicitTeamId) : undefined)
+      ?? (teamResolution.kind === 'single' ? teamResolution.team : undefined)
+      ?? (hintedBusinessUnitId
+        ? (() => {
+            const matches = viewerTeams.filter((team) => team.businessUnitId === hintedBusinessUnitId)
+            return matches.length === 1 ? matches[0] : undefined
+          })()
+        : undefined)
+    const workLineId = firstCreateParam(prefill, ['work_line_id', 'work_line', 'workLineId'])
+      ?? firstCreateParam(urlPrefill, ['work_line_id', 'work_line', 'workLineId'])
+    const objectiveId = firstCreateParam(prefill, ['objective_id', 'objective', 'objectiveId'])
+      ?? firstCreateParam(urlPrefill, ['objective_id', 'objective', 'objectiveId'])
+      ?? (workLineId ? dataContext.workLineObjectiveById?.get(workLineId) ?? null : null)
+    const sourceSignal = firstCreateParam(urlPrefill, ['sourceSignal'])
+    const supervisorId = firstCreateParam(prefill, ['supervisor', 'supervisorId'])
+      ?? firstCreateParam(urlPrefill, ['createSupervisor', 'supervisor', 'supervisorId'])
+      ?? query.supervisorId
     const now = new Date().toISOString()
     setDraftTask({
       id: `new-task-${Date.now()}`,
-      org_id: '', title: prefill.get('title') ?? params.get('createTitle') ?? '', business_unit_id: prefill.get('bu') ?? params.get('createBu') ?? query.businessUnitId ?? dataContext.businessUnits[0]?.id ?? '',
-      status: query.status ?? 'Open', responsible_person_id: prefill.get('r') ?? params.get('createPic') ?? query.picId ?? viewerId ?? firstPerson,
-      accountable_person_id: query.supervisorId ?? viewerId ?? firstPerson, consulted_person_ids: [], informed_person_ids: [],
-      description: null, due_date: null, objective_id: null, work_line_id: null,
+      org_id: '',
+      title,
+      team_id: selectedTeam?.id ?? null,
+      // The selected Team is the sole source of the draft BU. A multi-Team viewer stays blank
+      // until they choose; a zero-Team viewer stays honestly unassigned.
+      business_unit_id: selectedTeam?.businessUnitId ?? '',
+      status: query.status ?? 'Open',
+      responsible_person_id: firstCreateParam(prefill, ['r', 'pic', 'picId'])
+        ?? firstCreateParam(urlPrefill, ['createPic', 'pic', 'picId'])
+        ?? query.picId
+        ?? viewerId
+        ?? firstPerson,
+      // PIC and Supervisor are independent RACI roles. Supervisor is an explicit choice, never
+      // the viewer/PIC fallback used by the retired create path.
+      accountable_person_id: supervisorId ?? '',
+      consulted_person_ids: [], informed_person_ids: [],
+      description: null, due_date: null, objective_id: objectiveId, work_line_id: workLineId,
       last_activity_at: now, archived_at: null, created_by: viewerId ?? '',
       created_at: now, updated_at: now, process_run_id: null, generated_from_task_def_id: null,
     })
-  }, [dataContext, draftTask, params, query.businessUnitId, query.picId, query.status, query.supervisorId, viewerId])
+    draftSourceSignalRef.current = sourceSignal ?? draftSourceSignalRef.current
+  }, [dataContext, draftTask, params, query.businessUnitId, query.picId, query.status, query.supervisorId, viewerId, viewerTeams])
   const onAddTask = useCallback((prefillParam: string) => onNewTask(prefillParam), [onNewTask])
   useEffect(() => {
     if ((!createIntentRef.current && params.get('create') !== '1') || !dataContext) return
     if (!draftTask) {
-      onNewTask()
+      onNewTask(pendingCreatePrefillRef.current)
       return
     }
     createIntentRef.current = false
+    pendingCreatePrefillRef.current = ''
+    createParamSnapshotRef.current = null
     const next = new URLSearchParams(params)
-    for (const key of ['create', 'createTitle', 'createBu', 'createPic', 'sourceSignal']) next.delete(key)
+    for (const key of [
+      'create', 'createTitle', 'createBu', 'createPic', 'createTeam', 'createSupervisor', 'sourceSignal',
+      'work_line', 'work_line_id', 'workLineId', 'objective', 'objective_id', 'objectiveId',
+    ]) next.delete(key)
     setParams(next, { replace: true })
-  }, [dataContext, draftTask, onNewTask, params, setParams])
+  }, [dataContext, draftTask, onNewTask, params, setParams, viewerTeams])
   // The query schema owns URL cleanup, including constraints reset to neutral.
   const onClearFilters = useCallback(() => {
     const nextView = query.view === 'overdue' ? 'all' : query.view
@@ -565,6 +735,9 @@ export function TasksWorkspace({
       overdueCount={stats?.overdue ?? 0}
       onOverdueFilter={() => setQuery({ overdueOnly: true })}
       onClearOverdue={() => setQuery({ overdueOnly: false })}
+      attentionCounts={{ overdue: stats?.overdue ?? 0, blocked: stats?.blocked ?? 0 }}
+      onAttentionOverdue={() => setQuery({ overdueOnly: true, status: null })}
+      onAttentionBlocked={() => setQuery({ overdueOnly: false, status: 'Blocked' })}
       onClearFilters={onClearFilters}
       activeQuery={taskDisclosure}
       buOptions={buOptions}
@@ -597,9 +770,14 @@ export function TasksWorkspace({
     onEditStatus,
     onEditDue,
     onEditPic,
+    onEditTeam,
+    onEditSupervisor,
+    onValidateNewTask,
+    teamOptions: viewerTeams ?? [],
     draftTask,
     onDiscardNewTask,
     draftLinkError,
+    draftValidationError,
     onRetryDraftLink,
     onCloseDrawer,
     onNewTask,
@@ -618,8 +796,8 @@ export function TasksWorkspace({
   }), [
     accessRoles, currentSearch, drawerOpen, draftTask, host.session, isDesktop, onAddTask,
     params,
-    onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onNewTask, onOpenTask, onClearFilters, onSort,
-    retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink,
+    onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onValidateNewTask, onNewTask, onOpenTask, onClearFilters, onSort,
+    retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, draftValidationError, onRetryDraftLink, viewerTeams,
   ])
 
   const controls = tasksToolbar

@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { DueProcessRun, PendingTaskRow, ProcessRunRollup, ProcessRunRow, SpawnResult, TaskDefLookup } from './processes.types'
+import type { DueProcessRun, PendingTaskRow, ProcessOccurrenceSummary, ProcessRunRollup, ProcessRunRow, SpawnResult, TaskDefLookup } from './processes.types'
 import type { TaskListRow } from './tasks.types'
 
 // Data layer for mos.process_runs + friends (Step 6 / ADR-0051). Reads/writes mos via
@@ -9,6 +9,7 @@ import type { TaskListRow } from './tasks.types'
 // RPC-only (no direct insert/update policy — ADR-0051 §3), so every write here is a `.rpc(...)`.
 
 const mos = () => supabase.schema('mos')
+const shared = () => supabase.schema('shared')
 
 // ── startRun / listDueRuns (B2, AC-620 backing) ──────────────────────────────
 
@@ -30,6 +31,13 @@ export async function listDueRuns(): Promise<DueProcessRun[]> {
   const { data, error } = await mos().rpc('due_process_runs')
   if (error) throw new Error(`listDueRuns failed — ${error.message}`)
   return (data ?? []) as DueProcessRun[]
+}
+
+/** List due occurrences for one Process. Reuses the canonical due RPC so Start remains subject
+ * to its existing process.start + owning-Team membership gate. */
+export async function listStartableProcessRuns(workLineId: string): Promise<DueProcessRun[]> {
+  const rows = await listDueRuns()
+  return rows.filter((row) => row.work_line_id === workLineId)
 }
 
 // ── listTaskDefs (design fix wave items 2/4 — Rule 11 shared batching helper) ───────────────────
@@ -116,6 +124,46 @@ export async function listRunRollups(runIds: string[]): Promise<ProcessRunRollup
     .in('process_run_id', runIds)
   if (error) throw new Error(`listRunRollups failed — ${error.message}`)
   return (data ?? []) as unknown as ProcessRunRollup[]
+}
+
+/** Load a Process record's existing occurrences with their authoritative derived counts and Team
+ * names. This is a read-only composition seam for Work record documents; lifecycle writes remain
+ * the existing RPCs below, and generated Tasks are never edited by this loader. */
+export async function listProcessOccurrenceSummaries(workLineId: string): Promise<ProcessOccurrenceSummary[]> {
+  const { data: runData, error: runError } = await mos()
+    .from('process_runs')
+    .select('id,work_line_id,owning_team_id,period_key,caption,scheduled_date,status,definition_version,started_by,completed_at,completed_by,cancelled_at,cancelled_by,cancel_reason')
+    .eq('work_line_id', workLineId)
+    .order('scheduled_date', { ascending: false })
+  if (runError) throw new Error(`listProcessOccurrenceSummaries runs failed — ${runError.message}`)
+
+  const runs = (runData ?? []) as ProcessRunRow[]
+  if (runs.length === 0) return []
+
+  const runIds = runs.map((run) => run.id)
+  const teamIds = Array.from(new Set(runs.map((run) => run.owning_team_id)))
+  const [{ data: rollupData, error: rollupError }, { data: teamData, error: teamError }] = await Promise.all([
+    mos().from('process_run_rollup').select('*').in('process_run_id', runIds),
+    shared().from('teams').select('id,name').in('id', teamIds),
+  ])
+  if (rollupError) throw new Error(`listProcessOccurrenceSummaries rollups failed — ${rollupError.message}`)
+  if (teamError) throw new Error(`listProcessOccurrenceSummaries teams failed — ${teamError.message}`)
+
+  const rollups = (rollupData ?? []) as ProcessRunRollup[]
+  const rollupByRunId = new Map(rollups.map((rollup) => [rollup.process_run_id, rollup]))
+  const teamNameById = new Map(
+    ((teamData ?? []) as Array<{ id: string; name: string }>).map((team) => [team.id, team.name]),
+  )
+
+  return runs.map((run) => {
+    const rollup = rollupByRunId.get(run.id)
+    if (!rollup) throw new Error(`listProcessOccurrenceSummaries missing rollup for ${run.id}`)
+    return {
+      run,
+      team_name: teamNameById.get(run.owning_team_id) ?? run.owning_team_id,
+      rollup,
+    }
+  })
 }
 
 /** Mark a run complete via `mos.complete_process_run` — a deliberate human act; the run's Tasks

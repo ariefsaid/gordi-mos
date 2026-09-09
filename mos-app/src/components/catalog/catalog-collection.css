@@ -1,17 +1,30 @@
-/* Catalog collection list presentation (V3 catalog grammar — Projects & Processes / Objectives).
-   A single quiet list of small catalog rows: name + optional type tag + up/down trace, with the
-   inline management actions (Rename / Archive / Unarchive) that ARE the row's primary interaction.
-   DESIGN.md tokens only; 44px coarse targets. */
+/* Projects/Processes and Objectives share one collection-first table grammar. The surrounding
+   RecordCollection surface owns the card/frame; these rows are a quiet divider list, not nested
+   cards and not a second action system. */
+.catalog-collection__table {
+  min-width: 0;
+  width: 100%;
+}
 
-/* impeccable layout/distill pass (2026-07-27): this list already renders inside the shared
-   .record-collection-view card (border + radius-lg + shadow-rest — the E7 "one collection-surface
-   treatment", applied by the page around <RecordCollectionSurface>). Each row used to ALSO carry
-   its own border + radius-lg + card background + a 6px gap between them — a card nested inside a
-   card, the exact shape distill.md bans ("never nest cards inside cards") and craft-floor.md
-   refuses ("same-size cards ... as the page structure"). Rows are now a flat, hairline-divided
-   list — the same --row-divider grammar every sibling RecordCollection presentation already uses
-   (data-table.css, TasksWorkspace.css, record-collection.css's own table rows) — so a catalog
-   reads as one scannable list, not a stack of identical boxes. */
+.catalog-collection__header,
+.catalog-collection__row-link {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.8fr) minmax(120px, 1fr) minmax(130px, 1fr) minmax(140px, 1.1fr) minmax(120px, .9fr) minmax(160px, 1.1fr);
+  align-items: center;
+  column-gap: 16px;
+}
+
+.catalog-collection__header {
+  min-height: 36px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--row-divider);
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+  font-weight: 600;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
 .catalog-collection__list {
   display: flex;
   flex-direction: column;
@@ -22,12 +35,8 @@
 }
 
 .catalog-collection__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
+  min-width: 0;
   min-height: 52px;
-  padding: 10px 14px;
   border-bottom: 1px solid var(--row-divider);
 }
 
@@ -35,24 +44,37 @@
   border-bottom: none;
 }
 
-/* Quiet hover wash — --surface-secondary (grey), matching the DataTable row-hover convention
-   (never the blue --accent). A prior gap: rows had no hover state at all. */
-.catalog-collection__row:hover {
-  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+.catalog-collection__row--archived {
+  opacity: .68;
 }
 
-.catalog-collection__row--archived {
-  opacity: 0.66;
+.catalog-collection__row-link {
+  min-height: 52px;
+  box-sizing: border-box;
+  padding: 7px 14px;
+  color: inherit;
+  text-decoration: none;
+  transition: background-color .12s ease-out;
+}
+
+.catalog-collection__row-link:hover {
+  background: color-mix(in srgb, var(--surface-secondary) 72%, transparent);
+}
+
+.catalog-collection__row-link:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.catalog-collection__identity,
+.catalog-collection__cell {
+  min-width: 0;
 }
 
 .catalog-collection__identity {
   display: flex;
-  min-width: 0;
-  /* basis 0 (not 220px): the name shares one line with the flex-none actions cluster and
-     ellipsizes only when genuinely too long. A non-zero basis forced the whole cluster to wrap
-     onto its own line at phone widths (220 + gap + actions > row), ballooning the row and
-     right-flushing the actions with dead whitespace beside the name. */
-  flex: 1 1 0;
   align-items: center;
   gap: 10px;
 }
@@ -74,265 +96,171 @@
   text-decoration: line-through;
 }
 
-.catalog-collection__trace {
-  flex-basis: 100%;
-  min-width: 0;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-  line-height: 1.35;
-}
-
-.catalog-collection__actions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  min-width: 0;
-}
-
-.catalog-collection__actions--mobile {
-  display: none;
-  position: relative;
-}
-
-.catalog-collection__menu {
-  position: absolute;
-  z-index: var(--z-popover);
-  top: calc(100% + 4px);
-  right: 0;
+.catalog-collection__cell {
   display: flex;
   flex-direction: column;
-  width: max-content;
-  max-width: calc(100vw - 24px);
-  box-sizing: border-box;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--popover);
-  box-shadow: var(--shadow-overlay);
-}
-
-.catalog-collection__menu .btn {
-  min-width: 44px;
-  min-height: 44px;
-  white-space: nowrap;
-}
-
-/* ── OD-V4-1 H4: per-row relations disclosure (a real drill target, not inert text) ──────────── */
-.catalog-collection__disclosure {
-  position: relative;
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted-foreground);
-  cursor: pointer;
-}
-/* 44x44 hit area on a 28x28 glyph — same ported `.help-tip` technique as
-   `.dt-cards-group-toggle` (see data-table.css). This is the ONLY drill-in a catalog
-   row has (OD-V4-1 H4 relations), on the app's weakest-scoring surface, so an
-   undersized target here is the difference between reaching the cascade and not.
-   Measured live at 375x812 before the fix: 28.0x28.0, `::before` content `none`.
-   28 + (2 x 8) = 44. WCAG 2.5.8. */
-.catalog-collection__disclosure::before {
-  content: '';
-  position: absolute;
-  inset: -8px;
-}
-
-.catalog-collection__disclosure:hover {
-  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+  min-width: 0;
+  gap: 2px;
   color: var(--foreground);
+  font-size: var(--font-size-body);
 }
 
-.catalog-collection__disclosure-chevron {
-  transition: transform 0.15s ease-out;
-}
-
-.catalog-collection__disclosure-chevron--open {
-  transform: rotate(90deg);
-}
-
-.catalog-collection__relations {
-  flex-basis: 100%;
-  min-width: 0;
-  margin-top: 4px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
-}
-
-.catalog-collection__relations-empty {
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-}
-
-.catalog-collection__relations-body {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.catalog-collection__relations-column {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 180px;
-}
-
-.catalog-collection__relations-heading {
+.catalog-collection__cell-label {
+  display: none;
   color: var(--muted-foreground);
   font-size: var(--font-size-overline);
   font-weight: 600;
+  letter-spacing: .03em;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
 }
 
-.catalog-collection__relations-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.catalog-collection__cell-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.catalog-collection__relations-list li {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-/* A relation GROUP carries its own nested Task list, so it stacks: name + count on one line,
-   its Tasks indented beneath. The flex-row default above turned that nested list into a third
-   COLUMN, which at 390px read as one group's tasks sitting beside another group's name. */
-.catalog-collection__relations-list li.catalog-collection__relations-group {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
-}
-.catalog-collection__relations-group-head {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.catalog-collection__relations-group > .catalog-collection__relations-list {
-  padding-left: 12px;
-}
-
-.catalog-collection__relations-link {
-  color: var(--primary);
-  font-size: var(--font-size-body);
-  text-decoration: none;
-}
-
-/* A synthetic group has no record behind it, so it must not wear the link colour — blue text
-   that does nothing on tap is an affordance the surface cannot honour. */
-.catalog-collection__relations-link--inert {
+.catalog-collection__cell-value--muted,
+.catalog-collection__cell-note,
+.catalog-collection__error,
+.catalog-record-document__muted {
   color: var(--muted-foreground);
 }
-.catalog-collection__relations-link:hover {
-  text-decoration: underline;
-}
 
-.catalog-collection__relations-count {
-  color: var(--muted-foreground);
+.catalog-collection__cell-note {
   font-size: var(--font-size-label);
 }
 
-/* Inline rename editor — one commit contract (Enter/Save, Esc/Cancel). */
-.catalog-collection__edit {
+.catalog-collection__draft-row {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--row-divider);
+  background: color-mix(in srgb, var(--surface-secondary) 54%, transparent);
+}
+
+.catalog-collection__draft {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) minmax(150px, 1fr) auto;
+  align-items: end;
+  gap: 10px 16px;
+}
+
+.catalog-collection__draft-actions {
   display: flex;
-  flex: 1 1 260px;
-  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 
-.catalog-collection__edit-field {
-  min-width: 180px;
-  flex: 1 1 220px;
-}
-
-.catalog-collection__error {
-  flex-basis: 100%;
-  color: var(--field-error-text);
+.catalog-collection__draft .catalog-collection__error {
+  grid-column: 1 / -1;
+  margin: 0;
   font-size: var(--font-size-label);
 }
 
-/* Coarse-pointer targets: every row control clears 44px without changing the fine-pointer look. */
-@media (pointer: coarse) {
-  .catalog-collection__actions .btn,
-  .catalog-collection__edit .btn {
-    min-height: 44px;
-  }
+.catalog-record-document__muted {
+  color: var(--muted-foreground);
 }
 
-/* ── Phone reflow (Census R2 DO-2 · objectives F1 P1) ─────────────────────────
-   Sharing one line with the flex-none Rename/Archive cluster left the identity
-   ~8 characters at 390 ("Café HQ …", "Operational Excell…") — identity starvation.
-   On phone the identity takes the full row (the actions wrap onto their own line
-   below, right-aligned as before) and the name WRAPS instead of ellipsizing, so
-   a catalog row is always recognizable by its full name. */
 @media (max-width: 767.98px) {
-  .catalog-collection__actions--desktop {
+  .catalog-collection__header {
     display: none;
   }
 
-  .catalog-collection__actions--mobile {
-    display: flex;
+  .catalog-collection__row-link {
+    grid-template-columns: minmax(0, 1fr) minmax(100px, auto);
+    grid-template-rows: auto auto;
+    align-items: start;
+    min-height: 96px;
+    padding: 12px 14px;
+    row-gap: 4px;
   }
 
-  .catalog-collection__menu-trigger {
-    min-width: 44px;
-    min-height: 44px;
-    padding: 0;
-  }
-}
-
-@media (max-width: 480px) {
   .catalog-collection__identity {
-    flex-basis: 100%;
+    grid-column: 1 / -1;
+    align-items: flex-start;
   }
 
   .catalog-collection__name {
-    white-space: normal;
     overflow: visible;
     text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .catalog-collection__cell-label {
+    display: none;
+  }
+
+  .catalog-collection__cell--activity,
+  .catalog-collection__table--objective .catalog-collection__cell--relation,
+  .catalog-collection__table--work_line .catalog-collection__cell--cadence {
+    display: none;
+  }
+
+  .catalog-collection__table--objective .catalog-collection__cell--cadence,
+  .catalog-collection__table--work_line .catalog-collection__cell--relation {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .catalog-collection__cell--owner .catalog-collection__cell-label {
+    display: inline;
+  }
+
+  .catalog-collection__cell--owner {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  .catalog-collection__cell--progress {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .catalog-collection__cell-value {
+    white-space: nowrap;
+  }
+
+  .catalog-collection__draft {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .catalog-collection__draft-actions {
+    justify-content: flex-start;
   }
 }
 
-/* ── Page-level inline create bar (the ONE primary create affordance) ───────────────────────── */
-.catalog-create {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px;
-  margin-bottom: 18px;
-}
+/* A record panel keeps this collection in a narrower desktop track. Preserve the row's primary
+   scan unit — identity, owner, progress — and remove secondary facts that would force the queue to
+   overflow or hide the progress column. The standalone collection keeps all six columns above. */
+@media (min-width: 1100px) {
+  .record-split .catalog-collection__header,
+  .record-split .catalog-collection__row-link {
+    grid-template-columns: minmax(0, 1fr) minmax(92px, .75fr) minmax(110px, .85fr);
+    column-gap: 12px;
+  }
 
-.catalog-create__name {
-  flex: 1 1 240px;
-  min-width: 220px;
-}
+  .record-split .catalog-collection__header > :nth-child(2),
+  .record-split .catalog-collection__header > :nth-child(4),
+  .record-split .catalog-collection__header > :nth-child(6) {
+    display: none;
+  }
 
-.catalog-create__error {
-  flex-basis: 100%;
-  margin: 0;
-  color: var(--field-error-text);
-  font-size: var(--font-size-label);
+  .record-split .catalog-collection__cell--relation,
+  .record-split .catalog-collection__cell--cadence,
+  .record-split .catalog-collection__cell--activity {
+    display: none;
+  }
 }
 
 @media (pointer: coarse) {
-  .catalog-create .btn {
+  .catalog-collection__draft .btn {
     min-height: 44px;
   }
 }

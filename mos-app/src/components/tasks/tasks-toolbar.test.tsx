@@ -49,10 +49,12 @@ beforeEach(() => {
 
 describe('TasksToolbar — queue-first disclosure', () => {
   it('keeps search and scope visible while advanced task configuration stays behind Filters', () => {
-    renderToolbar()
+    const props = makeProps()
+    renderToolbar(props)
 
     expect(screen.getByRole('tablist', { name: /task views/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /completed/i })).toBeInTheDocument()
+    expect(screen.getAllByRole('tab')).toHaveLength(4)
+    expect(screen.queryByRole('tab', { name: /completed/i })).not.toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
     const filters = screen.getByRole('button', { name: /^filters$/i })
     expect(filters).toHaveAttribute('aria-expanded', 'false')
@@ -61,6 +63,11 @@ describe('TasksToolbar — queue-first disclosure', () => {
     fireEvent.click(filters)
 
     expect(filters).toHaveAttribute('aria-expanded', 'true')
+    const status = screen.getByRole('combobox', { name: /^status$/i })
+    status.focus()
+    fireEvent.click(status)
+    fireEvent.click(screen.getByRole('option', { name: 'Done' }))
+    expect(props.onQueryChange).toHaveBeenCalledWith({ status: 'Done' })
     expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /filter this queue/i })).toBeInTheDocument()
     expect(screen.getByText('Task')).toBeInTheDocument()

@@ -6,7 +6,8 @@ vi.mock('../supabase', () => {
 })
 
 import {
-  listObjectives, listObjectiveProgress, listObjectivesAll, createObjective, renameObjective, setObjectiveArchived,
+  listObjectives, listObjectivesAll, createObjective, renameObjective, setObjectiveArchived,
+  readObjective, updateObjective,
 } from './objectives'
 import { supabase } from '@/lib/supabase'
 
@@ -39,6 +40,7 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
     builder.insert = vi.fn((p: unknown) => { rec.inserts.push(p); return builder })
     builder.update = vi.fn((p: unknown) => { rec.updates.push(p); return builder })
     builder.single = vi.fn(() => builder)
+    builder.maybeSingle = vi.fn(() => builder)
     builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result()).then(resolve)
     return builder
   }
@@ -64,7 +66,7 @@ describe('listObjectives', () => {
 
     expect(result).toEqual(rows)
     expect(rec.fromTables).toContain('objectives')
-    expect(rec.selects).toContain('id,name')
+    expect(rec.selects).toContain('id,name,business_unit_id,accountable_person_id,period_year')
   })
 
   it('filters archived (archived_at is null) and orders by name', async () => {
@@ -90,23 +92,6 @@ describe('listObjectives', () => {
 
     const result = await listObjectives()
     expect(result).toEqual([])
-  })
-})
-
-describe('listObjectiveProgress', () => {
-  it('reads derived active objective progress from the roll-up view', async () => {
-    const rec = freshRec()
-    const rows = [{ id: 'o-1', name: 'Growth', done: 1, total: 2 }]
-    schemaMock.mockReturnValue(makeSchema({ objective_progress: [{ data: rows, error: null }] }, rec) as never)
-    await expect(listObjectiveProgress()).resolves.toEqual(rows)
-    expect(rec.fromTables).toContain('objective_progress')
-    expect(rec.selects).toContain('id,name,done,total')
-  })
-
-  it('throws when the roll-up read fails', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(makeSchema({ objective_progress: [{ data: null, error: { message: 'rollup boom' } }] }, rec) as never)
-    await expect(listObjectiveProgress()).rejects.toThrow(/listObjectiveProgress failed — rollup boom/)
   })
 })
 
@@ -153,13 +138,75 @@ describe('createObjective', () => {
     await expect(createObjective('X')).rejects.toThrow(/createObjective failed — denied/)
   })
 
-  it('carries unit, owner and year when given (#801)', async () => {
+  it('carries unit, owner, and year when given', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: {}, error: null }] }, rec) as never)
 
-    await createObjective('Kitchen Waste Down', { business_unit_id: 'bu-1', accountable_person_id: 'p-1', period_year: 2026 })
+    await createObjective('Kitchen Waste Down', {
+      business_unit_id: 'bu-1', accountable_person_id: 'p-1', period_year: 2026,
+    })
 
-    expect(rec.inserts).toEqual([{ name: 'Kitchen Waste Down', business_unit_id: 'bu-1', accountable_person_id: 'p-1', period_year: 2026 }])
+    expect(rec.inserts).toEqual([{
+      name: 'Kitchen Waste Down', business_unit_id: 'bu-1', accountable_person_id: 'p-1', period_year: 2026,
+    }])
+    expect(rec.inserts[0]).not.toHaveProperty('org_id')
+  })
+})
+
+describe('readObjective (record projection)', () => {
+  it('returns actual ownership fields for a known id', async () => {
+    const rec = freshRec()
+    const row = {
+      id: 'obj-1', name: 'Grow revenue', archived_at: null,
+      business_unit_id: 'bu-1', accountable_person_id: 'p-1', period_year: 2026,
+      updated_at: '2026-09-01T00:00:00Z',
+    }
+    schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: row, error: null }] }, rec) as never)
+
+    const result = await readObjective('obj-1')
+
+    expect(result).toEqual(row)
+    expect(rec.eqs).toContainEqual(['id', 'obj-1'])
+    expect(rec.selects).toContain(
+      'id,name,archived_at,business_unit_id,accountable_person_id,period_year,updated_at',
+    )
+  })
+
+  it('returns null for an unknown id', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: null, error: null }] }, rec) as never)
+
+    await expect(readObjective('obj-missing')).resolves.toBeNull()
+  })
+
+  it('surfaces read errors', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: null, error: { message: 'perm denied' } }] }, rec) as never)
+
+    await expect(readObjective('obj-1')).rejects.toThrow(/readObjective failed — perm denied/)
+  })
+})
+
+describe('updateObjective (record patch)', () => {
+  it('patches only actual editable catalog fields', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: null, error: null }] }, rec) as never)
+
+    await updateObjective('obj-1', {
+      name: 'Renamed', business_unit_id: 'bu-2', accountable_person_id: 'p-3', period_year: 2027,
+    })
+
+    expect(rec.updates).toEqual([{
+      name: 'Renamed', business_unit_id: 'bu-2', accountable_person_id: 'p-3', period_year: 2027,
+    }])
+    expect(rec.eqs).toContainEqual(['id', 'obj-1'])
+  })
+
+  it('surfaces patch errors', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: null, error: { message: 'row-level security' } }] }, rec) as never)
+
+    await expect(updateObjective('obj-1', { period_year: 2027 })).rejects.toThrow(/updateObjective failed — row-level security/)
   })
 })
 

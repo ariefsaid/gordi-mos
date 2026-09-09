@@ -20,6 +20,8 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getPersonTeams: () => Promise.resolve([]),
+  getTeamsByIds: () => Promise.resolve([]),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/comments/postComment', () => ({
@@ -89,7 +91,7 @@ beforeEach(() => {
 })
 
 describe('OD-REDESIGN-62 — typed Task record', () => {
-  it('§Task-11: shows PIC, Supervisor, Due, source, completion, and reassignment — NO Team field (Issue-8 gate), without Task RACI grammar', async () => {
+  it('shows Team, PIC, Supervisor, Due, source, completion, and reassignment without Task RACI grammar', async () => {
     const task = makeTask()
     vi.mocked(getTask)
       .mockResolvedValueOnce({ task, checklist: [], events: [] })
@@ -105,10 +107,8 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { name: task.title })).toBeInTheDocument())
 
-    // DELIBERATE goal change (record-collection plan §Task-11): the live Task record renders NO Team
-    // field until Issue 8 supplies the real team_id contract. Business Unit ("Café Operations", the
-    // name of BU `team-cafe`) is DISTINCT and still renders; only the Team field is gone.
-    expect(screen.queryByText('Team')).toBeNull()
+    expect(screen.getAllByText('Team').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/team not assigned yet/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText('Café Operations').length).toBeGreaterThan(0)
     expect(screen.getByTestId('record-details').querySelector('[data-record-header="pinned"]')).toBeTruthy()
     expect(screen.getByRole('tablist')).toBeInTheDocument()
@@ -121,14 +121,16 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     expect(screen.getAllByText('Today opening').length).toBeGreaterThan(0)
     expect(within(screen.getByTestId('record-details').querySelector('[data-content-slot="ownership"]') as HTMLElement).getByText('PIC')).toBeInTheDocument()
     // Value-first document grammar: ownership fields render their VALUE first, then swap in the
-    // edit control on activation (click the row). PIC + Supervisor are editable person selects;
-    // a person's name appears as an <option> in BOTH, so assert via the select's value (the
-    // selected option) after activating. The goal: PIC holds Cahya Cafe, Supervisor holds Arief.
+    // edit control on activation (click the row). The shared picker exposes the selected label.
     fireEvent.click(screen.getByRole('button', { name: 'Edit PIC' }))
-    expect(screen.getByLabelText('PIC')).toHaveValue(VIEWER_ID)
+    expect(screen.getByRole('combobox', { name: 'PIC' })).toHaveTextContent('Cahya Cafe')
+    fireEvent.click(screen.getByRole('combobox', { name: 'PIC' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Cahya Cafe' }))
     expect(within(screen.getByTestId('record-details').querySelector('[data-content-slot="ownership"]') as HTMLElement).getByText('Supervisor')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Edit Supervisor' }))
-    expect(screen.getByLabelText('Supervisor')).toHaveValue(SUPERVISOR_ID)
+    expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Arief Said')
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supervisor' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Arief Said' }))
     // Source is a read-only derived classification (never activated) — its value shows directly.
     expect(screen.getByText('Source')).toBeInTheDocument()
     const sourceField = document.querySelector('[data-field-key="source"]') as HTMLElement
@@ -149,14 +151,14 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     fireEvent.click(complete)
     await waitFor(() => expect(updateTaskStatus).toHaveBeenCalledWith(task.id, 'Open', 'Done', VIEWER_ID))
 
-    // PIC reassignment journey: the record adapter exposes PIC as an editable person <select>
+    // PIC reassignment journey: the record adapter exposes PIC as an editable person picker
     // reached by activating the value row (value-first). The goal-oracle "manager can reassign
     // PIC through the visible Task path" is met by changing the select; the journey step is now
     // "activate the field, then pick the person". (The Mark-complete refetch returned every field
     // to its value rendering, so re-activate PIC before reassigning.)
     fireEvent.click(await screen.findByRole('button', { name: 'Edit PIC' }))
-    const picSelect = screen.getByLabelText('PIC')
-    fireEvent.change(picSelect, { target: { value: SUPERVISOR_ID } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'PIC' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Arief Said' }))
     await waitFor(() => expect(updateTaskFields).toHaveBeenCalledWith(
       // 4th arg (#742 AC-059): the previous PIC value, threaded through for the from/to event.
       task.id, { responsible_person_id: SUPERVISOR_ID }, VIEWER_ID, VIEWER_ID,
@@ -208,7 +210,8 @@ describe('OD-REDESIGN-22 — status change failure surfaces a visible error (D-C
     await waitFor(() => expect(screen.getByRole('heading', { name: task.title })).toBeInTheDocument())
     // Activate the Status field (value-first) then pick a new status.
     fireEvent.click(screen.getByRole('button', { name: 'Edit Status' }))
-    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'Done' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'Status' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Done' }))
     await waitFor(() => expect(updateTaskStatus).toHaveBeenCalledWith(task.id, 'Open', 'Done', VIEWER_ID))
     // The failure is VISIBLE (RecordField error + Retry), not a silent false success.
     const alert = await screen.findByRole('alert')

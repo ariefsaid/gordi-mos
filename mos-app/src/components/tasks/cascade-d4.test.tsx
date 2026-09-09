@@ -41,6 +41,8 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getPersonTeams: vi.fn(),
+  getTeamsByIds: vi.fn().mockResolvedValue([]),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/db/objectives', () => ({
@@ -52,6 +54,7 @@ vi.mock('../../lib/db/work-lines', () => ({
 
 import { getTask, createTask, updateTaskFields } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
+import * as directoryApi from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 
@@ -62,6 +65,9 @@ const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
 const mockListObjectives = vi.mocked(listObjectives)
 const mockListWorkLines = vi.mocked(listWorkLines)
+const mockGetPersonTeams = (directoryApi as unknown as {
+  getPersonTeams: ReturnType<typeof vi.fn>
+}).getPersonTeams
 
 const VIEWER_ID = 'viewer-person-id'
 
@@ -118,6 +124,7 @@ beforeEach(() => {
   sessionStorage.clear()
   mockGetBusinessUnits.mockResolvedValue(mockBUs)
   mockGetPeople.mockResolvedValue(mockPeople)
+  mockGetPersonTeams.mockResolvedValue([{ id: 'team-cafe', name: 'Cafe Team', businessUnitId: 'bu-1' }])
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   mockListObjectives.mockResolvedValue(OBJECTIVES)
   mockListWorkLines.mockResolvedValue(WORK_LINES)
@@ -140,6 +147,18 @@ function renderCreate() {
 // reveal on create — open it before asserting on those selects.
 async function revealCreateContext() {
   fireEvent.click(await screen.findByRole('button', { name: /add context/i }))
+}
+
+function choosePickerOption(pickerName: RegExp | string, optionName: RegExp | string) {
+  fireEvent.click(screen.getByRole('combobox', { name: pickerName }))
+  fireEvent.click(screen.getByRole('option', { name: optionName }))
+}
+
+function pickerOptionLabels(pickerName: RegExp | string) {
+  fireEvent.click(screen.getByRole('combobox', { name: pickerName }))
+  const labels = screen.getAllByRole('option').map((option) => option.textContent ?? '')
+  fireEvent.click(screen.getByRole('option', { name: '— None —' }))
+  return labels
 }
 
 function renderView(taskOverrides: Partial<TaskListRow> = {}) {
@@ -174,9 +193,8 @@ describe('FR-241/242 — create form shows Work-line and Objective selects', () 
     await waitFor(() => screen.getByRole('button', { name: /create task/i }))
     await revealCreateContext()
     // Work-line options load asynchronously — wait for them
-    const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
-    expect(wlSelect).toBeInTheDocument()
-    const options = Array.from(wlSelect.querySelectorAll('option')).map(o => o.textContent ?? '')
+    await screen.findByRole('combobox', { name: /project\/process/i })
+    const options = pickerOptionLabels(/project\/process/i)
     expect(options[0]).toBe('— None —')
     // Fix-6: options now include a (project)/(daily) type cue; match by name substring.
     expect(options.some(o => o.includes('Daily IG Content'))).toBe(true)
@@ -187,9 +205,8 @@ describe('FR-241/242 — create form shows Work-line and Objective selects', () 
     renderCreate()
     await waitFor(() => screen.getByRole('button', { name: /create task/i }))
     await revealCreateContext()
-    const objSelect = await screen.findByRole('combobox', { name: /objective/i })
-    expect(objSelect).toBeInTheDocument()
-    const options = Array.from(objSelect.querySelectorAll('option')).map(o => o.textContent)
+    await screen.findByRole('combobox', { name: /objective/i })
+    const options = pickerOptionLabels(/objective/i)
     expect(options[0]).toBe('— None —')
     expect(options).toContain('Grow direct orders')
     expect(options).toContain('Launch autumn menu')
@@ -214,10 +231,10 @@ describe('FR-243 — selecting a Work-line/Objective passes them to createTask',
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Task with work line' } })
     // Select a work-line
     await revealCreateContext()
-    const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
-    fireEvent.change(wlSelect, { target: { value: 'wl-1' } })
+    await screen.findByRole('combobox', { name: /project\/process/i })
+    choosePickerOption(/project\/process/i, /Daily IG Content/)
     // Supervisor starts empty and is required (AC-080/task-surface.tsx accountablePersonId).
-    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
+    choosePickerOption(/^supervisor$/i, 'Cahya Cafe')
     // Submit
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => {
@@ -232,10 +249,10 @@ describe('FR-243 — selecting a Work-line/Objective passes them to createTask',
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Task with objective' } })
     await revealCreateContext()
-    const objSelect = await screen.findByRole('combobox', { name: /objective/i })
-    fireEvent.change(objSelect, { target: { value: 'obj-2' } })
+    await screen.findByRole('combobox', { name: /objective/i })
+    choosePickerOption(/objective/i, 'Launch autumn menu')
     // Supervisor starts empty and is required (AC-080/task-surface.tsx accountablePersonId).
-    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
+    choosePickerOption(/^supervisor$/i, 'Cahya Cafe')
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => {
       expect(mockCreateTask).toHaveBeenCalledWith(
@@ -254,7 +271,7 @@ describe('FR-244 — leaving "— None —" omits/nulls the fields in createTask
     await revealCreateContext()
     await screen.findByRole('combobox', { name: /project\/process/i }) // wait for it to render
     // Supervisor starts empty and is required (AC-080/task-surface.tsx accountablePersonId).
-    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
+    choosePickerOption(/^supervisor$/i, 'Cahya Cafe')
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalled())
     const call = mockCreateTask.mock.calls[0][0]
@@ -270,7 +287,7 @@ describe('FR-244 — leaving "— None —" omits/nulls the fields in createTask
     await revealCreateContext()
     await screen.findByRole('combobox', { name: /objective/i })
     // Supervisor starts empty and is required (AC-080/task-surface.tsx accountablePersonId).
-    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
+    choosePickerOption(/^supervisor$/i, 'Cahya Cafe')
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalled())
     const call = mockCreateTask.mock.calls[0][0]
@@ -288,8 +305,8 @@ describe('FR-245/246 — detail edit: Work-line inline select', () => {
     renderView()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
     await activateFieldByKey('projectProcess')
-    const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
-    fireEvent.change(wlSelect, { target: { value: 'wl-2' } })
+    await screen.findByRole('combobox', { name: /project\/process/i })
+    choosePickerOption(/project\/process/i, /New Menu Design/)
     await waitFor(() => {
       expect(mockUpdateTaskFields).toHaveBeenCalledWith(
         'task-abc',
@@ -303,9 +320,9 @@ describe('FR-245/246 — detail edit: Work-line inline select', () => {
     renderView({ work_line_id: 'wl-1' })
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
     await activateFieldByKey('projectProcess')
-    const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
+    await screen.findByRole('combobox', { name: /project\/process/i })
     // Clear it
-    fireEvent.change(wlSelect, { target: { value: '' } })
+    choosePickerOption(/project\/process/i, '—')
     await waitFor(() => {
       expect(mockUpdateTaskFields).toHaveBeenCalledWith(
         'task-abc',
@@ -321,8 +338,8 @@ describe('FR-247/248 — detail edit: Objective inline select', () => {
     renderView()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
     await activateFieldByKey('objective')
-    const objSelect = await screen.findByRole('combobox', { name: /objective/i })
-    fireEvent.change(objSelect, { target: { value: 'obj-1' } })
+    await screen.findByRole('combobox', { name: /objective/i })
+    choosePickerOption(/objective/i, 'Grow direct orders')
     await waitFor(() => {
       expect(mockUpdateTaskFields).toHaveBeenCalledWith(
         'task-abc',
@@ -336,8 +353,8 @@ describe('FR-247/248 — detail edit: Objective inline select', () => {
     renderView({ objective_id: 'obj-2' })
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
     await activateFieldByKey('objective')
-    const objSelect = await screen.findByRole('combobox', { name: /objective/i })
-    fireEvent.change(objSelect, { target: { value: '' } })
+    await screen.findByRole('combobox', { name: /objective/i })
+    choosePickerOption(/objective/i, '—')
     await waitFor(() => {
       expect(mockUpdateTaskFields).toHaveBeenCalledWith(
         'task-abc',
@@ -348,8 +365,8 @@ describe('FR-247/248 — detail edit: Objective inline select', () => {
   })
 })
 
-describe('FR-249 — detail panel shows "—" when both fields are null (read-only)', () => {
-  it('FR-249: read-only viewer sees "—" for null work_line_id and null objective_id', async () => {
+describe('FR-249 — detail panel shows an explicit Ad hoc state when context is absent', () => {
+  it('FR-249: read-only viewer sees Ad hoc for null work_line_id and null objective_id', async () => {
     // A non-editor viewer (task owned by someone else) gets read-only text fields.
     const task = makeTask({ work_line_id: null, objective_id: null,
       responsible_person_id: 'other-id', accountable_person_id: 'other-id' })
@@ -362,13 +379,9 @@ describe('FR-249 — detail panel shows "—" when both fields are null (read-on
       </AuthContext.Provider>,
     )
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    // FR-249: null fields render an explicit null-indicator (not blank). Work-line and Objective
-    // render "—"; Due renders the more informative "No due date" (task-record-adapter.tsx:185
-    // sets displayValue: task.due_date ?? 'No due date'). Both satisfy the FR-249 goal — a null
-    // field is visibly marked, not empty.
-    const dashes = screen.getAllByText('—')
-    // Work-line "—" + Objective "—" (Due uses "No due date" instead of "—")
-    expect(dashes.length).toBeGreaterThanOrEqual(2)
+    // FR-249: absent Project/Process and Objective context is explicit and meaningful rather
+    // than blank. Due keeps its more informative "No due date" label.
+    expect(screen.getAllByText('Ad hoc').length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText('No due date')).toBeInTheDocument()
   })
 })

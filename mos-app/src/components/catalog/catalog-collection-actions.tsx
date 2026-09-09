@@ -3,16 +3,16 @@
 // The RecordCollection engine loads DATA and owns query/URL/state; the descriptor's single `list`
 // presentation renders that typed data. The management mutations (rename / archive / unarchive) are
 // React-scoped (they call the DAL, then reload the collection), so the consuming page provides them
-// through this small context and the list presentation reads them at render time. There is NO record
-// panel for a catalog row — the inline management actions ARE the row's primary interaction.
+// through this small context. The collection keeps one canonical record link per row; mutations live
+// in the shared record document's overflow menu rather than in a second per-row action cluster.
 /* eslint-disable react-refresh/only-export-components -- context seam: provider + hook co-located */
 import { createContext, useContext, type ReactNode } from 'react'
 
 export interface CatalogCollectionActions {
   /**
    * Whether THIS viewer may write to the catalog. When false the list renders read-only: no
-   * Rename / Archive / Unarchive on any row, and the page renders no create bar. Reading is
-   * untouched — rows, traces and the relations disclosure all still render.
+   * Create action and no record overflow mutations. Reading is untouched — rows and linked facts
+   * still render.
    *
    * This exists because the two catalogs no longer share a gate. Projects/Processes sits behind
    * `RequireCapability workline.manage`, so reaching it IS the permission. Objectives does not:
@@ -28,6 +28,28 @@ export interface CatalogCollectionActions {
   archive: (id: string) => Promise<void>
   /** Restore an archived row. Rejects on failure. */
   unarchive: (id: string) => Promise<void>
+  /** Optional focused draft controller. The collection head opens this draft; the presentation
+   * renders it inside the list. */
+  createDraft?: CatalogCreateDraft
+}
+
+export interface CatalogCreateDraft {
+  kind: 'objective' | 'work-line'
+  open: boolean
+  name: string
+  type?: 'project' | 'process'
+  objectiveId?: string | null
+  businessUnitId?: string | null
+  objectiveOptions?: readonly { value: string; label: string }[]
+  businessUnitOptions?: readonly { value: string; label: string }[]
+  adding: boolean
+  error: string
+  onNameChange: (name: string) => void
+  onTypeChange?: (type: 'project' | 'process') => void
+  onObjectiveChange?: (id: string | null) => void
+  onBusinessUnitChange?: (id: string | null) => void
+  onSubmit: () => void
+  onCancel: () => void
 }
 
 const CatalogCollectionActionsContext = createContext<CatalogCollectionActions | null>(null)

@@ -1,4 +1,12 @@
-# Home and Tasks
+# Home and Work
+
+The active closure plan is `docs/redesign/home-work-closure/PLAN.md`. Work includes Tasks,
+Signals, Projects & Processes, Objectives and their shared record journeys. Original owner product
+decisions remain acceptance requirements: persona jobs, Team ownership, truthful progress and
+permission behavior cannot be removed by retiring a presentation rule. Owner decisions override
+Director decisions; unresolved incompatible owner decisions are clarified, not silently chosen.
+Delegated work uses separate Codex tasks/sessions with compact handoffs, never collaboration
+subagents. Review against the complete owner requirement map, not only the authored replacement.
 
 ## Outcome
 

@@ -9,7 +9,6 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { useSignalComposer } from '@/shell/signal-composer-host'
-import { Toggle } from '@/components/ui/toggle'
 import { Button } from '@/components/ui/button'
 import { correctSignal } from '@/lib/db/signals'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
@@ -98,6 +97,7 @@ export function SignalsArchivePage() {
   const signalViewLabel = (view: SignalCollectionQuery['view']) =>
     view === 'needs-attention' ? t('signals.archive.viewAttention')
       : view === 'retracted' ? t('signals.archive.viewRetracted')
+        : view === 'i-posted' ? t('signals.archive.viewMine')
         : t('signals.archive.viewAll')
   const activeSignalView = getActiveSignalView({
     query,
@@ -106,6 +106,7 @@ export function SignalsArchivePage() {
       all: signalViewLabel('all'),
       'needs-attention': signalViewLabel('needs-attention'),
       retracted: signalViewLabel('retracted'),
+      'i-posted': signalViewLabel('i-posted'),
     },
   })
 
@@ -122,9 +123,8 @@ export function SignalsArchivePage() {
         : currentQuery.category ? t('signals.archive.filterCategory')
           : currentQuery.teamId ? t('signals.archive.filterTeam')
             : currentQuery.q.trim() ? t('signals.archive.searchLabel')
-              : currentQuery.showRetracted ? t('signals.archive.showRetracted')
-                : currentQuery.savedViewId ? t('common.savedView')
-                  : undefined,
+              : currentQuery.savedViewId ? t('common.savedView')
+                : undefined,
     })
   }
 
@@ -135,6 +135,11 @@ export function SignalsArchivePage() {
   // Collection contract onOpenRecord — replace the query state before the host pushes its one
   // route marker. This yields one Back step from the record marker to the prior collection URL.
   function onOpenRecord(record: { id: string }) {
+    // A fresh row click is explicit intent, so it clears the close/reopen memories used by the
+    // route-seam effects. Without this reset, a signal reopened immediately after Back could be
+    // swallowed by the previous session's suppression flag.
+    suppressNextOpen.current = false
+    hadSignalSession.current = false
     const next = new URLSearchParams(params)
     next.set('record', record.id)
     setParams(next)
@@ -207,10 +212,15 @@ export function SignalsArchivePage() {
     if (suppressNextOpen.current) return
     const active = host.session?.frames.at(-1)?.entry
     if (active?.key === signalEntry.key) return
+    // A pushed child (for example Signal → Create task) changes the active top frame, but the
+    // Signal is still the root owner. Replacing the root here would silently discard that child
+    // on the next render. The root identity is the stable seam for collection synchronization.
+    const signalRoot = host.session?.frames[0]?.entry
+    if (signalRoot?.key === signalEntry.key) return
     const hasSignalSession = host.session?.frames.some((frame) => frame.entry.owner === 'signals')
     void (hasSignalSession
       ? host.replaceRoot(signalEntry)
-      : host.openRoot(signalEntry, 'route'))
+      : host.openRoot(signalEntry, 'route', true))
   }, [host, signalEntry])
 
   // A route marker adds one history step above the readable ?record= state. When the shared host
@@ -285,8 +295,12 @@ export function SignalsArchivePage() {
           { value: 'all', label: t('signals.archive.viewAll') },
           { value: 'needs-attention', label: t('signals.archive.viewAttention') },
           { value: 'retracted', label: t('signals.archive.viewRetracted') },
+          { value: 'i-posted', label: t('signals.archive.viewMine') },
         ],
-        onChange: (view) => setQuery({ view }),
+        // Choosing any explicit view also clears the pre-collection `?retracted=1`
+        // compatibility flag. The flag remains readable for old links, but must not
+        // silently keep retracted records in the All view after a user changes views.
+        onChange: (view) => setQuery({ view, showRetracted: false }),
       }}
       search={signalSearch}
       filters={[
@@ -339,17 +353,6 @@ export function SignalsArchivePage() {
           },
         ] : []),
       ]}
-      toggles={(
-        <label className="collection-toolbar__toggle">
-          <Toggle
-            size="small"
-            value={query.showRetracted}
-            onChange={(showRetracted) => setQuery({ showRetracted })}
-            aria-label={t('signals.archive.showRetracted')}
-          />
-          <span>{t('signals.archive.showRetracted')}</span>
-        </label>
-      )}
       savedViews={{
         label: t('signals.archive.savedViews'),
         selectedId: query.savedViewId,

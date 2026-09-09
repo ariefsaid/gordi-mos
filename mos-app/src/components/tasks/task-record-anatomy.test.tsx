@@ -118,7 +118,10 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
   it('F3 — a read-only Task carries at most ONE whole-record note and no per-field provenance captions', () => {
     // A viewer who is neither PIC/Supervisor nor manager gets a read-only record.
     const { container } = renderRecord({ viewerId: 'stranger', downlineIds: [] })
-    expect(container.querySelectorAll('.record-field__reason')).toHaveLength(0)
+    // The unassigned Team migration state is a real field-specific explanation; it coexists with
+    // the single whole-record permission note and is not a duplicated permission caption.
+    expect(container.querySelectorAll('.record-field__reason')).toHaveLength(1)
+    expect(container.querySelector('.record-field__reason')).toHaveTextContent(/migration/i)
     expect(container.querySelectorAll('.record-viewer__permission-note')).toHaveLength(1)
   })
 
@@ -175,7 +178,8 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
 
     expect(within(header).getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
     expect(within(actions).queryByRole('button', { name: 'Mark complete' })).not.toBeInTheDocument()
-    expect(within(actions).getByRole('button', { name: 'Archive task' })).toBeInTheDocument()
+    fireEvent.click(within(header).getByRole('button', { name: 'More actions' }))
+    expect(within(container).getByRole('menuitem', { name: 'Archive task' })).toBeInTheDocument()
     expect(within(header).queryByRole('button', { name: 'Activity' })).not.toBeInTheDocument()
     expect(within(container).getAllByRole('tab', { name: 'Activity' })).toHaveLength(1)
   })

@@ -11,7 +11,12 @@ import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
-import { getCafeOpeningProcessId, listCafeOpeningBranches, wibToday } from '@/lib/db/cafe-opening'
+import { Select } from '@/components/ui/select'
+import {
+  getCafeOpeningProcessId, resolveCafeOpeningTeamForTeam, listStartableCafeTeams, wibToday,
+} from '@/lib/db/cafe-opening'
+import { listAuthorTeams } from '@/lib/db/signals'
+import { resolveTeamContext } from '@/lib/team-context'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
 import { canReviewCafe } from '@/lib/kitchen-gates'
 // #440: the module ROOT is where the stream context belongs first — the doors below lead into
@@ -21,9 +26,9 @@ import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import './cafe-opening-page.css'
 
-type FetchState = 'loading' | 'ready' | 'error' | 'no-process' | 'no-team'
+type FetchState = 'loading' | 'ready' | 'choice' | 'error' | 'no-process' | 'no-team'
 
-type BranchTeam = {
+interface BranchTeam {
   id: string
   name: string
 }
@@ -53,7 +58,8 @@ export function CafeOpeningPage() {
 
   const [state, setState] = useState<FetchState>('loading')
   const [processId, setProcessId] = useState<string | null>(null)
-  const [teams, setTeams] = useState<BranchTeam[]>([])
+  const [team, setTeam] = useState<BranchTeam | null>(null)
+  const [teamChoices, setTeamChoices] = useState<BranchTeam[]>([])
   // The module's stream (#440). Read on its own so a failure here never takes the opening
   // surface down with it: the opening itself is Team-scoped, not stream-scoped, so the head's
   // statement is context for the doors below, not a precondition for the panel.
@@ -78,16 +84,50 @@ export function CafeOpeningPage() {
   const load = useCallback(() => {
     if (!viewerId) return
     setState('loading')
-    setTeams([])
+    setTeam(null)
+    setTeamChoices([])
     getCafeOpeningProcessId()
       .then(async (id) => {
         if (!id) { setState('no-process'); return }
         setProcessId(id)
-        const branches = await listCafeOpeningBranches()
-        const nextTeams = branches.map((branch) => ({ id: branch.team_id, name: branch.team_name }))
-        if (nextTeams.length === 0) { setState('no-team'); return }
-        setTeams(nextTeams)
-        setState('ready')
+        // Prefer a not-yet-started due occurrence for this process; fall back to the viewer's own
+        // Team membership when today's opening is already started (and so omitted from the due list).
+        // The shared resolver deliberately makes multiple eligible Teams a user choice.
+        const due = await listStartableCafeTeams(id)
+        if (due.length > 0) {
+          const resolution = resolveTeamContext(
+            due.map((run) => ({ id: run.owning_team_id, name: run.team_name })),
+          )
+          if (resolution.kind === 'single') {
+            setTeam(resolution.team)
+            setState('ready')
+          } else if (resolution.kind === 'choice') {
+            setTeamChoices(resolution.teams)
+            setState('choice')
+          } else {
+            setState('no-team')
+          }
+          return
+        }
+        const myTeams = await listAuthorTeams(viewerId)
+        // A viewer's primary stream Team is only the branch context. Once the run exists it is
+        // omitted from due_process_runs(), so resolve every authored Team through that branch's
+        // canonical Café Opening Team before loading the panel. Keeping every branch candidate
+        // preserves an explicit choice for multi-branch viewers; resolveTeamContext dedupes a
+        // bar+kitchen pair that points at the same branch opening.
+        const openingTeams = (await Promise.all(
+          myTeams.map(({ id: teamId }) => resolveCafeOpeningTeamForTeam(teamId)),
+        )).filter((candidate): candidate is BranchTeam => candidate !== null)
+        const resolution = resolveTeamContext(openingTeams)
+        if (resolution.kind === 'single') {
+          setTeam(resolution.team)
+          setState('ready')
+        } else if (resolution.kind === 'choice') {
+          setTeamChoices(resolution.teams)
+          setState('choice')
+        } else {
+          setState('no-team')
+        }
       })
       .catch(() => setState('error'))
   }, [viewerId])
@@ -128,11 +168,35 @@ export function CafeOpeningPage() {
       {state === 'no-team' && (
         <EmptyState variant="blank" title={t('cafe.opening.noTeam')} />
       )}
-      {state === 'ready' && processId && (
+      {state === 'choice' && (
+        // distill: the Select's own visible label already says "Choose a Team" — a
+        // standalone prompt paragraph above it (formerly "Choose the Team whose opening
+        // you want to view.") restated the same instruction a second time for a
+        // one-field form. The section's aria-label keeps the region navigable by AT
+        // landmark; the field label is the single remaining copy of the instruction.
+        <section className="cafe-team-choice" aria-label={t('cafe.opening.chooseTeam')}>
+          <Select
+            label={t('cafe.opening.chooseTeam')}
+            fullWidth
+            value=""
+            onChange={(event) => {
+              const chosen = teamChoices.find((candidate) => candidate.id === event.target.value)
+              if (!chosen) return
+              setTeam(chosen)
+              setTeamChoices([])
+              setState('ready')
+            }}
+          >
+            <option value="" disabled>{t('cafe.opening.chooseTeam')}</option>
+            {teamChoices.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
+            ))}
+          </Select>
+        </section>
+      )}
+      {state === 'ready' && processId && team && (
         <>
-          {teams.map((team) => (
-            <CafeOpeningPanel key={team.id} processId={processId} teamId={team.id} teamName={team.name} />
-          ))}
+          <CafeOpeningPanel processId={processId} teamId={team.id} teamName={team.name} />
           {/* Step 7 minor (item 7b): real button-styled links (btn-outline), full-width tap
               targets at ≤390px (cafe-opening-page.css). */}
           <nav aria-label={t('nav.cafe')} className="cafe-capture-links">

@@ -15,10 +15,11 @@ function renderDoor(props: React.ComponentProps<typeof HomeObjectivesDoor> = {})
 }
 
 describe('Home Objectives door', () => {
-  it('renders useful Objective progress rows and drills by Objective name', () => {
+  it('renders useful Objective progress rows and opens the canonical Objective record', () => {
     renderDoor({ rows: [{ id: 'o1', name: 'Q3 Growth', done: 2, total: 3 }] })
     const row = screen.getByRole('link', { name: /Q3 Growth.*2\/3 done/i })
-    expect(row).toHaveAttribute('href', '/work/objectives?q=Q3%20Growth')
+    expect(row).toHaveAttribute('href', '/work/objectives/o1')
+    expect(screen.getByRole('link', { name: 'See all →' })).toHaveAttribute('href', '/work/objectives')
     expect(screen.queryByText(/Progress rolls up from each Objective/i)).toBeNull()
   })
 

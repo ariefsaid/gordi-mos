@@ -1,42 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/supabase', () => ({ supabase: { schema: vi.fn() } }))
 vi.mock('./branches', () => ({ listActiveBranches: vi.fn() }))
 vi.mock('./default-stream', () => ({ fetchDefaultStream: vi.fn() }))
 vi.mock('./cafe-opening', () => ({
   getCafeOpeningProcessId: vi.fn(),
+  getCafeOpeningTeamId: vi.fn(),
   getTodayOpeningForTeam: vi.fn(),
-  wibToday: vi.fn(() => '2026-09-09'),
 }))
 
-import { supabase } from '@/lib/supabase'
 import { listActiveBranches } from './branches'
 import { fetchDefaultStream } from './default-stream'
-import { getCafeOpeningProcessId, getTodayOpeningForTeam } from './cafe-opening'
+import { getCafeOpeningProcessId, getCafeOpeningTeamId, getTodayOpeningForTeam } from './cafe-opening'
 import { loadHomeCafeDoor } from './home-cafe'
 
-const schemaMock = vi.mocked(supabase.schema)
 const branchesMock = vi.mocked(listActiveBranches)
 const streamMock = vi.mocked(fetchDefaultStream)
 const processMock = vi.mocked(getCafeOpeningProcessId)
+const openingTeamMock = vi.mocked(getCafeOpeningTeamId)
 const openingMock = vi.mocked(getTodayOpeningForTeam)
-
-function mockPrimaryTeam(data: unknown = { team_id: 'team-1' }, error: unknown = null) {
-  const builder: Record<string, unknown> = {}
-  builder.select = vi.fn(() => builder)
-  builder.eq = vi.fn(() => builder)
-  builder.lte = vi.fn(() => builder)
-  builder.or = vi.fn(() => builder)
-  builder.is = vi.fn(() => builder)
-  builder.limit = vi.fn(() => builder)
-  builder.maybeSingle = vi.fn(() => Promise.resolve({ data, error }))
-  builder.then = (resolve: (value: unknown) => unknown) => Promise.resolve({
-    data: data == null ? data : Array.isArray(data) ? data : [data],
-    error,
-  }).then(resolve)
-  schemaMock.mockReturnValue({ from: vi.fn(() => builder) } as never)
-  return builder
-}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -46,45 +27,39 @@ beforeEach(() => {
     activity: 'bar',
   })
   processMock.mockResolvedValue('process-1')
+  openingTeamMock.mockResolvedValue('team-kitchen')
   openingMock.mockResolvedValue({ started: false, runId: null, rollup: null })
-  mockPrimaryTeam()
 })
 
 describe('loadHomeCafeDoor', () => {
-  it('resolves the viewer primary stream and reads, but does not start, today’s opening', async () => {
-    const result = await loadHomeCafeDoor('person-1')
+  it('uses the canonical branch opening Team when the viewer primary stream is Bar', async () => {
+    const result = await loadHomeCafeDoor()
 
     expect(result?.branchName).toBe('Gordi HQ')
-    expect(openingMock).toHaveBeenCalledWith('process-1', 'team-1')
+    expect(openingTeamMock).toHaveBeenCalledWith('branch-1')
+    expect(openingMock).toHaveBeenCalledWith('process-1', 'team-kitchen')
+    expect(openingMock).not.toHaveBeenCalledWith('process-1', 'team-bar')
     expect(streamMock).toHaveBeenCalledWith([{ id: 'branch-1', code: 'gordi_hq', name: 'Gordi HQ' }])
   })
 
-  it('keeps a primary membership whose effective end date is later than today', async () => {
-    const builder = mockPrimaryTeam({ team_id: 'team-1' })
+  it('returns an honest empty door when the branch has no canonical opening Team', async () => {
+    openingTeamMock.mockResolvedValue(null)
 
-    await loadHomeCafeDoor('person-1')
-
-    expect(builder.or).toHaveBeenCalledWith('effective_to.is.null,effective_to.gte.2026-09-09')
-  })
-
-  it('fails closed when more than one active primary membership is returned', async () => {
-    mockPrimaryTeam([{ team_id: 'team-1' }, { team_id: 'team-2' }])
-
-    await expect(loadHomeCafeDoor('person-1')).rejects.toThrow(/ambiguous primary team/i)
+    expect(await loadHomeCafeDoor()).toBeNull()
     expect(openingMock).not.toHaveBeenCalled()
   })
 
   it('returns an honest empty door when no Café Opening process exists', async () => {
     processMock.mockResolvedValue(null)
 
-    expect(await loadHomeCafeDoor('person-1')).toBeNull()
+    expect(await loadHomeCafeDoor()).toBeNull()
     expect(streamMock).not.toHaveBeenCalled()
     expect(openingMock).not.toHaveBeenCalled()
   })
 
-  it('surfaces a primary-membership read failure for Home retry', async () => {
-    mockPrimaryTeam(null, { message: 'offline' })
+  it('surfaces a canonical opening Team read failure for Home retry', async () => {
+    openingTeamMock.mockRejectedValue(new Error('offline'))
 
-    await expect(loadHomeCafeDoor('person-1')).rejects.toThrow(/offline/)
+    await expect(loadHomeCafeDoor()).rejects.toThrow(/offline/)
   })
 })

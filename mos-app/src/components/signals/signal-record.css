@@ -11,17 +11,50 @@
   letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground);
 }
 
-/* ── 1 · Message — the content leads, unclipped; attention + occurred ride with it (LAW-2). ── */
+/* ── 1 · Message — identity controls establish the decision seam; body follows once (LAW-2). ── */
 .signal-message { display: flex; flex-direction: column; }
+.signal-record-control-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 32px;
+  margin-bottom: 2px;
+}
+.signal-record-control-row .signal-attention,
+.signal-record-control-row .signal-attention-picker .signal-attention { margin-left: 0; }
 .signal-message-urgency { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.signal-message-occurred { font-size: var(--font-size-control); color: var(--muted-foreground); }
+.signal-message-occurred { margin-left: auto; font-size: var(--font-size-control); color: var(--muted-foreground); }
 .signal-message-body {
   margin: 16px 0 0; max-width: 72ch; font-size: var(--font-size-body); line-height: 1.6;
   color: var(--foreground); overflow-wrap: anywhere; white-space: pre-wrap;
 }
+.signal-overflow { position: relative; display: inline-flex; }
+.signal-overflow-trigger {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 32px;
+  padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: transparent; color: var(--muted-foreground); font: inherit; cursor: pointer;
+}
+.signal-overflow-trigger:hover { background: var(--surface-tertiary); color: var(--foreground); }
+.signal-overflow-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.signal-overflow-menu {
+  position: absolute; z-index: var(--z-popover, 30); top: calc(100% + 6px); right: 0; min-width: 190px;
+  display: flex; flex-direction: column; gap: 2px; padding: 6px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card);
+  box-shadow: var(--shadow-overlay);
+}
+.signal-overflow-menu button {
+  min-height: 44px; padding: 0 10px; border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--foreground); font: inherit; font-size: var(--font-size-control);
+  text-align: left; cursor: pointer;
+}
+.signal-overflow-menu button:hover { background: var(--surface-tertiary); }
+.signal-overflow-menu button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 
 /* ── 2 · Reach & response — one action register (LAW-3). ── */
 .signal-reach-audience { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.signal-reach-linked-error {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 12px 0 0; padding: 10px 12px;
+  border: 1px solid var(--destructive); border-radius: var(--radius-sm);
+  color: var(--destructive); font-size: var(--font-size-control);
+}
 .signal-record-mentions {
   display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none;
 }
@@ -34,6 +67,20 @@
 
 .signal-reach-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .signal-reach-linked { margin: 14px 0 0; font-size: var(--font-size-control); color: var(--muted-foreground); }
+
+.signal-linked-work { margin-top: 16px; }
+.signal-linked-work-title { margin: 0 0 8px; font-size: var(--font-size-label); font-weight: 600; color: var(--muted-foreground); }
+.signal-linked-work-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.signal-linked-work-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px;
+  width: 100%; min-height: 44px; padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: transparent; color: var(--foreground); font: inherit;
+  text-align: left; text-decoration: none; cursor: pointer;
+}
+.signal-linked-work-row:hover { background: var(--surface-tertiary); }
+.signal-linked-work-row:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.signal-linked-work-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.signal-linked-work-status { color: var(--muted-foreground); font-size: var(--font-size-label); white-space: nowrap; }
 
 .signal-reach-ack { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
 .signal-reach-ack-label { font-size: var(--font-size-label); color: var(--muted-foreground); }
@@ -83,5 +130,20 @@
 .signal-history-what { color: var(--muted-foreground); }
 .signal-history-diff { margin-top: 4px; color: var(--muted-foreground); overflow-wrap: anywhere; }
 
-/* Retraction tombstone (the sole message of a retracted Signal). */
-.signal-tombstone { margin: 0; font-size: var(--font-size-body); color: var(--muted-foreground); font-style: italic; }
+/* Retraction tombstone — preserve the original identity, then state who/when/why. */
+.signal-tombstone { margin: 0; max-width: 72ch; color: var(--muted-foreground); }
+.signal-tombstone-original { margin: 0 0 12px; color: var(--foreground); font-size: var(--font-size-body); line-height: 1.5; font-style: italic; }
+.signal-tombstone-status { margin: 0 0 10px; font-size: var(--font-size-control); font-weight: 600; }
+.signal-tombstone-meta { display: grid; gap: 6px; margin: 0 0 16px; font-size: var(--font-size-control); }
+.signal-tombstone-meta > div { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; }
+.signal-tombstone-meta dt { color: var(--muted-foreground); }
+.signal-tombstone-meta dd { margin: 0; color: var(--foreground); overflow-wrap: anywhere; }
+
+@media (max-width: 767.98px) {
+  .signal-record-control-row { align-items: stretch; }
+  .signal-message-occurred { width: 100%; margin-left: 0; }
+  .signal-overflow { margin-inline-start: auto; }
+  .signal-overflow-menu { position: fixed; inset-inline: 16px auto; right: 16px; top: auto; margin-top: 6px; }
+  .signal-reach-linked-error { align-items: flex-start; flex-direction: column; }
+  .signal-tombstone-meta > div { grid-template-columns: 96px minmax(0, 1fr); }
+}

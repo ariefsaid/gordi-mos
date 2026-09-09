@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Picker } from '@/components/ui/picker'
 import { TaskFilterSelect } from './task-filter-select'
 import { ErrorState } from '@/components/ui/state-kit'
 import { ViewTabs } from '@/components/ui/view-tabs'
@@ -47,6 +48,11 @@ export type TasksToolbarProps = {
   buOptions: readonly BusinessUnitOption[]
   personOptions: readonly PersonOption[]
   savedViews?: TasksToolbarSavedViews
+  /** Combined overdue + blocked attention surface. The legacy props remain as a compatibility seam
+   * for embedded tests/hosts until the Team-aware collection contract is merged. */
+  attentionCounts?: { overdue: number; blocked: number }
+  onAttentionOverdue?: () => void
+  onAttentionBlocked?: () => void
 }
 
 const STATUS_VALUES: { value: TaskStatus | ''; key: 'any' | 'open' | 'inProgress' | 'blocked' | 'done' }[] = [
@@ -68,11 +74,13 @@ const GROUP_VALUES: { value: TaskCollectionGroup | 'owner'; key: 'none' | 'statu
   { value: 'occurrence', key: 'occurrence' },
 ]
 
-const VIEW_VALUES: { value: TaskCollectionView; key: 'all' | 'my-work' | 'overdue' | 'completed' }[] = [
+const VIEW_VALUES: { value: TaskCollectionView; key: 'all' | 'my-work' | 'team-work' | 'overdue' }[] = [
   { value: 'all', key: 'all' },
   { value: 'my-work', key: 'my-work' },
+  // The Team-work view is provided by the domain worker's task_id contract. Keeping the
+  // literal at this UI seam lets the root compose the toolbar before that query union lands here.
+  { value: 'team-work' as TaskCollectionView, key: 'team-work' },
   { value: 'overdue', key: 'overdue' },
-  { value: 'completed', key: 'completed' },
 ]
 
 const FIELD_OPTIONS: { value: string; key: string; required?: boolean }[] = [
@@ -118,6 +126,9 @@ export function TasksToolbar({
   buOptions,
   personOptions,
   savedViews,
+  attentionCounts,
+  onAttentionOverdue,
+  onAttentionBlocked,
 }: TasksToolbarProps) {
   const t = useT()
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -126,6 +137,8 @@ export function TasksToolbar({
   const filterTriggerRef = useRef<HTMLButtonElement | null>(null)
   const saveTriggerRef = useRef<HTMLButtonElement | null>(null)
   const savedViewRetryRef = useRef<SavedViewRetryAction | null>(null)
+  const attention = attentionCounts ?? { overdue: overdueCount, blocked: 0 }
+  const attentionTotal = attention.overdue + attention.blocked
 
   // The saved-view store is still owned by the RecordCollection engine. The new presentation only
   // changes where its controls live; it does not create a second persistence path.
@@ -141,7 +154,7 @@ export function TasksToolbar({
   // The view switcher is the first decision in the queue. PIC/Supervisor-specific views remain
   // reachable through old URLs and their typed query, but the compact navigation only promotes
   // the stable, user-facing scopes that the current data contract supports.
-  const activeView = VIEW_VALUES.some(({ value }) => value === query.view) ? query.view : 'all'
+  const activeView = query.view
   const filterCount = [
     query.q,
     query.businessUnitId,
@@ -234,9 +247,9 @@ export function TasksToolbar({
                 ? t('tasks.saved.all')
                 : key === 'my-work'
                   ? t('tasks.saved.mine')
-                  : key === 'overdue'
-                    ? t('tasks.saved.overdue')
-                    : t('tasks.saved.completed'),
+                  : key === 'team-work'
+                    ? t('tasks.saved.team')
+                  : t('tasks.saved.overdue'),
             }))}
             onChange={(value) => onViewChange(value as TaskCollectionView)}
           />
@@ -345,15 +358,25 @@ export function TasksToolbar({
 
             <div className="tasks-filter-field tasks-filter-field--checks">
               <span>{t('tasks.toolbar.attention')}</span>
-              <button
-                type="button"
-                className={`tasks-overdue-filter${query.overdueOnly ? ' tasks-overdue-filter--active' : ''}`}
-                aria-pressed={query.overdueOnly}
-                aria-label={t('tasks.filter.overdueAria', { count: overdueCount })}
-                onClick={query.overdueOnly ? onClearOverdue : onOverdueFilter}
-              >
-                {t('tasks.filter.overdueCount', { count: overdueCount })}
-              </button>
+              <Picker
+                label={t('tasks.filter.attentionAria', { count: attentionTotal })}
+                hideLabel
+                value=""
+                placeholder={t('tasks.filter.attentionCount', { count: attentionTotal })}
+                options={[
+                  { value: 'overdue', label: t('tasks.filter.overdueCount', { count: attention.overdue }) },
+                  { value: 'blocked', label: t('tasks.filter.blockedCount', { count: attention.blocked }) },
+                ]}
+                onChange={(value) => {
+                  if (value === 'overdue') (onAttentionOverdue ?? (query.overdueOnly ? onClearOverdue : onOverdueFilter))()
+                  else (onAttentionBlocked ?? (() => onQueryChange({ status: 'Blocked' })))()
+                }}
+              />
+
+            </div>
+          </div>
+
+          <div className="tasks-filter-panel__history">
               <label className="tasks-checkbox">
                 <input
                   type="checkbox"
@@ -362,7 +385,6 @@ export function TasksToolbar({
                 />
                 <span>{t('tasks.filter.includeArchived')}</span>
               </label>
-            </div>
           </div>
 
           <div className="tasks-filter-panel__lower">

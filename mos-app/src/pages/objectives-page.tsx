@@ -1,30 +1,24 @@
-// ObjectivesPage — the Objectives catalog, Work's manage-mode (route /work/objectives). OD-V4-1
-// (owner-ratified 2026-07-27, docs/v4-inheritance.md INC-1): "Objectives are visible to everyone
-// and writeable at lead level" — the route carries NO RequireCapability read gate (RLS's
-// objectives_select_org policy already grants SELECT to every authenticated org member with only
-// the org_id tenancy check, FR-333); write (create/rename/archive) stays behind `can('objective.manage')`,
-// held by admin + ops_lead (mos.objectives INSERT/UPDATE RLS via shared.can()). It speaks the V3
-// collection grammar: a typed RecordCollection descriptor owns load / view (Active/Archived) / name
-// search / task-coverage filter (H7), the shared RecordCollectionSurface + CollectionToolbar render
-// it, and the FR-422 down-trace (each objective's child work_lines + per-work_line task count) rides
-// under each active row. Each row also carries a relations disclosure (H4) — a real drill target
-// into its child Projects/Processes and its own Tasks, bidirectional with ProjectsProcessesPage's
-// own disclosure (docs/v4-inheritance.md INC-1: relations live on the records, not a new cascade
-// route). A catalog row has no record panel, so its inline management actions (Rename / Archive /
-// Unarchive) are its primary interaction; the ONE primary create affordance is the inline Add bar
-// above the collection.
-import { useCallback, useId, useState } from 'react'
+// Objectives collection (route /work/objectives).
+// Objectives remain readable to every authenticated organisation member. The existing objective
+// manage capability only controls the head Create door and record overflow mutations; the
+// collection itself is never replaced by a permission redirect.
+import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { can } from '@/lib/capabilities'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
-import { HelpTip } from '@/components/ui/help-tip'
+import { useIsDesktop } from '@/shell/use-is-desktop'
+import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { Button } from '@/components/ui/button'
-import { TextInput } from '@/components/ui/text-input'
+import { getBusinessUnits, type BusinessUnitOption } from '@/lib/db/directory'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
-import { CollectionToolbar } from '@/components/record-collection/collection-toolbar'
+import {
+  CollectionToolbar,
+  CollectionToolbarSearchField,
+  type CollectionToolbarSearch,
+} from '@/components/record-collection/collection-toolbar'
 import {
   objectivesCollectionDescriptor,
   objectivesCatalogActions,
@@ -33,16 +27,15 @@ import {
 import {
   CatalogCollectionActionsProvider,
   type CatalogCollectionActions,
+  type CatalogCreateDraft,
 } from '@/components/catalog/catalog-collection-actions'
+import { useCatalogRecordOverlay } from '@/components/catalog/use-catalog-record-overlay'
 import '@/components/catalog/catalog-collection.css'
 
 export function ObjectivesPage() {
   const t = useT()
-  // harden (2026-07-28): this page set NO document title at all, so the browser tab, the PWA
-  // task switcher and any bookmark all read the generic index fallback "Gordi MOS — Management
-  // OS" — untranslated, and identical for every unlabelled route.
+  const isDesktop = useIsDesktop()
   useDocumentTitle(t('common.docTitle', { page: t('nav.work.objectives') }))
-  const nameFieldId = useId()
   const controller = useRecordCollection({
     descriptor: objectivesCollectionDescriptor,
     urlMode: 'synced',
@@ -51,31 +44,66 @@ export function ObjectivesPage() {
   })
   const query = controller.state.query
   const projection = controller.state.projection
-
-  // PORT-028. This is the ONE place the two catalogs differ. Projects/Processes is route-gated
-  // (`RequireCapability workline.manage`), so arriving there proves the capability. Objectives has
-  // no read gate at all — OD-V4-1 made it visible to everyone, because line-of-sight up the cascade
-  // is the point — so arriving here proves nothing about write. Without this check the page offers
-  // Create / Rename / Archive to every viewer and the database refuses them one click later.
-  //
-  // Four separate comments on this line (this page's own header, router.tsx, destinations.tsx,
-  // sections.ts) already asserted that "write stays behind can('objective.manage')". Nothing
-  // implemented it; the read gate's removal took the only check with it. This is the check.
-  //
-  // Affordance only — RLS is the boundary either way (NFR-004, DD-WAY-8).
   const auth = useAuth()
   const canManage = can(auth.status === 'authenticated' ? auth.viewer.accessRoles : [], 'objective.manage')
-
+  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [live, setLive] = useState('')
-  const announce = useCallback((msg: string) => setLive(msg), [])
+  const announce = useCallback((message: string) => setLive(message), [])
+  const [draftOpen, setDraftOpen] = useState(false)
   const [newName, setNewName] = useState('')
+  const [newBusinessUnitId, setNewBusinessUnitId] = useState<string | null>(null)
+  const [businessUnitOptions, setBusinessUnitOptions] = useState<BusinessUnitOption[]>([])
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState('')
 
-  const setQuery = (patch: Partial<CatalogCollectionQuery>) =>
+  const setQuery = (patch: Partial<CatalogCollectionQuery>) => {
     controller.setQuery({ ...query, ...patch })
+  }
   const nameOf = (id: string) =>
-    controller.state.data?.records.find((r) => r.id === id)?.name ?? ''
+    controller.state.data?.records.find((record) => record.id === id)?.name ?? ''
+
+  const openDraft = () => {
+    setNewName('')
+    setNewBusinessUnitId(null)
+    setAddError('')
+    setDraftOpen(true)
+  }
+  const cancelDraft = () => {
+    if (adding) return
+    setDraftOpen(false)
+    setAddError('')
+  }
+  const handleDraftSubmit = async () => {
+    const name = newName.trim()
+    if (!name) {
+      setAddError(t('catalog.nameRequired'))
+      return
+    }
+    setAdding(true)
+    setAddError('')
+    try {
+      if (newBusinessUnitId) await objectivesCatalogActions.create(name, newBusinessUnitId)
+      else await objectivesCatalogActions.create(name)
+      setDraftOpen(false)
+      setNewName('')
+      announce(t('catalog.announce.added', { name }))
+      controller.setQuery({ ...query, view: 'active', q: '', coverage: 'all' })
+      controller.retry()
+    } catch (error) {
+      setAddError(error instanceof Error ? error.message : t('catalog.addFailed'))
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!draftOpen || businessUnitOptions.length > 0) return
+    let live = true
+    void getBusinessUnits()
+      .then((options) => { if (live) setBusinessUnitOptions(options) })
+      .catch(() => { /* The create field remains optional; the record read still stays truthful. */ })
+    return () => { live = false }
+  }, [businessUnitOptions.length, draftOpen])
 
   const actions: CatalogCollectionActions = {
     canManage,
@@ -90,9 +118,9 @@ export function ObjectivesPage() {
         await objectivesCatalogActions.setArchived(id, true)
         announce(t('catalog.announce.archived', { name }))
         controller.retry()
-      } catch (err) {
+      } catch (error) {
         announce(t('catalog.announce.archiveFailed', { name }))
-        throw err
+        throw error
       }
     },
     unarchive: async (id) => {
@@ -101,36 +129,40 @@ export function ObjectivesPage() {
         await objectivesCatalogActions.setArchived(id, false)
         announce(t('catalog.announce.restored', { name }))
         controller.retry()
-      } catch (err) {
+      } catch (error) {
         announce(t('catalog.announce.restoreFailed', { name }))
-        throw err
+        throw error
       }
     },
+    ...(canManage ? {
+      createDraft: {
+        kind: 'objective',
+        open: draftOpen,
+        name: newName,
+        businessUnitId: newBusinessUnitId,
+        businessUnitOptions: businessUnitOptions.map((unit) => ({ value: unit.id, label: unit.name })),
+        adding,
+        error: addError,
+        onNameChange: (name: string) => { setNewName(name); if (addError) setAddError('') },
+        onBusinessUnitChange: (id) => { setNewBusinessUnitId(id); if (addError) setAddError('') },
+        onSubmit: () => { void handleDraftSubmit() },
+        onCancel: cancelDraft,
+      } satisfies CatalogCreateDraft,
+    } : {}),
   }
 
-  async function handleAdd(e: React.FormEvent) {
-    e.preventDefault()
-    const name = newName.trim()
-    if (!name) { setAddError(t('catalog.nameRequired')); return }
-    setAdding(true)
-    setAddError('')
-    try {
-      await objectivesCatalogActions.create(name)
-      setNewName('')
-      announce(t('catalog.announce.added', { name }))
-      controller.setQuery({ ...query, view: 'active', q: '', coverage: 'all' })
-      controller.retry()
-    } catch (err) {
-      setAddError(err instanceof Error ? err.message : t('catalog.addFailed'))
-    } finally {
-      setAdding(false)
-    }
+  const viewLabel = query.coverage === 'has-tasks'
+    ? t('catalog.coverage.withTasks')
+    : query.coverage === 'no-tasks'
+      ? t('catalog.coverage.noTasks')
+      : t('catalog.coverage.all')
+  const statusLabel = query.view === 'all' ? t('catalog.includeArchived') : query.view === 'archived' ? t('catalog.view.archived') : t('catalog.view.active')
+  const search: CollectionToolbarSearch = {
+    label: t('catalog.searchLabel'),
+    placeholder: t('catalog.searchPlaceholder'),
+    value: query.q,
+    onChange: (q) => setQuery({ q }),
   }
-
-  const viewLabel = t(query.view === 'archived' ? 'catalog.view.archived' : 'catalog.view.active')
-
-  // OD-V4-1 H7: Objectives' one filter dimension — reuses the same CollectionToolbar `filters`
-  // mechanism Projects/Processes already uses for its Type filter (no second filter grammar).
   const toolbar = (
     <CollectionToolbar
       presentation={{
@@ -141,92 +173,90 @@ export function ObjectivesPage() {
       }}
       views={{
         label: t('catalog.viewsLabel'),
-        value: query.view,
+        value: query.coverage,
         options: [
-          { value: 'active', label: t('catalog.view.active') },
-          { value: 'archived', label: t('catalog.view.archived') },
+          { value: 'all', label: t('catalog.coverage.all') },
+          { value: 'has-tasks', label: t('catalog.coverage.withTasks') },
+          { value: 'no-tasks', label: t('catalog.coverage.noTasks') },
         ],
-        onChange: (view) => setQuery({ view }),
+        onChange: (coverage) => setQuery({ coverage }),
       }}
-      search={{
-        label: t('catalog.searchLabel'),
-        placeholder: t('catalog.searchPlaceholder'),
-        value: query.q,
-        onChange: (q) => setQuery({ q }),
-      }}
-      filters={[
-        {
-          id: 'coverage',
-          label: t('catalog.filter.coverage'),
-          value: query.coverage,
-          options: [
-            { value: 'all', label: t('catalog.coverage.all') },
-            { value: 'has-tasks', label: t('catalog.coverage.hasTasks') },
-            { value: 'no-tasks', label: t('catalog.coverage.noTasks') },
-          ],
-          onChange: (coverage) => setQuery({ coverage: coverage as CatalogCollectionQuery['coverage'] }),
+      hideViewsLabel
+      search={search}
+      hideSearchRow={!isDesktop}
+      filters={[{
+        id: 'status',
+        label: t('catalog.filter.status'),
+        display: query.view === 'all' ? t('catalog.includeArchived') : t('catalog.view.active'),
+        popover: {
+          choices: [{
+            key: 'include-archived',
+            label: t('catalog.includeArchived'),
+            checked: query.view === 'all',
+            onChange: (checked) => setQuery({ view: checked ? 'all' : 'active' }),
+          }],
         },
-      ]}
+      }]}
     />
   )
+  const mobileSummary = `${viewLabel}${query.view !== 'active' ? ` · ${statusLabel}` : ''}`
+  const controls = isDesktop ? toolbar : (
+    <>
+      <CollectionToolbarSearchField search={search} />
+      <ViewOptionsDisclosure
+        open={mobileOptionsOpen}
+        onToggle={() => setMobileOptionsOpen((open) => !open)}
+        onClose={() => setMobileOptionsOpen(false)}
+        label={t('catalog.viewAndFilters')}
+        summary={mobileSummary}
+        hasActiveFilters={query.coverage !== 'all' || query.view !== 'active' || query.q.trim() !== ''}
+        panelId="mobile-objective-options-panel"
+        className="collection-mobile-options"
+        triggerClassName="collection-mobile-options-trigger"
+        summaryClassName="collection-mobile-options-summary"
+        chevronClassName="collection-mobile-options-chevron"
+        panelClassName="collection-mobile-options-panel"
+      >
+        {toolbar}
+      </ViewOptionsDisclosure>
+    </>
+  )
+  const overlay = useCatalogRecordOverlay({
+    collectionKind: 'objective',
+    onCollectionChanged: controller.retry,
+  })
 
   return (
-    // Census R2 DO-7 (objectives F7) + DO-20(d) (F6): no bare head count pill — the labeled
-    // result-header inside the collection already carries the count ("N items in your scope"),
-    // so the naked pill was a GUARD-R2-class duplicate. The extra meta subtitle overlapped the
-    // job sentence (two subtitles vs Projects' one) and is dropped with it.
     <PageFamilyFrame
       family="management"
       title={t('nav.work.objectives')}
       jobSentence={t('job.objectives')}
-      /* onboard (2026-07-28): Objectives scored 18/40 (the app's weakest surface) and OD-V4-1
-         has just made it visible to EVERY role, so most of its readers are meeting it for the
-         first time. The one thing they cannot infer from the screen is that the cascade is
-         walked through the records rather than shown on a screen of its own. */
-      meta={<HelpTip label={t('objectives.help')} />}
+      action={canManage ? <Button variant="primary" onClick={openDraft}>{t('catalog.objectives.add')}</Button> : undefined}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
-
-      {/* The ONE primary create affordance (State-Kit Rule): the inline Add bar. The head carries no
-          action slot, so there is no duplicate create CTA. PORT-028: a read-only viewer gets no
-          create bar — the collection below still renders in full, which is the whole point of
-          OD-V4-1 admitting them. */}
-      {canManage && (
-      <form className="catalog-create" aria-label={t('catalog.objectives.add')} onSubmit={handleAdd}>
-        <div className="catalog-create__name">
-          <TextInput
-            id={nameFieldId}
-            label={t('catalog.nameLabel')}
-            value={newName}
-            onChange={(e) => { setNewName(e.target.value); if (addError) setAddError('') }}
-            error={!!addError}
-            fullWidth
-            disabled={adding}
-            placeholder={t('catalog.namePlaceholder')}
-          />
-        </div>
-        <Button type="submit" variant="primary" disabled={adding} aria-busy={adding}>
-          {adding ? t('catalog.objectives.adding') : t('catalog.objectives.add')}
-        </Button>
-        {addError && <p className="catalog-create__error" role="alert">{addError}</p>}
-      </form>
-      )}
-
       <CatalogCollectionActionsProvider actions={actions}>
-        <div className="record-collection-view record-collection-view--list">
-          <RecordCollectionSurface
-            controller={controller}
-            resultHeader={{
-              collectionLabel: t('nav.work.objectives'),
-              viewLabel,
-              count: projection ? projection.visibleRecords.length : null,
-            }}
-            controls={toolbar}
-            empty={{ title: t('catalog.objectives.empty.title'), copy: t('catalog.objectives.empty.copy') }}
-            filteredEmpty={{ title: t('catalog.filteredEmpty.title'), clear: () => setQuery({ view: 'active', q: '', coverage: 'all' }) }}
-            error={{ message: t('catalog.objectives.error'), retry: () => controller.retry() }}
-            loadingLabel={t('catalog.objectives.loading')}
-          />
+        <div className={overlay.splitOpen ? 'record-split' : undefined}>
+          <div className="record-collection-view record-collection-view--list">
+            <RecordCollectionSurface
+              controller={controller}
+              resultHeader={{
+                collectionLabel: t('nav.work.objectives'),
+                viewLabel,
+                count: projection ? projection.visibleRecords.length : null,
+              }}
+              controls={controls}
+              onOpenRecord={overlay.onOpenRecord}
+              keepBodyWhenEmpty={draftOpen}
+              empty={{ title: t('catalog.objectives.empty.title'), copy: t('catalog.objectives.empty.copy') }}
+              filteredEmpty={{
+                title: t('catalog.filteredEmpty.title'),
+                clear: () => setQuery({ view: 'active', q: '', coverage: 'all' }),
+              }}
+              error={{ message: t('catalog.objectives.error'), retry: () => controller.retry() }}
+              loadingLabel={t('catalog.objectives.loading')}
+            />
+          </div>
+          {overlay.slot}
         </div>
       </CatalogCollectionActionsProvider>
     </PageFamilyFrame>

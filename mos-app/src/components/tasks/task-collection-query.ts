@@ -37,7 +37,7 @@ export type TaskCollectionSort = 'task' | 'status' | 'pic' | 'supervisor' | 'due
 export type TaskCollectionAction = never
 
 export type TaskCollectionView =
-  | 'all' | 'my-work' | 'team-work' | 'my-pic' | 'my-supervisor' | 'overdue' | 'completed'
+  | 'all' | 'my-work' | 'team-work' | 'my-pic' | 'my-supervisor' | 'overdue'
 
 export interface TaskCollectionQuery {
   layout: TaskCollectionPresentation
@@ -62,17 +62,18 @@ export interface TaskCollectionQuery {
 
 const LAYOUTS: readonly TaskCollectionPresentation[] = ['table', 'card']
 const VIEWS: readonly TaskCollectionView[] = [
-  'all', 'my-work', 'team-work', 'my-pic', 'my-supervisor', 'overdue', 'completed',
+  'all', 'my-work', 'team-work', 'my-pic', 'my-supervisor', 'overdue',
 ]
 const GROUPS: readonly TaskCollectionGroup[] = ['none', 'status', 'pic', 'bu', 'workline', 'objective', 'occurrence']
 const SORTS: readonly TaskCollectionSort[] = ['task', 'status', 'pic', 'supervisor', 'due', 'activity']
 
-/** Legacy Task saved-view chip aliases that must be rewritten canonically, never kept raw.
- * `followups` is the retired AR Follow-ups view (#743): old links land on the All view. */
+/** Legacy Task view aliases that must be rewritten canonically, never kept raw.
+ * `followups` is retired, and `completed` now uses the ordinary All + Done status filter. */
 const VIEW_ALIASES: Readonly<Record<string, TaskCollectionView>> = {
   mine: 'my-work',
   team: 'team-work',
   followups: 'all',
+  completed: 'all',
 }
 
 /** URL slug <-> TaskStatus. The DB stores capitalized status; the URL uses a stable slug. */
@@ -143,6 +144,7 @@ function parseTaskQuery(params: URLSearchParams): CollectionQueryParse<TaskColle
   }
 
   const view = params.get('view')
+  const legacyCompleted = view === 'completed'
   if (view !== null) {
     const aliased = VIEW_ALIASES[view] ?? view
     if (VIEWS.includes(aliased as TaskCollectionView)) query.view = aliased as TaskCollectionView
@@ -177,6 +179,7 @@ function parseTaskQuery(params: URLSearchParams): CollectionQueryParse<TaskColle
     if (mapped) query.status = mapped
     else issues.push({ key: 'status', code: 'invalid-value', value: status })
   }
+  if (legacyCompleted) query.status = 'Done'
 
   const group = params.get('group')
   if (group !== null) {
