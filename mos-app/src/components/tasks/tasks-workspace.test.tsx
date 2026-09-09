@@ -348,14 +348,14 @@ describe('AC-573 — saved-view chrome uses fetched state', () => {
   it('switching scope removes the previous saved and overdue URL constraints', async () => {
     mockListTasks.mockResolvedValue([makeTask()])
     const { getLocation } = renderAt(['/work/tasks?saved=custom-view&overdue=1'])
-    fireEvent.click(await screen.findByRole('tab', { name: 'My work', exact: true }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'My work' }))
     await waitFor(() => {
       const params = new URLSearchParams(getLocation()?.search)
       expect(params.get('view')).toBe('my-work')
       expect(params.has('saved')).toBe(false)
       expect(params.has('overdue')).toBe(false)
     })
-    expect(screen.getByRole('tab', { name: 'My work', exact: true })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'My work' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('shows a fetched custom saved-view name in TasksWorkspace and Breadcrumb', async () => {

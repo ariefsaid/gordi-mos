@@ -20,7 +20,7 @@ import {
 describe('query-state', () => {
   it('clears neutral Task constraints while preserving record and unrelated route state', () => {
     const source = new URLSearchParams('saved=old&overdue=1&view=overdue&q=old&person=p1&record=t1&sourceSignal=s1')
-    const next = writeCollectionQuery(taskCollectionQuery, { ...taskCollectionQuery.neutral, view: 'my-work' }, source)
+    const next = writeCollectionQuery<TaskCollectionQuery>(taskCollectionQuery, { ...taskCollectionQuery.neutral, view: 'my-work' }, source)
     expect(next.toString()).toBe('record=t1&sourceSignal=s1&view=my-work')
   })
 
