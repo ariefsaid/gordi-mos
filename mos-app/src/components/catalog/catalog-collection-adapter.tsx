@@ -497,7 +497,8 @@ function makeCatalogDescriptor(config: {
     load: config.load,
     project: (data, query) => projectCatalog(data, query),
     getId: (row) => row.id,
-    // The route is gated by RequireCapability (FR-424); a viewer who reaches the surface can manage it.
+    // Catalog reads are org-wide; mutation affordances are resolved by the page/record runtime
+    // authority seam and the database remains the final write boundary.
     getAccess: () => ({ mode: 'full', visibleActions: [] }),
   }
 }
@@ -624,7 +625,12 @@ export const projectsProcessesCatalogActions = {
     accountablePersonId?: string | null
     responsiblePersonId?: string | null
   }) => metadata
-    ? (createWorkLine as unknown as (value: string, lineType: CatalogType, fields: typeof metadata) => Promise<unknown>)(name, type, metadata)
+    ? (createWorkLine as unknown as (value: string, lineType: CatalogType, fields: Record<string, string | null | undefined>) => Promise<unknown>)(name, type, {
+        objective_id: metadata.objectiveId,
+        business_unit_id: metadata.businessUnitId,
+        accountable_person_id: metadata.accountablePersonId,
+        responsible_person_id: metadata.responsiblePersonId,
+      })
     : (createWorkLine as unknown as (value: string, lineType: CatalogType) => Promise<unknown>)(name, type),
   rename: (id: string, name: string) => renameWorkLine(id, name),
   setArchived: (id: string, archived: boolean) => setWorkLineArchived(id, archived),

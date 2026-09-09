@@ -29,6 +29,9 @@ describe('deriveInboxRowPresentation', () => {
       actorName: 'Cahya',
       entityType: 'signal',
       attention: 'Urgent',
+      source: 'mention',
+      reason: null,
+      isSignalRetraction: false,
       sourceLine: 'The freezer alarm went off',
       fallbackTitle: 'You were mentioned in a Signal',
     })
@@ -39,8 +42,30 @@ describe('deriveInboxRowPresentation', () => {
       actorName: null,
       entityType: 'unknown',
       attention: null,
+      source: null,
+      reason: null,
+      isSignalRetraction: false,
       sourceLine: null,
       fallbackTitle: 'Legacy notification',
+    })
+  })
+
+  it('extracts the actor and structured reason for a Signal retraction', () => {
+    expect(deriveInboxRowPresentation(row({
+      title: 'Signal retracted',
+      body: 'Duplicate report',
+      metadata: {
+        source: 'signal_retraction',
+        actor: { id: 'person-lead', name: 'Dewi' },
+        reason: 'Duplicate report',
+        entity: { type: 'signal', id: 'signal-1', route: '/work/signals?record=signal-1' },
+      },
+    }))).toMatchObject({
+      actorName: 'Dewi',
+      entityType: 'signal',
+      source: 'signal_retraction',
+      reason: 'Duplicate report',
+      isSignalRetraction: true,
     })
   })
 })

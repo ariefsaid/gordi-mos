@@ -7,6 +7,11 @@ export interface InboxRowPresentation {
   actorName: string | null
   entityType: InboxEntityType
   attention: Attention | null
+  /** The notification producer, when present in the metadata envelope. */
+  source: string | null
+  /** A structured reason, used by signal-retraction notifications. */
+  reason: string | null
+  isSignalRetraction: boolean
   sourceLine: string | null
   fallbackTitle: string
 }
@@ -46,6 +51,9 @@ export function deriveInboxRowPresentation(row: TriageNotificationRow): InboxRow
     actorName,
     entityType,
     attention,
+    source: typeof metadata.source === 'string' && metadata.source.trim() ? metadata.source.trim() : null,
+    reason: typeof metadata.reason === 'string' && metadata.reason.trim() ? metadata.reason.trim() : null,
+    isSignalRetraction: metadata.source === 'signal_retraction' && rawEntityType === 'signal',
     sourceLine: firstLine(row.body),
     fallbackTitle: row.title,
   }

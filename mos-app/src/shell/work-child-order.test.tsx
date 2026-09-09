@@ -35,7 +35,6 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import { ThemeProvider } from '@/theme/theme-provider'
 import { DESTINATIONS } from './destinations'
 import { visibleSections } from './sections'
-import { can } from '@/lib/capabilities'
 import { isShipGated } from '@/lib/ship-gate'
 import { RailNav } from './rail-nav'
 import { MobileDrawer } from './mobile-drawer'
@@ -63,7 +62,6 @@ const ROLES = ['admin', 'ops_lead', 'member', 'finance', 'manager', 'supervisor'
 // agrees with whatever order the declaration takes — that looseness is what let the pre-#544
 // order survive #476's unification.
 const FAMILY = ['/work/signals', '/work/tasks', '/work/projects', '/work/objectives']
-const CAPABILITY: Record<string, string | undefined> = { '/work/projects': 'workline.manage' }
 // Add a row here when you add a Work child or lift a ship gate — a missing entry renders as
 // `=undefined` in the red, which reads as a label bug rather than a missing literal.
 const LABEL: Record<string, string> = {
@@ -198,7 +196,7 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     // missing: filtering the family list by `declaredOrder.includes(p)` passed a DELETED
     // destination, and pinning three paths by hand still passed a deleted /work/projects.
     const expected = FAMILY.filter(
-      (p) => !isShipGated(p) && (!CAPABILITY[p] || can([role], CAPABILITY[p])),
+      (p) => !isShipGated(p),
     )
     expect(declaredOrder).toEqual(expected)
     expect(declaredOrder.length).toBeGreaterThan(0)
@@ -209,7 +207,7 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
   // the thing being re-sorted: agreement with the declaration alone is what let the pre-#544
   // order survive (#544). Each surface below is pinned to the RULED sequence, not to each other.
   const expectedPairs = () =>
-    FAMILY.filter((p) => !isShipGated(p) && (!CAPABILITY[p] || can([role], CAPABILITY[p]))).map(
+    FAMILY.filter((p) => !isShipGated(p)).map(
       (p) => `${p}=${LABEL[p]}`,
     )
 

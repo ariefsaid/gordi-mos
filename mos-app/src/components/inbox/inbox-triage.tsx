@@ -221,7 +221,11 @@ export function InboxTriage({
               const canHandle = onMarkHandled != null && !isHandled(n)
               const ageDays = nudgeAgeDays(n, now) // OD-WAY-86: >= 2 on nudged rows, else null
               const presentation = deriveInboxRowPresentation(n)
-              const actorTitle = presentation.actorName && presentation.entityType !== 'unknown'
+              const actorTitle = presentation.isSignalRetraction
+                ? t('inbox.signalRetraction.title', {
+                  name: presentation.actorName ?? t('inbox.signalRetraction.someone'),
+                })
+                : presentation.actorName && presentation.entityType !== 'unknown'
                 ? metadataSource(n) === 'mention'
                   ? t('inbox.actorMentioned', { name: presentation.actorName })
                   : t('inbox.actorActivity', {
@@ -233,6 +237,11 @@ export function InboxTriage({
                 ? t(ENTITY_KEY[presentation.entityType])
                 : null
               const attention = presentation.attention ? attentionLabel(t, presentation.attention) : null
+              const sourceLine = presentation.isSignalRetraction
+                ? t('inbox.signalRetraction.reason', {
+                  reason: presentation.reason ?? presentation.sourceLine ?? t('inbox.signalRetraction.reasonUnavailable'),
+                })
+                : presentation.sourceLine
               return (
                 <li key={n.id} className={`inbox-row${unread ? ' inbox-row--unread' : ''}`} data-notification-id={n.id}>
                   <button
@@ -263,7 +272,7 @@ export function InboxTriage({
                         ) : null}
                         <span className="inbox-row__time">{formatAge(n.created_at, now, locale)}</span>
                       </span>
-                      {presentation.sourceLine ? <span className="inbox-row__body">{presentation.sourceLine}</span> : null}
+                      {sourceLine ? <span className="inbox-row__body">{sourceLine}</span> : null}
                     </span>
                   </button>
                   {canHandle ? (

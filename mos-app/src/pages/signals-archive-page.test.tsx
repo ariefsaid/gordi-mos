@@ -240,6 +240,7 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     // It opens the ONE shared composer.
     await userEvent.click(shareInTable)
     expect(composerOpen).toHaveBeenCalledTimes(1)
+    expect(composerOpen).toHaveBeenCalledWith()
   })
 
   it('FR-V3-007: an explicit ?layout=table URL overrides the Feed default and restores the Table', async () => {

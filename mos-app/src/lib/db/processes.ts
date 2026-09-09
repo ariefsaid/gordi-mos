@@ -25,6 +25,20 @@ export async function startRun(workLineId: string, teamId: string, date: string)
   return data as SpawnResult
 }
 
+/** Resolve effective start authority for one owning Team through mos runtime policy. */
+export async function canStartProcessForTeam(teamId: string): Promise<boolean> {
+  const { data, error } = await mos().rpc('can_start_process_for_team', { p_team_id: teamId })
+  if (error) throw new Error(`canStartProcessForTeam failed — ${error.message}`)
+  return data === true
+}
+
+/** Resolve effective close authority for one Process Run through mos runtime policy. */
+export async function canCloseProcessRun(runId: string): Promise<boolean> {
+  const { data, error } = await mos().rpc('can_close_process_run_id', { p_run_id: runId })
+  if (error) throw new Error(`canCloseProcessRun failed — ${error.message}`)
+  return data === true
+}
+
 /** List due (not-yet-spawned) occurrences for the viewer's authorized Teams via
  * `mos.due_process_runs()` — the scheduler-free Start surface (FR-612). */
 export async function listDueRuns(): Promise<DueProcessRun[]> {

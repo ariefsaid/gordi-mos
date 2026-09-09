@@ -32,6 +32,7 @@ vi.mock('../lib/db/signals', () => ({
 }))
 // Step 6 (Track C wiring, C1/C2): mocked at the DAL boundary, never a live DB.
 vi.mock('../lib/db/processes', () => ({
+  canStartProcessForTeam: vi.fn(),
   listDueRuns: vi.fn(),
   startRun: vi.fn(),
   listRunRollups: vi.fn(),
@@ -46,7 +47,7 @@ import { getBusinessUnits, getPeople, listRoleNames } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listAuthorTeams } from '@/lib/db/signals'
-import { listDueRuns, listRunRollups, listPendingTasks, resolvePendingTask, listTaskDefs } from '@/lib/db/processes'
+import { canStartProcessForTeam, listDueRuns, listRunRollups, listPendingTasks, resolvePendingTask, listTaskDefs } from '@/lib/db/processes'
 // Re-homed from the deleted TasksPage host onto the LIVE table surface (TasksWorkspace).
 // The host was a thin <PageFrame><TasksWorkspace/></PageFrame> wrapper, so every table
 // behavior AC (AC-060..067, filters, sort, archived toggle, states) now runs against the
@@ -58,6 +59,7 @@ const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
 const mockListAuthorTeams = vi.mocked(listAuthorTeams)
 const mockListDueRuns = vi.mocked(listDueRuns)
+const mockCanStartProcessForTeam = vi.mocked(canStartProcessForTeam)
 const mockListRunRollups = vi.mocked(listRunRollups)
 const mockListPendingTasks = vi.mocked(listPendingTasks)
 const mockListTaskDefs = vi.mocked(listTaskDefs)
@@ -239,6 +241,7 @@ beforeEach(() => {
   // Step 6 (Track C wiring): quiet defaults so pre-existing tests (accessRoles: [], no occurrence
   // groupBy) never see the Start-run control or an occurrence fetch.
   mockListDueRuns.mockResolvedValue([])
+  mockCanStartProcessForTeam.mockResolvedValue(false)
   mockListRunRollups.mockResolvedValue([])
   mockListPendingTasks.mockResolvedValue([])
   // Design fix wave item 4: quiet defaults — no generated_from_task_def_id rows in the base
@@ -1100,6 +1103,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
   it('clicking "N to assign" opens the pending-resolution surface; resolving materializes the Task in the same group', async () => {
     const genTask = makeTask({
       id: 'gen-1', title: 'Open the café', process_run_id: 'run-1',
+      team_id: 'team-1',
       responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
     })
     // The workspace loads via the collection engine, which re-fetches on view/group changes; the
@@ -1119,6 +1123,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
     }
     mockListPendingTasks.mockResolvedValue([pending])
     mockResolvePendingTask.mockResolvedValue('task-new')
+    mockCanStartProcessForTeam.mockResolvedValue(true)
 
     renderPage(CAPABLE_AUTH)
     await switchToAll()
@@ -1151,6 +1156,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
   it('item 3: a viewer without process.start sees the roll-up summary but never the "N to assign" affordance', async () => {
     const genTask = makeTask({
       id: 'gen-1', title: 'Open the café', process_run_id: 'run-1',
+      team_id: 'team-1',
       responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
     })
     mockListTasks.mockResolvedValue([genTask])

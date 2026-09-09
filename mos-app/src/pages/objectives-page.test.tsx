@@ -12,11 +12,16 @@ vi.mock('@/lib/db/objectives', () => ({
 }))
 vi.mock('@/lib/db/work-lines', () => ({ listWorkLinesAll: vi.fn() }))
 vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
+vi.mock('@/lib/db/work-authority', () => ({
+  emptyWorkWriteScopes: () => ({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [] }),
+  getWorkWriteScopes: vi.fn(),
+}))
 vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
 
 import { listObjectivesAll, createObjective } from '@/lib/db/objectives'
 import { listWorkLinesAll } from '@/lib/db/work-lines'
 import { listTasks } from '@/lib/db/tasks'
+import { getWorkWriteScopes } from '@/lib/db/work-authority'
 import { useAuth } from '@/auth/use-auth'
 import type { AuthState } from '@/auth/context'
 import { ObjectivesPage } from './objectives-page'
@@ -73,6 +78,12 @@ beforeEach(() => {
     { id: 'wl-2', name: 'Daily prep', type: 'process', archived_at: null },
   ])
   vi.mocked(listTasks).mockResolvedValue([])
+  vi.mocked(getWorkWriteScopes).mockResolvedValue({
+    workline_org: true,
+    objective_org: true,
+    workline_bu_ids: [],
+    objective_bu_ids: [],
+  })
   vi.mocked(createObjective).mockResolvedValue({ id: 'obj-new', name: 'New', archived_at: null })
 })
 
@@ -116,6 +127,12 @@ describe('Objectives collection-first contract', () => {
 
   it('keeps the collection readable without offering objective writes', async () => {
     vi.mocked(useAuth).mockReturnValue(viewerWithRoles(['member']))
+    vi.mocked(getWorkWriteScopes).mockResolvedValue({
+      workline_org: false,
+      objective_org: false,
+      workline_bu_ids: [],
+      objective_bu_ids: [],
+    })
     renderPage()
     await screen.findByText('Grow revenue')
     expect(screen.getByRole('link', { name: 'Grow revenue' })).toBeInTheDocument()

@@ -76,6 +76,8 @@ export interface TaskCollectionRuntime {
   onClearOverdue: () => void
   createHref: To
   canResolvePending: boolean
+  /** Per-occurrence runtime process.start authority; absence keeps legacy callers working. */
+  canResolvePendingForRun?: (runId: string) => boolean
 }
 
 const TaskCollectionRuntimeContext = createContext<TaskCollectionRuntime | null>(null)
@@ -450,6 +452,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
 
 
   const occurrence = useOccurrenceAssignment(runtime)
+  const canResolvePendingForRun = runtime.canResolvePendingForRun ?? (() => runtime.canResolvePending)
   const personMap = useMemo(() => new Map(context.personNamesById), [context.personNamesById])
   const buMap = useMemo(() => new Map(context.businessUnitNamesById), [context.businessUnitNamesById])
   const workLineMap = useMemo(() => new Map(context.workLinesById), [context.workLinesById])
@@ -540,7 +543,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       workLineType={group.workLineType}
       objectiveHint={group.objectiveHint}
       occurrenceRollup={group.occurrenceRollup}
-      onAssignPending={group.occurrenceRollup && runtime.canResolvePending
+      onAssignPending={group.occurrenceRollup && canResolvePendingForRun(group.key)
         ? () => occurrence.open(group.key)
         : undefined}
       onToggle={() => { toggleCollapsed(group.key); onToggleGroup(group.key) }}
@@ -593,7 +596,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         objectiveMap={objectiveMap}
         workloadSummary={workloadSummary}
         createHref={runtime.createHref}
-        onAssignPending={runtime.canResolvePending ? occurrence.open : undefined}
+        onAssignPending={(runId) => canResolvePendingForRun(runId) ? occurrence.open(runId) : undefined}
         provenanceByTaskDefId={new Map(context.provenanceByTaskDefId)}
         onEditTitle={runtime.onEditTitle}
         onEditPic={runtime.onEditPic}

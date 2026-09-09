@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { can } from '@/lib/capabilities'
-import { loadMentionRosters, type MentionRosters } from '@/lib/db/signals'
+import { getSignalPostAuthority, loadMentionRosters, type MentionRosters } from '@/lib/db/signals'
 import type { StagedMention } from '@/lib/db/signals.types'
 import { SignalComposer } from '@/components/signals/signal-composer'
 import { IconButton } from '@/components/ui/icon-button'
@@ -29,6 +29,10 @@ export interface SignalComposerPrefill {
 
 export interface SignalComposerContextValue {
   open: (prefill?: SignalComposerPrefill) => void
+  /** Effective post authority; absent while the runtime check is unavailable. */
+  canPost?: boolean
+  /** Effective signal.tag authority; absent while the runtime check is unavailable. */
+  canTag?: boolean
   /** Increments on each successful Share — feed/archive surfaces watch it to reload so a freshly
    * posted Signal appears without a manual refresh (AC-430). */
   postCount: number
@@ -52,7 +56,30 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   const [rosters, setRosters] = useState<MentionRosters>(EMPTY_ROSTERS)
   const [prefill, setPrefill] = useState<SignalComposerPrefill | undefined>()
   const [discardOpen, setDiscardOpen] = useState(false)
+  const [authorityReady, setAuthorityReady] = useState(false)
+  const [authority, setAuthority] = useState({ can_post: false, can_tag: false })
   const dirtyRef = useRef(false)
+
+  const viewer = auth.status === 'authenticated' ? auth.viewer : null
+  const viewerId = viewer?.person.id
+
+  useEffect(() => {
+    let live = true
+    setAuthorityReady(false)
+    setAuthority({ can_post: false, can_tag: false })
+    if (!viewerId) return () => { live = false }
+    getSignalPostAuthority()
+      .then((next) => { if (live) setAuthority(next) })
+      .catch(() => { /* fail closed; the primary shell remains usable */ })
+      .finally(() => { if (live) setAuthorityReady(true) })
+    return () => { live = false }
+  }, [viewerId])
+
+  const canPost = authorityReady && authority.can_post
+  const canTag = authorityReady && authority.can_tag
+  // BU mentions retain their existing explicit capability. The runtime signal.tag decision applies
+  // to the newly org-wide Person/Team mention reach and must not silently broaden BU tagging.
+  const canMentionBu = can(viewer?.accessRoles ?? [], 'signal.mention_bu')
 
   const close = useCallback(() => {
     dirtyRef.current = false
@@ -60,7 +87,11 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
     setIsOpen(false)
     setPrefill(undefined)
   }, [])
-  const open = useCallback((nextPrefill?: SignalComposerPrefill) => { setPrefill(nextPrefill); setIsOpen(true) }, [])
+  const open = useCallback((nextPrefill?: SignalComposerPrefill) => {
+    if (!canPost) return
+    setPrefill(nextPrefill)
+    setIsOpen(true)
+  }, [canPost])
   // On a successful Share: bump the post counter (watched by the feed/archive) then close.
   const handleShared = useCallback(() => {
     dirtyRef.current = false
@@ -78,8 +109,6 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   }, [close])
   const discardAndClose = useCallback(async () => { close() }, [close])
 
-  const viewer = auth.status === 'authenticated' ? auth.viewer : null
-
   // KNOWN GAP 1: the composer's AC-422 fan-out preview needs REAL rosters, not the {} default —
   // load them once per open (small at Gordi's ~30-person scale; loadMentionRosters mirrors
   // getPeople()'s whole-org-read pattern). A failed load degrades to an under-count preview rather
@@ -93,12 +122,10 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
     return () => { cancelled = true }
   }, [isOpen])
 
-  const accessRoles = viewer?.accessRoles ?? []
-
   return (
-    <SignalComposerContext.Provider value={{ open, postCount }}>
+    <SignalComposerContext.Provider value={{ open, postCount, canPost, canTag }}>
       {children}
-      {isOpen && viewer && (
+      {isOpen && viewer && canPost && (
         <ModalShell
           open
           onClose={requestClose}
@@ -118,8 +145,8 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
             <SignalComposer
               authorId={viewer.person.id}
               authorName={viewer.person.full_name}
-              canMentionBu={can(accessRoles, 'signal.mention_bu')}
-              canCreateForTeam={can(accessRoles, 'signal.create_for_team')}
+              canTag={canTag}
+              canMentionBu={canMentionBu}
               teamMembers={rosters.teamMembers}
               buMembers={rosters.buMembers}
               onShared={handleShared}

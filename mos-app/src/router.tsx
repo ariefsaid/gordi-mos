@@ -17,7 +17,6 @@ import {
 import { ProtectedRoute } from './auth/protected-route'
 import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
-import { RequireCapability } from './auth/require-capability'
 import { RedirectIfAuthed } from './auth/redirect-if-authed'
 import { REVENUE_VIEW_ROLES } from './lib/capabilities'
 import { isShipGated } from './lib/ship-gate'
@@ -122,6 +121,7 @@ const DashboardPage = lazyPage(() => import('./pages/dashboard-page').then((m) =
 const BudgetPage = lazyPage(() => import('./pages/budget-page').then((m) => ({ default: m.BudgetPage })))
 const PricingPage = lazyPage(() => import('./pages/pricing-page').then((m) => ({ default: m.PricingPage })))
 const AdminUsersPage = lazyPage(() => import('./pages/admin-users-page').then((m) => ({ default: m.AdminUsersPage })))
+const AdminAccessPage = lazyPage(() => import('./pages/admin-access-page').then((m) => ({ default: m.AdminAccessPage })))
 const SliceStubPage = lazyPage(() => import('./pages/slice-stub-page').then((m) => ({ default: m.SliceStubPage })))
 const ProfilePage = lazyPage(() => import('./pages/profile-page').then((m) => ({ default: m.ProfilePage })))
 const EventsWorkspacePage = lazyPage(() => import('./pages/events-workspace-page').then((m) => ({ default: m.EventsWorkspacePage })))
@@ -139,8 +139,8 @@ const DevViewsPage = lazyPage(() => import('./pages/dev-views-page').then((m) =>
 //     /                          Home
 //     /work/tasks[/new|/:taskId] Tasks (split-view shell + drawer children)
 //     /work/signals              Signals
-//     /work/objectives           Objectives (no read gate — OD-V4-1)
-//     /work/projects             Projects & Processes (capability: workline.manage)
+//     /work/objectives           Objectives (org-readable; write scope resolved in the page)
+//     /work/projects             Projects & Processes (org-readable; write scope resolved in the page)
 //     /events /ecommerce /roastery /profile
 //     /money[/detail|/budget|/pricing|/follow-ups]
 //     /inbox
@@ -266,34 +266,28 @@ const routeTable: RouteObject[] = [
             element: withSuspense(<ObjectiveRecordPage />),
             handle: pageHandle('focused-record'),
           },
+          // Projects & Processes is org-readable like Objectives. Effective Work write scope is
+          // resolved by get_work_write_scopes inside the page/record surfaces; the static JWT role
+          // map must not hide a catalog that every authenticated org member may read.
           {
-            element: <RequireCapability capability="workline.manage" />,
-            handle: infrastructureHandle('capability'),
-            children: [
-              {
-                path: 'work/projects',
-                element: withSuspense(<ProjectsProcessesPage />),
-                handle: pageHandle('management'),
-              },
-              {
-                path: 'work/projects/:workLineId',
-                element: withSuspense(<WorkLineRecordPage />),
-                handle: pageHandle('focused-record'),
-              },
-              // Both retired spellings live INSIDE the gate they forward into. Outside it, a
-              // viewer without `workline.manage` would be forwarded to /work/projects and
-              // bounced from there — two hops. Inside, they are bounced once, at the source.
-              {
-                path: 'work/projects-processes',
-                element: <RouteRedirect to="/work/projects" />,
-                handle: redirectHandle('/work/projects'),
-              },
-              {
-                path: 'projects-processes',
-                element: <RouteRedirect to="/work/projects" />,
-                handle: redirectHandle('/work/projects'),
-              },
-            ],
+            path: 'work/projects',
+            element: withSuspense(<ProjectsProcessesPage />),
+            handle: pageHandle('management'),
+          },
+          {
+            path: 'work/projects/:workLineId',
+            element: withSuspense(<WorkLineRecordPage />),
+            handle: pageHandle('focused-record'),
+          },
+          {
+            path: 'work/projects-processes',
+            element: <RouteRedirect to="/work/projects" />,
+            handle: redirectHandle('/work/projects'),
+          },
+          {
+            path: 'projects-processes',
+            element: <RouteRedirect to="/work/projects" />,
+            handle: redirectHandle('/work/projects'),
           },
           // The cascade SCREEN is cut (OD-WAY-32) — "cascade" is vocabulary, never a surface. The
           // path keeps its doormat: a redirect entry is not a screen, and every other retired
@@ -499,6 +493,11 @@ const routeTable: RouteObject[] = [
               {
                 path: 'admin/people',
                 element: withSuspense(<AdminUsersPage />),
+                handle: pageHandle('management'),
+              },
+              {
+                path: 'admin/access',
+                element: withSuspense(<AdminAccessPage />),
                 handle: pageHandle('management'),
               },
               { path: 'admin', element: <RouteRedirect to="/admin/people" />, handle: redirectHandle('/admin/people') },

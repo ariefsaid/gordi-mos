@@ -9,8 +9,8 @@ import type { PeopleRow } from '@/lib/database.types'
 import type { PersonOption } from '@/lib/db/directory'
 import type { DueProcessRun, PendingTaskRow, ProcessOccurrenceSummary } from '@/lib/db/processes.types'
 import {
-  cancelRun, completeRun, listPendingTasks, listProcessOccurrenceSummaries,
-  listStartableProcessRuns, startRun,
+  cancelRun, canCloseProcessRun, canStartProcessForTeam, completeRun, listPendingTasks,
+  listProcessOccurrenceSummaries, listStartableProcessRuns, startRun,
 } from '@/lib/db/processes'
 import { getPeople } from '@/lib/db/directory'
 import { ProcessOccurrenceControls } from './process-occurrence-controls'
@@ -18,6 +18,8 @@ import { ProcessOccurrenceControls } from './process-occurrence-controls'
 vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
 vi.mock('@/lib/db/processes', () => ({
   cancelRun: vi.fn(),
+  canCloseProcessRun: vi.fn(),
+  canStartProcessForTeam: vi.fn(),
   completeRun: vi.fn(),
   listPendingTasks: vi.fn(),
   listProcessOccurrenceSummaries: vi.fn(),
@@ -28,6 +30,8 @@ vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockCancelRun = vi.mocked(cancelRun)
+const mockCanCloseProcessRun = vi.mocked(canCloseProcessRun)
+const mockCanStartProcessForTeam = vi.mocked(canStartProcessForTeam)
 const mockCompleteRun = vi.mocked(completeRun)
 const mockListPendingTasks = vi.mocked(listPendingTasks)
 const mockListOccurrences = vi.mocked(listProcessOccurrenceSummaries)
@@ -110,6 +114,8 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(auth())
   mockListOccurrences.mockResolvedValue([RUN])
   mockListStartable.mockResolvedValue([DUE])
+  mockCanStartProcessForTeam.mockResolvedValue(true)
+  mockCanCloseProcessRun.mockResolvedValue(true)
   mockListPendingTasks.mockResolvedValue([])
   mockGetPeople.mockResolvedValue(PEOPLE)
   mockStartRun.mockResolvedValue({ run_id: RUN_ID, created: 0, pending: 0, idempotent: true })
@@ -148,25 +154,53 @@ describe('ProcessOccurrenceControls', () => {
     expect(mockGetPeople).toHaveBeenCalled()
   })
 
-  it('allows only the starter or ops_lead/admin to close an open occurrence', async () => {
+  it('uses the runtime close authority for an open occurrence', async () => {
     const starterView = renderControls()
     expect(await screen.findByRole('button', { name: 'Complete occurrence' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cancel occurrence' })).toBeInTheDocument()
     starterView.unmount()
 
+    mockCanCloseProcessRun.mockResolvedValue(false)
     mockUseAuth.mockReturnValue(auth('another-person', ['member']))
     const memberView = renderControls()
     expect(await screen.findByText('Café Opening · 17 Jul 2026')).toBeInTheDocument()
     expect(screen.queryAllByRole('button', { name: 'Complete occurrence' })).toHaveLength(0)
     memberView.unmount()
 
+    mockCanCloseProcessRun.mockResolvedValue(true)
     mockUseAuth.mockReturnValue(auth('another-person', ['ops_lead']))
     renderControls()
     expect(await screen.findByRole('button', { name: 'Complete occurrence' })).toBeInTheDocument()
   })
 
+  it('keeps successful per-occurrence authority answers when another check fails and retries the failed enrichment', async () => {
+    const runB: ProcessOccurrenceSummary = {
+      ...RUN,
+      run: { ...RUN.run, id: 'run-2', owning_team_id: 'team-2', caption: 'Café Closing · 18 Jul 2026' },
+      team_name: 'Café Closing',
+      rollup: { ...RUN.rollup, process_run_id: 'run-2', caption: 'Café Closing · 18 Jul 2026', pending_unresolved: 0 },
+    }
+    mockListOccurrences.mockResolvedValue([RUN, runB])
+    mockListStartable.mockResolvedValue([])
+    mockCanStartProcessForTeam.mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('temporary'))
+    mockCanCloseProcessRun.mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('temporary'))
+    renderControls()
+
+    expect(await screen.findByRole('button', { name: 'Complete occurrence' })).toBeInTheDocument()
+    expect(screen.getByText('Café Closing · 18 Jul 2026')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't check occurrence permissions")
+    expect(screen.getAllByRole('button', { name: 'Complete occurrence' })).toHaveLength(1)
+
+    mockCanStartProcessForTeam.mockResolvedValue(true)
+    mockCanCloseProcessRun.mockResolvedValue(true)
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Complete occurrence' })).toHaveLength(2))
+  })
+
   it('fails closed when an open occurrence has no starter and the viewer is unauthenticated', async () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated' })
+    mockCanCloseProcessRun.mockResolvedValue(false)
     mockListOccurrences.mockResolvedValue([{ ...RUN, run: { ...RUN.run, started_by: null } }])
     renderControls()
 

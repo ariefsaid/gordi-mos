@@ -83,7 +83,7 @@ export function SignalMessage({
         <p className="signal-tombstone-original">{titleLine}</p>
         <p className="signal-tombstone-status">{t('signals.retracted')}</p>
         <dl className="signal-tombstone-meta">
-          <div><dt>{t('signals.record.retractedBy')}</dt><dd>{retractedBy ?? t('signals.card.unknownAuthor')}</dd></div>
+          <div><dt>{t('signals.record.retractedBy')}</dt><dd>{retractedBy ?? t('signals.record.retractorUnknown')}</dd></div>
           {retractedAtLabel ? <div><dt>{t('signals.record.retractedAt')}</dt><dd>{retractedAtLabel}</dd></div> : null}
           {retractReason ? <div><dt>{t('signals.record.retractedReason')}</dt><dd>{retractReason}</dd></div> : null}
         </dl>

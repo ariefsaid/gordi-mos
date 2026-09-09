@@ -14,10 +14,9 @@ export interface CatalogCollectionActions {
    * Create action and no record overflow mutations. Reading is untouched — rows and linked facts
    * still render.
    *
-   * This exists because the two catalogs no longer share a gate. Projects/Processes sits behind
-   * `RequireCapability workline.manage`, so reaching it IS the permission. Objectives does not:
-   * OD-V4-1 removed its read gate, so a viewer with no `objective.manage` now legitimately
-   * reaches the surface and must not be offered writes they cannot perform (PORT-028).
+   * This exists because catalog reads are org-wide while effective write scope is runtime data.
+   * A viewer can legitimately reach either surface without a write grant and must not be offered
+   * mutations they cannot perform (PORT-028).
    *
    * Affordance only. RLS is the boundary (NFR-004, DD-WAY-8) and refuses the write regardless.
    */
@@ -40,6 +39,7 @@ export interface CatalogCreateDraft {
   type?: 'project' | 'process'
   objectiveId?: string | null
   businessUnitId?: string | null
+  businessUnitRequired?: boolean
   objectiveOptions?: readonly { value: string; label: string }[]
   businessUnitOptions?: readonly { value: string; label: string }[]
   adding: boolean

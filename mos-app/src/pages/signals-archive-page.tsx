@@ -65,7 +65,7 @@ export function SignalsArchivePage() {
   const recordId = params.get('record')
   const hadSignalSession = useRef(false)
   const suppressNextOpen = useRef(false)
-  const { open: openSignalComposer, postCount } = useSignalComposer()
+  const { open: openSignalComposer, postCount, canPost } = useSignalComposer()
 
   const controller = useRecordCollection({
     descriptor: signalCollectionDescriptor,
@@ -153,7 +153,7 @@ export function SignalsArchivePage() {
 
   const actions: SignalCollectionActions = {
     onCategorize: (signalId, category) => { void handleCategorize(signalId, category) },
-    onShareClick: openSignalComposer,
+    ...(canPost === false ? {} : { onShareClick: () => openSignalComposer() }),
     onSort: (sort, direction) => setQuery({ sort, direction }),
   }
 
@@ -270,7 +270,7 @@ export function SignalsArchivePage() {
       // D-D2 / Rule 7: the ONE compose door for /work/signals lives in the toolbar, so it is present
       // in BOTH Table and Feed (it used to appear only as the in-feed row and vanish in Table). The
       // in-feed "Share a Signal" row is now ambient-only (Home tail) — see SignalFeedRows.
-      primaryAction={(
+      primaryAction={canPost === false ? undefined : (
         <Button variant="primary" onClick={() => openSignalComposer()}>
           {t('signals.action.share')}
         </Button>

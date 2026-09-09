@@ -135,6 +135,27 @@ export async function createSignal(input: CreateSignalInput): Promise<string> {
   return data as string
 }
 
+export interface SignalPostAuthority {
+  can_post: boolean
+  can_tag: boolean
+}
+
+/** Resolve Signal posting/tagging authority from admin-managed runtime policy. */
+export async function getSignalPostAuthority(): Promise<SignalPostAuthority> {
+  const { data, error } = await mos().rpc('get_signal_post_authority')
+  if (error) throw new Error(`getSignalPostAuthority failed — ${error.message}`)
+  const row = Array.isArray(data) ? data[0] : data
+  const record = row && typeof row === 'object' ? row as Record<string, unknown> : {}
+  return { can_post: record.can_post === true, can_tag: record.can_tag === true }
+}
+
+/** Per-Signal retract authority. A missing/erroring answer is intentionally not treated as true. */
+export async function canRetractSignal(signalId: string): Promise<boolean> {
+  const { data, error } = await mos().rpc('can_retract_signal', { p_signal_id: signalId })
+  if (error) throw new Error(`canRetractSignal failed — ${error.message}`)
+  return data === true
+}
+
 // ── correctSignal / retractSignal (B4, FR-410/411) ───────────────────────────
 
 export type SignalCorrection = Partial<Pick<SignalRow, 'body' | 'occurred_at' | 'category' | 'attention'>>

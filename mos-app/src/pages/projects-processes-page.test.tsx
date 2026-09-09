@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { AuthState } from '@/auth/context'
 
 vi.mock('@/lib/db/work-lines', () => ({
   listWorkLinesAll: vi.fn(),
@@ -13,12 +14,34 @@ vi.mock('@/lib/db/work-lines', () => ({
 vi.mock('@/lib/db/objectives', () => ({ listObjectivesAll: vi.fn() }))
 vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
 vi.mock('@/lib/db/work-records', () => ({ listProcessCollectionFacts: vi.fn().mockResolvedValue([]) }))
+vi.mock('@/lib/db/work-authority', () => ({
+  emptyWorkWriteScopes: () => ({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [] }),
+  getWorkWriteScopes: vi.fn(),
+}))
+vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
 
 import { listWorkLinesAll, createWorkLine } from '@/lib/db/work-lines'
 import { listObjectivesAll } from '@/lib/db/objectives'
 import { listTasks } from '@/lib/db/tasks'
 import { listProcessCollectionFacts } from '@/lib/db/work-records'
+import { getWorkWriteScopes } from '@/lib/db/work-authority'
+import { useAuth } from '@/auth/use-auth'
 import { ProjectsProcessesPage } from './projects-processes-page'
+
+function viewerAuth(): AuthState {
+  return {
+    status: 'authenticated',
+    viewer: {
+      person: {
+        id: 'p-1', org_id: 'org-1', user_id: 'auth-1', full_name: 'Test Viewer',
+        email: 'viewer@example.test', must_change_password: false, archived_at: null,
+        created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+      },
+      roles: [], isManager: false, accessRoles: ['ops_lead'], affiliated: [],
+    },
+    signOut: vi.fn(),
+  }
+}
 
 function task(id: string, objectiveId: string | null, workLineId: string | null, status: TaskListRow['status'] = 'Open'): TaskListRow {
   return {
@@ -47,6 +70,7 @@ function openViewOptions() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  vi.mocked(useAuth).mockReturnValue(viewerAuth())
   vi.mocked(listWorkLinesAll).mockResolvedValue([
     { id: 'wl-1', name: 'Menu launch', type: 'project', archived_at: null },
     { id: 'wl-2', name: 'Daily prep', type: 'process', archived_at: null },
@@ -56,6 +80,12 @@ beforeEach(() => {
     { id: 'obj-2', name: 'Brand love', archived_at: null },
   ])
   vi.mocked(listTasks).mockResolvedValue([])
+  vi.mocked(getWorkWriteScopes).mockResolvedValue({
+    workline_org: true,
+    objective_org: true,
+    workline_bu_ids: [],
+    objective_bu_ids: [],
+  })
   vi.mocked(createWorkLine).mockResolvedValue({ id: 'wl-new', name: 'New', type: 'project', archived_at: null })
 })
 

@@ -4,7 +4,6 @@
 // collection itself is never replaced by a permission redirect.
 import { useCallback, useRef, useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
-import { can } from '@/lib/capabilities'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -30,6 +29,7 @@ import {
   type CatalogCreateDraft,
 } from '@/components/catalog/catalog-collection-actions'
 import { useCatalogRecordOverlay } from '@/components/catalog/use-catalog-record-overlay'
+import { allowedBusinessUnitIds, canCreateForScope, useWorkWriteAuthority } from '@/components/catalog/use-work-write-authority'
 import '@/components/catalog/catalog-collection.css'
 
 export function ObjectivesPage() {
@@ -45,7 +45,10 @@ export function ObjectivesPage() {
   const query = controller.state.query
   const projection = controller.state.projection
   const auth = useAuth()
-  const canManage = can(auth.status === 'authenticated' ? auth.viewer.accessRoles : [], 'objective.manage')
+  const { scopes } = useWorkWriteAuthority()
+  const canManage = auth.status === 'authenticated' && canCreateForScope('objective', scopes)
+  const objectiveBuIds = allowedBusinessUnitIds('objective', scopes)
+  const businessUnitRequired = objectiveBuIds !== null
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [live, setLive] = useState('')
   const announce = useCallback((message: string) => setLive(message), [])
@@ -64,8 +67,9 @@ export function ObjectivesPage() {
     controller.state.data?.records.find((record) => record.id === id)?.name ?? ''
 
   const openDraft = () => {
+    if (!canManage) return
     setNewName('')
-    setNewBusinessUnitId(null)
+    setNewBusinessUnitId(objectiveBuIds?.length === 1 ? objectiveBuIds[0] : null)
     setAddError('')
     setDraftOpen(true)
   }
@@ -76,9 +80,14 @@ export function ObjectivesPage() {
     setAddError('')
   }
   const handleDraftSubmit = async () => {
+    if (!canManage) return
     const name = newName.trim()
     if (!name) {
       setAddError(t('catalog.nameRequired'))
+      return
+    }
+    if (businessUnitRequired && !newBusinessUnitId) {
+      setAddError(t('catalog.record.businessUnitRequired'))
       return
     }
     setAdding(true)
@@ -103,10 +112,17 @@ export function ObjectivesPage() {
     if (!draftOpen || businessUnitOptions.length > 0) return
     let live = true
     void getBusinessUnits()
-      .then((options) => { if (live) setBusinessUnitOptions(options) })
+      .then((options) => {
+        if (!live) return
+        const visible = objectiveBuIds ? options.filter((option) => objectiveBuIds.includes(option.id)) : options
+        setBusinessUnitOptions(visible)
+        if (objectiveBuIds?.length === 1 && !visible.some((option) => option.id === objectiveBuIds[0])) {
+          setNewBusinessUnitId(null)
+        }
+      })
       .catch(() => { /* The create field remains optional; the record read still stays truthful. */ })
     return () => { live = false }
-  }, [businessUnitOptions.length, draftOpen])
+  }, [businessUnitOptions.length, draftOpen, objectiveBuIds])
 
   const actions: CatalogCollectionActions = {
     canManage,
@@ -144,6 +160,7 @@ export function ObjectivesPage() {
         name: newName,
         businessUnitId: newBusinessUnitId,
         businessUnitOptions: businessUnitOptions.map((unit) => ({ value: unit.id, label: unit.name })),
+        businessUnitRequired,
         adding,
         error: addError,
         onNameChange: (name: string) => { setNewName(name); if (addError) setAddError('') },

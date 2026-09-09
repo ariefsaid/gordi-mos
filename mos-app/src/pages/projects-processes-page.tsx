@@ -4,7 +4,7 @@
 // view axis is All / Projects / Processes, and every row is one real Project/Process record door.
 // Record mutations stay in the record overflow; the collection keeps its scan grammar free of
 // per-row action clusters and relation accordions.
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -30,6 +30,8 @@ import {
   type CatalogCreateDraft,
 } from '@/components/catalog/catalog-collection-actions'
 import { useCatalogRecordOverlay } from '@/components/catalog/use-catalog-record-overlay'
+import { getBusinessUnits, type BusinessUnitOption } from '@/lib/db/directory'
+import { allowedBusinessUnitIds, canCreateForScope, useWorkWriteAuthority } from '@/components/catalog/use-work-write-authority'
 import '@/components/catalog/catalog-collection.css'
 
 export function ProjectsProcessesPage() {
@@ -44,6 +46,10 @@ export function ProjectsProcessesPage() {
   })
   const query = controller.state.query
   const projection = controller.state.projection
+  const { scopes } = useWorkWriteAuthority()
+  const worklineBuIds = allowedBusinessUnitIds('work-line', scopes)
+  const canManage = canCreateForScope('work-line', scopes)
+  const businessUnitRequired = worklineBuIds !== null
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [live, setLive] = useState('')
   const announce = useCallback((message: string) => setLive(message), [])
@@ -52,6 +58,8 @@ export function ProjectsProcessesPage() {
   const [newName, setNewName] = useState('')
   const [newType, setNewType] = useState<CatalogType>('project')
   const [newObjectiveId, setNewObjectiveId] = useState<string | null>(null)
+  const [newBusinessUnitId, setNewBusinessUnitId] = useState<string | null>(null)
+  const [businessUnitOptions, setBusinessUnitOptions] = useState<BusinessUnitOption[]>([])
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState('')
 
@@ -62,9 +70,11 @@ export function ProjectsProcessesPage() {
     controller.state.data?.records.find((record) => record.id === id)?.name ?? ''
 
   const openDraft = () => {
+    if (!canManage) return
     setNewName('')
     setNewType('project')
     setNewObjectiveId(null)
+    setNewBusinessUnitId(worklineBuIds?.length === 1 ? worklineBuIds[0] : null)
     setAddError('')
     setDraftOpen(true)
   }
@@ -75,15 +85,21 @@ export function ProjectsProcessesPage() {
     setAddError('')
   }
   const handleDraftSubmit = async () => {
+    if (!canManage) return
     const name = newName.trim()
     if (!name) {
       setAddError(t('catalog.nameRequired'))
       return
     }
+    if (businessUnitRequired && !newBusinessUnitId) {
+      setAddError(t('catalog.record.businessUnitRequired'))
+      return
+    }
     setAdding(true)
     setAddError('')
     try {
-      if (newObjectiveId) await projectsProcessesCatalogActions.create(name, newType, { objectiveId: newObjectiveId })
+      const metadata = { objectiveId: newObjectiveId, businessUnitId: newBusinessUnitId }
+      if (metadata.objectiveId || metadata.businessUnitId) await projectsProcessesCatalogActions.create(name, newType, metadata)
       else await projectsProcessesCatalogActions.create(name, newType)
       setDraftOpen(false)
       createButtonRef.current?.focus()
@@ -98,10 +114,24 @@ export function ProjectsProcessesPage() {
     }
   }
 
+  useEffect(() => {
+    if (!draftOpen || businessUnitOptions.length > 0) return
+    let live = true
+    void getBusinessUnits()
+      .then((options) => {
+        if (!live) return
+        const visible = worklineBuIds ? options.filter((option) => worklineBuIds.includes(option.id)) : options
+        setBusinessUnitOptions(visible)
+        if (worklineBuIds?.length === 1 && !visible.some((option) => option.id === worklineBuIds[0])) {
+          setNewBusinessUnitId(null)
+        }
+      })
+      .catch(() => { /* The create field remains optional; the catalog read stays available. */ })
+    return () => { live = false }
+  }, [businessUnitOptions.length, draftOpen, worklineBuIds])
+
   const actions: CatalogCollectionActions = {
-    // This route is still protected by the existing workline.manage gate in router.tsx. Keep the
-    // affordance aligned with that boundary; RLS remains the final write authority.
-    canManage: true,
+    canManage,
     rename: async (id, name) => {
       await projectsProcessesCatalogActions.rename(id, name)
       announce(t('catalog.announce.renamed', { name }))
@@ -136,6 +166,9 @@ export function ProjectsProcessesPage() {
       type: newType,
       objectiveId: newObjectiveId,
       objectiveOptions: controller.state.data?.context.objectiveOptions ?? [],
+      businessUnitId: newBusinessUnitId,
+      businessUnitOptions: businessUnitOptions.map((unit) => ({ value: unit.id, label: unit.name })),
+      businessUnitRequired,
       adding,
       error: addError,
       onNameChange: (name) => { setNewName(name); if (addError) setAddError('') },
@@ -226,7 +259,7 @@ export function ProjectsProcessesPage() {
       family="management"
       title={t('nav.work.projects')}
       jobSentence={t('job.projects')}
-      action={<Button ref={createButtonRef} variant="primary" onClick={openDraft}>{t('catalog.projects.add')}</Button>}
+      action={canManage ? <Button ref={createButtonRef} variant="primary" onClick={openDraft}>{t('catalog.projects.add')}</Button> : undefined}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
       <CatalogCollectionActionsProvider actions={actions}>

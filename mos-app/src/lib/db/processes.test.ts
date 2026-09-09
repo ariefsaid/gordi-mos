@@ -10,7 +10,7 @@ vi.mock('../supabase', () => {
 import {
   startRun, listDueRuns, listPendingTasks, resolvePendingTask,
   getRunRollup, listRunTasks, completeRun, cancelRun, listRunRollups, listTaskDefs,
-  listProcessOccurrenceSummaries, listStartableProcessRuns,
+  listProcessOccurrenceSummaries, listStartableProcessRuns, canStartProcessForTeam, canCloseProcessRun,
 } from './processes'
 import { supabase } from '@/lib/supabase'
 import type { DueProcessRun, ProcessOccurrenceSummary, ProcessRunRollup, ProcessRunRow } from './processes.types'
@@ -97,6 +97,31 @@ describe('startRun', () => {
     mockSupabase({ 'rpc.spawn_process_run': [{ data: null, error: { message: 'not authorized' } }] }, rec)
 
     await expect(startRun(WORK_LINE_ID, TEAM_ID, '2026-07-17')).rejects.toThrow(/not authorized/)
+  })
+})
+
+describe('runtime process authority', () => {
+  it('asks mos.can_start_process_for_team for effective start authority', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.can_start_process_for_team': [{ data: true, error: null }] }, rec)
+
+    await expect(canStartProcessForTeam(TEAM_ID)).resolves.toBe(true)
+    expect(rec.rpcs).toContainEqual(['can_start_process_for_team', { p_team_id: TEAM_ID }])
+  })
+
+  it('asks mos.can_close_process_run_id for effective close authority', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.can_close_process_run_id': [{ data: false, error: null }] }, rec)
+
+    await expect(canCloseProcessRun(RUN_ID)).resolves.toBe(false)
+    expect(rec.rpcs).toContainEqual(['can_close_process_run_id', { p_run_id: RUN_ID }])
+  })
+
+  it('propagates process authority RPC errors for callers to fail closed', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.can_start_process_for_team': [{ data: null, error: { message: 'authority unavailable' } }] }, rec)
+
+    await expect(canStartProcessForTeam(TEAM_ID)).rejects.toThrow(/authority unavailable/)
   })
 })
 

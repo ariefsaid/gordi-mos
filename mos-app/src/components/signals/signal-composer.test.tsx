@@ -57,7 +57,7 @@ function renderComposer(props: Partial<React.ComponentProps<typeof SignalCompose
   return render(
     <I18nProvider>
       <div style={{ width: 390 }}>
-        <SignalComposer authorId={AUTHOR_ID} authorName="Author One" {...props} />
+        <SignalComposer authorId={AUTHOR_ID} authorName="Author One" canTag canMentionBu {...props} />
       </div>
     </I18nProvider>,
   )
@@ -88,6 +88,22 @@ describe('SignalComposer — repost prefill', () => {
     await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledWith(expect.objectContaining({
       mentions: [{ kind: 'person', targetId: 'person-peer', label: 'Peer Person' }],
     })))
+  })
+
+  it('clears an owning Team prefill that is no longer eligible and keeps Share disabled', async () => {
+    mockListReadableAuthorTeams.mockResolvedValue(TEAMS)
+    renderComposer({
+      prefill: {
+        body: 'The freezer alarm went off', owningTeamId: 'team-retired',
+        occurredAt: '2026-07-16T02:00:00Z', attention: 'FYI', mentions: [],
+      },
+    })
+
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    const shareButton = await screen.findByRole('button', { name: /share signal/i })
+    expect(shareButton).toBeDisabled()
+    await userEvent.click(shareButton)
+    expect(mockCreateSignal).not.toHaveBeenCalled()
   })
 })
 
@@ -238,13 +254,13 @@ describe('SignalComposer — read-back-only Team options (#715)', () => {
     expect(await findMentionOption(/Radiant Operations/)).toBeInTheDocument()
   })
 
-  it('keeps non-membership Teams out of mentions without create_for_team', async () => {
-    renderComposer({ canCreateForTeam: false })
-    await waitFor(() => expect(mockListAuthorTeams).toHaveBeenCalledWith(AUTHOR_ID))
+  it('allows active non-membership Teams in mentions when runtime tagging is granted', async () => {
+    renderComposer({ canCreateForTeam: false, canTag: true })
+    await waitFor(() => expect(mockListAllTeams).toHaveBeenCalled())
 
     await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), '@')
     const listbox = await screen.findByRole('listbox', { name: /mention/i })
-    expect(within(listbox).queryByRole('option', { name: /Radiant Operations/ })).not.toBeInTheDocument()
+    expect(within(listbox).getByRole('option', { name: /Radiant Operations/ })).toBeInTheDocument()
   })
 })
 
@@ -320,7 +336,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     render(
       <I18nProvider>
         <div onKeyDown={(e) => { if (e.key === 'Escape') hostEscape() }}>
-          <SignalComposer authorId={AUTHOR_ID} authorName="Author One" canMentionBu />
+        <SignalComposer authorId={AUTHOR_ID} authorName="Author One" canTag canMentionBu />
         </div>
       </I18nProvider>,
     )

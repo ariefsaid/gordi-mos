@@ -23,6 +23,7 @@ vi.mock('@/lib/db/signals', async (importOriginal) => {
     getTeamSite: vi.fn(),
     correctSignal: vi.fn(),
     acknowledgeSignal: vi.fn(),
+    canRetractSignal: vi.fn(),
     linkSignalTask: vi.fn(),
     retractSignal: vi.fn(),
     loadMentionRosters: vi.fn(),
@@ -30,7 +31,7 @@ vi.mock('@/lib/db/signals', async (importOriginal) => {
 })
 import {
   getSignal, listSignalRevisions, listAllTeams, getTeamSite, correctSignal, acknowledgeSignal,
-  linkSignalTask, retractSignal, loadMentionRosters,
+  canRetractSignal, linkSignalTask, retractSignal, loadMentionRosters,
 } from '@/lib/db/signals'
 
 const directoryMocks = vi.hoisted(() => ({
@@ -69,6 +70,7 @@ const mockListAllTeams = vi.mocked(listAllTeams)
 const mockGetTeamSite = vi.mocked(getTeamSite)
 const mockCorrectSignal = vi.mocked(correctSignal)
 const mockAcknowledgeSignal = vi.mocked(acknowledgeSignal)
+const mockCanRetractSignal = vi.mocked(canRetractSignal)
 const mockLinkSignalTask = vi.mocked(linkSignalTask)
 const mockRetractSignal = vi.mocked(retractSignal)
 const mockLoadMentionRosters = vi.mocked(loadMentionRosters)
@@ -130,6 +132,7 @@ function renderHost(props: Partial<React.ComponentProps<typeof SignalRecordHost>
 beforeEach(() => {
   vi.clearAllMocks()
   mockUseAuth.mockReturnValue(authedViewer())
+  mockCanRetractSignal.mockResolvedValue(false)
   mockUseSignalComposer.mockReturnValue({ open: mockOpenComposer, postCount: 0 })
   mockGetSignal.mockResolvedValue({
     signal: baseSignal,
@@ -229,6 +232,7 @@ describe('SignalRecordHost — resolves names + mentions from the DAL', () => {
 describe('SignalRecordHost — retract and repost (P-22/OD-45, AC-412)', () => {
   it('offers retract to the author, requires a reason, retracts, and opens a prefilled repost composer', async () => {
     mockUseAuth.mockReturnValue(authedViewer(VIEWER_ID))
+    mockCanRetractSignal.mockResolvedValue(true)
     mockGetSignal.mockResolvedValue({
       signal: { ...baseSignal, author_id: VIEWER_ID },
       mentions: [{ id: 'm1', signal_id: SIGNAL_ID, mention_kind: 'person', target_person_id: 'person-peer', target_team_id: null, target_bu_id: null, revoked_at: null }],
@@ -263,6 +267,7 @@ describe('SignalRecordHost — retract and repost (P-22/OD-45, AC-412)', () => {
   it('refreshes the collection after retracting', async () => {
     const onReload = vi.fn()
     mockUseAuth.mockReturnValue(authedViewer('person-dewi'))
+    mockCanRetractSignal.mockResolvedValue(true)
     mockGetSignal.mockResolvedValue({ signal: { ...baseSignal, author_id: 'person-dewi' }, mentions: [], acknowledgements: [], tasks: [] })
     mockRetractSignal.mockResolvedValue(undefined)
     renderHost({ onReload })
@@ -280,6 +285,24 @@ describe('SignalRecordHost — retract and repost (P-22/OD-45, AC-412)', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
     await userEvent.click(screen.getByRole('button', { name: /more signal actions/i }))
     expect(screen.queryByRole('menuitem', { name: /^retract$/i })).toBeNull()
+  })
+
+  it.each([
+    { actor: 'person-retired-lead', actorName: 'Former Team Lead', expected: 'Former Team Lead' },
+    { actor: null, actorName: null, expected: 'Not recorded' },
+  ])('attributes the tombstone to its recorded actor ($expected)', async ({ actor, actorName, expected }) => {
+    mockGetSignal.mockResolvedValue({
+      signal: {
+        ...baseSignal, author_id: VIEWER_ID,
+        retracted_at: '2026-07-17T02:00:00Z', retract_reason: 'Duplicate',
+        retracted_by: actor, retracted_by_name: actorName,
+      },
+      mentions: [], acknowledgements: [], tasks: [],
+    })
+    renderHost()
+    const label = await screen.findByText('Retracted by')
+    expect(label.nextElementSibling).toHaveTextContent(expected)
+    expect(label.nextElementSibling).not.toHaveTextContent('Author One')
   })
 })
 
@@ -452,10 +475,7 @@ describe('SignalRecordHost — Link existing Task (linkSignalTask, FR-413)', () 
   })
 
   it('keeps candidate search retryable when the demand-driven Task search fails', async () => {
-    mockSearchTasksByTitle.mockRejectedValueOnce(new Error('search unavailable'))
-    mockSearchTasksByTitle.mockResolvedValueOnce([
-      { id: 'task-a', title: 'Repair freezer', status: 'Open' },
-    ])
+    mockSearchTasksByTitle.mockRejectedValue(new Error('search unavailable'))
     renderHost()
     await screen.findByRole('heading', { name: 'The freezer alarm went off' })
 
@@ -464,6 +484,9 @@ describe('SignalRecordHost — Link existing Task (linkSignalTask, FR-413)', () 
     await userEvent.type(screen.getByRole('searchbox', { name: /search tasks/i }), 'repair')
 
     expect(await screen.findByText("Couldn't load linked work.")).toBeInTheDocument()
+    mockSearchTasksByTitle.mockResolvedValue([
+      { id: 'task-a', title: 'Repair freezer', status: 'Open' },
+    ])
     await userEvent.click(screen.getByRole('button', { name: /try again/i }))
     expect(await screen.findByRole('combobox', { name: /existing task/i })).toBeInTheDocument()
     expect(mockSearchTasksByTitle).toHaveBeenCalledWith('repair')

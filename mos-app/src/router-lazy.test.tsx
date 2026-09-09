@@ -43,6 +43,7 @@ import { DashboardPage } from './pages/dashboard-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
 import { AdminUsersPage } from './pages/admin-users-page'
+import { AdminAccessPage } from './pages/admin-access-page'
 import { RecoveryPage } from './pages/recovery-page'
 import { SliceStubPage } from './pages/slice-stub-page'
 
@@ -156,6 +157,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   // locale control in the app, so the stub left the Indonesian catalog unreachable.
   ['/profile', ProfilePage, 'v4'],
   ['/admin/people', AdminUsersPage, 'dev'],
+  ['/admin/access', AdminAccessPage, 'redesign'],
   ['/recovery', RecoveryPage, 'dev'],
 ]
 
@@ -207,5 +209,15 @@ describe('AC-020: a route whose surface is not yet ported serves the surface cur
       return leaf === undefined
     })
     expect(fellThrough).toEqual([])
+  })
+})
+
+describe('Admin settings access surface', () => {
+  it('serves an admin-only Access & authority page instead of the not-found route', () => {
+    const leaf = flattenRoutes().find((r) => r.path === '/admin/access')
+
+    expect(leaf).toBeDefined()
+    expect(isRedirect(leaf?.route.element)).toBe(false)
+    expect(leaf?.route.handle).toEqual(expect.objectContaining({ kind: 'page', family: 'management' }))
   })
 })

@@ -12,7 +12,7 @@ import {
   listReadableSignals, searchSignalsByBody, getSignal, createSignal, correctSignal, retractSignal,
   acknowledgeSignal, linkSignalTask,
   listReadableAuthorTeams, listAuthorTeams, listAllTeams, getTeamSite, dedupeRecipients, orderSignalsForFeed,
-  listSignalRevisions, loadMentionRosters, summarizeLinkedTasks,
+  listSignalRevisions, loadMentionRosters, summarizeLinkedTasks, getSignalPostAuthority, canRetractSignal,
 } from './signals'
 import { supabase } from '@/lib/supabase'
 
@@ -293,6 +293,38 @@ describe('retractSignal', () => {
     const rec = freshRec()
     mockSupabase({ 'mos.signals': [{ data: null, error: { message: 'requires author or signal.retract' } }] }, rec)
     await expect(retractSignal(SIGNAL_ID, 'reason')).rejects.toThrow(/signal\.retract/)
+  })
+})
+
+describe('runtime Signal authority', () => {
+  it('reads the effective post/tag authority from mos.get_signal_post_authority', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.get_signal_post_authority': [{ data: { can_post: true, can_tag: false }, error: null }] }, rec)
+
+    await expect(getSignalPostAuthority()).resolves.toEqual({ can_post: true, can_tag: false })
+    expect(rec.rpcs).toContainEqual(['get_signal_post_authority', undefined])
+  })
+
+  it('fails closed for malformed post/tag authority payloads', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.get_signal_post_authority': [{ data: { can_post: 'yes', can_tag: 1 }, error: null }] }, rec)
+
+    await expect(getSignalPostAuthority()).resolves.toEqual({ can_post: false, can_tag: false })
+  })
+
+  it('asks mos.can_retract_signal for the current Signal instead of inferring from JWT roles', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.can_retract_signal': [{ data: true, error: null }] }, rec)
+
+    await expect(canRetractSignal(SIGNAL_ID)).resolves.toBe(true)
+    expect(rec.rpcs).toContainEqual(['can_retract_signal', { p_signal_id: SIGNAL_ID }])
+  })
+
+  it('propagates authority RPC errors so record hosts can fail closed', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.can_retract_signal': [{ data: null, error: { message: 'authority unavailable' } }] }, rec)
+
+    await expect(canRetractSignal(SIGNAL_ID)).rejects.toThrow(/authority unavailable/)
   })
 })
 

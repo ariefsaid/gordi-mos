@@ -11,6 +11,26 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 vi.mock('@/lib/db/objectives', () => ({ updateObjective: vi.fn() }))
 vi.mock('@/lib/db/work-lines', () => ({ updateWorkLine: vi.fn() }))
 vi.mock('./catalog-record-loader', () => ({ loadCatalogRecordData: vi.fn(), loadCatalogRecordEditDirectory: vi.fn() }))
+const runtimeAuthority = vi.hoisted(() => ({
+  scopes: {
+    workline_org: true,
+    objective_org: true,
+    workline_bu_ids: [] as string[],
+    objective_bu_ids: [] as string[],
+  },
+}))
+vi.mock('./use-work-write-authority', () => ({
+  useWorkWriteAuthority: () => ({ scopes: runtimeAuthority.scopes, loading: false, error: false }),
+  allowedBusinessUnitIds: (kind: 'work-line' | 'objective', scopes: typeof runtimeAuthority.scopes) =>
+    kind === 'work-line'
+      ? (scopes.workline_org ? null : scopes.workline_bu_ids)
+      : (scopes.objective_org ? null : scopes.objective_bu_ids),
+  canManageForScope: (kind: 'work-line' | 'objective', businessUnitId: string | null | undefined, scopes: typeof runtimeAuthority.scopes) => {
+    const org = kind === 'work-line' ? scopes.workline_org : scopes.objective_org
+    const buIds = kind === 'work-line' ? scopes.workline_bu_ids : scopes.objective_bu_ids
+    return org || (businessUnitId !== null && businessUnitId !== undefined && buIds.includes(businessUnitId))
+  },
+}))
 
 import { updateObjective } from '@/lib/db/objectives'
 import { updateWorkLine } from '@/lib/db/work-lines'
@@ -96,6 +116,12 @@ function renderRecord(kind: 'objective' | 'work-line', id: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  runtimeAuthority.scopes = {
+    workline_org: true,
+    objective_org: true,
+    workline_bu_ids: [],
+    objective_bu_ids: [],
+  }
   currentPeriodYear = 2026
   currentObjectiveId = 'obj-1'
   vi.mocked(loadCatalogRecordData).mockImplementation(async (kind, id) => {
@@ -181,6 +207,24 @@ it('removes a Project Objective relation through its existing record API', async
   await waitFor(() => expect(screen.queryByRole('link', { name: 'Grow revenue' })).not.toBeInTheDocument())
 })
 
+it('does not offer Not set when an own-BU editor must retain the Business Unit', async () => {
+  runtimeAuthority.scopes = {
+    workline_org: false,
+    objective_org: false,
+    workline_bu_ids: ['bu-1'],
+    objective_bu_ids: [],
+  }
+
+  renderRecord('work-line', 'wl-1')
+  await screen.findByRole('heading', { name: 'Menu launch' })
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit Business Unit' }))
+
+  const picker = screen.getByRole('combobox', { name: 'Business Unit' })
+  fireEvent.click(picker)
+  expect(screen.queryByRole('option', { name: 'Not set' })).not.toBeInTheDocument()
+  expect(screen.getByRole('option', { name: 'Retail Ops' })).toBeInTheDocument()
+})
+
 it('renders definition-level Process Teams and keeps absent bindings explicit', async () => {
   const processData = recordData('work-line', 2026, null)
   processData.row = { ...processData.row, id: 'wl-process', name: 'Café Opening', type: 'process', objectiveId: null }
@@ -215,20 +259,32 @@ it('renders definition-level Process Teams and keeps absent bindings explicit', 
 })
 
 
-it.each(['panel', 'page'] as const)('keeps the canonical Work access boundary in %s mode before reading data', (mode) => {
+it.each(['panel', 'page'] as const)('keeps the org-readable Work record available in %s mode for members', async (mode) => {
   const member = auth()
   if (member.status === 'authenticated') member.viewer.accessRoles = ['member']
+  runtimeAuthority.scopes = {
+    workline_org: false,
+    objective_org: false,
+    workline_bu_ids: [],
+    objective_bu_ids: [],
+  }
   render(<AuthContext.Provider value={member}><I18nProvider><MemoryRouter>
     <CatalogRecordDocument kind="work-line" id="wl-1" mode={mode} />
   </MemoryRouter></I18nProvider></AuthContext.Provider>)
-  expect(screen.getByRole('heading', { name: 'Project or Process outside your access' })).toBeInTheDocument()
-  expect(loadCatalogRecordData).not.toHaveBeenCalled()
-  expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
+  expect(await screen.findByRole('heading', { name: 'Menu launch' })).toBeInTheDocument()
+  expect(loadCatalogRecordData).toHaveBeenCalledWith('work-line', 'wl-1', 'p1')
+  expect(screen.queryByRole('button', { name: 'Edit Name' })).toBeNull()
 })
 
 it('keeps Objectives readable by members through the shared record renderer', async () => {
   const member = auth()
   if (member.status === 'authenticated') member.viewer.accessRoles = ['member']
+  runtimeAuthority.scopes = {
+    workline_org: false,
+    objective_org: false,
+    workline_bu_ids: [],
+    objective_bu_ids: [],
+  }
   render(<AuthContext.Provider value={member}><I18nProvider><MemoryRouter>
     <CatalogRecordDocument kind="objective" id="obj-1" mode="panel" />
   </MemoryRouter></I18nProvider></AuthContext.Provider>)

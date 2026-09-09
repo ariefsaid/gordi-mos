@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '@/auth/use-auth'
-import { can } from '@/lib/capabilities'
 import { useT } from '@/i18n/use-t'
+import { useAuth } from '@/auth/use-auth'
 import { Button } from '@/components/ui/button'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { getTodayOpeningForTeam, startTodayOpening } from '@/lib/db/cafe-opening'
-import { listPendingTasks } from '@/lib/db/processes'
+import { canStartProcessForTeam, listPendingTasks } from '@/lib/db/processes'
 import { getPeople } from '@/lib/db/directory'
 import type { PersonOption } from '@/lib/db/directory'
 import { PendingResolution } from '@/components/processes/pending-resolution'
@@ -31,8 +30,9 @@ export interface CafeOpeningPanelProps {
 export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPanelProps) {
   const t = useT()
   const auth = useAuth()
-  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const canStart = can(accessRoles, 'process.start')
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
+  const viewerOrgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : null
+  const [canStart, setCanStart] = useState(false)
 
   const [state, setState] = useState<FetchState>('loading')
   const [started, setStarted] = useState(false)
@@ -41,6 +41,7 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
     caption: string; done: number; total: number; overdue: number; pending_unresolved: number
   } | null>(null)
   const [starting, setStarting] = useState(false)
+  const [startError, setStartError] = useState(false)
 
   const [pending, setPending] = useState<PendingTaskRow[]>([])
   const [people, setPeople] = useState<PersonOption[]>([])
@@ -59,6 +60,16 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
   }, [processId, teamId])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    let live = true
+    setCanStart(false)
+    if (!viewerId || !viewerOrgId) return () => { live = false }
+    canStartProcessForTeam(teamId)
+      .then((allowed) => { if (live) setCanStart(allowed) })
+    .catch(() => { if (live) setCanStart(false) })
+    return () => { live = false }
+  }, [teamId, viewerId, viewerOrgId])
 
   const loadPending = useCallback((run: string) => {
     setPendingLoading(true)
@@ -83,9 +94,12 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
 
   async function handleStart() {
     setStarting(true)
+    setStartError(false)
     try {
       await startTodayOpening(processId, teamId)
       load()
+    } catch {
+      setStartError(true)
     } finally {
       setStarting(false)
     }
@@ -110,11 +124,14 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
           <p className="cafe-opening-team">{t('cafe.opening.teamCaption', { team: teamName })}</p>
         </header>
         {canStart ? (
-          <EmptyState variant="next-step" title={t('cafe.opening.notStartedLead')}>
-            <Button variant="primary" disabled={starting} onClick={() => { void handleStart() }}>
-              {t('cafe.opening.start')}
-            </Button>
-          </EmptyState>
+          <>
+            {startError ? <ErrorState message={t('processes.due.startError')} onRetry={() => { void handleStart() }} /> : null}
+            <EmptyState variant="next-step" title={t('cafe.opening.notStartedLead')}>
+              <Button variant="primary" disabled={starting} onClick={() => { void handleStart() }}>
+                {t('cafe.opening.start')}
+              </Button>
+            </EmptyState>
+          </>
         ) : (
           // Step 7 minor (item 7a): "awaiting" — never "quiet"'s ✓ glyph, which misreads as
           // "already done" for a state that's actually waiting on the shift lead's action

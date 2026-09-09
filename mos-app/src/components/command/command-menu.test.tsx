@@ -466,8 +466,8 @@ describe('AC-016: Navigate group points to the new canonical routes', () => {
   })
 })
 
-// ── Step 8 (catalog re-home) — AC-804/805/806: Navigate group is capability-gated ─────────────
-describe('Step 8/AC-804/805/806: Navigate group surfaces catalog manage-mode per capability', () => {
+// ── Step 8 (catalog re-home) — AC-804/805/806: Navigate group exposes org-readable catalogs ─
+describe('Step 8/AC-804/805/806: Navigate group exposes org-readable catalogs', () => {
   it('AC-804: admin sees both Projects & Processes and Objectives; activating each navigates and closes', async () => {
     setAuth(['admin'])
     const { onClose } = renderMenu()
@@ -487,7 +487,7 @@ describe('Step 8/AC-804/805/806: Navigate group surfaces catalog manage-mode per
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('AC-805: ops_lead (workline.manage) sees Projects & Processes; Objectives is ungated (OD-V4-1)', async () => {
+  it('AC-805: ops_lead sees Projects & Processes and Objectives', async () => {
     setAuth(['ops_lead'])
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
@@ -495,15 +495,11 @@ describe('Step 8/AC-804/805/806: Navigate group surfaces catalog manage-mode per
     expect(screen.getByRole('option', { name: /^Objectives$/i })).toBeInTheDocument()
   })
 
-  // OD-V4-1 (owner-ratified 2026-07-27): Objectives carry NO read gate — the SELECT policy on
-  // mos.objectives has no role check, the rail dropped the gate in #188 and the router followed.
-  // v4's own test file still asserted the retired gate here (its component already pushed the
-  // entry ungated), so it was contradicting the component it tested. The ruling wins.
-  it('AC-806: a plain member sees no Projects & Processes but DOES see Objectives (OD-V4-1)', async () => {
+  it('AC-806: a plain member sees Projects & Processes and Objectives', async () => {
     setAuth([])
     renderMenu()
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'objectives' } })
-    expect(screen.queryByRole('option', { name: /^Projects & Processes$/i })).toBeNull()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
+    expect(await screen.findByRole('option', { name: /^Projects & Processes$/i })).toBeInTheDocument()
     expect(await screen.findByRole('option', { name: /^Objectives$/i })).toBeInTheDocument()
   })
 })

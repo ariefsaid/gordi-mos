@@ -21,7 +21,11 @@ vi.mock('@/lib/db/cafe-opening', () => ({
   wibToday: () => '2026-07-17',
 }))
 vi.mock('@/lib/db/signals', () => ({ listAuthorTeams: vi.fn() }))
-vi.mock('@/lib/db/processes', () => ({ listPendingTasks: vi.fn(), resolvePendingTask: vi.fn() }))
+vi.mock('@/lib/db/processes', () => ({
+  canStartProcessForTeam: vi.fn(),
+  listPendingTasks: vi.fn(),
+  resolvePendingTask: vi.fn(),
+}))
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
 // #440: the module ROOT states the stream its five doors lead into. Mocked at the same seams
 // the capture surfaces use — un-mocked these hit Supabase and the head would silently read '—'.
@@ -37,6 +41,7 @@ import {
 } from '@/lib/db/cafe-opening'
 import { listAuthorTeams } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
+import { canStartProcessForTeam } from '@/lib/db/processes'
 import { listActiveBranches } from '@/lib/db/branches'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { listStreamPairs } from '@/lib/db/kitchen-logs'
@@ -49,6 +54,7 @@ const mockListStartableCafeTeams = vi.mocked(listStartableCafeTeams)
 const mockGetTodayOpeningForTeam = vi.mocked(getTodayOpeningForTeam)
 const mockListAuthorTeams = vi.mocked(listAuthorTeams)
 const mockGetPeople = vi.mocked(getPeople)
+const mockCanStartProcessForTeam = vi.mocked(canStartProcessForTeam)
 const mockBranches = vi.mocked(listActiveBranches)
 const mockStreamPairs = vi.mocked(listStreamPairs)
 const mockDefaultStream = vi.mocked(fetchDefaultStream)
@@ -92,6 +98,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   rememberStream(null) // the Café stream is remembered module-wide (#440) — isolate per test
   mockGetPeople.mockResolvedValue([])
+  mockCanStartProcessForTeam.mockResolvedValue(true)
   mockBranches.mockResolvedValue([BRANCH_RAD, BRANCH_RR])
   mockStreamPairs.mockResolvedValue([BRANCH_RAD, BRANCH_RR].flatMap(b => [
     { branch_id: b.id, activity: 'kitchen' as const },

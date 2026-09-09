@@ -124,6 +124,23 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
     expect(within(row).queryByText('Investigating the grinder.')).not.toBeInTheDocument()
   })
 
+  it('renders a Signal-retraction actor, localized reason, and typed Signal target', () => {
+    renderTriage({ rows: [trow('retraction-1', {
+      title: 'Signal retracted',
+      body: 'Duplicate report',
+      metadata: {
+        source: 'signal_retraction',
+        actor: { id: 'person-lead', name: 'Dewi' },
+        reason: 'Duplicate report',
+        entity: { type: 'signal', id: 'signal-1', route: '/work/signals?record=signal-1' },
+      },
+    })] })
+    const row = document.querySelector('[data-notification-id="retraction-1"]') as HTMLElement
+    expect(within(row).getByText('Dewi retracted your Signal')).toBeInTheDocument()
+    expect(within(row).getByText('Reason: Duplicate report')).toBeInTheDocument()
+    expect(within(row).getByText('Signal')).toBeInTheDocument()
+  })
+
   it('issue #583: each row renders its created time in the shared humane-age format, reused not reinvented', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-20T03:00:00Z')) // 3h after row a's created_at

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useHref } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
-import { can } from '@/lib/capabilities'
 import { useT } from '@/i18n/use-t'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Button } from '@/components/ui/button'
@@ -30,6 +29,7 @@ import {
 } from './catalog-collection-adapter'
 import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogRecordEditDirectory } from './catalog-record-loader'
 import './catalog-record-document.css'
+import { allowedBusinessUnitIds, canManageForScope, useWorkWriteAuthority } from './use-work-write-authority'
 
 export type CatalogRecordKind = 'work-line' | 'objective'
 export type CatalogRelatedKind = CatalogRecordKind | 'task'
@@ -215,10 +215,8 @@ export function CatalogRecordDocument({
   const canonicalHref = useHref(relatedPath(kind, id))
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
-  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const canManage = can(accessRoles, kind === 'objective' ? 'objective.manage' : 'workline.manage')
-  // Match the existing canonical Work route gate for every entry, including linked panels.
-  const canRead = auth.status === 'authenticated' && (kind === 'objective' || canManage)
+  const { scopes } = useWorkWriteAuthority()
+  const canRead = auth.status === 'authenticated'
   const [state, setState] = useState<CatalogRecordState | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'not-found'>('loading')
   const [mutationError, setMutationError] = useState('')
@@ -230,6 +228,9 @@ export function CatalogRecordDocument({
   const [fieldDirty, setFieldDirty] = useState(false)
   const [pendingLeave, setPendingLeave] = useState<OverlayLeaveIntent | null>(null)
   const resolverRef = useRef<((decision: OverlayLeaveDecision) => void) | null>(null)
+  const canManage = state
+    ? canManageForScope(kind, state.row.businessUnitId, scopes)
+    : false
 
   useEffect(() => {
     let live = true
@@ -328,6 +329,7 @@ export function CatalogRecordDocument({
   }, [canManage, id, kind, onChanged, renameRecord, state?.row.archived_at, t, viewerId])
 
   const setArchived = useCallback(async (archived: boolean) => {
+    if (!canManage) throw new Error(t('catalog.record.readOnly'))
     setBusy(true)
     setMutationError('')
     try {
@@ -345,7 +347,7 @@ export function CatalogRecordDocument({
     } finally {
       setBusy(false)
     }
-  }, [id, kind, onChanged, t])
+  }, [canManage, id, kind, onChanged, t])
 
   const adapter = useMemo<RecordViewerAdapter | null>(() => {
     if (!state) return null
@@ -357,6 +359,14 @@ export function CatalogRecordDocument({
     const objectiveOptionsById = new Map((context.objectiveOptions ?? []).map((option) => [option.value, option.label] as const))
     for (const option of editDirectory?.objectiveOptions ?? []) objectiveOptionsById.set(option.value, option.label)
     const objectiveOptions = [...objectiveOptionsById].map(([value, label]) => ({ value, label }))
+    const allowedBuIds = allowedBusinessUnitIds(kind, scopes)
+    const businessUnitOptions = [...businessUnitsById]
+      .filter(([value]) => allowedBuIds === null || allowedBuIds.includes(value))
+      .map(([value, label]) => ({ value, label }))
+    const emptyOption = { value: '', label: t('catalog.notSet') }
+    const businessUnitEditOptions = allowedBuIds === null
+      ? [emptyOption, ...businessUnitOptions]
+      : businessUnitOptions
     const relationGroups = context.relationsById.get(id)?.groups.filter((group) => !group.synthetic) ?? []
     const relation = relationGroups[0]
     const relationTasks = context.relationsById.get(id)?.tasks ?? []
@@ -394,12 +404,11 @@ export function CatalogRecordDocument({
           ...(row.type === 'process' ? [{ key: 'owningTeam', label: t('catalog.record.owningTeam'), control: 'text' as const, value: null, displayValue: t('catalog.record.teamPerOccurrence'), editable: false } satisfies RecordFieldSpec, { key: 'cadence', label: t('catalog.record.cadence'), control: 'select' as const, value: process?.cadence?.cadence_kind ?? null, displayValue: process?.cadence ? cadenceLabel(process.cadence.cadence_kind, t) : t('catalog.notSet'), editable: false } satisfies RecordFieldSpec] : []),
         ]
 
-    const emptyOption = { value: '', label: t('catalog.notSet') }
     for (const field of fields) {
       if (field.key === 'cadence' || field.key === 'owningTeam' || field.key === 'name') continue
       field.editable = canManage && row.archived_at === null && (field.key === 'period' || editDirectory !== null)
       if (canManage && field.key !== 'period' && !editDirectory) field.readOnlyReason = t(editDirectoryError ? 'catalog.record.editChoicesError' : 'catalog.record.editChoicesLoading')
-      if (field.key === 'businessUnit') field.options = [emptyOption, ...[...businessUnitsById].map(([value, label]) => ({ value, label }))]
+      if (field.key === 'businessUnit') field.options = businessUnitEditOptions
       if (field.key === 'accountable' || field.key === 'responsible') field.options = [emptyOption, ...[...allPeopleById].map(([value, label]) => ({ value, label }))]
       if (field.key === 'objective') {
         field.options = [emptyOption, ...objectiveOptions]
@@ -498,7 +507,7 @@ export function CatalogRecordDocument({
       },
       state: 'ready',
     } satisfies RecordViewerAdapter
-  }, [busy, canManage, editDirectory, editDirectoryError, id, kind, onChanged, onCreateTask, onOpenRelated, setArchived, state, t])
+  }, [busy, canManage, editDirectory, editDirectoryError, id, kind, onChanged, onCreateTask, onOpenRelated, scopes, setArchived, state, t])
 
   const discardAndLeave = useCallback(async () => {
     resolverRef.current?.({ decision: 'allow' })

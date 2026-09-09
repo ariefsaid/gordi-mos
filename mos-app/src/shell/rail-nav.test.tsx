@@ -278,14 +278,14 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(screen.getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
   })
 
-  it('Work catalog children: Projects & Processes is absent for a plain member (capability-gated); Objectives is present (OD-V4-1)', () => {
+  it('Work catalog children: Projects & Processes and Objectives are visible to a plain member', () => {
     setAuthAs([])
     renderRailNav('/work/tasks')
-    expect(screen.queryByRole('link', { name: 'Projects & Processes' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Projects & Processes' })).toHaveAttribute('href', '/work/projects')
     expect(screen.getByRole('link', { name: 'Objectives' })).toHaveAttribute('href', '/work/objectives')
   })
 
-  it('admin sees Projects & Processes + Objectives (holds both capabilities)', () => {
+  it('admin sees Projects & Processes + Objectives', () => {
     setAuthAs(['admin'])
     renderRailNav('/work/tasks')
     expect(screen.getByRole('link', { name: 'Projects & Processes' })).toHaveAttribute('href', '/work/projects')
@@ -759,4 +759,3 @@ describe('DD-WAY-33 (#439): the rail type ladder', () => {
     expect(container.querySelectorAll('.rail-item-children')).toHaveLength(0)
   })
 })
-

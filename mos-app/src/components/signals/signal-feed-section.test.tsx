@@ -116,6 +116,7 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
     renderSection()
     await userEvent.click(screen.getByRole('button', { name: /Share a Signal/i }))
     expect(openSignalComposer).toHaveBeenCalledTimes(1)
+    expect(openSignalComposer).toHaveBeenCalledWith()
   })
 
   // The GOAL of feed search: a viewer who half-remembers a Signal can get back to it — by what it

@@ -87,13 +87,14 @@ function DraftRow({ draft }: { draft: CatalogCreateDraft }) {
             disabled={draft.adding}
           />
         ) : null}
-        {draft.kind === 'objective' && draft.businessUnitOptions && draft.onBusinessUnitChange ? (
+        {draft.businessUnitOptions && draft.onBusinessUnitChange ? (
           <Picker
             label={t('catalog.record.businessUnit')}
             value={draft.businessUnitId ?? ''}
-            placeholder={t('catalog.notSet')}
-            options={[{ value: '', label: t('catalog.notSet') }, ...draft.businessUnitOptions]}
+            placeholder={draft.businessUnitRequired ? undefined : t('catalog.notSet')}
+            options={draft.businessUnitRequired ? draft.businessUnitOptions : [{ value: '', label: t('catalog.notSet') }, ...draft.businessUnitOptions]}
             onChange={(value) => draft.onBusinessUnitChange?.(value || null)}
+            required={draft.businessUnitRequired}
             disabled={draft.adding}
           />
         ) : null}

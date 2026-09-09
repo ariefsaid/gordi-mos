@@ -6,7 +6,6 @@ import type { To } from 'react-router-dom'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsNarrow } from '@/shell/use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
-import { can } from '@/lib/capabilities'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
 import { collectionDisclosureSummary } from '@/lib/record-collection/disclosure-summary'
 import { useSetCollectionLeaf } from '@/shell/breadcrumb-title'
@@ -33,6 +32,7 @@ import {
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import { createTask, updateTaskFields, updateTaskStatus } from '@/lib/db/tasks'
 import { getPersonTeams, type TeamOption } from '@/lib/db/directory'
+import { canStartProcessForTeam } from '@/lib/db/processes'
 import { linkSignalTask } from '@/lib/db/signals'
 import { TaskOverlayContent } from './task-drawer'
 import { useCatalogRecordEntryFactory } from '@/components/catalog/use-catalog-record-overlay'
@@ -175,6 +175,7 @@ export function TasksWorkspace({
   // !isDesktop (<768), or the 768–919 band shows BOTH doors.
   const isNarrow = useIsNarrow()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
+  const viewerOrgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
   const currentSearch = location.search
   const initialQuery = useMemo(() => {
@@ -191,6 +192,7 @@ export function TasksWorkspace({
   // `null` means the viewer Team directory is still loading; [] is an honest no-eligible-Team
   // result and must never be replaced with a BU/first-row guess.
   const [viewerTeams, setViewerTeams] = useState<readonly TeamOption[] | null>(null)
+  const [processStartTeamIds, setProcessStartTeamIds] = useState<Set<string>>(new Set())
   const [announcement, setAnnouncement] = useState('')
   const draftSourceSignalRef = useRef<string | null>(new URLSearchParams(location.search).get('sourceSignal'))
   const createdDraftTaskRef = useRef<string | null>(null)
@@ -238,6 +240,21 @@ export function TasksWorkspace({
   const projection = state.projection
   const records = projection?.visibleRecords ?? EMPTY_RECORDS
   const runtimeStatusOverrides = statusOverrides ?? EMPTY_STATUS_OVERRIDES
+
+  useEffect(() => {
+    let live = true
+    const teamIds = [...new Set(records
+      .filter((record) => record.processRunId !== null && record.teamId !== null)
+      .map((record) => record.teamId as string))]
+    setProcessStartTeamIds(new Set())
+    if (teamIds.length === 0 || !viewerId) return () => { live = false }
+    void Promise.all(teamIds.map(async (teamId) => [teamId, await canStartProcessForTeam(teamId)] as const))
+      .then((answers) => {
+        if (live) setProcessStartTeamIds(new Set(answers.filter(([, allowed]) => allowed).map(([teamId]) => teamId)))
+      })
+      .catch(() => { if (live) setProcessStartTeamIds(new Set()) })
+    return () => { live = false }
+  }, [records, viewerId, viewerOrgId])
 
   const refreshStarted = useRef(false)
   useEffect(() => {
@@ -792,12 +809,16 @@ export function TasksWorkspace({
       next.set('create', '1')
       return { pathname: '/work/tasks', search: `?${next.toString()}` }
     })(),
-    canResolvePending: can(accessRoles, 'process.start'),
+    canResolvePending: processStartTeamIds.size > 0,
+    canResolvePendingForRun: (runId: string) => {
+      const teamId = records.find((record) => record.processRunId === runId)?.teamId
+      return teamId !== null && teamId !== undefined && processStartTeamIds.has(teamId)
+    },
   }), [
-    accessRoles, currentSearch, drawerOpen, draftTask, host.session, isDesktop, onAddTask,
+    currentSearch, drawerOpen, draftTask, host.session, isDesktop, onAddTask,
     params,
     onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onValidateNewTask, onNewTask, onOpenTask, onClearFilters, onSort,
-    retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, draftValidationError, onRetryDraftLink, viewerTeams,
+    processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, draftValidationError, onRetryDraftLink, viewerTeams,
   ])
 
   const controls = tasksToolbar

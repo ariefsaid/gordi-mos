@@ -8,7 +8,6 @@ vi.mock('./auth/use-auth')
 import { useAuth } from './auth/use-auth'
 import { routeConfig } from './router'
 import { RequireAccessRole } from './auth/require-access-role'
-import { RequireCapability } from './auth/require-capability'
 import { REVENUE_VIEW_ROLES } from './lib/capabilities'
 import {
   allRoutes,
@@ -185,8 +184,8 @@ describe('AC-021: an unmatched path renders the not-found surface inside the she
 })
 
 // ── Gates ────────────────────────────────────────────────────────────────────────────────────
-describe('router — Work catalog gates', () => {
-  it('OD-V4-1: /work/objectives carries NO read gate — the read is already open at the database', () => {
+describe('router — Work catalog read access', () => {
+  it('OD-V4-1: /work/objectives and /work/projects carry NO read gate — the reads are open at the database', () => {
     // v4-redesign's own router.test.tsx asserts a RequireCapability(objective.manage) gate here,
     // which contradicts v4's own router.tsx. OD-V4-1 (owner-ratified) removed the gate: the
     // objectives SELECT policy carries no role check, so the gate hid a screen RLS already
@@ -196,25 +195,30 @@ describe('router — Work catalog gates', () => {
     // Resolved through the real matcher: nothing on the ancestor chain bounces a subset of
     // authenticated viewers. Re-add the gate and this goes red.
     expect(gatesOnPath('/work/objectives')).toEqual([])
-    // …and the sibling catalog still HAS its gate, so the check above is measuring something.
-    expect(gatesOnPath('/work/projects')).toEqual(['capability:workline.manage'])
+    expect(gatesOnPath('/work/projects')).toEqual([])
   })
 
-  it('AC-304: /work/projects stays behind RequireCapability(workline.manage)', () => {
-    const gate = shellChildren().find(
-      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'work/projects'),
-    )!
-    expect(gate.element).toEqual(<RequireCapability capability="workline.manage" />)
+  it('AC-304: /work/projects is directly reachable for authenticated org members', () => {
+    const route = shellChildren().find((r) => r.path === 'work/projects')
+    expect(route).toBeDefined()
+    expect(route?.element).toBeDefined()
   })
 
-  it('both retired catalog spellings redirect from INSIDE the gate they forward into', () => {
-    // Outside it, a viewer without workline.manage would be forwarded to /work/projects and
-    // bounced from there — two hops. This is the structural half of AC-017.
-    const gate = shellChildren().find(
-      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'work/projects'),
-    )!
-    const inside = gate.children!.map((c) => c.path).sort()
-    expect(inside).toEqual(['projects-processes', 'work/projects', 'work/projects-processes', 'work/projects/:workLineId'])
+  it('both retired catalog spellings redirect directly to the org-readable catalog', () => {
+    const paths = shellChildren()
+      .filter((r) =>
+        ['projects-processes', 'work/projects', 'work/projects-processes', 'work/projects/:workLineId'].includes(
+          r.path ?? '',
+        ),
+      )
+      .map((r) => r.path)
+      .sort()
+    expect(paths).toEqual([
+      'projects-processes',
+      'work/projects',
+      'work/projects-processes',
+      'work/projects/:workLineId',
+    ])
   })
 })
 
@@ -310,11 +314,11 @@ describe('router — Café review + pushes are role-gated', () => {
 })
 
 describe('router — /admin redirects from inside AdminRoute', () => {
-  it('AC-006: /admin and /admin/people are both children of the admin gate', () => {
+  it('AC-006: /admin, /admin/people, and /admin/access are children of the admin gate', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'admin/people'),
     )!
-    expect(gate.children!.map((c) => c.path).sort()).toEqual(['admin', 'admin/people'])
+    expect(gate.children!.map((c) => c.path).sort()).toEqual(['admin', 'admin/access', 'admin/people'])
   })
 })
 

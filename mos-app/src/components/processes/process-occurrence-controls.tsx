@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '@/auth/use-auth'
 import { useI18n } from '@/i18n/I18nProvider'
-import { can } from '@/lib/capabilities'
 import { getPeople, type PersonOption } from '@/lib/db/directory'
 import {
-  cancelRun, completeRun, listPendingTasks, listProcessOccurrenceSummaries,
-  listStartableProcessRuns, startRun,
+  cancelRun, canCloseProcessRun, canStartProcessForTeam, completeRun, listPendingTasks,
+  listProcessOccurrenceSummaries, listStartableProcessRuns, startRun,
 } from '@/lib/db/processes'
 import type { DueProcessRun, PendingTaskRow, ProcessOccurrenceSummary } from '@/lib/db/processes.types'
 import { formatDayMonthYear } from '@/lib/format/date'
@@ -31,31 +29,16 @@ export interface ProcessOccurrenceControlsProps {
 type FetchState = 'loading' | 'ready' | 'error'
 type Confirmation = { kind: 'complete' | 'cancel'; run: ProcessOccurrenceSummary }
 
-function canCloseOccurrence(
-  summary: ProcessOccurrenceSummary,
-  viewerId: string | null,
-  accessRoles: readonly string[],
-): boolean {
-  // Keep this mirror deliberately identical to mos.can_close_process_run: the owner has not
-  // ratified a Team-lead identity, so Team membership is not inferred here or in the UI.
-  return summary.run.status === 'open' && (
-    (viewerId !== null && summary.run.started_by === viewerId)
-    || accessRoles.includes('ops_lead')
-    || accessRoles.includes('admin')
-  )
-}
-
 export function ProcessOccurrenceControls({ workLineId, onViewTasks, onChanged }: ProcessOccurrenceControlsProps) {
   const t = useT()
   const { locale } = useI18n()
-  const auth = useAuth()
-  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
-  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const canStart = can(accessRoles, 'process.start')
 
   const [state, setState] = useState<FetchState>('loading')
   const [occurrences, setOccurrences] = useState<ProcessOccurrenceSummary[]>([])
   const [startable, setStartable] = useState<DueProcessRun[]>([])
+  const [startableTeamIds, setStartableTeamIds] = useState<Set<string>>(new Set())
+  const [closableRunIds, setClosableRunIds] = useState<Set<string>>(new Set())
+  const [authorityError, setAuthorityError] = useState(false)
   const [retryNonce, setRetryNonce] = useState(0)
   const [startingKey, setStartingKey] = useState<string | null>(null)
   const [startError, setStartError] = useState(false)
@@ -71,9 +54,9 @@ export function ProcessOccurrenceControls({ workLineId, onViewTasks, onChanged }
   const [pendingError, setPendingError] = useState(false)
   const mountedRef = useRef(true)
   const loadGenerationRef = useRef(0)
-  const loadIdentityRef = useRef({ workLineId, canStart })
+  const loadIdentityRef = useRef({ workLineId })
   const assignGenerationRef = useRef(0)
-  loadIdentityRef.current = { workLineId, canStart }
+  loadIdentityRef.current = { workLineId }
 
   useEffect(() => {
     mountedRef.current = true
@@ -81,29 +64,50 @@ export function ProcessOccurrenceControls({ workLineId, onViewTasks, onChanged }
   }, [])
 
   const load = useCallback(async () => {
-    if (!mountedRef.current || loadIdentityRef.current.workLineId !== workLineId || loadIdentityRef.current.canStart !== canStart) return
+    if (!mountedRef.current || loadIdentityRef.current.workLineId !== workLineId) return
     const generation = ++loadGenerationRef.current
     const isCurrent = () => mountedRef.current
       && loadGenerationRef.current === generation
       && loadIdentityRef.current.workLineId === workLineId
-      && loadIdentityRef.current.canStart === canStart
     setState('loading')
     setStartError(false)
     setActionError(false)
+    setAuthorityError(false)
+    setStartableTeamIds(new Set())
+    setClosableRunIds(new Set())
     try {
       const [nextOccurrences, nextStartable] = await Promise.all([
         listProcessOccurrenceSummaries(workLineId),
-        canStart ? listStartableProcessRuns(workLineId) : Promise.resolve([]),
+        listStartableProcessRuns(workLineId),
       ])
       if (!isCurrent()) return
       setOccurrences(nextOccurrences)
       setStartable(nextStartable)
       setState('ready')
+
+      // Authority calls are enrichment: readable occurrences and the server-filtered due list
+      // paint independently, while stale/erroring checks fail closed for their affordances.
+      const teamIds = [...new Set(nextOccurrences.map((summary) => summary.run.owning_team_id))]
+      const [startAnswers, closeAnswers] = await Promise.all([
+        Promise.allSettled(teamIds.map(async (teamId) => [teamId, await canStartProcessForTeam(teamId)] as const)),
+        Promise.allSettled(nextOccurrences.map(async (summary) => [summary.run.id, await canCloseProcessRun(summary.run.id)] as const)),
+      ])
+      if (!isCurrent()) return
+      setStartableTeamIds(new Set(startAnswers
+        .filter((answer): answer is PromiseFulfilledResult<readonly [string, boolean]> => answer.status === 'fulfilled' && answer.value[1])
+        .map((answer) => answer.value[0])))
+      setClosableRunIds(new Set(closeAnswers
+        .filter((answer): answer is PromiseFulfilledResult<readonly [string, boolean]> => answer.status === 'fulfilled' && answer.value[1])
+        .map((answer) => answer.value[0])))
+      setAuthorityError(
+        startAnswers.some((answer) => answer.status === 'rejected')
+        || closeAnswers.some((answer) => answer.status === 'rejected'),
+      )
     } catch {
       if (!isCurrent()) return
       setState('error')
     }
-  }, [canStart, workLineId])
+  }, [workLineId])
 
   useEffect(() => { void load() }, [load, retryNonce])
 
@@ -193,10 +197,11 @@ export function ProcessOccurrenceControls({ workLineId, onViewTasks, onChanged }
     <section className="process-occurrence-controls" aria-labelledby="process-occurrence-controls-title">
       <header className="process-occurrence-controls__header">
         <h3 id="process-occurrence-controls-title">{t('processes.occurrence.title')}</h3>
+        {authorityError ? <ErrorState message={t('processes.occurrence.authorityError')} onRetry={() => setRetryNonce((nonce) => nonce + 1)} /> : null}
         {actionError ? <ErrorState message={t('processes.occurrence.actionError')} /> : null}
       </header>
 
-      {canStart && startable.length > 0 ? (
+      {startable.length > 0 ? (
         <section className="process-occurrence-controls__start" aria-labelledby="process-occurrence-start-title">
           <h4 id="process-occurrence-start-title">{t('processes.occurrence.ready')}</h4>
           <DueRunsList
@@ -215,7 +220,7 @@ export function ProcessOccurrenceControls({ workLineId, onViewTasks, onChanged }
         <ul className="process-occurrence-controls__list">
           {occurrences.map((summary) => {
             const { run, rollup } = summary
-            const closeAllowed = canCloseOccurrence(summary, viewerId, accessRoles)
+            const closeAllowed = closableRunIds.has(run.id)
             const statusLabel = run.status === 'open'
               ? t('processes.occurrence.status.open')
               : run.status === 'completed'
@@ -244,7 +249,7 @@ export function ProcessOccurrenceControls({ workLineId, onViewTasks, onChanged }
                   >
                     {t('processes.occurrence.viewTasks')}
                   </Link>
-                  {canStart && rollup.pending_unresolved > 0 ? (
+                  {startableTeamIds.has(run.owning_team_id) && rollup.pending_unresolved > 0 ? (
                     <Button variant="outline" onClick={() => openAssign(run.id)}>
                       {t('processes.occurrence.toAssign', { count: rollup.pending_unresolved })}
                     </Button>

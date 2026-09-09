@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Picker } from '@/components/ui/picker'
 import { EmptyState } from '@/components/ui/state-kit'
 import {
-  listReadableAuthorTeams, listAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
+  listReadableAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
 } from '@/lib/db/signals'
 import type { TeamOption, SiteOption, StagedMention, MentionKind, Attention } from '@/lib/db/signals.types'
 import type { SignalComposerPrefill } from '@/shell/signal-composer-host'
@@ -27,6 +27,8 @@ export interface SignalComposerProps {
   canCreateForTeam?: boolean
   /** signal.mention_bu — gates the @BU mention group (FR-407). Defaults to false (fail-closed). */
   canMentionBu?: boolean
+  /** Effective runtime signal.tag authority. Also unlocks org-wide Person/Team tagging. */
+  canTag?: boolean
   /** Team/BU id → member person ids, for the fan-out preview count (AC-422). Supplied by the
    * caller from a directory cache — the composer never queries a full org roster on its own. */
   teamMembers?: MemberLookup
@@ -42,7 +44,7 @@ function toDatetimeLocalValue(date: Date): string {
 }
 
 export function SignalComposer({
-  authorId, authorName, canCreateForTeam = false, canMentionBu = false,
+  authorId, authorName, canCreateForTeam = false, canMentionBu = false, canTag,
   teamMembers = {}, buMembers = {}, onShared, prefill,
   onDirtyChange,
 }: SignalComposerProps) {
@@ -74,11 +76,17 @@ export function SignalComposer({
   useEffect(() => {
     let cancelled = false
     setTeamsLoaded(false)
-    // The owning Team select uses the database's post/read gate. Mention reach follows the
-    // original holder rule: only signal.create_for_team may mention every active Team.
+    // The owning Team select uses the database's post/read gate. Mention reach is a separate
+    // runtime signal.tag decision; never fall back to the viewer's membership list because every
+    // org member may tag any active Person or Team when that authority is granted.
     const teamsLoad = listReadableAuthorTeams(authorId)
-    const mentionTeamsLoad = canCreateForTeam ? listAllTeams() : listAuthorTeams(authorId)
-    Promise.all([teamsLoad, mentionTeamsLoad, getPeople(), getBusinessUnits()]).then(([
+    const tagAuthority = canTag ?? canCreateForTeam
+    const mentionTeamsLoad = tagAuthority ? listAllTeams() : Promise.resolve([] as TeamOption[])
+    const peopleLoad = tagAuthority ? getPeople() : Promise.resolve([])
+    // Keep the BU roster loaded even when the picker is disabled so the UI can explain the
+    // explicit signal.mention_bu boundary with a disabled option rather than hiding the group.
+    const businessUnitsLoad = getBusinessUnits()
+    Promise.all([teamsLoad, mentionTeamsLoad, peopleLoad, businessUnitsLoad]).then(([
       teamOptions, mentionTeamOptions, peopleOptions, buOptions,
     ]) => {
       if (cancelled) return
@@ -93,12 +101,13 @@ export function SignalComposer({
       // a Team is chosen).
       if (prefill?.owningTeamId && teamOptions.some((team) => team.id === prefill.owningTeamId)) setTeamId(prefill.owningTeamId)
       else if (teamOptions.length === 1) setTeamId(teamOptions[0].id)
-      setPeople(peopleOptions.filter((p) => p.id !== authorId).map((p) => ({ id: p.id, label: p.full_name })))
+      else setTeamId('')
+      setPeople(tagAuthority ? peopleOptions.filter((p) => p.id !== authorId).map((p) => ({ id: p.id, label: p.full_name })) : [])
       setBusinessUnits(buOptions.map((bu) => ({ id: bu.id, label: bu.name })))
     }).catch(() => { /* the composer stays capture-minimal even if option lists fail to load */ })
       .finally(() => { if (!cancelled) setTeamsLoaded(true) })
     return () => { cancelled = true }
-  }, [authorId, canCreateForTeam, prefill])
+  }, [authorId, canCreateForTeam, canMentionBu, canTag, prefill])
 
   // The Site pill is derived from the owning Team — never a mention target (D37). Re-resolved
   // whenever the selected Team changes (including the cross-Team destination switch, B10).
@@ -129,7 +138,9 @@ export function SignalComposer({
     const value = e.target.value
     setBody(value)
     onDirtyChange?.(Boolean(value.trim()))
-    const token = currentMentionToken(value, e.target.selectionStart ?? value.length)
+    const token = ((canTag ?? canCreateForTeam) || canMentionBu)
+      ? currentMentionToken(value, e.target.selectionStart ?? value.length)
+      : null
     setMentionToken(token)
   }
 
@@ -149,12 +160,12 @@ export function SignalComposer({
 
   async function submit() {
     const trimmedBody = body.trim()
-    if (!trimmedBody || !teamId || posting) return
+    if (!trimmedBody || !selectedTeam || posting) return
     setPosting(true)
     setError(null)
     try {
       const occurredIso = new Date(occurredAt).toISOString()
-      const id = await createSignal({ body: trimmedBody, owningTeamId: teamId, occurredAt: occurredIso, attention, mentions })
+      const id = await createSignal({ body: trimmedBody, owningTeamId: selectedTeam.id, occurredAt: occurredIso, attention, mentions })
       setBody('')
       setMentions([])
       setMentionToken(null)
@@ -288,7 +299,7 @@ export function SignalComposer({
           <span className="signal-composer-send-hint">{t('signals.composer.sendHint')}</span>
           <Button
             variant="primary"
-            disabled={!body.trim() || !teamId || posting}
+            disabled={!body.trim() || !selectedTeam || posting}
             aria-busy={posting}
             onClick={() => { void submit() }}
           >

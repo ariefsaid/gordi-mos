@@ -3,7 +3,6 @@ import { useHref, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import { useT } from '@/i18n/use-t'
-import { can } from '@/lib/capabilities'
 import { useI18n } from '@/i18n/I18nProvider'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -18,6 +17,7 @@ import type { OverlayLeaveDecision, OverlayLeaveIntent, OverlayOwner } from '@/s
 import {
   getSignal, listSignalRevisions, listAllTeams, getTeamSite, correctSignal, acknowledgeSignal,
   linkSignalTask, retractSignal, loadMentionRosters, dedupeRecipients, summarizeLinkedTasks,
+  canRetractSignal,
   type SignalDetail, type SignalRevisionRow, type MentionRosters,
 } from '@/lib/db/signals'
 import type { Attention, SignalCategory, StagedMention } from '@/lib/db/signals.types'
@@ -214,6 +214,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
 
   const [retractOpen, setRetractOpen] = useState(false)
   const [retractReason, setRetractReason] = useState('')
+  const [retractAllowed, setRetractAllowed] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [localTaskSession, setLocalTaskSession] = useState<TaskDraftSession | null>(null)
 
@@ -274,6 +275,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     setTasksLoadError(false)
     taskRequestRef.current += 1
     setActionError(null)
+    setRetractAllowed(false)
     setLinkOpen(false)
     setLinkTaskId('')
     setLinkSearch('')
@@ -316,6 +318,21 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
   }, [loadRelatedTasks, signalId])
 
   useEffect(() => load(), [load])
+
+  // Retract authority is a per-Signal runtime decision. Keep it off the primary record request so
+  // a stale/failed authority read cannot delay or block first paint; any failure remains hidden.
+  useEffect(() => {
+    if (!detail || !viewerId || detail.signal.retracted_at !== null) {
+      setRetractAllowed(false)
+      return
+    }
+    let live = true
+    setRetractAllowed(false)
+    canRetractSignal(signalId)
+      .then((allowed) => { if (live) setRetractAllowed(allowed) })
+      .catch(() => { if (live) setRetractAllowed(false) })
+    return () => { live = false }
+  }, [detail, signalId, viewerId])
 
   // Reflect the resolved record name to a page host (breadcrumb / Ask-Deputy seed).
   useEffect(() => {
@@ -416,7 +433,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
   // ── The five JTBD region nodes (retracted ⇒ reach/discussion/history drop; message tombstone +
   // Facts survive so provenance stays legible, mirroring an archived Task's ownership fields). ──
   const retracted = signal.retracted_at !== null
-  const canRetract = !retracted && !!viewerId && (signal.author_id === viewerId || (auth.status === 'authenticated' && can(auth.viewer.accessRoles, 'signal.retract')))
+  const canRetract = !retracted && retractAllowed
 
   async function handleRetract() {
     setActionError(null)
@@ -697,7 +714,11 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
           onAttentionChange,
           actionControls: recordActionControls,
           onRepost: retracted ? openRepost : undefined,
-          retractedBy: retracted ? personName(people, signal.author_id, t('signals.card.unknownAuthor')) : null,
+          retractedBy: retracted
+            ? signal.retracted_by_name ?? (signal.retracted_by
+              ? personName(people, signal.retracted_by, t('signals.record.retractorUnknown'))
+              : null)
+            : null,
           retractedAtLabel: retracted && signal.retracted_at ? formatWibDateTime(signal.retracted_at) : null,
           // DO-13/I18N-2: the identity type-kicker localizes with the rest of the record chrome.
           typeLabel: t('signals.record.title'),

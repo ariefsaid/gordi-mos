@@ -15,9 +15,8 @@ export interface Section {
   labelKey?: MessageKey
   Icon: React.FC
   /**
-   * FR-424: a capability-gated link renders in the rail ONLY for a viewer whose
-   * access-roles grant the named capability (via `can()`); filtered out otherwise.
-   * Used by the Work catalog manage child (Projects & Processes).
+   * Optional legacy capability gate for a navigation entry. Current Work catalog entries are
+   * org-readable and leave this unset; their write scope is resolved by the catalog surfaces.
    */
   capability?: string
   /**
@@ -39,7 +38,7 @@ export const SECTIONS: Section[] = [
   { path: '/', label: 'Home', labelKey: 'nav.home', Icon: HomeIcon },
   { path: '/work/signals', label: 'Signals', labelKey: 'nav.work.signals', Icon: SignalsIcon },
   { path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon },
-  { path: '/work/projects', label: 'Projects & Processes', labelKey: 'nav.work.projects', Icon: WorkLineIcon, capability: 'workline.manage' },
+  { path: '/work/projects', label: 'Projects & Processes', labelKey: 'nav.work.projects', Icon: WorkLineIcon },
   // No `capability` here: OD-V4-1 removed the objective.manage READ gate everywhere — the rail
   // entry (destinations.tsx), the route (router.tsx) and now this registry. It was inert while
   // only `Destination.children` was filtered on capability, but it read as live and would have

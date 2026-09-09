@@ -48,6 +48,7 @@ vi.mock('../../lib/db/directory', () => ({
 }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
+vi.mock('@/lib/db/processes', () => ({ canStartProcessForTeam: vi.fn() }))
 vi.mock('@/lib/db/user-views-collection', () => ({
   listCollectionViews: vi.fn(),
   getCollectionView: vi.fn(),
@@ -61,6 +62,7 @@ import { linkSignalTask } from '@/lib/db/signals'
 import { getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams, getTeamsByIds } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
+import { canStartProcessForTeam } from '@/lib/db/processes'
 import { listCollectionViews } from '@/lib/db/user-views-collection'
 import type { PersistedCollectionView } from '@/lib/record-collection/collection-view-spec'
 import { TasksWorkspace } from './tasks-workspace'
@@ -73,6 +75,7 @@ const mockUpdateTaskFields = vi.mocked(updateTaskFields)
 const mockCreateTask = vi.mocked(createTask)
 const mockListCollectionViews = vi.mocked(listCollectionViews)
 const mockLinkSignalTask = vi.mocked(linkSignalTask)
+const mockCanStartProcessForTeam = vi.mocked(canStartProcessForTeam)
 
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
@@ -219,6 +222,7 @@ beforeEach(() => {
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
+  mockCanStartProcessForTeam.mockResolvedValue(true)
   mockListCollectionViews.mockResolvedValue([])
 })
 
@@ -408,6 +412,37 @@ describe('FR-V3-013 — live Tasks collection wiring', () => {
     await waitFor(() => expect(screen.getByText('One loader task')).toBeInTheDocument())
     expect(load).toHaveBeenCalledTimes(1)
     expect(document.querySelector('[data-collection-status="ready"]')).toBeTruthy()
+  })
+
+  it('refreshes process.start authority when the mounted viewer changes', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Occurrence task', team_id: 'team-process', process_run_id: 'run-1' })])
+    mockCanStartProcessForTeam.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    const view = render(
+      <I18nProvider>
+        <AuthContext.Provider value={authedState}>
+          <MemoryRouter initialEntries={['/work/tasks'] as string[]}>
+            <OverlayHostProvider><TasksWorkspace savedView={makeSavedView('all')} onSavedViewChange={() => {}} /></OverlayHostProvider>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+
+    await waitFor(() => expect(mockCanStartProcessForTeam).toHaveBeenCalledWith('team-process'))
+    const changedAuth: AuthState = {
+      ...authedState,
+      viewer: { ...authedState.viewer, person: { ...VIEWER_PERSON, id: 'viewer-b', org_id: 'org-b' } },
+    }
+    view.rerender(
+      <I18nProvider>
+        <AuthContext.Provider value={changedAuth}>
+          <MemoryRouter initialEntries={['/work/tasks'] as string[]}>
+            <OverlayHostProvider><TasksWorkspace savedView={makeSavedView('all')} onSavedViewChange={() => {}} /></OverlayHostProvider>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+
+    await waitFor(() => expect(mockCanStartProcessForTeam).toHaveBeenCalledTimes(2))
   })
 })
 

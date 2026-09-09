@@ -119,4 +119,10 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
     sourceFile: 'pages/admin-users-page.tsx',
     symbol: 'AdminUsersPage',
   },
+  {
+    path: '/admin/access',
+    family: 'management',
+    sourceFile: 'pages/admin-access-page.tsx',
+    symbol: 'AdminAccessPage',
+  },
 ]

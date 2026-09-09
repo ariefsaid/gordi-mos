@@ -46,7 +46,7 @@ export function SignalFeedSection({
 }: SignalFeedSectionProps) {
   const navigate = useNavigate()
   const host = useOptionalOverlayHost()
-  const { open: openSignalComposer, postCount } = useSignalComposer()
+  const { open: openSignalComposer, postCount, canPost } = useSignalComposer()
   const t = useT()
   const titleId = useId()
 
@@ -112,7 +112,7 @@ export function SignalFeedSection({
           signals={signals}
           authorNamesById={namesToRecord(authorNamesById)}
           teamNamesById={namesToRecord(teamNamesById)}
-          onShareClick={openSignalComposer}
+          onShareClick={canPost === false ? undefined : () => openSignalComposer()}
           createTaskHref={createTaskHref}
           showSearch={showSearch}
           onOpen={(signal) => openRecord(signal.id)}
