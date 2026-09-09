@@ -138,41 +138,9 @@ $$, '42501', 'author_id belongs to a different org',
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
 
--- ── Immutability and the author-only content rule ────────────────────────────────────────────
-select throws_ok($$
-  update mos.signals set owning_team_id = '00000000-0000-0000-0000-000000005b02'
-  where id = '00000000-0000-0000-0000-000000007001'
-$$, '42501', null,
-  'the owning Team is immutable — moving it would silently re-point the entire read gate');
-select throws_ok($$
-  update mos.signals set author_id = '00000000-0000-0000-0000-0000000000d2'
-  where id = '00000000-0000-0000-0000-000000007001'
-$$, '42501', null, 'the author is immutable');
-
--- A signal.retract holder who is not the author is admitted by the UPDATE policy's USING clause —
--- it has to be, or nobody could retract someone else's Signal — and is then stopped by the guard.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
-select throws_ok($$
-  update mos.signals set body = 'Rewritten by a retract holder'
-  where id = '00000000-0000-0000-0000-000000007001'
-$$, '42501', null,
-  'content is AUTHOR-ONLY: a signal.retract holder passes the policy and is refused by the guard — retract is not edit');
-select throws_ok($$
-  update mos.signals set retracted_at = now() where id = '00000000-0000-0000-0000-000000007001'
-$$, '23514', null, 'a retraction without a reason is refused — a withdrawn statement needs to say why');
-select lives_ok($$
-  update mos.signals set retracted_at = now(), retract_reason = 'Duplicate of an earlier report'
-  where id = '00000000-0000-0000-0000-000000007001'
-$$, 'a signal.retract holder CAN retract another author''s Signal, with a reason');
-
--- Retraction is soft, and there is no delete path at all.
-select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000007001'), 1,
-  'a retracted Signal still exists — retraction is soft, so the record of what was said survives');
-select ok(not has_table_privilege('authenticated','mos.signals','DELETE'),
-  'no DELETE privilege on mos.signals for any session');
-
 -- ── The edit history writes itself, and cannot be written by hand ────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+-- An author may correct an ACTIVE Signal. Once the Signal is retracted below, the authority
+-- contract freezes its tombstone content; the retracted-body denial is covered by mos_18.
 update mos.signals set body = 'The grinder is jammed, third time this week'
  where id = '00000000-0000-0000-0000-000000007001';
 select is(
@@ -183,6 +151,17 @@ select isnt((select edited_at from mos.signals where id = '00000000-0000-0000-00
   '...and stamps edited_at, so a reader can see the statement changed after they read it');
 select ok(not has_table_privilege('authenticated','mos.signal_revisions','INSERT'),
   'the history cannot be written by hand — no INSERT privilege, so only the definer guard appends to it');
+
+-- ── Immutability and the author-only content rule ────────────────────────────────────────────
+select throws_ok($$
+  update mos.signals set owning_team_id = '00000000-0000-0000-0000-000000005b02'
+  where id = '00000000-0000-0000-0000-000000007001'
+$$, '42501', null,
+  'the owning Team is immutable — moving it would silently re-point the entire read gate');
+select throws_ok($$
+  update mos.signals set author_id = '00000000-0000-0000-0000-0000000000d2'
+  where id = '00000000-0000-0000-0000-000000007001'
+$$, '42501', null, 'the author is immutable');
 
 -- ── Mentions are immutable except revoked_at ─────────────────────────────────────────────────
 -- Re-targeting a mention would bypass the checks applied at INSERT: a @BU mention needs
@@ -274,6 +253,30 @@ select lives_ok($$
   values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000007001',
           '00000000-0000-0000-0000-00000000a7a1','00000000-0000-0000-0000-0000000000d1')
 $$, 'a same-org Signal→Task link still writes');
+
+-- ── Retraction is the final transition in this fixture ───────────────────────────────────────
+-- Keep all active correction, mention, fan-out, and link assertions above the tombstone. The
+-- dedicated authority contract separately proves that tombstone audience and content are frozen.
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
+select throws_ok($$
+  update mos.signals set body = 'Rewritten by a retract holder'
+  where id = '00000000-0000-0000-0000-000000007001'
+$$, '42501', null,
+  'content is AUTHOR-ONLY: a signal.retract holder passes the policy and is refused by the guard — retract is not edit');
+select throws_ok($$
+  update mos.signals set retracted_at = now() where id = '00000000-0000-0000-0000-000000007001'
+$$, '23514', null, 'a retraction without a reason is refused — a withdrawn statement needs to say why');
+select lives_ok($$
+  update mos.signals set retracted_at = now(), retract_reason = 'Duplicate of an earlier report'
+  where id = '00000000-0000-0000-0000-000000007001'
+$$, 'a signal.retract holder CAN retract another author''s Signal, with a reason');
+
+-- Retraction is soft, and there is no delete path at all.
+select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000007001'), 1,
+  'a retracted Signal still exists — retraction is soft, so the record of what was said survives');
+select ok(not has_table_privilege('authenticated','mos.signals','DELETE'),
+  'no DELETE privilege on mos.signals for any session');
 
 reset role;
 select * from finish();

@@ -4,7 +4,7 @@
 -- journey: member is a baseline category derived from live org membership, not from access_roles.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(44);
+select plan(61);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
@@ -29,6 +29,7 @@ create temp table authority_ids (
   signal_peer uuid,
   signal_cross_bu uuid,
   signal_two uuid,
+  signal_attribution uuid,
   run_one uuid,
   run_two uuid
 )
@@ -213,15 +214,54 @@ $$, '42501', null,
   'a non-author retract authority cannot edit Signal content');
 select lives_ok($$
   update mos.signals
-     set retracted_at = now(), retract_reason = 'Duplicate operational report'
+     set retracted_at = '2000-01-01 00:00:00+00', retract_reason = 'Duplicate operational report'
    where id = (select signal_one from authority_ids)
 $$, 'a designated Team lead can retract through the existing direct UPDATE path');
 select ok((select retracted_at is not null from mos.signals
             where id = (select signal_one from authority_ids)),
   'retraction stores a tombstone on the original Signal');
+select is((select retracted_by from mos.signals
+            where id = (select signal_one from authority_ids)),
+  '00000000-0000-0000-0000-0000000000d2'::uuid,
+  'the first retraction records the actual actor');
+select is((select retracted_by_name from mos.signals
+            where id = (select signal_one from authority_ids)), 'DirectMgr',
+  'the first retraction snapshots the actual actor name');
+select ok((select retracted_at > now() - interval '1 minute'
+                    and retracted_at <= now()
+             from mos.signals
+            where id = (select signal_one from authority_ids)),
+  'the first retraction timestamp is server-stamped at the transition');
 select is((select count(*)::int from mos.signal_mentions
             where signal_id = (select signal_one from authority_ids)), 2,
   'retraction preserves the original audience mentions');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select throws_ok($$
+  update mos.signal_mentions
+     set revoked_at = now()
+   where signal_id = (select signal_one from authority_ids)
+     and mention_kind = 'team'
+     and target_team_id = '00000000-0000-0000-0000-000000005b02'
+$$, '42501', null,
+  'an author cannot remove an original audience row after the Signal becomes a tombstone');
+select throws_ok($$
+  update mos.signals
+     set body = 'Rewritten withdrawn statement'
+   where id = (select signal_one from authority_ids)
+$$, '42501', null,
+  'an author cannot rewrite the body after the Signal becomes a tombstone');
+select throws_ok($$
+  update mos.signals
+     set retract_reason = 'Rewritten reason'
+   where id = (select signal_one from authority_ids)
+$$, '42501', null,
+  'a tombstone reason cannot be rewritten after the first retraction');
+select throws_ok($$
+  update mos.signals
+     set retracted_at = '1999-01-01 00:00:00+00'
+   where id = (select signal_one from authority_ids)
+$$, '42501', null,
+  'a tombstone timestamp cannot be rewritten after the first retraction');
 reset role;
 insert into shared.people (id, org_id, full_name)
 values ('00000000-0000-0000-0000-00000000e018',
@@ -289,6 +329,72 @@ update authority_ids
      '00000000-0000-0000-0000-000000005b01', now(), '[]'::jsonb);
 select ok((select signal_two is not null from authority_ids),
   'the member can create a second active Signal for the negative authority control');
+update authority_ids
+   set signal_attribution = mos.create_signal_with_mentions(
+     'Authority attribution signal',
+     '00000000-0000-0000-0000-000000005b01', now(), '[]'::jsonb);
+select lives_ok($$
+  insert into mos.signal_mentions
+    (id, org_id, signal_id, mention_kind, target_person_id)
+  values ('00000000-0000-0000-0000-00000000e020',
+          '00000000-0000-0000-0000-0000000000a1',
+          (select signal_attribution from authority_ids), 'person',
+          '00000000-0000-0000-0000-00000000e018')
+$$, 'an author can add a new audience row while the Signal is active');
+select lives_ok($$
+  update mos.signal_mentions
+     set revoked_at = now()
+   where id = '00000000-0000-0000-0000-00000000e020'
+$$, 'an author can revoke a new audience row while the Signal is active');
+select throws_ok($$
+  update mos.signals
+     set retracted_by = '00000000-0000-0000-0000-0000000000d2',
+         retracted_by_name = 'Spoofed Name'
+   where id = (select signal_attribution from authority_ids)
+$$, '42501', null,
+  'an active Signal cannot accept client-supplied retraction attribution');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}';
+select lives_ok($$
+  update mos.signals
+     set retracted_at = '2000-01-01 00:00:00+00', retract_reason = 'Attribution control'
+   where id = (select signal_attribution from authority_ids)
+$$, 'the first retraction stamps attribution even when the client supplies an old timestamp');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select throws_ok($$
+  update mos.signal_mentions
+     set revoked_at = null
+   where id = '00000000-0000-0000-0000-00000000e020'
+$$, '42501', null,
+  'a previously revoked new audience row cannot be restored after the Signal becomes a tombstone');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000e018","access_roles":["member"]}';
+select is((select count(*)::int from mos.signals
+            where id = (select signal_attribution from authority_ids)), 0,
+  'the previously revoked audience target remains unable to read the tombstone');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select throws_ok($$
+  update mos.signals
+     set retracted_by = '00000000-0000-0000-0000-0000000000d1',
+         retracted_by_name = 'Forged Name'
+   where id = (select signal_attribution from authority_ids)
+$$, '42501', null,
+  'retraction attribution remains immutable after the first transition');
+reset role;
+insert into mos.signals (
+  id, org_id, author_id, owning_team_id, occurred_at, body, retracted_at, retract_reason)
+values (
+  '00000000-0000-0000-0000-00000000e019',
+  '00000000-0000-0000-0000-0000000000a1',
+  '00000000-0000-0000-0000-0000000000d1',
+  '00000000-0000-0000-0000-000000005b01',
+  now(), 'Legacy unknown tombstone', '2000-01-01 00:00:00+00', 'Legacy history');
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select is((select retracted_by from mos.signals
+            where id = '00000000-0000-0000-0000-00000000e019'), null::uuid,
+  'historical tombstones retain NULL actor provenance rather than inventing an actor');
+select is((select retracted_by_name from mos.signals
+            where id = '00000000-0000-0000-0000-00000000e019'), null::text,
+  'historical tombstones retain NULL actor-name provenance rather than inventing a snapshot');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["finance"]}';
 select ok(not mos.can_retract_signal((select signal_two from authority_ids)),
   'a broad reporting-line manager is not a Signal retract authority');
@@ -296,6 +402,20 @@ select throws_ok($$
   select mos.complete_process_run((select run_two from authority_ids))
 $$, '42501', null,
   'a BU/line manager without the designated Team-lead role cannot close a run');
+
+reset role;
+update shared.people
+   set archived_at = now()
+ where id = '00000000-0000-0000-0000-0000000000d2';
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select is((select retracted_by_name from mos.signals
+            where id = (select signal_one from authority_ids)), 'DirectMgr',
+  'the actor-name snapshot remains truthful after the retractor is archived');
+reset role;
+update shared.people
+   set archived_at = null
+ where id = '00000000-0000-0000-0000-0000000000d2';
 
 reset role;
 update shared.people
