@@ -22,7 +22,7 @@ const TOKENS_DIR = resolve(SRC, 'styles/tokens') // token definitions, not consu
 const AUTH_DIR = resolve(SRC, 'auth')
 
 const FONT_SIZE_TOKENS = new Set([
-  'page-title', 'heading', 'subheading', 'body-lg', 'body', 'control', 'mono', 'label', 'overline', 'micro',
+  'page-title', 'title-lg', 'display', 'heading', 'subheading', 'body-lg', 'body', 'control', 'mono', 'label', 'overline', 'micro',
   // Real semantic tokens declared in index.css alongside the rest of the ramp: the ~23px/600
   // KPI numeral (DESIGN.md) and the 16px iOS zoom floor for touch inputs.
   'kpi-value', 'touch-input',
