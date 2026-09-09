@@ -76,13 +76,12 @@ select lives_ok($$
   values ('00000000-0000-0000-0000-000000005b01', now(), 'Second signal')
 $$, 'a member of the owning Team holding signal.create may post');
 
--- Peer is on SiblingTeam and holds no signal.create_for_team, so she may not post for OwnTeam.
+-- Signal posting is org-wide for every active member, even when the destination Team is unrelated.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
-select throws_ok($$
+select lives_ok($$
   insert into mos.signals (owning_team_id, occurred_at, body)
   values ('00000000-0000-0000-0000-000000005b01', now(), 'Posted for a Team I am not on')
-$$, '42501', null,
-  'a member cannot post FOR a Team they are not on — that needs the signal.create_for_team capability');
+$$, 'an active member may post FOR any active same-org Team');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
 select throws_ok($$
@@ -111,8 +110,8 @@ set local role authenticated;
 -- DirectMgr ...0d2 as ops_lead holds signal.create_for_team, so the authorization half is satisfied
 -- for them whatever team is named — which is what makes this a clean measurement of the other half.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
-select ok(mos.can_post_signal_for_team('00000000-0000-0000-0000-000000005bff'),
-  'precondition: the post GATE says yes to a foreign team for a signal.create_for_team holder — it is an authorization test, not a tenancy one');
+select ok(not mos.can_post_signal_for_team('00000000-0000-0000-0000-000000005bff'),
+  'the post GATE denies a foreign-org Team before any write can cross the tenant seam');
 select throws_ok($$
   insert into mos.signals (owning_team_id, occurred_at, body)
   values ('00000000-0000-0000-0000-000000005bff', now(), 'Owned by a foreign team')
