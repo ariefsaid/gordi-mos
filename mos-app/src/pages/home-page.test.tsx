@@ -11,7 +11,6 @@ import type { RolesRow } from '@/lib/database.types'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { HomePage } from './home-page'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
-import { viewerAdmittedToRoute } from '@/shell/destinations'
 
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -37,6 +36,14 @@ const mockListMargin = vi.mocked(listSalesMarginDaily)
 vi.mock('../lib/db/tasks', () => ({ listTasks: vi.fn() }))
 import { listTasks } from '@/lib/db/tasks'
 const mockListTasks = vi.mocked(listTasks)
+
+vi.mock('../lib/db/home-cafe', () => ({ loadHomeCafeDoor: vi.fn() }))
+import { loadHomeCafeDoor } from '@/lib/db/home-cafe'
+const mockLoadHomeCafeDoor = vi.mocked(loadHomeCafeDoor)
+
+vi.mock('../lib/db/home-objectives', () => ({ loadHomeObjectiveProgress: vi.fn() }))
+import { loadHomeObjectiveProgress } from '@/lib/db/home-objectives'
+const mockLoadHomeObjectiveProgress = vi.mocked(loadHomeObjectiveProgress)
 
 vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
@@ -104,7 +111,9 @@ const financeViewer: AuthState = {
       updated_at: '2026-01-01T00:00:00Z',
     },
     roles: [],
-    isManager: false,
+    // This fixture is a reporting-line manager so the legacy cockpit assertions remain a
+    // cockpit test; the ordinary member fixture below explicitly turns this off.
+    isManager: true,
     accessRoles: ['finance'],
     affiliated: [],
   },
@@ -113,7 +122,16 @@ const financeViewer: AuthState = {
 
 const memberViewer: AuthState = {
   ...financeViewer,
-  viewer: { ...financeViewer.viewer, accessRoles: [] },
+  viewer: { ...financeViewer.viewer, accessRoles: [], isManager: false },
+}
+
+const baristaViewer: AuthState = {
+  ...memberViewer,
+  viewer: {
+    ...memberViewer.viewer,
+    person: { ...memberViewer.viewer.person, id: '40000000-0000-0000-0000-000000000007', full_name: 'Bulan Barista' },
+    affiliated: ['cafe'],
+  },
 }
 
 // The role name is deliberately irrelevant to the café route gate. This persona proves that the
@@ -122,7 +140,9 @@ const cafeViewer: AuthState = {
   ...financeViewer,
   viewer: {
     ...financeViewer.viewer,
+    isManager: false,
     accessRoles: ['member'],
+    affiliated: ['cafe'],
     roles: [{
       id: '30000000-0000-0000-0000-000000000002',
       org_id: '10000000-0000-0000-0000-000000000001',
@@ -177,7 +197,7 @@ const functionOwnerViewer: AuthState = {
 }
 const noScopeViewer: AuthState = {
   ...financeViewer,
-  viewer: { ...financeViewer.viewer, accessRoles: ['member'], roles: [ANALYST_ROLE] },
+  viewer: { ...financeViewer.viewer, accessRoles: ['member'], roles: [ANALYST_ROLE], isManager: false },
 }
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -216,6 +236,8 @@ beforeEach(() => {
   mockLoadFailedChecks.mockResolvedValue([])
   mockListSignals.mockResolvedValue([])
   mockListAllTeams.mockResolvedValue([])
+  mockLoadHomeCafeDoor.mockResolvedValue(null)
+  mockLoadHomeObjectiveProgress.mockResolvedValue([])
 })
 
 describe('Home daily operating brief', () => {
@@ -277,36 +299,74 @@ describe('AC-H02: a member sees a usable brief and live Signals column', () => {
     expect(await screen.findByRole('region', { name: /^Signals · \d+$/ })).toBeInTheDocument()
     expect(mockListRevenue).not.toHaveBeenCalled()
   })
+
+  it('keeps an ordinary member on assigned steps before Signals, without cockpit regions', async () => {
+    mockListTasks.mockResolvedValue([overdueTaskRow(memberViewer.viewer.person.id)])
+    await renderHome(memberViewer)
+
+    const brief = await screen.findByTestId('home-daily-brief')
+    expect(within(brief).getByText('Restock oat milk')).toBeInTheDocument()
+    expect(within(brief).queryByRole('region', { name: /^My work today/ })).toBeNull()
+    expect(within(brief).queryByText('Failed checks')).toBeNull()
+    expect(within(brief).queryByRole('region', { name: /^Objectives/ })).toBeNull()
+
+    const task = within(brief).getByText('Restock oat milk')
+    const signals = await within(brief).findByRole('region', { name: /^Signals/ })
+    expect(task.compareDocumentPosition(signals) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('puts the real Café opening door first for an affiliated barista', async () => {
+    mockListTasks.mockResolvedValue([overdueTaskRow(baristaViewer.viewer.person.id)])
+    mockLoadHomeCafeDoor.mockResolvedValue({
+      branchName: 'Gordi HQ',
+      opening: {
+        started: true,
+        runId: 'run-1',
+        rollup: {
+          process_run_id: 'run-1', caption: 'Café Opening', scheduled_date: '2026-09-09',
+          status: 'open', total: 3, open: 1, in_progress: 0, blocked: 0, done: 2,
+          overdue: 0, pending_unresolved: 0, completion_pct: 66.7,
+        },
+      },
+    })
+    await renderHome(baristaViewer)
+
+    const brief = await screen.findByTestId('home-daily-brief')
+    const cafe = await within(brief).findByTestId('home-cafe-door')
+    expect(within(cafe).getByRole('link', { name: /Café Gordi HQ.*2\/3.*Log production/i }))
+      .toHaveAttribute('href', '/cafe')
+    expect(within(brief).queryByText('Failed checks')).toBeNull()
+    expect(within(brief).queryByRole('region', { name: /^Objectives/ })).toBeNull()
+    const assigned = within(brief).getByText('Restock oat milk')
+    expect(cafe.compareDocumentPosition(assigned) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
 })
 
-describe('Issue 246 / OD-WAY-51: failed checks agree with /cafe/log admission', () => {
+describe('OD-WAY-93: failed checks follow Café affiliation, not generic route admission', () => {
   const failedCheck = {
     id: 'fc1', title: 'Production · 2026-07-20', meta: 'Qty off', route: CAFE_LOG_ROUTE,
   }
-  const personas: [string, AuthState][] = [
-    ['a viewer with a café-sounding job role', cafeViewer],
-    ['a finance viewer with no job role', financeViewer],
-    ['a plain member with no job role', memberViewer],
-    ['an ops lead', { ...financeViewer, viewer: { ...financeViewer.viewer, accessRoles: ['ops_lead'] } }],
+  const personas: [string, AuthState, boolean][] = [
+    ['a Café-affiliated viewer', cafeViewer, true],
+    ['a finance viewer with no job role', financeViewer, false],
+    ['a plain member with no job role', memberViewer, false],
+    ['an unaffiliated ops lead', { ...financeViewer, viewer: { ...financeViewer.viewer, accessRoles: ['ops_lead'] } }, false],
+    ['an admin without Café affiliation', { ...financeViewer, viewer: { ...financeViewer.viewer, accessRoles: ['admin'] } }, true],
   ]
 
-  const accessRolesOf = (auth: AuthState) =>
-    auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-
-  for (const [label, viewer] of personas) {
-    it(label + ': the band is present iff the route admits them', async () => {
-      const admitted = viewerAdmittedToRoute(CAFE_LOG_ROUTE, accessRolesOf(viewer))
+  for (const [label, viewer, eligible = false] of personas) {
+    it(label + ': the band is present iff the viewer is eligible', async () => {
       mockLoadFailedChecks.mockResolvedValue([failedCheck])
       await renderHome(viewer)
       const brief = await screen.findByTestId('home-daily-brief')
 
-      expect(mockLoadFailedChecks.mock.calls.length > 0, 'queried the café-log DAL').toBe(admitted)
-      if (admitted) {
+      expect(mockLoadFailedChecks.mock.calls.length > 0, 'queried the café-log DAL').toBe(eligible)
+      if (eligible) {
         expect(brief.querySelector('.home-brief-lane--checks')).not.toBeNull()
       } else {
         expect(brief.querySelector('.home-brief-lane--checks')).toBeNull()
       }
-      expect(screen.queryByText('Production · 2026-07-20') != null, 'rendered the reject').toBe(admitted)
+      expect(screen.queryByText('Production · 2026-07-20') != null, 'rendered the reject').toBe(eligible)
     })
   }
 
@@ -315,7 +375,8 @@ describe('Issue 246 / OD-WAY-51: failed checks agree with /cafe/log admission', 
       ...memberViewer,
       viewer: {
         ...memberViewer.viewer,
-        accessRoles: ['ops_lead'],
+        accessRoles: [],
+        affiliated: [],
         roles: [{
           id: '30000000-0000-0000-0000-000000000002',
           org_id: ORG_ID,
@@ -343,8 +404,8 @@ describe('Issue 246 / OD-WAY-51: failed checks agree with /cafe/log admission', 
       seen.push(screen.queryByText('Production · 2026-07-20') != null)
       unmount()
     }
-    expect(seen[0]).toBe(true)
-    expect(seen[1]).toBe(true)
+    expect(seen[0]).toBe(false)
+    expect(seen[1]).toBe(false)
   })
 })
 
@@ -383,6 +444,7 @@ describe('Issue 245 / FR-928: Signals stays live, concise and honest', () => {
     expect(within(feed).getByText(/grinder is jamming on the second hopper/i)).toBeInTheDocument()
     await waitFor(() => expect(within(feed).getByText('Riri Barista')).toBeInTheDocument())
     expect(within(feed).getByText('Bar Kemang')).toBeInTheDocument()
+    expect(within(feed).queryByRole('searchbox')).toBeNull()
     expect(screen.queryByText(/isn.t available/i)).toBeNull()
   })
 
@@ -543,7 +605,7 @@ describe('AC-040 / AC-052: Home identity is day-aware and does not add a mention
   it('withholds the header tally while an independent region read fails', async () => {
     mockLoadFailedChecks.mockRejectedValue(new Error('offline'))
     mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
-    await renderHome(financeViewer)
+    await renderHome(cafeViewer)
     const head = screen.getByTestId('page-head')
     expect(within(head).queryByText(/\d+ left/)).toBeNull()
     expect(within(head).queryByText(/handled/)).toBeNull()
@@ -558,12 +620,17 @@ describe('AC-204 (4): the shipped Home carries the gated Objectives door', () =>
   })
 
   it('lets an owner-director walk to the Objectives roll-up', async () => {
+    mockLoadHomeObjectiveProgress.mockResolvedValue([
+      { id: 'obj-1', name: 'Q3 Growth', done: 2, total: 3 },
+    ])
     await renderHome(ownerDirectorViewer)
     const link = await screen.findByRole('link', { name: /see progress/i })
     expect(link).toHaveAttribute('href', '/work/objectives')
     expect(objectivesDoor()).toContainElement(link)
-    expect(objectivesDoor()).toHaveTextContent(/Progress rolls up from each Objective/i)
+    expect(objectivesDoor()).not.toHaveTextContent(/Progress rolls up from each Objective/i)
     expect(objectivesDoor()).not.toHaveTextContent(/coming/i)
+    expect(await within(objectivesDoor()).findByRole('link', { name: /Q3 Growth.*2\/3 done/i }))
+      .toHaveAttribute('href', '/work/objectives?q=Q3%20Growth')
   })
 
   it('gives a function owner the same door', async () => {
@@ -593,5 +660,6 @@ describe('issue 444 mechanism: the door component owns its canonical destination
     )
     expect(screen.getByRole('link', { name: /see progress/i }))
       .toHaveAttribute('href', '/work/objectives')
+    expect(screen.queryByText(/Progress rolls up from each Objective/i)).toBeNull()
   })
 })

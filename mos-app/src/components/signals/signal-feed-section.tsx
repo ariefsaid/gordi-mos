@@ -31,6 +31,8 @@ export interface SignalFeedSectionProps {
   error?: boolean
   /** Re-run the shared signal read (after a categorize correction, a Share elsewhere, or Retry). */
   onReload?: () => void
+  /** Home members keep this ambient feed to the Share door; the archive keeps search. */
+  showSearch?: boolean
 }
 
 function namesToRecord(map: ReadonlyMap<string, string>): Record<string, string> {
@@ -39,6 +41,7 @@ function namesToRecord(map: ReadonlyMap<string, string>): Record<string, string>
 
 export function SignalFeedSection({
   signals, authorNamesById, teamNamesById, createTaskHref, loading = false, error = false, onReload,
+  showSearch = true,
 }: SignalFeedSectionProps) {
   const navigate = useNavigate()
   const host = useOptionalOverlayHost()
@@ -110,6 +113,7 @@ export function SignalFeedSection({
           teamNamesById={namesToRecord(teamNamesById)}
           onShareClick={openSignalComposer}
           createTaskHref={createTaskHref}
+          showSearch={showSearch}
           onOpen={(signal) => openRecord(signal.id)}
         />
       )}

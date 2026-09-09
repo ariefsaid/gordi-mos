@@ -20,6 +20,9 @@ import './home-daily-brief.css'
 export interface HomeDailyBriefProps {
   regions: HomeRegion[]
   feed: ReactNode
+  objectives?: ReactNode
+  cafeDoor?: ReactNode
+  composition?: 'member' | 'cockpit'
   showFailedChecks?: boolean
 }
 
@@ -41,6 +44,9 @@ function BriefRouteLink({ region, label }: { region: HomeRegion; label: string }
 export function HomeDailyBrief({
   regions,
   feed,
+  objectives,
+  cafeDoor,
+  composition = 'cockpit',
   showFailedChecks = true,
 }: HomeDailyBriefProps) {
   const t = useT()
@@ -50,6 +56,44 @@ export function HomeDailyBrief({
   const needsYou = regionById(regions, 'needs-you')
   const failedChecks = regionById(regions, 'failed-checks')
   const myWork = regionById(regions, 'my-work')
+
+  const memberAssigned: HomeRegion = {
+    ...needsYou,
+    items: [...needsYou.items, ...myWork.items],
+    count: needsYou.count === null || myWork.count === null
+      ? null
+      : myWork.drillTo?.count ?? needsYou.count + myWork.count,
+    drillTo: myWork.drillTo ?? needsYou.drillTo,
+  }
+
+  if (composition === 'member') {
+    return (
+      <div className="home-daily-brief home-daily-brief--member" data-testid="home-daily-brief">
+        <div className="home-brief-main home-brief-main--member">
+          {cafeDoor}
+          <section className="home-brief-attention home-brief-member-assigned" aria-labelledby={attentionId}>
+            <header className="home-brief-section-head">
+              <div className="home-brief-section-title">
+                <h2 id={attentionId}>
+                  {t(memberAssigned.labelKey)}
+                  <span className="home-brief-count tabular-nums"><RegionCount region={memberAssigned} /></span>
+                </h2>
+              </div>
+              <div className="home-brief-section-side">
+                <BriefRouteLink region={memberAssigned} label={t('home.brief.viewTasks')} />
+              </div>
+            </header>
+            <div className="home-brief-lane home-brief-lane--tasks">
+              <RegionRows region={memberAssigned} actionLabel={t('home.brief.openTask')} />
+            </div>
+          </section>
+        </div>
+        <aside className="home-brief-aside" aria-label={t('home.brief.secondaryLabel')}>
+          <div className="home-brief-feed">{feed}</div>
+        </aside>
+      </div>
+    )
+  }
 
   return (
     <div className="home-daily-brief" data-testid="home-daily-brief">
@@ -114,6 +158,7 @@ export function HomeDailyBrief({
       </div>
 
       <aside className="home-brief-aside" aria-label={t('home.brief.secondaryLabel')}>
+        {objectives ? <div className="home-brief-objectives">{objectives}</div> : null}
         <div className="home-brief-feed">{feed}</div>
       </aside>
     </div>

@@ -21,7 +21,18 @@
 .home-brief-main,
 .home-brief-aside,
 .home-brief-secondary,
-.home-brief-feed {
+.home-brief-feed,
+.home-brief-objectives {
+  min-width: 0;
+}
+
+.home-daily-brief--member {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 344px);
+}
+
+.home-brief-main--member {
+  display: grid;
+  gap: 28px;
   min-width: 0;
 }
 
@@ -189,6 +200,15 @@
   margin-top: 0;
 }
 
+.home-brief-objectives {
+  margin-bottom: 28px;
+}
+
+.home-brief-objectives .stream-band {
+  border-top: 2px solid var(--brand-navy);
+  padding-top: 14px;
+}
+
 /* The feed is the first item in Home's supporting rail, so its archive seam should not create
    empty air above the column. The global signal surface keeps its seam for other consumers. */
 .home-brief-aside .signal-feed-section {
@@ -220,6 +240,12 @@
   }
 
   .home-brief-feed { margin-top: 0; }
+}
+
+@container home (max-width: 620px) {
+  .home-daily-brief--member {
+    gap: 24px;
+  }
 }
 
 @media (max-width: 480px) {

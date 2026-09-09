@@ -7,8 +7,9 @@
 // re-derives them. The OD-18 region-order toggle that used to reorder the old single-stream view
 // was retired (OD-V4-10); attention always leads.
 //
-// This is presentation over the EXISTING data contracts: the same tasks/failed-check projections
-// and lane logic (lib/home-attention + lib/home-stream selectors) — no new data path.
+// This is presentation over the EXISTING task/failed-check contracts and lane logic
+// (lib/home-attention + lib/home-stream selectors). Home adds two small, RLS-backed doors for
+// the persona composition: the Café opening door and the real Objective progress projection.
 // Financial routine KPIs stay on /dashboard (OD-REDESIGN-17); financial *exceptions* would surface in
 // the needs-you region via the attention bands.
 //
@@ -35,19 +36,17 @@ import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { viewerAdmittedToRoute } from '@/shell/destinations'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { loadFailedChecksForViewer, CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
+import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople, getRoles } from '@/lib/db/directory'
 import type { RoleScopeRow } from '@/lib/db/directory'
-// The tested role-scope predicates (pure, no I/O). Home asks them the SAME question the role tree
-// answers everywhere else — "does this viewer steer a scope" — rather than growing a second,
-// drifting idea of who heads a business unit.
-import { isOwnerDirector, buHeadsForViewer } from '@/lib/role-scope'
+// The tested role-scope predicates remain a live Home seam. The composition helper calls these
+// same pure predicates rather than growing a second, drifting idea of who heads a business unit.
+import { canReviewCafeFailedChecks, holdsHomeCockpitScope } from '@/lib/home-composition'
 import { wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import {
@@ -57,9 +56,11 @@ import {
 import { buildHomeRegions } from '@/components/home/home-regions'
 import { HomeHeadCounts, type HomeDayTally } from '@/components/home/home-day-header'
 import { HomeDailyBrief } from '@/components/home/home-daily-brief'
+import { HomeCafeDoor } from '@/components/home/home-cafe-door'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
-import { signalTaskCreateHref } from '@/components/signals/signal-task-intent'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
+import { loadHomeCafeDoor, type HomeCafeDoorData } from '@/lib/db/home-cafe'
+import { loadHomeObjectiveProgress, type HomeObjectiveProgress } from '@/lib/db/home-objectives'
 import { isShipGated } from '@/lib/ship-gate'
 import './home-page.css'
 import '@/components/signals/signal-feed-section.css'
@@ -82,14 +83,11 @@ export function HomePage() {
     return h < 11 ? 'home.greeting.morning' as const : h < 15 ? 'home.greeting.afternoon' as const : 'home.greeting.evening' as const
   }
   const personId = viewer?.person?.id ?? null
-  // The failed-checks band routes to /cafe/log, so Home shows it exactly where that ROUTE admits the
-  // viewer — the same authority the rail uses (`OD-WAY-51`: navigation mirrors what the route
-  // admits). Home is the one instance the nav guard structurally cannot cover, because it is not
-  // nav. This replaces `viewerSeesCafe`, which decided by regex over job-role NAME strings — the
-  // mechanism OD-WAY-51 removed after measuring that 5 of 10 real job roles matched no module at
-  // all, leaving viewers the route fully admitted with no signal.
+  // Failed checks are an operational exception, not generic `/cafe/log` route admission. The route
+  // is intentionally readable by every authenticated viewer; Home narrows the band to the
+  // affiliation fact supplied by auth, with admin as the explicit cross-Café exception.
   const seesCafe = useMemo(
-    () => viewerAdmittedToRoute(CAFE_LOG_ROUTE, viewer?.accessRoles ?? []),
+    () => viewer ? canReviewCafeFailedChecks(viewer) : false,
     [viewer])
 
   // Shared unmount guard for every retryable loader (never setState after unmount). Set true in the
@@ -182,7 +180,6 @@ export function HomePage() {
   // rows paint with a name the page could still fail to fetch.
   const [signals, setSignals] = useState<SignalRow[]>([])
   const [teamNames, setTeamNames] = useState<ReadonlyMap<string, string>>(NO_NAMES)
-  const [teamBusinessUnits, setTeamBusinessUnits] = useState<ReadonlyMap<string, string>>(NO_NAMES)
   const [signalsState, setSignalsState] = useState<FetchState>('loading')
   const signalsInFlightRef = useRef(false)
   const signalsTokenRef = useRef(0)
@@ -197,7 +194,6 @@ export function HomePage() {
         if (!isMountedRef.current || signalsTokenRef.current !== token) return
         setSignals(rows)
         setTeamNames(new Map(teams.map(team => [team.id, team.name])))
-        setTeamBusinessUnits(new Map(teams.map(team => [team.id, team.business_unit_id])))
         setSignalsState('ready')
       })
       .catch(() => {
@@ -250,10 +246,10 @@ export function HomePage() {
   // company-wide roll-up is noise on that job, so they get none, exactly as the stacked
   // composition gives them no cockpit. One door, gated once: the stacked surface repeated the
   // slot per cockpit section because it renders one section per scope; Home has one aside.
-  const holdsCockpitScope = useMemo(() => {
-    const heldRoles = viewer?.roles ?? []
-    return isOwnerDirector(heldRoles) || buHeadsForViewer(heldRoles, orgRoles).length > 0
-  }, [viewer, orgRoles])
+  const holdsCockpitScope = useMemo(
+    () => viewer ? holdsHomeCockpitScope(viewer, orgRoles) : false,
+    [viewer, orgRoles],
+  )
 
   // ── Ranked stream items (owner redirect) ────────────────────────────────────
   const today = useMemo(() => wibToday(), [])
@@ -278,6 +274,98 @@ export function HomePage() {
     const excludeIds = new Set<string>([...overdue, ...dueToday, ...blocked].map(i => i.id))
     return myWorkStreamItems(tasks, personId, today, locale, directory, excludeIds).slice(0, MY_WORK_CAP)
   }, [ready, personId, tasks, today, locale, directory, overdue, dueToday, blocked])
+
+  // ── Member Café door ────────────────────────────────────────────────────────
+  // The door is only a member composition affordance. It reads the viewer's real primary stream
+  // and today's existing run; it never starts a process as a side effect of visiting Home.
+  const cafeMember = Boolean(viewer && !holdsCockpitScope && viewer.affiliated.includes('cafe'))
+  const [cafeDoor, setCafeDoor] = useState<HomeCafeDoorData | null>(null)
+  const [cafeDoorState, setCafeDoorState] = useState<FetchState>('ready')
+  const cafeDoorInFlightRef = useRef(false)
+  const cafeDoorTokenRef = useRef(0)
+
+  const loadCafeDoor = useCallback(() => {
+    if (!personId || !cafeMember) {
+      setCafeDoor(null)
+      setCafeDoorState('ready')
+      return
+    }
+    if (cafeDoorInFlightRef.current) return
+    cafeDoorInFlightRef.current = true
+    const token = ++cafeDoorTokenRef.current
+    setCafeDoorState('loading')
+    loadHomeCafeDoor(personId)
+      .then(data => {
+        if (!isMountedRef.current || cafeDoorTokenRef.current !== token) return
+        setCafeDoor(data)
+        setCafeDoorState('ready')
+      })
+      .catch(() => {
+        if (!isMountedRef.current || cafeDoorTokenRef.current !== token) return
+        setCafeDoorState('error')
+      })
+      .finally(() => {
+        if (cafeDoorTokenRef.current === token) cafeDoorInFlightRef.current = false
+      })
+  }, [personId, cafeMember])
+
+  useEffect(() => {
+    cafeDoorTokenRef.current += 1
+    cafeDoorInFlightRef.current = false
+    loadCafeDoor()
+  }, [loadCafeDoor])
+
+  // ── Objectives cockpit door ─────────────────────────────────────────────────
+  // Home reuses the task projection already in flight, then reads only the active Objective and
+  // Work-line edges needed to resolve each task to its Objective. No percentage or target is
+  // invented; an empty catalog and a read failure remain distinct states.
+  const showObjectives = holdsCockpitScope && !isShipGated('/work/objectives')
+  const [objectiveRows, setObjectiveRows] = useState<HomeObjectiveProgress[]>([])
+  const [objectiveReadState, setObjectiveReadState] = useState<FetchState>('ready')
+  const objectiveInFlightRef = useRef(false)
+  const objectiveTokenRef = useRef(0)
+
+  const loadObjectives = useCallback(() => {
+    if (!personId || !showObjectives || taskState !== 'ready') {
+      if (!showObjectives) {
+        setObjectiveRows([])
+        setObjectiveReadState('ready')
+      }
+      return
+    }
+    if (objectiveInFlightRef.current) return
+    objectiveInFlightRef.current = true
+    const token = ++objectiveTokenRef.current
+    setObjectiveReadState('loading')
+    loadHomeObjectiveProgress(tasks)
+      .then(rows => {
+        if (!isMountedRef.current || objectiveTokenRef.current !== token) return
+        setObjectiveRows(rows)
+        setObjectiveReadState('ready')
+      })
+      .catch(() => {
+        if (!isMountedRef.current || objectiveTokenRef.current !== token) return
+        setObjectiveReadState('error')
+      })
+      .finally(() => {
+        if (objectiveTokenRef.current === token) objectiveInFlightRef.current = false
+      })
+  }, [personId, showObjectives, taskState, tasks])
+
+  useEffect(() => {
+    objectiveTokenRef.current += 1
+    objectiveInFlightRef.current = false
+    loadObjectives()
+  }, [loadObjectives])
+
+  const objectivesState: FetchState = !showObjectives
+    ? 'ready'
+    : taskState === 'error'
+      ? 'error'
+      : taskState === 'loading'
+        ? 'loading'
+        : objectiveReadState
+  const retryObjectives = taskState === 'error' ? loadTasks : loadObjectives
 
   // Failed-checks keeps its OWN independent fetch state (separate DAL).
   const failedChecksBand: StreamBand = useMemo(() => ({
@@ -338,12 +426,15 @@ export function HomePage() {
   const tally = useMemo<HomeDayTally | null>(() => {
     if (!personId) return null
     let left = 0
-    for (const region of regions) {
+    const visibleRegions = holdsCockpitScope
+      ? regions
+      : regions.filter((region) => region.id !== 'failed-checks')
+    for (const region of visibleRegions) {
       if (region.count === null) return null
       left += region.count
     }
     return { left }
-  }, [personId, regions])
+  }, [personId, regions, holdsCockpitScope])
 
   return (
     <PageFamilyFrame
@@ -369,32 +460,41 @@ export function HomePage() {
         // the section's ErrorState + Retry, so a failed load never reads as "No Signals yet".
         // Author names come from the shared best-effort directory: a missing name leaves a row
         // undecorated, it never blocks or errors the feed.
-        // The Signals feed leads this supporting stack; the Objectives door follows as a standing
-        // reference for viewers who steer a scope.
+        // The Signals feed is the ambient companion. Home rows remain read-only; Create task and
+        // categorization are record-level actions on /work/signals.
         const aside = (
           <div>
-            {/* #444: the door is the drill into /work/objectives, so it follows that path's ship
-                gate — asked through the SAME predicate the router and the rail ask, never a second
-                hardcoded check. Hiding the destination without hiding this leaves a headed band
-                whose only control forwards home: a dead end dressed as a finished section. */}
             <SignalFeedSection
               signals={signals}
               authorNamesById={directory.people ?? NO_NAMES}
               teamNamesById={teamNames}
-              createTaskHref={(signal) => {
-                const businessUnitId = teamBusinessUnits.get(signal.owning_team_id)
-                return personId && businessUnitId
-                  ? signalTaskCreateHref(signal, businessUnitId, personId)
-                  : undefined
-              }}
+              showSearch={false}
               loading={signalsState === 'loading'}
               error={signalsState === 'error'}
               onReload={loadSignals}
             />
-            {holdsCockpitScope && !isShipGated('/work/objectives') && <HomeObjectivesDoor />}
           </div>
         )
-        return <HomeDailyBrief regions={regions} feed={aside} showFailedChecks={seesCafe} />
+        const objectives = showObjectives ? (
+          <HomeObjectivesDoor
+            state={objectivesState}
+            rows={objectiveRows}
+            onRetry={retryObjectives}
+          />
+        ) : null
+        const cafe = cafeMember ? (
+          <HomeCafeDoor state={cafeDoorState} data={cafeDoor} onRetry={loadCafeDoor} />
+        ) : null
+        return (
+          <HomeDailyBrief
+            regions={regions}
+            feed={aside}
+            objectives={objectives}
+            cafeDoor={cafe}
+            composition={holdsCockpitScope ? 'cockpit' : 'member'}
+            showFailedChecks={seesCafe}
+          />
+        )
       })()}</div>
     </PageFamilyFrame>
   )
