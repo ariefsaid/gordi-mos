@@ -12,7 +12,7 @@ import {
   updateTaskStatus, updateTaskFields, updateTaskRaci,
   archiveTask, unarchiveTask,
   addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,
-  searchTasksByTitle,
+  searchTasksByTitle, getTaskTitlesByIds,
 } from './tasks'
 import { supabase } from '@/lib/supabase'
 
@@ -530,5 +530,22 @@ describe('searchTasksByTitle', () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: null, error: { message: 'search boom' } }] }, rec) as never)
     await expect(searchTasksByTitle('x')).rejects.toThrow(/searchTasksByTitle failed — search boom/)
+  })
+})
+
+
+describe('linked Task identity reads', () => {
+  it('can exclude archived Tasks for live Signal work without changing other identity readers', async () => {
+    const active = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [], error: null }] }, active) as never)
+    await getTaskTitlesByIds([TASK_ID], { includeArchived: false })
+    expect(active.eqs).toContainEqual(['id', [TASK_ID]])
+    expect(active.eqs).toContainEqual(['archived_at', null])
+    noOrgId(active)
+
+    const historical = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [], error: null }] }, historical) as never)
+    await getTaskTitlesByIds([TASK_ID])
+    expect(historical.eqs).not.toContainEqual(['archived_at', null])
   })
 })

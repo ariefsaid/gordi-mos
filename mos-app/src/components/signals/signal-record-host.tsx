@@ -77,7 +77,7 @@ function personName(people: PersonOption[], id: string, fallback: string): strin
 
 async function readTaskTitlesByIds(taskIds: readonly string[]): Promise<TaskTitleRef[]> {
   const uniqueIds = [...new Set(taskIds)]
-  return uniqueIds.length > 0 ? getTaskTitlesByIds(uniqueIds) : []
+  return uniqueIds.length > 0 ? getTaskTitlesByIds(uniqueIds, { includeArchived: false }) : []
 }
 
 type TaskDraftSession = {

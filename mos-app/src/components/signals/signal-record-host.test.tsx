@@ -448,7 +448,7 @@ describe('SignalRecordHost — Link existing Task (linkSignalTask, FR-413)', () 
 
     expect(mockLinkSignalTask).toHaveBeenCalledWith(SIGNAL_ID, 'task-a')
     expect(mockSearchTasksByTitle).toHaveBeenCalledWith('Repair freezer')
-    await waitFor(() => expect(mockGetTaskTitlesByIds).toHaveBeenCalledWith(['task-a']))
+    await waitFor(() => expect(mockGetTaskTitlesByIds).toHaveBeenCalledWith(['task-a'], { includeArchived: false }))
   })
 
   it('keeps candidate search retryable when the demand-driven Task search fails', async () => {
@@ -487,7 +487,7 @@ describe('SignalRecordHost — Linked-work rows (FR-413)', () => {
     expect(screen.getByText(/Loading linked work/i)).toBeInTheDocument()
 
     resolveTasks([{ id: 'task-a', title: 'Deferred task', status: 'Open' }])
-    expect(mockGetTaskTitlesByIds).toHaveBeenCalledWith(['task-a'])
+    expect(mockGetTaskTitlesByIds).toHaveBeenCalledWith(['task-a'], { includeArchived: false })
     expect(await screen.findByRole('link', { name: /Deferred task.*Open/i })).toHaveAttribute('href', '/work/tasks/task-a')
   })
 
@@ -511,7 +511,7 @@ describe('SignalRecordHost — Linked-work rows (FR-413)', () => {
     expect(within(region).getByText('B')).toBeInTheDocument()
     expect(within(region).getByText('Done')).toBeInTheDocument()
     expect(within(region).getByRole('link', { name: /A.*Open/i })).toHaveAttribute('href', '/work/tasks/task-a')
-    expect(mockGetTaskTitlesByIds).toHaveBeenCalledWith(['task-a', 'task-b'])
+    expect(mockGetTaskTitlesByIds).toHaveBeenCalledWith(['task-a', 'task-b'], { includeArchived: false })
   })
 })
 

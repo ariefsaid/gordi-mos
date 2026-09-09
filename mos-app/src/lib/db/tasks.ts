@@ -191,12 +191,16 @@ export interface TaskTitleRef {
  * NFR-006). Returns only the ids that are visible to the caller (org-readable set from RLS).
  * Never embeds cross-schema FKs — the ops data layer stays raw and name-resolution is here.
  */
-export async function getTaskTitlesByIds(ids: string[]): Promise<TaskTitleRef[]> {
+export async function getTaskTitlesByIds(
+  ids: string[], options: { includeArchived?: boolean } = {},
+): Promise<TaskTitleRef[]> {
   if (ids.length === 0) return []
-  const { data, error } = await mos()
+  let query = mos()
     .from('tasks')
     .select('id,title,status')
     .in('id', ids)
+  if (options.includeArchived === false) query = query.is('archived_at', null)
+  const { data, error } = await query
   if (error) throw new Error(`getTaskTitlesByIds failed — ${error.message}`)
   return (data ?? []) as unknown as TaskTitleRef[]
 }
