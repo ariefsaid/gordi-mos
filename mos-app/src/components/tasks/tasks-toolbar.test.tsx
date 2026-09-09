@@ -109,7 +109,8 @@ describe('TasksToolbar — queue-first disclosure', () => {
 
     await waitFor(() => expect(onLoad).toHaveBeenCalledTimes(1))
     fireEvent.click(screen.getByRole('button', { name: /^filters$/i }))
-    expect(screen.getByRole('alert')).toHaveTextContent('Saved views unavailable.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Saved views are unavailable. Try again.')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('Saved views unavailable.')
 
     fireEvent.click(screen.getByRole('button', { name: /try again/i }))
     await waitFor(() => expect(onLoad).toHaveBeenCalledTimes(2))
@@ -142,7 +143,7 @@ describe('TasksToolbar — queue-first disclosure', () => {
         />
       </I18nProvider>,
     )
-    expect(screen.getByRole('alert')).toHaveTextContent('Saved view could not be applied.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Saved views are unavailable. Try again.')
 
     fireEvent.click(screen.getByRole('button', { name: /try again/i }))
     await waitFor(() => expect(onApply).toHaveBeenCalledTimes(2))
@@ -167,7 +168,7 @@ describe('TasksToolbar — queue-first disclosure', () => {
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
     expect(input).toHaveValue('My queue')
-    expect(screen.getByRole('alert')).toHaveTextContent('Could not save view.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Saved views are unavailable. Try again.')
 
     fireEvent.click(screen.getByRole('button', { name: /try again/i }))
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2))

@@ -423,7 +423,7 @@ export function TasksToolbar({
                   <span>{t('tasks.toolbar.savedViewsHelp')}</span>
                 </div>
                 {savedViews.error ? (
-                  <ErrorState message={savedViews.error} onRetry={retrySavedView} />
+                  <ErrorState message={t('tasks.savedViewsError')} onRetry={retrySavedView} />
                 ) : null}
                 {savedViews.items.length > 0 ? (
                   <div className="tasks-saved-views__list">
