@@ -54,3 +54,7 @@ Typecheck, relevant tests, lint and build support correctness. Independent desig
 quality and security review support acceptance. Neither automated checks nor source inspection
 prove a visually successful redesign. The final evidence must include rendered comparisons
 and working journeys for both Home and Tasks.
+
+Workers run checks scoped to their changes; the integrated application owns the full test
+battery. Bound local test concurrency when tasks share a machine. Normal commit hooks still
+apply, and interrupted or failed runs remain incomplete evidence until their required checks pass.
