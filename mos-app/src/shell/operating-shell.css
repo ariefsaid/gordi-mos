@@ -1,8 +1,13 @@
 /* Home and Tasks share a structural navigation surface while their work stays light. */
+.operating-shell {
+  --operating-nav-surface: color(srgb 0.09412 0.14902 0.21961);
+  --operating-nav-text: color(srgb 0.95686 0.96078 0.97255);
+}
+
 .operating-shell > aside {
-  --foreground: color(srgb 0.95686 0.96078 0.97255);
+  --foreground: var(--operating-nav-text);
   --muted-foreground: color(srgb 0.72549 0.76471 0.82745);
-  --secondary: color(srgb 0.09412 0.14902 0.21961);
+  --secondary: var(--operating-nav-surface);
   --accent: color(srgb 0.15686 0.23529 0.33333);
   --border: color(srgb 0.20392 0.26667 0.35294);
   --popover: color(srgb 0.12941 0.20000 0.29020);
@@ -57,4 +62,15 @@
 .operating-shell > aside [role='menu'] {
   background: var(--popover);
   color: var(--foreground);
+}
+
+@media (min-width: 920px) {
+  .operating-shell .top-bar > div:first-child {
+    background: var(--operating-nav-surface);
+    border-color: var(--operating-nav-surface);
+  }
+
+  .operating-shell .top-bar > div:first-child .text-foreground {
+    color: var(--operating-nav-text);
+  }
 }
