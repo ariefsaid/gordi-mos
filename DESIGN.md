@@ -1,3 +1,8 @@
+> **Home and Tasks replacement:** `REDESIGN.md` supersedes this document for those two
+> surfaces and their immediate shared interaction seams. The preserved-identity, fixed-layout,
+> native-select-only and Taste restrictions below do not constrain that redesign. Unrelated
+> surfaces continue using this system. Prior snapshots are retained in local redesign records.
+
 ---
 name: Gordi MOS
 version: alpha

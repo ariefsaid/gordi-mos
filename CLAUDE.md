@@ -1,5 +1,14 @@
 # Gordi MOS
 
+## Active Home and Tasks replacement
+
+For Home and Tasks redesign, `REDESIGN.md` is the current design and delivery authority.
+It supersedes historical presentation constraints and the ticket factory sequence for this effort.
+Use bounded isolated workers, integrate running surfaces, and review the result against actual
+user outcomes. Preserve business/security contracts and public-write safeguards. Historical
+DESIGN.md rules are reference only where this replacement brief changes them.
+
+
 > ## ⚠️ THIS REPO IS PUBLIC — `github.com/ariefsaid/gordi-mos`
 >
 > Commits, issues, PRs and comments are world-readable and permanent. Deleting does not un-publish.
