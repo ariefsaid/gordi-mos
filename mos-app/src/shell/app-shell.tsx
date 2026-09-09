@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, type ReactNode } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { Rail } from './rail'
 import { TopBar } from './top-bar'
 import { ContextRow } from './context-row'
@@ -19,6 +19,7 @@ import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
 import { createRecordDeepLinkResolver, RECORD_KINDS } from './record-deep-link-resolver'
 import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
 import { useT } from '@/i18n/use-t'
+import './operating-shell.css'
 
 // Mounted with the Signals surface, exactly as the deferral note here said it would be (#267).
 // `SignalComposerHost` mounts `SignalComposer` and reads the mention rosters; `SignalsArchivePage`
@@ -113,6 +114,8 @@ function OverlayHostRoot({ children }: { children: ReactNode }) {
 }
 
 function ShellContent() {
+  const { pathname } = useLocation()
+  const operatingSurface = pathname === '/' || pathname === '/work/tasks' || pathname.startsWith('/work/tasks/')
   // OD-REDESIGN-84.2 (P1-1): the intermediate 920–1099.98px regime — desktop rail still
   // mounted (isNarrow is false) but too tight for the full 232px labelled rail — collapses
   // to the ~72px icon-only rail. Reuses the existing split-width breakpoint family (the same
@@ -160,7 +163,7 @@ function ShellContent() {
           unbind that row and let the whole shell grow (the "grows" case), breaking the internal
           scroll. h-dvh keeps the exact grid behaviour, only swapping vh → dvh. */}
       <div
-        className="h-dvh bg-secondary/35"
+        className={`h-dvh bg-secondary/35${operatingSurface ? ' operating-shell' : ''}`}
         style={{
           display: 'grid',
           width: '100%',

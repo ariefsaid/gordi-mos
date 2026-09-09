@@ -1,0 +1,60 @@
+/* Home and Tasks share a structural navigation surface while their work stays light. */
+.operating-shell > aside {
+  --foreground: color(srgb 0.95686 0.96078 0.97255);
+  --muted-foreground: color(srgb 0.72549 0.76471 0.82745);
+  --secondary: color(srgb 0.09412 0.14902 0.21961);
+  --accent: color(srgb 0.15686 0.23529 0.33333);
+  --border: color(srgb 0.20392 0.26667 0.35294);
+  --popover: color(srgb 0.12941 0.20000 0.29020);
+  --text-on-accent-tint: color(srgb 1.00000 1.00000 1.00000);
+  --ds-color-blue3: color(srgb 0.20392 0.30196 0.43922);
+
+  background: var(--secondary);
+  color: var(--foreground);
+  border-right: 0;
+}
+
+.operating-shell > aside .rail-item {
+  min-height: 40px;
+  border-radius: 6px;
+}
+
+.operating-shell > aside .rail-item--active {
+  background: var(--ds-color-blue3);
+  color: var(--foreground);
+}
+
+.operating-shell > aside .rail-item:focus-visible,
+.operating-shell > aside button:focus-visible {
+  outline: 2px solid color(srgb 0.76863 0.84706 1.00000);
+  outline-offset: 2px;
+}
+
+.operating-shell > aside .rail-item-overline {
+  letter-spacing: 0.08em;
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+.operating-shell .page-frame--v3 {
+  background: var(--background);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .operating-shell > aside .rail-item {
+    transition: background-color 140ms ease-out, color 140ms ease-out;
+  }
+}
+
+.operating-shell > aside .text-foreground {
+  color: var(--foreground);
+}
+
+.operating-shell > aside .text-muted-foreground {
+  color: var(--muted-foreground);
+}
+
+.operating-shell > aside [role='menu'] {
+  background: var(--popover);
+  color: var(--foreground);
+}
