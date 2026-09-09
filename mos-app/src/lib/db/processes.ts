@@ -125,3 +125,14 @@ export async function completeRun(runId: string): Promise<ProcessRunRow> {
   if (error) throw new Error(`completeRun failed — ${error.message}`)
   return data as unknown as ProcessRunRow
 }
+
+/** Cancel an open run via `mos.cancel_process_run`. Cancellation is auditable and does not
+ * mutate the run's generated Tasks (FR-610/AC-012). */
+export async function cancelRun(runId: string, reason: string): Promise<ProcessRunRow> {
+  const { data, error } = await mos().rpc('cancel_process_run', {
+    p_run_id: runId,
+    p_reason: reason,
+  })
+  if (error) throw new Error(`cancelRun failed — ${error.message}`)
+  return data as unknown as ProcessRunRow
+}

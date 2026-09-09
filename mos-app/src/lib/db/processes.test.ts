@@ -9,7 +9,7 @@ vi.mock('../supabase', () => {
 
 import {
   startRun, listDueRuns, listPendingTasks, resolvePendingTask,
-  getRunRollup, listRunTasks, completeRun, listRunRollups, listTaskDefs,
+  getRunRollup, listRunTasks, completeRun, cancelRun, listRunRollups, listTaskDefs,
 } from './processes'
 import { supabase } from '@/lib/supabase'
 import type { DueProcessRun, ProcessRunRollup, ProcessRunRow } from './processes.types'
@@ -363,7 +363,8 @@ describe('completeRun', () => {
     const runRow: ProcessRunRow = {
       id: RUN_ID, work_line_id: WORK_LINE_ID, owning_team_id: TEAM_ID, period_key: '2026-07-17',
       caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17', status: 'completed',
-      definition_version: 1,
+      definition_version: 1, started_by: 'person-1', completed_at: '2026-07-17T10:00:00Z',
+      completed_by: 'person-1', cancelled_at: null, cancelled_by: null, cancel_reason: null,
     }
     mockSupabase({ 'rpc.complete_process_run': [{ data: runRow, error: null }] }, rec)
 
@@ -378,5 +379,34 @@ describe('completeRun', () => {
     mockSupabase({ 'rpc.complete_process_run': [{ data: null, error: { message: 'not authorized' } }] }, rec)
 
     await expect(completeRun(RUN_ID)).rejects.toThrow(/not authorized/)
+  })
+})
+
+describe('cancelRun', () => {
+  it('calls mos.cancel_process_run with the run id and reason and returns the updated run', async () => {
+    const rec = freshRec()
+    const runRow: ProcessRunRow = {
+      id: RUN_ID, work_line_id: WORK_LINE_ID, owning_team_id: TEAM_ID, period_key: '2026-07-17',
+      caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17', status: 'cancelled',
+      definition_version: 1, started_by: 'person-1', completed_at: null, completed_by: null,
+      cancelled_at: '2026-07-17T10:00:00Z', cancelled_by: 'person-1',
+      cancel_reason: 'The opening was merged into the public event.',
+    }
+    mockSupabase({ 'rpc.cancel_process_run': [{ data: runRow, error: null }] }, rec)
+
+    const result = await cancelRun(RUN_ID, 'The opening was merged into the public event.')
+
+    expect(rec.rpcs).toContainEqual([
+      'cancel_process_run',
+      { p_run_id: RUN_ID, p_reason: 'The opening was merged into the public event.' },
+    ])
+    expect(result).toEqual(runRow)
+  })
+
+  it('re-throws when the RPC returns an error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.cancel_process_run': [{ data: null, error: { message: 'reason required' } }] }, rec)
+
+    await expect(cancelRun(RUN_ID, ' ')).rejects.toThrow(/reason required/)
   })
 })

@@ -35,6 +35,12 @@ export interface ProcessRunRow {
   scheduled_date: string
   status: ProcessRunStatus
   definition_version: number
+  started_by: string | null
+  completed_at: string | null
+  completed_by: string | null
+  cancelled_at: string | null
+  cancelled_by: string | null
+  cancel_reason: string | null
 }
 
 /** A row from `mos.process_run_rollup` (derived, no stored counts — ADR D9). */
