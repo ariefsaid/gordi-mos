@@ -37,6 +37,12 @@ capability checks, authorization, real persistence, canonical links and accurate
 
 ## Delivery method
 
+Track the active brief, direct owner decisions, execution claims, dependencies, progress and
+verification in the GitHub design judgment map and its child issues. Reuse existing tickets and
+correct superseded requirements; local plans supplement the tracker. A resolved decision closes
+its decision ticket, not the implementation ticket. The separate Codex task lane changes the
+executor, not these tracking or review obligations. Scope frontier work to this active brief.
+
 One design owner specifies the whole experience; isolated workers implement Home and Tasks.
 Integrate running application components before judging the result. Review desktop and phone
 composition and drive the actual interactions. Fix findings together, then confirm affected
