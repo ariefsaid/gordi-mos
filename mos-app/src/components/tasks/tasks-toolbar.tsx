@@ -47,11 +47,11 @@ const GROUP_VALUES: { value: TaskCollectionGroup | 'owner'; key: 'none' | 'statu
   { value: 'occurrence', key: 'occurrence' },
 ]
 
-// AC-002 (#743): AR Follow-ups is retired — the parser aliases old ?view=followups links to All.
-// The Team-work chip is the saved-views ticket's (T2), not this one's.
-const VIEW_VALUES: { value: TaskCollectionView; key: 'all' | 'my-work' | 'overdue' }[] = [
+// AC-011/AC-013 (#749): system views are fixed in this order; legacy followups aliases to All.
+const VIEW_VALUES: { value: TaskCollectionView; key: 'all' | 'my-work' | 'team-work' | 'overdue' }[] = [
   { value: 'all', key: 'all' },
   { value: 'my-work', key: 'my-work' },
+  { value: 'team-work', key: 'team-work' },
   { value: 'overdue', key: 'overdue' },
 ]
 
@@ -83,6 +83,7 @@ export function TasksToolbar({
   const viewLabel = (key: (typeof VIEW_VALUES)[number]['key']) => {
     if (key === 'all') return t('tasks.saved.all')
     if (key === 'my-work') return t('tasks.saved.mine')
+    if (key === 'team-work') return t('tasks.saved.team')
     return t('tasks.saved.overdue')
   }
 

@@ -4,13 +4,18 @@ import type { TaskCollectionQuery } from './task-collection-adapter'
 
 const labels = {
   all: 'All', 'my-work': 'My work', 'my-pic': 'My work', 'my-supervisor': 'My work',
-  overdue: 'Overdue',
+  'team-work': 'Team work', overdue: 'Overdue',
 }
 const query = (patch: Partial<TaskCollectionQuery> = {}) => ({
   view: 'all' as const, savedViewId: null, ...patch,
 })
 
 describe('getActiveTaskView', () => {
+  it('names the active Team work view in the breadcrumb', () => {
+    expect(getActiveTaskView({ query: query({ view: 'team-work' }), savedViews: [], labels })).toEqual({
+      savedViewId: null, label: 'Team work', hasNonDefaultView: true,
+    })
+  })
   it('uses the typed built-in label', () => {
     expect(getActiveTaskView({ query: query({ view: 'my-work' }), savedViews: [], labels })).toEqual({
       savedViewId: null, label: 'My work', hasNonDefaultView: true,

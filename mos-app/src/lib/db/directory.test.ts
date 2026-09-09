@@ -6,7 +6,7 @@ vi.mock('../supabase', () => {
   return { supabase: { schema } }
 })
 
-import { getBusinessUnits, getDownlinePersonIds, getPeople, searchPeopleByName } from './directory'
+import { getBusinessUnits, getDownlinePersonIds, getPeople, getPersonTeams, searchPeopleByName } from './directory'
 import { supabase } from '@/lib/supabase'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -14,14 +14,24 @@ const schemaMock = vi.mocked(supabase.schema)
 // ── Chainable mock builder ────────────────────────────────────────────────────
 function makeSharedSchema(
   responses: Record<string, { data: unknown; error: unknown }>,
-  rec?: { isCalls: Array<[string, unknown]>; ilikes?: Array<[string, unknown]> },
+  rec?: {
+    isCalls: Array<[string, unknown]>
+    ilikes?: Array<[string, unknown]>
+    lteCalls?: Array<[string, unknown]>
+  },
 ) {
   const fromImpl = (table: string) => {
     const result = responses[table] ?? { data: null, error: null }
     const builder: Record<string, unknown> = {}
     builder.select = vi.fn(() => builder)
+    builder.eq = vi.fn(() => builder)
+    builder.in = vi.fn(() => builder)
     builder.is = vi.fn((col: string, val: unknown) => {
       rec?.isCalls.push([col, val])
+      return builder
+    })
+    builder.lte = vi.fn((col: string, val: unknown) => {
+      rec?.lteCalls?.push([col, val])
       return builder
     })
     builder.ilike = vi.fn((col: string, val: unknown) => {
@@ -110,6 +120,27 @@ describe('getPeople', () => {
     schemaMock.mockReturnValue(makeSharedSchema({ people: { data: [], error: null } }) as never)
     const result = await getPeople()
     expect(result).toEqual([])
+  })
+})
+
+// ── getPersonTeams ───────────────────────────────────────────────────────────
+describe('getPersonTeams', () => {
+  it('excludes memberships that have not started yet in the DAL query', async () => {
+    const rec = {
+      isCalls: [] as Array<[string, unknown]>,
+      lteCalls: [] as Array<[string, unknown]>,
+    }
+    schemaMock.mockReturnValue(makeSharedSchema({
+      team_memberships: { data: [{ team_id: 'team-kitchen' }], error: null },
+      teams: { data: [{ id: 'team-kitchen', name: 'Kitchen', business_unit_id: 'bu-1' }], error: null },
+    }, rec) as never)
+
+    const result = await getPersonTeams('person-1')
+    expect(result).toEqual([{ id: 'team-kitchen', name: 'Kitchen', business_unit_id: 'bu-1' }])
+
+    const today = new Date().toISOString().slice(0, 10)
+    expect(rec.lteCalls).toContainEqual(['effective_from', today])
+    expect(rec.isCalls).toContainEqual(['effective_to', null])
   })
 })
 

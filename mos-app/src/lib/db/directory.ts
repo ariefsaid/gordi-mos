@@ -19,6 +19,34 @@ export interface PersonOption {
   full_name: string
 }
 
+export interface TeamOption {
+  id: string
+  name: string
+  business_unit_id: string
+}
+
+/** Teams the viewer belongs to: membership still effective AND the team not archived. Team work
+ * uses these ids and their BU fallback, so an archived team must not widen it. */
+export async function getPersonTeams(personId: string): Promise<TeamOption[]> {
+  if (!personId) return []
+  const { data: memberships, error: membershipError } = await shared()
+    .from('team_memberships')
+    .select('team_id')
+    .eq('person_id', personId)
+    .lte('effective_from', new Date().toISOString().slice(0, 10))
+    .is('effective_to', null)
+  if (membershipError) throw new Error(`getPersonTeams memberships failed — ${membershipError.message}`)
+  const ids = [...new Set((memberships ?? []).map((row: { team_id: string }) => row.team_id))]
+  if (ids.length === 0) return []
+  const { data, error } = await shared()
+    .from('teams')
+    .select('id,name,business_unit_id')
+    .in('id', ids)
+    .is('archived_at', null)
+  if (error) throw new Error(`getPersonTeams teams failed — ${error.message}`)
+  return (data ?? []) as TeamOption[]
+}
+
 export interface RoleScopeRow {
   id: string
   business_unit_id: string | null

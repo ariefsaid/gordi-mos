@@ -26,6 +26,7 @@ vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getPersonTeams: vi.fn().mockResolvedValue([]),
 }))
 // Cascade catalogs (Task B) — the workspace loads these non-blocking; mock to empty so the
 // unit test never reaches the real supabase client. (Resolution set in beforeEach — resetAllMocks
@@ -38,7 +39,7 @@ vi.mock('../lib/comments/postComment', () => ({
 }))
 
 import { listTasks, getTask, updateTaskStatus, createTask, archiveTask } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listComments } from '@/lib/comments/postComment'
@@ -163,6 +164,7 @@ beforeEach(() => {
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
+  vi.mocked(getPersonTeams).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
   vi.mocked(listComments).mockResolvedValue([])
@@ -309,17 +311,47 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
   })
 
-  it('§Task-11: /work/tasks?view=team degrades to the org-visible All set with no Team-work chip (Issue-8 gate)', async () => {
-    // DELIBERATE goal change (record-collection plan §Task-11): `view=team` is no longer a supported
-    // view; it is rejected on parse and falls back to the org-visible All set. No Team-work chip
-    // exists until Issue 8 lands the real Task team_id contract.
+  it('§Task-11: /work/tasks?view=team resolves to the canonical Team work view', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Shared task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' })])
     renderAt('/work/tasks?view=team')
-    await waitFor(() => screen.getByText('Shared task'))
-    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+    await waitFor(() => screen.getByRole('button', { name: 'Team work' }))
+    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'false')
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
     expect(document.querySelectorAll('.drawer, [role="dialog"]')).toHaveLength(0)
+  })
+
+  it('§Task-11: switching from All to Team reloads membership context before projecting rows', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({
+        id: 'task-all',
+        title: 'All scope task',
+        business_unit_id: 'bu-other',
+        responsible_person_id: 'other-id',
+        accountable_person_id: 'other-id',
+      }),
+      makeTask({
+        id: 'task-team',
+        title: 'Team scoped task',
+        team_id: 'team-kitchen',
+        responsible_person_id: 'other-id',
+        accountable_person_id: 'other-id',
+      }),
+    ])
+    vi.mocked(getPersonTeams).mockResolvedValue([
+      { id: 'team-kitchen', name: 'Kitchen', business_unit_id: 'bu-1' },
+    ])
+    renderAt('/work/tasks?view=all')
+
+    await waitFor(() => expect(screen.getByText('All scope task')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Team work' }))
+
+    await waitFor(() => {
+      expect(getPersonTeams).toHaveBeenCalledWith(VIEWER_ID)
+      expect(screen.getByText('Team scoped task')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('All scope task')).toBeNull()
+    expect(mockListTasks).toHaveBeenCalledTimes(2)
   })
 
   it('AC-304: /work/tasks?view=bogus falls back safely with no active saved-view chip', async () => {
@@ -327,8 +359,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     renderAt('/work/tasks?view=bogus')
     await waitFor(() => screen.getByText('Fallback task'))
     expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'false')
-    // §Task-11: no Team-work chip exists.
-    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: 'Overdue' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.queryByRole('button', { name: 'AR Follow-ups' })).toBeNull()
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
@@ -429,6 +460,18 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
     expect(document.querySelector('.split')).toBeNull()
     expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
+  })
+
+  it('preserves an explicit saved view when a standalone row opens the record page', async () => {
+    stubWidths({ split: false, desktop: true })
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open from My work' })])
+    let currentPath = ''
+    renderAtWithLocation('/work/tasks?view=my-work', (path) => { currentPath = path })
+
+    await waitFor(() => expect(screen.getByText('Open from My work')).toBeInTheDocument())
+    fireEvent.click(document.querySelector('tbody tr.task-row td:nth-child(3)')!)
+
+    await waitFor(() => expect(currentPath).toBe('/work/tasks/task-1?view=my-work'))
   })
 
   // Round-4 regression: a drawer opened at/above TASKS_SPLIT_MIN_WIDTH must not survive a
@@ -886,5 +929,70 @@ describe('TasksLayout — AC-021: Back names the origin', () => {
     await screen.findByRole('heading', { level: 1, name: 'Reached from Tasks' })
     const back = screen.getByRole('link', { name: /back to tasks/i })
     expect(back).toHaveAttribute('href', '/work/tasks')
+  })
+})
+
+// ── AC-013 (#749): the landing view is the viewer's role default ─────────────────────────────
+// Rendered through the real route element, so a change that neuters getTaskDefaultView shows up
+// here as the wrong chip and the wrong URL — the layer the AC is written at.
+describe('TasksLayout — AC-013: each persona tier lands on its own default view', () => {
+  function personaState(accessRoles: string[], isManager: boolean): AuthState {
+    return {
+      status: 'authenticated',
+      viewer: { person: mockPerson, roles: [mockRole], isManager, accessRoles, affiliated: [] },
+      signOut: async () => {},
+    }
+  }
+
+  function renderAsPersona(auth: AuthState, path: string, onLocationChange: (path: string) => void) {
+    return render(
+      <AuthContext.Provider value={auth}>
+        <MemoryRouter initialEntries={[path]}>
+          <OverlayHostProvider>
+            <LocationRecorder onChange={onLocationChange} />
+            <Routes>
+              <Route path="/work/tasks" element={<TasksLayout />}>
+                <Route path="new" element={<TaskDrawer mode="create" />} />
+                <Route path=":taskId" element={<TaskDrawer mode="view" />} />
+              </Route>
+            </Routes>
+          </OverlayHostProvider>
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    )
+  }
+
+  // 'admin' is the director/admin tier's access role — there is no separate 'director' role.
+  it.each([
+    ['member', 'My work', ['member'], false, 'my-work'],
+    ['lead', 'Team work', ['ops_lead'], false, 'team-work'],
+    ['manager', 'Team work', ['member'], true, 'team-work'],
+    ['director/admin', 'All', ['admin'], false, 'all'],
+  ] as const)('a %s lands on %s', async (_tier, chip, accessRoles, isManager, viewSlug) => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
+    let url = ''
+    renderAsPersona(personaState([...accessRoles], isManager), '/work/tasks', (next) => { url = next })
+
+    const active = await screen.findByRole('button', { name: chip, pressed: true })
+    expect(active).toBeInTheDocument()
+    // All is the schema neutral, so the codec writes no `view` key for it.
+    const viewInUrl = () => new URLSearchParams(url.split('?')[1] ?? '').get('view') ?? 'all'
+    await waitFor(() => expect(viewInUrl()).toBe(viewSlug))
+  })
+
+  it('applies to any URL that pins no view — a lead opening ?q= still lands on Team work', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
+    let url = ''
+    renderAsPersona(personaState(['ops_lead'], false), '/work/tasks?q=', (next) => { url = next })
+
+    expect(await screen.findByRole('button', { name: 'Team work', pressed: true })).toBeInTheDocument()
+    await waitFor(() => expect(url).toContain('view=team-work'))
+  })
+
+  it('a URL that pins a view keeps it — the role default never overrides an explicit link', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Triage me' })])
+    renderAsPersona(personaState(['ops_lead'], false), '/work/tasks?view=all', () => {})
+
+    expect(await screen.findByRole('button', { name: 'All', pressed: true })).toBeInTheDocument()
   })
 })

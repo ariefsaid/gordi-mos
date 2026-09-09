@@ -38,6 +38,7 @@ import { TaskOverlayContent } from './task-drawer'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
 import { getActiveTaskView } from './task-collection-view'
+import { getTaskDefaultView } from '@/lib/task-default-view'
 
 // D-A1 (fix work-order item 4): the Task record door is URL-addressable via the ?record= query
 // seam — the SAME grammar Signals uses (backlog R6(b) "unify on ?record="), built from the shared
@@ -162,7 +163,32 @@ export function TasksWorkspace({
   // disclosure so the first task card is visible above the fold. Desktop renders it inline.
   const captureFirstMobile = !isDesktop
   const currentSearch = location.search
-  const initialQuery = useMemo(() => queryFromLegacySavedView(savedView), [savedView])
+  // The rail badge calls this same selector; keeping landing scope computed here prevents
+  // OD-WAY-94(3)'s badge and default-view counts from drifting apart.
+  const roleDefaultView = auth.status === 'authenticated'
+    ? getTaskDefaultView({ accessRoles, hasReport: auth.viewer.isManager })
+    : 'all'
+  // A record- or draft-intent landing (`/work/tasks/:id`, `?record=`, `/work/tasks/new`, `?create=1`)
+  // must not be rewritten by the role default: #750's record-open and draft-row navigations own the
+  // URL there, and stamping `view=` would race them (opening the wrong surface, or losing `create=1`
+  // before the redirect can seat the draft row). The role default still stands for a bare landing.
+  const initialSearch = useMemo(() => new URLSearchParams(currentSearch), [currentSearch])
+  // The synced collection hook serializes a role default into the URL after a bare landing. Keep
+  // that implicit value out of a standalone record URL, while retaining an explicit link or a view
+  // the user selected through the toolbar.
+  const viewWasExplicitRef = useRef(initialSearch.has('view'))
+  const landingHasRecordOrDraftIntent = Boolean(selectedId)
+    || Boolean(drawerOpen)
+    || initialSearch.has('record')
+    || initialSearch.get('create') === '1'
+  const initialQuery = useMemo(
+    () => queryFromLegacySavedView(savedView) ?? (
+      landingHasRecordOrDraftIntent
+        ? undefined
+        : { ...TASK_COLLECTION_NEUTRAL_QUERY, view: roleDefaultView }
+    ),
+    [landingHasRecordOrDraftIntent, roleDefaultView, savedView],
+  )
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [draftTask, setDraftTask] = useState<TaskListRow | null>(null)
   const [draftLinkError, setDraftLinkError] = useState(false)
@@ -222,6 +248,7 @@ export function TasksWorkspace({
     labels: {
       all: t('tasks.saved.all'),
       'my-work': t('tasks.saved.mine'),
+      'team-work': t('tasks.saved.team'),
       overdue: t('tasks.saved.overdue'),
     },
   })
@@ -231,6 +258,7 @@ export function TasksWorkspace({
   })
 
   const handleViewChange = useCallback((view: TaskCollectionView) => {
+    viewWasExplicitRef.current = true
     setQuery({
       view,
       savedViewId: null,
@@ -285,6 +313,9 @@ export function TasksWorkspace({
     if (!splitLayout) {
       const next = new URLSearchParams(params)
       next.delete('record')
+      // Preserve the collection query on the standalone record URL so an explicit saved view and
+      // its other filters remain available to the record page's Back affordance.
+      if (!viewWasExplicitRef.current) next.delete('view')
       const search = next.toString()
       navigate({ pathname: `/work/tasks/${taskId}`, search: search ? `?${search}` : '' }, { state: { taskSurface: 'page' } })
       return
@@ -595,7 +626,10 @@ export function TasksWorkspace({
         operation: state.savedViews.operation,
         items: state.savedViews.items.map((item) => ({ id: item.id, name: item.name })),
         onLoad: () => { void controller.loadSavedViews() },
-        onApply: async (id) => { await controller.applySavedView(id) },
+        onApply: async (id) => {
+          viewWasExplicitRef.current = true
+          await controller.applySavedView(id)
+        },
         onSave: async (name) => { await controller.saveCurrentView(name, 'private') },
       }}
     />

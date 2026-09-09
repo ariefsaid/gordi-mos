@@ -21,6 +21,7 @@ vi.mock('../lib/db/directory', () => ({
   // Design fix wave item 4 — the "via <role name>" provenance line's role-name batch lookup.
   listRoleNames: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getPersonTeams: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
@@ -499,15 +500,14 @@ describe('AC-064 — saved-view chips', () => {
     expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  // #743 AC-002: the AR Follow-ups chip is gone; the chip set is All · My work · Overdue
-  // (Team work stays the saved-views ticket's, so its absence stays pinned here).
-  it('AC-064 / §Task-11: the saved-view chip row renders All / My work / Overdue — no Team work, no AR Follow-ups', async () => {
+  // #749 AC-011: the system chip set is All · My work · Team work · Overdue.
+  it('AC-011: the saved-view chip row renders the ordered system views — no AR Follow-ups', async () => {
     renderPage()
     await waitFor(() => screen.getByText('My task'))
     expect(screen.getByRole('button', { name: 'All' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'My work' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Team work' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Overdue' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'AR Follow-ups' })).toBeNull()
   })
 
