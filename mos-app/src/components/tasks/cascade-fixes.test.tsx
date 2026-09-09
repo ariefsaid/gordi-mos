@@ -125,11 +125,10 @@ function makeSavedView(): React.ComponentProps<typeof TasksWorkspace>['savedView
 
 // §Task-11: the Team-work chip was removed; All is the org-visible set.
 async function switchToAll() {
-  const viewOptions = screen.queryByRole('button', { name: /view options/i })
-  if (viewOptions?.getAttribute('aria-expanded') === 'false') fireEvent.click(viewOptions)
-  fireEvent.click(screen.getByRole('button', { name: 'All' }))
+  const all = screen.getByRole('tab', { name: 'All' })
+  fireEvent.click(all)
   await waitFor(() => {
-    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+    expect(all).toHaveAttribute('aria-selected', 'true')
   })
 }
 
@@ -169,11 +168,12 @@ beforeEach(() => {
 // ── RI-3: Task column never 0 width + scroll container scrollable ─────────────
 
 
-// Group/Sort/toggles are disclosed behind the desktop "View options" trigger (score-gate
-// slice, 2026-07-22). Open it when collapsed; the grouping capability itself is unchanged.
+// Group/Sort/toggles are disclosed behind the queue's Filters trigger. Open it when collapsed;
+// the grouping capability itself is unchanged.
 function ensureViewOptionsOpen() {
-  const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+  const trigger = screen.getByRole('button', { name: /^filters(?:\s+\d+)?$/i })
   if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+  return screen.getByRole('region', { name: /filter this queue/i })
 }
 
 describe('RI-3 — Task column width and scroll container', () => {
@@ -608,17 +608,16 @@ describe('Fix-7 — useCascadeCatalogs hook', () => {
     vi.mocked(listTasks).mockResolvedValue([
       makeTask({ id: 't1', title: 'A task' }),
     ])
-    const { container } = renderWorkspace()
+    renderWorkspace()
     await waitFor(() => screen.getByText('A task'))
 
     const initialObjectivesCalls = vi.mocked(listObjectives).mock.calls.length
     const initialWorkLinesCalls = vi.mocked(listWorkLines).mock.calls.length
 
-    // Trigger a filter change (status filter) — should NOT re-trigger catalog loads. The
-    // trigger is scoped to the toolbar: the table's Status column-header shares its name.
+    // Trigger a filter change (status filter) — should NOT re-trigger catalog loads.
     ensureViewOptionsOpen()
-    fireEvent.click(container.querySelector('.tasks-collection-toolbar button[aria-label="Status"]')!)
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Open' }))
+    const statusSelect = screen.getByRole('combobox', { name: /^status$/i })
+    fireEvent.change(statusSelect, { target: { value: 'Open' } })
     await waitFor(() => {}) // allow any async effects to settle
 
     // Catalog calls must NOT increase when a filter changes

@@ -34,7 +34,10 @@ export type TaskCollectionSavedQuery = Pick<
   TaskCollectionQuery,
   'view' | 'q' | 'businessUnitId' | 'status' | 'picId' | 'supervisorId'
   | 'includeArchived' | 'overdueOnly' | 'occurrenceId'
->
+> & {
+  /** Optional for backwards compatibility with specs written before the Person filter existed. */
+  personId?: TaskCollectionQuery['personId']
+}
 export type SignalCollectionSavedQuery = Pick<
   SignalCollectionQuery,
   'view' | 'q' | 'attention' | 'category' | 'teamId' | 'showRetracted'
@@ -114,7 +117,7 @@ const TASK_GROUP_FIELDS: readonly TaskCollectionGroup[] = ['status', 'pic', 'bu'
 const TASK_VISIBLE: readonly TaskCollectionVisibleField[] = [
   'title', 'status', 'pic', 'supervisor', 'due', 'businessUnit', 'workline', 'objective', 'source', 'activity',
 ]
-const TASK_VIEWS = ['all', 'my-work', 'my-pic', 'my-supervisor', 'overdue']
+const TASK_VIEWS = ['all', 'my-work', 'my-pic', 'my-supervisor', 'overdue', 'completed']
 const TASK_STATUSES: readonly TaskStatus[] = ['Open', 'In Progress', 'Blocked', 'Done']
 
 const SIGNAL_PRESENTATIONS: readonly SignalCollectionPresentation[] = ['feed', 'table']
@@ -201,6 +204,9 @@ function validateTaskSpec(input: Record<string, unknown>, push: Push): void {
     if ('teamId' in query || 'team' in query) push('unsupported-domain-field', 'query.teamId', 'Task Team query is not supported before Issue 8')
     if (query.view !== undefined && !TASK_VIEWS.includes(query.view as string)) push('invalid-query', 'query.view', String(query.view))
     if (query.status != null && !TASK_STATUSES.includes(query.status as TaskStatus)) push('invalid-query', 'query.status', String(query.status))
+    if (query.personId !== undefined && query.personId !== null && typeof query.personId !== 'string') {
+      push('invalid-query', 'query.personId', String(query.personId))
+    }
   }
   // Sort
   const sort = input.sort

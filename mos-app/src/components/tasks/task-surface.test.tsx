@@ -174,8 +174,9 @@ describe('TaskSurface — view mode', () => {
     // Left panel: status + typed ownership always visible (decision-drivers above the fold)
     expect(screen.getByText('Open')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
-    expect(screen.getByText('PIC')).toBeInTheDocument()
-    expect(screen.getByText('Supervisor')).toBeInTheDocument()
+    const ownership = document.querySelector('[data-content-slot="ownership"]') as HTMLElement
+    expect(within(ownership).getByText('PIC')).toBeInTheDocument()
+    expect(within(ownership).getByText('Supervisor')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
     expect(screen.queryByText(/RACI|Responsible \(R\)|Accountable \(A\)|Consulted|Informed/)).toBeNull()
     fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))

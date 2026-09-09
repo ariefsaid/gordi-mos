@@ -1,0 +1,245 @@
+/* Home's one daily operating brief. The main queue owns the visual weight; the aside is a quiet
+   companion column. This is intentionally a composition stylesheet, not a second row grammar —
+   RegionRows and StreamRow still own all record-row texture and state treatment. */
+.home-frame {
+  container: home / inline-size;
+  min-width: 0;
+}
+
+.page-frame--v3 .page-frame__content:has(.home-frame) {
+  max-width: 1760px;
+}
+
+.home-daily-brief {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 344px);
+  gap: 32px;
+  align-items: start;
+  min-width: 0;
+}
+
+.home-brief-main,
+.home-brief-aside,
+.home-brief-secondary,
+.home-brief-feed {
+  min-width: 0;
+}
+
+.home-brief-attention {
+  min-width: 0;
+  border-top: 2px solid var(--brand-navy);
+  padding-top: 16px;
+}
+
+.home-brief-section-head,
+.home-brief-lane-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+}
+
+.home-brief-section-title,
+.home-brief-lane-head > div:first-child {
+  min-width: 0;
+}
+
+.home-brief-section-title h2,
+.home-brief-section-title h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.home-brief-section-head h2,
+.home-brief-lane-head h3 {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.home-brief-section-head h2 {
+  font-size: var(--font-size-heading);
+}
+
+.home-brief-lane-head h3 {
+  font-size: var(--font-size-body-lg);
+}
+
+.home-brief-section-side {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.home-brief-route-link,
+.home-brief-section-side .stream-band-link {
+  flex: none;
+  color: var(--primary);
+  font-size: var(--font-size-control);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.home-brief-route-link:hover,
+.home-brief-section-side .stream-band-link:hover {
+  text-decoration: underline;
+}
+
+.home-brief-route-link:focus-visible,
+.home-brief-section-side .stream-band-link:focus-visible {
+  border-radius: var(--radius-xs);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.home-brief-lane {
+  min-width: 0;
+}
+
+.home-brief-lane--tasks {
+  margin-top: 12px;
+}
+
+.home-brief-lane--checks {
+  margin-top: 28px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.home-brief-count {
+  color: var(--brand-navy-text);
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.home-brief-checks-status {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 20px 4px 0;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.home-brief-checks-status > span:first-child {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.home-brief-checks-status .home-brief-count {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.home-brief-checks-clear {
+  margin-left: auto;
+}
+
+/* The primary queue has more breathing room than the supporting column, while retaining the same
+   StreamRow component and its canonical Home origin state. */
+.home-brief-attention .stream-row-link {
+  min-height: 76px;
+  padding-block: 18px;
+}
+
+.home-brief-attention .stream-row-title {
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+}
+
+.home-brief-attention .stream-row-action {
+  color: var(--primary);
+  border-left: 1px solid var(--border);
+  padding-left: 12px;
+}
+
+.home-brief-secondary {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.home-brief-secondary > .stream-band-list,
+.home-brief-secondary > .empty-state,
+.home-brief-secondary > .stream-band-link {
+  margin-top: 12px;
+}
+
+.home-brief-aside .stream-row-link {
+  padding-block: 11px;
+}
+
+.home-brief-aside .stream-row-title {
+  font-size: var(--font-size-body);
+}
+
+.home-brief-aside .stream-row-action {
+  color: var(--primary);
+}
+
+.home-brief-feed {
+  margin-top: 0;
+}
+
+/* The feed is the first item in Home's supporting rail, so its archive seam should not create
+   empty air above the column. The global signal surface keeps its seam for other consumers. */
+.home-brief-aside .signal-feed-section {
+  margin-top: 0;
+}
+
+/* A concise desktop queue becomes one readable column on intermediate widths, then the date,
+   queue and supporting material stack in document order on phones. Container queries keep this
+   composition tied to its actual content width rather than the app window. */
+@container home (max-width: 960px) {
+  .home-daily-brief {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+
+  .home-brief-aside { display: block; }
+}
+
+@container home (max-width: 620px) {
+  .home-brief-section-head,
+  .home-brief-lane-head {
+    gap: 12px;
+  }
+
+  .home-brief-section-side {
+    align-items: flex-end;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .home-brief-feed { margin-top: 0; }
+}
+
+@media (max-width: 480px) {
+  .home-brief-section-head,
+  .home-brief-lane-head {
+    display: block;
+  }
+
+  .home-brief-section-side {
+    align-items: baseline;
+    flex-direction: row;
+    margin-top: 8px;
+  }
+
+  .home-brief-checks-status {
+    flex-wrap: wrap;
+  }
+
+  .home-brief-checks-clear {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+}

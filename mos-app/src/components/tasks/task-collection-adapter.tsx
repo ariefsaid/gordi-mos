@@ -53,7 +53,7 @@ export type TaskCollectionAction = never
 // §Task-11 (Issue-8 gate): there is NO `team` view. The legacy Team-work chip is removed from the
 // Task descriptor and `view=team` is rejected until Issue 8's real Task team_id contract lands.
 export type TaskCollectionView =
-  | 'all' | 'my-work' | 'my-pic' | 'my-supervisor' | 'overdue'
+  | 'all' | 'my-work' | 'my-pic' | 'my-supervisor' | 'overdue' | 'completed'
 
 export interface TaskCollectionQuery {
   layout: TaskCollectionPresentation
@@ -77,7 +77,7 @@ export interface TaskCollectionQuery {
 
 const LAYOUTS: readonly TaskCollectionPresentation[] = ['table', 'card']
 const VIEWS: readonly TaskCollectionView[] = [
-  'all', 'my-work', 'my-pic', 'my-supervisor', 'overdue',
+  'all', 'my-work', 'my-pic', 'my-supervisor', 'overdue', 'completed',
 ]
 const GROUPS: readonly TaskCollectionGroup[] = ['none', 'status', 'pic', 'bu', 'workline', 'objective', 'occurrence']
 const SORTS: readonly TaskCollectionSort[] = ['task', 'status', 'pic', 'supervisor', 'due', 'activity']
@@ -234,6 +234,7 @@ function serializeTaskQuery(query: TaskCollectionQuery): URLSearchParams {
 
 export const taskCollectionQuery: CollectionQuerySchema<TaskCollectionQuery> = {
   keys: TASK_QUERY_KEYS,
+  urlKeys: ['layout', 'view', 'q', 'fields', 'bu', 'status', 'pic', 'supervisor', 'person', 'group', 'sort', 'dir', 'archived', 'overdue', 'occurrence', 'saved'],
   neutral: TASK_COLLECTION_NEUTRAL_QUERY,
   parse: (params) => parseTaskQuery(params),
   serialize: serializeTaskQuery,
@@ -355,6 +356,7 @@ function matchesTaskFilters(r: TaskCollectionRecord, query: TaskCollectionQuery,
   if (query.view === 'my-work' && viewerId && r.picId !== viewerId && r.supervisorId !== viewerId) return false
   if (query.view === 'my-pic' && viewerId && r.picId !== viewerId) return false
   if (query.view === 'my-supervisor' && viewerId && r.supervisorId !== viewerId) return false
+  if (query.view === 'completed' && r.status !== 'Done') return false
   if (query.picId && r.picId !== query.picId) return false
   if (query.supervisorId && r.supervisorId !== query.supervisorId) return false
   // The single "Person" filter matches PIC *or* Supervisor (the person's whole involvement).
@@ -380,7 +382,8 @@ function taskFiltersAreActive(query: TaskCollectionQuery): boolean {
     query.view === 'my-work' ||
     query.view === 'my-pic' ||
     query.view === 'my-supervisor' ||
-    query.view === 'overdue'
+    query.view === 'overdue' ||
+    query.view === 'completed'
   )
 }
 
@@ -390,8 +393,32 @@ function sortTaskRecords(
   personNamesById: ReadonlyMap<string, string>,
 ): TaskCollectionRecord[] {
   const dir = query.direction === 'descending' ? -1 : 1
+  // The neutral queue is a work surface, not an archive browser: active work leads even when a
+  // completed task has an older due date. Once a person chooses a view/filter/sort, the ordinary
+  // typed sort contract remains authoritative and this default ordering does not rewrite it.
+  const isDefaultQueue = query.view === 'all'
+    && query.q.trim() === ''
+    && query.businessUnitId === null
+    && query.status === null
+    && query.picId === null
+    && query.supervisorId === null
+    && query.personId === null
+    && query.groupBy === 'none'
+    && query.sort === 'due'
+    && query.direction === 'ascending'
+    && !query.includeArchived
+    && !query.overdueOnly
+    && query.occurrenceId === null
+    && query.savedViewId === null
   const name = (id: string) => personNamesById.get(id) ?? ''
   const cmp = (a: TaskCollectionRecord, b: TaskCollectionRecord): number => {
+    if (isDefaultQueue) {
+      const queueRank = (record: TaskCollectionRecord) => record.archivedAt !== null
+        ? 2
+        : record.status === 'Done' ? 1 : 0
+      const rankDelta = queueRank(a) - queueRank(b)
+      if (rankDelta !== 0) return rankDelta
+    }
     switch (query.sort) {
       case 'task': return a.title.localeCompare(b.title)
       case 'status': return a.status.localeCompare(b.status)
@@ -619,6 +646,7 @@ function buildTaskViewSpec(args: {
       status: query.status,
       picId: query.picId,
       supervisorId: query.supervisorId,
+      personId: query.personId,
       includeArchived: query.includeArchived,
       overdueOnly: query.overdueOnly,
       occurrenceId: query.occurrenceId,

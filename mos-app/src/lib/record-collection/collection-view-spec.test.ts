@@ -60,6 +60,16 @@ describe('collection-view-spec validator', () => {
     expect(serializeCollectionViewSpec(shuffled)).toBe(a)
   })
 
+  it('accepts and serializes the built-in Completed task view', () => {
+    const completed = {
+      ...taskSpec,
+      query: { ...taskSpec.query, view: 'completed' as const },
+    }
+    const result = parseCollectionViewSpec(completed)
+    expect(result.ok).toBe(true)
+    expect(serializeCollectionViewSpec(completed)).toContain('"view":"completed"')
+  })
+
   it('FR-V3-007: Task saved view rejects Team field/query before the Issue 8 team_id contract', () => {
     const withTeamField = parseCollectionViewSpec({ ...taskSpec, visibleFields: [...taskSpec.visibleFields, 'team'] })
     expect(withTeamField.ok).toBe(false)

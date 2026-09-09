@@ -33,6 +33,7 @@ import { CloseIcon, BackIcon } from '@/shell/icons'
 import { Select } from '@/components/ui/select'
 import { TextInput } from '@/components/ui/text-input'
 import { DateField } from '@/components/ui/date-field'
+import { Button } from '@/components/ui/button'
 import { LoadingShell } from '@/components/ui/state-kit'
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -146,6 +147,11 @@ function ViewSurface({
     requestAnimationFrame(() => setLiveMessage(msg))
   }, [])
   const ROLLBACK_MSG = t('tasks.feedback.rollback')
+  // Lifecycle action runs are swallowed by the adapter's action boundary, so keep a small scope
+  // ref around only Mark complete/Reopen. Ordinary Status field commits stay owned by RecordField's
+  // draft-preserving visible error + Retry contract and must not render a duplicate page-level cue.
+  const lifecycleActionRef = useRef(false)
+  const [lifecycleStatusError, setLifecycleStatusError] = useState<TaskStatus | null>(null)
   // OD-REDESIGN-22 (D-C1): the last FAILED checklist write, held so RecordFeed/ChecklistCard can
   // render a VISIBLE error + Retry (the optimistic rollback reverts the row, but a sighted user
   // still needs a clickable way to re-send). The closure re-runs the exact failed operation.
@@ -221,12 +227,14 @@ function ViewSurface({
   // ── Status change ────────────────────────────────────────────────────────
   // Optimistic + rollback, and — like handleUpdateField — RE-THROWS on failure so the Status
   // RecordField shows its VISIBLE error + Retry (OD-REDESIGN-22 / D-C1). Swallowing the rejection
-  // here made the field's commit resolve, wrongly rendering "Saved" on a failed write. The lifecycle
-  // ACTION buttons (Mark complete / Reopen) wrap their call in a catch (see the adapter) so a status
-  // failure they trigger stays a benign optimistic rollback rather than an unhandled rejection.
+  // here made the field's commit resolve, wrongly rendering "Saved" on a failed write. Lifecycle
+  // ACTION buttons (Mark complete / Reopen) are scoped below so their adapter catch can coexist
+  // with a visible TaskSurface-level recovery cue.
   async function handleStatusChange(newStatus: TaskStatus) {
     if (!localTask) return
     const oldStatus = localTask.status
+    const isLifecycleAction = lifecycleActionRef.current
+    if (isLifecycleAction) setLifecycleStatusError(null)
     setLocalTask(t => t ? { ...t, status: newStatus } : t)
     onTaskChanged?.({ ...localTask, status: newStatus })  // sync the table row optimistically
     try {
@@ -236,12 +244,23 @@ function ViewSurface({
       setLocalTask(refreshed.task)
       setLocalChecklist(refreshed.checklist)
       onTaskChanged?.(refreshed.task)
+      if (isLifecycleAction) setLifecycleStatusError(null)
       announce(t('tasks.feedback.statusChanged', { status: newStatus === 'Open' ? t('tasks.status.open') : newStatus === 'In Progress' ? t('tasks.status.inProgress') : newStatus === 'Blocked' ? t('tasks.status.blocked') : t('tasks.status.done') }))
     } catch (err) {
       setLocalTask(t => t ? { ...t, status: oldStatus } : t)
       onTaskChanged?.({ ...localTask, status: oldStatus })
+      if (isLifecycleAction) setLifecycleStatusError(newStatus)
       announce(ROLLBACK_MSG)
       throw err instanceof Error ? err : new Error('updateTaskStatus failed')
+    }
+  }
+
+  async function runLifecycleAction(run: () => Promise<void> | void) {
+    lifecycleActionRef.current = true
+    try {
+      await run()
+    } finally {
+      lifecycleActionRef.current = false
     }
   }
 
@@ -382,6 +401,11 @@ function ViewSurface({
       onArchive: async () => { setShowConfirm(true) },
       onUnarchive: handleUnarchive,
     })
+    const actions = base.actions.map((action) => (
+      action.id === 'complete' || action.id === 'reopen'
+        ? { ...action, run: () => runLifecycleAction(action.run) }
+        : action
+    ))
     // Content-first anatomy (OD-REDESIGN-90 §2.2): the base adapter yields the ordered content
     // slots [content, ownership, relations, checklist, activity]. Override the trailing two with
     // the LIVE interactive composition — the checklist card (add/toggle/reorder/delete) and the
@@ -425,7 +449,7 @@ function ViewSurface({
     const contentSlots = base.contentSlots.map((slot) =>
       slot.id === 'checklist' ? checklistSlot : slot.id === 'activity' ? activitySlot : slot,
     )
-    return { ...base, contentSlots }
+    return { ...base, actions, contentSlots }
   // Handler identities are intentionally excluded; their captured state is represented above.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -555,6 +579,24 @@ function ViewSurface({
 
   const task = localTask
 
+  function retryLifecycleStatus() {
+    const targetStatus = lifecycleStatusError
+    if (!targetStatus) return
+    void runLifecycleAction(() => handleStatusChange(targetStatus)).catch(() => {})
+  }
+
+  const lifecycleStatusFeedback = lifecycleStatusError ? (
+    <div className="record-field__error task-lifecycle-error" role="alert" data-testid="task-lifecycle-error">
+      <span>{t('tasks.feedback.rollback')}</span>
+      <Button variant="outline" className="record-field__retry" onClick={retryLifecycleStatus}>
+        {t('record.field.retry')}
+      </Button>
+      <Button variant="ghost" className="record-field__retry" onClick={() => setLifecycleStatusError(null)}>
+        {t('record.close')}
+      </Button>
+    </div>
+  ) : null
+
   // Open-full-page target for the panel (drawer) utility bar. The RecordPanelHost route host may
   // not supply onOpenPage; a tenant opened from another surface (Inbox/Follow-ups via the
   // OverlayHostSlot) supplies it explicitly. In panel mode without an explicit callback we fall
@@ -598,6 +640,7 @@ function ViewSurface({
             <span>{t('tasks.archivedBanner')}</span>
           </div>
         )}
+        {lifecycleStatusFeedback}
 
         {taskViewerAdapter && (
           <div className="record-details record-details-compact" data-testid="record-details">
@@ -695,6 +738,7 @@ function ViewSurface({
           <span>{t('tasks.archivedBanner')}</span>
         </div>
       )}
+      {lifecycleStatusFeedback}
 
       {taskViewerAdapter && (
         <div className="record-doc">

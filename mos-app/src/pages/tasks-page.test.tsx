@@ -145,14 +145,25 @@ function makeSavedView(view: 'mine' | 'overdue' | 'all' = 'all'): React.Componen
   }
 }
 
+// The replacement keeps the queue visible and puts advanced controls behind one Filters
+// disclosure. Keep these seams in one place so behavior tests do not encode the retired toolbar
+// geometry or confuse view tabs with filter buttons.
+function openFilters() {
+  const trigger = screen.getByRole('button', { name: /^filters(?:\s+\d+)?$/i })
+  if (trigger.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+  return screen.getByRole('region', { name: /filter this queue/i })
+}
+
+function taskFilter(name: RegExp | string) {
+  openFilters()
+  return screen.getByRole('combobox', { name })
+}
+
 // §Task-11: the Team-work chip was removed; All is the org-visible set.
 async function switchToAll() {
-  const options = screen.queryByRole('button', { name: /view & filters|view options/i })
-  if (options?.getAttribute('aria-expanded') === 'false') fireEvent.click(options)
-  fireEvent.click(screen.getByRole('button', { name: 'All' }))
-  await waitFor(() => {
-    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
-  })
+  const all = screen.getByRole('tab', { name: 'All' })
+  fireEvent.click(all)
+  await waitFor(() => expect(all).toHaveAttribute('aria-selected', 'true'))
 }
 
 // ── Render helper ─────────────────────────────────────────────────────────────
@@ -255,16 +266,16 @@ describe('AC-067 — Tasks table (live surface) states (loading, error, empty)',
     })
   })
 
-  it('AC-067: toolbar and column headers stay rendered during error state', async () => {
+  it('AC-067: queue toolbar stays rendered during error state', async () => {
     mockListTasks.mockRejectedValue(new Error('boom'))
     renderPage()
     await waitFor(() => screen.getByRole('alert'))
-    // Desktop toolbar stays rendered with its secondary controls exposed and no inner door.
-    expect(screen.queryByRole('button', { name: /view & filters/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
-    // Status stays reachable as the popover trigger of the dropdown class (#743 r3). No
-    // collision here: the error state renders no table column-header to share the name.
-    expect(screen.getByRole('button', { name: 'Status' })).toBeInTheDocument()
+    // The replacement keeps view navigation, search, and the single collapsed Filters door
+    // available while the result region reports the error. Advanced controls stay undisclosed.
+    expect(screen.getByRole('tablist', { name: /task views/i })).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^filters$/i })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('combobox', { name: /business unit/i })).not.toBeInTheDocument()
   })
 })
 
@@ -404,7 +415,7 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
     renderPage()
     await waitFor(() => screen.getByText('Roastery task'))
 
-    const buSelect = screen.getByLabelText(/business unit/i)
+    const buSelect = taskFilter(/business unit/i)
     fireEvent.change(buSelect, { target: { value: 'bu-kitchen' } })
 
     await waitFor(() => {
@@ -420,12 +431,11 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
   it('AC-063: Status filter — selecting a status shows only matching rows', async () => {
     mockListTasks.mockResolvedValueOnce([taskKitchen, taskRoastery])
     mockListTasks.mockResolvedValueOnce([taskRoastery])
-    const { container } = renderPage()
+    renderPage()
     await waitFor(() => screen.getByText('Kitchen task'))
 
     // Status popover flow (#743 r3): open the trigger, check the Blocked choice.
-    fireEvent.click(container.querySelector('.tasks-collection-toolbar button[aria-label="Status"]')!)
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Blocked' }))
+    fireEvent.change(taskFilter(/^status$/i), { target: { value: 'Blocked' } })
 
     await waitFor(() => {
       expect(screen.queryByText('Kitchen task')).toBeNull()
@@ -457,7 +467,7 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
     await waitFor(() => screen.getByText('Not viewer task'))
 
     // Now apply person filter for the viewer
-    const personSelect = screen.getByLabelText(/^person$/i)
+    const personSelect = taskFilter(/^person$/i)
     fireEvent.change(personSelect, { target: { value: VIEWER_ID } })
 
     await waitFor(() => {
@@ -496,7 +506,7 @@ describe('AC-064 — saved-view chips', () => {
     await waitFor(() => screen.getByText('My task'))
     expect(screen.queryByText('Other team task')).toBeNull()
     expect(screen.queryByText('Unrelated task')).toBeNull()
-    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('tab', { name: 'My work' })).toHaveAttribute('aria-selected', 'true')
   })
 
   // #743 AC-002: the AR Follow-ups chip is gone; the chip set is All · My work · Overdue
@@ -504,11 +514,11 @@ describe('AC-064 — saved-view chips', () => {
   it('AC-064 / §Task-11: the saved-view chip row renders All / My work / Overdue — no Team work, no AR Follow-ups', async () => {
     renderPage()
     await waitFor(() => screen.getByText('My task'))
-    expect(screen.getByRole('button', { name: 'All' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'My work' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Overdue' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'AR Follow-ups' })).toBeNull()
+    expect(screen.getByRole('tab', { name: 'All' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'My work' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Overdue' })).toBeTruthy()
+    expect(screen.queryByRole('tab', { name: 'Team work' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'AR Follow-ups' })).toBeNull()
   })
 
   it('AC-064 / §Task-11: "All" shows every loaded row regardless of ownership scope', async () => {
@@ -550,22 +560,15 @@ describe('AC-065 / AC-008 — archived rows hidden by default; Include archived 
       makeTask({ id: 'active', title: 'Active task', status: 'Blocked' }),
       makeTask({ id: 'arch', title: 'Archived task', archived_at: '2026-06-01T00:00:00Z', status: 'Blocked' }),
     ])
-    const { container } = renderPage()
+    renderPage()
     await waitFor(() => screen.getByText('Active task'))
 
-    {
-      const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
-      if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
-    }
-    // Status is ONE dropdown-class control; its popover carries the checkbox choices. The
-    // trigger is scoped to the toolbar — the table's Status column-header sort button shares
-    // its accessible name.
-    const statusTrigger = container.querySelector('.tasks-collection-toolbar button[aria-label="Status"]') as HTMLElement
-    fireEvent.click(statusTrigger)
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Blocked' }))
+    const statusSelect = taskFilter(/^status$/i) as HTMLSelectElement
+    fireEvent.change(statusSelect, { target: { value: 'Blocked' } })
     await waitFor(() => expect(_capturedLocation?.search).toMatch(/status=blocked/))
 
-    // The archived option lives in the SAME popover and is additive — choosing a status never checks it.
+    // The archived option lives in the same disclosed Filters panel and is additive — choosing a
+    // status never checks it.
     const archived = screen.getByRole('checkbox', { name: /include archived/i }) as HTMLInputElement
     expect(archived.checked).toBe(false)
     fireEvent.click(archived)
@@ -573,8 +576,8 @@ describe('AC-065 / AC-008 — archived rows hidden by default; Include archived 
     // Both applied: the URL carries the status AND the archived opt-in…
     await waitFor(() => expect(_capturedLocation?.search).toMatch(/archived=1/))
     expect(_capturedLocation?.search).toMatch(/status=blocked/)
-    // …and both choices read as engaged: the trigger still shows Blocked, the box stays checked.
-    expect(statusTrigger.textContent).toContain('Blocked')
+    // …and both choices read as engaged: the status select still shows Blocked, the box stays checked.
+    expect(statusSelect).toHaveValue('Blocked')
     expect((screen.getByRole('checkbox', { name: /include archived/i }) as HTMLInputElement).checked).toBe(true)
     // The re-query honors the archived opt-in, and the Status control never became "__archived".
     await waitFor(() => {
@@ -582,28 +585,30 @@ describe('AC-065 / AC-008 — archived rows hidden by default; Include archived 
     })
     await waitFor(() => screen.getByText('Archived task'))
 
-    // Popover closed → no input[type=checkbox] in either toolbar row.
-    fireEvent.click(statusTrigger)
-    expect(document.querySelectorAll('[data-testid="collection-toolbar-row"] input[type="checkbox"]')).toHaveLength(0)
+    // Filters closed → no advanced checkbox remains in the compact queue toolbar.
+    fireEvent.click(screen.getByRole('button', { name: /^filters/i }))
+    expect(screen.queryByRole('checkbox', { name: /include archived/i })).toBeNull()
   })
 })
 
-// ── T-036: AC-066 — default sort due ascending ──────────────────────────────
-describe('AC-066 — default sort: due ascending (overdue first)', () => {
-  it('AC-066: rows rendered in due-date ascending order at first paint', async () => {
-    const late  = makeTask({ id: 't1', title: 'Later task',   due_date: '2026-06-20' })
-    const early = makeTask({ id: 't2', title: 'Earlier task', due_date: '2026-06-12' })
-    const none  = makeTask({ id: 't3', title: 'No due task',  due_date: null })
-    // listTasks returns already-sorted (server-side), component must preserve order
-    mockListTasks.mockResolvedValue([early, late, none])
+// ── T-036: AC-066 — default queue order (urgent work before completed/archive) ─────────────
+describe('AC-066 — default queue order', () => {
+  it('AC-066: the first paint prioritizes due work before completed work', async () => {
+    const completed = makeTask({ id: 't1', title: 'Completed task', status: 'Done', due_date: '2026-06-01' })
+    const later = makeTask({ id: 't2', title: 'Later task', status: 'Open', due_date: '2026-06-20' })
+    const urgent = makeTask({ id: 't3', title: 'Urgent task', status: 'Open', due_date: '2026-06-12' })
+    // The neutral queue is urgent-first: active work leads, then completed/archive records, with
+    // due ordering still authoritative within each tier.
+    mockListTasks.mockResolvedValue([completed, later, urgent])
     renderPage()
-    await waitFor(() => screen.getByText('Earlier task'))
+    await waitFor(() => screen.getByText('Urgent task'))
 
-    const rows = screen.getAllByRole('row')
-    const titles = rows.slice(1).map(r => r.textContent)
-    const earlyIdx = titles.findIndex(t => t?.includes('Earlier task'))
-    const lateIdx  = titles.findIndex(t => t?.includes('Later task'))
-    expect(earlyIdx).toBeLessThan(lateIdx)
+    const titles = Array.from(document.querySelectorAll('tbody tr.task-row')).map(row => row.textContent)
+    const urgentIdx = titles.findIndex(t => t?.includes('Urgent task'))
+    const laterIdx = titles.findIndex(t => t?.includes('Later task'))
+    const completedIdx = titles.findIndex(t => t?.includes('Completed task'))
+    expect(urgentIdx).toBeLessThan(laterIdx)
+    expect(laterIdx).toBeLessThan(completedIdx)
   })
 
   it('AC-066: Due column header has aria-sort="ascending" at first paint', async () => {
@@ -633,14 +638,14 @@ describe('responsive — card list at <768px', () => {
 
 // ── a11y: ARIA roles and labels ──────────────────────────────────────────────
 describe('a11y — aria roles and labels', () => {
-  it('saved-view controls expose button semantics with aria-pressed', async () => {
+  it('saved-view controls expose tab semantics with aria-selected', async () => {
     mockListTasks.mockResolvedValue([makeTask()])
     renderPage()
-    await waitFor(() => screen.getByRole('button', { name: 'My work' }))
-    expect(screen.getByRole('group', { name: /tasks saved views/i })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'My work' }).getAttribute('aria-pressed')).toBe('false')
-    // §Task-11: the All chip carries default-view pressed state; the Team-work chip is gone.
-    expect(screen.getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true')
+    await waitFor(() => screen.getByRole('tab', { name: 'My work' }))
+    expect(screen.getByRole('tablist', { name: /task views/i })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'My work' }).getAttribute('aria-selected')).toBe('false')
+    // §Task-11: the All tab carries default-view selection; the Team-work tab is gone.
+    expect(screen.getByRole('tab', { name: 'All' }).getAttribute('aria-selected')).toBe('true')
   })
 
   it('loading region has aria-busy and a visually-hidden loading message', async () => {
@@ -715,18 +720,17 @@ describe('Fix C1 — directory-sourced BU + Person filter options', () => {
     })
     mockListTasks.mockResolvedValueOnce([taskKitchen, taskRoastery])
     mockListTasks.mockResolvedValueOnce([taskKitchen]) // after status=Open filter
-    const { container } = renderPage()
+    renderPage()
     await waitFor(() => screen.getByText('Roastery task'))
 
     // Both BU options present before filtering (from directory DEFAULT_BUS)
-    const buSelect = screen.getByLabelText(/business unit/i) as HTMLSelectElement
+    const buSelect = taskFilter(/business unit/i) as HTMLSelectElement
     const optsBefore = Array.from(buSelect.options).map(o => o.text)
     expect(optsBefore).toContain('Kitchen BU')
     expect(optsBefore).toContain('Roastery BU')
 
     // Apply status filter — only Kitchen tasks remain in the list (popover flow, #743 r3)
-    fireEvent.click(container.querySelector('.tasks-collection-toolbar button[aria-label="Status"]')!)
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Open' }))
+    fireEvent.change(taskFilter(/^status$/i), { target: { value: 'Open' } })
     await waitFor(() => expect(screen.queryByText('Roastery task')).toBeNull())
 
     // BU options STILL contain both BUs (from directory, not from rows)
@@ -746,7 +750,7 @@ describe('Fix C1 — directory-sourced BU + Person filter options', () => {
     renderPage()
     await waitFor(() => screen.getByText('Task with CI'))
 
-    const personSelect = screen.getByLabelText(/^person$/i) as HTMLSelectElement
+    const personSelect = taskFilter(/^person$/i) as HTMLSelectElement
     const opts = Array.from(personSelect.options).map(o => o.text)
     // All people from directory are present, with stable display names.
     expect(opts).toContain('Arief Said')
@@ -810,12 +814,9 @@ describe('Fix C1 — directory error shows error banner', () => {
 describe('archived row treatment — "Archived" chip + muted title', () => {
   // AC-008 (delta): the archived door is the Include-archived checkbox beside Status — additive
   // to whatever status is (or is not) chosen.
-  async function chooseIncludeArchived(container: HTMLElement) {
-    const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
-    if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
-    // The archived option lives inside the Status popover (#743 r3); the trigger query is
-    // toolbar-scoped — the table's Status column-header sort button shares its name.
-    fireEvent.click(container.querySelector('.tasks-collection-toolbar button[aria-label="Status"]')!)
+  async function chooseIncludeArchived() {
+    openFilters()
+    // The archived option lives inside the single Filters disclosure.
     fireEvent.click(screen.getByRole('checkbox', { name: /include archived/i }))
   }
 
@@ -827,11 +828,11 @@ describe('archived row treatment — "Archived" chip + muted title', () => {
     const liveBlocked = makeTask({ id: 'live-blocked', title: 'Live blocked task', status: 'Blocked' })
     const liveOpen = makeTask({ id: 'live-open', title: 'Live open task', status: 'Open' })
     mockListTasks.mockResolvedValue([archivedBlocked, liveBlocked, liveOpen])
-    const { container } = renderPage()
+    renderPage()
     await switchToAll()
 
-    fireEvent.click(container.querySelector('.tasks-collection-toolbar button[aria-label="Status"]')!)
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Blocked' }))
+    const statusSelect = taskFilter(/^status$/i) as HTMLSelectElement
+    fireEvent.change(statusSelect, { target: { value: 'Blocked' } })
     fireEvent.click(screen.getByRole('checkbox', { name: /include archived/i }))
 
     await waitFor(() => {
@@ -839,7 +840,7 @@ describe('archived row treatment — "Archived" chip + muted title', () => {
       expect(screen.getByText('Live blocked task')).toBeInTheDocument()
       expect(screen.queryByText('Live open task')).not.toBeInTheDocument()
     })
-    expect(container.querySelector('.tasks-collection-toolbar button[aria-label="Status"]')).toHaveTextContent(/Blocked.*Include archived/)
+    expect(statusSelect).toHaveValue('Blocked')
   })
 
   it('DR-1a: desktop — archived task row renders "Archived" tag and muted title; live row does not', async () => {
@@ -858,12 +859,12 @@ describe('archived row treatment — "Archived" chip + muted title', () => {
     })
     // Use "All" segment so both tasks are visible
     mockListTasks.mockResolvedValue([archived, live])
-    const { container } = renderPage()
+    renderPage()
 
     await switchToAll()
 
     // Reveal archived rows through the Status popover's Include archived option.
-    await chooseIncludeArchived(container)
+    await chooseIncludeArchived()
 
     await waitFor(() => screen.getByText('Archived task'))
 
@@ -898,10 +899,10 @@ describe('archived row treatment — "Archived" chip + muted title', () => {
       accountable_person_id: VIEWER_ID,
     })
     mockListTasks.mockResolvedValue([archived, live])
-    const { container } = renderPage()
+    renderPage()
 
     await switchToAll()
-    await chooseIncludeArchived(container)
+    await chooseIncludeArchived()
 
     await waitFor(() => screen.getByText('Archived mobile task'))
 
@@ -965,6 +966,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     mockListDueRuns.mockResolvedValue([DUE_ROW])
     renderPage(CAPABLE_AUTH)
 
+    openFilters()
     const overduePill = await screen.findByRole('button', { name: 'Filter to 1 overdue tasks' })
     expect(overduePill).toBeInTheDocument()
     // No runs-due control anywhere in the toolbar; the overdue pill performs only its own action.
@@ -979,6 +981,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     mockListDueRuns.mockResolvedValue([])
     renderPage(CAPABLE_AUTH)
 
+    openFilters()
     const pill = await screen.findByRole('button', { name: 'Filter to 1 overdue tasks' })
     fireEvent.click(pill)
     // FR-001: the pressed pill IS the filter — no second clear chip, no due-runs disclosure.
@@ -1023,7 +1026,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     await switchToAll()
     await waitFor(() => screen.getByText('Open the café'))
 
-    fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
+    fireEvent.change(taskFilter(/^group$/i), { target: { value: 'occurrence' } })
 
     await waitFor(() => {
       expect(screen.getByText('Café HQ daily opening · 17 Jul 2026')).toBeInTheDocument()
@@ -1055,7 +1058,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     renderPage()
     await switchToAll()
     await waitFor(() => screen.getByText('Open the café'))
-    fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
+    fireEvent.change(taskFilter(/^group$/i), { target: { value: 'occurrence' } })
 
     await waitFor(() => expect(mockListTaskDefs).toHaveBeenCalledWith(['def-1']))
     await waitFor(() => expect(screen.getByText('via Cafe Ops Lead')).toBeInTheDocument())
@@ -1068,7 +1071,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     await switchToAll()
     await waitFor(() => screen.getByText('Ad-hoc task'))
 
-    fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
+    fireEvent.change(taskFilter(/^group$/i), { target: { value: 'occurrence' } })
 
     await waitFor(() => {
       expect(screen.getByText('One-off tasks')).toBeInTheDocument()
@@ -1105,7 +1108,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
     renderPage(CAPABLE_AUTH)
     await switchToAll()
     await waitFor(() => screen.getByText('Open the café'))
-    fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
+    fireEvent.change(taskFilter(/^group$/i), { target: { value: 'occurrence' } })
     await waitFor(() => screen.getByText('Café HQ daily opening · 17 Jul 2026'))
 
     fireEvent.click(screen.getByRole('button', { name: '1 to assign' }))
@@ -1146,7 +1149,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
     renderPage() // default authedState: accessRoles: []
     await switchToAll()
     await waitFor(() => screen.getByText('Open the café'))
-    fireEvent.change(screen.getByLabelText(/^group$/i), { target: { value: 'occurrence' } })
+    fireEvent.change(taskFilter(/^group$/i), { target: { value: 'occurrence' } })
 
     await waitFor(() => screen.getByText('Café HQ daily opening · 17 Jul 2026'))
     expect(screen.getByText(/1\/1 done/)).toBeInTheDocument()
@@ -1203,11 +1206,7 @@ describe('Step 7 — the ?occurrence=<runId> query param switches to Occurrence 
     await waitFor(() => {
       expect(screen.getByText('Café Opening · 17 Jul 2026')).toBeInTheDocument()
     })
-    {
-      const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
-      if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
-    }
-    expect(screen.getByLabelText(/^group$/i)).toHaveValue('occurrence')
+    expect(taskFilter(/^group$/i)).toHaveValue('occurrence')
     expect(document.body.textContent).not.toMatch(/Process Run/)
   })
 })

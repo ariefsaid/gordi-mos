@@ -129,10 +129,6 @@ function renderTable(props: Partial<React.ComponentProps<typeof TasksWorkspace>>
       </MemoryRouter>
     </AuthContext.Provider>,
   )
-  // Grouping and sorting are intentionally behind the desktop View options disclosure.
-  // These legacy cascade tests exercise the controls, not the disclosure itself.
-  const viewOptions = screen.queryByRole('button', { name: /view options/i })
-  if (viewOptions?.getAttribute('aria-expanded') === 'false') fireEvent.click(viewOptions)
   return utils
 }
 
@@ -151,11 +147,12 @@ beforeEach(() => {
 // ── FR-231: Work-line option in the Group chip ────────────────────────────────
 
 
-// Group/Sort/toggles are disclosed behind the desktop "View options" trigger (score-gate
-// slice, 2026-07-22). Open it when collapsed; the grouping capability itself is unchanged.
+// Group/Sort/toggles are disclosed behind the queue's Filters trigger. Open it when collapsed;
+// the grouping capability itself is unchanged.
 function ensureViewOptionsOpen() {
-  const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+  const trigger = screen.getByRole('button', { name: /^filters(?:\s+\d+)?$/i })
   if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+  return screen.getByRole('region', { name: /filter this queue/i })
 }
 
 describe('FR-231 — Work-line option in the Group chip', () => {
@@ -166,8 +163,7 @@ describe('FR-231 — Work-line option in the Group chip', () => {
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     const options = Array.from(groupSelect.querySelectorAll('option')).map(o => o.textContent)
-    // #743: group options carry the "Group: " prefix (FR-005).
-    expect(options).toContain('Group: Project/Process')
+    expect(options).toContain('Project/Process')
   })
 })
 

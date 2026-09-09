@@ -66,6 +66,15 @@ export interface RecordRelation {
   onOpen?: () => void
 }
 
+/** A short, read-only summary shown in a focused record's pinned header. The full
+ * editable field remains in the record body; this summary keeps the identity and
+ * decision context visible while the body scrolls. */
+export interface RecordHeaderContextItem {
+  key: string
+  label: string
+  displayValue: string
+}
+
 /** The context the shared RecordViewer hands every content slot at render time. Beyond
  *  mode/readOnly it forwards the field-commit seam (onCommitField / onDirtyChange /
  *  fieldCommitsFrozen) so a content slot that IS a field section (the content-first anatomy
@@ -130,6 +139,10 @@ export interface RecordViewerAdapter {
   eyebrow?: string
   /** Optional task action-header fields rendered above the persistent tab strip. */
   headerFields?: readonly RecordFieldSpec[]
+  /** Compact decision context rendered below the title in a task's pinned header. */
+  headerContext?: readonly RecordHeaderContextItem[]
+  /** Actions promoted into the pinned header; all other allowed actions stay in the footer. */
+  headerActionIds?: readonly string[]
   metadata: readonly RecordMetadataSection[]
   relations: readonly RecordRelation[]
   contentSlots: readonly RecordContentSlot[]

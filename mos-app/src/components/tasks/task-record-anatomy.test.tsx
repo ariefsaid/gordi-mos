@@ -135,8 +135,9 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
 
   it('F5 — every record-mutating action resolves to ONE actions register (AC-ANAT-005)', () => {
     const { container } = renderRecord()
-    // Editable task offers Mark complete + Archive — both in the single footer actions cluster.
-    expect(container.querySelectorAll('.record-viewer__actions')).toHaveLength(1)
+    // The promoted lifecycle action has one dedicated header register; secondary actions remain
+    // in the footer when the viewer is allowed to use them.
+    expect(container.querySelectorAll('[data-record-header-actions="true"]')).toHaveLength(1)
   })
 
   it('Status + Due ride with the content region (LAW-2), not a downstream metadata block', () => {
@@ -165,5 +166,37 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
     })
     expect(container.querySelector('[data-field-key="source"]')).toHaveTextContent('Café Opening')
     expect(container.querySelector('[data-field-key="generatedFrom"]')).toHaveTextContent('Café Opening')
+  })
+
+  it('tasks-redesign-C: keeps the lifecycle action in the pinned header and uses one Activity entry point', () => {
+    const { container } = renderRecord({ viewerId: 'chain-mgr', downlineIds: [PIC] })
+    const header = container.querySelector('[data-record-header="pinned"]') as HTMLElement
+    const actions = container.querySelector('[data-viewer-region="actions"]') as HTMLElement
+
+    expect(within(header).getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
+    expect(within(actions).queryByRole('button', { name: 'Mark complete' })).not.toBeInTheDocument()
+    expect(within(actions).getByRole('button', { name: 'Archive task' })).toBeInTheDocument()
+    expect(within(header).queryByRole('button', { name: 'Activity' })).not.toBeInTheDocument()
+    expect(within(container).getAllByRole('tab', { name: 'Activity' })).toHaveLength(1)
+  })
+
+  it('tasks-redesign-C: surfaces compact ownership and due context beside the title', () => {
+    const { container } = renderRecord()
+    const context = container.querySelector('[data-record-header-context="true"]')
+
+    expect(context).toBeInTheDocument()
+    expect(context).toHaveTextContent('PIC')
+    expect(context).toHaveTextContent('Riri')
+    expect(context).toHaveTextContent('Supervisor')
+    expect(context).toHaveTextContent('Wayan Kusuma')
+    expect(context).toHaveTextContent('Due date')
+    expect(context).toHaveTextContent('2026-07-25')
+  })
+
+  it('tasks-redesign-C: omits absent due context so the canonical null marker stays singular', () => {
+    const { container } = renderRecord({ detail: makeDetail(makeTask({ due_date: null })) })
+
+    expect(container.querySelector('[data-header-context-key="dueDate"]')).toBeNull()
+    expect(container.querySelector('[data-content-slot="content"]')).toHaveTextContent('No due date')
   })
 })

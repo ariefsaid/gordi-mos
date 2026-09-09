@@ -5,8 +5,8 @@ import { Reason, type ReasonStyle } from './stream-reason'
 
 // The ONE Home record-row anatomy. Shared by HomeStream and all three layout arrangements
 // (FR-930) — a Home row must never have a second implementation.
-export function StreamRow({ item, hidePic = false, reasonStyle = 'chip' }: {
-  item: StreamItem; hidePic?: boolean; reasonStyle?: ReasonStyle
+export function StreamRow({ item, hidePic = false, reasonStyle = 'chip', actionLabel }: {
+  item: StreamItem; hidePic?: boolean; reasonStyle?: ReasonStyle; actionLabel?: string
 }) {
   // Compact decision-context subline = PIC name · owning Team/BU · due date, so "what should I do
   // next" is answerable without opening the record (Luna J01/J02). Each segment is its own span
@@ -52,6 +52,11 @@ export function StreamRow({ item, hidePic = false, reasonStyle = 'chip' }: {
               attention when it's amber too — neutral treatment restores the ranking
               (rule:product-color-state-vocab, rule:product-ban-heavy-inactive-color). */}
           {item.status && <StatusPill status={item.status} openTreatment="neutral" />}
+          {actionLabel && (
+            <span className="stream-row-action">
+              {actionLabel}<span aria-hidden="true"> →</span>
+            </span>
+          )}
         </span>
       </Link>
     </li>

@@ -4,7 +4,7 @@ import type { TaskCollectionQuery } from './task-collection-adapter'
 
 const labels = {
   all: 'All', 'my-work': 'My work', 'my-pic': 'My work', 'my-supervisor': 'My work',
-  overdue: 'Overdue',
+  overdue: 'Overdue', completed: 'Completed',
 }
 const query = (patch: Partial<TaskCollectionQuery> = {}) => ({
   view: 'all' as const, savedViewId: null, ...patch,
@@ -14,6 +14,12 @@ describe('getActiveTaskView', () => {
   it('uses the typed built-in label', () => {
     expect(getActiveTaskView({ query: query({ view: 'my-work' }), savedViews: [], labels })).toEqual({
       savedViewId: null, label: 'My work', hasNonDefaultView: true,
+    })
+  })
+
+  it('uses the typed Completed label as a non-default view', () => {
+    expect(getActiveTaskView({ query: query({ view: 'completed' }), savedViews: [], labels })).toEqual({
+      savedViewId: null, label: 'Completed', hasNonDefaultView: true,
     })
   })
 

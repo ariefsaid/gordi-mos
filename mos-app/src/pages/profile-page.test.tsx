@@ -64,20 +64,19 @@ describe('PORT-024: ProfilePage', () => {
     expect(languageCard).toHaveStyle({ borderRadius: 'var(--radius-lg)' })
   })
 
-  it('FR-920: the Home layout setting gets the picker measure, and the form cards keep the form measure', () => {
+  it('keeps the remaining profile form cards at the narrow form measure', () => {
     renderPage()
-    // The picker is a THREE-UP DIAGRAM, not a form field: at the 560px form measure its cards
-    // measured 167px and the wireframes stopped being readable, which is the whole point of a
-    // diagram-based chooser. It gets the 720px setting measure (+ this card's own 16px padding
-    // and 1px border on each side, which the bare content box does not carry).
-    const layoutCard = screen.getByRole('heading', { name: 'Home layout' }).closest('section')
-    expect(layoutCard).toHaveStyle({ maxWidth: '754px' })
-    // …and widening it must not drag the short-form cards out with it.
     for (const title of ['Identity', 'Language']) {
       expect(screen.getByRole('heading', { name: title }).closest('section')).toHaveStyle({
         maxWidth: '560px',
       })
     }
+  })
+
+  it('does not expose the retired Home layout picker', () => {
+    renderPage()
+    expect(screen.queryByRole('heading', { name: 'Home layout' })).toBeNull()
+    expect(screen.queryByRole('radiogroup')).toBeNull()
   })
 
   it('renders read-only Identity — Person and Roles as plain text rows (not input-look), managed by Admin', () => {
@@ -119,7 +118,7 @@ describe('PORT-024: ProfilePage', () => {
     // key is missing from the `id` catalog, so a page that switches its heading and keeps English
     // cards passes every title-only assertion. Found by mutation: replacing an `id` card string
     // with its `en` twin left the rest of this file green. Every card heading is checked.
-    for (const heading of ['Identitas', 'Bahasa', 'Tata letak Beranda']) {
+    for (const heading of ['Identitas', 'Bahasa']) {
       expect(screen.getByRole('heading', { level: 2, name: heading })).toBeInTheDocument()
     }
     for (const english of ['Identity', 'Home layout']) {
@@ -141,13 +140,4 @@ describe('PORT-024: ProfilePage', () => {
     expect(document.title).toBe('Profil Pribadi — Gordi MOS')
   })
 
-  it('persists the Home layout choice against the viewer, and reads it back on remount', async () => {
-    const user = userEvent.setup()
-    renderPage()
-    await user.click(screen.getByRole('radio', { name: /overview/i }))
-    expect(localStorage.getItem('gordi.home.layout.p1')).toBe('overview')
-    cleanup()
-    renderPage()
-    expect(screen.getByRole('radio', { name: /overview/i })).toBeChecked()
-  })
 })

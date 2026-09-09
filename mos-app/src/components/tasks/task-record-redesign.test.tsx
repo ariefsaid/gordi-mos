@@ -119,14 +119,14 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     expect(screen.getByRole('button', { name: 'Edit title' })).toBeInTheDocument()
     expect(screen.getByText('Source')).toBeInTheDocument()
     expect(screen.getAllByText('Today opening').length).toBeGreaterThan(0)
-    expect(screen.getByText('PIC')).toBeInTheDocument()
+    expect(within(screen.getByTestId('record-details').querySelector('[data-content-slot="ownership"]') as HTMLElement).getByText('PIC')).toBeInTheDocument()
     // Value-first document grammar: ownership fields render their VALUE first, then swap in the
     // edit control on activation (click the row). PIC + Supervisor are editable person selects;
     // a person's name appears as an <option> in BOTH, so assert via the select's value (the
     // selected option) after activating. The goal: PIC holds Cahya Cafe, Supervisor holds Arief.
     fireEvent.click(screen.getByRole('button', { name: 'Edit PIC' }))
     expect(screen.getByLabelText('PIC')).toHaveValue(VIEWER_ID)
-    expect(screen.getByText('Supervisor')).toBeInTheDocument()
+    expect(within(screen.getByTestId('record-details').querySelector('[data-content-slot="ownership"]') as HTMLElement).getByText('Supervisor')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Edit Supervisor' }))
     expect(screen.getByLabelText('Supervisor')).toHaveValue(SUPERVISOR_ID)
     // Source is a read-only derived classification (never activated) — its value shows directly.

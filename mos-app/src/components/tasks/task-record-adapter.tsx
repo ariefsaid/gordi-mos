@@ -25,6 +25,7 @@ import type {
   RecordContentSlot,
   RecordFieldOption,
   RecordFieldSpec,
+  RecordHeaderContextItem,
   RecordMetadataSection,
   RecordRelation,
   RecordValue,
@@ -371,6 +372,29 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     value: task.title,
     displayValue: task.title,
   })
+  const due = dueField(task, editable, labels.dueDate, formatDate)
+  const headerContext: RecordHeaderContextItem[] = [
+    {
+      key: 'businessUnit',
+      label: labels.businessUnit,
+      displayValue: buName(businessUnits, task.business_unit_id),
+    },
+    {
+      key: 'pic',
+      label: labels.pic,
+      displayValue: personName(people, task.responsible_person_id),
+    },
+    {
+      key: 'supervisor',
+      label: labels.supervisor,
+      displayValue: personName(people, task.accountable_person_id),
+    },
+    ...(task.due_date ? [{
+      key: 'dueDate',
+      label: labels.dueDate,
+      displayValue: due.displayValue,
+    }] : []),
+  ]
   const content: RecordMetadataSection = {
     id: 'content',
     label: L.detailsSection,
@@ -390,7 +414,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
         displayValue: statusLabel(task.status, L),
         options: TASK_STATUSES.map((s) => ({ value: s, label: statusLabel(s, L) })),
       }),
-      dueField(task, editable, labels.dueDate, formatDate),
+      due,
     ],
   }
 
@@ -496,6 +520,10 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     }
   }
 
+  const headerActionIds = actions
+    .filter((action) => action.id === 'complete' || action.id === 'reopen')
+    .map((action) => action.id)
+
   // Each field section becomes an ordered CONTENT slot: its specs stay inspectable via `section`
   // and it renders through the shared RecordFieldList wired to the slot's field-commit seam — so a
   // relocated field keeps the exact value-first grammar, Escape isolation, and dirty-guard it had
@@ -515,6 +543,8 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     title: task.title,
     typeLabel: L.typeLabel,
     headerFields: [titleField, content.fields.find((field) => field.key === 'status')!],
+    headerContext,
+    headerActionIds,
     metadata: [],
     relations: [],
     contentSlots,

@@ -56,16 +56,18 @@ const EMPTY_KEY: Record<HomeRegionId, MessageKey> = {
   'my-work': 'home.stream.myWorkEmpty',
 }
 
-// RegionRows — the ONE region-body grammar shared by all three Home layouts (FR-930). A region's
+// RegionRows — the ONE region-body grammar shared by the Home daily brief (FR-930). A region's
 // read can be loading, errored, ready-with-rows, or ready-and-empty (`HomeRegion.state`, DIV-G5):
 // each must render distinguishably from the others, never as an indistinguishable blank
 // (docs/specs/home-layout-preference.spec.md §7). Mirrors the loading/error grammar the retired
 // single-stream HomeStream's IndependentBand carried per band.
-export function RegionRows({ region, items }: {
+export function RegionRows({ region, items, actionLabel }: {
   region: HomeRegion
   /** Defaults to `region.items`; Overview passes a sliced subset while still reading `region.state`
    *  (a loading/error region shows its status regardless of how many items would otherwise show). */
   items?: StreamItem[]
+  /** Optional visible next action for the daily brief. The row remains one canonical link. */
+  actionLabel?: string
 }) {
   const t = useT()
   if (region.state === 'loading') {
@@ -114,7 +116,13 @@ export function RegionRows({ region, items }: {
     <>
       <ul className="stream-band-list">
         {rows.map((i) => (
-          <StreamRow key={i.id} item={i} hidePic={HIDE_PIC[region.id]} reasonStyle={REASON_STYLE[region.id]} />
+            <StreamRow
+              key={i.id}
+              item={i}
+              hidePic={HIDE_PIC[region.id]}
+              reasonStyle={REASON_STYLE[region.id]}
+              actionLabel={actionLabel}
+            />
         ))}
       </ul>
       {hidden > 0 && (region.drillTo

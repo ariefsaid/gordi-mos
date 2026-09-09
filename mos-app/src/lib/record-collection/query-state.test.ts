@@ -18,6 +18,12 @@ import {
 } from '@/components/tasks/task-collection-query'
 
 describe('query-state', () => {
+  it('clears neutral Task constraints while preserving record and unrelated route state', () => {
+    const source = new URLSearchParams('saved=old&overdue=1&view=overdue&q=old&person=p1&record=t1&sourceSignal=s1')
+    const next = writeCollectionQuery(taskCollectionQuery, { ...taskCollectionQuery.neutral, view: 'my-work' }, source)
+    expect(next.toString()).toBe('record=t1&sourceSignal=s1&view=my-work')
+  })
+
   it('FR-V3-007: Signal Feed saved-view query preserves compatible filters, sort, grouping, and URL state', () => {
     const params = new URLSearchParams(
       'layout=feed&view=needs-attention&q=freezer&attention=Needs%20attention&sort=occurredAt&dir=descending&saved=v-9',

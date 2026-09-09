@@ -165,6 +165,19 @@ describe('FR-V3-007: saved-view spec mapping', () => {
     expect(applied.query.direction).toBe('descending')
   })
 
+  it('persists the Person filter and accepts legacy specs that omit it', () => {
+    const spec = taskCollectionSavedViews.buildSpec({ query: q({ personId: 'p-raka' }), presentation: 'table' })
+    if (spec.collectionId !== 'tasks') throw new Error('expected a Tasks view spec')
+    expect(spec.query.personId).toBe('p-raka')
+    expect(taskCollectionSavedViews.applySpec(spec).query.personId).toBe('p-raka')
+
+    const legacyQuery = { ...spec.query }
+    delete legacyQuery.personId
+    const legacySpec = { ...spec, query: legacyQuery }
+    expect(taskCollectionSavedViews.parseAndValidate(legacySpec).ok).toBe(true)
+    expect(taskCollectionSavedViews.applySpec(legacySpec).query.personId).toBeNull()
+  })
+
   it('grouping is null in the spec when groupBy is none', () => {
     const spec = taskCollectionSavedViews.buildSpec({ query: q({ groupBy: 'none' }), presentation: 'table' })
     expect(spec.kind === 'collection' && spec.grouping).toBeNull()
@@ -224,6 +237,14 @@ describe('§Task-11: the Team-work view is removed until Issue 8', () => {
     if (!parsed.ok) throw new Error('view=my-work must parse')
     expect(parsed.query.view).toBe('my-work')
   })
+
+  it('supports the built-in Completed view through the existing view query contract', () => {
+    const parsed = taskCollectionDescriptor.query.parse(new URLSearchParams('view=completed'), 'table')
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) throw new Error('view=completed must parse')
+    expect(parsed.query.view).toBe('completed')
+    expect(taskCollectionDescriptor.query.serialize(parsed.query).get('view')).toBe('completed')
+  })
 })
 
 describe('table presentation (shared-surface fallback renderer)', () => {
@@ -256,5 +277,19 @@ describe('table presentation (shared-surface fallback renderer)', () => {
     expect(screen.getByText('Raka')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('row', { name: /Fix the coffee machine/ }))
     expect(onOpenRecord).toHaveBeenCalledTimes(1)
+  })
+
+  it('names the page-level work queue as the primary work surface', () => {
+    const data = makeData()
+    const projection = taskCollectionDescriptor.project(data, q(), 'table')
+    render(
+      <I18nProvider><MemoryRouter>{taskCollectionDescriptor.presentations.table.render({
+        query: q(), projection, context: data.context,
+        selectedIds: new Set(), onToggleSelected: () => {}, onOpenRecord: () => {},
+        onToggleGroup: () => {}, isGroupCollapsed: () => false,
+      })}</MemoryRouter></I18nProvider>,
+    )
+    expect(screen.getByRole('heading', { level: 2, name: /work queue/i })).toBeInTheDocument()
+    expect(screen.getByTestId('tasks-work-queue')).toBeInTheDocument()
   })
 })

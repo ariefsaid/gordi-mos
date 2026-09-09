@@ -1,12 +1,12 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   Home row & band grammar — the SHARED texture every Home arrangement renders
-   through `RegionRows` (home-focused / home-overview / home-list), and the
+   Home row & band grammar — the SHARED texture the daily brief renders through
+   RegionRows, and the
    Signals feed mirrors. Chromeless: quiet band dividers + the shared list-row
    rhythm tokens provide the texture — never a boxed section shell. Token-only
    (DESIGN.md + the shared --row-* rhythm set).
 
-   Named for the single-column `HomeStream` it was extracted from; that component
-   was retired with the three-arrangement Home (OD-V4-9) and its own chrome
+   Named for the single-column HomeStream it was extracted from; that component
+   was retired with the previous Home presentation and its own chrome
    (`.home-stream`, `.stream-heading`, `.stream-band-empty`) went with it. What
    survives here is the row/band vocabulary, which has exactly one definition.
    ════════════════════════════════════════════════════════════════════════════ */
@@ -187,6 +187,14 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* Optional action label used by the daily brief. It lives inside the canonical row link so the
+   whole row remains one predictable target instead of creating nested controls. */
+.stream-row-action {
+  font-size: var(--font-size-control);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* ── Reason chip — the ranking-legibility cue. Flat, borderless, tinted by tone

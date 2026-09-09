@@ -305,7 +305,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Mine task' })])
     renderAt('/work/tasks?view=mine')
     await waitFor(() => screen.getByText('Mine task'))
-    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('tab', { name: 'My work' })).toHaveAttribute('aria-selected', 'true')
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
   })
 
@@ -316,8 +316,8 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Shared task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' })])
     renderAt('/work/tasks?view=team')
     await waitFor(() => screen.getByText('Shared task'))
-    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('tab', { name: 'Team work' })).toBeNull()
+    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
     expect(document.querySelectorAll('.drawer, [role="dialog"]')).toHaveLength(0)
   })
@@ -326,11 +326,11 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Fallback task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' })])
     renderAt('/work/tasks?view=bogus')
     await waitFor(() => screen.getByText('Fallback task'))
-    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('tab', { name: 'My work' })).toHaveAttribute('aria-selected', 'false')
     // §Task-11: no Team-work chip exists.
-    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Overdue' })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.queryByRole('button', { name: 'AR Follow-ups' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'Team work' })).toBeNull()
+    expect(screen.getByRole('tab', { name: 'Overdue' })).toHaveAttribute('aria-selected', 'false')
+    expect(screen.queryByRole('tab', { name: 'AR Follow-ups' })).toBeNull()
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
   })
 
@@ -511,7 +511,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     renderAtWithLocation('/work/tasks/new', () => {})
     // The draft row is the NEW task row: an editor input, focused, replacing the title cell.
     const titleInput = await screen.findByLabelText('Edit task title')
-    expect(document.activeElement).toBe(titleInput)
+    await waitFor(() => expect(titleInput).toHaveFocus())
     // No create drawer mounts — the draft row is the create surface.
     expect(screen.queryByRole('complementary', { name: /create task/i })).toBeNull()
   })
@@ -529,7 +529,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     const create = await screen.findByRole('link', { name: /\+ create task/i })
     fireEvent.click(create)
     const titleInput = await screen.findByLabelText('Edit task title')
-    expect(document.activeElement).toBe(titleInput)
+    await waitFor(() => expect(titleInput).toHaveFocus())
   })
 
   // GAP-2 (OD-91 #7): expand-in-place is retired — the drawer never collapses the table grid;

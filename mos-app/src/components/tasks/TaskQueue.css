@@ -1,0 +1,85 @@
+/* The queue is one calm work surface: the lead establishes the list's purpose, then the
+   existing table/card grammar carries the scan. Keep this scoped so other collections do not
+   inherit Tasks' triage rhythm. */
+.tasks-work-queue {
+  min-width: 0;
+  color: var(--foreground);
+}
+
+/* Tasks is a full-bleed work surface. The shared RecordCollection frame remains the structural
+   host for other collections, but its card treatment would box this queue twice: once around the
+   rail and again around the rows. */
+.tasks-collection-surface.record-collection-view {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.tasks-collection-surface > .record-collection {
+  gap: 0;
+}
+
+.tasks-page-head .ch-title {
+  font-size: 28px;
+}
+
+.tasks-work-queue__lead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+
+.tasks-work-queue__lead h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-family-display);
+  font-size: var(--font-size-subheading);
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+/* Keep desktop rows readable while tightening the scan rhythm around the decision fields. These
+   rules only pin the queue's type hierarchy and keep optional metadata quieter than task identity;
+   rows remain free to grow when their content needs more room. */
+.tasks-work-queue .task-name,
+.tasks-work-queue .collection-grammar-title.task-name {
+  font-size: var(--font-size-body-lg);
+  line-height: 1.25;
+}
+
+.tasks-work-queue .task-row-meta,
+.tasks-work-queue .task-bu {
+  margin-top: 2px;
+  line-height: 1.2;
+}
+
+.tasks-work-queue .tasks-scroll {
+  min-width: 0;
+}
+
+/* On phones this is a list, not a stack of cards. Slightly tighter padding lets the queue show
+   more work without taking away the 44px touch target. */
+.tasks-work-queue .task-card-link {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.tasks-work-queue .task-card-meta {
+  gap: 6px 14px;
+  margin-top: 6px;
+}
+
+@media (max-width: 767.98px) {
+  .tasks-work-queue__lead {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 12px 10px;
+  }
+}

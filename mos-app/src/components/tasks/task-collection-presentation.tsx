@@ -26,6 +26,7 @@ import type { WorkloadSummary } from './workload-caption'
 import { TaskRow } from './task-row'
 import { GroupHeaderRow } from './group-header-row'
 import { OccurrenceAssignDialog } from './occurrence-assign-dialog'
+import './TaskQueue.css'
 import type {
   CollectionPresentationProps,
   CollectionProjection,
@@ -478,7 +479,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         businessUnitName={buMap.get(task.business_unit_id) ?? ''}
         onOpen={openTask}
         onEditTitle={editable ? runtime.onEditTitle : undefined}
-        onEditStatus={runtime.onEditStatus}
+        onEditStatus={editable ? runtime.onEditStatus : undefined}
         onEditDue={editable ? runtime.onEditDue : undefined}
         onEditPic={editable ? runtime.onEditPic : undefined}
         personOptions={picOptions(context.viewerId ?? '', context.people, context.downlinePersonIds ?? [])}
@@ -525,7 +526,10 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   )
 
   return (
-    <>
+    <div className="tasks-work-queue" data-testid="tasks-work-queue">
+      <section className="tasks-work-queue__lead" aria-labelledby="tasks-work-queue-title">
+        <h2 id="tasks-work-queue-title">{t('tasks.queue.title')}</h2>
+      </section>
       <TasksTableBody
         loading={false}
         error={null}
@@ -583,7 +587,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
           onClose={occurrence.close}
         />
       )}
-    </>
+    </div>
   )
 }
 

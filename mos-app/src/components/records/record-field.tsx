@@ -248,6 +248,24 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
 
   // ── Value mode: the document view — value + quiet edit affordance ───────────────────────
   if (!editing) {
+    const editButton = (
+      <button
+        type="button"
+        ref={editButtonRef}
+        className={`record-field__edit tap-floor record-field__edit--${spec.control}`}
+        data-field-edit={spec.key}
+        aria-label={t('record.field.edit', { label: spec.label })}
+        aria-describedby={labelId}
+        aria-haspopup={spec.control === 'status' ? 'listbox' : undefined}
+        onClick={beginEdit}
+      >
+        <span id={`${controlId}-value`} className="record-field__value">{renderValueNode(spec)}</span>
+        <span className="record-field__edit-affordance" aria-hidden="true">
+          {PENCIL}
+        </span>
+      </button>
+    )
+
     return (
       <div
         className="record-field"
@@ -262,21 +280,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
           {spec.required ? <span aria-hidden="true"> *</span> : null}
         </span>
         <div className="record-field__value-cell">
-          <button
-            type="button"
-            ref={editButtonRef}
-            className={`record-field__edit tap-floor record-field__edit--${spec.control}`}
-            data-field-edit={spec.key}
-            aria-label={t('record.field.edit', { label: spec.label })}
-            aria-describedby={labelId}
-            aria-haspopup={spec.control === 'status' ? 'listbox' : undefined}
-            onClick={beginEdit}
-          >
-            {heading ? <h1 className="record-field__value record-field__heading">{renderValueNode(spec)}</h1> : <span className="record-field__value">{renderValueNode(spec)}</span>}
-            <span className="record-field__edit-affordance" aria-hidden="true">
-              {PENCIL}
-            </span>
-          </button>
+          {heading ? <h1 aria-labelledby={`${controlId}-value`} className="record-field__value record-field__heading">{editButton}</h1> : editButton}
           {feedback}
         </div>
       </div>

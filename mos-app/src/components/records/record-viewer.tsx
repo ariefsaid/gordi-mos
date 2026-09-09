@@ -66,6 +66,26 @@ const ACTION_VARIANT: Record<RecordAction['intent'], ButtonVariant> = {
 
 const noopCommit = async () => {}
 
+function RecordActionButton({ action }: { action: RecordAction }): ReactNode {
+  return (
+    <Button
+      variant={ACTION_VARIANT[action.intent]}
+      disabled={action.disabled}
+      title={action.disabled ? action.disabledReason : undefined}
+      data-record-action={action.id}
+      onClick={() => {
+        // Central net: an adapter action whose run() rejects must never become an
+        // unhandled rejection — adapters own the visible error UX; this only reports.
+        void Promise.resolve(action.run()).catch((error) =>
+          reportError(error, { source: 'record-viewer.action', action: action.id }),
+        )
+      }}
+    >
+      {action.label}
+    </Button>
+  )
+}
+
 /**
  * RecordFieldList — the ONE value-first field-section body (an `<h3>` + the RecordField rows).
  * Shared by the viewer's metadata region AND by a content-first field-section content slot
@@ -124,6 +144,11 @@ export function RecordViewer({
   const titleId = useId()
   const Heading = headingLevel === 1 ? 'h1' : 'h2'
   const taskAnatomy = adapter.kind === 'task' && adapter.headerFields != null
+  const allowedActionIds = new Set(adapter.permission.allowedActionIds)
+  const headerActionIds = new Set(adapter.headerActionIds ?? [])
+  const headerActions = taskAnatomy
+    ? adapter.actions.filter((action) => allowedActionIds.has(action.id) && headerActionIds.has(action.id))
+    : []
   const [activeTab, setActiveTab] = useState<'details' | 'checklist' | 'activity'>('details')
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
   const tabLabels = {
@@ -181,42 +206,56 @@ export function RecordViewer({
       {...(showIdentityHeader && !taskAnatomy ? { 'aria-labelledby': titleId } : { 'aria-label': adapter.title })}
     >
       {taskAnatomy && adapter.headerFields && (
-        <header className="record-viewer__pinned-header" data-record-header="pinned" data-viewer-region="identity">
-          <div className="record-viewer__pinned-title">
-            {adapter.headerFields.filter((field) => field.key === 'title').map((field) => (
-              <RecordField
-                key={field.key}
-                spec={field}
-                onCommit={(value) => (onCommitField ?? noopCommit)(field.key, value)}
-                onDirtyChange={onDirtyChange}
-                commitsFrozen={fieldCommitsFrozen}
-                heading={field.key === 'title'}
-              />
+        <div className="record-viewer__pinned-chrome">
+          <header className="record-viewer__pinned-header" data-record-header="pinned" data-viewer-region="identity">
+            <div className="record-viewer__pinned-title">
+              {adapter.headerFields.filter((field) => field.key === 'title').map((field) => (
+                <RecordField
+                  key={field.key}
+                  spec={field}
+                  onCommit={(value) => (onCommitField ?? noopCommit)(field.key, value)}
+                  onDirtyChange={onDirtyChange}
+                  commitsFrozen={fieldCommitsFrozen}
+                  heading={field.key === 'title'}
+                />
+              ))}
+            </div>
+            {adapter.headerContext && adapter.headerContext.length > 0 && (
+              <dl className="record-viewer__header-context" data-record-header-context="true">
+                {adapter.headerContext.map((item) => (
+                  <div key={item.key} className="record-viewer__header-context-item" data-header-context-key={item.key}>
+                    <dt>{item.label}</dt>
+                    <dd>{item.displayValue}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            <div className="record-viewer__pinned-controls">
+              <div className="record-viewer__pinned-status">
+                {adapter.headerFields.filter((field) => field.key === 'status').map((field) => (
+                  <RecordField
+                    key={field.key}
+                    spec={field}
+                    onCommit={(value) => (onCommitField ?? noopCommit)(field.key, value)}
+                    onDirtyChange={onDirtyChange}
+                    commitsFrozen={fieldCommitsFrozen}
+                  />
+                ))}
+              </div>
+              {headerActions.length > 0 && (
+                <div className="record-viewer__header-actions" data-record-header-actions="true">
+                  {headerActions.map((action) => <RecordActionButton key={action.id} action={action} />)}
+                </div>
+              )}
+            </div>
+          </header>
+          <div className="record-viewer__tabs" role="tablist" aria-label={t('tasks.record.tabsAria')}>
+            {(['details', 'checklist', 'activity'] as const).map((tab, index) => (
+              <button key={tab} ref={(element) => { tabRefs.current[index] = element }} type="button" role="tab" id={`record-tab-${tab}`} aria-controls={`record-panel-${tab}`} aria-selected={activeTab === tab} tabIndex={activeTab === tab ? 0 : -1} className={activeTab === tab ? 'is-active' : ''} onClick={() => selectTab(tab)} onKeyDown={(event) => onTabKeyDown(event, tab)}>
+                {tabLabels[tab]}
+              </button>
             ))}
           </div>
-          <div className="record-viewer__pinned-status">
-            {adapter.headerFields.filter((field) => field.key === 'status').map((field) => (
-              <RecordField
-                key={field.key}
-                spec={field}
-                onCommit={(value) => (onCommitField ?? noopCommit)(field.key, value)}
-                onDirtyChange={onDirtyChange}
-                commitsFrozen={fieldCommitsFrozen}
-              />
-            ))}
-            <button type="button" className="record-viewer__activity-affordance" onClick={() => selectTab('activity')}>
-              {tabLabels.activity}
-            </button>
-          </div>
-        </header>
-      )}
-      {taskAnatomy && (
-        <div className="record-viewer__tabs" role="tablist" aria-label={t('tasks.record.tabsAria')}>
-          {(['details', 'checklist', 'activity'] as const).map((tab, index) => (
-            <button key={tab} ref={(element) => { tabRefs.current[index] = element }} type="button" role="tab" id={`record-tab-${tab}`} aria-controls={`record-panel-${tab}`} aria-selected={activeTab === tab} tabIndex={activeTab === tab ? 0 : -1} className={activeTab === tab ? 'is-active' : ''} onClick={() => selectTab(tab)} onKeyDown={(event) => onTabKeyDown(event, tab)}>
-              {tabLabels[tab]}
-            </button>
-          ))}
         </div>
       )}
       {showIdentityHeader && !taskAnatomy && (
@@ -260,6 +299,8 @@ function RecordBody({
   const readOnly = adapter.permission.readOnly
   const allowed = new Set(adapter.permission.allowedActionIds)
   const visibleActions = adapter.actions.filter((a) => allowed.has(a.id))
+  const headerActionIds = new Set(adapter.headerActionIds ?? [])
+  const footerActions = visibleActions.filter((action) => !headerActionIds.has(action.id))
   // SR-6: the "select a value to edit" hint is only honest when at least one field CAN be edited.
   // A Signal's Facts are all read-only even on a non-retracted (permission.readOnly=false) record,
   // so gating on !readOnly alone showed the hint on a record with nothing to edit. Gate on the
@@ -338,25 +379,9 @@ function RecordBody({
             {adapter.permission.reason}
           </p>
         )}
-        {(visibleActions.length > 0 || onOpenPage) && (
+        {(footerActions.length > 0 || onOpenPage) && (
           <div className="record-viewer__actions">
-            {visibleActions.map((action) => (
-              <Button
-                key={action.id}
-                variant={ACTION_VARIANT[action.intent]}
-                disabled={action.disabled}
-                title={action.disabled ? action.disabledReason : undefined}
-                onClick={() => {
-                  // Central net: an adapter action whose run() rejects must never become an
-                  // unhandled rejection — adapters own the visible error UX; this only reports.
-                  void Promise.resolve(action.run()).catch((error) =>
-                    reportError(error, { source: 'record-viewer.action', action: action.id }),
-                  )
-                }}
-              >
-                {action.label}
-              </Button>
-            ))}
+            {footerActions.map((action) => <RecordActionButton key={action.id} action={action} />)}
           </div>
         )}
         {/* Quiet inline-edit hint (E7 table-footnote parity) — only when the record is editable,

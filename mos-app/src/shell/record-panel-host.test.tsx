@@ -153,6 +153,13 @@ describe('RecordPanelHost — optional chrome (FR-1: title zone · Open full pag
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('closeLabel customizes the one host Close control without adding another button', () => {
+    renderHost({ title: 'Task', closeLabel: 'Close (Esc)' })
+
+    expect(screen.getAllByRole('button', { name: /close/i })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /^close \(esc\)$/i })).toBeInTheDocument()
+  })
+
   it('onOpenPage → renders the "Open full page" escalation that calls it', () => {
     const onOpenPage = vi.fn()
     renderHost({ title: 'Signal', onOpenPage })

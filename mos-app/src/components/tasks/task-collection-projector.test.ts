@@ -159,6 +159,16 @@ describe('projectTaskCollection — filtering', () => {
     expect(p.visibleRecords.map((r) => r.id).sort()).toEqual(['t-1', 't-3'])
   })
 
+  it('view=completed scopes cleanly to Done tasks', () => {
+    const rows = [
+      ...RAW,
+      rawTask({ id: 't-done', title: 'Close the old task', status: 'Done', due_date: '2026-07-01' }),
+    ]
+    const p = projectTaskCollection(makeData(rows), q({ view: 'completed' }))
+    expect(p.visibleRecords.map((r) => r.id)).toEqual(['t-done'])
+    expect(p.visibleRecordsAreFiltered).toBe(true)
+  })
+
   it('optimistic statusOverrides are applied before filtering', () => {
     const p = projectTaskCollection(
       makeData(RAW, { statusOverrides: new Map([['t-1', 'Done']]) }),
@@ -184,6 +194,16 @@ describe('projectTaskCollection — sorting', () => {
     ]
     const p = projectTaskCollection(makeData(rows), q())
     expect(p.visibleRecords.map((r) => r.id)).toEqual(['c', 'a', 'b'])
+  })
+
+  it('default queue order keeps active work ahead of completed work even when Done is older', () => {
+    const rows = [
+      rawTask({ id: 'done', title: 'Closed yesterday', status: 'Done', due_date: '2026-07-01' }),
+      rawTask({ id: 'urgent', title: 'Fix the grinder', status: 'Open', due_date: '2026-07-10' }),
+      rawTask({ id: 'next', title: 'Plan next week', status: 'In Progress', due_date: '2026-07-12' }),
+    ]
+    const p = projectTaskCollection(makeData(rows), q())
+    expect(p.visibleRecords.map((r) => r.id)).toEqual(['urgent', 'next', 'done'])
   })
 
   it('sort=pic uses the resolved display name, not the id', () => {

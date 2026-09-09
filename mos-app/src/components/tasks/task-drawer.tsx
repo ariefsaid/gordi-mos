@@ -7,7 +7,6 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import { useT } from '@/i18n/use-t'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { OverlayLeaveDecision, OverlayLeaveGuard, OverlayLeaveIntent } from '@/shell/overlay-navigation'
-import { CloseIcon } from '@/shell/icons'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 
 export type TaskDrawerOutletContext = {
@@ -188,34 +187,12 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
   const openPage = mode === 'view' && taskId
     ? () => navigate({ pathname: `/work/tasks/${taskId}`, search: location.search }, { state: { taskSurface: 'page' } })
     : undefined
-  // AC-306/AC-309: the host's own ✕ (record.close, no Esc hint) stays generic across every
-  // tenant. Task-specific hostActions add a labelled "Close (Esc)" affordance (extension point,
-  // not a host fork — mirrors the create-mode chrome bar's existing tasks.close button) so a
-  // keyboard/SR user gets an explicit close control that names the Esc shortcut this host already
-  // wires up (both the split and modal regimes close on Escape).
-  const hostActions = mode === 'view' ? (
-    <>
-      {/* Record-scoped "Ask Deputy": opens the Deputy panel pre-seeded with a compact reference to
-          this task. Gated on the resolved title so the seed is meaningful ("About Task: <title>"),
-          never a bare stub. The user still edits and sends — it never auto-sends. */}
-      {resolvedTitle && (
-        <AskDeputyAction draft={t('assistant.askAbout.task', { title: resolvedTitle })} />
-      )}
-      <button
-        type="button"
-        className="record-panel-btn"
-        aria-label={t('tasks.close')}
-        title={t('tasks.close')}
-        onClick={close}
-      >
-        <CloseIcon />
-      </button>
-    </>
-  ) : (
-    // DO-4: create mode — the host bar is the ONE chrome (CreateSurface suppresses its own via
-    // showPanelUtility=false below). One title, one ✕ (the host's own); no expand toggle (GAP-2).
-    undefined
-  )
+  // Record-scoped "Ask Deputy" is the only tenant action in the host's actions slot. Close stays
+  // in the shared host so every TaskDrawer regime has exactly one dismiss control; the task's
+  // localized "Close (Esc)" label is supplied through the host's closeLabel seam below.
+  const hostActions = mode === 'view' && resolvedTitle
+    ? <AskDeputyAction draft={t('assistant.askAbout.task', { title: resolvedTitle })} />
+    : undefined
 
   // GAP-2 (OD-91 #7): expand-in-place is retired, so the drawer is a fixed-width panel — the only
   // escalation is "Open full page". ADR-0013 D1 / OD-P4-9: BreadcrumbTitleSync mounts when the title is resolved and
@@ -249,6 +226,7 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
       <RecordPanelHost
         label={label}
         onClose={close}
+        closeLabel={mode === 'view' ? t('tasks.close') : undefined}
         focusKey={`${taskId ?? mode}-${mode}`}
         title={label}
         actions={hostActions}

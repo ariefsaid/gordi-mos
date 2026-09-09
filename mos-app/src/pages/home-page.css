@@ -1,5 +1,5 @@
-/* Home day header (DESIGN.md § Components → Home arrangements → "Home day header") — ONE line at
-   every width: greeting + role chip left, `N left` right; at ≤390 the chip drops to a second line.
+/* Home day header — ONE line at every width: greeting + day/role identity left, `N left` right;
+   at ≤390 the identity can wrap to a second line.
    The head itself carries `home-day-header content-header--compact` (see home-page.tsx): the
    compact mode owns the stepped-down greeting rung and keeps the shared phone stack from wrapping
    the meta onto its own row between 391–767px. This file owns only the day header's own bits.
@@ -12,6 +12,27 @@
   font-size: var(--font-size-overline);
 }
 
+.content-header .ch-meta .home-head-meta {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.content-header .ch-meta .home-head-date {
+  white-space: nowrap;
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+/* Home's page identity is the greeting plus the day, so it must hold the first visual rung of
+   the brief. This is scoped to Home's frame and overrides the shared compact head only here. */
+.content-header.home-day-header .ch-title {
+  font-size: 32px;
+  line-height: 1.15;
+}
+
 /* `N left` — mockup `.hdr-counts`: caption rung, muted, tabular so it doesn't jitter as the day
    moves, and nowrap so the figure never splits across the wrap the chip owns. */
 .home-head-counts {
@@ -20,6 +41,11 @@
   white-space: nowrap;
 }
 
+@media (max-width: 767.98px) {
+  .content-header.home-day-header .ch-title {
+    font-size: 24px;
+  }
+}
 /* ≤390: the chip drops to line 2 (`.ch-meta` takes a full row), and the tally moves up beside the
    greeting — order 0 puts `.ch-action` on the title's line, its own `margin-left: auto` pins it
    to the right edge. Both override the compact phone rules by specificity (3 classes vs 2). */

@@ -320,30 +320,101 @@
   max-width: 72ch;
 }
 
-/* Task Variant B: the action header and section tabs remain visible while the record body scrolls. */
-.record-viewer__pinned-header {
+/* Task Variant B: the identity, decision context, lifecycle action, and section tabs remain
+   visible while the record body scrolls. They share one sticky chrome block so the tabs never
+   slide underneath a variable-height, naturally-wrapped title. The title gets the full header
+   width first; status and the one promoted lifecycle action live on their own row so a narrow
+   panel never breaks a word just to make room for controls. */
+.record-viewer__pinned-chrome {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 3;
+  background: var(--card);
+}
+
+.record-viewer__pinned-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
   padding: 14px 20px 12px;
   background: var(--card);
   border-bottom: 1px solid var(--border);
 }
 
-.record-viewer__pinned-title { min-width: 0; flex: 1; }
+.record-viewer__pinned-title { min-width: 0; width: 100%; }
 .record-viewer__pinned-title .record-field { display: block; }
-.record-viewer__pinned-title .record-field__label,
+.record-viewer__pinned-title .record-field__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.record-viewer__pinned-title .record-field__edit {
+  width: 100%;
+  margin: 0;
+  min-height: 44px;
+  padding: 4px 0;
+  white-space: normal;
+}
+.record-viewer__pinned-title .record-field__heading {
+  margin: 0;
+  font: inherit;
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+/* The editable identity keeps its activation target inside the semantic heading. Inherit the
+   heading token on the value span so extracting the button does not demote the visible title to
+   the ordinary key/value font. */
+.record-viewer__pinned-title .record-field__heading > .record-field__edit > .record-field__value {
+  font: inherit;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.record-viewer__header-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0;
+  padding: 0;
+  color: var(--muted-foreground);
+}
+.record-viewer__header-context-item {
+  display: inline-flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--font-size-label);
+  line-height: 1.35;
+}
+.record-viewer__header-context-item dt {
+  flex: none;
+  font-weight: 600;
+}
+.record-viewer__header-context-item dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--foreground);
+  overflow-wrap: normal;
+}
+.record-viewer__pinned-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.record-viewer__pinned-status { display: flex; align-items: center; min-width: 0; }
 .record-viewer__pinned-status .record-field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.record-viewer__pinned-title .record-field__edit { margin: 0; min-height: 44px; padding: 4px 8px; font-size: var(--font-size-heading); font-weight: 600; }
-.record-viewer__pinned-title .record-field__heading { margin: 0; font: inherit; font-size: var(--font-size-heading); font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--record-title-max-lines); overflow: hidden; }
-.record-viewer__pinned-status { display: flex; align-items: center; gap: 8px; flex: none; }
+.record-viewer__header-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.record-viewer__header-actions .btn { min-height: 36px; }
 .record-field__pill-caret { display: inline-block; width: 0; height: 0; margin-inline-start: 4px; border-inline: 4px solid transparent; border-block-start: 5px solid currentColor; }
-.record-viewer__activity-affordance { min-height: 44px; padding: 0 8px; border: 0; background: transparent; color: var(--muted-foreground); font: inherit; cursor: pointer; }
-.record-viewer__tabs { position: sticky; top: 0; z-index: 1; display: flex; gap: 2px; padding: 0 20px; background: var(--card); border-bottom: 1px solid var(--border); }
+.record-viewer__tabs { display: flex; gap: 2px; padding: 0 20px; background: var(--card); border-bottom: 1px solid var(--border); }
 .record-viewer__tabs button { min-height: 44px; padding: 0 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted-foreground); font: inherit; cursor: pointer; }
 .record-viewer__tabs button.is-active { color: var(--foreground); font-weight: 600; border-bottom-color: var(--primary); }
 
@@ -505,7 +576,11 @@
 }
 
 @media (max-width: 390px) {
-  .record-viewer__pinned-header { align-items: flex-start; flex-direction: column; }
-  .record-viewer__pinned-status { width: 100%; justify-content: space-between; }
+  .record-viewer__pinned-header { align-items: stretch; }
+  .record-viewer__pinned-controls { align-items: stretch; flex-direction: column; }
+  .record-viewer__pinned-status,
+  .record-viewer__header-actions { width: 100%; }
+  .record-viewer__header-actions { margin-left: 0; }
+  .record-viewer__header-actions .btn { width: 100%; }
   .dw-collapse-split { display: none; }
 }

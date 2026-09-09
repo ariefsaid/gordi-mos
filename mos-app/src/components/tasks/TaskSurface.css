@@ -480,6 +480,17 @@
   overflow: hidden;
 }
 
+/* View mode owns one bounded scroll region at every drawer width. The modal/full-screen host
+   already gives `.dw-surface` a fixed height, while the desktop split gives it the shared grid
+   height; letting the record details consume the flex remainder keeps the pinned record chrome
+   and tabs reachable instead of clipping the lower checklist/activity/action content. Create mode
+   has its own `.tc-create-body` scroll owner below. */
+.dw-surface > .record-details {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
 /* ── Utility bar (crumb-mini + expand + close) ── */
 .dw-bar {
   display: flex; align-items: center; gap: 6px;
@@ -551,3 +562,10 @@
 .tc-create-form { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 /* The scrolling body reuses `.dw-tabpane` (flex:1 · min-height:0 · overflow:auto · padding). */
 .tc-create-foot { justify-content: flex-end; gap: 8px; }
+.task-lifecycle-error {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}

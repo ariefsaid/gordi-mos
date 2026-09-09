@@ -15,7 +15,6 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import type { PageFamilyState } from '@/shell/page-families'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { createRecordRouteAdapter } from '@/shell/overlay-navigation'
-import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { useT } from '@/i18n/use-t'
 import { TasksToolbar } from './tasks-toolbar'
 import {
@@ -105,22 +104,20 @@ function legacyViewFor(view: TaskCollectionView): TasksSavedViewChip | 'all' {
   return 'all'
 }
 
-// #573 rebase note: the door summary's base is the ONE collection-query label (activeView),
-// never a second view→label map — a fourth disagreeing render is the defect this branch kills.
 function taskDisclosureSummary(
   query: TaskCollectionQuery,
   t: ReturnType<typeof useT>,
   base: string,
 ): { summary: string; hasActiveFilters: boolean } {
-  const common = collectionDisclosureSummary({
+  return collectionDisclosureSummary({
     query,
     neutralQuery: TASK_COLLECTION_NEUTRAL_QUERY,
-    excludedKeys: ['layout', 'groupBy', 'sort', 'direction'],
+    excludedKeys: ['layout', 'groupBy', 'sort', 'direction', 'view'],
     base,
-    // my-pic/my-supervisor light this dot (view !== 'all') even though getActiveTaskView treats
-    // them as the default breadcrumb state (no leaf pushed) — intended: on the door they ARE
-    // filters on top of the base view, not a saved view of their own.
-    hasNonDefaultView: query.view !== 'all',
+    // The promoted scope tabs are the queue's base context, not extra constraints. Legacy views
+    // remain an active constraint, while a clear on My work/Completed can leave that tab selected
+    // without keeping the active-query affordance lit.
+    hasNonDefaultView: query.view !== 'all' && query.view !== 'my-work' && query.view !== 'completed',
     filterLabel: (currentQuery) => currentQuery.overdueOnly ? t('tasks.saved.overdue')
       : currentQuery.status ? t('tasks.filter.status')
         : currentQuery.businessUnitId ? t('tasks.filter.businessUnit')
@@ -131,9 +128,10 @@ function taskDisclosureSummary(
                   : currentQuery.savedViewId ? t('common.savedView')
                     : undefined,
   })
-  return common
 }
 
+// #573 rebase note: the door summary's base is the ONE collection-query label (activeView),
+// never a second view→label map — a fourth disagreeing render is the defect this branch kills.
 export function TasksWorkspace({
   selectedId = null,
   drawerOpen = false,
@@ -158,12 +156,8 @@ export function TasksWorkspace({
   const isNarrow = useIsNarrow()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
-  // Block 2(b) (Luna 390 audit): on phone, collapse the View & filters config behind ONE
-  // disclosure so the first task card is visible above the fold. Desktop renders it inline.
-  const captureFirstMobile = !isDesktop
   const currentSearch = location.search
   const initialQuery = useMemo(() => queryFromLegacySavedView(savedView), [savedView])
-  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const [draftTask, setDraftTask] = useState<TaskListRow | null>(null)
   const [draftLinkError, setDraftLinkError] = useState(false)
   const [announcement, setAnnouncement] = useState('')
@@ -223,6 +217,7 @@ export function TasksWorkspace({
       all: t('tasks.saved.all'),
       'my-work': t('tasks.saved.mine'),
       overdue: t('tasks.saved.overdue'),
+      completed: t('tasks.saved.completed'),
     },
   })
   useSetCollectionLeaf({
@@ -234,10 +229,10 @@ export function TasksWorkspace({
     setQuery({
       view,
       savedViewId: null,
-      overdueOnly: view === 'overdue' ? true : view === 'all' ? false : controller.state.query.overdueOnly,
+      overdueOnly: view === 'overdue',
     })
     onSavedViewChange?.(legacyViewFor(view))
-  }, [controller.state.query.overdueOnly, onSavedViewChange, setQuery])
+  }, [onSavedViewChange, setQuery])
 
   const retry = useCallback(() => controller.retry(), [controller])
 
@@ -504,31 +499,14 @@ export function TasksWorkspace({
     for (const key of ['create', 'createTitle', 'createBu', 'createPic', 'sourceSignal']) next.delete(key)
     setParams(next, { replace: true })
   }, [dataContext, draftTask, onNewTask, params, setParams])
-  // H3 fix (owner review r2 gap — "Clear filters" didn't persist past reload): the shared
-  // RecordCollection engine's URL sync (useRecordCollection's effect, via
-  // lib/record-collection/query-state.ts writeCollectionQuery) infers which URL keys a query
-  // "owns" by re-serializing the NEUTRAL query and diffing its keys — but serializeTaskQuery
-  // (task-collection-adapter.tsx) deliberately OMITS every field that already equals its neutral
-  // value (clean canonical URLs: `if (query.q) p.set('q', …)` etc.), so serializing the neutral
-  // query itself always yields an EMPTY key set. A key that was populated and is now cleared back
-  // to neutral therefore never appears in the inferred "keys to delete" set — the visible state
-  // clears correctly (state.query is right, the table re-renders empty-filtered), but the stale
-  // `?q=…`/`&bu=…`/etc param is never removed from the URL, so a reload re-parses it and restores
-  // the filters the user just cleared. Rather than widen the shared engine's diffing for every
-  // RecordCollection consumer in this pass, strip the exact Task filter URL keys locally.
+  // The query schema owns URL cleanup, including constraints reset to neutral.
   const onClearFilters = useCallback(() => {
     const nextView = query.view === 'overdue' ? 'all' : query.view
     setQuery({
       q: '', businessUnitId: null, status: null, picId: null, supervisorId: null, personId: null,
-      overdueOnly: false, includeArchived: false, view: nextView,
+      overdueOnly: false, includeArchived: false, view: nextView, savedViewId: null,
     })
-    const next = new URLSearchParams(params)
-    for (const key of ['q', 'bu', 'status', 'pic', 'supervisor', 'person', 'overdue', 'archived']) {
-      next.delete(key)
-    }
-    if (nextView === 'all') next.delete('view')
-    setParams(next, { replace: true })
-  }, [params, query.view, setParams, setQuery])
+  }, [query.view, setQuery])
   const onSort = useCallback((sort: TaskCollectionSort) => {
     const direction = query.sort === sort
       ? query.direction === 'ascending' ? 'descending' : 'ascending'
@@ -572,6 +550,7 @@ export function TasksWorkspace({
 
   const personOptions = dataContext?.people ?? []
   const buOptions = dataContext?.businessUnits ?? []
+  const taskDisclosure = taskDisclosureSummary(query, t, activeView.label)
   const tasksToolbar = (
     <TasksToolbar
       query={query}
@@ -586,6 +565,8 @@ export function TasksWorkspace({
       overdueCount={stats?.overdue ?? 0}
       onOverdueFilter={() => setQuery({ overdueOnly: true })}
       onClearOverdue={() => setQuery({ overdueOnly: false })}
+      onClearFilters={onClearFilters}
+      activeQuery={taskDisclosure}
       buOptions={buOptions}
       personOptions={personOptions}
       onPresentationChange={(next) => { controller.switchPresentation(next) }}
@@ -593,10 +574,11 @@ export function TasksWorkspace({
         label: t('tasks.savedViews'),
         selectedId: activeView.savedViewId,
         operation: state.savedViews.operation,
+        error: state.savedViews.error,
         items: state.savedViews.items.map((item) => ({ id: item.id, name: item.name })),
-        onLoad: () => { void controller.loadSavedViews() },
+        onLoad: () => controller.loadSavedViews(),
         onApply: async (id) => { await controller.applySavedView(id) },
-        onSave: async (name) => { await controller.saveCurrentView(name, 'private') },
+        onSave: (name) => controller.saveCurrentView(name, 'private'),
       }}
     />
   )
@@ -640,34 +622,14 @@ export function TasksWorkspace({
     retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink,
   ])
 
-  // DO-6: the reserved view keeps only the view chips, so the phone "View & filters" outer
-  // disclosure (whose whole content is now just those chips) would be a door hiding the only
-  // way out — render the chips directly instead.
-  const taskDisclosure = taskDisclosureSummary(query, t, activeView.label)
-  const controls = captureFirstMobile ? (
-      <ViewOptionsDisclosure
-      open={mobileOptionsOpen}
-      onToggle={() => setMobileOptionsOpen((open) => !open)}
-      onClose={() => setMobileOptionsOpen(false)}
-      label={t('tasks.viewAndFilters')}
-      summary={taskDisclosure.summary}
-      hasActiveFilters={taskDisclosure.hasActiveFilters}
-      panelId="mobile-task-options-panel"
-      className="mobile-task-options"
-      triggerClassName="mobile-task-options-trigger"
-      summaryClassName="mobile-task-options-summary"
-      chevronClassName="mobile-task-options-chevron"
-      panelClassName="mobile-task-options-panel"
-    >
-      {tasksToolbar}
-    </ViewOptionsDisclosure>
-  ) : tasksToolbar
+  const controls = tasksToolbar
 
   return (
     <PageFamilyFrame
       family="workspace"
       title={t('tasks.title')}
       jobSentence={t('job.tasks')}
+      headClassName="tasks-page-head"
       state={frameState}
       action={showNewTask ? (
         <button ref={(node) => { createControlRef.current = node }} type="button" className="btn btn-primary" onClick={() => onNewTask()}>{t('tasks.new')}</button>
@@ -691,16 +653,11 @@ export function TasksWorkspace({
     >
       {announcement && <span role="status" aria-live="polite" className="sr-only">{announcement}</span>}
       <div className={`split${(drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks') ? '' : ' nodrawer'}`}>
-        <section className={`assembly record-collection-view record-collection-view--${controller.state.presentation}${drawerOpen && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
+        <section className={`assembly record-collection-view tasks-collection-surface record-collection-view--${controller.state.presentation}${drawerOpen && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
           <TaskCollectionRuntimeProvider value={runtime}>
             <RecordCollectionSurface
               controller={controller}
               keepBodyWhenEmpty={draftTask != null}
-              resultHeader={{
-                collectionLabel: t('tasks.title'),
-                viewLabel: activeView.label,
-                count: stats === null ? null : stats.total,
-              }}
               controls={controls}
               empty={{
                 title: emptyTitle,

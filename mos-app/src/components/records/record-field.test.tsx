@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { ReactNode } from 'react'
@@ -11,13 +12,20 @@ function renderField(spec: RecordFieldSpec, extra: {
   onCommit?: (v: RecordValue) => Promise<void>
   onCancel?: () => void
   onDirtyChange?: (dirty: boolean) => void
+  heading?: boolean
 } = {}) {
   const onCommit = extra.onCommit ?? vi.fn(async () => {})
   const onCancel = extra.onCancel ?? vi.fn()
   const onDirtyChange = extra.onDirtyChange ?? vi.fn()
   const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{children}</I18nProvider>
   const utils = render(
-    <RecordField spec={spec} onCommit={onCommit} onCancel={onCancel} onDirtyChange={onDirtyChange} />,
+    <RecordField
+      spec={spec}
+      onCommit={onCommit}
+      onCancel={onCancel}
+      onDirtyChange={onDirtyChange}
+      heading={extra.heading}
+    />,
     { wrapper },
   )
   return { ...utils, onCommit, onCancel, onDirtyChange }
@@ -39,6 +47,20 @@ const textSpec: RecordFieldSpec = {
 }
 
 describe('RecordField', () => {
+  it('keeps the semantic title heading around its keyboard-edit button', async () => {
+    const user = userEvent.setup()
+    renderField(textSpec, { heading: true })
+
+    const heading = screen.getByRole('heading', { level: 1, name: 'Restock oat milk' })
+    const editButton = screen.getByRole('button', { name: 'Edit Title' })
+    expect(heading).toContainElement(editButton)
+    expect(editButton).not.toContainElement(heading)
+
+    editButton.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('textbox', { name: 'Title' })).toBeInTheDocument()
+  })
+
   it('AC-V3-008: pressing Enter commits a text field and reports Saving then Saved', async () => {
     let resolveCommit!: () => void
     const onCommit = vi.fn(

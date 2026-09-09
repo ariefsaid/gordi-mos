@@ -26,6 +26,8 @@ export type RecordPanelHostProps = {
   label: string
   /** ✕ Close / Esc / scrim → underlying page, focus returned to the opener. `via` distinguishes I2 intents. */
   onClose: (via?: 'explicit-close' | 'escape') => void
+  /** Optional localized accessible label for the host-owned Close control. */
+  closeLabel?: string
   /** The record content (e.g. TaskSurface, SignalRecordHost) — chrome-free. */
   children: ReactNode
   /** Re-run the open-focus + trap wiring when this changes (e.g. a fresh record mounts). */
@@ -75,7 +77,7 @@ function OpenPageIcon() {
  * closing returns it); <1100px modal dialog (scrim + focus-trap + Esc + return-focus).
  */
 export function RecordPanelHost({
-  label, onClose, children, focusKey, title, actions, onOpenPage, rootClassName,
+  label, onClose, closeLabel, children, focusKey, title, actions, onOpenPage, rootClassName,
   onBack, canGoBack, owner, entryKey, transitionPending, layout = 'standard',
   escapeCapture = false, escapeOnDocument = false, companion = false,
 }: RecordPanelHostProps) {
@@ -85,6 +87,7 @@ export function RecordPanelHost({
   const isModal = layout === 'companion' ? isNarrow : !isSplit
   const isFullScreen = layout === 'companion' ? isNarrow : !isDesktop
   const t = useT()
+  const resolvedCloseLabel = closeLabel ?? t('record.close')
 
   const panelRef = useRef<HTMLElement>(null)
   const invokerRef = useRef<HTMLElement | null>(null)
@@ -206,8 +209,8 @@ export function RecordPanelHost({
       <button
         type="button"
         className="record-panel-btn tap-floor"
-        aria-label={t('record.close')}
-        title={t('record.close')}
+        aria-label={resolvedCloseLabel}
+        title={resolvedCloseLabel}
         onClick={() => onClose('explicit-close')}
         {...busy}
       >
