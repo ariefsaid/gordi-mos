@@ -472,6 +472,7 @@
   }
 
   .tasks-queue-toolbar .view-tabs__tab {
+    min-width: 44px;
     min-height: 44px;
   }
 
