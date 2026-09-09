@@ -22,7 +22,7 @@
 }
 
 .tasks-page-head .ch-title {
-  font-size: 28px;
+  font-size: var(--font-size-title-lg);
 }
 
 .tasks-work-queue__lead {
@@ -38,7 +38,7 @@
 .tasks-work-queue__lead h2 {
   margin: 0;
   color: var(--foreground);
-  font-family: var(--font-family-display);
+  font-family: var(--font-display);
   font-size: var(--font-size-subheading);
   font-weight: 650;
   line-height: 1.25;

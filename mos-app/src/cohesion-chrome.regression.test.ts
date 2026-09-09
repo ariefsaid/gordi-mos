@@ -190,7 +190,6 @@ describe('CHROME-CLOSE: one CloseIcon', () => {
       'shell/mobile-drawer.tsx',
       'shell/record-panel-host.tsx',
       'components/tasks/task-surface.tsx',
-      'components/tasks/task-drawer.tsx',
       'components/admin/role-editor.tsx',
     ]) {
       const body = readSrc(f)

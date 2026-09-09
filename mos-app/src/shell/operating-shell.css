@@ -21,7 +21,7 @@
 
 .operating-shell > aside .rail-item {
   min-height: 40px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .operating-shell > aside .rail-item--active {

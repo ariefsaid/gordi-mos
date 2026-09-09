@@ -252,6 +252,8 @@
      are intentionally NOT chained here; these px values are the DESIGN.md ladder verbatim.
      Owner complaint 2026-07 ("multiple font sizes that feel untidy") → this ladder. */
   --font-size-page-title: 24px;   /* page title (Plus Jakarta 600) — DESIGN.md page-title */
+  --font-size-title-lg: 28px;
+  --font-size-display: 32px;
   /* typeset: minted, not invented — this size was already live and already documented in prose
      ("KPI values reuse ~23px/600 for the headline number", DESIGN.md §Hierarchy) and in a code
      comment (dashboard/kpi-tile.css .kpi-tile-value: "page-title scale — 23px/600"), just never

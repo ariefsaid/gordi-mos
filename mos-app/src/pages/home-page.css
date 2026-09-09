@@ -29,7 +29,7 @@
 /* Home's page identity is the greeting plus the day, so it must hold the first visual rung of
    the brief. This is scoped to Home's frame and overrides the shared compact head only here. */
 .content-header.home-day-header .ch-title {
-  font-size: 32px;
+  font-size: var(--font-size-display);
   line-height: 1.15;
 }
 
@@ -43,7 +43,7 @@
 
 @media (max-width: 767.98px) {
   .content-header.home-day-header .ch-title {
-    font-size: 24px;
+    font-size: var(--font-size-page-title);
   }
 }
 /* ≤390: the chip drops to line 2 (`.ch-meta` takes a full row), and the tally moves up beside the
