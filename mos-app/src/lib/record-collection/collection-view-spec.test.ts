@@ -70,7 +70,17 @@ describe('collection-view-spec validator', () => {
     expect(serializeCollectionViewSpec(completed)).toContain('"view":"completed"')
   })
 
-  it('FR-V3-007: Task saved view rejects Team field/query before the Issue 8 team_id contract', () => {
+  it('accepts and serializes the canonical Team-work task view without adding a free-form Team filter', () => {
+    const teamWork = {
+      ...taskSpec,
+      query: { ...taskSpec.query, view: 'team-work' as const, businessUnitId: null },
+    }
+    const result = parseCollectionViewSpec(teamWork)
+    expect(result.ok).toBe(true)
+    expect(serializeCollectionViewSpec(teamWork)).toContain('"view":"team-work"')
+  })
+
+  it('FR-V3-007: Task saved view rejects arbitrary Team field/query keys', () => {
     const withTeamField = parseCollectionViewSpec({ ...taskSpec, visibleFields: [...taskSpec.visibleFields, 'team'] })
     expect(withTeamField.ok).toBe(false)
     if (!withTeamField.ok) expect(withTeamField.issues.some((i) => i.code === 'unsupported-domain-field')).toBe(true)

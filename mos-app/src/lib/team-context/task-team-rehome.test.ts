@@ -16,8 +16,8 @@ import {
 // Rules (plan §Deterministic backfill):
 //  1. Generated occurrence Task (has process_run_id) + valid same-org run whose owning Team exists
 //     and whose Team BU equals the Task BU -> resolve via run.
-//  2. Legacy Task with NO process_run_id -> resolve only when exactly one active same-org Team
-//     exists in the Task's BU.
+//  2. Legacy Task with NO process_run_id -> report current same-org Team candidates for explicit
+//     owner ratification; even a unique current Team is not historical ownership evidence.
 //  3. Everything else stays UNRESOLVED with a reason category (fail closed).
 //  4. Never choose first/primary/name/membership/BU-label as a fallback.
 
@@ -79,11 +79,13 @@ describe('classifyTaskTeamRehome — AC-801 run-backed occurrence Task', () => {
   })
 })
 
-describe('classifyTaskTeamRehome — AC-802 unique-BU legacy Task', () => {
-  it('resolves a legacy Task when exactly one active same-org Team exists in its BU', () => {
+describe('classifyTaskTeamRehome — AC-802 legacy Task owner evidence', () => {
+  it('keeps even a unique current BU Team unresolved until an owner ratifies historical ownership', () => {
     const context = ctx({ activeTeamIdsByBu: new Map([['bu-1', ['only-team']]]) })
     const result = classifyTaskTeamRehome(task({ id: 'L1' }), context)
-    expect(result).toEqual({ status: 'resolved', method: 'via-unique-bu', teamId: 'only-team' })
+    expect(result).toEqual({
+      status: 'unresolved', reason: 'unique-bu-candidate-needs-ratification', candidateTeamIds: ['only-team'],
+    })
   })
 })
 
@@ -116,15 +118,15 @@ describe('buildRehomeReport + formatRatifyLine (owner-resolution gate)', () => {
 
   const tasks: LegacyTaskRow[] = [
     task({ id: 'k1', process_run_id: 'run-1' }), // resolved via run
-    task({ id: 'L1' }), // resolved via unique BU (bu-1 -> only-team)
+    task({ id: 'L1' }), // current unique BU candidate still needs owner ratification
     task({ id: 'L2', business_unit_id: 'bu-multi' }), // unresolved multi
     task({ id: 'L3', business_unit_id: 'bu-empty' }), // unresolved zero
   ]
 
   it('splits deterministically resolved rows from the unresolved owner-resolution set', () => {
     const report = buildRehomeReport(tasks, context)
-    expect(report.resolved.map((r) => r.taskId).sort()).toEqual(['L1', 'k1'])
-    expect(report.unresolved.map((u) => u.taskId).sort()).toEqual(['L2', 'L3'])
+    expect(report.resolved.map((r) => r.taskId).sort()).toEqual(['k1'])
+    expect(report.unresolved.map((u) => u.taskId).sort()).toEqual(['L1', 'L2', 'L3'])
   })
 
   it('preserves identifiers and reason categories for each unresolved row (audit trail)', () => {
@@ -137,19 +139,24 @@ describe('buildRehomeReport + formatRatifyLine (owner-resolution gate)', () => {
       reason: 'multiple-bu-candidates',
       candidateTeamIds: ['a', 'b'],
     })
+    const l1 = report.unresolved.find((u) => u.taskId === 'L1')
+    expect(l1).toMatchObject({
+      taskId: 'L1', reason: 'unique-bu-candidate-needs-ratification', candidateTeamIds: ['only-team'],
+    })
   })
 
   it('emits a RATIFY-BEFORE-MERGE line listing every ambiguous Task when unresolved rows remain', () => {
     const report = buildRehomeReport(tasks, context)
     const line = formatRatifyLine(report)
     expect(line).toContain('RATIFY-BEFORE-MERGE')
+    expect(line).toContain('L1')
     expect(line).toContain('L2')
     expect(line).toContain('L3')
     expect(line).toContain('multiple-bu-candidates')
   })
 
   it('returns null (no ratify line, enforcement may proceed) when nothing is unresolved', () => {
-    const report = buildRehomeReport([task({ id: 'L1' })], context)
+    const report = buildRehomeReport([task({ id: 'k1', process_run_id: 'run-1' })], context)
     expect(report.unresolved).toHaveLength(0)
     expect(formatRatifyLine(report)).toBeNull()
   })

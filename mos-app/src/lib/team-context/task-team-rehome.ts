@@ -46,9 +46,10 @@ export type RehomeUnresolvedReason =
   | 'run-team-bu-mismatch' // the run Team's BU diverges from the Task's BU
   | 'no-bu-candidate' // ad-hoc Task, zero active same-org Teams in its BU
   | 'multiple-bu-candidates' // ad-hoc Task, more than one valid Team in its BU
+  | 'unique-bu-candidate-needs-ratification' // one current candidate is not historical evidence
 
 export type RehomeClassification =
-  | { status: 'resolved'; method: 'via-run' | 'via-unique-bu'; teamId: string }
+  | { status: 'resolved'; method: 'via-run'; teamId: string }
   | { status: 'unresolved'; reason: RehomeUnresolvedReason; candidateTeamIds: string[] }
 
 /**
@@ -82,7 +83,8 @@ export function classifyTaskTeamRehome(
     return { status: 'resolved', method: 'via-run', teamId: run.owningTeamId }
   }
 
-  // Rule 2: ad-hoc legacy Task -> the sole active same-org Team in its BU, only when unique.
+  // Rule 2: ad-hoc legacy Task -> explicit owner resolution. The current directory is useful
+  // evidence for the ratifier, but it is not a historical assignment record, even when unique.
   const candidates = ctx.activeTeamIdsByBu.get(task.business_unit_id) ?? []
   if (candidates.length === 0) {
     return { status: 'unresolved', reason: 'no-bu-candidate', candidateTeamIds: [] }
@@ -94,13 +96,17 @@ export function classifyTaskTeamRehome(
       candidateTeamIds: [...candidates],
     }
   }
-  return { status: 'resolved', method: 'via-unique-bu', teamId: candidates[0] }
+  return {
+    status: 'unresolved',
+    reason: 'unique-bu-candidate-needs-ratification',
+    candidateTeamIds: [...candidates],
+  }
 }
 
 export interface RehomeResolvedRow {
   taskId: string
   teamId: string
-  method: 'via-run' | 'via-unique-bu'
+  method: 'via-run'
 }
 
 export interface RehomeUnresolvedRow {

@@ -117,7 +117,7 @@ const TASK_GROUP_FIELDS: readonly TaskCollectionGroup[] = ['status', 'pic', 'bu'
 const TASK_VISIBLE: readonly TaskCollectionVisibleField[] = [
   'title', 'status', 'pic', 'supervisor', 'due', 'businessUnit', 'workline', 'objective', 'source', 'activity',
 ]
-const TASK_VIEWS = ['all', 'my-work', 'my-pic', 'my-supervisor', 'overdue', 'completed']
+const TASK_VIEWS = ['all', 'my-work', 'team-work', 'my-pic', 'my-supervisor', 'overdue', 'completed']
 const TASK_STATUSES: readonly TaskStatus[] = ['Open', 'In Progress', 'Blocked', 'Done']
 
 const SIGNAL_PRESENTATIONS: readonly SignalCollectionPresentation[] = ['feed', 'table']
@@ -186,13 +186,14 @@ function validateTaskSpec(input: Record<string, unknown>, push: Push): void {
   if (!TASK_PRESENTATIONS.includes(input.presentation as TaskCollectionPresentation)) {
     push('invalid-presentation', 'presentation', String(input.presentation))
   }
-  // Visible fields: reject unknown fields, and reject Team before Issue 8's team_id contract.
+  // Visible fields: reject unknown fields, including arbitrary Team fields. Team ownership is
+  // represented by the canonical team-work view and the Task record, not a free-form filter.
   const visible = input.visibleFields
   if (!Array.isArray(visible)) {
     push('invalid-visible-field', 'visibleFields', 'must be an array')
   } else {
     for (const f of visible) {
-      if (f === 'team' || f === 'teamId') push('unsupported-domain-field', 'visibleFields', 'Task Team field is not supported before Issue 8')
+      if (f === 'team' || f === 'teamId') push('unsupported-domain-field', 'visibleFields', 'Task Team is not a free-form saved field')
       else if (!TASK_VISIBLE.includes(f as TaskCollectionVisibleField)) push('invalid-visible-field', 'visibleFields', String(f))
     }
   }
@@ -201,7 +202,7 @@ function validateTaskSpec(input: Record<string, unknown>, push: Push): void {
   if (!isRecord(query)) {
     push('invalid-query', 'query', 'query must be an object')
   } else {
-    if ('teamId' in query || 'team' in query) push('unsupported-domain-field', 'query.teamId', 'Task Team query is not supported before Issue 8')
+    if ('teamId' in query || 'team' in query) push('unsupported-domain-field', 'query.teamId', 'Task Team is not a free-form saved filter')
     if (query.view !== undefined && !TASK_VIEWS.includes(query.view as string)) push('invalid-query', 'query.view', String(query.view))
     if (query.status != null && !TASK_STATUSES.includes(query.status as TaskStatus)) push('invalid-query', 'query.status', String(query.status))
     if (query.personId !== undefined && query.personId !== null && typeof query.personId !== 'string') {
@@ -221,7 +222,7 @@ function validateTaskSpec(input: Record<string, unknown>, push: Push): void {
     } else if (grouping.field === 'supervisor') {
       push('unsupported-grouping', 'grouping.field', 'Supervisor grouping has no typed renderer yet')
     } else if (grouping.field === 'team') {
-      push('unsupported-domain-field', 'grouping.field', 'Task Team grouping is not supported before Issue 8')
+      push('unsupported-domain-field', 'grouping.field', 'Task Team grouping is not a supported saved field')
     } else if (!TASK_GROUP_FIELDS.includes(grouping.field as TaskCollectionGroup)) {
       push('invalid-grouping', 'grouping.field', String(grouping.field))
     }

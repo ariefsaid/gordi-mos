@@ -4,7 +4,8 @@ import type { TaskCollectionQuery, TaskCollectionView } from './task-collection-
 // my-pic/my-supervisor are always the default breadcrumb state below (isDefaultView), so a
 // caller never needs to supply a label for them — dropping the two keys here is what let
 // tasks-workspace.tsx drop its two unreachable label-map entries.
-export type TaskCollectionViewLabels = Readonly<Record<Exclude<TaskCollectionView, 'my-pic' | 'my-supervisor' | 'completed'>, string>> & {
+export type TaskCollectionViewLabels = Readonly<Record<Exclude<TaskCollectionView, 'my-pic' | 'my-supervisor' | 'completed' | 'team-work'>, string>> & {
+  'team-work'?: string
   completed?: string
 }
 
@@ -14,6 +15,7 @@ export type TaskCollectionViewLabels = Readonly<Record<Exclude<TaskCollectionVie
 function builtInLabel(view: TaskCollectionView, labels: TaskCollectionViewLabels): string {
   switch (view) {
     case 'my-work': return labels['my-work']
+    case 'team-work': return labels['team-work'] ?? labels.all
     case 'overdue': return labels.overdue
     case 'completed': return labels.completed ?? labels.all
     case 'all':

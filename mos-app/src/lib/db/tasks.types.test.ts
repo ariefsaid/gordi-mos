@@ -49,4 +49,15 @@ describe('tasks.types', () => {
     const groupable: OccurrenceGroupableTask = { ...row, process_run_id: row.process_run_id ?? null }
     expect(groupable.process_run_id).toBeNull()
   })
+
+  it('exposes real Team ownership, immutable Created by, and the optional completion clock', () => {
+    const row: Pick<TaskRow, 'team_id' | 'created_by' | 'completed_at'> = {
+      team_id: 'team-retail',
+      created_by: 'creator-1',
+      completed_at: '2026-09-08T10:00:00Z',
+    }
+    expect(row).toEqual({
+      team_id: 'team-retail', created_by: 'creator-1', completed_at: '2026-09-08T10:00:00Z',
+    })
+  })
 })
