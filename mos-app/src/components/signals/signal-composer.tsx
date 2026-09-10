@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { Picker } from '@/components/ui/picker'
-import { EmptyState } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState } from '@/components/ui/state-kit'
 import {
   listReadableAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
 } from '@/lib/db/signals'
@@ -52,6 +52,8 @@ export function SignalComposer({
   const [teams, setTeams] = useState<TeamOption[]>([])
   const [mentionTeams, setMentionTeams] = useState<TeamOption[]>([])
   const [teamsLoaded, setTeamsLoaded] = useState(false)
+  const [directoryError, setDirectoryError] = useState(false)
+  const [directoryAttempt, setDirectoryAttempt] = useState(0)
   const [teamId, setTeamId] = useState(prefill?.owningTeamId ?? '')
   const [primaryTeamId, setPrimaryTeamId] = useState('')
   const [site, setSite] = useState<SiteOption | null>(null)
@@ -76,6 +78,7 @@ export function SignalComposer({
   useEffect(() => {
     let cancelled = false
     setTeamsLoaded(false)
+    setDirectoryError(false)
     // The owning Team select uses the database's post/read gate. Mention reach is a separate
     // runtime signal.tag decision; never fall back to the viewer's membership list because every
     // org member may tag any active Person or Team when that authority is granted.
@@ -104,10 +107,10 @@ export function SignalComposer({
       else setTeamId('')
       setPeople(tagAuthority ? peopleOptions.filter((p) => p.id !== authorId).map((p) => ({ id: p.id, label: p.full_name })) : [])
       setBusinessUnits(buOptions.map((bu) => ({ id: bu.id, label: bu.name })))
-    }).catch(() => { /* the composer stays capture-minimal even if option lists fail to load */ })
+    }).catch(() => { if (!cancelled) setDirectoryError(true) })
       .finally(() => { if (!cancelled) setTeamsLoaded(true) })
     return () => { cancelled = true }
-  }, [authorId, canCreateForTeam, canMentionBu, canTag, prefill])
+  }, [authorId, canCreateForTeam, canMentionBu, canTag, prefill, directoryAttempt])
 
   // The Site pill is derived from the owning Team — never a mention target (D37). Re-resolved
   // whenever the selected Team changes (including the cross-Team destination switch, B10).
@@ -181,11 +184,8 @@ export function SignalComposer({
     }
   }
 
-  // SIG-2: a viewer with no team memberships (e.g. Finance, an org-wide role) has nothing to
-  // post a Signal TO — the owning-Team select would render empty and Share Signal would sit
-  // disabled forever with no explanation. Once the team load resolves empty, show an honest
-  // empty state that says why and who to ask, instead of a dead control.
-  if (teamsLoaded && teams.length === 0) {
+  // Empty eligible-Team results are distinct from a failed directory read.
+  if (teamsLoaded && !directoryError && teams.length === 0) {
     return (
       <div className="signal-composer" data-testid="signal-composer">
         <EmptyState
@@ -200,6 +200,7 @@ export function SignalComposer({
 
   return (
     <div className="signal-composer" data-testid="signal-composer">
+      {directoryError && <ErrorState message={t('signals.composer.directoryError')} onRetry={() => setDirectoryAttempt((attempt) => attempt + 1)} />}
       <div className="signal-composer-mention-anchor">
         <textarea
           ref={textareaRef}

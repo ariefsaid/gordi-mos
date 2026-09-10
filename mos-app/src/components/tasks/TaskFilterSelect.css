@@ -51,5 +51,5 @@
   cursor: pointer;
 }
 .task-filter-select__option[data-active='true'] { background: var(--secondary); }
-.task-filter-select__option[aria-selected='true'] { color: var(--primary); font-weight: 600; }
+.task-filter-select__option[aria-selected='true'] { color: var(--text-on-accent-tint); font-weight: 600; }
 .task-filter-select__option svg { flex: none; }

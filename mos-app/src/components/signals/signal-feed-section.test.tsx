@@ -228,9 +228,10 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
     await waitFor(() => expect(onReload).toHaveBeenCalledTimes(2))
   })
 
-  it('renders nothing during the shared read\'s initial load (Home skeletons cover it, NFR-405)', () => {
-    const { container } = renderSection({ loading: true })
-    expect(container.querySelector('.signal-feed-section')).toBeNull()
+  it('keeps Signals discoverable while the shared read loads, without a false zero count', () => {
+    renderSection({ loading: true })
+    expect(screen.getByRole('heading', { name: 'Signals' })).toBeVisible()
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true')
   })
 
   // DIV-G5 (fix work-order item 8): a failed load must surface ErrorState + Retry — never the

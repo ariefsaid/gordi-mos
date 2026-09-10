@@ -89,6 +89,21 @@ describe('Task filter option menu', () => {
     }
   })
 
+  it('consumes keyboard activation before it reaches collection shortcuts', async () => {
+    const user = userEvent.setup()
+    const shortcut = vi.fn()
+    render(<TaskFilterSelect label="Status" value="any" options={[{ value: 'any', label: 'Any status' }]} onChange={vi.fn()} />)
+    await user.tab()
+    window.addEventListener('keydown', shortcut)
+    try {
+      await user.keyboard('{Enter}')
+      expect(screen.getByRole('listbox')).toHaveFocus()
+      expect(shortcut).not.toHaveBeenCalled()
+    } finally {
+      window.removeEventListener('keydown', shortcut)
+    }
+  })
+
   it('dismisses on outside pointer without changing the value', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

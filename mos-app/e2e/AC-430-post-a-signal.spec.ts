@@ -1,85 +1,132 @@
-// AC-430 [e2e — curated journey F1] — post a Signal, mention fan-out, Inbox delivery, card actions.
-//
-// Real cross-stack proof: PostgREST + RLS (mos.can_read_signal / mos.can_post_signal_for_team) +
-// the SECURITY DEFINER fan-out RPC (mos.fan_out_signal_mention) + the Inbox deep-link. Mirrors the
-// two-persona pattern of AC-090 (localStorage.clear() + re-login swaps the browser session).
-//
-// Journey (docs/specs/signals-v1.spec.md §9 AC-430): a floor member on Home at 390px opens the
-// composer, types an observation, @-mentions a teammate, presses Share Signal; the Signal appears
-// at the top of the Home feed; the mentioned teammate receives an Inbox notification; opening the
-// card/record lets them Add category and Create follow-up Task.
-
+// AC-430: approved org-wide post/tag, current Inbox triage, and Signal record lifecycle.
+// OPEN-04/05 attention/push/new-source decisions are outside this journey.
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
-import { VIEWER, MANAGER } from './fixtures/users'
+import { localSqlRead } from './helpers/local-sql-read'
+import { assertTapFloor } from './helpers/tap-floor'
+import { DEMO_PASSWORD } from '../src/pages/demo-personas'
+import { messages } from '../src/i18n/messages'
 
 test.use({ viewport: { width: 390, height: 844 } })
 
-test('AC-430: post a Signal, @-mention a teammate, Inbox delivery, Add category + Create follow-up Task available', async ({ page }) => {
-  test.setTimeout(90_000)
-  const stamp = Date.now().toString()
-  const body = `AC-430 freezer alarm ${stamp}`
+for (const locale of ['en', 'id'] as const) {
+  test(`AC-430: unrelated org targets, Inbox handled, history, retract and Repost at 390px (${locale})`, async ({ page }, testInfo) => {
+    test.setTimeout(90_000)
+    const t = messages[locale]
+    const body = `AC-430 observation ${locale} ${Date.now()}`
+    const authorEmail = 'bulan.dev@example.test'
+    const recipientEmail = 'fitri.dev@example.test'
+    // Prove the seeded actor is active and unrelated to the destination.
+    const [fixture] = await localSqlRead<{ eligible: boolean }>(`
+      select (author.org_id = recipient.org_id and author.org_id = team.org_id
+        and author.archived_at is null and recipient.archived_at is null and team.archived_at is null
+        and not exists (select 1 from shared.team_memberships m
+          where m.person_id = author.id and m.team_id = team.id
+            and m.effective_from <= current_date and (m.effective_to is null or m.effective_to >= current_date))) as eligible
+      from shared.people author, shared.people recipient, shared.teams team
+      where author.email = '${authorEmail}' and recipient.email = '${recipientEmail}' and team.name = 'Finance Team'
+    `)
+    expect(fixture?.eligible).toBe(true)
+    await page.addInitScript((value) => localStorage.setItem('mos.locale', value), locale)
+    await loginAs(page, authorEmail, DEMO_PASSWORD)
+    await page.goto('work/signals')
+    let failDirectory = true
+    await page.route('**/rest/v1/rpc/teams_author_can_read_back', async (route) => {
+      if (failDirectory) {
+        await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ message: 'Directory unavailable' }) })
+      } else await route.continue()
+    })
+    await page.getByRole('button', { name: t['actionLauncher.open'], exact: true }).click()
+    await page.getByRole('option', { name: t['commandMenu.action.shareSignal'], exact: true }).click()
+    const composer = page.getByTestId('signal-composer')
+    const content = composer.locator('textarea')
+    await content.fill(body)
+    await expect(composer.getByText(t['signals.composer.directoryError'], { exact: true })).toBeVisible()
+    await page.screenshot({ path: testInfo.outputPath(`${locale}-composer-retry.png`), animations: 'disabled' })
+    failDirectory = false
+    await composer.getByRole('button', { name: t['common.retry'], exact: true }).click()
+    await expect(content).toHaveValue(body)
+    await composer.getByRole('combobox', { name: t['signals.composer.teamLabel'], exact: true }).click()
+    await page.getByRole('option', { name: 'Finance Team', exact: true }).click()
+    await content.pressSequentially(' @Fitri')
+    await composer.getByRole('option', { name: /Fitri Finance/ }).click()
+    await expect(content).toBeFocused()
+    await content.pressSequentially(' @Finance')
+    await composer.getByRole('option', { name: /Finance Team/ }).click()
+    await expect(content).toBeFocused()
+    await assertTapFloor(page, '[data-testid="signal-composer"] button', 'Signal composer', { axes: 'both', noOverflow: true })
+    await page.screenshot({ path: testInfo.outputPath(`${locale}-composer.png`) })
+    await composer.getByRole('button', { name: t['signals.action.share'], exact: true }).click()
+    await expect(composer).not.toBeVisible()
+    const feedRow = page.locator('main [data-signal-id][role="button"]').filter({ hasText: body })
+    await feedRow.click()
+    await expect(page.getByRole('heading', { name: new RegExp(body) })).toBeVisible()
+    await page.getByRole('button', { name: t['record.openFullPage'], exact: true }).click()
+    await expect(page).toHaveURL(/\/work\/signals\/[0-9a-f-]{36}/)
+    const signalUrl = page.url()
+    await expect(page.getByRole('heading', { name: new RegExp(body) })).toBeVisible()
+    await assertTapFloor(page, '.signal-record-control-row button', 'Signal record controls', { axes: 'both', noOverflow: true })
+    await page.getByRole('button', { name: t['signals.record.addCategory'], exact: true }).click()
+    await page.getByRole('option', { name: t['signals.category.quality'], exact: true }).click()
+    const history = page.locator('.signal-history-toggle')
+    await expect(history).toBeVisible()
+    await history.click()
+    await expect(page.locator('.signal-history-list')).toContainText(/Quality|quality|Kualitas/)
+    await page.reload()
+    await expect(page.getByRole('heading', { name: new RegExp(body) })).toBeVisible()
+    await expect(history).toBeVisible()
+    await page.screenshot({ path: testInfo.outputPath(`${locale}-record.png`) })
 
-  // ── ACT 1: VIEWER (Cahya, floor member) opens the composer and shares a Signal ──────────────
-  await loginAs(page, VIEWER.email, VIEWER.password)
-  await page.waitForURL((url) => url.pathname === '/mos/' || url.pathname === '/mos')
+    await page.evaluate(() => localStorage.clear())
+    await loginAs(page, recipientEmail, DEMO_PASSWORD)
+    await page.goto('inbox')
+    const row = page.locator('.inbox-row').filter({ hasText: body }).first()
+    await expect(row).toBeVisible()
+    await row.locator('.inbox-row__button').focus()
+    await expect(row.locator('.inbox-row__button')).toBeFocused()
+    await assertTapFloor(page, '.inbox-triage__filters button, .inbox-row button', 'Inbox', { axes: 'both', noOverflow: true })
+    await row.locator('.inbox-row__button').press('Enter')
+    await expect(page.getByRole('heading', { name: new RegExp(body) })).toBeVisible()
+    await page.goBack()
+    await expect(row).toBeVisible()
+    // Opening reads only: the explicit handle action must still be available.
+    await row.getByRole('button', { name: t['inbox.markHandled'], exact: true }).click()
+    await page.getByRole('button', { name: new RegExp(`^${t['inbox.filter.handled']}`) }).click()
+    await expect(row).toBeVisible()
+    await page.reload()
+    await expect(row).toBeVisible()
+    await expect(row.getByRole('button', { name: t['inbox.markHandled'], exact: true })).toHaveCount(0)
+    await page.screenshot({ path: testInfo.outputPath(`${locale}-inbox-handled.png`) })
 
-  // Phone chrome: the "+" Action Launcher opens the shared ⌘K command registry (no floating FAB,
-  // DESIGN.md No-FAB Rule) — Share Signal is one of its universal actions (FR-417).
-  await page.getByRole('button', { name: 'Open actions' }).click()
-  await expect(page.getByRole('dialog', { name: 'Command menu' })).toBeVisible()
-  await page.getByRole('option', { name: 'Share Signal' }).click()
-
-  const composer = page.getByRole('dialog', { name: /share signal/i })
-  await expect(composer).toBeVisible()
-
-  const contentBox = composer.getByRole('textbox', { name: /what happened/i })
-  await contentBox.fill(body)
-  await contentBox.pressSequentially(' @Dewi')
-  await expect(composer.getByRole('listbox', { name: /mention/i })).toBeVisible()
-  await composer.getByRole('option', { name: /Dewi Director/i }).click()
-
-  await composer.getByRole('button', { name: 'Share Signal', exact: true }).click()
-  await expect(composer).not.toBeVisible({ timeout: 10_000 })
-
-  // The Home signal feed is refreshed after the composer closes; reload the collection before
-  // asserting the newly committed signal (the feed query is not an optimistic composer cache).
-  await page.reload()
-  await page.waitForURL((url) => url.pathname === '/mos/' || url.pathname === '/mos')
-  const feedButton = page.getByRole('button', { name: body })
-  await expect(feedButton).toBeVisible({ timeout: 10_000 })
-
-  // ── SIGNOUT: clear Cahya's session so Dewi can log in (mirrors AC-090's swap pattern) ───────
-  await page.evaluate(() => localStorage.clear())
-  await page.waitForTimeout(500)
-
-  // ── ACT 2: MANAGER (Dewi, the mentioned teammate) checks the Inbox ──────────────────────────
-  await loginAs(page, MANAGER.email, MANAGER.password)
-  await page.goto('inbox')
-  await page.waitForURL(/\/inbox$/)
-
-  // Scoped by THIS run's unique body — repeated suite runs accumulate unread mention
-  // notifications (each run posts a fresh Signal), so the generic aria-label alone is ambiguous.
-  const notificationRow = page
-    .getByRole('button', { name: /You were mentioned in a Signal \(unread\)/i })
-    .filter({ hasText: body })
-  await expect(notificationRow).toBeVisible({ timeout: 15_000 })
-  await notificationRow.click()
-
-  // RULED inbox behavior (JQ-4 → interaction-consistency item 9 [RULED I1/D-A4]; inbox-record-door.tsx): the notification
-  // opens the actionable record preview in place; full-page navigation is an explicit second step.
-  const panel = page.getByRole('dialog')
-  await expect(panel).toBeVisible({ timeout: 10_000 })
-  await expect(panel.getByLabel('Message').getByText(body, { exact: false })).toBeVisible({ timeout: 10_000 })
-  await expect(panel.getByRole('button', { name: /add category/i })).toBeVisible()
-  await expect(panel.getByRole('button', { name: /create follow-up task/i })).toBeVisible()
-  await panel.getByRole('button', { name: 'Open full page' }).click()
-  await page.waitForURL(/\/work\/signals\/[0-9a-f-]{36}/, { timeout: 10_000 })
-  // SignalRecordPage is a focused page surface, not an article landmark; scope to its main
-  // content and preserve the record message/action assertions.
-  const record = page.locator('main')
-  await expect(record).toBeVisible({ timeout: 10_000 })
-  await expect(record.getByLabel('Message').getByText(body, { exact: false })).toBeVisible()
-  await expect(record.getByRole('button', { name: /add category/i })).toBeVisible()
-  await expect(record.getByRole('button', { name: /create follow-up task/i })).toBeVisible()
-})
+    await page.evaluate(() => localStorage.clear())
+    await loginAs(page, authorEmail, DEMO_PASSWORD)
+    await page.goto(signalUrl)
+    const more = page.getByRole('button', { name: t['signals.record.moreActions'], exact: true })
+    await more.click()
+    await page.keyboard.press('Escape')
+    await expect(more).toBeFocused()
+    await more.click()
+    await page.getByRole('menuitem', { name: t['signals.record.retract'], exact: true }).click()
+    const confirmation = page.getByRole('dialog', { name: t['signals.record.retractTitle'], exact: true })
+    await expect(confirmation.getByRole('button', { name: t['signals.record.retract'], exact: true })).toBeDisabled()
+    await confirmation.getByLabel(t['signals.record.retractReason']).fill('Incorrect destination')
+    await confirmation.getByRole('button', { name: t['signals.record.retract'], exact: true }).click()
+    await expect(page.locator('.signal-tombstone')).toContainText('Incorrect destination')
+    await expect(page.locator('.signal-tombstone')).toContainText('Bulan Barista')
+    await expect(page.getByRole('button', { name: t['signals.record.createFollowUpTask'], exact: true })).toHaveCount(0)
+    await page.reload()
+    await expect(page.locator('.signal-tombstone')).toContainText('Incorrect destination')
+    await page.screenshot({ path: testInfo.outputPath(`${locale}-tombstone.png`) })
+    await page.getByRole('button', { name: t['signals.record.repost'], exact: true }).click()
+    await expect(content).toHaveValue(new RegExp(body))
+    await expect(composer.getByRole('combobox', { name: t['signals.composer.teamLabel'], exact: true })).toContainText('Finance Team')
+    await content.fill(`${body} corrected`)
+    await composer.getByRole('button', { name: t['signals.action.share'], exact: true }).click()
+    await expect(composer).not.toBeVisible()
+    await page.goto('work/signals')
+    await page.locator('main [data-signal-id][role="button"]').filter({ hasText: `${body} corrected` }).click()
+    await page.getByRole('button', { name: t['record.openFullPage'], exact: true }).click()
+    expect(page.url()).not.toBe(signalUrl)
+    await expect(page.getByRole('heading', { name: `${body} corrected`, exact: true })).toBeVisible()
+  })
+}

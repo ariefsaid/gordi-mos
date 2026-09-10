@@ -270,6 +270,8 @@ export function Picker({
         onKeyDown={(event) => {
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
             event.preventDefault()
+            // Opening moves focus into the portal before native collection shortcuts run.
+            event.stopPropagation()
             if (!open) openPicker()
           }
           onKeyDown?.(event)

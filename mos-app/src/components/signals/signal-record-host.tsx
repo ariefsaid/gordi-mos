@@ -289,9 +289,11 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     setPeople([])
     setComments([])
     setRosters({ teamMembers: {}, buMembers: {} })
-    getSignal(signalId)
+    // An effect disposed before its first microtask (including development effect replay)
+    // owns no read. The live effect still issues exactly one primary request.
+    Promise.resolve().then(() => cancelled ? null : getSignal(signalId))
       .then((loadedDetail) => {
-        if (cancelled) return
+        if (cancelled || !loadedDetail) return
         setDetail(loadedDetail)
         setState('ready')
 

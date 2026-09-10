@@ -3,7 +3,8 @@
 // collection panel; phone card opens use the full-screen record page and return to the card list;
 // desktop keyboard navigation opens the second row and creates an inline draft.
 
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
 import { createTaskViaUI } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
@@ -43,23 +44,27 @@ test.describe('mobile', () => {
     await expect(page.getByRole('dialog', { name: /task detail/i })).toHaveCount(0)
   })
 
-  test('AC-110 (J5) part B: opening a task in-app on a phone renders the full-screen record; Back returns to the card list', async ({ page }) => {
+  test('AC-110 (J5) part B: opening a task in-app on a phone renders the full-screen record; Back returns to the card list', async ({ page }, testInfo) => {
     await loginAs(page, VIEWER.email, VIEWER.password)
-    const title = TASKS.VIEWER_ACCOUNTABLE.title
+    const title = `Phone record ${Date.now()}`
 
     await page.goto('work/tasks')
     await page.waitForURL(/\/work\/tasks$/)
+    await selectAllView(page)
+    await createTaskViaUI(page, title)
     const card = page.locator('[data-testid="task-card"]', { hasText: title }).first()
     await expect(card).toBeVisible({ timeout: 10_000 })
     await card.getByRole('link').click()
-    await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}$/)
+    await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}(?:\?.*)?$/)
 
     await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({ timeout: 10_000 })
     await expect(page.getByRole('link', { name: /back to tasks/i })).toBeVisible()
     await expect(page.getByRole('dialog', { name: /task detail/i })).toHaveCount(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: testInfo.outputPath('canonical-phone.png') })
 
     await page.getByRole('link', { name: /back to tasks/i }).click()
-    await page.waitForURL(/\/work\/tasks$/)
+    await page.waitForURL(/\/work\/tasks(?:\?.*)?$/)
     await expect(page.locator('[data-testid="task-card"]').first()).toBeVisible({ timeout: 10_000 })
   })
 })
@@ -76,6 +81,7 @@ test('AC-109 (J6): keyboard — j j Enter opens the 2nd row; Esc closes; n opens
   await selectAllView(page)
 
   await expect(page.locator('tbody tr.task-row').nth(1)).toBeVisible({ timeout: 10_000 })
+  const secondTitle = await page.locator('tbody tr.task-row').nth(1).locator('.task-name').first().innerText()
 
   await page.getByRole('heading', { name: 'Tasks', exact: true }).click()
 
@@ -83,6 +89,7 @@ test('AC-109 (J6): keyboard — j j Enter opens the 2nd row; Esc closes; n opens
   await page.keyboard.press('j')
   await expect(page.locator('tr.task-row.kfocus')).toBeVisible()
   const cursorTitle = await page.locator('tr.task-row.kfocus .task-name').first().innerText()
+  expect(cursorTitle).toBe(secondTitle)
   await page.keyboard.press('Enter')
   await page.waitForURL(/\/work\/tasks\?(?=[^#]*record=[0-9a-f-]{36})[^#]*$/)
   const drawer = page.getByRole('complementary', { name: /task detail/i })

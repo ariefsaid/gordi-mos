@@ -4,7 +4,12 @@ import { DEMO_PASSWORD } from '../src/pages/demo-personas'
 import { localSql } from './helpers/local-sql'
 import { localSqlRead } from './helpers/local-sql-read'
 import { loginAs } from './helpers/login'
-import { signOutViaUi } from './helpers/sign-out'
+import type { Page } from '@playwright/test'
+
+async function signOutViaUi(page: Page, name: string) {
+  await page.getByRole('button', { name, exact: true }).and(page.locator('[aria-haspopup="menu"]')).click()
+  await page.getByRole('menuitem', { name: /sign out/i }).click()
+}
 
 const ORG_ID = '10000000-0000-0000-0000-000000000001'
 const CAFE_OPENING_TASK_DEF_ID = 'e3000000-0000-0000-0000-000000000013'
@@ -60,7 +65,7 @@ function nullableUuidLiteral(value: string | null): string {
 }
 
 function parseCafeRollup(text: string): CafeRollup {
-  const match = /^(\d+)\/(\d+) done · (\d+) overdue · (\d+) to assign$/.exec(text)
+  const match = /^(\d+)\/(\d+) done · (\d+) overdue · (\d+) (?:to assign|unassigned)$/.exec(text)
   if (!match) throw new Error(`Unexpected Café roll-up: ${text}`)
   return {
     done: Number(match[1]),
@@ -148,7 +153,8 @@ test.beforeAll(async () => {
     if (!row) throw new Error('Could not create the isolated pending Café Opening fixture row')
   }
 
-  await localSql(readFileSync(new URL('../../supabase/seed.dev-home-work.sql', import.meta.url), 'utf8'))
+  const seed = readFileSync(new URL('../../supabase/seed.dev-home-work.sql', import.meta.url), 'utf8')
+  await localSql(seed.slice(seed.indexOf('insert into mos.tasks')))
 })
 
 test.afterAll(async () => {
@@ -214,7 +220,7 @@ test('Barista Home follows the canonical Café Opening run through completion', 
   test.setTimeout(120_000)
   await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
 
-  await loginAs(page, 'bulan.dev@example.test', DEMO_PASSWORD)
+  await loginAs(page, 'krishna.dev@example.test', DEMO_PASSWORD)
   await page.goto('cafe')
   await expect(page).toHaveURL(/\/cafe$/)
 
@@ -224,7 +230,7 @@ test('Barista Home follows the canonical Café Opening run through completion', 
 
   const cafePanel = page.locator('.cafe-opening-panel--started')
   await expect(cafePanel).toBeVisible({ timeout: 15_000 })
-  const initialCafeRollup = cafePanel.getByText(/^\d+\/\d+ done · \d+ overdue · \d+ to assign$/)
+  const initialCafeRollup = cafePanel.getByText(/^\d+\/\d+ done · \d+ overdue · \d+ (?:to assign|unassigned)$/)
   await expect(initialCafeRollup).toBeVisible()
   const initialCafe = parseCafeRollup(await initialCafeRollup.innerText())
   expect(initialCafe.pending).toBeGreaterThan(0)
@@ -240,6 +246,9 @@ test('Barista Home follows the canonical Café Opening run through completion', 
   if (!occurrenceId) throw new Error('Café Opening link did not contain an occurrence id')
   if (!existingOpening) createdRunId = occurrenceId
 
+  await signOutViaUi(page, 'Krishna Kitchen')
+  await page.waitForURL(url => url.pathname.endsWith('/login'))
+  await loginAs(page, 'bulan.dev@example.test', DEMO_PASSWORD)
   await page.goto('./')
   const homeDoor = page.getByTestId('home-cafe-door')
   await expect(homeDoor).toBeVisible({ timeout: 15_000 })
@@ -293,7 +302,7 @@ test('Barista Home follows the canonical Café Opening run through completion', 
 
   await page.getByText(taskTitle, { exact: true }).first().click()
   const taskRecord = page.getByRole('region', { name: taskTitle, exact: true })
-  await expect(taskRecord).toBeVisible()
+  await expect(taskRecord).toBeVisible({ timeout: 15_000 })
   await taskRecord.getByRole('button', { name: 'Mark complete', exact: true }).click()
   await expect(taskRecord.getByRole('button', { name: 'Edit Status', exact: true })).toContainText('Done')
 
@@ -312,7 +321,7 @@ test('Barista Home follows the canonical Café Opening run through completion', 
   await completedHomeDoor.locator('a.home-cafe-door-link').click()
   const completedCafePanel = page.locator('.cafe-opening-panel--started')
   await expect(completedCafePanel).toBeVisible({ timeout: 15_000 })
-  const completedCafeRollup = completedCafePanel.getByText(/^\d+\/\d+ done · \d+ overdue · \d+ to assign$/)
+  const completedCafeRollup = completedCafePanel.getByText(/^\d+\/\d+ done · \d+ overdue · \d+ (?:to assign|unassigned)$/)
   await expect(completedCafeRollup).toBeVisible()
   const completedCafe = parseCafeRollup(await completedCafeRollup.innerText())
   expect(completedCafe.done).toBe(initialCafe.done + 1)

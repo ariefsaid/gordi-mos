@@ -143,6 +143,7 @@
   .signal-record-control-row { align-items: stretch; }
   .signal-message-occurred { width: 100%; margin-left: 0; }
   .signal-overflow { margin-inline-start: auto; }
+  .signal-overflow-trigger { min-height: 44px; }
   .signal-overflow-menu { position: fixed; inset-inline: 16px auto; right: 16px; top: auto; margin-top: 6px; }
   .signal-reach-linked-error { align-items: flex-start; flex-direction: column; }
   .signal-tombstone-meta > div { grid-template-columns: 96px minmax(0, 1fr); }

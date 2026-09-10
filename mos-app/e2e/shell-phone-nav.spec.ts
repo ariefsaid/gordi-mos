@@ -32,7 +32,10 @@ test.describe('shell phone nav', () => {
     // mobile-drawer.tsx Zone 2 lists every module the ROUTE admits, regardless of promotion. What
     // ships on day one is Cafe (issue 444 gates Ecommerce and Roastery as post-MVP).
     await expect(more.getByRole('link', { name: 'Admin Settings' })).toBeVisible()
-    await expect(more.getByRole('link', { name: 'Personal Profile' })).toBeVisible()
+    // Personal Profile is an identity action in the UserChip row, not a destination row in the
+    // drawer. Open the signed-in identity menu before asserting its link.
+    await more.getByRole('button', { name: 'E2E Admin' }).click()
+    await expect(more.getByRole('menuitem', { name: 'Personal Profile' })).toBeVisible()
     // issue 444 — Events, Money, Ecommerce and Roastery were each asserted VISIBLE here. All four
     // are ship-gated, and the gate is above roles, so the viewer holding every role gets no link
     // to any of them on the one nav surface a phone has.
@@ -40,6 +43,10 @@ test.describe('shell phone nav', () => {
       if (!isShipGated(path)) continue
       await expect(more.getByRole('link', { name: label, exact: true })).toHaveCount(0)
     }
+    await more.getByRole('menuitem', { name: 'Personal Profile' }).click()
+    await expect(page).toHaveURL(/\/profile$/)
+    await expect(page.getByRole('heading', { name: 'Personal Profile', exact: true })).toBeVisible()
+    await expect(more).toBeHidden()
   })
 
   test('AC-021b (OD-68): a café-affiliated viewer GETS the Café tab (their work is promoted)', async ({ page }) => {
@@ -62,3 +69,27 @@ test.describe('shell phone nav', () => {
     await expect(more.getByRole('link', { name: 'Money' })).toHaveCount(0)
   })
 })
+
+for (const actor of [
+  { label: 'member', email: 'e2e.bar.member@example.test', password: 'e2e-password-123', cafe: true },
+  { label: 'lead', ...VIEWER, cafe: true },
+  { label: 'director', email: 'dewi.dev@example.test', password: VIEWER.password, cafe: false },
+]) {
+  test(`R1 Indonesian ${actor.label}: Inbox and one-line phone tabs at 390`, async ({ page }, info) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await loginAs(page, actor.email, actor.password)
+    await page.addInitScript(() => localStorage.setItem('mos.locale', 'id'))
+    await page.reload()
+    const nav = page.getByRole('navigation', { name: 'Primary' })
+    await expect(nav.locator('.bottom-tab-label')).toHaveCount(actor.cafe ? 5 : 4)
+    await expect(nav.locator('.bottom-tab-label').filter({ hasText: /^Inbox$/ })).toHaveCount(1)
+    for (const label of await nav.locator('.bottom-tab-label').all()) {
+      const geometry = await label.evaluate(el => ({ height: el.getBoundingClientRect().height, line: parseFloat(getComputedStyle(el).lineHeight), width: el.clientWidth, scroll: el.scrollWidth, font: parseFloat(getComputedStyle(el).fontSize) }))
+      expect(geometry.height).toBeLessThanOrEqual(geometry.line + 1)
+      expect(geometry.scroll).toBeLessThanOrEqual(geometry.width)
+      expect(geometry.font).toBe(11)
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+    await page.screenshot({ path: info.outputPath('id-phone-tabs.png'), animations: 'disabled' })
+  })
+}

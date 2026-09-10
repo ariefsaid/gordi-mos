@@ -273,6 +273,7 @@ export function ProcessOccurrenceControls({ workLineId, onViewTasks, onChanged }
 
       {assignRunId ? (
         <OccurrenceAssignDialog
+          occurrenceCaption={occurrences.find(({ run }) => run.id === assignRunId)?.run.caption}
           pending={pending}
           people={pendingPeople}
           loading={pendingLoading}

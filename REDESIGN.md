@@ -1,3 +1,14 @@
+# Current owner correction
+
+The owner reaffirmed on 2026-09-10 that v4 Home structures and personal-profile layout choice
+must be preserved, and disputed the navy sidebar introduced by this brief. Broad redesign
+permission does not supersede those specific preferences. The retirement and color instructions
+below are historical assistant decisions, not current authority. Do not use them to dismiss
+missing functionality or to certify the comprehensive audit. Reconcile the original owner sources
+before further UI replacement; see `docs/redesign/home-work-closure/AUDIT-CORRECTION.md`.
+
+---
+
 # Home and Work
 
 The active closure plan is `docs/redesign/home-work-closure/PLAN.md`. Work includes Tasks,
@@ -16,14 +27,15 @@ flows in the application; a token refresh or a disconnected mockup does not sati
 
 ## Design
 
-Use an ink-navy structural frame and warm light workspace with restrained blue actions.
+Use the approved v3/v4 shell palette and existing theme-aware design tokens.
 Task identity leads; metadata supports it. Space separates different jobs; hairlines organize
 rows. Avoid nested boxes, equal-card dashboards, decorative metrics and persistent configuration
 that pushes work below the fold. Use the existing self-hosted fonts with deliberate hierarchy.
 
-Home is one responsive daily operating brief: attention first, a useful next action at each item,
-then personal work and recent signals at a subordinate level. Preserve authorized data and route
-access. Previous layout preferences may remain stored without dictating the new composition.
+Home supports Focused (default), Overview and List through shared region primitives, with a
+per-person choice in Personal Profile (OD-V4-9). Preserve the same authorized information and
+route access across arrangements. Keep Signals alongside attention/work in the right-hand desktop
+column and stack at phone width (OD-WAY-87). OD-V4-10 retires only the old region-order toggle.
 
 Tasks exposes its scope/views, search and a Filters disclosure. Configuration for grouping,
 sorting, fields and saving a view remains reachable without permanently occupying the page.
@@ -31,9 +43,9 @@ Active filters explain the current subset and can be reset. Choose a useful init
 Records open beside the queue on desktop and as a full-screen readable surface on phones.
 Back, Escape, keyboard focus and save/failure feedback form one consistent interaction.
 
-Custom accessible menus are permitted. Existing table geometry, three Home variants, preserved
-visual identity and native-select-only constraints are superseded for these surfaces. Keep
-capability checks, authorization, real persistence, canonical links and accurate EN/ID content.
+Custom accessible menus are permitted. Improve table geometry and controls where needed for
+readability, while preserving the approved Home arrangements and shell identity. Keep capability
+checks, authorization, real persistence, canonical links and accurate EN/ID content.
 
 ## Delivery method
 

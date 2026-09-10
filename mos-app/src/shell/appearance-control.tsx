@@ -2,6 +2,7 @@ import { type Theme } from '@/theme/use-theme';
 import { useThemeContext } from '@/theme/theme-provider';
 import { useT } from '@/i18n/use-t';
 import type { MessageKey } from '@/i18n/messages';
+import './appearance-control.css';
 
 /** Sun icon — 16px, aria-hidden, stroke-2, currentColor */
 function SunIcon() {
@@ -116,7 +117,7 @@ export function AppearanceControl() {
   const t = useT();
 
   return (
-    <div>
+    <div className="appearance-control" data-appearance-control>
       {/* Group label — visible, muted, overline size */}
       <div
         className="px-3 text-muted-foreground select-none"
@@ -137,10 +138,10 @@ export function AppearanceControl() {
               type="button"
               aria-checked={isActive}
               className={
-                'w-full flex items-center gap-2 px-3 rounded-sm cursor-pointer ' +
+                'appearance-control-option w-full flex items-center gap-2 px-3 rounded-sm cursor-pointer ' +
                 (isActive
-                  ? 'text-foreground bg-accent'
-                  : 'text-foreground hover:bg-accent')
+                  ? 'bg-accent'
+                  : 'hover:bg-accent')
               }
               style={{ height: 32, fontSize: 'var(--font-size-body-lg)' }}
               onClick={() => setTheme(value)}

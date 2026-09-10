@@ -125,3 +125,10 @@ describe('OccurrenceAssignDialog (C2 — the pending-resolution host mounted fro
     expect(screen.getByRole('button', { name: 'Twin B' })).toBeInTheDocument()
   })
 })
+
+it('names the occurrence and explains the PIC and Supervisor consequence before choosing', () => {
+  renderDialog({ occurrenceCaption: 'Café Opening · 10 Sep 2026' })
+  expect(screen.getByText('Café Opening · 10 Sep 2026')).toBeInTheDocument()
+  expect(screen.getByText(/Choosing a person sets the PIC/)).toBeInTheDocument()
+  expect(screen.getByText(/Supervisor/)).toBeInTheDocument()
+})

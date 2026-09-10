@@ -64,30 +64,32 @@ select is(mos.can_start_process_for_team('00000000-0000-0000-0000-00000000cc03':
   'a sibling-stream member passes the matrix only for their requested bar Team');
 select is(mos.can_start_process_for_team('00000000-0000-0000-0000-00000000cc02'::uuid), false,
   'that sibling-stream member fails the matrix for the actual canonical kitchen Team');
+-- Keep future occurrences distinct from the already-started Jakarta day. Fixed calendar dates
+-- eventually collide with today's run and make the final due-surface assertion date-dependent.
 select throws_ok($$
   select mos.spawn_process_run(
     '00000000-0000-0000-0000-00000000c001'::uuid,
     '00000000-0000-0000-0000-00000000cc03'::uuid,
-    date '2026-09-10')
+    (now() at time zone 'Asia/Jakarta')::date + 1)
 $$, '42501', null,
   'a member of a different Team on the same branch cannot start the canonical Café Opening');
 select is((select count(*)::int from mos.process_runs
             where work_line_id = '00000000-0000-0000-0000-00000000c001'
-              and period_key = '2026-09-10'), 0,
+              and period_key = to_char((now() at time zone 'Asia/Jakarta')::date + 1, 'YYYY-MM-DD')), 0,
   'the denied sibling request creates no occurrence');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 select ok((mos.spawn_process_run(
              '00000000-0000-0000-0000-00000000c001'::uuid,
              '00000000-0000-0000-0000-00000000cc03'::uuid,
-             date '2026-09-11')->>'run_id') is not null,
+             (now() at time zone 'Asia/Jakarta')::date + 2)->>'run_id') is not null,
   'the default ops_lead grant starts the branch through the canonical Team');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
 select ok((mos.spawn_process_run(
              '00000000-0000-0000-0000-00000000c001'::uuid,
              '00000000-0000-0000-0000-00000000cc01'::uuid,
-             date '2026-09-12')->>'run_id') is not null,
+             (now() at time zone 'Asia/Jakarta')::date + 3)->>'run_id') is not null,
   'the default admin grant starts another branch through its canonical kitchen Team');
 
 select shared.save_role_authority('[{"action":"process.start","role":"member","scope":"org"}]'::jsonb);
@@ -95,12 +97,12 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select ok((mos.spawn_process_run(
              '00000000-0000-0000-0000-00000000c001'::uuid,
              '00000000-0000-0000-0000-00000000cc03'::uuid,
-             date '2026-09-13')->>'run_id') is not null,
+             (now() at time zone 'Asia/Jakarta')::date + 4)->>'run_id') is not null,
   'an admin member-scope override changes the sibling request from denied to allowed');
 select is((select count(*)::int from mos.process_runs
             where work_line_id = '00000000-0000-0000-0000-00000000c001'
               and owning_team_id = '00000000-0000-0000-0000-00000000cc02'
-              and period_key = '2026-09-13'), 1,
+              and period_key = to_char((now() at time zone 'Asia/Jakarta')::date + 4, 'YYYY-MM-DD')), 1,
   'the override still preserves one canonical occurrence per period');
 select is((select count(*)::int from mos.cafe_opening_branches()), 2,
   'the saved member org grant makes both canonical branch openings visible');

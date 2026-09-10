@@ -146,7 +146,7 @@
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--primary);
+  color: var(--text-on-accent-tint);
   font: inherit;
   font-size: var(--font-size-label);
   font-weight: 600;
@@ -155,7 +155,7 @@
 
 .tasks-queue-toolbar__clear:hover,
 .tasks-filter-panel__close:hover {
-  background: var(--accent);
+  background: var(--secondary);
 }
 
 .tasks-queue-toolbar__clear:focus-visible,
@@ -499,6 +499,10 @@
     font-size: var(--font-size-subheading);
   }
 
+  .tasks-queue-toolbar__clear,
+  .tasks-saved-view,
+  .tasks-attention-trigger,
+  .tasks-attention-option,
   .tasks-filter-panel__close {
     min-height: 44px;
     flex: none;
@@ -542,6 +546,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .tasks-attention-trigger svg,
   .tasks-queue-toolbar__filters-trigger svg {
     transition: none;
   }

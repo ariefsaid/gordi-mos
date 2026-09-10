@@ -1,15 +1,16 @@
 // HomePage tests cover the daily brief's data contract, access gates and live supporting feed.
-// Presentation-specific tests live beside HomeDailyBrief; the retired Focused/Overview/List
-// arrangement tests were removed with those inactive modules.
+// Arrangement-specific interaction tests live beside the shared Home layout primitives.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
 import type { RolesRow } from '@/lib/database.types'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { HomePage } from './home-page'
+import { ProfilePage } from './profile-page'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
 
 vi.mock('../auth/use-auth')
@@ -241,33 +242,37 @@ beforeEach(() => {
 })
 
 describe('Home daily operating brief', () => {
-  it('renders one attention-first composition with wide My work and no layout picker or tabs', async () => {
+  it('AC-920: renders the default Focused arrangement with the attention regions and a right-hand feed slot', async () => {
     mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
     const { container } = await renderHome(financeViewer)
     const brief = await screen.findByTestId('home-daily-brief')
-    const main = brief.querySelector<HTMLElement>('.home-brief-main')!
     const aside = brief.querySelector<HTMLElement>('.home-brief-aside')!
-    const attention = brief.querySelector<HTMLElement>('.home-brief-attention')!
-    const myWork = brief.querySelector<HTMLElement>('.home-brief-my-work')!
 
-    expect(container.querySelector('[role="tablist"]')).toBeNull()
+    expect(container.querySelector('[role="tablist"]')).toBeInTheDocument()
     expect(container.querySelector('.home-bento')).toBeNull()
-    expect(main).toContainElement(attention)
-    expect(main).toContainElement(myWork)
-    expect(aside).not.toContainElement(myWork)
-    expect(main.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(attention.compareDocumentPosition(myWork) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(brief.querySelector('.home-layout')).toContainElement(screen.getByRole('tabpanel'))
+    expect(aside).toContainElement(screen.getByRole('region', { name: /^Signals/ }))
+    expect(brief.querySelector('.home-layout')!.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('keeps a stored legacy layout preference inert while preserving the daily brief', async () => {
-    window.localStorage.setItem(
-      'gordi.home.layout.' + financeViewer.viewer.person.id,
-      'overview',
-    )
-    const { container } = await renderHome(financeViewer)
+  it('AC-921: choosing Overview in Profile applies to Home and survives a remount', async () => {
+    const user = userEvent.setup()
+    mockUseAuth.mockReturnValue(financeViewer)
+    const profile = render(<ProfilePage />, { wrapper })
+
+    await user.click(screen.getByRole('radio', { name: /overview/i }))
+    expect(screen.getByRole('radio', { name: /overview/i })).toBeChecked()
+    profile.unmount()
+
+    const firstHome = await renderHome(financeViewer)
     expect(await screen.findByTestId('home-daily-brief')).toBeInTheDocument()
-    expect(container.querySelector('[role="tablist"]')).toBeNull()
-    expect(container.querySelector('.home-bento')).toBeNull()
+    expect(firstHome.container.querySelector('[role="tablist"]')).toBeNull()
+    expect(firstHome.container.querySelector('.home-bento')).toBeInTheDocument()
+    firstHome.unmount()
+
+    const secondHome = await renderHome(financeViewer)
+    expect(secondHome.container.querySelector('[role="tablist"]')).toBeNull()
+    expect(secondHome.container.querySelector('.home-bento')).toBeInTheDocument()
   })
 
   it('makes the next action explicit while keeping the canonical task link and state origin', async () => {
@@ -317,7 +322,7 @@ describe('AC-H02: a member sees a usable brief and live Signals column', () => {
 
     const brief = await screen.findByTestId('home-daily-brief')
     expect(within(brief).getByText('Restock oat milk')).toBeInTheDocument()
-    expect(within(brief).getByRole('region', { name: /^My work today/ })).toBeInTheDocument()
+    expect(within(brief).getByRole('tabpanel', { name: /^My open work/ })).toBeInTheDocument()
     expect(within(brief).queryByRole('region', { name: /^Needs you now/ })).toBeNull()
     expect(brief.querySelector('.home-brief-my-work')).toBeNull()
     expect(within(brief).queryByText('Failed checks')).toBeNull()
@@ -376,10 +381,13 @@ describe('OD-WAY-93: failed checks follow Café affiliation, not generic route a
       const brief = await screen.findByTestId('home-daily-brief')
 
       expect(mockLoadFailedChecks.mock.calls.length > 0, 'queried the café-log DAL').toBe(eligible)
+      const failedTab = within(brief).queryByRole('tab', { name: /^Failed checks/ })
       if (eligible) {
-        expect(brief.querySelector('.home-brief-lane--checks')).not.toBeNull()
+        expect(failedTab).not.toBeNull()
+        await userEvent.setup().click(failedTab!)
+        expect(await within(brief).findByText('Production · 2026-07-20')).toBeInTheDocument()
       } else {
-        expect(brief.querySelector('.home-brief-lane--checks')).toBeNull()
+        expect(failedTab).toBeNull()
       }
       expect(screen.queryByText('Production · 2026-07-20') != null, 'rendered the reject').toBe(eligible)
     })
@@ -488,7 +496,7 @@ describe('Issue 245 / FR-928: Signals stays live, concise and honest', () => {
     mockListTasks.mockResolvedValue([])
     await renderHome(memberViewer)
     expect(await screen.findByText('0 left')).toBeInTheDocument()
-    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.queryByRole('tablist')).toBeInTheDocument()
 
     await act(async () => {
       resolveSignals([])
@@ -535,7 +543,8 @@ describe('Home task regions preserve decision context and collection doors', () 
     }
     mockListTasks.mockResolvedValue([normalTask, secondTask])
     await renderHome(financeViewer)
-    const myWork = await screen.findByRole('region', { name: /^My work today/ })
+    await userEvent.setup().click(await screen.findByRole('tab', { name: /^My open work/ }))
+    const myWork = await screen.findByRole('tabpanel', { name: /^My open work/ })
     expect(within(myWork).getByText('Prep beans')).toBeInTheDocument()
     expect(within(myWork).getByText('Clean grinder')).toBeInTheDocument()
     expect(within(myWork).getByRole('link', { name: /my open tasks · 2/i }))
@@ -556,9 +565,9 @@ describe('Home task regions preserve decision context and collection doors', () 
     ])
     await renderHome(financeViewer)
     const brief = await screen.findByTestId('home-daily-brief')
-    const attention = brief.querySelector('.home-brief-attention')!
-    const myWork = brief.querySelector('.home-brief-my-work')!
-    expect(attention.compareDocumentPosition(myWork) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const tabs = within(brief).getAllByRole('tab')
+    expect(tabs[0]).toHaveAccessibleName(/^Needs you now/)
+    expect(tabs[1]).toHaveAccessibleName(/^My open work/)
   })
 })
 
@@ -697,5 +706,32 @@ describe('issue 444 mechanism: the door component owns its canonical destination
     expect(screen.getByRole('link', { name: /^See all →$/ }))
       .toHaveAttribute('href', '/work/objectives')
     expect(screen.queryByText(/Progress rolls up from each Objective/i)).toBeNull()
+  })
+})
+
+describe('R5 independent Home regions', () => {
+  it.each(['timeout', 'server'])('keeps a director Objective %s failure framed and retries only that region', async (failure) => {
+    mockLoadHomeObjectiveProgress.mockRejectedValueOnce(new Error(failure))
+    await renderHome(ownerDirectorViewer)
+    const region = screen.getByRole('region', { name: 'Objectives' })
+    expect(within(region).getByRole('alert')).toBeInTheDocument()
+    const taskReads = mockListTasks.mock.calls.length
+    await userEvent.setup().click(within(region).getByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(within(region).queryByRole('alert')).toBeNull())
+    expect(mockLoadHomeObjectiveProgress).toHaveBeenCalledTimes(2)
+    expect(mockListTasks).toHaveBeenCalledTimes(taskReads)
+    expect(within(region).getByRole('link', { name: /^See all/ })).toHaveAttribute('href', '/work/objectives')
+  })
+
+  it.each(['timeout', 'server'])('keeps the barista Café %s failure framed and retries only that region', async (failure) => {
+    mockLoadHomeCafeDoor.mockRejectedValueOnce(new Error(failure))
+    await renderHome(baristaViewer)
+    const region = screen.getByTestId('home-cafe-door')
+    expect(within(region).getByRole('alert')).toBeInTheDocument()
+    const taskReads = mockListTasks.mock.calls.length
+    await userEvent.setup().click(within(region).getByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(within(region).queryByRole('alert')).toBeNull())
+    expect(mockLoadHomeCafeDoor).toHaveBeenCalledTimes(2)
+    expect(mockListTasks).toHaveBeenCalledTimes(taskReads)
   })
 })

@@ -32,6 +32,7 @@
 
 .home-brief-main--member {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 28px;
   min-width: 0;
 }
@@ -169,12 +170,11 @@
 
 .home-brief-attention .stream-row-action {
   color: var(--primary);
-  border-left: 1px solid var(--border);
-  padding-left: 12px;
+  margin-left: auto;
 }
 
 .home-brief-secondary {
-  border-top: 1px solid var(--border);
+  border-top: 2px solid var(--border);
   padding-top: 16px;
 }
 
@@ -201,11 +201,11 @@
 }
 
 .home-brief-objectives {
-  margin-bottom: 28px;
+  margin-bottom: 0;
 }
 
 .home-brief-objectives .stream-band {
-  border-top: 2px solid var(--brand-navy);
+  border-top: 1px solid var(--border);
   padding-top: 14px;
 }
 
@@ -224,7 +224,6 @@
     gap: 28px;
   }
 
-  .home-brief-aside { display: block; }
 }
 
 @container home (max-width: 620px) {
@@ -267,5 +266,100 @@
   .home-brief-checks-clear {
     margin-left: 0;
     flex-basis: 100%;
+  }
+}
+
+/* Work leads the first band. Updates get reading width below it, rather than a narrow
+   column competing with every task. The DOM follows this order on phones as well. */
+.home-brief-feed {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.home-daily-brief .stream-row-link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 16px 4px;
+}
+
+.home-daily-brief .stream-row-title {
+  font-size: var(--font-size-body-lg);
+  line-height: 1.5;
+}
+
+.home-daily-brief .stream-row-tail {
+  flex-wrap: wrap;
+}
+
+.home-daily-brief .stream-row-action {
+  margin-left: auto;
+  border: 0;
+  padding: 0;
+  color: var(--muted-foreground);
+}
+
+.home-daily-brief .stream-row-pic-name {
+  font-weight: 400;
+}
+
+.home-daily-brief .home-signal-body {
+  font-size: var(--font-size-body-lg);
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.home-daily-brief .home-signal-row {
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 4px;
+}
+
+.home-daily-brief .home-signal-main {
+  width: 100%;
+  gap: 8px;
+}
+
+.home-daily-brief .home-signal-location-chip,
+.home-daily-brief .home-signal-time-chip {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  white-space: normal;
+}
+
+.home-daily-brief .home-signal-meta-item {
+  overflow: visible;
+  white-space: normal;
+}
+
+.home-daily-brief .home-signal-attention--needs-attention,
+.home-daily-brief .home-signal-attention--fyi {
+  height: auto;
+  padding: 0;
+  background: transparent;
+  font-weight: 400;
+}
+
+.home-daily-brief .signal-feed-label,
+.home-daily-brief .home-objectives-door .stream-band-label {
+  font-size: var(--font-size-heading);
+}
+
+.home-daily-brief .home-objective-name {
+  white-space: normal;
+  font-weight: 500;
+}
+
+@container home (min-width: 961px) {
+  .home-brief-my-work .stream-row-link {
+    display: flex;
+    padding-block: 12px;
+  }
+
+  .home-brief-my-work .stream-row-tail {
+    flex-wrap: nowrap;
   }
 }

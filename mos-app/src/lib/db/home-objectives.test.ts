@@ -31,3 +31,11 @@ describe('Home Objective progress', () => {
     ])
   })
 })
+
+it('never fabricates an Objective link from a dangling Task or Work-line edge', () => {
+  expect(buildHomeObjectiveProgress({
+    objectives: [],
+    workLines: [{ id: 'wl', name: 'Project', type: 'project', objective_id: 'missing' }],
+    tasks: [task({ objective_id: 'missing' }), task({ id: 'indirect', work_line_id: 'wl' })],
+  })).toEqual([])
+})

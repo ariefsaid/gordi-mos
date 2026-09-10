@@ -13,6 +13,7 @@ import './occurrence-assign-dialog.css'
 // shared centered-modal interaction contract.
 
 export interface OccurrenceAssignDialogProps {
+  occurrenceCaption?: string
   pending: PendingTaskRow[]
   /** Full org roster — resolves candidate ids to names / backs the vacant-path full picker. */
   people: PersonOption[]
@@ -25,7 +26,7 @@ export interface OccurrenceAssignDialogProps {
 }
 
 export function OccurrenceAssignDialog({
-  pending, people, loading, error, onRetry, onResolved, onClose,
+  occurrenceCaption, pending, people, loading, error, onRetry, onResolved, onClose,
 }: OccurrenceAssignDialogProps) {
   const t = useT()
   return (
@@ -37,6 +38,8 @@ export function OccurrenceAssignDialog({
       closeOnBackdrop={false}
     >
       <div className="occ-assign-box">
+        {occurrenceCaption ? <h2>{occurrenceCaption}</h2> : null}
+        <p>{t('processes.pending.consequence')}</p>
         <div className="occ-assign-head">
           <button type="button" className="btn btn-outline" onClick={onClose}>
             {t('processes.pending.close')}

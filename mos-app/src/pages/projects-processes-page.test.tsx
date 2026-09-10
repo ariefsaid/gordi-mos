@@ -54,10 +54,10 @@ function task(id: string, objectiveId: string | null, workLineId: string | null,
   }
 }
 
-function renderPage() {
+function renderPage(entry = "/") {
   return render(
     <I18nProvider>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}>
         <ProjectsProcessesPage />
       </MemoryRouter>
     </I18nProvider>,
@@ -172,6 +172,26 @@ describe('Projects & Processes collection-first contract', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Create project or process' })).toHaveFocus())
   })
 
+  it('preserves a failed Process draft and its type for retry', async () => {
+    vi.mocked(createWorkLine).mockRejectedValueOnce(new Error('Temporary save failure'))
+    renderPage()
+    await screen.findByText('Menu launch')
+    fireEvent.click(screen.getByRole('button', { name: 'Create project or process' }))
+    const form = await screen.findByRole('form', { name: 'Create project or process' })
+    const name = within(form).getByRole('textbox', { name: 'Name' })
+    fireEvent.change(name, { target: { value: 'Weekly stock opname' } })
+    fireEvent.click(within(form).getByRole('combobox', { name: 'Type' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Process' }))
+    fireEvent.submit(form)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Temporary save failure')
+    expect(name).toHaveValue('Weekly stock opname')
+    expect(within(form).getByRole('combobox', { name: 'Type' })).toHaveTextContent('Process')
+    fireEvent.submit(form)
+    await waitFor(() => expect(createWorkLine).toHaveBeenNthCalledWith(2, 'Weekly stock opname', 'process'))
+    await waitFor(() => expect(screen.queryByRole('form', { name: 'Create project or process' })).toBeNull())
+    expect(screen.getByRole('button', { name: 'Create project or process' })).toHaveFocus()
+  })
+
   it('cancels the focused draft on Escape through the same path as Cancel', async () => {
     renderPage()
     await screen.findByText('Menu launch')
@@ -199,4 +219,72 @@ describe('Projects & Processes collection-first contract', () => {
     expect(screen.getByRole('link', { name: 'Daily prep' })).toBeInTheDocument()
     expect(container.querySelector('.catalog-collection__disclosure')).toBeNull()
   })
+})
+
+
+describe('R5 collection state boundaries', () => {
+  it('keeps loading distinct from an empty success', async () => {
+    vi.mocked(listWorkLinesAll).mockReturnValue(new Promise(() => {}))
+    renderPage()
+    expect(await screen.findByRole('status', { name: 'Loading projects & processes…' })).toBeInTheDocument()
+    expect(screen.queryByText('No projects or processes yet')).toBeNull()
+  })
+
+  it('shows true empty without Clear filters', async () => {
+    vi.mocked(listWorkLinesAll).mockResolvedValue([])
+    renderPage()
+    expect(await screen.findByText('No projects or processes yet')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
+  })
+
+  it('keeps filtered empty clearable', async () => {
+    renderPage('/?q=no-such-record')
+    expect(await screen.findByText('Nothing matches your filters')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(await screen.findByRole('link', { name: 'Menu launch' })).toBeInTheDocument()
+  })
+
+  it.each([false, true])('says exactly Nothing archived yet without Clear filters (entire catalog empty: %s)', async (empty) => {
+    if (empty) vi.mocked(listWorkLinesAll).mockResolvedValue([])
+    renderPage('/?view=archived')
+    expect(await screen.findByRole('heading', { name: 'Nothing archived yet' })).toBeInTheDocument()
+    const disclosure = screen.queryByRole('button', { name: /View & filters/ })
+    if (disclosure) fireEvent.click(disclosure)
+    expect(screen.getByRole('button', { name: 'Current status' })).toHaveTextContent('Archived')
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
+    expect(screen.queryByText('No projects or processes yet')).toBeNull()
+  })
+
+  it.each(['timeout', 'server'])('keeps a %s failure out of empty success and retries', async (failure) => {
+    vi.mocked(listWorkLinesAll).mockRejectedValueOnce(new Error(failure))
+    renderPage()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t load')
+    expect(screen.queryByText('No projects or processes yet')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    expect(await screen.findByRole('link', { name: 'Menu launch' })).toBeInTheDocument()
+  })
+})
+
+describe('R5 denied write authority', () => {
+  it('keeps Projects and Processes readable while denying creation and rename', async () => {
+    const auth = viewerAuth()
+    if (auth.status !== 'authenticated') throw new Error('Expected authenticated fixture')
+    auth.viewer.accessRoles = ['member']
+    vi.mocked(useAuth).mockReturnValue(auth)
+    vi.mocked(getWorkWriteScopes).mockResolvedValue({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [] })
+    renderPage()
+    expect(await screen.findByRole('link', { name: 'Menu launch' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Daily prep' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Create project or process' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /rename/i })).toBeNull()
+  })
+})
+
+
+it('R5: archived records hidden by search remain filtered-empty and clearable', async () => {
+  vi.mocked(listWorkLinesAll).mockResolvedValue([{ id: 'archived-1', name: 'Archived project', type: 'project', archived_at: '2026-01-01' }])
+  renderPage('/?view=archived&q=no-match')
+  expect(await screen.findByRole('heading', { name: 'Nothing matches your filters' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument()
+  expect(screen.queryByText('Nothing archived yet')).toBeNull()
 })

@@ -59,9 +59,11 @@ describe('PORT-024: ProfilePage', () => {
     renderPage()
     const identityCard = screen.getByRole('heading', { name: 'Identity' }).closest('section')
     const languageCard = screen.getByRole('heading', { name: 'Language' }).closest('section')
+    const layoutCard = screen.getByRole('heading', { name: 'Home layout' }).closest('section')
 
     expect(identityCard).toHaveStyle({ borderRadius: 'var(--radius-lg)' })
     expect(languageCard).toHaveStyle({ borderRadius: 'var(--radius-lg)' })
+    expect(layoutCard).toHaveStyle({ borderRadius: 'var(--radius-lg)' })
   })
 
   it('keeps the remaining profile form cards at the narrow form measure', () => {
@@ -71,12 +73,42 @@ describe('PORT-024: ProfilePage', () => {
         maxWidth: '560px',
       })
     }
+    expect(screen.getByRole('heading', { name: 'Home layout' }).closest('section')).toHaveStyle({
+      maxWidth: '754px',
+    })
   })
 
-  it('does not expose the retired Home layout picker', () => {
+  it('exposes the personal Home layout picker with Focused as the default', () => {
     renderPage()
-    expect(screen.queryByRole('heading', { name: 'Home layout' })).toBeNull()
-    expect(screen.queryByRole('radiogroup')).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Home layout' })).toBeInTheDocument()
+    expect(screen.getAllByRole('radio')).toHaveLength(3)
+    expect(screen.getByRole('radio', { name: /focused/i })).toBeChecked()
+  })
+
+  it('FR-921: selecting Overview persists the choice and applies it on a fresh Profile mount', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getByRole('radio', { name: /overview/i }))
+    expect(screen.getByRole('radio', { name: /overview/i })).toBeChecked()
+    expect(localStorage.getItem('gordi.home.layout.p1')).toBe('overview')
+
+    cleanup()
+    renderPage()
+    expect(screen.getByRole('radio', { name: /overview/i })).toBeChecked()
+  })
+
+  it('FR-921: a storage write failure does not block the session choice', async () => {
+    const user = userEvent.setup()
+    const originalSetItem = localStorage.setItem
+    try {
+      localStorage.setItem = () => { throw new Error('quota') }
+      renderPage()
+      await user.click(screen.getByRole('radio', { name: /list/i }))
+      expect(screen.getByRole('radio', { name: /list/i })).toBeChecked()
+    } finally {
+      localStorage.setItem = originalSetItem
+    }
   })
 
   it('renders read-only Identity — Person and Roles as plain text rows (not input-look), managed by Admin', () => {
@@ -118,7 +150,7 @@ describe('PORT-024: ProfilePage', () => {
     // key is missing from the `id` catalog, so a page that switches its heading and keeps English
     // cards passes every title-only assertion. Found by mutation: replacing an `id` card string
     // with its `en` twin left the rest of this file green. Every card heading is checked.
-    for (const heading of ['Identitas', 'Bahasa']) {
+    for (const heading of ['Identitas', 'Bahasa', 'Tata letak Beranda']) {
       expect(screen.getByRole('heading', { level: 2, name: heading })).toBeInTheDocument()
     }
     for (const english of ['Identity', 'Home layout']) {

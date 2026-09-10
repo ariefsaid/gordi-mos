@@ -4,7 +4,7 @@
 -- journey: member is a baseline category derived from live org membership, not from access_roles.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(61);
+select plan(67);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
@@ -105,6 +105,23 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select is((select count(*)::int from mos.signals
             where id = (select signal_one from authority_ids)), 1,
   'the original author reads the active Signal before governance retraction');
+select ok(mos.can_retract_signal((select signal_one from authority_ids)),
+  'the author retains retraction authority without a special access role');
+select ok(not mos.can_retract_signal((select signal_peer from authority_ids)),
+  'ordinary Team membership does not authorize retracting another author');
+-- No Team-lead designation has been assigned yet: these assertions isolate the BU-head grant.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}';
+select ok(mos.can_retract_signal((select signal_peer from authority_ids)),
+  'the owning BU head can retract another author in that BU');
+select ok(not mos.can_retract_signal((select signal_cross_bu from authority_ids)),
+  'BU-head retraction does not extend into another BU');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}';
+select ok(mos.can_retract_signal((select signal_cross_bu from authority_ids)),
+  'an ops lead can retract an unrelated same-org Signal across BUs');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select ok(mos.can_retract_signal((select signal_cross_bu from authority_ids)),
+  'an admin can retract an unrelated same-org Signal across BUs');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
 
 reset role;
 update shared.people set archived_at = now()

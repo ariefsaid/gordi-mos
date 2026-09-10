@@ -613,6 +613,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       />
       {occurrence.runId && (
         <OccurrenceAssignDialog
+          occurrenceCaption={groups.find((group) => group.key === occurrence.runId)?.label}
           pending={occurrence.pending}
           people={[...context.people]}
           loading={occurrence.loading}

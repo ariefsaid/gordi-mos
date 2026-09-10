@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -555,4 +556,12 @@ describe('SignalRecordHost — renders as chrome-free content (FR-3)', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
     expect(document.querySelector('h1')?.textContent).toContain('The freezer alarm went off')
   })
+})
+
+
+it('R8: effect replay shares one primary read and starts enrichment once', async () => {
+  render(<StrictMode><MemoryRouter><I18nProvider><SignalRecordHost signalId={SIGNAL_ID} /></I18nProvider></MemoryRouter></StrictMode>)
+  expect(await screen.findByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument()
+  expect(mockGetSignal).toHaveBeenCalledTimes(1)
+  expect(mockListSignalRevisions).toHaveBeenCalledTimes(1)
 })

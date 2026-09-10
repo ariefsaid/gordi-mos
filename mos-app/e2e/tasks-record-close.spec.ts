@@ -18,7 +18,7 @@
 // global-setup seed (never staging). Oracle: the drawer's visibility (what "the record closes" means
 // to the user) plus the ?record= query being gone from the address bar.
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
 import { createTaskViaUI } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'

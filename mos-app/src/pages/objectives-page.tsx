@@ -207,7 +207,7 @@ export function ObjectivesPage() {
       filters={[{
         id: 'status',
         label: t('catalog.filter.status'),
-        display: query.view === 'all' ? t('catalog.includeArchived') : t('catalog.view.active'),
+        display: statusLabel,
         popover: {
           choices: [{
             key: 'include-archived',
@@ -268,6 +268,8 @@ export function ObjectivesPage() {
               onOpenRecord={overlay.onOpenRecord}
               keepBodyWhenEmpty={draftOpen}
               empty={{ title: t('catalog.objectives.empty.title'), copy: t('catalog.objectives.empty.copy') }}
+              archivedEmpty={query.view === 'archived' && controller.state.data?.records.every((row) => row.archived_at === null)
+                ? { title: t('catalog.archivedEmpty.title') } : undefined}
               filteredEmpty={{
                 title: t('catalog.filteredEmpty.title'),
                 clear: () => setQuery({ view: 'active', q: '', coverage: 'all' }),

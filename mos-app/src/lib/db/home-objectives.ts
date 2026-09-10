@@ -28,7 +28,8 @@ export function buildHomeObjectiveProgress(input: HomeObjectiveProgressInput): H
     tasks: input.tasks,
     includeEmptyWorkLines: true,
   })
-  return rollUpCounts(groups, { objectives, workLines }).objectives
+  const readableIds = new Set(objectives.map(({ id }) => id))
+  return rollUpCounts(groups, { objectives, workLines }).objectives.filter(({ id }) => readableIds.has(id))
 }
 
 /** Read only the catalog edges Home needs; tasks are passed from Home's shared task projection. */

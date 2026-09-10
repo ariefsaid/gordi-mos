@@ -54,7 +54,7 @@ export function StreamRow({ item, hidePic = false, reasonStyle = 'chip', actionL
           {item.status && <StatusPill status={item.status} openTreatment="neutral" />}
           {actionLabel && (
             <span className="stream-row-action">
-              {actionLabel}<span aria-hidden="true"> →</span>
+              <span className="sr-only">{actionLabel}</span><span aria-hidden="true"> →</span>
             </span>
           )}
         </span>

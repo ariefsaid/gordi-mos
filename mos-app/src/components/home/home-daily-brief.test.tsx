@@ -33,7 +33,7 @@ function renderBrief(overrides: Partial<Parameters<typeof buildHomeRegions>[0]> 
 }
 
 describe('HomeDailyBrief', () => {
-  it('labels the member assigned-work union as My work today', () => {
+  it('labels the member assigned-work union as My open work', () => {
     const regions = buildHomeRegions({
       overdue: [item('late')], dueToday: [], blocked: [], myWork: [item('next')], failedChecks: [],
     })
@@ -45,7 +45,7 @@ describe('HomeDailyBrief', () => {
       </I18nProvider>,
     )
 
-    expect(screen.getByRole('region', { name: /^My work today/ })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /^My open work/ })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: /^Needs you now/ })).toBeNull()
   })
 
@@ -58,8 +58,8 @@ describe('HomeDailyBrief', () => {
     expect(container.querySelector('[role="tablist"]')).toBeNull()
     expect(container.querySelector('.home-bento')).toBeNull()
     expect(main).toContainElement(screen.getByRole('heading', { name: /^Needs you now/ }))
-    expect(main).toContainElement(screen.getByRole('heading', { name: /^My work today/ }))
-    expect(aside).not.toContainElement(screen.getByRole('heading', { name: /^My work today/ }))
+    expect(main).toContainElement(screen.getByRole('heading', { name: /^My open work$/ }))
+    expect(aside).not.toContainElement(screen.getByRole('heading', { name: /^My open work/ }))
     expect(aside).toContainElement(screen.getByTestId('supporting-feed'))
     expect(main.compareDocumentPosition(aside) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
@@ -102,7 +102,9 @@ describe('HomeDailyBrief', () => {
     const { rerender } = renderBrief({ taskState: 'loading' })
     const brief = screen.getByTestId('home-daily-brief')
     expect(within(brief).getAllByRole('status')).toHaveLength(2)
-    expect(within(brief).getAllByText('—')).toHaveLength(2)
+    // Only attention has a heading count; unresolved My work still has its loading state.
+    expect(within(brief).getAllByText('—')).toHaveLength(1)
+    expect(within(brief).getByRole('heading', { name: /^My open work$/ })).toBeInTheDocument()
 
     const regions = buildHomeRegions({
       overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], taskState: 'error',

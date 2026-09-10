@@ -756,7 +756,8 @@ export function TasksWorkspace({
       onAttentionOverdue={() => setQuery({ overdueOnly: true, status: null })}
       onAttentionBlocked={() => setQuery({ overdueOnly: false, status: 'Blocked' })}
       onClearFilters={onClearFilters}
-      activeQuery={taskDisclosure}
+      activeQuery={state.status === 'empty' && query.includeArchived
+        ? { ...taskDisclosure, hasActiveFilters: false } : taskDisclosure}
       buOptions={buOptions}
       personOptions={personOptions}
       onPresentationChange={(next) => { controller.switchPresentation(next) }}

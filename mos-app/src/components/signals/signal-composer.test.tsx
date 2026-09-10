@@ -107,7 +107,7 @@ describe('SignalComposer — repost prefill', () => {
   })
 })
 
-// SIG-2 — a viewer with no team memberships gets an honest empty state, not a dead composer.
+// SIG-2 — an empty eligible-Team list gets an honest empty state, not a dead composer.
 describe('SignalComposer — no-team empty state (SIG-2)', () => {
   it('renders an empty state explaining why, instead of an empty select + forever-disabled submit', async () => {
     mockListReadableAuthorTeams.mockResolvedValue([])
@@ -115,11 +115,27 @@ describe('SignalComposer — no-team empty state (SIG-2)', () => {
 
     // The empty state resolves once the (empty) team load settles.
     expect(await screen.findByText('No team to post to')).toBeInTheDocument()
-    expect(screen.getByText(/Ask an admin or your team lead/i)).toBeInTheDocument()
+    expect(screen.getByText('Ask an admin to check the available teams and your posting access.')).toBeInTheDocument()
+    expect(screen.queryByText(/team you belong to|not a member/i)).not.toBeInTheDocument()
 
     // No dead controls: no owning-Team select, no disabled Share Signal button.
     expect(screen.queryByRole('combobox', { name: /team/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /share signal/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps the draft and retries a failed directory load instead of claiming no Team membership', async () => {
+    mockListReadableAuthorTeams.mockRejectedValueOnce(new Error('Network unavailable'))
+    renderComposer()
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'Keep this observation')
+    const retry = await screen.findByRole('button', { name: /^Try again$/ })
+    expect(screen.queryByText('No team to post to')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /share signal/i })).toBeDisabled()
+    await userEvent.click(retry)
+    await waitFor(() => expect(screen.getByRole('button', { name: /share signal/i })).toBeEnabled())
+    expect(body).toHaveValue('Keep this observation')
+    await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledWith(expect.objectContaining({ body: 'Keep this observation' })))
   })
 
   it('does not flash the empty state before the team load resolves', () => {

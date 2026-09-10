@@ -1,9 +1,9 @@
 /*
  * DIRECTION CONTRACT — Home daily dispatch sheet
- * THESIS: Home answers “what needs me now?” in one queue; the category-default dashboard of equal
- * cards and switchable layouts is intentionally retired.
- * OWN-WORLD: E7 ink-navy structure, warm paper surfaces, hairline dividers, Plus Jakarta headings,
- * DM Sans rows, and One Blue reserved for routes and actions.
+ * THESIS: Home answers “what needs me now?” through three v4 shapes over one consequence-ranked
+ * queue; the shapes change scan geometry, not the underlying data or persona scope.
+ * OWN-WORLD: approved warm-paper surfaces, hairline dividers, Plus Jakarta headings, DM Sans rows,
+ * and One Blue reserved for routes and actions.
  * STORY: scan the day, open the most consequential item, then work through the remaining queue
  * while keeping recent signals and objectives in peripheral reach.
  * FIRST VIEWPORT: the shared greeting carries the day identity; Needs you now and My work occupy
@@ -15,6 +15,10 @@ import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { RegionCount, RegionDrillLink, RegionRows } from './region-rows'
 import type { HomeRegion } from './home-regions'
+import type { HomeLayout } from '@/lib/home-layout'
+import { HomeFocused } from './home-focused'
+import { HomeOverview } from './home-overview'
+import { HomeList } from './home-list'
 import './home-daily-brief.css'
 
 export interface HomeDailyBriefProps {
@@ -24,6 +28,8 @@ export interface HomeDailyBriefProps {
   cafeDoor?: ReactNode
   composition?: 'member' | 'cockpit'
   showFailedChecks?: boolean
+  /** When set, render the owner's selected v4 shape over the same regions and supporting feed. */
+  layout?: HomeLayout
 }
 
 function regionById(regions: HomeRegion[], id: HomeRegion['id']): HomeRegion {
@@ -48,6 +54,7 @@ export function HomeDailyBrief({
   cafeDoor,
   composition = 'cockpit',
   showFailedChecks = true,
+  layout,
 }: HomeDailyBriefProps) {
   const t = useT()
   const attentionId = useId()
@@ -65,6 +72,36 @@ export function HomeDailyBrief({
       ? null
       : myWork.drillTo?.count ?? needsYou.count + myWork.count,
     drillTo: myWork.drillTo ?? needsYou.drillTo,
+  }
+
+  if (layout) {
+    // Persona rules decide which regions exist; the arrangement only decides how those readable
+    // regions are shaped. Members keep their Café opening and assigned-work union, while cockpit
+    // viewers retain the full Needs you / Failed checks / My work model. Signals and Objectives
+    // remain the same standing aside in all three arrangements.
+    const layoutRegions = composition === 'member'
+      ? [memberAssigned]
+      : showFailedChecks
+        ? regions
+        : regions.filter((region) => region.id !== 'failed-checks')
+    const layoutFeed = (
+      <aside className="home-brief-aside" aria-label={t('home.brief.secondaryLabel')}>
+        <div className="home-brief-feed">{feed}</div>
+        {objectives ? <div className="home-brief-objectives">{objectives}</div> : null}
+      </aside>
+    )
+    const layoutProps = {
+      regions: layoutRegions,
+      feed: layoutFeed,
+      leading: composition === 'member' ? cafeDoor : undefined,
+    }
+    const arrangement = layout === 'overview'
+      ? <HomeOverview {...layoutProps} />
+      : layout === 'list'
+        ? <HomeList {...layoutProps} />
+        : <HomeFocused {...layoutProps} />
+
+    return <div className="home-layout-host" data-testid="home-daily-brief">{arrangement}</div>
   }
 
   if (composition === 'member') {
@@ -85,7 +122,7 @@ export function HomeDailyBrief({
               </div>
             </header>
             <div className="home-brief-lane home-brief-lane--tasks">
-              <RegionRows region={memberAssigned} actionLabel={t('home.brief.openTask')} />
+              <RegionRows region={memberAssigned} />
             </div>
           </section>
         </div>
@@ -113,7 +150,7 @@ export function HomeDailyBrief({
           </header>
 
           <div className="home-brief-lane home-brief-lane--tasks">
-            <RegionRows region={needsYou} actionLabel={t('home.brief.openTask')} />
+            <RegionRows region={needsYou} />
           </div>
 
           {showFailedChecks && (
@@ -136,7 +173,7 @@ export function HomeDailyBrief({
                     <BriefRouteLink region={failedChecks} label={t('home.brief.reviewChecks')} />
                   </div>
                 </header>
-                <RegionRows region={failedChecks} actionLabel={t('home.brief.review')} />
+                <RegionRows region={failedChecks} />
               </section>
             )
           )}
@@ -147,20 +184,19 @@ export function HomeDailyBrief({
             <div className="home-brief-section-title">
               <h2 id={myWorkId}>
                 {t(myWork.labelKey)}
-                <span className="home-brief-count tabular-nums"><RegionCount region={myWork} /></span>
               </h2>
             </div>
             <div className="home-brief-section-side">
               <RegionDrillLink region={myWork} />
             </div>
           </header>
-          <RegionRows region={myWork} actionLabel={t('home.brief.openTask')} />
+          <RegionRows region={myWork} />
         </section>
       </div>
 
       <aside className="home-brief-aside" aria-label={t('home.brief.secondaryLabel')}>
-        {objectives ? <div className="home-brief-objectives">{objectives}</div> : null}
         <div className="home-brief-feed">{feed}</div>
+        {objectives ? <div className="home-brief-objectives">{objectives}</div> : null}
       </aside>
     </div>
   )

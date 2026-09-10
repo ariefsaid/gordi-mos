@@ -29,7 +29,7 @@
 /* Home's page identity is the greeting plus the day, so it must hold the first visual rung of
    the brief. This is scoped to Home's frame and overrides the shared compact head only here. */
 .content-header.home-day-header .ch-title {
-  font-size: var(--font-size-display);
+  font-size: var(--font-size-page-title);
   line-height: 1.15;
 }
 

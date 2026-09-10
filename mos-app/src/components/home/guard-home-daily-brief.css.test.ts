@@ -10,8 +10,9 @@ describe('Home daily brief composition contract', () => {
     expect(css).toMatch(/@container\s+home\b/)
   })
 
-  it('gives the attention queue the dominant structural edge and keeps a wide two-track surface', () => {
-    expect(css).toMatch(/\.home-daily-brief\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(280px,\s*344px\)/)
+  it('keeps work before updates, with responsive tracks inside each band', () => {
+    expect(css).toMatch(/\.home-daily-brief\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(280px,\s*344px\);/)
+    expect(css).toMatch(/\.home-brief-main,\s*\.home-brief-aside[^}]*min-width:\s*0/)
     expect(css).toMatch(/\.home-brief-attention\s*\{[^}]*border-top:\s*2px\s+solid\s+var\(--brand-navy\)/)
   })
 

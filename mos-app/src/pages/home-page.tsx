@@ -1,11 +1,12 @@
 // HomePage — the index route (/). Home renders the SAME consequence-ranked task data —
-// overdue → due today → blocked, failed checks, and my work today — in one attention-first daily
-// brief. The composition has no user-selectable presentation modes.
+// overdue → due today → blocked, failed checks, and my work today — through the three v4 shapes
+// (Focused, Overview, List). The preference changes arrangement only; it never changes scope,
+// ranking, persona composition, or the standing Signals feed.
 // Mentions are not a Home region: the Inbox page and its bell are the one mentions surface (#745).
 // HomePage owns every data read + the ranking/selection logic and hands the result down as the ONE
 // shared region model (`buildHomeRegions`, FR-930) — the brief composes those regions, it never
-// re-derives them. The OD-18 region-order toggle that used to reorder the old single-stream view
-// was retired (OD-V4-10); attention always leads.
+// re-derives them. The old OD-18 region-order toggle that reordered a single-stream view was
+// retired (OD-V4-10); that is distinct from the v4 per-person arrangement preference restored here.
 //
 // This is presentation over the EXISTING task/failed-check contracts and lane logic
 // (lib/home-attention + lib/home-stream selectors). Home adds two small, RLS-backed doors for
@@ -21,7 +22,7 @@
 //
 // Home passes EVERY readable Signal, not only the FYI tail v4 passed. v4 split them because its
 // attention-worthy Signals led the ranked stream as their own band; this line's region model has
-// four regions and none of them is Signals, so filtering to FYI here would drop Urgent and
+// three regions and none of them is Signals, so filtering to FYI here would drop Urgent and
 // Needs-attention Signals off Home altogether. `orderSignalsForFeed` (inside the rows) already
 // floats those tiers to the top, so the ranking survives the difference. Should a Signals
 // attention band ever join `buildHomeRegions`, this becomes the FYI tail again.
@@ -56,6 +57,7 @@ import {
 import { buildHomeRegions } from '@/components/home/home-regions'
 import { HomeHeadCounts, type HomeDayTally } from '@/components/home/home-day-header'
 import { HomeDailyBrief } from '@/components/home/home-daily-brief'
+import { resolveHomeLayout, type HomeLayout } from '@/lib/home-layout'
 import { HomeCafeDoor } from '@/components/home/home-cafe-door'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
@@ -86,6 +88,14 @@ export function HomePage() {
     return h < 11 ? 'home.greeting.morning' as const : h < afternoonCutoff ? 'home.greeting.afternoon' as const : 'home.greeting.evening' as const
   }
   const personId = viewer?.person?.id ?? null
+  // Home arrangement is a Personal Profile preference. Resolve by person, not auth user, so a
+  // dual-role account keeps one deliberate Home shape and a change of viewer cannot leak state.
+  const [homeLayout, setHomeLayout] = useState<HomeLayout>(() => (
+    personId ? resolveHomeLayout(personId) : 'focused'
+  ))
+  useEffect(() => {
+    setHomeLayout(personId ? resolveHomeLayout(personId) : 'focused')
+  }, [personId])
   // Failed checks are an operational exception, not generic `/cafe/log` route admission. The route
   // is intentionally readable by every authenticated viewer; Home narrows the band to the
   // affiliation fact supplied by auth, with admin as the explicit cross-Café exception.
@@ -497,6 +507,7 @@ export function HomePage() {
             cafeDoor={cafe}
             composition={holdsCockpitScope ? 'cockpit' : 'member'}
             showFailedChecks={seesCafe}
+            layout={homeLayout}
           />
         )
       })()}</div>

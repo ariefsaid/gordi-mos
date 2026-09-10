@@ -1,5 +1,7 @@
--- Diagnosis journey for #709.
--- Contract: read is default-deny by membership/role; posting is allowed by capability. If this journey is green, narrow the composer → #715.
+-- Regression journey for the author read-back contract.
+-- Same-org posting is open under OD-WAY-100: the author may post for any active same-org Team and
+-- must be able to read the Signal they just posted. The original audience read gate still applies
+-- to everyone else; tenant isolation remains a separate boundary.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(7);
@@ -7,8 +9,8 @@ select plan(7);
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_signal_tree();
 
--- Unit-2 keeps the foreign Team outside DirectMgr's Unit-1-scoped read arm. DirectMgr is admitted
--- to post by the signal.create_for_team capability, but is not a member of this destination Team.
+-- Unit-2 is outside DirectMgr's Unit-1-scoped membership read arm. DirectMgr is nevertheless
+-- admitted to post by the signal.create_for_team capability and is not a member of this Team.
 insert into shared.teams (id, org_id, business_unit_id, name, code)
 values ('00000000-0000-0000-0000-000000005b03',
         '00000000-0000-0000-0000-0000000000a1',
@@ -43,8 +45,8 @@ select mos.create_signal_with_mentions(
 );
 select isnt((select foreign_id from signal_readback_probe), null,
   'JOURNEY foreign: create_signal_with_mentions returns an id');
-select is((select count(*)::int from mos.signals where id = (select foreign_id from signal_readback_probe)), 0,
-  'JOURNEY foreign: author SELECT sees zero rows through the app read path');
+select is((select count(*)::int from mos.signals where id = (select foreign_id from signal_readback_probe)), 1,
+  'JOURNEY same-org: the author reads back a Signal for a non-member destination Team');
 
 select ok(mos.can_post_signal_for_team('00000000-0000-0000-0000-000000005b01'),
   'JOURNEY control: the author can post for their own Team');

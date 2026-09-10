@@ -46,48 +46,66 @@ const ORG = '10000000-0000-0000-0000-000000000001'
 
 const NAME = 'E2E Catalog Objective'
 const RENAMED = 'E2E Renamed Objective'
+const PICKER_TASK_ID = '4e020000-0000-0000-0000-000000000001'
 
-test('AC-020: admin adds → renames → archives an objective; archived leaves the task picker', async ({ page }) => {
+test('AC-020: admin adds → renames → archives an objective; archived leaves the task picker', async ({ page }, testInfo) => {
   await loginAs(page, ADMIN.email, ADMIN.password)
 
-  // ── Open the admin-only Objectives catalog (Work manage-mode, relocated under /work/) ───
+  // All members can read; this administrator can manage the catalog.
   await page.goto('work/objectives')
   await expect(page.getByRole('heading', { name: 'Objectives', level: 1 })).toBeVisible()
 
-  // ── Add ────────────────────────────────────────────────────────────────────
-  // STALE: the create CTA's label is `catalog.objectives.add` = "Create objective"
-  // (src/i18n/messages.ts:902), not the generic "Add" this spec asserted — confirmed live in
-  // the /work/objectives button inventory (role-inventory.json, dewi persona). objectives-page.tsx
-  // renders it via `{adding ? t('catalog.objectives.adding') : t('catalog.objectives.add')}`.
-  await page.getByRole('textbox', { name: 'Name' }).fill(NAME)
+  // WORK-04: creation starts a focused inline draft inside the collection.
   await page.getByRole('button', { name: 'Create objective' }).click()
-  await expect(page.getByRole('button', { name: `Rename ${NAME}` })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Name', exact: true })).toBeFocused()
+  await page.getByRole('textbox', { name: 'Name' }).fill(NAME)
+  await page.getByRole('textbox', { name: 'Name' }).press('Enter')
+  const objective = page.getByRole('link', { name: NAME, exact: true })
+  await expect(objective).toBeVisible()
+  const objectiveHref = await objective.getAttribute('href')
+  expect(objectiveHref).toMatch(/\/work\/objectives\/[0-9a-f-]{36}$/)
+  const objectiveId = objectiveHref!.match(/[0-9a-f-]{36}$/)![0]
+  await execSql(`INSERT INTO mos.tasks
+    (id, org_id, title, business_unit_id, status, responsible_person_id, accountable_person_id, created_by, objective_id)
+    VALUES ('${PICKER_TASK_ID}', '${ORG}', 'E2E Catalog linked task',
+      (SELECT id FROM shared.business_units WHERE org_id='${ORG}' AND code='retail_ops'),
+      'Open', '${ADMIN.personId}', '${ADMIN.personId}', '${ADMIN.personId}', '${objectiveId}')`)
+  await objective.click()
 
   // ── Rename ───────────────────────────────────────────────────────────────────
-  await page.getByRole('button', { name: `Rename ${NAME}` }).click()
-  const editField = page.getByRole('textbox', { name: `Rename ${NAME}` })
+  await page.getByRole('button', { name: 'Edit Name', exact: true }).click()
+  const editField = page.getByRole('textbox', { name: 'Name', exact: true })
   await editField.fill(RENAMED)
-  await page.getByRole('button', { name: 'Save' }).click()
-  await expect(page.getByRole('button', { name: `Rename ${RENAMED}` })).toBeVisible()
+  await editField.press('Enter')
+  await expect(page.getByRole('button', { name: 'Edit Name', exact: true })).toContainText(RENAMED)
 
   // ── Archive → moves to the Archived section with an Unarchive control ────────
-  await page.getByRole('button', { name: `Archive ${RENAMED}` }).click()
-  // objectives-page.test.tsx:238-249 / catalog.view.archived: Unarchive is exposed in
-  // the Archived saved view, not on the active catalog row.
-  await page.getByRole('button', { name: 'Archived', exact: true }).click()
-  await expect(page.getByRole('button', { name: `Unarchive ${RENAMED}` })).toBeVisible()
-  // and it is no longer an active (renamable) row
-  await expect(page.getByRole('button', { name: `Rename ${RENAMED}` })).toHaveCount(0)
+  await page.getByRole('button', { name: 'More actions', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Archive', exact: true }).click()
+  await page.goto('work/objectives')
+  await expect(page.getByRole('link', { name: RENAMED, exact: true })).toHaveCount(0)
+  await page.goto('work/objectives?view=archived')
+  await page.getByRole('link', { name: RENAMED, exact: true }).click()
+  await page.getByRole('button', { name: 'More actions', exact: true }).click()
+  await expect(page.getByRole('menuitem', { name: 'Unarchive', exact: true })).toBeVisible()
 
   // ── Goal: the archived objective is gone from the task-form Objective picker ─
-  await page.goto('work/tasks/new')
-  // F17 / OD-REDESIGN-91 #29: task-surface keeps Objective behind the context disclosure.
-  await page.getByRole('button', { name: '+ Add context' }).click()
-  const objectivePicker = page.getByLabel('Objective')
+  await page.goto(`work/tasks/${PICKER_TASK_ID}`)
+  await expect(page.getByRole('link', { name: RENAMED, exact: true }).first()).toHaveAttribute('href', new RegExp(`/work/objectives/${objectiveId}$`))
+  await page.screenshot({ path: testInfo.outputPath('admin-en-1440-archived-objective-link.png') })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('link', { name: RENAMED, exact: true }).first().scrollIntoViewIfNeeded()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({ path: testInfo.outputPath('admin-en-390-archived-objective-link.png') })
+  await page.getByRole('button', { name: 'Edit Objective', exact: true }).click()
+  const objectivePicker = page.getByRole('combobox', { name: 'Objective', exact: true })
   await expect(objectivePicker).toBeVisible()
-  await expect(objectivePicker.getByRole('option', { name: RENAMED })).toHaveCount(0)
+  await objectivePicker.click()
+  await expect(page.getByRole('option', { name: 'Q3 Growth', exact: true })).toBeVisible()
+  await expect(page.getByRole('option', { name: RENAMED, exact: true })).toHaveCount(0)
 })
 
 test.afterAll(async () => {
+  await execSql(`DELETE FROM mos.tasks WHERE id = '${PICKER_TASK_ID}' AND title = 'E2E Catalog linked task'`)
   await execSql(`DELETE FROM mos.objectives WHERE org_id = '${ORG}' AND name IN ('${NAME}', '${RENAMED}')`)
 })

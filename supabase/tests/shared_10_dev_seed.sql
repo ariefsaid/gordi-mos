@@ -99,12 +99,15 @@ select is((select count(*)::int from mos.certified_metrics
 -- and would have passed as an assertion while every team still read as effectively empty. The
 -- assertions below ask the questions that were actually false.
 
--- Every seeded person has a home team. Before the roster seed this was 3 of 6 people with any
--- membership at all and ZERO with a primary, so "which team is this person on" had no answer.
+-- Every canonical seeded person has a home team. The local E2E harness may add dedicated people in
+-- the same dev org (Recovery Tester, E2E Admin, and similar fixtures) without a primary Team; those
+-- rows are deliberately outside this seed contract. Scope by the seed's stable 4000… identifier
+-- family so additive test personas cannot make this assertion describe a different roster.
 select is(
   (select count(*)::int from shared.people p
     where p.org_id = '10000000-0000-0000-0000-000000000001'
       and p.archived_at is null
+      and p.id::text like '40000000-0000-0000-0000-000000000%'
       and not exists (select 1 from shared.team_memberships m
                        where m.person_id = p.id and m.is_primary and m.effective_to is null)),
   0,

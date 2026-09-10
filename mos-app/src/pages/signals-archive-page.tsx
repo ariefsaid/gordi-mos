@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useAuth } from '@/auth/use-auth'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -452,7 +452,9 @@ export function SignalsArchivePage() {
 export function SignalRecordPage() {
   const t = useT()
   const { signalId } = useParams<{ signalId: string }>()
+  const location = useLocation()
   const [title, setTitle] = useState<string | null>(null)
+  const fromHome = (location.state as { from?: string } | null)?.from === 'home'
   // R6-P2 parity with TaskRecordPage: reflect the resolved record name in the browser tab.
   useDocumentTitle(t('common.docTitle', { page: title ? `${title} · ${t('nav.signals')}` : t('nav.signals') }))
   if (!signalId) return <Navigate to="/work/signals" replace />
@@ -469,8 +471,8 @@ export function SignalRecordPage() {
       hideHead
     >
       <RecordPageChrome
-        backTo="/work/signals"
-        backLabel={t('nav.signals')}
+        backTo={fromHome ? '/' : '/work/signals'}
+        backLabel={fromHome ? t('dest.home') : t('nav.signals')}
         // #426 (mirror of TaskRecordPage): null until the record resolves, so no Ask Deputy
         // affordance renders with a bare stub seed.
         deputyDraft={title ? t('assistant.askAbout.signal', { title: deputySeed(title) }) : null}

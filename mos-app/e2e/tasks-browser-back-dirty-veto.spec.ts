@@ -47,7 +47,7 @@
 // isolation on purpose: it lets a real commit settle (no route interception) to prove the FIX
 // itself, not just the guard contract around it.
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
 import { createTaskViaUI } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'

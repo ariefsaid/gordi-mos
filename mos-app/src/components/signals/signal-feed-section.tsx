@@ -1,10 +1,11 @@
 import { useEffect, useId, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import { OverlayHostSlot, useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useT } from '@/i18n/use-t'
-import { ErrorState } from '@/components/ui/state-kit'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { SignalRecordHost } from './signal-record-host'
 import { AMBIENT_CAP, SignalFeedRows } from './signal-feed-rows'
 import './signal-feed-section.css'
@@ -69,6 +70,7 @@ export function SignalFeedSection({
         tenant: 'record' as const,
         label: 'Signal',
         title: 'Signal',
+        pageState: { from: 'home' },
         pageTo: `/work/signals/${signalId}`,
         content: <SignalRecordHost signalId={signalId} mode="panel" onReload={onReload} />,
       }
@@ -77,8 +79,6 @@ export function SignalFeedSection({
     }
     navigate(`/work/signals?record=${signalId}`)
   }
-
-  if (loading) return null // Home's own skeleton regions cover initial paint (NFR-405)
 
   return (
     <section className="signal-feed-section" aria-labelledby={titleId}>
@@ -100,10 +100,10 @@ export function SignalFeedSection({
             the sole h1 and there is no intermediate level — an h3 skipped one (detector:
             skipped-heading). Visual weight is unchanged; `.signal-feed-label` still sets it. */}
         <h2 id={titleId} className="signal-feed-label">
-          {t('signals.feed.title')}{error ? '' : ` · ${Math.min(signals.length, AMBIENT_CAP)}`}
+          {t('signals.feed.title')}{loading || error ? '' : ` · ${Math.min(signals.length, AMBIENT_CAP)}`}
         </h2>
       </div>
-      {error ? (
+      {loading ? <LoadingShell count={3} /> : error ? (
         // The error/retry branch every engine collection has (DIV-G5): a failed load must never
         // read as "No Signals yet".
         <ErrorState message={t('signals.feed.error')} onRetry={onReload} retryLabel={t('signals.feed.retry')} />
@@ -118,7 +118,7 @@ export function SignalFeedSection({
           onOpen={(signal) => openRecord(signal.id)}
         />
       )}
-      {host ? <OverlayHostSlot owner="signals" /> : null}
+      {host ? createPortal(<OverlayHostSlot owner="signals" floating />, document.body) : null}
     </section>
   )
 }

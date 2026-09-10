@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, type To } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useIsWideOverlayWidth } from '@/shell/use-is-wide-overlay-width'
 import { OverlayHostSlot, useOptionalOverlayHost, type OverlayEntry } from '@/shell/overlay-host'
@@ -30,9 +30,11 @@ export interface CatalogRecordEntryFactory {
 export function useCatalogRecordEntryFactory({
   owner,
   onCollectionChanged,
+  onOpenPage,
 }: {
   owner: CatalogRecordOverlayOwner
   onCollectionChanged?: () => void
+  onOpenPage?: (to: To) => void
 }): CatalogRecordEntryFactory {
   const t = useT()
   const host = useOptionalOverlayHost()
@@ -64,7 +66,7 @@ export function useCatalogRecordEntryFactory({
           taskId={id}
           onLeaveGuardChange={(guard) => { entry.leaveGuard = guard }}
           onClose={() => { void host?.back() }}
-          onOpenPage={() => { if (host) void host.openPage(pageTo) }}
+          onOpenPage={() => { if (onOpenPage) onOpenPage(pageTo); else if (host) void host.openPage(pageTo) }}
           onOpenRelated={(related) => {
             if (!host) return
             void host.push(makeEntry(related.kind, related.id, search))
@@ -81,9 +83,11 @@ export function useCatalogRecordEntryFactory({
         mode="panel"
         onChanged={onCollectionChanged}
         onLeaveGuardChange={(guard) => { entry.leaveGuard = guard }}
-        onOpenPage={() => { if (host) void host.openPage(pageTo) }}
+        onOpenPage={() => { if (onOpenPage) onOpenPage(pageTo); else if (host) void host.openPage(pageTo) }}
         onCreateTask={() => {
-          if (host) void host.openPage({ pathname: '/work/tasks', search: `?create=1&work_line=${encodeURIComponent(id)}` })
+          const to = { pathname: '/work/tasks', search: `?create=1&work_line=${encodeURIComponent(id)}` }
+          if (onOpenPage) onOpenPage(to)
+          else if (host) void host.openPage(to)
         }}
         onOpenRelated={(relatedKind: CatalogRelatedKind, relatedId: string) => {
           if (!host) return
@@ -92,7 +96,7 @@ export function useCatalogRecordEntryFactory({
       />
     )
     return entry
-  }, [host, onCollectionChanged, owner, t])
+  }, [host, onCollectionChanged, onOpenPage, owner, t])
 
   return { buildEntry }
 }
@@ -122,6 +126,8 @@ export function useCatalogRecordOverlay({
     ? params.get('record')
     : null
   const hadSession = useRef(false)
+  const recordInvoker = useRef<string | null>(null)
+  const restoreRecordFocus = useRef(false)
   const suppressNextOpen = useRef(false)
 
   const searchWithoutRecord = useCallback(() => {
@@ -132,12 +138,22 @@ export function useCatalogRecordOverlay({
     return search ? `?${search}` : ''
   }, [params])
 
+  const promotePage = useCallback((to: To) => {
+    if (!host) return
+    suppressNextOpen.current = true
+    void host.openPage(to).then((result) => {
+      if (result.status !== 'committed') suppressNextOpen.current = false
+    })
+  }, [host])
+
   const { buildEntry } = useCatalogRecordEntryFactory({
     owner: WORK_OWNER,
+    onOpenPage: promotePage,
     onCollectionChanged,
   })
 
   const onOpenRecord = useCallback((record: CatalogRow) => {
+    recordInvoker.current = record.id
     const next = new URLSearchParams(params)
     next.set('record', record.id)
     next.set('recordType', collectionKind)
@@ -180,6 +196,21 @@ export function useCatalogRecordOverlay({
     setParams(next, { replace: true })
   }, [params, sessionActive, setParams])
 
+  // Query navigation can replace the row DOM. Restore by record identity after both the
+  // route and host are closed, rather than focusing a detached pre-navigation node.
+  useEffect(() => {
+    if (!restoreRecordFocus.current || recordId || sessionActive || !recordInvoker.current) return
+    const id = recordInvoker.current
+    const frame = requestAnimationFrame(() => {
+      const row = document.querySelector<HTMLElement>(`.catalog-collection__row-link[href$="/${CSS.escape(id)}"]`)
+      if (row) {
+        row.focus()
+        restoreRecordFocus.current = false
+      }
+    })
+    return () => cancelAnimationFrame(frame)
+  })
+
   const clearRecordQuery = useCallback(() => {
     suppressNextOpen.current = true
     const next = new URLSearchParams(params)
@@ -193,10 +224,16 @@ export function useCatalogRecordOverlay({
     <OverlayHostSlot
       owner={WORK_OWNER}
       onClose={(via, close) => {
+        suppressNextOpen.current = true
         void close(via).then((result) => {
           // A denied leave must keep both the URL and the draft in place. The query is cleared
           // only after the host confirms that the close committed.
-          if (result.status === 'committed') clearRecordQuery()
+          if (result.status === 'committed') {
+            clearRecordQuery()
+            restoreRecordFocus.current = true
+          } else {
+            suppressNextOpen.current = false
+          }
         })
       }}
       onOpenPage={(to, openPage) => {

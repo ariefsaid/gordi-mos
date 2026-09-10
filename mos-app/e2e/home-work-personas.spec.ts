@@ -1,17 +1,26 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
 import { DEMO_PASSWORD } from '../src/pages/demo-personas'
 import { readFileSync } from 'node:fs'
 import { localSql } from './helpers/local-sql'
 
+// Fixed Home fixture IDs are reserved by this suite; refuse a collision before mutation.
+const HOME_IDS = ['e9000000-0000-0000-0000-000000000001', 'e9000000-0000-0000-0000-000000000002']
+let ownsHome = false
+import { localSqlRead } from './helpers/local-sql-read'
 test.beforeAll(async () => {
-  await localSql(readFileSync(new URL('../../supabase/seed.dev-home-work.sql', import.meta.url), 'utf8'))
+  const existing = await localSqlRead(`select id from mos.tasks where id in (${HOME_IDS.map(id => `'${id}'`).join(',')})`)
+  if (existing.length) throw new Error('Reserved Home fixture IDs already exist; preserve them')
+  ownsHome = true
+  const seed = readFileSync(new URL('../../supabase/seed.dev-home-work.sql', import.meta.url), 'utf8')
+  await localSql(seed.slice(seed.indexOf('insert into mos.tasks')))
+  const fixture = await localSqlRead<{id:string,due_today:boolean,assigned:boolean}>(`select id, due_date=(now() at time zone 'Asia/Jakarta')::date as due_today, responsible_person_id='40000000-0000-0000-0000-000000000007'::uuid as assigned from mos.tasks where id in (${HOME_IDS.map(id => `'${id}'`).join(',')})`)
+  expect(fixture).toHaveLength(2)
+  expect(fixture.every(row => row.due_today && row.assigned)).toBe(true)
+  console.log('Owned Barista due-today fixture', JSON.stringify(fixture))
 })
-
 test.afterAll(async () => {
-  await localSql(`delete from mos.tasks where org_id = '10000000-0000-0000-0000-000000000001'
-    and (id in ('e9000000-0000-0000-0000-000000000001', 'e9000000-0000-0000-0000-000000000002')
-      or title in ('[e2e] Signal follow-up context', '[e2e] Inline task 390', '[e2e] Inline task 1440'))`)
+  if (ownsHome) await localSql(`delete from mos.tasks where id in (${HOME_IDS.map(id => `'${id}'`).join(',')})`)
 })
 
 const personas = [
@@ -85,11 +94,15 @@ for (const width of [390, 1440]) {
   })
 }
 
-test('a Signal lists its newly created follow-up Task without losing the source', async ({ page }) => {
+for (const width of [390, 1440]) {
+test(`a Signal lists its newly created follow-up Task without losing the source at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 900 })
   await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
   await loginAs(page, 'dewi.dev@example.test', DEMO_PASSWORD)
-  await page.goto('work/signals')
-  await page.locator('main [data-signal-id][role="button"]').first().click()
+  await page.goto('./')
+  const opener = page.getByRole('button', { name: /^Open signal:/ }).first()
+  const sourceName = await opener.getAttribute('aria-label')
+  await opener.click()
   const sourceUrl = page.url()
   await page.getByRole('button', { name: 'Create task', exact: true }).click()
   await page.getByRole('textbox', { name: 'Title', exact: true }).fill('[e2e] Signal follow-up context')
@@ -107,8 +120,11 @@ test('a Signal lists its newly created follow-up Task without losing the source'
   await page.getByRole('button', { name: /^back/i }).click()
   await expect(page.getByRole('button', { name: 'Create task', exact: true })).toBeVisible()
   await page.reload()
+  await page.getByRole('button', { name: sourceName!, exact: true }).click()
   await expect(page.getByRole('link', { name: /^\[e2e\] Signal follow-up context(?: Open)?$/ })).toBeVisible()
 })
+
+}
 
 test('a Task opens its Project and Back restores the Task in its queue', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
@@ -201,4 +217,68 @@ test('a barista completes assigned work from Home and the result survives refres
   await expect(record.getByRole('button', { name: 'Edit Status', exact: true })).toContainText('Done')
   await page.reload()
   await expect(record.getByRole('button', { name: 'Edit Status', exact: true })).toContainText('Done')
+})
+
+for (const persona of [
+  { label: 'Finance', email: 'fitri.dev@example.test' },
+  { label: 'Sales', email: 'sari.dev@example.test' },
+]) {
+  test(`${persona.label} Home excludes Café opening and production jobs`, async ({page}) => {
+    await page.setViewportSize({width:390,height:844})
+    await page.addInitScript(() => localStorage.setItem('mos.locale','en'))
+    await loginAs(page,persona.email,DEMO_PASSWORD)
+    await page.goto('./')
+    await expect(page.getByRole('heading',{name:/Home|Good|Today/}).first()).toBeVisible()
+    await expect(page.getByTestId('home-cafe-door')).toHaveCount(0)
+    await expect(page.locator('main a[href*="/cafe"]')).toHaveCount(0)
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+  })
+}
+
+for (const persona of ['bulan','cahya']) {
+  test(`${persona} Objective quiet empty, real record and return`, async ({page}) => {
+    await page.addInitScript(() => localStorage.setItem('mos.locale','en'))
+    await loginAs(page,`${persona}.dev@example.test`,DEMO_PASSWORD)
+    await page.route('**/rest/v1/objectives*',route => route.fulfill({json:[]}))
+    await page.goto('./')
+    if(persona==='cahya') await expect(page.getByText('No active Objectives yet.',{exact:true})).toBeVisible()
+    else await expect(page.locator('.home-objectives-door')).toHaveCount(0)
+    await page.goto('work/objectives')
+    await expect(page.getByRole('heading',{name:'Objectives',exact:true})).toBeVisible()
+    await expect(page.getByText('No objectives yet',{exact:true})).toBeVisible()
+    await expect(page.getByRole('link',{name:'AC204 Grow revenue',exact:true})).toHaveCount(0)
+    await page.unroute('**/rest/v1/objectives*')
+    await page.reload()
+    const row=page.getByRole('link',{name:'AC204 Grow revenue',exact:true})
+    await expect(row).toBeVisible()
+    await row.click()
+    await expect(page.getByRole('region',{name:'AC204 Grow revenue',exact:true})).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('region',{name:'AC204 Grow revenue',exact:true})).not.toBeVisible()
+    await expect(row).toBeVisible()
+    if(persona==='cahya') {
+      await page.goto('./')
+      const objective=page.locator('.home-objectives-door').getByRole('link',{name:/AC204 Grow revenue/})
+      await objective.click()
+      await expect(page.getByRole('heading',{name:'AC204 Grow revenue',exact:true})).toBeVisible()
+      await page.goBack()
+      await expect(objective).toBeVisible()
+    }
+  })
+}
+
+for(const width of [390,1440]) test(`Task Objective relation and absent Project stay truthful at ${width}px`,async({page})=>{
+  await page.setViewportSize({width,height:900})
+  await page.addInitScript(()=>localStorage.setItem('mos.locale','en'))
+  await loginAs(page,'dewi.dev@example.test',DEMO_PASSWORD)
+  await page.goto('work/tasks')
+  await page.getByRole('link',{name:/^AC204 Sign the lease/}).click()
+  const task=page.getByRole('region',{name:'AC204 Sign the lease',exact:true})
+  await expect(task).toBeVisible()
+  await task.getByRole('link',{name:'AC204 Grow revenue',exact:true}).first().click()
+  await expect(page.getByRole('region',{name:'AC204 Grow revenue',exact:true})).toBeVisible()
+  if(width===390) await page.goBack()
+  else await page.getByRole('button',{name:/^Back/i}).click()
+  await expect(task).toBeVisible()
+  await expect(task.getByRole('link',{name:'AC204 Menu launch',exact:true})).toHaveCount(0)
 })

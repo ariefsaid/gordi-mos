@@ -3,7 +3,7 @@
 // collection and its record panel mounted. Completion and record terminology remain visible
 // outcomes on both surfaces.
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
 import { createTaskViaUI } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole('tab', { name: 'All', exact: true }).click()
 })
 
-test('OD-63-1: direct URL / new-tab / refresh opens the full canonical page (not the table shell)', async ({ page }) => {
+test('OD-63-1: direct URL / new-tab / refresh opens the full canonical page (not the table shell)', async ({ page }, testInfo) => {
   const title = `OD63 Direct ${Date.now()}`
   const detailUrl = await createTaskViaUI(page, title)
 
@@ -27,6 +27,18 @@ test('OD-63-1: direct URL / new-tab / refresh opens the full canonical page (not
   await expect(page.getByRole('region', { name: 'Tasks' })).toHaveCount(0)
   await expect(page.getByRole('complementary', { name: /task detail/i })).toHaveCount(0)
   expect(page.url()).toContain('view=overdue')
+  await page.reload()
+  await expect(page.getByRole('heading', { level: 1, name: title, exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Tasks', exact: true })).toHaveCount(0)
+  const newTab = await page.context().newPage()
+  try {
+    await newTab.goto(page.url())
+    await expect(newTab.getByRole('heading', { level: 1, name: title, exact: true })).toBeVisible()
+    await expect(newTab.getByRole('region', { name: 'Tasks', exact: true })).toHaveCount(0)
+  } finally {
+    await newTab.close()
+  }
+  await page.screenshot({ path: testInfo.outputPath('canonical-desktop.png') })
 })
 
 test('OD-63-2: an in-list click opens the split drawer (table stays mounted)', async ({ page }) => {

@@ -16,9 +16,14 @@ create index tasks_completed_at_idx
 -- Existing Done rows have no transition for the new guard to observe. updated_at is the only
 -- available historical clock, so it is the conservative backfill; newly completed rows are
 -- stamped with now() by the replacement guard below.
+-- This is metadata repair, not a user update: bypass only the timestamp trigger for this statement
+-- so each existing row keeps its historical updated_at. The trigger is restored before the
+-- migration continues, and remains the normal clock for every later write.
+alter table mos.tasks disable trigger tasks_set_updated_at;
 update mos.tasks
 set completed_at = updated_at
 where status = 'Done' and completed_at is null;
+alter table mos.tasks enable trigger tasks_set_updated_at;
 
 create or replace function mos._guard_tasks()
 returns trigger

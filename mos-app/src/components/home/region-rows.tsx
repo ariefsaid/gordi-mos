@@ -56,18 +56,22 @@ const EMPTY_KEY: Record<HomeRegionId, MessageKey> = {
   'my-work': 'home.stream.myWorkEmpty',
 }
 
+const ACTION_KEY: Record<HomeRegionId, MessageKey> = {
+  'needs-you': 'home.brief.openTask',
+  'failed-checks': 'home.brief.review',
+  'my-work': 'home.brief.openTask',
+}
+
 // RegionRows — the ONE region-body grammar shared by the Home daily brief (FR-930). A region's
 // read can be loading, errored, ready-with-rows, or ready-and-empty (`HomeRegion.state`, DIV-G5):
 // each must render distinguishably from the others, never as an indistinguishable blank
 // (docs/specs/home-layout-preference.spec.md §7). Mirrors the loading/error grammar the retired
 // single-stream HomeStream's IndependentBand carried per band.
-export function RegionRows({ region, items, actionLabel }: {
+export function RegionRows({ region, items }: {
   region: HomeRegion
   /** Defaults to `region.items`; Overview passes a sliced subset while still reading `region.state`
    *  (a loading/error region shows its status regardless of how many items would otherwise show). */
   items?: StreamItem[]
-  /** Optional visible next action for the daily brief. The row remains one canonical link. */
-  actionLabel?: string
 }) {
   const t = useT()
   if (region.state === 'loading') {
@@ -121,7 +125,7 @@ export function RegionRows({ region, items, actionLabel }: {
               item={i}
               hidePic={HIDE_PIC[region.id]}
               reasonStyle={REASON_STYLE[region.id]}
-              actionLabel={actionLabel}
+              actionLabel={t(ACTION_KEY[region.id])}
             />
         ))}
       </ul>

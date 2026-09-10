@@ -55,6 +55,7 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'tasks.filter.sortStatus', // Status
   'tasks.filter.status', // Status
   'tasks.meta.totalCount', // ${count} total
+  'tasks.noObjective', // Objective terminology is owner-held (OPEN-10 / WORK-18 / PROOF-12)
   'tasks.objective', // Objective — id UI keeps the borrowed term today
   'tasks.pic', // PIC
   'tasks.status.label', // Status

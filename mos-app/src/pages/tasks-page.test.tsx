@@ -1231,3 +1231,28 @@ describe('Step 7 — the ?occurrence=<runId> query param switches to Occurrence 
     expect(document.body.textContent).not.toMatch(/Process Run/)
   })
 })
+
+describe('R5 task failure and filter boundaries', () => {
+  it.each(['timeout', 'server'])('keeps %s failure framed and retries to real rows', async (failure) => {
+    mockListTasks.mockRejectedValueOnce(new Error(failure))
+    renderPage()
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load tasks")
+    expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Recovered task' })])
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    expect(await screen.findByText('Recovered task')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('keeps an empty additive Include archived view a true empty, without Clear filters', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderPage()
+    await screen.findByRole('link', { name: /\+ create task/i })
+    fireEvent.click(screen.getByRole('button', { name: /^filters$/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /include archived/i }))
+    await waitFor(() => expect(_capturedLocation?.search).toContain('archived=1'))
+    expect(await screen.findByRole('heading', { name: 'Nothing archived yet' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /\+ create task/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^clear filters$/i })).toBeNull()
+  })
+})

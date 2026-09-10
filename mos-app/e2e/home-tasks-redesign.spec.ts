@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
 import { createTaskViaUI } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
@@ -59,26 +59,42 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
 
       // Reload the collection to verify persistence beyond optimistic record state.
       await page.goto('work/tasks')
-      await page.getByRole('tab', { name: 'Completed', exact: true }).click()
+      await page.getByRole('tab', { name: 'All', exact: true }).click()
+      await filters.click()
+      await page.getByRole('combobox', { name: 'Status', exact: true }).click()
+      await page.getByRole('option', { name: 'Done', exact: true }).click()
       await search.fill(title)
       await expect(task).toBeVisible()
-      await expect(page.getByRole('tab', { name: 'Completed', exact: true })).toHaveAttribute('aria-selected', 'true')
+      await page.reload()
+      await expect(task).toBeVisible()
+      await task.click()
+      await expect(record.getByRole('button', { name: 'Edit Status', exact: true })).toContainText('Done')
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     })
 
-    test('Home exposes attention and personal work together, with working collection doors', async ({ page }) => {
+    test('Focused Home switches between attention and personal work and opens the collection', async ({ page }) => {
       await loginAs(page, VIEWER.email, VIEWER.password)
       await page.goto('./')
-      const attention = page.getByRole('region', { name: /Needs you now|Needs attention/i })
-      const personal = page.getByRole('region', { name: /^My work today/ })
-      await expect(attention).toBeVisible()
+      const regions = page.getByRole('tablist', { name: 'Home regions' })
+      await expect(regions).toBeVisible()
+      const attentionTab = regions.getByRole('tab', { name: /Needs you now/ })
+      const personalTab = regions.getByRole('tab', { name: /My open work/ })
+      await expect(attentionTab).toBeVisible()
+      await expect(personalTab).toBeVisible()
+      await attentionTab.click()
+      await expect(attentionTab).toHaveAttribute('aria-selected', 'true')
+      await expect(page.getByRole('tabpanel', { name: /Needs you now/ })).toBeVisible()
+      await personalTab.click()
+      await expect(attentionTab).toHaveAttribute('aria-selected', 'false')
+      await expect(personalTab).toHaveAttribute('aria-selected', 'true')
+      const personal = page.getByRole('tabpanel', { name: /My open work/ })
       await expect(personal).toBeVisible()
-      await expect(page.getByRole('tab', { name: /Needs you now|My work today/i })).toHaveCount(0)
       await personal.getByRole('link', { name: /My open tasks/i }).click()
+      await expect(page).toHaveURL(/\/work\/tasks\?view=my-work$/)
       await expect(page.getByRole('heading', { name: 'Tasks', exact: true })).toBeVisible()
       await expect(page.getByRole('tab', { name: 'My work', exact: true })).toHaveAttribute('aria-selected', 'true')
       await page.goBack()
-      await expect(attention).toBeVisible()
+      await expect(page.getByRole('tablist', { name: 'Home regions' })).toBeVisible()
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     })
   })

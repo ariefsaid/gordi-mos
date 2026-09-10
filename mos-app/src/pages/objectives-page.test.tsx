@@ -52,10 +52,10 @@ function task(id: string, objectiveId: string | null, workLineId: string | null,
   }
 }
 
-function renderPage() {
+function renderPage(entry = "/") {
   return render(
     <I18nProvider>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}>
         <ObjectivesPage />
       </MemoryRouter>
     </I18nProvider>,
@@ -115,6 +115,23 @@ describe('Objectives collection-first contract', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Create objective' })).toHaveFocus())
   })
 
+  it('keeps a failed Objective draft available for retry and restores create focus', async () => {
+    vi.mocked(createObjective).mockRejectedValueOnce(new Error('Temporary save failure'))
+    renderPage()
+    await screen.findByText('Grow revenue')
+    fireEvent.click(screen.getByRole('button', { name: 'Create objective' }))
+    const form = await screen.findByRole('form', { name: 'Create objective' })
+    const name = within(form).getByRole('textbox', { name: 'Name' })
+    fireEvent.change(name, { target: { value: 'Delight guests' } })
+    fireEvent.submit(form)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Temporary save failure')
+    expect(name).toHaveValue('Delight guests')
+    fireEvent.submit(form)
+    await waitFor(() => expect(createObjective).toHaveBeenNthCalledWith(2, 'Delight guests'))
+    await waitFor(() => expect(screen.queryByRole('form', { name: 'Create objective' })).toBeNull())
+    expect(screen.getByRole('button', { name: 'Create objective' })).toHaveFocus()
+  })
+
   it('puts All / With tasks / No tasks behind the phone view disclosure', async () => {
     renderPage()
     await screen.findByText('Grow revenue')
@@ -139,4 +156,57 @@ describe('Objectives collection-first contract', () => {
     expect(screen.queryByRole('button', { name: 'Create objective' })).toBeNull()
     expect(screen.queryByRole('button', { name: /rename/i })).toBeNull()
   })
+})
+
+
+describe('R5 collection state boundaries', () => {
+  it('keeps loading distinct from an empty success', async () => {
+    vi.mocked(listObjectivesAll).mockReturnValue(new Promise(() => {}))
+    renderPage()
+    expect(await screen.findByRole('status', { name: 'Loading objectives…' })).toBeInTheDocument()
+    expect(screen.queryByText('No objectives yet')).toBeNull()
+  })
+
+  it('shows true empty without Clear filters', async () => {
+    vi.mocked(listObjectivesAll).mockResolvedValue([])
+    renderPage()
+    expect(await screen.findByText('No objectives yet')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
+  })
+
+  it('keeps filtered empty clearable', async () => {
+    renderPage('/?q=no-such-record')
+    expect(await screen.findByText('Nothing matches your filters')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(await screen.findByRole('link', { name: 'Grow revenue' })).toBeInTheDocument()
+  })
+
+  it.each([false, true])('says exactly Nothing archived yet without Clear filters (entire catalog empty: %s)', async (empty) => {
+    if (empty) vi.mocked(listObjectivesAll).mockResolvedValue([])
+    renderPage('/?view=archived')
+    expect(await screen.findByRole('heading', { name: 'Nothing archived yet' })).toBeInTheDocument()
+    const disclosure = screen.queryByRole('button', { name: /View & filters/ })
+    if (disclosure) fireEvent.click(disclosure)
+    expect(screen.getByRole('button', { name: 'Current status' })).toHaveTextContent('Archived')
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
+    expect(screen.queryByText('No objectives yet')).toBeNull()
+  })
+
+  it.each(['timeout', 'server'])('keeps a %s failure out of empty success and retries', async (failure) => {
+    vi.mocked(listObjectivesAll).mockRejectedValueOnce(new Error(failure))
+    renderPage()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t load')
+    expect(screen.queryByText('No objectives yet')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    expect(await screen.findByRole('link', { name: 'Grow revenue' })).toBeInTheDocument()
+  })
+})
+
+
+it('R5: archived records hidden by search remain filtered-empty and clearable', async () => {
+  vi.mocked(listObjectivesAll).mockResolvedValue([{ id: 'archived-1', name: 'Archived objective', archived_at: '2026-01-01' }])
+  renderPage('/?view=archived&q=no-match')
+  expect(await screen.findByRole('heading', { name: 'Nothing matches your filters' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument()
+  expect(screen.queryByText('Nothing archived yet')).toBeNull()
 })

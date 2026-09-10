@@ -76,7 +76,7 @@
 }
 
 .bottom-tab--active {
-  color: var(--primary);
+  color: var(--text-on-accent-tint);
   border-top-color: var(--primary);
 }
 

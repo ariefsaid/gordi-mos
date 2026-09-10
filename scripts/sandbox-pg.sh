@@ -47,6 +47,12 @@ psql_super() { sudo -u postgres psql -v ON_ERROR_STOP=1 "$@"; }
 # ── 0. Preconditions ─────────────────────────────────────────────────────────────
 command -v psql >/dev/null || die "no psql. apt install postgresql-client-$PG_CLUSTER_VERSION"
 command -v pg_prove >/dev/null || die "no pg_prove. apt install libtap-parser-sourcehandler-pgtap-perl"
+if [ "$SEED" = "1" ]; then
+  command -v python3 >/dev/null || die "no python3. Needed to read the configured seed paths."
+  seed_paths=$(python3 -c 'import tomllib; print("\n".join(tomllib.load(open("supabase/config.toml", "rb"))["db"]["seed"]["sql_paths"]))') \
+    || die "could not read seed paths (Python 3.11+ required)"
+  [ -n "$seed_paths" ] || die "no configured seed paths"
+fi
 sudo -n true 2>/dev/null || die "need passwordless sudo to run commands as the postgres OS/DB user"
 
 # ── 1. Make sure the system PostgreSQL 16 cluster is running ───────────────────────
@@ -98,17 +104,17 @@ echo "applied ${#migrations[@]} migrations"
 
 # ── 5. Seeds, same order as supabase/config.toml's [db.seed] sql_paths ──────────────
 if [ "$SEED" = "1" ]; then
-  say "Applying seeds (seed.sql, seed.dev-tasks.sql, seed.dev-auth.sql, seed.dev-processes.sql, seed.dev-cafe-opening.sql)"
-  for f in seed.sql seed.dev-tasks.sql seed.dev-auth.sql seed.dev-processes.sql seed.dev-cafe-opening.sql; do
+  say "Applying seeds from supabase/config.toml [db.seed] sql_paths"
+  while IFS= read -r f; do
     path="$REPO/supabase/$f"
-    [ -f "$path" ] || die "expected seed file missing: $path (keep this list in sync with supabase/config.toml [db.seed] sql_paths)"
+    [ -f "$path" ] || die "expected seed file missing: $path"
     echo "  -> $f"
     psql_super -d "$DB" -f "$path" >/tmp/sandbox-pg-last-seed.log 2>&1 || {
       echo "---- last 60 lines of output ----"
       tail -60 /tmp/sandbox-pg-last-seed.log
       die "seed failed: $f"
     }
-  done
+  done <<< "$seed_paths"
 else
   echo "skipping seeds (--no-seed)"
 fi

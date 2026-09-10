@@ -33,12 +33,17 @@ vi.mock('../../lib/comments/postComment', () => ({
   listComments: vi.fn(),
   postComment: vi.fn(),
 }))
+vi.mock('../../lib/db/objectives', () => ({
+  listObjectives: vi.fn().mockResolvedValue([]),
+  readObjective: vi.fn().mockResolvedValue(null),
+}))
 
 import { getTask, createTask, updateTaskStatus, updateTaskFields, toggleChecklistItem, unarchiveTask, archiveTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import * as directoryApi from '@/lib/db/directory'
 import { listComments, postComment } from '@/lib/comments/postComment'
 import { TaskSurface } from './task-surface'
+import { listObjectives, readObjective } from '@/lib/db/objectives'
 
 const mockGetTask = vi.mocked(getTask)
 const mockCreateTask = vi.mocked(createTask)
@@ -102,6 +107,8 @@ const mockTeams = [
 
 beforeEach(() => {
   vi.resetAllMocks()
+  vi.mocked(listObjectives).mockResolvedValue([])
+  vi.mocked(readObjective).mockResolvedValue(null)
   // Clear per-task tab memory (sessionStorage) so a Checklist-tab test doesn't
   // leak the active tab into a later Details-default test (useTabMemory keys by id).
   sessionStorage.clear()
@@ -184,6 +191,21 @@ function renderSurfaceRoute(path: string) {
 
 // ── View mode ────────────────────────────────────────────────────────────────
 describe('TaskSurface — view mode', () => {
+  it('keeps an archived Objective link readable while excluding it from new attribution', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask({ objective_id: 'archived-objective' }), checklist: [], events: [] })
+    vi.mocked(listObjectives).mockResolvedValue([{ id: 'active-objective', name: 'Current Objective' }])
+    vi.mocked(readObjective).mockResolvedValue({
+      id: 'archived-objective', name: 'Archived Objective', archived_at: '2026-07-01T00:00:00Z',
+      business_unit_id: null, accountable_person_id: null, period_year: null, updated_at: '',
+    })
+    renderSurface()
+    expect((await screen.findAllByRole('link', { name: 'Archived Objective' }))[0]).toHaveAttribute('href', '/work/objectives/archived-objective')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Objective' }))
+    fireEvent.click(screen.getByRole('combobox', { name: 'Objective' }))
+    expect(screen.getByRole('option', { name: 'Current Objective' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Archived Objective' })).toBeNull()
+  })
+
   it('AC-070 (TaskSurface): renders title, status, typed ownership, checklist, activity, and completion', async () => {
     const task = makeTask()
     const checklist: ChecklistItemRow[] = [{
