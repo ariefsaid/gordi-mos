@@ -12,6 +12,7 @@ import { localSql } from './helpers/local-sql'
 import { localSqlRead } from './helpers/local-sql-read'
 import { DEMO_PASSWORD } from '../src/pages/demo-personas'
 import { RECOVERY_VIEWER } from './fixtures/users'
+import { assertFixtureSqlSafe, processRunCleanupSql } from './fixtures/cleanup'
 
 const ORG = '10000000-0000-0000-0000-000000000001'
 const WORK_LINE_ID = 'e3000000-0000-0000-0000-000000000001'
@@ -202,11 +203,9 @@ test('joined persona and fixture evidence: graph, current/past occurrence, and d
     writeFileSync(testInfo.outputPath('joined-inventory.json'), JSON.stringify({ before, current: { runId, teamId: team.id, generatedTaskIds }, afterJourney, browserJourneys }, null, 2))
   } finally {
     if (runId) {
-      await localSql(`
-        delete from mos.process_run_pending_tasks where process_run_id='${runId}';
-        delete from mos.tasks where process_run_id='${runId}';
-        delete from mos.process_runs where id='${runId}';
-      `)
+      const cleanup = processRunCleanupSql([runId])
+      assertFixtureSqlSafe(cleanup)
+      await localSql(cleanup)
     }
   }
 

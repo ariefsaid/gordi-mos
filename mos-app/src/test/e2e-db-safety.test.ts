@@ -10,6 +10,7 @@ import {
   budgetCleanupSql,
   fixtureCleanupSql,
   objectiveCleanupSql,
+  processRunCleanupSql,
   signalCleanupSql,
   taskCleanupSql,
   userViewCleanupSql,
@@ -150,6 +151,9 @@ test('every Playwright data writer is registered with an owned cleanup contract'
     if (contract === 'captured-budget-id') {
       expect(source, `${file} must declare budget capture`).toContain('@e2e-owned-cleanup: captured-budget-ids')
     }
+    if (contract === 'captured-process-run-id') {
+      expect(source, `${file} must use guarded process-run cleanup`).toContain('processRunCleanupSql')
+    }
   }
 })
 
@@ -164,6 +168,9 @@ test('SQL guard rejects broad and disguised deletes and allows the owned cleanup
     budgetCleanupSql(['a1000000-0000-0000-0000-000000000004']),
     objectiveCleanupSql(['a1000000-0000-0000-0000-000000000005']),
   ]) expect(() => assertFixtureSqlSafe(cleanup)).not.toThrow()
+  const runCleanup = processRunCleanupSql(['a1000000-0000-0000-0000-000000000006'])
+  expect(() => assertFixtureSqlSafe(runCleanup)).not.toThrow()
+  expect(() => processRunCleanupSql(['not-a-uuid'])).toThrow(/UUID-owned/)
   expect(() => assertFixtureSqlSafe(
     "INSERT INTO mos.tasks (title) VALUES ('-- quoted text') ON CONFLICT (id) DO NOTHING",
   )).not.toThrow()

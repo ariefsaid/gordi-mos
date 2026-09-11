@@ -1510,7 +1510,7 @@ create policy signal_mentions_insert on mos.signal_mentions
              and t.archived_at is null
         )
       when 'bu' then
-        shared.can('signal.mention_bu')
+        shared.role_authority_allows('signal.tag', target_bu_id, null, null)
         and exists (
           select 1 from shared.business_units b
            where b.id = target_bu_id
@@ -1833,10 +1833,16 @@ begin
   if v_pend.resolved_at is not null then
     raise exception 'pending item already resolved' using errcode = 'P0003';
   end if;
-  select * into v_run from mos.process_runs where id = v_pend.process_run_id;
+  select * into v_run
+    from mos.process_runs
+   where id = v_pend.process_run_id
+   for update;
   if v_run.id is null or v_run.org_id is distinct from v_org
      or not mos.can_start_process_for_team(v_run.owning_team_id) then
     raise exception 'not authorized to resolve this pending item' using errcode = '42501';
+  end if;
+  if v_run.status <> 'open' then
+    raise exception 'process run is not open' using errcode = 'P0003';
   end if;
   if not exists (
     select 1 from shared.people
@@ -1888,7 +1894,8 @@ begin
 end;
 $$;
 comment on function mos.resolve_pending_task(uuid,uuid) is
-  'Resolves a pending Process task under the effective process.start matrix and active owning-Team '
-  'membership; candidate and same-org checks remain enforced. SECURITY DEFINER and RPC-only.';
+  'Resolves a pending Process task only while its run is open, under the effective process.start '
+  'matrix and active owning-Team membership; candidate and same-org checks remain enforced. '
+  'SECURITY DEFINER and RPC-only.';
 revoke execute on function mos.resolve_pending_task(uuid,uuid) from public, anon, authenticated;
 grant execute on function mos.resolve_pending_task(uuid,uuid) to authenticated;

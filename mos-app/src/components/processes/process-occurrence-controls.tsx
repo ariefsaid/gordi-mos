@@ -249,7 +249,9 @@ export function ProcessOccurrenceControls({ workLineId, onViewTasks, onChanged }
                   >
                     {t('processes.occurrence.viewTasks')}
                   </Link>
-                  {startableTeamIds.has(run.owning_team_id) && rollup.pending_unresolved > 0 ? (
+                  {run.status === 'open'
+                    && startableTeamIds.has(run.owning_team_id)
+                    && rollup.pending_unresolved > 0 ? (
                     <Button variant="outline" onClick={() => openAssign(run.id)}>
                       {t('processes.occurrence.toAssign', { count: rollup.pending_unresolved })}
                     </Button>

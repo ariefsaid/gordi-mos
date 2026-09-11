@@ -154,6 +154,19 @@ describe('ProcessOccurrenceControls', () => {
     expect(mockGetPeople).toHaveBeenCalled()
   })
 
+  it('does not offer pending assignment after an occurrence is terminal', async () => {
+    mockListOccurrences.mockResolvedValue([{
+      ...RUN,
+      run: { ...RUN.run, status: 'completed', completed_at: '2026-07-17T10:00:00Z', completed_by: VIEWER_ID },
+      rollup: { ...RUN.rollup, status: 'completed', pending_unresolved: 1 },
+    }])
+    renderControls()
+
+    expect(await screen.findByText('Café Opening · 17 Jul 2026')).toBeInTheDocument()
+    expect(screen.getByText('1 to assign')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '1 to assign' })).not.toBeInTheDocument()
+  })
+
   it('uses the runtime close authority for an open occurrence', async () => {
     const starterView = renderControls()
     expect(await screen.findByRole('button', { name: 'Complete occurrence' })).toBeInTheDocument()

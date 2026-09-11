@@ -40,7 +40,7 @@ create policy signal_mentions_insert on mos.signal_mentions
              and t.archived_at is null
         )
       when 'bu' then
-        shared.can('signal.mention_bu')
+        shared.role_authority_allows('signal.tag', target_bu_id, null, null)
         and exists (
           select 1 from shared.business_units b
            where b.id = target_bu_id

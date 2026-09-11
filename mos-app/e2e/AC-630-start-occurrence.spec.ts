@@ -4,6 +4,7 @@ import { loginAs } from './helpers/login'
 import { DEMO_PASSWORD } from '../src/pages/demo-personas'
 import { localSqlRead } from './helpers/local-sql-read'
 import { localSql } from './helpers/local-sql'
+import { assertFixtureSqlSafe, processRunCleanupSql } from './fixtures/cleanup'
 
 // Start only when the actual Team has no current opening. Existing history is never cleared.
 for (const width of [390, 1440]) {
@@ -64,7 +65,11 @@ for (const width of [390, 1440]) {
       expect(task.team_id).toBe(team.id)
       writeFileSync(testInfo.outputPath('occurrence-evidence.json'),JSON.stringify({width,runId,teamId:team.id,task,candidateMeasurements},null,2))
     } finally {
-      if(runId) await localSql(`delete from mos.process_run_pending_tasks where process_run_id='${runId}'; delete from mos.tasks where process_run_id='${runId}'; delete from mos.process_runs where id='${runId}';`)
+      if (runId) {
+        const cleanup = processRunCleanupSql([runId])
+        assertFixtureSqlSafe(cleanup)
+        await localSql(cleanup)
+      }
     }
   })
 }

@@ -29,6 +29,20 @@ export function taskCleanupSql(taskIdsToDelete: readonly string[], taskOrg = org
   `
 }
 
+/** Remove one or more dynamically captured Process runs and only their owned dependent rows. */
+export function processRunCleanupSql(runIds: readonly string[], runOrg = org): string {
+  if (!UUID.test(runOrg) || runIds.some((id) => !UUID.test(id))) {
+    throw new Error('E2E process-run cleanup requires UUID-owned rows')
+  }
+  if (runIds.length === 0) return ''
+  const owned = ids(runIds)
+  return `
+    DELETE FROM mos.process_run_pending_tasks WHERE org_id = '${runOrg}' AND process_run_id IN (${owned});
+    DELETE FROM mos.tasks WHERE org_id = '${runOrg}' AND process_run_id IN (${owned});
+    DELETE FROM mos.process_runs WHERE org_id = '${runOrg}' AND id IN (${owned});
+  `
+}
+
 function capturedRowCleanupSql(table: string, idsToDelete: readonly string[], taskOrg = org): string {
   if (!UUID.test(taskOrg) || idsToDelete.some((id) => !UUID.test(id))) {
     throw new Error('E2E row cleanup requires UUID-owned rows')
@@ -157,6 +171,9 @@ export function assertFixtureSqlSafe(query: string): void {
   const capturedRowDeletes = [
     new RegExp(`^delete from mos\\.(?:task_events|task_checklist_items) where org_id = ${uuid} and task_id in \\(${uuidList}\\)$`),
     new RegExp(`^delete from mos\\.tasks where org_id = ${uuid} and id in \\(${uuidList}\\)$`),
+    new RegExp(`^delete from mos\\.process_run_pending_tasks where org_id = ${uuid} and process_run_id in \\(${uuidList}\\)$`),
+    new RegExp(`^delete from mos\\.tasks where org_id = ${uuid} and process_run_id in \\(${uuidList}\\)$`),
+    new RegExp(`^delete from mos\\.process_runs where org_id = ${uuid} and id in \\(${uuidList}\\)$`),
     new RegExp(`^delete from mos\\.(?:signals|user_views|budgets|objectives) where org_id = ${uuid} and id in \\(${uuidList}\\)$`),
     new RegExp(`^delete from mos\\.notifications where org_id = ${uuid} and metadata->'entity'->>'type' = 'signal' and metadata->'entity'->>'id' in \\(${uuidList}\\)$`),
   ]

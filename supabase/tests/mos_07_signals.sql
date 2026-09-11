@@ -164,8 +164,7 @@ select throws_ok($$
 $$, '42501', null, 'the author is immutable');
 
 -- ── Mentions are immutable except revoked_at ─────────────────────────────────────────────────
--- Re-targeting a mention would bypass the checks applied at INSERT: a @BU mention needs
--- signal.mention_bu, and read rule R4 then grants every role-holder in that BU a read.
+-- Re-targeting a mention would bypass the authority and same-org checks applied at INSERT.
 select throws_ok($$
   update mos.signal_mentions set target_person_id = '00000000-0000-0000-0000-0000000000d5'
   where id = '00000000-0000-0000-0000-000000007002'
@@ -178,11 +177,16 @@ select throws_ok($$
   insert into mos.signal_mentions (signal_id, mention_kind, target_person_id)
   values ('00000000-0000-0000-0000-000000007001','person','00000000-0000-0000-0000-0000000000b4')
 $$, '42501', null, 'a mention target from another org is refused at the policy, not only inside the RPC');
-select throws_ok($$
+select lives_ok($$
   insert into mos.signal_mentions (signal_id, mention_kind, target_bu_id)
   values ('00000000-0000-0000-0000-000000007001','bu','00000000-0000-0000-0000-0000000000a3')
-$$, '42501', null,
-  'a @BU mention needs signal.mention_bu — it reaches every role-holder in that BU, so a plain member cannot cast one');
+$$, 'a member may tag an active same-org BU under the default org-wide signal.tag grant');
+reset role;
+delete from mos.signal_mentions
+ where signal_id = '00000000-0000-0000-0000-000000007001'
+   and mention_kind = 'bu';
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
 
 -- ── Fan-out: author-only, and idempotent ─────────────────────────────────────────────────────
 -- Idempotency is not a nicety: fan-out is synchronous, so a retry or a double-tap on a slow network

@@ -4,7 +4,7 @@
 -- journey: member is a baseline category derived from live org membership, not from access_roles.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(67);
+select plan(70);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
@@ -69,6 +69,36 @@ select ok((select signal_one is not null from authority_ids),
 select is((select count(*)::int from mos.signal_mentions
             where signal_id = (select signal_one from authority_ids)), 2,
   'the member can tag both an active person and an unrelated active Team');
+
+-- The editable Signal matrix is the sole tag authority, including BU mentions. A legacy
+-- signal.mention_bu capability must not bypass an administrator's explicit deny.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared.save_role_authority('[
+  {"action":"signal.tag","role":"member","scope":"none"},
+  {"action":"signal.tag","role":"team_lead","scope":"none"},
+  {"action":"signal.tag","role":"bu_head","scope":"none"},
+  {"action":"signal.tag","role":"ops_lead","scope":"none"},
+  {"action":"signal.tag","role":"finance","scope":"none"},
+  {"action":"signal.tag","role":"manager","scope":"none"},
+  {"action":"signal.tag","role":"supervisor","scope":"none"}
+]'::jsonb);
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}';
+select is((select can_tag from mos.get_signal_post_authority()), false,
+  'an admin deny removes runtime Signal tag authority from an ops lead');
+select throws_ok($$
+  select mos.create_signal_with_mentions(
+    'Denied legacy BU mention',
+    '00000000-0000-0000-0000-000000005b01', now(),
+    jsonb_build_array(jsonb_build_object(
+      'kind','bu','targetId','00000000-0000-0000-0000-0000000000a2')))
+$$, '42501', null,
+  'legacy signal.mention_bu cannot bypass an explicit signal.tag deny');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared.save_role_authority('[
+  {"action":"signal.tag","role":"member","scope":"org"},
+  {"action":"signal.tag","role":"ops_lead","scope":"org"},
+  {"action":"signal.tag","role":"admin","scope":"org"}
+]'::jsonb);
 
 reset role;
 insert into shared.teams (id, org_id, business_unit_id, name, code)
@@ -198,6 +228,15 @@ select is((select status from mos.complete_process_run((select run_one from auth
   'the existing complete_process_run RPC admits the designated Team lead');
 select is(mos.can_close_process_run_id((select run_one from authority_ids)), false,
   'a terminal run has no close affordance');
+select throws_ok($$
+  select mos.resolve_pending_task(
+    (select id from mos.process_run_pending_tasks
+      where process_run_id = (select run_one from authority_ids)
+        and reason = 'none' and resolved_at is null
+      limit 1),
+    '00000000-0000-0000-0000-0000000000d1')
+$$, 'P0003', 'process run is not open',
+  'a pending Task cannot materialize after its Process run is terminal');
 
 -- The BU head is not a close authority by inheritance; only own, own_team, org are admitted for close.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
