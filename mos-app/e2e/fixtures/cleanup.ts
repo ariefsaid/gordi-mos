@@ -130,7 +130,8 @@ function executableSqlOnly(sql: string): string {
       output += blank(sql.slice(start, index))
       continue
     }
-    if (quote === '$') {
+    const dollarQuoteBoundary = index === 0 || !/[A-Za-z0-9_$]/.test(sql[index - 1])
+    if (quote === '$' && dollarQuoteBoundary) {
       const delimiter = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(index))?.[0]
       if (delimiter) {
         const start = index

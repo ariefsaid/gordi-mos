@@ -182,6 +182,7 @@ test('SQL guard rejects broad and disguised deletes and allows the owned cleanup
     "DO 'BEGIN PERFORM wipe_everything(); END';",
     "/* harmless */ DO 'BEGIN PERFORM wipe_everything(); END';",
     "SELECT '--'; DO 'BEGIN PERFORM wipe_everything(); END';",
+    "SELECT foo$tag$; DO 'BEGIN PERFORM wipe_everything(); END';",
     "CALL delete_everything();",
   ]) expect(() => assertFixtureSqlSafe(sql)).toThrow(/E2E/)
 })
