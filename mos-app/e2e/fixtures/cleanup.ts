@@ -102,7 +102,7 @@ export function assertFixtureSqlSafe(query: string): void {
     new RegExp(`^delete from mos\\.(?:signals|user_views|budgets|objectives) where org_id = ${uuid} and id in \\(${uuidList}\\)$`),
     new RegExp(`^delete from mos\\.notifications where org_id = ${uuid} and metadata->'entity'->>'type' = 'signal' and metadata->'entity'->>'id' in \\(${uuidList}\\)$`),
   ]
-  if (/\b(truncate|drop|execute|prepare|call)\b/i.test(query) || /(?:^|;)\s*do\s+\$/i.test(query)) {
+  if (/\b(truncate|drop|execute|prepare|call)\b/i.test(query) || /(?:^|;)\s*do\b/i.test(query)) {
     throw new Error('E2E SQL cannot use destructive or procedural execution')
   }
   for (const statement of query.split(';')) {
