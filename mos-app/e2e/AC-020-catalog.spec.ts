@@ -10,6 +10,7 @@ import { test, expect } from '@playwright/test'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { ADMIN } from './fixtures/users'
+import { assertFixtureSqlSafe, objectiveCleanupSql, taskCleanupSql } from './fixtures/cleanup'
 import { loginAs } from './helpers/login'
 import { isShipGated } from './helpers/ship-gate'
 
@@ -39,6 +40,7 @@ const SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVIC
 const SUPABASE_URL = env.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:44321'
 async function execSql(query: string) {
   if (!SERVICE_KEY) throw new Error('[AC-020] SUPABASE_SERVICE_ROLE_KEY not set')
+  assertFixtureSqlSafe(query)
   const response = await fetch(`${SUPABASE_URL}/pg/query`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SERVICE_KEY }, body: JSON.stringify({ query }) })
   if (!response.ok) throw new Error(`[AC-020] SQL exec failed: ${response.status}`)
 }
@@ -48,6 +50,7 @@ const NAME = 'E2E Catalog Objective'
 const RENAMED = 'E2E Renamed Objective'
 const PICKER_TASK_ID = '4e020000-0000-0000-0000-000000000001'
 let createdObjectiveId: string | undefined
+let pickerTaskCreated = false
 
 test('AC-020: admin adds → renames → archives an objective; archived leaves the task picker', async ({ page }, testInfo) => {
   await loginAs(page, ADMIN.email, ADMIN.password)
@@ -72,6 +75,7 @@ test('AC-020: admin adds → renames → archives an objective; archived leaves 
     VALUES ('${PICKER_TASK_ID}', '${ORG}', 'E2E Catalog linked task',
       (SELECT id FROM shared.business_units WHERE org_id='${ORG}' AND code='retail_ops'),
       'Open', '${ADMIN.personId}', '${ADMIN.personId}', '${ADMIN.personId}', '${objectiveId}')`)
+  pickerTaskCreated = true
   await objective.click()
 
   // ── Rename ───────────────────────────────────────────────────────────────────
@@ -108,6 +112,6 @@ test('AC-020: admin adds → renames → archives an objective; archived leaves 
 })
 
 test.afterAll(async () => {
-  await execSql(`DELETE FROM mos.tasks WHERE id = '${PICKER_TASK_ID}'`)
-  if (createdObjectiveId) await execSql(`DELETE FROM mos.objectives WHERE id = '${createdObjectiveId}'`)
+  if (pickerTaskCreated) await execSql(taskCleanupSql([PICKER_TASK_ID], ORG))
+  if (createdObjectiveId) await execSql(objectiveCleanupSql([createdObjectiveId], ORG))
 })

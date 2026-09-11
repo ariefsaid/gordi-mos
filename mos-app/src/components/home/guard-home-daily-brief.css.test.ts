@@ -7,17 +7,15 @@ const css = readFileSync(join(__dirname, 'home-daily-brief.css'), 'utf8').replac
 describe('Home daily brief composition contract', () => {
   it('makes the wrapper the named container for responsive composition', () => {
     expect(css).toMatch(/\.home-frame\s*\{[^}]*container:\s*home\s*\/\s*inline-size/)
-    expect(css).toMatch(/@container\s+home\b/)
   })
 
-  it('keeps work before updates, with responsive tracks inside each band', () => {
-    expect(css).toMatch(/\.home-daily-brief\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(280px,\s*344px\);/)
-    expect(css).toMatch(/\.home-brief-main,\s*\.home-brief-aside[^}]*min-width:\s*0/)
-    expect(css).toMatch(/\.home-brief-attention\s*\{[^}]*border-top:\s*2px\s+solid\s+var\(--brand-navy\)/)
+  it('styles only the supporting rail classes emitted by HomeDailyBrief', () => {
+    expect(css).toMatch(/\.home-brief-aside,\s*\.home-brief-feed,\s*\.home-brief-objectives\s*\{[^}]*min-width:\s*0/)
+    expect(css).toMatch(/\.home-brief-aside\s+\.signal-feed-section\s*\{[^}]*margin-top:\s*0/)
   })
 
-  it('collapses to one track and then stacks supporting content without viewport-width assumptions', () => {
-    expect(css).toMatch(/@container\s+home\s*\(max-width:\s*960px\)/)
-    expect(css).toMatch(/@container\s+home\s*\(max-width:\s*620px\)/)
+  it('does not retain selectors from the removed legacy renderer', () => {
+    expect(css).not.toMatch(/\.home-daily-brief\b/)
+    expect(css).not.toMatch(/\.home-brief-(?:main|attention|secondary|lane|section-head|route-link)\b/)
   })
 })

@@ -192,7 +192,7 @@ function HomeRegionCollectionInstance({ region, items }: Required<HomeRegionColl
       ) : hidden > 0 ? (
         <p className="stream-band-more">{t('home.region.more', { count: hidden })}</p>
       ) : null}
-      <RegionDrillLink region={region} />
+      <RegionDrillLink region={region} shown={items.length} />
     </div>
   )
 }

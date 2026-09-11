@@ -55,6 +55,9 @@ export const userViewCleanupSql = (viewIds: readonly string[], viewOrg = org) =>
 export const budgetCleanupSql = (budgetIds: readonly string[], budgetOrg = org) =>
   capturedRowCleanupSql('mos.budgets', budgetIds, budgetOrg)
 
+export const objectiveCleanupSql = (objectiveIds: readonly string[], objectiveOrg = org) =>
+  capturedRowCleanupSql('mos.objectives', objectiveIds, objectiveOrg)
+
 /** Every Playwright data writer has an explicit cleanup contract recorded here. */
 export const E2E_CLEANUP_REGISTRY = {
   'AC-014-bar-capture-journey.spec.ts': 'fixed-item-id',
@@ -96,10 +99,12 @@ export function assertFixtureSqlSafe(query: string): void {
   const capturedRowDeletes = [
     new RegExp(`^delete from mos\\.(?:task_events|task_checklist_items) where org_id = ${uuid} and task_id in \\(${uuidList}\\)$`),
     new RegExp(`^delete from mos\\.tasks where org_id = ${uuid} and id in \\(${uuidList}\\)$`),
-    new RegExp(`^delete from mos\\.(?:signals|user_views|budgets) where org_id = ${uuid} and id in \\(${uuidList}\\)$`),
+    new RegExp(`^delete from mos\\.(?:signals|user_views|budgets|objectives) where org_id = ${uuid} and id in \\(${uuidList}\\)$`),
     new RegExp(`^delete from mos\\.notifications where org_id = ${uuid} and metadata->'entity'->>'type' = 'signal' and metadata->'entity'->>'id' in \\(${uuidList}\\)$`),
   ]
-  if (/\b(truncate|drop)\b/i.test(query)) throw new Error('E2E SQL cannot truncate or drop data')
+  if (/\b(truncate|drop|execute|prepare|call)\b/i.test(query) || /(?:^|;)\s*do\s+\$/i.test(query)) {
+    throw new Error('E2E SQL cannot use destructive or procedural execution')
+  }
   for (const statement of query.split(';')) {
     if (!statement.trim()) continue
     const normalized = normalize(statement)

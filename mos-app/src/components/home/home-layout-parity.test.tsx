@@ -222,6 +222,11 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
           .filter((href) => recordHref.test(href))
         const hidden = region.items.length - rendered.length
         expect(hidden).toBeGreaterThan(0)
+        if (region.drillTo!.count != null) {
+          expect(within(tile).getByRole('link', {
+            name: new RegExp(`${rendered.length} shown · ${region.drillTo!.count} open`, 'i'),
+          })).toBeInTheDocument()
+        }
         const through = within(tile).getByRole('link', {
           name: new RegExp(`${hidden} more in ${regionLabels[region.id]}`, 'i'),
         })

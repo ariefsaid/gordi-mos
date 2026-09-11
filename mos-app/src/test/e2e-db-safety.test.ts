@@ -9,6 +9,7 @@ import {
   E2E_CLEANUP_REGISTRY,
   budgetCleanupSql,
   fixtureCleanupSql,
+  objectiveCleanupSql,
   signalCleanupSql,
   taskCleanupSql,
   userViewCleanupSql,
@@ -161,6 +162,7 @@ test('SQL guard rejects broad and disguised deletes and allows the owned cleanup
     signalCleanupSql(['a1000000-0000-0000-0000-000000000002']),
     userViewCleanupSql(['a1000000-0000-0000-0000-000000000003']),
     budgetCleanupSql(['a1000000-0000-0000-0000-000000000004']),
+    objectiveCleanupSql(['a1000000-0000-0000-0000-000000000005']),
   ]) expect(() => assertFixtureSqlSafe(cleanup)).not.toThrow()
   for (const sql of [
     "DELETE FROM mos.tasks WHERE org_id = 'demo';",
@@ -173,6 +175,8 @@ test('SQL guard rejects broad and disguised deletes and allows the owned cleanup
     fixtureCleanupSql.replace(/ AND id IN \([^)]*\)/, ''),
     fixtureCleanupSql + "DELETE FROM mos.tasks WHERE org_id = 'demo';",
     capturedCleanup.replace(');', ") AND title = 'E2E';"),
+    "DO $$ BEGIN EXECUTE chr(68)||chr(69)||chr(76)||chr(69)||chr(84)||chr(69)||' FROM mos.tasks'; END $$;",
+    "CALL delete_everything();",
   ]) expect(() => assertFixtureSqlSafe(sql)).toThrow(/E2E/)
 })
 

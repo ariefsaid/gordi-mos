@@ -12,20 +12,14 @@ export const test = base.extend({
         || !/\/rpc\/create_signal_with_mentions(?:\?|$)/.test(response.url())) return
       pending.push((async () => {
         const body: unknown = await response.json()
-        const collect = (value: unknown): void => {
-          if (typeof value === 'string') {
-            if (/^[0-9a-f-]{36}$/i.test(value)) ids.add(value)
-            return
-          }
-          if (Array.isArray(value)) {
-            value.forEach(collect)
-            return
-          }
-          if (value && typeof value === 'object') {
-            Object.values(value).forEach(collect)
-          }
-        }
-        collect(body)
+        const id = typeof body === 'string'
+          ? body
+          : Array.isArray(body) && body.length === 1 && typeof body[0] === 'string'
+            ? body[0]
+            : body && typeof body === 'object' && 'id' in body && typeof body.id === 'string'
+              ? body.id
+              : null
+        if (id && /^[0-9a-f-]{36}$/i.test(id)) ids.add(id)
       })())
     }
     page.on('response', capture)
