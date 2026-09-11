@@ -414,6 +414,7 @@ export function HomePage() {
     () => buildHomeRegions({
       overdue, dueToday, blocked, myWork,
       failedChecks: failedChecksBand.items,
+      failedChecksAdmitted: seesCafe,
       taskState, onRetryTasks: loadTasks,
       failedChecksState: failedChecksBand.state, onRetryFailedChecks: loadFailedChecks,
       myWorkFullCount: ready ? openCount : undefined,
@@ -421,6 +422,7 @@ export function HomePage() {
     [
       overdue, dueToday, blocked, myWork, failedChecksBand,
       taskState, loadTasks, loadFailedChecks, ready, openCount,
+      seesCafe,
     ],
   )
 

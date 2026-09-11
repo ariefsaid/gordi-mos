@@ -22,6 +22,7 @@ const regions = buildHomeRegions({
   blocked: [],
   myWork: [item('mine')],
   failedChecks: [item('failed')],
+  failedChecksAdmitted: true,
 })
 
 const emptyRegions = buildHomeRegions({
@@ -30,6 +31,7 @@ const emptyRegions = buildHomeRegions({
   blocked: [],
   myWork: [],
   failedChecks: [],
+  failedChecksAdmitted: true,
 })
 
 const switchRegions = buildHomeRegions({
@@ -38,6 +40,7 @@ const switchRegions = buildHomeRegions({
   blocked: [],
   myWork: [item('mine-1'), item('mine-2')],
   failedChecks: [item('failed')],
+  failedChecksAdmitted: true,
 })
 
 const many = (prefix: string, count: number) =>
@@ -49,6 +52,7 @@ const cappedRegions = buildHomeRegions({
   blocked: [],
   myWork: many('mine-', 6),
   failedChecks: many('failed-', 6),
+  failedChecksAdmitted: true,
 })
 const allRecordIds = cappedRegions.flatMap((region) => region.items.map((entry) => entry.id))
 const recordHref = /^\/work\/tasks\/[^?]+$/

@@ -59,6 +59,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   const [authorityReady, setAuthorityReady] = useState(false)
   const [authority, setAuthority] = useState({ can_post: false, can_tag: false })
   const dirtyRef = useRef(false)
+  const composerTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const viewerId = viewer?.person.id
@@ -131,7 +132,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
           onClose={requestClose}
           ariaLabel={t('signals.action.share')}
           closeOnBackdrop
-          closeOnEscape
+          closeOnEscape={!discardOpen}
           surface="centered"
           phoneMode="fullscreen"
         >
@@ -151,6 +152,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
               buMembers={rosters.buMembers}
               onShared={handleShared}
               onDirtyChange={handleDirtyChange}
+              textareaRef={composerTextareaRef}
               prefill={prefill}
             />
           </div>
@@ -163,7 +165,11 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
         confirmLabel={t('signals.composer.discard')}
         cancelLabel={t('signals.composer.stay')}
         onConfirm={discardAndClose}
-        onCancel={() => setDiscardOpen(false)}
+        tone="destructive"
+        onCancel={() => {
+          setDiscardOpen(false)
+          setTimeout(() => composerTextareaRef.current?.focus(), 0)
+        }}
       />
     </SignalComposerContext.Provider>
   )

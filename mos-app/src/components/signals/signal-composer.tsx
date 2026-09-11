@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { Picker } from '@/components/ui/picker'
@@ -35,6 +35,7 @@ export interface SignalComposerProps {
   buMembers?: MemberLookup
   onShared?: (id: string) => void
   onDirtyChange?: (dirty: boolean) => void
+  textareaRef?: RefObject<HTMLTextAreaElement | null>
   prefill?: SignalComposerPrefill
 }
 
@@ -46,7 +47,7 @@ function toDatetimeLocalValue(date: Date): string {
 export function SignalComposer({
   authorId, authorName, canCreateForTeam = false, canMentionBu = false, canTag,
   teamMembers = {}, buMembers = {}, onShared, prefill,
-  onDirtyChange,
+  onDirtyChange, textareaRef: externalTextareaRef,
 }: SignalComposerProps) {
   const t = useT()
   const [teams, setTeams] = useState<TeamOption[]>([])
@@ -66,7 +67,8 @@ export function SignalComposer({
   const [mentionToken, setMentionToken] = useState<{ query: string; start: number } | null>(null)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const internalTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const textareaRef = externalTextareaRef ?? internalTextareaRef
   // GAP-8 (OD-91 #13): the mention popover is a combobox — the textarea keeps focus and forwards its
   // navigation keydowns to the picker's shared listbox contract.
   const mentionPickerRef = useRef<SignalMentionPickerHandle>(null)

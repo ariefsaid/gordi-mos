@@ -21,6 +21,7 @@ async function renderBrief(overrides: Partial<Parameters<typeof buildHomeRegions
     blocked: [],
     myWork: [item('next', 'Confirm tomorrow\'s prep')],
     failedChecks: [item('check', 'Production log · morning')],
+    failedChecksAdmitted: showFailedChecks,
     ...overrides,
   })
   let utils!: ReturnType<typeof render>
@@ -41,7 +42,7 @@ async function renderBrief(overrides: Partial<Parameters<typeof buildHomeRegions
 describe('HomeDailyBrief', () => {
   it('labels the member assigned-work union as My open work', async () => {
     const regions = buildHomeRegions({
-      overdue: [item('late')], dueToday: [], blocked: [], myWork: [item('next')], failedChecks: [],
+      overdue: [item('late')], dueToday: [], blocked: [], myWork: [item('next')], failedChecks: [], failedChecksAdmitted: true,
     })
     render(
       <I18nProvider>
@@ -114,7 +115,7 @@ describe('HomeDailyBrief', () => {
     expect(within(brief).getByRole('heading', { name: /^My open work/ })).toBeInTheDocument()
 
     const regions = buildHomeRegions({
-      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], taskState: 'error',
+      overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true, taskState: 'error',
     })
     rerender(
       <I18nProvider>

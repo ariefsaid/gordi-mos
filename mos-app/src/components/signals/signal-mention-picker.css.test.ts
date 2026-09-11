@@ -44,4 +44,24 @@ describe('mention-row.is-active — legible badge + name (WCAG-AA)', () => {
     expect(css).toMatch(/\.mention-row\.is-active:hover/)
   })
 
+  it('[forward guard] every type-badge variant still declares its own background somewhere', () => {
+    for (const selector of ['.type-badge--person', '.type-badge--team', '.type-badge--bu']) {
+      expect(css).toMatch(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{[^}]*background:`))
+    }
+  })
+
+  it('the active-row person badge gets an opaque override; team/bu do not (#578)', () => {
+    expect(css).toMatch(/\.mention-row\.is-active\s+\.type-badge--person\s*\{/)
+    expect(css).not.toMatch(/\.mention-row\.is-active\s+\.type-badge--team/)
+    expect(css).not.toMatch(/\.mention-row\.is-active\s+\.type-badge--bu/)
+  })
+
+  it('the active-row person badge override uses the opaque theme-invariant chip pair (#578)', () => {
+    const overrideIdx = css.indexOf('.mention-row.is-active .type-badge--person')
+    expect(overrideIdx).toBeGreaterThanOrEqual(0)
+    const overrideBody = ruleBody(css.slice(overrideIdx), '.mention-row.is-active .type-badge--person')
+    expect(overrideBody).toMatch(/background:\s*var\(--ds-color-blue\)/)
+    expect(overrideBody).toMatch(/color:\s*var\(--ds-font-color-inverted\)/)
+  })
+
 })
