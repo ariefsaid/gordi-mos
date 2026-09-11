@@ -3,7 +3,8 @@ import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { matchRoutes } from 'react-router-dom'
 import { routeConfig } from '@/router'
-import { flattenRoutes, allRedirects, leafInThisTable } from '@/test/route-table'
+import { flattenRoutes, allRedirects, isRedirect, leafInThisTable } from '@/test/route-table'
+import { ROUTE_PARITY_CATALOG } from './route-parity'
 
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -18,6 +19,20 @@ function destination(path: string): string {
 }
 
 describe('R7 current Work route census', () => {
+  it('PROOF-02 catalog exactly covers every live static page in the production route table', () => {
+    const liveStaticPages = flattenRoutes()
+      .filter(({ path, route }) => {
+        const handle = route.handle as { kind?: string } | undefined
+        return handle?.kind === 'page' && !isRedirect(route.element) && !path.includes(':') && !path.includes('*')
+      })
+      .map(({ path }) => path)
+      .sort()
+    const catalogPaths = ROUTE_PARITY_CATALOG.map(({ path }) => path).sort()
+
+    expect(new Set(catalogPaths).size, 'the route catalog must not duplicate a surface').toBe(catalogPaths.length)
+    expect(catalogPaths).toEqual(liveStaticPages)
+  })
+
   it('resolves every canonical record family and all source Work URL literals without an orphan route', () => {
     const expected = ['/work/tasks/:taskId', '/work/signals/:signalId', '/work/projects/:workLineId', '/work/objectives/:objectiveId']
     const routes = flattenRoutes().filter(({ path }) => /^\/work\//.test(path))

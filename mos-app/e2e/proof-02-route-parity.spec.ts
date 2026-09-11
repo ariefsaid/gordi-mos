@@ -1,34 +1,25 @@
 import { test, expect, type Page } from '@playwright/test'
 import { ADMIN } from './fixtures/users'
 import { loginAs } from './helpers/login'
+import { ROUTE_PARITY_CATALOG, type RouteParityId } from '../src/shell/route-parity'
 
-// The route catalog is intentionally small and canonical. It covers every live Work child,
-// the live module children exposed by the shell, and utility routes with a rendered way in.
-// Ship-gated roots are excluded because the router intentionally forwards them to Home.
-const ROUTE_CATALOG = [
-  { path: '/', visibleRoot: true },
-  { path: '/work/tasks', visibleRoot: true },
-  { path: '/work/signals', visibleRoot: true },
-  { path: '/work/projects', visibleRoot: true },
-  { path: '/work/objectives', visibleRoot: true },
-  { path: '/inbox', visibleRoot: true },
-  { path: '/cafe', visibleRoot: true },
-  { path: '/cafe/log', visibleRoot: false },
-  { path: '/cafe/plan', visibleRoot: false },
-  { path: '/cafe/stock', visibleRoot: false },
-  { path: '/cafe/review', visibleRoot: false },
-  { path: '/cafe/pushes', visibleRoot: false },
-  { path: '/admin/people', visibleRoot: true },
-  { path: '/profile', visibleRoot: false, owner: 'breadcrumb' },
-] as const
+// This catalog is the production route manifest's parity policy. The route census compares it
+// with the live router, while this browser proof checks the rendered ownership at every width.
+const ROUTE_CATALOG = ROUTE_PARITY_CATALOG
 
-const VISIBLE_ROOT_ROUTES = ROUTE_CATALOG.filter((route) => route.visibleRoot).map((route) => route.path)
+const VISIBLE_ROOT_ROUTES = ROUTE_CATALOG.filter((route) => route.kind === 'visible-root').map((route) => route.path)
 const CANONICAL_ROUTES = ROUTE_CATALOG.map((route) => route.path)
 
+function routePath(id: RouteParityId): string {
+  const entry = ROUTE_CATALOG.find((route) => route.id === id)
+  if (!entry) throw new Error(`Missing route parity entry: ${id}`)
+  return entry.path
+}
+
 const CROSS_SECTION_RETURNS = [
-  { name: 'Home → Signals → Home', route: '/work/signals' },
-  { name: 'Home → Café → Home', route: '/cafe/log' },
-  { name: 'Home → Inbox → Home', route: '/inbox' },
+  { name: 'Home → Signals → Home', route: routePath('workSignals') },
+  { name: 'Home → Café → Home', route: routePath('cafeLog') },
+  { name: 'Home → Inbox → Home', route: routePath('inbox') },
 ] as const
 
 const LEGACY_REDIRECTS = [
@@ -71,11 +62,17 @@ async function assertCanonicalSurface(page: Page, route: string) {
   }).toBe(route)
   await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible({ timeout: 15_000 })
   const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' })
-  await expect(breadcrumb).toBeVisible()
   const routeEntry = ROUTE_CATALOG.find((entry) => entry.path === route)
-  if (routeEntry && 'owner' in routeEntry && routeEntry.owner === 'breadcrumb') {
-    await expect(breadcrumb).toContainText('Personal Profile')
+  if (routeEntry?.owner === 'admin-settings') {
+    const settings = page.getByRole('navigation', { name: 'Admin settings sections' })
+    await expect(settings).toBeVisible()
+    await expect(settings.getByRole('link', { name: 'Access & authority' })).toHaveAttribute('aria-current', 'page')
   } else {
+    await expect(breadcrumb).toBeVisible()
+  }
+  if (routeEntry?.owner === 'breadcrumb') {
+    await expect(breadcrumb).toContainText('Personal Profile')
+  } else if (routeEntry?.owner !== 'admin-settings') {
     await expect(page.locator('[aria-current="page"]')).toHaveCount(1)
   }
   await expect(page.getByRole('main')).toBeVisible()

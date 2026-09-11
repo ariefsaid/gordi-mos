@@ -7,5 +7,5 @@ export const HOME_TILE_WEIGHT: Record<HomeRegionId, 'full' | 'wide' | 'narrow'> 
   'my-work': 'wide',
 }
 
-/** Overview stays a summary, while RegionRows keeps the full count and canonical drill door honest. */
+/** Overview stays a summary, while the collection host keeps the full count and canonical drill door honest. */
 export const OVERVIEW_TILE_ROWS = 5

@@ -24,6 +24,7 @@ import { AppShell } from './shell/app-shell'
 import { RouteRedirect } from './shell/route-redirect'
 import { pageHandle, redirectHandle, infrastructureHandle, type RouteHandle } from './shell/route-classification'
 import { LoadingShell } from './components/ui/state-kit'
+import { ROUTE_PATHS } from './shell/route-parity'
 // Eager, deliberately: both are above-the-fold first paints. HomePage is the index route (the
 // screen every authenticated session opens on) and LoginPage is what a logged-out visitor lands
 // on. Code-splitting either trades a bundle-size win for a visible blank frame on first paint.
@@ -221,7 +222,7 @@ const routeTable: RouteObject[] = [
             handle: redirectHandle('/work/tasks'),
           },
           {
-            path: 'work/tasks',
+            path: ROUTE_PATHS.workTasks,
             element: withSuspense(<TasksLayout />),
             handle: pageHandle('workspace'),
             children: [
@@ -240,7 +241,7 @@ const routeTable: RouteObject[] = [
           // Signals is v4's replacement for Weekly Updates — v4's own map redirects /updates
           // here, and routes this path at SignalsArchivePage as the replacement archive surface.
           {
-            path: 'work/signals',
+            path: ROUTE_PATHS.workSignals,
             element: withSuspense(<SignalsArchivePage />),
             handle: pageHandle('workspace'),
           },
@@ -257,7 +258,7 @@ const routeTable: RouteObject[] = [
           // dropped this gate in #188; the route follows, or the rail links somewhere that
           // bounces.
           {
-            path: 'work/objectives',
+            path: ROUTE_PATHS.workObjectives,
             element: withSuspense(<ObjectivesPage />),
             handle: pageHandle('management'),
           },
@@ -270,7 +271,7 @@ const routeTable: RouteObject[] = [
           // resolved by get_work_write_scopes inside the page/record surfaces; the static JWT role
           // map must not hide a catalog that every authenticated org member may read.
           {
-            path: 'work/projects',
+            path: ROUTE_PATHS.workProjects,
             element: withSuspense(<ProjectsProcessesPage />),
             handle: pageHandle('management'),
           },
@@ -397,19 +398,19 @@ const routeTable: RouteObject[] = [
           // SHOW_INBOX is retired. #188 already made the rail entry, the bottom tab and the
           // header bell unconditional; a flag that hides only the route leaves three live doors
           // onto a redirect home.
-          { path: 'inbox', element: withSuspense(<InboxPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.inbox, element: withSuspense(<InboxPage />), handle: pageHandle('workspace') },
 
           // ── Café (Kitchen re-homed) ─────────────────────────────────────────────────────
           // /cafe is v4's opening surface ("Start today's opening", RATIFY-7D): the Café Module
           // home hosts CafeOpeningPanel, then links out to the working screens (#196, PORT-023).
           {
-            path: 'cafe',
+            path: ROUTE_PATHS.cafe,
             element: withSuspense(<CafeOpeningPage />),
             handle: pageHandle('workspace'),
           },
-          { path: 'cafe/log', element: withSuspense(<KitchenLogPage />), handle: pageHandle('workspace') },
-          { path: 'cafe/plan', element: withSuspense(<KitchenPlanPage />), handle: pageHandle('workspace') },
-          { path: 'cafe/stock', element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeLog, element: withSuspense(<KitchenLogPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafePlan, element: withSuspense(<KitchenPlanPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeStock, element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
           // Names /cafe/log, not /cafe: /cafe is now the opening surface itself (see above),
           // and a redirect that lands on a redirect is two hops.
           { path: 'kitchen', element: <RouteRedirect to="/cafe/log" />, handle: redirectHandle('/cafe/log') },
@@ -434,7 +435,7 @@ const routeTable: RouteObject[] = [
             element: <RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} />,
             handle: infrastructureHandle('capability'),
             children: [
-              { path: 'cafe/review', element: withSuspense(<KitchenReviewPage />), handle: pageHandle('workspace') },
+              { path: ROUTE_PATHS.cafeReview, element: withSuspense(<KitchenReviewPage />), handle: pageHandle('workspace') },
               // Inside the gate, for the same reason as the catalog redirects above.
               {
                 path: 'kitchen/review',
@@ -449,7 +450,7 @@ const routeTable: RouteObject[] = [
             element: <RequireAccessRole anyOf={['ops_lead', 'admin']} />,
             handle: infrastructureHandle('capability'),
             children: [
-              { path: 'cafe/pushes', element: withSuspense(<KitchenPushesPage />), handle: pageHandle('workspace') },
+              { path: ROUTE_PATHS.cafePushes, element: withSuspense(<KitchenPushesPage />), handle: pageHandle('workspace') },
               {
                 path: 'kitchen/pushes',
                 element: <RouteRedirect to="/cafe/pushes" />,
@@ -479,7 +480,7 @@ const routeTable: RouteObject[] = [
           // mounted language control anywhere in the app, so the Indonesian catalog is complete
           // and unreachable. Serving the real page is what restores it.
           {
-            path: 'profile',
+            path: ROUTE_PATHS.profile,
             element: withSuspense(<ProfilePage />),
             handle: pageHandle('management'),
           },
@@ -491,12 +492,12 @@ const routeTable: RouteObject[] = [
             handle: infrastructureHandle('capability'),
             children: [
               {
-                path: 'admin/people',
+                path: ROUTE_PATHS.adminPeople,
                 element: withSuspense(<AdminUsersPage />),
                 handle: pageHandle('management'),
               },
               {
-                path: 'admin/access',
+                path: ROUTE_PATHS.adminAccess,
                 element: withSuspense(<AdminAccessPage />),
                 handle: pageHandle('management'),
               },

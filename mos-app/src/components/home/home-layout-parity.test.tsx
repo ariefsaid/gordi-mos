@@ -95,14 +95,18 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
       expect(screen.getByTestId('signals-feed')).toBeInTheDocument()
       expect(container.querySelector(`${workSelector} [data-testid="signals-feed"]`)).toBeNull()
 
-      const taskLink = screen.getByRole('link', { name: /Item overdue/ })
+      const taskLink = await screen.findByRole('link', { name: /Item overdue/ })
       expect(within(taskLink).getByText('Open task')).toBeInTheDocument()
 
       if (layout === 'focused') {
         await user.click(screen.getByRole('tab', { name: /failed checks/i }))
       }
-      const failedCheckLink = screen.getByRole('link', { name: /Item failed/ })
+      const failedCheckLink = await screen.findByRole('link', { name: /Item failed/ })
       expect(within(failedCheckLink).getByText('Review')).toBeInTheDocument()
+      expect(container.querySelectorAll('[data-collection-status="ready"]').length).toBeGreaterThan(0)
+      expect(container.querySelectorAll('[data-testid^="home-region-collection-"]')).toHaveLength(
+        layout === 'focused' ? 1 : 3,
+      )
       unmount()
     }
   })
@@ -140,7 +144,7 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
     }
   })
 
-  it('AC-926: switching Focused tabs swaps only the selected records and leaves Signals mounted', async () => {
+  it('AC-926 / FR-931: switching Focused tabs swaps collection hosts and leaves Signals mounted', async () => {
     const user = userEvent.setup()
     let feedMounts = 0
     function CountingFeed() {
@@ -151,12 +155,12 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
     renderLayout(<HomeFocused regions={switchRegions} feed={<CountingFeed />} />)
     const feedBefore = screen.getByTestId('signals-feed')
     expect(feedMounts).toBe(1)
-    expect(screen.getByText('Item needs')).toBeInTheDocument()
+    expect(await screen.findByText('Item needs')).toBeInTheDocument()
     expect(screen.queryByText('Item mine-1')).toBeNull()
     expect(screen.queryByText('Item failed')).toBeNull()
 
     await user.click(screen.getByRole('tab', { name: /my open work/i }))
-    expect(screen.getByText('Item mine-1')).toBeInTheDocument()
+    expect(await screen.findByText('Item mine-1')).toBeInTheDocument()
     expect(screen.getByText('Item mine-2')).toBeInTheDocument()
     expect(screen.queryByText('Item needs')).toBeNull()
     expect(screen.queryByText('Item failed')).toBeNull()
@@ -180,7 +184,7 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
     await user.keyboard('{ArrowRight}')
     expect(tabs[1]).toHaveAttribute('aria-selected', 'true')
     expect(tabs[1]).toHaveFocus()
-    expect(within(screen.getByRole('tabpanel')).getByText('Item failed')).toBeInTheDocument()
+    expect(await within(screen.getByRole('tabpanel')).findByText('Item failed')).toBeInTheDocument()
   })
 
   it('AC-929: List and Focused reach every record, while Overview links every truncated remainder', async () => {
@@ -188,6 +192,7 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
 
     {
       const { unmount } = renderLayout(<HomeList regions={cappedRegions} feed={feed} />)
+      await screen.findByText('Item overdue-1')
       expect(recordIds()).toEqual([...allRecordIds].sort())
       unmount()
     }
@@ -195,8 +200,11 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
     {
       const { unmount } = renderLayout(<HomeFocused regions={cappedRegions} feed={feed} />)
       const reached = new Set<string>()
-      for (const tab of screen.getAllByRole('tab')) {
+      const tabs = screen.getAllByRole('tab')
+      const expected = ['Item overdue-1', 'Item failed-1', 'Item mine-1']
+      for (const [index, tab] of tabs.entries()) {
         await user.click(tab)
+        await screen.findByText(expected[index])
         for (const id of recordIds()) reached.add(id)
       }
       expect([...reached].sort()).toEqual([...allRecordIds].sort())
@@ -205,6 +213,7 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
 
     {
       const { unmount } = renderLayout(<HomeOverview regions={cappedRegions} feed={feed} />)
+      await screen.findByText('Item overdue-1')
       expect(recordIds().length).toBeLessThan(allRecordIds.length)
       for (const region of cappedRegions) {
         const tile = screen.getByRole('heading', { name: regionLabels[region.id] }).closest('section')!

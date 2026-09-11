@@ -1,11 +1,13 @@
 // AC-430: approved org-wide post/tag, current Inbox triage, and Signal record lifecycle.
 // OPEN-04/05 attention/push/new-source decisions are outside this journey.
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures/signal-browser'
 import { loginAs } from './helpers/login'
 import { localSqlRead } from './helpers/local-sql-read'
 import { assertTapFloor } from './helpers/tap-floor'
 import { DEMO_PASSWORD } from '../src/pages/demo-personas'
 import { messages } from '../src/i18n/messages'
+
+// @e2e-owned-cleanup: captured-signal-ids
 
 test.use({ viewport: { width: 390, height: 844 } })
 

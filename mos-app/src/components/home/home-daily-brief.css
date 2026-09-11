@@ -1,6 +1,6 @@
 /* Home's one daily operating brief. The main queue owns the visual weight; the aside is a quiet
    companion column. This is intentionally a composition stylesheet, not a second row grammar —
-   RegionRows and StreamRow still own all record-row texture and state treatment. */
+   the Home collection host and StreamRow still own all record-row texture and state treatment. */
 .home-frame {
   container: home / inline-size;
   min-width: 0;

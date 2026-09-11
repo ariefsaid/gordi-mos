@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type KeyboardEvent } from 'react'
 import { useT } from '@/i18n/use-t'
-import { RegionCount, RegionDrillLink, RegionRows } from './region-rows'
+import { RegionCount } from './region-rows'
+import { HomeRegionCollection } from './home-region-collection'
 import type { HomeLayoutProps } from './home-layout-types'
 import './home-layouts.css'
 
@@ -55,8 +56,7 @@ export function HomeFocused({ regions, feed, leading }: HomeLayoutProps) {
         </div>
         {active ? (
           <div id={panelId} role="tabpanel" aria-labelledby={tabId(active.id)} tabIndex={0}>
-            <RegionRows region={active} />
-            <RegionDrillLink region={active} />
+            <HomeRegionCollection region={active} />
           </div>
         ) : null}
       </div>

@@ -5,10 +5,12 @@
 // Run with the hide-first flag enabled:
 //   VITE_SHOW_PLAN_BUDGET=true npx playwright test e2e/AC-PB-012-budget-pricing-preflight.spec.ts
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures/budget-browser'
 import { ADMIN } from './fixtures/users'
 import { loginAs } from './helpers/login'
 import { isShipGated } from './helpers/ship-gate'
+
+// @e2e-owned-cleanup: captured-budget-ids
 
 test.describe('AC-PB-012: Plan budget capture → pricing pre-flight', () => {
   // issue 444 — this journey walks /money/budget and /money/pricing, both under the ship-gated

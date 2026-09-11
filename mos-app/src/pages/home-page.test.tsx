@@ -12,6 +12,7 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import { HomePage } from './home-page'
 import { ProfilePage } from './profile-page'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
+import { setHomeLayout } from '@/lib/home-layout'
 
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -273,6 +274,28 @@ describe('Home daily operating brief', () => {
     const secondHome = await renderHome(financeViewer)
     expect(secondHome.container.querySelector('[role="tablist"]')).toBeNull()
     expect(secondHome.container.querySelector('.home-bento')).toBeInTheDocument()
+  })
+
+  it('AC-924: switches to the next viewer arrangement during render, with no stale frame', async () => {
+    const switchedMemberViewer: AuthState = {
+      ...memberViewer,
+      viewer: {
+        ...memberViewer.viewer,
+        person: { ...memberViewer.viewer.person, id: '40000000-0000-0000-0000-000000000008' },
+      },
+    }
+    setHomeLayout(financeViewer.viewer.person.id, 'list')
+    setHomeLayout(switchedMemberViewer.viewer.person.id, 'focused')
+    mockUseAuth.mockReturnValue(financeViewer)
+    const home = render(<HomePage />, { wrapper })
+    await screen.findByTestId('home-daily-brief')
+    expect(home.container.querySelector('.stream-group')).toBeInTheDocument()
+
+    mockUseAuth.mockReturnValue(switchedMemberViewer)
+    home.rerender(<HomePage />)
+
+    expect(home.container.querySelector('[role="tablist"]')).toBeInTheDocument()
+    expect(home.container.querySelector('.stream-group')).toBeNull()
   })
 
   it('makes the next action explicit while keeping the canonical task link and state origin', async () => {
@@ -547,7 +570,7 @@ describe('Home task regions preserve decision context and collection doors', () 
     const myWork = await screen.findByRole('tabpanel', { name: /^My open work/ })
     expect(within(myWork).getByText('Prep beans')).toBeInTheDocument()
     expect(within(myWork).getByText('Clean grinder')).toBeInTheDocument()
-    expect(within(myWork).getByRole('link', { name: /my open tasks · 2/i }))
+    expect(within(myWork).getByRole('link', { name: /2 shown · 2 open/i }))
       .toHaveAttribute('href', '/work/tasks?view=my-work')
   })
 

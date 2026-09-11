@@ -90,12 +90,10 @@ export function HomePage() {
   const personId = viewer?.person?.id ?? null
   // Home arrangement is a Personal Profile preference. Resolve by person, not auth user, so a
   // dual-role account keeps one deliberate Home shape and a change of viewer cannot leak state.
-  const [homeLayout, setHomeLayout] = useState<HomeLayout>(() => (
-    personId ? resolveHomeLayout(personId) : 'focused'
-  ))
-  useEffect(() => {
-    setHomeLayout(personId ? resolveHomeLayout(personId) : 'focused')
-  }, [personId])
+  // Resolve during render so a viewer switch cannot paint the previous person's arrangement for
+  // one frame while an effect catches up. The guarded resolver is cheap and also observes a
+  // profile change when Home renders again without a full reload.
+  const homeLayout: HomeLayout = personId ? resolveHomeLayout(personId) : 'focused'
   // Failed checks are an operational exception, not generic `/cafe/log` route admission. The route
   // is intentionally readable by every authenticated viewer; Home narrows the band to the
   // affiliation fact supplied by auth, with admin as the explicit cross-Café exception.

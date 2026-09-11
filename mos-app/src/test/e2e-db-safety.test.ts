@@ -1,9 +1,18 @@
 // @vitest-environment node
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { afterEach, expect, test, vi } from 'vitest'
 import { AC204, TASKS } from '@/../e2e/fixtures/tasks'
-import { assertFixtureSqlSafe, assertLocalFixtureDatabase, fixtureCleanupSql } from '@/../e2e/fixtures/cleanup'
+import {
+  assertFixtureSqlSafe,
+  assertLocalFixtureDatabase,
+  E2E_CLEANUP_REGISTRY,
+  budgetCleanupSql,
+  fixtureCleanupSql,
+  signalCleanupSql,
+  taskCleanupSql,
+  userViewCleanupSql,
+} from '@/../e2e/fixtures/cleanup'
 
 vi.mock('fs', async (original) => {
   const fs = await original<typeof import('fs')>()
@@ -91,8 +100,68 @@ test('global hooks delegate all business deletion to the fixture cleanup boundar
   }
 })
 
+test('captured task writers use the owned-ID fixture and its SQL guard', () => {
+  const e2eDir = new URL('../../e2e/', import.meta.url)
+  const specFiles = readdirSync(e2eDir).filter((file) => file.endsWith('.spec.ts'))
+  const taskWriterFiles = specFiles.filter((file) => {
+    const source = readFileSync(new URL(`../../e2e/${file}`, import.meta.url), 'utf8')
+    return /\bcreateTaskViaUI\s*\(/.test(source)
+  })
+  const explicitTaskWriter = 'shell-url-state.spec.ts'
+  expect(taskWriterFiles).toContain('guards.geometry.spec.ts')
+  for (const file of [...taskWriterFiles, explicitTaskWriter]) {
+    const source = readFileSync(new URL(`../../e2e/${file}`, import.meta.url), 'utf8')
+    expect(source, `${file} must use captured task-ID cleanup`).toContain("./fixtures/task-browser")
+  }
+  expect(readFileSync(new URL(`../../e2e/${explicitTaskWriter}`, import.meta.url), 'utf8'))
+    .toContain('@e2e-owned-cleanup: captured-task-ids')
+
+  const fixtureSource = readFileSync(new URL('../../e2e/fixtures/task-browser.ts', import.meta.url), 'utf8')
+  expect(fixtureSource).toContain('assertFixtureSqlSafe')
+  expect(fixtureSource).toMatch(/assertFixtureSqlSafe\(cleanup\)[\s\S]*await localSql\(cleanup\)/)
+})
+
+test('every Playwright data writer is registered with an owned cleanup contract', () => {
+  const e2eDir = new URL('../../e2e/', import.meta.url)
+  const specFiles = readdirSync(e2eDir).filter((file) => file.endsWith('.spec.ts'))
+  const sources = new Map(specFiles.map((file) => [
+    file,
+    readFileSync(new URL(`../../e2e/${file}`, import.meta.url), 'utf8'),
+  ]))
+  const detected = [...sources.entries()]
+    .filter(([, source]) => /localSql\(|\/pg\/query|from ['"]\.\/fixtures\/(?:task|signal|user-view|budget)-browser['"]|@e2e-owned-cleanup:/.test(source))
+    .map(([file]) => file)
+    .sort()
+  expect(detected).toEqual(Object.keys(E2E_CLEANUP_REGISTRY).sort())
+  for (const [file, contract] of Object.entries(E2E_CLEANUP_REGISTRY)) {
+    const source = sources.get(file)
+    expect(source, `${file} must remain in e2e`).toBeDefined()
+    expect(source, `${file} must own a cleanup path`).toMatch(/localSql\(|\/pg\/query|fixtures\/(?:task|signal|user-view|budget)-browser|@e2e-owned-cleanup:/)
+    if (contract === 'captured-task-ids') {
+      expect(source, `${file} must use the task browser fixture`).toContain("./fixtures/task-browser")
+    }
+    if (contract === 'captured-signal-ids') {
+      expect(source, `${file} must declare signal capture`).toContain('@e2e-owned-cleanup: captured-signal-ids')
+    }
+    if (contract === 'captured-user-view-id') {
+      expect(source, `${file} must declare user-view capture`).toContain('@e2e-owned-cleanup: captured-user-view-ids')
+    }
+    if (contract === 'captured-budget-id') {
+      expect(source, `${file} must declare budget capture`).toContain('@e2e-owned-cleanup: captured-budget-ids')
+    }
+  }
+})
+
 test('SQL guard rejects broad and disguised deletes and allows the owned cleanup', () => {
   expect(() => assertFixtureSqlSafe(fixtureCleanupSql)).not.toThrow()
+  const capturedCleanup = taskCleanupSql(['a1000000-0000-0000-0000-000000000001'])
+  expect(() => assertFixtureSqlSafe(capturedCleanup)).not.toThrow()
+  expect(() => taskCleanupSql(['not-a-uuid'])).toThrow(/UUID-owned/)
+  for (const cleanup of [
+    signalCleanupSql(['a1000000-0000-0000-0000-000000000002']),
+    userViewCleanupSql(['a1000000-0000-0000-0000-000000000003']),
+    budgetCleanupSql(['a1000000-0000-0000-0000-000000000004']),
+  ]) expect(() => assertFixtureSqlSafe(cleanup)).not.toThrow()
   for (const sql of [
     "DELETE FROM mos.tasks WHERE org_id = 'demo';",
     "DELETE FROM mos.weekly_updates WHERE org_id = 'demo';",
@@ -103,6 +172,7 @@ test('SQL guard rejects broad and disguised deletes and allows the owned cleanup
     'DROP TABLE mos.tasks;',
     fixtureCleanupSql.replace(/ AND id IN \([^)]*\)/, ''),
     fixtureCleanupSql + "DELETE FROM mos.tasks WHERE org_id = 'demo';",
+    capturedCleanup.replace(');', ") AND title = 'E2E';"),
   ]) expect(() => assertFixtureSqlSafe(sql)).toThrow(/E2E/)
 })
 

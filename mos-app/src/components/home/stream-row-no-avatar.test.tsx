@@ -58,10 +58,10 @@ describe("a Home row names the person — it never draws their initials (owner, 
 // In "My work today" the PIC is always the viewer, so naming them to themselves carries zero
 // information and those rows suppress it. The rule used to be proved by handing `hidePic` to
 // StreamRow directly — which cannot tell a WIRED rule from an unwired one, and it was in fact
-// unwired: `RegionRows` took `hidePic` as a prop and not one of the three layouts passed it, so
+// unwired: the former region renderer took `hidePic` as a prop and not one of the three layouts passed it, so
 // every my-work row on the real page named the viewer to themselves.
 //
-// So this renders the REGION in the daily brief with the SAME person on an attention row and on a
+// So this renders the explicit List arrangement with the SAME person on an attention row and on a
 // my-work row. Suppression is region-scoped, not global.
 const PERSON = { name: 'Cahya Cafe' }
 const attentionItem: StreamItem = {
@@ -74,7 +74,7 @@ const myWorkItem: StreamItem = {
 function renderBrief(regions: ReturnType<typeof buildHomeRegions>) {
   return render(
     <I18nProvider><MemoryRouter>
-      <HomeDailyBrief regions={regions} feed={<div />} />
+      <HomeDailyBrief regions={regions} feed={<div />} layout="list" />
     </MemoryRouter></I18nProvider>,
   )
 }
@@ -82,16 +82,16 @@ function renderBrief(regions: ReturnType<typeof buildHomeRegions>) {
 describe('F16: a rendered "My work today" region never names the viewer to themselves', () => {
   const empty = { overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true }
 
-  it('the my-work rows carry no PIC name in the daily brief', () => {
+  it('the my-work rows carry no PIC name in the daily brief', async () => {
     renderBrief(buildHomeRegions({ ...empty, myWork: [myWorkItem] }))
     // The row itself is there (so this is not passing on an empty region), and its caption is too.
-    expect(screen.getByText('Replace grinder burrs')).toBeInTheDocument()
+    expect(await screen.findByText('Replace grinder burrs')).toBeInTheDocument()
     expect(screen.getByText('Kitchen')).toBeInTheDocument()
     expect(screen.queryByText('Cahya Cafe')).not.toBeInTheDocument()
   })
 
-  it('the SAME person is still named on an attention row', () => {
+  it('the SAME person is still named on an attention row', async () => {
     renderBrief(buildHomeRegions({ ...empty, overdue: [attentionItem] }))
-    expect(screen.getByText('Cahya Cafe')).toBeInTheDocument()
+    expect(await screen.findByText('Cahya Cafe')).toBeInTheDocument()
   })
 })

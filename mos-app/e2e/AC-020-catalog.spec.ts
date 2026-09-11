@@ -47,6 +47,7 @@ const ORG = '10000000-0000-0000-0000-000000000001'
 const NAME = 'E2E Catalog Objective'
 const RENAMED = 'E2E Renamed Objective'
 const PICKER_TASK_ID = '4e020000-0000-0000-0000-000000000001'
+let createdObjectiveId: string | undefined
 
 test('AC-020: admin adds → renames → archives an objective; archived leaves the task picker', async ({ page }, testInfo) => {
   await loginAs(page, ADMIN.email, ADMIN.password)
@@ -65,6 +66,7 @@ test('AC-020: admin adds → renames → archives an objective; archived leaves 
   const objectiveHref = await objective.getAttribute('href')
   expect(objectiveHref).toMatch(/\/work\/objectives\/[0-9a-f-]{36}$/)
   const objectiveId = objectiveHref!.match(/[0-9a-f-]{36}$/)![0]
+  createdObjectiveId = objectiveId
   await execSql(`INSERT INTO mos.tasks
     (id, org_id, title, business_unit_id, status, responsible_person_id, accountable_person_id, created_by, objective_id)
     VALUES ('${PICKER_TASK_ID}', '${ORG}', 'E2E Catalog linked task',
@@ -106,6 +108,6 @@ test('AC-020: admin adds → renames → archives an objective; archived leaves 
 })
 
 test.afterAll(async () => {
-  await execSql(`DELETE FROM mos.tasks WHERE id = '${PICKER_TASK_ID}' AND title = 'E2E Catalog linked task'`)
-  await execSql(`DELETE FROM mos.objectives WHERE org_id = '${ORG}' AND name IN ('${NAME}', '${RENAMED}')`)
+  await execSql(`DELETE FROM mos.tasks WHERE id = '${PICKER_TASK_ID}'`)
+  if (createdObjectiveId) await execSql(`DELETE FROM mos.objectives WHERE id = '${createdObjectiveId}'`)
 })

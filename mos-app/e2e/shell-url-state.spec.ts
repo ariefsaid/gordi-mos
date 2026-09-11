@@ -1,6 +1,9 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect } from './fixtures/task-browser'
+import type { Page } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { VIEWER } from './fixtures/users'
+
+// @e2e-owned-cleanup: captured-task-ids
 
 // task-collection-adapter.tsx VIEW_ALIASES: 'mine' is accepted as INPUT but is "a legacy Task
 // saved-view chip alias that must be rewritten canonically, never kept raw" — the URL always

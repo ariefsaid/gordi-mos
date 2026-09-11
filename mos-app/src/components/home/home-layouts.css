@@ -1,5 +1,6 @@
-/* Shared v4 Home arrangement primitives. These own geometry; RegionRows and home-stream.css own
-   the data-row grammar. Approved theme tokens provide every surface, border, text and focus color. */
+/* Shared v4 Home arrangement primitives. These own geometry; the Home collection host and
+   home-stream.css own the data-row grammar. Approved theme tokens provide every surface, border,
+   text and focus color. */
 
 .home-layout {
   display: grid;
@@ -59,13 +60,20 @@
 
 .home-tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
   gap: 4px;
   margin-bottom: 12px;
   border-bottom: 1px solid var(--border);
 }
 
 .home-tab {
+  flex: 0 0 auto;
   min-height: 44px;
   margin-bottom: -1px;
   border: 0;

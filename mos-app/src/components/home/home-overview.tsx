@@ -1,5 +1,6 @@
 import { useT } from '@/i18n/use-t'
-import { RegionCount, RegionDrillLink, RegionRows } from './region-rows'
+import { RegionCount } from './region-rows'
+import { HomeRegionCollection } from './home-region-collection'
 import { HOME_TILE_WEIGHT, OVERVIEW_TILE_ROWS } from './home-tile-weight'
 import type { HomeLayoutProps } from './home-layout-types'
 import './home-layouts.css'
@@ -18,8 +19,7 @@ export function HomeOverview({ regions, feed, leading }: HomeLayoutProps) {
                 <h2 className="home-tile-name">{t(region.labelKey)}</h2>
                 <RegionCount region={region} className="home-tile-count" />
               </div>
-              <RegionRows region={region} items={region.items.slice(0, OVERVIEW_TILE_ROWS)} />
-              <RegionDrillLink region={region} />
+              <HomeRegionCollection region={region} items={region.items.slice(0, OVERVIEW_TILE_ROWS)} />
             </section>
           ))}
         </div>

@@ -23,7 +23,8 @@
  * The rendered-geometry lane itself is .github/workflows/geometry.yml.
  * Requires the live local stack (supabase on 44321) + the global-setup seed.
  */
-import { test, expect, type Locator, type Page } from '@playwright/test'
+import { test, expect } from './fixtures/task-browser'
+import type { Locator, Page } from '@playwright/test'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'

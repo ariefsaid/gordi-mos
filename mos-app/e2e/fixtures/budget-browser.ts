@@ -1,22 +1,23 @@
 import { test as base, expect, type Response } from '@playwright/test'
 import { localSql } from '../helpers/local-sql'
-import { TASKS } from './tasks'
-import { assertFixtureSqlSafe, taskCleanupSql } from './cleanup'
+import { assertFixtureSqlSafe, budgetCleanupSql } from './cleanup'
 
-// Capture only IDs returned by this page's successful task inserts. A title, author or
-// organization match alone never establishes ownership of a row for cleanup.
+/** Capture budget ids returned by the capture RPC and clean only those owned budgets. */
 export const test = base.extend({
   page: async ({ page }, runTest) => {
     const ids = new Set<string>()
     const pending: Promise<void>[] = []
     const capture = (response: Response) => {
       if (response.request().method() !== 'POST' || !response.ok()
-        || !/\/rest\/v1\/tasks(?:\?|$)/.test(response.url())) return
+        || !/\/rpc\/capture_budget(?:\?|$)/.test(response.url())) return
       pending.push((async () => {
         const body: unknown = await response.json()
-        for (const row of Array.isArray(body) ? body : [body]) {
-          if (row && typeof row.id === 'string' && /^[0-9a-f-]{36}$/.test(row.id)) ids.add(row.id)
-        }
+        const id = typeof body === 'string'
+          ? body
+          : body && typeof body === 'object' && 'id' in body && typeof body.id === 'string'
+            ? body.id
+            : null
+        if (id && /^[0-9a-f-]{36}$/i.test(id)) ids.add(id)
       })())
     }
     page.on('response', capture)
@@ -26,8 +27,7 @@ export const test = base.extend({
       page.off('response', capture)
       await Promise.all(pending)
       if (ids.size) {
-        const org = TASKS.VIEWER_ACCOUNTABLE.orgId
-        const cleanup = taskCleanupSql([...ids], org)
+        const cleanup = budgetCleanupSql([...ids])
         assertFixtureSqlSafe(cleanup)
         await localSql(cleanup)
       }

@@ -1,7 +1,6 @@
 /* ════════════════════════════════════════════════════════════════════════════
    Home row & band grammar — the SHARED texture the daily brief renders through
-   RegionRows, and the
-   Signals feed mirrors. Chromeless: quiet band dividers + the shared list-row
+   Home collection host, and the Signals feed mirrors. Chromeless: quiet band dividers + the shared list-row
    rhythm tokens provide the texture — never a boxed section shell. Token-only
    (DESIGN.md + the shared --row-* rhythm set).
 
@@ -235,7 +234,7 @@
 }
 
 /* All-caught-up affirmation (compact, left-aligned — same StateKit primitive; overrides only its
-   centering/sizing). Deliberately UNSCOPED: RegionRows renders the same all-clear inside every
+   centering/sizing). Deliberately UNSCOPED: the Home collection presentation renders the same all-clear inside every
    arrangement's region body, and a per-arrangement copy would be a second, drifting definition of
    one treatment. */
 .empty-state.stream-all-clear {
