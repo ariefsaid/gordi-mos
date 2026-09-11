@@ -164,6 +164,9 @@ test('SQL guard rejects broad and disguised deletes and allows the owned cleanup
     budgetCleanupSql(['a1000000-0000-0000-0000-000000000004']),
     objectiveCleanupSql(['a1000000-0000-0000-0000-000000000005']),
   ]) expect(() => assertFixtureSqlSafe(cleanup)).not.toThrow()
+  expect(() => assertFixtureSqlSafe(
+    "INSERT INTO mos.tasks (title) VALUES ('-- quoted text') ON CONFLICT (id) DO NOTHING",
+  )).not.toThrow()
   for (const sql of [
     "DELETE FROM mos.tasks WHERE org_id = 'demo';",
     "DELETE FROM mos.weekly_updates WHERE org_id = 'demo';",
@@ -178,6 +181,7 @@ test('SQL guard rejects broad and disguised deletes and allows the owned cleanup
     "DO $$ BEGIN EXECUTE chr(68)||chr(69)||chr(76)||chr(69)||chr(84)||chr(69)||' FROM mos.tasks'; END $$;",
     "DO 'BEGIN PERFORM wipe_everything(); END';",
     "/* harmless */ DO 'BEGIN PERFORM wipe_everything(); END';",
+    "SELECT '--'; DO 'BEGIN PERFORM wipe_everything(); END';",
     "CALL delete_everything();",
   ]) expect(() => assertFixtureSqlSafe(sql)).toThrow(/E2E/)
 })

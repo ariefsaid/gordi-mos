@@ -90,12 +90,66 @@ export const E2E_CLEANUP_REGISTRY = {
   'work-persona-closure.spec.ts': 'captured-process-run-id',
 } as const
 
+/** Keep executable SQL tokens while blanking quoted bodies and comments. This lets the safety
+ * boundary inspect statement keywords without treating `--` inside a string as a real comment. */
+function executableSqlOnly(sql: string): string {
+  let output = ''
+  let index = 0
+  const blank = (value: string) => value.replace(/[^\r\n]/g, ' ')
+
+  while (index < sql.length) {
+    if (sql.startsWith('--', index)) {
+      const end = sql.indexOf('\n', index + 2)
+      const next = end === -1 ? sql.length : end
+      output += blank(sql.slice(index, next))
+      index = next
+      continue
+    }
+    if (sql.startsWith('/*', index)) {
+      const start = index
+      let depth = 1
+      index += 2
+      while (index < sql.length && depth > 0) {
+        if (sql.startsWith('/*', index)) { depth += 1; index += 2; continue }
+        if (sql.startsWith('*/', index)) { depth -= 1; index += 2; continue }
+        index += 1
+      }
+      output += blank(sql.slice(start, index))
+      continue
+    }
+    const quote = sql[index]
+    if (quote === "'" || quote === '"') {
+      const start = index
+      index += 1
+      while (index < sql.length) {
+        if (sql[index] !== quote) { index += 1; continue }
+        if (sql[index + 1] === quote) { index += 2; continue }
+        index += 1
+        break
+      }
+      output += blank(sql.slice(start, index))
+      continue
+    }
+    if (quote === '$') {
+      const delimiter = /^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(index))?.[0]
+      if (delimiter) {
+        const start = index
+        const end = sql.indexOf(delimiter, index + delimiter.length)
+        index = end === -1 ? sql.length : end + delimiter.length
+        output += blank(sql.slice(start, index))
+        continue
+      }
+    }
+    output += sql[index]
+    index += 1
+  }
+  return output
+}
+
 /** Validate a cleanup query before it reaches the service-role SQL endpoint. */
 export function assertFixtureSqlSafe(query: string): void {
   const normalize = (sql: string) => sql.trim().replace(/\s+/g, ' ').toLowerCase()
-  const executableSql = query
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/--[^\r\n]*/g, ' ')
+  const executableSql = executableSqlOnly(query)
   const allowed = new Set(fixtureCleanupSql.split(';').filter((sql) => sql.trim()).map(normalize))
   const uuid = "'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'"
   const uuidList = `${uuid}(?:, ${uuid})*`
