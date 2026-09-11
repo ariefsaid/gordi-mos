@@ -76,7 +76,7 @@ export function SignalAttentionPicker({ value, onChange, label }: SignalAttentio
             {...getOptionProps(index)}
             tabIndex={-1}
             aria-selected={attention === value}
-            className={`signal-attention-picker-option signal-attention-picker-option--${attention.toLowerCase().replace(/\s+/g, '-')}${index === activeIndex ? ' is-active' : ''}`}
+            className={`signal-attention-picker-option${index === activeIndex ? ' is-active' : ''}`}
             onClick={() => { setActiveIndex(index); onChange(attention); setOpen(false) }}
           >
             <span className={`signal-attention signal-attention--${attentionSlug(attention)}`}>

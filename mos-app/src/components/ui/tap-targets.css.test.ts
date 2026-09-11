@@ -108,8 +108,9 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(body).toMatch(/\.cm-item[\s\S]*min-height:\s*44px/)
   })
 
-  it('SYS-2: keeps the Occurred popover input at a 44px floor', () => {
-    expect(signalComposerCss).toMatch(/\.signal-occurred-popover input[^}]*min-height:\s*44px/)
+  it('SYS-2: keeps the Occurred datetime input at a 44px floor', () => {
+    const body = mediaBody(signalComposerCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.signal-composer-datetime input[^}]*min-height:\s*44px/)
   })
 
   it('SYS-2: raises the Signal mention rows (.mention-row) to 44px on phone', () => {
@@ -122,14 +123,11 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(helpTipCss).toMatch(/\.help-tip::before\s*\{[^}]*inset:\s*-16px/)
   })
 
-  // #708: 43.2×44 / 42.2×44 measured — height already met the floor, width did not. Anchored with
-  // [^}]* (never [\s\S]*) so the match cannot cross into a LATER rule in the same file/media body.
-  // Round 5 (#768): the floor lives in exactly ONE declaration, the base rule — the phone media
-  // block that repeated it was deleted as decoration, and this census points at the survivor so
-  // deleting IT goes red instead of silently leaving the floor unpinned.
+  // #708: the trigger and menu choices share one phone-only floor declaration. Keep the assertion
+  // on the current picker selectors so a retired class cannot make this guard fail for no product gap.
   it('issue 708: raises the Signal composer attention pills to a ≥44px width floor on phone', () => {
-    expect(attentionPickerCss).toMatch(/\.signal-attention-pill \{[^}]*min-width:\s*44px/)
-    // Exactly one declaration in the whole file — a second copy would be the decoration again.
+    const body = mediaBody(attentionPickerCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.signal-attention-picker-trigger,\s*\.signal-attention-picker-option\s*\{[^}]*min-width:\s*44px/)
     expect(attentionPickerCss.match(/min-width:\s*44px/g)).toHaveLength(1)
   })
 
