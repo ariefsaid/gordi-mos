@@ -11,6 +11,7 @@ describe('Home daily brief composition contract', () => {
 
   it('styles only the supporting rail classes emitted by HomeDailyBrief', () => {
     expect(css).toMatch(/\.home-brief-aside,\s*\.home-brief-feed,\s*\.home-brief-objectives\s*\{[^}]*min-width:\s*0/)
+    expect(css).toMatch(/\.home-brief-feed\s*\{[^}]*border-top:\s*1px\s+solid\s+var\(--border\)[^}]*padding-top:\s*16px/)
     expect(css).toMatch(/\.home-brief-aside\s+\.signal-feed-section\s*\{[^}]*margin-top:\s*0/)
   })
 

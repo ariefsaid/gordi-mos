@@ -16,7 +16,12 @@
   min-width: 0;
 }
 
-.home-brief-feed,
+.home-brief-feed {
+  margin-top: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
 .home-brief-aside .signal-feed-section {
   margin-top: 0;
 }

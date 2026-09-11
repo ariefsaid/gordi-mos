@@ -93,6 +93,9 @@ export const E2E_CLEANUP_REGISTRY = {
 /** Validate a cleanup query before it reaches the service-role SQL endpoint. */
 export function assertFixtureSqlSafe(query: string): void {
   const normalize = (sql: string) => sql.trim().replace(/\s+/g, ' ').toLowerCase()
+  const executableSql = query
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/--[^\r\n]*/g, ' ')
   const allowed = new Set(fixtureCleanupSql.split(';').filter((sql) => sql.trim()).map(normalize))
   const uuid = "'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'"
   const uuidList = `${uuid}(?:, ${uuid})*`
@@ -102,7 +105,7 @@ export function assertFixtureSqlSafe(query: string): void {
     new RegExp(`^delete from mos\\.(?:signals|user_views|budgets|objectives) where org_id = ${uuid} and id in \\(${uuidList}\\)$`),
     new RegExp(`^delete from mos\\.notifications where org_id = ${uuid} and metadata->'entity'->>'type' = 'signal' and metadata->'entity'->>'id' in \\(${uuidList}\\)$`),
   ]
-  if (/\b(truncate|drop|execute|prepare|call)\b/i.test(query) || /(?:^|;)\s*do\b/i.test(query)) {
+  if (/\b(truncate|drop|execute|prepare|call)\b/i.test(executableSql) || /(?:^|;)\s*do\b/i.test(executableSql)) {
     throw new Error('E2E SQL cannot use destructive or procedural execution')
   }
   for (const statement of query.split(';')) {

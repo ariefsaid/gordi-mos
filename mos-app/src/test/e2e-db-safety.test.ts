@@ -177,6 +177,7 @@ test('SQL guard rejects broad and disguised deletes and allows the owned cleanup
     capturedCleanup.replace(');', ") AND title = 'E2E';"),
     "DO $$ BEGIN EXECUTE chr(68)||chr(69)||chr(76)||chr(69)||chr(84)||chr(69)||' FROM mos.tasks'; END $$;",
     "DO 'BEGIN PERFORM wipe_everything(); END';",
+    "/* harmless */ DO 'BEGIN PERFORM wipe_everything(); END';",
     "CALL delete_everything();",
   ]) expect(() => assertFixtureSqlSafe(sql)).toThrow(/E2E/)
 })
