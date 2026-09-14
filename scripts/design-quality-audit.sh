@@ -212,7 +212,7 @@ else
     exit 2
   }
   echo "design-quality-audit: starting an owned dev server on port $base_port" >&2
-  (cd "$ROOT/mos-app" && npm run dev -- --port "$base_port" --strictPort) >"$ROOT/.design-quality-audit-server.log" 2>&1 &
+  (cd "$ROOT/mos-app" && npm run dev -- --host "$base_host" --port "$base_port" --strictPort) >"$ROOT/.design-quality-audit-server.log" 2>&1 &
   server_pid=$!
   server_ready=0
   for _ in $(seq 1 30); do

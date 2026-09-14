@@ -20,6 +20,7 @@ const __dir = path.dirname(__filename)
 const appDir = path.resolve(__dir, '../..')
 const repoRoot = path.resolve(appDir, '..')
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1'])
+const authenticatedFixture = new WeakMap<Page, string>()
 
 export const VIEWPORT_SIZES: Record<string, { width: number; height: number }> = {
   'phone-390x844': { width: 390, height: 844 },
@@ -119,12 +120,17 @@ const fixtureCredentials = {
 } as const
 
 export async function loginAuditFixture(page: Page, fixtureName: string, sessionId = env('DESIGN_AUDIT_SESSION_ID')): Promise<void> {
+  if (authenticatedFixture.get(page) === fixtureName) return
   const fixture = fixtureName === AUDIT_RECEIVING_ONLY
     ? auditOwnedReceivingFixture(sessionId)
     : fixtureCredentials[fixtureName as keyof typeof fixtureCredentials]
   if (!fixture || !('password' in fixture)) throw new Error(`unknown audit fixture ${fixtureName}`)
   if ('owned' in fixture && fixture.owned) assertAuditFixtureNamespace(fixture.email, sessionId)
+  await page.context().clearCookies()
+  await page.goto('.')
+  await page.evaluate(() => localStorage.clear())
   await loginAs(page, fixture.email, fixture.password)
+  authenticatedFixture.set(page, fixtureName)
 }
 
 export async function prepareAuditPage(page: Page, run: AuditRun, cell: ManifestCell): Promise<void> {
@@ -142,7 +148,8 @@ export async function prepareAuditPage(page: Page, run: AuditRun, cell: Manifest
     document.documentElement.dataset.theme = theme
     document.documentElement.lang = language === 'id' ? 'id' : 'en'
   }, { theme: cell.theme, language: cell.language })
-  await page.waitForTimeout(100)
+  await page.locator('main').waitFor({ state: 'visible', timeout: 10_000 })
+  await page.locator('main h1').first().waitFor({ state: 'visible', timeout: 10_000 })
   void run
 }
 

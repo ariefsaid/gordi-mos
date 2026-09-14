@@ -636,7 +636,7 @@ export async function collectContrast(
       selector: selectorText,
       state: contrastState,
       kind,
-      threshold: contrastThreshold(kind),
+      threshold: kind === 'boundary' ? 3 : 4.5,
       foreground: '',
       background: '',
       ratio: null,
@@ -669,7 +669,7 @@ export async function collectContrast(
         } else {
           const foregroundRgb = foreground.alpha < 1 ? blend(foreground, background) : foreground.rgb
           const measuredRatio = ratio(foregroundRgb, background)
-          const threshold = contrastThreshold('text', largeText)
+          const threshold = largeText ? 3 : 4.5
           rows.push({
             ...pageContext,
             selector: selectorText,

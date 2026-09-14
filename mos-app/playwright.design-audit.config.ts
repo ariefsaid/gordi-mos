@@ -8,9 +8,10 @@ const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
 const configuredBaseUrl = process.env.DESIGN_AUDIT_BASE_URL?.trim()
 const baseURL = configuredBaseUrl || devServerBaseUrl(__dir, process.env[MOS_DEV_PORT_ENV])
-const outputDir = process.env.DESIGN_AUDIT_OUTPUT_DIR?.trim()
+const artifactDir = process.env.DESIGN_AUDIT_OUTPUT_DIR?.trim()
   ? resolve(__dir, process.env.DESIGN_AUDIT_OUTPUT_DIR)
   : resolve(__dir, 'test-results/design-quality')
+const outputDir = resolve(artifactDir, 'playwright-results')
 
 function assertLocalBaseUrl(value: string): void {
   let url: URL
@@ -41,7 +42,7 @@ export default defineConfig({
   timeout: 120_000,
   expect: { timeout: 10_000 },
   outputDir,
-  reporter: [['list'], ['json', { outputFile: resolve(outputDir, 'playwright-report.json') }]],
+  reporter: [['list'], ['json', { outputFile: resolve(artifactDir, 'playwright-report.json') }]],
   use: {
     baseURL,
     trace: 'on-first-retry',
@@ -55,4 +56,3 @@ export default defineConfig({
     },
   ],
 })
-
