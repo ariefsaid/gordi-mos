@@ -193,7 +193,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
       .find((candidate) => candidate.htmlFor === selectId)
     const nextLabel = externalLabel?.textContent?.trim() || undefined
     setAssociatedLabel((current) => current === nextLabel ? current : nextLabel)
-  })
+  }, [accessibleLabel, children, label, labelledBy, selectId])
 
   const isDisabled = useCallback((index: number) => optionIsDisabled(options, index), [options])
   const firstEnabled = useCallback(() => options.findIndex((option) => !option.disabled), [options])
