@@ -1370,3 +1370,10 @@ text enlargement, loading, empty, validation/error/retry and keyboard focus stat
 actions remain reachable without horizontal page overflow. A truncated saved-view label retains an
 accessible full name and a reachable full-value presentation. Amend obsolete test assertions with
 approved behavior changes; retain persistence, authorization and error-recovery protections.
+
+
+### Café Opening context (DD-MVP-11)
+
+Opening starts with the employee's working location already resolved whenever an effective profile assignment provides a safe default. Show the location prominently as context, with a secondary Change location action when alternatives exist. Do not place an independent production-stream chooser above a branch-wide Opening checklist. Production pages retain branch-and-activity context appropriate to their work.
+
+A valid deliberate per-person session choice takes precedence over the profile default; otherwise use the effective primary location, then a sole eligible location. Outstanding checklists do not determine the employee's default location. Keep already-started openings reachable. Where no safe default exists, present an actionable location choice with available opening information. Missing assignment and failed loading have different recovery messages. Context selection never expands write or approval authority. Verify initial entry, switching, return/reload and account changes at desktop and phone widths.

@@ -94,6 +94,8 @@ A stream is **named by its branch's canonical catalog name** wherever it is name
 _Avoid_: location/site (see **Branch**); "action type" (today's `Production` / `Transfer to …` strings
 fold destination into action — a storage workaround, not the model; DD-WAY-13)
 
+**Café Opening context** (DD-MVP-11): Opening is branch-wide, unlike production's branch-and-Activity stream. The UI calls this the working location; it is the Branch, not a separate Site relationship. Effective primary membership supplies the normal default; an explicit valid per-person working-session choice can override it. The canonical Opening Team is resolved internally and is not a second selection the worker must make. Having multiple readable branches does not by itself invalidate an explicit primary default. These defaults do not change authorization.
+
 **Item** (Café production):
 The thing a **production stream makes** and the production noun across ALL Café streams — kitchen
 and bar alike (owner ruling `OD-WAY-85`, 2026-08-31). This is what `ops.wip_items` already stores;

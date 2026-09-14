@@ -624,6 +624,19 @@ function PesananView() {
     >
       {/* #401: the face floor staff actually get said nothing about why it cannot be
           edited — one sentence + the CTA to the surface where their work happens. */}
+      {load.kind === 'ready' && stream !== null && !streamProduces(stream, streamOptions) ? (
+        <section className="kp-receiving-only" role="status" aria-labelledby="kp-member-receiving-title">
+          <div className="kp-receiving-only-copy">
+            <h2 id="kp-member-receiving-title" className="kp-receiving-only-title">
+              {t('kitchen.stream.receivingOnly.title')}
+            </h2>
+            <p className="kp-receiving-only-note">{t('kitchen.stream.receivingOnly.body')}</p>
+          </div>
+          <Link to="/cafe/stock" className="btn btn-outline btn-touch kp-receiving-only-cta">
+            {t('kitchen.stream.receivingOnly.stockCta')}
+          </Link>
+        </section>
+      ) : (
       <div className="kp-readonly kp-block">
         <p className="kp-readonly-note">
           {t('kitchen.plan.pesanan.readOnlyNote', { days: PESANAN_HORIZON_DAYS })}
@@ -632,6 +645,7 @@ function PesananView() {
           {t('kitchen.plan.pesanan.readOnlyCta')}
         </Link>
       </div>
+      )}
 
       {load.kind === 'loading' && <LoadingShell count={3} />}
 

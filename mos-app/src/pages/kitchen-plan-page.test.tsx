@@ -837,3 +837,14 @@ describe('FR-007/AC-007: Plan\'s phone face is the compact capture row', () => {
     expect(document.querySelector('.dt-card-detail')).toBeNull()
   })
 })
+
+
+it('gives a receiving-only member a Stock handoff without production inputs', async () => {
+  mockUseAuth.mockReturnValue(viewer(['member']))
+  mockDefaultStream.mockResolvedValue(RADIANT_KITCHEN)
+  render(<KitchenPlanPage />, { wrapper })
+  expect(await screen.findByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', '/cafe/stock')
+  expect(screen.queryByRole('spinbutton')).toBeNull()
+  expect(mockUpsert).not.toHaveBeenCalled()
+})
