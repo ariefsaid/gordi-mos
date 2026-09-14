@@ -54,7 +54,6 @@ import {
 } from '@/lib/db/kitchen-logs'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { listActiveBranches } from '@/lib/db/branches'
-import { streamKey } from '@/lib/kitchen-action-label'
 import type {
   BranchOption,
   CaptureFormItem,
@@ -102,6 +101,18 @@ const STREAM_PAIRS: StreamPair[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_RUMA
 const DEFAULT_STREAM: ProductionStream = { branch: BRANCH_RUMAH_RAMES, activity: 'kitchen' }
 const PRODUCE_KEY = 'produce'
 const TRANSFER_RADIANT_KEY = `transfer:${BRANCH_RADIANT.id}`
+
+// Select's visible contract is a button trigger plus a portaled listbox. Keep these helpers
+// aligned with the real user journey; the hidden native bridge is reserved for form semantics.
+async function chooseStream(optionName: string) {
+  fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+  fireEvent.click(await screen.findByRole('option', { name: optionName }))
+}
+
+async function chooseCategory(optionName: string) {
+  fireEvent.click(screen.getByRole('combobox', { name: /category/i }))
+  fireEvent.click(await screen.findByRole('option', { name: optionName }))
+}
 
 const VIEWER_MEMBER: AuthState = {
   status: 'authenticated',
@@ -899,12 +910,8 @@ describe('FR-021/022: "change unit" re-binds the row to the chosen item-unit', (
       fireEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
       await Promise.resolve()
     })
-    await act(async () => {
-      fireEvent.change(screen.getByRole('combobox', { name: /unit for ayam bakar/i }), {
-        target: { value: 'u1-botol' },
-      })
-      await Promise.resolve()
-    })
+    fireEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
+    fireEvent.click(await screen.findByRole('option', { name: 'botol' }))
 
     // w1: plan 20, stok 3 → effective target 17; log 17 (on-target, no note gate).
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
@@ -1234,7 +1241,7 @@ describe('OD-K-5: category filter narrows rows', () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    fireEvent.change(screen.getByRole('combobox', { name: /category/i }), { target: { value: 'Rice' } })
+    await chooseCategory('Rice')
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
@@ -1412,7 +1419,7 @@ describe("AC-002 / FR-001: the capture surface opens on the person's own stream 
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const picker = screen.getByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveValue(streamKey(BRANCH_RADIANT.id, 'bar'))
+    expect(picker).toHaveTextContent('Radiant · Bar')
     // …and the stream-scoped reads were asked for THAT stream, not a constant.
     const expected = expect.objectContaining({
       branch: expect.objectContaining({ id: BRANCH_RADIANT.id }),
@@ -1432,8 +1439,8 @@ describe("AC-002 / FR-001: the capture surface opens on the person's own stream 
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = within(head).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    const picker = within(head).getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Radiant · Bar')
     // and nowhere else on the surface — two pickers for one fact is how they come to disagree
     expect(screen.getAllByRole('combobox', { name: /production stream/i })).toHaveLength(1)
   })
@@ -1444,11 +1451,7 @@ describe("AC-002 / FR-001: the capture surface opens on the person's own stream 
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // Default is (Rumah Rames, kitchen); the barista helping at GHQ switches (FR-003).
-    const picker = screen.getByRole('combobox', { name: /production stream/i })
-    await act(async () => {
-      fireEvent.change(picker, { target: { value: streamKey(BRANCH_GORDI_HQ.id, 'bar') } })
-      await Promise.resolve()
-    })
+    await chooseStream('Gordi HQ · Bar')
     await waitFor(() => screen.getByText('Nasi Goreng'))
 
     const switched = expect.objectContaining({
@@ -1485,8 +1488,9 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const picker = screen.getByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveValue('')
-    expect(screen.getByRole('option', { name: /choose stream/i })).toBeInTheDocument()
+    expect(picker).toHaveTextContent(/choose stream/i)
+    fireEvent.click(picker)
+    expect(screen.getByRole('option', { name: /choose stream/i })).toHaveAttribute('aria-disabled', 'true')
     // No stream → nothing to scope the plan/stock/actuals reads to (never a guess).
     expect(mockFetchPlanMap).not.toHaveBeenCalled()
     expect(mockFetchStockMap).not.toHaveBeenCalled()
@@ -1506,11 +1510,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    const picker = screen.getByRole('combobox', { name: /production stream/i })
-    await act(async () => {
-      fireEvent.change(picker, { target: { value: streamKey(BRANCH_RADIANT.id, 'bar') } })
-      await Promise.resolve()
-    })
+    await chooseStream('Radiant · Bar')
     await waitFor(() => screen.getByText('Nasi Goreng'))
     expect(screen.queryByText(/choose a production stream before submitting/i)).toBeNull()
 
@@ -1533,7 +1533,9 @@ describe('FR-005: the picker offers exactly the catalog pairs it is given — th
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const picker = screen.getByRole('combobox', { name: /production stream/i })
-    const options = within(picker).getAllByRole('option')
+    fireEvent.click(picker)
+    const listbox = screen.getByRole('listbox')
+    const options = within(listbox).getAllByRole('option')
     // Exactly STREAM_PAIRS — no placeholder (a default resolved), no roastery, and nothing the
     // fixture did not stage. Pinned to the fixture's own length so growing the live catalog does
     // not touch this test; what is under test is 'exactly the pairs given', not a number.
@@ -1548,7 +1550,7 @@ describe('FR-005: the picker offers exactly the catalog pairs it is given — th
       }
     }
     expect(labels.join(' ')).not.toMatch(/bungur/i)
-    expect(within(picker).queryByRole('option', { name: /roastery/i })).toBeNull()
+    expect(within(listbox).queryByRole('option', { name: /roastery/i })).toBeNull()
   })
 })
 
@@ -1633,11 +1635,7 @@ describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-
     await waitFor(() => screen.getByText('Ayam Bakar'))
     expect(document.querySelector('.kls-meta')?.textContent).toMatch(/(?:logged|sudah)\s*4/)
 
-    const picker = screen.getByRole('combobox', { name: /production stream/i })
-    await act(async () => {
-      fireEvent.change(picker, { target: { value: streamKey(BRANCH_GORDI_HQ.id, 'kitchen') } })
-      await Promise.resolve()
-    })
+    await chooseStream('Gordi HQ · Kitchen')
     await waitFor(() => {
       expect(document.querySelector('.kls-meta')?.textContent).toMatch(/logged\s*9/)
     })
@@ -1654,11 +1652,7 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
     mockFetchPlanMap.mockImplementationOnce(
       () => new Promise(res => { resolveStale = res }),
     )
-    const picker = screen.getByRole('combobox', { name: /production stream/i })
-    await act(async () => {
-      fireEvent.change(picker, { target: { value: streamKey(BRANCH_RADIANT.id, 'bar') } })
-      await Promise.resolve()
-    })
+    await chooseStream('Radiant · Bar')
 
     // While switch #1 is in flight the picker MUST stay mounted (FR-003 — a slow
     // stream is never a dead end; getByRole throws here if the switch unmounts it).
@@ -1666,12 +1660,8 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
 
     // Switch #2 → (Gordi HQ, kitchen): the LATEST read — resolves immediately (w2 → 33).
     mockFetchPlanMap.mockResolvedValueOnce({ w2: { [PRODUCE_KEY]: 33 } })
-    await act(async () => {
-      fireEvent.change(pickerDuringLoad, {
-        target: { value: streamKey(BRANCH_GORDI_HQ.id, 'kitchen') },
-      })
-      await Promise.resolve()
-    })
+    fireEvent.click(pickerDuringLoad)
+    fireEvent.click(await screen.findByRole('option', { name: 'Gordi HQ · Kitchen' }))
     await waitFor(() => screen.getByText('Nasi Goreng'))
     expect(
       screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }),
@@ -1684,9 +1674,7 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
       resolveStale({ w2: { [PRODUCE_KEY]: 77 } })
       await Promise.resolve()
     })
-    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveValue(
-      streamKey(BRANCH_GORDI_HQ.id, 'kitchen'),
-    )
+    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveTextContent('Gordi HQ · Kitchen')
     expect(
       screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }),
     ).toHaveAttribute('placeholder', '33')
