@@ -38,18 +38,20 @@ set local role authenticated;
 set local request.jwt.claims='{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}';
 select is(shared.cafe_opening_team('00000000-0000-0000-0000-00000000bf02'::uuid),'00000000-0000-0000-0000-00000000cc02'::uuid,'AC-007: branch opening owner is kitchen stream');
 select is((select count(*)::int from mos.due_process_runs() where process_name='Café Opening'),1,'AC-009: kitchen hand sees exactly one due opening for their own branch');
-select ok((mos.spawn_process_run('00000000-0000-0000-0000-00000000c001'::uuid,'00000000-0000-0000-0000-00000000cc02'::uuid,current_date)->>'run_id') is not null,'AC-007: kitchen member starts opening returns a run id');
+-- The due surface defines "today" in Jakarta time; use the same calendar date for spawned runs so
+-- this suite remains stable when the database session's host timezone is still on the prior UTC day.
+select ok((mos.spawn_process_run('00000000-0000-0000-0000-00000000c001'::uuid,'00000000-0000-0000-0000-00000000cc02'::uuid,(now() at time zone 'Asia/Jakarta')::date)->>'run_id') is not null,'AC-007: kitchen member starts opening returns a run id');
 select is((select count(*)::int from mos.process_runs where work_line_id='00000000-0000-0000-0000-00000000c001' and owning_team_id='00000000-0000-0000-0000-00000000cc02'),1,'AC-007: one run exists');
 set local request.jwt.claims='{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}';
-select throws_ok($$select mos.spawn_process_run('00000000-0000-0000-0000-00000000c001'::uuid,'00000000-0000-0000-0000-00000000cc03'::uuid,current_date)$$,'42501',null,'AC-007: a bar supervisor on a different Team cannot start the canonical kitchen-owned opening');
-select is((select count(*)::int from mos.process_runs where work_line_id='00000000-0000-0000-0000-00000000c001' and period_key=to_char(current_date,'YYYY-MM-DD')),1,'AC-007: kitchen and bar return one run');
+select throws_ok($$select mos.spawn_process_run('00000000-0000-0000-0000-00000000c001'::uuid,'00000000-0000-0000-0000-00000000cc03'::uuid,(now() at time zone 'Asia/Jakarta')::date)$$,'42501',null,'AC-007: a bar supervisor on a different Team cannot start the canonical kitchen-owned opening');
+select is((select count(*)::int from mos.process_runs where work_line_id='00000000-0000-0000-0000-00000000c001' and period_key=to_char((now() at time zone 'Asia/Jakarta')::date,'YYYY-MM-DD')),1,'AC-007: kitchen and bar return one run');
 set local request.jwt.claims='{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member","finance"]}';
-select throws_ok($$select mos.spawn_process_run('00000000-0000-0000-0000-00000000c001','00000000-0000-0000-0000-00000000cc04',current_date)$$,'42501',null,'AC-008: back-office primary is refused');
+select throws_ok($$select mos.spawn_process_run('00000000-0000-0000-0000-00000000c001','00000000-0000-0000-0000-00000000cc04',(now() at time zone 'Asia/Jakarta')::date)$$,'42501',null,'AC-008: back-office primary is refused');
 set local request.jwt.claims='{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member","finance"]}';
 select is((select count(*)::int from mos.due_process_runs() where process_name='Café Opening'),0,'AC-009: finance sees no due opening in the same org');
 set local request.jwt.claims='{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 select is((select count(*)::int from mos.due_process_runs() where process_name='Café Opening'),1,'AC-009: ops lead is listed for the remaining unopened branch opening');
-select ok((mos.spawn_process_run('00000000-0000-0000-0000-00000000c001'::uuid,'00000000-0000-0000-0000-00000000cc01'::uuid,current_date)->>'run_id') is not null,'AC-008: ops lead without membership starts the opening');
+select ok((mos.spawn_process_run('00000000-0000-0000-0000-00000000c001'::uuid,'00000000-0000-0000-0000-00000000cc01'::uuid,(now() at time zone 'Asia/Jakarta')::date)->>'run_id') is not null,'AC-008: ops lead without membership starts the opening');
 set local request.jwt.claims='{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}';
 select ok(ops.is_stream_reviewer('00000000-0000-0000-0000-00000000bf02','bar'),'AC-011: secondary stream membership reviews');
 set local request.jwt.claims='{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}';
