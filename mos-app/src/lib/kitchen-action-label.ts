@@ -59,38 +59,57 @@ export function movementsEqual(a: KitchenMovement, b: KitchenMovement): boolean 
   return movementKey(a) === movementKey(b)
 }
 
-/** A produce always exists; it is the movement every stream starts from. */
+/** The production movement, present only when the selected stream's catalog row permits it. */
 export const PRODUCE: KitchenMovement = { action: 'produce', destinationBranchId: null }
 
 /**
- * Every movement capturable from an origin stream (FR-013): produce, then a transfer to each
- * branch represented by a live stream Team. That single list carries BOTH movement classes,
- * from either activity surface, because a destination is a branch and nothing else (OD-WAY-44):
- *
- *   - CROSS-BRANCH — any branch that is not the origin. A bar → another branch's bar and the
- *     kitchen's existing cross-branch transfers are the same row shape and the same
- *     (preserved) labels; they post through the normal dispatch path.
- *   - INTRA-BRANCH CROSS-ACTIVITY — the origin branch itself, offered from both sides (bar →
- *     own branch's kitchen, kitchen → own branch's bar). This is also the incumbent's
- *     "Transfer to Bungur" on the Rumah Rames stream. There is no destination-activity
- *     dimension and none is being added: what is stored is destination = own branch, and the
- *     counterpart activity is a GLOSS the capture control renders (see `isIntraBranch`), never
- *     a column. Approved, such a movement is held — no ERP document (FR-050/053).
- *
- * Destination order follows the branch catalog order; `streamOptions` is the live stream-Team
- * catalog and is the authority for which branches are Café destinations.
+ * Read the producing fact for one selected stream from the same live stream-Team catalog the
+ * picker uses. An unresolved default carries no fact itself; failing closed here means it never
+ * acquires an action until it is resolved to an actual catalog row.
+ */
+export function streamProduces(
+  origin: ProductionStream | null | undefined,
+  catalog: readonly ProductionStream[],
+): boolean {
+  return origin != null && catalog.some(
+    stream => stream.branch.id === origin.branch.id
+      && stream.activity === origin.activity
+      && stream.produces === true,
+  )
+}
+
+/**
+ * Destination derivation from the live stream-Team catalog. A producing kitchen reaches every
+ * other stream branch; a producing bar reaches other bar branches plus its own branch only when a
+ * kitchen stream exists there. This preserves the known held intra-branch arm without inventing a
+ * destination for Cikal, which has no kitchen stream. A future Team remains receive-only until its
+ * explicit `produces` fact is set — activity alone never grants production.
  */
 export function movementsForStream(
-  branches: readonly BranchOption[],
-  streamOptions: readonly ProductionStream[],
+  origin: ProductionStream,
+  catalog: readonly ProductionStream[],
 ): KitchenMovement[] {
-  const streamBranchIds = new Set(streamOptions.map(stream => stream.branch.id))
+  if (!streamProduces(origin, catalog)) return []
+
+  const destinations: ProductionStream[] = []
+  for (const candidate of catalog) {
+    const sameBranch = candidate.branch.id === origin.branch.id
+    const allowed = origin.activity === 'kitchen'
+      ? !sameBranch
+      : (sameBranch
+        ? catalog.some(stream => stream.branch.id === origin.branch.id && stream.activity === 'kitchen')
+        : candidate.activity === 'bar')
+    if (allowed && !destinations.some(destination => destination.branch.id === candidate.branch.id)) {
+      destinations.push(candidate)
+    }
+  }
+
   return [
     PRODUCE,
-    ...branches.filter(branch => streamBranchIds.has(branch.id)).map((branch): KitchenMovement => ({
+    ...destinations.map((stream): KitchenMovement => ({
       action: 'transfer',
-      destinationBranchId: branch.id,
-    })),
+      destinationBranchId: stream.branch.id,
+    }))
   ]
 }
 

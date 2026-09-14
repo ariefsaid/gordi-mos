@@ -7,6 +7,7 @@ import {
   counterpartActivity,
   isIntraBranch,
   movementsForStream,
+  streamProduces,
   streamKey,
   PRODUCE,
 } from './kitchen-action-label'
@@ -29,37 +30,57 @@ describe('streamKey', () => {
 // ── FR-013 (#235): the two movement classes come out of one derivation ─────────
 const RRS: BranchOption = { id: 'b-rrs', code: 'rumah_rames', name: 'Rumah Rames' }
 const RADIANT: BranchOption = { id: 'b-rad', code: 'radiant', name: 'Radiant' }
-const BRANCHES = [RRS, RADIANT]
+const GHQ: BranchOption = { id: 'b-ghq', code: 'gordi_hq', name: 'Gordi HQ' }
+const CIKAL: BranchOption = { id: 'b-cikal', code: 'cikal', name: 'Cikal' }
 const RRS_BAR: ProductionStream = { branch: RRS, activity: 'bar' }
 const RRS_KITCHEN: ProductionStream = { branch: RRS, activity: 'kitchen' }
-const STREAMS = [RRS_KITCHEN, RRS_BAR]
-const CIKAL: BranchOption = { id: 'b-cikal', code: 'cikal', name: 'Cikal' }
+const GHQ_BAR: ProductionStream = { branch: GHQ, activity: 'bar' }
+const GHQ_KITCHEN: ProductionStream = { branch: GHQ, activity: 'kitchen' }
+const RADIANT_BAR: ProductionStream = { branch: RADIANT, activity: 'bar' }
+const RADIANT_KITCHEN: ProductionStream = { branch: RADIANT, activity: 'kitchen' }
+const CIKAL_BAR: ProductionStream = { branch: CIKAL, activity: 'bar' }
+const STREAMS = [
+  { ...GHQ_KITCHEN, produces: true },
+  { ...GHQ_BAR, produces: true },
+  { ...RRS_KITCHEN, produces: true },
+  { ...RRS_BAR, produces: true },
+  { ...RADIANT_KITCHEN, produces: false },
+  { ...RADIANT_BAR, produces: true },
+  { ...CIKAL_BAR, produces: true },
+]
 
 describe('movementsForStream', () => {
-  it('AC-063: never offers Roastery as a Café movement destination', () => {
-    expect(movementsForStream(
-      [...BRANCHES, { id: 'roastery', code: 'roastery', name: 'Gordi Roastery' }],
-      STREAMS,
-    )).not.toContainEqual({
-      action: 'transfer',
-      destinationBranchId: 'roastery',
-    })
+  it('AC-001/002: the catalog makes Radiant kitchen receive-only', () => {
+    expect(streamProduces(RADIANT_KITCHEN, STREAMS)).toBe(false)
+    expect(movementsForStream(RADIANT_KITCHEN, STREAMS)).toEqual([])
   })
-  it('derives destinations from stream Teams, not branch codes', () => {
-    expect(movementsForStream([...BRANCHES, CIKAL], STREAMS)).toEqual([
+
+  it('AC-003: derives the known kitchen and bar matrices from the live stream catalog', () => {
+    expect(movementsForStream(RRS_KITCHEN, STREAMS)).toEqual([
       PRODUCE,
+      { action: 'transfer', destinationBranchId: GHQ.id },
+      { action: 'transfer', destinationBranchId: RADIANT.id },
+      { action: 'transfer', destinationBranchId: CIKAL.id },
+    ])
+    expect(movementsForStream(GHQ_BAR, STREAMS)).toEqual([
+      PRODUCE,
+      { action: 'transfer', destinationBranchId: GHQ.id }, // held intra-branch movement
       { action: 'transfer', destinationBranchId: RRS.id },
+      { action: 'transfer', destinationBranchId: RADIANT.id },
+      { action: 'transfer', destinationBranchId: CIKAL.id },
+    ])
+    expect(movementsForStream(CIKAL_BAR, STREAMS)).toEqual([
+      PRODUCE,
+      { action: 'transfer', destinationBranchId: GHQ.id },
+      { action: 'transfer', destinationBranchId: RRS.id },
+      { action: 'transfer', destinationBranchId: RADIANT.id },
     ])
   })
 
-  it('offers a produce plus a transfer to EVERY stream branch — the origin branch included', () => {
-    // The origin's own branch is not filtered out, and must not be: it is the intra-branch
-    // cross-activity movement, and dropping it would remove the movement #235 exists to
-    // capture rather than tidying the list.
-    expect(movementsForStream(BRANCHES, STREAMS)).toEqual([
-      PRODUCE,
-      { action: 'transfer', destinationBranchId: RRS.id },
-    ])
+  it('AC-063: never offers a non-catalog branch as a destination', () => {
+    expect(movementsForStream(GHQ_BAR, STREAMS)).not.toContainEqual({
+      action: 'transfer', destinationBranchId: 'roastery',
+    })
   })
 })
 

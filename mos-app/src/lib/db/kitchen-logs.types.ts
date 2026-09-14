@@ -34,6 +34,12 @@ export interface BranchOption {
 export interface ProductionStream {
   branch: BranchOption
   activity: ProductionActivity
+  /**
+   * Whether this stream may record production. This is carried by its Team catalog row;
+   * absent only on an unresolved default stream, which must be resolved back into the
+   * catalog before any movement is offered.
+   */
+  produces?: boolean
 }
 
 /**
@@ -45,6 +51,8 @@ export interface ProductionStream {
 export interface StreamPair {
   branch_id: string
   activity: ProductionActivity
+  /** Database-owned fact; optional only while decoding a legacy/unmigrated response. */
+  produces?: boolean
 }
 
 /** What happened, in the stored vocabulary (`ops.kitchen_logs.action`). */
