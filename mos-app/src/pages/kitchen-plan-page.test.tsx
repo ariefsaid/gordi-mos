@@ -73,11 +73,12 @@ const BRANCHES = [
 ]
 // The live stream Teams behind those branches — the enumerated catalog the head picker offers.
 const STREAM_PAIRS = BRANCHES.flatMap(b => [
-  { branch_id: b.id, activity: 'kitchen' as const },
-  { branch_id: b.id, activity: 'bar' as const },
+  { branch_id: b.id, activity: 'kitchen' as const, produces: b.id !== 'branch-2' },
+  { branch_id: b.id, activity: 'bar' as const, produces: true },
 ])
-const OWN_STREAM = { branch: BRANCHES[0], activity: 'kitchen' as const }
-const RADIANT_BAR = { branch: BRANCHES[1], activity: 'bar' as const }
+const OWN_STREAM = { branch: BRANCHES[0], activity: 'kitchen' as const, produces: true }
+const RADIANT_KITCHEN = { branch: BRANCHES[1], activity: 'kitchen' as const, produces: false }
+const RADIANT_BAR = { branch: BRANCHES[1], activity: 'bar' as const, produces: true }
 /** The head picker's option value for a stream — what a switch fires. */
 function streamOption(branchId: string, activity: 'kitchen' | 'bar'): string {
   return `${branchId}|${activity}`
@@ -756,7 +757,7 @@ describe('issue 455: document title', () => {
 
 // ── #548 FR-006/AC-006: the stream precondition is quiet at rest, alerts on attempt ──
 describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar', () => {
-  it('AC-006: no stream → no alert-role element, muted hint beside the commit fields; the commit attempt raises the alert', async () => {
+  it('AC-006: no stream → read-only fields and a muted hint; no commit attempt is possible', async () => {
     mockDefaultStream.mockResolvedValue(null)
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
@@ -764,13 +765,10 @@ describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar
     expect(screen.queryByRole('alert')).toBeNull()
     // The precondition is named as a muted status hint (Log's .kl-submit-reason role).
     expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
-    // Entry stays live (Log's grammar — entry is never the wall); the COMMIT is what refuses.
+    // The explicit choice is the next step; no plan can be written against a missing stream.
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
-    expect(input).toBeEnabled()
-    // Attempt: typing + Enter = the submit attempt → the alert raises, nothing is written.
-    fireEvent.change(input, { target: { value: '15' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(await screen.findByRole('alert')).toHaveTextContent(/choose a production stream/i)
+    expect(input).toBeDisabled()
+    expect(screen.queryByRole('tablist')).toBeNull()
     expect(mockUpsert).not.toHaveBeenCalled()
   })
 
@@ -793,6 +791,27 @@ describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar
         expect.objectContaining({ branch_id: 'branch-1', activity: 'kitchen', qty_porsi: 15 }),
       ),
     )
+  })
+})
+
+describe('DD-MVP-9: the Plan editor treats a receiving-only stream as readable, not writable', () => {
+  it('shows the selected stream and existing plan, but no movement or enabled plan write', async () => {
+    mockDefaultStream.mockResolvedValue(RADIANT_KITCHEN)
+    mockPlans.mockResolvedValue(PLAN_CELLS)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
+    expect(picker).toHaveValue(streamOption(BRANCHES[1].id, 'kitchen'))
+    expect(screen.getByText(/receives production/i)).toBeInTheDocument()
+    expect(screen.queryByRole('tablist')).toBeNull()
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    expect(input).toHaveValue(12)
+    expect(input).toBeDisabled()
+
+    fireEvent.change(input, { target: { value: '15' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(mockUpsert).not.toHaveBeenCalled()
   })
 })
 

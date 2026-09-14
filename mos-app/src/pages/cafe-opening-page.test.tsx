@@ -177,6 +177,23 @@ describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture link
     expect(screen.queryByRole('link', { name: /pushes/i })).not.toBeInTheDocument()
   })
 
+  it('JQ-1: a stream supervisor sees the Review door but not the Pushes door', async () => {
+    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
+    const due: DueProcessRun[] = [{
+      work_line_id: PROCESS_ID, process_name: 'Café Opening',
+      owning_team_id: TEAM_ID, team_name: 'Radiant Operations',
+      period_key: '2026-07-17', scheduled_date: '2026-07-17',
+    }]
+    mockListStartableCafeTeams.mockResolvedValue(due)
+    mockGetTodayOpeningForTeam.mockResolvedValue({ started: false, runId: null, rollup: null })
+
+    renderPage(['supervisor'])
+    await screen.findByRole('link', { name: /log/i })
+
+    expect(screen.getByRole('link', { name: /review/i })).toHaveAttribute('href', '/cafe/review')
+    expect(screen.queryByRole('link', { name: /pushes/i })).not.toBeInTheDocument()
+  })
+
   // Step 7 minor (item 7b) — full-width tap targets at ≤390px (CSS lock, mirrors task-row.test.tsx's
   // pattern of asserting the rule exists in the owning stylesheet).
   it('item 7b: the capture links stack full-width at ≤390px (CSS lock)', () => {

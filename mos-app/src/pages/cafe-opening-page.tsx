@@ -18,7 +18,7 @@ import {
 import { listAuthorTeams } from '@/lib/db/signals'
 import { resolveTeamContext } from '@/lib/team-context'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
-import { canReviewCafe } from '@/lib/kitchen-gates'
+import { canPushCafe, canReviewCafe } from '@/lib/kitchen-gates'
 // #440: the module ROOT is where the stream context belongs first — the doors below lead into
 // five stream-scoped surfaces, and a person who lands here should be able to read (and set)
 // which books they are about to work in before they walk through one.
@@ -40,13 +40,11 @@ const CAPTURE_LINKS = [
   { to: '/cafe/stock', key: 'nav.cafe.stock' as const },
 ]
 
-// JQ-1: Review + Pushes are ops_lead/admin-only day-steps. Their doors render ONLY for a
-// viewer who can actually reach the route (canReviewCafe) — a member no longer sees a tab
-// that silently bounces them off the section (the route's forbidden panel stays as backstop).
-const LEAD_LINKS = [
-  { to: '/cafe/review', key: 'nav.cafe.review' as const },
-  { to: '/cafe/pushes', key: 'nav.cafe.pushes' as const },
-]
+// JQ-1: Review admits stream supervisors; Pushes remains ops_lead/admin. Keep the links
+// separate so the opening door mirrors each route's own gate and never offers supervisors a
+// dead Pushes link.
+const REVIEW_LINK = { to: '/cafe/review', key: 'nav.cafe.review' as const }
+const PUSH_LINK = { to: '/cafe/pushes', key: 'nav.cafe.pushes' as const }
 
 export function CafeOpeningPage() {
   const t = useT()
@@ -54,7 +52,9 @@ export function CafeOpeningPage() {
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const captureLinks = canReviewCafe(accessRoles) ? [...CAPTURE_LINKS, ...LEAD_LINKS] : CAPTURE_LINKS
+  const captureLinks = canReviewCafe(accessRoles)
+    ? [...CAPTURE_LINKS, REVIEW_LINK, ...(canPushCafe(accessRoles) ? [PUSH_LINK] : [])]
+    : CAPTURE_LINKS
 
   const [state, setState] = useState<FetchState>('loading')
   const [processId, setProcessId] = useState<string | null>(null)

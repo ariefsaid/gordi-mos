@@ -435,7 +435,7 @@ const routeTable: RouteObject[] = [
           // and NFR-002 still holds: which rows a supervisor may DECIDE is the server's, never
           // this route's. A route gate decides what is worth showing; it authorises nothing.
           {
-            element: <RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} />,
+            element: <RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} scope="link" />,
             handle: infrastructureHandle('capability'),
             children: [
               { path: ROUTE_PATHS.cafeReview, element: withSuspense(<KitchenReviewPage />), handle: pageHandle('workspace') },

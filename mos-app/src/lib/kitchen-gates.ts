@@ -12,16 +12,18 @@
 import type { KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
 
 /**
- * Café Review + Pushes access predicate (JQ-1). These two day-steps are ops_lead/admin
- * only — the approve/reject and outbox-retry RPCs are RLS-gated to those roles, and the
- * Review/Pushes pages render a forbidden backstop for anyone else. This shared predicate
- * is the ONE grammar for that gate: the doors (café capture links) hide it for a viewer
- * who can't reach it, and the page-level `allowed` checks read from here too — so a member
- * never sees a Review/Pushes door that only bounces them. Role-based (not a `can()`
- * capability) because no `shared.role_capabilities` grant backs these routes; the raw
- * access-role membership is the honest source (mirrors the pages' original inline check).
+ * Café Review access predicate (JQ-1). Review admits stream supervisors as well as
+ * ops_lead/admin; Pushes remains ops_lead/admin because it is the dispatch surface. Keep
+ * these predicates separate so adding the reviewer role never exposes a dead Pushes door.
+ * Role-based (not a `can()` capability) because no `shared.role_capabilities` grant backs
+ * these routes; the raw access-role membership is the honest source.
  */
 export function canReviewCafe(accessRoles: readonly string[]): boolean {
+  return accessRoles.includes('ops_lead') || accessRoles.includes('admin') || accessRoles.includes('supervisor')
+}
+
+/** The Café Pushes route is intentionally narrower than Review (FR-040 / #236). */
+export function canPushCafe(accessRoles: readonly string[]): boolean {
   return accessRoles.includes('ops_lead') || accessRoles.includes('admin')
 }
 

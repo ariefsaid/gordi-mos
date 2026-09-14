@@ -353,17 +353,18 @@ export function destinationForPath(pathname: string): Destination | null {
 
 /** The owner scan itself, with no gate asked. Shared by the callers below. */
 function ownerOf(pathname: string): { destination: Destination; link: Section } | null {
+  let best: { destination: Destination; link: Section } | null = null
   for (const destination of ALL_DESTINATIONS) {
     const candidates = [...destination.links, ...(destination.children ?? [])]
     for (const link of candidates) {
       if (link.path === '/') {
-        if (pathname === '/') return { destination, link }
+        if (pathname === '/' && !best) best = { destination, link }
       } else if (pathname === link.path || pathname.startsWith(link.path + '/')) {
-        return { destination, link }
+        if (!best || link.path.length > best.link.path.length) best = { destination, link }
       }
     }
   }
-  return null
+  return best
 }
 
 function destinationOwning(pathname: string): Destination | null {

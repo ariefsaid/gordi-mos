@@ -48,6 +48,7 @@ import {
   deriveActionLabel,
   movementKey,
   movementsForStream,
+  streamProduces,
   streamLabel,
   PRODUCE,
 } from '@/lib/kitchen-action-label'
@@ -171,6 +172,14 @@ export function KitchenLogPage() {
     affiliated: auth.viewer.affiliated,
     accessRoles: auth.viewer.accessRoles,
   })
+  const streamMissing = stream === null
+  // The producer fact is owned by the selected catalog row. Activity alone never grants a
+  // write path: a receiving-only kitchen can still read its books, but it cannot stage or
+  // submit production against them (DD-MVP-9).
+  const streamCanProduce = streamProduces(stream, streamOptions)
+  const streamNonProducing = stream !== null && !streamCanProduce
+  const captureClosed = !canCapture || streamMissing || streamNonProducing
+  const movementOptions = stream ? movementsForStream(stream, streamOptions) : []
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [logDate] = useState(wibToday) // today WIB; owner-decision: allow past dates flagged
@@ -349,6 +358,7 @@ export function KitchenLogPage() {
   // dialog below resolves it — MovementSeg is controlled by `movement`, so leaving it
   // unset here is what keeps the tab strip showing the OLD movement while the dialog is open.
   function handleMovementChange(next: KitchenMovement) {
+    if (captureClosed) return
     const staged = Object.values(lines).some(l => l.qty_porsi > 0)
     if (!staged) {
       setMovement(next)
@@ -413,6 +423,7 @@ export function KitchenLogPage() {
   )
 
   function handleQtyChange(itemId: string, qty: number) {
+    if (captureClosed) return
     setLines(prev => {
       const cur = prev[itemId]
       // FR-023 / AC-022: do NOT clamp — keep the entered qty. An over-`tersedia` transfer
@@ -425,6 +436,7 @@ export function KitchenLogPage() {
   }
 
   function handleNotesChange(itemId: string, note: string) {
+    if (captureClosed) return
     setLines(prev => {
       const next: KitchenLogLine = { ...prev[itemId], notes: note }
       return { ...prev, [itemId]: gateLine(next, movement) }
@@ -436,6 +448,7 @@ export function KitchenLogPage() {
   // and the binding rides the line into the submit payload — the ERP coordinate is the
   // unit, so this is the whole selection, no qty conversion, no second field.
   function handleUnitChange(itemId: string, itemUnitId: string) {
+    if (captureClosed) return
     setLines(prev => ({
       ...prev,
       [itemId]: { ...prev[itemId], item_unit_id: itemUnitId },
@@ -465,6 +478,10 @@ export function KitchenLogPage() {
 
     const staged = Object.values(lines).filter(l => l.qty_porsi > 0)
     if (staged.length === 0) return
+    if (!canCapture) {
+      setSubmitError(t('kitchen.log.readOnlyReason'))
+      return
+    }
 
     // Re-gate all staged lines; block on any note-required or cap violation.
     let hasErrors = false
@@ -491,6 +508,10 @@ export function KitchenLogPage() {
     // and the only one the capturer ever sees.
     if (!stream) {
       setSubmitError(t('kitchen.log.stream.missing'))
+      return
+    }
+    if (!streamCanProduce) {
+      setSubmitError(t('kitchen.log.stream.nonProducing'))
       return
     }
 
@@ -613,7 +634,7 @@ export function KitchenLogPage() {
               the report route must be reachable from here too, not only under a full list.
               #744 review: the report files a WRITE (ops.log_entries), so it closes with the
               same capture gate as Submit — an unaffiliated reader sees no report control. */}
-          {buId && canCapture && <ReportMissingItem businessUnitId={buId} />}
+          {buId && !captureClosed && <ReportMissingItem businessUnitId={buId} />}
         </div>
       </PageFamilyFrame>
     )
@@ -627,11 +648,6 @@ export function KitchenLogPage() {
   const hasBlockingError = stagedLines.some(
     l => transferExceedsAvailable(l, movement),
   )
-  // A row cannot exist without its (branch, activity) stream (OD-WAY-28) — the columns are
-  // NOT NULL. With no resolved stream there is nothing to submit AGAINST, so Submit is
-  // disabled up front and the reason is named beside it, rather than the capturer typing a
-  // whole service and being refused by the database.
-  const streamMissing = stream === null
   // F3 (FR-022): surface the variance-note gate as an EXPLICIT disabled control — a
   // staged off-plan line whose required note is empty disables Submit (the blocking
   // state is visible up front, not enabled-until-bounced). handleSubmit still re-gates
@@ -704,7 +720,7 @@ export function KitchenLogPage() {
           onNotesChange={note => handleNotesChange(item.id, note)}
           unitOptions={item.units}
           onUnitChange={unitId => handleUnitChange(item.id, unitId)}
-          disabled={isSubmitting || !canCapture || streamMissing}
+          disabled={isSubmitting || captureClosed}
           hideName
           dense={isDesktop}
         />
@@ -763,7 +779,7 @@ export function KitchenLogPage() {
             onNotesChange={note => handleNotesChange(item.id, note)}
             unitOptions={item.units}
             onUnitChange={unitId => handleUnitChange(item.id, unitId)}
-            disabled={isSubmitting || !canCapture || streamMissing}
+            disabled={isSubmitting || captureClosed}
             hideName
             dense
           />
@@ -871,24 +887,22 @@ export function KitchenLogPage() {
             searchPlaceholder={t('kitchen.log.searchPlaceholder')}
             ariaLabel={t('kitchen.log.toolbarAria')}
           >
-            <div className="kl-scope">
-              {/* The movement control IS the destination picker (FR-013): produce, then a
-                  transfer to every branch in the catalog — cross-branch to any other, and
-                  intra-branch cross-activity to the origin's own, offered the same way from
-                  the bar surface and the kitchen surface because the destination is a branch
-                  and nothing else (OD-WAY-44). `origin` is what lets the own-branch entry be
-                  read as "to our kitchen"/"to our bar" rather than as a duplicate of the
-                  person's own branch name; it changes no stored value. Approved, an
+            {movementOptions.length > 0 && <div className="kl-scope">
+              {/* The movement control IS the destination picker (FR-013): produce, then
+                  destinations derived from the live stream catalog. A kitchen offers other
+                  catalog branches; a producing bar also gets its own branch when that branch
+                  has a kitchen stream. `origin` qualifies that held bar-side option as "to
+                  our kitchen" without changing the stored destination value. Approved, an
                   intra-branch movement is HELD — no ERP document ever (FR-050/053). */}
               <MovementSeg
                 value={movement}
-                options={movementsForStream(branches, streamOptions)}
+                options={movementOptions}
                 branches={branches}
                 origin={stream}
                 onChange={handleMovementChange}
-                disabled={isSubmitting || !canCapture || streamMissing}
+                disabled={isSubmitting || captureClosed}
               />
-            </div>
+            </div>}
           </KitchenToolbar>
           <DataTable
             columns={columns}
@@ -907,7 +921,7 @@ export function KitchenLogPage() {
               surface carries a visible route to report one missing — absence must never read
               as a bug with no exit. Own type="button" controls only; never submits this form.
               #744 review: same capture gate as Submit — a report is a write (AC-003 arm). */}
-          {buId && canCapture && (
+          {buId && !captureClosed && (
             <ReportMissingItem
               businessUnitId={buId}
               streamLabel={stream ? streamLabel(t, stream) : undefined}
@@ -921,7 +935,7 @@ export function KitchenLogPage() {
             {!canCapture && (
               <p className="kl-submit-reason" role="status">{t('kitchen.log.readOnlyReason')}</p>
             )}
-            {canCapture && (
+            {!captureClosed && (
               <div className="kl-tally">
                 <span className="kl-tally-num tabular">
                   {t(stagedCount === 1 ? 'kitchen.log.footer.item.one' : 'kitchen.log.footer.item.other', { count: stagedCount })}
@@ -939,7 +953,12 @@ export function KitchenLogPage() {
                   {t('kitchen.log.stream.missing')}
                 </span>
               )}
-              {noteUnresolved && !hasBlockingError && !streamMissing && (
+              {canCapture && streamNonProducing && (
+                <span className="kl-submit-reason" role="status" aria-live="polite">
+                  {t('kitchen.log.stream.nonProducing')}
+                </span>
+              )}
+              {noteUnresolved && !hasBlockingError && !streamMissing && !streamNonProducing && (
                 <span className="kl-submit-reason" role="status" aria-live="polite">
                   {t('kitchen.log.footer.noteRequired')}
                 </span>
@@ -956,7 +975,7 @@ export function KitchenLogPage() {
                 stagedCount={stagedCount}
                 isSubmitting={isSubmitting}
                 isOnline={isOnline}
-                blocked={!canCapture || hasBlockingError || noteUnresolved || streamMissing}
+                blocked={captureClosed || hasBlockingError || noteUnresolved}
                 t={t}
               />
             </div>

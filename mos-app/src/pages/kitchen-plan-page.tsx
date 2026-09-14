@@ -42,6 +42,7 @@ import {
   movementsEqual,
   movementsForStream,
   PRODUCE,
+  streamProduces,
 } from '@/lib/kitchen-action-label'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
 import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
@@ -110,11 +111,16 @@ function PlanEditor() {
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
   const [logDate] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
   // The enumerable stream catalog (FR-005) — the head picker's options (#440). The branch
-  // catalog comes with it: the MOVEMENT control offers every branch as a destination, which is
-  // a different question from which stream this plan belongs to.
+  // catalog comes with it: the MOVEMENT control derives its destinations from the producing
+  // stream catalog, which is a different question from which stream this plan belongs to.
   const cafeStream = useCafeStream()
   const { branches, options: streamOptions, stream } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
+  const streamMissing = stream === null
+  const streamCanProduce = streamProduces(stream, streamOptions)
+  const streamNonProducing = stream !== null && !streamCanProduce
+  const planWriteClosed = streamMissing || streamNonProducing
+  const movementOptions = stream ? movementsForStream(stream, streamOptions) : []
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [items, setItems] = useState<WipItemOption[]>([])
   const [cells, setCells] = useState<PlanCell[]>([])
@@ -190,14 +196,17 @@ function PlanEditor() {
     [cells, movement],
   )
 
-  // Persist one cell (FR-031 upsert). No-op when unchanged or offline; a commit with no
-  // resolved stream IS the attempt — it raises the alert (FR-006, Log's handleSubmit guard)
-  // and writes nothing.
+  // Persist one cell (FR-031 upsert). No-op when unchanged or offline; the stream and its
+  // producer fact are checked again here so a closed/read-only surface cannot write.
   async function saveCell(wipItemId: string, nextQty: number) {
     if (!isOnline) return
     if (nextQty < 0) return
     if (!stream) {
       setSaveError(t('kitchen.log.stream.missing'))
+      return
+    }
+    if (!streamCanProduce) {
+      setSaveError(t('kitchen.plan.stream.nonProducing'))
       return
     }
     const current = qtyOf(wipItemId)
@@ -294,10 +303,10 @@ function PlanEditor() {
             <PlanQtyField
               itemName={item.name}
               qty={qtyOf(item.id)}
-              // #548 FR-006: entry stays live without a stream (Log's grammar) — the commit
-              // attempt raises the alert; only offline pre-disables the field. Committed value
-              // unchanged: it renders beside the field at the page.
-              disabled={!isOnline}
+              // #548 FR-006: a missing or receiving-only stream keeps the committed value
+              // readable but closes the field; offline also pre-disables it. Commit state
+              // renders beside the field at the page.
+              disabled={!isOnline || planWriteClosed}
               onSave={next => saveCell(item.id, next)}
               dense={isDesktop}
             />
@@ -313,8 +322,6 @@ function PlanEditor() {
       },
     },
   ]
-
-  const streamMissing = stream === null
 
   // #548 FR-007: Plan's phone face is the DESIGN.md compact capture row — identity left,
   // the typed plan field + unit right, no per-card field label. Same seam as Log
@@ -332,7 +339,7 @@ function PlanEditor() {
           <PlanQtyField
             itemName={item.name}
             qty={qtyOf(item.id)}
-            disabled={!isOnline}
+            disabled={!isOnline || planWriteClosed}
             onSave={next => saveCell(item.id, next)}
           />
         </div>
@@ -388,12 +395,17 @@ function PlanEditor() {
         <div role="alert" className="kp-banner kp-banner-error kp-block">{saveError}</div>
       )}
       {/* #548 FR-006: the precondition is a muted hint at rest (Log's .kl-submit-reason
-          grammar, role="status" — programmatically associated as a live region, NFR-002). The
-          role="alert" banner above is reserved for an actual commit attempt (saveCell's
-          no-stream guard). */}
+          grammar, role="status" — programmatically associated as a live region, NFR-002).
+          saveCell keeps the same guard as a defensive backstop if a caller bypasses the
+          disabled field. */}
       {streamMissing && load.kind === 'ready' && (
         <p className="kp-stream-hint" role="status" aria-live="polite">
           {t('kitchen.log.stream.missing')}
+        </p>
+      )}
+      {streamNonProducing && load.kind === 'ready' && (
+        <p className="kp-stream-hint" role="status" aria-live="polite">
+          {t('kitchen.plan.stream.nonProducing')}
         </p>
       )}
 
@@ -426,23 +438,23 @@ function PlanEditor() {
             searchPlaceholder={t('kitchen.plan.searchPlaceholder')}
             ariaLabel={t('kitchen.plan.toolbarAria')}
           >
-            <div className="kp-scope">
+            {movementOptions.length > 0 && <div className="kp-scope">
               {/* #440: the branch × activity pair of selects that used to lead this block is
                   gone — it named the stream a SECOND way (and named Rumah Rames by the
                   'Bungur' alias, which names a transfer destination and never a stream), while
                   the head now names it once for the whole module. What stays is the movement:
                   a property of the rows, not of the books. */}
-              {/* Same destination picker as capture (FR-013), including the origin so the
-                  intra-branch entry reads the same here as it does on the log surface —
-                  a plan for a movement the capture form cannot name is a plan nobody fills. */}
+              {/* Same destination picker as capture (FR-013), with the same producer-aware
+                  destination matrix. A plan for a movement the capture form cannot name is a
+                  plan nobody fills. */}
               <MovementSeg
                 value={movement}
-                options={movementsForStream(branches, streamOptions)}
+                options={movementOptions}
                 branches={branches}
                 origin={stream}
                 onChange={setMovement}
               />
-            </div>
+            </div>}
           </KitchenToolbar>
           <DataTable
             columns={planColumns}

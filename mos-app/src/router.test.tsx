@@ -300,7 +300,7 @@ describe('router — Café review + pushes are role-gated', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'cafe/review'),
     )!
-    expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} />)
+    expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} scope="link" />)
     expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/review', 'kitchen/review'])
   })
 

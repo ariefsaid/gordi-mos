@@ -143,9 +143,9 @@ describe('access boundary', () => {
 
   it('AC-020: a member at /cafe/review meets the Café panel — a child names its area', () => {
     setViewer(['member'])
-    renderAt('/cafe/review', <RequireAccessRole anyOf={CAFE_REVIEW_ROLES} />)
+    renderAt('/cafe/review', <RequireAccessRole anyOf={CAFE_REVIEW_ROLES} scope="link" />)
     expect(screen.getByRole('heading', { level: 2 }))
-      .toHaveTextContent('Café is outside your access')
+      .toHaveTextContent('Review is outside your access')
   })
 
   // ── AC-021 ────────────────────────────────────────────────────────────────────────────────

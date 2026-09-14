@@ -94,11 +94,15 @@ const BRANCHES: BranchOption[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_ROASTE
 // tests assert is that the picker offers EXACTLY the pairs it is given, so the count below is
 // this list's length, not the catalog's. Roastery has no stream Team and so appears in neither.
 const STREAM_PAIRS: StreamPair[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_RUMAH_RAMES].flatMap(
-  b => (['kitchen', 'bar'] as const).map(activity => ({ branch_id: b.id, activity })),
+  b => (['kitchen', 'bar'] as const).map(activity => ({
+    branch_id: b.id,
+    activity,
+    produces: !(b === BRANCH_RADIANT && activity === 'kitchen'),
+  })),
 )
 // The person's own default stream (FR-001) — what the default-stream.ts resolver returns
 // (already resolved against the branch catalog).
-const DEFAULT_STREAM: ProductionStream = { branch: BRANCH_RUMAH_RAMES, activity: 'kitchen' }
+const DEFAULT_STREAM: ProductionStream = { branch: BRANCH_RUMAH_RAMES, activity: 'kitchen', produces: true }
 const PRODUCE_KEY = 'produce'
 const TRANSFER_RADIANT_KEY = `transfer:${BRANCH_RADIANT.id}`
 
@@ -650,13 +654,13 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
   })
 
-  it('with capture open, the same missing-stream state still shows the hint and the tally', async () => {
+  it('with capture open, the same missing-stream state shows the hint but no misleading tally', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     await renderPage() // affiliated
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     expect(screen.getByText(/choose a production stream/i)).toBeInTheDocument()
-    expect(screen.getByText(/pending review/i)).toBeInTheDocument()
+    expect(screen.queryByText(/pending review/i)).not.toBeInTheDocument()
   })
 })
 
@@ -1501,7 +1505,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     // The explicit choice is the next write step; do not let a quantity be staged against no
     // stream while the picker is still waiting for a selection.
     expect(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toBeDisabled()
-    expect(screen.getByRole('tab', { name: /production/i })).toBeDisabled()
+    expect(screen.queryByRole('tablist')).toBeNull()
   })
 
   it('choosing a stream from the picker loads it and capture proceeds against the chosen pair', async () => {
@@ -1524,6 +1528,30 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     expect(mockInsertKitchenLogBatch.mock.calls[0][0][0]).toEqual(
       expect.objectContaining({ branch_id: BRANCH_RADIANT.id, activity: 'bar' }),
     )
+  })
+})
+
+describe('DD-MVP-9: a receiving-only stream remains readable but cannot capture production', () => {
+  it('keeps the stream selectable and the rows readable, with no movement or enabled write controls', async () => {
+    mockFetchDefaultStream.mockResolvedValue({
+      branch: BRANCH_RADIANT,
+      activity: 'kitchen',
+      produces: false,
+    })
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveValue(streamKey(BRANCH_RADIANT.id, 'kitchen'))
+    expect(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toBeDisabled()
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.getByText(/receives production/i)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /^submit/i })[0]).toBeDisabled()
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }), {
+      target: { value: '20' },
+    })
+    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
 })
 
@@ -1713,16 +1741,13 @@ describe('AC-007: destinations cover both movement classes from both activity su
     expect(screen.getByRole('tab', { name: 'Transfer to Gordi HQ' })).toBeInTheDocument()
   })
 
-  it('AC-007: the KITCHEN surface offers its own branch qualified as the bar, with the incumbent cross-branch transfers preserved', async () => {
-    // The default fixture stream is (Rumah Rames, kitchen) — the incumbent's own stream, whose
-    // cross-branch labels are the ones OD-K-1 parity is measured against. They must come
-    // through this change byte-identical; only the own-branch entry gains its qualifier.
+  it('AC-007: the KITCHEN surface preserves its cross-branch transfers without a held own-branch option', async () => {
+    // The default fixture stream is (Rumah Rames, kitchen). Kitchen production sends to other
+    // catalog branches; the held intra-branch movement is offered from the bar surface only.
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    expect(
-      screen.getByRole('tab', { name: /transfer to bungur within branch · bar/i }),
-    ).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /transfer to bungur within branch · bar/i })).toBeNull()
     expect(screen.getByRole('tab', { name: 'Transfer to Radiant' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Production' })).toBeInTheDocument()
   })
@@ -1746,8 +1771,8 @@ describe('AC-007: destinations cover both movement classes from both activity su
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    expect(screen.queryByRole('tab', { name: /within branch/i })).toBeNull()
-    expect(screen.getByRole('tab', { name: 'Transfer to Bungur' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab')).toBeNull()
+    expect(screen.queryByRole('tablist')).toBeNull()
   })
 
   it('AC-007: an intra-branch movement is submitted as destination = the origin branch', async () => {
