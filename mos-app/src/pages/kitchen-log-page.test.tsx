@@ -1532,7 +1532,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
 })
 
 describe('DD-MVP-9: a receiving-only stream remains readable but cannot capture production', () => {
-  it('keeps the stream selectable and the rows readable, with no movement or enabled write controls', async () => {
+  it('shows a receiving-only state with a Stock handoff instead of a production form', async () => {
     mockFetchDefaultStream.mockResolvedValue({
       branch: BRANCH_RADIANT,
       activity: 'kitchen',
@@ -1543,14 +1543,14 @@ describe('DD-MVP-9: a receiving-only stream remains readable but cannot capture 
 
     const picker = screen.getByRole('combobox', { name: /production stream/i })
     expect(picker).toHaveTextContent('Radiant · Kitchen')
-    expect(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toBeDisabled()
+    expect(screen.getByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
+    expect(screen.getByText(/production capture and planning are unavailable/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', '/cafe/stock')
+    expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: /café log capture/i })).toBeNull()
+    expect(screen.queryByRole('spinbutton')).toBeNull()
     expect(screen.queryByRole('tablist')).toBeNull()
-    expect(screen.getByText(/receives production/i)).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /^submit/i })[0]).toBeDisabled()
-
-    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }), {
-      target: { value: '20' },
-    })
+    expect(screen.queryByRole('button', { name: /^submit/i })).toBeNull()
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
 })

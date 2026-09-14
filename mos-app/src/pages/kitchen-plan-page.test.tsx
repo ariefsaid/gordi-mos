@@ -797,7 +797,7 @@ describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar
 })
 
 describe('DD-MVP-9: the Plan editor treats a receiving-only stream as readable, not writable', () => {
-  it('shows the selected stream and existing plan, but no movement or enabled plan write', async () => {
+  it('shows a receiving-only state with a Stock handoff instead of plan inputs', async () => {
     mockDefaultStream.mockResolvedValue(RADIANT_KITCHEN)
     mockPlans.mockResolvedValue(PLAN_CELLS)
     render(<KitchenPlanPage />, { wrapper })
@@ -805,14 +805,14 @@ describe('DD-MVP-9: the Plan editor treats a receiving-only stream as readable, 
 
     const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
     expect(picker).toHaveTextContent('Radiant · Kitchen')
-    expect(screen.getByText(/receives production/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
+    expect(screen.getByText(/production capture and planning are unavailable/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', '/cafe/stock')
+    const planCard = screen.getByText('Ayam Bakar').closest('.dt-card')
+    expect(planCard).not.toBeNull()
+    expect(planCard).toHaveTextContent('12')
     expect(screen.queryByRole('tablist')).toBeNull()
-    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
-    expect(input).toHaveValue(12)
-    expect(input).toBeDisabled()
-
-    fireEvent.change(input, { target: { value: '15' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.queryByRole('spinbutton')).toBeNull()
     expect(mockUpsert).not.toHaveBeenCalled()
   })
 })

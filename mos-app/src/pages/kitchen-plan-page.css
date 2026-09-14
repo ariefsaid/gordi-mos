@@ -81,6 +81,41 @@
   flex: 0 0 auto;
 }
 
+/* Receiving-only streams stay useful as a read surface, with the next stock action
+   visible at the point where plan inputs would otherwise begin. */
+.kp-receiving-only {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 8px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--secondary);
+}
+.kp-receiving-only-copy {
+  flex: 1 1 24rem;
+  min-width: 0;
+}
+.kp-receiving-only-title {
+  margin: 0 0 4px;
+  color: var(--foreground);
+  font-size: var(--font-size-control);
+  font-weight: 600;
+}
+.kp-receiving-only-note {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+.kp-receiving-only-cta {
+  flex: 0 0 auto;
+}
+
 /* ── Dish / item sub-label inside the shared DataTable cells (replaces the
    retired .kt-name / .kt-cat from kitchen-table.css — kept here so the plan +
    pesanan DataTable renders carry the same name+category look). ── */

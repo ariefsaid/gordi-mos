@@ -422,6 +422,22 @@ export function KitchenLogPage() {
     />
   )
 
+  const receivingOnlyNotice = (
+    <section className="kl-receiving-only" role="status" aria-labelledby="kl-receiving-only-title">
+      <div className="kl-receiving-only-copy">
+        <h2 id="kl-receiving-only-title" className="kl-receiving-only-title">
+          {t('kitchen.stream.receivingOnly.title')}
+        </h2>
+        <p className="kl-receiving-only-note">
+          {t('kitchen.stream.receivingOnly.body')}
+        </p>
+      </div>
+      <Link to="/cafe/stock" className="btn btn-outline btn-touch kl-receiving-only-cta">
+        {t('kitchen.stream.receivingOnly.stockCta')}
+      </Link>
+    </section>
+  )
+
   function handleQtyChange(itemId: string, qty: number) {
     if (captureClosed) return
     setLines(prev => {
@@ -619,9 +635,10 @@ export function KitchenLogPage() {
   // ── Empty state (no WIP items) — no KPI strip (nothing to derive, plan §7) ────
   if (wipItems.length === 0) {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="empty" meta={<span className="kl-date tabular">{logDate}</span>}>
+      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state={streamNonProducing ? 'read-only' : 'empty'} meta={<span className="kl-date tabular">{logDate}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
+          {streamNonProducing && receivingOnlyNotice}
           {/* 'blank' — no WIP items are configured yet (an ops-lead task), not a source that
               fills on its own; never 'quiet' ✓, which would misread as "nothing to log,
               all done" instead of "nothing CAN be logged until items exist". */}
@@ -747,6 +764,56 @@ export function KitchenLogPage() {
     },
   ]
 
+  // Receiving-only streams keep the same readable plan/stock/history rows, but render the
+  // submitted actual instead of mounting the production stepper. A plain DataTable card is
+  // intentional here: it keeps every value readable on phone without introducing a disabled
+  // capture control that looks like an unfinished write path.
+  const receivingColumns: DataTableColumn<CaptureFormItem>[] = [
+    {
+      key: 'dish',
+      header: t('kitchen.log.col.item'),
+      cardLabel: '',
+      render: item => (
+        <span className="kl-dish">
+          <span className="kl-dish-name">{item.name}</span>
+          {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
+        </span>
+      ),
+    },
+    {
+      key: 'plan',
+      header: t('kitchen.log.col.plan'),
+      numeric: true,
+      render: item => {
+        const plan = lines[item.id]?.plan_qty ?? 0
+        return plan > 0 ? plan : '—'
+      },
+    },
+    {
+      key: 'stock',
+      header: t('kitchen.log.col.stock'),
+      numeric: true,
+      render: item => lines[item.id]?.stok ?? 0,
+    },
+    {
+      key: 'made',
+      header: t('kitchen.log.col.made'),
+      numeric: true,
+      render: item => actualsMap[item.id]?.[movementKey(movement)] ?? 0,
+    },
+    {
+      key: 'status',
+      header: t('kitchen.log.col.status'),
+      render: item => {
+        const made = actualsMap[item.id]?.[movementKey(movement)] ?? 0
+        const plan = lines[item.id]?.plan_qty ?? 0
+        if (made <= 0) return null
+        const rowStatus = kitchenStatus({ made, plan, isOffPlan: plan <= 0 })
+        return <span className={`kl-status kl-status--${rowStatus.tone}`}>{statusLabel(t, made, plan)}</span>
+      },
+    },
+  ]
+
   /**
    * v4 — the phone capture row. The generic DataTable card rendered five labelled
    * <dl> rows per dish (~200px), so a 21-dish service was ~4,000px of scrolling and about
@@ -815,9 +882,54 @@ export function KitchenLogPage() {
       ? [{ key: 'planned', label: t('kitchen.log.group.planned'), count: plannedLines.length, rows: plannedLines }]
       : []),
     ...(offPlanLines.length > 0
-      ? [{ key: 'offplan', label: t('kitchen.log.group.offplan'), hint: t('kitchen.log.group.offplan.hint'), count: offPlanLines.length, rows: offPlanLines }]
+      ? [{
+          key: 'offplan',
+          label: t('kitchen.log.group.offplan'),
+          ...(streamNonProducing ? {} : { hint: t('kitchen.log.group.offplan.hint') }),
+          count: offPlanLines.length,
+          rows: offPlanLines,
+        }]
       : []),
   ]
+
+  const logToolbar = (
+    <KitchenToolbar
+      search={search}
+      onSearchChange={setSearch}
+      categories={isDesktop ? categories : undefined}
+      categoryLabel={value => kitchenCategoryLabel(t, value)}
+      category={isDesktop ? category : undefined}
+      onCategoryChange={isDesktop ? setCategory : undefined}
+      searchPlaceholder={t('kitchen.log.searchPlaceholder')}
+      ariaLabel={t('kitchen.log.toolbarAria')}
+    >
+      {movementOptions.length > 0 && <div className="kl-scope">
+        <MovementSeg
+          value={movement}
+          options={movementOptions}
+          branches={branches}
+          origin={stream}
+          onChange={handleMovementChange}
+          disabled={isSubmitting || captureClosed}
+        />
+      </div>}
+    </KitchenToolbar>
+  )
+
+  const logTable = (
+    <DataTable
+      columns={streamNonProducing ? receivingColumns : columns}
+      rows={visibleItems}
+      groups={groups}
+      key={`${movementKey(movement)}:${plannedLines.length > 0 ? 'planned' : 'off-plan'}`}
+      defaultCollapsedGroupKeys={plannedLines.length > 0 ? new Set(['offplan']) : undefined}
+      renderCard={streamNonProducing ? undefined : renderLogCard}
+      isDesktop={isDesktop}
+      state={visibleItems.length > 0 ? 'ready' : 'empty'}
+      emptyLabel={t('kitchen.filter.noMatch')}
+      caption={streamNonProducing ? t('kitchen.stream.receivingOnly.logCaption') : t('kitchen.log.caption')}
+    />
+  )
 
   return (
     <PageFamilyFrame
@@ -828,7 +940,7 @@ export function KitchenLogPage() {
          shared head would otherwise carry (PageHead renders one or the other). */
       statusRow={streamPicker}
       meta={<span className="kl-date tabular">{logDate}</span>}
-      state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : submitError ? 'validation' : 'default'}
+      state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : streamNonProducing ? 'read-only' : submitError ? 'validation' : 'default'}
     >
       <div className="kl-page">
         {/* GAP-4/#9: staged-but-unsubmitted quantities must not vanish on navigation — prompt
@@ -858,13 +970,20 @@ export function KitchenLogPage() {
           </div>
         )}
 
-        <form
-          id="kitchen-log-form"
-          onSubmit={handleSubmit}
-          noValidate
-          aria-label={t('kitchen.log.captureAria')}
-          className="kl-form"
-        >
+        {streamNonProducing ? (
+          <>
+            {receivingOnlyNotice}
+            {logToolbar}
+            {logTable}
+          </>
+        ) : (
+          <form
+            id="kitchen-log-form"
+            onSubmit={handleSubmit}
+            noValidate
+            aria-label={t('kitchen.log.captureAria')}
+            className="kl-form"
+          >
           {/* Reflow (P-4): ONE branch in the DOM — the shared DataTable
               (desktop <table> ↔ phone cards) with the Planned/Off-plan group
               split + the Off-plan "log as produced" hint. */}
@@ -877,45 +996,8 @@ export function KitchenLogPage() {
               rows you are about to write, the stream is which books the whole surface is
               written in, and that second one has to be readable from every Café screen, not
               only from the ones with a toolbar. */}
-          <KitchenToolbar
-            search={search}
-            onSearchChange={setSearch}
-            categories={isDesktop ? categories : undefined}
-            categoryLabel={value => kitchenCategoryLabel(t, value)}
-            category={isDesktop ? category : undefined}
-            onCategoryChange={isDesktop ? setCategory : undefined}
-            searchPlaceholder={t('kitchen.log.searchPlaceholder')}
-            ariaLabel={t('kitchen.log.toolbarAria')}
-          >
-            {movementOptions.length > 0 && <div className="kl-scope">
-              {/* The movement control IS the destination picker (FR-013): produce, then
-                  destinations derived from the live stream catalog. A kitchen offers other
-                  catalog branches; a producing bar also gets its own branch when that branch
-                  has a kitchen stream. `origin` qualifies that held bar-side option as "to
-                  our kitchen" without changing the stored destination value. Approved, an
-                  intra-branch movement is HELD — no ERP document ever (FR-050/053). */}
-              <MovementSeg
-                value={movement}
-                options={movementOptions}
-                branches={branches}
-                origin={stream}
-                onChange={handleMovementChange}
-                disabled={isSubmitting || captureClosed}
-              />
-            </div>}
-          </KitchenToolbar>
-          <DataTable
-            columns={columns}
-            rows={visibleItems}
-            groups={groups}
-            key={`${movementKey(movement)}:${plannedLines.length > 0 ? 'planned' : 'off-plan'}`}
-            defaultCollapsedGroupKeys={plannedLines.length > 0 ? new Set(['offplan']) : undefined}
-            renderCard={renderLogCard}
-            isDesktop={isDesktop}
-            state={visibleItems.length > 0 ? 'ready' : 'empty'}
-            emptyLabel={t('kitchen.filter.noMatch')}
-            caption={t('kitchen.log.caption')}
-          />
+          {logToolbar}
+          {logTable}
 
           {/* AC-013 / FR-012: the DD-WAY-29 gate removes unconfirmed items silently, so the
               surface carries a visible route to report one missing — absence must never read
@@ -1024,7 +1106,8 @@ export function KitchenLogPage() {
               onCancel={cancelMovementSwitch}
             />
           )}
-        </form>
+          </form>
+        )}
       </div>
     </PageFamilyFrame>
   )

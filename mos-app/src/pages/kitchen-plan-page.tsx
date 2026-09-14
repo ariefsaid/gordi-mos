@@ -121,6 +121,21 @@ function PlanEditor() {
   const streamNonProducing = stream !== null && !streamCanProduce
   const planWriteClosed = streamMissing || streamNonProducing
   const movementOptions = stream ? movementsForStream(stream, streamOptions) : []
+  const receivingOnlyNotice = (
+    <section className="kp-receiving-only" role="status" aria-labelledby="kp-receiving-only-title">
+      <div className="kp-receiving-only-copy">
+        <h2 id="kp-receiving-only-title" className="kp-receiving-only-title">
+          {t('kitchen.stream.receivingOnly.title')}
+        </h2>
+        <p className="kp-receiving-only-note">
+          {t('kitchen.stream.receivingOnly.body')}
+        </p>
+      </div>
+      <Link to="/cafe/stock" className="btn btn-outline btn-touch kp-receiving-only-cta">
+        {t('kitchen.stream.receivingOnly.stockCta')}
+      </Link>
+    </section>
+  )
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [items, setItems] = useState<WipItemOption[]>([])
   const [cells, setCells] = useState<PlanCell[]>([])
@@ -269,18 +284,20 @@ function PlanEditor() {
     [isDesktop, visible, t],
   )
 
+  const planItemColumn: DataTableColumn<WipItemOption> = {
+    key: 'dish',
+    header: t('kitchen.plan.col.item'),
+    cardLabel: '',
+    render: item => (
+      <span className="kp-dish">
+        <span className="kp-name">{item.name}</span>
+        {item.category && <span className="kp-cat">{kitchenCategoryLabel(t, item.category)}</span>}
+      </span>
+    ),
+  }
+
   const planColumns: DataTableColumn<WipItemOption>[] = [
-    {
-      key: 'dish',
-      header: t('kitchen.plan.col.item'),
-      cardLabel: '',
-      render: item => (
-        <span className="kp-dish">
-          <span className="kp-name">{item.name}</span>
-          {item.category && <span className="kp-cat">{kitchenCategoryLabel(t, item.category)}</span>}
-        </span>
-      ),
-    },
+    planItemColumn,
     {
       key: 'plan',
       header: t('kitchen.plan.col.plan'),
@@ -319,6 +336,19 @@ function PlanEditor() {
             )}
           </div>
         )
+      },
+    },
+  ]
+
+  const receivingPlanColumns: DataTableColumn<WipItemOption>[] = [
+    planItemColumn,
+    {
+      key: 'plan',
+      header: t('kitchen.plan.col.plan'),
+      numeric: true,
+      render: item => {
+        const quantity = qtyOf(item.id)
+        return quantity > 0 ? quantity : '—'
       },
     },
   ]
@@ -374,7 +404,7 @@ function PlanEditor() {
       meta={
         <span className="kp-date tabular">{logDate}</span>
       }
-      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
+      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : streamNonProducing ? 'read-only' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
     >
       {/* #401 / DD-WAY-40: Plan is an ACT surface — its figures render as the DESIGN.md
           Metric summary rule: one inline line, no card, no width branch, never a tile
@@ -404,9 +434,7 @@ function PlanEditor() {
         </p>
       )}
       {streamNonProducing && load.kind === 'ready' && (
-        <p className="kp-stream-hint" role="status" aria-live="polite">
-          {t('kitchen.plan.stream.nonProducing')}
-        </p>
+        receivingOnlyNotice
       )}
 
       {load.kind === 'loading' && <LoadingShell count={3} />}
@@ -457,14 +485,14 @@ function PlanEditor() {
             </div>}
           </KitchenToolbar>
           <DataTable
-            columns={planColumns}
+            columns={streamNonProducing ? receivingPlanColumns : planColumns}
             rows={visible}
             groups={planGroups}
-            renderCard={renderPlanCard}
+            renderCard={streamNonProducing ? undefined : renderPlanCard}
             isDesktop={isDesktop}
             state={visible.length > 0 ? 'ready' : 'empty'}
             emptyLabel={t('kitchen.filter.noMatch')}
-            caption={t('kitchen.plan.caption')}
+            caption={streamNonProducing ? t('kitchen.stream.receivingOnly.planCaption') : t('kitchen.plan.caption')}
           />
         </div>
       )}

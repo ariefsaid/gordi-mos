@@ -84,6 +84,41 @@
   box-sizing: border-box;
 }
 
+/* Receiving-only streams stay useful as a read surface, with the next stock action
+   visible at the point where production capture would otherwise begin. */
+.kl-receiving-only {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 8px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--secondary);
+}
+.kl-receiving-only-copy {
+  flex: 1 1 24rem;
+  min-width: 0;
+}
+.kl-receiving-only-title {
+  margin: 0 0 4px;
+  color: var(--foreground);
+  font-size: var(--font-size-control);
+  font-weight: 600;
+}
+.kl-receiving-only-note {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+.kl-receiving-only-cta {
+  flex: 0 0 auto;
+}
+
 /* ── Action footer: tally + Discard + Submit (ONE branch) ──
    v4 P0 (design critique): sticky, not static-flow. On phone the scroll container ran
    ~3,237px, so a user who staged a dish at the top had to scroll ~3,000px to reach Submit —
