@@ -21,13 +21,14 @@ insert into shared.teams (id, org_id, business_unit_id, name, code)
 values ('00000000-0000-0000-0000-00000000ba18','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','Back Office','fixture_back_office');
 select set_config('app.allow_test_seeds', 'off', true);
 
-select is((select produces from shared.teams where code = 'radiant_kitchen'), false,
+select is((select produces from shared.teams where org_id = '00000000-0000-0000-0000-0000000000a1' and code = 'radiant_kitchen'), false,
   'AC-001: Radiant kitchen is explicitly receive-only');
-select is((select produces from shared.teams where code = 'rumah_rames_kitchen'), true,
+select is((select produces from shared.teams where org_id = '00000000-0000-0000-0000-0000000000a1' and code = 'rumah_rames_kitchen'), true,
   'AC-001: RRS kitchen explicitly produces');
-select is((select produces from shared.teams where code = 'fixture_back_office'), null::boolean,
+select is((select produces from shared.teams where org_id = '00000000-0000-0000-0000-0000000000a1' and code = 'fixture_back_office'), null::boolean,
   'AC-001: a non-stream Team carries no produces fact');
-select throws_ok($$ update shared.teams set produces = true where code = 'fixture_back_office' $$,
+select throws_ok($$ update shared.teams set produces = true
+                  where org_id = '00000000-0000-0000-0000-0000000000a1' and code = 'fixture_back_office' $$,
   '23514', null, 'AC-001: a non-stream Team cannot be marked producing');
 
 select results_eq($$
