@@ -61,8 +61,10 @@ reset role;
 select is((select count(*)::int from mos.signals where body = 'Denied BU mention'), 0,
   'a denied BU mention does not leave a Signal behind');
 select is((select count(*)::int from mos.notifications
-            where metadata ->> 'source' = 'signal_mention'), 5,
-  'a denied BU mention creates no notification');
+            where org_id = '00000000-0000-0000-0000-0000000000a1'
+              and metadata ->> 'source' = 'signal_mention'
+              and metadata #>> '{entity,id}' = (select signal_id::text from mention_ids)), 5,
+  'the fixture Signal retains exactly its five notifications after the denied attempt');
 
 select * from finish();
 rollback;
