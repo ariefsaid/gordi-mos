@@ -385,10 +385,15 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .tasks-saved-view {
+  box-sizing: border-box;
   min-height: 32px;
+  min-width: 0;
+  max-width: 100%;
   padding: 4px 9px;
   border: 1px solid var(--input);
   border-radius: var(--radius-sm);
@@ -396,6 +401,10 @@
   color: var(--foreground);
   font: inherit;
   font-size: var(--font-size-label);
+  line-height: 1.25;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 
