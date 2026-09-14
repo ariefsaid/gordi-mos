@@ -20,7 +20,7 @@
 .mk-select--disabled .mk-select__box:hover { border-color: var(--input); }
 .mk-select__box:focus-within {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent);
+  box-shadow: 0 0 0 2px var(--ring);
 }
 .mk-select__field {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -47,7 +47,7 @@
 .mk-select--full .mk-select__box { width: 100%; }
 .mk-select--error .mk-select__box { border-color: var(--destructive); }
 .mk-select--error .mk-select__box:focus-within {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--destructive) 25%, transparent);
+  box-shadow: 0 0 0 2px var(--destructive);
 }
 .mk-select--disabled .mk-select__box { background: var(--secondary); cursor: not-allowed; }
 .mk-select--disabled .mk-select__field { cursor: not-allowed; }
