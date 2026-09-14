@@ -100,6 +100,8 @@ jobs:
         run: bash scripts/sssf-quality-timeout.test.sh
       - name: sssf design-audit chain self-test (#350)
         run: bash scripts/sssf-design-audit.test.sh
+      - name: quantitative design-audit harness self-test (#quant-ui)
+        run: bash scripts/design-quality-audit.test.sh
       - name: sssf provider-fault vs model-fault self-test (#386)
         run: bash scripts/sssf-provider-error.test.sh
       - name: kitchen history import self-test (#349)
