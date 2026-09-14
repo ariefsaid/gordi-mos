@@ -1,7 +1,7 @@
 -- shared, Activity is one canonical vocabulary for every production stream surface.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(18);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -37,6 +37,20 @@ select is((select count(*)::int from shared.teams
   where org_id = '10000000-0000-0000-0000-000000000001'
     and activity = 'prep' and archived_at is null), 3,
   'a new catalog Activity reaches the three FULL production branches — and NOT Cikal, which takes bar only (OD-WAY-79). Three, not four: that is the union rule, not a wider cross product');
+-- A catalog Activity creates stream Teams as receiving-only by default. Grant production to the
+-- Radiant prep stream explicitly so the plan/log arms exercise both contracts: the catalog FK and
+-- the producer fact. Activity membership alone must not grant production.
+update shared.teams
+set produces = true
+where org_id = '00000000-0000-0000-0000-0000000000a1'
+  and branch_id = '00000000-0000-0000-0000-00000000bf03'
+  and activity = 'prep'
+  and archived_at is null;
+select is((select produces from shared.teams
+  where org_id = '00000000-0000-0000-0000-0000000000a1'
+    and branch_id = '00000000-0000-0000-0000-00000000bf03'
+    and activity = 'prep' and archived_at is null), true,
+  'the new activity test establishes an explicit producer fact before asserting production writes');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
 select lives_ok($$ insert into ops.stream_completeness
   (org_id, branch_id, activity, confirmed_by)
