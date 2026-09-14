@@ -252,7 +252,7 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     await expect(
       page.getByRole('group', { name: /item list completeness for this stream/i }),
     ).toContainText(/not confirmed complete yet/i)
-    await expect(page.getByRole('button', { name: /confirm the item list is complete/i })).toBeEnabled()
+    await expect(page.getByRole('checkbox', { name: /confirm the item list is complete/i })).toBeEnabled()
 
     const approve = page.getByRole('button', { name: new RegExp(`Approve ${ITEM_NAME}`, 'i') })
     await expect(approve).toBeEnabled({ timeout: 10_000 })
