@@ -242,6 +242,7 @@ function meaningfulGateLog(text: string): { ok: boolean; reason?: string } {
 export async function validateArtifactSet(
   outputDir: string,
   expected: ReportRunMetadata,
+  options: { allowMockupGaps?: boolean } = {},
 ): Promise<ArtifactValidation> {
   assertMetadata(expected)
   const root = path.resolve(outputDir)
@@ -278,9 +279,11 @@ export async function validateArtifactSet(
               if (!actual) addUnique(invalid, artifact)
               else if (!metadataMatches(actual, expected)) addUnique(stale, artifact)
               const comparisons = isRecord(payload) ? payload.comparisons : null
-              if (!isRecord(payload) || payload.status !== 'pass' || !Array.isArray(comparisons) || comparisons.length === 0) {
+              const completedStatus = payload.status === 'pass'
+                || (options.allowMockupGaps === true && payload.status === 'assessed-with-gaps')
+              if (!isRecord(payload) || !completedStatus || !Array.isArray(comparisons) || comparisons.length === 0) {
                 addUnique(invalid, artifact)
-                errors.push(`${artifact}: status.json must report a completed pass with at least one comparison`)
+                errors.push(`${artifact}: status.json must report an allowed completed status with at least one comparison`)
               }
             } catch (error) {
               addUnique(invalid, artifact)

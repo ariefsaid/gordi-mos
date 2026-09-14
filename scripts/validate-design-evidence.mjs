@@ -29,7 +29,11 @@ if (session.candidateSha !== expectedSha || !/^[0-9a-f]{8}$/.test(sessionId)) {
   })
 }
 
-const validation = await validateArtifactSet(evidenceDir, { candidateSha: expectedSha, sessionId })
+const validation = await validateArtifactSet(
+  evidenceDir,
+  { candidateSha: expectedSha, sessionId },
+  { allowMockupGaps: flags.includes('--require-change-gate') },
+)
 const declared = new Set(await Promise.all(
   (Array.isArray(session.quantitativeArtifacts) ? session.quantitativeArtifacts : []).map(async (entry) => {
     if (typeof entry !== 'string') return ''

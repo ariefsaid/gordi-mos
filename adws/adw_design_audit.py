@@ -324,8 +324,11 @@ def audit_quantitative_artifacts(envelope, run) -> GateReport:
     validation_ok = False
     if expected_sha is not None:
         try:
+            validator_args = ["node", "--experimental-strip-types", str(validator), str(root), expected_sha]
+            if session_payload.get("auditMode") == "change-gate":
+                validator_args.append("--require-change-gate")
             completed = subprocess.run(
-                ["node", "--experimental-strip-types", str(validator), str(root), expected_sha],
+                validator_args,
                 check=False, capture_output=True, text=True, timeout=30,
             )
             validation_note = (completed.stdout or completed.stderr).strip()

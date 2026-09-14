@@ -759,7 +759,7 @@ export async function collectContrast(
       }
 
       if (measure === 'boundary' || measure === 'both') {
-        const boundaries: Array<{ source: string; color: CssColor }> = []
+        const boundaries: Array<{ source: string; color: CssColor; adjacent: [number, number, number] }> = []
         const boundaryElements = contrastState === 'focus'
           ? [element, element.parentElement, element.parentElement?.parentElement]
             .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement)
@@ -770,32 +770,40 @@ export async function collectContrast(
           const outlineWidth = Number.parseFloat(boundaryStyle.outlineWidth) || 0
           if (outlineWidth > 0 && boundaryStyle.outlineStyle !== 'none') {
             const outlineColor = parse(boundaryStyle.outlineColor)
-            if (outlineColor) boundaries.push({ source: `${sourcePrefix}outline`, color: outlineColor })
+            if (outlineColor) boundaries.push({
+              source: `${sourcePrefix}outline`,
+              color: outlineColor,
+              adjacent: backgroundFor(boundaryElement.parentElement ?? boundaryElement),
+            })
           }
           if (contrastState !== 'focus') {
             for (const side of ['Top', 'Right', 'Bottom', 'Left'] as const) {
               const width = Number.parseFloat(boundaryStyle[`border${side}Width`]) || 0
               if (width > 0 && boundaryStyle[`border${side}Style`] !== 'none') {
                 const borderColor = parse(boundaryStyle[`border${side}Color`])
-                if (borderColor) boundaries.push({ source: `${sourcePrefix}border-${side.toLowerCase()}`, color: borderColor })
+                if (borderColor) boundaries.push({ source: `${sourcePrefix}border-${side.toLowerCase()}`, color: borderColor, adjacent: background })
               }
             }
           }
           if (contrastState === 'focus' && boundaryStyle.boxShadow !== 'none') {
             const shadowColor = cssColorMatches(boundaryStyle.boxShadow)[0]
-            if (shadowColor) boundaries.push({ source: `${sourcePrefix}box-shadow`, color: shadowColor })
+            if (shadowColor) boundaries.push({
+              source: `${sourcePrefix}box-shadow`,
+              color: shadowColor,
+              adjacent: backgroundFor(boundaryElement.parentElement ?? boundaryElement),
+            })
           }
         }
         const graphicFallback = collectionOptions.allowForegroundBoundary
           && foreground
           && (element.matches('svg, svg *, img, [role="img"], [data-meaningful-graphic]'))
-        if (boundaries.length === 0 && graphicFallback && foreground) boundaries.push({ source: 'foreground', color: foreground })
+        if (boundaries.length === 0 && graphicFallback && foreground) boundaries.push({ source: 'foreground', color: foreground, adjacent: background })
         if (boundaries.length === 0) {
           rows.push(emptyRow('boundary'))
         } else {
-          const measuredBoundaries = boundaries.map(({ source, color }) => {
-            const foregroundRgb = color.alpha < 1 ? blend(color, background) : color.rgb
-            return { source, foregroundRgb, ratio: ratio(foregroundRgb, background) }
+          const measuredBoundaries = boundaries.map(({ source, color, adjacent }) => {
+            const foregroundRgb = color.alpha < 1 ? blend(color, adjacent) : color.rgb
+            return { source, foregroundRgb, adjacent, ratio: ratio(foregroundRgb, adjacent) }
           })
           const strongest = measuredBoundaries.reduce((maximum, current) => current.ratio > maximum.ratio ? current : maximum)
           rows.push({
@@ -805,7 +813,7 @@ export async function collectContrast(
             kind: 'boundary',
             threshold: 3,
             foreground: `rgb(${strongest.foregroundRgb.map((value) => Math.round(value)).join(',')})`,
-            background: `rgb(${background.join(',')})`,
+            background: `rgb(${strongest.adjacent.join(',')})`,
             ratio: strongest.ratio,
             largeText: false,
             observed: true,
