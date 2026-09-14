@@ -49,6 +49,21 @@ target_state="$target_nm/.package-lock.json"
 
 [ -f "$target_lock" ] || fallback "target has no mos-app/package-lock.json"
 
+# A root-level node_modules/node_modules path is not an npm package location. npm left an
+# absolute self-link there in the main checkout, and cp -al would copy that link verbatim into a
+# worktree, making Vite/Vitest walk back into the main checkout despite ordinary package
+# resolution reporting target-local paths. Repair it before the idempotent check and again after
+# a fresh copy; the latter is needed because cp -al copies the main link as part of the seed.
+repair_nested_node_modules_alias() {
+  local nested_alias="$target_nm/node_modules"
+  if [ -L "$nested_alias" ]; then
+    rm -f "$nested_alias"
+    echo "── worktree-npm-seed: removed inherited node_modules/node_modules symlink"
+  fi
+}
+
+repair_nested_node_modules_alias
+
 # Idempotent: a target that already has every build binary and a state file no older than its
 # own lockfile is already current — the same test pre-pr-verify.sh runs before it re-installs.
 target_current=1
@@ -99,6 +114,7 @@ fi
 # checking the target's own sources, and reports success over a real type error. Per-tree
 # caches never survive a hardlink seed; only the packages themselves do.
 rm -rf "$target_nm/.tmp" "$target_nm/.vite" "$target_nm/.vite-temp"
+repair_nested_node_modules_alias
 
 # Break the hardlink on the state file and re-copy it as a REGULAR file with a fresh mtime, so
 # pre-pr-verify's staleness check (package-lock.json -nt node_modules/.package-lock.json) reads
