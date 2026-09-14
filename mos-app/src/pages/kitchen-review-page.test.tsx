@@ -327,7 +327,7 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
     mockPlan.mockResolvedValue({})
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Cold Brew')
-    expect(screen.getByText(/blocked until production approved/i)).toBeInTheDocument()
+    expect(screen.getByText(/finish production approvals first/i)).toBeInTheDocument()
   })
 })
 
@@ -755,7 +755,7 @@ describe('KitchenReviewPage — offline (FR-005, NFR-008)', () => {
 describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', () => {
   const OWN_STREAM = `${BRANCH_ID}|kitchen`
 
-  it('FR-031: an unconfirmed stream reads as a plain gap — no warning, and the lead is offered the control', async () => {
+  it('FR-031: an unconfirmed stream reads as a quiet foot checkbox, not a head action', async () => {
     mockUseAuth.mockReturnValue(viewer(['supervisor']))
     mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
     mockList.mockResolvedValue([PROD_LOG])
@@ -764,12 +764,17 @@ describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', 
 
     const group = screen.getByRole('group', { name: /item list completeness for this stream/i })
     expect(group).toHaveTextContent(/item list not confirmed complete yet/i)
-    expect(screen.getByRole('button', { name: /confirm the item list is complete/i })).toBeEnabled()
+    const checkbox = screen.getByRole('checkbox', { name: /confirm the item list is complete/i })
+    expect(checkbox).toBeEnabled()
+    expect(screen.queryByRole('button', { name: /confirm the item list is complete/i })).toBeNull()
+    const queue = screen.queryByRole('table') ?? document.querySelector('.dt-cards')
+    expect(queue).not.toBeNull()
+    expect(queue!.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // It gates nothing: the queue's own decision controls are untouched by an unconfirmed list.
     expect(screen.getByRole('button', { name: /approve nasi goreng/i })).toBeInTheDocument()
   })
 
-  it('FR-031: a confirmed stream names WHO confirmed it and WHEN, and the control becomes a re-confirmation', async () => {
+  it('FR-031: a confirmed stream names WHO confirmed it and WHEN, with a checked quiet checkbox', async () => {
     mockUseAuth.mockReturnValue(viewer(['supervisor']))
     mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
     mockList.mockResolvedValue([PROD_LOG])
@@ -782,8 +787,10 @@ describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', 
     const group = screen.getByRole('group', { name: /item list completeness for this stream/i })
     // 02:30Z is 09:30 WIB the SAME day — the date shown is the stream's local one.
     expect(group).toHaveTextContent(/Item list confirmed complete · Budi Santoso · 2026-08-11/)
+    const checkbox = screen.getByRole('checkbox', { name: /item list confirmed complete/i })
+    expect(checkbox).toBeChecked()
+    expect(checkbox).toBeDisabled()
     expect(screen.getByRole('button', { name: /confirm again/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /confirm the item list is complete/i })).not.toBeInTheDocument()
   })
 
   it('FR-031: the confirmation names the stream in view — the click sends that stream and nothing else', async () => {
@@ -796,7 +803,7 @@ describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', 
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
 
-    fireEvent.click(screen.getByRole('button', { name: /confirm the item list is complete/i }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /confirm the item list is complete/i }))
     await waitFor(() => expect(mockConfirmComplete).toHaveBeenCalledWith(BRANCH_ID, 'kitchen'))
     // The recorded fact replaces the gap in place — no queue refetch, because it gates nothing.
     expect(await screen.findByText(/item list confirmed complete for this stream/i)).toBeInTheDocument()
@@ -821,7 +828,7 @@ describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', 
     // knowledge FR-031 exists to end.
     expect(screen.getByRole('group', { name: /item list completeness for this stream/i }))
       .toHaveTextContent(/item list not confirmed complete yet/i)
-    expect(screen.queryByRole('button', { name: /confirm the item list is complete/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /confirm the item list is complete/i })).not.toBeInTheDocument()
   })
 
   it('FR-031: with the filter on all streams there is no single list to vouch for, so nothing renders', async () => {
@@ -837,7 +844,7 @@ describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', 
       target: { value: OWN_STREAM },
     })
     expect(await screen.findByRole('group', { name: /item list completeness/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /confirm the item list is complete/i })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /confirm the item list is complete/i })).toBeInTheDocument()
   })
 })
 

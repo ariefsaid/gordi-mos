@@ -389,21 +389,23 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     expect(container.querySelector('.ks-tablewrap, .ks-table, .kst-table, .ksc-cards')).toBeNull()
   })
 
-  it('renders stock-specific KPI labels (not Log labels)', async () => {
+  it('renders one stock summary rule (not KPI tiles or Log labels)', async () => {
     setDesktop()
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
+    expect(screen.getByRole('group', { name: /stock summary/i })).toBeInTheDocument()
+    expect(document.querySelector('.msr')).not.toBeNull()
+    expect(document.querySelector('.kks')).toBeNull()
     expect(screen.getByText(/total on-hand/i)).toBeInTheDocument()
-    expect(screen.getByText(/items in stock/i)).toBeInTheDocument()
     expect(screen.getByText(/negative balances/i)).toBeInTheDocument()
     expect(screen.getByText(/available total/i)).toBeInTheDocument()
     expect(screen.queryByText(/made so far/i)).toBeNull()
     expect(screen.queryByText(/% complete/i)).toBeNull()
   })
 
-  it('no-data rows keep the Negative balances KPI neutral, not success-green', async () => {
+  it('zero rows stay truthful without a second no-entries provenance note', async () => {
     setDesktop()
     mockFetchStock.mockResolvedValue([
       { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
@@ -412,15 +414,13 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     const { container } = render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
-    const tile = screen.getByText(/negative balances/i).closest('.kks-tile') as HTMLElement
-    expect(tile).not.toBeNull()
-    expect(tile.textContent).toMatch(/no stock data yet/i)
-    expect(tile.querySelector('.pill--success')).toBeNull()
-    expect(tile.querySelector('.pill--neutral')).not.toBeNull()
-    expect(container.querySelector('.kks')).not.toBeNull()
+    expect(container.querySelector('.msr')).not.toBeNull()
+    expect(container.querySelector('.kks')).toBeNull()
+    expect(screen.queryByText('No entries logged yet today')).toBeNull()
+    expect(screen.getByText(/erp inventory not connected yet/i)).toBeInTheDocument()
   })
 
-  it('explains all-zero stock as live-entered absence, not a broken feed', async () => {
+  it('uses one ERP provenance footnote for the comparison column', async () => {
     setDesktop()
     mockFetchStock.mockResolvedValue([
       { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
@@ -429,7 +429,8 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     render(<KitchenStockPage />, { wrapper })
 
     await screen.findByText('Ayam Bakar')
-    expect(screen.getByText('No entries logged yet today')).toBeInTheDocument()
+    expect(screen.queryByText('No entries logged yet today')).toBeNull()
+    expect(screen.getAllByText(/erp inventory not connected yet/i)).toHaveLength(1)
   })
 
   it('AC-011 (render): the system-quantity column sits DIRECTLY BESIDE the ERP inventory column — the net itself is owned by pgTAP ops_09/ops_10', async () => {
@@ -482,6 +483,20 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     expect(within(nasiRow).getAllByText('-3').length).toBeGreaterThan(0)
   })
 
+  it('FR-028: phone rows use a compact two-line card, not a generic labelled <dl>', async () => {
+    setPhone()
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const card = screen.getByText('Ayam Bakar').closest('.ks-card') as HTMLElement
+    expect(card).not.toBeNull()
+    expect(card.textContent).toMatch(/Stock\s*12/i)
+    expect(card.textContent).toMatch(/ERP\s*—/i)
+    expect(card.textContent).toMatch(/Available\s*8/i)
+    expect(card.querySelector('dl')).toBeNull()
+  })
+
   it('read-only: no edit/save/approve controls anywhere (the stream scope is a read scope, not an edit)', async () => {
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
@@ -500,8 +515,8 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
   })
 })
 
-// #400 i18n port: the Stock KPI strip renders Indonesian under the id locale — AC "every
-// surface listed renders Indonesian". RED first: the strip computes English literals today.
+// #400 i18n port: the Stock summary rule renders Indonesian under the id locale — AC "every
+// surface listed renders Indonesian".
 describe('KitchenStockPage — locale seam (#400)', () => {
   beforeEach(() => {
     setDesktop()
@@ -510,58 +525,39 @@ describe('KitchenStockPage — locale seam (#400)', () => {
   })
   afterEach(() => localStorage.clear())
 
-  it('renders the whole KPI strip in Bahasa Indonesia', async () => {
+  it('renders the whole summary rule in Bahasa Indonesia', async () => {
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    expect(screen.getByRole('region', { name: 'Ringkasan stok' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Ringkasan stok' })).toBeInTheDocument()
     expect(screen.getByText('Total stok fisik')).toBeInTheDocument()
-    expect(screen.getByText('Item bersisa stok')).toBeInTheDocument()
     expect(screen.getByText('Saldo minus')).toBeInTheDocument()
     expect(screen.getByText('Total tersedia')).toBeInTheDocument()
-    expect(screen.getByText('perlu ditinjau')).toBeInTheDocument()
-    expect(screen.getByText('siap ditransfer')).toBeInTheDocument()
-    expect(screen.getByText('1 kosong/minus')).toBeInTheDocument() // inStock.delta
+    expect(document.querySelector('.msr')).not.toBeNull()
+    expect(document.querySelector('.kks')).toBeNull()
     // the English strip is gone
     expect(screen.queryByText(/total on-hand/i)).toBeNull()
     expect(screen.queryByText(/negative balances/i)).toBeNull()
   })
 
-  // #411 review: a translation must not change what a number MEANS. The port replaced the
-  // on-hand tile's only unit ('portions') with a qualifier, leaving a bare count with no unit
-  // anywhere; and it moved 'transfer-ready' onto the delta while the sub-line started claiming
-  // the figure is 'cumulative' — it is a cross-item total for ONE day (Σ tersedia), not a
-  // running total. Both tiles now say in Indonesian exactly what they said in English.
-  it('keeps the unit on the on-hand tile and does not restate what the available total means', async () => {
-    render(<KitchenStockPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
-
-    const onHand = screen.getByText('Total stok fisik').closest('.kks-tile') as HTMLElement
-    expect(onHand.textContent).toMatch(/porsi/)
-
-    const available = screen.getByText('Total tersedia').closest('.kks-tile') as HTMLElement
-    expect(available.textContent).toMatch(/siap ditransfer/)
-    expect(available.textContent).not.toMatch(/kumulatif/)
-  })
-
-  it('phone summary line is Indonesian', async () => {
+  it('phone summary line is Indonesian and stays a single rule', async () => {
     setPhone()
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    const phone = document.querySelector('.kks-phone') as HTMLElement
-    expect(phone).not.toBeNull()
-    expect(phone.textContent).toMatch(/Stok/)
-    expect(phone.textContent).toMatch(/2 item/)
-    expect(phone.textContent).toMatch(/5 tersedia/) // Σ tersedia = 8 + (−3)
+    const summary = document.querySelector('.msr') as HTMLElement
+    expect(summary).not.toBeNull()
+    expect(summary.textContent).toMatch(/stok/i)
+    expect(summary.textContent).toMatch(/tersedia/i)
+    expect(document.querySelector('.kks-phone')).toBeNull()
   })
 
-  it('all-zero stock keeps the neutral “belum ada data stok” delta', async () => {
+  it('all-zero stock keeps the summary numeric and the ERP footnote singular', async () => {
     mockFetchStock.mockResolvedValue([
       { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
     ])
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    const tile = screen.getByText('Saldo minus').closest('.kks-tile') as HTMLElement
-    expect(tile.textContent).toMatch(/belum ada data stok/)
+    expect(document.querySelector('.msr')).not.toBeNull()
+    expect(screen.getAllByText(/erp inventory not connected|inventori ERP belum terhubung/i)).toHaveLength(1)
   })
 })
 

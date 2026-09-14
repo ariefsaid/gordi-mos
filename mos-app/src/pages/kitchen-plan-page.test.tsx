@@ -13,7 +13,7 @@
 // and the ABSENCE of any −/+ affordance; Escape discards without saving (I5 /
 // OD-REDESIGN-22, via useInlineCommit).
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -124,6 +124,21 @@ beforeEach(() => {
   mockPlans.mockResolvedValue([])
   mockPesanan.mockResolvedValue([])
   mockUpsert.mockResolvedValue('new-id')
+})
+
+afterEach(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
 })
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -459,7 +474,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     expect(screen.queryByText(/no plan created yet/i)).toBeNull()
   })
 
-  it('explains an empty plan as a live-entered absence', async () => {
+  it('does not duplicate the summary with a second empty-plan sentence', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       configurable: true,
@@ -476,7 +491,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
-    expect(screen.getByText('Nothing planned yet')).toBeInTheDocument()
+    expect(screen.queryByText('Nothing planned yet')).toBeNull()
   })
 
   it('groups dishes by category (F2 categories render as group headers)', async () => {
@@ -491,20 +506,39 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     expect(labels).toContain('Main')
   })
 
-  it('(#401) the editor carries in-app help — HelpTip in the meta line (H10)', async () => {
+  it('R7: the editor has no help-tip control in the page chrome', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    fireEvent.click(screen.getByRole('button', { name: /^help$/i }))
-    const panel = await screen.findByRole('note')
-    expect(panel.textContent).toContain('there is no submit button')
+    expect(screen.queryByRole('button', { name: /^help$/i })).toBeNull()
   })
 
-  it('(#401) the editor dish name drills to the Café log (/cafe/log?q=<dish>)', async () => {
+  it('R7: the desktop category header carries one Log link, not per-row links', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     expect(
-      screen.getByRole('link', { name: /see ayam bakar in the café log/i }),
-    ).toHaveAttribute('href', '/cafe/log?q=Ayam%20Bakar')
+      screen.getByRole('link', { name: /see these in the café log/i }),
+    ).toHaveAttribute('href', '/cafe/log')
+    expect(screen.queryAllByRole('link', { name: /see .* in the café log/i })).toHaveLength(1)
+    expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
+  })
+
+  it('R7: the phone category header carries no Log link', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.queryByRole('link', { name: /see .* in the café log/i })).toBeNull()
+    expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
   })
 
   it('phone (default matchMedia): renders the cards branch, NOT the desktop table', async () => {
@@ -582,13 +616,12 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
   })
 
-  it('(#401) the pesanan item name drills to the Café log too', async () => {
+  it('R7: the pesanan item name stays plain text', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    expect(
-      screen.getByRole('link', { name: /see ayam bakar in the café log/i }),
-    ).toHaveAttribute('href', '/cafe/log?q=Ayam%20Bakar')
+    expect(screen.queryByRole('link', { name: /see .* in the café log/i })).toBeNull()
+    expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
   })
 
   it('(#401) a member can find a dish by name — search narrows the horizon (Nielsen Café·Plan 16/32: ~231 rows, no way to narrow)', async () => {
@@ -616,6 +649,18 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
   })
 
   it('(#401) the category filter narrows the horizon too', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
     mockPesanan.mockResolvedValue([
       { ...PESANAN[0], category: 'Main' },
       { ...PESANAN[1], category: 'Rice' },

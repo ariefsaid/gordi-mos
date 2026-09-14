@@ -147,7 +147,7 @@ export function WipItemStepper({
           aria-label={t('kitchen.qty.producedAria', { item: itemName })}
           className="kls-qty"
           value={qty_porsi > 0 ? qty_porsi : ''}
-          placeholder={planQty > 0 ? String(planQty) : '0'}
+          placeholder={alreadyLogged > 0 ? '' : planQty > 0 ? String(planQty) : '0'}
           min={0}
           step={1}
           enterKeyHint="next"

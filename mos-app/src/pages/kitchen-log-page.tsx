@@ -1,7 +1,7 @@
 // KitchenLogPage — /mos/kitchen/log — Log capture screen (OD-K-5 redesign).
 // Design authority: docs/plans/2026-06-21-kitchen-log-redesign.md.
 // ONE responsive screen built on the shared <DataTable> (desktop dense <table> +
-// KPI strip (≥768px) ↔ phone floor-fast cards (<768px)), chosen via useIsDesktop()
+// metric summary + phone floor-fast cards (<768px), chosen via useIsDesktop()
 // — ONE branch in the DOM (P-4).
 //
 // PARITY (unchanged from the prior screen — presentational redesign + derived KPIs ONLY):
@@ -11,8 +11,8 @@
 //  - Submit payload byte-identical (NEVER sends status / org_id / submitted_by — NFR-003).
 //  - AC-020/021 (variance-note gate), AC-022 (transfer cap REJECT — keeps typed qty),
 //    AC-030 (submit payload) preserved.
-// NEW (presentational only, P-1/P-3): the derived KPI strip (pure useMemo over `lines`),
-// Planned/Off-plan grouping, client-side search + category filter, group collapse,
+// NEW (presentational only, P-1/P-3): the submitted metric summary, Planned/Off-plan grouping,
+// client-side search + category filter, group collapse,
 // Discard (confirmed). No new fetch/RPC/table/persistence/ESB.
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
@@ -62,13 +62,12 @@ import { useSearchParamState } from '@/lib/use-search-param-state'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { WipItemStepper } from '@/components/kitchen/wip-item-stepper'
-import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
+import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { DataTable, type DataTableColumn, type DataTableGroup } from '@/components/dashboard/data-table'
 import { kitchenStatus } from '@/lib/kitchen-status'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
-import { HelpTip } from '@/components/ui/help-tip'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
 import './kitchen-log-page.css'
@@ -202,8 +201,8 @@ export function KitchenLogPage() {
   const [search, setSearch] = useSearchParamState('q', '')
   const [category, setCategory] = useSearchParamState('category', 'All')
 
-  // Staged KPIs drive only the pending-review footer. The strip must never read this editable
-  // capture state: DD-7/OD-K-5 require its figures to come from submitted day entries.
+  // Staged KPIs drive only the pending-review footer. The head summary must never read this
+  // editable capture state: DD-7 requires its figures to come from submitted day entries.
   const stagedKpis = useKitchenKpis(lines)
   const submittedKpiLines = useMemo(() => {
     const base = buildLines(wipItems, planMap, stockMap, movement)
@@ -219,6 +218,18 @@ export function KitchenLogPage() {
   const hasSubmittedActuals = Object.values(actualsMap).some(
     itemActuals => (itemActuals[movementKey(movement)] ?? 0) > 0,
   )
+  const summaryMetrics = [
+    { key: 'plan', label: t('kitchen.log.summary.plan'), value: String(kpis.plannedTotal) },
+    { key: 'made', label: t('kitchen.log.summary.made'), value: String(kpis.madeSoFar) },
+    {
+      key: 'off-plan',
+      label: t('kitchen.log.summary.offPlan'),
+      value: String(Math.max(kpis.madeOffPlan, 0)),
+      ...(hasSubmittedActuals && kpis.madeOffPlan === 0
+        ? { delta: { text: t('kitchen.log.summary.onPlan'), tone: 'success' as const } }
+        : {}),
+    },
+  ]
 
   // Stale-response guard: every read bumps the generation, and only the LATEST
   // generation's result may land. Without this, two rapid stream switches can resolve
@@ -635,7 +646,10 @@ export function KitchenLogPage() {
   // collapse is INTERNAL to the DataTable (no page-level state). Token-only.
   const q = search.trim().toLowerCase()
   const matchSearch = (it: CaptureFormItem) => !q || it.name.toLowerCase().includes(q)
-  const matchCat = (it: CaptureFormItem) => category === 'All' || (it.category ?? '') === category
+  // The category control is intentionally desktop-only. A shared/deep-linked category query
+  // must not silently hide rows on phone when its control is unavailable to clear it.
+  const effectiveCategory = isDesktop ? category : 'All'
+  const matchCat = (it: CaptureFormItem) => effectiveCategory === 'All' || (it.category ?? '') === effectiveCategory
   const visibleItems = wipItems.filter(it => matchSearch(it) && matchCat(it))
   const plannedLines = visibleItems.filter(it => (lines[it.id]?.plan_qty ?? 0) > 0)
   const offPlanLines = visibleItems.filter(it => (lines[it.id]?.plan_qty ?? 0) <= 0)
@@ -739,7 +753,6 @@ export function KitchenLogPage() {
         <div className="kl-card-head">
           <div className="kl-card-identity">
             <span className="kl-card-name">{item.name}</span>
-            {item.category && <span className="kl-card-category">{kitchenCategoryLabel(t, item.category)}</span>}
           </div>
           <WipItemStepper
             itemName={item.name}
@@ -782,8 +795,12 @@ export function KitchenLogPage() {
   }
 
   const groups: DataTableGroup<CaptureFormItem>[] = [
-    { key: 'planned', label: t('kitchen.log.group.planned'), count: plannedLines.length, rows: plannedLines },
-    { key: 'offplan', label: t('kitchen.log.group.offplan'), hint: t('kitchen.log.group.offplan.hint'), count: offPlanLines.length, rows: offPlanLines },
+    ...(plannedLines.length > 0
+      ? [{ key: 'planned', label: t('kitchen.log.group.planned'), count: plannedLines.length, rows: plannedLines }]
+      : []),
+    ...(offPlanLines.length > 0
+      ? [{ key: 'offplan', label: t('kitchen.log.group.offplan'), hint: t('kitchen.log.group.offplan.hint'), count: offPlanLines.length, rows: offPlanLines }]
+      : []),
   ]
 
   return (
@@ -794,30 +811,7 @@ export function KitchenLogPage() {
          a row lands in decides what the row MEANS, so it outranks the static job sentence the
          shared head would otherwise carry (PageHead renders one or the other). */
       statusRow={streamPicker}
-      /* v4 (owner-directed): the date chip and the planned-total band were two stacked lines
-         saying very little. They are now one compacted meta line, in separate columns. */
-      meta={
-        <span className="kl-meta-line">
-          {/* onboard (2026-07-28): Café - Log is the FIRST MOS surface a new floor hire ever
-              opens, and it had no in-app help. It rides in the existing meta line rather than
-              claiming new chrome, because DD-15 already measured chrome as this surface's
-              dominant phone cost. */}
-          <HelpTip label={t('kitchen.log.help')} />
-          <span className="kl-date tabular">{logDate}</span>
-          {kpis.plannedTotal > 0 && (
-            <span className="kl-plan-sum">
-              {t('kitchen.kpi.plannedTotal')} <strong className="tabular">{kpis.plannedTotal}</strong>
-              {/* #588: this used to render as a bare '· 2' — the count with no label — while
-                  Plan states the identical fact labeled ("Items planned 1"). Reusing Plan's own
-                  key here (rather than minting a new one) is the smaller honest change: one
-                  vocabulary for "how many items", never "Dish" (OD-WAY-85). */}
-              <span className="kl-plan-dishes">
-                {t('kitchen.plan.summary.itemsPlanned')} <strong className="tabular">{kpis.plannedDishCount}</strong>
-              </span>
-            </span>
-          )}
-        </span>
-      }
+      meta={<span className="kl-date tabular">{logDate}</span>}
       state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : submitError ? 'validation' : 'default'}
     >
       <div className="kl-page">
@@ -826,10 +820,15 @@ export function KitchenLogPage() {
         <RouteLeaveGuard when={stagedCount > 0} message={t('kitchen.log.leave.confirm')} />
         <OfflineBanner show={!isOnline} />
 
-        {/* The strip is a submitted-production claim, so keep it absent until this action has
-            saved day entries. In particular, an empty strip is more honest than a band that
-            DD-7 guards could mistake for staged capture state. */}
-        {hasSubmittedActuals && <KitchenKpiStrip kpis={kpis} isDesktop={isDesktop} />}
+        {/* R4 / FR-018: one aggregate line, derived from submitted actuals. It remains visible
+            when the day is at zero so the plan/actual vocabulary is stable, but staged typing
+            can never change it. */}
+        {status.kind === 'ready' && wipItems.length > 0 && (
+          <MetricSummaryRule
+            ariaLabel={t('kitchen.log.summary.aria')}
+            metrics={summaryMetrics}
+          />
+        )}
 
         {submitError && (
           <div role="alert" className="kl-banner kl-banner-error kl-block">
@@ -865,10 +864,10 @@ export function KitchenLogPage() {
           <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
-            categories={categories}
+            categories={isDesktop ? categories : undefined}
             categoryLabel={value => kitchenCategoryLabel(t, value)}
-            category={category}
-            onCategoryChange={setCategory}
+            category={isDesktop ? category : undefined}
+            onCategoryChange={isDesktop ? setCategory : undefined}
             searchPlaceholder={t('kitchen.log.searchPlaceholder')}
             ariaLabel={t('kitchen.log.toolbarAria')}
           >
@@ -895,6 +894,8 @@ export function KitchenLogPage() {
             columns={columns}
             rows={visibleItems}
             groups={groups}
+            key={`${movementKey(movement)}:${plannedLines.length > 0 ? 'planned' : 'off-plan'}`}
+            defaultCollapsedGroupKeys={plannedLines.length > 0 ? new Set(['offplan']) : undefined}
             renderCard={renderLogCard}
             isDesktop={isDesktop}
             state={visibleItems.length > 0 ? 'ready' : 'empty'}

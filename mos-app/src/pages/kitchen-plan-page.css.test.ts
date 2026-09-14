@@ -5,8 +5,8 @@
 //    .kl-dish-name/.kl-dish-cat fix already killed — the fix landed there only).
 //  • KP-BANNER — offline and save-failed use the SAME amber/red vocabulary as
 //    Café · Log (warning / destructive tokens), never a plain grey box.
-//  • KP-ROWLINK — a dish name styled as a drill link is links-in-context blue
-//    (DESIGN.md Action Blue) with an underline, not foreground text.
+//  • KP-GROUPLINK — the desktop category header's single Log route is links-in-context
+//    blue (DESIGN.md Action Blue) with an underline; row names stay plain text.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -44,9 +44,9 @@ describe('KP-BANNER: same warning vocabulary as Café · Log (amber offline, red
   })
 })
 
-describe('KP-ROWLINK: the drill link is links-in-context blue with an underline', () => {
-  it('.kp-row-link declares primary colour + underline', () => {
-    const body = ruleBody('.kp-row-link')
+describe('KP-GROUPLINK: the category-header Log route is links-in-context blue with an underline', () => {
+  it('.kp-group-link declares primary colour + underline', () => {
+    const body = ruleBody('.kp-group-link')
     expect(body).toMatch(/color:\s*var\(--primary\)/)
     expect(body).toMatch(/text-decoration:\s*underline/)
   })

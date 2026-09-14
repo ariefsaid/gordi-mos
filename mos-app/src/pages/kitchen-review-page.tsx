@@ -30,7 +30,7 @@ import { listStreamCompleteness, confirmStreamComplete } from '@/lib/db/stream-c
 import type { StreamCompleteness } from '@/lib/db/stream-completeness'
 import { listActiveBranches } from '@/lib/db/branches'
 import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
-import { movementKey, streamKey, streamLabel } from '@/lib/kitchen-action-label'
+import { deriveActionLabel, movementKey, streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import type { Translate } from '@/i18n/use-t'
 import { getPeople } from '@/lib/db/directory'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
@@ -144,8 +144,7 @@ function GroupActions({
     <>
       {transferGated && (
         <span className="kr-group-gate">
-          <span aria-hidden="true" className="kr-info-glyph">ⓘ</span>
-          {' '}Blocked until Production approved
+          {t('kitchen.review.gate.productionFirst')}
         </span>
       )}
       {eligibleCount > 0 && (
@@ -362,6 +361,7 @@ export function KitchenReviewPage() {
   // the queue (#247/#197), not one flat map for the whole queue.
   const [streamPlans, setStreamPlans] = useState<Map<string, PlanMap>>(new Map())
   const [peopleMap, setPeopleMap] = useState<Map<string, string>>(new Map())
+  const [branchCatalog, setBranchCatalog] = useState<BranchOption[]>([])
   // The enumerable stream catalog (FR-005) drives the filter's options; the viewer's own
   // stream — their live primary Team's (branch, activity), same resolution the capture
   // surface uses (FR-001) — drives the filter's DEFAULT (FR-041) and, for a supervisor,
@@ -427,6 +427,7 @@ export function KitchenReviewPage() {
       setLogs(rows)
       setStreamPlans(new Map(planEntries))
       setPeopleMap(new Map(people.map(p => [p.id, p.full_name])))
+      setBranchCatalog(branchRows)
       setStreamCatalog(catalog)
       setOwnStreamKey(ownKey)
       setCompleteness(new Map(confirmations.map(c => [streamKey(c.branch_id, c.activity), c])))
@@ -697,6 +698,9 @@ export function KitchenReviewPage() {
   const tableGroups: DataTableGroup<ReviewLogRow>[] = groupOrder
     .map(action => {
       const rows = visibleLogs.filter(l => l.action_type === action)
+      const groupLabel = rows[0]
+        ? deriveActionLabel(t, { action: rows[0].action, destinationBranchId: rows[0].destination_branch_id }, branchCatalog)
+        : action
       // #236: the gate message shows when any DISPLAYED row of the group is stream-locked
       // (FR-043 is per stream, so one stream's backlog no longer gates every group).
       const transferGated = isTransfer(action) && rows.some(rowGated)
@@ -704,7 +708,7 @@ export function KitchenReviewPage() {
       const showActions = transferGated || eligibleCount > 0
       return {
         key: action,
-        label: action,
+        label: groupLabel,
         rows,
         headerActions: showActions
           ? (
@@ -713,7 +717,7 @@ export function KitchenReviewPage() {
                 eligibleCount={eligibleCount}
                 bulkBusy={bulkAction === action}
                 disabled={bulkDisabled}
-                actionLabel={action}
+                actionLabel={groupLabel}
                 onBulkApprove={() => handleBulkApprove(action)}
               />
             )
@@ -894,6 +898,50 @@ export function KitchenReviewPage() {
   }
 
   const submittedCount = visibleLogs.length
+  const completenessRow = load.kind === 'ready' && streamCatalog.length > 0 && selectedStream
+    ? (() => {
+        const key = streamKey(selectedStream.branch.id, selectedStream.activity)
+        const confirmed = completeness.get(key) ?? null
+        const busy = confirmingStream === key
+        const stateText = confirmed
+          ? t('kitchen.review.completeness.confirmed', {
+              who: peopleMap.get(confirmed.confirmed_by) ?? '—',
+              when: formatDate(confirmed.confirmed_at),
+            })
+          : t('kitchen.review.completeness.unconfirmed')
+        return (
+          <div className="kr-complete kr-complete-foot" role="group" aria-label={t('kitchen.review.completeness.aria')}>
+            {canConfirmSelected ? (
+              <>
+                <label className="kr-complete-check">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(confirmed)}
+                    disabled={Boolean(confirmed) || busy || !isOnline}
+                    aria-label={confirmed ? stateText : t('kitchen.review.completeness.confirm')}
+                    onChange={() => { void handleConfirmComplete() }}
+                  />
+                  <span className={`kr-complete-state${confirmed ? ' kr-complete-yes' : ''}`}>{stateText}</span>
+                </label>
+                {confirmed && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost kr-complete-reconfirm"
+                    disabled={busy || !isOnline}
+                    onClick={() => { void handleConfirmComplete() }}
+                  >
+                    {t('kitchen.review.completeness.reconfirm')}
+                  </button>
+                )}
+              </>
+            ) : (
+              <span className={`kr-complete-state${confirmed ? ' kr-complete-yes' : ''}`}>{stateText}</span>
+            )}
+            {busy && <span className="kr-complete-saving">{t('kitchen.review.completeness.saving')}</span>}
+          </div>
+        )
+      })()
+    : null
 
   return (
     <PageFamilyFrame
@@ -921,48 +969,6 @@ export function KitchenReviewPage() {
       meta={<span className="kr-date tabular">{logDate}</span>}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : submittedCount === 0 ? 'empty' : 'default'}
     >
-      {load.kind === 'ready' && streamCatalog.length > 0 && (
-        <div className="kr-filter kr-block">
-          {/* #238 (FR-031): the stream lead's completeness confirmation, on the surface that is
-              already theirs. It states what IS true — confirmed, by whom, when — and never what
-              is blocked, because it blocks nothing: DD-WAY-29's coordinate gate alone decides
-              what reaches a capture form (NFR-004). An unconfirmed stream reads as a gap with a
-              name on it, which is the whole point (OD-WAY-47). Shown for one stream at a time;
-              the button appears only for the people the policy would actually accept. */}
-          {selectedStream && (() => {
-            const key = streamKey(selectedStream.branch.id, selectedStream.activity)
-            const confirmed = completeness.get(key) ?? null
-            const busy = confirmingStream === key
-            return (
-              <div className="kr-complete" role="group" aria-label={t('kitchen.review.completeness.aria')}>
-                <span className={`kr-complete-state${confirmed ? ' kr-complete-yes' : ''}`}>
-                  {confirmed
-                    ? t('kitchen.review.completeness.confirmed', {
-                        who: peopleMap.get(confirmed.confirmed_by) ?? '—',
-                        when: formatDate(confirmed.confirmed_at),
-                      })
-                    : t('kitchen.review.completeness.unconfirmed')}
-                </span>
-                {canConfirmSelected && (
-                  <button
-                    type="button"
-                    className="btn btn-outline kr-complete-btn"
-                    disabled={busy || !isOnline}
-                    onClick={handleConfirmComplete}
-                  >
-                    {busy
-                      ? t('kitchen.review.completeness.saving')
-                      : confirmed
-                        ? t('kitchen.review.completeness.reconfirm')
-                        : t('kitchen.review.completeness.confirm')}
-                  </button>
-                )}
-              </div>
-            )
-          })()}
-        </div>
-      )}
-
       {/* #422 / DD-WAY-40: Review is an ACT surface, so its figures render as the DESIGN.md
           Metric summary rule — one inline line, no card, no width branch — never a tile row.
           The delta ("note required to approve") renders only when off-plan rows exist, i.e.
@@ -1042,6 +1048,7 @@ export function KitchenReviewPage() {
           caption={t('kitchen.review.caption')}
         />
       )}
+      {completenessRow}
     </PageFamilyFrame>
   )
 }

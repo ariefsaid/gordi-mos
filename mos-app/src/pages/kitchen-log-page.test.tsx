@@ -1128,88 +1128,47 @@ const WIP_ITEMS_WITH_OFFPLAN: CaptureFormItem[] = [
   { id: 'w3', name: 'Sambal Matah', category: 'Side', units: [{ id: 'u3-porsi', name: 'porsi', is_default: true }] },
 ]
 
-// task 10a — the derived plan figures render in the page-head meta line.
-// v4 (2026-07-27, owner-directed): the standalone KPI-strip band (desktop 4 tiles / phone
-// one-line summary) is gone from this page. The date chip and the planned-total band were
-// "two stacked lines saying very little" — they are now ONE compacted meta line (`kl-meta-
-// line`) in the PageHead, showing the planned total + dish count. `madeSoFar`/`pctComplete`
-// were dropped from the head entirely (plan §"Metric summary rule" — those numbers reflected
-// typed-not-yet-submitted quantities, so the head would report "0 / -548 vs plan" a second
-// after a successful submit; visibly absent beats confidently wrong). The goal this test
-// protects — the day's planned figures are readable at a glance — is unchanged; the STEPS
-// were rewritten to the new meta-line rendering, and per-row feedback (kl-status) already has
-// its own coverage below.
-describe('OD-K-5: the planned total + dish count render in the page-head meta line', () => {
-  it('shows the planned total and dish count regardless of viewport (phone)', async () => {
+// Ticket R4 / FR-018: Log carries one truthful summary rule in the page head. Its actual
+// figure comes from submitted day entries, not the editable line state; the old KPI tiles and
+// help tip are retired from the capture surface.
+describe('R4 / FR-018: Log summary line', () => {
+  it('shows plan, submitted made and off-plan totals in the head without KPI tiles or help', async () => {
+    mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
+    mockFetchActualsMap.mockResolvedValue({
+      w1: { [PRODUCE_KEY]: 12 },
+      w3: { [PRODUCE_KEY]: 7 },
+    })
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    // 2 planned dishes (w1:20, w2:12) → plannedTotal 32, plannedDishCount 2
-    const head = screen.getByTestId('page-head')
-    expect(within(head).getByText('32')).toBeInTheDocument()
-    expect(within(head).getByText('2')).toBeInTheDocument()
+
+    const summary = document.querySelector('.msr') as HTMLElement
+    expect(summary).not.toBeNull()
+    expect(summary.textContent).toMatch(/Plan\s*32/)
+    expect(summary.textContent).toMatch(/made\s*19/)
+    expect(summary.textContent).toMatch(/off-plan\s*7/)
+    expect(summary.textContent).not.toMatch(/on plan/i)
+    expect(document.querySelector('.kks')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^help$/i })).toBeNull()
   })
 
-  it('shows the same planned total and dish count on desktop (no width branch)', async () => {
-    setDesktopMatchMedia(true)
+  it('keeps the summary truthful while a quantity is only staged', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    const head = screen.getByTestId('page-head')
-    expect(within(head).getByText('32')).toBeInTheDocument()
-    expect(within(head).getByText('2')).toBeInTheDocument()
+
+    const summary = document.querySelector('.msr') as HTMLElement
+    const atRest = summary.textContent
+    const qty = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(qty, { target: { value: '5' } })
+    expect(summary.textContent).toBe(atRest)
+    expect(summary.textContent).toMatch(/made\s*0/)
   })
 
-  it('omits the planned-total meta line entirely when nothing is planned for this action_type', async () => {
+  it('renders a zero-plan summary rather than a second empty-state sentence', async () => {
     mockFetchPlanMap.mockResolvedValue({})
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    expect(document.querySelector('.kl-plan-sum')).toBeNull()
-  })
-
-  // #588 — the dish count rendered as a bare '· 2' beside 'Planned total 20', with no label,
-  // while Plan states the same fact labeled ('Items planned 1'). The count now carries Plan's
-  // own shared vocabulary key (kitchen.plan.summary.itemsPlanned), so a reader doesn't have to
-  // guess what the second number means.
-  it('labels the dish count with Plan\'s shared "Items planned" vocabulary, not a bare count', async () => {
-    await renderPage()
-    await waitFor(() => screen.getByText('Ayam Bakar'))
-    const head = screen.getByTestId('page-head')
-    expect(within(head).getByText('Items planned')).toBeInTheDocument()
-  })
-})
-
-describe('OD-K-5: Log renders the derived KPI strip', () => {
-  it('reads submitted actuals, ignores typing, and updates after a successful submit', async () => {
-    setDesktopMatchMedia(true)
-    mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
-    await renderPage()
-    await waitFor(() => screen.getByText('Ayam Bakar'))
-
-    expect(screen.queryByRole('region', { name: /plan vs actual summary/i })).toBeNull()
-
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    fireEvent.change(qtyInput, { target: { value: '5' } })
-    expect(screen.queryByRole('region', { name: /plan vs actual summary/i })).toBeNull()
-
-    fireEvent.blur(qtyInput)
-    fireEvent.change(await screen.findByRole('textbox', { name: /note for ayam bakar/i }), {
-      target: { value: 'extra batch' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /submit/i }))
-
-    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
-    await waitFor(() => {
-      expect(within(screen.getByRole('region', { name: /plan vs actual summary/i })).getByText('5')).toBeInTheDocument()
-    })
-    expect(within(screen.getByRole('region', { name: /plan vs actual summary/i })).getByText(/−27 vs plan/i)).toBeInTheDocument()
-  })
-
-  it('shows the no-plan empty form when the selected day has no plan', async () => {
-    setDesktopMatchMedia(true)
-    mockFetchPlanMap.mockResolvedValue({})
-    await renderPage()
-    await waitFor(() => screen.getByText('Ayam Bakar'))
-
-    expect(screen.queryByRole('region', { name: /plan vs actual summary/i })).toBeNull()
+    expect(document.querySelector('.msr')?.textContent).toMatch(/Plan\s*0/)
+    expect(screen.queryByText(/planned total/i)).toBeNull()
   })
 })
 
@@ -1219,13 +1178,26 @@ describe('OD-K-5: Planned/Off-plan group split (desktop)', () => {
     setDesktopMatchMedia(true)
     mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
     await renderPage()
-    await waitFor(() => screen.getByText('Sambal Matah'))
+    await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // both group headers render with the right counts (2 planned, 1 off-plan)
+    // both non-empty group headers render with the right counts (2 planned, 1 off-plan).
     const plannedHead = screen.getByRole('button', { name: /collapse planned today/i }).closest('tr')!
     expect(within(plannedHead).getByText('2')).toBeInTheDocument()
-    const offplanHead = screen.getByRole('button', { name: /collapse off-plan/i }).closest('tr')!
+    const offplanHead = screen.getByRole('button', { name: /expand off-plan/i }).closest('tr')!
     expect(within(offplanHead).getByText('1')).toBeInTheDocument()
+    expect(screen.queryByText('Sambal Matah')).toBeNull()
+  })
+
+  it('omits a zero-row group and opens Off-plan when Planned is empty', async () => {
+    setDesktopMatchMedia(true)
+    mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
+    mockFetchPlanMap.mockResolvedValue({})
+    await renderPage()
+    await waitFor(() => screen.getByText('Sambal Matah'))
+
+    expect(screen.queryByRole('button', { name: /collapse planned today/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /collapse off-plan/i })).toBeInTheDocument()
+    expect(screen.getByText('Sambal Matah')).toBeInTheDocument()
   })
 })
 
@@ -1329,9 +1301,9 @@ describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
     // P-4 invariant: phone renders the shared card reflow (.dt-cards), NOT the desktop <table>
     expect(screen.queryByRole('table', { name: /café production log/i })).toBeNull()
     expect(document.querySelector('.dt-cards')).not.toBeNull()
-    // the Planned/Off-plan groups render on phone via the shared DataTable collapse toggle
+    // With the default fixture every row is planned, so the zero Off-plan group is omitted.
     expect(screen.getByRole('button', { name: /collapse planned today/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /collapse off-plan/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /off-plan/i })).toBeNull()
   })
 
   it('desktop: the <table> renders; the phone card reflow is absent', async () => {
@@ -1342,13 +1314,13 @@ describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
     expect(document.querySelector('.dt-cards')).toBeNull()
   })
 
-  it('phone capture cards show the item category caption and current stock figure', async () => {
+  it('phone capture cards omit redundant category captions and show current stock figure', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const card = screen.getByText('Ayam Bakar').closest('.kl-card')
     expect(card).not.toBeNull()
-    expect(within(card as HTMLElement).getByText('Main')).toBeInTheDocument()
+    expect(within(card as HTMLElement).queryByText('Main')).toBeNull()
     expect(within(card as HTMLElement).getByText('3')).toBeInTheDocument()
     expect(within(card as HTMLElement).getByText(/stock/i)).toBeInTheDocument()
   })
@@ -1614,16 +1586,17 @@ describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-
     mockFetchActualsMap.mockResolvedValue(AC6_ACTUALS)
   })
 
-  it('AC-006: the plan seeds the placeholder, "logged 4" renders, and qty == plan − stock passes without a note', async () => {
+  it('AC-006: a logged row blanks the plan placeholder, shows the running actual, and keeps the gate', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const qty = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    // Plan-as-placeholder (FR-015): the greyed anchor is the plan, not an entry.
-    expect(qty).toHaveAttribute('placeholder', '10')
-    // The running "already logged N" actuals (FR-014) — from the DB, not the form.
+    // Once a row has a submitted actual, the greyed plan anchor is removed (FR-020).
+    expect(qty).toHaveAttribute('placeholder', '')
+    // The running "already logged N" actuals (FR-014) — from the DB, not the form. The
+    // English catalog says "logged" and the Indonesian catalog says "sudah".
     const meta = document.querySelector('.kls-meta')
-    expect(meta?.textContent).toMatch(/logged\s*4/)
+    expect(meta?.textContent).toMatch(/(?:logged|sudah)\s*4/)
 
     // Effective target = plan − stock = 8 (FR-014): logging exactly 8 is on-target.
     await act(async () => {
@@ -1661,7 +1634,7 @@ describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-
     )
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    expect(document.querySelector('.kls-meta')?.textContent).toMatch(/logged\s*4/)
+    expect(document.querySelector('.kls-meta')?.textContent).toMatch(/(?:logged|sudah)\s*4/)
 
     const picker = screen.getByRole('combobox', { name: /production stream/i })
     await act(async () => {
@@ -2087,4 +2060,3 @@ describe('DD-7: the summary band never reports typed-but-unsaved quantities as l
     await bandNeverClaimsLoggedProduction()
   })
 })
-

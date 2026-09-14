@@ -27,7 +27,7 @@
 // org-readable; RLS is the authority — no UI role gate). Date defaults to WIB today
 // (OQ-7). Read-only is the signal — NO edit/save/approve affordances.
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -40,11 +40,10 @@ import type { KitchenStockRow, ProductionStream } from '@/lib/db/kitchen-logs.ty
 import { streamLabel } from '@/lib/kitchen-action-label'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
-import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
-import { useStockKpiStripData } from '@/lib/kitchen-stock-kpis'
+import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
 import './kitchen-stock-page.css'
 
@@ -84,9 +83,20 @@ export function KitchenStockPage() {
   const [retryKey, setRetryKey] = useState(0)
   const isDesktop = useIsDesktop()
   const [search, setSearch] = useState('')
-  // Derived stock KPIs (P-1, OQ-5 default ON) — pure view over the SELECTED stream's rows.
-  const kpiData = useStockKpiStripData(rows)
-  const hasLoggedStockData = rows.some(row => row.stok !== 0 || row.tersedia !== 0)
+  // One compact summary over the SELECTED stream's rows. Stock's meaning is the system
+  // balance, available balance, and negative-row count; the retired four-tile strip implied
+  // four separate decisions where the table already is the source of truth.
+  const stockSummary = useMemo(() => {
+    let onHand = 0
+    let available = 0
+    let negative = 0
+    for (const row of rows) {
+      onHand += row.stok
+      available += row.tersedia
+      if (row.stok < 0 || row.tersedia < 0) negative += 1
+    }
+    return { onHand, available, negative }
+  }, [rows])
   const searchQuery = search.trim().toLowerCase()
   const visibleRows = rows.filter(row => (
     !searchQuery || row.wip_item_name.toLowerCase().includes(searchQuery)
@@ -118,6 +128,20 @@ export function KitchenStockPage() {
     },
     { key: 'tersedia', header: t('kitchen.stock.col.tersedia'), numeric: true },
   ]
+
+  // FR-028: stock is read, not acted on row-by-row. The phone row keeps the name and the
+  // three comparable figures on two short lines; the shared DataTable supplies the outer
+  // touch-safe card and keeps the desktop table branch unchanged.
+  const renderStockCard = (row: KitchenStockRow) => (
+    <div className="ks-card">
+      <span className="ks-card-name">{row.wip_item_name}</span>
+      <div className="ks-card-meta">
+        <span><span className="ks-card-label">{t('kitchen.stock.col.stok')}</span> <strong className="tabular">{row.stok}</strong></span>
+        <span><span className="ks-card-label">{t('kitchen.stock.card.erp')}</span> <span className="ks-erp-pending">—</span></span>
+        <span><span className="ks-card-label">{t('kitchen.stock.col.tersedia')}</span> <strong className="tabular">{row.tersedia}</strong></span>
+      </div>
+    </div>
+  )
 
   // Stale-response guard: every read bumps the generation, and only the LATEST
   // generation's result may land. Without this, two rapid stream switches can resolve
@@ -212,16 +236,16 @@ export function KitchenStockPage() {
       meta={<span className="ks-date tabular">{asOf}</span>}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
-      {/* Derived KPI strip (P-1, OQ-5 default ON) — only when populated */}
+      {/* FR-027: one summary line only — no tile strip and no second "no entries" note. */}
       {load.kind === 'ready' && rows.length > 0 && (
-        <>
-          <KitchenKpiStrip data={kpiData} isDesktop={isDesktop} />
-          <DataProvenanceNote
-            kind="live"
-            show={!hasLoggedStockData}
-            note={t('kitchen.stock.noEntriesToday')}
-          />
-        </>
+        <MetricSummaryRule
+          ariaLabel={t('kitchen.stock.kpi.ariaLabel')}
+          metrics={[
+            { key: 'on-hand', label: t('kitchen.stock.kpi.onHand'), value: String(stockSummary.onHand) },
+            { key: 'negative', label: t('kitchen.stock.kpi.negative'), value: String(stockSummary.negative) },
+            { key: 'available', label: t('kitchen.stock.kpi.available'), value: String(stockSummary.available) },
+          ]}
+        />
       )}
 
       {load.kind === 'loading' && streamOptions.length === 0 && <LoadingShell count={3} />}
@@ -257,15 +281,16 @@ export function KitchenStockPage() {
             />
           ) : (
             <>
-              <DataProvenanceNote kind="live" show note={t('kitchen.stock.erpPending')} />
               <DataTable
                 columns={stockColumns}
                 rows={visibleRows}
                 isDesktop={isDesktop}
+                renderCard={renderStockCard}
                 state={visibleRows.length > 0 ? 'ready' : 'empty'}
                 emptyLabel={t('kitchen.filter.noMatch')}
                 caption={t('kitchen.stock.caption', { stream: streamLabel(t, stream), date: asOf })}
               />
+              <DataProvenanceNote kind="live" show note={t('kitchen.stock.erpPending')} />
             </>
           )}
         </div>

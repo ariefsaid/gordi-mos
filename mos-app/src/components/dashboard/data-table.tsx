@@ -64,6 +64,12 @@ export interface DataTableProps<Row> {
    */
   collapsedGroupKeys?: ReadonlySet<string>
   onToggleGroup?: (key: string) => void
+  /**
+   * Initial grouped-collapse state for a high-frequency list. The table keeps ownership of
+   * subsequent toggles; callers use this only to make the first view reflect the list's
+   * information hierarchy (for example, a secondary Off-plan group behind a populated Plan).
+   */
+  defaultCollapsedGroupKeys?: ReadonlySet<string>
   rowClassName?: (row: Row, index: number) => string | undefined
   sort?: DataTableSort
   onSortChange?: (sort: DataTableSort) => void
@@ -108,6 +114,7 @@ export function DataTable<Row extends object>({
   tableClassName,
   collapsedGroupKeys,
   onToggleGroup: onToggleGroupProp,
+  defaultCollapsedGroupKeys,
   rowClassName,
   renderCard,
   sort,
@@ -128,7 +135,9 @@ export function DataTable<Row extends object>({
   // default. Internal UNLESS the caller supplies `collapsedGroupKeys`/`onToggleGroup`,
   // in which case the caller's set wins and the internal one is never read. (useState is
   // called before the error early-return to satisfy the rules-of-hooks order invariant.)
-  const [internalCollapsed, setInternalCollapsed] = useState<Set<string>>(() => new Set())
+  const [internalCollapsed, setInternalCollapsed] = useState<Set<string>>(
+    () => new Set(defaultCollapsedGroupKeys ?? []),
+  )
   const toggleGroup = (key: string) => {
     if (onToggleGroupProp) {
       onToggleGroupProp(key)
