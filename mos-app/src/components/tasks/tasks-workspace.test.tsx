@@ -676,7 +676,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
 
 // V3 Issue 3, Task 7/8 — Tasks is the Workspace page-family representative.
 describe('TasksWorkspace — V3 Workspace frame (Issue 3)', () => {
-  it('mounts Tasks inside the Workspace page family with one main, one h1, and the Tasks job sentence', async () => {
+  it('mounts Tasks inside the Workspace page family with one main, one h1, and neutral collection copy', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 't1', title: 'Prep the bar' })])
     renderTable()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: /^tasks$/i }))
@@ -689,8 +689,9 @@ describe('TasksWorkspace — V3 Workspace frame (Issue 3)', () => {
     // Exactly one h1 — the Tasks title (never the internal family name).
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
 
-    // The Tasks job sentence is visible; the internal family name never renders as chrome.
-    expect(screen.getByText('Find and do the work I own or my Team owns.')).toBeInTheDocument()
+    // The Tasks collection copy is neutral across All / My work / Team work scopes; the internal
+    // family name never renders as chrome.
+    expect(screen.getByText('Find and update the work in this view.')).toBeInTheDocument()
     expect(screen.queryByText('Workspace')).toBeNull()
 
     // The typed Tasks region survives the frame swap.
@@ -704,6 +705,12 @@ describe('TasksWorkspace — V3 Workspace frame (Issue 3)', () => {
     expect(main?.getAttribute('data-page-family')).toBe('workspace')
     expect(main?.getAttribute('data-page-state')).toBe('loading')
     expect(main?.getAttribute('aria-busy')).toBe('true')
+    // The route's initial data load must keep the page identity, queue controls, and one
+    // announced Loading tasks status mounted; a bare skeleton is not an acceptable first paint.
+    expect(screen.getByRole('heading', { level: 1, name: /^tasks$/i })).toBeInTheDocument()
+    expect(screen.getByText('Find and update the work in this view.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /filter/i })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Loading tasks' })).toBeInTheDocument()
   })
 })
 
@@ -1803,6 +1810,20 @@ describe('Task 22 — mobile grouped cards (AC-129)', () => {
     expect(document.querySelector('[data-testid="task-card"]')).toBeTruthy()
     // A group heading for the status grouping
     expect(document.querySelector('.mgc-group-head')).toBeTruthy()
+  })
+
+  it('AC-760: phone task rows remove duplicate chrome, tighten the scan, and retain touch floors', () => {
+    const queueCss = readFileSync(resolve(process.cwd(), 'src/components/tasks/TaskQueue.css'), 'utf8')
+    expect(queueCss).not.toContain('tasks-work-queue__lead')
+    expect(queueCss).toMatch(
+      /\.tasks-work-queue \.task-card\.collection-grammar-card \.task-card-link\s*\{[^}]*min-height:\s*44px[^}]*padding:\s*8px 12px/,
+    )
+    expect(queueCss).toMatch(
+      /\.tasks-work-queue \.task-card\.collection-grammar-card \.task-card-meta\s*\{[^}]*gap:\s*4px 10px[^}]*margin-top:\s*4px/,
+    )
+    expect(queueCss).toMatch(
+      /@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.tasks-page-head \.page-head-job\s*\{[^}]*display:\s*none/,
+    )
   })
 })
 

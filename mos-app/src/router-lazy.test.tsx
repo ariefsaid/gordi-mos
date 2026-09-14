@@ -6,7 +6,7 @@
 // render its page, so "each entry except the index and login resolves through a lazy import" is
 // asserted against the full table rather than the half of it the default configuration exposes.
 import { describe, it, expect, vi } from 'vitest'
-import { isValidElement } from 'react'
+import { isValidElement, type ReactElement, type ReactNode } from 'react'
 
 vi.mock('./config/features', () => ({
   SHOW_USER_VIEWS: true,
@@ -94,6 +94,14 @@ describe('AC-019: every route but the index and login loads on demand, behind on
       .map((r) => [r.path, r.route.element] as const),
   )('%s is a lazy import wrapped in the sanctioned LoadingShell', (_path, element) => {
     expect(lazyPayloadOf(element)).toBeDefined()
+  })
+
+  it('keeps the Tasks identity in the lazy-route loading fallback', () => {
+    const route = routes.find((candidate) => candidate.path === '/work/tasks')!
+    const suspense = route.route.element as ReactElement<{ fallback?: ReactNode }>
+    const fallback = suspense.props.fallback as ReactElement<{ titleKey?: string; labelKey?: string }>
+    expect(fallback.props.titleKey).toBe('tasks.title')
+    expect(fallback.props.labelKey).toBe('tasks.loading')
   })
 
   it.each(

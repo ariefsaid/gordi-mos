@@ -61,12 +61,19 @@ describe('AC-932: Home layout primitives are defined once', () => {
     expect(tracks.filter((track) => /\b1fr\b/.test(track) && !track.includes('minmax(0')).length).toBe(0)
   })
 
-  it('AC-932 / AC-926: compact region tabs stay one line and keep the phone tap floor', () => {
+  it('AC-932 / AC-926: the base region-tab strip keeps its scroll grammar and phone tap floor', () => {
     const css = readFileSync(join(__dirname, 'home-layouts.css'), 'utf8')
     const tabs = css.match(/\.home-tabs\s*\{[^}]*\}/s)?.[0] ?? ''
     const tab = css.match(/\.home-tab\s*\{[^}]*\}/s)?.[0] ?? ''
     expect(tabs).toMatch(/flex-wrap:\s*nowrap/)
     expect(tabs).toMatch(/overflow-x:\s*auto/)
     expect(tab).toMatch(/min-height:\s*44px/)
+  })
+
+  it('AC-760: compact region tabs wrap on the phone so every choice remains discoverable', () => {
+    const css = readFileSync(join(__dirname, 'home-layouts.css'), 'utf8')
+    expect(css).toMatch(
+      /@container home\s*\(max-width:\s*620px\)[\s\S]*?\.home-tabs\s*\{[^}]*flex-wrap:\s*wrap[^}]*overflow-x:\s*visible[^}]*overflow-y:\s*visible/,
+    )
   })
 })

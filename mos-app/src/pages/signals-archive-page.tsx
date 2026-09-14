@@ -267,6 +267,7 @@ export function SignalsArchivePage() {
 
   const signalToolbar = (
     <CollectionToolbar
+      className="signals-archive-toolbar"
       // D-D2 / Rule 7: the ONE compose door for /work/signals lives in the toolbar, so it is present
       // in BOTH Table and Feed (it used to appear only as the in-feed row and vanish in Table). The
       // in-feed "Share a Signal" row is now ambient-only (Home tail) — see SignalFeedRows.

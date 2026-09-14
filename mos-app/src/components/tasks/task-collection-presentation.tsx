@@ -554,9 +554,6 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
 
   return (
     <div className="tasks-work-queue" data-testid="tasks-work-queue">
-      <section className="tasks-work-queue__lead" aria-labelledby="tasks-work-queue-title">
-        <h2 id="tasks-work-queue-title">{t('tasks.queue.title')}</h2>
-      </section>
       <TasksTableBody
         loading={false}
         error={null}

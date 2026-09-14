@@ -82,8 +82,8 @@ export function lazyPage<T extends ComponentType<any>>(
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-function withSuspense(element: ReactNode) {
-  return <Suspense fallback={<LoadingShell />}>{element}</Suspense>
+function withSuspense(element: ReactNode, fallback: ReactNode = <LoadingShell />) {
+  return <Suspense fallback={fallback}>{element}</Suspense>
 }
 
 const TasksLayout = lazyPage(() => import('./pages/tasks-layout').then((m) => ({ default: m.TasksLayout })))
@@ -223,7 +223,10 @@ const routeTable: RouteObject[] = [
           },
           {
             path: ROUTE_PATHS.workTasks,
-            element: withSuspense(<TasksLayout />),
+            element: withSuspense(
+              <TasksLayout />,
+              <LoadingShell titleKey="tasks.title" labelKey="tasks.loading" />,
+            ),
             handle: pageHandle('workspace'),
             children: [
               {

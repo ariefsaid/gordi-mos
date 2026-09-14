@@ -140,6 +140,11 @@
 }
 
 @container home (max-width: 620px) {
+  .home-tabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    overflow-y: visible;
+  }
   .home-bento { grid-template-columns: minmax(0, 1fr); }
   .home-tile[data-weight] { grid-column: span 1; }
 }

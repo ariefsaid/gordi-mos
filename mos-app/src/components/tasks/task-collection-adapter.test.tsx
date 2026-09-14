@@ -307,7 +307,7 @@ describe('table presentation (shared-surface fallback renderer)', () => {
     expect(onOpenRecord).toHaveBeenCalledTimes(1)
   })
 
-  it('names the page-level work queue as the primary work surface', () => {
+  it('keeps the task collection surface without a redundant Work queue heading band', () => {
     const data = makeData()
     const projection = taskCollectionDescriptor.project(data, q(), 'table')
     render(
@@ -317,7 +317,7 @@ describe('table presentation (shared-surface fallback renderer)', () => {
         onToggleGroup: () => {}, isGroupCollapsed: () => false,
       })}</MemoryRouter></I18nProvider>,
     )
-    expect(screen.getByRole('heading', { level: 2, name: /work queue/i })).toBeInTheDocument()
     expect(screen.getByTestId('tasks-work-queue')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 2, name: /work queue/i })).not.toBeInTheDocument()
   })
 })

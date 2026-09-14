@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import userEvent from '@testing-library/user-event'
@@ -218,6 +220,16 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     expect(screen.getByRole('button', { name: /save view/i })).toBeInTheDocument()
     // The chosen Table persists as shareable URL state (?layout=table).
     expect(screen.getByTestId('location')).toHaveTextContent('layout=table')
+  })
+
+  it('AC-760: phone saved-view choices wrap visibly and keep the 44px choice floor', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/pages/signals-archive-page.css'), 'utf8')
+    expect(css).toMatch(
+      /@media\s*\(max-width:\s*767px\)[\s\S]*?\.signals-archive-toolbar \.collection-toolbar__views\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap[^}]*overflow-x:\s*visible[^}]*overflow-y:\s*visible/,
+    )
+    expect(css).toMatch(
+      /\.signals-archive-toolbar \.collection-toolbar__view\s*\{[^}]*min-height:\s*44px/,
+    )
   })
 
   it('D-D2 / Rule 7: the toolbar hosts ONE layout-independent Share Signal door (present in Feed AND Table; no in-feed row)', async () => {
