@@ -1542,7 +1542,7 @@ describe('DD-MVP-9: a receiving-only stream remains readable but cannot capture 
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const picker = screen.getByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveValue(streamKey(BRANCH_RADIANT.id, 'kitchen'))
+    expect(picker).toHaveTextContent('Radiant · Kitchen')
     expect(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toBeDisabled()
     expect(screen.queryByRole('tablist')).toBeNull()
     expect(screen.getByText(/receives production/i)).toBeInTheDocument()

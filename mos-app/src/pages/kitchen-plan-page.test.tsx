@@ -804,7 +804,7 @@ describe('DD-MVP-9: the Plan editor treats a receiving-only stream as readable, 
     await screen.findByText('Ayam Bakar')
 
     const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker).toHaveValue(streamOption(BRANCHES[1].id, 'kitchen'))
+    expect(picker).toHaveTextContent('Radiant · Kitchen')
     expect(screen.getByText(/receives production/i)).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).toBeNull()
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })

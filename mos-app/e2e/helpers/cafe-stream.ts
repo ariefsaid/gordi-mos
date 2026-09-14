@@ -16,7 +16,7 @@ export async function ensureStream(page: Page, streamLabel = /rumah rames.*kitch
   await expect(picker).toBeVisible()
   // The stream picker is a designed trigger; its value is exposed by the visible label rather
   // than by the hidden native form bridge. An empty selection renders the explicit placeholder.
-  if (!/(choose|pilih) stream/i.test(await picker.innerText())) return
+  if (!/(choose stream|pilih tim)/i.test(await picker.innerText())) return
   // Default to the Rumah Rames kitchen: the stream the seed puts today's plans and logs
   // in (supabase/seed.sql), i.e. where the seeded personas actually work — the same
   // stream the pre-#440 silent fallback landed on, now chosen out loud. "First option"
@@ -24,7 +24,7 @@ export async function ensureStream(page: Page, streamLabel = /rumah rames.*kitch
   // their empty state instead of the content these guards measure.
   await picker.click()
   const listbox = page.getByRole('listbox', { name: /production stream/i })
-  const options = listbox.getByRole('option').filter({ hasNotText: /(choose|pilih) stream/i })
+  const options = listbox.getByRole('option').filter({ hasNotText: /(choose stream|pilih tim)/i })
   const labels = await options.allTextContents()
   const idx = labels.findIndex((l) => streamLabel.test(l))
   const target = options.nth(idx >= 0 ? idx : 0)
