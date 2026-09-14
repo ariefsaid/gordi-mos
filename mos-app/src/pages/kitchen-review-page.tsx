@@ -385,6 +385,10 @@ export function KitchenReviewPage() {
   const [bulkAction, setBulkAction] = useState<string | null>(null)
   const [actionError, setActionError] = useState('')
   const [notice, setNotice] = useState('')
+  // An approval creates the next actionable Pushes record. Keep this separate from the
+  // message text so the handoff link is offered only when the current viewer is admitted to
+  // Pushes; supervisors can review their stream but must not receive a dead-end link.
+  const [noticeCanViewPushes, setNoticeCanViewPushes] = useState(false)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const isDesktop = useIsDesktop()
 
@@ -538,10 +542,12 @@ export function KitchenReviewPage() {
     if (!isOnline) return
     setSubmittingId(logId)
     setActionError('')
+    setNoticeCanViewPushes(false)
     try {
       const { batch_id } = await approveKitchenLog(logId, reviewNote)
       removeRow(logId)
       setNotice(t('kitchen.review.notice.approved', { batchId: batch_id }))
+      setNoticeCanViewPushes(isLeadOrAdmin)
     } catch (err) {
       handleDecisionError(err)
     } finally {
@@ -553,6 +559,7 @@ export function KitchenReviewPage() {
     if (!isOnline) return
     setSubmittingId(logId)
     setActionError('')
+    setNoticeCanViewPushes(false)
     try {
       await rejectKitchenLog(logId, reviewNote)
       removeRow(logId)
@@ -571,6 +578,7 @@ export function KitchenReviewPage() {
     const key = streamKey(selectedStream.branch.id, selectedStream.activity)
     setConfirmingStream(key)
     setActionError('')
+    setNoticeCanViewPushes(false)
     try {
       const row = await confirmStreamComplete(selectedStream.branch.id, selectedStream.activity)
       setCompleteness(prev => new Map(prev).set(key, row))
@@ -604,6 +612,7 @@ export function KitchenReviewPage() {
     setBulkAction(action)
     setActionError('')
     setNotice('')
+    setNoticeCanViewPushes(false)
     let approved = 0
     let failed = 0
     const batches: string[] = []
@@ -659,12 +668,14 @@ export function KitchenReviewPage() {
     setBulkAction(null)
     if (failed > 0 || stale.length > 0) {
       setNotice(t('kitchen.review.notice.bulkTruth', { approved, failed, stale: stale.length }))
+      setNoticeCanViewPushes(isLeadOrAdmin && approved > 0)
     } else if (approved > 0) {
       setNotice(
         approved === 1
           ? t('kitchen.review.notice.approved', { batchId: batches[0] ?? '—' })
           : t('kitchen.review.notice.bulkApproved', { approved, batchId: batches.join(', ') }),
       )
+      setNoticeCanViewPushes(isLeadOrAdmin)
     }
     if (stale.length > 0) setRetryKey(k => k + 1)
   }
@@ -993,7 +1004,12 @@ export function KitchenReviewPage() {
 
       {notice && (
         <div role="status" aria-live="polite" className="kr-banner kr-banner-notice kr-block">
-          {notice}
+          <span>{notice}</span>
+          {noticeCanViewPushes && (
+            <Link to="/cafe/pushes" className="kr-notice-link">
+              {t('kitchen.review.notice.viewPushes')}
+            </Link>
+          )}
         </div>
       )}
 

@@ -240,14 +240,14 @@ describe('WipItemStepper — AC-020/021/022', () => {
     expect(onQtyChange).toHaveBeenCalledWith(0)
   })
 
-  // v4: the note field + the invalid-border cue reveal on BLUR, never on every keystroke —
-  // typing "18" against a plan of 25 must not flag at the first digit.
-  it('AC-020/021: does NOT reveal the note field while still typing (before blur)', () => {
+  // The invalid-border cue remains blur-gated, but the note remedy must be reachable as soon as
+  // the live gate makes Submit unavailable.
+  it('AC-020/021: reveals the note field while the off-plan quantity is still focused', () => {
     renderStepper({ line: { qty_porsi: 7, error: 'Catatan wajib — di luar rencana', dirty: true } })
-    expect(screen.queryByRole('textbox', { name: /note/i })).toBeNull()
+    expect(screen.getByRole('textbox', { name: /note/i })).toBeInTheDocument()
   })
 
-  it('AC-020/021: reveals the note field on BLUR (cafe-1: rendered localized, not the raw ID gate constant)', () => {
+  it('AC-020/021: keeps the note cue localized and the field reachable after BLUR', () => {
     renderStepper({ line: { qty_porsi: 7, error: 'Catatan wajib — di luar rencana', dirty: true } })
     fireEvent.blur(screen.getByRole('spinbutton', { name: /quantity/i }))
     expect(screen.getByText(/note required — off plan/i)).toBeInTheDocument()
@@ -375,19 +375,14 @@ describe('WipItemStepper — DD-18: the variance-note field survives being fille
     expect(document.activeElement).toBe(note)
   })
 
-  it('DD-18(b)/DD-8: typing an off-plan quantity does NOT reveal the note field before blur (the reveal stays blur-gated, never per keystroke)', () => {
+  it('DD-18(b): typing an off-plan quantity keeps the required note field reachable before blur', () => {
     render(<StagedLineHarness planQty={19} />)
     const qty = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
 
-    // Mid-entry — "1" on the way to "19" is already off-plan, and must not shove a mandatory
-    // textarea into the row while the number is still being typed.
+    // A staged value that differs from plan immediately makes Submit unavailable. The same
+    // state must expose the field that satisfies that gate; otherwise a focused quantity input
+    // leaves the worker with a disabled action and no route to resolve it.
     fireEvent.change(qty, { target: { value: '1' } })
-    expect(screen.queryByRole('textbox', { name: /note for nasi goreng/i })).toBeNull()
-    fireEvent.change(qty, { target: { value: '7' } })
-    expect(screen.queryByRole('textbox', { name: /note for nasi goreng/i })).toBeNull()
-
-    // Only once the field is done does the gate ask for the note.
-    fireEvent.blur(qty)
     expect(screen.getByRole('textbox', { name: /note for nasi goreng/i })).toBeInTheDocument()
   })
 })

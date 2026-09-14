@@ -704,7 +704,7 @@ export function KitchenLogPage() {
           onNotesChange={note => handleNotesChange(item.id, note)}
           unitOptions={item.units}
           onUnitChange={unitId => handleUnitChange(item.id, unitId)}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !canCapture || streamMissing}
           hideName
           dense={isDesktop}
         />
@@ -763,7 +763,7 @@ export function KitchenLogPage() {
             onNotesChange={note => handleNotesChange(item.id, note)}
             unitOptions={item.units}
             onUnitChange={unitId => handleUnitChange(item.id, unitId)}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !canCapture || streamMissing}
             hideName
             dense
           />
@@ -886,7 +886,7 @@ export function KitchenLogPage() {
                 branches={branches}
                 origin={stream}
                 onChange={handleMovementChange}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !canCapture || streamMissing}
               />
             </div>
           </KitchenToolbar>

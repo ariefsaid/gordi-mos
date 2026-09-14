@@ -1,5 +1,5 @@
 // KitchenReviewPage tests — TDD, AC-tagged.
-// S3 review/approve queue (ops_lead/admin only). Covers:
+// S3 review/approve queue (stream supervisors + ops leads/admin). Covers:
 //  - role gate: a member sees a forbidden panel, NOT an empty table (FR-003/044)
 //  - queue lists ONLY Submitted logs grouped by action_type (FR-040)
 //  - approve calls the RPC with the right args (FR-050, AC-090)
@@ -342,7 +342,21 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', null))
     // confirmed batch id surfaced + row leaves the queue
     expect(await screen.findByText(/PR-20260620-003/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /view pushes/i })).toHaveAttribute('href', '/cafe/pushes')
     await waitFor(() => expect(screen.queryByText('Nasi Goreng')).not.toBeInTheDocument())
+  })
+
+  it('a supervisor sees the approval result without a Pushes link they cannot open', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-004' })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
+    expect(await screen.findByText(/PR-20260620-004/)).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /view pushes/i })).not.toBeInTheDocument()
   })
 
   it('AC: P0003 (already actioned) → friendly notice + re-fetch', async () => {

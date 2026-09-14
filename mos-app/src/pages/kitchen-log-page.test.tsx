@@ -1,7 +1,7 @@
 // KitchenLogPage tests — TDD, AC-tagged
 // Covers: AC-020/021/022/030 (submit/validation/transfer cap), all states (loading,
 // empty, error, submitting, success, offline-in-every-state RI-2, unauthenticated),
-// BU-resolution failure (#3), inline note reveal (#6), touch floors (RI-3);
+// BU-resolution failure (#3), inline note reachability (#6), touch floors (RI-3);
 // #233 stream context: AC-002 (default from shared.default_stream(), switchable),
 // FR-002 (no default → explicit choice), FR-005 (the enumerable catalog only), AC-004 (no
 // raw-material input), AC-006 (effective target + already-logged, stream-scoped),
@@ -455,24 +455,19 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
 
-  it('#6: reveals the note field on BLUR once qty != target (no submit needed)', async () => {
+  it('#6: reveals the note field as soon as an off-plan qty makes Submit unavailable', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Nasi Goreng'))
 
-    // No note field before any input
+    // No note field before any staged quantity
     expect(screen.queryByRole('textbox', { name: /note for nasi goreng/i })).toBeNull()
 
-    // Type an off-target qty (plan=12, qty=1 → off-target). v4: the note reveals on BLUR,
-    // never per keystroke (a required textarea must not shove itself into the row mid-number).
+    // Type an off-target qty (plan=12, qty=1 → off-target). The footer gate is live while the
+    // quantity input remains focused, so the field that satisfies it must be reachable without
+    // requiring an undocumented blur/tap-away step.
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '1' } })
-      await Promise.resolve()
-    })
-    expect(screen.queryByRole('textbox', { name: /note for nasi goreng/i })).toBeNull()
-
-    await act(async () => {
-      fireEvent.blur(qtyInput)
       await Promise.resolve()
     })
 
@@ -491,7 +486,7 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // Type a qty for Ayam Bakar, then blur to reveal the gate.
+    // Type a qty for Ayam Bakar, then blur to apply the invalid-state cue.
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '1' } })
@@ -539,7 +534,8 @@ describe('F3: Submit disabled while a required variance-note is unresolved', () 
     const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
     expect(submit).toBeDisabled()
 
-    // Reveal the note field on blur (v4: the reveal is blur-gated, not per keystroke) and fill it
+    // The note field is already reachable from the live gate; blur still applies invalid styling.
+    // Fill it
     fireEvent.blur(qtyInput)
     const note = await screen.findByRole('textbox', { name: /note for ayam bakar/i })
     fireEvent.change(note, { target: { value: 'extra batch' } })
@@ -566,14 +562,16 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     await renderPage(UNAFFILIATED)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // Read-only, not hidden: the capture form and its rows render untouched.
-    expect(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toBeVisible()
+    // Read-only, not hidden: the capture form and its rows render, but write controls are closed.
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    expect(qtyInput).toBeVisible()
+    expect(qtyInput).toBeDisabled()
+    expect(screen.getByRole('tab', { name: /production/i })).toBeDisabled()
 
     // The ONE line stating why capture is closed.
     expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
 
     // No enabled submit control, even with a staged line.
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     fireEvent.change(qtyInput, { target: { value: '20' } })
     const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
     expect(submit).toBeDisabled()
@@ -586,8 +584,8 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     expect(screen.queryByRole('status')).toBeNull()
 
     // Plan 20 minus 3 on hand = effective target 17 (kitchen-gates.effectiveTarget). Staging
-    // exactly the target is on-plan, so nothing else blocks. Staging commits on blur (v4: the
-    // note reveal is blur-gated), so blur before asserting.
+    // exactly the target is on-plan, so nothing else blocks. Blur before asserting the settled
+    // staged state.
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     fireEvent.change(qtyInput, { target: { value: '17' } })
     fireEvent.blur(qtyInput)
@@ -683,7 +681,7 @@ describe('F3b: disabled Submit shows reason message when variance note is missin
     // Reason message shows while note is empty
     expect(screen.getByText(/note required to submit/i)).toBeInTheDocument()
 
-    // Fill the required note (blur first — v4: the note field reveals on blur)
+    // Fill the required note (the field is reachable as soon as the live gate appears).
     fireEvent.blur(qtyInput)
     const note = await screen.findByRole('textbox', { name: /note for ayam bakar/i })
     fireEvent.change(note, { target: { value: 'extra batch today' } })
@@ -1403,7 +1401,7 @@ describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
 // #233 — capture surface with stream context, all streams (bar-capture spec).
 // AC-002 (default pre-selected + switchable), FR-002 (no default → explicit choice),
 // FR-005 (the catalog's streams, roastery never one), AC-004 (no raw-material input),
-// AC-006 (plan-as-placeholder + effective target + already-logged + note-on-blur,
+// AC-006 (plan-as-placeholder + effective target + already-logged + live note gate,
 // stream-scoped), AC-012b frontend half (the submitted rows carry the SELECTED pair).
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1496,6 +1494,10 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     // Submit is disabled up front and the reason is named beside it.
     expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /^submit/i })[0]).toBeDisabled()
+    // The explicit choice is the next write step; do not let a quantity be staged against no
+    // stream while the picker is still waiting for a selection.
+    expect(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toBeDisabled()
+    expect(screen.getByRole('tab', { name: /production/i })).toBeDisabled()
   })
 
   it('choosing a stream from the picker loads it and capture proceeds against the chosen pair', async () => {
@@ -1574,7 +1576,7 @@ describe("AC-004 / FR-010: no raw-material input on any stream's form; fixed uni
   })
 })
 
-describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-logged + note-on-blur, stream-scoped', () => {
+describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-logged + live note gate, stream-scoped', () => {
   // The spec's own numbers: plan 10, already logged 4, 2 in stock → effective target 8.
   const AC6_PLAN = { w1: { [PRODUCE_KEY]: 10 } }
   const AC6_STOCK = { w1: { stok: 2, tersedia: 2 }, w2: { stok: 0, tersedia: 0 } }
@@ -1607,19 +1609,14 @@ describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-
     expect(screen.queryByText(/note required — off plan/i)).toBeNull()
   })
 
-  it('AC-006: a variant qty reveals the required-note gate on blur', async () => {
+  it('AC-006: a variant qty reveals the required-note gate while still focused', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const qty = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    // 10 is the RAW plan — off the effective target (8), so the gate must reveal on blur.
+    // 10 is the RAW plan — off the effective target (8), so the gate must be reachable immediately.
     await act(async () => {
       fireEvent.change(qty, { target: { value: '10' } })
-      await Promise.resolve()
-    })
-    expect(screen.queryByText(/note required — off plan/i)).toBeNull() // not before blur
-    await act(async () => {
-      fireEvent.blur(qty)
       await Promise.resolve()
     })
     await waitFor(() => {
