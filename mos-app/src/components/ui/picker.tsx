@@ -238,6 +238,7 @@ export function Picker({
   }
 
   const selectedLabel = options.find((option) => option.value === value)?.label
+  const fullValue = selectedLabel ?? placeholder ?? label
   const rootClassName = [
     'picker',
     fullWidth ? 'picker--full' : null,
@@ -263,6 +264,8 @@ export function Picker({
         aria-busy={busy || undefined}
         aria-required={required || undefined}
         className={['picker__trigger', triggerClassName].filter(Boolean).join(' ')}
+        title={fullValue}
+        data-full-value={fullValue}
         disabled={disabled || busy}
         autoFocus={autoFocus}
         onBlur={onBlur}
@@ -277,7 +280,13 @@ export function Picker({
           onKeyDown?.(event)
         }}
       >
-        <span className={!selectedLabel ? 'picker__placeholder' : undefined}>{selectedLabel ?? placeholder ?? label}</span>
+        <span
+          className={!selectedLabel ? 'picker__placeholder' : undefined}
+          title={fullValue}
+          data-full-value={fullValue}
+        >
+          {fullValue}
+        </span>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
       </button>
       {open && createPortal(

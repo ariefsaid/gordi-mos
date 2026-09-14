@@ -322,6 +322,7 @@ export function CollectionToolbar<
                 <div
                   key={filter.id}
                   className={`collection-toolbar__option-field${filter.tinted ? ' collection-toolbar__option-field--group' : ''}`}
+                  data-filter-id={filter.id}
                 >
                   {!isDesktop ? <span>{filter.label}</span> : null}
                   {/* Filter choices stay in the anchored popover until the user opens them. */}
@@ -332,11 +333,19 @@ export function CollectionToolbar<
                       aria-label={filter.label}
                       aria-haspopup="true"
                       aria-expanded={openPopoverId === filter.id}
+                      title={filter.display}
+                      data-full-value={filter.display}
                       onClick={() => setOpenPopoverId(openPopoverId === filter.id ? null : filter.id)}
                     >
                       <span className="collection-toolbar__choice-copy">
                         {isDesktop ? <span className="collection-toolbar__choice-label" aria-hidden="true">{filter.label}</span> : null}
-                        <span className="collection-toolbar__choice-value">{filter.display}</span>
+                        <span
+                          className="collection-toolbar__choice-value"
+                          title={filter.display}
+                          data-full-value={filter.display}
+                        >
+                          {filter.display}
+                        </span>
                       </span>
                       <span className="collection-toolbar__choice-chevron" aria-hidden="true">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -364,6 +373,7 @@ export function CollectionToolbar<
                 <div
                   key={filter.id}
                   className={`collection-toolbar__option-field${filter.tinted ? ' collection-toolbar__option-field--group' : ''}`}
+                  data-filter-id={filter.id}
                 >
                   {!isDesktop ? <span>{filter.label}</span> : null}
                   <Picker

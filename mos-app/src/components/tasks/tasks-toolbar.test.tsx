@@ -62,9 +62,11 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
     expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /group/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /business unit/i })).toHaveTextContent('Any business unit')
     expect(screen.getByRole('button', { name: /status/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /person/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /sort/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /sort/i })).toHaveTextContent('Due soonest')
     expect(screen.getByRole('button', { name: /^fields$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^save view$/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /attention/i })).toBeInTheDocument()
@@ -101,6 +103,31 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
     fireEvent.click(screen.getByRole('combobox', { name: /attention/i }))
     fireEvent.click(screen.getByRole('option', { name: /overdue/i }))
     expect(props.onOverdueFilter).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps full selected filter values discoverable within the compact desktop grammar', () => {
+    const businessUnit = 'Gordi HQ Retail Operations and Customer Experience'
+    const person = 'Bulan Barista with a deliberately long display name'
+    renderToolbar(makeProps({
+      query: {
+        ...TASK_COLLECTION_NEUTRAL_QUERY,
+        businessUnitId: 'bu-1',
+        personId: 'person-1',
+        status: 'In Progress',
+      },
+      buOptions: [{ id: 'bu-1', name: businessUnit }],
+      personOptions: [{ id: 'person-1', full_name: person }],
+    }))
+
+    const businessUnitTrigger = screen.getByRole('combobox', { name: /business unit/i })
+    const personTrigger = screen.getByRole('combobox', { name: /person/i })
+    const statusTrigger = screen.getByRole('button', { name: /^status$/i })
+    expect(businessUnitTrigger).toHaveAttribute('data-full-value', businessUnit)
+    expect(businessUnitTrigger).toHaveTextContent(businessUnit)
+    expect(personTrigger).toHaveAttribute('data-full-value', person)
+    expect(personTrigger).toHaveTextContent(person)
+    expect(statusTrigger).toHaveAttribute('data-full-value', 'In Progress')
+    expect(statusTrigger).toHaveTextContent('In Progress')
   })
 
   it('offers a compact clear action when an active subset is selected', () => {

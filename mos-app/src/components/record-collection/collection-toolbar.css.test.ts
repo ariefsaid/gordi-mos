@@ -29,7 +29,25 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
 
   it('keeps the Tasks attention trigger content-sized in the desktop row', () => {
     expect(css).toMatch(
-      /@media\s*\(min-width:\s*1200px\)[\s\S]*?\.tasks-collection-toolbar \.tasks-attention-picker\s*\{[^}]*flex:\s*0 0 auto;[^}]*min-width:\s*max-content;/s,
+      /@media\s*\(min-width:\s*1400px\)[\s\S]*?\.tasks-collection-toolbar \.tasks-attention-picker\s*\{[^}]*flex:\s*0 0 auto;[^}]*min-width:\s*max-content;/s,
+    )
+  })
+
+  it('reserves enough desktop width for the ordinary Tasks filter values', () => {
+    expect(css).toMatch(
+      /@media\s*\(min-width:\s*1400px\)[\s\S]*?\[data-filter-id='group'\][\s\S]*?flex:\s*0 0 86px;[\s\S]*?max-width:\s*none;/s,
+    )
+    expect(css).toMatch(
+      /@media\s*\(min-width:\s*1400px\)[\s\S]*?\[data-filter-id='business-unit'\][\s\S]*?flex:\s*0 0 160px;[\s\S]*?max-width:\s*none;/s,
+    )
+    expect(css).toMatch(
+      /@media\s*\(min-width:\s*1400px\)[\s\S]*?\[data-filter-id='status'\][\s\S]*?flex:\s*0 0 160px;[\s\S]*?max-width:\s*none;/s,
+    )
+    expect(css).toMatch(
+      /@media\s*\(min-width:\s*1400px\)[\s\S]*?\[data-filter-id='person'\][\s\S]*?flex:\s*0 0 98px;[\s\S]*?max-width:\s*none;/s,
+    )
+    expect(css).toMatch(
+      /@media\s*\(min-width:\s*1400px\)[\s\S]*?\[data-filter-id='sort'\][\s\S]*?flex:\s*0 0 130px;[\s\S]*?max-width:\s*none;/s,
     )
   })
 

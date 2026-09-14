@@ -221,10 +221,43 @@
 .collection-toolbar__select .picker__trigger { min-height: 32px; }
 /* Tasks' twelve-control desktop grammar has one line at the 1440px reference width. Keep the
    controls compact enough to share that row; narrower desktops retain the normal wrapping rule. */
-@media (min-width: 1200px) {
-  .tasks-collection-toolbar .collection-toolbar__options { flex-wrap: nowrap; gap: 8px; }
+@media (min-width: 1400px) {
+  .tasks-collection-toolbar .collection-toolbar__options { flex-wrap: nowrap; gap: 5px; }
   .tasks-collection-toolbar .collection-toolbar__option-field { min-width: 0; }
   .tasks-collection-toolbar .collection-toolbar__select { max-width: 150px; }
+  /* The reference desktop keeps ordinary filter values readable while the row remains one
+     bounded line. Exceptional directory names continue to use the existing ellipsis/title path
+     inside these fixed boxes. */
+  .tasks-collection-toolbar [data-filter-id='group'],
+  .tasks-collection-toolbar [data-filter-id='group'] .collection-toolbar__select {
+    flex: 0 0 86px;
+    width: 86px;
+    max-width: none;
+  }
+  .tasks-collection-toolbar [data-filter-id='business-unit'],
+  .tasks-collection-toolbar [data-filter-id='business-unit'] .collection-toolbar__select {
+    flex: 0 0 160px;
+    width: 160px;
+    max-width: none;
+  }
+  .tasks-collection-toolbar [data-filter-id='status'],
+  .tasks-collection-toolbar [data-filter-id='status'] .collection-toolbar__select {
+    flex: 0 0 160px;
+    width: 160px;
+    max-width: none;
+  }
+  .tasks-collection-toolbar [data-filter-id='person'],
+  .tasks-collection-toolbar [data-filter-id='person'] .collection-toolbar__select {
+    flex: 0 0 98px;
+    width: 98px;
+    max-width: none;
+  }
+  .tasks-collection-toolbar [data-filter-id='sort'],
+  .tasks-collection-toolbar [data-filter-id='sort'] .collection-toolbar__select {
+    flex: 0 0 130px;
+    width: 130px;
+    max-width: none;
+  }
   .tasks-collection-toolbar .collection-toolbar__query { flex: 0 1 220px; min-width: 150px; }
   .tasks-collection-toolbar .collection-toolbar__search { min-width: 150px; }
   /* The attention trigger is content-sized, so its Picker shell must not shrink around it.

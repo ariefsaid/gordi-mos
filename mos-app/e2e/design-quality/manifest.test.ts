@@ -20,6 +20,7 @@ import {
 } from './report.ts'
 import { MUTATION_FIXTURES, evaluateMutationFixture, parseCssColor } from './measurements.ts'
 import { assertAuditFixtureWritePolicy } from './audit-fixtures.ts'
+import { resetAuditScroll } from './scroll.ts'
 
 test('the design manifest covers every required dimension and declares complete rules', () => {
   const result = validateManifest(DESIGN_QUALITY_MANIFEST)
@@ -160,4 +161,42 @@ test('write-state audit cells fail closed until a database-verified provisioner 
     sessionId: 'a1b2c3d4',
     writes: true,
   }), /database-verified per-run provisioner/)
+})
+
+test('audit captures reset the browser and app-owned scroll regions to the origin', () => {
+  const windowTarget = { scrollTop: 96, scrollLeft: 17 }
+  const mainTarget = { scrollTop: 240, scrollLeft: 12 }
+  const dataTarget = { scrollTop: 180, scrollLeft: 8 }
+  const taskTarget = { scrollTop: 120, scrollLeft: 32 }
+  const viewTarget = { scrollTop: 4, scrollLeft: 88 }
+  const recordPanelTarget = { scrollTop: 200, scrollLeft: 0 }
+  const scrollCalls: unknown[][] = []
+  const fakeDocument = {
+    scrollingElement: windowTarget,
+    documentElement: windowTarget,
+    body: windowTarget,
+    querySelectorAll: (selector: string) => {
+      if (selector === '*') return [mainTarget, dataTarget, taskTarget, viewTarget, recordPanelTarget]
+      return []
+    },
+  }
+  const fakeWindow = { scrollTo: (...args: unknown[]) => scrollCalls.push(args) }
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document')
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: fakeDocument })
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: fakeWindow })
+  try {
+    resetAuditScroll()
+  } finally {
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument)
+    else delete (globalThis as Record<string, unknown>).document
+    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow)
+    else delete (globalThis as Record<string, unknown>).window
+  }
+
+  assert.deepEqual(scrollCalls, [[0, 0]])
+  for (const target of [windowTarget, mainTarget, dataTarget, taskTarget, viewTarget, recordPanelTarget]) {
+    assert.equal(target.scrollTop, 0)
+    assert.equal(target.scrollLeft, 0)
+  }
 })

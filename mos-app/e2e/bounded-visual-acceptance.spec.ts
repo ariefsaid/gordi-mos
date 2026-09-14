@@ -125,6 +125,41 @@ test.describe('bounded visual and interaction acceptance', () => {
       await expect(filters.getByRole('button', { name: 'Status', exact: true })).toBeVisible()
       await expect(filters.getByRole('combobox', { name: 'Person', exact: true })).toBeVisible()
       await expect(filters.getByRole('combobox', { name: 'Sort', exact: true })).toBeVisible()
+      if (width === 1440) {
+        for (const expected of [
+          { id: 'group', value: 'None' },
+          { id: 'business-unit', value: 'Any business unit' },
+          { id: 'person', value: 'Anyone' },
+          { id: 'sort', value: 'Due soonest' },
+        ]) {
+          const trigger = filters.locator(`[data-filter-id="${expected.id}"] .picker__trigger`)
+          await expect(trigger).toHaveAttribute('data-full-value', expected.value)
+          const valueGeometry = await trigger.locator('span[data-full-value]').evaluate((element) => {
+            const rect = element.getBoundingClientRect()
+            return {
+              text: element.textContent?.trim() ?? '',
+              clientWidth: element.clientWidth,
+              scrollWidth: element.scrollWidth,
+              right: rect.right,
+            }
+          })
+          expect(valueGeometry.text).toBe(expected.value)
+          expect(valueGeometry.scrollWidth).toBeLessThanOrEqual(valueGeometry.clientWidth)
+          expect(valueGeometry.right).toBeLessThanOrEqual(1440)
+        }
+        const optionsGeometry = await filters.evaluate((element) => ({
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+        }))
+        expect(optionsGeometry.scrollWidth).toBeLessThanOrEqual(optionsGeometry.clientWidth + 1)
+        const controlRects = await filters.locator(':scope > *').evaluateAll((elements) => elements
+          .map((element) => element.getBoundingClientRect())
+          .filter((rect) => rect.width > 0 && rect.height > 0)
+          .map((rect) => ({ left: rect.left, right: rect.right })))
+        for (let index = 1; index < controlRects.length; index += 1) {
+          expect(controlRects[index - 1].right).toBeLessThanOrEqual(controlRects[index].left + 1)
+        }
+      }
       await capture(`tasks-filters-${width}`, page)
 
       const groupPicker = filters.getByRole('combobox', { name: 'Group', exact: true })
