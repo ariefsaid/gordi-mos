@@ -10,6 +10,8 @@ export interface TaskRow {
   org_id: string
   title: string
   business_unit_id: string
+  /** Canonical owning Team. Nullable during the legacy owner-ratification window. */
+  team_id?: string | null
   status: TaskStatus
   responsible_person_id: string
   accountable_person_id: string
@@ -22,6 +24,8 @@ export interface TaskRow {
   last_activity_at: string
   archived_at: string | null
   created_by: string
+  /** Set by the DB when a task enters Done; legacy Done rows may remain null. */
+  completed_at?: string | null
   created_at: string
   updated_at: string
   // Step 6 (ADR-0051 D10, occurrence-as-tasks): occurrence provenance. Optional/nullable —

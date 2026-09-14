@@ -23,9 +23,10 @@ import { canEdit, picOptions } from './task-permissions'
 import type { FlatRow } from './tasks-table-body'
 import type { RenderGroup } from './tasks-grouping'
 import type { WorkloadSummary } from './workload-caption'
-import { TaskRow } from './task-row'
+import { TaskRow, type TaskTeamOption } from './task-row'
 import { GroupHeaderRow } from './group-header-row'
 import { OccurrenceAssignDialog } from './occurrence-assign-dialog'
+import './TaskQueue.css'
 import type {
   CollectionPresentationProps,
   CollectionProjection,
@@ -52,9 +53,18 @@ export interface TaskCollectionRuntime {
   onEditStatus: (taskId: string, status: TaskStatus) => Promise<void>
   onEditDue: (taskId: string, dueDate: string | null) => Promise<void>
   onEditPic: (taskId: string, personId: string) => Promise<void>
+  /** Draft-only Team ownership choice. Existing rows edit Team in the record surface. */
+  onEditTeam: (taskId: string, teamId: string) => Promise<void>
+  /** Draft-only Supervisor choice; unlike PIC this is never inferred from the viewer. */
+  onEditSupervisor: (taskId: string, personId: string) => Promise<void>
+  /** Validate the draft without committing it when Enter is pressed too early. */
+  onValidateNewTask: (taskId: string) => void
+  /** Effective viewer Teams offered by the inline create row. */
+  teamOptions: readonly TaskTeamOption[]
   draftTask: TaskListRow | null
   onDiscardNewTask: () => void
   draftLinkError: boolean
+  draftValidationError: string
   onRetryDraftLink: () => void
   onCloseDrawer: () => void
   onNewTask: (prefillParam?: string) => void
@@ -66,6 +76,8 @@ export interface TaskCollectionRuntime {
   onClearOverdue: () => void
   createHref: To
   canResolvePending: boolean
+  /** Per-occurrence runtime process.start authority; absence keeps legacy callers working. */
+  canResolvePendingForRun?: (runId: string) => boolean
 }
 
 const TaskCollectionRuntimeContext = createContext<TaskCollectionRuntime | null>(null)
@@ -104,9 +116,14 @@ const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
   onEditStatus: async () => {},
   onEditDue: async () => {},
   onEditPic: async () => {},
+  onEditTeam: async () => {},
+  onEditSupervisor: async () => {},
+  onValidateNewTask: () => {},
+  teamOptions: [],
   draftTask: null,
   onDiscardNewTask: () => {},
   draftLinkError: false,
+  draftValidationError: '',
   onRetryDraftLink: () => {},
   onCloseDrawer: () => {},
   onNewTask: () => {},
@@ -435,6 +452,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
 
 
   const occurrence = useOccurrenceAssignment(runtime)
+  const canResolvePendingForRun = runtime.canResolvePendingForRun ?? (() => runtime.canResolvePending)
   const personMap = useMemo(() => new Map(context.personNamesById), [context.personNamesById])
   const buMap = useMemo(() => new Map(context.businessUnitNamesById), [context.businessUnitNamesById])
   const workLineMap = useMemo(() => new Map(context.workLinesById), [context.workLinesById])
@@ -461,7 +479,8 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     // the Supervisor, or the PIC's reporting line above). Mirrored optimistically; the database
     // is the authority. The draft row is always editable (the creator is mid-create), and
     // archived rows read-only. Everyone else gets honest plain-text cells.
-    const editable = task.id === runtime.draftTask?.id
+    const isNew = task.id === runtime.draftTask?.id
+    const editable = isNew
       || (canEdit(task, context.viewerId ?? '', context.downlinePersonIds ?? []) && task.archived_at == null)
     return (
       <TaskRow
@@ -478,10 +497,18 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         businessUnitName={buMap.get(task.business_unit_id) ?? ''}
         onOpen={openTask}
         onEditTitle={editable ? runtime.onEditTitle : undefined}
-        onEditStatus={runtime.onEditStatus}
-        onEditDue={editable ? runtime.onEditDue : undefined}
+        // A draft has no database id yet: status/due remain at their initial values until the
+        // title commit creates the row. Passing persisted-field callbacks here would issue an
+        // update against the synthetic `new-task-*` id.
+        onEditStatus={editable && !isNew ? runtime.onEditStatus : undefined}
+        onEditDue={editable && !isNew ? runtime.onEditDue : undefined}
         onEditPic={editable ? runtime.onEditPic : undefined}
         personOptions={picOptions(context.viewerId ?? '', context.people, context.downlinePersonIds ?? [])}
+        supervisorOptions={context.people}
+        teamOptions={isNew ? runtime.teamOptions : []}
+        onEditTeam={isNew ? runtime.onEditTeam : undefined}
+        onEditSupervisor={isNew ? runtime.onEditSupervisor : undefined}
+        onValidateNewTask={isNew ? runtime.onValidateNewTask : undefined}
         showBusinessUnit={query.visibleFields.includes('businessUnit')}
         // AC-006 (#743): every field the Fields chooser offers renders a real column when checked.
         // The names resolve through the same catalogs the group headers use (id → display name).
@@ -490,9 +517,10 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         showObjective={query.visibleFields.includes('objective')}
         objectiveName={objectiveMap.get(task.objective_id ?? '') ?? ''}
         showActivity={query.visibleFields.includes('activity')}
-        isNew={task.id === runtime.draftTask?.id}
+        isNew={isNew}
         onDiscardNewTask={runtime.onDiscardNewTask}
-        createError={task.id === runtime.draftTask?.id && runtime.draftLinkError}
+        createError={isNew && runtime.draftLinkError}
+        createValidationError={isNew ? runtime.draftValidationError : ''}
         onRetryCreate={runtime.onRetryDraftLink}
         supervisorName={personMap.get(task.accountable_person_id) ?? ''}
         recordSearch={runtime.recordSearch}
@@ -515,7 +543,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       workLineType={group.workLineType}
       objectiveHint={group.objectiveHint}
       occurrenceRollup={group.occurrenceRollup}
-      onAssignPending={group.occurrenceRollup && runtime.canResolvePending
+      onAssignPending={group.occurrenceRollup && canResolvePendingForRun(group.key)
         ? () => occurrence.open(group.key)
         : undefined}
       onToggle={() => { toggleCollapsed(group.key); onToggleGroup(group.key) }}
@@ -525,7 +553,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   )
 
   return (
-    <>
+    <div className="tasks-work-queue" data-testid="tasks-work-queue">
       <TasksTableBody
         loading={false}
         error={null}
@@ -565,15 +593,24 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         objectiveMap={objectiveMap}
         workloadSummary={workloadSummary}
         createHref={runtime.createHref}
-        onAssignPending={runtime.canResolvePending ? occurrence.open : undefined}
+        onAssignPending={(runId) => canResolvePendingForRun(runId) ? occurrence.open(runId) : undefined}
         provenanceByTaskDefId={new Map(context.provenanceByTaskDefId)}
         onEditTitle={runtime.onEditTitle}
+        onEditPic={runtime.onEditPic}
+        onEditTeam={runtime.onEditTeam}
+        onEditSupervisor={runtime.onEditSupervisor}
+        onValidateNewTask={runtime.onValidateNewTask}
+        personOptions={picOptions(context.viewerId ?? '', context.people, context.downlinePersonIds ?? [])}
+        supervisorOptions={context.people}
+        teamOptions={runtime.teamOptions}
+        draftValidationError={runtime.draftValidationError}
         draftTaskId={runtime.draftTask?.id}
         onDiscardNewTask={runtime.onDiscardNewTask}
         viewerHasNoDownline={(context.downlinePersonIds?.length ?? 0) === 0}
       />
       {occurrence.runId && (
         <OccurrenceAssignDialog
+          occurrenceCaption={groups.find((group) => group.key === occurrence.runId)?.label}
           pending={occurrence.pending}
           people={[...context.people]}
           loading={occurrence.loading}
@@ -583,7 +620,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
           onClose={occurrence.close}
         />
       )}
-    </>
+    </div>
   )
 }
 

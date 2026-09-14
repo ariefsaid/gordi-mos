@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { AuthContext, type AuthState } from '@/auth/context'
-import { OverlayHostProvider } from '@/shell/overlay-host'
+import { OverlayHostProvider, useOverlayHost } from '@/shell/overlay-host'
+import type { OverlayEntry } from '@/shell/overlay-host'
 import { AgentRuntimeProvider, useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
 import type { SignalRow } from '@/lib/db/signals.types'
@@ -60,7 +64,7 @@ vi.mock('@/components/signals/signal-record-host', async () => {
 
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
-import { listCollectionViews } from '@/lib/db/user-views-collection'
+import { createCollectionView, listCollectionViews } from '@/lib/db/user-views-collection'
 import type { PersistedCollectionView } from '@/lib/record-collection/collection-view-spec'
 import { SignalsArchivePage, SignalRecordPage } from './signals-archive-page'
 import { signalCollectionDescriptor } from '@/components/signals/signal-collection-adapter'
@@ -69,6 +73,7 @@ const mockListReadableSignals = vi.mocked(listReadableSignals)
 const mockListAllTeams = vi.mocked(listAllTeams)
 const mockGetPeople = vi.mocked(getPeople)
 const mockListCollectionViews = vi.mocked(listCollectionViews)
+const mockCreateCollectionView = vi.mocked(createCollectionView)
 
 function row(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
@@ -115,7 +120,7 @@ const archiveAuth: AuthState = {
   signOut: async () => {},
 }
 
-function pageTree(initialPath = '/work/signals', runtime: AgentRuntime | null = null, auth?: AuthState) {
+function pageTree(initialPath = '/work/signals', runtime: AgentRuntime | null = null, auth?: AuthState, extra?: ReactNode) {
   return (
     <I18nProvider>
       <MemoryRouter initialEntries={[initialPath]}>
@@ -124,6 +129,7 @@ function pageTree(initialPath = '/work/signals', runtime: AgentRuntime | null = 
           <OverlayHostProvider>
             <LocationProbe />
             <DraftProbe />
+            {extra}
             <Routes>
               <Route path="/work/signals" element={<SignalsArchivePage />} />
             </Routes>
@@ -135,8 +141,17 @@ function pageTree(initialPath = '/work/signals', runtime: AgentRuntime | null = 
   )
 }
 
-function renderPage(initialPath = '/work/signals', runtime: AgentRuntime | null = null, auth?: AuthState) {
-  return render(pageTree(initialPath, runtime, auth))
+function renderPage(initialPath = '/work/signals', runtime: AgentRuntime | null = null, auth?: AuthState, extra?: ReactNode) {
+  return render(pageTree(initialPath, runtime, auth, extra))
+}
+
+function SignalStackProbe() {
+  const host = useOverlayHost()
+  const entry: OverlayEntry = {
+    key: 'signal-task-create:signal-1', owner: 'signals', tenant: 'record',
+    label: 'Create task', title: 'Create task', content: <div data-testid="signal-task-frame">Task draft</div>,
+  }
+  return <button type="button" onClick={() => { void host.push(entry) }}>Push task frame</button>
 }
 
 // OD-REDESIGN-84.1: the filters/group/sort/toggles (incl. Show retracted) live behind the one
@@ -208,6 +223,16 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     expect(screen.getByTestId('location')).toHaveTextContent('layout=table')
   })
 
+  it('AC-760: phone saved-view choices wrap visibly and keep the 44px choice floor', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/pages/signals-archive-page.css'), 'utf8')
+    expect(css).toMatch(
+      /@media\s*\(max-width:\s*767px\)[\s\S]*?\.signals-archive-toolbar \.collection-toolbar__views\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap[^}]*overflow-x:\s*visible[^}]*overflow-y:\s*visible/,
+    )
+    expect(css).toMatch(
+      /\.signals-archive-toolbar \.collection-toolbar__view\s*\{[^}]*min-height:\s*44px/,
+    )
+  })
+
   it('D-D2 / Rule 7: the toolbar hosts ONE layout-independent Share Signal door (present in Feed AND Table; no in-feed row)', async () => {
     renderPage()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
@@ -228,6 +253,7 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     // It opens the ONE shared composer.
     await userEvent.click(shareInTable)
     expect(composerOpen).toHaveBeenCalledTimes(1)
+    expect(composerOpen).toHaveBeenCalledWith()
   })
 
   it('FR-V3-007: an explicit ?layout=table URL overrides the Feed default and restores the Table', async () => {
@@ -252,7 +278,8 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
 
     const trigger = screen.getByRole('button', { name: /view & filters/i })
     await userEvent.click(trigger)
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'Quality')
+    await userEvent.click(screen.getByRole('combobox', { name: 'Category' }))
+    await userEvent.click(screen.getByRole('option', { name: 'Quality' }))
     await waitFor(() => expect(document.querySelector('.view-options-disclosure__active-dot')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /view & filters, all · category/i })).toBeInTheDocument()
   })
@@ -400,19 +427,22 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     // is not one of the things behind it.
     expect(document.getElementById('mobile-signal-options-panel')).not.toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument()
-    // View options (e.g. Show retracted) are genuinely behind the door, not duplicated outside it.
+    // View options (including the retracted view) are genuinely behind the door, not duplicated outside it.
     expect(screen.queryByRole('switch', { name: /show retracted/i })).not.toBeInTheDocument()
     openViewOptions()
-    expect(screen.getByRole('switch', { name: /show retracted/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retracted' })).toBeInTheDocument()
     // Still exactly one search input — the toolbar instance inside the now-open door did not
     // render a duplicate copy alongside the one planted outside it.
     expect(screen.getAllByRole('searchbox', { name: /search signals/i })).toHaveLength(1)
   })
 
-  it('authenticated archive Feed rows render the Create task control', async () => {
+  it('authenticated archive Feed rows remain one activation target with no row actions', async () => {
     renderPage('/work/signals?layout=feed', null, archiveAuth)
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
-    expect(screen.getAllByRole('link', { name: /create task/i }).length).toBeGreaterThan(0)
+    const signalRow = screen.getByRole('button', { name: /open signal: the freezer alarm went off/i })
+    expect(signalRow).toHaveAttribute('data-signal-id', 'signal-1')
+    expect(within(signalRow).queryAllByRole('button')).toHaveLength(0)
+    expect(within(signalRow).queryAllByRole('link')).toHaveLength(0)
   })
 
   it('Feed uses the same injected opener and does not advertise unavailable Task creation', async () => {
@@ -451,7 +481,7 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
   })
 
-  it('hides retracted rows by default, and reveals them as tombstones via "Show retracted" (IMPORTANT-6)', async () => {
+  it('hides retracted rows by default, and reveals them via the Retracted view (IMPORTANT-6)', async () => {
     mockListReadableSignals.mockResolvedValue([
       row({ id: 'signal-3', retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'Duplicate' }),
     ])
@@ -459,23 +489,22 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     await waitFor(() => expect(screen.getByRole('searchbox', { name: /search signals/i })).toBeInTheDocument())
     expect(screen.queryByText(/this signal was retracted/i)).not.toBeInTheDocument()
 
-    // OD-84.1: the "Show retracted" toggle lives behind the one "View & filters" door.
+    // Retracted is a view axis choice behind the one "View & filters" door.
     openViewOptions()
-    await userEvent.click(screen.getByRole('switch', { name: /show retracted/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'Retracted' }))
     await waitFor(() => expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument())
     expect(screen.getByText('Duplicate')).toBeInTheDocument()
   })
 
-  it('restores "Show retracted" from the URL (?retracted=1) on load — round-trips through Back/refresh/new-tab', async () => {
+  it('restores legacy retracted URL state and can return to All (round-trips through Back/refresh/new-tab)', async () => {
     mockListReadableSignals.mockResolvedValue([
       row({ id: 'signal-3', retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'Duplicate' }),
     ])
     renderPage('/work/signals?retracted=1')
     await waitFor(() => expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument())
     openViewOptions()
-    expect(screen.getByRole('switch', { name: /show retracted/i })).toHaveAttribute('aria-checked', 'true')
-
-    await userEvent.click(screen.getByRole('switch', { name: /show retracted/i }))
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'All' }))
     await waitFor(() => expect(screen.queryByText(/this signal was retracted/i)).not.toBeInTheDocument())
   })
 })
@@ -506,6 +535,26 @@ describe('Issue 610 — a custom Signals saved view names itself in the caption'
     // The URL is the id only — the name never round-trips through it.
     expect(screen.getByTestId('location')).toHaveTextContent('saved=custom-signal-view')
     expect(screen.getByTestId('location')).not.toHaveTextContent('Radiant')
+  })
+})
+
+describe('Signals saved-view recovery', () => {
+  it('keeps a failed name and retries the same save after the form is closed', async () => {
+    mockCreateCollectionView.mockRejectedValue(new Error('save failed'))
+    renderPage()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /^save view$/i }))
+    fireEvent.change(screen.getByRole('textbox', { name: /view name/i }), { target: { value: 'Signal watch' } })
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }))
+    await waitFor(() => expect(mockCreateCollectionView).toHaveBeenCalledTimes(1))
+    expect(screen.getByDisplayValue('Signal watch')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Saved views are unavailable. Try again.')
+
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    await waitFor(() => expect(mockCreateCollectionView).toHaveBeenCalledTimes(2))
+    expect(mockCreateCollectionView.mock.calls[1]?.[0]).toMatchObject({ name: 'Signal watch' })
   })
 })
 
@@ -559,6 +608,14 @@ describe('SignalsArchivePage — ?record=<id> mounts the Signal in the shared ho
 
     await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="signals"]')).toBeTruthy())
     expect(document.querySelector('[data-overlay-host-slot="signals"]')).toBeTruthy()
+  })
+
+  it('keeps a pushed child frame above the Signal instead of replacing the root on rerender', async () => {
+    renderPage('/work/signals?record=signal-1', null, archiveAuth, <SignalStackProbe />)
+    await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: 'Push task frame' }))
+    expect(await screen.findByTestId('signal-task-frame')).toBeInTheDocument()
   })
 
   it('the host ✕ Close clears ?record= from the URL', async () => {

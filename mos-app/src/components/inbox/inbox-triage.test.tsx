@@ -105,6 +105,42 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
     expect(screen.getByText('Title b')).toBeInTheDocument()
   })
 
+  it('renders actor/source title, type, attention, and a concise source line', () => {
+    renderTriage({ rows: [trow('signal-1', {
+      title: 'You were mentioned in a Signal',
+      body: 'The freezer alarm went off\nInvestigating the grinder.',
+      metadata: {
+        source: 'mention',
+        attention: 'Urgent',
+        actor: { id: 'person-cahya', name: 'Cahya' },
+        entity: { type: 'signal', id: 'signal-1' },
+      },
+    })] })
+    const row = document.querySelector('[data-notification-id="signal-1"]') as HTMLElement
+    expect(within(row).getByText('Cahya mentioned you')).toBeInTheDocument()
+    expect(within(row).getByText('Signal')).toBeInTheDocument()
+    expect(within(row).getByText('Urgent')).toBeInTheDocument()
+    expect(within(row).getByText('The freezer alarm went off')).toBeInTheDocument()
+    expect(within(row).queryByText('Investigating the grinder.')).not.toBeInTheDocument()
+  })
+
+  it('renders a Signal-retraction actor, localized reason, and typed Signal target', () => {
+    renderTriage({ rows: [trow('retraction-1', {
+      title: 'Signal retracted',
+      body: 'Duplicate report',
+      metadata: {
+        source: 'signal_retraction',
+        actor: { id: 'person-lead', name: 'Dewi' },
+        reason: 'Duplicate report',
+        entity: { type: 'signal', id: 'signal-1', route: '/work/signals?record=signal-1' },
+      },
+    })] })
+    const row = document.querySelector('[data-notification-id="retraction-1"]') as HTMLElement
+    expect(within(row).getByText('Dewi retracted your Signal')).toBeInTheDocument()
+    expect(within(row).getByText('Reason: Duplicate report')).toBeInTheDocument()
+    expect(within(row).getByText('Signal')).toBeInTheDocument()
+  })
+
   it('issue #583: each row renders its created time in the shared humane-age format, reused not reinvented', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-20T03:00:00Z')) // 3h after row a's created_at
@@ -170,12 +206,22 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
     expect(screen.queryByRole('button', { name: /mark handled/i })).toBeNull()
   })
 
-  it('a pending row disables its open button with aria-busy and announces via status', () => {
-    renderTriage({ rows: [trow('a')], pendingIds: ['a'] })
+  it('a pending open row disables its open button with aria-busy and announces via status', () => {
+    renderTriage({ rows: [trow('a')], pendingActions: { a: 'open' } })
     const btn = screen.getByRole('button', { name: /Title a/ })
     expect(btn).toBeDisabled()
     expect(btn).toHaveAttribute('aria-busy', 'true')
     expect(screen.getByRole('status')).toHaveTextContent(/opening/i)
+  })
+
+  it('a pending row also disables its Mark handled action', () => {
+    renderTriage({ rows: [trow('a')], onMarkHandled: vi.fn(), pendingActions: { a: 'handled' } })
+    const row = screen.getByRole('button', { name: /Title a/ }).closest('.inbox-row')!
+    const handle = within(row as HTMLElement).getByRole('button', { name: /mark handled/i })
+    expect(handle).toBeDisabled()
+    expect(handle).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('status')).toHaveTextContent(/updating/i)
+    expect(screen.getByRole('status')).not.toHaveTextContent(/opening/i)
   })
 
   it('is chrome-free: no dialog role, no scrim, no close button — the host owns those', () => {

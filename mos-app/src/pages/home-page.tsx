@@ -1,14 +1,16 @@
 // HomePage — the index route (/). Home renders the SAME consequence-ranked task data —
-// overdue → due today → blocked, failed checks, and my work today — in whichever of the
-// three Home layouts (Focused / Overview / List) the viewer has chosen from /profile (OD-V4-9).
+// overdue → due today → blocked, failed checks, and my work today — through the three v4 shapes
+// (Focused, Overview, List). The preference changes arrangement only; it never changes scope,
+// ranking, persona composition, or the standing Signals feed.
 // Mentions are not a Home region: the Inbox page and its bell are the one mentions surface (#745).
 // HomePage owns every data read + the ranking/selection logic and hands the result down as the ONE
-// shared region model (`buildHomeRegions`, FR-930) — a layout composes those regions, it never
-// re-derives them. The OD-18 region-order toggle that used to reorder the old single-stream layout
-// was retired (OD-V4-10): List renders the same attention-first order that was already the default.
+// shared region model (`buildHomeRegions`, FR-930) — the brief composes those regions, it never
+// re-derives them. The old OD-18 region-order toggle that reordered a single-stream view was
+// retired (OD-V4-10); that is distinct from the v4 per-person arrangement preference restored here.
 //
-// This is presentation over the EXISTING data contracts: the same tasks/failed-check projections
-// and lane logic (lib/home-attention + lib/home-stream selectors) — no new data path.
+// This is presentation over the EXISTING task/failed-check contracts and lane logic
+// (lib/home-attention + lib/home-stream selectors). Home adds two small, RLS-backed doors for
+// the persona composition: the Café opening door and the real Objective progress projection.
 // Financial routine KPIs stay on /dashboard (OD-REDESIGN-17); financial *exceptions* would surface in
 // the needs-you region via the attention bands.
 //
@@ -20,7 +22,7 @@
 //
 // Home passes EVERY readable Signal, not only the FYI tail v4 passed. v4 split them because its
 // attention-worthy Signals led the ranked stream as their own band; this line's region model has
-// four regions and none of them is Signals, so filtering to FYI here would drop Urgent and
+// three regions and none of them is Signals, so filtering to FYI here would drop Urgent and
 // Needs-attention Signals off Home altogether. `orderSignalsForFeed` (inside the rows) already
 // floats those tiers to the top, so the ranking survives the difference. Should a Signals
 // attention band ever join `buildHomeRegions`, this becomes the FYI tail again.
@@ -35,8 +37,6 @@ import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { can } from '@/lib/capabilities'
-import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -45,25 +45,24 @@ import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople, getRoles } from '@/lib/db/directory'
 import type { RoleScopeRow } from '@/lib/db/directory'
-// The tested role-scope predicates (pure, no I/O). Home asks them the SAME question the role tree
-// answers everywhere else — "does this viewer steer a scope" — rather than growing a second,
-// drifting idea of who heads a business unit.
-import { isOwnerDirector, buHeadsForViewer } from '@/lib/role-scope'
+// The tested role-scope predicates remain a live Home seam. The composition helper calls these
+// same pure predicates rather than growing a second, drifting idea of who heads a business unit.
+import { canReviewCafeFailedChecks, holdsHomeCockpitScope } from '@/lib/home-composition'
 import { wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/home-attention'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 import {
   overdueStreamItems, dueTodayStreamItems, blockedStreamItems, failedCheckStreamItems,
   myWorkStreamItems, openTaskCount, type StreamBand,
 } from '@/lib/home-stream'
-import { resolveHomeLayout, type HomeLayout } from '@/lib/home-layout'
 import { buildHomeRegions } from '@/components/home/home-regions'
 import { HomeHeadCounts, type HomeDayTally } from '@/components/home/home-day-header'
-import { HomeFocused } from '@/components/home/home-focused'
-import { HomeOverview } from '@/components/home/home-overview'
-import { HomeList } from '@/components/home/home-list'
-import { SignalFeedSection } from '@/components/signals/signal-feed-section'
-import { signalTaskCreateHref } from '@/components/signals/signal-task-intent'
-import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
+import { HomeDailyBrief } from '@/components/home/home-daily-brief'
+import { resolveHomeLayout, type HomeLayout } from '@/lib/home-layout'
 import { HomeCafeDoor } from '@/components/home/home-cafe-door'
+import { SignalFeedSection } from '@/components/signals/signal-feed-section'
+import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
+import { loadHomeCafeDoor, type HomeCafeDoorData } from '@/lib/db/home-cafe'
+import { loadHomeObjectiveProgress, type HomeObjectiveProgress } from '@/lib/db/home-objectives'
 import { isShipGated } from '@/lib/ship-gate'
 import './home-page.css'
 import '@/components/signals/signal-feed-section.css'
@@ -80,19 +79,27 @@ export function HomePage() {
   const { locale } = useI18n()
   const auth = useAuth()
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
-  // WIB day-parts per e7's greeting grammar: pagi <11, siang 11-15, sore 15+ (id conventions).
+  // Keep the Indonesian day-part grammar (siang <15, sore 15+) while giving English users the
+  // ordinary afternoon window through 18:00. The catalogs intentionally reuse the evening key for
+  // Indonesian "sore", so the locale controls the cutoff rather than adding another message key.
   const greetingKey = () => {
     const h = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'Asia/Jakarta' }).format(new Date()))
-    return h < 11 ? 'home.greeting.morning' as const : h < 15 ? 'home.greeting.afternoon' as const : 'home.greeting.evening' as const
+    const afternoonCutoff = locale === 'id' ? 15 : 19
+    return h < 11 ? 'home.greeting.morning' as const : h < afternoonCutoff ? 'home.greeting.afternoon' as const : 'home.greeting.evening' as const
   }
   const personId = viewer?.person?.id ?? null
-  // The failed-checks band routes to /cafe/log, so Home shows it exactly where that ROUTE admits the
-  // viewer — the same authority the rail uses (`OD-WAY-51`: navigation mirrors what the route
-  // admits). Home is the one instance the nav guard structurally cannot cover, because it is not
-  // nav. This replaces `viewerSeesCafe`, which decided by regex over job-role NAME strings — the
-  // mechanism OD-WAY-51 removed after measuring that 5 of 10 real job roles matched no module at
-  // all, leaving viewers the route fully admitted with no signal.
-  const seesCafe = viewer != null && (viewer.accessRoles.includes('admin') || viewer.affiliated.includes('cafe'))
+  // Home arrangement is a Personal Profile preference. Resolve by person, not auth user, so a
+  // dual-role account keeps one deliberate Home shape and a change of viewer cannot leak state.
+  // Resolve during render so a viewer switch cannot paint the previous person's arrangement for
+  // one frame while an effect catches up. The guarded resolver is cheap and also observes a
+  // profile change when Home renders again without a full reload.
+  const homeLayout: HomeLayout = personId ? resolveHomeLayout(personId) : 'focused'
+  // Failed checks are an operational exception, not generic `/cafe/log` route admission. The route
+  // is intentionally readable by every authenticated viewer; Home narrows the band to the
+  // affiliation fact supplied by auth, with admin as the explicit cross-Café exception.
+  const seesCafe = useMemo(
+    () => viewer ? canReviewCafeFailedChecks(viewer) : false,
+    [viewer])
 
   // Shared unmount guard for every retryable loader (never setState after unmount). Set true in the
   // effect BODY (not just useRef's initial value) so StrictMode's mount→cleanup→remount cycle doesn't
@@ -184,7 +191,6 @@ export function HomePage() {
   // rows paint with a name the page could still fail to fetch.
   const [signals, setSignals] = useState<SignalRow[]>([])
   const [teamNames, setTeamNames] = useState<ReadonlyMap<string, string>>(NO_NAMES)
-  const [teamBusinessUnits, setTeamBusinessUnits] = useState<ReadonlyMap<string, string>>(NO_NAMES)
   const [signalsState, setSignalsState] = useState<FetchState>('loading')
   const signalsInFlightRef = useRef(false)
   const signalsTokenRef = useRef(0)
@@ -199,7 +205,6 @@ export function HomePage() {
         if (!isMountedRef.current || signalsTokenRef.current !== token) return
         setSignals(rows)
         setTeamNames(new Map(teams.map(team => [team.id, team.name])))
-        setTeamBusinessUnits(new Map(teams.map(team => [team.id, team.business_unit_id])))
         setSignalsState('ready')
       })
       .catch(() => {
@@ -252,11 +257,10 @@ export function HomePage() {
   // company-wide roll-up is noise on that job, so they get none, exactly as the stacked
   // composition gives them no cockpit. One door, gated once: the stacked surface repeated the
   // slot per cockpit section because it renders one section per scope; Home has one aside.
-  const holdsCockpitScope = useMemo(() => {
-    const heldRoles = viewer?.roles ?? []
-    return isOwnerDirector(heldRoles) || buHeadsForViewer(heldRoles, orgRoles).length > 0 ||
-      can(viewer?.accessRoles ?? [], 'objective.manage') || can(viewer?.accessRoles ?? [], 'workline.manage')
-  }, [viewer, orgRoles])
+  const holdsCockpitScope = useMemo(
+    () => viewer ? holdsHomeCockpitScope(viewer, orgRoles) : false,
+    [viewer, orgRoles],
+  )
 
   // ── Ranked stream items (owner redirect) ────────────────────────────────────
   const today = useMemo(() => wibToday(), [])
@@ -282,6 +286,99 @@ export function HomePage() {
     return myWorkStreamItems(tasks, personId, today, locale, directory, excludeIds).slice(0, MY_WORK_CAP)
   }, [ready, personId, tasks, today, locale, directory, overdue, dueToday, blocked])
 
+  // ── Member Café door ────────────────────────────────────────────────────────
+  // The door is only a member composition affordance. It reads the viewer's default Café branch,
+  // then the branch's canonical opening run; it never starts a process as a side effect of visiting
+  // Home.
+  const cafeMember = Boolean(viewer && !holdsCockpitScope && viewer.affiliated.includes('cafe'))
+  const [cafeDoor, setCafeDoor] = useState<HomeCafeDoorData | null>(null)
+  const [cafeDoorState, setCafeDoorState] = useState<FetchState>('ready')
+  const cafeDoorInFlightRef = useRef(false)
+  const cafeDoorTokenRef = useRef(0)
+
+  const loadCafeDoor = useCallback(() => {
+    if (!personId || !cafeMember) {
+      setCafeDoor(null)
+      setCafeDoorState('ready')
+      return
+    }
+    if (cafeDoorInFlightRef.current) return
+    cafeDoorInFlightRef.current = true
+    const token = ++cafeDoorTokenRef.current
+    setCafeDoorState('loading')
+    loadHomeCafeDoor()
+      .then(data => {
+        if (!isMountedRef.current || cafeDoorTokenRef.current !== token) return
+        setCafeDoor(data)
+        setCafeDoorState('ready')
+      })
+      .catch(() => {
+        if (!isMountedRef.current || cafeDoorTokenRef.current !== token) return
+        setCafeDoorState('error')
+      })
+      .finally(() => {
+        if (cafeDoorTokenRef.current === token) cafeDoorInFlightRef.current = false
+      })
+  }, [personId, cafeMember])
+
+  useEffect(() => {
+    cafeDoorTokenRef.current += 1
+    cafeDoorInFlightRef.current = false
+    loadCafeDoor()
+  }, [loadCafeDoor])
+
+  // ── Objectives cockpit door ─────────────────────────────────────────────────
+  // Home reuses the task projection already in flight, then reads only the active Objective and
+  // Work-line edges needed to resolve each task to its Objective. No percentage or target is
+  // invented; an empty catalog and a read failure remain distinct states.
+  const showObjectives = holdsCockpitScope && !isShipGated('/work/objectives')
+  const [objectiveRows, setObjectiveRows] = useState<HomeObjectiveProgress[]>([])
+  const [objectiveReadState, setObjectiveReadState] = useState<FetchState>('ready')
+  const objectiveInFlightRef = useRef(false)
+  const objectiveTokenRef = useRef(0)
+
+  const loadObjectives = useCallback(() => {
+    if (!personId || !showObjectives || taskState !== 'ready') {
+      if (!showObjectives) {
+        setObjectiveRows([])
+        setObjectiveReadState('ready')
+      }
+      return
+    }
+    if (objectiveInFlightRef.current) return
+    objectiveInFlightRef.current = true
+    const token = ++objectiveTokenRef.current
+    setObjectiveReadState('loading')
+    loadHomeObjectiveProgress(tasks)
+      .then(rows => {
+        if (!isMountedRef.current || objectiveTokenRef.current !== token) return
+        setObjectiveRows(rows)
+        setObjectiveReadState('ready')
+      })
+      .catch(() => {
+        if (!isMountedRef.current || objectiveTokenRef.current !== token) return
+        setObjectiveReadState('error')
+      })
+      .finally(() => {
+        if (objectiveTokenRef.current === token) objectiveInFlightRef.current = false
+      })
+  }, [personId, showObjectives, taskState, tasks])
+
+  useEffect(() => {
+    objectiveTokenRef.current += 1
+    objectiveInFlightRef.current = false
+    loadObjectives()
+  }, [loadObjectives])
+
+  const objectivesState: FetchState = !showObjectives
+    ? 'ready'
+    : taskState === 'error'
+      ? 'error'
+      : taskState === 'loading'
+        ? 'loading'
+        : objectiveReadState
+  const retryObjectives = taskState === 'error' ? loadTasks : loadObjectives
+
   // Failed-checks keeps its OWN independent fetch state (separate DAL).
   const failedChecksBand: StreamBand = useMemo(() => ({
     kind: 'failed-checks', state: failedChecksState,
@@ -297,31 +394,22 @@ export function HomePage() {
     ? viewer.roles[0].name + (viewer.roles.length > 1 ? ` +${viewer.roles.length - 1}` : '')
     : null
 
-  // The role chip — the day header's ONLY meta (DESIGN.md § Components → Home arrangements →
-  // "Home day header"). The overline rung + relaxed nowrap it needs live on `.home-head-role`
-  // in home-page.css; the wrap behaviour comes from the shared head grammar, not from markup.
-  const headMeta = roleLabel
-    ? <span className="ch-meta-line home-head-role">{roleLabel}</span>
-    : null
-
-  // ── Home layout preference (OD-V4-9) — resolved LAZILY at first render (FR-921/924, #301):
-  // initializing to 'focused' and correcting in a post-mount effect painted one wrong frame for
-  // every viewer with a stored non-default arrangement. The initializer reads the store before
-  // the first paint; the effect stays only for the person CHANGING after mount (auth resolving
-  // late, or a mid-session viewer switch), where it re-resolves that person's stored choice.
-  const [layout, setLayout] = useState<HomeLayout>(() =>
-    personId ? resolveHomeLayout(personId) : 'focused')
-  useEffect(() => {
-    if (personId) setLayout(resolveHomeLayout(personId))
-  }, [personId])
+  // Day and role share one compact meta line beside the greeting. The replacement's first content
+  // block is the attention queue; no layout selector or date-only chrome sits between orientation
+  // and work.
+  const headMeta = (
+    <span className="home-head-meta">
+      <span className="ch-meta-line home-head-date">{formatWeekdayDayMonth(today, locale)}</span>
+      {roleLabel && <span className="ch-meta-line home-head-role">{roleLabel}</span>}
+    </span>
+  )
 
   // The viewer's FULL open-task count (all owned, non-Done tasks — not just the capped my-work
   // items rendered in the region) — feeds the restored "My open tasks · N →" drill link.
   const openCount = ready && personId ? openTaskCount(tasks, personId) : 0
 
-  // The ONE region model shared by all three arrangements (FR-930) — a layout chooses how to
-  // present these regions, never which of them exist (NFR-924 parity). needs-you and my-work share
-  // the ONE tasks-projection state + retry (DIV-G5); failed-checks carries its own.
+  // The one region model feeds the daily brief. needs-you and my-work share the ONE tasks
+  // projection + retry (DIV-G5); failed-checks carries its own.
   const regions = useMemo(
     () => buildHomeRegions({
       overdue, dueToday, blocked, myWork,
@@ -333,7 +421,8 @@ export function HomePage() {
     }),
     [
       overdue, dueToday, blocked, myWork, failedChecksBand,
-      taskState, loadTasks, loadFailedChecks, ready, openCount, seesCafe,
+      taskState, loadTasks, loadFailedChecks, ready, openCount,
+      seesCafe,
     ],
   )
 
@@ -351,12 +440,15 @@ export function HomePage() {
   const tally = useMemo<HomeDayTally | null>(() => {
     if (!personId) return null
     let left = 0
-    for (const region of regions) {
+    const visibleRegions = holdsCockpitScope
+      ? regions
+      : regions.filter((region) => region.id !== 'failed-checks')
+    for (const region of visibleRegions) {
       if (region.count === null) return null
       left += region.count
     }
     return { left }
-  }, [personId, regions])
+  }, [personId, regions, holdsCockpitScope])
 
   return (
     <PageFamilyFrame
@@ -374,52 +466,50 @@ export function HomePage() {
       // the greeting until the ≤390 block in home-page.css drops it to line 2.
       headClassName="home-day-header content-header--compact"
     >
-      {/* `.home-frame` exists for ONE reason: it is the inline-size container every arrangement's
-          responsive branch is measured against (FR-932 / NFR-923 / DESIGN.md § Layout → The
-          Container-Query Rule). The person's chosen Home layout (OD-V4-9) — Focused (default),
-          Overview or List. All three render the SAME regions + the SAME feed slot; only the
-          arrangement differs (NFR-924). */}
+      {/* Keep a stable frame around the replacement so the Home surface owns its wide measure while
+          the daily brief's own container queries respond to the content width. */}
       <div className="home-frame">{(() => {
         // The feed states no count of its own — nothing beside it can read as a confident 0 while
         // the read is still out (the same rule the region counts follow, DIV-G5). `error` routes to
         // the section's ErrorState + Retry, so a failed load never reads as "No Signals yet".
         // Author names come from the shared best-effort directory: a missing name leaves a row
         // undecorated, it never blocks or errors the feed.
-        // The standing aside: the Objectives door (cockpit-scope viewers only) above the ambient
-        // Signals feed. ONE node, because `.home-layout` is a two-column grid and a second child
-        // here would drop out of the aside track into the work column's next row. The feed's own
-        // 24px group seam (signal-feed-section.css, DO-16(d)) separates the two — no new spacing
-        // rule. Both arrive through the arrangements' existing `feed` slot, so all three
-        // arrangements inherit the identical aside and none can grow its own (NFR-924).
+        // The Signals feed is the ambient companion. Home rows remain read-only; Create task and
+        // categorization are record-level actions on /work/signals.
         const aside = (
           <div>
-            {/* #444: the door is the drill into /work/objectives, so it follows that path's ship
-                gate — asked through the SAME predicate the router and the rail ask, never a second
-                hardcoded check. Hiding the destination without hiding this leaves a headed band
-                whose only control forwards home: a dead end dressed as a finished section. The
-                aside is a single stacked node, so its absence closes up rather than leaving a
-                hole — the Signals feed simply starts at the top of the column. */}
-            {holdsCockpitScope && !isShipGated('/work/objectives') && <HomeObjectivesDoor />}
-            {viewer && canCaptureCafe(viewer) && <HomeCafeDoor />}
             <SignalFeedSection
               signals={signals}
               authorNamesById={directory.people ?? NO_NAMES}
               teamNamesById={teamNames}
-              createTaskHref={(signal) => {
-                const businessUnitId = teamBusinessUnits.get(signal.owning_team_id)
-                return personId && businessUnitId
-                  ? signalTaskCreateHref(signal, businessUnitId, personId)
-                  : undefined
-              }}
+              showSearch={holdsCockpitScope}
               loading={signalsState === 'loading'}
               error={signalsState === 'error'}
               onReload={loadSignals}
             />
           </div>
         )
-        if (layout === 'overview') return <HomeOverview regions={regions} feed={aside} />
-        if (layout === 'list') return <HomeList regions={regions} feed={aside} />
-        return <HomeFocused regions={regions} feed={aside} />
+        const objectives = showObjectives ? (
+          <HomeObjectivesDoor
+            state={objectivesState}
+            rows={objectiveRows}
+            onRetry={retryObjectives}
+          />
+        ) : null
+        const cafe = cafeMember ? (
+          <HomeCafeDoor state={cafeDoorState} data={cafeDoor} onRetry={loadCafeDoor} />
+        ) : null
+        return (
+          <HomeDailyBrief
+            regions={regions}
+            feed={aside}
+            objectives={objectives}
+            cafeDoor={cafe}
+            composition={holdsCockpitScope ? 'cockpit' : 'member'}
+            showFailedChecks={seesCafe}
+            layout={homeLayout}
+          />
+        )
       })()}</div>
     </PageFamilyFrame>
   )

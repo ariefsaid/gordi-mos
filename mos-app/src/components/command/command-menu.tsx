@@ -4,7 +4,7 @@ import { searchTasksByTitle } from '@/lib/db/tasks'
 import { searchSignalsByBody } from '@/lib/db/signals'
 import { searchFollowUpsByCounterparty } from '@/lib/db/follow-ups'
 import { searchPeopleByName } from '@/lib/db/directory'
-import { SHOW_FOLLOWUPS } from '@/config/features'
+import { SHOW_ASSISTANT, SHOW_FOLLOWUPS } from '@/config/features'
 import { useAuth } from '@/auth/use-auth'
 import { canViewRevenue } from '@/lib/capabilities'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
@@ -33,6 +33,8 @@ export type CommandMenuProps = {
   /** Opens the Signal composer (`useSignalComposer().open()`, passed down by app-shell so the
    * palette stays a pure presentational consumer — AC-428/FR-417: never a route navigation). */
   onShareSignal: () => void
+  /** Runtime signal.post authority from the shell composer host. */
+  canShareSignal?: boolean
   /**
    * Opener mode (OD-REDESIGN-91 #15 / GAP-10, per OD-46). 'search' (default) — the full palette
    * (Recent · GO TO roots · ACT + record search). 'launcher' — the phone `+` reduced create-set:
@@ -111,7 +113,7 @@ const RECORD_KIND_CONFIG: Record<RecordKind, { Icon: React.ComponentType; to: ((
 // and the `+` launcher read. a11y: role=dialog + aria-modal + focus trap + Esc
 // (returns focus) — all owned by ModalShell, the single interaction owner for
 // centered dialogs.
-export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: CommandMenuProps): React.JSX.Element | null {
+export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = true, mode = 'search' }: CommandMenuProps): React.JSX.Element | null {
   const navigate = useNavigate()
   const auth = useAuth()
   const t = useT()
@@ -152,18 +154,20 @@ export function CommandMenu({ open, onClose, onShareSignal, mode = 'search' }: C
   const isSearching = trimmed.length > 0
 
   // Build the action/navigate registries (Memoized so `run` closures stay stable per render).
-  // The three universal actions keep their stable order (Rule 7); the gated Café log entry
+  // Available actions keep their stable order (Rule 7); the gated Café log entry
   // (#407) appends after them, present exactly when the Café write gate admits the viewer.
   const actionItems = useMemo<CommandItem[]>(
     () => {
       const items: CommandItem[] = [
-        { id: 'a-deputy', label: t('commandMenu.action.askDeputy'), Icon: DeputyIcon, kind: 'action', run: () => openPanel() },
-        { id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action', run: onShareSignal },
+        ...(canShareSignal ? [{ id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action' as const, run: onShareSignal }] : []),
         { id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action', to: '/work/tasks?create=1' },
       ]
+      if (SHOW_ASSISTANT) items.unshift({
+        id: 'a-deputy', label: t('commandMenu.action.askDeputy'), Icon: DeputyIcon, kind: 'action', run: () => openPanel(),
+      })
       return items
     },
-    [openPanel, onShareSignal, t],
+    [canShareSignal, openPanel, onShareSignal, t],
   )
 
   const launcherActions = useMemo(

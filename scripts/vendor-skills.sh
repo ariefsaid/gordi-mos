@@ -65,7 +65,11 @@ rm -f "$DEST/spec-miner/SKILL.md.bak"
 
 # --- UI/UX design skills (vetted SAFE-with-caveats; see docs/design-workflow.md) ---
 echo "==> impeccable (pbakaus/impeccable) — design/critique/extract; phone-home DISABLED"
-git clone --depth 1 https://github.com/pbakaus/impeccable.git "$TMP/impeccable"
+IMPECCABLE_PIN="cb56ed6c19a07329a9fa0cd4e657bee040156593"
+git init -q "$TMP/impeccable"
+git -C "$TMP/impeccable" remote add origin https://github.com/pbakaus/impeccable.git
+git -C "$TMP/impeccable" fetch -q --depth 1 origin "$IMPECCABLE_PIN"
+git -C "$TMP/impeccable" checkout -q FETCH_HEAD
 rm -rf "${DEST:?}/impeccable"
 cp -R "$TMP/impeccable/skill" "$DEST/impeccable"
 [ -f "$DEST/impeccable/SKILL.src.md" ] && mv "$DEST/impeccable/SKILL.src.md" "$DEST/impeccable/SKILL.md"
@@ -75,8 +79,26 @@ if [ -f "$DEST/impeccable/scripts/context.mjs" ]; then
   rm -f "$DEST/impeccable/scripts/context.mjs.bak"
 fi
 
+# The skill distribution can contain the wrappers without the detector engine. Keep the engine
+# in the public repository and stamp the same copy into each refreshed local skill so `detect`,
+# hooks, and `doctor` never depend on an untracked partial install.
+IMPECCABLE_VENDOR="$ROOT/scripts/vendor/impeccable"
+if [ ! -f "$IMPECCABLE_VENDOR/detector/detect-antipatterns.mjs" ] || \
+   [ ! -f "$IMPECCABLE_VENDOR/lib/impeccable-config.mjs" ]; then
+  echo "ERROR: tracked Impeccable detector vendor is incomplete: $IMPECCABLE_VENDOR" >&2
+  exit 1
+fi
+rm -rf "${DEST:?}/impeccable/scripts/detector"
+cp -R "$IMPECCABLE_VENDOR/detector" "$DEST/impeccable/scripts/detector"
+mkdir -p "$DEST/impeccable/scripts/lib"
+cp "$IMPECCABLE_VENDOR/lib/impeccable-config.mjs" "$DEST/impeccable/scripts/lib/impeccable-config.mjs"
+
 echo "==> taste (Leonxlnx/taste-skill — v1 stable) — anti-slop craft discipline"
-git clone --depth 1 https://github.com/Leonxlnx/taste-skill.git "$TMP/taste"
+TASTE_PIN="ccbc15639c97057cbfcf32ecebc38ef716e4bb37"
+git init -q "$TMP/taste"
+git -C "$TMP/taste" remote add origin https://github.com/Leonxlnx/taste-skill.git
+git -C "$TMP/taste" fetch -q --depth 1 origin "$TASTE_PIN"
+git -C "$TMP/taste" checkout -q FETCH_HEAD
 rm -rf "${DEST:?}/taste"
 cp -R "$TMP/taste/skills/taste-skill-v1" "$DEST/taste"
 
@@ -209,7 +231,7 @@ if [ -d "$OVERRIDES" ]; then
 fi
 
 echo
-echo "Vendored: gstack(careful freeze guard cso design-review design-consultation) jeffallan(spec-miner) impeccable taste ui-ux-pro-max design-system ui-styling sssf agent-browser + mattpocock full eng+prod set"
+echo "Vendored: gstack(careful freeze guard cso design-review design-consultation) jeffallan(spec-miner) impeccable(+tracked detector) taste ui-ux-pro-max design-system ui-styling sssf agent-browser + mattpocock full eng+prod set"
 echo "sssf factory skeleton stamped into adws/ at pin $SSSF_PIN (see adws/PORT-MANIFEST.md)"
 echo "Project overrides applied from .claude/skill-overrides/: $(ls "$OVERRIDES" 2>/dev/null | tr '\n' ' ')"
 echo "superpowers (plugin) — install once with:"

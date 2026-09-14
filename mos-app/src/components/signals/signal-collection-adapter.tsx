@@ -41,7 +41,7 @@ export type SignalCollectionGroup = 'none' | 'team' | 'attention' | 'category'
 export type SignalCollectionSort = 'occurredAt' | 'attention'
 export type SignalCollectionAction = never
 
-export type SignalCollectionView = 'all' | 'needs-attention' | 'retracted'
+export type SignalCollectionView = 'all' | 'needs-attention' | 'retracted' | 'i-posted'
 
 export interface SignalCollectionQuery {
   layout: SignalCollectionPresentation
@@ -58,7 +58,7 @@ export interface SignalCollectionQuery {
 }
 
 const LAYOUTS: readonly SignalCollectionPresentation[] = ['feed', 'table']
-const VIEWS: readonly SignalCollectionView[] = ['all', 'needs-attention', 'retracted']
+const VIEWS: readonly SignalCollectionView[] = ['all', 'needs-attention', 'retracted', 'i-posted']
 const GROUPS: readonly SignalCollectionGroup[] = ['none', 'team', 'attention', 'category']
 const SORTS: readonly SignalCollectionSort[] = ['occurredAt', 'attention']
 const ATTENTIONS: readonly Attention[] = ['FYI', 'Needs attention', 'Urgent']
@@ -236,6 +236,7 @@ function filterSignals(
       return false
     }
     if (query.view === 'needs-attention' && signal.attention === 'FYI') return false
+    if (query.view === 'i-posted' && signal.author_id !== context.viewerId) return false
     if (query.attention && signal.attention !== query.attention) return false
     if (query.category && signal.category !== query.category) return false
     if (query.teamId && signal.owning_team_id !== query.teamId) return false

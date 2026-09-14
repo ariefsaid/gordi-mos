@@ -1,13 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TaskComment } from '@/components/tasks/CommentThread'
 import type { PersonOption } from '@/lib/db/directory'
 import {
-  SignalMessage, SignalReach, SignalDiscussion, SignalFacts, SignalHistory,
+  SignalMessage, SignalReach, SignalDiscussion, SignalFacts, SignalHistory, SignalOverflowMenu,
   type SignalRevisionView,
 } from './signal-record'
 
@@ -23,29 +24,71 @@ function wrap(node: React.ReactNode) {
 }
 
 describe('SignalMessage — the content leads (LAW-1/LAW-2)', () => {
-  it('AC-ANAT-002: renders the FULL body prose unclipped, with the attention pill + occurred riding with it', () => {
-    const body = 'HQ bar espresso volumes are down about 15% this week versus last week — corrected count. Investigating the grinder.'
+  it('AC-ANAT-002: renders the supplied body once in the message region, with attention + occurred in the compact control row', () => {
+    const body = 'HQ bar espresso volumes are down about 15% this week versus last week — corrected count.\nInvestigating the grinder.'
     wrap(<SignalMessage body={body} attention="Needs attention" occurredLabel="22 Jul 2026, 17:18 WIB" />)
-    expect(screen.getByText(body)).toBeInTheDocument() // full body, not a slice
+    expect(screen.getByText(/HQ bar espresso volumes are down about 15%.*Investigating the grinder\./, { selector: '.signal-message-body' })).toBeInTheDocument()
     expect(screen.getByText('Needs attention')).toBeInTheDocument()
     expect(screen.getByText(/Occurred 22 Jul 2026, 17:18 WIB/)).toBeInTheDocument()
   })
 
-  it('AC-ANAT-010: a retracted Signal shows only the tombstone + reason — no message body, no controls', () => {
-    wrap(<SignalMessage body="Original text" attention="FYI" occurredLabel="x" retracted retractReason="Duplicate report" />)
-    expect(screen.getByText(/retracted/i)).toBeInTheDocument()
+  it('AC-ANAT-010: a retracted Signal keeps the original line and explains who/when/why, with no live controls', () => {
+    wrap(<SignalMessage body={'Original text\nA longer detail'} attention="FYI" occurredLabel="x" retracted retractReason="Duplicate report" retractedBy="Lead One" retractedAtLabel="22 Jul 2026" />)
+    expect(document.querySelector('.signal-tombstone-status')).toHaveTextContent(/retracted/i)
+    expect(screen.getByText('Original text', { selector: '.signal-tombstone-original' })).toBeInTheDocument()
+    expect(screen.getByText(/Lead One/)).toBeInTheDocument()
+    expect(screen.getByText(/22 Jul 2026/)).toBeInTheDocument()
     expect(screen.getByText('Duplicate report')).toBeInTheDocument()
-    expect(screen.queryByText('Original text')).not.toBeInTheDocument()
+    expect(screen.queryByText('A longer detail')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /edit attention|create task|more actions/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps record actions in one compact control row before the body', () => {
+    wrap(
+      <SignalMessage
+        body={'A line\nMore detail'}
+        attention="FYI"
+        occurredLabel="now"
+        actionControls={<div data-testid="signal-action-controls"><button type="button">Create task</button></div>}
+      />,
+    )
+    const message = document.querySelector('.signal-message') as HTMLElement
+    expect(message.querySelector('.signal-record-control-row')).toBeTruthy()
+    expect(within(message.querySelector('.signal-record-control-row') as HTMLElement).getByRole('button', { name: /create task/i })).toBeInTheDocument()
+    expect(message.innerHTML.indexOf('signal-record-control-row')).toBeLessThan(message.innerHTML.indexOf('signal-message-body'))
+  })
+})
+
+describe('SignalOverflowMenu — nested Escape stays inside the menu', () => {
+  it('closes the menu, returns focus to its trigger, and does not close the record host', async () => {
+    const onRecordClose = vi.fn()
+    wrap(
+      <div onKeyDown={(event) => { if (event.key === 'Escape') onRecordClose() }}>
+        <SignalOverflowMenu onLinkExistingTask={vi.fn()} />
+      </div>,
+    )
+
+    const trigger = screen.getByRole('button', { name: /more signal actions/i })
+    await userEvent.click(trigger)
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(onRecordClose).not.toHaveBeenCalled()
+    expect(trigger).toHaveFocus()
   })
 })
 
 describe('SignalReach — the one action register (LAW-3), no Status/PIC/Supervisor (jtbd A1/A2)', () => {
   function renderReach(props: Partial<React.ComponentProps<typeof SignalReach>> = {}) {
     return wrap(
-      <SignalReach
-        mentions={[]} canAcknowledge hasAcknowledged={false}
-        acknowledgements={[]} {...props}
-      />,
+      <MemoryRouter>
+        <SignalReach
+          mentions={[]} canAcknowledge hasAcknowledged={false}
+          acknowledgements={[]} {...props}
+        />
+      </MemoryRouter>,
     )
   }
 
@@ -63,7 +106,7 @@ describe('SignalReach — the one action register (LAW-3), no Status/PIC/Supervi
     const region = document.querySelector('[data-signal-region="reach"]') as HTMLElement
     const cluster = region.querySelector('[data-signal-actions]')!
     // Every mutating verb is inside the single cluster.
-    for (const name of [/create task/i, /link existing task/i, /acknowledge/i]) {
+    for (const name of [/create task/i, /link existing task/i, /seen/i]) {
       expect(within(cluster as HTMLElement).getByRole('button', { name })).toBeInTheDocument()
     }
   })
@@ -82,7 +125,53 @@ describe('SignalReach — the one action register (LAW-3), no Status/PIC/Supervi
   it('lists the "who\'s acknowledged" roster and disables Acknowledge once done (never disappears)', () => {
     renderReach({ hasAcknowledged: true, acknowledgements: [{ personId: 'person-author-a', personName: 'Author One' }] })
     expect(screen.getByText('Author One', { selector: '.signal-ack-name' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /acknowledged/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /^seen$/i })).toBeDisabled()
+  })
+
+  it('uses Seen as an independent response toggle', async () => {
+    const onAcknowledge = vi.fn()
+    renderReach({ onAcknowledge })
+    const seen = screen.getByRole('button', { name: /^seen$/i })
+    expect(seen).toHaveAttribute('aria-pressed', 'false')
+    await userEvent.click(seen)
+    expect(onAcknowledge).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders linked work as titled rows when the host has resolved task details', () => {
+    renderReach({ linkedTasks: [
+      { id: 'task-1', title: 'Repair freezer', status: 'Open' },
+      { id: 'task-2', title: 'Check inventory', status: 'Done' },
+    ] })
+    expect(screen.getByText('Repair freezer')).toBeInTheDocument()
+    expect(screen.getByText(/Open/)).toBeInTheDocument()
+    expect(screen.getByText('Check inventory')).toBeInTheDocument()
+  })
+
+  it('keeps the basename-aware task href while opening the existing host stack on a plain click', async () => {
+    const onOpen = vi.fn()
+    render(
+      <MemoryRouter basename="/mos" initialEntries={['/mos/work/signals']}>
+        <I18nProvider>
+          <SignalReach
+            mentions={[]}
+            canAcknowledge
+            hasAcknowledged={false}
+            acknowledgements={[]}
+            linkedTasks={[{ id: 'task-1', title: 'Repair freezer', status: 'Open', href: '/work/tasks/task-1', onOpen }]}
+          />
+        </I18nProvider>
+      </MemoryRouter>,
+    )
+
+    const link = screen.getByRole('link', { name: /Repair freezer.*Open/i })
+    expect(link).toHaveAttribute('href', '/mos/work/tasks/task-1')
+    await userEvent.click(link)
+    expect(onOpen).toHaveBeenCalledTimes(1)
+
+    // Modified clicks must retain the real href so the browser can open a new tab/window.
+    link.addEventListener('click', (event) => event.preventDefault(), { once: true })
+    fireEvent.click(link, { metaKey: true })
+    expect(onOpen).toHaveBeenCalledTimes(1)
   })
 
   it('never shows a Status/PIC/Supervisor/resolution control (a Signal is a fact, OD-39)', () => {

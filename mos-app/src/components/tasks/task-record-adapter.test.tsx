@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, within, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type { TaskDetail } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -78,6 +78,11 @@ function fieldByKey(adapter: RecordViewerAdapter, key: string): RecordFieldSpec 
   return f
 }
 
+function openOverflowAction(label: string) {
+  fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+  return screen.getByRole('menuitem', { name: label })
+}
+
 // NOTE: createTaskPanelAdapter + the RecordDetailsPanel it fed were deleted in the value-first
 // record-document redesign — the live TaskSurface renders createTaskRecordAdapter directly through
 // RecordViewer, so the metadata-only panel adapter became dead code. Its §Task-11 / AC-V3-009
@@ -153,13 +158,14 @@ describe('createTaskRecordAdapter', () => {
     }
   })
 
-  it('§Task-11: PIC/Supervisor labels, Business Unit present, NO Team field before Issue 8, no RACI, checklist inherits ownership', () => {
+  it('Task ownership keeps Team distinct from Business Unit, with honest migration state and no RACI grammar', () => {
     const adapter = createTaskRecordAdapter(makeInput())
     const bu = fieldByKey(adapter, 'businessUnit')
     expect(bu.label).toBe('Business Unit')
-    // DELIBERATE goal change (§Task-11): no visible Team field until Issue 8's team_id contract.
-    expect(fieldsOf(adapter).find((f) => f.key === 'team')).toBeUndefined()
-    for (const f of fieldsOf(adapter)) expect(f.label).not.toMatch(/^team$/i)
+    const team = fieldByKey(adapter, 'team')
+    expect(team.label).toBe('Team')
+    expect(team.displayValue).toMatch(/not assigned yet/i)
+    expect(team.readOnlyReason).toMatch(/migration/i)
 
     expect(fieldByKey(adapter, 'pic').label).toBe('Person in charge (PIC)')
     expect(fieldByKey(adapter, 'supervisor').label).toBe('Supervisor')
@@ -176,11 +182,9 @@ describe('createTaskRecordAdapter', () => {
     expect(screen.queryByText('Supervisor')).not.toBeInTheDocument()
   })
 
-  it('§Task-11 (Issue-8 gate): a real Team lookup is accepted but renders no Team field yet', () => {
-    // DELIBERATE goal change (§Task-11): the adapter still accepts a team input (internal model
-    // preserved) but does not render a Team field until Issue 8's team_id contract lands.
+  it('a real Team lookup renders as Team and never relabels the BU', () => {
     const adapter = createTaskRecordAdapter(makeInput({ team: { id: 't-1', label: 'Café Operations' } }))
-    expect(fieldsOf(adapter).find((f) => f.key === 'team')).toBeUndefined()
+    expect(fieldByKey(adapter, 'team').displayValue).toBe('Café Operations')
     expect(fieldByKey(adapter, 'businessUnit').displayValue).toBe('Retail Ops')
   })
 
@@ -237,7 +241,7 @@ describe('createTaskRecordAdapter — AC-061 on the record: edit/archive follow 
     const { container } = renderAs(SUPERVISOR, [])
     expect(editableOf(container, 'pic')).toBe('true')
     expect(editableOf(container, 'dueDate')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Archive task' })).toBeInTheDocument()
+    expect(openOverflowAction('Archive task')).toBeInTheDocument()
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
   })
 
@@ -245,7 +249,7 @@ describe('createTaskRecordAdapter — AC-061 on the record: edit/archive follow 
     const { container } = renderAs('chain-mgr', [PIC])
     expect(editableOf(container, 'pic')).toBe('true')
     expect(editableOf(container, 'dueDate')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Archive task' })).toBeInTheDocument()
+    expect(openOverflowAction('Archive task')).toBeInTheDocument()
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
   })
 
@@ -283,13 +287,13 @@ describe('createTaskRecordAdapter — AC-061 on the record: edit/archive follow 
     )
     expect(container).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Edit Person in charge (PIC)' }))
-    const picSelect = screen.getByRole('combobox')
-    expect(within(picSelect).getAllByRole('option').map((o) => o.getAttribute('value'))).toEqual([PIC, 'mgr'])
-    fireEvent.blur(picSelect)
+    fireEvent.click(screen.getByRole('combobox', { name: 'Person in charge (PIC)' }))
+    expect(screen.getAllByRole('option').map((o) => o.textContent?.trim())).toEqual(['Riri', 'Made Manager'])
+    fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' })
     fireEvent.click(screen.getByRole('button', { name: 'Edit Supervisor' }))
-    const supSelect = screen.getByRole('combobox')
-    expect(within(supSelect).getAllByRole('option').map((o) => o.getAttribute('value')))
-      .toEqual([PIC, SUPERVISOR, 'mgr', 'p-out'])
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supervisor' }))
+    expect(screen.getAllByRole('option').map((o) => o.textContent?.trim()))
+      .toEqual(['Riri', 'Wayan Kusuma', 'Made Manager', 'Far Away'])
     unmount()
   })
 })
@@ -327,20 +331,27 @@ describe('createTaskRecordAdapter — R5: the Classification fossil is gone; pro
   })
 
   it('a project task still surfaces its Project attribution via the Project/Process relation', () => {
+    const onOpenRelated = vi.fn()
     const task = makeTask({ work_line_id: 'wl-1' })
     const adapter = createTaskRecordAdapter(makeInput({
       detail: makeDetail(task),
+      onOpenRelated,
       workLines: [{ id: 'wl-1', name: 'New menu launch', type: 'project' }],
     }))
     // The Project/Process relation row names the work line — the surviving carrier of "Project".
     expect(fieldByKey(adapter, 'projectProcess').displayValue).toBe('New menu launch')
+    expect(fieldByKey(adapter, 'projectProcess').href).toBe('/work/projects/wl-1')
+    fieldByKey(adapter, 'projectProcess').onOpen?.()
+    fieldByKey(adapter, 'source').onOpen?.()
+    expect(onOpenRelated).toHaveBeenCalledTimes(2)
+    expect(onOpenRelated).toHaveBeenLastCalledWith({ kind: 'work-line', id: 'wl-1' })
   })
 })
 
-describe('createTaskRecordAdapter — Source names a real work-line/objective attribution only', () => {
-  it('shows no Source row for a pure hand-created Ad-hoc task (no naked "Ad hoc" placeholder)', () => {
+describe('createTaskRecordAdapter — Source names a real work-line/objective attribution or Ad hoc state', () => {
+  it('shows an explicit Ad hoc Source state for a pure hand-created task', () => {
     const adapter = createTaskRecordAdapter(makeInput())
-    expect(fieldsOf(adapter).find((f) => f.key === 'source')).toBeUndefined()
+    expect(fieldByKey(adapter, 'source').displayValue).toBe('Ad hoc')
   })
 
   it('shows Source when a work line names the real attribution (a Process-type work line)', () => {
@@ -363,10 +374,8 @@ describe('createTaskRecordAdapter — Source names a real work-line/objective at
   })
 })
 
-describe('teamOwnershipField — the preserved Issue-8 internal model (not rendered until Issue 8)', () => {
-  it('§Task-11: the honest Team model is preserved (missing → migration state; real lookup → label)', () => {
-    // The adapter's internal Team model stays honest for Issue 8 even though ownershipFields does
-    // not render it yet. This proves the seam that Issue 8 re-enables at the render site.
+describe('teamOwnershipField — honest Team model and viewer-scoped options', () => {
+  it('missing → migration state; real lookup → label', () => {
     const missing = teamOwnershipField(null)
     expect(missing.key).toBe('team')
     expect(missing.editable).toBe(false)

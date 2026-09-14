@@ -13,7 +13,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useState } from 'react'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -42,6 +42,8 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getPersonTeams: vi.fn(),
+  getTeamsByIds: () => Promise.resolve([]),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/db/objectives', () => ({
@@ -53,6 +55,7 @@ vi.mock('../../lib/db/work-lines', () => ({
 
 import { listTasks } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
+import * as directoryApi from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksWorkspace } from './tasks-workspace'
@@ -103,6 +106,10 @@ const WORK_LINES = [
   { id: 'wl-process', name: 'Daily IG Content', type: 'process' as const },
 ]
 
+const mockGetPersonTeams = (directoryApi as unknown as {
+  getPersonTeams: ReturnType<typeof vi.fn>
+}).getPersonTeams
+
 function stubMatchMedia(split = true, desktop = true) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
@@ -125,11 +132,10 @@ function makeSavedView(): React.ComponentProps<typeof TasksWorkspace>['savedView
 
 // §Task-11: the Team-work chip was removed; All is the org-visible set.
 async function switchToAll() {
-  const viewOptions = screen.queryByRole('button', { name: /view options/i })
-  if (viewOptions?.getAttribute('aria-expanded') === 'false') fireEvent.click(viewOptions)
-  fireEvent.click(screen.getByRole('button', { name: 'All' }))
+  const all = screen.getByRole('button', { name: 'All' })
+  fireEvent.click(all)
   await waitFor(() => {
-    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+    expect(all).toHaveAttribute('aria-pressed', 'true')
   })
 }
 
@@ -161,6 +167,7 @@ beforeEach(() => {
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
+  mockGetPersonTeams.mockResolvedValue([{ id: 'team-cafe', name: 'Cafe Team', businessUnitId: 'bu-1' }])
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue(OBJECTIVES)
   vi.mocked(listWorkLines).mockResolvedValue(WORK_LINES)
@@ -169,11 +176,16 @@ beforeEach(() => {
 // ── RI-3: Task column never 0 width + scroll container scrollable ─────────────
 
 
-// Group/Sort/toggles are disclosed behind the desktop "View options" trigger (score-gate
-// slice, 2026-07-22). Open it when collapsed; the grouping capability itself is unchanged.
+// Phone may disclose these controls; desktop exposes the same shared group inline.
+function chooseFilterOption(trigger: HTMLElement, label: string) {
+  fireEvent.click(trigger)
+  fireEvent.click(screen.queryByRole('option', { name: label }) ?? screen.getByRole('checkbox', { name: label }))
+}
+
 function ensureViewOptionsOpen() {
-  const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+  const trigger = screen.queryByRole('button', { name: /^view & filters/i })
   if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+  return screen.getByRole('group', { name: /view & filters/i })
 }
 
 describe('RI-3 — Task column width and scroll container', () => {
@@ -243,10 +255,10 @@ describe('RI-2 — Person filter + groupBy=workline suppresses empty groups', ()
 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
 
     const personSelect = screen.getByRole('combobox', { name: /person/i })
-    fireEvent.change(personSelect, { target: { value: 'maya-id' } })
+    chooseFilterOption(personSelect, 'Maya Rahmawati')
 
     await waitFor(() => {
       const glabels = Array.from(document.querySelectorAll('.glabel')).map(n => n.textContent)
@@ -266,7 +278,7 @@ describe('RI-2 — Person filter + groupBy=workline suppresses empty groups', ()
     await switchToAll()
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     await waitFor(() => {
       const glabels = Array.from(document.querySelectorAll('.glabel')).map(n => n.textContent)
       // #569: the projection drops every zero-row group — the empty wl-process group does
@@ -401,9 +413,9 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     const personSelect = screen.getByRole('combobox', { name: /person/i })
-    fireEvent.change(personSelect, { target: { value: 'maya-id' } })
+    chooseFilterOption(personSelect, 'Maya Rahmawati')
 
     await waitFor(() => {
       const caption = screen.getByRole('status', { name: /workload summary/i })
@@ -427,9 +439,9 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     const personSelect = screen.getByRole('combobox', { name: /person/i })
-    fireEvent.change(personSelect, { target: { value: 'maya-id' } })
+    chooseFilterOption(personSelect, 'Maya Rahmawati')
 
     await waitFor(() => {
       const caption = screen.getByRole('status', { name: /workload summary/i })
@@ -454,9 +466,9 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     const personSelect = screen.getByRole('combobox', { name: /person/i })
-    fireEvent.change(personSelect, { target: { value: 'maya-id' } })
+    chooseFilterOption(personSelect, 'Maya Rahmawati')
 
     await waitFor(() => {
       const caption = screen.getByRole('status', { name: /workload summary/i })
@@ -477,9 +489,9 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     const personSelect = screen.getByRole('combobox', { name: /person/i })
-    fireEvent.change(personSelect, { target: { value: 'maya-id' } })
+    chooseFilterOption(personSelect, 'Maya Rahmawati')
 
     await waitFor(() => {
       const caption = screen.getByRole('status', { name: /workload summary/i })
@@ -593,8 +605,10 @@ describe('Fix-6 — Work-line picker options include project/daily cue', () => {
     // F17 (OD-91 #29): the Project/Process picker lives behind the "+ Add context" reveal now.
     fireEvent.click(await screen.findByRole('button', { name: /add context/i }))
     // Wait for work-line select to appear
-    const wlSelect = await screen.findByRole('combobox', { name: /project\/process/i })
-    const options = Array.from(wlSelect.querySelectorAll('option')).map(o => o.textContent ?? '')
+    await screen.findByRole('combobox', { name: /project\/process/i })
+    fireEvent.click(screen.getByRole('combobox', { name: /project\/process/i }))
+    const options = screen.getAllByRole('option').map(o => o.textContent ?? '')
+    fireEvent.click(screen.getByRole('option', { name: '— None —' }))
     // Options must include the type cue in parentheses
     expect(options.some(o => /project/i.test(o))).toBe(true)
     expect(options.some(o => /daily/i.test(o))).toBe(true)
@@ -608,17 +622,16 @@ describe('Fix-7 — useCascadeCatalogs hook', () => {
     vi.mocked(listTasks).mockResolvedValue([
       makeTask({ id: 't1', title: 'A task' }),
     ])
-    const { container } = renderWorkspace()
+    renderWorkspace()
     await waitFor(() => screen.getByText('A task'))
 
     const initialObjectivesCalls = vi.mocked(listObjectives).mock.calls.length
     const initialWorkLinesCalls = vi.mocked(listWorkLines).mock.calls.length
 
-    // Trigger a filter change (status filter) — should NOT re-trigger catalog loads. The
-    // trigger is scoped to the toolbar: the table's Status column-header shares its name.
+    // Trigger a filter change (status filter) — should NOT re-trigger catalog loads.
     ensureViewOptionsOpen()
-    fireEvent.click(container.querySelector('.tasks-collection-toolbar button[aria-label="Status"]')!)
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Open' }))
+    const statusSelect = within(ensureViewOptionsOpen()).getByRole('button', { name: /^status$/i })
+    chooseFilterOption(statusSelect, 'Open')
     await waitFor(() => {}) // allow any async effects to settle
 
     // Catalog calls must NOT increase when a filter changes

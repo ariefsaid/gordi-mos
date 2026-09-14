@@ -15,9 +15,13 @@ export function canEdit(task: TaskListRow, viewerId: string, downlineIds: readon
   )
 }
 
-// Archive gate: A or a manager above the PIC (narrower than edit — not bare R).
+// Archive gate: a non-PIC Supervisor or a manager above the PIC (OD-WAY-94). The database is
+// authoritative; this only prevents presenting an archive affordance the archive guard will deny.
 export function canArchive(task: TaskListRow, viewerId: string, downlineIds: readonly string[]): boolean {
-  return task.accountable_person_id === viewerId || downlineIds.includes(task.responsible_person_id)
+  return (
+    task.responsible_person_id !== viewerId &&
+    (task.accountable_person_id === viewerId || downlineIds.includes(task.responsible_person_id))
+  )
 }
 
 export function picOptions(viewerId: string, people: readonly PersonOption[], downlineIds: readonly string[]): PersonOption[] {

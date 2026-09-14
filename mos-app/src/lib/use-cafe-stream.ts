@@ -24,7 +24,8 @@
 // looking at all of them. Its catalog read stays its own; sharing this hook would be a
 // behaviour change wearing a refactor's clothes.
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useAuth } from '@/auth/use-auth'
 import { resolveCafeStream, rememberStream } from '@/lib/cafe-stream'
 import { listStreamPairs, streamCatalogFrom } from '@/lib/db/kitchen-logs'
 import { listActiveBranches } from '@/lib/db/branches'
@@ -51,26 +52,35 @@ export interface CafeStreamState extends CafeStreamCatalog {
 }
 
 export function useCafeStream(): CafeStreamState {
+  const auth = useAuth()
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const [catalog, setCatalog] = useState<CafeStreamCatalog>({
     branches: [],
     options: [],
     stream: null,
   })
 
+  // An auth switch can leave a Café route mounted. Drop the previous person's catalog before the
+  // new viewer's bootstrap completes, so a stale branch/activity label cannot sit beside their
+  // loading state or be mistaken for the new person's context.
+  useEffect(() => {
+    setCatalog({ branches: [], options: [], stream: null })
+  }, [viewerId])
+
   const resolve = useCallback(async (): Promise<CafeStreamCatalog> => {
     const [branches, pairs] = await Promise.all([listActiveBranches(), listStreamPairs()])
     const options = streamCatalogFrom(pairs, branches)
     // fetchDefaultStream needs the branch catalog, so it runs after the parallel pair.
-    const stream = resolveCafeStream(options, await fetchDefaultStream(branches))
+    const stream = resolveCafeStream(options, await fetchDefaultStream(branches), viewerId)
     return { branches, options, stream }
-  }, [])
+  }, [viewerId])
 
   const adopt = useCallback((next: CafeStreamCatalog) => setCatalog(next), [])
 
   const setStream = useCallback((next: ProductionStream) => {
     setCatalog(prev => ({ ...prev, stream: next }))
-    rememberStream(next) // the whole Café module follows this choice (#440)
-  }, [])
+    rememberStream(next, viewerId) // the whole Café module follows this choice (#440)
+  }, [viewerId])
 
   return { ...catalog, resolve, adopt, setStream }
 }

@@ -40,6 +40,8 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getPersonTeams: () => Promise.resolve([]),
+  getTeamsByIds: () => Promise.resolve([]),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/db/objectives', () => ({
@@ -129,10 +131,6 @@ function renderTable(props: Partial<React.ComponentProps<typeof TasksWorkspace>>
       </MemoryRouter>
     </AuthContext.Provider>,
   )
-  // Grouping and sorting are intentionally behind the desktop View options disclosure.
-  // These legacy cascade tests exercise the controls, not the disclosure itself.
-  const viewOptions = screen.queryByRole('button', { name: /view options/i })
-  if (viewOptions?.getAttribute('aria-expanded') === 'false') fireEvent.click(viewOptions)
   return utils
 }
 
@@ -151,11 +149,16 @@ beforeEach(() => {
 // ── FR-231: Work-line option in the Group chip ────────────────────────────────
 
 
-// Group/Sort/toggles are disclosed behind the desktop "View options" trigger (score-gate
-// slice, 2026-07-22). Open it when collapsed; the grouping capability itself is unchanged.
+// Phone may disclose these controls; desktop exposes the same shared group inline.
+function chooseFilterOption(trigger: HTMLElement, label: string) {
+  fireEvent.click(trigger)
+  fireEvent.click(screen.getByRole('option', { name: label }))
+}
+
 function ensureViewOptionsOpen() {
-  const trigger = screen.queryByRole('button', { name: /view & filters|view options/i })
+  const trigger = screen.queryByRole('button', { name: /^view & filters/i })
   if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+  return screen.getByRole('group', { name: /view & filters/i })
 }
 
 describe('FR-231 — Work-line option in the Group chip', () => {
@@ -165,9 +168,9 @@ describe('FR-231 — Work-line option in the Group chip', () => {
     await waitFor(() => screen.getByText('A task'))
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    const options = Array.from(groupSelect.querySelectorAll('option')).map(o => o.textContent)
-    // #743: group options carry the "Group: " prefix (FR-005).
-    expect(options).toContain('Group: Project/Process')
+    fireEvent.click(groupSelect)
+    const options = screen.getAllByRole('option').map(o => o.textContent)
+    expect(options).toContain('Project/Process')
   })
 })
 
@@ -184,7 +187,7 @@ describe('FR-232 — group-by Work-line nests rows under work-line headers', () 
     // Switch groupBy to 'workline'
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     await waitFor(() => {
       // group header rows appear (tr.grp)
       const groupRows = document.querySelectorAll('tr.grp')
@@ -208,7 +211,7 @@ describe('FR-232 — group-by Work-line nests rows under work-line headers', () 
     await waitFor(() => screen.getByText('Orphan task'))
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     await waitFor(() => {
       // group header glabels
       const glabels = Array.from(document.querySelectorAll('.glabel')).map(n => n.textContent)
@@ -230,7 +233,7 @@ describe('FR-232 — group-by Work-line nests rows under work-line headers', () 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     // Still works for status
-    fireEvent.change(groupSelect, { target: { value: 'status' } })
+    chooseFilterOption(groupSelect, 'Status')
     await waitFor(() => {
       const glabels = Array.from(document.querySelectorAll('.glabel')).map(n => n.textContent)
       // Status grouping still works; #569 drops empty statuses — only Blocked has a row.
@@ -251,7 +254,7 @@ describe('FR-233 — group header shows type label (Project / Daily / ongoing)',
     await waitFor(() => screen.getByText('Daily task'))
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     await waitFor(() => {
       // The type label text is present (not color-only — WCAG 1.4.1)
       expect(screen.getByText(/daily.*ongoing/i)).toBeInTheDocument()
@@ -266,7 +269,7 @@ describe('FR-233 — group header shows type label (Project / Daily / ongoing)',
     await waitFor(() => screen.getByText('Project task'))
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     await waitFor(() => {
       // Find the group header row for "New Menu Design" (wl-2, type=project)
       const grpRows = Array.from(document.querySelectorAll('tr.grp'))
@@ -285,7 +288,7 @@ describe('FR-233 — group header shows type label (Project / Daily / ongoing)',
     await waitFor(() => screen.getByText('Orphan'))
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     await waitFor(() => {
       expect(screen.getByText('No work-line')).toBeInTheDocument()
     })
@@ -300,7 +303,7 @@ describe('FR-233 — group header shows type label (Project / Daily / ongoing)',
     await waitFor(() => screen.getByText('Process task'))
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     await waitFor(() => {
       // Both type labels are text nodes in the DOM group headers — not just colored dots.
       const grpRows = Array.from(document.querySelectorAll('tr.grp'))
@@ -357,10 +360,10 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
     // Switch to groupby=workline
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     // Filter to a single person (Maya)
     const personSelect = screen.getByRole('combobox', { name: /person/i })
-    fireEvent.change(personSelect, { target: { value: 'other-id' } })
+    chooseFilterOption(personSelect, 'Maya Rahmawati')
     await waitFor(() => {
       // caption says "Maya's work:" (their first name) — 2 projects, 1 daily
       const caption = screen.getByRole('status', { name: /workload summary/i })
@@ -380,9 +383,9 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
     await waitFor(() => screen.getByText('My IG task'))
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     const personSelect = screen.getByRole('combobox', { name: /person/i })
-    fireEvent.change(personSelect, { target: { value: VIEWER_ID } })
+    chooseFilterOption(personSelect, 'Arief Said')
     await waitFor(() => {
       const caption = screen.getByRole('status', { name: /workload summary/i })
       expect(caption.textContent).toMatch(/your work/i)
@@ -397,7 +400,7 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
     await waitFor(() => screen.getByText('A task'))
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'workline' } })
+    chooseFilterOption(groupSelect, 'Project/Process')
     // no personFilter set — wait for the group header to appear
     await waitFor(() => {
       const glabels = Array.from(document.querySelectorAll('.glabel')).map(n => n.textContent)
@@ -414,9 +417,9 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
     await waitFor(() => screen.getByText('Status task'))
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
-    fireEvent.change(groupSelect, { target: { value: 'status' } })
+    chooseFilterOption(groupSelect, 'Status')
     const personSelect = screen.getByRole('combobox', { name: /person/i })
-    fireEvent.change(personSelect, { target: { value: 'other-id' } })
+    chooseFilterOption(personSelect, 'Maya Rahmawati')
     await waitFor(() => expect(document.querySelectorAll('tr.grp').length).toBeGreaterThanOrEqual(1))
     expect(screen.queryByRole('status', { name: /workload summary/i })).toBeNull()
   })

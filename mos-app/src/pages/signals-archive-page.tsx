@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useAuth } from '@/auth/use-auth'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -9,7 +9,6 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { useSignalComposer } from '@/shell/signal-composer-host'
-import { Toggle } from '@/components/ui/toggle'
 import { Button } from '@/components/ui/button'
 import { correctSignal } from '@/lib/db/signals'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
@@ -48,6 +47,8 @@ import './signals-archive-page.css'
 // A Signal has no short title — its identity is the body's first line. Compact that line to ~72
 // chars (v4's cut) so the Ask Deputy composer seed reads as a record reference, not a paste.
 const DEPUTY_SEED_MAX = 72
+type SignalSavedViewRetry = { kind: 'load' } | { kind: 'apply'; id: string } | { kind: 'save'; name: string }
+
 function deputySeed(body: string): string {
   const line = firstLine(body)
   return line.length > DEPUTY_SEED_MAX ? `${line.slice(0, DEPUTY_SEED_MAX).trimEnd()}…` : line
@@ -62,11 +63,12 @@ export function SignalsArchivePage() {
   const isSplit = useIsWideOverlayWidth()
   const isDesktop = useIsDesktop()
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
+  const savedViewRetryRef = useRef<SignalSavedViewRetry | null>(null)
   const [params, setParams] = useSearchParams()
   const recordId = params.get('record')
   const hadSignalSession = useRef(false)
   const suppressNextOpen = useRef(false)
-  const { open: openSignalComposer, postCount } = useSignalComposer()
+  const { open: openSignalComposer, postCount, canPost } = useSignalComposer()
 
   const controller = useRecordCollection({
     descriptor: signalCollectionDescriptor,
@@ -98,6 +100,7 @@ export function SignalsArchivePage() {
   const signalViewLabel = (view: SignalCollectionQuery['view']) =>
     view === 'needs-attention' ? t('signals.archive.viewAttention')
       : view === 'retracted' ? t('signals.archive.viewRetracted')
+        : view === 'i-posted' ? t('signals.archive.viewMine')
         : t('signals.archive.viewAll')
   const activeSignalView = getActiveSignalView({
     query,
@@ -106,6 +109,7 @@ export function SignalsArchivePage() {
       all: signalViewLabel('all'),
       'needs-attention': signalViewLabel('needs-attention'),
       retracted: signalViewLabel('retracted'),
+      'i-posted': signalViewLabel('i-posted'),
     },
   })
 
@@ -122,9 +126,8 @@ export function SignalsArchivePage() {
         : currentQuery.category ? t('signals.archive.filterCategory')
           : currentQuery.teamId ? t('signals.archive.filterTeam')
             : currentQuery.q.trim() ? t('signals.archive.searchLabel')
-              : currentQuery.showRetracted ? t('signals.archive.showRetracted')
-                : currentQuery.savedViewId ? t('common.savedView')
-                  : undefined,
+              : currentQuery.savedViewId ? t('common.savedView')
+                : undefined,
     })
   }
 
@@ -135,6 +138,11 @@ export function SignalsArchivePage() {
   // Collection contract onOpenRecord — replace the query state before the host pushes its one
   // route marker. This yields one Back step from the record marker to the prior collection URL.
   function onOpenRecord(record: { id: string }) {
+    // A fresh row click is explicit intent, so it clears the close/reopen memories used by the
+    // route-seam effects. Without this reset, a signal reopened immediately after Back could be
+    // swallowed by the previous session's suppression flag.
+    suppressNextOpen.current = false
+    hadSignalSession.current = false
     const next = new URLSearchParams(params)
     next.set('record', record.id)
     setParams(next)
@@ -148,7 +156,7 @@ export function SignalsArchivePage() {
 
   const actions: SignalCollectionActions = {
     onCategorize: (signalId, category) => { void handleCategorize(signalId, category) },
-    onShareClick: openSignalComposer,
+    ...(canPost === false ? {} : { onShareClick: () => openSignalComposer() }),
     onSort: (sort, direction) => setQuery({ sort, direction }),
   }
 
@@ -207,10 +215,15 @@ export function SignalsArchivePage() {
     if (suppressNextOpen.current) return
     const active = host.session?.frames.at(-1)?.entry
     if (active?.key === signalEntry.key) return
+    // A pushed child (for example Signal → Create task) changes the active top frame, but the
+    // Signal is still the root owner. Replacing the root here would silently discard that child
+    // on the next render. The root identity is the stable seam for collection synchronization.
+    const signalRoot = host.session?.frames[0]?.entry
+    if (signalRoot?.key === signalEntry.key) return
     const hasSignalSession = host.session?.frames.some((frame) => frame.entry.owner === 'signals')
     void (hasSignalSession
       ? host.replaceRoot(signalEntry)
-      : host.openRoot(signalEntry, 'route'))
+      : host.openRoot(signalEntry, 'route', true))
   }, [host, signalEntry])
 
   // A route marker adds one history step above the readable ?record= state. When the shared host
@@ -257,10 +270,11 @@ export function SignalsArchivePage() {
 
   const signalToolbar = (
     <CollectionToolbar
+      className="signals-archive-toolbar"
       // D-D2 / Rule 7: the ONE compose door for /work/signals lives in the toolbar, so it is present
       // in BOTH Table and Feed (it used to appear only as the in-feed row and vanish in Table). The
       // in-feed "Share a Signal" row is now ambient-only (Home tail) — see SignalFeedRows.
-      primaryAction={(
+      primaryAction={canPost === false ? undefined : (
         <Button variant="primary" onClick={() => openSignalComposer()}>
           {t('signals.action.share')}
         </Button>
@@ -285,8 +299,12 @@ export function SignalsArchivePage() {
           { value: 'all', label: t('signals.archive.viewAll') },
           { value: 'needs-attention', label: t('signals.archive.viewAttention') },
           { value: 'retracted', label: t('signals.archive.viewRetracted') },
+          { value: 'i-posted', label: t('signals.archive.viewMine') },
         ],
-        onChange: (view) => setQuery({ view }),
+        // Choosing any explicit view also clears the pre-collection `?retracted=1`
+        // compatibility flag. The flag remains readable for old links, but must not
+        // silently keep retracted records in the All view after a user changes views.
+        onChange: (view) => setQuery({ view, showRetracted: false }),
       }}
       search={signalSearch}
       filters={[
@@ -339,25 +357,32 @@ export function SignalsArchivePage() {
           },
         ] : []),
       ]}
-      toggles={(
-        <label className="collection-toolbar__toggle">
-          <Toggle
-            size="small"
-            value={query.showRetracted}
-            onChange={(showRetracted) => setQuery({ showRetracted })}
-            aria-label={t('signals.archive.showRetracted')}
-          />
-          <span>{t('signals.archive.showRetracted')}</span>
-        </label>
-      )}
       savedViews={{
         label: t('signals.archive.savedViews'),
         selectedId: query.savedViewId,
         operation: controller.state.savedViews.operation,
+        error: controller.state.savedViews.error,
+        errorMessage: t('signals.archive.savedViewsError'),
         items: controller.state.savedViews.items,
-        onLoad: () => { void controller.loadSavedViews() },
-        onApply: async (id) => { await controller.applySavedView(id) },
-        onSave: async (name) => { await controller.saveCurrentView(name, 'private') },
+        onLoad: () => {
+          savedViewRetryRef.current = { kind: 'load' }
+          return controller.loadSavedViews()
+        },
+        onRetry: () => {
+          const retry = savedViewRetryRef.current
+          if (!retry) return
+          if (retry.kind === 'load') void controller.loadSavedViews()
+          else if (retry.kind === 'apply') void controller.applySavedView(retry.id)
+          else void controller.saveCurrentView(retry.name, 'private')
+        },
+        onApply: async (id) => {
+          savedViewRetryRef.current = { kind: 'apply', id }
+          await controller.applySavedView(id)
+        },
+        onSave: (name) => {
+          savedViewRetryRef.current = { kind: 'save', name }
+          return controller.saveCurrentView(name, 'private')
+        },
       }}
     />
   )
@@ -449,7 +474,9 @@ export function SignalsArchivePage() {
 export function SignalRecordPage() {
   const t = useT()
   const { signalId } = useParams<{ signalId: string }>()
+  const location = useLocation()
   const [title, setTitle] = useState<string | null>(null)
+  const fromHome = (location.state as { from?: string } | null)?.from === 'home'
   // R6-P2 parity with TaskRecordPage: reflect the resolved record name in the browser tab.
   useDocumentTitle(t('common.docTitle', { page: title ? `${title} · ${t('nav.signals')}` : t('nav.signals') }))
   if (!signalId) return <Navigate to="/work/signals" replace />
@@ -466,8 +493,8 @@ export function SignalRecordPage() {
       hideHead
     >
       <RecordPageChrome
-        backTo="/work/signals"
-        backLabel={t('nav.signals')}
+        backTo={fromHome ? '/' : '/work/signals'}
+        backLabel={fromHome ? t('dest.home') : t('nav.signals')}
         // #426 (mirror of TaskRecordPage): null until the record resolves, so no Ask Deputy
         // affordance renders with a bare stub seed.
         deputyDraft={title ? t('assistant.askAbout.signal', { title: deputySeed(title) }) : null}

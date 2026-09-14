@@ -508,7 +508,12 @@ export function OverlayHostProvider({
       const commit = () => {
         const current = sessionRef.current
         if (!current) return
-        const existing = current.frames.findIndex((f) => f.entry.key === entry.key)
+        // The key identifies the record, but the owner identifies the physical slot that can
+        // render it. A Signal opened from Signals and then addressed from Inbox must not dedupe
+        // back to the Signals-owned frame: the Inbox slot would see the old owner and render no
+        // panel at all. Only the same record in the same slot is a true stack revisit.
+        const existing = current.frames.findIndex((f) =>
+          f.entry.key === entry.key && f.entry.owner === entry.owner)
         if (existing >= 0) {
           // Pushing a key already in the stack pops back to that frame (dedupe).
           const nextFrames = current.frames.slice(0, existing + 1)
@@ -670,11 +675,14 @@ export function useOptionalOverlayHost(): OverlayHostApi | null {
  */
 export function OverlayHostSlot({
   owner,
+  floating = false,
   children,
   onClose: onCloseOverride,
   onOpenPage: onOpenPageOverride,
 }: {
   owner: OverlayOwner
+  /** Use the shared viewport-side track when the caller portals outside a collection grid. */
+  floating?: boolean
   children?: ReactNode
   /** Optional tenant cleanup that runs before the shared close commit (e.g. URL query state). */
   onClose?: (via: 'explicit-close' | 'escape', close: OverlayHostApi['close']) => void
@@ -727,7 +735,7 @@ export function OverlayHostSlot({
           // width). Collection slots do not need it — their pages are expected to wrap the slot in
           // `.record-split`. NOTE (#190): no collection page does that yet, because none has ported;
           // the class ships in styles/drawer.css so the first one to arrive finds the track waiting.
-          rootClassName={owner === 'shell' ? 'drawer-shell-split' : undefined}
+          rootClassName={owner === 'shell' || floating ? 'drawer-shell-split' : undefined}
         >
           {active.entry.content}
         </RecordPanelHost>

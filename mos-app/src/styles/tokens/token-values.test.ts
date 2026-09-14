@@ -383,9 +383,9 @@ describe('AC-001: Token SOURCE values match E7 warm palette (light + dark)', () 
       expect(val).toBe('var(--ds-border-color-strong)')
     })
 
-    it('--input → --border-medium (Single-Border restored: field border == divider)', () => {
+    it('--input → --control-border so fields remain identifiable from dividers', () => {
       const val = extractToken(aliases, '--input')!
-      expect(val).toBe('var(--border-medium)')
+      expect(val).toBe('var(--control-border)')
     })
 
     it('--accent → --ds-color-blue (action blue)', () => {
@@ -649,11 +649,11 @@ describe('AC-001: Token SOURCE values match E7 warm palette (light + dark)', () 
       )
     })
 
-    it('--color-input (Tailwind) → --border-medium (Single-Border)', () => {
+    it('--color-input (Tailwind) → --control-border', () => {
       const themeBlock = indexCss.match(/@theme inline\s*{([\s\S]*?)}/)?.[1] || ''
       assertColorClose(
         extractToken(themeBlock, '--color-input')!,
-        'var(--border-medium)',
+        'var(--control-border)',
         '--color-input'
       )
     })
@@ -693,10 +693,10 @@ describe('AC-001: Token SOURCE values match E7 warm palette (light + dark)', () 
       )
     })
 
-    it('--input (bare) → --border-medium (Single-Border restored)', () => {
+    it('--input (bare) → --control-border', () => {
       assertColorClose(
         getToken('--input', 'indexCss'),
-        'var(--border-medium)',
+        'var(--control-border)',
         '--input (bare)'
       )
     })

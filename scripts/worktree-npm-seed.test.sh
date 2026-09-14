@@ -55,12 +55,19 @@ seed_main_nm() {
   # hardlink seed — cp -al would otherwise hand the target tsc's cached "no errors" verdict
   # from main instead of a real check of the target's own sources.
   rm -rf "$repo/mos-app/node_modules"
-  mkdir -p "$repo/mos-app/node_modules/.bin" "$repo/mos-app/node_modules/pkg-a"
+  mkdir -p "$repo/mos-app/node_modules/.bin" "$repo/mos-app/node_modules/pkg-a" "$repo/mos-app/node_modules/pkg-b"
   for b in tsc eslint stylelint vitest vite; do
     printf '#!/bin/sh\n' > "$repo/mos-app/node_modules/.bin/$b"
     chmod +x "$repo/mos-app/node_modules/.bin/$b"
   done
   echo 'module.exports = 1;' > "$repo/mos-app/node_modules/pkg-a/index.js"
+  # npm on the real main checkout left this absolute self-link behind. A hardlink seed copies
+  # symlinks verbatim, so a target would silently expose main's dependency tree through the
+  # otherwise ordinary-looking nested node_modules path. Keep a different relative symlink in
+  # the fixture to prove the fix removes only this resolver poison, not package links generally.
+  ln -s "$repo/mos-app/node_modules" "$repo/mos-app/node_modules/node_modules"
+  ln -s pkg-a "$repo/mos-app/node_modules/pkg-link"
+  ln -s ../pkg-a "$repo/mos-app/node_modules/pkg-b/node_modules"
   mkdir -p "$repo/mos-app/node_modules/.tmp" "$repo/mos-app/node_modules/.vite" "$repo/mos-app/node_modules/.vite-temp"
   echo cached > "$repo/mos-app/node_modules/.tmp/marker"
   echo cached > "$repo/mos-app/node_modules/.vite/marker"
@@ -103,6 +110,47 @@ for d in .tmp .vite .vite-temp; do
   [ ! -e "$wt/mos-app/node_modules/$d" ] && ok "seeded-on-match: $d pruned from target" \
     || bad "seeded-on-match: $d pruned from target" "$d survived the seed"
 done
+[ ! -L "$wt/mos-app/node_modules/node_modules" ] \
+  && ok "seeded-on-match: absolute nested node_modules alias removed" \
+  || bad "seeded-on-match: absolute nested node_modules alias removed"
+[ -L "$wt/mos-app/node_modules/pkg-link" ] \
+  && [ "$(readlink "$wt/mos-app/node_modules/pkg-link")" = "pkg-a" ] \
+  && ok "seeded-on-match: unrelated package symlink preserved" \
+  || bad "seeded-on-match: unrelated package symlink preserved"
+[ -L "$wt/mos-app/node_modules/pkg-b/node_modules" ] \
+  && [ "$(readlink "$wt/mos-app/node_modules/pkg-b/node_modules")" = "../pkg-a" ] \
+  && ok "seeded-on-match: unrelated nested package symlink preserved" \
+  || bad "seeded-on-match: unrelated nested package symlink preserved"
+
+### 2. root node_modules symlink: refuse without traversing or mutating the main install.
+wt_root_link="$tmp/wt-root-link"
+git -C "$repo" worktree add -q -b feat-root-link "$wt_root_link" HEAD
+rm -rf "$wt_root_link/mos-app/node_modules"
+ln -s "$repo/mos-app/node_modules" "$wt_root_link/mos-app/node_modules"
+main_nested_link="$repo/mos-app/node_modules/node_modules"
+main_nested_target="$(readlink "$main_nested_link")"
+rm -f "$tmp/npm-calls"
+out_root="$(run "$wt_root_link" 2>&1)"; rc_root=$?
+[ "$rc_root" -ne 0 ] && ok "root-symlink: refuses target node_modules symlink" \
+  || bad "root-symlink: refuses target node_modules symlink" "rc=$rc_root out=$out_root"
+printf '%s' "$out_root" | grep -qi 'symlink' && ok "root-symlink: explains refusal" \
+  || bad "root-symlink: explains refusal" "$out_root"
+[ ! -f "$tmp/npm-calls" ] && ok "root-symlink: npm ci never invoked" \
+  || bad "root-symlink: npm ci never invoked" "$(cat "$tmp/npm-calls" 2>/dev/null)"
+[ -L "$wt_root_link/mos-app/node_modules" ] \
+  && [ "$(readlink "$wt_root_link/mos-app/node_modules")" = "$repo/mos-app/node_modules" ] \
+  && ok "root-symlink: target link preserved" \
+  || bad "root-symlink: target link preserved"
+[ -L "$main_nested_link" ] \
+  && [ "$(readlink "$main_nested_link")" = "$main_nested_target" ] \
+  && ok "root-symlink: main nested alias preserved" \
+  || bad "root-symlink: main nested alias preserved"
+
+# Re-introduce the bad alias after a successful seed to exercise the idempotent early-return
+# path too. A cache-current check alone is not enough: an already-seeded target can inherit the
+# alias from an older run and must be repaired without paying npm ci.
+rm -f "$wt/mos-app/node_modules/node_modules"
+ln -s "$repo/mos-app/node_modules" "$wt/mos-app/node_modules/node_modules"
 
 ### 2. idempotent no-op: run again on an already-seeded target — no fallback, says so.
 rm -f "$tmp/npm-calls"
@@ -112,6 +160,34 @@ printf '%s' "$out2" | grep -qi 'no-op' && ok "idempotent: says no-op" \
   || bad "idempotent: says no-op" "$out2"
 [ ! -f "$tmp/npm-calls" ] && ok "idempotent: npm ci never invoked" \
   || bad "idempotent: npm ci never invoked"
+[ ! -L "$wt/mos-app/node_modules/node_modules" ] \
+  && ok "idempotent: absolute nested node_modules alias repaired" \
+  || bad "idempotent: absolute nested node_modules alias repaired"
+[ -L "$wt/mos-app/node_modules/pkg-link" ] \
+  && [ "$(readlink "$wt/mos-app/node_modules/pkg-link")" = "pkg-a" ] \
+  && ok "idempotent: unrelated package symlink preserved" \
+  || bad "idempotent: unrelated package symlink preserved"
+[ -L "$wt/mos-app/node_modules/pkg-b/node_modules" ] \
+  && [ "$(readlink "$wt/mos-app/node_modules/pkg-b/node_modules")" = "../pkg-a" ] \
+  && ok "idempotent: unrelated nested package symlink preserved" \
+  || bad "idempotent: unrelated nested package symlink preserved"
+
+# A different target at the same nested path is not the inherited main alias and must survive an
+# idempotent repair pass. This distinguishes a readlink-target predicate from deleting every
+# symlink named node_modules.
+unrelated_nested_target="$tmp/unrelated-node-modules"
+mkdir -p "$unrelated_nested_target"
+ln -s "$unrelated_nested_target" "$wt/mos-app/node_modules/node_modules"
+rm -f "$tmp/npm-calls"
+out2b="$(run "$wt" 2>&1)"; rc2b=$?
+[ "$rc2b" -eq 0 ] && ok "idempotent-unrelated: exit 0" \
+  || bad "idempotent-unrelated: exit 0" "rc=$rc2b out=$out2b"
+[ ! -f "$tmp/npm-calls" ] && ok "idempotent-unrelated: npm ci never invoked" \
+  || bad "idempotent-unrelated: npm ci never invoked" "$(cat "$tmp/npm-calls" 2>/dev/null)"
+[ -L "$wt/mos-app/node_modules/node_modules" ] \
+  && [ "$(readlink "$wt/mos-app/node_modules/node_modules")" = "$unrelated_nested_target" ] \
+  && ok "idempotent-unrelated: nested symlink preserved" \
+  || bad "idempotent-unrelated: nested symlink preserved"
 
 ### 3. fallback-on-mismatch: target lockfile differs from main's → plain npm ci, said on stdout.
 wt2="$tmp/wt2"

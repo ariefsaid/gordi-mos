@@ -23,11 +23,10 @@ const HOME_CSS = [
 ].join('\n')
 
 describe('the Café door meets the phone contract through the winning rule', () => {
-  // The floor for a `.btn-outline` row is Button.css's `@media (max-width: 767.98px) .btn
-  // { min-height: 44px }` — the rule that wins the cascade for the class the door reuses.
-  // The door's own stylesheet must therefore never set a competing height.
-  it('the door reuses .btn/.btn-outline (so the shared 44px floor applies) and sets no height of its own', () => {
-    expect(CAFE_TSX).toMatch(/className="btn btn-outline home-cafe-door"/)
+  // The compact production-log link uses Button.css's shared `.tap-floor` phone utility. The
+  // door's own stylesheet must not set a competing fixed height.
+  it('the production-log door uses the shared tap floor and sets no height of its own', () => {
+    expect(CAFE_TSX).toMatch(/className="home-cafe-door-log-link tap-floor"/)
     expect(CAFE_CSS).not.toMatch(/(?:^|[;{])\s*height\s*:/)
     expect(CAFE_CSS).not.toMatch(/(?:^|[;{])\s*max-height\s*:/)
   })

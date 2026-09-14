@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Link as RouterLink } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { CommentThread, type TaskComment } from '@/components/tasks/CommentThread'
@@ -43,12 +44,22 @@ export interface LinkedTasksSummary {
   open: number
 }
 
+export interface LinkedTaskView {
+  id: string
+  title: string
+  status: string
+  href?: string
+  onOpen?: () => void
+}
+
 // ── Region 1 · Message — read what happened ────────────────────────────────────
-// The Signal body IS the record: full, unclipped prose (the identity h1 above carries the first
-// line; the full body always renders here so the heading is never an ellipsized slice — F2). The
-// attention level + occurred time ride WITH it (LAW-2), never hoisted to a downstream facts block.
+// The Signal body IS the record: the adapter gives this region the body text not already owned by
+// the identity heading (full, unclipped continuation for a live Signal; the original line is kept
+// in the tombstone for a retracted Signal). The attention level + occurred time ride WITH it
+// (LAW-2), never hoisted to a downstream facts block.
 export function SignalMessage({
-  body, attention, occurredLabel, retracted, retractReason, canEditAttention, onAttentionChange, onRepost,
+  body, attention, occurredLabel, retracted, retractReason, retractedBy, retractedAtLabel,
+  canEditAttention, onAttentionChange, onRepost, actionControls,
 }: {
   body: string
   attention: Attention
@@ -56,31 +67,147 @@ export function SignalMessage({
   onRepost?: () => void
   retracted?: boolean
   retractReason?: string | null
+  retractedBy?: string | null
+  retractedAtLabel?: string | null
   canEditAttention?: boolean
   onAttentionChange?: (attention: Attention) => void
+  actionControls?: ReactNode
 }) {
   const t = useT()
+  const lines = body.trim().split(/\r?\n/)
+  const titleLine = lines[0] ?? ''
+  const displayBody = body.trim()
   if (retracted) {
     return (
       <div className="signal-tombstone">
-        <p>{t('signals.retracted')} {retractReason ? <span>{retractReason}</span> : null}</p>
+        <p className="signal-tombstone-original">{titleLine}</p>
+        <p className="signal-tombstone-status">{t('signals.retracted')}</p>
+        <dl className="signal-tombstone-meta">
+          <div><dt>{t('signals.record.retractedBy')}</dt><dd>{retractedBy ?? t('signals.record.retractorUnknown')}</dd></div>
+          {retractedAtLabel ? <div><dt>{t('signals.record.retractedAt')}</dt><dd>{retractedAtLabel}</dd></div> : null}
+          {retractReason ? <div><dt>{t('signals.record.retractedReason')}</dt><dd>{retractReason}</dd></div> : null}
+        </dl>
         {onRepost && <Button variant="primary" onClick={onRepost}>{t('signals.record.repost')}</Button>}
       </div>
     )
   }
   return (
     <div className="signal-message">
-      <div className="signal-message-urgency">
-        {/* AC-036: for the author the attention control IS the pill-dropdown (one click to a
-            choice); for everyone else the read-only pill. No reveal step in front of it. */}
+      <div className="signal-record-control-row">
         {canEditAttention && onAttentionChange ? (
-          <SignalAttentionPicker value={attention} onChange={onAttentionChange} />
+          <SignalAttentionEditor value={attention} onChange={onAttentionChange} />
         ) : (
           <span className={`signal-attention signal-attention--${attentionSlug(attention)}`}>{attentionLabel(t, attention)}</span>
         )}
+        {actionControls}
         <span className="signal-message-occurred">{t('signals.record.occurredAt', { when: occurredLabel })}</span>
       </div>
-      <p className="signal-message-body">{body}</p>
+      {displayBody ? <p className="signal-message-body">{displayBody}</p> : null}
+    </div>
+  )
+}
+
+function SignalAttentionEditor({ value, onChange }: { value: Attention; onChange: (value: Attention) => void }) {
+  const t = useT()
+  return <SignalAttentionPicker value={value} label={t('signals.record.editAttention')} onChange={onChange} />
+}
+
+export function SignalOverflowMenu({
+  onLinkExistingTask, onRetract, onCopyLink, onOpenFullPage,
+}: {
+  onLinkExistingTask?: () => void
+  onRetract?: () => void
+  onCopyLink?: () => void
+  onOpenFullPage?: () => void
+}) {
+  const t = useT()
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const root = rootRef.current
+    if (!root) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    // The shared RecordPanelHost listens for Escape on the panel itself. A document-level
+    // bubble listener is too late: the panel closes before this menu gets a chance to consume
+    // the key. Capture at the menu root so nested menu dismissal always wins over the host's
+    // record-level close, including when focus is still on the trigger after opening.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        event.stopImmediatePropagation()
+        setOpen(false)
+        triggerRef.current?.focus()
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    root.addEventListener('keydown', onKeyDown, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      root.removeEventListener('keydown', onKeyDown, true)
+    }
+  }, [open])
+
+  const choose = (action?: () => void) => {
+    setOpen(false)
+    action?.()
+  }
+
+  const onMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      setOpen(false)
+      triggerRef.current?.focus()
+      return
+    }
+    if (event.key === 'Tab') {
+      setOpen(false)
+      return
+    }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) || items.length === 0) return
+    event.preventDefault()
+    const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement)
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? items.length - 1
+        : (currentIndex + (event.key === 'ArrowUp' ? -1 : 1) + items.length) % items.length
+    items[nextIndex]?.focus()
+  }
+
+  return (
+    <div className="signal-overflow" ref={rootRef}>
+      <button
+        type="button"
+        className="signal-overflow-trigger"
+        ref={triggerRef}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={t('signals.record.moreActions')}
+        onClick={() => setOpen((wasOpen) => !wasOpen)}
+      >
+        <span aria-hidden="true">•••</span>
+      </button>
+      {open && (
+        <div
+          className="signal-overflow-menu"
+          role="menu"
+          aria-label={t('signals.record.moreActions')}
+          onKeyDown={onMenuKeyDown}
+        >
+          {onLinkExistingTask ? <button type="button" role="menuitem" tabIndex={-1} onClick={() => choose(onLinkExistingTask)}>{t('signals.record.linkExistingTask')}</button> : null}
+          {onRetract ? <button type="button" role="menuitem" tabIndex={-1} onClick={() => choose(onRetract)}>{t('signals.record.retract')}</button> : null}
+          {onCopyLink ? <button type="button" role="menuitem" tabIndex={-1} onClick={() => choose(onCopyLink)}>{t('signals.record.copyLink')}</button> : null}
+          {onOpenFullPage ? <button type="button" role="menuitem" tabIndex={-1} onClick={() => choose(onOpenFullPage)}>{t('record.openFullPage')}</button> : null}
+        </div>
+      )}
     </div>
   )
 }
@@ -93,6 +220,7 @@ export function SignalReach({
   mentions, shieldLine,
   canAcknowledge, hasAcknowledged, onAcknowledge,
   acknowledgements, linkedTasksSummary,
+  linkedTasks, linkedTasksLoading, linkedTasksError, onRetryLinkedTasks,
   onCreateFollowUpTask, onLinkExistingTask, onRetract, actionForms,
 }: {
   mentions: SignalMentionView[]
@@ -102,6 +230,10 @@ export function SignalReach({
   onAcknowledge?: () => void
   acknowledgements: SignalAcknowledgementView[]
   linkedTasksSummary?: LinkedTasksSummary
+  linkedTasks?: readonly LinkedTaskView[]
+  linkedTasksLoading?: boolean
+  linkedTasksError?: boolean
+  onRetryLinkedTasks?: () => void
   onCreateFollowUpTask?: () => void
   onLinkExistingTask?: () => void
   onRetract?: () => void
@@ -135,8 +267,14 @@ export function SignalReach({
           <Button variant="outline" onClick={onLinkExistingTask}>{t('signals.record.linkExistingTask')}</Button>
         )}
         {canAcknowledge && (
-          <Button variant="outline" disabled={hasAcknowledged} onClick={() => onAcknowledge?.()}>
-            {hasAcknowledged ? t('signals.record.acknowledged') : t('signals.record.acknowledge')}
+          <Button
+            variant="outline"
+            aria-pressed={hasAcknowledged}
+            aria-label={t('signals.record.seen')}
+            disabled={hasAcknowledged}
+            onClick={() => onAcknowledge?.()}
+          >
+            {t('signals.record.seen')}
           </Button>
         )}
         {onRetract && <Button variant="outline" onClick={onRetract}>{t('signals.record.retract')}</Button>}
@@ -144,15 +282,60 @@ export function SignalReach({
 
       {actionForms}
 
-      {hasLinked && (
+      {linkedTasksError ? (
+        <div className="signal-reach-linked-error" role="alert">
+          <span>{t('signals.record.linkedWorkError')}</span>
+          {onRetryLinkedTasks && (
+            <Button variant="outline" onClick={onRetryLinkedTasks}>{t('common.retry')}</Button>
+          )}
+        </div>
+      ) : linkedTasksLoading ? (
+        <p className="signal-reach-linked" aria-live="polite">{t('signals.record.linkedWorkLoading')}</p>
+      ) : linkedTasks && linkedTasks.length > 0 ? (
+        <div className="signal-linked-work" aria-label={t('signals.record.linkedWork')}>
+          <h3 className="signal-linked-work-title">{t('signals.record.linkedWork')}</h3>
+          <ul className="signal-linked-work-list">
+            {linkedTasks.map((task) => (
+              <li key={task.id}>
+                {task.href ? (
+                  <RouterLink
+                    to={task.href}
+                    className="signal-linked-work-row"
+                    onClick={(event) => {
+                      // Keep the real router href for modified/middle clicks, while a normal
+                      // click stays inside the existing record stack when the host supplies it.
+                      if (
+                        !task.onOpen || event.button !== 0 || event.metaKey || event.altKey
+                        || event.ctrlKey || event.shiftKey
+                      ) return
+                      event.preventDefault()
+                      task.onOpen()
+                    }}
+                  >
+                    <span className="signal-linked-work-name">{task.title}</span>
+                    <span className="signal-linked-work-status">{task.status}</span>
+                    <span aria-hidden="true">→</span>
+                  </RouterLink>
+                ) : (
+                  <button type="button" className="signal-linked-work-row" onClick={task.onOpen}>
+                    <span className="signal-linked-work-name">{task.title}</span>
+                    <span className="signal-linked-work-status">{task.status}</span>
+                    <span aria-hidden="true">→</span>
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : hasLinked ? (
         <p className="signal-reach-linked">
           {t('signals.record.linkedWorkSummary', { total: linkedTasksSummary!.total, open: linkedTasksSummary!.open })}
         </p>
-      )}
+      ) : null}
 
       {acknowledgements.length > 0 && (
-        <div className="signal-reach-ack" aria-label={t('signals.record.acknowledgeLabel')}>
-          <span className="signal-reach-ack-label">{t('signals.record.acknowledgedBy')}</span>
+        <div className="signal-reach-ack" aria-label={t('signals.record.seenBy')}>
+          <span className="signal-reach-ack-label">{t('signals.record.seenBy')}</span>
           <ul className="signal-ack-list">
             {acknowledgements.map((ack) => (
               <li key={ack.personId} className="signal-ack-name">{ack.personName}</li>

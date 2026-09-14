@@ -23,20 +23,6 @@
   border-radius: var(--radius-sm);
 }
 
-.kp-meta-line {
-  display: inline-flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  min-width: 0;
-}
-
-.kp-nothing-planned {
-  font-size: var(--font-size-control);
-  color: var(--muted-foreground);
-  margin: 4px 0 8px;
-}
-
 /* ── Scope block: the movement (mirrors kitchen-log-page.css .kl-scope). The stream
    moved to the page head with #440 — same reasoning, stated there. ── */
 .kp-scope {
@@ -95,6 +81,41 @@
   flex: 0 0 auto;
 }
 
+/* Receiving-only streams stay useful as a read surface, with the next stock action
+   visible at the point where plan inputs would otherwise begin. */
+.kp-receiving-only {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 8px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--secondary);
+}
+.kp-receiving-only-copy {
+  flex: 1 1 24rem;
+  min-width: 0;
+}
+.kp-receiving-only-title {
+  margin: 0 0 4px;
+  color: var(--foreground);
+  font-size: var(--font-size-control);
+  font-weight: 600;
+}
+.kp-receiving-only-note {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+.kp-receiving-only-cta {
+  flex: 0 0 auto;
+}
+
 /* ── Dish / item sub-label inside the shared DataTable cells (replaces the
    retired .kt-name / .kt-cat from kitchen-table.css — kept here so the plan +
    pesanan DataTable renders carry the same name+category look). ── */
@@ -119,33 +140,22 @@
   line-height: 1.2;
 }
 
-/* ── #401: the dish name is a drill link into /cafe/log?q=<dish> on BOTH faces —
-   links-in-context blue (DESIGN.md Action Blue) + underline, keeping the name's own
-   type ramp via the co-classed .kp-name. ── */
-.kp-row-link {
+/* ── FR-030: one low-competition drill per desktop category group. Item names
+   stay text so the capture list reads as a plan, not a wall of links. ── */
+.kp-group-link {
   color: var(--primary);
+  font-size: var(--font-size-label);
+  font-weight: 500;
   text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
 }
-@media (max-width: 767.98px) {
-  /* Keep the compact label unchanged while the invisible tap floor reaches 44px. */
-  .kp-row-link {
-    position: relative;
+@media (min-width: 768px) {
+  .kp-group-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
   }
-  .kp-row-link::before {
-    content: '';
-    position: absolute;
-    left: -12px;
-    right: -12px;
-    top: 50%;
-    height: 44px;
-    transform: translateY(-50%);
-  }
-}
-
-.kp-row-link:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-  border-radius: var(--radius-sm);
 }
 
 /* ── "Plan" cell — typed qty + inline save status (v4, DD-5 typed-qty port) ──
@@ -228,13 +238,6 @@
   line-height: 1.25;
   min-width: 0;
   overflow-wrap: anywhere;
-}
-.kp-card-cat {
-  display: block;
-  font-size: var(--font-size-overline);
-  font-weight: 400;
-  color: var(--muted-foreground);
-  line-height: 1.2;
 }
 .kp-card-meta {
   display: flex;

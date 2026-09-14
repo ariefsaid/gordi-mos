@@ -1,141 +1,75 @@
-// AC-630 [e2e — curated journey, may fold into F2 "today's-opening" at Step 7] — the real
-// cross-stack occurrence-as-tasks flow (docs/specs/occurrence-as-tasks.spec.md §9 AC-630):
-// an authorized lead Starts a due recurring-work occurrence; its single-holder generated Task
-// appears in /work/tasks grouped under the occurrence caption; an ambiguous step surfaces as a
-// pending "N to assign" item that, once resolved to a PIC, appears as a Task in the SAME group.
-//
-// Uses the seeded "Café HQ daily opening" Process (supabase/seed.dev-processes.sql): a daily
-// cadence with two generated Task definitions —
-//   d1 "Unlock and prep the floor" — pic_role_id = Cafe Ops Lead, held by exactly ONE dev
-//       person (Cahya) → resolves to a Task on spawn (FR-604).
-//   d2 "Bakery handover" — pic_role_id = Café Opener (demo), held by TWO dev people
-//       (Cahya + Krishna) → spawns a pending human-choice row instead of a Task (FR-605/OD-41).
-// MANAGER (Dewi Director) holds the `admin` access role (→ process.start, spec §3) and is an
-// active member of the `hq_operations` Team (shared.team_memberships, seed.dev-signals.sql) — the
-// fixture user with process.start + owning-Team authorization the plan calls for (no new fixture
-// needed).
-//
-// Requires the live stack (supabase start) + the global-setup seed. Runs at the default desktop
-// viewport (the live push/squash split, ADR-0007).
-
 import { test, expect } from '@playwright/test'
-import { readFileSync } from 'fs'
-import { resolve, dirname } from 'path'
-import { fileURLToPath } from 'url'
+import { writeFileSync } from 'node:fs'
 import { loginAs } from './helpers/login'
-import { MANAGER } from './fixtures/users'
+import { DEMO_PASSWORD } from '../src/pages/demo-personas'
+import { localSqlRead } from './helpers/local-sql-read'
+import { localSql } from './helpers/local-sql'
+import { assertFixtureSqlSafe, processRunCleanupSql } from './fixtures/cleanup'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dir = dirname(__filename)
-
-function loadEnvFile(filePath: string): Record<string, string> {
-  try {
-    const vars: Record<string, string> = {}
-    for (const line of readFileSync(filePath, 'utf-8').split('\n')) {
-      const trimmed = line.trim()
-      if (!trimmed || trimmed.startsWith('#')) continue
-      const eq = trimmed.indexOf('=')
-      if (eq !== -1) vars[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
+// Start only when the actual Team has no current opening. Existing history is never cleared.
+for (const width of [390, 1440]) {
+  test(`AC-630: canonical opening start, pending choice and persisted Task at ${width}px`, async ({ page }, testInfo) => {
+    test.setTimeout(90_000)
+    const [team] = await localSqlRead<{id:string}>(`select id from shared.teams where code='gordi_hq_kitchen'`)
+    expect(team).toBeTruthy()
+    const existing = await localSqlRead(`select r.id from mos.process_runs r join mos.work_lines w on w.id=r.work_line_id where w.code='cafe_opening' and r.owning_team_id='${team.id}' and r.period_key=to_char(now() at time zone 'Asia/Jakarta','YYYY-MM-DD')`)
+    expect(existing, 'Existing current opening must be preserved, never reset').toHaveLength(0)
+    let runId: string | undefined
+    try {
+      await page.setViewportSize({ width, height: 900 })
+      await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
+      await loginAs(page, 'krishna.dev@example.test', DEMO_PASSWORD)
+      await page.goto('cafe')
+      const response = page.waitForResponse(r => /\/rpc\/spawn_process_run/.test(r.url()) && r.ok())
+      await page.getByRole('button', { name: "Start today's opening", exact: true }).click()
+      const spawned = await (await response).json()
+      expect(spawned.idempotent).toBe(false)
+      runId = spawned.run_id
+      const [created] = await localSqlRead<{id:string}>(`select r.id from mos.process_runs r join mos.work_lines w on w.id=r.work_line_id where w.code='cafe_opening' and r.owning_team_id='${team.id}' and r.period_key=to_char(now() at time zone 'Asia/Jakarta','YYYY-MM-DD')`)
+      runId = created.id
+      await page.getByRole('link', {name:/view opening tasks/i}).click()
+      await expect(page.getByText('Open the café floor', { exact: true }).first()).toBeVisible()
+      await page.goto('work/projects/e3000000-0000-0000-0000-000000000001')
+      await page.getByRole('tab', {name:'Occurrences',exact:true}).click()
+      const occurrence = page.locator('li').filter({has:page.getByRole('link',{name:/view tasks/i})}).filter({has:page.locator(`a[href*="${runId}"]`)}).first()
+      const assign = occurrence.getByRole('button',{name:/to assign/i})
+      await assign.click()
+      const dialog = page.getByRole('dialog',{name:/assign/i})
+      await expect(dialog).toBeVisible()
+      await expect(dialog).toContainText('Brew station handover')
+      await expect(dialog).toContainText('Café Opening')
+      await expect(dialog).toContainText('Supervisor')
+      const candidates = dialog.getByRole('group',{name:'Choose PIC'}).getByRole('button')
+      await expect(candidates).toHaveCount(2)
+      const candidateMeasurements=[]
+      for(const candidate of await candidates.all()) {
+        await expect(candidate).toHaveClass(/btn-outline/)
+        expect(await candidate.getAttribute('aria-pressed')).not.toBe('true')
+        const box=await candidate.boundingBox(); candidateMeasurements.push({name:await candidate.innerText(),...box}); expect(Number(box!.height.toFixed(2))).toBeGreaterThanOrEqual(44)
+      }
+      expect(await dialog.evaluate(el=>el.contains(document.activeElement))).toBe(true)
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+      await page.screenshot({animations:'disabled',path:testInfo.outputPath(`pending-${width}.png`)})
+      await page.keyboard.press('Escape')
+      await expect(dialog).not.toBeVisible()
+      await expect(assign).toBeFocused()
+      await assign.click()
+      await dialog.getByRole('button',{name:'Cahya Cafe',exact:true}).click()
+      await expect(dialog).not.toBeVisible()
+      await page.goto(`work/tasks?occurrence=${runId}`)
+      await expect(page.getByText('Brew station handover',{exact:true}).first()).toBeVisible()
+      await page.reload()
+      await expect(page.getByText('Brew station handover',{exact:true}).first()).toBeVisible()
+      const [task] = await localSqlRead<{responsible_person_id:string,team_id:string}>(`select responsible_person_id,team_id from mos.tasks where process_run_id='${runId}' and title='Brew station handover'`)
+      expect(task.responsible_person_id).toBe('40000000-0000-0000-0000-000000000001')
+      expect(task.team_id).toBe(team.id)
+      writeFileSync(testInfo.outputPath('occurrence-evidence.json'),JSON.stringify({width,runId,teamId:team.id,task,candidateMeasurements},null,2))
+    } finally {
+      if (runId) {
+        const cleanup = processRunCleanupSql([runId])
+        assertFixtureSqlSafe(cleanup)
+        await localSql(cleanup)
+      }
     }
-    return vars
-  } catch { return {} }
-}
-
-const e2eEnv = loadEnvFile(resolve(__dir, '../.env.e2e'))
-const SUPABASE_URL = e2eEnv.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:44321'
-const SERVICE_KEY = e2eEnv.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
-const ORG = '10000000-0000-0000-0000-000000000001'
-const WORK_LINE_ID = 'e2000000-0000-0000-0000-000000000001' // "Café HQ daily opening" (seed.dev-processes.sql)
-
-async function sql(query: string): Promise<Array<Record<string, unknown>>> {
-  if (!SERVICE_KEY) throw new Error('[AC-630] SUPABASE_SERVICE_ROLE_KEY not set')
-  const res = await fetch(SUPABASE_URL + '/pg/query', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SERVICE_KEY }, body: JSON.stringify({ query }),
   })
-  if (!res.ok) throw new Error('[AC-630] SQL failed: ' + (await res.text()).slice(0, 500))
-  return (await res.json()) as Array<Record<string, unknown>>
 }
-
-// #743 ruling round 3: the runs-due pill — this journey's only Start door on /work/tasks — LEFT
-// the Tasks toolbar (the toolbar is twelve controls in every state). #754 re-homes the pill +
-// list at Home/Café and owns restoring this journey there. fixme, not skip: the door must come
-// back, and this is the reminder.
-test.fixme('AC-630: Start a due occurrence → single-holder Task groups under the caption → resolve the ambiguous step → same group', async ({ page }) => {
-  test.setTimeout(90_000)
-
-  const teamRows = await sql(
-    `select id, name from shared.teams where org_id='${ORG}' and code='hq_operations'`,
-  )
-  const teamId = teamRows[0]?.id as string | undefined
-  const teamName = teamRows[0]?.name as string | undefined
-  expect(teamId, 'seed.dev-signals.sql must have created the hq_operations Team + Dewi\'s membership').toBeTruthy()
-
-  // Deterministic clean slate, scoped to THIS process+Team only (never touches other org data):
-  // remove any prior occurrence so due_process_runs() lists it as due again (the idempotency key
-  // is org+process+team+period — a stale prior run for today would make it look already-started).
-  await sql(`
-    delete from mos.process_run_pending_tasks
-      where process_run_id in (select id from mos.process_runs where work_line_id='${WORK_LINE_ID}' and owning_team_id='${teamId}');
-    delete from mos.tasks
-      where process_run_id in (select id from mos.process_runs where work_line_id='${WORK_LINE_ID}' and owning_team_id='${teamId}');
-    delete from mos.process_runs where work_line_id='${WORK_LINE_ID}' and owning_team_id='${teamId}';
-  `)
-
-  // ── ACT 1: MANAGER (Dewi, admin — process.start + owning-Team authorized) Starts the occurrence ──
-  await loginAs(page, MANAGER.email, MANAGER.password)
-  await page.goto('work/tasks')
-  await page.waitForURL(/\/work\/tasks$/)
-
-  // The toolbar pill names its source and opens only the due-runs disclosure.
-  // Desktop: it is in the inline View & filters options row.
-  await page.getByRole('button', { name: /runs? due to start/i }).click()
-
-  const dueRow = page.locator('li.due-runs-row')
-    .filter({ hasText: 'Café HQ daily opening' })
-    .filter({ hasText: teamName ?? 'HQ Operations' })
-  await expect(dueRow).toBeVisible({ timeout: 15_000 })
-  // Design fix wave item 5 (Rule 7/12, OD-58) — the button's visible/accessible name composes
-  // "Start · <process name>" (verb+object, the REAL job — never a bare "Start"/"Create").
-  await dueRow.getByRole('button', { name: 'Start · Café HQ daily opening' }).click()
-  await expect(dueRow).not.toBeVisible({ timeout: 10_000 })
-
-  // ── ASSERT: switch to Occurrence grouping — the single-holder Task groups under the caption ────
-  // STALE→fixed: "Team work" was removed as a saved-view chip (record-collection plan §Task-11);
-  // the org-visible set this assertion needs is now reached via "All" (also the default view).
-  await page.getByRole('button', { name: 'All', exact: true }).click()
-  await page.getByLabel('Group').selectOption('occurrence')
-
-  // Scope to the grouped table's header row (.grp .glabel) — the due-list rows for the OTHER
-  // startable teams also carry the process name, so a bare getByText is ambiguous by design.
-  const captionHeader = page.locator('tr.grp .glabel').filter({ hasText: 'Café HQ daily opening' })
-  await expect(captionHeader).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByText('Unlock and prep the floor')).toBeVisible({ timeout: 10_000 })
-  // FR-611 — "Process Run" is internal-only vocabulary; it must never render as UI text.
-  await expect(page.getByText('Process Run', { exact: true })).toHaveCount(0)
-
-  // ── ASSERT: the ambiguous step ("Bakery handover") surfaces as a pending "to assign" item ──────
-  const assignButton = page.getByRole('button', { name: /to assign/i })
-  await expect(assignButton).toBeVisible({ timeout: 10_000 })
-  await assignButton.click()
-
-  const resolutionDialog = page.getByRole('dialog', { name: /assign/i })
-  await expect(resolutionDialog).toBeVisible()
-  // pic_role_id "Café Opener (demo)" is held by both Cahya and Krishna — either is a valid choice.
-  await resolutionDialog.getByRole('button', { name: /Cahya|Krishna/ }).first().click()
-  await expect(resolutionDialog).not.toBeVisible({ timeout: 10_000 })
-
-  // ── ASSERT: the resolved step now appears as a Task in the SAME occurrence group ────────────────
-  await expect(page.getByText('Bakery handover')).toBeVisible({ timeout: 10_000 })
-  // Scoped to the group-header labels — the due-list rows for other startable teams also carry
-  // the process name (same ambiguity as the caption assertion above).
-  await expect(page.locator('tr.grp .glabel').filter({ hasText: 'Café HQ daily opening' })).toHaveCount(1) // one caption group, not two
-
-  // ── CLEANUP: leave no e2e-created state behind for the next run ─────────────────────────────────
-  await sql(`
-    delete from mos.process_run_pending_tasks
-      where process_run_id in (select id from mos.process_runs where work_line_id='${WORK_LINE_ID}' and owning_team_id='${teamId}');
-    delete from mos.tasks
-      where process_run_id in (select id from mos.process_runs where work_line_id='${WORK_LINE_ID}' and owning_team_id='${teamId}');
-    delete from mos.process_runs where work_line_id='${WORK_LINE_ID}' and owning_team_id='${teamId}';
-  `)
-})

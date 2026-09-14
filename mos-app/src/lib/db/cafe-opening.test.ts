@@ -10,11 +10,13 @@ vi.mock('../supabase', () => {
 })
 
 import {
-  wibToday, getCafeOpeningProcessId, getTodayOpeningForTeam,
-  startTodayOpening, listCafeOpeningBranches,
+  wibToday, getCafeOpeningProcessId, getCafeOpeningTeamId, listCafeViewerTeams,
+  resolveCafeOpeningTeamForTeam,
+  getTodayOpeningForTeam,
+  startTodayOpening, listStartableCafeTeams,
 } from './cafe-opening'
 import { supabase } from '@/lib/supabase'
-import type { ProcessRunRollup, SpawnResult } from './processes.types'
+import type { DueProcessRun, ProcessRunRollup, SpawnResult } from './processes.types'
 
 const schemaMock = vi.mocked(supabase.schema)
 
@@ -23,12 +25,13 @@ interface Recorder {
   fromTables: string[]
   selects: string[]
   eqs: Array<[string, unknown]>
+  ors: string[]
   rpcs: Array<[string, unknown]>
 }
 type Result = { data: unknown; error: unknown }
 
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], eqs: [], rpcs: [] }
+  return { fromTables: [], selects: [], eqs: [], ors: [], rpcs: [] }
 }
 
 function makeClient(responses: Record<string, Result[]>, rec: Recorder) {
@@ -45,6 +48,10 @@ function makeClient(responses: Record<string, Result[]>, rec: Recorder) {
     const builder: Record<string, unknown> = {}
     builder.select = vi.fn((s?: string) => { if (s) rec.selects.push(s); return builder })
     builder.eq = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
+    builder.lte = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
+    builder.or = vi.fn((value: string) => { rec.ors.push(value); return builder })
+    builder.in = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
+    builder.is = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.limit = vi.fn(() => builder)
     builder.single = vi.fn(() => Promise.resolve(nextResult(key)))
     builder.maybeSingle = vi.fn(() => Promise.resolve(nextResult(key)))
@@ -72,6 +79,7 @@ beforeEach(() => vi.clearAllMocks())
 const PROCESS_ID = '00000000-0000-0000-0000-00000000c001'
 const TEAM_ID = '00000000-0000-0000-0000-000000005b01'
 const RUN_ID = '00000000-0000-0000-0000-00000000r001'
+
 // ── wibToday (B1) ─────────────────────────────────────────────────────────────
 describe('wibToday', () => {
   beforeEach(() => vi.useFakeTimers())
@@ -89,9 +97,9 @@ describe('wibToday', () => {
   })
 })
 
-// ── getCafeOpeningProcessId (B1, RATIFY-7F) ───────────────────────────────────
+// ── getCafeOpeningProcessId (stable Café Opening work-line code) ─────────────
 describe('getCafeOpeningProcessId', () => {
-  it('resolves the id of the type=process work_line named "Café Opening"', async () => {
+  it('resolves the id of the type=process work_line with the stable cafe_opening code', async () => {
     const rec = freshRec()
     mockSupabase({ 'mos.work_lines': [{ data: { id: PROCESS_ID }, error: null }] }, rec)
 
@@ -99,7 +107,7 @@ describe('getCafeOpeningProcessId', () => {
 
     expect(rec.fromTables).toContain('mos.work_lines')
     expect(rec.eqs).toContainEqual(['type', 'process'])
-    expect(rec.eqs).toContainEqual(['name', 'Café Opening'])
+    expect(rec.eqs).toContainEqual(['code', 'cafe_opening'])
     expect(id).toBe(PROCESS_ID)
   })
 
@@ -115,6 +123,99 @@ describe('getCafeOpeningProcessId', () => {
     mockSupabase({ 'mos.work_lines': [{ data: null, error: { message: 'boom' } }] }, rec)
 
     await expect(getCafeOpeningProcessId()).rejects.toThrow(/boom/)
+  })
+})
+
+// ── getCafeOpeningTeamId (canonical branch-opening seam) ────────────────────
+describe('getCafeOpeningTeamId', () => {
+  it('resolves the canonical opening Team for a branch through shared.cafe_opening_team', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.cafe_opening_team': [{ data: TEAM_ID, error: null }] }, rec)
+
+    expect(await getCafeOpeningTeamId('branch-1')).toBe(TEAM_ID)
+    expect(rec.rpcs).toContainEqual(['cafe_opening_team', { p_branch_id: 'branch-1' }])
+  })
+
+  it('returns null when no live kitchen or bar Team exists for the branch', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.cafe_opening_team': [{ data: null, error: null }] }, rec)
+
+    expect(await getCafeOpeningTeamId('branch-1')).toBeNull()
+  })
+
+  it('re-throws when the canonical branch-opening read errors', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.cafe_opening_team': [{ data: null, error: { message: 'branch read failed' } }] }, rec)
+
+    await expect(getCafeOpeningTeamId('branch-1')).rejects.toThrow(/branch read failed/)
+  })
+})
+
+describe('resolveCafeOpeningTeamForTeam', () => {
+  it('maps a viewer Team through its branch to the canonical opening Team', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'shared.teams': [
+        { data: { branch_id: 'branch-1' }, error: null },
+        { data: { id: TEAM_ID, name: 'Gordi HQ Kitchen' }, error: null },
+      ],
+      'rpc.cafe_opening_team': [{ data: TEAM_ID, error: null }],
+    }, rec)
+
+    await expect(resolveCafeOpeningTeamForTeam('bar-team')).resolves.toEqual({
+      id: TEAM_ID,
+      name: 'Gordi HQ Kitchen',
+      branchId: 'branch-1',
+    })
+    expect(rec.eqs).toContainEqual(['id', 'bar-team'])
+    expect(rec.rpcs).toContainEqual(['cafe_opening_team', { p_branch_id: 'branch-1' }])
+    expect(rec.eqs).toContainEqual(['id', TEAM_ID])
+  })
+
+  it('returns null for a non-branch Team without asking for a canonical opening Team', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'shared.teams': [{ data: { branch_id: null }, error: null }] }, rec)
+
+    await expect(resolveCafeOpeningTeamForTeam('hq-team')).resolves.toBeNull()
+    expect(rec.rpcs).toHaveLength(0)
+  })
+})
+
+describe('listCafeViewerTeams', () => {
+  it('uses the effective-dated membership window and keeps the primary first', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'shared.team_memberships': [{
+        data: [
+          { team_id: 'team-secondary', is_primary: false },
+          { team_id: 'team-primary', is_primary: true },
+        ], error: null,
+      }],
+      'shared.teams': [{
+        data: [
+          { id: 'team-primary', name: 'Gordi HQ Bar', business_unit_id: 'bu-1', site_id: null },
+          { id: 'team-secondary', name: 'Radiant Bar', business_unit_id: 'bu-1', site_id: null },
+        ], error: null,
+      }],
+    }, rec)
+
+    const result = await listCafeViewerTeams('person-1')
+
+    expect(rec.eqs).toContainEqual(['person_id', 'person-1'])
+    expect(rec.eqs).toContainEqual(['effective_from', wibToday()])
+    expect(rec.ors).toContain(`effective_to.is.null,effective_to.gte.${wibToday()}`)
+    expect(rec.eqs).toContainEqual(['archived_at', null])
+    expect(result.map(team => [team.id, team.is_primary])).toEqual([
+      ['team-primary', true], ['team-secondary', false],
+    ])
+  })
+
+  it('returns no memberships without issuing a broad team read', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'shared.team_memberships': [{ data: [], error: null }] }, rec)
+
+    await expect(listCafeViewerTeams('person-1')).resolves.toEqual([])
+    expect(rec.fromTables).not.toContain('shared.teams')
   })
 })
 
@@ -157,7 +258,7 @@ describe('getTodayOpeningForTeam', () => {
   })
 })
 
-// ── startTodayOpening / listCafeOpeningBranches (B2, AC-711) ──────────────────
+// ── startTodayOpening / listStartableCafeTeams (B2, AC-711) ──────────────────
 describe('startTodayOpening', () => {
   it('AC-711: calls Step-6 startRun(processId, teamId, wibToday()) and returns the SpawnResult', async () => {
     const rec = freshRec()
@@ -181,25 +282,17 @@ describe('startTodayOpening', () => {
   })
 })
 
-describe('listCafeOpeningBranches', () => {
-  it('calls mos.cafe_opening_branches() and returns the branch rows (started ones included)', async () => {
+describe('listStartableCafeTeams', () => {
+  it('calls listDueRuns and returns only the rows whose work_line_id matches processId', async () => {
     const rec = freshRec()
-    const branches = [
-      { branch_id: 'b-rad', team_id: TEAM_ID, team_name: 'Radiant', run_id: null, run_status: null },
-      { branch_id: 'b-rr', team_id: 'team-rr', team_name: 'Rumah Rames', run_id: RUN_ID, run_status: 'open' },
+    const dueRows: DueProcessRun[] = [
+      { work_line_id: PROCESS_ID, process_name: 'Café Opening', owning_team_id: TEAM_ID, team_name: 'Radiant', period_key: '2026-07-17', scheduled_date: '2026-07-17' },
+      { work_line_id: 'other-process', process_name: 'Café Closing', owning_team_id: TEAM_ID, team_name: 'Radiant', period_key: '2026-07-17', scheduled_date: '2026-07-17' },
     ]
-    mockSupabase({ 'rpc.cafe_opening_branches': [{ data: branches, error: null }] }, rec)
+    mockSupabase({ 'rpc.due_process_runs': [{ data: dueRows, error: null }] }, rec)
 
-    const rows = await listCafeOpeningBranches()
+    const rows = await listStartableCafeTeams(PROCESS_ID)
 
-    expect(rec.rpcs).toContainEqual(['cafe_opening_branches', undefined])
-    expect(rows).toEqual(branches)
-  })
-
-  it('re-throws when the RPC errors', async () => {
-    const rec = freshRec()
-    mockSupabase({ 'rpc.cafe_opening_branches': [{ data: null, error: { message: 'rls denied' } }] }, rec)
-
-    await expect(listCafeOpeningBranches()).rejects.toThrow(/rls denied/)
+    expect(rows).toEqual([dueRows[0]])
   })
 })

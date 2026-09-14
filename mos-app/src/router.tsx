@@ -17,7 +17,6 @@ import {
 import { ProtectedRoute } from './auth/protected-route'
 import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
-import { RequireCapability } from './auth/require-capability'
 import { RedirectIfAuthed } from './auth/redirect-if-authed'
 import { REVENUE_VIEW_ROLES } from './lib/capabilities'
 import { isShipGated } from './lib/ship-gate'
@@ -25,6 +24,7 @@ import { AppShell } from './shell/app-shell'
 import { RouteRedirect } from './shell/route-redirect'
 import { pageHandle, redirectHandle, infrastructureHandle, type RouteHandle } from './shell/route-classification'
 import { LoadingShell } from './components/ui/state-kit'
+import { ROUTE_PATHS } from './shell/route-parity'
 // Eager, deliberately: both are above-the-fold first paints. HomePage is the index route (the
 // screen every authenticated session opens on) and LoginPage is what a logged-out visitor lands
 // on. Code-splitting either trades a bundle-size win for a visible blank frame on first paint.
@@ -82,8 +82,8 @@ export function lazyPage<T extends ComponentType<any>>(
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-function withSuspense(element: ReactNode) {
-  return <Suspense fallback={<LoadingShell />}>{element}</Suspense>
+function withSuspense(element: ReactNode, fallback: ReactNode = <LoadingShell />) {
+  return <Suspense fallback={fallback}>{element}</Suspense>
 }
 
 const TasksLayout = lazyPage(() => import('./pages/tasks-layout').then((m) => ({ default: m.TasksLayout })))
@@ -97,6 +97,8 @@ const SignalRecordPage = lazyPage(() =>
 )
 const FollowUpsPage = lazyPage(() => import('./pages/follow-ups-page').then((m) => ({ default: m.FollowUpsPage })))
 const ObjectivesPage = lazyPage(() => import('./pages/objectives-page').then((m) => ({ default: m.ObjectivesPage })))
+const ObjectiveRecordPage = lazyPage(() => import('./pages/objective-record-page').then((m) => ({ default: m.ObjectiveRecordPage })))
+const WorkLineRecordPage = lazyPage(() => import('./pages/work-line-record-page').then((m) => ({ default: m.WorkLineRecordPage })))
 const ProjectsProcessesPage = lazyPage(() =>
   import('./pages/projects-processes-page').then((m) => ({ default: m.ProjectsProcessesPage })),
 )
@@ -120,6 +122,7 @@ const DashboardPage = lazyPage(() => import('./pages/dashboard-page').then((m) =
 const BudgetPage = lazyPage(() => import('./pages/budget-page').then((m) => ({ default: m.BudgetPage })))
 const PricingPage = lazyPage(() => import('./pages/pricing-page').then((m) => ({ default: m.PricingPage })))
 const AdminUsersPage = lazyPage(() => import('./pages/admin-users-page').then((m) => ({ default: m.AdminUsersPage })))
+const AdminAccessPage = lazyPage(() => import('./pages/admin-access-page').then((m) => ({ default: m.AdminAccessPage })))
 const SliceStubPage = lazyPage(() => import('./pages/slice-stub-page').then((m) => ({ default: m.SliceStubPage })))
 const ProfilePage = lazyPage(() => import('./pages/profile-page').then((m) => ({ default: m.ProfilePage })))
 const EventsWorkspacePage = lazyPage(() => import('./pages/events-workspace-page').then((m) => ({ default: m.EventsWorkspacePage })))
@@ -137,8 +140,8 @@ const DevViewsPage = lazyPage(() => import('./pages/dev-views-page').then((m) =>
 //     /                          Home
 //     /work/tasks[/new|/:taskId] Tasks (split-view shell + drawer children)
 //     /work/signals              Signals
-//     /work/objectives           Objectives (no read gate — OD-V4-1)
-//     /work/projects             Projects & Processes (capability: workline.manage)
+//     /work/objectives           Objectives (org-readable; write scope resolved in the page)
+//     /work/projects             Projects & Processes (org-readable; write scope resolved in the page)
 //     /events /ecommerce /roastery /profile
 //     /money[/detail|/budget|/pricing|/follow-ups]
 //     /inbox
@@ -219,8 +222,11 @@ const routeTable: RouteObject[] = [
             handle: redirectHandle('/work/tasks'),
           },
           {
-            path: 'work/tasks',
-            element: withSuspense(<TasksLayout />),
+            path: ROUTE_PATHS.workTasks,
+            element: withSuspense(
+              <TasksLayout />,
+              <LoadingShell titleKey="tasks.title" labelKey="tasks.loading" />,
+            ),
             handle: pageHandle('workspace'),
             children: [
               {
@@ -238,7 +244,7 @@ const routeTable: RouteObject[] = [
           // Signals is v4's replacement for Weekly Updates — v4's own map redirects /updates
           // here, and routes this path at SignalsArchivePage as the replacement archive surface.
           {
-            path: 'work/signals',
+            path: ROUTE_PATHS.workSignals,
             element: withSuspense(<SignalsArchivePage />),
             handle: pageHandle('workspace'),
           },
@@ -255,33 +261,37 @@ const routeTable: RouteObject[] = [
           // dropped this gate in #188; the route follows, or the rail links somewhere that
           // bounces.
           {
-            path: 'work/objectives',
+            path: ROUTE_PATHS.workObjectives,
             element: withSuspense(<ObjectivesPage />),
             handle: pageHandle('management'),
           },
           {
-            element: <RequireCapability capability="workline.manage" />,
-            handle: infrastructureHandle('capability'),
-            children: [
-              {
-                path: 'work/projects',
-                element: withSuspense(<ProjectsProcessesPage />),
-                handle: pageHandle('management'),
-              },
-              // Both retired spellings live INSIDE the gate they forward into. Outside it, a
-              // viewer without `workline.manage` would be forwarded to /work/projects and
-              // bounced from there — two hops. Inside, they are bounced once, at the source.
-              {
-                path: 'work/projects-processes',
-                element: <RouteRedirect to="/work/projects" />,
-                handle: redirectHandle('/work/projects'),
-              },
-              {
-                path: 'projects-processes',
-                element: <RouteRedirect to="/work/projects" />,
-                handle: redirectHandle('/work/projects'),
-              },
-            ],
+            path: 'work/objectives/:objectiveId',
+            element: withSuspense(<ObjectiveRecordPage />),
+            handle: pageHandle('focused-record'),
+          },
+          // Projects & Processes is org-readable like Objectives. Effective Work write scope is
+          // resolved by get_work_write_scopes inside the page/record surfaces; the static JWT role
+          // map must not hide a catalog that every authenticated org member may read.
+          {
+            path: ROUTE_PATHS.workProjects,
+            element: withSuspense(<ProjectsProcessesPage />),
+            handle: pageHandle('management'),
+          },
+          {
+            path: 'work/projects/:workLineId',
+            element: withSuspense(<WorkLineRecordPage />),
+            handle: pageHandle('focused-record'),
+          },
+          {
+            path: 'work/projects-processes',
+            element: <RouteRedirect to="/work/projects" />,
+            handle: redirectHandle('/work/projects'),
+          },
+          {
+            path: 'projects-processes',
+            element: <RouteRedirect to="/work/projects" />,
+            handle: redirectHandle('/work/projects'),
           },
           // The cascade SCREEN is cut (OD-WAY-32) — "cascade" is vocabulary, never a surface. The
           // path keeps its doormat: a redirect entry is not a screen, and every other retired
@@ -391,19 +401,19 @@ const routeTable: RouteObject[] = [
           // SHOW_INBOX is retired. #188 already made the rail entry, the bottom tab and the
           // header bell unconditional; a flag that hides only the route leaves three live doors
           // onto a redirect home.
-          { path: 'inbox', element: withSuspense(<InboxPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.inbox, element: withSuspense(<InboxPage />), handle: pageHandle('workspace') },
 
           // ── Café (Kitchen re-homed) ─────────────────────────────────────────────────────
           // /cafe is v4's opening surface ("Start today's opening", RATIFY-7D): the Café Module
           // home hosts CafeOpeningPanel, then links out to the working screens (#196, PORT-023).
           {
-            path: 'cafe',
+            path: ROUTE_PATHS.cafe,
             element: withSuspense(<CafeOpeningPage />),
             handle: pageHandle('workspace'),
           },
-          { path: 'cafe/log', element: withSuspense(<KitchenLogPage />), handle: pageHandle('workspace') },
-          { path: 'cafe/plan', element: withSuspense(<KitchenPlanPage />), handle: pageHandle('workspace') },
-          { path: 'cafe/stock', element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeLog, element: withSuspense(<KitchenLogPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafePlan, element: withSuspense(<KitchenPlanPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeStock, element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
           // Names /cafe/log, not /cafe: /cafe is now the opening surface itself (see above),
           // and a redirect that lands on a redirect is two hops.
           { path: 'kitchen', element: <RouteRedirect to="/cafe/log" />, handle: redirectHandle('/cafe/log') },
@@ -425,10 +435,10 @@ const routeTable: RouteObject[] = [
           // and NFR-002 still holds: which rows a supervisor may DECIDE is the server's, never
           // this route's. A route gate decides what is worth showing; it authorises nothing.
           {
-            element: <RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} />,
+            element: <RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} scope="link" />,
             handle: infrastructureHandle('capability'),
             children: [
-              { path: 'cafe/review', element: withSuspense(<KitchenReviewPage />), handle: pageHandle('workspace') },
+              { path: ROUTE_PATHS.cafeReview, element: withSuspense(<KitchenReviewPage />), handle: pageHandle('workspace') },
               // Inside the gate, for the same reason as the catalog redirects above.
               {
                 path: 'kitchen/review',
@@ -443,7 +453,7 @@ const routeTable: RouteObject[] = [
             element: <RequireAccessRole anyOf={['ops_lead', 'admin']} />,
             handle: infrastructureHandle('capability'),
             children: [
-              { path: 'cafe/pushes', element: withSuspense(<KitchenPushesPage />), handle: pageHandle('workspace') },
+              { path: ROUTE_PATHS.cafePushes, element: withSuspense(<KitchenPushesPage />), handle: pageHandle('workspace') },
               {
                 path: 'kitchen/pushes',
                 element: <RouteRedirect to="/cafe/pushes" />,
@@ -473,7 +483,7 @@ const routeTable: RouteObject[] = [
           // mounted language control anywhere in the app, so the Indonesian catalog is complete
           // and unreachable. Serving the real page is what restores it.
           {
-            path: 'profile',
+            path: ROUTE_PATHS.profile,
             element: withSuspense(<ProfilePage />),
             handle: pageHandle('management'),
           },
@@ -485,8 +495,13 @@ const routeTable: RouteObject[] = [
             handle: infrastructureHandle('capability'),
             children: [
               {
-                path: 'admin/people',
+                path: ROUTE_PATHS.adminPeople,
                 element: withSuspense(<AdminUsersPage />),
+                handle: pageHandle('management'),
+              },
+              {
+                path: ROUTE_PATHS.adminAccess,
+                element: withSuspense(<AdminAccessPage />),
                 handle: pageHandle('management'),
               },
               { path: 'admin', element: <RouteRedirect to="/admin/people" />, handle: redirectHandle('/admin/people') },

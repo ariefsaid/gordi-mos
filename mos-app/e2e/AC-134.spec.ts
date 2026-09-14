@@ -13,6 +13,7 @@ import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
+import { chooseSelectOption } from './helpers/select'
 import { MANAGER } from './fixtures/users'
 
 // ── Supabase direct-SQL helper (mirrors global-setup.ts pattern) ──────────────
@@ -165,7 +166,7 @@ test.beforeEach(async ({ page }) => {
   // Group by Status. The workspace now defaults to a flat list (OD-P5-1: group-by is an explicit
   // toolbar toggle, default None); this AC's journey is the grouped-Status view, so select it.
   // Desktop secondary controls are inline in the View & filters options row.
-  await page.getByLabel('Group').selectOption('status')
+  await chooseSelectOption(page, page.getByRole('combobox', { name: 'Group', exact: true }), 'Status')
   // Wait for at least one group header to appear (TanStack row model, one render cycle).
   await page.waitForSelector('tr.grp', { timeout: 10_000 })
 })
@@ -241,8 +242,8 @@ test(
   const statusEdit = drawer.getByRole('button', { name: /edit status/i })
   await statusEdit.click()
   const statusSelect = drawer.getByLabel('Status')
-  await statusSelect.selectOption({ label: 'Open' })
-  await expect(statusSelect).toHaveValue('Open')
+  await chooseSelectOption(page, statusSelect, 'Open')
+  await expect(statusSelect).toContainText('Open')
 
   // URL stays canonical (no navigation happened).
   expect(page.url()).toBe(taskUrl)
@@ -253,7 +254,7 @@ test(
   await expect(reopenedRow.locator('.td-status').getByText('Open')).toBeVisible({ timeout: 8_000 })
 
   // ─── Step 4: regroup by Owner → Owner group headers appear for all persons ─────────────
-  await page.getByLabel('Group').selectOption('owner')
+  await chooseSelectOption(page, page.getByRole('combobox', { name: 'Group', exact: true }), 'PIC')
 
   // All 6 seeded persons must have group headers (OD-P3-6: empty groups always shown).
   for (const name of ['Dewi Director', 'Cahya Cafe', 'Krishna Kitchen',
@@ -280,5 +281,5 @@ test(
   await expect(createForm).toBeVisible({ timeout: 8_000 })
   const picSelect = createForm.getByLabel(/^pic$/i)
   await expect(picSelect).toBeVisible({ timeout: 10_000 })
-  await expect(picSelect).toHaveValue(P_RAMA)
+  await expect(picSelect).toContainText('Rama Roastery')
 })

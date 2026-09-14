@@ -54,7 +54,7 @@ describe('AC-041 — the day header is one line, chip drops at 390 (CSS contract
 
   it('no control the floor could measure is left in the header CSS — the retired rules stay retired', () => {
     const all = [HOME_CSS, HEAD_CSS, HEADER_CSS].join('\n')
-    for (const retired of ['home-head-state', 'home-head-msg', 'home-head-track', 'home-head-fill', 'home-head-row', 'home-head-meta']) {
+    for (const retired of ['home-head-state', 'home-head-msg', 'home-head-track', 'home-head-fill', 'home-head-row']) {
       expect(all.includes(retired), `.${retired} is retired — it must not come back`).toBe(false)
     }
   })

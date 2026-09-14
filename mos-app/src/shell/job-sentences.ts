@@ -20,7 +20,8 @@ import type { MessageKey } from '@/i18n/messages'
 export const jobSentences = {
   home: 'What needs my attention right now?',
   work: 'Find and do the work I own or my Team owns.',
-  tasks: 'Find and do the work I own or my Team owns.',
+  // The Tasks collection can be All, My work, Team work, or Overdue; keep its head neutral.
+  tasks: 'Find and update the work in this view.',
   signals: 'Search and revisit the Signals your Teams have shared.',
   projects: 'Govern the Processes and Projects that generate the work.',
   objectives: 'Track the Objectives the org committed to.',

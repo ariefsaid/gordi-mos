@@ -1,37 +1,11 @@
 import type { HomeRegionId } from './home-regions'
 
-// The Overview bento's tile weights (OD-V4-7). Its own module so the map is importable by the
-// guard that packs it against the authored CSS spans without breaking fast-refresh in the
-// component file.
-//
-// The weights are chosen so consecutive tiles pack to EXACTLY the bento's column count at every
-// desktop band — a lone tile with a hole beside it is the raggedness the owner rejected ("the
-// boxes dont align … feels untidy nor professional"). Three regions cannot alternate 4+2 / 2+4
-// the way four did, so the lead owns the first row outright: 6 columns: 6 | 2+4. 4 columns:
-// 4 | 2+2. The phone band is a single column, so it stacks regardless.
-//
-// `full` is the lead tier — needs-you, the one region that always demands action. `wide` is the
-// consequence tier: the regions carrying the viewer's own work, which hold task rows and need the
-// room. `narrow` is the notice tier. needs-you leads by being first and top-left, and its
-// full-track span is the largest on the board, so nothing outranks it.
-//
-// Guarded by guard-bento-rows.css.test.ts.
+// The lead has the most room; the remaining two regions pair beneath it in the desktop bento.
 export const HOME_TILE_WEIGHT: Record<HomeRegionId, 'full' | 'wide' | 'narrow'> = {
   'needs-you': 'full',
   'failed-checks': 'narrow',
   'my-work': 'wide',
 }
 
-/**
- * How many rows an Overview tile renders before it states the remainder as "N more →".
- *
- * Five (owner ruling, 2026-07-30 — raised from four): Overview's job is the whole board at one
- * glance, and five rows still fit above the fold at the desktop bands the bento is authored for.
- * Nothing is hidden by it: the tile's count is the FULL count and the remainder is a link
- * (RegionRows), so the cap is a summary, never a truncation.
- *
- * Named here beside the weights for the same reason the caps in home-page.tsx are named
- * (`MY_WORK_CAP`, `AMBIENT_CAP`): a bare `slice(0, 5)` at the call site is a number with no
- * argument attached to it.
- */
+/** Overview stays a summary, while the collection host keeps the full count and canonical drill door honest. */
 export const OVERVIEW_TILE_ROWS = 5

@@ -28,20 +28,22 @@ select shared._test_seed_directory();
 select shared._test_seed_access_roles();
 select ops._test_seed_cafe();
 
--- ── Stream teams + memberships (the substrate the reviewer predicate rides — OD-WAY-49) ──────
--- The migration-time seeder skips the test orgs (created long after it ran), so the stream teams
--- are authored here, exactly as shared_11 does.
-insert into shared.teams (id, org_id, business_unit_id, name, code, branch_id, activity) values
-  ('00000000-0000-0000-0000-00000000cc01','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','T GHQ Bar','t_ghq_bar','00000000-0000-0000-0000-00000000bf01','bar'),
-  ('00000000-0000-0000-0000-00000000cc02','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','T RRS Kitchen','t_rrs_kitchen','00000000-0000-0000-0000-00000000bf02','kitchen');
+-- ── Stream memberships (the substrate the reviewer predicate rides — OD-WAY-49) ───────────────
+-- ops._test_seed_cafe() provisions the live catalog, so use its actual Team ids instead of
+-- creating duplicate (branch, activity) coordinates.
 
 -- Peer ...0d4: live primary on (GHQ, bar) — started, open-ended: THE stream reviewer.
-insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from) values
-  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d4','00000000-0000-0000-0000-00000000cc01', true, current_date - 30);
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from)
+select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d4', t.id, true, current_date - 30
+from shared.teams t
+where t.org_id = '00000000-0000-0000-0000-0000000000a1' and t.code = 'gordi_hq_bar';
 -- DualHat ...0d6: primary on (RRS, kitchen) with a FUTURE end date — still on the team today, but
 -- NOT live under the deliberate default_stream() rule the reviewer predicate mirrors.
-insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from, effective_to) values
-  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d6','00000000-0000-0000-0000-00000000cc02', true, current_date - 30, current_date + 7);
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from, effective_to)
+select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d6', t.id, true,
+       current_date - 30, current_date + 7
+from shared.teams t
+where t.org_id = '00000000-0000-0000-0000-0000000000a1' and t.code = 'rumah_rames_kitchen';
 
 -- Grant rows mirroring the claims below (claims drive the policies; the rows keep the directory
 -- consistent with the source those claims are hook-injected from).

@@ -18,6 +18,12 @@ import {
 } from '@/components/tasks/task-collection-query'
 
 describe('query-state', () => {
+  it('clears neutral Task constraints while preserving record and unrelated route state', () => {
+    const source = new URLSearchParams('saved=old&overdue=1&view=overdue&q=old&person=p1&record=t1&sourceSignal=s1')
+    const next = writeCollectionQuery<TaskCollectionQuery>(taskCollectionQuery, { ...taskCollectionQuery.neutral, view: 'my-work' }, source)
+    expect(next.toString()).toBe('record=t1&sourceSignal=s1&view=my-work')
+  })
+
   it('FR-V3-007: Signal Feed saved-view query preserves compatible filters, sort, grouping, and URL state', () => {
     const params = new URLSearchParams(
       'layout=feed&view=needs-attention&q=freezer&attention=Needs%20attention&sort=occurredAt&dir=descending&saved=v-9',
@@ -171,5 +177,20 @@ describe('query-state', () => {
     )
     expect(parsed.ok).toBe(true)
     if (parsed.ok) expect(parsed.query.view).toBe('my-work')
+  })
+
+  it('maps legacy Completed URLs to the All view plus the Done status filter', () => {
+    const parsed = readCollectionQuery(
+      taskCollectionQuery,
+      new URLSearchParams('layout=table&view=completed'),
+      'table',
+    )
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) return
+    expect(parsed.query.view).toBe('all')
+    expect(parsed.query.status).toBe('Done')
+    const written = writeCollectionQuery(taskCollectionQuery, parsed.query, new URLSearchParams())
+    expect(written.get('view')).toBeNull()
+    expect(written.get('status')).toBe('done')
   })
 })

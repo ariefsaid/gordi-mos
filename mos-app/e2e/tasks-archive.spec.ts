@@ -1,5 +1,5 @@
-// AC-091: Archive a task → leaves the default list; findable via "Show archived"
-// Natural journey: VIEWER (who is A on the seeded task) archives it from detail,
+// AC-091: Archive a task → leaves the default list; findable via "Include archived"
+// Natural journey: the PIC's manager archives a dedicated fixture from detail,
 // confirms it disappears from the default list, then re-finds it via the archived toggle.
 // No row is destroyed (the task remains readable under archived filter).
 // Requires the live stack (supabase start) and the seed from global-setup.ts.
@@ -12,14 +12,23 @@
 // drawer wrapper exists there); step 6 re-opens via an in-app row click, which DOES land in the
 // drawer, so that part of the original journey still holds.
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
-import { VIEWER } from './fixtures/users'
+import { MANAGER, VIEWER } from './fixtures/users'
 import { TASKS } from './fixtures/tasks'
 
-test('AC-091: archive task from detail → leaves default list → reappears under archived filter', async ({ page }) => {
-  // ── 1. Login as VIEWER ──────────────────────────────────────────────────────
+test('OD-WAY-94: the PIC may complete but cannot archive, even when also Supervisor', async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
+  await page.goto(`work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}`)
+  const record = page.getByRole('region', { name: TASKS.VIEWER_ACCOUNTABLE.title, exact: true })
+  await expect(record.getByRole('button', { name: 'Mark complete', exact: true })).toBeVisible()
+  await expect(record.getByRole('button', { name: 'More actions', exact: true })).toHaveCount(0)
+  await expect(record.getByRole('menuitem', { name: /archive task/i })).toHaveCount(0)
+})
+
+test('AC-091: archive task from detail → leaves default list → reappears under archived filter', async ({ page }) => {
+  // OD-WAY-94: the PIC cannot archive, even when also named Supervisor.
+  await loginAs(page, MANAGER.email, MANAGER.password)
 
   // ── 2. Navigate directly to the seeded task's detail (a hard load → standalone page, OD-63) ──
   const taskId = TASKS.VIEWER_ACCOUNTABLE.id
@@ -30,7 +39,8 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   await expect(page.getByRole('heading', { level: 1, name: taskTitle })).toBeVisible({ timeout: 10_000 })
 
   // ── 3. Archive the task from the page ────────────────────────────────────────
-  const archiveBtn = page.getByRole('button', { name: /archive task/i })
+  await page.getByRole('button', { name: 'More actions', exact: true }).click()
+  const archiveBtn = page.getByRole('menuitem', { name: /archive task/i })
   await expect(archiveBtn).toBeVisible()
   await archiveBtn.click()
 
@@ -43,20 +53,20 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   await page.waitForURL(/\/tasks$/, { timeout: 10_000 })
 
   // ── 4. Assert: task is NOT in the default list ──────────────────────────────
-  // Switch to "All" to broaden the scope — but archived tasks should still be hidden. "All" is a
-  // saved-view chip (role="group" "Tasks saved views"), not a tab — see tasks-split-view.spec.ts.
-  await page.getByRole('group', { name: 'Tasks saved views' }).getByRole('button', { name: 'All' }).click()
+  // Broaden scope while retaining the default exclusion of archived tasks.
+  await page.getByRole('tab', { name: 'All', exact: true }).click()
   // Wait a moment for the list to load
   await page.waitForTimeout(1_000)
   await expect(page.getByText(taskTitle)).not.toBeVisible()
 
-  // ── 5. Toggle "Show archived" — task reappears ──────────────────────────────
-  // Desktop secondary filters, including Show archived, render inline.
-  const archivedToggle = page.getByLabel(/show archived/i)
+  // ── 5. Include archived — task reappears ──────────────────────────────
+  await page.getByRole('button', { name: /^Filters/ }).click()
+  const archivedToggle = page.getByRole('checkbox', { name: 'Include archived', exact: true })
   await archivedToggle.check()
 
   // The archived task should now be visible
   await expect(page.getByText(taskTitle)).toBeVisible({ timeout: 10_000 })
+  await page.getByRole('button', { name: 'Close filters', exact: true }).click()
 
   // ── 6. Assert: row still exists (no hard delete) ────────────────────────────
   // Click through to the detail — an IN-APP click stays in the split drawer (unlike step 2's hard
@@ -70,12 +80,13 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   // Detail shows archived banner
   await expect(drawer.getByText(/this task is archived/i)).toBeVisible()
-  // Unarchive button is visible (VIEWER is A)
-  await expect(drawer.getByRole('button', { name: /unarchive/i })).toBeVisible()
+  // The same authorized manager can restore the task from overflow.
+  await drawer.getByRole('button', { name: 'More actions', exact: true }).click()
+  await expect(drawer.getByRole('menuitem', { name: /unarchive/i })).toBeVisible()
   // OD-REDESIGN-84 disclosure + archive journey ruling: restore the fixture for later specs.
-  await drawer.getByRole('button', { name: /unarchive/i }).click()
+  await drawer.getByRole('menuitem', { name: /unarchive/i }).click()
   await expect(drawer.getByText(/this task is archived/i)).toHaveCount(0)
   await page.goto('work/tasks')
-  await page.getByRole('group', { name: 'Tasks saved views' }).getByRole('button', { name: 'All' }).click()
+  await page.getByRole('tab', { name: 'All', exact: true }).click()
   await expect(page.getByText(taskTitle)).toBeVisible({ timeout: 10_000 })
 })

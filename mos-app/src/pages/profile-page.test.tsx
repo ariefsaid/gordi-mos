@@ -59,24 +59,55 @@ describe('PORT-024: ProfilePage', () => {
     renderPage()
     const identityCard = screen.getByRole('heading', { name: 'Identity' }).closest('section')
     const languageCard = screen.getByRole('heading', { name: 'Language' }).closest('section')
+    const layoutCard = screen.getByRole('heading', { name: 'Home layout' }).closest('section')
 
     expect(identityCard).toHaveStyle({ borderRadius: 'var(--radius-lg)' })
     expect(languageCard).toHaveStyle({ borderRadius: 'var(--radius-lg)' })
+    expect(layoutCard).toHaveStyle({ borderRadius: 'var(--radius-lg)' })
   })
 
-  it('FR-920: the Home layout setting gets the picker measure, and the form cards keep the form measure', () => {
+  it('keeps the remaining profile form cards at the narrow form measure', () => {
     renderPage()
-    // The picker is a THREE-UP DIAGRAM, not a form field: at the 560px form measure its cards
-    // measured 167px and the wireframes stopped being readable, which is the whole point of a
-    // diagram-based chooser. It gets the 720px setting measure (+ this card's own 16px padding
-    // and 1px border on each side, which the bare content box does not carry).
-    const layoutCard = screen.getByRole('heading', { name: 'Home layout' }).closest('section')
-    expect(layoutCard).toHaveStyle({ maxWidth: '754px' })
-    // …and widening it must not drag the short-form cards out with it.
     for (const title of ['Identity', 'Language']) {
       expect(screen.getByRole('heading', { name: title }).closest('section')).toHaveStyle({
         maxWidth: '560px',
       })
+    }
+    expect(screen.getByRole('heading', { name: 'Home layout' }).closest('section')).toHaveStyle({
+      maxWidth: '754px',
+    })
+  })
+
+  it('exposes the personal Home layout picker with Focused as the default', () => {
+    renderPage()
+    expect(screen.getByRole('heading', { name: 'Home layout' })).toBeInTheDocument()
+    expect(screen.getAllByRole('radio')).toHaveLength(3)
+    expect(screen.getByRole('radio', { name: /focused/i })).toBeChecked()
+  })
+
+  it('FR-921: selecting Overview persists the choice and applies it on a fresh Profile mount', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getByRole('radio', { name: /overview/i }))
+    expect(screen.getByRole('radio', { name: /overview/i })).toBeChecked()
+    expect(localStorage.getItem('gordi.home.layout.p1')).toBe('overview')
+
+    cleanup()
+    renderPage()
+    expect(screen.getByRole('radio', { name: /overview/i })).toBeChecked()
+  })
+
+  it('FR-921: a storage write failure does not block the session choice', async () => {
+    const user = userEvent.setup()
+    const originalSetItem = localStorage.setItem
+    try {
+      localStorage.setItem = () => { throw new Error('quota') }
+      renderPage()
+      await user.click(screen.getByRole('radio', { name: /list/i }))
+      expect(screen.getByRole('radio', { name: /list/i })).toBeChecked()
+    } finally {
+      localStorage.setItem = originalSetItem
     }
   })
 
@@ -103,7 +134,7 @@ describe('PORT-024: ProfilePage', () => {
     const visible = languageTexts.filter((el) => !el.classList.contains('sr-only'))
     expect(visible).toHaveLength(1)
     expect(visible[0].tagName).toBe('H2')
-    expect(screen.getByLabelText('Language').tagName).toBe('SELECT')
+    expect(screen.getByLabelText('Language').tagName).toBe('BUTTON')
   })
 
   it('goal (page-scope: this harness mounts ProfilePage only): selecting Bahasa re-renders in Indonesian and persists across remount', async () => {
@@ -111,10 +142,11 @@ describe('PORT-024: ProfilePage', () => {
     renderPage()
     // English baseline
     expect(screen.getByRole('heading', { name: 'Personal Profile' })).toBeInTheDocument()
-    await user.selectOptions(screen.getByLabelText('Language'), 'id')
+    await user.click(screen.getByRole('combobox', { name: 'Language' }))
+    await user.click(screen.getByRole('option', { name: 'Bahasa Indonesia' }))
     // The page itself re-renders in Indonesian — the goal, not the mechanism
     expect(await screen.findByRole('heading', { name: 'Profil Pribadi' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Bahasa')).toHaveValue('id')
+    expect(screen.getByRole('combobox', { name: 'Bahasa' })).toHaveTextContent('Bahasa Indonesia')
     // …and its BODY re-renders too, not just the title. `useT` falls back to `en` silently when a
     // key is missing from the `id` catalog, so a page that switches its heading and keeps English
     // cards passes every title-only assertion. Found by mutation: replacing an `id` card string
@@ -137,17 +169,9 @@ describe('PORT-024: ProfilePage', () => {
     const user = userEvent.setup()
     renderPage()
     expect(document.title).toBe('Personal Profile — Gordi MOS')
-    await user.selectOptions(screen.getByLabelText('Language'), 'id')
+    await user.click(screen.getByRole('combobox', { name: 'Language' }))
+    await user.click(screen.getByRole('option', { name: 'Bahasa Indonesia' }))
     expect(document.title).toBe('Profil Pribadi — Gordi MOS')
   })
 
-  it('persists the Home layout choice against the viewer, and reads it back on remount', async () => {
-    const user = userEvent.setup()
-    renderPage()
-    await user.click(screen.getByRole('radio', { name: /overview/i }))
-    expect(localStorage.getItem('gordi.home.layout.p1')).toBe('overview')
-    cleanup()
-    renderPage()
-    expect(screen.getByRole('radio', { name: /overview/i })).toBeChecked()
-  })
 })

@@ -13,6 +13,7 @@ import { useState, useEffect, useCallback, useId, useRef } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { useDocumentTitle } from '@/shell/use-document-title'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/state-kit'
 import { UserTable } from '@/components/admin/user-table'
@@ -25,6 +26,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { Toast } from '@/components/admin/toast'
 import { useToast } from '@/components/admin/use-toast'
+import { AdminSettingsNav } from '@/components/admin/admin-settings-nav'
 import {
   listAdminPeople,
   listRoles,
@@ -56,6 +58,7 @@ type PendingConfirm =
 export function AdminUsersPage() {
   const auth = useAuth()
   const t = useT()
+  useDocumentTitle(t('common.docTitle', { page: t('admin.people.title') }))
   const viewerPersonId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
   // DO-22(b): same presentation decision the UserTable itself makes — chrome and list
   // presentation can never disagree.
@@ -225,6 +228,7 @@ export function AdminUsersPage() {
       action={<Button variant="primary" onClick={() => setAddOpen(true)}>{t('admin.people.addPerson')}</Button>}
       state={frameState}
     >
+      <AdminSettingsNav />
 
       {/* Action error (inline, non-fatal) */}
       {actionError && (

@@ -111,7 +111,10 @@ const DECLARED_GATE_ROLES: string[] = [
   ...ALL_SECTIONS.flatMap((s) => s.anyOf ?? []),
 ]
 /** Capability slugs named by any capability gate in the registries. */
-const DECLARED_GATE_CAPABILITIES: string[] = ALL_SECTIONS.flatMap((s) => (s.capability ? [s.capability] : []))
+function declaredCapabilities(sections: readonly Section[]): string[] {
+  return sections.flatMap((s) => (s.capability ? [s.capability] : []))
+}
+const DECLARED_GATE_CAPABILITIES = declaredCapabilities(ALL_SECTIONS)
 
 const OMNISCIENT_ROLES: string[] = [...new Set([...ASSIGNABLE_ROLES, ...DECLARED_GATE_ROLES])]
 
@@ -214,9 +217,10 @@ describe('the omniscient viewer really is omniscient', () => {
   })
 
   it('is granted every capability a nav gate names', () => {
-    // Same class of hole on the other axis: a row behind a capability nobody holds drops out of
-    // the sweep as silently as a row behind an unknown role.
-    expect(DECLARED_GATE_CAPABILITIES.length, 'no capability gate found in the nav registries').toBeGreaterThan(0)
+    // Work is now organization-readable, so zero current capability gates is valid. Prove the
+    // collector still recognizes a gated section without requiring a needless production gate.
+    const probe: Section = { ...ALL_SECTIONS[0], capability: 'objective.manage' }
+    expect(declaredCapabilities([probe])).toEqual(['objective.manage'])
     for (const capability of DECLARED_GATE_CAPABILITIES) {
       expect(can(OMNISCIENT_ROLES, capability), `no role in the sweep grants "${capability}"`).toBe(true)
     }

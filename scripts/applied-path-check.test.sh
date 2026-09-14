@@ -1174,10 +1174,17 @@ else
   bad "the fingerprint SQL looks like comments only ($FP_CODE_LINES lines)"
 fi
 
+if grep -qF "r.rel = 'mos.task_team_rehome_ledger'" "$FP_SQL" \
+  && grep -qF "[applied-path-content: history-dependent]" "$FP_SQL"; then
+  ok "the history-content exception requires both its exact relation and explicit marker"
+else
+  bad "the history-content exception is not bound to its exact marked relation"
+fi
+
 # Control: this check must actually be able to fail, or it is decoration. A file truncated
 # mid-CTE leaves an opened `(` with no matching `)`.
 BADSQL="$T/bad-fingerprint.sql"
-head -40 "$FP_SQL" > "$BADSQL"
+head -50 "$FP_SQL" > "$BADSQL"
 BAD_BAL="$(perl "$T/parse-balance.pl" "$BADSQL")"
 if [ "$BAD_BAL" != "0" ]; then
   ok "control: a truncated fingerprint file fails the balance check (bal=$BAD_BAL)"

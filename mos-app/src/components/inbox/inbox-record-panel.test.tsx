@@ -29,11 +29,14 @@ vi.mock('../../lib/db/tasks', () => ({
   archiveTask: vi.fn(),
   unarchiveTask: vi.fn(),
 }))
-vi.mock('../../lib/db/directory', () => ({
+const directoryMocks = vi.hoisted(() => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
   getDownlinePersonIds: vi.fn(),
+  getPersonTeams: vi.fn(),
+  getTeamsByIds: vi.fn(),
 }))
+vi.mock('../../lib/db/directory', () => directoryMocks)
 
 import { getTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
@@ -100,6 +103,8 @@ beforeEach(() => {
   vi.mocked(getPeople).mockResolvedValue([{ id: VIEWER_ID, full_name: 'Cahya Cafe' }])
   // resetAllMocks wipes the factory seed; the task record's edit/archive gates read the downline.
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
+  directoryMocks.getPersonTeams.mockResolvedValue([])
+  directoryMocks.getTeamsByIds.mockResolvedValue([])
 })
 
 function renderTaskPanel(onClose = vi.fn()) {

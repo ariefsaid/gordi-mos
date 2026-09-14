@@ -91,15 +91,8 @@ send real mail (magic links, invites, password resets) through **Resend** via SM
 | `GOTRUE_SMTP_ADMIN_EMAIL` | `admin@gordi.id` (the From address — owner's alias) |
 | `GOTRUE_SMTP_SENDER_NAME` | `Gordi Admin` |
 
-Status (2026-06-11): domain **verified** in Resend; API key stored in **1Password vault `AS`**.
-Secrets are fetched at deploy time via the host tool `op-get.sh <item> <vault> <field>`
-(`~/.local/bin/op-get.sh`; loads the service-account token itself — see PMO
-`docs/environments.md` for the pattern). Committed coordinates (NOT secret):
-`supabase/op.resend.env`. Never copy the key into a file in this repo.
+Supply mail credentials through the deployment secret configuration. Keep secret lookup coordinates and local environment files out of version control.
 
-**Smoke-tested 2026-06-11:** send-only key verified live — POST /emails as `Gordi Admin
-<admin@gordi.id>` to Resend's sandbox (`delivered@resend.dev`) returned 200 (id 79432513…). The
-key is restricted to sending (401 on /domains) — correct scope.
 Sanity check after deploy: trigger a password-reset from the prod login page and confirm delivery +
 that the link lands on `https://ops.gordi.id/mos/recovery` (proves the SMTP path specifically). Rate limits: Resend free tier (~3k/mo,
 100/day) is ~10× MOS's worst case.

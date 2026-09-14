@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { ADMIN } from './fixtures/users'
-import { TASKS } from './fixtures/tasks'
+import { AC204, TASKS } from './fixtures/tasks'
 import { isShipGated } from './helpers/ship-gate'
 
 const PLAN_BUDGET_ENABLED = process.env.VITE_SHOW_PLAN_BUDGET === 'true'
@@ -78,7 +78,7 @@ test('AC-003 (DD-WAY-60): retired Daily Log URLs render in-shell not-found witho
   for (const path of ['ops', 'ops/new', 'ops/retired-id/edit']) {
     await page.goto(path)
     await expect(page).toHaveURL(new RegExp(`/mos/${path.replaceAll('/', '\\/')}$`))
-    await expect(page.getByRole('heading', { name: 'Page not found.' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Page not found', exact: true })).toBeVisible()
   }
 })
 
@@ -88,14 +88,14 @@ test('AC-004 (DD-WAY-36): /work/follow-ups renders not-found in one hop — no r
   await expect(page).toHaveURL(/\/work\/follow-ups$/)
   // AC-021: not-found renders INSIDE the shell — the real cross-stack proof of the guard's
   // fall-through assertion (unit layer owns the invariant; this owns the journey).
-  await expect(page.getByRole('heading', { name: 'Page not found.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Page not found', exact: true })).toBeVisible()
 })
 
 test('AC-004: /tasks/:taskId redirects to /work/tasks/:taskId and renders the task surface', async ({ page }) => {
   await page.goto(`tasks/${TASKS.VIEWER_ACCOUNTABLE.id}`)
   await expect(page).toHaveURL(new RegExp(`/work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}$`))
-  await expect(page.getByRole('group', { name: 'Tasks saved views' })).toBeVisible()
-  await expect(page.getByRole('complementary', { name: /task detail/i })).toBeVisible()
+  await expect(page.getByRole('tablist', { name: 'Task views' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: TASKS.VIEWER_ACCOUNTABLE.title, exact: true })).toBeVisible()
 })
 
 test('AC-005: /kitchen/* redirects to /cafe/* and renders the re-homed kitchen surfaces', async ({ page }) => {
@@ -140,5 +140,30 @@ test('AC-025: /work/signals, /cafe, and /work/tasks?view=overdue resolve and are
   await page.goto('work/tasks?view=overdue')
   await expect(page).toHaveURL(/\/work\/tasks\?view=overdue$/)
   await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Tasks' })).toBeVisible()
-  await expect(page.getByRole('group', { name: 'Tasks saved views' })).toBeVisible()
+  await expect(page.getByRole('tablist', { name: 'Task views' })).toBeVisible()
+})
+
+
+test('R7: canonical Objective and Project IDs survive direct load and reload; unknown IDs remain unavailable', async ({ page }, testInfo) => {
+  for (const record of [
+    { path: `work/objectives/${AC204.objective.id}`, title: AC204.objective.name },
+    { path: `work/projects/${AC204.launch.id}`, title: AC204.launch.name },
+  ]) {
+    await page.goto(record.path)
+    await expect(page.getByRole('heading', { name: record.title, exact: true })).toBeVisible()
+    await page.reload()
+    await expect(page.getByRole('heading', { name: record.title, exact: true })).toBeVisible()
+  }
+  await page.screenshot({ path: testInfo.outputPath('canonical-project.png'), fullPage: true })
+  for (const collection of ['projects', 'objectives', 'signals']) {
+    const path = `work/${collection}/00000000-0000-0000-0000-000000000000`
+    await page.goto(path)
+    await expect(page).toHaveURL(new RegExp(`${path}$`))
+    if (collection === 'signals') {
+      await expect(page.getByRole('alert')).toContainText('That Signal no longer exists.')
+    } else {
+      await expect(page.getByRole('heading', { name: 'This record is no longer available.', exact: true })).toBeVisible()
+      await expect(page.getByRole('link', { name: /^Back to/ })).toBeVisible()
+    }
+  }
 })

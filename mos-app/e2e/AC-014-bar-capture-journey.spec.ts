@@ -143,10 +143,22 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
   // Delete order matters: children before parents, so a partially-applied previous run cannot
   // leave a row whose parent is already gone.
   async function resetFixtureRows() {
-    const dp = today.replace(/-/g, '')
+    const ownedBatchRows = await sql(`
+      SELECT batch_id
+        FROM ops.kitchen_logs
+       WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}' AND batch_id IS NOT NULL
+    `)
+    const ownedBatchIds = ownedBatchRows
+      .map(row => row.batch_id)
+      .filter((batchId): batchId is string => typeof batchId === 'string' && batchId.length > 0)
+    if (ownedBatchIds.length > 0) {
+      const ownedBatchRefs = ownedBatchIds.map(batchId => `'${batchId.replace(/'/g, "''")}'`).join(', ')
+      await sql(`
+        DELETE FROM integrations.esb_push
+         WHERE org_id='${ORG}' AND source_module='kitchen' AND source_ref IN (${ownedBatchRefs});
+      `)
+    }
     await sql(`
-      DELETE FROM integrations.esb_push WHERE org_id='${ORG}' AND source_module='kitchen' AND source_ref LIKE 'PR-${dp}-%';
-      DELETE FROM ops.kitchen_batch_seq WHERE org_id='${ORG}' AND prefix='PR' AND log_date='${today}';
       DELETE FROM ops.kitchen_stock     WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.kitchen_logs      WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.kitchen_plans     WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
@@ -175,8 +187,13 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     // the default is a default, not a wall (OD-WAY-49/31). Seven since OD-WAY-79 added Cikal bar.
     const streamPicker = page.getByRole('combobox', { name: /Production stream/i })
     await expect(streamPicker).toBeVisible({ timeout: 15_000 })
-    await expect(streamPicker.locator('option')).toHaveCount(7)
-    await expect(streamPicker.locator('option:checked')).toHaveText(/Rumah Rames · Bar/i)
+    await streamPicker.click()
+    const streamListbox = page.getByRole('listbox', { name: /Production stream/i })
+    await expect(streamListbox.getByRole('option')).toHaveCount(7)
+    const selectedStreamOption = streamListbox.getByRole('option', { name: /Rumah Rames · Bar/i })
+    await expect(selectedStreamOption).toHaveAttribute('aria-selected', 'true')
+    await selectedStreamOption.click()
+    await expect(streamPicker).toContainText(/Rumah Rames · Bar/i)
 
     // FR-011 / DD-WAY-29 — the item is on the form because its unit is CONFIRMED, and it carries
     // that unit as fixed master data beside the qty input (FR-020).
@@ -235,7 +252,7 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     await expect(
       page.getByRole('group', { name: /item list completeness for this stream/i }),
     ).toContainText(/not confirmed complete yet/i)
-    await expect(page.getByRole('button', { name: /confirm the item list is complete/i })).toBeEnabled()
+    await expect(page.getByRole('checkbox', { name: /confirm the item list is complete/i })).toBeEnabled()
 
     const approve = page.getByRole('button', { name: new RegExp(`Approve ${ITEM_NAME}`, 'i') })
     await expect(approve).toBeEnabled({ timeout: 10_000 })
@@ -269,8 +286,9 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     // ...and it is VISIBLE on the stream's stock surface — the number a person actually reads.
     await page.goto('cafe/stock')
     await page.waitForURL(/\/cafe\/stock$/, { timeout: 15_000 })
-    await expect(page.getByRole('combobox', { name: /^Branch$/i })).toBeVisible({ timeout: 20_000 })
-    await expect(page.getByRole('combobox', { name: /^Activity$/i })).toHaveValue('bar')
+    const stockStreamPicker = page.getByRole('combobox', { name: /Production stream/i })
+    await expect(stockStreamPicker).toBeVisible({ timeout: 20_000 })
+    await expect(stockStreamPicker).toContainText(/Rumah Rames · Bar/i)
     const stockRow = page.getByRole('row', { name: new RegExp(ITEM_NAME, 'i') })
     await expect(stockRow).toBeVisible({ timeout: 15_000 })
     await expect(stockRow).toContainText(String(PLAN_QTY))

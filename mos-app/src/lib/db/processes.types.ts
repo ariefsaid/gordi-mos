@@ -35,6 +35,12 @@ export interface ProcessRunRow {
   scheduled_date: string
   status: ProcessRunStatus
   definition_version: number
+  started_by: string | null
+  completed_at: string | null
+  completed_by: string | null
+  cancelled_at: string | null
+  cancelled_by: string | null
+  cancel_reason: string | null
 }
 
 /** A row from `mos.process_run_rollup` (derived, no stored counts — ADR D9). */
@@ -51,6 +57,15 @@ export interface ProcessRunRollup {
   overdue: number
   pending_unresolved: number
   completion_pct: number
+}
+
+/** One render-ready Process occurrence: the run, its derived task counts, and its owning Team.
+ * Counts stay sourced from mos.process_run_rollup; the client never recomputes them from a partial
+ * task list. */
+export interface ProcessOccurrenceSummary {
+  run: ProcessRunRow
+  team_name: string
+  rollup: ProcessRunRollup
 }
 
 /** A batched `mos.process_task_defs` lookup row (design fix wave items 2/4, Rule 11 — shared by

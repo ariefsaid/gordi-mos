@@ -24,7 +24,8 @@ import { join, relative } from 'node:path'
 import type { RouteObject } from 'react-router-dom'
 import { routeConfig } from './router'
 import { HomePage } from './pages/home-page'
-import { isOwnerDirector, buHeadsForViewer } from '@/lib/role-scope'
+import { holdsHomeCockpitScope } from '@/lib/home-composition'
+import type { RolesRow } from '@/lib/database.types'
 
 const SRC = __dirname
 const APP = join(SRC, '..')
@@ -122,9 +123,17 @@ describe('OD-REDESIGN-85: the stacked-union Home fossil is gone and stays gone',
   })
 
   it('the role-scope predicates the fossil hosted live on — the shipped Home still gates its Objectives door', () => {
-    expect(typeof isOwnerDirector).toBe('function')
-    expect(typeof buHeadsForViewer).toBe('function')
-    const homePage = stripComments(readFileSync(join(SRC, 'pages', 'home-page.tsx'), 'utf8'))
-    expect(homePage).toContain("from '@/lib/role-scope'")
+    const role = (overrides: Partial<RolesRow>): RolesRow => ({
+      id: 'role', org_id: 'org', business_unit_id: null, name: 'Role',
+      reports_to_role_id: null, created_at: '', updated_at: '', ...overrides,
+    })
+    const member = { roles: [], isManager: false, accessRoles: ['member'], affiliated: [] }
+
+    expect(holdsHomeCockpitScope({ ...member, roles: [role({ id: 'director' })] }, [])).toBe(true)
+    expect(holdsHomeCockpitScope(
+      { ...member, roles: [role({ id: 'cafe-lead', business_unit_id: 'cafe', reports_to_role_id: 'director' })] },
+      [role({ id: 'director' }), role({ id: 'cafe-lead', business_unit_id: 'cafe', reports_to_role_id: 'director' })],
+    )).toBe(true)
+    expect(holdsHomeCockpitScope(member, [])).toBe(false)
   })
 })

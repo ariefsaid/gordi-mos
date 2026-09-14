@@ -5,6 +5,8 @@
 // Throws on any PostgREST error so callers can surface failures.
 
 import { supabase } from '@/lib/supabase'
+import { filterEffectiveMemberships } from '@/lib/team-context/eligible-teams'
+import type { EligibleTeam } from '@/lib/team-context/types'
 
 const shared = () => supabase.schema('shared')
 
@@ -23,6 +25,87 @@ export interface RoleScopeRow {
   id: string
   business_unit_id: string | null
   reports_to_role_id: string | null
+}
+
+/** A real, org-scoped Team choice. BU and Site are read-only derived attributes. */
+export type TeamOption = EligibleTeam
+
+const WIB_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' })
+
+function wibToday(now: Date = new Date()): string {
+  return WIB_DATE.format(now)
+}
+
+type RawTeamRow = {
+  id: string
+  name: string
+  business_unit_id: string
+  site_id: string | null
+  org_id: string
+  archived_at: string | null
+}
+
+type RawMembershipRow = {
+  team_id: string
+  is_primary: boolean
+  effective_from: string
+  effective_to: string | null
+}
+
+function toTeamOption(row: RawTeamRow, isPrimary?: boolean): TeamOption {
+  return {
+    id: row.id,
+    name: row.name,
+    businessUnitId: row.business_unit_id,
+    siteId: row.site_id,
+    orgId: row.org_id,
+    ...(isPrimary === undefined ? {} : { isPrimary }),
+  }
+}
+
+/** Load the viewer's currently effective, non-archived Team memberships. */
+export async function getPersonTeams(personId: string, today = wibToday()): Promise<TeamOption[]> {
+  if (!personId) return []
+  const { data: memberships, error: membershipError } = await shared()
+    .from('team_memberships')
+    .select('team_id,is_primary,effective_from,effective_to')
+    .eq('person_id', personId)
+    .lte('effective_from', today)
+    .or(`effective_to.is.null,effective_to.gte.${today}`)
+  if (membershipError) throw new Error(`getPersonTeams memberships failed — ${membershipError.message}`)
+
+  // Keep the pure effective-window rule at the client boundary too. This makes the picker fail
+  // closed if a stale/misconfigured PostgREST mock or replica returns rows outside the predicate.
+  const effective = filterEffectiveMemberships((memberships ?? []) as RawMembershipRow[], today)
+  const primaryByTeamId = new Map<string, boolean>()
+  for (const membership of effective) {
+    primaryByTeamId.set(membership.team_id, (primaryByTeamId.get(membership.team_id) ?? false) || membership.is_primary)
+  }
+  const teamIds = [...primaryByTeamId.keys()]
+  if (teamIds.length === 0) return []
+
+  const { data: teams, error: teamError } = await shared()
+    .from('teams')
+    .select('id,name,business_unit_id,site_id,org_id,archived_at')
+    .in('id', teamIds)
+    .is('archived_at', null)
+    .order('name', { ascending: true })
+  if (teamError) throw new Error(`getPersonTeams teams failed — ${teamError.message}`)
+  return ((teams ?? []) as RawTeamRow[]).map((team) => toTeamOption(team, primaryByTeamId.get(team.id) ?? false))
+}
+
+/** Load real Team identity for Task ownership/display. Empty input never performs a network read. */
+export async function getTeamsByIds(teamIds: readonly string[]): Promise<TeamOption[]> {
+  const ids = [...new Set(teamIds.filter(Boolean))]
+  if (ids.length === 0) return []
+  const { data, error } = await shared()
+    .from('teams')
+    .select('id,name,business_unit_id,site_id,org_id,archived_at')
+    .in('id', ids)
+    .is('archived_at', null)
+    .order('name', { ascending: true })
+  if (error) throw new Error(`getTeamsByIds failed — ${error.message}`)
+  return ((data ?? []) as RawTeamRow[]).map((team) => toTeamOption(team))
 }
 
 /** #742 AC-060: everyone the viewer manages, walked down the role tree (BFS over

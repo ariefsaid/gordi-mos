@@ -61,7 +61,7 @@ export const KITCHEN_BU_CODE = 'retail_ops'
 export async function listStreamPairs(): Promise<StreamPair[]> {
   const { data, error } = await shared()
     .from('teams')
-    .select('branch_id,activity')
+    .select('branch_id,activity,produces')
     .not('branch_id', 'is', null)
     .is('archived_at', null)
   if (error) throw new Error(`listStreamPairs failed — ${error.message}`)
@@ -82,7 +82,10 @@ export function streamCatalogFrom(
   for (const branch of branches) {
     for (const activity of PRODUCTION_ACTIVITIES) {
       if (pairs.some(p => p.branch_id === branch.id && p.activity === activity)) {
-        streams.push({ branch, activity })
+        const pair = pairs.find(p => p.branch_id === branch.id && p.activity === activity)
+        // `produces` is constrained non-null for every stream Team in the database. The
+        // explicit true check keeps a malformed/legacy response fail-closed in the client.
+        streams.push({ branch, activity, produces: pair?.produces === true })
       }
     }
   }

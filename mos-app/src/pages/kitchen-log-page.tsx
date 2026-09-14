@@ -1,7 +1,7 @@
 // KitchenLogPage — /mos/kitchen/log — Log capture screen (OD-K-5 redesign).
 // Design authority: docs/plans/2026-06-21-kitchen-log-redesign.md.
 // ONE responsive screen built on the shared <DataTable> (desktop dense <table> +
-// KPI strip (≥768px) ↔ phone floor-fast cards (<768px)), chosen via useIsDesktop()
+// metric summary + phone floor-fast cards (<768px), chosen via useIsDesktop()
 // — ONE branch in the DOM (P-4).
 //
 // PARITY (unchanged from the prior screen — presentational redesign + derived KPIs ONLY):
@@ -11,8 +11,8 @@
 //  - Submit payload byte-identical (NEVER sends status / org_id / submitted_by — NFR-003).
 //  - AC-020/021 (variance-note gate), AC-022 (transfer cap REJECT — keeps typed qty),
 //    AC-030 (submit payload) preserved.
-// NEW (presentational only, P-1/P-3): the derived KPI strip (pure useMemo over `lines`),
-// Planned/Off-plan grouping, client-side search + category filter, group collapse,
+// NEW (presentational only, P-1/P-3): the submitted metric summary, Planned/Off-plan grouping,
+// client-side search + category filter, group collapse,
 // Discard (confirmed). No new fetch/RPC/table/persistence/ESB.
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
@@ -48,6 +48,7 @@ import {
   deriveActionLabel,
   movementKey,
   movementsForStream,
+  streamProduces,
   streamLabel,
   PRODUCE,
 } from '@/lib/kitchen-action-label'
@@ -62,13 +63,12 @@ import { useSearchParamState } from '@/lib/use-search-param-state'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { WipItemStepper } from '@/components/kitchen/wip-item-stepper'
-import { KitchenKpiStrip } from '@/components/kitchen/kitchen-kpi-strip'
+import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { DataTable, type DataTableColumn, type DataTableGroup } from '@/components/dashboard/data-table'
 import { kitchenStatus } from '@/lib/kitchen-status'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
-import { HelpTip } from '@/components/ui/help-tip'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
 import './kitchen-log-page.css'
@@ -146,6 +146,15 @@ type PageStatus =
 
 export function KitchenLogPage() {
   const auth = useAuth()
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : 'anonymous'
+
+  // Catalog, rows, and staged capture lines belong to one person. A route remains mounted
+  // through an auth replacement, so a key makes that replacement atomic at render time.
+  return <KitchenLogPageForViewer key={viewerId} />
+}
+
+function KitchenLogPageForViewer() {
+  const auth = useAuth()
   const t = useT()
   // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
   // the catalog's own docTitle convention (tasks-layout, signals-archive).
@@ -172,6 +181,14 @@ export function KitchenLogPage() {
     affiliated: auth.viewer.affiliated,
     accessRoles: auth.viewer.accessRoles,
   })
+  const streamMissing = stream === null
+  // The producer fact is owned by the selected catalog row. Activity alone never grants a
+  // write path: a receiving-only kitchen can still read its books, but it cannot stage or
+  // submit production against them (DD-MVP-9).
+  const streamCanProduce = streamProduces(stream, streamOptions)
+  const streamNonProducing = stream !== null && !streamCanProduce
+  const captureClosed = !canCapture || streamMissing || streamNonProducing
+  const movementOptions = stream ? movementsForStream(stream, streamOptions) : []
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [logDate] = useState(wibToday) // today WIB; owner-decision: allow past dates flagged
@@ -202,8 +219,8 @@ export function KitchenLogPage() {
   const [search, setSearch] = useSearchParamState('q', '')
   const [category, setCategory] = useSearchParamState('category', 'All')
 
-  // Staged KPIs drive only the pending-review footer. The strip must never read this editable
-  // capture state: DD-7/OD-K-5 require its figures to come from submitted day entries.
+  // Staged KPIs drive only the pending-review footer. The head summary must never read this
+  // editable capture state: DD-7 requires its figures to come from submitted day entries.
   const stagedKpis = useKitchenKpis(lines)
   const submittedKpiLines = useMemo(() => {
     const base = buildLines(wipItems, planMap, stockMap, movement)
@@ -219,6 +236,18 @@ export function KitchenLogPage() {
   const hasSubmittedActuals = Object.values(actualsMap).some(
     itemActuals => (itemActuals[movementKey(movement)] ?? 0) > 0,
   )
+  const summaryMetrics = [
+    { key: 'plan', label: t('kitchen.log.summary.plan'), value: String(kpis.plannedTotal) },
+    { key: 'made', label: t('kitchen.log.summary.made'), value: String(kpis.madeSoFar) },
+    {
+      key: 'off-plan',
+      label: t('kitchen.log.summary.offPlan'),
+      value: String(Math.max(kpis.madeOffPlan, 0)),
+      ...(hasSubmittedActuals && kpis.madeOffPlan === 0
+        ? { delta: { text: t('kitchen.log.summary.onPlan'), tone: 'success' as const } }
+        : {}),
+    },
+  ]
 
   // Stale-response guard: every read bumps the generation, and only the LATEST
   // generation's result may land. Without this, two rapid stream switches can resolve
@@ -306,13 +335,12 @@ export function KitchenLogPage() {
       // wrong BU or capturing against a guessed stream.
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logDate, retryKey])
+  }, [adoptStream, logDate, resolveStream, t])
 
   useEffect(() => {
     if (auth.status !== 'authenticated') return
     loadData()
-  }, [auth.status, loadData])
+  }, [auth.status, loadData, retryKey])
 
   // Rebuild plan_qty / stock / gate state per line when the movement or the loaded
   // stream-scoped plan/stock change.
@@ -338,6 +366,7 @@ export function KitchenLogPage() {
   // dialog below resolves it — MovementSeg is controlled by `movement`, so leaving it
   // unset here is what keeps the tab strip showing the OLD movement while the dialog is open.
   function handleMovementChange(next: KitchenMovement) {
+    if (captureClosed) return
     const staged = Object.values(lines).some(l => l.qty_porsi > 0)
     if (!staged) {
       setMovement(next)
@@ -401,7 +430,24 @@ export function KitchenLogPage() {
     />
   )
 
+  const receivingOnlyNotice = (
+    <section className="kl-receiving-only" role="status" aria-labelledby="kl-receiving-only-title">
+      <div className="kl-receiving-only-copy">
+        <h2 id="kl-receiving-only-title" className="kl-receiving-only-title">
+          {t('kitchen.stream.receivingOnly.title')}
+        </h2>
+        <p className="kl-receiving-only-note">
+          {t('kitchen.stream.receivingOnly.body')}
+        </p>
+      </div>
+      <Link to="/cafe/stock" className="btn btn-outline btn-touch kl-receiving-only-cta">
+        {t('kitchen.stream.receivingOnly.stockCta')}
+      </Link>
+    </section>
+  )
+
   function handleQtyChange(itemId: string, qty: number) {
+    if (captureClosed) return
     setLines(prev => {
       const cur = prev[itemId]
       // FR-023 / AC-022: do NOT clamp — keep the entered qty. An over-`tersedia` transfer
@@ -414,6 +460,7 @@ export function KitchenLogPage() {
   }
 
   function handleNotesChange(itemId: string, note: string) {
+    if (captureClosed) return
     setLines(prev => {
       const next: KitchenLogLine = { ...prev[itemId], notes: note }
       return { ...prev, [itemId]: gateLine(next, movement) }
@@ -425,6 +472,7 @@ export function KitchenLogPage() {
   // and the binding rides the line into the submit payload — the ERP coordinate is the
   // unit, so this is the whole selection, no qty conversion, no second field.
   function handleUnitChange(itemId: string, itemUnitId: string) {
+    if (captureClosed) return
     setLines(prev => ({
       ...prev,
       [itemId]: { ...prev[itemId], item_unit_id: itemUnitId },
@@ -454,6 +502,10 @@ export function KitchenLogPage() {
 
     const staged = Object.values(lines).filter(l => l.qty_porsi > 0)
     if (staged.length === 0) return
+    if (!canCapture) {
+      setSubmitError(t('kitchen.log.readOnlyReason'))
+      return
+    }
 
     // Re-gate all staged lines; block on any note-required or cap violation.
     let hasErrors = false
@@ -480,6 +532,10 @@ export function KitchenLogPage() {
     // and the only one the capturer ever sees.
     if (!stream) {
       setSubmitError(t('kitchen.log.stream.missing'))
+      return
+    }
+    if (!streamCanProduce) {
+      setSubmitError(t('kitchen.log.stream.nonProducing'))
       return
     }
 
@@ -587,9 +643,10 @@ export function KitchenLogPage() {
   // ── Empty state (no WIP items) — no KPI strip (nothing to derive, plan §7) ────
   if (wipItems.length === 0) {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="empty" meta={<span className="kl-date tabular">{logDate}</span>}>
+      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state={streamNonProducing ? 'read-only' : 'empty'} meta={<span className="kl-date tabular">{logDate}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
+          {streamNonProducing && receivingOnlyNotice}
           {/* 'blank' — no WIP items are configured yet (an ops-lead task), not a source that
               fills on its own; never 'quiet' ✓, which would misread as "nothing to log,
               all done" instead of "nothing CAN be logged until items exist". */}
@@ -602,7 +659,7 @@ export function KitchenLogPage() {
               the report route must be reachable from here too, not only under a full list.
               #744 review: the report files a WRITE (ops.log_entries), so it closes with the
               same capture gate as Submit — an unaffiliated reader sees no report control. */}
-          {buId && canCapture && <ReportMissingItem businessUnitId={buId} />}
+          {buId && !captureClosed && <ReportMissingItem businessUnitId={buId} />}
         </div>
       </PageFamilyFrame>
     )
@@ -616,11 +673,6 @@ export function KitchenLogPage() {
   const hasBlockingError = stagedLines.some(
     l => transferExceedsAvailable(l, movement),
   )
-  // A row cannot exist without its (branch, activity) stream (OD-WAY-28) — the columns are
-  // NOT NULL. With no resolved stream there is nothing to submit AGAINST, so Submit is
-  // disabled up front and the reason is named beside it, rather than the capturer typing a
-  // whole service and being refused by the database.
-  const streamMissing = stream === null
   // F3 (FR-022): surface the variance-note gate as an EXPLICIT disabled control — a
   // staged off-plan line whose required note is empty disables Submit (the blocking
   // state is visible up front, not enabled-until-bounced). handleSubmit still re-gates
@@ -635,7 +687,10 @@ export function KitchenLogPage() {
   // collapse is INTERNAL to the DataTable (no page-level state). Token-only.
   const q = search.trim().toLowerCase()
   const matchSearch = (it: CaptureFormItem) => !q || it.name.toLowerCase().includes(q)
-  const matchCat = (it: CaptureFormItem) => category === 'All' || (it.category ?? '') === category
+  // The category control is intentionally desktop-only. A shared/deep-linked category query
+  // must not silently hide rows on phone when its control is unavailable to clear it.
+  const effectiveCategory = isDesktop ? category : 'All'
+  const matchCat = (it: CaptureFormItem) => effectiveCategory === 'All' || (it.category ?? '') === effectiveCategory
   const visibleItems = wipItems.filter(it => matchSearch(it) && matchCat(it))
   const plannedLines = visibleItems.filter(it => (lines[it.id]?.plan_qty ?? 0) > 0)
   const offPlanLines = visibleItems.filter(it => (lines[it.id]?.plan_qty ?? 0) <= 0)
@@ -690,7 +745,7 @@ export function KitchenLogPage() {
           onNotesChange={note => handleNotesChange(item.id, note)}
           unitOptions={item.units}
           onUnitChange={unitId => handleUnitChange(item.id, unitId)}
-          disabled={isSubmitting}
+          disabled={isSubmitting || captureClosed}
           hideName
           dense={isDesktop}
         />
@@ -717,6 +772,56 @@ export function KitchenLogPage() {
     },
   ]
 
+  // Receiving-only streams keep the same readable plan/stock/history rows, but render the
+  // submitted actual instead of mounting the production stepper. A plain DataTable card is
+  // intentional here: it keeps every value readable on phone without introducing a disabled
+  // capture control that looks like an unfinished write path.
+  const receivingColumns: DataTableColumn<CaptureFormItem>[] = [
+    {
+      key: 'dish',
+      header: t('kitchen.log.col.item'),
+      cardLabel: '',
+      render: item => (
+        <span className="kl-dish">
+          <span className="kl-dish-name">{item.name}</span>
+          {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
+        </span>
+      ),
+    },
+    {
+      key: 'plan',
+      header: t('kitchen.log.col.plan'),
+      numeric: true,
+      render: item => {
+        const plan = lines[item.id]?.plan_qty ?? 0
+        return plan > 0 ? plan : '—'
+      },
+    },
+    {
+      key: 'stock',
+      header: t('kitchen.log.col.stock'),
+      numeric: true,
+      render: item => lines[item.id]?.stok ?? 0,
+    },
+    {
+      key: 'made',
+      header: t('kitchen.log.col.made'),
+      numeric: true,
+      render: item => actualsMap[item.id]?.[movementKey(movement)] ?? 0,
+    },
+    {
+      key: 'status',
+      header: t('kitchen.log.col.status'),
+      render: item => {
+        const made = actualsMap[item.id]?.[movementKey(movement)] ?? 0
+        const plan = lines[item.id]?.plan_qty ?? 0
+        if (made <= 0) return null
+        const rowStatus = kitchenStatus({ made, plan, isOffPlan: plan <= 0 })
+        return <span className={`kl-status kl-status--${rowStatus.tone}`}>{statusLabel(t, made, plan)}</span>
+      },
+    },
+  ]
+
   /**
    * v4 — the phone capture row. The generic DataTable card rendered five labelled
    * <dl> rows per dish (~200px), so a 21-dish service was ~4,000px of scrolling and about
@@ -739,7 +844,6 @@ export function KitchenLogPage() {
         <div className="kl-card-head">
           <div className="kl-card-identity">
             <span className="kl-card-name">{item.name}</span>
-            {item.category && <span className="kl-card-category">{kitchenCategoryLabel(t, item.category)}</span>}
           </div>
           <WipItemStepper
             itemName={item.name}
@@ -750,7 +854,7 @@ export function KitchenLogPage() {
             onNotesChange={note => handleNotesChange(item.id, note)}
             unitOptions={item.units}
             onUnitChange={unitId => handleUnitChange(item.id, unitId)}
-            disabled={isSubmitting}
+            disabled={isSubmitting || captureClosed}
             hideName
             dense
           />
@@ -782,9 +886,58 @@ export function KitchenLogPage() {
   }
 
   const groups: DataTableGroup<CaptureFormItem>[] = [
-    { key: 'planned', label: t('kitchen.log.group.planned'), count: plannedLines.length, rows: plannedLines },
-    { key: 'offplan', label: t('kitchen.log.group.offplan'), hint: t('kitchen.log.group.offplan.hint'), count: offPlanLines.length, rows: offPlanLines },
+    ...(plannedLines.length > 0
+      ? [{ key: 'planned', label: t('kitchen.log.group.planned'), count: plannedLines.length, rows: plannedLines }]
+      : []),
+    ...(offPlanLines.length > 0
+      ? [{
+          key: 'offplan',
+          label: t('kitchen.log.group.offplan'),
+          ...(streamNonProducing ? {} : { hint: t('kitchen.log.group.offplan.hint') }),
+          count: offPlanLines.length,
+          rows: offPlanLines,
+        }]
+      : []),
   ]
+
+  const logToolbar = (
+    <KitchenToolbar
+      search={search}
+      onSearchChange={setSearch}
+      categories={isDesktop ? categories : undefined}
+      categoryLabel={value => kitchenCategoryLabel(t, value)}
+      category={isDesktop ? category : undefined}
+      onCategoryChange={isDesktop ? setCategory : undefined}
+      searchPlaceholder={t('kitchen.log.searchPlaceholder')}
+      ariaLabel={t('kitchen.log.toolbarAria')}
+    >
+      {movementOptions.length > 0 && <div className="kl-scope">
+        <MovementSeg
+          value={movement}
+          options={movementOptions}
+          branches={branches}
+          origin={stream}
+          onChange={handleMovementChange}
+          disabled={isSubmitting || captureClosed}
+        />
+      </div>}
+    </KitchenToolbar>
+  )
+
+  const logTable = (
+    <DataTable
+      columns={streamNonProducing ? receivingColumns : columns}
+      rows={visibleItems}
+      groups={groups}
+      key={`${movementKey(movement)}:${plannedLines.length > 0 ? 'planned' : 'off-plan'}`}
+      defaultCollapsedGroupKeys={plannedLines.length > 0 ? new Set(['offplan']) : undefined}
+      renderCard={streamNonProducing ? undefined : renderLogCard}
+      isDesktop={isDesktop}
+      state={visibleItems.length > 0 ? 'ready' : 'empty'}
+      emptyLabel={t('kitchen.filter.noMatch')}
+      caption={streamNonProducing ? t('kitchen.stream.receivingOnly.logCaption') : t('kitchen.log.caption')}
+    />
+  )
 
   return (
     <PageFamilyFrame
@@ -794,31 +947,8 @@ export function KitchenLogPage() {
          a row lands in decides what the row MEANS, so it outranks the static job sentence the
          shared head would otherwise carry (PageHead renders one or the other). */
       statusRow={streamPicker}
-      /* v4 (owner-directed): the date chip and the planned-total band were two stacked lines
-         saying very little. They are now one compacted meta line, in separate columns. */
-      meta={
-        <span className="kl-meta-line">
-          {/* onboard (2026-07-28): Café - Log is the FIRST MOS surface a new floor hire ever
-              opens, and it had no in-app help. It rides in the existing meta line rather than
-              claiming new chrome, because DD-15 already measured chrome as this surface's
-              dominant phone cost. */}
-          <HelpTip label={t('kitchen.log.help')} />
-          <span className="kl-date tabular">{logDate}</span>
-          {kpis.plannedTotal > 0 && (
-            <span className="kl-plan-sum">
-              {t('kitchen.kpi.plannedTotal')} <strong className="tabular">{kpis.plannedTotal}</strong>
-              {/* #588: this used to render as a bare '· 2' — the count with no label — while
-                  Plan states the identical fact labeled ("Items planned 1"). Reusing Plan's own
-                  key here (rather than minting a new one) is the smaller honest change: one
-                  vocabulary for "how many items", never "Dish" (OD-WAY-85). */}
-              <span className="kl-plan-dishes">
-                {t('kitchen.plan.summary.itemsPlanned')} <strong className="tabular">{kpis.plannedDishCount}</strong>
-              </span>
-            </span>
-          )}
-        </span>
-      }
-      state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : submitError ? 'validation' : 'default'}
+      meta={<span className="kl-date tabular">{logDate}</span>}
+      state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : streamNonProducing ? 'read-only' : submitError ? 'validation' : 'default'}
     >
       <div className="kl-page">
         {/* GAP-4/#9: staged-but-unsubmitted quantities must not vanish on navigation — prompt
@@ -826,10 +956,15 @@ export function KitchenLogPage() {
         <RouteLeaveGuard when={stagedCount > 0} message={t('kitchen.log.leave.confirm')} />
         <OfflineBanner show={!isOnline} />
 
-        {/* The strip is a submitted-production claim, so keep it absent until this action has
-            saved day entries. In particular, an empty strip is more honest than a band that
-            DD-7 guards could mistake for staged capture state. */}
-        {hasSubmittedActuals && <KitchenKpiStrip kpis={kpis} isDesktop={isDesktop} />}
+        {/* R4 / FR-018: one aggregate line, derived from submitted actuals. It remains visible
+            when the day is at zero so the plan/actual vocabulary is stable, but staged typing
+            can never change it. */}
+        {status.kind === 'ready' && wipItems.length > 0 && (
+          <MetricSummaryRule
+            ariaLabel={t('kitchen.log.summary.aria')}
+            metrics={summaryMetrics}
+          />
+        )}
 
         {submitError && (
           <div role="alert" className="kl-banner kl-banner-error kl-block">
@@ -843,13 +978,20 @@ export function KitchenLogPage() {
           </div>
         )}
 
-        <form
-          id="kitchen-log-form"
-          onSubmit={handleSubmit}
-          noValidate
-          aria-label={t('kitchen.log.captureAria')}
-          className="kl-form"
-        >
+        {streamNonProducing ? (
+          <>
+            {receivingOnlyNotice}
+            {logToolbar}
+            {logTable}
+          </>
+        ) : (
+          <form
+            id="kitchen-log-form"
+            onSubmit={handleSubmit}
+            noValidate
+            aria-label={t('kitchen.log.captureAria')}
+            className="kl-form"
+          >
           {/* Reflow (P-4): ONE branch in the DOM — the shared DataTable
               (desktop <table> ↔ phone cards) with the Planned/Off-plan group
               split + the Off-plan "log as produced" hint. */}
@@ -862,51 +1004,14 @@ export function KitchenLogPage() {
               rows you are about to write, the stream is which books the whole surface is
               written in, and that second one has to be readable from every Café screen, not
               only from the ones with a toolbar. */}
-          <KitchenToolbar
-            search={search}
-            onSearchChange={setSearch}
-            categories={categories}
-            categoryLabel={value => kitchenCategoryLabel(t, value)}
-            category={category}
-            onCategoryChange={setCategory}
-            searchPlaceholder={t('kitchen.log.searchPlaceholder')}
-            ariaLabel={t('kitchen.log.toolbarAria')}
-          >
-            <div className="kl-scope">
-              {/* The movement control IS the destination picker (FR-013): produce, then a
-                  transfer to every branch in the catalog — cross-branch to any other, and
-                  intra-branch cross-activity to the origin's own, offered the same way from
-                  the bar surface and the kitchen surface because the destination is a branch
-                  and nothing else (OD-WAY-44). `origin` is what lets the own-branch entry be
-                  read as "to our kitchen"/"to our bar" rather than as a duplicate of the
-                  person's own branch name; it changes no stored value. Approved, an
-                  intra-branch movement is HELD — no ERP document ever (FR-050/053). */}
-              <MovementSeg
-                value={movement}
-                options={movementsForStream(branches, streamOptions)}
-                branches={branches}
-                origin={stream}
-                onChange={handleMovementChange}
-                disabled={isSubmitting}
-              />
-            </div>
-          </KitchenToolbar>
-          <DataTable
-            columns={columns}
-            rows={visibleItems}
-            groups={groups}
-            renderCard={renderLogCard}
-            isDesktop={isDesktop}
-            state={visibleItems.length > 0 ? 'ready' : 'empty'}
-            emptyLabel={t('kitchen.filter.noMatch')}
-            caption={t('kitchen.log.caption')}
-          />
+          {logToolbar}
+          {logTable}
 
           {/* AC-013 / FR-012: the DD-WAY-29 gate removes unconfirmed items silently, so the
               surface carries a visible route to report one missing — absence must never read
               as a bug with no exit. Own type="button" controls only; never submits this form.
               #744 review: same capture gate as Submit — a report is a write (AC-003 arm). */}
-          {buId && canCapture && (
+          {buId && !captureClosed && (
             <ReportMissingItem
               businessUnitId={buId}
               streamLabel={stream ? streamLabel(t, stream) : undefined}
@@ -920,7 +1025,7 @@ export function KitchenLogPage() {
             {!canCapture && (
               <p className="kl-submit-reason" role="status">{t('kitchen.log.readOnlyReason')}</p>
             )}
-            {canCapture && (
+            {!captureClosed && (
               <div className="kl-tally">
                 <span className="kl-tally-num tabular">
                   {t(stagedCount === 1 ? 'kitchen.log.footer.item.one' : 'kitchen.log.footer.item.other', { count: stagedCount })}
@@ -938,7 +1043,12 @@ export function KitchenLogPage() {
                   {t('kitchen.log.stream.missing')}
                 </span>
               )}
-              {noteUnresolved && !hasBlockingError && !streamMissing && (
+              {canCapture && streamNonProducing && (
+                <span className="kl-submit-reason" role="status" aria-live="polite">
+                  {t('kitchen.log.stream.nonProducing')}
+                </span>
+              )}
+              {noteUnresolved && !hasBlockingError && !streamMissing && !streamNonProducing && (
                 <span className="kl-submit-reason" role="status" aria-live="polite">
                   {t('kitchen.log.footer.noteRequired')}
                 </span>
@@ -955,7 +1065,7 @@ export function KitchenLogPage() {
                 stagedCount={stagedCount}
                 isSubmitting={isSubmitting}
                 isOnline={isOnline}
-                blocked={!canCapture || hasBlockingError || noteUnresolved || streamMissing}
+                blocked={captureClosed || hasBlockingError || noteUnresolved}
                 t={t}
               />
             </div>
@@ -1004,7 +1114,8 @@ export function KitchenLogPage() {
               onCancel={cancelMovementSwitch}
             />
           )}
-        </form>
+          </form>
+        )}
       </div>
     </PageFamilyFrame>
   )

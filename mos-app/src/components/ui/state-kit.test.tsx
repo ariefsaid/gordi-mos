@@ -119,6 +119,12 @@ describe('LoadingShell — the one loading grammar', () => {
     expect(status).toHaveAccessibleName('Loading the review queue')
     expect(status.querySelectorAll('.skeleton-row')).toHaveLength(5)
   })
+
+  it('can keep a localized page identity outside the announced loading status', () => {
+    renderShell(<LoadingShell titleKey="tasks.title" labelKey="tasks.loading" />)
+    expect(screen.getByRole('heading', { level: 1, name: 'Tasks' })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Loading tasks' })).toBeInTheDocument()
+  })
 })
 
 // #359 — ErrorState's retry label comes from the catalog, not a literal 'Retry'.

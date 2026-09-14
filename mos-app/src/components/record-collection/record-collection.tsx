@@ -23,6 +23,7 @@ export interface RecordCollectionSurfaceProps<
   controls?: ReactNode
   /** Typed bulk-action bar; rendered only when the descriptor grants selection and rows are picked. */
   selectionBar?: ReactNode
+  archivedEmpty?: { title: string; copy?: string }
   empty: { title: string; copy?: string; create?: ReactNode }
   filteredEmpty: { title: string; copy?: string; clear: () => void; create?: ReactNode }
   error: { message: string; retry: () => void }
@@ -120,6 +121,18 @@ export function RecordCollectionSurface<
           title="You don’t have access to this collection"
           copy="Ask an admin if you think you should be able to see it."
         />
+      </div>
+    )
+  }
+
+  if (props.archivedEmpty && (state.status === 'empty' || state.status === 'filtered-empty') && !keepBodyWhenEmpty) {
+    return (
+      <div className="record-collection" data-collection-status="archived-empty">
+        {controls}
+        <div className="record-collection-results">
+          {header}
+          <EmptyState variant="quiet" title={props.archivedEmpty.title} copy={props.archivedEmpty.copy} />
+        </div>
       </div>
     )
   }

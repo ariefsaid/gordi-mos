@@ -12,7 +12,7 @@ import {
   listReadableSignals, searchSignalsByBody, getSignal, createSignal, correctSignal, retractSignal,
   acknowledgeSignal, linkSignalTask,
   listReadableAuthorTeams, listAuthorTeams, listAllTeams, getTeamSite, dedupeRecipients, orderSignalsForFeed,
-  listSignalRevisions, loadMentionRosters, summarizeLinkedTasks,
+  listSignalRevisions, loadMentionRosters, summarizeLinkedTasks, getSignalPostAuthority, canRetractSignal,
 } from './signals'
 import { supabase } from '@/lib/supabase'
 
@@ -160,10 +160,15 @@ describe('getSignal', () => {
   it('reads the signal row + mentions + acknowledgements + signal_tasks', async () => {
     const rec = freshRec()
     mockSupabase({
-      'mos.signals': [{ data: sampleSignal, error: null }],
-      'mos.signal_mentions': [{ data: [{ id: 'm1' }], error: null }],
-      'mos.signal_acknowledgements': [{ data: [{ id: 'a1' }], error: null }],
-      'mos.signal_tasks': [{ data: [{ id: 'st1' }], error: null }],
+      'mos.signals': [{
+        data: {
+          ...sampleSignal,
+          signal_mentions: [{ id: 'm1' }],
+          signal_acknowledgements: [{ id: 'a1' }],
+          signal_tasks: [{ id: 'st1' }],
+        },
+        error: null,
+      }],
     }, rec)
 
     const out = await getSignal(SIGNAL_ID)
@@ -171,15 +176,23 @@ describe('getSignal', () => {
     expect(out.mentions).toEqual([{ id: 'm1' }])
     expect(out.acknowledgements).toEqual([{ id: 'a1' }])
     expect(out.tasks).toEqual([{ id: 'st1' }])
-    expect(rec.fromTables).toEqual([
-      'mos.signals', 'mos.signal_mentions', 'mos.signal_acknowledgements', 'mos.signal_tasks',
-    ])
+    expect(rec.selects[0]).toContain('signal_mentions(*)')
+    expect(rec.selects[0]).toContain('signal_acknowledgements(*)')
+    expect(rec.selects[0]).toContain('signal_tasks(*)')
   })
 
   it('throws when the signal read errors', async () => {
     const rec = freshRec()
-    mockSupabase({ 'mos.signals': [{ data: null, error: { message: 'nope' } }] }, rec)
-    await expect(getSignal(SIGNAL_ID)).rejects.toThrow(/nope/)
+    mockSupabase({
+      'mos.signals': [{
+        data: null,
+        error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' },
+      }],
+    }, rec)
+    await expect(getSignal(SIGNAL_ID)).rejects.toMatchObject({
+      code: 'PGRST116',
+      message: expect.stringContaining('JSON object requested, multiple (or no) rows returned'),
+    })
   })
 })
 
@@ -283,6 +296,38 @@ describe('retractSignal', () => {
   })
 })
 
+describe('runtime Signal authority', () => {
+  it('reads the effective post/tag authority from mos.get_signal_post_authority', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.get_signal_post_authority': [{ data: { can_post: true, can_tag: false }, error: null }] }, rec)
+
+    await expect(getSignalPostAuthority()).resolves.toEqual({ can_post: true, can_tag: false })
+    expect(rec.rpcs).toContainEqual(['get_signal_post_authority', undefined])
+  })
+
+  it('fails closed for malformed post/tag authority payloads', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.get_signal_post_authority': [{ data: { can_post: 'yes', can_tag: 1 }, error: null }] }, rec)
+
+    await expect(getSignalPostAuthority()).resolves.toEqual({ can_post: false, can_tag: false })
+  })
+
+  it('asks mos.can_retract_signal for the current Signal instead of inferring from JWT roles', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.can_retract_signal': [{ data: true, error: null }] }, rec)
+
+    await expect(canRetractSignal(SIGNAL_ID)).resolves.toBe(true)
+    expect(rec.rpcs).toContainEqual(['can_retract_signal', { p_signal_id: SIGNAL_ID }])
+  })
+
+  it('propagates authority RPC errors so record hosts can fail closed', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.can_retract_signal': [{ data: null, error: { message: 'authority unavailable' } }] }, rec)
+
+    await expect(canRetractSignal(SIGNAL_ID)).rejects.toThrow(/authority unavailable/)
+  })
+})
+
 // ── acknowledgeSignal / linkSignalTask (B5, FR-412/413) ─────────────────────
 describe('acknowledgeSignal', () => {
   it('inserts an acknowledgement without sending person_id (DB default stamps the caller)', async () => {
@@ -315,6 +360,14 @@ describe('linkSignalTask', () => {
     const rec = freshRec()
     mockSupabase({ 'mos.signal_tasks': [{ data: null, error: { message: 'nope' } }] }, rec)
     await expect(linkSignalTask(SIGNAL_ID, TASK_ID)).rejects.toThrow(/nope/)
+  })
+
+  it('treats the unique bridge conflict as success so a retry does not create a second link', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signal_tasks': [{ data: null, error: { code: '23505', message: 'duplicate key value' } }] }, rec)
+
+    await expect(linkSignalTask(SIGNAL_ID, TASK_ID)).resolves.toBeUndefined()
+    expect(rec.inserts).toEqual([{ signal_id: SIGNAL_ID, task_id: TASK_ID }])
   })
 })
 
@@ -547,17 +600,39 @@ describe('loadMentionRosters', () => {
     const rec = freshRec()
     mockSupabase({
       'shared.teams': [{ data: [{ id: 'team-a', business_unit_id: 'bu-1' }, { id: 'team-b', business_unit_id: 'bu-2' }], error: null }],
-      'shared.team_memberships': [{ data: [{ team_id: 'team-a', person_id: 'p1' }, { team_id: 'team-a', person_id: 'p2' }, { team_id: 'team-b', person_id: 'p3' }], error: null }],
+      'shared.team_memberships': [{ data: [
+        { team_id: 'team-a', person_id: 'p1', effective_from: '2020-01-01', effective_to: null },
+        { team_id: 'team-a', person_id: 'p2', effective_from: '2020-01-01', effective_to: null },
+        { team_id: 'team-b', person_id: 'p3', effective_from: '2020-01-01', effective_to: null },
+      ], error: null }],
       'shared.roles': [{ data: [{ id: 'role-1', business_unit_id: 'bu-1' }], error: null }],
       'shared.person_roles': [{ data: [{ person_id: 'p4', role_id: 'role-1' }], error: null }],
     }, rec)
 
-    const { teamMembers, buMembers } = await loadMentionRosters()
+    const { teamMembers, buMembers } = await loadMentionRosters('2026-07-20')
     expect(teamMembers).toEqual({ 'team-a': ['p1', 'p2'], 'team-b': ['p3'] })
     // bu-1 = team-a's members (p1,p2) UNION role-1 holder (p4, since role-1.business_unit_id=bu-1)
     expect(buMembers['bu-1']).toEqual(expect.arrayContaining(['p1', 'p2', 'p4']))
     expect(buMembers['bu-1']).toHaveLength(3)
     expect(buMembers['bu-2']).toEqual(['p3'])
+  })
+
+  it('excludes future and ended memberships from the preview roster', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'shared.teams': [{ data: [{ id: 'team-a', business_unit_id: 'bu-1' }], error: null }],
+      'shared.team_memberships': [{ data: [
+        { team_id: 'team-a', person_id: 'started', effective_from: '2026-07-20', effective_to: null },
+        { team_id: 'team-a', person_id: 'future', effective_from: '2026-07-21', effective_to: null },
+        { team_id: 'team-a', person_id: 'ended', effective_from: '2020-01-01', effective_to: '2026-07-19' },
+      ], error: null }],
+      'shared.roles': [{ data: [], error: null }],
+      'shared.person_roles': [{ data: [], error: null }],
+    }, rec)
+
+    const { teamMembers, buMembers } = await loadMentionRosters('2026-07-20')
+    expect(teamMembers).toEqual({ 'team-a': ['started'] })
+    expect(buMembers).toEqual({ 'bu-1': ['started'] })
   })
 
   it('throws on a non-null PostgREST error from any of the four reads', async () => {

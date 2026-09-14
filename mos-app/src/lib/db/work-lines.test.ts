@@ -6,7 +6,8 @@ vi.mock('../supabase', () => {
 })
 
 import {
-  listWorkLines, listWorkLinesAll, createWorkLine, renameWorkLine, setWorkLineArchived, setWorkLineType,
+  listWorkLines, listWorkLinesAll, createWorkLine, renameWorkLine, setWorkLineArchived,
+  readWorkLine, updateWorkLine,
 } from './work-lines'
 import { supabase } from '@/lib/supabase'
 
@@ -39,6 +40,7 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
     builder.insert = vi.fn((p: unknown) => { rec.inserts.push(p); return builder })
     builder.update = vi.fn((p: unknown) => { rec.updates.push(p); return builder })
     builder.single = vi.fn(() => builder)
+    builder.maybeSingle = vi.fn(() => builder)
     builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result()).then(resolve)
     return builder
   }
@@ -64,7 +66,7 @@ describe('listWorkLines', () => {
 
     expect(result).toEqual(rows)
     expect(rec.fromTables).toContain('work_lines')
-    expect(rec.selects).toContain('id,name,type,objective_id')
+    expect(rec.selects).toContain('id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id')
   })
 
   it('filters archived (archived_at is null) and orders by name', async () => {
@@ -116,7 +118,7 @@ describe('listWorkLinesAll (management)', () => {
     const result = await listWorkLinesAll()
 
     expect(result).toEqual(rows)
-    expect(rec.selects).toContain('id,name,type,objective_id,archived_at,business_unit_id,accountable_person_id')
+    expect(rec.selects).toContain('id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id,archived_at')
     expect(rec.orders).toContainEqual(['archived_at', { nullsFirst: true }])
     expect(rec.orders).toContainEqual(['name', undefined])
   })
@@ -141,42 +143,89 @@ describe('createWorkLine', () => {
     expect(rec.inserts[0]).not.toHaveProperty('org_id')
   })
 
-  it('carries unit and Accountable person when given (#801)', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: {}, error: null }] }, rec) as never)
-
-    await createWorkLine('Kitchen Opening', 'process', { business_unit_id: 'bu-1', accountable_person_id: 'p-1' })
-
-    expect(rec.inserts).toEqual([{ name: 'Kitchen Opening', type: 'process', business_unit_id: 'bu-1', accountable_person_id: 'p-1' }])
-  })
-
   it('throws on error', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: { message: 'denied' } }] }, rec) as never)
     await expect(createWorkLine('X', 'process')).rejects.toThrow(/createWorkLine failed — denied/)
   })
+
+  it('carries unit, accountable, responsible, and objective when given', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: {}, error: null }] }, rec) as never)
+
+    await createWorkLine('Kitchen Opening', 'process', {
+      business_unit_id: 'bu-1', accountable_person_id: 'p-1', responsible_person_id: 'p-2', objective_id: 'obj-1',
+    })
+
+    expect(rec.inserts).toEqual([{
+      name: 'Kitchen Opening', type: 'process', business_unit_id: 'bu-1', accountable_person_id: 'p-1',
+      responsible_person_id: 'p-2', objective_id: 'obj-1',
+    }])
+    expect(rec.inserts[0]).not.toHaveProperty('org_id')
+  })
 })
 
-describe('setWorkLineType', () => {
-  it('updates type by id — the lock once a run exists is the database\'s (#801)', async () => {
+describe('readWorkLine (record projection)', () => {
+  it('returns actual ownership and cascade fields for a known id', async () => {
+    const rec = freshRec()
+    const row = {
+      id: 'wl-1', name: 'Brand Refresh', type: 'project', objective_id: 'obj-1',
+      business_unit_id: 'bu-1', accountable_person_id: 'p-1', responsible_person_id: 'p-2',
+      archived_at: null, updated_at: '2026-09-01T00:00:00Z',
+    }
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: row, error: null }] }, rec) as never)
+
+    const result = await readWorkLine('wl-1')
+
+    expect(result).toEqual(row)
+    expect(rec.eqs).toContainEqual(['id', 'wl-1'])
+    expect(rec.selects).toContain(
+      'id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id,archived_at,updated_at',
+    )
+  })
+
+  it('returns null for an unknown id', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: null }] }, rec) as never)
 
-    await setWorkLineType('wl-1', 'process')
+    await expect(readWorkLine('wl-missing')).resolves.toBeNull()
+  })
 
-    expect(rec.updates).toEqual([{ type: 'process' }])
+  it('surfaces read errors', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: { message: 'perm denied' } }] }, rec) as never)
+
+    await expect(readWorkLine('wl-1')).rejects.toThrow(/readWorkLine failed — perm denied/)
+  })
+})
+
+describe('updateWorkLine (record patch)', () => {
+  it('patches only actual editable catalog fields', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: null }] }, rec) as never)
+
+    await updateWorkLine('wl-1', {
+      name: 'Renamed', business_unit_id: 'bu-2', accountable_person_id: 'p-3',
+      responsible_person_id: 'p-4', objective_id: 'obj-9',
+    })
+
+    expect(rec.updates).toEqual([{
+      name: 'Renamed', business_unit_id: 'bu-2', accountable_person_id: 'p-3',
+      responsible_person_id: 'p-4', objective_id: 'obj-9',
+    }])
     expect(rec.eqs).toContainEqual(['id', 'wl-1'])
   })
 
-  it('surfaces the refusal', async () => {
+  it('surfaces patch errors', async () => {
     const rec = freshRec()
-    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: { message: 'type is locked once an occurrence exists' } }] }, rec) as never)
-    await expect(setWorkLineType('wl-1', 'project')).rejects.toThrow(/setWorkLineType failed — type is locked/)
+    schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: { message: 'row-level security' } }] }, rec) as never)
+
+    await expect(updateWorkLine('wl-1', { responsible_person_id: 'p-4' })).rejects.toThrow(/updateWorkLine failed — row-level security/)
   })
 })
 
 describe('renameWorkLine', () => {
-  it('updates name by id', async () => {
+  it('updates name by id (no type change — FR-014)', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ work_lines: [{ data: null, error: null }] }, rec) as never)
 

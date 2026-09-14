@@ -141,6 +141,7 @@ describe('AdminUsersPage (AC-060)', () => {
     renderPage()
     // Page heading should be present immediately
     expect(screen.getByRole('heading', { name: /People/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Access & authority' })).toHaveAttribute('href', '/admin/access')
     // Loading state — SkeletonRows uses aria-hidden, so check for the page head
     // and that no person names render yet
     expect(screen.queryByText('Budi Santoso')).not.toBeInTheDocument()

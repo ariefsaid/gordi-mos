@@ -72,9 +72,8 @@ export const DESTINATIONS: Destination[] = [
     Icon: WorkIcon,
     primaryPath: '/work/tasks',
     links: [{ path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon }],
-    // Always-expanded children, 0 family headings (Rule 3). Projects & Processes
-    // is capability-gated (FR-424): rendered in the rail only for a holder of the named
-    // capability; RequireCapability is the real route gate.
+    // Always-expanded children, 0 family headings (Rule 3). Work catalog children are
+    // org-readable; their write scope is resolved by the catalog page/record surfaces.
     //
     // **This array's ORDER is the canonical nav order — the only one (#446).** The order's
     // authority is the owner frame sketch (OD-REDESIGN-57(ii), oracle row P-13 — owner-word):
@@ -90,7 +89,7 @@ export const DESTINATIONS: Destination[] = [
     children: [
       { path: '/work/signals', label: 'Signals', labelKey: 'nav.work.signals', Icon: SignalsIcon },
       { path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon },
-      { path: '/work/projects', label: 'Projects & Processes', labelKey: 'nav.work.projects', Icon: WorkLineIcon, capability: 'workline.manage' },
+      { path: '/work/projects', label: 'Projects & Processes', labelKey: 'nav.work.projects', Icon: WorkLineIcon },
       // OD-V4-1 (owner-ratified 2026-07-27, docs/v4-inheritance.md INC-1): "Objectives are visible
       // to everyone" — NO capability gate on this rail entry. mos.objectives SELECT RLS
       // (objectives_select_org, …0624000001_mos_cascade_lookups.sql) has no role check, only the
@@ -239,8 +238,9 @@ export function moduleChildrenForViewer(
 /**
  * Whether the viewer is admitted to `path` — the ONE route-admission question, answered by the
  * SAME authority the rail uses and nothing else: the owning destination's `anyOf` gate (`isLive`)
- * plus the section's own `anyOf`/`capability` gate (`visibleSections`), which are kept identical to
- * the router's `RequireAccessRole` / `RequireCapability` branches.
+ * plus the section's own `anyOf`/legacy `capability` gate (`visibleSections`), which are kept
+ * identical to any corresponding router branches. Current Work catalog read access is open to
+ * the org; write scope is resolved by the catalog surfaces themselves.
  *
  * This exists for the one decision the rail structurally cannot make, because it is not navigation:
  * Home's failed-checks band, which links to `/cafe/log`. `OD-WAY-51` (owner, 2026-08-05) ruled that
@@ -353,17 +353,18 @@ export function destinationForPath(pathname: string): Destination | null {
 
 /** The owner scan itself, with no gate asked. Shared by the callers below. */
 function ownerOf(pathname: string): { destination: Destination; link: Section } | null {
+  let best: { destination: Destination; link: Section } | null = null
   for (const destination of ALL_DESTINATIONS) {
     const candidates = [...destination.links, ...(destination.children ?? [])]
     for (const link of candidates) {
       if (link.path === '/') {
-        if (pathname === '/') return { destination, link }
+        if (pathname === '/' && !best) best = { destination, link }
       } else if (pathname === link.path || pathname.startsWith(link.path + '/')) {
-        return { destination, link }
+        if (!best || link.path.length > best.link.path.length) best = { destination, link }
       }
     }
   }
-  return null
+  return best
 }
 
 function destinationOwning(pathname: string): Destination | null {

@@ -9,10 +9,11 @@ vi.mock('../supabase', () => {
 
 import {
   startRun, listDueRuns, listPendingTasks, resolvePendingTask,
-  getRunRollup, listRunTasks, completeRun, listRunRollups, listTaskDefs,
+  getRunRollup, listRunTasks, completeRun, cancelRun, listRunRollups, listTaskDefs,
+  listProcessOccurrenceSummaries, listStartableProcessRuns, canStartProcessForTeam, canCloseProcessRun,
 } from './processes'
 import { supabase } from '@/lib/supabase'
-import type { DueProcessRun, ProcessRunRollup, ProcessRunRow } from './processes.types'
+import type { DueProcessRun, ProcessOccurrenceSummary, ProcessRunRollup, ProcessRunRow } from './processes.types'
 import type { TaskListRow } from './tasks.types'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -96,6 +97,31 @@ describe('startRun', () => {
     mockSupabase({ 'rpc.spawn_process_run': [{ data: null, error: { message: 'not authorized' } }] }, rec)
 
     await expect(startRun(WORK_LINE_ID, TEAM_ID, '2026-07-17')).rejects.toThrow(/not authorized/)
+  })
+})
+
+describe('runtime process authority', () => {
+  it('asks mos.can_start_process_for_team for effective start authority', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.can_start_process_for_team': [{ data: true, error: null }] }, rec)
+
+    await expect(canStartProcessForTeam(TEAM_ID)).resolves.toBe(true)
+    expect(rec.rpcs).toContainEqual(['can_start_process_for_team', { p_team_id: TEAM_ID }])
+  })
+
+  it('asks mos.can_close_process_run_id for effective close authority', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.can_close_process_run_id': [{ data: false, error: null }] }, rec)
+
+    await expect(canCloseProcessRun(RUN_ID)).resolves.toBe(false)
+    expect(rec.rpcs).toContainEqual(['can_close_process_run_id', { p_run_id: RUN_ID }])
+  })
+
+  it('propagates process authority RPC errors for callers to fail closed', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.can_start_process_for_team': [{ data: null, error: { message: 'authority unavailable' } }] }, rec)
+
+    await expect(canStartProcessForTeam(TEAM_ID)).rejects.toThrow(/authority unavailable/)
   })
 })
 
@@ -357,13 +383,78 @@ describe('listRunRollups', () => {
   })
 })
 
+describe('listProcessOccurrenceSummaries', () => {
+  const run: ProcessRunRow = {
+    id: RUN_ID, work_line_id: WORK_LINE_ID, owning_team_id: TEAM_ID, period_key: '2026-07-17',
+    caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17', status: 'open',
+    definition_version: 1, started_by: 'person-1', completed_at: null, completed_by: null,
+    cancelled_at: null, cancelled_by: null, cancel_reason: null,
+  }
+  const rollup: ProcessRunRollup = {
+    process_run_id: RUN_ID, caption: run.caption, scheduled_date: run.scheduled_date, status: 'open',
+    total: 3, open: 2, in_progress: 0, blocked: 0, done: 1, overdue: 1,
+    pending_unresolved: 1, completion_pct: 33.3,
+  }
+
+  it('batches run, roll-up, and owning-Team reads into one summary per occurrence', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'mos.process_runs': [{ data: [run], error: null }],
+      'mos.process_run_rollup': [{ data: [rollup], error: null }],
+      'shared.teams': [{ data: [{ id: TEAM_ID, name: 'Café Operations' }], error: null }],
+    }, rec)
+
+    const rows = await listProcessOccurrenceSummaries(WORK_LINE_ID)
+
+    const expected: ProcessOccurrenceSummary[] = [{ run, team_name: 'Café Operations', rollup }]
+    expect(rows).toEqual(expected)
+    expect(rec.fromTables).toContain('mos.process_runs')
+    expect(rec.ins).toContainEqual(['process_run_id', [RUN_ID]])
+    expect(rec.ins).toContainEqual(['id', [TEAM_ID]])
+  })
+
+  it('returns no child reads when the Process has no occurrences', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.process_runs': [{ data: [], error: null }] }, rec)
+
+    await expect(listProcessOccurrenceSummaries(WORK_LINE_ID)).resolves.toEqual([])
+    expect(rec.fromTables).toEqual(['mos.process_runs'])
+  })
+
+  it('surfaces a roll-up failure instead of rendering stale or fabricated counts', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'mos.process_runs': [{ data: [run], error: null }],
+      'mos.process_run_rollup': [{ data: null, error: { message: 'rollup unavailable' } }],
+      'shared.teams': [{ data: [{ id: TEAM_ID, name: 'Café Operations' }], error: null }],
+    }, rec)
+
+    await expect(listProcessOccurrenceSummaries(WORK_LINE_ID)).rejects.toThrow(/rollup unavailable/)
+  })
+})
+
+describe('listStartableProcessRuns', () => {
+  it('reuses the scheduler-free due RPC and narrows it to the current Process', async () => {
+    const rec = freshRec()
+    const due: DueProcessRun[] = [
+      { work_line_id: WORK_LINE_ID, process_name: 'Café Opening', owning_team_id: TEAM_ID, team_name: 'Café Operations', period_key: '2026-07-17', scheduled_date: '2026-07-17' },
+      { work_line_id: 'other-process', process_name: 'Other', owning_team_id: TEAM_ID, team_name: 'Café Operations', period_key: '2026-07-17', scheduled_date: '2026-07-17' },
+    ]
+    mockSupabase({ 'rpc.due_process_runs': [{ data: due, error: null }] }, rec)
+
+    await expect(listStartableProcessRuns(WORK_LINE_ID)).resolves.toEqual([due[0]])
+    expect(rec.rpcs).toContainEqual(['due_process_runs', undefined])
+  })
+})
+
 describe('completeRun', () => {
   it('calls mos.complete_process_run and returns the updated run', async () => {
     const rec = freshRec()
     const runRow: ProcessRunRow = {
       id: RUN_ID, work_line_id: WORK_LINE_ID, owning_team_id: TEAM_ID, period_key: '2026-07-17',
       caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17', status: 'completed',
-      definition_version: 1,
+      definition_version: 1, started_by: 'person-1', completed_at: '2026-07-17T10:00:00Z',
+      completed_by: 'person-1', cancelled_at: null, cancelled_by: null, cancel_reason: null,
     }
     mockSupabase({ 'rpc.complete_process_run': [{ data: runRow, error: null }] }, rec)
 
@@ -378,5 +469,34 @@ describe('completeRun', () => {
     mockSupabase({ 'rpc.complete_process_run': [{ data: null, error: { message: 'not authorized' } }] }, rec)
 
     await expect(completeRun(RUN_ID)).rejects.toThrow(/not authorized/)
+  })
+})
+
+describe('cancelRun', () => {
+  it('calls mos.cancel_process_run with the run id and reason and returns the updated run', async () => {
+    const rec = freshRec()
+    const runRow: ProcessRunRow = {
+      id: RUN_ID, work_line_id: WORK_LINE_ID, owning_team_id: TEAM_ID, period_key: '2026-07-17',
+      caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17', status: 'cancelled',
+      definition_version: 1, started_by: 'person-1', completed_at: null, completed_by: null,
+      cancelled_at: '2026-07-17T10:00:00Z', cancelled_by: 'person-1',
+      cancel_reason: 'The opening was merged into the public event.',
+    }
+    mockSupabase({ 'rpc.cancel_process_run': [{ data: runRow, error: null }] }, rec)
+
+    const result = await cancelRun(RUN_ID, 'The opening was merged into the public event.')
+
+    expect(rec.rpcs).toContainEqual([
+      'cancel_process_run',
+      { p_run_id: RUN_ID, p_reason: 'The opening was merged into the public event.' },
+    ])
+    expect(result).toEqual(runRow)
+  })
+
+  it('re-throws when the RPC returns an error', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.cancel_process_run': [{ data: null, error: { message: 'reason required' } }] }, rec)
+
+    await expect(cancelRun(RUN_ID, ' ')).rejects.toThrow(/reason required/)
   })
 })

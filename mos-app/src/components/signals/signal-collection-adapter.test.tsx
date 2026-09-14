@@ -109,6 +109,18 @@ describe('signalCollectionDescriptor — the one Signal loader/projector (FR-V3-
     expect(byAttention.visibleRecords.map((s) => s.id)).toEqual(['s-oat'])
   })
 
+  it('supports the I posted view using the authenticated viewer id', () => {
+    const parsed = signalCollectionDescriptor.query.parse(new URLSearchParams('view=i-posted'), 'feed')
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) return
+    const records = [
+      row({ id: 'mine', author_id: 'p-me' }),
+      row({ id: 'theirs', author_id: 'p-author-b' }),
+    ]
+    const projected = signalCollectionDescriptor.project(data(records), parsed.query, 'feed')
+    expect(projected.visibleRecords.map((signal) => signal.id)).toEqual(['mine'])
+  })
+
   it('AC-V3-005: Feed projects attention-weighted recency; Table sorts newest occurred-at first', () => {
     const rows = [
       row({ id: 'fyi-new', attention: 'FYI', occurred_at: '2026-07-16T10:00:00Z' }),

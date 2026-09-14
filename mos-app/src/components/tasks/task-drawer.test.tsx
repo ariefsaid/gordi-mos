@@ -22,6 +22,8 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getPersonTeams: () => Promise.resolve([]),
+  getTeamsByIds: () => Promise.resolve([]),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 
@@ -116,6 +118,16 @@ describe('TaskDrawer (AC-101, AC-102)', () => {
     renderAt('/work/tasks/task-abc')
     const aside = await screen.findByRole('complementary', { name: /task detail/i })
     await waitFor(() => expect(aside).toHaveTextContent('Fix the coffee machine'))
+  })
+
+  it('renders exactly one accessible Close control in the view drawer, with the task Escape label', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    renderAt('/work/tasks/task-abc')
+    const aside = await screen.findByRole('complementary', { name: /task detail/i })
+    await waitFor(() => expect(aside).toHaveTextContent('Fix the coffee machine'))
+
+    expect(within(aside).getAllByRole('button', { name: /close/i })).toHaveLength(1)
+    expect(within(aside).getByRole('button', { name: /^close \(esc\)$/i })).toBeInTheDocument()
   })
 
   it('create mode renders an aside labelled "Create task"', async () => {

@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 import { useState } from 'react'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { MobileGroupedCards } from './mobile-grouped-cards'
 import type { MobileGroupedCardsProps } from './mobile-grouped-cards'
@@ -65,26 +65,113 @@ function renderCards(props: Partial<MobileGroupedCardsProps> = {}) {
 }
 
 describe('MobileGroupedCards', () => {
-  it('removes a rejected create draft and announces the rollback', async () => {
+  it('retains a rejected create draft, shows inline Retry, and succeeds without discarding', async () => {
+    const onEditTitle = vi.fn()
+      .mockRejectedValueOnce(new Error('create failed'))
+      .mockResolvedValueOnce(undefined)
+    const onDiscardNewTask = vi.fn()
     function Harness() {
-      const [draft, setDraft] = useState(true)
-      return <>
+      return (
         <MobileGroupedCards
           {...BASE_PROPS}
-          groups={[{ ...BASE_PROPS.groups[0], rows: draft ? [makeTask({ id: 'draft', title: '' })] : [] }]}
-          draftTaskId={draft ? 'draft' : null}
-          onEditTitle={async () => { throw new Error('create failed') }}
-          onDiscardNewTask={() => setDraft(false)}
+          groups={[{ ...BASE_PROPS.groups[0], rows: [makeTask({ id: 'draft', title: '', team_id: 'team-1' })] }]}
+          draftTaskId="draft"
+          onEditTitle={onEditTitle}
+          onDiscardNewTask={onDiscardNewTask}
         />
-        {!draft && <div data-testid="draft-removed" />}
-      </>
+      )
     }
     render(<MemoryRouter><Harness /></MemoryRouter>)
     const input = screen.getByRole('textbox', { name: /title/i })
     fireEvent.change(input, { target: { value: 'New task' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    expect(await screen.findByTestId('draft-removed')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent(/revert|couldn/i)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn't save|try again/i)
+    expect(await screen.findByRole('status')).toHaveTextContent(/revert|couldn/i)
+    expect(screen.getByRole('textbox', { name: /title/i })).toHaveValue('New task')
+    expect(onDiscardNewTask).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(onEditTitle).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('keeps a phone draft title across blur, then saves after Team and Supervisor are chosen', async () => {
+    const onEditTitle = vi.fn().mockResolvedValue(undefined)
+    function Harness() {
+      const [draft, setDraft] = useState(makeTask({
+        id: 'draft-mobile', title: '', team_id: null, business_unit_id: '', accountable_person_id: '',
+      }))
+      return (
+        <MobileGroupedCards
+          {...BASE_PROPS}
+          groups={[{ ...BASE_PROPS.groups[0], rows: [draft] }]}
+          draftTaskId={draft.id}
+          onEditTitle={onEditTitle}
+          onEditPic={async (_taskId, personId) => setDraft((current) => ({ ...current, responsible_person_id: personId }))}
+          onEditTeam={async (_taskId, teamId) => setDraft((current) => ({ ...current, team_id: teamId, business_unit_id: 'bu-1' }))}
+          onEditSupervisor={async (_taskId, personId) => setDraft((current) => ({ ...current, accountable_person_id: personId }))}
+          onValidateNewTask={vi.fn()}
+          personOptions={[{ id: 'person-1', full_name: 'Arief Said' }]}
+          supervisorOptions={[{ id: 'person-2', full_name: 'Dewi Santoso' }]}
+          teamOptions={[{ id: 'team-1', name: 'Café team', businessUnitId: 'bu-1' }]}
+        />
+      )
+    }
+
+    render(<MemoryRouter><Harness /></MemoryRouter>)
+    const title = screen.getByRole('textbox', { name: /title/i })
+    fireEvent.change(title, { target: { value: 'Ship the café launch' } })
+    fireEvent.blur(title)
+    expect(screen.getByRole('textbox', { name: /title/i })).toHaveValue('Ship the café launch')
+    expect(onEditTitle).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Team' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Café team' }))
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supervisor' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Dewi Santoso' }))
+    expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Dewi Santoso')
+    fireEvent.keyDown(screen.getByRole('textbox', { name: /title/i }), { key: 'Enter' })
+
+    await waitFor(() => expect(onEditTitle).toHaveBeenCalledWith('draft-mobile', 'Ship the café launch'))
+  })
+
+  it('renders draft controls outside the record link and exposes visible Save/Cancel actions', () => {
+    renderCards({
+      groups: [{
+        key: '__flat__', label: 'Tasks', rows: [makeTask({ id: 'draft-markup', title: '', team_id: 'team-1' })],
+        overdue: 0, prefillParam: '',
+      }],
+      draftTaskId: 'draft-markup',
+      onEditTitle: vi.fn().mockResolvedValue(undefined),
+      onEditPic: vi.fn().mockResolvedValue(undefined),
+      onEditTeam: vi.fn().mockResolvedValue(undefined),
+      onEditSupervisor: vi.fn().mockResolvedValue(undefined),
+      personOptions: [{ id: 'person-1', full_name: 'Arief Said' }],
+      supervisorOptions: [{ id: 'person-1', full_name: 'Arief Said' }],
+      teamOptions: [{ id: 'team-1', name: 'Café team', businessUnitId: 'bu-1' }],
+    })
+    const card = screen.getByTestId('task-card')
+    expect(card.querySelector('a')).toBeNull()
+    expect(screen.getByRole('textbox', { name: /title/i }).closest('a')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+  })
+
+  it('opens an ordinary card on plain click but preserves modified-click navigation', () => {
+    const onOpenTask = vi.fn()
+    renderCards({
+      onOpenTask,
+      groups: [{
+        key: '__flat__', label: 'Tasks', rows: [makeTask({ id: 'ordinary', title: 'Ordinary task' })],
+        overdue: 0, prefillParam: '',
+      }],
+    })
+    const link = screen.getByRole('link', { name: /ordinary task/i })
+    const modifiedClick = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true })
+    link.dispatchEvent(modifiedClick)
+    expect(modifiedClick.defaultPrevented).toBe(false)
+    expect(onOpenTask).not.toHaveBeenCalled()
+    fireEvent.click(link)
+    expect(onOpenTask).toHaveBeenCalledWith('ordinary')
   })
 
   it('renders a group header for each group with label and count', () => {
@@ -111,7 +198,7 @@ describe('MobileGroupedCards', () => {
     if (isShipGated('/work/objectives')) {
       expect(screen.queryByRole('link', { name: 'Grow revenue' })).toBeNull()
     } else {
-      expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives?q=Grow%20revenue')
+      expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives/objective-1')
     }
     expect(screen.getByText('Launch')).toBeInTheDocument()
     expect(screen.getByText('Ship task')).toBeInTheDocument()

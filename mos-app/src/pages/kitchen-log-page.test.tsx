@@ -1,7 +1,7 @@
 // KitchenLogPage tests — TDD, AC-tagged
 // Covers: AC-020/021/022/030 (submit/validation/transfer cap), all states (loading,
 // empty, error, submitting, success, offline-in-every-state RI-2, unauthenticated),
-// BU-resolution failure (#3), inline note reveal (#6), touch floors (RI-3);
+// BU-resolution failure (#3), inline note reachability (#6), touch floors (RI-3);
 // #233 stream context: AC-002 (default from shared.default_stream(), switchable),
 // FR-002 (no default → explicit choice), FR-005 (the enumerable catalog only), AC-004 (no
 // raw-material input), AC-006 (effective target + already-logged, stream-scoped),
@@ -54,7 +54,6 @@ import {
 } from '@/lib/db/kitchen-logs'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { listActiveBranches } from '@/lib/db/branches'
-import { streamKey } from '@/lib/kitchen-action-label'
 import type {
   BranchOption,
   CaptureFormItem,
@@ -95,13 +94,29 @@ const BRANCHES: BranchOption[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_ROASTE
 // tests assert is that the picker offers EXACTLY the pairs it is given, so the count below is
 // this list's length, not the catalog's. Roastery has no stream Team and so appears in neither.
 const STREAM_PAIRS: StreamPair[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_RUMAH_RAMES].flatMap(
-  b => (['kitchen', 'bar'] as const).map(activity => ({ branch_id: b.id, activity })),
+  b => (['kitchen', 'bar'] as const).map(activity => ({
+    branch_id: b.id,
+    activity,
+    produces: !(b === BRANCH_RADIANT && activity === 'kitchen'),
+  })),
 )
 // The person's own default stream (FR-001) — what the default-stream.ts resolver returns
 // (already resolved against the branch catalog).
-const DEFAULT_STREAM: ProductionStream = { branch: BRANCH_RUMAH_RAMES, activity: 'kitchen' }
+const DEFAULT_STREAM: ProductionStream = { branch: BRANCH_RUMAH_RAMES, activity: 'kitchen', produces: true }
 const PRODUCE_KEY = 'produce'
 const TRANSFER_RADIANT_KEY = `transfer:${BRANCH_RADIANT.id}`
+
+// Select's visible contract is a button trigger plus a portaled listbox. Keep these helpers
+// aligned with the real user journey; the hidden native bridge is reserved for form semantics.
+async function chooseStream(optionName: string) {
+  fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+  fireEvent.click(await screen.findByRole('option', { name: optionName }))
+}
+
+async function chooseCategory(optionName: string) {
+  fireEvent.click(screen.getByRole('combobox', { name: /category/i }))
+  fireEvent.click(await screen.findByRole('option', { name: optionName }))
+}
 
 const VIEWER_MEMBER: AuthState = {
   status: 'authenticated',
@@ -455,24 +470,19 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
 
-  it('#6: reveals the note field on BLUR once qty != target (no submit needed)', async () => {
+  it('#6: reveals the note field as soon as an off-plan qty makes Submit unavailable', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Nasi Goreng'))
 
-    // No note field before any input
+    // No note field before any staged quantity
     expect(screen.queryByRole('textbox', { name: /note for nasi goreng/i })).toBeNull()
 
-    // Type an off-target qty (plan=12, qty=1 → off-target). v4: the note reveals on BLUR,
-    // never per keystroke (a required textarea must not shove itself into the row mid-number).
+    // Type an off-target qty (plan=12, qty=1 → off-target). The footer gate is live while the
+    // quantity input remains focused, so the field that satisfies it must be reachable without
+    // requiring an undocumented blur/tap-away step.
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '1' } })
-      await Promise.resolve()
-    })
-    expect(screen.queryByRole('textbox', { name: /note for nasi goreng/i })).toBeNull()
-
-    await act(async () => {
-      fireEvent.blur(qtyInput)
       await Promise.resolve()
     })
 
@@ -491,7 +501,7 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // Type a qty for Ayam Bakar, then blur to reveal the gate.
+    // Type a qty for Ayam Bakar, then blur to apply the invalid-state cue.
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '1' } })
@@ -539,7 +549,8 @@ describe('F3: Submit disabled while a required variance-note is unresolved', () 
     const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
     expect(submit).toBeDisabled()
 
-    // Reveal the note field on blur (v4: the reveal is blur-gated, not per keystroke) and fill it
+    // The note field is already reachable from the live gate; blur still applies invalid styling.
+    // Fill it
     fireEvent.blur(qtyInput)
     const note = await screen.findByRole('textbox', { name: /note for ayam bakar/i })
     fireEvent.change(note, { target: { value: 'extra batch' } })
@@ -566,14 +577,16 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     await renderPage(UNAFFILIATED)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // Read-only, not hidden: the capture form and its rows render untouched.
-    expect(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toBeVisible()
+    // Read-only, not hidden: the capture form and its rows render, but write controls are closed.
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    expect(qtyInput).toBeVisible()
+    expect(qtyInput).toBeDisabled()
+    expect(screen.getByRole('tab', { name: /production/i })).toBeDisabled()
 
     // The ONE line stating why capture is closed.
     expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
 
     // No enabled submit control, even with a staged line.
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     fireEvent.change(qtyInput, { target: { value: '20' } })
     const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
     expect(submit).toBeDisabled()
@@ -586,8 +599,8 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     expect(screen.queryByRole('status')).toBeNull()
 
     // Plan 20 minus 3 on hand = effective target 17 (kitchen-gates.effectiveTarget). Staging
-    // exactly the target is on-plan, so nothing else blocks. Staging commits on blur (v4: the
-    // note reveal is blur-gated), so blur before asserting.
+    // exactly the target is on-plan, so nothing else blocks. Blur before asserting the settled
+    // staged state.
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     fireEvent.change(qtyInput, { target: { value: '17' } })
     fireEvent.blur(qtyInput)
@@ -641,13 +654,13 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
   })
 
-  it('with capture open, the same missing-stream state still shows the hint and the tally', async () => {
+  it('with capture open, the same missing-stream state shows the hint but no misleading tally', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     await renderPage() // affiliated
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     expect(screen.getByText(/choose a production stream/i)).toBeInTheDocument()
-    expect(screen.getByText(/pending review/i)).toBeInTheDocument()
+    expect(screen.queryByText(/pending review/i)).not.toBeInTheDocument()
   })
 })
 
@@ -683,7 +696,7 @@ describe('F3b: disabled Submit shows reason message when variance note is missin
     // Reason message shows while note is empty
     expect(screen.getByText(/note required to submit/i)).toBeInTheDocument()
 
-    // Fill the required note (blur first — v4: the note field reveals on blur)
+    // Fill the required note (the field is reachable as soon as the live gate appears).
     fireEvent.blur(qtyInput)
     const note = await screen.findByRole('textbox', { name: /note for ayam bakar/i })
     fireEvent.change(note, { target: { value: 'extra batch today' } })
@@ -901,12 +914,8 @@ describe('FR-021/022: "change unit" re-binds the row to the chosen item-unit', (
       fireEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
       await Promise.resolve()
     })
-    await act(async () => {
-      fireEvent.change(screen.getByRole('combobox', { name: /unit for ayam bakar/i }), {
-        target: { value: 'u1-botol' },
-      })
-      await Promise.resolve()
-    })
+    fireEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
+    fireEvent.click(await screen.findByRole('option', { name: 'botol' }))
 
     // w1: plan 20, stok 3 → effective target 17; log 17 (on-target, no note gate).
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
@@ -1128,88 +1137,47 @@ const WIP_ITEMS_WITH_OFFPLAN: CaptureFormItem[] = [
   { id: 'w3', name: 'Sambal Matah', category: 'Side', units: [{ id: 'u3-porsi', name: 'porsi', is_default: true }] },
 ]
 
-// task 10a — the derived plan figures render in the page-head meta line.
-// v4 (2026-07-27, owner-directed): the standalone KPI-strip band (desktop 4 tiles / phone
-// one-line summary) is gone from this page. The date chip and the planned-total band were
-// "two stacked lines saying very little" — they are now ONE compacted meta line (`kl-meta-
-// line`) in the PageHead, showing the planned total + dish count. `madeSoFar`/`pctComplete`
-// were dropped from the head entirely (plan §"Metric summary rule" — those numbers reflected
-// typed-not-yet-submitted quantities, so the head would report "0 / -548 vs plan" a second
-// after a successful submit; visibly absent beats confidently wrong). The goal this test
-// protects — the day's planned figures are readable at a glance — is unchanged; the STEPS
-// were rewritten to the new meta-line rendering, and per-row feedback (kl-status) already has
-// its own coverage below.
-describe('OD-K-5: the planned total + dish count render in the page-head meta line', () => {
-  it('shows the planned total and dish count regardless of viewport (phone)', async () => {
+// Ticket R4 / FR-018: Log carries one truthful summary rule in the page head. Its actual
+// figure comes from submitted day entries, not the editable line state; the old KPI tiles and
+// help tip are retired from the capture surface.
+describe('R4 / FR-018: Log summary line', () => {
+  it('shows plan, submitted made and off-plan totals in the head without KPI tiles or help', async () => {
+    mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
+    mockFetchActualsMap.mockResolvedValue({
+      w1: { [PRODUCE_KEY]: 12 },
+      w3: { [PRODUCE_KEY]: 7 },
+    })
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    // 2 planned dishes (w1:20, w2:12) → plannedTotal 32, plannedDishCount 2
-    const head = screen.getByTestId('page-head')
-    expect(within(head).getByText('32')).toBeInTheDocument()
-    expect(within(head).getByText('2')).toBeInTheDocument()
+
+    const summary = document.querySelector('.msr') as HTMLElement
+    expect(summary).not.toBeNull()
+    expect(summary.textContent).toMatch(/Plan\s*32/)
+    expect(summary.textContent).toMatch(/made\s*19/)
+    expect(summary.textContent).toMatch(/off-plan\s*7/)
+    expect(summary.textContent).not.toMatch(/on plan/i)
+    expect(document.querySelector('.kks')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^help$/i })).toBeNull()
   })
 
-  it('shows the same planned total and dish count on desktop (no width branch)', async () => {
-    setDesktopMatchMedia(true)
+  it('keeps the summary truthful while a quantity is only staged', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    const head = screen.getByTestId('page-head')
-    expect(within(head).getByText('32')).toBeInTheDocument()
-    expect(within(head).getByText('2')).toBeInTheDocument()
+
+    const summary = document.querySelector('.msr') as HTMLElement
+    const atRest = summary.textContent
+    const qty = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(qty, { target: { value: '5' } })
+    expect(summary.textContent).toBe(atRest)
+    expect(summary.textContent).toMatch(/made\s*0/)
   })
 
-  it('omits the planned-total meta line entirely when nothing is planned for this action_type', async () => {
+  it('renders a zero-plan summary rather than a second empty-state sentence', async () => {
     mockFetchPlanMap.mockResolvedValue({})
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    expect(document.querySelector('.kl-plan-sum')).toBeNull()
-  })
-
-  // #588 — the dish count rendered as a bare '· 2' beside 'Planned total 20', with no label,
-  // while Plan states the same fact labeled ('Items planned 1'). The count now carries Plan's
-  // own shared vocabulary key (kitchen.plan.summary.itemsPlanned), so a reader doesn't have to
-  // guess what the second number means.
-  it('labels the dish count with Plan\'s shared "Items planned" vocabulary, not a bare count', async () => {
-    await renderPage()
-    await waitFor(() => screen.getByText('Ayam Bakar'))
-    const head = screen.getByTestId('page-head')
-    expect(within(head).getByText('Items planned')).toBeInTheDocument()
-  })
-})
-
-describe('OD-K-5: Log renders the derived KPI strip', () => {
-  it('reads submitted actuals, ignores typing, and updates after a successful submit', async () => {
-    setDesktopMatchMedia(true)
-    mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
-    await renderPage()
-    await waitFor(() => screen.getByText('Ayam Bakar'))
-
-    expect(screen.queryByRole('region', { name: /plan vs actual summary/i })).toBeNull()
-
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    fireEvent.change(qtyInput, { target: { value: '5' } })
-    expect(screen.queryByRole('region', { name: /plan vs actual summary/i })).toBeNull()
-
-    fireEvent.blur(qtyInput)
-    fireEvent.change(await screen.findByRole('textbox', { name: /note for ayam bakar/i }), {
-      target: { value: 'extra batch' },
-    })
-    fireEvent.click(screen.getByRole('button', { name: /submit/i }))
-
-    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
-    await waitFor(() => {
-      expect(within(screen.getByRole('region', { name: /plan vs actual summary/i })).getByText('5')).toBeInTheDocument()
-    })
-    expect(within(screen.getByRole('region', { name: /plan vs actual summary/i })).getByText(/−27 vs plan/i)).toBeInTheDocument()
-  })
-
-  it('shows the no-plan empty form when the selected day has no plan', async () => {
-    setDesktopMatchMedia(true)
-    mockFetchPlanMap.mockResolvedValue({})
-    await renderPage()
-    await waitFor(() => screen.getByText('Ayam Bakar'))
-
-    expect(screen.queryByRole('region', { name: /plan vs actual summary/i })).toBeNull()
+    expect(document.querySelector('.msr')?.textContent).toMatch(/Plan\s*0/)
+    expect(screen.queryByText(/planned total/i)).toBeNull()
   })
 })
 
@@ -1219,13 +1187,26 @@ describe('OD-K-5: Planned/Off-plan group split (desktop)', () => {
     setDesktopMatchMedia(true)
     mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
     await renderPage()
-    await waitFor(() => screen.getByText('Sambal Matah'))
+    await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // both group headers render with the right counts (2 planned, 1 off-plan)
+    // both non-empty group headers render with the right counts (2 planned, 1 off-plan).
     const plannedHead = screen.getByRole('button', { name: /collapse planned today/i }).closest('tr')!
     expect(within(plannedHead).getByText('2')).toBeInTheDocument()
-    const offplanHead = screen.getByRole('button', { name: /collapse off-plan/i }).closest('tr')!
+    const offplanHead = screen.getByRole('button', { name: /expand off-plan/i }).closest('tr')!
     expect(within(offplanHead).getByText('1')).toBeInTheDocument()
+    expect(screen.queryByText('Sambal Matah')).toBeNull()
+  })
+
+  it('omits a zero-row group and opens Off-plan when Planned is empty', async () => {
+    setDesktopMatchMedia(true)
+    mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
+    mockFetchPlanMap.mockResolvedValue({})
+    await renderPage()
+    await waitFor(() => screen.getByText('Sambal Matah'))
+
+    expect(screen.queryByRole('button', { name: /collapse planned today/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /collapse off-plan/i })).toBeInTheDocument()
+    expect(screen.getByText('Sambal Matah')).toBeInTheDocument()
   })
 })
 
@@ -1264,7 +1245,7 @@ describe('OD-K-5: category filter narrows rows', () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    fireEvent.change(screen.getByRole('combobox', { name: /category/i }), { target: { value: 'Rice' } })
+    await chooseCategory('Rice')
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
@@ -1329,9 +1310,9 @@ describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
     // P-4 invariant: phone renders the shared card reflow (.dt-cards), NOT the desktop <table>
     expect(screen.queryByRole('table', { name: /café production log/i })).toBeNull()
     expect(document.querySelector('.dt-cards')).not.toBeNull()
-    // the Planned/Off-plan groups render on phone via the shared DataTable collapse toggle
+    // With the default fixture every row is planned, so the zero Off-plan group is omitted.
     expect(screen.getByRole('button', { name: /collapse planned today/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /collapse off-plan/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /off-plan/i })).toBeNull()
   })
 
   it('desktop: the <table> renders; the phone card reflow is absent', async () => {
@@ -1342,13 +1323,13 @@ describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
     expect(document.querySelector('.dt-cards')).toBeNull()
   })
 
-  it('phone capture cards show the item category caption and current stock figure', async () => {
+  it('phone capture cards omit redundant category captions and show current stock figure', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const card = screen.getByText('Ayam Bakar').closest('.kl-card')
     expect(card).not.toBeNull()
-    expect(within(card as HTMLElement).getByText('Main')).toBeInTheDocument()
+    expect(within(card as HTMLElement).queryByText('Main')).toBeNull()
     expect(within(card as HTMLElement).getByText('3')).toBeInTheDocument()
     expect(within(card as HTMLElement).getByText(/stock/i)).toBeInTheDocument()
   })
@@ -1431,7 +1412,7 @@ describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
 // #233 — capture surface with stream context, all streams (bar-capture spec).
 // AC-002 (default pre-selected + switchable), FR-002 (no default → explicit choice),
 // FR-005 (the catalog's streams, roastery never one), AC-004 (no raw-material input),
-// AC-006 (plan-as-placeholder + effective target + already-logged + note-on-blur,
+// AC-006 (plan-as-placeholder + effective target + already-logged + live note gate,
 // stream-scoped), AC-012b frontend half (the submitted rows carry the SELECTED pair).
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1442,7 +1423,7 @@ describe("AC-002 / FR-001: the capture surface opens on the person's own stream 
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const picker = screen.getByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveValue(streamKey(BRANCH_RADIANT.id, 'bar'))
+    expect(picker).toHaveTextContent('Radiant · Bar')
     // …and the stream-scoped reads were asked for THAT stream, not a constant.
     const expected = expect.objectContaining({
       branch: expect.objectContaining({ id: BRANCH_RADIANT.id }),
@@ -1462,8 +1443,8 @@ describe("AC-002 / FR-001: the capture surface opens on the person's own stream 
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = within(head).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    const picker = within(head).getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Radiant · Bar')
     // and nowhere else on the surface — two pickers for one fact is how they come to disagree
     expect(screen.getAllByRole('combobox', { name: /production stream/i })).toHaveLength(1)
   })
@@ -1474,11 +1455,7 @@ describe("AC-002 / FR-001: the capture surface opens on the person's own stream 
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // Default is (Rumah Rames, kitchen); the barista helping at GHQ switches (FR-003).
-    const picker = screen.getByRole('combobox', { name: /production stream/i })
-    await act(async () => {
-      fireEvent.change(picker, { target: { value: streamKey(BRANCH_GORDI_HQ.id, 'bar') } })
-      await Promise.resolve()
-    })
+    await chooseStream('Gordi HQ · Bar')
     await waitFor(() => screen.getByText('Nasi Goreng'))
 
     const switched = expect.objectContaining({
@@ -1515,8 +1492,9 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const picker = screen.getByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveValue('')
-    expect(screen.getByRole('option', { name: /choose stream/i })).toBeInTheDocument()
+    expect(picker).toHaveTextContent(/choose stream/i)
+    fireEvent.click(picker)
+    expect(screen.getByRole('option', { name: /choose stream/i })).toHaveAttribute('aria-disabled', 'true')
     // No stream → nothing to scope the plan/stock/actuals reads to (never a guess).
     expect(mockFetchPlanMap).not.toHaveBeenCalled()
     expect(mockFetchStockMap).not.toHaveBeenCalled()
@@ -1524,6 +1502,10 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     // Submit is disabled up front and the reason is named beside it.
     expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /^submit/i })[0]).toBeDisabled()
+    // The explicit choice is the next write step; do not let a quantity be staged against no
+    // stream while the picker is still waiting for a selection.
+    expect(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toBeDisabled()
+    expect(screen.queryByRole('tablist')).toBeNull()
   })
 
   it('choosing a stream from the picker loads it and capture proceeds against the chosen pair', async () => {
@@ -1532,11 +1514,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    const picker = screen.getByRole('combobox', { name: /production stream/i })
-    await act(async () => {
-      fireEvent.change(picker, { target: { value: streamKey(BRANCH_RADIANT.id, 'bar') } })
-      await Promise.resolve()
-    })
+    await chooseStream('Radiant · Bar')
     await waitFor(() => screen.getByText('Nasi Goreng'))
     expect(screen.queryByText(/choose a production stream before submitting/i)).toBeNull()
 
@@ -1553,13 +1531,39 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
   })
 })
 
+describe('DD-MVP-9: a receiving-only stream remains readable but cannot capture production', () => {
+  it('shows a receiving-only state with a Stock handoff instead of a production form', async () => {
+    mockFetchDefaultStream.mockResolvedValue({
+      branch: BRANCH_RADIANT,
+      activity: 'kitchen',
+      produces: false,
+    })
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Radiant · Kitchen')
+    expect(screen.getByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
+    expect(screen.getByText(/production capture and planning are unavailable/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', '/cafe/stock')
+    expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: /café log capture/i })).toBeNull()
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^submit/i })).toBeNull()
+    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+  })
+})
+
 describe('FR-005: the picker offers exactly the catalog pairs it is given — the roastery is never a stream', () => {
   it('lists exactly the catalog pairs it is given, and no roastery option', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const picker = screen.getByRole('combobox', { name: /production stream/i })
-    const options = within(picker).getAllByRole('option')
+    fireEvent.click(picker)
+    const listbox = screen.getByRole('listbox')
+    const options = within(listbox).getAllByRole('option')
     // Exactly STREAM_PAIRS — no placeholder (a default resolved), no roastery, and nothing the
     // fixture did not stage. Pinned to the fixture's own length so growing the live catalog does
     // not touch this test; what is under test is 'exactly the pairs given', not a number.
@@ -1574,7 +1578,7 @@ describe('FR-005: the picker offers exactly the catalog pairs it is given — th
       }
     }
     expect(labels.join(' ')).not.toMatch(/bungur/i)
-    expect(within(picker).queryByRole('option', { name: /roastery/i })).toBeNull()
+    expect(within(listbox).queryByRole('option', { name: /roastery/i })).toBeNull()
   })
 })
 
@@ -1602,7 +1606,7 @@ describe("AC-004 / FR-010: no raw-material input on any stream's form; fixed uni
   })
 })
 
-describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-logged + note-on-blur, stream-scoped', () => {
+describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-logged + live note gate, stream-scoped', () => {
   // The spec's own numbers: plan 10, already logged 4, 2 in stock → effective target 8.
   const AC6_PLAN = { w1: { [PRODUCE_KEY]: 10 } }
   const AC6_STOCK = { w1: { stok: 2, tersedia: 2 }, w2: { stok: 0, tersedia: 0 } }
@@ -1614,16 +1618,17 @@ describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-
     mockFetchActualsMap.mockResolvedValue(AC6_ACTUALS)
   })
 
-  it('AC-006: the plan seeds the placeholder, "logged 4" renders, and qty == plan − stock passes without a note', async () => {
+  it('AC-006: a logged row blanks the plan placeholder, shows the running actual, and keeps the gate', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const qty = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    // Plan-as-placeholder (FR-015): the greyed anchor is the plan, not an entry.
-    expect(qty).toHaveAttribute('placeholder', '10')
-    // The running "already logged N" actuals (FR-014) — from the DB, not the form.
+    // Once a row has a submitted actual, the greyed plan anchor is removed (FR-020).
+    expect(qty).toHaveAttribute('placeholder', '')
+    // The running "already logged N" actuals (FR-014) — from the DB, not the form. The
+    // English catalog says "logged" and the Indonesian catalog says "sudah".
     const meta = document.querySelector('.kls-meta')
-    expect(meta?.textContent).toMatch(/logged\s*4/)
+    expect(meta?.textContent).toMatch(/(?:logged|sudah)\s*4/)
 
     // Effective target = plan − stock = 8 (FR-014): logging exactly 8 is on-target.
     await act(async () => {
@@ -1634,19 +1639,14 @@ describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-
     expect(screen.queryByText(/note required — off plan/i)).toBeNull()
   })
 
-  it('AC-006: a variant qty reveals the required-note gate on blur', async () => {
+  it('AC-006: a variant qty reveals the required-note gate while still focused', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const qty = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    // 10 is the RAW plan — off the effective target (8), so the gate must reveal on blur.
+    // 10 is the RAW plan — off the effective target (8), so the gate must be reachable immediately.
     await act(async () => {
       fireEvent.change(qty, { target: { value: '10' } })
-      await Promise.resolve()
-    })
-    expect(screen.queryByText(/note required — off plan/i)).toBeNull() // not before blur
-    await act(async () => {
-      fireEvent.blur(qty)
       await Promise.resolve()
     })
     await waitFor(() => {
@@ -1661,13 +1661,9 @@ describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-
     )
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    expect(document.querySelector('.kls-meta')?.textContent).toMatch(/logged\s*4/)
+    expect(document.querySelector('.kls-meta')?.textContent).toMatch(/(?:logged|sudah)\s*4/)
 
-    const picker = screen.getByRole('combobox', { name: /production stream/i })
-    await act(async () => {
-      fireEvent.change(picker, { target: { value: streamKey(BRANCH_GORDI_HQ.id, 'kitchen') } })
-      await Promise.resolve()
-    })
+    await chooseStream('Gordi HQ · Kitchen')
     await waitFor(() => {
       expect(document.querySelector('.kls-meta')?.textContent).toMatch(/logged\s*9/)
     })
@@ -1684,11 +1680,7 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
     mockFetchPlanMap.mockImplementationOnce(
       () => new Promise(res => { resolveStale = res }),
     )
-    const picker = screen.getByRole('combobox', { name: /production stream/i })
-    await act(async () => {
-      fireEvent.change(picker, { target: { value: streamKey(BRANCH_RADIANT.id, 'bar') } })
-      await Promise.resolve()
-    })
+    await chooseStream('Radiant · Bar')
 
     // While switch #1 is in flight the picker MUST stay mounted (FR-003 — a slow
     // stream is never a dead end; getByRole throws here if the switch unmounts it).
@@ -1696,12 +1688,8 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
 
     // Switch #2 → (Gordi HQ, kitchen): the LATEST read — resolves immediately (w2 → 33).
     mockFetchPlanMap.mockResolvedValueOnce({ w2: { [PRODUCE_KEY]: 33 } })
-    await act(async () => {
-      fireEvent.change(pickerDuringLoad, {
-        target: { value: streamKey(BRANCH_GORDI_HQ.id, 'kitchen') },
-      })
-      await Promise.resolve()
-    })
+    fireEvent.click(pickerDuringLoad)
+    fireEvent.click(await screen.findByRole('option', { name: 'Gordi HQ · Kitchen' }))
     await waitFor(() => screen.getByText('Nasi Goreng'))
     expect(
       screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }),
@@ -1714,9 +1702,7 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
       resolveStale({ w2: { [PRODUCE_KEY]: 77 } })
       await Promise.resolve()
     })
-    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveValue(
-      streamKey(BRANCH_GORDI_HQ.id, 'kitchen'),
-    )
+    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveTextContent('Gordi HQ · Kitchen')
     expect(
       screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }),
     ).toHaveAttribute('placeholder', '33')
@@ -1755,16 +1741,13 @@ describe('AC-007: destinations cover both movement classes from both activity su
     expect(screen.getByRole('tab', { name: 'Transfer to Gordi HQ' })).toBeInTheDocument()
   })
 
-  it('AC-007: the KITCHEN surface offers its own branch qualified as the bar, with the incumbent cross-branch transfers preserved', async () => {
-    // The default fixture stream is (Rumah Rames, kitchen) — the incumbent's own stream, whose
-    // cross-branch labels are the ones OD-K-1 parity is measured against. They must come
-    // through this change byte-identical; only the own-branch entry gains its qualifier.
+  it('AC-007: the KITCHEN surface preserves its cross-branch transfers without a held own-branch option', async () => {
+    // The default fixture stream is (Rumah Rames, kitchen). Kitchen production sends to other
+    // catalog branches; the held intra-branch movement is offered from the bar surface only.
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    expect(
-      screen.getByRole('tab', { name: /transfer to bungur within branch · bar/i }),
-    ).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: /transfer to bungur within branch · bar/i })).toBeNull()
     expect(screen.getByRole('tab', { name: 'Transfer to Radiant' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Production' })).toBeInTheDocument()
   })
@@ -1788,8 +1771,8 @@ describe('AC-007: destinations cover both movement classes from both activity su
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    expect(screen.queryByRole('tab', { name: /within branch/i })).toBeNull()
-    expect(screen.getByRole('tab', { name: 'Transfer to Bungur' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab')).toBeNull()
+    expect(screen.queryByRole('tablist')).toBeNull()
   })
 
   it('AC-007: an intra-branch movement is submitted as destination = the origin branch', async () => {
@@ -2087,4 +2070,3 @@ describe('DD-7: the summary band never reports typed-but-unsaved quantities as l
     await bandNeverClaimsLoggedProduction()
   })
 })
-

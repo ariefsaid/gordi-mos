@@ -1,3 +1,4 @@
+import { DEMO_PASSWORD, DEMO_PERSONAS } from '../src/pages/demo-personas'
 // E2E global setup — PMO-aligned auth model (ADR-0002 D3 + 2026-06-21 dev/e2e isolation fix).
 //
 // OLD flakiness root cause: the previous setup created SEPARATE e2e auth users and then re-pointed
@@ -23,6 +24,7 @@ import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { ORPHAN, RECOVERY_VIEWER, ADMIN, BAR_MEMBER, BAR_SUPERVISOR, BAR_STREAM } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
+import { assertFixtureSqlSafe, assertLocalFixtureDatabase, fixtureCleanupSql } from './fixtures/cleanup'
 import {
   MOS_DEV_PORT_ENV,
   assertDevServerOwnership,
@@ -37,15 +39,8 @@ const __dir = dirname(__filename)
 const ORG = '10000000-0000-0000-0000-000000000001'
 
 // The seeded dev personas e2e logs in as / heals. Mirrors supabase/seed.sql + DemoLogin.tsx.
-const DEV_PASSWORD = 'Passw0rd!dev'
-const DEV_PERSONAS = [
-  'dewi.dev@example.test',
-  'cahya.dev@example.test',
-  'krishna.dev@example.test',
-  'rama.dev@example.test',
-  'sari.dev@example.test',
-  'fitri.dev@example.test',
-]
+const DEV_PASSWORD = DEMO_PASSWORD
+const DEV_PERSONAS = DEMO_PERSONAS.map(({ email }) => email)
 
 function loadEnvFile(path: string): Record<string, string> {
   try {
@@ -106,6 +101,7 @@ async function ensureUser(
  * writes since service_role lacks the grant on custom schemas. Local-only — not available in prod.
  */
 async function execSql(url: string, serviceKey: string, query: string): Promise<void> {
+  assertFixtureSqlSafe(query)
   const res = await fetch(`${url}/pg/query`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: serviceKey },
@@ -118,6 +114,7 @@ async function execSql(url: string, serviceKey: string, query: string): Promise<
 }
 
 export default async function globalSetup() {
+  assertLocalFixtureDatabase(SUPABASE_URL)
   // #388: a pgTAP reset in a sibling worktree wipes the DB out from under a running e2e
   // suite, and the failure masquerades as schema corruption. The shared lock is cooperative,
   // so a naked run cannot be refused — but it can be made impossible to miss. CI has one
@@ -173,7 +170,9 @@ export default async function globalSetup() {
     SERVICE_ROLE_KEY,
     `UPDATE shared.people p SET user_id = u.id
        FROM auth.users u
-      WHERE u.email = p.email AND p.email LIKE '%.dev@example.test'`,
+      WHERE p.org_id = '${ORG}'
+        AND u.email = p.email
+        AND p.email IN (${DEV_PERSONAS.map((email) => `'${email}'`).join(', ')})`,
   )
   console.log('[global-setup] ensured + linked all *.dev personas (dev login self-healed)')
 
@@ -287,35 +286,9 @@ export default async function globalSetup() {
   }
   console.log('[global-setup] created + linked the AC-014 bar stream personas (member + supervisor)')
 
-  // ── 3c. Clean slate for the AC-020 cascade-catalog journey (idempotent; postgres bypasses no-delete) ─
-  await execSql(
-    SUPABASE_URL,
-    SERVICE_ROLE_KEY,
-    `DELETE FROM mos.objectives WHERE org_id = '${ORG}' AND name LIKE 'E2E %'`,
-  )
-  console.log('[global-setup] cleared E2E catalog objectives')
-
-  // ── 4. Clear mos.weekly_updates for P2-2 e2e journeys (idempotent clean slate) ─────────────────
-  await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
-    DELETE FROM mos.weekly_update_items WHERE org_id = '${ORG}';
-    DELETE FROM mos.weekly_updates      WHERE org_id = '${ORG}';
-  `)
-  console.log('[global-setup] cleared mos.weekly_updates for e2e org')
-
-  // ── 5. Clear ops.log_entries for P2-3 e2e journeys (idempotent clean slate) ────────────────────
-  await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
-    DELETE FROM ops.log_entries WHERE org_id = '${ORG}';
-  `)
-  console.log('[global-setup] cleared ops.log_entries for e2e org')
-
-  // ── 6. Seed mos.tasks for P2-1c e2e journeys (deterministic clean slate) ───────────────────────
-  const orgId = TASKS.VIEWER_ACCOUNTABLE.orgId
-  await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
-    DELETE FROM mos.task_events          WHERE org_id = '${orgId}';
-    DELETE FROM mos.task_checklist_items WHERE org_id = '${orgId}';
-    DELETE FROM mos.tasks                WHERE org_id = '${orgId}';
-  `)
-  console.log('[global-setup] cleared mos.tasks for e2e org')
+  // Refresh only the fixed fixtures. Ambient tasks, updates and operations logs remain intact.
+  await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, fixtureCleanupSql)
+  console.log('[global-setup] cleared owned fixture IDs')
 
   const t = TASKS.VIEWER_ACCOUNTABLE
   await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
@@ -340,9 +313,7 @@ export default async function globalSetup() {
   console.log(`[global-setup] seeded VIEWER_ACCOUNTABLE task (id=${t.id})`)
 
   // ── 7. AC-204 — the Objective roll-up world (deterministic; the spec asserts exact counts) ────
-  // Runs AFTER the mos.tasks wipe above, so these are the only linked tasks in the org and the
-  // counts the spec pins cannot drift with whatever else the database happens to hold. Delete
-  // before insert (not ON CONFLICT DO NOTHING) so a re-run cannot leave a stale edge behind.
+  // Exact counts belong to this fixed Objective/Project graph, not the organization as a whole.
   const a = AC204
   const owner = ADMIN.personId
   // The "not mine" owner is a DEDICATED e2e person, never a dev persona: pointing it at Cahya put
@@ -370,10 +341,6 @@ export default async function globalSetup() {
     );`
 
   await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
-    DELETE FROM mos.tasks      WHERE org_id = '${a.orgId}' AND title LIKE 'AC204 %';
-    DELETE FROM mos.work_lines WHERE org_id = '${a.orgId}' AND name  LIKE 'AC204 %';
-    DELETE FROM mos.objectives WHERE org_id = '${a.orgId}' AND name  LIKE 'AC204 %';
-
     INSERT INTO mos.objectives (id, org_id, name)
     VALUES ('${a.objective.id}', '${a.orgId}', '${a.objective.name}');
 

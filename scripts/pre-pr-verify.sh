@@ -78,6 +78,11 @@ if [ -n "$base" ]; then
   fi
 fi
 if [ "$app_touched" = 1 ]; then
+  # UI diffs must pass the repository-owned Impeccable detector. The helper scans the branch
+  # diff when a base resolves and every tracked production UI source file when it does not.
+  # Tests and fixtures stay excluded because their example markup may intentionally prove a rule.
+  bash scripts/impeccable-changed-ui.sh "$base"
+
   # Every binary, not one sentinel: a tree with tsc but no eslint died 127 at `npm run lint`.
   # Installing is not a test, so this sits outside the test lock.
   deps_missing=""

@@ -77,7 +77,7 @@ const signalAdapter: RecordViewerAdapter = {
 describe('RecordViewer contract', () => {
   it('RecordKind carries only the live, distinct domain models and no fake Standard/SOP member', () => {
     // Type-level exhaustiveness: every RecordKind narrows to a real live model.
-    expectTypeOf<RecordKind>().toEqualTypeOf<'task' | 'signal' | 'follow-up'>()
+    expectTypeOf<RecordKind>().toEqualTypeOf<'task' | 'signal' | 'follow-up' | 'work-line' | 'objective'>()
     // A Standard/SOP fixture would fail to typecheck — proving no fake proxy kind exists.
     // @ts-expect-error — 'standard' is not a live RecordKind (no live Standard/SOP model).
     const notAKind: RecordKind = 'standard'

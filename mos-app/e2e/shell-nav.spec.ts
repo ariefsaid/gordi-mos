@@ -15,15 +15,12 @@
 // journey asserts what it is for — that the rail, the URL, the title and the surface stay in
 // agreement across a navigation and a reload.
 //
-// Extended: AC-013 e2e — MANAGER sees "Your team" module; VIEWER does not (FR-017, OD-P0-8).
+// AC-013 preserves the management/member distinction through the current Home brief.
 
 import { test, expect } from '@playwright/test'
-import { VIEWER, MANAGER } from './fixtures/users'
+import { VIEWER, MANAGER, BAR_MEMBER } from './fixtures/users'
 import { loginAs } from './helpers/login'
 import { isShipGated } from './helpers/ship-gate'
-// Weekly Updates is flag-hidden for the first rollout (src/config/features.ts). The Signals
-// destination itself is unconditional (#189), but the surface currently behind it is dev's weekly
-// update page, so the leg that asserts that surface's own content stays gated on the same flag.
 
 test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // --- Pre-login: static HTML title is present on the login page ---
@@ -49,14 +46,14 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await nav.getByRole('link', { name: 'Tasks' }).first().click()
   await expect(page).toHaveURL(/\/work\/tasks$/, { timeout: 5_000 })
   await expect(page).toHaveTitle('Tasks — Gordi MOS')
-  // STALE (v4): the ownership filter (All/My work/Overdue/AR Follow-ups) is a role="group"
-  // chip strip, not a tablist — the tablist role belongs to the separate Table/Card
-  // presentation switch (src/components/ui/view-tabs.tsx). Its accessible name comes from
-  // views.label = t('tasks.savedViews') = "Tasks saved views" (src/components/tasks/tasks-toolbar.tsx),
-  // set unconditionally on the group in src/components/record-collection/collection-toolbar.tsx.
-  // It is always present in the Tasks toolbar regardless of data (populated, empty, loading) —
-  // it proves the real Tasks surface rendered, not just the route.
-  await expect(page.getByRole('group', { name: 'Tasks saved views' })).toBeVisible()
+  // The current Tasks collection exposes its ownership/presentation choices as the named
+  // "Task views" tablist. It is present even when the collection is empty, proving the real Tasks
+  // surface rendered rather than only the route.
+  await expect(page.getByRole('tablist', { name: 'Task views' })).toBeVisible()
+  await page.getByRole('tab', { name: 'My work', exact: true }).click()
+  await expect(page).toHaveURL(/\/work\/tasks\?view=my-work$/)
+  await page.reload()
+  await expect(page.getByRole('tab', { name: 'My work', exact: true })).toHaveAttribute('aria-selected', 'true')
 
   // --- Work -> Objectives ---
   // Was a rail click through to /work/objectives. issue 444 ship-gates that surface, so there is
@@ -90,30 +87,30 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // --- A retired bookmark still works, in one hop, with its query intact (FR-015/FR-016) ---
   await page.goto('tasks?view=mine')
   await expect(page).toHaveURL(/\/work\/tasks\?view=mine$/, { timeout: 5_000 })
-  // STALE (v4): same fix as above — role="group", name "Tasks saved views".
-  await expect(page.getByRole('group', { name: 'Tasks saved views' })).toBeVisible()
+  await expect(page.getByRole('tablist', { name: 'Task views' })).toBeVisible()
 })
 
-// AC-013 e2e: MANAGER sees "Your team" module; VIEWER does not (FR-017, OD-P0-8)
-test('AC-013: team module visible for MANAGER, hidden for VIEWER', async ({ page }) => {
-  // The team module IS the weekly-update review surface — flag-hidden for the first rollout
-  // The two Home landings below use the document title for the same reason as AC-001 above: the h1
-  // is a time-dependent greeting. Fixed here even though this test currently skips — a stale
-  // locator parked behind a flag is a trap that springs the moment the flag flips, which is how
-  // this suite accumulated 19 failures nobody could see.
-  // ── MANAGER: signs in → Home should show "Your team" overline ──
+// The management brief replaces the weekly-update team module. VIEWER is an Ops Lead;
+// BAR_MEMBER supplies the ordinary-member contrast required by this scope journey.
+test('AC-013: management scope reaches Objectives; ordinary members get their own work', async ({ page }) => {
   await loginAs(page, MANAGER.email, MANAGER.password)
   await expect(page).toHaveTitle('Home — Gordi MOS', { timeout: 10_000 })
-  // The team-module overline is a <p> element starting with "Your team —"
-  await expect(page.locator('p').filter({ hasText: /^Your team —/ })).toBeVisible({ timeout: 5_000 })
+  const objectives = page.getByRole('region', { name: 'Objectives', exact: true })
+  await expect(objectives).toBeVisible()
+  await objectives.getByRole('link', { name: 'See all →', exact: true }).click()
+  await expect(page).toHaveURL(/\/work\/objectives$/)
+  await expect(page.getByRole('heading', { name: 'Objectives', exact: true })).toBeVisible()
 
   // Sign out: open the user chip menu first, then click "Sign out" menu item
   await page.getByRole('button', { name: 'Dewi Director' }).click()
   await page.getByRole('menuitem', { name: /sign out/i }).click()
   await expect(page).toHaveURL(/\/login/, { timeout: 10_000 })
 
-  // ── VIEWER: signs in → Home should NOT show "Your team" overline ──
-  await loginAs(page, VIEWER.email, VIEWER.password)
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({ timeout: 10_000 })
-  await expect(page.locator('p').filter({ hasText: /^Your team —/ })).not.toBeVisible()
+  await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
+  await expect(page).toHaveTitle('Home — Gordi MOS', { timeout: 10_000 })
+  const ownWork = page.getByRole('tab', { name: /My open work/ })
+  await expect(ownWork).toBeVisible()
+  await ownWork.click()
+  await expect(page.getByRole('tabpanel', { name: /My open work/ })).toBeVisible()
+  await expect(objectives).toHaveCount(0)
 })

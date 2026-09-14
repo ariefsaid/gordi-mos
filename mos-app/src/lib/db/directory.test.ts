@@ -6,7 +6,14 @@ vi.mock('../supabase', () => {
   return { supabase: { schema } }
 })
 
-import { getBusinessUnits, getDownlinePersonIds, getPeople, searchPeopleByName } from './directory'
+import {
+  getBusinessUnits,
+  getDownlinePersonIds,
+  getPeople,
+  getPersonTeams,
+  getTeamsByIds,
+  searchPeopleByName,
+} from './directory'
 import { supabase } from '@/lib/supabase'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -14,12 +21,36 @@ const schemaMock = vi.mocked(supabase.schema)
 // ── Chainable mock builder ────────────────────────────────────────────────────
 function makeSharedSchema(
   responses: Record<string, { data: unknown; error: unknown }>,
-  rec?: { isCalls: Array<[string, unknown]>; ilikes?: Array<[string, unknown]> },
+  rec?: {
+    isCalls: Array<[string, unknown]>
+    ilikes?: Array<[string, unknown]>
+    filters?: Array<[string, string, unknown]>
+    selects?: Array<[string, unknown]>
+  },
 ) {
   const fromImpl = (table: string) => {
     const result = responses[table] ?? { data: null, error: null }
     const builder: Record<string, unknown> = {}
-    builder.select = vi.fn(() => builder)
+    builder.select = vi.fn((columns: unknown) => {
+      rec?.selects?.push([table, columns])
+      return builder
+    })
+    builder.eq = vi.fn((col: string, val: unknown) => {
+      rec?.filters?.push([table, 'eq', `${col}=${String(val)}`])
+      return builder
+    })
+    builder.lte = vi.fn((col: string, val: unknown) => {
+      rec?.filters?.push([table, 'lte', `${col}=${String(val)}`])
+      return builder
+    })
+    builder.or = vi.fn((value: string) => {
+      rec?.filters?.push([table, 'or', value])
+      return builder
+    })
+    builder.in = vi.fn((col: string, values: unknown[]) => {
+      rec?.filters?.push([table, 'in', `${col}=${values.join(',')}`])
+      return builder
+    })
     builder.is = vi.fn((col: string, val: unknown) => {
       rec?.isCalls.push([col, val])
       return builder
@@ -203,5 +234,59 @@ describe('searchPeopleByName', () => {
     schemaMock.mockReturnValue(makeSharedSchema({ people: { data: [], error: null } }) as never)
     const result = await searchPeopleByName('nobody')
     expect(result).toEqual([])
+  })
+})
+
+describe('Task Team directory reads', () => {
+  it('getPersonTeams keeps only effective, active memberships and returns Team picker data', async () => {
+    const rec = {
+      isCalls: [] as Array<[string, unknown]>,
+      filters: [] as Array<[string, string, unknown]>,
+      selects: [] as Array<[string, unknown]>,
+    }
+    schemaMock.mockReturnValue(makeSharedSchema({
+      team_memberships: {
+        data: [
+          { team_id: 'team-cafe', is_primary: true, effective_from: '2026-01-01', effective_to: null },
+          { team_id: 'team-old', is_primary: false, effective_from: '2025-01-01', effective_to: '2026-01-01' },
+        ], error: null,
+      },
+      teams: {
+        data: [{
+          id: 'team-cafe', name: 'Café Floor', business_unit_id: 'bu-cafe',
+          site_id: 'site-1', org_id: 'org-1', archived_at: null,
+        }], error: null,
+      },
+    }, rec) as never)
+
+    const result = await getPersonTeams('person-1', '2026-07-20')
+
+    expect(result).toEqual([{
+      id: 'team-cafe', name: 'Café Floor', businessUnitId: 'bu-cafe',
+      siteId: 'site-1', orgId: 'org-1', isPrimary: true,
+    }])
+    expect(rec.filters).toContainEqual(['team_memberships', 'lte', 'effective_from=2026-07-20'])
+    expect(rec.filters).toContainEqual(['team_memberships', 'or', 'effective_to.is.null,effective_to.gte.2026-07-20'])
+    expect(rec.isCalls).toContainEqual(['archived_at', null])
+  })
+
+  it('getPersonTeams returns no picker choices without a viewer id and does not query', async () => {
+    schemaMock.mockReturnValue(makeSharedSchema({}) as never)
+    await expect(getPersonTeams('')).resolves.toEqual([])
+    expect(schemaMock).not.toHaveBeenCalled()
+  })
+
+  it('getTeamsByIds loads real Team identity for peer/cross-team Task display', async () => {
+    const rec = { isCalls: [] as Array<[string, unknown]> }
+    const rows = [{
+      id: 'team-1', name: 'Retail Ops', business_unit_id: 'bu-retail', site_id: null,
+      org_id: 'org-1', archived_at: null,
+    }]
+    schemaMock.mockReturnValue(makeSharedSchema({ teams: { data: rows, error: null } }, rec) as never)
+
+    await expect(getTeamsByIds(['team-1', 'team-1'])).resolves.toEqual([{
+      id: 'team-1', name: 'Retail Ops', businessUnitId: 'bu-retail', siteId: null, orgId: 'org-1',
+    }])
+    expect(rec.isCalls).toContainEqual(['archived_at', null])
   })
 })

@@ -344,6 +344,25 @@ describe('DataTable — grouping (desktop)', () => {
     expect(screen.queryByText('SKC')).toBeNull()
   })
 
+  it('honors defaultCollapsedGroupKeys for the first render without taking away the toggle', () => {
+    render(
+      <DataTable
+        columns={COLUMNS}
+        rows={[]}
+        groups={GROUPS}
+        isDesktop
+        caption="Kitchen prep"
+        defaultCollapsedGroupKeys={new Set(['hot'])}
+      />,
+    )
+    expect(screen.queryByText('GHQ')).toBeNull()
+    expect(screen.getByText('SKC')).toBeInTheDocument()
+    const expand = screen.getByRole('button', { name: /expand hot kitchen/i })
+    expect(expand).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(expand)
+    expect(screen.getByText('GHQ')).toBeInTheDocument()
+  })
+
   it('composes a column render() with grouping — the rendered node shows inside a grouped row', () => {
     const cols: DataTableColumn<Row>[] = [
       ...COLUMNS.slice(0, 1),

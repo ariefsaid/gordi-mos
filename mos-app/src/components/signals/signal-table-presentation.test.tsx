@@ -90,6 +90,24 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
     expect(document.querySelector('.collection-grammar-meta')).toHaveTextContent('Author One')
   })
 
+  it('renders localized category and attention labels in Indonesian, not stored enum values', () => {
+    const previousLocale = window.localStorage.getItem('mos.locale')
+    window.localStorage.setItem('mos.locale', 'id')
+    const view = renderTable([
+      row({ category: 'Equipment/facility', attention: 'Urgent' }),
+    ])
+    try {
+      expect(screen.getByText('Peralatan/fasilitas')).toBeInTheDocument()
+      expect(screen.getByText('Mendesak')).toBeInTheDocument()
+      expect(screen.queryByText('Equipment/facility')).not.toBeInTheDocument()
+      expect(screen.queryByText('Urgent')).not.toBeInTheDocument()
+    } finally {
+      view.unmount()
+      if (previousLocale === null) window.localStorage.removeItem('mos.locale')
+      else window.localStorage.setItem('mos.locale', previousLocale)
+    }
+  })
+
   it('GAP-9 (OD-91 #14): the Signal table inherits the shared j/k row cursor — j moves it, Enter opens the cursor row', async () => {
     const onOpenRecord = vi.fn()
     renderTable(

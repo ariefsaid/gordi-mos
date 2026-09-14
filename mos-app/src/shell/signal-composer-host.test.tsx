@@ -14,8 +14,12 @@ vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
 
-vi.mock('@/lib/db/signals', () => ({ loadMentionRosters: vi.fn() }))
-import { loadMentionRosters } from '@/lib/db/signals'
+vi.mock('@/lib/db/signals', () => ({
+  getSignalPostAuthority: vi.fn(),
+  loadMentionRosters: vi.fn(),
+}))
+import { getSignalPostAuthority, loadMentionRosters } from '@/lib/db/signals'
+const mockGetSignalPostAuthority = vi.mocked(getSignalPostAuthority)
 const mockLoadMentionRosters = vi.mocked(loadMentionRosters)
 
 // SignalComposer itself is fully covered by signal-composer.test.tsx (B8–B11) — the host's own
@@ -78,6 +82,7 @@ const authedViewer: AuthedState = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockGetSignalPostAuthority.mockResolvedValue({ can_post: true, can_tag: true })
   mockLoadMentionRosters.mockResolvedValue({ teamMembers: { 'team-a': ['p1'] }, buMembers: { 'bu-1': ['p1'] } })
 })
 
@@ -170,7 +175,7 @@ describe('SignalComposerHost — one command, many entry points (C1, AC-428 back
     expect(screen.getByTestId('post-count')).toHaveTextContent('2')
   })
 
-  it('wires the real viewer as authorId/authorName and derives mention capability', async () => {
+  it('wires the real viewer and runtime Signal authority', async () => {
     renderHost(authedViewer)
     await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
 
@@ -178,19 +183,39 @@ describe('SignalComposerHost — one command, many entry points (C1, AC-428 back
     const props = mockSignalComposer.mock.calls.at(-1)![0]
     expect(props.authorId).toBe('person-author')
     expect(props.authorName).toBe('Signal Author')
-    // ops_lead holds signal.mention_bu (A2 seed / capabilities.ts).
-    expect(props.canMentionBu).toBe(true)
-    expect(props.canCreateForTeam).toBe(true)
+    expect(props.canTag).toBe(true)
   })
 
-  it('denies canMentionBu for a plain member (fail-closed default)', async () => {
+  it('fails closed when the runtime Signal authority denies tagging', async () => {
+    mockGetSignalPostAuthority.mockResolvedValue({ can_post: true, can_tag: false })
     renderHost({ ...authedViewer, viewer: { ...authedViewer.viewer, accessRoles: [] } })
     await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
 
     await waitFor(() => expect(mockSignalComposer).toHaveBeenCalled())
     const props = mockSignalComposer.mock.calls.at(-1)![0]
+    expect(props.canTag).toBe(false)
+  })
+
+  it('allows an ordinary member to mention a BU when effective signal.tag allows tagging', async () => {
+    mockGetSignalPostAuthority.mockResolvedValue({ can_post: true, can_tag: true })
+    renderHost({ ...authedViewer, viewer: { ...authedViewer.viewer, accessRoles: ['member'] } })
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+
+    await waitFor(() => expect(mockSignalComposer).toHaveBeenCalled())
+    const props = mockSignalComposer.mock.calls.at(-1)![0]
+    expect(props.canTag).toBe(true)
+    expect(props.canMentionBu).toBe(true)
+  })
+
+  it('denies BU mentions when effective signal.tag explicitly denies a legacy-capable role', async () => {
+    mockGetSignalPostAuthority.mockResolvedValue({ can_post: true, can_tag: false })
+    renderHost({ ...authedViewer, viewer: { ...authedViewer.viewer, accessRoles: ['ops_lead'] } })
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+
+    await waitFor(() => expect(mockSignalComposer).toHaveBeenCalled())
+    const props = mockSignalComposer.mock.calls.at(-1)![0]
+    expect(props.canTag).toBe(false)
     expect(props.canMentionBu).toBe(false)
-    expect(props.canCreateForTeam).toBe(false)
   })
 
   it('loads real fan-out-preview rosters (KNOWN GAP 1) instead of the {} default', async () => {

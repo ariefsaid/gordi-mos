@@ -8,3 +8,18 @@
 /* The list column of the split (list | record). min-width:0 lets it squash cleanly beside the
    record panel at >=1100px (the .record-split grid track lives in styles/drawer.css). */
 .signals-archive-main { min-width: 0; }
+
+/* On a phone the saved-view axis must expose every choice at once. The selected class and button
+   semantics remain owned by CollectionToolbar; this route-level rule only changes the strip from
+   a clipped scroll row to a wrapping, visible group. */
+@media (max-width: 767px) {
+  .signals-archive-toolbar .collection-toolbar__views {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    overflow-x: visible;
+    overflow-y: visible;
+  }
+
+  .signals-archive-toolbar .collection-toolbar__view { min-height: 44px; }
+}

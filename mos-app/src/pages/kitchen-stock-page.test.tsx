@@ -82,8 +82,8 @@ function viewer(accessRoles: string[]): AuthState {
 const BRANCH_GHQ = { id: 'branch-ghq', code: 'gordi_hq', name: 'Gordi HQ' }
 const BRANCH_RR = { id: 'branch-rr', code: 'rumah_rames', name: 'Rumah Rames' }
 const BRANCH_RAD = { id: 'branch-rad', code: 'radiant', name: 'Radiant' }
-const CENTRAL_KITCHEN = { branch: BRANCH_RR, activity: 'kitchen' as const }
-const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const }
+const CENTRAL_KITCHEN = { branch: BRANCH_RR, activity: 'kitchen' as const, produces: true }
+const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const, produces: true }
 
 const STOCK_ROWS: KitchenStockRow[] = [
   { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 12, tersedia: 8 },
@@ -95,13 +95,14 @@ const STOCK_ROWS: KitchenStockRow[] = [
 // fixture is not grown for it. The roastery is deliberately absent even though it is a branch: it
 // is never a stream.
 const STREAM_PAIRS = [BRANCH_GHQ, BRANCH_RAD, BRANCH_RR].flatMap(b => [
-  { branch_id: b.id, activity: 'kitchen' as const },
-  { branch_id: b.id, activity: 'bar' as const },
+  { branch_id: b.id, activity: 'kitchen' as const, produces: b !== BRANCH_RAD },
+  { branch_id: b.id, activity: 'bar' as const, produces: true },
 ])
 
 /** The head picker's option value for a stream — what a switch fires. */
-function streamOption(branchId: string, activity: 'kitchen' | 'bar'): string {
-  return `${branchId}|${activity}`
+function chooseStream(optionName: string) {
+  fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+  fireEvent.click(screen.getByRole('option', { name: optionName }))
 }
 
 beforeEach(() => {
@@ -221,8 +222,8 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     render(<KitchenStockPage />, { wrapper })
     expect(await screen.findByText(/choose a stream/i)).toBeInTheDocument()
     expect(mockFetchStock).not.toHaveBeenCalled()
-    const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.value).toBe('')
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent(/choose stream/i)
   })
 
   it('issue 440: the head STATES the stream in view — canonical branch · activity', async () => {
@@ -232,14 +233,14 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     await screen.findByText('Ayam Bakar')
     const head = container.querySelector('[data-testid="page-head"]')
     expect(head?.textContent).toContain('Stream')
-    const picker = within(head as HTMLElement).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    const picker = within(head as HTMLElement).getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Radiant · Bar')
   })
 
   it('issue 440: a stream chosen elsewhere in Café wins over the viewer\'s own default', async () => {
     // The person switched to Radiant · Bar on Log; Stock must open on the same books rather
     // than snapping back to their own stream and showing a different branch's numbers.
-    rememberStream(RADIANT_BAR)
+  rememberStream(RADIANT_BAR, 'p-1')
     mockDefaultStream.mockResolvedValue(CENTRAL_KITCHEN)
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
@@ -258,16 +259,15 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     ]
     mockFetchStock.mockResolvedValue(switched)
 
-    const picker = screen.getByRole('combobox', { name: /production stream/i })
-    fireEvent.change(picker, { target: { value: streamOption(BRANCH_RAD.id, 'kitchen') } })
+    chooseStream('Radiant · Kitchen')
     await waitFor(() => expect(mockFetchStock).toHaveBeenCalledTimes(2))
     const [, stream] = mockFetchStock.mock.calls[1]
-    expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen' })
+    expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen', produces: false })
 
-    fireEvent.change(picker, { target: { value: streamOption(BRANCH_RAD.id, 'bar') } })
+    chooseStream('Radiant · Bar')
     await waitFor(() => expect(mockFetchStock).toHaveBeenCalledTimes(3))
     const [, streamAfterActivity] = mockFetchStock.mock.calls[2]
-    expect(streamAfterActivity).toEqual({ branch: BRANCH_RAD, activity: 'bar' })
+    expect(streamAfterActivity).toEqual({ branch: BRANCH_RAD, activity: 'bar', produces: true })
   })
 
   it('stale-response race: a SLOWER older fetch resolving last never overwrites the newer stream\'s rows', async () => {
@@ -282,16 +282,12 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     let resolveStale!: (rows: KitchenStockRow[]) => void
     const stalePromise = new Promise<KitchenStockRow[]>(res => { resolveStale = res })
     mockFetchStock.mockReturnValueOnce(stalePromise) // switch #1 — will resolve LAST
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: streamOption(BRANCH_RAD.id, 'kitchen') },
-    })
+    chooseStream('Radiant · Kitchen')
 
     mockFetchStock.mockResolvedValueOnce([
       { wip_item_id: 'w9', wip_item_name: 'Fresh Milk', category: null, stok: 7, tersedia: 7 },
     ]) // switch #2 — the latest read
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: streamOption(BRANCH_RAD.id, 'bar') },
-    })
+    chooseStream('Radiant · Bar')
     await screen.findByText('Fresh Milk')
 
     // NOW the stale response arrives.
@@ -314,10 +310,10 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     expect(picker).not.toBeDisabled()
 
     mockFetchStock.mockResolvedValueOnce(STOCK_ROWS)
-    fireEvent.change(picker, { target: { value: streamOption(BRANCH_RAD.id, 'kitchen') } })
+    chooseStream('Radiant · Kitchen')
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     const [, stream] = mockFetchStock.mock.calls[1]
-    expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen' })
+    expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen', produces: false })
   })
 
   // INVERTED by #238's owner ruling (CONTEXT.md, Production stream). #237 shipped this surface
@@ -341,10 +337,9 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
 
     // The selected stream option for the central kitchen reads the CATALOG name, matching the
     // capture surface exactly — the two are routinely open side by side.
-    const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.value).toBe(streamOption(BRANCH_RR.id, 'kitchen'))
-    expect(picker.selectedOptions[0].textContent).toBe('Rumah Rames · Kitchen')
-    expect(picker.textContent).not.toMatch(/Bungur/)
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Rumah Rames · Kitchen')
+    expect(picker).not.toHaveTextContent(/Bungur/)
 
     // The incumbent's trap label never renders, anywhere on the surface. Unchanged, and the
     // reason FR-061 exists: "Stok HQ" means the central kitchen, which books to Rumah Rames.
@@ -389,21 +384,23 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     expect(container.querySelector('.ks-tablewrap, .ks-table, .kst-table, .ksc-cards')).toBeNull()
   })
 
-  it('renders stock-specific KPI labels (not Log labels)', async () => {
+  it('renders one stock summary rule (not KPI tiles or Log labels)', async () => {
     setDesktop()
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
+    expect(screen.getByRole('group', { name: /stock summary/i })).toBeInTheDocument()
+    expect(document.querySelector('.msr')).not.toBeNull()
+    expect(document.querySelector('.kks')).toBeNull()
     expect(screen.getByText(/total on-hand/i)).toBeInTheDocument()
-    expect(screen.getByText(/items in stock/i)).toBeInTheDocument()
     expect(screen.getByText(/negative balances/i)).toBeInTheDocument()
     expect(screen.getByText(/available total/i)).toBeInTheDocument()
     expect(screen.queryByText(/made so far/i)).toBeNull()
     expect(screen.queryByText(/% complete/i)).toBeNull()
   })
 
-  it('no-data rows keep the Negative balances KPI neutral, not success-green', async () => {
+  it('zero rows stay truthful without a second no-entries provenance note', async () => {
     setDesktop()
     mockFetchStock.mockResolvedValue([
       { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
@@ -412,15 +409,13 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     const { container } = render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
-    const tile = screen.getByText(/negative balances/i).closest('.kks-tile') as HTMLElement
-    expect(tile).not.toBeNull()
-    expect(tile.textContent).toMatch(/no stock data yet/i)
-    expect(tile.querySelector('.pill--success')).toBeNull()
-    expect(tile.querySelector('.pill--neutral')).not.toBeNull()
-    expect(container.querySelector('.kks')).not.toBeNull()
+    expect(container.querySelector('.msr')).not.toBeNull()
+    expect(container.querySelector('.kks')).toBeNull()
+    expect(screen.queryByText('No entries logged yet today')).toBeNull()
+    expect(screen.getByText(/erp inventory not connected yet/i)).toBeInTheDocument()
   })
 
-  it('explains all-zero stock as live-entered absence, not a broken feed', async () => {
+  it('uses one ERP provenance footnote for the comparison column', async () => {
     setDesktop()
     mockFetchStock.mockResolvedValue([
       { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
@@ -429,7 +424,8 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     render(<KitchenStockPage />, { wrapper })
 
     await screen.findByText('Ayam Bakar')
-    expect(screen.getByText('No entries logged yet today')).toBeInTheDocument()
+    expect(screen.queryByText('No entries logged yet today')).toBeNull()
+    expect(screen.getAllByText(/erp inventory not connected yet/i)).toHaveLength(1)
   })
 
   it('AC-011 (render): the system-quantity column sits DIRECTLY BESIDE the ERP inventory column — the net itself is owned by pgTAP ops_09/ops_10', async () => {
@@ -482,6 +478,20 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     expect(within(nasiRow).getAllByText('-3').length).toBeGreaterThan(0)
   })
 
+  it('FR-028: phone rows use a compact two-line card, not a generic labelled <dl>', async () => {
+    setPhone()
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const card = screen.getByText('Ayam Bakar').closest('.ks-card') as HTMLElement
+    expect(card).not.toBeNull()
+    expect(card.textContent).toMatch(/Stock\s*12/i)
+    expect(card.textContent).toMatch(/ERP\s*—/i)
+    expect(card.textContent).toMatch(/Available\s*8/i)
+    expect(card.querySelector('dl')).toBeNull()
+  })
+
   it('read-only: no edit/save/approve controls anywhere (the stream scope is a read scope, not an edit)', async () => {
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
@@ -500,8 +510,8 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
   })
 })
 
-// #400 i18n port: the Stock KPI strip renders Indonesian under the id locale — AC "every
-// surface listed renders Indonesian". RED first: the strip computes English literals today.
+// #400 i18n port: the Stock summary rule renders Indonesian under the id locale — AC "every
+// surface listed renders Indonesian".
 describe('KitchenStockPage — locale seam (#400)', () => {
   beforeEach(() => {
     setDesktop()
@@ -510,58 +520,39 @@ describe('KitchenStockPage — locale seam (#400)', () => {
   })
   afterEach(() => localStorage.clear())
 
-  it('renders the whole KPI strip in Bahasa Indonesia', async () => {
+  it('renders the whole summary rule in Bahasa Indonesia', async () => {
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    expect(screen.getByRole('region', { name: 'Ringkasan stok' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Ringkasan stok' })).toBeInTheDocument()
     expect(screen.getByText('Total stok fisik')).toBeInTheDocument()
-    expect(screen.getByText('Item bersisa stok')).toBeInTheDocument()
     expect(screen.getByText('Saldo minus')).toBeInTheDocument()
     expect(screen.getByText('Total tersedia')).toBeInTheDocument()
-    expect(screen.getByText('perlu ditinjau')).toBeInTheDocument()
-    expect(screen.getByText('siap ditransfer')).toBeInTheDocument()
-    expect(screen.getByText('1 kosong/minus')).toBeInTheDocument() // inStock.delta
+    expect(document.querySelector('.msr')).not.toBeNull()
+    expect(document.querySelector('.kks')).toBeNull()
     // the English strip is gone
     expect(screen.queryByText(/total on-hand/i)).toBeNull()
     expect(screen.queryByText(/negative balances/i)).toBeNull()
   })
 
-  // #411 review: a translation must not change what a number MEANS. The port replaced the
-  // on-hand tile's only unit ('portions') with a qualifier, leaving a bare count with no unit
-  // anywhere; and it moved 'transfer-ready' onto the delta while the sub-line started claiming
-  // the figure is 'cumulative' — it is a cross-item total for ONE day (Σ tersedia), not a
-  // running total. Both tiles now say in Indonesian exactly what they said in English.
-  it('keeps the unit on the on-hand tile and does not restate what the available total means', async () => {
-    render(<KitchenStockPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
-
-    const onHand = screen.getByText('Total stok fisik').closest('.kks-tile') as HTMLElement
-    expect(onHand.textContent).toMatch(/porsi/)
-
-    const available = screen.getByText('Total tersedia').closest('.kks-tile') as HTMLElement
-    expect(available.textContent).toMatch(/siap ditransfer/)
-    expect(available.textContent).not.toMatch(/kumulatif/)
-  })
-
-  it('phone summary line is Indonesian', async () => {
+  it('phone summary line is Indonesian and stays a single rule', async () => {
     setPhone()
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    const phone = document.querySelector('.kks-phone') as HTMLElement
-    expect(phone).not.toBeNull()
-    expect(phone.textContent).toMatch(/Stok/)
-    expect(phone.textContent).toMatch(/2 item/)
-    expect(phone.textContent).toMatch(/5 tersedia/) // Σ tersedia = 8 + (−3)
+    const summary = document.querySelector('.msr') as HTMLElement
+    expect(summary).not.toBeNull()
+    expect(summary.textContent).toMatch(/stok/i)
+    expect(summary.textContent).toMatch(/tersedia/i)
+    expect(document.querySelector('.kks-phone')).toBeNull()
   })
 
-  it('all-zero stock keeps the neutral “belum ada data stok” delta', async () => {
+  it('all-zero stock keeps the summary numeric and the ERP footnote singular', async () => {
     mockFetchStock.mockResolvedValue([
       { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
     ])
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    const tile = screen.getByText('Saldo minus').closest('.kks-tile') as HTMLElement
-    expect(tile.textContent).toMatch(/belum ada data stok/)
+    expect(document.querySelector('.msr')).not.toBeNull()
+    expect(screen.getAllByText(/erp inventory not connected|inventori ERP belum terhubung/i)).toHaveLength(1)
   })
 })
 

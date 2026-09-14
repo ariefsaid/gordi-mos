@@ -1,0 +1,36 @@
+/* Home owns a wide, container-aware work surface. Arrangement geometry lives in
+   home-layouts.css; this file only scopes the page measure and supporting rail emitted by
+   HomeDailyBrief. */
+.home-frame {
+  container: home / inline-size;
+  min-width: 0;
+}
+
+.page-frame--v3 .page-frame__content:has(.home-frame) {
+  max-width: 1760px;
+}
+
+.home-brief-aside,
+.home-brief-feed,
+.home-brief-objectives {
+  min-width: 0;
+}
+
+.home-brief-feed {
+  margin-top: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.home-brief-aside .signal-feed-section {
+  margin-top: 0;
+}
+
+.home-brief-objectives {
+  margin-bottom: 0;
+}
+
+.home-brief-objectives .stream-band {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}

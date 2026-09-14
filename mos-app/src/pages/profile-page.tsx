@@ -25,12 +25,8 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { HomeLayoutPicker } from '@/components/home/home-layout-picker'
 import { resolveHomeLayout, setHomeLayout, type HomeLayout } from '@/lib/home-layout'
 
-// A profile card is sized by what it hosts, and there are two kinds here.
-// FORM_MEASURE — short labelled fields (Identity, Language): a form column, deliberately narrow.
-// PICKER_MEASURE — the width the three-up wireframe chooser is drawn at. At FORM_MEASURE its
-// cards measured 167px and the thumbnails stopped being readable, which is the entire point of a
-// diagram-based chooser. Both are the card's OUTER width, so the picker's adds back the padding +
-// border that the bare 720px content box does not carry.
+// A profile card is sized by what it hosts. Identity and Language are short labelled fields, so
+// both stay in a deliberately narrow form column.
 const CARD_PADDING = 16
 const CARD_BORDER = 1
 const FORM_MEASURE = 560
@@ -92,10 +88,12 @@ export function ProfilePage() {
 
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const personId = viewer?.person.id ?? null
+  const [homeLayout, setHomeLayoutState] = useState<HomeLayout>(() => (
+    personId ? resolveHomeLayout(personId) : 'focused'
+  ))
 
-  const [homeLayout, setHomeLayoutState] = useState<HomeLayout>('focused')
   useEffect(() => {
-    if (personId) setHomeLayoutState(resolveHomeLayout(personId))
+    setHomeLayoutState(personId ? resolveHomeLayout(personId) : 'focused')
   }, [personId])
 
   function handleHomeLayoutChange(next: HomeLayout) {
@@ -145,9 +143,12 @@ export function ProfilePage() {
           </Select>
         </ProfileCard>
 
-        <ProfileCard title={t('profile.homeLayout')} maxWidth={PICKER_MEASURE}>
-          <HomeLayoutPicker value={homeLayout} onChange={handleHomeLayoutChange} />
-        </ProfileCard>
+        {viewer && (
+          <ProfileCard title={t('profile.homeLayout')} maxWidth={PICKER_MEASURE}>
+            <HomeLayoutPicker value={homeLayout} onChange={handleHomeLayoutChange} />
+          </ProfileCard>
+        )}
+
       </div>
     </PageFamilyFrame>
   )

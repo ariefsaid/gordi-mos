@@ -9,10 +9,12 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useCollectionKeyboard } from '@/components/record-collection/use-collection-keyboard'
 import { formatWibDateTime } from '@/lib/wib-time'
-import { attentionSlug, type SignalRow } from '@/lib/db/signals.types'
+import { attentionSlug, SIGNAL_CATEGORIES, type Attention, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
 import type { CollectionPresentationProps, CollectionProjection } from '@/lib/record-collection/types'
 import type { SignalCollectionContext, SignalCollectionQuery, SignalRenderGroup } from './signal-collection-adapter'
 import { useSignalCollectionActions } from './signal-collection-actions'
+import { attentionLabel } from './signal-attention-label'
+import { signalCategoryLabel } from './signal-labels'
 import './signal-table-presentation.css'
 import '@/components/collection-grammar.css'
 
@@ -23,6 +25,14 @@ type SignalTableProps = CollectionPresentationProps<
   SignalCollectionContext,
   string
 >
+
+function isSignalCategory(value: string): value is SignalCategory {
+  return (SIGNAL_CATEGORIES as readonly string[]).includes(value)
+}
+
+function isAttention(value: string): value is Attention {
+  return value === 'FYI' || value === 'Needs attention' || value === 'Urgent'
+}
 
 export function SignalTablePresentation({
   query,
@@ -75,7 +85,7 @@ export function SignalTablePresentation({
             </button>
             <span className="signal-table-message-meta collection-grammar-meta">
               <span>{context.authorNamesById.get(signal.author_id) ?? t('signals.card.unknownAuthor')}</span>
-              {signal.category ? <><span aria-hidden="true"> · </span><span>{signal.category}</span></> : null}
+              {signal.category ? <><span aria-hidden="true"> · </span><span>{signalCategoryLabel(t, signal.category)}</span></> : null}
             </span>
           </div>
         ),
@@ -100,7 +110,7 @@ export function SignalTablePresentation({
           <span aria-hidden="true">—</span>
         ) : (
           <span className={`signal-table-attention signal-table-attention--${attentionSlug(signal.attention)}`}>
-            {signal.attention}
+            {attentionLabel(t, signal.attention)}
           </span>
         ),
     },
@@ -109,7 +119,16 @@ export function SignalTablePresentation({
   // Convert SignalRenderGroup to DataTableGroup
   const groups = projection.groups?.map((group) => ({
     key: group.key,
-    label: group.label,
+    label:
+      group.label && query.groupBy === 'category'
+        ? group.label === 'Uncategorized'
+          ? t('signals.archive.groupUncategorized')
+          : isSignalCategory(group.label)
+            ? signalCategoryLabel(t, group.label)
+            : group.label
+        : group.label && query.groupBy === 'attention' && isAttention(group.label)
+          ? attentionLabel(t, group.label)
+          : group.label,
     count: group.rows.length,
     rows: [...group.rows], // convert readonly to mutable
   })) ?? []

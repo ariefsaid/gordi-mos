@@ -6,7 +6,7 @@
 // render its page, so "each entry except the index and login resolves through a lazy import" is
 // asserted against the full table rather than the half of it the default configuration exposes.
 import { describe, it, expect, vi } from 'vitest'
-import { isValidElement } from 'react'
+import { isValidElement, type ReactElement, type ReactNode } from 'react'
 
 vi.mock('./config/features', () => ({
   SHOW_USER_VIEWS: true,
@@ -29,6 +29,8 @@ import { ProfilePage } from './pages/profile-page'
 import { EventsWorkspacePage } from './pages/events-workspace-page'
 import { FollowUpsPage } from './pages/follow-ups-page'
 import { ObjectivesPage } from './pages/objectives-page'
+import { ObjectiveRecordPage } from './pages/objective-record-page'
+import { WorkLineRecordPage } from './pages/work-line-record-page'
 import { ProjectsProcessesPage } from './pages/projects-processes-page'
 import { InboxPage } from './pages/inbox-page'
 import { KitchenLogPage } from './pages/kitchen-log-page'
@@ -41,6 +43,7 @@ import { DashboardPage } from './pages/dashboard-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
 import { AdminUsersPage } from './pages/admin-users-page'
+import { AdminAccessPage } from './pages/admin-access-page'
 import { RecoveryPage } from './pages/recovery-page'
 import { SliceStubPage } from './pages/slice-stub-page'
 
@@ -93,6 +96,14 @@ describe('AC-019: every route but the index and login loads on demand, behind on
     expect(lazyPayloadOf(element)).toBeDefined()
   })
 
+  it('keeps the Tasks identity in the lazy-route loading fallback', () => {
+    const route = routes.find((candidate) => candidate.path === '/work/tasks')!
+    const suspense = route.route.element as ReactElement<{ fallback?: ReactNode }>
+    const fallback = suspense.props.fallback as ReactElement<{ titleKey?: string; labelKey?: string }>
+    expect(fallback.props.titleKey).toBe('tasks.title')
+    expect(fallback.props.labelKey).toBe('tasks.loading')
+  })
+
   it.each(
     surfaceRoutes()
       .filter((r) => EAGER_BY_DESIGN.has(r.path))
@@ -129,7 +140,9 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/work/signals', SignalsArchivePage, 'v4'],
   ['/work/signals/:signalId', SignalRecordPage, 'v4'],
   ['/work/objectives', ObjectivesPage, 'dev'],
+  ['/work/objectives/:objectiveId', ObjectiveRecordPage, 'redesign'],
   ['/work/projects', ProjectsProcessesPage, 'dev'],
+  ['/work/projects/:workLineId', WorkLineRecordPage, 'redesign'],
   ['/work/events', EventsWorkspacePage, 'dev'], 
   ['/money', DashboardPage, 'dev'],
   ['/money/detail', DashboardPage, 'dev'],
@@ -152,6 +165,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   // locale control in the app, so the stub left the Indonesian catalog unreachable.
   ['/profile', ProfilePage, 'v4'],
   ['/admin/people', AdminUsersPage, 'dev'],
+  ['/admin/access', AdminAccessPage, 'redesign'],
   ['/recovery', RecoveryPage, 'dev'],
 ]
 
@@ -203,5 +217,15 @@ describe('AC-020: a route whose surface is not yet ported serves the surface cur
       return leaf === undefined
     })
     expect(fellThrough).toEqual([])
+  })
+})
+
+describe('Admin settings access surface', () => {
+  it('serves an admin-only Access & authority page instead of the not-found route', () => {
+    const leaf = flattenRoutes().find((r) => r.path === '/admin/access')
+
+    expect(leaf).toBeDefined()
+    expect(isRedirect(leaf?.route.element)).toBe(false)
+    expect(leaf?.route.handle).toEqual(expect.objectContaining({ kind: 'page', family: 'management' }))
   })
 })

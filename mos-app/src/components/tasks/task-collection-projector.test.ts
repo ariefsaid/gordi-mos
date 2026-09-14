@@ -24,6 +24,8 @@ const NOW = new Date('2026-07-21T03:00:00Z') // 2026-07-21 10:00 WIB
 
 const BU_CAFE = 'bu-cafe'
 const BU_B2B = 'bu-b2b'
+const TEAM_CAFE = 'team-cafe'
+const TEAM_B2B = 'team-b2b'
 const P_RAKA = 'p-raka'
 const P_SARI = 'p-sari'
 const P_ADI = 'p-adi'
@@ -49,9 +51,11 @@ function rawTask(over: Partial<TaskListRow> & Pick<TaskListRow, 'id' | 'title'>)
     work_line_id: over.work_line_id ?? null,
     last_activity_at: over.last_activity_at ?? '2026-07-20T00:00:00Z',
     archived_at: over.archived_at ?? null,
-    created_by: P_SARI,
+    created_by: over.created_by ?? P_SARI,
     created_at: '2026-07-01T00:00:00Z',
     updated_at: '2026-07-01T00:00:00Z',
+    team_id: over.team_id ?? null,
+    completed_at: over.completed_at ?? null,
     process_run_id: over.process_run_id ?? null,
     generated_from_task_def_id: over.generated_from_task_def_id ?? null,
   }
@@ -111,16 +115,16 @@ function q(over: Partial<TaskCollectionQuery> = {}): TaskCollectionQuery {
   return { ...TASK_COLLECTION_NEUTRAL_QUERY, ...over }
 }
 
-describe('toTaskCollectionRecord — raw columns map to PIC/Supervisor only inside the adapter', () => {
-  it('maps responsible → picId and accountable → supervisorId; renders BU, never a Team', () => {
-    const rec = toTaskCollectionRecord(RAW[0])
+describe('toTaskCollectionRecord — raw columns map once at the adapter boundary', () => {
+  it('maps PIC/Supervisor, real Team, Created by, completion clock, and derived-BU source', () => {
+    const raw = rawTask({ id: 'mapped', title: 'Mapped', team_id: TEAM_CAFE, created_by: P_ADI, completed_at: '2026-07-18T03:00:00Z' })
+    const rec = toTaskCollectionRecord(raw)
     expect(rec.picId).toBe(P_RAKA)
     expect(rec.supervisorId).toBe(P_SARI)
     expect(rec.businessUnitId).toBe(BU_CAFE)
-    // No Team field exists on the typed record.
-    const asRecord = rec as unknown as Record<string, unknown>
-    expect(asRecord.teamId).toBeUndefined()
-    expect(asRecord.team_id).toBeUndefined()
+    expect(rec.teamId).toBe(TEAM_CAFE)
+    expect(rec.createdById).toBe(P_ADI)
+    expect(rec.completedAt).toBe('2026-07-18T03:00:00Z')
   })
 })
 
@@ -153,10 +157,46 @@ describe('projectTaskCollection — filtering', () => {
     expect(p.visibleRecordsAreFiltered).toBe(true)
   })
 
+  it('view=team-work uses real Team membership only and excludes legacy null-Team rows even in the same BU', () => {
+    const rows = [
+      rawTask({ id: 'team-owned', title: 'Owned by Café team', team_id: TEAM_CAFE }),
+      rawTask({ id: 'other-team', title: 'Owned by another team', team_id: TEAM_B2B }),
+      rawTask({ id: 'legacy-bu-only', title: 'Legacy BU-only row', team_id: null, business_unit_id: BU_CAFE }),
+    ]
+    const p = projectTaskCollection(
+      makeData(rows, {
+        viewerTeams: [{ id: TEAM_CAFE, name: 'Café Floor', businessUnitId: BU_CAFE, siteId: null, orgId: 'org-1' }],
+      }),
+      q({ view: 'team-work' }),
+    )
+    expect(p.visibleRecords.map((r) => r.id)).toEqual(['team-owned'])
+  })
+
+  it('My work and Team work hide Done older than seven days, while All keeps the explicit archive history', () => {
+    const rows = [
+      rawTask({ id: 'fresh-done', title: 'Freshly done', status: 'Done', team_id: TEAM_CAFE, completed_at: '2026-07-16T04:00:00Z' }),
+      rawTask({ id: 'old-done', title: 'Done too long ago', status: 'Done', team_id: TEAM_CAFE, completed_at: '2026-07-13T04:00:00Z' }),
+    ]
+    const context = { viewerTeams: [{ id: TEAM_CAFE, name: 'Café Floor', businessUnitId: BU_CAFE, siteId: null, orgId: 'org-1' }] }
+    expect(projectTaskCollection(makeData(rows, context), q({ view: 'team-work' })).visibleRecords.map((r) => r.id)).toEqual(['fresh-done'])
+    expect(projectTaskCollection(makeData(rows, context), q({ view: 'my-work' })).visibleRecords.map((r) => r.id)).toEqual(['fresh-done'])
+    expect(projectTaskCollection(makeData(rows, context), q({ view: 'all' })).visibleRecords.map((r) => r.id)).toEqual(['fresh-done', 'old-done'])
+  })
+
   it('view=overdue keeps only genuinely-overdue rows', () => {
     // t-1 due 07-10, t-3 due 07-11 are before NOW (07-21); t-2 due 08-30 is future.
     const p = projectTaskCollection(makeData(), q({ view: 'overdue' }))
     expect(p.visibleRecords.map((r) => r.id).sort()).toEqual(['t-1', 't-3'])
+  })
+
+  it('status=Done scopes cleanly to completed tasks', () => {
+    const rows = [
+      ...RAW,
+      rawTask({ id: 't-done', title: 'Close the old task', status: 'Done', due_date: '2026-07-01' }),
+    ]
+    const p = projectTaskCollection(makeData(rows), q({ status: 'Done' }))
+    expect(p.visibleRecords.map((r) => r.id)).toEqual(['t-done'])
+    expect(p.visibleRecordsAreFiltered).toBe(true)
   })
 
   it('optimistic statusOverrides are applied before filtering', () => {
@@ -184,6 +224,16 @@ describe('projectTaskCollection — sorting', () => {
     ]
     const p = projectTaskCollection(makeData(rows), q())
     expect(p.visibleRecords.map((r) => r.id)).toEqual(['c', 'a', 'b'])
+  })
+
+  it('default queue order keeps active work ahead of completed work even when Done is older', () => {
+    const rows = [
+      rawTask({ id: 'done', title: 'Closed yesterday', status: 'Done', due_date: '2026-07-01' }),
+      rawTask({ id: 'urgent', title: 'Fix the grinder', status: 'Open', due_date: '2026-07-10' }),
+      rawTask({ id: 'next', title: 'Plan next week', status: 'In Progress', due_date: '2026-07-12' }),
+    ]
+    const p = projectTaskCollection(makeData(rows), q())
+    expect(p.visibleRecords.map((r) => r.id)).toEqual(['urgent', 'next', 'done'])
   })
 
   it('sort=pic uses the resolved display name, not the id', () => {

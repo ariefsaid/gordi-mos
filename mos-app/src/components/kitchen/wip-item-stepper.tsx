@@ -6,7 +6,7 @@
 // separate, mechanical commit rather than noise inside a design change.
 //
 // Typed qty field (plan echoed as a greyed placeholder anchor) + `tersedia` context on transfers
-// + inline variance-note field (FR-022, revealed on BLUR) + transfer cap cue (FR-023).
+// + inline variance-note field (FR-022, revealed when the gate exists) + transfer cap cue (FR-023).
 // Styling: co-located wip-item-stepper.css (DESIGN.md tokens; no inline style).
 // Touch target ≥44px on the phone card (.kls-qty is 44px tall; 16px font so mobile
 // Safari does not zoom on focus). The desktop `dense` variant sizes to the 32px control
@@ -69,28 +69,20 @@ export function WipItemStepper({
   // `plan_qty` IS read again, but only as the greyed placeholder anchor inside the empty qty
   // field (the live kitchen app's pattern) — never as a duplicated caption beneath it.
   const { qty_porsi, notes, plan_qty: planQty, tersedia, error, capError, dirty } = line
-  // v4: the note field and the red invalid border appear on BLUR, not on every keystroke.
-  // Typing "18" against a plan of 25 used to flag at "1" and shove a required textarea into the
-  // row mid-entry. The live kitchen app hit this exact problem and moved the reveal from `input`
-  // to `blur` on the owner's instruction; MOS had regressed to the nagging version. The *variance
-  // reading* still updates live — that is the per-menu feedback the owner asked for; it is the
-  // mandatory-prose interruption that waits until the field is done.
+  // The invalid border remains blur-gated so typing a multi-digit quantity is not visually
+  // interrupted mid-entry. The note control itself must appear with the live gate, however:
+  // Submit is disabled as soon as an off-plan quantity is staged, so waiting for blur would leave
+  // a focused worker with a disabled action and no control that can satisfy it.
   const [blurred, setBlurred] = useState(false)
   // The "change unit" picker is CLOSED at rest and opens only on the affordance's own
   // click (FR-021 — the uncommon case is deliberate, never the default path). It closes
   // again on selection or blur: the resting row always reads as fixed text + one small
   // control, whatever happened before.
   const [unitPickerOpen, setUnitPickerOpen] = useState(false)
-  // The REVEAL is gated on blur (DD-8). What it must NOT be gated on is `error` staying
-  // set: `error` is the *unsatisfied* note gate — kitchen-gates stamps VARIANCE_NOTE_CUE
-  // only while `notes` is empty — so `error !== '' && …` made the textarea unmount on the
-  // FIRST keystroke inside it. Observed 2026-07-28 at 375x812: type 7 against a plan of 19,
-  // blur, click the note, press one key -> notes:"b", error:"", 0 textareas in the DOM,
-  // activeElement back on <body>. The floor worker got one character and no field to
-  // finish the sentence in, and Submit then unblocked on that one-character "note".
-  // Reveal on blur, then KEEP the field open for as long as the line is staged and a note
-  // is being written — satisfying the gate must not destroy the control that satisfies it.
-  const showNote = dirty && (notes !== '' || (error !== '' && blurred))
+  // The field remains mounted after the first note character as well as while the gate is
+  // unsatisfied. This avoids the old error-only unmount bug while making the remedy reachable
+  // before blur.
+  const showNote = dirty && (notes !== '' || error !== '')
   const invalid = (error !== '' || capError !== '') && dirty && blurred
   const transfer = isStockConsuming(movement)
   // The gate logic (kitchen-gates.ts) stamps the canonical ID cue strings onto
@@ -147,7 +139,7 @@ export function WipItemStepper({
           aria-label={t('kitchen.qty.producedAria', { item: itemName })}
           className="kls-qty"
           value={qty_porsi > 0 ? qty_porsi : ''}
-          placeholder={planQty > 0 ? String(planQty) : '0'}
+          placeholder={alreadyLogged > 0 ? '' : planQty > 0 ? String(planQty) : '0'}
           min={0}
           step={1}
           enterKeyHint="next"

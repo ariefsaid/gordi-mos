@@ -20,7 +20,7 @@ describe('jobSentences registry', () => {
   it('ports the verbatim convergence strings', () => {
     expect(jobSentences.home).toBe('What needs my attention right now?')
     expect(jobSentences.work).toBe('Find and do the work I own or my Team owns.')
-    expect(jobSentences.tasks).toBe('Find and do the work I own or my Team owns.')
+    expect(jobSentences.tasks).toBe('Find and update the work in this view.')
     expect(jobSentences.signals).toBe('Search and revisit the Signals your Teams have shared.')
     expect(jobSentences.projects).toBe('Govern the Processes and Projects that generate the work.')
     expect(jobSentences.objectives).toBe('Track the Objectives the org committed to.')

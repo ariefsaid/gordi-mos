@@ -18,6 +18,10 @@ function DeputySparkIcon() {
 export interface AskDeputyActionProps {
   /** The composer seed — a compact record reference (e.g. "About Task: Replace grinder burrs"). */
   draft: string
+  /** The record footer uses a labelled control; host chrome keeps the compact icon treatment. */
+  variant?: 'icon' | 'footer'
+  label?: string
+  helper?: string
 }
 
 /**
@@ -28,10 +32,26 @@ export interface AskDeputyActionProps {
  * Renders nothing when no runtime is available (SHOW_ASSISTANT=false → null runtime), so it never
  * offers an affordance that would open an inert panel.
  */
-export function AskDeputyAction({ draft }: AskDeputyActionProps) {
+export function AskDeputyAction({ draft, variant = 'icon', label, helper }: AskDeputyActionProps) {
   const { runtime, openPanel } = useAgentRuntime()
   const t = useT()
   if (!runtime) return null
+  if (variant === 'footer') {
+    return (
+      <div className="record-deputy-footer" data-record-deputy="footer">
+        <button
+          type="button"
+          className="record-deputy-footer__trigger"
+          aria-label={label ?? t('assistant.askAboutRecord')}
+          onClick={() => openPanel(draft)}
+        >
+          <DeputySparkIcon />
+          <span>{label ?? t('assistant.askAboutRecord')}</span>
+        </button>
+        <p className="record-deputy-footer__helper">{helper ?? t('assistant.askAbout.taskHelper')}</p>
+      </div>
+    )
+  }
   return (
     <button
       type="button"

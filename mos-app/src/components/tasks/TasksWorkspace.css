@@ -142,8 +142,7 @@
   z-index: auto;
 }
 
-/* Chip-style filter control (mockup `.chip`): bordered pill = label + current value
-   + ▾; a transparent native <select> overlay preserves full filter capability + a11y. */
+/* Compact filter chip with its current value and disclosure indicator. */
 .chip {
   position: relative; display: inline-flex; align-items: center; gap: 6px;
   height: 32px; padding: 0 10px;
@@ -210,6 +209,16 @@
 }
 
 .inline-cell-trigger {
+  /* The split table has fixed decision tracks. Keep an inline edit door inside its cell so an
+     intrinsic status, person, or due label cannot widen .tasks-scroll by a few pixels. */
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   min-height: 32px;
   border: 0;
   background: transparent;
@@ -233,11 +242,24 @@
 .inline-status-editor--blue { background: var(--ds-tag-background-blue); }
 .inline-status-editor--red { background: var(--ds-tag-background-red); }
 .inline-status-editor--green { background: var(--ds-tag-background-green); }
-.inline-status-editor .mk-select__box,
-.inline-editor-control .mk-select__box {
+.inline-status-editor .picker,
+.inline-editor-control .picker {
+  min-width: 0;
+}
+.inline-status-editor .picker__trigger,
+.inline-editor-control .picker__trigger {
   height: var(--control-height);
+  min-height: var(--control-height);
+  max-width: 180px;
+  padding: 2px 4px;
   background: transparent;
   border-color: transparent;
+}
+.inline-status-editor .picker__trigger:focus-visible,
+.inline-status-editor .picker__trigger[aria-expanded='true'],
+.inline-editor-control .picker__trigger:focus-visible,
+.inline-editor-control .picker__trigger[aria-expanded='true'] {
+  border-color: var(--primary);
 }
 .inline-editor-control {
   display: inline-flex;
@@ -258,6 +280,40 @@
   display: block;
   margin-top: 3px;
 }
+
+/* Inline create keeps the title editor as the entry point, then exposes the ownership decisions
+   beside it. Team's BU line is read-only: selecting a real Team derives the value rather than
+   letting the draft invent a BU. */
+.task-create-inline-fields {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  min-width: 0;
+}
+.task-create-inline-fields .picker { min-width: 130px; max-width: 180px; }
+.task-create-inline-fields .picker__trigger,
+.task-create-picker .picker__trigger {
+  min-height: 30px;
+  height: 30px;
+  padding: 3px 6px;
+  font-size: var(--font-size-label);
+  background: var(--background);
+}
+.task-create-derived-bu {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task-create-picker { max-width: 100%; }
+.task-create-picker .picker { min-width: 0; max-width: 100%; }
+.task-create-picker .picker__trigger { max-width: 160px; }
+.task-create-actions { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.task-create-actions .btn { min-height: 30px; height: 30px; padding: 3px 8px; font-size: var(--font-size-label); }
+.task-row-save-error { display: block; }
 
 /* ── Table ── */
 /* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop DB-view shows ONLY
@@ -300,7 +356,7 @@
    REST (drawer shut) with BU on: Due clipped to 40px against a 64px need. One rule, no
    split/nodrawer or :has() gate (those were tautological — same 104px the nth-child(5) rule
    already set within the split, and never reached at rest at all). */
-.tasks-table .th-due, .tasks-table .td-due { width: 104px; }
+.tasks-table th.th-due, .tasks-table td.td-due { width: 176px; }
 /* DO-18(a) (census-sweep R2 tasks FINDING1): the squashed drawer-open track truncated 6/11 Task
    titles at 1280 — the IDENTITY column must not starve. In the condensed tier the title may wrap
    to 2 lines (clamped) instead of the one-line ellipsis; the row grows, the identity survives. */
@@ -361,7 +417,7 @@
   border: 0; background: transparent; color: var(--muted-foreground);
   border-radius: var(--radius-xs); visibility: hidden;
 }
-.task-row-pencil:hover { background: var(--accent); color: var(--foreground); }
+.task-row-pencil:hover { background: var(--surface-tertiary); color: var(--foreground); }
 .task-row-pencil:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; visibility: visible; }
 .task-title-cell:hover .task-row-pencil,
 .task-title-cell:focus-within .task-row-pencil { visibility: visible; }
@@ -481,6 +537,20 @@
    others"), shown only when the viewer has no downline. A block below the name, not inline with
    it — it is an explanation, not another value in the "Label value" pair. */
 .task-card-pic-lock { display: block; font-size: var(--font-size-label); color: var(--muted-foreground); }
+.task-card-create-fields { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: 6px; }
+.task-card-create-control { display: inline-flex; min-width: 0; max-width: 100%; }
+.task-card-create-control .picker { min-width: 120px; max-width: 100%; }
+.task-card-create-control .picker__trigger {
+  min-height: 36px; height: 36px; max-width: 160px;
+  padding: 5px 8px; font-size: var(--font-size-label);
+}
+.task-card-derived-bu {
+  min-width: 0; overflow: hidden; color: var(--muted-foreground);
+  font-size: var(--font-size-label); text-overflow: ellipsis; white-space: nowrap;
+}
+.task-card-create-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.task-card-create-actions .btn { min-width: 82px; }
+.task-card-create-error { margin-top: 6px; }
 
 /* ── Below the split fallback threshold (PR-D owns the full responsive regime):
    stack the panes so PR-B never crushes the table. PR-C/PR-D refine modal/overlay. */
@@ -490,20 +560,17 @@
   .split { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* ── Mobile card meta: STACK the label:value pairs on small viewports ──
-   At a phone width the 5 inline pairs (Owner/Work-line/Objective/Due/Activity) summed
-   to a ~660px row that defined the card's intrinsic width and forced app-wide horizontal
-   scroll. Stacking them (flex column) collapses the card's intrinsic width to the widest
-   single pair (~200px), so the card fits any phone regardless of ancestor sizing; long
-   values ellipsis rather than blow out. */
+/* Two bounded columns keep PIC and Supervisor together; due spans the row below. */
 @media (max-width: 599.98px) {
+  .task-card-create-control .picker__trigger { min-height: 44px; height: 44px; }
   /* Combined selector for the same reason as `.collection-grammar-title.task-name` above: this
      <dl> also carries `.collection-grammar-card-details`, whose `gap: 6px 12px` is a single-class
      rule with no media query. A media query adds no specificity, so whichever stylesheet imports
      last wins — and the tighter phone gap this rule exists to set was being silently overridden. */
   .task-card-meta,
-  .task-card-meta.collection-grammar-card-details { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .task-card-meta.collection-grammar-card-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; gap: 4px 12px; }
   .task-card-meta-pair { max-width: 100%; min-width: 0; }
+  .task-card-meta-pair:last-child { grid-column: 1 / -1; }
   .task-card-meta dd {
     min-width: 0;
     overflow: hidden;
@@ -525,6 +592,7 @@
    in DESIGN.md § DB-view toolbar controls. */
 .overdue-filter-btn {
   display: inline-flex; align-items: center; gap: 6px;
+  box-sizing: border-box;
   height: 32px; padding: 0 10px;
   border: 1px solid color-mix(in srgb, var(--status-lost-text) 40%, transparent);
   border-radius: var(--radius-sm);
@@ -679,12 +747,12 @@ tr.grp td { padding: 0; }
    identity column absorbs every pixel above that. These rules tie the base nth-child tiers'
    specificity (0,2,1) and win by source order; the split mirror below does the same against
    the split nth-child floors that mis-land once optional columns shift every position. */
-.tasks-table--extended { min-width: 1172px; }
+.tasks-table--extended { min-width: 1244px; }
 .tasks-table--extended th.th-task, .tasks-table--extended td.td-main { width: 160px; }
 .tasks-table--extended th.th-status, .tasks-table--extended td.td-status { width: 108px; }
 .tasks-table--extended th.th-owner, .tasks-table--extended td.td-owner { width: 128px; }
 .tasks-table--extended th.th-supervisor, .tasks-table--extended td.td-supervisor { width: 120px; }
-.tasks-table--extended th.th-due, .tasks-table--extended td.td-due { width: 104px; }
+.tasks-table--extended th.th-due, .tasks-table--extended td.td-due { width: 176px; }
 .tasks-table--extended th.th-business-unit, .tasks-table--extended td.td-business-unit { width: 128px; }
 .tasks-table--extended th.th-workline, .tasks-table--extended td.td-workline { width: 144px; }
 .tasks-table--extended th.th-objective, .tasks-table--extended td.td-objective { width: 112px; }

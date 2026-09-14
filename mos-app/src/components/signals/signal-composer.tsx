@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
-import { Select } from '@/components/ui/select'
-import { EmptyState } from '@/components/ui/state-kit'
+import { Picker } from '@/components/ui/picker'
+import { EmptyState, ErrorState } from '@/components/ui/state-kit'
 import {
-  listReadableAuthorTeams, listAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
+  listReadableAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
 } from '@/lib/db/signals'
 import type { TeamOption, SiteOption, StagedMention, MentionKind, Attention } from '@/lib/db/signals.types'
 import type { SignalComposerPrefill } from '@/shell/signal-composer-host'
@@ -22,19 +22,22 @@ import './signal-composer.css'
 export interface SignalComposerProps {
   authorId: string
   authorName: string
-  /** Widens @Team mention reach to all active Teams for capability holders. The Owning Team
-   * select always uses the database's post-and-read-back list. Defaults to false (fail-closed). */
+  /** Legacy alias for the runtime signal.tag decision. The Owning Team select always uses the
+   * database's post-and-read-back list. Defaults to false (fail-closed). */
   canCreateForTeam?: boolean
-  /** signal.mention_bu — gates the @BU mention group (FR-407). Defaults to false (fail-closed). */
+  /** Legacy-compatible @BU picker gate. The shell supplies the effective signal.tag decision;
+   * defaults to false (fail-closed). */
   canMentionBu?: boolean
+  /** Effective runtime signal.tag authority. Also unlocks org-wide Person/Team tagging. */
+  canTag?: boolean
   /** Team/BU id → member person ids, for the fan-out preview count (AC-422). Supplied by the
    * caller from a directory cache — the composer never queries a full org roster on its own. */
   teamMembers?: MemberLookup
   buMembers?: MemberLookup
   onShared?: (id: string) => void
-  prefill?: SignalComposerPrefill
   onDirtyChange?: (dirty: boolean) => void
   textareaRef?: RefObject<HTMLTextAreaElement | null>
+  prefill?: SignalComposerPrefill
 }
 
 function toDatetimeLocalValue(date: Date): string {
@@ -42,23 +45,17 @@ function toDatetimeLocalValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
-function formatOccurred(value: string, justNow: string, untouched: boolean): string {
-  if (untouched) return justNow
-  const date = new Date(value)
-  if (!value || Number.isNaN(date.getTime())) return justNow
-  const parts = new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(date)
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? ''
-  return `${part('day')} ${part('month')} ${part('hour')}:${part('minute')}`
-}
-
 export function SignalComposer({
-  authorId, authorName, canCreateForTeam = false, canMentionBu = false,
-  teamMembers = {}, buMembers = {}, onShared, prefill, onDirtyChange, textareaRef: externalTextareaRef,
+  authorId, authorName, canCreateForTeam = false, canMentionBu = false, canTag,
+  teamMembers = {}, buMembers = {}, onShared, prefill,
+  onDirtyChange, textareaRef: externalTextareaRef,
 }: SignalComposerProps) {
   const t = useT()
   const [teams, setTeams] = useState<TeamOption[]>([])
   const [mentionTeams, setMentionTeams] = useState<TeamOption[]>([])
   const [teamsLoaded, setTeamsLoaded] = useState(false)
+  const [directoryError, setDirectoryError] = useState(false)
+  const [directoryAttempt, setDirectoryAttempt] = useState(0)
   const [teamId, setTeamId] = useState(prefill?.owningTeamId ?? '')
   const [primaryTeamId, setPrimaryTeamId] = useState('')
   const [site, setSite] = useState<SiteOption | null>(null)
@@ -66,9 +63,6 @@ export function SignalComposer({
   const [businessUnits, setBusinessUnits] = useState<MentionCandidate[]>([])
   const [body, setBody] = useState(prefill?.body ?? '')
   const [occurredAt, setOccurredAt] = useState(() => prefill ? toDatetimeLocalValue(new Date(prefill.occurredAt)) : toDatetimeLocalValue(new Date()))
-  const [occurredTouched, setOccurredTouched] = useState(!!prefill)
-  const [occurredOpen, setOccurredOpen] = useState(false)
-  const occurredButtonRef = useRef<HTMLButtonElement>(null)
   const [attention, setAttention] = useState<Attention>(prefill?.attention ?? 'FYI')
   const [mentions, setMentions] = useState<StagedMention[]>(prefill?.mentions ?? [])
   const [mentionToken, setMentionToken] = useState<{ query: string; start: number } | null>(null)
@@ -79,35 +73,26 @@ export function SignalComposer({
   // GAP-8 (OD-91 #13): the mention popover is a combobox — the textarea keeps focus and forwards its
   // navigation keydowns to the picker's shared listbox contract.
   const mentionPickerRef = useRef<SignalMentionPickerHandle>(null)
+
   useEffect(() => {
-    if (!occurredOpen) return
-    const close = (event: MouseEvent) => {
-      if (!(event.target instanceof Node) || !occurredButtonRef.current?.parentElement?.contains(event.target)) {
-        setOccurredOpen(false)
-        occurredButtonRef.current?.focus()
-      }
-    }
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      event.preventDefault()
-      event.stopPropagation()
-      setOccurredOpen(false)
-      occurredButtonRef.current?.focus()
-    }
-    document.addEventListener('mousedown', close)
-    document.addEventListener('keydown', escape, true)
-    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape, true) }
-  }, [occurredOpen])
-  useEffect(() => { onDirtyChange?.(body.trim().length > 0) }, [body, onDirtyChange])
+    onDirtyChange?.(Boolean(prefill?.body.trim()))
+  }, [onDirtyChange, prefill])
 
   useEffect(() => {
     let cancelled = false
     setTeamsLoaded(false)
-    // The owning Team select uses the database's post/read gate. Mention reach follows the
-    // original holder rule: only signal.create_for_team may mention every active Team.
+    setDirectoryError(false)
+    // The owning Team select uses the database's post/read gate. Mention reach is a separate
+    // runtime signal.tag decision; never fall back to the viewer's membership list because every
+    // org member may tag any active Person or Team when that authority is granted.
     const teamsLoad = listReadableAuthorTeams(authorId)
-    const mentionTeamsLoad = canCreateForTeam ? listAllTeams() : listAuthorTeams(authorId)
-    Promise.all([teamsLoad, mentionTeamsLoad, getPeople(), getBusinessUnits()]).then(([
+    const tagAuthority = canTag ?? canCreateForTeam
+    const mentionTeamsLoad = tagAuthority ? listAllTeams() : Promise.resolve([] as TeamOption[])
+    const peopleLoad = tagAuthority ? getPeople() : Promise.resolve([])
+    // Keep the BU roster loaded even when the picker is disabled so the UI can explain the
+    // effective signal.tag boundary with a disabled option rather than hiding the group.
+    const businessUnitsLoad = getBusinessUnits()
+    Promise.all([teamsLoad, mentionTeamsLoad, peopleLoad, businessUnitsLoad]).then(([
       teamOptions, mentionTeamOptions, peopleOptions, buOptions,
     ]) => {
       if (cancelled) return
@@ -122,12 +107,13 @@ export function SignalComposer({
       // a Team is chosen).
       if (prefill?.owningTeamId && teamOptions.some((team) => team.id === prefill.owningTeamId)) setTeamId(prefill.owningTeamId)
       else if (teamOptions.length === 1) setTeamId(teamOptions[0].id)
-      setPeople(peopleOptions.filter((p) => p.id !== authorId).map((p) => ({ id: p.id, label: p.full_name })))
+      else setTeamId('')
+      setPeople(tagAuthority ? peopleOptions.filter((p) => p.id !== authorId).map((p) => ({ id: p.id, label: p.full_name })) : [])
       setBusinessUnits(buOptions.map((bu) => ({ id: bu.id, label: bu.name })))
-    }).catch(() => { /* the composer stays capture-minimal even if option lists fail to load */ })
+    }).catch(() => { if (!cancelled) setDirectoryError(true) })
       .finally(() => { if (!cancelled) setTeamsLoaded(true) })
     return () => { cancelled = true }
-  }, [authorId, canCreateForTeam, prefill])
+  }, [authorId, canCreateForTeam, canMentionBu, canTag, prefill, directoryAttempt])
 
   // The Site pill is derived from the owning Team — never a mention target (D37). Re-resolved
   // whenever the selected Team changes (including the cross-Team destination switch, B10).
@@ -157,7 +143,10 @@ export function SignalComposer({
   function handleBodyChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const value = e.target.value
     setBody(value)
-    const token = currentMentionToken(value, e.target.selectionStart ?? value.length)
+    onDirtyChange?.(Boolean(value.trim()))
+    const token = ((canTag ?? canCreateForTeam) || canMentionBu)
+      ? currentMentionToken(value, e.target.selectionStart ?? value.length)
+      : null
     setMentionToken(token)
   }
 
@@ -170,37 +159,36 @@ export function SignalComposer({
       ...prev.filter((m) => !(m.kind === kind && m.targetId === option.id)),
       { kind, targetId: option.id, label: option.label },
     ])
+    onDirtyChange?.(true)
     setMentionToken(null)
     textareaRef.current?.focus()
   }
 
   async function submit() {
     const trimmedBody = body.trim()
-    if (!trimmedBody || !teamId || posting) return
+    if (!trimmedBody || !selectedTeam || posting) return
     setPosting(true)
     setError(null)
     try {
-      const occurredDate = new Date(occurredAt)
-      const occurredIso = Number.isNaN(occurredDate.getTime()) ? new Date().toISOString() : occurredDate.toISOString()
-      const id = await createSignal({ body: trimmedBody, owningTeamId: teamId, occurredAt: occurredIso, attention, mentions })
+      const occurredIso = new Date(occurredAt).toISOString()
+      const id = await createSignal({ body: trimmedBody, owningTeamId: selectedTeam.id, occurredAt: occurredIso, attention, mentions })
       setBody('')
       setMentions([])
       setMentionToken(null)
+      onDirtyChange?.(false)
       onShared?.(id)
     } catch (err) {
-      const code = typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : ''
-      if (code !== '42501') console.error('Signal share failed', code || 'unknown')
-      setError(code === '42501' ? t('signals.composer.postForbidden') : t('signals.composer.postFailed'))
+      const message = err instanceof Error ? err.message : String(err)
+      setError(/permission|not authorized|42501|row-level security/i.test(message)
+        ? t('signals.composer.permissionError')
+        : message || t('signals.composer.postError'))
     } finally {
       setPosting(false)
     }
   }
 
-  // SIG-2: a viewer with no team memberships (e.g. Finance, an org-wide role) has nothing to
-  // post a Signal TO — the owning-Team select would render empty and Share Signal would sit
-  // disabled forever with no explanation. Once the team load resolves empty, show an honest
-  // empty state that says why and who to ask, instead of a dead control.
-  if (teamsLoaded && teams.length === 0) {
+  // Empty eligible-Team results are distinct from a failed directory read.
+  if (teamsLoaded && !directoryError && teams.length === 0) {
     return (
       <div className="signal-composer" data-testid="signal-composer">
         <EmptyState
@@ -215,6 +203,7 @@ export function SignalComposer({
 
   return (
     <div className="signal-composer" data-testid="signal-composer">
+      {directoryError && <ErrorState message={t('signals.composer.directoryError')} onRetry={() => setDirectoryAttempt((attempt) => attempt + 1)} />}
       <div className="signal-composer-mention-anchor">
         <textarea
           ref={textareaRef}
@@ -261,32 +250,47 @@ export function SignalComposer({
         )}
       </div>
 
-      <div className="signal-composer-pill-row">
-        {site && <span className="signal-composer-pill signal-location-pill" data-testid="signal-site-pill" title={t('signals.composer.siteHint')}>📍 {site.name}</span>}
-        <div className="signal-occurred-picker">
-          <button ref={occurredButtonRef} type="button" className="signal-composer-pill signal-occurred-pill" aria-haspopup="dialog" aria-expanded={occurredOpen} onClick={() => setOccurredOpen((current) => !current)}>
-            🕒 {formatOccurred(occurredAt, t('signals.composer.justNow'), !occurredTouched)}
-          </button>
-          {occurredOpen && (
-            <div className="signal-occurred-popover" role="dialog" aria-label={t('signals.composer.occurredLabel')}>
-              <label htmlFor="signal-occurred-input">{t('signals.composer.occurredLabel')}</label>
-              <input id="signal-occurred-input" type="datetime-local" aria-label={t('signals.composer.occurredLabel')} value={occurredAt} onChange={(e) => { const value = e.target.value; setOccurredAt(value); setOccurredTouched(Boolean(value && !Number.isNaN(new Date(value).getTime()))) }} />
-            </div>
-          )}
-        </div>
-        <SignalAttentionPicker value={attention} onChange={setAttention} />
+      <div className="signal-composer-context" aria-label={t('signals.composer.contextLabel')}>
+        {site && (
+          <span className="signal-composer-context-pill signal-composer-pill" data-testid="signal-site-pill" title={t('signals.composer.siteHint')}>
+            <span aria-hidden="true">⌖</span>{site.name}
+          </span>
+        )}
+        <SignalAttentionPicker value={attention} onChange={(next) => { setAttention(next); onDirtyChange?.(true) }} />
+        <label className="signal-composer-context-pill signal-composer-occurred-pill">
+          <span aria-hidden="true">◷</span>
+          <span>{t('signals.composer.occurredNow')}</span>
+          <span className="signal-composer-field-hint">{t('signals.composer.occurredHint')}</span>
+          <input
+            type="datetime-local"
+            aria-label={t('signals.composer.occurredLabel')}
+            value={occurredAt}
+            onChange={(e) => { setOccurredAt(e.target.value); onDirtyChange?.(true) }}
+          />
+        </label>
       </div>
 
-      {teams.length > 1 && (
-        <div className="signal-composer-row">
-          <Select label={t('signals.composer.teamLabel')} value={teamId} onChange={(e) => setTeamId(e.target.value)}>
-            <option value="" disabled>{t('signals.composer.teamPlaceholder')}</option>
-            {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
-          </Select>
+      {teams.length > 1 ? (
+        <div className="signal-composer-team-choice">
+          <Picker
+            label={t('signals.composer.teamLabel')}
+            value={teamId}
+            options={teams.map((team) => ({ value: team.id, label: team.name }))}
+            placeholder={t('signals.composer.teamPlaceholder')}
+            required
+            fullWidth
+            onChange={(next) => { setTeamId(next); onDirtyChange?.(true) }}
+          />
         </div>
-      )}
+      ) : selectedTeam ? (
+        <p className="signal-composer-identity">
+          <span>{t('signals.composer.owningTeamImplicit', { team: selectedTeam.name })}</span>
+          <span aria-hidden="true"> · </span>
+          <span>{t('signals.composer.author', { name: authorName })}</span>
+        </p>
+      ) : null}
 
-      {selectedTeam && <p className="signal-composer-author">{t('signals.composer.owningTeamAuthor', { team: selectedTeam.name, name: authorName })}</p>}
+      {teams.length > 1 && <p className="signal-composer-author">{t('signals.composer.author', { name: authorName })}</p>}
 
       {shieldLine && <p className="signal-composer-vis">{shieldLine}</p>}
 
@@ -299,7 +303,7 @@ export function SignalComposer({
           <span className="signal-composer-send-hint">{t('signals.composer.sendHint')}</span>
           <Button
             variant="primary"
-            disabled={!body.trim() || !teamId || posting}
+            disabled={!body.trim() || !selectedTeam || posting}
             aria-busy={posting}
             onClick={() => { void submit() }}
           >

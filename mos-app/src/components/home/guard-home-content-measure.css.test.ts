@@ -17,7 +17,7 @@ import { join } from 'node:path'
 // These two assertions are a pair, and neither is redundant: the first fails if the lift is
 // reverted/deleted (Home goes back to being cut mid-screen), the second fails if someone "fixes"
 // it by raising or removing the SHARED cap (every readable page loses its measure).
-const HOME_CSS = readFileSync(join(__dirname, 'home-layouts.css'), 'utf8')
+const HOME_CSS = readFileSync(join(__dirname, 'home-daily-brief.css'), 'utf8')
 const FRAME_CSS = readFileSync(join(__dirname, '../../shell/page-families.css'), 'utf8')
 
 /** The readable-measure cap PageFrame applies to a single-column page. */
@@ -31,7 +31,7 @@ function maxWidthOf(css: string, selector: string): string | null {
 
 describe('Home content region: the readable-measure cap is lifted for Home, and only for Home', () => {
   it('lifts the cap on the content region that hosts Home, scoped by :has(.home-frame)', () => {
-    const declared = maxWidthOf(HOME_CSS, '.page-frame__content:has(.home-frame)')
+    const declared = maxWidthOf(HOME_CSS, '.page-frame--v3 .page-frame__content:has(.home-frame)')
     expect(declared, 'Home must lift PageFrame\'s single-column cap through its own :has() scope')
       .not.toBeNull()
     const px = Number(/^(\d+(?:\.\d+)?)px$/.exec(declared!)?.[1] ?? NaN)

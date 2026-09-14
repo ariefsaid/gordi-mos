@@ -22,9 +22,10 @@ repo):
 - **Contributor / floor** — barista, kitchen hand, roastery operator, ecommerce packer. Access role
   `member`, rostered to one Activity. Situation: mid-shift, standing, on a phone, hands busy.
   Job: *record what I just did in one short pass, see my next step, get back to work in under a
-  minute.* Rarely owns tasks; narrow write surface confined to their Activity.
-- **Lead / manager** — Kitchen Lead, Bar Lead, Roastery Lead, Ecommerce Lead, Sales Lead. Derived
-  from the role chain, never a flag. Situation: start of the work week. Job: *see what's drifting in
+  minute.* Works assigned Tasks and may post/tag same-organization Signals; production writes follow their
+  actual stream affiliation and effective authority.
+- **Lead / manager** — Kitchen Lead, Bar Lead, Roastery Lead, Ecommerce Lead, Sales Lead. A persona, not an authorization shortcut:
+  Team leadership is explicitly administrator-designated; reporting relationships alone do not grant it. Situation: start of the work week. Job: *see what's drifting in
   my own R/A tasks, whether my reports filed and are hitting the floor plan, and who owns what.*
   Triages, reviews reports' updates (upward-only), approves their Activity's logs.
 - **Function-owner / BU-head** — head of a BU; the A person on that BU's Objectives. Job: *see my
@@ -72,10 +73,11 @@ Three things a neighboring internal tool could not truthfully copy:
 - **Navigation is a two-zone rail** (ADR-0025 D1, which superseded the earlier five-destination IA):
   workspace roots **Home · Work · Money** *(role-gated)* **· Inbox**, then **Modules grouped by
   Business Unit** (Retail Ops → Café, Ecommerce; B2B Ops → Roastery), then utility (Admin,
-  Profile). Work declares five flat children, in this one order — **Tasks · Projects & Processes ·
-  Objectives · Signals · Events** — and every surface that lists them (desktop rail, phone drawer,
-  ⌘K palette) renders that declared order rather than one of its own. Events is currently held
-  behind the ship gate, so four of the five are visible today.
+  Profile). Work declares four flat children, in this one order — **Signals · Tasks · Projects &
+  Processes · Objectives** *(owner-ratified OD-REDESIGN-57(ii), #476)* — and every surface that
+  lists them (desktop rail, phone drawer, ⌘K palette) renders that declared order rather than one of
+  its own. Events is a separate owner-approved destination, currently held behind the ship gate;
+  it is not a Work child.
   There is no "Plan" and no "Operate" destination — Plan folded into Work, Operate into the module
   zone. Kitchen and Bar are one **Café** module because they are one operating workflow. Home is a
   role-aware cockpit. A module renders for whoever its route admits — navigation is never narrower
@@ -95,22 +97,25 @@ Three things a neighboring internal tool could not truthfully copy:
 
 ## Capabilities and Constraints
 
-Confirmed and shipping (on `dev`):
+Product capabilities below are intended scope, not an exact-build acceptance certificate. The current
+MVP candidate is tracked in local `docs/plans/2026-09-14-mvp-acceptance.md` under DD-MVP.
 
 - **Work** — one record workspace with collections and saved views: Signals, Tasks, Projects &
   Processes, Objectives. A Task carries **PIC + Supervisor** (not task-level RACI — RACI lives on
   Objective / Project / Process). Status: Open · In Progress · Blocked · Done; archive, never delete.
-- **The cascade is relations, not a route.** Objectives are readable by everyone and writeable at
-  lead level, and carry a history of their changes. An Objective shows the Projects and Processes
+- **The cascade is relations, not a route.** Objectives are readable by organization members; writes follow
+  effective authority and the owning BU, and carry a history of their changes. An Objective shows the Projects and Processes
   under it; a Project/Process shows both its parent Objective and the Tasks under it. Strategy is
   navigated by walking records, never by visiting a separate cascade screen.
 - **Signal** — an intentional post (text + location/mention pills, `@` fuzzy match, attention level
   FYI / Needs attention / Urgent). It **replaced** mandatory Weekly Updates and the auto-mirrored
   Daily Log. Nobody files a report; people post what happened.
-- **Café module** — plan, log, stock, review, ESB pushes. Real migrated production data (48 WIP /
-  521 logs / 524 plans) and real staff logins. Ecommerce and Roastery modules are the same shape.
-- **Home** — role-aware cockpit: a non-removable attention brief plus an authorized personal canvas.
-- **Money** *(finance/admin only)* — AR/AP follow-ups and settlement. **Inbox** — one canonical
+- **Café module** — production streams, plan, log, stock, review and existing ERP pushes.
+  Environment-specific data counts are not product requirements or proof that a candidate works.
+  Other operating modules remain separate delivery scope.
+- **Home** — role-aware work surface with the approved Focused/Overview/List arrangements and
+  Personal Profile layout choice; preserve current owner composition decisions.
+- **Money** — role-authorized financial visibility and follow-ups, outside this three-feature MVP acceptance pass. **Inbox** — one canonical
   router collection. **Admin** — people and access-role management.
 
 Constraints future work must preserve:
@@ -124,7 +129,7 @@ Constraints future work must preserve:
   rather than separate projects.
 - Tech: React 19 + Vite + TypeScript + react-router-dom 7.
 
-Terminology is fixed and binding (`CONTEXT.md`): **Task · Checklist item · Business Unit (a team) ·
+Terminology is fixed and binding (`CONTEXT.md`): **Task · Checklist item · Team (operating ownership) · Business Unit (organizational scope) ·
 Activity (an operating workstream) · Revenue stream (a money lens) · Follow-up · Module**. Copy must
 use these words. "Business unit" never means an operating area; "Activity" never means a code module.
 

@@ -20,9 +20,9 @@
  * `segmented-track.css` and `cut-toggle.css`. The assertion is carried again below — a reason for
  * skipping a check outlives the condition that justified it, which is how a guard quietly narrows.
  *
- * Prose is exempt: comments are stripped before scanning. The retirement is DOCUMENTED in several
- * files (home-layout.ts cites the precedent), and a guard that forbade explaining itself would be
- * deleted by the next reader.
+ * Prose is exempt: comments are stripped before scanning. The retirement is documented in the
+ * daily-brief composition and this guard; a guard that forbade explaining itself would be deleted
+ * by the next reader.
  */
 import { describe, it, expect } from 'vitest'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'

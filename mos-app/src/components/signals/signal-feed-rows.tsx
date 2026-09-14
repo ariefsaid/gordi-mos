@@ -7,7 +7,7 @@ import { orderSignalsForFeed } from '@/lib/db/signals'
 import { attentionSlug, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
 import { signalMatchesText } from './signal-collection-adapter'
 import { attentionLabel } from './signal-attention-label'
-import { SignalCategoryPicker } from './signal-category-picker'
+import { signalCategoryLabel } from './signal-labels'
 import './signal-feed-rows.css'
 
 // SignalFeedRows — the ONE Signal row anatomy (owner redirect 2026-07-22: Signals render as ROWS in
@@ -45,7 +45,7 @@ export interface SignalFeedRowsProps {
 export const AMBIENT_CAP = 6
 
 export function SignalFeedRows({
-  signals, authorNamesById, teamNamesById, onShareClick, onCategorize, onCreateTask, createTaskHref, onOpen,
+  signals, authorNamesById, teamNamesById, onShareClick, onOpen,
   showSearch = true,
   variant = 'ambient',
 }: SignalFeedRowsProps) {
@@ -137,23 +137,20 @@ export function SignalFeedRows({
             }
             const authorName = authorNamesById[signal.author_id] ?? t('signals.card.unknownAuthor')
             const teamName = teamNamesById[signal.owning_team_id] ?? ''
-            const taskHref = createTaskHref?.(signal)
             // F3 (OD-REDESIGN-91 #18): the archive row-fill is URGENT ONLY — the amber fill + 2px
             // rule is the "act now" top tier. Needs attention keeps its amber pill on a calm row.
             // The CSS treatment is scoped to `.home-signal-feed--archive`, so tagging the row here
             // is inert on Home and lights up only in the archive Feed.
             const attentionRow = signal.attention === 'Urgent' ? ' home-signal-row--urgent' : ''
-            // AC-060 (Home rows are read-only record links): the variant split IS the open-affordance
-            // split — an ambient row IS the button (role + the `signals.card.openSignal` catalog name
-            // on the row, pointer cursor via --open in the CSS), while an archive row opens through
-            // its own body <button> below instead.
-            const openRow = variant === 'ambient' && onOpen ? ' home-signal-row--open' : ''
+            // Both collection and ambient rows are one record activation target. The row keeps its
+            // canonical data attribute and accessible name; no action button is nested inside it.
+            const openRow = onOpen ? ' home-signal-row--open' : ''
             return (
               <li
                 key={signal.id}
                 className={`home-signal-row${attentionRow}${openRow}`}
                 data-signal-id={signal.id}
-                {...(variant === 'ambient' && onOpen ? {
+                {...(onOpen ? {
                   role: 'button',
                   tabIndex: 0,
                   'aria-label': t('signals.card.openSignal', { body: signal.body }),
@@ -167,41 +164,31 @@ export function SignalFeedRows({
                 } : {})}
               >
                 <div className="home-signal-main">
-                  {/* Body = the row title, one truncated line; the clickable record affordance. */}
-                  {onOpen && variant === 'archive' ? (
-                    <button
-                      type="button"
-                      className="home-signal-body"
-                      onClick={() => onOpen(signal)}
-                      aria-label={t('signals.card.openSignal', { body: signal.body })}
-                    >
-                      <span className="home-signal-body-text">{signal.body}</span>
-                    </button>
-                  ) : (
-                    <span className="home-signal-body home-signal-body--static">
-                      <span className="home-signal-body-text">{signal.body}</span>
-                    </span>
-                  )}
+                  {/* Body = the row title. The parent row owns activation in both variants. */}
+                  <span className="home-signal-body home-signal-body--static">
+                    <span className="home-signal-body-text">{signal.body}</span>
+                  </span>
                   {/* Meta subline: author name · team · time. The author is NAMED, never drawn as
                       an initials disc (owner, 2026-07-28) — in a 300px feed column that disc cost
                       28px of the measure the name itself needs. Each separator is bound into one
                       group with the fact it introduces, so a narrow feed column wraps BETWEEN
                       facts and can never strand a bare "·" on a line of its own. */}
-                  <div className="home-signal-meta">
+                  <div className={`home-signal-meta${variant === 'archive' ? ' home-signal-meta--archive' : ''}`}>
                     <span className="home-signal-who-name">{authorName}</span>
                     {teamName && (
                       <span className="home-signal-meta-item">
                         <span className="home-signal-sep" aria-hidden="true">·</span>
-                        <span className="home-signal-location-chip">{teamName}</span>
+                        <span className={variant === 'archive' ? 'home-signal-meta-fact' : 'home-signal-location-chip'}>{teamName}</span>
                       </span>
                     )}
                     <span className="home-signal-meta-item">
                       <span className="home-signal-sep" aria-hidden="true">·</span>
-                      <span className="home-signal-time-chip">{formatWibDateTime(signal.occurred_at)}</span>
+                      <span className={variant === 'archive' ? 'home-signal-meta-fact' : 'home-signal-time-chip'}>{formatWibDateTime(signal.occurred_at)}</span>
                     </span>
-                    {variant === 'archive' && teamName && (
-                      <span className="home-signal-visible-to">
-                        {t('signals.composer.visibleTo', { team: teamName })}
+                    {variant === 'archive' && signal.category && (
+                      <span className="home-signal-meta-item">
+                        <span className="home-signal-sep" aria-hidden="true">·</span>
+                        <span className="home-signal-meta-fact">{signalCategoryLabel(t, signal.category)}</span>
                       </span>
                     )}
                   </div>
@@ -210,23 +197,6 @@ export function SignalFeedRows({
                   <span className={`home-signal-attention home-signal-attention--${attentionSlug(signal.attention)}`}>
                     {attentionLabel(t, signal.attention)}
                   </span>
-                  {variant === 'archive' && (onCreateTask || taskHref) && (
-                    taskHref ? (
-                      <Link to={taskHref} className="btn btn-outline home-signal-create-task">
-                        {t('tasks.new')}
-                      </Link>
-                    ) : (
-                      <button type="button" className="btn btn-outline home-signal-create-task" onClick={() => onCreateTask?.(signal)}>
-                        {t('tasks.new')}
-                      </button>
-                    )
-                  )}
-                  {variant === 'archive' ? (
-                    <SignalCategoryPicker
-                      category={signal.category}
-                      onCategorize={onCategorize ? (category) => onCategorize(signal.id, category) : undefined}
-                    />
-                  ) : null}
                 </div>
               </li>
             )

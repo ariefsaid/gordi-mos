@@ -45,6 +45,8 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
   { path: '/', family: 'workspace', sourceFile: 'pages/home-page.tsx', symbol: 'HomePage' },
 
   // ── Work ──────────────────────────────────────────────────────────────────────────────────
+  { path: '/work/objectives/:objectiveId', family: 'focused-record', sourceFile: 'pages/objective-record-page.tsx', symbol: 'ObjectiveRecordPage' },
+  { path: '/work/projects/:workLineId', family: 'focused-record', sourceFile: 'pages/work-line-record-page.tsx', symbol: 'WorkLineRecordPage' },
   { path: '/work/tasks', family: 'workspace', sourceFile: 'pages/tasks-layout.tsx', symbol: 'TasksLayout' },
   // The drawer renders INSIDE the layout's frame, so the frame is present on the child path too.
   { path: '/work/tasks/:taskId', family: 'focused-record', sourceFile: 'pages/tasks-layout.tsx', symbol: 'TasksLayout' },
@@ -116,5 +118,11 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
     family: 'management',
     sourceFile: 'pages/admin-users-page.tsx',
     symbol: 'AdminUsersPage',
+  },
+  {
+    path: '/admin/access',
+    family: 'management',
+    sourceFile: 'pages/admin-access-page.tsx',
+    symbol: 'AdminAccessPage',
   },
 ]

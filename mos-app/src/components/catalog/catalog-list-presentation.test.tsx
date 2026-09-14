@@ -1,0 +1,104 @@
+import { describe, expect, it, vi } from 'vitest'
+import { render, screen, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
+import type { CollectionProjection } from '@/lib/record-collection/types'
+import {
+  CatalogCollectionActionsProvider,
+  type CatalogCollectionActions,
+} from './catalog-collection-actions'
+import { CatalogListPresentation } from './catalog-list-presentation'
+import type {
+  CatalogCollectionContext,
+  CatalogCollectionQuery,
+  CatalogRenderGroup,
+  CatalogRow,
+} from './catalog-collection-adapter'
+
+const query: CatalogCollectionQuery = {
+  layout: 'list', view: 'active', q: '', type: 'all', coverage: 'all', savedViewId: null,
+}
+
+const actions: CatalogCollectionActions = {
+  canManage: false,
+  rename: vi.fn(),
+  archive: vi.fn(),
+  unarchive: vi.fn(),
+}
+
+function renderRows(rows: CatalogRow[], contextOverrides: Partial<CatalogCollectionContext> = {}) {
+  const context: CatalogCollectionContext = {
+    traceById: new Map(),
+    relationsById: new Map(rows.map((row) => [row.id, { groups: [], tasks: [] }])),
+    relationsKind: 'work_line',
+    progressById: new Map(),
+    peopleById: new Map([['person-1', 'Raka Utama']]),
+    ...contextOverrides,
+  }
+  const projection: CollectionProjection<CatalogRow, CatalogRenderGroup> = {
+    visibleRecords: rows,
+    groups: [{ key: 'all', label: null, rows }],
+    totalRecords: rows.length,
+    visibleRecordsAreFiltered: false,
+  }
+
+  return render(
+    <I18nProvider>
+      <MemoryRouter>
+        <CatalogCollectionActionsProvider actions={actions}>
+          <CatalogListPresentation
+            query={query}
+            projection={projection}
+            context={context}
+            selectedIds={new Set()}
+            onToggleSelected={() => {}}
+            onOpenRecord={() => {}}
+            onToggleGroup={() => {}}
+            isGroupCollapsed={() => false}
+          />
+        </CatalogCollectionActionsProvider>
+      </MemoryRouter>
+    </I18nProvider>,
+  )
+}
+
+describe('CatalogListPresentation owner-cell grammar', () => {
+  it('uses shared initials + first name while retaining full owner identity for assistive tech and title', () => {
+    renderRows([
+      { id: 'work-1', name: 'Assigned project', archived_at: null, type: 'project', accountablePersonId: 'person-1' },
+    ])
+
+    const row = screen.getByRole('link', { name: 'Assigned project' })
+    const owner = within(row).getByRole('cell', { name: 'Owner: Raka Utama' })
+    expect(owner).toHaveAttribute('title', 'Raka Utama')
+    expect(owner.querySelector('.ownav')).toHaveTextContent('RU')
+    expect(owner.querySelector('.own-name')).toHaveTextContent('Raka')
+    expect(owner).not.toHaveTextContent('Raka Utama')
+  })
+
+  it('keeps missing values accessible without repeating Not set across the visual row', () => {
+    renderRows([
+      { id: 'work-2', name: 'Unassigned project', archived_at: null, type: 'project', accountablePersonId: null },
+    ])
+
+    const row = screen.getByRole('link', { name: 'Unassigned project' })
+    const owner = within(row).getByRole('cell', { name: 'Owner: Not set' })
+    expect(owner).toHaveAttribute('title', 'Not set')
+    expect(owner).toHaveTextContent('–')
+    expect(owner.querySelector('.ownav')).toBeNull()
+    expect(within(row).queryByText('Not set')).toBeNull()
+  })
+
+  it('renders a real relation named Not set instead of treating its name as missing data', () => {
+    const record = { id: 'work-3', name: 'Literal-name project', archived_at: null, type: 'project' as const, accountablePersonId: 'person-1' }
+    renderRows([record], {
+      relationsById: new Map([[record.id, {
+        groups: [{ id: 'objective-1', name: 'Not set', taskCount: 0, done: 0, total: 0 }],
+        tasks: [],
+      }]]),
+    })
+
+    const row = screen.getByRole('link', { name: 'Literal-name project' })
+    expect(within(row).getByRole('cell', { name: 'Objective: Not set' })).toHaveTextContent('Not set')
+  })
+})

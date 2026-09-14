@@ -23,6 +23,8 @@ vi.mock('../lib/db/tasks', () => ({
 vi.mock('../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getPersonTeams: vi.fn(),
+  getTeamsByIds: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('react-router-dom', async (importOriginal) => {
@@ -36,6 +38,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
 
 import { getTask, updateTaskStatus, updateTaskFields, addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem, archiveTask, unarchiveTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
+import * as directoryApi from '@/lib/db/directory'
 // Re-homed from the deleted TaskDetail host onto the LIVE task surface (TaskSurface view
 // mode, width="full" — identical to what the host rendered). All detail-field ACs
 // (AC-070..075, T-047, RIC-1/2/3, I2, M2) now run against the real component.
@@ -52,6 +55,12 @@ const mockArchiveTask = vi.mocked(archiveTask)
 const mockUnarchiveTask = vi.mocked(unarchiveTask)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
+const directoryMocks = directoryApi as unknown as {
+  getPersonTeams: ReturnType<typeof vi.fn>
+  getTeamsByIds: ReturnType<typeof vi.fn>
+}
+const mockGetPersonTeams = directoryMocks.getPersonTeams
+const mockGetTeamsByIds = directoryMocks.getTeamsByIds
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 const VIEWER_ID  = 'viewer-person-id'
@@ -135,6 +144,10 @@ const mockPeople: PersonOption[] = [
   { id: C_PERSON,  full_name: 'Consulted Person' },
   { id: I_PERSON,  full_name: 'Informed Person' },
 ]
+const mockTeams = [
+  { id: 'team-cafe', name: 'Cafe Team', businessUnitId: 'bu-1', siteId: null, orgId: 'org', isPrimary: true },
+  { id: 'team-sales', name: 'Sales Team', businessUnitId: 'bu-2', siteId: null, orgId: 'org', isPrimary: false },
+]
 
 function renderDetail(auth: AuthState = authedState) {
   return render(
@@ -154,6 +167,16 @@ function activateFieldByKey(key: string) {
   fireEvent.click(btn)
 }
 
+function chooseRecordOption(label: string, option: string) {
+  fireEvent.click(screen.getByRole('combobox', { name: label }))
+  fireEvent.click(screen.getByRole('option', { name: option }))
+}
+
+function chooseRecordOverflow(label: string) {
+  fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: label }))
+}
+
 beforeEach(() => {
   vi.resetAllMocks()
   // Clear per-task feed-tab memory (sessionStorage) so a Checklist/Notes-tab
@@ -161,6 +184,8 @@ beforeEach(() => {
   sessionStorage.clear()
   mockGetBusinessUnits.mockResolvedValue(mockBUs)
   mockGetPeople.mockResolvedValue(mockPeople)
+  mockGetPersonTeams.mockResolvedValue(mockTeams)
+  mockGetTeamsByIds.mockResolvedValue(mockTeams)
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   mockUpdateTaskStatus.mockResolvedValue()
   mockAddChecklistItem.mockResolvedValue()
@@ -175,7 +200,11 @@ beforeEach(() => {
 // ── AC-070: detail page renders all task fields ───────────────────────────────
 describe('AC-070 — detail page renders task fields', () => {
   it('shows title, status pill, due, Team, typed ownership, checklist, activity log, and completion', async () => {
-    const task = makeTask({ consulted_person_ids: [C_PERSON], informed_person_ids: [I_PERSON] })
+    const task = makeTask({
+      accountable_person_id: OTHER_ID,
+      consulted_person_ids: [C_PERSON],
+      informed_person_ids: [I_PERSON],
+    })
     const checklist = makeChecklist([{ label: 'Inspect heating element' }, { label: 'Order parts' }])
     const events = [
       makeEvent({ event_type: 'created', created_at: '2026-06-11T00:00:00Z' }),
@@ -195,7 +224,7 @@ describe('AC-070 — detail page renders task fields', () => {
     // Status pill
     expect(screen.getByText('Open')).toBeTruthy()
 
-    // Due date — value-first: activate the row, then the native <input type="date"> holds the value.
+    // Due date — value-first: activate the row, then the date control holds the raw ISO value.
     activateFieldByKey('dueDate')
     expect(screen.getByLabelText('Due')).toHaveValue('2026-06-20')
 
@@ -203,12 +232,12 @@ describe('AC-070 — detail page renders task fields', () => {
     // document (the old TaskDetail identity sub-line is gone; the RecordViewer header owns identity).
     expect(screen.getAllByText('Cafe Operations').length).toBeGreaterThan(0)
 
-    // PIC and Supervisor names (resolved from directory) — value-first person <select>s reached by
-    // activating each row; query the select value (the name appears in multiple <option>s).
+    // PIC and Supervisor are distinct ownership fields. Each activates a directory-backed Picker;
+    // the names appear in the trigger after the choice is committed.
     activateFieldByKey('pic')
-    expect(screen.getByLabelText('PIC')).toHaveValue(VIEWER_ID)
+    expect(screen.getByRole('combobox', { name: 'PIC' })).toHaveTextContent('Cahya Cafe')
     activateFieldByKey('supervisor')
-    expect(screen.getByLabelText('Supervisor')).toHaveValue(VIEWER_ID)
+    expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Other Person')
     expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
     // No RACI grammar: match the parenthesized RACI labels only (bare "Consulted"/"Informed"
     // false-positive on the test's own fixture names "Consulted Person"/"Informed Person").
@@ -253,10 +282,9 @@ describe('AC-071 — inline status change', () => {
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
     // Value-first: Status is the record field — activate the row, then pick "In Progress" from the
-    // select (a select's change IS the commit intent). The pill updates in place, no navigation.
+    // Picker. Choosing an option is the commit intent; the pill updates in place, no navigation.
     activateFieldByKey('status')
-    const statusSelect = document.querySelector('[data-field-key="status"] select') as HTMLSelectElement
-    fireEvent.change(statusSelect, { target: { value: 'In Progress' } })
+    chooseRecordOption('Status', 'In Progress')
 
     await waitFor(() => {
       expect(mockUpdateTaskStatus).toHaveBeenCalledWith('task-abc', 'Open', 'In Progress', VIEWER_ID)
@@ -278,12 +306,10 @@ describe('AC-072 — typed Task ownership', () => {
     renderDetail()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
-    // PIC reassignment journey: the record adapter exposes PIC as a value-first person <select>
-    // reached by activating the row. The goal-oracle "reassigns the PIC through the visible Task
-    // path" is met by picking a person; the journey step is "activate the field, then choose".
+    // PIC reassignment journey: the record adapter exposes PIC as a value-first person Picker
+    // reached by activating the row. The choice is constrained to self + downline.
     activateFieldByKey('pic')
-    const picSelect = screen.getByLabelText('PIC')
-    fireEvent.change(picSelect, { target: { value: OTHER_ID } })
+    chooseRecordOption('PIC', 'Other Person')
 
     await waitFor(() => expect(mockUpdateTaskFields).toHaveBeenCalledWith(
       // 4th arg (#742 AC-059): the previous PIC value, threaded through for the from/to event.
@@ -444,17 +470,19 @@ describe('AC-075 / AC-P3-CM-004 — activity log + comments', () => {
 // ── T-047: archive/unarchive control gated to A/manager ──────────────────────
 describe('T-047 — archive control on detail', () => {
   it('shows archive control for Accountable person; dispatches archiveTask', async () => {
-    // VIEWER_ID is A on this task
-    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    // VIEWER_ID is A while a different person is PIC; the distinct roles make the archive gate
+    // meaningful instead of treating a PIC archiving their own task as an A action.
+    mockGetTask.mockResolvedValue({
+      task: makeTask({ responsible_person_id: OTHER_ID, accountable_person_id: VIEWER_ID }),
+      checklist: [],
+      events: [],
+    })
     renderDetail()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
-    const archiveBtn = screen.getByRole('button', { name: /archive task/i })
-    expect(archiveBtn).toBeTruthy()
-
-    // Click — confirm dialog
-    fireEvent.click(archiveBtn)
-    const confirmBtn = screen.getByRole('button', { name: /^archive$/i })
+    // Archive is a secondary action in the record overflow menu.
+    chooseRecordOverflow('Archive task')
+    const confirmBtn = await screen.findByRole('button', { name: /^archive$/i })
     fireEvent.click(confirmBtn)
 
     await waitFor(() => {
@@ -463,12 +491,17 @@ describe('T-047 — archive control on detail', () => {
   })
 
   it('shows unarchive for an already-archived task', async () => {
-    const task = makeTask({ archived_at: '2026-06-11T10:00:00Z' })
+    const task = makeTask({
+      archived_at: '2026-06-11T10:00:00Z',
+      responsible_person_id: OTHER_ID,
+      accountable_person_id: VIEWER_ID,
+    })
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
     renderDetail()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
-    expect(screen.getByRole('button', { name: /unarchive/i })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menuitem', { name: /unarchive/i })).toBeInTheDocument()
   })
 
   it('hides archive for non-A non-manager Responsible-only user', async () => {
@@ -493,7 +526,8 @@ describe('T-047 — archive control on detail', () => {
     renderDetail(managerState)
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
-    expect(screen.getByRole('button', { name: /archive task/i })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menuitem', { name: /archive task/i })).toBeInTheDocument()
   })
 })
 
@@ -571,12 +605,10 @@ describe('I2 — PIC reassignment on detail page', () => {
     renderDetail(managerState)
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
-    // PIC reassignment journey: the record adapter exposes PIC as a value-first person <select>
-    // reached by activating the row (see AC-072 note). Goal-oracle: manager can reassign PIC
-    // through the visible Task path without governance-role editing.
+    // PIC reassignment journey: the record adapter exposes PIC as a value-first person Picker
+    // reached by activating the row without exposing governance-role editing.
     activateFieldByKey('pic')
-    const picSelect = screen.getByLabelText('PIC')
-    fireEvent.change(picSelect, { target: { value: VIEWER_ID } })
+    chooseRecordOption('PIC', 'Cahya Cafe')
 
     await waitFor(() => expect(mockUpdateTaskFields).toHaveBeenCalledWith(
       // 4th arg (#742 AC-059): the previous PIC value, threaded through for the from/to event.
@@ -590,10 +622,10 @@ describe('I2 — PIC reassignment on detail page', () => {
 // ── M2: archived task is read-only except Unarchive ─────────────────────────
 describe('M2 — archived task is read-only except Unarchive', () => {
   it('archived task shows no status trigger, no PIC reassignment, no checklist add', async () => {
-    // Viewer is the Supervisor (would normally be an editor + archiver)
+    // Viewer is the Supervisor (and not the PIC), so the archived action remains available.
     const task = makeTask({
       archived_at: '2026-06-11T10:00:00Z',
-      responsible_person_id: VIEWER_ID,
+      responsible_person_id: OTHER_ID,
       accountable_person_id: VIEWER_ID,
     })
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
@@ -616,13 +648,14 @@ describe('M2 — archived task is read-only except Unarchive', () => {
   it('archived task still shows Unarchive button for A/manager', async () => {
     const task = makeTask({
       archived_at: '2026-06-11T10:00:00Z',
-      responsible_person_id: VIEWER_ID,
+      responsible_person_id: OTHER_ID,
       accountable_person_id: VIEWER_ID,
     })
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
     renderDetail()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
 
-    expect(screen.getByRole('button', { name: /unarchive/i })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menuitem', { name: /unarchive/i })).toBeInTheDocument()
   })
 })

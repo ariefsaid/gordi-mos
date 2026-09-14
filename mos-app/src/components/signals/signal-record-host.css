@@ -4,6 +4,47 @@
    forms; the record itself is styled by signal-record.css. */
 .signal-record-host { display: flex; flex-direction: column; min-height: 0; flex: 1; overflow-y: auto; }
 
+.signal-record-unavailable {
+  margin: 16px 0; padding: 20px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--secondary); color: var(--foreground);
+}
+.signal-record-unavailable h2 { margin: 0; font-size: var(--font-size-heading); }
+.signal-record-unavailable p { margin: 8px 0 0; color: var(--muted-foreground); line-height: 1.5; }
+.signal-record-action-error {
+  margin: 12px 0 0; padding: 10px 12px;
+  border: 1px solid var(--destructive); border-radius: var(--radius-sm);
+  color: var(--destructive); font-size: var(--font-size-control);
+}
+
+.signal-record-action-controls {
+  display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+
+.signal-task-create-frame { min-height: 0; display: flex; flex-direction: column; flex: 1; }
+.signal-task-create-context {
+  margin: 0; padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground); font-size: var(--font-size-label);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.signal-task-link-recovery {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 12px;
+  padding: 16px 20px 20px;
+}
+.signal-task-link-recovery p { margin: 0; line-height: 1.45; }
+
+@media (min-width: 1100px) {
+  .signal-task-create-local-host {
+    position: fixed; top: var(--header-h); right: 0; bottom: 0;
+    z-index: var(--z-drawer); width: min(44%, 480px); min-width: 360px;
+    border-radius: 0; border-top: 0; border-right: 0; border-bottom: 0;
+    display: flex; flex-direction: column;
+  }
+  .signal-task-create-local-host > * { flex: 0 0 auto; }
+  .signal-task-create-local-host > :last-child { flex: 1 1 auto; min-height: 0; overflow: auto; }
+}
+
 .signal-record-followup-form,
 .signal-record-link-form {
   display: flex; flex-direction: column; gap: 8px;
@@ -17,4 +58,12 @@
   background: var(--background); font: inherit; font-size: var(--font-size-body-lg); color: var(--foreground);
 }
 .signal-record-followup-form input:focus-visible,
-.signal-record-link-form select:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.signal-record-link-form select:focus-visible,
+.signal-record-link-form .picker__trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.signal-record-link-form .picker { width: 100%; }
+.signal-record-link-form .mk-textinput { width: 100%; }
+
+@media (max-width: 767px) {
+  .signal-record-action-controls { width: 100%; }
+  .signal-record-action-controls > .btn-primary { flex: 1 1 auto; }
+}

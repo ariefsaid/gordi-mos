@@ -25,23 +25,37 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getPersonTeams: vi.fn(),
+  getTeamsByIds: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/comments/postComment', () => ({
   listComments: vi.fn(),
   postComment: vi.fn(),
 }))
+vi.mock('../../lib/db/objectives', () => ({
+  listObjectives: vi.fn().mockResolvedValue([]),
+  readObjective: vi.fn().mockResolvedValue(null),
+}))
 
 import { getTask, createTask, updateTaskStatus, updateTaskFields, toggleChecklistItem, unarchiveTask, archiveTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
+import * as directoryApi from '@/lib/db/directory'
 import { listComments, postComment } from '@/lib/comments/postComment'
 import { TaskSurface } from './task-surface'
+import { listObjectives, readObjective } from '@/lib/db/objectives'
 
 const mockGetTask = vi.mocked(getTask)
 const mockCreateTask = vi.mocked(createTask)
 const mockUpdateTaskStatus = vi.mocked(updateTaskStatus)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
+const mockGetPersonTeams = (directoryApi as unknown as {
+  getPersonTeams: ReturnType<typeof vi.fn>
+}).getPersonTeams
+const mockGetTeamsByIds = (directoryApi as unknown as {
+  getTeamsByIds: ReturnType<typeof vi.fn>
+}).getTeamsByIds
 const mockListComments = vi.mocked(listComments)
 const mockPostComment = vi.mocked(postComment)
 
@@ -86,14 +100,22 @@ const mockPeople: PersonOption[] = [
   { id: VIEWER_ID, full_name: 'Cahya Cafe' },
   { id: 'other-id', full_name: 'Other Person' },
 ]
+const mockTeams = [
+  { id: 'team-cafe', name: 'Cafe Team', businessUnitId: 'bu-1' },
+  { id: 'team-sales', name: 'Sales Team', businessUnitId: 'bu-2' },
+]
 
 beforeEach(() => {
   vi.resetAllMocks()
+  vi.mocked(listObjectives).mockResolvedValue([])
+  vi.mocked(readObjective).mockResolvedValue(null)
   // Clear per-task tab memory (sessionStorage) so a Checklist-tab test doesn't
   // leak the active tab into a later Details-default test (useTabMemory keys by id).
   sessionStorage.clear()
   mockGetBusinessUnits.mockResolvedValue(mockBUs)
   mockGetPeople.mockResolvedValue(mockPeople)
+  mockGetPersonTeams.mockResolvedValue(mockTeams)
+  mockGetTeamsByIds.mockResolvedValue(mockTeams)
   // vi.resetAllMocks() above wipes the factory-level seed; the record's edit/archive gates and
   // PIC picker read the viewer's downline, so it must be re-seeded like every other read.
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
@@ -125,6 +147,21 @@ function activateFieldByKey(key: string) {
   fireEvent.click(btn)
 }
 
+function chooseRecordOption(label: string) {
+  fireEvent.click(screen.getByRole('combobox'))
+  fireEvent.click(screen.getByRole('option', { name: label }))
+}
+
+function chooseRecordOverflow(label: string) {
+  fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: label }))
+}
+
+function choosePickerOption(label: string, option: string) {
+  fireEvent.click(screen.getByRole('combobox', { name: label }))
+  fireEvent.click(screen.getByRole('option', { name: option }))
+}
+
 function renderIndonesianSurface() {
   return render(
     <I18nProvider>
@@ -154,6 +191,21 @@ function renderSurfaceRoute(path: string) {
 
 // ── View mode ────────────────────────────────────────────────────────────────
 describe('TaskSurface — view mode', () => {
+  it('keeps an archived Objective link readable while excluding it from new attribution', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask({ objective_id: 'archived-objective' }), checklist: [], events: [] })
+    vi.mocked(listObjectives).mockResolvedValue([{ id: 'active-objective', name: 'Current Objective' }])
+    vi.mocked(readObjective).mockResolvedValue({
+      id: 'archived-objective', name: 'Archived Objective', archived_at: '2026-07-01T00:00:00Z',
+      business_unit_id: null, accountable_person_id: null, period_year: null, updated_at: '',
+    })
+    renderSurface()
+    expect((await screen.findAllByRole('link', { name: 'Archived Objective' }))[0]).toHaveAttribute('href', '/work/objectives/archived-objective')
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Objective' }))
+    fireEvent.click(screen.getByRole('combobox', { name: 'Objective' }))
+    expect(screen.getByRole('option', { name: 'Current Objective' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Archived Objective' })).toBeNull()
+  })
+
   it('AC-070 (TaskSurface): renders title, status, typed ownership, checklist, activity, and completion', async () => {
     const task = makeTask()
     const checklist: ChecklistItemRow[] = [{
@@ -174,8 +226,9 @@ describe('TaskSurface — view mode', () => {
     // Left panel: status + typed ownership always visible (decision-drivers above the fold)
     expect(screen.getByText('Open')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
-    expect(screen.getByText('PIC')).toBeInTheDocument()
-    expect(screen.getByText('Supervisor')).toBeInTheDocument()
+    const ownership = document.querySelector('[data-content-slot="ownership"]') as HTMLElement
+    expect(within(ownership).getByText('PIC')).toBeInTheDocument()
+    expect(within(ownership).getByText('Supervisor')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
     expect(screen.queryByText(/RACI|Responsible \(R\)|Accountable \(A\)|Consulted|Informed/)).toBeNull()
     fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
@@ -263,13 +316,36 @@ describe('TaskSurface — view mode', () => {
     })))
   })
 
+  it('copies the canonical Task URL from a nested collection stack', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    mockGetTask.mockResolvedValue({ task: makeTask({ responsible_person_id: 'other-id', accountable_person_id: VIEWER_ID }), checklist: [], events: [] })
+    render(
+      <AuthContext.Provider value={authedState}>
+        <MemoryRouter basename="/mos" initialEntries={['/mos/work/tasks?record=task-abc']}>
+          <TaskSurface taskId="task-abc" mode="view" width="full" />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    )
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy link' }))
+
+    expect(writeText).toHaveBeenCalledWith(new URL('/mos/work/tasks/task-abc', window.location.origin).href)
+  })
+
   it('AC-R05: full width keeps the archived banner + Unarchive above the two columns', async () => {
     const { unarchiveTask } = await import('@/lib/db/tasks')
     vi.mocked(unarchiveTask).mockResolvedValue()
-    mockGetTask.mockResolvedValue({ task: makeTask({ archived_at: '2026-06-12T00:00:00Z' }), checklist: [], events: [] })
+    mockGetTask.mockResolvedValue({ task: makeTask({ responsible_person_id: 'other-id', archived_at: '2026-06-12T00:00:00Z' }), checklist: [], events: [] })
     renderSurface()
     await waitFor(() => screen.getByText(/this task is archived/i))
-    expect(screen.getByRole('button', { name: /unarchive/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menuitem', { name: /unarchive/i })).toBeInTheDocument()
   })
 
   it('AC-070 (TaskSurface): shows the loading skeleton initially', () => {
@@ -305,12 +381,12 @@ describe('TaskSurface — view mode', () => {
 
   it('calls onClose (not navigate) after a successful archive', async () => {
     const onClose = vi.fn()
-    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    mockGetTask.mockResolvedValue({ task: makeTask({ responsible_person_id: 'other-id' }), checklist: [], events: [] })
     const { archiveTask } = await import('@/lib/db/tasks')
     vi.mocked(archiveTask).mockResolvedValue()
     renderSurface({ onClose })
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    fireEvent.click(screen.getByRole('button', { name: /archive task/i }))
+    chooseRecordOverflow('Archive task')
     fireEvent.click(screen.getByRole('button', { name: /^archive$/i }))
     await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
@@ -322,11 +398,36 @@ describe('TaskSurface — view mode', () => {
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
     activateFieldByKey('status')
-    const status = document.querySelector('[data-field-key="status"] select') as HTMLSelectElement
-    fireEvent.change(status, { target: { value: 'In Progress' } })
+    chooseRecordOption('In Progress')
     await waitFor(() => {
       expect(mockUpdateTaskStatus).toHaveBeenCalledWith('task-abc', 'Open', 'In Progress', VIEWER_ID)
     })
+  })
+
+  it('updates Team with its derived BU and refreshes the record Team display', async () => {
+    const initialTask = { ...makeTask(), team_id: 'team-cafe' }
+    const refreshedTask = { ...makeTask({ business_unit_id: 'bu-2' }), team_id: 'team-sales' }
+    mockGetTask
+      .mockResolvedValueOnce({ task: initialTask, checklist: [], events: [] })
+      .mockResolvedValueOnce({ task: refreshedTask, checklist: [], events: [] })
+    mockGetTeamsByIds
+      .mockResolvedValueOnce([mockTeams[0]])
+      .mockResolvedValueOnce([mockTeams[1]])
+
+    renderSurface()
+    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Team' }))
+    fireEvent.click(screen.getByRole('combobox', { name: 'Team' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Sales Team' }))
+
+    await waitFor(() => expect(vi.mocked(updateTaskFields)).toHaveBeenCalledWith(
+      'task-abc',
+      { team_id: 'team-sales', business_unit_id: 'bu-2' },
+      VIEWER_ID,
+      null,
+    ))
+    await waitFor(() => expect(screen.getAllByText('Sales Team').length).toBeGreaterThanOrEqual(2))
+    expect(document.querySelector('[data-field-key="businessUnit"]')).toHaveTextContent('Sales')
   })
 })
 
@@ -373,37 +474,56 @@ describe('TaskSurface — mutation handlers', () => {
     vi.mocked(getDownlinePersonIds).mockResolvedValue(['other-id'])
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    // V3 Issue 5: PIC is now a RecordViewer/RecordField select (was a bespoke person picker).
+    // V3 Issue 5: PIC is now a shared RecordViewer/RecordField picker.
     activateFieldByKey('pic')
-    const pic = screen.getByRole('combobox', { name: 'PIC' }) as HTMLSelectElement
-    fireEvent.change(pic, { target: { value: 'other-id' } })
+    chooseRecordOption('Other Person')
     await waitFor(() => expect(vi.mocked(updateTaskFields)).toHaveBeenCalledWith(
       // 4th arg (#742 AC-059): the previous PIC value, threaded through for the from/to event.
       'task-abc', { responsible_person_id: 'other-id' }, VIEWER_ID, VIEWER_ID,
     ))
     // Optimistic reassignment rolled back to the previous PIC after the write rejects.
-    await waitFor(() => expect((screen.getByRole('combobox', { name: 'PIC' }) as HTMLSelectElement).value).toBe(VIEWER_ID))
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'PIC' })).toHaveTextContent('Cahya Cafe'))
   })
 
   // I3: archiving reports the id back to the host (so the table drops the row).
+  it('keeps the record open after failed archive and lets the user retry', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask({ responsible_person_id: 'other-id' }), checklist: [], events: [] })
+    vi.mocked(archiveTask).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce()
+    const onClose = vi.fn()
+    const onTaskArchived = vi.fn()
+    renderSurface({ onClose, onTaskArchived })
+    fireEvent.click(await screen.findByRole('button', { name: 'More actions' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Archive task' }))
+    fireEvent.click(await screen.findByRole('button', { name: /^archive$/i }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't save")
+    expect(onClose).not.toHaveBeenCalled()
+    expect(onTaskArchived).not.toHaveBeenCalled()
+    fireEvent.click(within(alert).getByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(onTaskArchived).toHaveBeenCalledWith('task-abc'))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('I3: confirming archive calls archiveTask then onTaskArchived with the id', async () => {
-    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    mockGetTask.mockResolvedValue({ task: makeTask({ responsible_person_id: 'other-id' }), checklist: [], events: [] })
     vi.mocked(archiveTask).mockResolvedValue(undefined)
     const onTaskArchived = vi.fn()
     renderSurface({ onTaskArchived, onClose: vi.fn() })
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    fireEvent.click(screen.getByRole('button', { name: /archive task/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Archive task' }))
     fireEvent.click(await screen.findByRole('button', { name: /^archive$/i }))
     await waitFor(() => expect(vi.mocked(archiveTask)).toHaveBeenCalledWith('task-abc', VIEWER_ID))
     expect(onTaskArchived).toHaveBeenCalledWith('task-abc')
   })
 
   it('unarchive: archived task surfaces Unarchive and calls unarchiveTask', async () => {
-    mockGetTask.mockResolvedValue({ task: makeTask({ archived_at: '2026-06-12T00:00:00Z' }), checklist: [], events: [] })
+    mockGetTask.mockResolvedValue({ task: makeTask({ responsible_person_id: 'other-id', archived_at: '2026-06-12T00:00:00Z' }), checklist: [], events: [] })
     vi.mocked(unarchiveTask).mockResolvedValue()
     renderSurface()
     await waitFor(() => screen.getByText(/this task is archived/i))
-    fireEvent.click(screen.getByRole('button', { name: /unarchive/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /unarchive/i }))
     await waitFor(() => expect(vi.mocked(unarchiveTask)).toHaveBeenCalledWith('task-abc', VIEWER_ID))
   })
 })
@@ -422,8 +542,7 @@ describe('TaskSurface — live region (AC-111)', () => {
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
     activateFieldByKey('status')
-    const status = document.querySelector('[data-field-key="status"] select') as HTMLSelectElement
-    fireEvent.change(status, { target: { value: 'In Progress' } })
+    chooseRecordOption('In Progress')
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/status changed to In Progress/i))
   })
 
@@ -433,8 +552,7 @@ describe('TaskSurface — live region (AC-111)', () => {
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
     activateFieldByKey('status')
-    const status = document.querySelector('[data-field-key="status"] select') as HTMLSelectElement
-    fireEvent.change(status, { target: { value: 'Blocked' } })
+    chooseRecordOption('Blocked')
     await waitFor(() => expect(mockUpdateTaskStatus).toHaveBeenCalled())
     // pill reverts to Open AND the live region announces the failure
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
@@ -469,11 +587,11 @@ describe('TaskSurface — live region (AC-111)', () => {
   it('AC-111: a failed PIC reassignment reverts AND announces the rollback', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     vi.mocked(updateTaskFields).mockRejectedValue(new Error('write failed'))
+    vi.mocked(getDownlinePersonIds).mockResolvedValue(['other-id'])
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
     activateFieldByKey('pic')
-    const pic = screen.getByRole('combobox', { name: 'PIC' }) as HTMLSelectElement
-    fireEvent.change(pic, { target: { value: 'other-id' } })
+    chooseRecordOption('Other Person')
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
   })
 })
@@ -528,19 +646,20 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     renderDrawer({ onTaskChanged })
     await waitFor(() => screen.getByText('Fix the coffee machine'))
     activateFieldByKey('status')
-    const status = document.querySelector('[data-field-key="status"] select') as HTMLSelectElement
-    fireEvent.change(status, { target: { value: 'In Progress' } })
+    chooseRecordOption('In Progress')
     await waitFor(() => expect(mockUpdateTaskStatus).toHaveBeenCalledWith('task-abc', 'Open', 'In Progress', VIEWER_ID))
     await waitFor(() => expect(onTaskChanged).toHaveBeenCalled())
   })
 
-  it('archive lives in the pinned foot at drawer width', async () => {
-    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+  it('archive lives in the header overflow at drawer width, leaving the footer quiet', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask({ responsible_person_id: 'other-id' }), checklist: [], events: [] })
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
     const actions = document.querySelector('[data-viewer-region="actions"]')
     expect(actions).toBeTruthy()
-    expect(within(actions as HTMLElement).getByRole('button', { name: /archive task/i })).toBeInTheDocument()
+    expect(within(actions as HTMLElement).queryByRole('button', { name: /archive task/i })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menuitem', { name: /archive task/i })).toBeInTheDocument()
   })
 
   it('GAP-2 (OD-91 #7): the drawer has no expand/collapse toggle — Open full page is the one escalation', async () => {
@@ -553,11 +672,12 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
   })
 
   it('AC-112 (drawer): archived deep-link shows the archived banner + Unarchive, edit affordances suppressed', async () => {
-    mockGetTask.mockResolvedValue({ task: makeTask({ archived_at: '2026-06-12T00:00:00Z' }), checklist, events: [] })
+    mockGetTask.mockResolvedValue({ task: makeTask({ responsible_person_id: 'other-id', archived_at: '2026-06-12T00:00:00Z' }), checklist, events: [] })
     vi.mocked(unarchiveTask).mockResolvedValue()
     renderDrawer()
     await waitFor(() => screen.getByText(/this task is archived/i))
-    expect(screen.getByRole('button', { name: /unarchive/i })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menuitem', { name: /unarchive/i })).toBeInTheDocument()
     // archived => no status trigger (read-only)
     expect(document.querySelector('[data-field-key="status"] select')).toBeNull()
   })
@@ -609,7 +729,7 @@ describe('TaskSurface — saved-view URL preservation', () => {
   it('AC-308: create cancel from /work/tasks/new?view=mine&r=other-id returns to /work/tasks?view=mine without losing the prefill on load', async () => {
     renderSurfaceRoute('/work/tasks/new?view=mine&r=other-id')
     const responsible = await screen.findByLabelText(/^pic$/i)
-    expect((responsible as HTMLSelectElement).value).toBe('other-id')
+    expect(responsible).toHaveTextContent('Other Person')
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine'))
   })
@@ -620,18 +740,19 @@ describe('TaskSurface — saved-view URL preservation', () => {
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Saved view task' } })
     // Supervisor starts empty and is required (AC-080/task-surface.tsx accountablePersonId) — a
     // valid submit needs it explicitly chosen.
-    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
+    choosePickerOption('Supervisor', 'Cahya Cafe')
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     // After-create returns to the collection (not the drawer), preserving the view + flagging the new row.
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine&highlight=new-task-id'))
   })
 
   it('AC-311: archive success from /work/tasks/task-abc?view=mine returns to /work/tasks?view=mine', async () => {
-    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    mockGetTask.mockResolvedValue({ task: makeTask({ responsible_person_id: 'other-id' }), checklist: [], events: [] })
     vi.mocked(archiveTask).mockResolvedValue(undefined)
     renderSurfaceRoute('/work/tasks/task-abc?view=mine')
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    fireEvent.click(screen.getByRole('button', { name: /archive task/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Archive task' }))
     fireEvent.click(screen.getByRole('button', { name: /^archive$/i }))
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine'))
   })
@@ -641,18 +762,18 @@ describe('TaskSurface — create mode', () => {
   it('AC-080 (TaskSurface create): PIC defaults to creator, Supervisor starts empty (required), Team defaults to primary-role Team; all editable', async () => {
     renderCreate()
     await waitFor(() => {
-      const buSelect = screen.getByLabelText(/team/i) as HTMLSelectElement
-      expect(buSelect.value).toBe('bu-1')
+      const teamPicker = screen.getByRole('combobox', { name: 'Team' })
+      expect(teamPicker).toHaveTextContent('Cafe Team')
     })
-    const rSelect = screen.getByLabelText(/^pic$/i) as HTMLSelectElement
-    expect(rSelect.value).toBe(VIEWER_ID)
+    const rPicker = screen.getByRole('combobox', { name: 'PIC' })
+    expect(rPicker).toHaveTextContent('Cahya Cafe')
     // Supervisor starts EMPTY — a deliberate v4 product decision (OD-REDESIGN-3/14/41,
     // task-surface.tsx accountablePersonId comment): PIC and Supervisor are distinct accountable
     // roles; auto-collapsing Supervisor to the creator/PIC defeats that model.
-    const aSelect = screen.getByLabelText(/^supervisor$/i) as HTMLSelectElement
-    expect(aSelect.value).toBe('')
-    expect(rSelect).not.toBeDisabled()
-    expect(aSelect).not.toBeDisabled()
+    const aPicker = screen.getByRole('combobox', { name: 'Supervisor' })
+    expect(aPicker).toHaveTextContent(/select supervisor/i)
+    expect(rPicker).not.toBeDisabled()
+    expect(aPicker).not.toBeDisabled()
   })
 
   // #300: with focus in a dirty required field, a real browser click on Cancel runs
@@ -743,7 +864,7 @@ describe('TaskSurface — create mode', () => {
     renderCreate()
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Doomed task' } })
-    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
+    choosePickerOption('Supervisor', 'Cahya Cafe')
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/couldn.t be created/i)
@@ -765,7 +886,7 @@ describe('TaskSurface — create mode', () => {
     expect(document.querySelector('.tc-card')).toBeNull()
     // create still works at drawer width. Supervisor starts empty and is required (AC-080).
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Drawer task' } })
-    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
+    choosePickerOption('Supervisor', 'Cahya Cafe')
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'Drawer task' })))
   })
@@ -822,7 +943,7 @@ describe('TaskSurface — create mode', () => {
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Reportable task' } })
     // Supervisor starts empty and is required (AC-080) — a valid submit needs it chosen.
-    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
+    choosePickerOption('Supervisor', 'Cahya Cafe')
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => expect(onTaskCreated).toHaveBeenCalledWith('new-task-id'))
   })
@@ -832,11 +953,11 @@ describe('TaskSurface — create mode', () => {
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'New Task Alpha' } })
     // Supervisor starts empty and is required (AC-080) — a valid submit needs it chosen.
-    fireEvent.change(screen.getByLabelText(/^supervisor$/i), { target: { value: VIEWER_ID } })
+    choosePickerOption('Supervisor', 'Cahya Cafe')
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => {
       expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'New Task Alpha', businessUnitId: 'bu-1',
+        title: 'New Task Alpha', businessUnitId: 'bu-1', teamId: 'team-cafe',
         responsiblePersonId: VIEWER_ID, accountablePersonId: VIEWER_ID, createdBy: VIEWER_ID,
       }))
     })
@@ -870,20 +991,18 @@ describe('TaskSurface — create mode', () => {
   })
 
   it('AC-108: blurring an empty Team renders an inline error', async () => {
-    // Auth with no role → no primary-role BU, so the BU select starts empty.
+    // Auth with no role → no eligible Team, so the Team picker starts empty.
     const noRoleAuth: AuthState = {
       status: 'authenticated',
       viewer: { person: mockPerson, roles: [], isManager: false, accessRoles: [], affiliated: [] },
       signOut: async () => {},
     }
+    mockGetPersonTeams.mockResolvedValueOnce([])
     renderCreate(noRoleAuth)
-    const bu = await screen.findByLabelText('Team')
-    fireEvent.blur(bu)
+    const team = await screen.findByRole('combobox', { name: 'Team' })
+    fireEvent.blur(team)
     const err = await screen.findByText(/team is required/i)
     expect(err).toHaveAttribute('role', 'alert')
-    // F2 fix: Team is now the design-system Select primitive (styled chevron/box,
-    // no native chrome) — its error border lives on the mk-select wrapper (Select.css
-    // .mk-select--error), not on the bare <select> element itself.
-    expect(bu.closest('.mk-select')).toHaveClass('mk-select--error')
+    expect(team.closest('.picker')).toHaveClass('picker--error')
   })
 })

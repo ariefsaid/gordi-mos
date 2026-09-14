@@ -4,8 +4,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import { can } from '@/lib/capabilities'
-import { loadMentionRosters, type MentionRosters } from '@/lib/db/signals'
+import { getSignalPostAuthority, loadMentionRosters, type MentionRosters } from '@/lib/db/signals'
 import type { StagedMention } from '@/lib/db/signals.types'
 import { SignalComposer } from '@/components/signals/signal-composer'
 import { IconButton } from '@/components/ui/icon-button'
@@ -29,6 +28,10 @@ export interface SignalComposerPrefill {
 
 export interface SignalComposerContextValue {
   open: (prefill?: SignalComposerPrefill) => void
+  /** Effective post authority; absent while the runtime check is unavailable. */
+  canPost?: boolean
+  /** Effective signal.tag authority; absent while the runtime check is unavailable. */
+  canTag?: boolean
   /** Increments on each successful Share — feed/archive surfaces watch it to reload so a freshly
    * posted Signal appears without a manual refresh (AC-430). */
   postCount: number
@@ -51,21 +54,60 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   const [postCount, setPostCount] = useState(0)
   const [rosters, setRosters] = useState<MentionRosters>(EMPTY_ROSTERS)
   const [prefill, setPrefill] = useState<SignalComposerPrefill | undefined>()
-  const [composerDirty, setComposerDirty] = useState(false)
   const [discardOpen, setDiscardOpen] = useState(false)
+  const [authorityReady, setAuthorityReady] = useState(false)
+  const [authority, setAuthority] = useState({ can_post: false, can_tag: false })
+  const dirtyRef = useRef(false)
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null)
 
+  const viewer = auth.status === 'authenticated' ? auth.viewer : null
+  const viewerId = viewer?.person.id
+
+  useEffect(() => {
+    let live = true
+    setAuthorityReady(false)
+    setAuthority({ can_post: false, can_tag: false })
+    if (!viewerId) return () => { live = false }
+    getSignalPostAuthority()
+      .then((next) => { if (live) setAuthority(next) })
+      .catch(() => { /* fail closed; the primary shell remains usable */ })
+      .finally(() => { if (live) setAuthorityReady(true) })
+    return () => { live = false }
+  }, [viewerId])
+
+  const canPost = authorityReady && authority.can_post
+  const canTag = authorityReady && authority.can_tag
+  // All mention kinds consume the same effective signal.tag authority. Keeping this tied to canTag
+  // also fails closed while the runtime authority is loading or unavailable.
+  const canMentionBu = canTag
+
   const close = useCallback(() => {
-    if (composerDirty) { setDiscardOpen(true); return }
-    setIsOpen(false); setPrefill(undefined)
-  }, [composerDirty])
-  const open = useCallback((nextPrefill?: SignalComposerPrefill) => { setPrefill(nextPrefill); setIsOpen(true) }, [])
+    dirtyRef.current = false
+    setDiscardOpen(false)
+    setIsOpen(false)
+    setPrefill(undefined)
+  }, [])
+  const open = useCallback((nextPrefill?: SignalComposerPrefill) => {
+    if (!canPost) return
+    setPrefill(nextPrefill)
+    setIsOpen(true)
+  }, [canPost])
   // On a successful Share: bump the post counter (watched by the feed/archive) then close.
   const handleShared = useCallback(() => {
-    setPostCount((n) => n + 1); setPrefill(undefined); setComposerDirty(false); setIsOpen(false)
+    dirtyRef.current = false
+    setDiscardOpen(false)
+    setPostCount((n) => n + 1)
+    setPrefill(undefined)
+    setIsOpen(false)
   }, [])
-
-  const viewer = auth.status === 'authenticated' ? auth.viewer : null
+  const handleDirtyChange = useCallback((dirty: boolean) => {
+    dirtyRef.current = dirty
+  }, [])
+  const requestClose = useCallback(() => {
+    if (dirtyRef.current) setDiscardOpen(true)
+    else close()
+  }, [close])
+  const discardAndClose = useCallback(async () => { close() }, [close])
 
   // KNOWN GAP 1: the composer's AC-422 fan-out preview needs REAL rosters, not the {} default —
   // load them once per open (small at Gordi's ~30-person scale; loadMentionRosters mirrors
@@ -80,15 +122,13 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
     return () => { cancelled = true }
   }, [isOpen])
 
-  const accessRoles = viewer?.accessRoles ?? []
-
   return (
-    <SignalComposerContext.Provider value={{ open, postCount }}>
+    <SignalComposerContext.Provider value={{ open, postCount, canPost, canTag }}>
       {children}
-      {isOpen && viewer && (
+      {isOpen && viewer && canPost && (
         <ModalShell
           open
-          onClose={close}
+          onClose={requestClose}
           ariaLabel={t('signals.action.share')}
           closeOnBackdrop
           closeOnEscape={!discardOpen}
@@ -98,20 +138,20 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
           <div className="signal-composer-host-panel">
             <div className="signal-composer-host-head">
               <h2 className="signal-composer-host-title">{t('signals.action.share')}</h2>
-              <IconButton variant="tertiary" ariaLabel={t('signals.composer.close')} onClick={close}>
+              <IconButton variant="tertiary" ariaLabel={t('signals.composer.close')} onClick={requestClose}>
                 <CloseIcon />
               </IconButton>
             </div>
             <SignalComposer
-              onDirtyChange={setComposerDirty}
-              textareaRef={composerTextareaRef}
               authorId={viewer.person.id}
               authorName={viewer.person.full_name}
-              canMentionBu={can(accessRoles, 'signal.mention_bu')}
-              canCreateForTeam={can(accessRoles, 'signal.create_for_team')}
+              canTag={canTag}
+              canMentionBu={canMentionBu}
               teamMembers={rosters.teamMembers}
               buMembers={rosters.buMembers}
               onShared={handleShared}
+              onDirtyChange={handleDirtyChange}
+              textareaRef={composerTextareaRef}
               prefill={prefill}
             />
           </div>
@@ -121,16 +161,14 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
         open={discardOpen}
         title={t('signals.composer.discardTitle')}
         body={t('signals.composer.discardBody')}
-        confirmLabel={t('signals.composer.discardConfirm')}
-        cancelLabel={t('signals.composer.keepEditing')}
+        confirmLabel={t('signals.composer.discard')}
+        cancelLabel={t('signals.composer.stay')}
+        onConfirm={discardAndClose}
         tone="destructive"
         onCancel={() => {
           setDiscardOpen(false)
-          // ConfirmDialog's ModalShell returns focus to its invoker during unmount; refocus after
-          // that cleanup so Keep editing returns to the draft, not the composer close button.
           setTimeout(() => composerTextareaRef.current?.focus(), 0)
         }}
-        onConfirm={async () => { setDiscardOpen(false); setComposerDirty(false); setIsOpen(false); setPrefill(undefined) }}
       />
     </SignalComposerContext.Provider>
   )

@@ -2,23 +2,19 @@
 //   J1 (AC-101): open a task in the drawer + act inline; the table stays live.
 //   J2 (AC-104): "Open full page" escalates (same URL) to the standalone record page — expand-
 //        in-place was retired by GAP-2 (OD-REDESIGN-91 #7); see the test for the rewrite rationale.
-//   J3 (AC-108): create-in-drawer → /tasks/:newId → the new row appears in the table.
+//   J3 (AC-108): inline create → the saved row remains in the collection after reload.
 // Requires the live stack (supabase up on 44321) + the global-setup seed.
 // Runs at the default desktop viewport (1440px; ≥1370px → live non-modal split).
 
-import { test, expect, type Page } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
 import { createTaskViaUI } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
 
-// STALE fix: the Tasks toolbar has TWO controls — a role="group" "Tasks saved views" chip strip
-// (All / My work / Overdue / AR Follow-ups, plain <button>s) and a SEPARATE role="tablist" "View"
-// holding the Table/Card presentation switch (collection-toolbar.tsx, tasks-toolbar.tsx,
-// view-tabs.tsx). "All" is a saved-view chip, never a tab. Source-confirmed: collection-toolbar.tsx
-// renders `<div role="group" aria-label={views.label}><button aria-pressed=…>{option.label}</button>`
-// and `views.label` = t('tasks.savedViews') = "Tasks saved views" (tasks-toolbar.tsx / messages.ts).
+// Choose the broad collection scope independently of the viewer's role default.
 async function selectAllSavedView(page: Page) {
-  await page.getByRole('group', { name: 'Tasks saved views' }).getByRole('button', { name: 'All' }).click()
+  await page.getByRole('tab', { name: 'All', exact: true }).click()
 }
 
 test.beforeEach(async ({ page }) => {
@@ -51,13 +47,11 @@ test('AC-101 (J1): open a task in the drawer → table stays mounted → change 
   const openRow = page.locator('tr.task-row[aria-selected="true"]')
   await expect(openRow).toContainText(rowText)
 
-  // STALE fix: there is no "change status" button + listbox/option popover any more. The record
-  // moved to the value-first RecordField grammar (record-field.tsx): a Status field is a pill
-  // that activates a native <select> on click — aria-label "Edit ${label}" (record.field.edit,
-  // messages.ts) → "Edit Status" — and picking an option auto-commits (OPTION_CONTROLS commit
-  // eagerly on change, no separate confirm). Change status inline — no navigation.
+  // Change status through the field's accessible picker without navigating.
   await drawer.getByRole('button', { name: /edit status/i }).click()
-  await drawer.getByLabel('Status').selectOption({ label: 'Blocked' })
+  await drawer.getByRole('combobox', { name: 'Status', exact: true }).click()
+  await page.getByRole('listbox', { name: 'Status', exact: true })
+    .getByRole('option', { name: 'Blocked', exact: true }).click()
 
   // The drawer pill AND the table row both reflect Blocked, still on /tasks/:id.
   await expect(drawer.getByRole('button', { name: /edit status/i })).toContainText('Blocked', { timeout: 8_000 })
@@ -98,8 +92,9 @@ test('AC-104 (J2): "Open full page" escalates to the standalone record page; "Ba
   // A reload is itself a hard/direct load onto /tasks/:id, so OD-63 / Rule 4 keeps it on the
   // standalone page independent of any "preference" (there isn't one — this is boot-navigation
   // detection, not persisted state; see task-page-mode.ts).
+  const canonicalUrl = page.url()
   await page.reload()
-  await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/)
+  await expect(page).toHaveURL(canonicalUrl)
   await expect(page.getByRole('heading', { level: 1, name: rowText })).toBeVisible({ timeout: 10_000 })
 
   // "Back to split view" is a PUSH nav with state:{taskSurface:'panel'} — returns to the drawer so
@@ -108,18 +103,13 @@ test('AC-104 (J2): "Open full page" escalates to the standalone record page; "Ba
   await expect(page.getByRole('complementary', { name: /task detail/i })).toBeVisible({ timeout: 10_000 })
 })
 
-test('AC-108 (J3): create-in-drawer → /tasks/:newId → the new row appears in the table', async ({ page }) => {
+test('AC-108 (J3): inline create keeps the collection mounted and persists the new row', async ({ page }) => {
   const title = `J3 Created ${Date.now()}`
-  await page.getByRole('link', { name: /create task/i }).first().click()
-  await page.waitForURL(/\/tasks\/new$/)
-
-  // The create drawer renders beside the table (no second editor).
-  const form = page.getByRole('form', { name: /create task form/i })
-  await form.getByLabel('Title').fill(title)
-  await form.getByLabel('Supervisor', { exact: true }).selectOption({ label: 'Dewi Director' })
-  await form.getByRole('button', { name: /create task/i }).click()
-
-  // GAP-6: creation returns to the originating collection with the highlighted row.
-  await page.waitForURL(/\/work\/tasks\?.*highlight=[0-9a-f-]{36}$/, { timeout: 15_000 })
+  const detailUrl = await createTaskViaUI(page, title)
+  await expect(page.getByRole('region', { name: 'Tasks', exact: true })).toBeVisible()
+  expect(new URL(page.url()).pathname).toMatch(/\/work\/tasks$/)
+  await expect(page.getByRole('textbox', { name: 'Edit task title' })).toHaveCount(0)
   await expect(page.locator('tr.task-row', { hasText: title }).first()).toBeVisible({ timeout: 10_000 })
+  await page.reload()
+  await expect(page.locator('a[href*="/work/tasks/"]').filter({ hasText: title })).toHaveAttribute('href', new RegExp(detailUrl))
 })

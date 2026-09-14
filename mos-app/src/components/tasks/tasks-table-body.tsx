@@ -16,6 +16,7 @@ import type { Virtualizer } from '@tanstack/react-virtual'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { ErrorState, EmptyState } from '@/components/ui/state-kit'
 import { MobileGroupedCards } from './mobile-grouped-cards'
+import type { TaskTeamOption } from './task-row'
 import type { RenderGroup } from './tasks-grouping'
 import type { WorkloadSummary } from './workload-caption'
 import { WorkloadCaption } from './workload-caption'
@@ -114,6 +115,14 @@ export type TasksTableBodyProps = {
    * generated-ownership line. */
   provenanceByTaskDefId?: Map<string, string>
   onEditTitle?: (taskId: string, title: string) => Promise<void>
+  onEditPic?: (taskId: string, personId: string) => Promise<void>
+  onEditTeam?: (taskId: string, teamId: string) => Promise<void>
+  onEditSupervisor?: (taskId: string, personId: string) => Promise<void>
+  onValidateNewTask?: (taskId: string) => void
+  personOptions?: readonly { id: string; full_name: string }[]
+  supervisorOptions?: readonly { id: string; full_name: string }[]
+  teamOptions?: readonly TaskTeamOption[]
+  draftValidationError?: string
   draftTaskId?: string | null
   onDiscardNewTask?: () => void
   /** #742 AC-060 — threaded through to MobileGroupedCards' draft-card PIC lock sentence. */
@@ -132,7 +141,9 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
     openAddTask, setOverdueOnly,
     workLineMap, objectiveMap, workloadSummary, createHref, onAssignPending, provenanceByTaskDefId,
-    onEditTitle, draftTaskId, onDiscardNewTask, viewerHasNoDownline,
+    onEditTitle, onEditPic, onEditTeam, onEditSupervisor, onValidateNewTask,
+    personOptions, supervisorOptions, teamOptions, draftValidationError,
+    draftTaskId, onDiscardNewTask, viewerHasNoDownline,
   } = props
 
   if (loading) {
@@ -199,6 +210,14 @@ export function TasksTableBody(props: TasksTableBodyProps) {
         onAssignPending={onAssignPending}
         provenanceByTaskDefId={provenanceByTaskDefId}
         onEditTitle={onEditTitle}
+        onEditPic={onEditPic}
+        onEditTeam={onEditTeam}
+        onEditSupervisor={onEditSupervisor}
+        onValidateNewTask={onValidateNewTask}
+        personOptions={personOptions}
+        supervisorOptions={supervisorOptions}
+        teamOptions={teamOptions}
+        createValidationError={draftValidationError}
         draftTaskId={draftTaskId}
         onDiscardNewTask={onDiscardNewTask}
         viewerHasNoDownline={viewerHasNoDownline}

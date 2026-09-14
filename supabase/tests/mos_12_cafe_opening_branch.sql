@@ -4,11 +4,23 @@ select plan(18);
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree(); select shared._test_seed_access_roles(); select ops._test_seed_cafe();
 update mos.work_lines set code = 'cafe_opening' where id = '00000000-0000-0000-0000-00000000c001';
+-- ops._test_seed_cafe() (via ops._test_seed_streams(), #777) already seeds the LIVE stream team
+-- for every (org, branch, activity) tuple below — including these four — so a bare insert hits
+-- teams_stream_unique. The upsert re-points the already-seeded row at this suite's own id/code
+-- instead of adding a second row for the same stream.
 insert into shared.teams (id,org_id,business_unit_id,name,code,branch_id,activity) values
  ('00000000-0000-0000-0000-00000000cc01','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','GHQ bar','ghq-bar','00000000-0000-0000-0000-00000000bf01','bar'),
  ('00000000-0000-0000-0000-00000000cc02','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','RRS kitchen','rrs-kitchen','00000000-0000-0000-0000-00000000bf02','kitchen'),
  ('00000000-0000-0000-0000-00000000cc03','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','RRS bar','rrs-bar','00000000-0000-0000-0000-00000000bf02','bar'),
- ('00000000-0000-0000-0000-00000000cc04','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','GHQ kitchen','ghq-kitchen','00000000-0000-0000-0000-00000000bf01','kitchen');
+ ('00000000-0000-0000-0000-00000000cc04','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','GHQ kitchen','ghq-kitchen','00000000-0000-0000-0000-00000000bf01','kitchen')
+on conflict (org_id, branch_id, activity) where branch_id is not null and archived_at is null
+do update set id = excluded.id, business_unit_id = excluded.business_unit_id, name = excluded.name, code = excluded.code;
+-- The same seed also stands up a Radiant (bf03) stream team in this org, which this suite never
+-- opens — left live it is a third due Café Opening and inflates AC-009's ops-lead count. This
+-- scenario is scoped to Gordi HQ and Rumah Rames, so Radiant's stream is archived rather than
+-- opened or asserted on.
+update shared.teams set archived_at = now()
+ where org_id = '00000000-0000-0000-0000-0000000000a1' and branch_id = '00000000-0000-0000-0000-00000000bf03';
 insert into shared.team_memberships (org_id,person_id,team_id,is_primary,effective_from) values
  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d6','00000000-0000-0000-0000-00000000cc02',true,current_date),
  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d4','00000000-0000-0000-0000-00000000cc01',true,current_date),
@@ -29,7 +41,7 @@ select is((select count(*)::int from mos.due_process_runs() where process_name='
 select ok((mos.spawn_process_run('00000000-0000-0000-0000-00000000c001'::uuid,'00000000-0000-0000-0000-00000000cc02'::uuid,current_date)->>'run_id') is not null,'AC-007: kitchen member starts opening returns a run id');
 select is((select count(*)::int from mos.process_runs where work_line_id='00000000-0000-0000-0000-00000000c001' and owning_team_id='00000000-0000-0000-0000-00000000cc02'),1,'AC-007: one run exists');
 set local request.jwt.claims='{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}';
-select is((mos.spawn_process_run('00000000-0000-0000-0000-00000000c001'::uuid,'00000000-0000-0000-0000-00000000cc03'::uuid,current_date)->>'run_id')::uuid,(select id from mos.process_runs where work_line_id='00000000-0000-0000-0000-00000000c001'::uuid and period_key=to_char(current_date,'YYYY-MM-DD')),'AC-007: bar supervisor receives the canonical existing run id');
+select throws_ok($$select mos.spawn_process_run('00000000-0000-0000-0000-00000000c001'::uuid,'00000000-0000-0000-0000-00000000cc03'::uuid,current_date)$$,'42501',null,'AC-007: a bar supervisor on a different Team cannot start the canonical kitchen-owned opening');
 select is((select count(*)::int from mos.process_runs where work_line_id='00000000-0000-0000-0000-00000000c001' and period_key=to_char(current_date,'YYYY-MM-DD')),1,'AC-007: kitchen and bar return one run');
 set local request.jwt.claims='{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member","finance"]}';
 select throws_ok($$select mos.spawn_process_run('00000000-0000-0000-0000-00000000c001','00000000-0000-0000-0000-00000000cc04',current_date)$$,'42501',null,'AC-008: back-office primary is refused');

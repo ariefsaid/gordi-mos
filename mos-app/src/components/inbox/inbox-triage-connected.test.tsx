@@ -12,7 +12,7 @@ function LocationSearchProbe({ onChange }: { onChange: (search: string) => void 
 }
 import type { UseNotifications } from '@/hooks/useNotifications'
 import type { NotificationRow } from '@/lib/db/notifications'
-import { OverlayHostProvider, OverlayHostSlot } from '@/shell/overlay-host'
+import { OverlayHostProvider, OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { InboxTriageConnected } from './inbox-triage-connected'
 
 // The connected triage owns the live wiring; the data hook is mocked so we drive rows/state directly.
@@ -86,6 +86,24 @@ function LocationProbe() {
   return <span data-testid="loc">{loc.pathname}</span>
 }
 
+/** Seeds the shared host with the same Signal under another collection owner. */
+function ExistingSignalsFrame() {
+  const host = useOverlayHost()
+  useEffect(() => {
+    void host.openRoot({
+      key: 'signal:s9',
+      owner: 'signals',
+      tenant: 'record',
+      label: 'Signal',
+      title: 'Signal',
+      content: <div data-testid="signals-owned-record" />,
+    }, 'route')
+    // This is a one-shot test fixture; the host API is intentionally not a reactive dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return null
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   mockUse.mockReturnValue(hook())
@@ -115,6 +133,26 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
     expect(document.querySelectorAll('[data-overlay-host]').length).toBe(1)
   })
 
+  it('keeps a row busy while Mark handled is in flight and ignores a duplicate action', async () => {
+    let resolveHandled!: () => void
+    const markHandled = vi.fn(() => new Promise<void>((resolve) => { resolveHandled = resolve }))
+    mockUse.mockReturnValue(hook({ notifications: [notif()], markHandled }))
+    renderConnected()
+
+    const row = screen.getByRole('button', { name: /Budget review/ }).closest('.inbox-row')!
+    const handle = within(row as HTMLElement).getByRole('button', { name: /mark handled/i })
+    fireEvent.click(handle)
+
+    await waitFor(() => expect(handle).toBeDisabled())
+    expect(screen.getByRole('status')).toHaveTextContent(/updating/i)
+    expect(screen.getByRole('status')).not.toHaveTextContent(/opening/i)
+    fireEvent.click(handle)
+    expect(markHandled).toHaveBeenCalledTimes(1)
+
+    resolveHandled()
+    await waitFor(() => expect(handle).not.toBeDisabled())
+  })
+
   it('JQ-4: a signal notification mounts the shared SignalRecordHost (its actions live in the panel)', () => {
     mockUse.mockReturnValue(hook({
       notifications: [notif({ metadata: { entity: { type: 'signal', id: 's9' } } })],
@@ -125,6 +163,30 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
 
     expect(screen.getByTestId('signal-record-host')).toHaveAttribute('data-signal-id', 's9')
     expect(document.querySelectorAll('[data-overlay-host]').length).toBe(1)
+  })
+
+  it('reopens a Signal in the Inbox slot when that record is already open from Signals', async () => {
+    mockUse.mockReturnValue(hook({
+      notifications: [notif({ metadata: { entity: { type: 'signal', id: 's9' } } })],
+    }))
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/inbox']}>
+          <OverlayHostProvider>
+            <ExistingSignalsFrame />
+            <InboxTriageConnected mode="page" />
+            <OverlayHostSlot owner="signals" />
+            <OverlayHostSlot owner="inbox" />
+          </OverlayHostProvider>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId('signals-owned-record')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: /Budget review/ }))
+
+    await waitFor(() => expect(screen.getByTestId('signal-record-host')).toHaveAttribute('data-signal-id', 's9'))
+    expect(document.querySelector('[data-overlay-host][data-overlay-owner="inbox"]')).toBeTruthy()
   })
 
   it('an unavailable/unknown target opens no record and shows honest, localized copy', () => {

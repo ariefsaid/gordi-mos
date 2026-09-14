@@ -15,7 +15,10 @@ const RR_KITCHEN: ProductionStream = { branch: RR, activity: 'kitchen' }
 const RAD_BAR: ProductionStream = { branch: RAD, activity: 'bar' }
 const CATALOG: ProductionStream[] = [RR_KITCHEN, { branch: RR, activity: 'bar' }, RAD_BAR]
 
-beforeEach(() => { rememberStream(null) })
+beforeEach(() => {
+  window.sessionStorage.clear()
+  rememberStream(null)
+})
 
 describe('cafe-stream — the module remembers ONE stream', () => {
   it('a surface that resolves a stream leaves it for the next surface', () => {
@@ -53,5 +56,30 @@ describe('cafe-stream — the module remembers ONE stream', () => {
   it('an own stream outside the live catalog resolves to "choose", never to a guess', () => {
     const stale: ProductionStream = { branch: { id: 'b-gone', code: 'gone', name: 'Gone' }, activity: 'bar' }
     expect(resolveCafeStream(CATALOG, stale)).toBeNull()
+  })
+
+  it('does not reuse a remembered stream across authenticated identities', () => {
+    rememberStream(RAD_BAR, 'person-a')
+
+    expect(resolveCafeStream(CATALOG, RR_KITCHEN, 'person-b')).toEqual(RR_KITCHEN)
+    expect(rememberedStreamKey('person-a')).toBe(`${RAD.id}|bar`)
+    expect(rememberedStreamKey('person-b')).toBe(`${RR.id}|kitchen`)
+  })
+
+  it('keeps the legacy no-identity reset able to clear all scoped slots', () => {
+    rememberStream(RAD_BAR, 'person-a')
+    rememberStream(RR_KITCHEN, 'person-b')
+
+    rememberStream(null)
+
+    expect(rememberedStreamKey('person-a')).toBeNull()
+    expect(rememberedStreamKey('person-b')).toBeNull()
+    expect(window.sessionStorage.getItem('mos.cafe.stream.person-a')).toBeNull()
+  })
+
+  it('does not adopt a persisted legacy slot for an identified viewer', () => {
+    window.sessionStorage.setItem('mos.cafe.stream', `${RAD.id}|bar`)
+
+    expect(resolveCafeStream(CATALOG, RR_KITCHEN, 'person-b')).toEqual(RR_KITCHEN)
   })
 })

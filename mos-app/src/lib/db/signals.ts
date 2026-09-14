@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { filterEffectiveMemberships } from '@/lib/team-context/eligible-teams'
 import type {
   Attention, SignalRow, MentionKind, CreateSignalInput, TeamOption, SiteOption, StagedMention,
 } from './signals.types'
@@ -70,30 +71,48 @@ export interface SignalDetail {
   tasks: SignalTaskLinkRow[]
 }
 
+type SignalReadError = Error & { code?: string }
+
+function wrapSignalReadError(prefix: string, error: unknown): SignalReadError {
+  const source = error && typeof error === 'object'
+    ? error as { message?: unknown; code?: unknown }
+    : null
+  const message = typeof source?.message === 'string' ? source.message : String(error)
+  const wrapped = new Error(`${prefix} — ${message}`) as SignalReadError
+  if (typeof source?.code === 'string') wrapped.code = source.code
+  return wrapped
+}
+
+type SignalNestedRow = SignalRow & {
+  signal_mentions?: SignalMentionRow[] | null
+  signal_acknowledgements?: SignalAckRow[] | null
+  signal_tasks?: SignalTaskLinkRow[] | null
+}
+
 /** Read one Signal plus its mentions, acknowledgements, and linked-task rows (record surface, B15). */
 export async function getSignal(id: string): Promise<SignalDetail> {
-  const { data: signal, error: sErr } = await mos().from('signals').select('*').eq('id', id).single()
-  if (sErr) throw new Error(`getSignal failed — ${sErr.message}`)
+  // Embed the child rows into the primary read. This keeps the record's first paint on one
+  // RLS-governed request and makes a missing/denied Signal unambiguous to the host; the foreign
+  // keys on each bridge table let PostgREST resolve these relationships without extra queries.
+  const { data, error } = await mos()
+    .from('signals')
+    .select('*, signal_mentions(*), signal_acknowledgements(*), signal_tasks(*)')
+    .eq('id', id)
+    .single()
+  if (error) throw wrapSignalReadError('getSignal failed', error)
 
-  // The three child reads are independent — fetch them in parallel (the parent row must resolve
-  // first only because a missing Signal should surface as `getSignal failed`, not a child error).
-  const [
-    { data: mentions, error: mErr },
-    { data: acks, error: aErr },
-    { data: tasks, error: tErr },
-  ] = await Promise.all([
-    mos().from('signal_mentions').select('*').eq('signal_id', id),
-    mos().from('signal_acknowledgements').select('*').eq('signal_id', id),
-    mos().from('signal_tasks').select('*').eq('signal_id', id),
-  ])
-  if (mErr) throw new Error(`getSignal mentions failed — ${mErr.message}`)
-  if (aErr) throw new Error(`getSignal acknowledgements failed — ${aErr.message}`)
-  if (tErr) throw new Error(`getSignal tasks failed — ${tErr.message}`)
+  const row = data as unknown as SignalNestedRow
+  const {
+    signal_mentions: mentions,
+    signal_acknowledgements: acknowledgements,
+    signal_tasks: tasks,
+    ...signal
+  } = row
 
   return {
     signal: signal as unknown as SignalRow,
     mentions: (mentions ?? []) as unknown as SignalMentionRow[],
-    acknowledgements: (acks ?? []) as unknown as SignalAckRow[],
+    acknowledgements: (acknowledgements ?? []) as unknown as SignalAckRow[],
     tasks: (tasks ?? []) as unknown as SignalTaskLinkRow[],
   }
 }
@@ -115,6 +134,27 @@ export async function createSignal(input: CreateSignalInput): Promise<string> {
   })
   if (error) throw new Error(`createSignal failed — ${error.message}`)
   return data as string
+}
+
+export interface SignalPostAuthority {
+  can_post: boolean
+  can_tag: boolean
+}
+
+/** Resolve Signal posting/tagging authority from admin-managed runtime policy. */
+export async function getSignalPostAuthority(): Promise<SignalPostAuthority> {
+  const { data, error } = await mos().rpc('get_signal_post_authority')
+  if (error) throw new Error(`getSignalPostAuthority failed — ${error.message}`)
+  const row = Array.isArray(data) ? data[0] : data
+  const record = row && typeof row === 'object' ? row as Record<string, unknown> : {}
+  return { can_post: record.can_post === true, can_tag: record.can_tag === true }
+}
+
+/** Per-Signal retract authority. A missing/erroring answer is intentionally not treated as true. */
+export async function canRetractSignal(signalId: string): Promise<boolean> {
+  const { data, error } = await mos().rpc('can_retract_signal', { p_signal_id: signalId })
+  if (error) throw new Error(`canRetractSignal failed — ${error.message}`)
+  return data === true
 }
 
 // ── correctSignal / retractSignal (B4, FR-410/411) ───────────────────────────
@@ -266,15 +306,31 @@ export async function listSignalRevisions(signalId: string): Promise<SignalRevis
 
 export interface MentionRosters { teamMembers: MemberLookup; buMembers: MemberLookup }
 
+const WIB_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' })
+
+function wibToday(now: Date = new Date()): string {
+  return WIB_DATE.format(now)
+}
+
+type MentionMembershipRow = {
+  team_id: string
+  person_id: string
+  effective_from: string
+  effective_to: string | null
+}
+type EffectiveMentionMembershipRow = MentionMembershipRow & { is_primary: boolean }
+
 /** Build the composer's fan-out-preview rosters. teamMembers: Team id → active member person ids.
  * buMembers: BU id → the active members of that BU's Teams UNION the holders of a Role scoped to
  * that BU (mirrors the fan_out_signal_mention RPC's @BU recipient union, client-side, for the
- * preview count only — the RPC itself is the authoritative count at post time, D24/AC-422). Loads
- * the whole org's substrate once (small at Gordi's ~30-person scale, same pattern as getPeople()). */
-export async function loadMentionRosters(): Promise<MentionRosters> {
+ * preview count only — the RPC itself is the authoritative count at post time, D24/AC-422). A
+ * membership is eligible only inside its effective date window, matching the server fan-out rule.
+ * Loads the whole org's substrate once (small at Gordi's ~30-person scale, same pattern as
+ * getPeople()). The optional date is a deterministic seam for unit tests. */
+export async function loadMentionRosters(today = wibToday()): Promise<MentionRosters> {
   const [teamsRes, membershipsRes, rolesRes, personRolesRes] = await Promise.all([
     shared().from('teams').select('id,business_unit_id').is('archived_at', null),
-    shared().from('team_memberships').select('team_id,person_id').is('effective_to', null),
+    shared().from('team_memberships').select('team_id,person_id,effective_from,effective_to'),
     shared().from('roles').select('id,business_unit_id'),
     shared().from('person_roles').select('person_id,role_id'),
   ])
@@ -284,7 +340,12 @@ export async function loadMentionRosters(): Promise<MentionRosters> {
   if (personRolesRes.error) throw new Error(`loadMentionRosters person_roles failed — ${personRolesRes.error.message}`)
 
   const teamMembers: MemberLookup = {}
-  for (const m of (membershipsRes.data ?? []) as { team_id: string; person_id: string }[]) {
+  const membershipRows: EffectiveMentionMembershipRow[] = ((membershipsRes.data ?? []) as MentionMembershipRow[]).map((membership) => ({
+      ...membership,
+      is_primary: false,
+  }))
+  const effectiveMemberships = filterEffectiveMemberships(membershipRows, today) as EffectiveMentionMembershipRow[]
+  for (const m of effectiveMemberships) {
     (teamMembers[m.team_id] ??= []).push(m.person_id)
   }
 

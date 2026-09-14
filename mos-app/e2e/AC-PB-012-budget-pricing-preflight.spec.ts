@@ -5,10 +5,13 @@
 // Run with the hide-first flag enabled:
 //   VITE_SHOW_PLAN_BUDGET=true npx playwright test e2e/AC-PB-012-budget-pricing-preflight.spec.ts
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures/budget-browser'
 import { ADMIN } from './fixtures/users'
 import { loginAs } from './helpers/login'
+import { chooseSelectOption } from './helpers/select'
 import { isShipGated } from './helpers/ship-gate'
+
+// @e2e-owned-cleanup: captured-budget-ids
 
 test.describe('AC-PB-012: Plan budget capture → pricing pre-flight', () => {
   // issue 444 — this journey walks /money/budget and /money/pricing, both under the ship-gated
@@ -27,24 +30,24 @@ test.describe('AC-PB-012: Plan budget capture → pricing pre-flight', () => {
     await page.goto('money/budget')
     await expect(page.getByRole('heading', { name: /budget creation/i })).toBeVisible()
 
-    await page.getByLabel('Menu item').selectOption('MENU-CROISS')
+    await chooseSelectOption(page, page.getByRole('combobox', { name: 'Menu item', exact: true }), 'MENU-CROISS')
     await expect(page.getByRole('status').filter({ hasText: /stale/i })).toBeVisible()
 
     const label = `AC-PB-012 Promo ${Date.now()}`
     await page.getByLabel('Scenario label').fill(label)
-    await page.getByLabel('Scenario type').selectOption('promo')
+    await chooseSelectOption(page, page.getByRole('combobox', { name: 'Scenario type', exact: true }), 'Promo')
     await page.getByRole('button', { name: /capture budget/i }).click()
     await expect(page.getByText(/saved scenario/i)).toBeVisible()
     await expect(page.getByRole('row', { name: new RegExp(label) })).toBeVisible()
 
     await page.goto('money/pricing')
     await expect(page.getByRole('heading', { name: /pricing pre-flight/i })).toBeVisible()
-    const budgetValue = await page.getByLabel('Budget scenario').evaluate((select, scenarioLabel) => {
-      const options = Array.from((select as HTMLSelectElement).options)
-      return options.find((option) => option.textContent?.includes(String(scenarioLabel)))?.value ?? ''
-    }, label)
-    expect(budgetValue).not.toBe('')
-    await page.getByLabel('Budget scenario').selectOption(budgetValue)
+    const budgetPicker = page.getByRole('combobox', { name: 'Budget scenario', exact: true })
+    await budgetPicker.click()
+    const budgetOption = page.getByRole('listbox', { name: 'Budget scenario', exact: true })
+      .getByRole('option').filter({ hasText: label })
+    await expect(budgetOption).toHaveCount(1)
+    await budgetOption.click()
     await page.getByLabel('Candidate price (Rp)').fill('45000')
 
     await expect(page.getByTestId('pricing-result')).toContainText('Gross margin')

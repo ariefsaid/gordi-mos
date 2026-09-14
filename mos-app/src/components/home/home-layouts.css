@@ -1,104 +1,172 @@
-/* Shared Home layout primitives (OD-V4-9, FR-930/FR-932).
-   ONE definition each: the work/feed layout, the tile grid and tile, and the region tabs.
-   A layout option may override only what genuinely differs, and must say why at the override. */
+/* Shared v4 Home arrangement primitives. These own geometry; the Home collection host and
+   home-stream.css own the data-row grammar. Approved theme tokens provide every surface, border,
+   text and focus color. */
 
-/* The Home page-content frame — the inline-size CONTAINER every branch below is measured against
-   (DESIGN.md § Layout → The Container-Query Rule). `.home-layout` cannot be its own container: a
-   container query styles a container's descendants, never the container itself. Named, so a branch
-   can never bind to an unrelated ancestor that happens to be a container. */
-.home-frame { container: home / inline-size; }
+.home-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 32px;
+  align-items: start;
+}
 
-/* Home is not a readable single column, so it does not take the readable-measure cap.
-   PageFrame caps its content region at 1180px and LEFT-aligns it (page-families.css) — the right
-   call for one column of prose-width content, the wrong one here: Home is a two-column operating
-   surface (work region + the standing Signals aside), so the cap stopped the header rule, the
-   arrangement and the Signals column ~250px short of the content area and stranded a dead gutter
-   to their right on a wide monitor ("why is the container for home got cut mid screen
-   horizontally?" — owner, ~1730px window).
-
-   Same shape as the ONE precedent already in the codebase (TasksWorkspace.css, "owner-eyes item 7
-   — kill the dead right void") and the SAME 1760px full-bleed cap, so Home's right edge lands
-   where the data workspace's does rather than introducing a second wide-surface width. Scoped by
-   `:has(.home-frame)` so only the route that hosts Home is affected — every single-column readable
-   page keeps its 1180px measure. The `.page-frame--v3` prefix is carried so this outranks the
-   shared rule on specificity rather than on stylesheet order.
-
-   The reclaimed width goes to the WORK region: the Signals track is minmax(240px, 300px), so it
-   holds at 300px and the arrangement absorbs the rest — which is what the container-query
-   thresholds below were built to be measured against. */
-.page-frame--v3 .page-frame__content:has(.home-frame) { max-width: 1760px; }
-
-.home-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: 32px; align-items: start; }
 .home-layout > * { min-width: 0; }
 
-.home-bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 20px; align-items: stretch; }
-/* Gap (20px) deliberately EXCEEDS .home-tile padding (16px): separation between groups must beat
-   spacing within them, or the grid reads as one mush. */
-.home-tile {
-  display: flex; flex-direction: column; min-width: 0; padding: 16px;
-  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card);
-  box-shadow: var(--shadow-rest); /* Soft-Elevation Rule, DESIGN.md OD-P3-11 */
+.home-layout-leading { min-width: 0; }
+
+.home-bento {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 20px;
+  align-items: stretch;
 }
-/* Three weights, and at every desktop band the tiles pack to EXACTLY the column count — no tile
-   left with a hole beside it (the owner rejected exactly that raggedness: "the boxes dont align …
-   feels untidy nor professional"). Three regions cannot alternate 4+2 / 2+4 the way four did, so
-   the lead takes a whole row and the notice tile pairs with the consequence tile beneath it:
-   6 cols: 6 | 2+4. 4 cols: 4 | 2+2. `full` is the lead tier — needs-you owns the first row
-   outright; `wide` is the consequence tier — the regions that carry the viewer's own work and need
-   room for a task row; `narrow` is the notice tier. needs-you leads by being first and top-left
-   (OD-V4-7); nothing spans more than it, so nothing outranks it. */
-.home-tile[data-weight="full"]   { grid-column: span 6; }
-.home-tile[data-weight="wide"]   { grid-column: span 4; }
+
+.home-tile {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: none;
+}
+
+.home-tile[data-weight="full"] { grid-column: span 6; }
+.home-tile[data-weight="wide"] { grid-column: span 4; }
 .home-tile[data-weight="narrow"] { grid-column: span 2; }
-/* The LEAD tile is marked by tone, not by weight: needs-you's `full` span already says it leads,
-   but tone and span answer different questions (which tile is FIRST vs which tile has ROOM), and
-   keeping the region-keyed fill means a future re-weight cannot silently move the lift. One step
-   up the surface ramp. Distinct from the row-hover fill beside it — hover is `--secondary`
-   (→ --surface-secondary), this is --surface-tertiary, a different step of the same ramp (measured
-   in the browser: 0.984 0.976 0.957 vs 0.969 0.957 0.933), so the tile never reads as hovered. */
 .home-tile[data-region="needs-you"] { background: var(--surface-tertiary); }
 
-.home-tile-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-/* body-lg, not the label rung: at 12px inside 15px/600 row titles the tile's own NAME was the
-   quietest thing in the tile — the region it heads read below the rows it contains. */
-.home-tile-name { font-family: var(--font-display); font-size: var(--font-size-body-lg); font-weight: 600; }
-.home-tile-count { font-size: var(--font-size-label); color: var(--muted-foreground); white-space: nowrap; }
-
-.home-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; flex-wrap: wrap; }
-.home-tab {
-  font: inherit; font-weight: 500; border: 0; background: none; color: var(--muted-foreground);
-  padding: 8px 12px; cursor: pointer; min-height: 44px; /* coarse-pointer floor, NFR-921 */
-  border-bottom: 2px solid transparent; margin-bottom: -1px;
+.home-tile-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
 }
-.home-tab:hover { color: var(--foreground); }
-.home-tab[aria-selected="true"] { color: var(--foreground); border-bottom-color: var(--primary); }
-.home-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.home-tab-count { color: var(--muted-foreground); font-weight: 400; margin-left: 4px; }
 
-/* ── Responsive: driven by the FRAME's actual width, never the window ─────────────────────────
-   These were `@media (max-width: 940px / 620px)`. The window is not what the arrangements have to
-   fit — the page content is, and the 232px rail collapses at 920px independently of the viewport.
-   Measured on Overview before the fix: the work column ran 812px @1440 → 488px @1100 → 572px
-   @1024, i.e. WIDER at the narrower window, because the rail collapsed in between. A trigger that
-   makes the thing it controls non-monotonic is measuring the wrong quantity: at 1100 the bento was
-   still holding 6 columns of 64.66px, squeezing row titles to 99px and wrapping meta to 3 lines.
-   The thresholds themselves are unchanged (DESIGN.md § Breakpoint inventory: home-single-column
-   940, home-bento-stack 620) — only what they are measured against. Branching the PRIMITIVES means
-   all three arrangements inherit one behaviour and none can drift from it. ── */
+.home-tile-name {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-display);
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+}
+
+.home-tile-count {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  white-space: nowrap;
+}
+
+.home-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.home-tab {
+  flex: 0 0 auto;
+  min-height: 44px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 8px 12px;
+  background: none;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 500;
+}
+
+.home-tab:hover { color: var(--foreground); }
+.home-tab[aria-selected="true"] { border-bottom-color: var(--primary); color: var(--foreground); }
+.home-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.home-tab-count { margin-left: 4px; color: var(--muted-foreground); font-weight: 400; }
+
+/* Keep the restored arrangements as readable as the current daily brief. */
+.home-layout .stream-row-link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 16px 4px;
+}
+
+.home-layout .stream-row-title {
+  color: var(--foreground);
+  font-size: var(--font-size-body-lg);
+  line-height: 1.5;
+}
+
+.home-layout .stream-row-tail { flex-wrap: wrap; justify-content: flex-end; max-width: 220px; }
+.home-layout .stream-row-action { margin-left: auto; border: 0; padding: 0; color: var(--text-on-accent-tint); }
+.home-layout .home-signal-body { font-size: var(--font-size-body-lg); font-weight: 400; line-height: 1.6; }
+.home-layout .home-signal-row { flex-direction: column; gap: 8px; padding: 16px 4px; }
+.home-layout .home-signal-main { width: 100%; gap: 8px; }
+.home-layout .home-signal-location-chip,
+.home-layout .home-signal-time-chip {
+  min-height: 0;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  white-space: normal;
+}
+.home-layout .home-signal-meta-item { overflow: visible; white-space: normal; }
+.home-layout .home-signal-attention--needs-attention,
+.home-layout .home-signal-attention--fyi {
+  height: auto;
+  padding: 0;
+  background: transparent;
+  font-weight: 400;
+}
+.home-layout .signal-feed-label,
+.home-layout .stream-band-label,
+.home-layout .home-objectives-door .stream-band-label { font-size: var(--font-size-subheading); }
+.home-layout .home-objective-name { white-space: normal; font-weight: 500; }
+
 @container home (max-width: 940px) {
   .home-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
-  /* At 4 columns the lead's full-track span is 4 and `wide` drops to a half-row 2, so the tiers
-     keep packing exactly: 4 | 2+2 — every row still full. */
   .home-bento { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .home-tile[data-weight="full"] { grid-column: span 4; }
   .home-tile[data-weight="wide"] { grid-column: span 2; }
 }
+
 @container home (max-width: 620px) {
+  .home-tabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    overflow-y: visible;
+  }
   .home-bento { grid-template-columns: minmax(0, 1fr); }
-  /* One column: every tile spans the whole row regardless of its weight. Matched on
-     `[data-weight]` so it outranks the base per-weight spans on
-     SPECIFICITY (0,2,0 vs 0,2,0 with source order deciding — this block is authored last), which
-     is what `!important` was standing in for. `!important` here would also have been unbeatable
-     by any future per-region override at this width. */
   .home-tile[data-weight] { grid-column: span 1; }
+}
+
+@container home (min-width: 961px) {
+  .home-layout .home-brief-my-work .stream-row-link { display: flex; padding-block: 12px; }
+  .home-layout .home-brief-my-work .stream-row-tail { flex-wrap: nowrap; }
+}
+
+.home-layout .stream-band-link,
+.home-layout .stream-band-more--link,
+.home-layout .signal-feed-link { color: var(--text-on-accent-tint); }
+
+/* Tiles can be narrower than the Home container; retain a second metadata line there. */
+.home-tile .stream-row-link { grid-template-columns: minmax(0, 1fr); gap: 8px; padding-block: 12px; }
+.home-tile .stream-row-tail { max-width: none; justify-content: flex-start; }
+
+@container home (max-width: 620px) {
+  .home-layout .stream-row-link { grid-template-columns: minmax(0, 1fr); gap: 8px; padding-block: 12px; }
+  .home-layout .stream-row-tail { max-width: none; justify-content: flex-start; }
+  .home-layout .stream-band-head { flex-wrap: wrap; gap: 4px 12px; }
+  .home-layout .stream-band-link,
+  .home-layout .stream-band-more--link,
+  .home-layout .signal-feed-link { display: inline-flex; align-items: center; min-height: 44px; }
 }

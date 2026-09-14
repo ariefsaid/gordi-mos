@@ -15,6 +15,7 @@ vi.mock('@/lib/db/cafe-opening', () => ({
   startTodayOpening: vi.fn(),
 }))
 vi.mock('@/lib/db/processes', () => ({
+  canStartProcessForTeam: vi.fn(),
   listPendingTasks: vi.fn(),
   resolvePendingTask: vi.fn(),
 }))
@@ -22,24 +23,25 @@ vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
 vi.mock('@/auth/use-auth')
 
 import { getTodayOpeningForTeam, startTodayOpening } from '@/lib/db/cafe-opening'
-import { listPendingTasks, resolvePendingTask } from '@/lib/db/processes'
+import { canStartProcessForTeam, listPendingTasks, resolvePendingTask } from '@/lib/db/processes'
 import { getPeople } from '@/lib/db/directory'
 import { useAuth } from '@/auth/use-auth'
 import { CafeOpeningPanel } from './cafe-opening-panel'
 
 const mockGetTodayOpeningForTeam = vi.mocked(getTodayOpeningForTeam)
 const mockStartTodayOpening = vi.mocked(startTodayOpening)
+const mockCanStartProcessForTeam = vi.mocked(canStartProcessForTeam)
 const mockListPendingTasks = vi.mocked(listPendingTasks)
 const mockResolvePendingTask = vi.mocked(resolvePendingTask)
 const mockGetPeople = vi.mocked(getPeople)
 const mockUseAuth = vi.mocked(useAuth)
 
-function setAuthAs(accessRoles: string[]) {
+function setAuthAs(accessRoles: string[], viewerId = '40000000-0000-0000-0000-000000000001', orgId = 'org-1') {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
       person: {
-        id: '40000000-0000-0000-0000-000000000001', org_id: 'org-1', user_id: 'auth-user-001',
+        id: viewerId, org_id: orgId, user_id: 'auth-user-001',
         must_change_password: false,
         full_name: 'Cahya Cafe', email: 'cahya@example.test', archived_at: null,
         created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
@@ -58,18 +60,23 @@ const RUN_ID = '00000000-0000-0000-0000-00000000r001'
 
 const NOT_STARTED: TodayOpening = { started: false, runId: null, rollup: null }
 
-function renderPanel() {
-  return render(
+function panelTree() {
+  return (
     <I18nProvider>
       <MemoryRouter>
         <CafeOpeningPanel processId={PROCESS_ID} teamId={TEAM_ID} teamName="Radiant" />
       </MemoryRouter>
-    </I18nProvider>,
+    </I18nProvider>
   )
+}
+
+function renderPanel() {
+  return render(panelTree())
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockCanStartProcessForTeam.mockResolvedValue(true)
   mockListPendingTasks.mockResolvedValue([])
   mockGetPeople.mockResolvedValue([])
 })
@@ -98,6 +105,10 @@ describe('AC-712 — capable viewer, opening not started', () => {
     renderPanel()
 
     const startButton = await screen.findByRole('button', { name: "Start today's opening" })
+    expect(screen.getByRole('heading', {
+      level: 2,
+      name: "Not started yet — start today's opening.",
+    })).toBeInTheDocument()
     // Never a bare "Start"/"Create" (Rule 7) — the accessible name is the full verb+object phrase.
     expect(startButton.textContent?.trim().toLowerCase()).not.toBe('start')
     expect(startButton.textContent?.trim().toLowerCase()).not.toBe('create')
@@ -107,12 +118,43 @@ describe('AC-712 — capable viewer, opening not started', () => {
       expect(mockStartTodayOpening).toHaveBeenCalledWith(PROCESS_ID, TEAM_ID)
     })
   })
+
+  it('shows a recoverable error when starting fails and retries the same opening', async () => {
+    setAuthAs(['ops_lead'])
+    mockGetTodayOpeningForTeam.mockResolvedValue(NOT_STARTED)
+    mockStartTodayOpening.mockRejectedValueOnce(new Error('lost race')).mockResolvedValueOnce({
+      run_id: RUN_ID, created: 2, pending: 1, idempotent: false,
+    })
+
+    renderPanel()
+    await userEvent.click(await screen.findByRole('button', { name: "Start today's opening" }))
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't start this run")
+    expect(screen.getByRole('button', { name: "Start today's opening" })).toBeEnabled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(mockStartTodayOpening).toHaveBeenCalledTimes(2))
+  })
+
+  it('refreshes process.start authority when the mounted viewer changes', async () => {
+    setAuthAs(['ops_lead'], 'viewer-a', 'org-1')
+    mockGetTodayOpeningForTeam.mockResolvedValue(NOT_STARTED)
+    mockCanStartProcessForTeam.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    const view = renderPanel()
+    expect(await screen.findByRole('button', { name: "Start today's opening" })).toBeInTheDocument()
+
+    setAuthAs(['ops_lead'], 'viewer-b', 'org-2')
+    view.rerender(panelTree())
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: "Start today's opening" })).not.toBeInTheDocument())
+    expect(mockCanStartProcessForTeam).toHaveBeenCalledTimes(2)
+  })
 })
 
 // ── AC-713: viewer without process.start, not started → read-only ───────────
 describe('AC-713 — non-capable viewer (finance — member now capable, OD-71iii), opening not started', () => {
   it('renders no actionable Start control; shows the neutral read-only not-started copy (OD-71iii)', async () => {
     setAuthAs(['finance'])
+    mockCanStartProcessForTeam.mockResolvedValue(false)
     mockGetTodayOpeningForTeam.mockResolvedValue(NOT_STARTED)
 
     renderPanel()
@@ -120,6 +162,10 @@ describe('AC-713 — non-capable viewer (finance — member now capable, OD-71ii
     await waitFor(() => {
       expect(screen.getByText(/no one has started today.s opening/i)).toBeInTheDocument()
     })
+    expect(screen.getByRole('heading', {
+      level: 2,
+      name: /no one has started today.s opening/i,
+    })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /start/i })).not.toBeInTheDocument()
     // Never a disabled/dead Start button either (Rule 12).
     expect(document.querySelector('button:disabled')).toBeNull()
@@ -131,6 +177,7 @@ describe('AC-713 — non-capable viewer (finance — member now capable, OD-71ii
   // smallest change: swap the variant, no new state-kit option needed.
   it('item 7a: uses the "awaiting" EmptyState variant (never the ✓ "done"-reading glyph) for the not-started non-capable (finance) state', async () => {
     setAuthAs(['finance'])
+    mockCanStartProcessForTeam.mockResolvedValue(false)
     mockGetTodayOpeningForTeam.mockResolvedValue(NOT_STARTED)
 
     renderPanel()
@@ -172,6 +219,7 @@ describe('AC-714 — opening started: caption, roll-up, and the /work/tasks link
   // never implies an action the viewer can't take.
   it('item 6: a non-capable viewer (finance) sees "N unassigned" (never "N to assign") since they have no way to resolve it', async () => {
     setAuthAs(['finance'])
+    mockCanStartProcessForTeam.mockResolvedValue(false)
     mockGetTodayOpeningForTeam.mockResolvedValue({
       started: true, runId: RUN_ID,
       rollup: {
@@ -227,6 +275,7 @@ describe('AC-715 — pending "to assign" resolution', () => {
 
   it('a viewer without process.start sees no resolve control', async () => {
     setAuthAs(['finance'])
+    mockCanStartProcessForTeam.mockResolvedValue(false)
     mockGetTodayOpeningForTeam.mockResolvedValue({
       started: true, runId: RUN_ID,
       rollup: {

@@ -52,11 +52,11 @@ const BRANCH_RR = { id: 'b-rr', code: 'rumah_rames', name: 'Rumah Rames' }
 const BRANCH_RAD = { id: 'b-rad', code: 'radiant', name: 'Radiant' }
 const BRANCHES = [BRANCH_RAD, BRANCH_RR]
 const STREAM_PAIRS = BRANCHES.flatMap(b => [
-  { branch_id: b.id, activity: 'kitchen' as const },
-  { branch_id: b.id, activity: 'bar' as const },
+  { branch_id: b.id, activity: 'kitchen' as const, produces: b !== BRANCH_RAD },
+  { branch_id: b.id, activity: 'bar' as const, produces: true },
 ])
-const OWN_STREAM = { branch: BRANCH_RR, activity: 'kitchen' as const }
-const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const }
+const OWN_STREAM = { branch: BRANCH_RR, activity: 'kitchen' as const, produces: true }
+const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const, produces: true }
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
@@ -96,9 +96,8 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
     await waitFor(() => expect(fetchKitchenStock).toHaveBeenCalled())
     expect(vi.mocked(fetchKitchenStock).mock.calls[0][1]).toEqual(OWN_STREAM)
 
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: `${BRANCH_RAD.id}|bar` },
-    })
+    fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'Radiant · Bar' }))
     await waitFor(() => expect(fetchKitchenStock).toHaveBeenCalledTimes(2))
     stock.unmount() // …and walks to Plan
 
@@ -106,8 +105,8 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
     await waitFor(() => expect(listKitchenPlans).toHaveBeenCalled())
     expect(vi.mocked(listKitchenPlans).mock.calls[0][1]).toEqual(RADIANT_BAR)
     // …and Plan SAYS so, rather than showing another stream's numbers under no name at all.
-    const picker = await screen.findByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    const picker = await screen.findByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Radiant · Bar')
   })
 
   it('with nothing chosen, every surface opens on the person\'s OWN stream', async () => {
@@ -124,12 +123,12 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
   it('the member pesanan horizon follows the same stream, not the catalog\'s first branch', async () => {
     // AC-024's read-only face. It used to resolve `defaultStreamFrom` — the catalog default —
     // so a Radiant barista read Gordi HQ's plan and had nothing on screen to tell them.
-    rememberStream(RADIANT_BAR)
+    rememberStream(RADIANT_BAR, 'p-1')
     vi.mocked(useAuth).mockReturnValue(viewer(['member']))
     render(<KitchenPlanPage />, { wrapper })
     await waitFor(() => expect(listPesanan).toHaveBeenCalled())
     expect(vi.mocked(listPesanan).mock.calls[0][2]).toEqual(RADIANT_BAR)
-    const picker = await screen.findByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    const picker = await screen.findByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Radiant · Bar')
   })
 })

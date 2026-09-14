@@ -84,13 +84,34 @@ describe('Census Step 2.5 — Signal record anatomy conformance (AC-ANAT-009)', 
     expect(regions.filter((r) => r === 'metadata')).toHaveLength(0)
   })
 
-  it('F2 — the identity heading is not a truncated slice, and the full body is present in a content region', () => {
-    const { container } = composeAndRender(makeSignal())
+  it('F2 — the identity heading owns the first line and the live message owns the continuation exactly once', () => {
+    const first = 'HQ bar espresso volumes are down about 15% this week versus last week — corrected count.'
+    const continuation = 'Investigating the grinder over the next two mornings.'
+    const { container } = composeAndRender(makeSignal({ body: `${first}\n${continuation}` }))
     const h1 = container.querySelector('h1')!
-    expect(h1.textContent).toBe(LONG_BODY)
+    expect(h1.textContent).toBe(first)
     expect(h1.textContent!.endsWith('…')).toBe(false)
     const message = container.querySelector('[data-content-slot="message"]')!
-    expect(message.textContent).toContain(LONG_BODY) // full content lives in a content region
+    const messageBody = message.querySelector('.signal-message-body')!
+    expect(messageBody.textContent).toBe(continuation)
+    expect(messageBody.textContent).not.toContain(first)
+    expect(container.textContent).toContain(continuation)
+    // The first line is the identity heading, not a second copy of the Signal message.
+    expect((container.textContent!.match(new RegExp(first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) ?? [])).toHaveLength(1)
+  })
+
+  it('keeps the original first line in a retracted tombstone without restoring its live continuation', () => {
+    const first = 'Original report'
+    const continuation = 'Internal follow-up detail'
+    const { container } = composeAndRender(makeSignal({
+      body: `${first}\n${continuation}`,
+      retracted_at: '2026-07-21T00:00:00Z',
+      retract_reason: 'Duplicate',
+      edited_at: null,
+    }))
+    const message = container.querySelector('[data-content-slot="message"]') as HTMLElement
+    expect(message.querySelector('.signal-tombstone-original')).toHaveTextContent(first)
+    expect(message.querySelector('.signal-tombstone')).not.toHaveTextContent(continuation)
   })
 
   it('F3 — no per-field provenance captions: the facts region carries exactly one section note', () => {

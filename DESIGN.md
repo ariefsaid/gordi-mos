@@ -1,3 +1,11 @@
+> **Current MVP design authority:** This is the intended design system for Tasks, Café WIP
+> production, Signals and their shared seams. Current owner direction and explicitly delegated
+> Director Decisions amend obsolete prescriptions; see local `docs/decisions.md` (DD-MVP).
+> Preserve the approved palette, typography, Home Focused/Overview/List, Personal Profile choice
+> and Signals' right-hand desktop placement. Review actual rendered interactions, including
+> opened controls and failure states. Neither existing implementation nor a passing structural
+> test certifies conformance. `REDESIGN.md` retains the current Home/Tasks composition brief.
+
 ---
 name: Gordi MOS
 version: alpha
@@ -17,7 +25,7 @@ colors:
   secondary-foreground: "oklch(0.210 0.006 30.0)"
   muted: "oklch(0.976 0.002 38.0)"                # == secondary (shadcn convention)
   muted-foreground: "oklch(0.388 0.012 30.0)"     # darkened ~40% L so muted text clears AA on secondary fills
-  accent: "oklch(0.976 0.002 38.0)"               # shadcn "accent" = quiet hover wash (NOT the blue)
+  accent: "oklch(0.976 0.002 38.0)"               # design-role/Tailwind accent = quiet hover wash; see runtime seam below
   accent-foreground: "oklch(0.210 0.006 30.0)"
   # --- Status / semantic ---
   destructive: "oklch(0.6368 0.2078 25.3259)"     # errors, destructive button, "lost"
@@ -27,8 +35,8 @@ colors:
   success: "oklch(0.7205 0.192 149.4926)"         # green — "won"/positive
   success-foreground: "oklch(0.9848 0 89.8756)"
   # --- Lines / fields / focus ---
-  border: "oklch(0.922 0.004 38.0)"              # Single-Border Rule: border == input
-  input: "oklch(0.922 0.004 38.0)"
+  border: "oklch(0.922 0.004 38.0)"              # quiet divider and card boundary
+  input: "color-mix(in srgb, var(--foreground) 50%, var(--background))" # interactive boundary, >=3:1
   ring: "oklch(0.546 0.2153 262.8719)"           # focus ring == The One Blue
   # --- Categorical accent (non-interactive) ---
   violet: "oklch(0.5424 0.2454 293.016)"         # KPI/timeline only — never action
@@ -127,34 +135,35 @@ components:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.primary-foreground}"
     rounded: "{rounded.sm}"
-    padding: "0 12px"
+    padding: "6px 12px"
     height: "32px"
   button-primary-hover:
-    backgroundColor: "{colors.primary}"
+    backgroundColor: "color-mix(in srgb, {colors.primary} 90%, var(--brand-navy) 10%)"
     textColor: "{colors.primary-foreground}"
   button-outline:
     backgroundColor: "{colors.background}"
     textColor: "{colors.foreground}"
+    borderColor: "var(--control-border)"
     rounded: "{rounded.sm}"
-    padding: "0 12px"
+    padding: "6px 12px"
     height: "32px"
   button-outline-hover:
-    backgroundColor: "{colors.accent}"
+    backgroundColor: "var(--surface-tertiary)"
     textColor: "{colors.foreground}"
   button-ghost:
     backgroundColor: "{colors.background}"
     textColor: "{colors.foreground}"
     rounded: "{rounded.sm}"
-    padding: "0 12px"
+    padding: "6px 12px"
     height: "32px"
   button-ghost-hover:
-    backgroundColor: "{colors.accent}"
+    backgroundColor: "var(--surface-tertiary)"
     textColor: "{colors.foreground}"
   button-destructive:
-    backgroundColor: "{colors.destructive}"
+    backgroundColor: "var(--destructive-action)"
     textColor: "{colors.destructive-foreground}"
     rounded: "{rounded.sm}"
-    padding: "0 12px"
+    padding: "6px 12px"
     height: "32px"
   card:
     backgroundColor: "{colors.card}"
@@ -278,7 +287,7 @@ This is the existing, owner-approved RIS Portal look — a shadcn/Radix-derived,
 
 The personality is **calm, dense, and data-first.** The surface is white-on-near-white: a single blue carries every interactive affordance against a field of warm-cool greys, so the eye goes straight to numbers, status, and the one action that matters. Density is deliberate — controls are compact (32px tall), but table rows breathe (52px) so financial figures are scannable. This is an operator's tool for a contract- and project-based business: the owner reviews budgets, procurement, and pipeline on desktop and phone, and the design optimizes for trust in the data over decoration. It explicitly rejects the "AI SaaS marketing" aesthetic: no neon, no glassmorphism panels, no oversized hero type, no shadow-heavy "floating card" soup, no purple gradients.
 
-**Owner-ratified demo-aligned refresh (2026-06-18, OD-P3-9..12).** After comparing the app to a reference demo, the owner directed four bounded divergences that adjust the system's *texture* without changing its *identity*: a new font pairing (Plus Jakarta Sans + DM Sans, with Inter retained only for the verified numeric tabular scope), a slightly larger card radius (12px), a single subtle *resting* shadow on cards (a measured relaxation of the old flat-by-default stance), and two restrained navy gradients. The One Blue Rule, the near-monochrome palette, the Single-Border Rule, density, the Tinted-Status pattern, current status and Signal semantics, Task PIC/Supervisor grammar, governance role-chip semantics, and MOS density mode are **unchanged** — these are the load-bearing identity, and the refresh leaves them intact.
+**Owner-ratified demo-aligned refresh (2026-06-18, OD-P3-9..12).** After comparing the app to a reference demo, the owner directed four bounded divergences that adjust the system's *texture* without changing its *identity*: a new font pairing (Plus Jakarta Sans + DM Sans, with Inter retained only for the verified numeric tabular scope), a slightly larger card radius (12px), a single subtle *resting* shadow on cards (a measured relaxation of the old flat-by-default stance), and two restrained navy gradients. The One Blue Rule, the near-monochrome palette, the Boundary Hierarchy Rule, density, the Tinted-Status pattern, current status and Signal semantics, Task PIC/Supervisor grammar, governance role-chip semantics, and MOS density mode are **unchanged** — these are the load-bearing identity, and the refresh leaves them intact.
 
 **Key Characteristics:**
 - One blue accent (`primary`, `hsl(221 83% 53%)`) does all the interactive work; everything else is neutral.
@@ -306,8 +315,9 @@ A near-monochrome system built on shadcn-vue's HSL roles. The hue spine is a coo
 - **Background** (warm near-white canvas from the E7/runtime token foundation): App background and header. The main scroll area uses a quiet secondary wash to lift cards off the page without introducing a second visual identity.
 - **Foreground** (`hsl(240 10% 3.9%)`, near-black): Primary text.
 - **Card / Popover** (`hsl(0 0% 100%)`): Elevated surfaces (cards, table body, rail, popovers, toasts) — pure white against the tinted main area.
-- **Secondary / Muted / Accent** (`hsl(240 4.8% 95.9%)`, light cool grey): These three share one value but differ in intent. `secondary` = quiet fills (segmented controls, count pills, progress tracks). `muted` pairs with `muted-foreground` (`hsl(240 3.8% 46.1%)`) for de-emphasized text (labels, captions, breadcrumb, sub-values). `accent` is the hover wash on interactive neutral surfaces (rail items, ghost buttons, row hover, control hover).
-- **Border / Input** (`hsl(240 5.9% 90%)`): All hairline dividers, card outlines, and field strokes — one value. Table row dividers soften to 70% opacity.
+- **Secondary / Muted / design-role Accent** (`hsl(240 4.8% 95.9%)`, light cool grey): These three share one value but differ in intent. `secondary` = quiet fills (segmented controls, count pills, progress tracks). `muted` pairs with `muted-foreground` (`hsl(240 3.8% 46.1%)`) for de-emphasized text (labels, captions, breadcrumb, sub-values). The design-role/Tailwind accent is a quiet wash. In authored runtime CSS, the legacy `--accent` variable still aliases the solid action blue; therefore neutral hover, keyboard-cursor and open-state paint must use `--surface-tertiary` or `--surface-secondary` explicitly. `--accent` remains valid for focus rings and action-blue semantics. This seam is guarded by `button-contrast.css.test.ts` and the vendored Impeccable detector.
+- **Border** (`hsl(240 5.9% 90%)`): Quiet hairline dividers and card outlines. Table row dividers soften to 70% opacity.
+- **Input / control boundary** (`control-border`): a theme-aware foreground/background mix that remains at least 3:1 against its surface. Buttons, fields, selects, pickers and date controls use this stronger boundary so their affordance remains identifiable without turning structural dividers into boxes.
 
 ### Gordi brand tokens (OD-P3-7)
 
@@ -328,7 +338,7 @@ The three Gordi brand tokens are the **first owner-approved divergence** from th
 
 **The Tinted-Status Rule.** Status is shown as a 6px colored dot plus a pill tinted at ~10–18% of the status hue with a darkened text variant — never a fully saturated solid fill behind body text. Solid status fills are reserved for the destructive *button* only. *Note: Task status chips use an 8px dot (bumped from 6px for WCAG 1.4.1 visibility) + always-present text label (never dot-only) so status stays perceivable when grouping ≠ Status — see §5 Badges.*
 
-**The Single-Border Rule.** `border` and `input` are the same value on purpose. Never introduce a second border color to "separate" regions; use the `secondary`/`card` surface contrast or spacing instead. *(Restored in Step-1 styling pass OD-P3-13 — previously split for control visibility.)*
+**The Boundary Hierarchy Rule (DD-MVP-15; supersedes the interactive-control part of OD-P3-13).** Structural dividers and card outlines use the quiet `border` token. Interactive controls use `input` / `control-border`, which clears the 3:1 boundary contrast threshold in both themes. Do not use the stronger control token to box ordinary content regions; use surface contrast or spacing there.
 
 **The Structural-Navy Rule (OD-P3-7).** `brand-navy` carries *structural* weight the lone action-blue must not: the logo square + dot, the active nav indicator (inset-shadow rail marker), the group-by control, the drawer's active-tab underline, the avatar gradient (`navy → primary`), and the navy tint behind the OD-P3-12 gradients. It is **never** an action color (no buttons, no links) and **never** a status. The One-Blue Rule is preserved — `primary` blue remains the *only* interactive/action color.
 
@@ -558,11 +568,11 @@ Radii follow the `xs/sm/md/lg/full` scale (4/8/10/12/999px). **Controls stay tig
 All interactive controls are **32px tall** ("h-8") with **8px control radius** (`{rounded.sm}` = `calc(var(--radius) - 4px)`) unless noted; **cards/containers/overlays use the 12px card radius** (`{rounded.lg}` = `var(--radius)`). E7 table rows are 52px. Nested radii use `calc(var(--radius) - 2px/4px)` so inner corners sit inside outer ones. *(OD-P3-10 taste guard: the radius bump to 12px applies to the big surfaces only — 32px controls stay tight at 8px so buttons/inputs/badges/nav-items don't go bubbly.)*
 
 ### Buttons
-- **Shape:** 8px radius (`{rounded.sm}`, the control radius — unchanged in absolute px by OD-P3-10, now expressed as `calc(var(--radius) - 4px)`), 32px tall, `0 12px` padding, 7px gap to a 15px icon. Small variant (`btn-sm`): 28px tall, 13px text. Icon-only: 32px square.
-- **Primary:** `primary` bg, `primary-foreground` text, faint brand shadow at rest. **Optionally** the `gradients.primary-sheen` navy-tinted sheen fill (OD-P3-12) — same blue, AA-safe across its range. Hover → `primary` at 90% (`hsl(var(--primary) / 0.9)`); the sheen, if used, flattens to the solid hover blue.
-- **Outline:** `background` fill, `input` border, `foreground` text. Hover → `accent` wash.
-- **Ghost:** transparent, `foreground` text. Hover → `accent` wash. Used for icon buttons in the header.
-- **Destructive:** `destructive` bg, `destructive-foreground` text. Hover → 90%. The only solid status fill in the system; reserved for irreversible actions (Mark lost, Delete). No gradient (Restrained-Gradient Rule bans gradients on status).
+- **Shape:** 8px radius (`{rounded.sm}`, the control radius — unchanged in absolute px by OD-P3-10, now expressed as `calc(var(--radius) - 4px)`), 32px tall with border-box sizing, `6px 12px` padding, and a 7px gap to a 15px icon. Small variant (`btn-sm`): 28px tall, 13px text. Icon-only: 32px square.
+- **Primary:** `primary` bg, `primary-foreground` text, faint brand shadow at rest. **Optionally** the `gradients.primary-sheen` navy-tinted sheen fill (OD-P3-12) — same blue, AA-safe across its range. Hover mixes 90% `primary` with 10% `brand-navy`, keeping the solid fill and normal-size text above AA instead of compositing blue over the page.
+- **Outline:** `background` fill, `control-border` boundary (3:1 or better against its surface), `foreground` text. Hover → `surface-tertiary` wash; `accent` is the solid action blue alias and is never a neutral hover fill.
+- **Ghost:** transparent, `foreground` text. Hover → `surface-tertiary` wash. Used for icon buttons in the header.
+- **Destructive:** theme-aware `destructive-action` bg (`red12` in light, `red8` in dark), `destructive-foreground` text. Hover darkens against `shadow-cast`. The only solid status fill in the system; reserved for irreversible actions (Mark lost, Delete). No gradient (Restrained-Gradient Rule bans gradients on status).
 - **Focus:** global `:focus-visible` ring — `outline: 2px solid {colors.ring}; outline-offset: 2px`.
 - **Disabled (gap — not yet ratified):** not defined in source; proposed `opacity: 0.5; cursor: not-allowed; pointer-events: none`.
 - **One hierarchy, enforced.** `.btn .btn-{variant}` (`ui/Button.css`, applied via `<Button variant=…>`) is the ONE button implementation — never a per-surface class of the same name. A same-named standalone class elsewhere in the cascade is not a harmless synonym: extract (2026-07-28) found and removed a dead `.btn-ghost` in `tasks/TaskSurface.css` (a leftover from before Archive/Unarchive migrated to `<Button variant="ghost">`) that was live-shadowing the canonical variant app-wide — measured on Home ("+ Tambah kategori"): **15px** instead of the canonical **13.5px** (`--font-size-control`), on a page that never renders a Task. *(Corrected 2026-07-29 during ratification: the `.btn` base is 13.5px/**600**, but `.btn-ghost` deliberately steps its weight down to **500** — a ghost is the quietest rank in the hierarchy. So the canonical ghost is 13.5px/500 and the shadowing defect was the **size** alone. The "13.5px/600" first written here — and the same phrase still in `tasks/TaskSurface.css`'s removal comment — mis-states the ghost variant; `ui/Button.css` is the truth.)* Two identically-named classes always collide eventually; there is no such thing as a "locally scoped" global CSS class.
@@ -619,7 +629,7 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 - **Style:** `background` fill, 1px `input` border, **8px control radius** (`{rounded.sm}` = `calc(var(--radius) - 4px)`), 32px tall, `0 10px` padding. Placeholder = `muted-foreground`. The search-mini and the header `cmdk` are the canonical field shells; inner `<input>` is borderless/transparent and inherits the font (DM Sans). No resting shadow on inputs (Soft-Elevation Rule — flat utility surface).
 - **Focus:** `:focus-visible` ring (`2px {colors.ring}`, 2px offset). The `cmdk` also shifts its border on hover (`muted-foreground/50%`).
 - **Checkbox:** 16px, 1.5px `input` border, **4px radius** (`{rounded.xs}` = `calc(var(--radius) - 8px)`); checked → `primary` fill + `primary` border + white check. Exposed with `role="checkbox"` + `aria-checked` + `tabindex`.
-- **Select (RATIFIED 2026-07-07, `[NEW]` — closes the "11 raw `<select>`" divergence, UI-coherence audit D2/E3):** the one dropdown shell for a bounded choice. It **wraps a native `<select>`** — never a custom listbox — so keyboard, type-ahead, screen-reader semantics, and the phone-native picker come for free (ponytail: no JS menu to own). The native element is visually reset (`appearance: none`, no default arrow) and the shell supplies token chrome identical to a field: `background` fill, 1px `input` border, **8px control radius** (`{rounded.sm}`), **32px tall**, `0 28px 0 10px` padding (right room for the glyph), `foreground` value text, `:focus-visible` ring (`2px {colors.ring}`, 2px offset), flat at rest (utility surface — no shadow). A **14px chevron-down** glyph (`muted-foreground`, `aria-hidden`) sits absolutely at `right: 8px`, `pointer-events: none`. Placeholder/unset option = `muted-foreground`. Disabled = `secondary` bg + `muted-foreground` text + `not-allowed` cursor (this is also the ratification of the disabled-field styling proposed below, scoped to Select). Exposed via the native `<select>` — pass `aria-label` (or a visible `<label>`); no extra ARIA. Lives at `mos-app/src/components/ui/select.tsx`; **all bounded-choice dropdowns import it — no raw `<select>` in `src/pages` or `src/components`** (grep guard).
+- **Select (DD-MVP-2):** one shared accessible bounded-choice control with a designed trigger **and opened options popup** on desktop and phone. The former native-select-only prescription is superseded. Reuse field tokens: `background`/`foreground`, `input` border, 8px control radius, visible focus ring, muted placeholder and disabled treatment; popup uses `popover`/`popover-foreground`, restrained elevation, clear selected/active states and readable wrapped option labels. Phone targets are at least 44px. The popup stays within viewport edges, scrolls long lists and layers correctly inside panels. Preserve labels, form values, controlled/uncontrolled selection, disabled options and validation semantics. Verify keyboard opening, arrows, Home/End, type-ahead, Enter/Space selection, Escape cancellation, outside dismissal and focus return. A hidden native form bridge is acceptable; browser-owned visible option chrome is not the product popup. Fixed-choice fields use `mos-app/src/components/ui/select.tsx`; existing searchable/contextual `Picker` controls share the same listbox interaction contract. A reuse guard supplements, never replaces, opened-state browser and behavior checks.
 - **Error (field validation — RATIFIED 2026-06-15, OD-P3-5):** the documented gap is now closed with two named tokens, both reusing existing palette values (no new hue):
   - `--field-error-border` = `destructive` — the field's 1px `input` border swaps to `destructive` while the field is invalid.
   - `--field-error-text` = `--status-lost-text` (`0 72% 45%`, the AA-darkened red) — for the helper/error line below the field. **Not** base `destructive`, which fails AA (~3.6:1) as small text on white; the darkened red clears AA (≥4.5:1), mirroring the Tinted-Status pattern (saturated hue for the marker/outline, darkened variant for the text).
@@ -628,7 +638,7 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 
 ### Data Table (signature)
 - **Header cells:** sticky, `card` bg, 38px tall, Overline type (11.5px/600 uppercase, 0.03em, `muted-foreground`, DM Sans), bottom `border`. Sortable headers gain `foreground` on hover with a 12px sort glyph. Numeric columns right-align; selection/center columns center.
-- **Body cells:** 52px tall ("roomy rows — breathe"), 12px padding, divider = `border/70%`. Row hover → `accent/60%`; selected → `primary/7%`; expanded → `accent/50%`. Row `⋯` menu button is hidden until row hover. No per-row resting shadow (the table is one card; the Soft-Elevation rest sits on the card, not each row).
+- **Body cells:** 52px tall ("roomy rows — breathe"), 12px padding, divider = `border/70%`. Row hover → `surface-secondary/60%`; selected → `secondary`; expanded → `surface-tertiary`. Row `⋯` menu button is hidden until row hover. No per-row resting shadow (the table is one card; the Soft-Elevation rest sits on the card, not each row).
 - **Dense DB-view variant (OD-P3-6).** The full-bleed Tasks DB-view keeps the E7 52px row grammar, paired with horizontal hairline dividers (`border/70%`) and **no vertical column rules** (vertical "stripes" hurt scan-readability — owner). Any current source that uses a 50px row is inventory evidence to migrate, not a second V3 row token.
 - **In-cell patterns:** project cell (28px colored icon + 2-line name/code, code in mono); money (`tabular`, sub-values `muted`); win-% bar (track `secondary`, fill `success`/`warning`/`destructive` by threshold); age chip (turns `warning-foreground`/`destructive` when aging/stale).
 - **Person cell (A2, OD-WAY-94).** Every person rendered in a table cell uses one grammar: 24px initials avatar + first name. Full names belong to the record and to pickers. Two person columns in one row never use two grammars.
@@ -643,7 +653,7 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 - A horizontal "journey" tracker: equal-flex steps each with a 6px rounded `jbar` (track = `secondary`), a label, and a date. `done` step → bar `success`, label `foreground`/600; `current` step → bar `primary`, label `foreground`/600. Used for budget version lifecycle and the deal stage journey in detail panels. The funnel/stage-summary band is the macro analog: 4 connected `card` segments with conversion-arrow chips between them; selected stage gets `primary/6%` + an inset `primary` bottom rule.
 
 ### Navigation
-- **Rail (sidebar):** 232px (`--rail-w`), `card` bg, right `border`. Brand block (56px, matches header) with a 28px `primary` logo square. Grouped items under Overline group labels. **Nav item:** 36px tall, **8px control radius** (`{rounded.sm}` = `calc(var(--radius) - 4px)`; nav-items are controls, kept tight per OD-P3-10), optional trailing count badge. Hover → `accent`; active → `primary/10%` bg + `primary` text + 600 weight + `aria-current="page"`. Foot section (border-top) holds Admin Settings (admin only) and the identity chip; the chip's menu holds Personal Profile · Appearance · Sign out (OD-WAY-77).
+- **Rail (sidebar):** 232px (`--rail-w`), `card` bg, right `border`. Brand block (56px, matches header) with a 28px `primary` logo square. Grouped items under Overline group labels. **Nav item:** 36px tall, **8px control radius** (`{rounded.sm}` = `calc(var(--radius) - 4px)`; nav-items are controls, kept tight per OD-P3-10), optional trailing count badge. Hover → `surface-tertiary`; active → `primary/10%` bg + `primary` text + 600 weight + `aria-current="page"`. Foot section (border-top) holds Admin Settings (admin only) and the identity chip; the chip's menu holds Personal Profile · Appearance · Sign out (OD-WAY-77).
 - **The Rail Type Ladder (DD-WAY-33).** The rail carries three levels, and each one is a distinct **rung** — a nav item's weight states its level, so the tree is legible without expanding anything. This closes the gap that let Money and Inbox, sitting after Work's children, read as part of the group above them.
 
   | Rung | Members | Treatment |
@@ -665,7 +675,7 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 
   | | |
   |---|---|
-  | **Control** | A 28px square icon button (`--rail-toggle-size`), 8px control radius like every nav item, `muted-foreground` resting → `accent` bg + `foreground` on hover. Its glyph is the ONE shared disclosure `Chevron` rotated by CSS: **left when expanded** ("fold this away"), **right when collapsed** ("bring it back"). No new icon is minted for it. |
+  | **Control** | A 28px square icon button (`--rail-toggle-size`), 8px control radius like every nav item, `muted-foreground` resting → `surface-tertiary` bg + `foreground` on hover. Its glyph is the ONE shared disclosure `Chevron` rotated by CSS: **left when expanded** ("fold this away"), **right when collapsed** ("bring it back"). No new icon is minted for it. |
   | **Placement** | Trailing edge of a row above the nav, where the rail meets the content it is making room for. Collapsed, it centres on the icon column's axis — the same centre line every compact nav item below it takes. |
   | **State** | `aria-expanded` on the button, `aria-controls` pointing at the rail's `Primary` nav — the thing that actually expands. Its accessible name states the **action** (Collapse navigation / Expand navigation), never the state, because `aria-expanded` already carries state. Native `<button>`, so Tab reaches it and Enter and Space fire it. |
   | **Persistence** | One boolean in `localStorage` (`mos.rail.collapsed`), default **expanded**. A DEVICE preference — the same person wants the wide rail on a 27" monitor and the narrow one on a 13" laptop — so it is not org data and never leaves the browser. Read synchronously at first paint: no expanded flash to correct. |
@@ -1198,11 +1208,11 @@ not identity; everything in "KEEP UNCHANGED" below is untouched.
 | **OD-P3-10** | `--radius` **0.5rem → 0.75rem (12px)** for cards/containers/overlays. **Controls stay tight at 8px** (`calc(var(--radius) - 4px)`) — taste guard against bubbly 32px controls. `rounded` scale recomputed (xs 4 / sm 8 / md 10 / lg 12 / full 999). | `--radius`; `rounded.*`; `card`/`kanban-card`/`input`/button/nav radii in components frontmatter; §5 per-component radius notes; `@theme inline` radius scale (note 3) |
 | **OD-P3-11** | **Soft-Elevation Rule** amends the former Flat-By-Default Rule: ONE subtle resting shadow now permitted on cards/KPI/kanban (co-equal with the border), shadow-soup still banned. New `shadows.rest` token (faintly navy-tinted near-black, ≤0.06 total alpha). | new `shadows.rest`; `card`/`kanban-card` `shadow`; §4 rule rewrite; §6 Don'ts; implementer note 5 |
 | **OD-P3-12** | **Restrained-Gradient Rule**: two navy-tinted gradients only — an optional primary-button sheen (same blue) and a faint home/digest surface wash. NEVER purple, never on status, AA verified across range. | new `gradients.primary-sheen` + `gradients.surface-wash`; §4b new section; One-Blue / Structural-Navy rules; §6 Do/Don't; implementer note 6 |
-| **OD-P3-13** | **Step-1 redesign styling pass**: warm neutrals, brighter action blue, navy-tinted shadows, AA status text — token values aligned to E7 reference. Restored Single-Border Rule (field border == divider). Fixed `--warning-foreground` bug (was red, now deep brown). | `--ds-background-*`, `--ds-font-color-*`, `--ds-border-color-*`, `--ds-color-blue*`, `--ds-color-green/red/amber/violet`, `--brand-navy`, `--brand-orange`, `--status-*-text`, `--warning-foreground`, `--shadow-overlay`, `--scrim`, `--shadow-popover`, `--shadow-drawer`, `--gradient-primary-sheen`, `--gradient-surface-wash`, `--radius-lg` |
+| **OD-P3-13** | **Historical Step-1 redesign styling pass**: warm neutrals, brighter action blue, navy-tinted shadows, AA status text — token values aligned to E7 reference. Its field-border-equals-divider rule is superseded by DD-MVP-15's Boundary Hierarchy Rule. Fixed `--warning-foreground` bug (was red, now deep brown). | `--ds-background-*`, `--ds-font-color-*`, `--ds-border-color-*`, `--ds-color-blue*`, `--ds-color-green/red/amber/violet`, `--brand-navy`, `--brand-orange`, `--status-*-text`, `--warning-foreground`, `--shadow-overlay`, `--scrim`, `--shadow-popover`, `--shadow-drawer`, `--gradient-primary-sheen`, `--gradient-surface-wash`, `--radius-lg` |
 
 **KEEP UNCHANGED (owner: "keep the rest").** The One Blue Rule (blue stays the only action color;
 accent hue is NOT changing to the demo's indigo-violet), the near-monochrome palette, the
-Single-Border Rule, density (16px card padding, 32px controls, roomy table rows), no-emoji /
+Boundary Hierarchy Rule, density (16px card padding, 32px controls, roomy table rows), no-emoji /
 SVG-icons, the Tinted-Status pattern, current StatusPill/Signal/Task/governance tokens, and MOS density
 mode. Retired filing and legacy operations surfaces are not binding component guidance. The four OD-P3-9..12 changes touch those sections only where a font/radius/elevation/gradient
 change mechanically requires it (e.g. card frontmatter radius, KPI value weight 700→600).
@@ -1341,3 +1351,31 @@ Taste is an anti-slop checklist only. It yields to E7 identity, owner law, acces
 ### Issue 1 evidence boundary
 
 The route/component/style seam inventory behind this contract — existing bespoke heads/frames, route-local CSS, duplicate menus/dialogs/panels, and the current panel geometry — was taken by direct source inspection. That evidence is intentionally not a claim that AC-V3-001 or final AC-V3-014 rendered acceptance has passed. Issue 1 changes documentation and source inspection only. The reconciled DESIGN.md contract is proven by the in-tree conformance guards (`kit-vocab.test.ts`, `record-collection-conformance.test.ts`, and the token-vocab ratchet); a green run of those guards cannot claim application migration or rendered representative acceptance. The approved sequence assigns Issue 3 to **Page-family primitives and migration guards**, Issue 4 to **Shared overlay/panel/navigation host**, Issue 5 to **RecordViewer contract, field primitives, and Task adapter**, Issue 6 to **RecordCollection/view engine and Tasks/Signals adapters**, Issue 7 to **Inbox triage plus Deputy host integration**, Issue 8 to **Café canonical-record integration and Team-context correction**, and Issue 9 to **Representative-slice rendered/driven owner gate; provisional IA ratification**. Issues 10–12 remain separately owned by the master spec.
+
+## MVP interaction acceptance (DD-MVP-3 through DD-MVP-9)
+
+A feature passes design acceptance only after its real persisted journey and denied/read-only path
+are checked with the relevant roles. Use the explicit acceptance matrix:
+
+| Feature | Required persisted journey | Authority and recovery checks |
+| --- | --- | --- |
+| Tasks | Discover the relevant queue, filter/search, create, open from the queue, edit, complete and return with queue context. | Contributor and supervisor/director; unrelated/read-only record denies editing; invalid input preserves the draft and identifies the correction. |
+| Café WIP | Select an affiliated producing stream, save a plan, log production, approve in Review, observe the correct stock consequence and reach the existing Pushes handoff. | Permitted contributor and reviewer; unaffiliated/non-producing/read-only cases remain honest; variance notes have an editable field that unblocks Submit; failed submission preserves quantities and notes. |
+| Signals | Post to an allowed audience, observe recipient Inbox delivery, open, create/link a Task and return, retract with reason and observe the tombstone. | Permitted author/lead and denied non-author path under current authority; failure preserves the post or task draft; original-audience Inbox links reach retraction tombstones; unavailable targets show localized recovery; Escape closes a nested menu before its record. |
+
+Record which behavior was observed in the browser and which is supported only by a unit test,
+database test or source read. The local active evidence ledger is
+`docs/plans/2026-09-14-mvp-acceptance.md`; its role/state rows cannot be closed by a happy-path-only check.
+
+Inspect desktop and 390px phone layouts with opened controls, long names, translated labels,
+text enlargement, loading, empty, validation/error/retry and keyboard focus states. Full values and
+actions remain reachable without horizontal page overflow. A truncated saved-view label retains an
+accessible full name and a reachable full-value presentation. Amend obsolete test assertions with
+approved behavior changes; retain persistence, authorization and error-recovery protections.
+
+
+### Café Opening context (DD-MVP-11)
+
+Opening starts with the employee's working location already resolved whenever an effective profile assignment provides a safe default. Show the location prominently as context, with a secondary Change location action when alternatives exist. Do not place an independent production-stream chooser above a branch-wide Opening checklist. Production pages retain branch-and-activity context appropriate to their work.
+
+A valid deliberate per-person session choice takes precedence over the profile default; otherwise use the effective primary location, then a sole eligible location. Outstanding checklists do not determine the employee's default location. Keep already-started openings reachable. Where no safe default exists, present an actionable location choice with available opening information. Missing assignment and failed loading have different recovery messages. Context selection never expands write or approval authority. Verify initial entry, switching, return/reload and account changes at desktop and phone widths.

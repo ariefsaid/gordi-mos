@@ -43,6 +43,12 @@
   border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
   color: var(--status-won-text);
 }
+.kr-notice-link {
+  display: inline-block;
+  margin-left: 8px;
+  color: inherit;
+  font-weight: 600;
+}
 .kr-banner-error {
   background: color-mix(in srgb, var(--destructive) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
@@ -272,6 +278,36 @@ td .krow-stream {
   gap: 8px;
   min-width: 0;
 }
+.kr-complete-foot {
+  margin-top: 12px;
+  padding: 10px 0 2px;
+  border-top: 1px solid var(--border);
+}
+.kr-complete-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.kr-complete-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--status-won-text);
+}
+.kr-complete-check input:disabled {
+  cursor: default;
+}
+.kr-complete-reconfirm {
+  font-size: var(--font-size-label);
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+.kr-complete-saving {
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
 .kr-complete-state {
   font-size: var(--font-size-label);
   color: var(--muted-foreground);
@@ -280,11 +316,6 @@ td .krow-stream {
 }
 .kr-complete-yes {
   color: var(--status-won-text);
-}
-.kr-complete-btn {
-  font-size: var(--font-size-label);
-  padding: 4px 10px;
-  white-space: nowrap;
 }
 .krow-othersstream {
   color: var(--muted-foreground);

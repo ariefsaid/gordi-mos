@@ -7,6 +7,7 @@
 // the full block) — those strips do NOT use this kit.
 import { useId, type ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
+import type { MessageKey } from '@/i18n/messages'
 import { Button } from './button'
 import './CardHead.css' // owns the error-state / empty-state / skeleton tokens
 
@@ -197,6 +198,12 @@ export interface LoadingShellProps {
   count?: number
   /** Override the status announcement (defaults to the shared `common.loading`). */
   label?: string
+  /** Localized status key for a route-level fallback that is not yet mounted. */
+  labelKey?: MessageKey
+  /** Optional visible page identity for a route-level fallback (the status remains separate). */
+  title?: string
+  /** Localized title key for a route-level fallback. */
+  titleKey?: MessageKey
   className?: string
   /** Custom row renderer, forwarded to SkeletonRows for pane-specific shapes. */
   row?: (i: number) => ReactNode
@@ -211,16 +218,24 @@ export interface LoadingShellProps {
  * SkeletonRows alone is `aria-hidden`, so a bare skeleton fallback would leave a screen reader
  * with silence while a chunk downloads.
  */
-export function LoadingShell({ count = 3, label, className, row }: LoadingShellProps) {
+export function LoadingShell({ count = 3, label, labelKey, title, titleKey, className, row }: LoadingShellProps) {
   const t = useT()
-  return (
+  const status = (
     <div
       role="status"
       aria-busy="true"
-      aria-label={label ?? t('common.loading')}
+      aria-label={label ?? (labelKey ? t(labelKey) : t('common.loading'))}
       className={`loading-shell${className ? ` ${className}` : ''}`}
     >
       <SkeletonRows count={count} row={row} />
+    </div>
+  )
+  const resolvedTitle = title ?? (titleKey ? t(titleKey) : undefined)
+  if (!resolvedTitle) return status
+  return (
+    <div className="loading-shell-page">
+      <h1 className="loading-shell-page__title">{resolvedTitle}</h1>
+      {status}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import './TaskSurface.css'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useNavigate, Link, useLocation, useSearchParams } from 'react-router-dom'
+import { useNavigate, Link, useHref, useLocation, useSearchParams, type To } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import {
   getTask, createTask,
@@ -10,17 +10,19 @@ import {
 } from '@/lib/db/tasks'
 import type { TaskDetail as TaskDetailData, CreateTaskInput, TaskFieldsPatch } from '@/lib/db/tasks'
 import type { TaskListRow, TaskStatus, ChecklistItemRow } from '@/lib/db/tasks.types'
-import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
+import {
+  getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams, getTeamsByIds,
+} from '@/lib/db/directory'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { listComments, postComment, type CommentRow } from '@/lib/comments/postComment'
-import { listObjectives } from '@/lib/db/objectives'
+import { listObjectives, readObjective } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listTaskDefs } from '@/lib/db/processes'
 import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { ConfirmArchive } from './confirm-archive'
 import { canEdit } from './task-permissions'
-import { createTaskRecordAdapter, createTaskFieldCommit, type TaskViewerFieldKey } from './task-record-adapter'
+import { createTaskRecordAdapter, createTaskFieldCommit, type TaskTeamView, type TaskRelatedRecord, type TaskViewerFieldKey } from './task-record-adapter'
 import { RecordViewer } from '@/components/records/record-viewer'
 import type { RecordContentSlot, RecordViewerAdapter } from '@/components/records/record-viewer.types'
 import { ChecklistCard } from './checklist-card'
@@ -28,12 +30,30 @@ import { TaskActivity } from './task-activity'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
-import { formatDate } from './task-formatters'
+import { formatDate, formatAge } from './task-formatters'
 import { CloseIcon, BackIcon } from '@/shell/icons'
-import { Select } from '@/components/ui/select'
+import { Picker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
 import { DateField } from '@/components/ui/date-field'
+import { Button } from '@/components/ui/button'
 import { LoadingShell } from '@/components/ui/state-kit'
+
+type DirectoryTeamOption = {
+  id: string
+  name: string
+  businessUnitId?: string
+  business_unit_id?: string
+}
+
+function toTaskTeamView(team: DirectoryTeamOption | undefined, businessUnits: readonly BusinessUnitOption[]): TaskTeamView | null {
+  if (!team) return null
+  const businessUnitId = team.businessUnitId ?? team.business_unit_id
+  return {
+    id: team.id,
+    label: team.name,
+    businessUnitLabel: businessUnitId ? businessUnits.find((unit) => unit.id === businessUnitId)?.name : undefined,
+  }
+}
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 // PR-A: TaskSurface is the single actionable task editor (ADR-0007 "one UI, two
@@ -47,6 +67,7 @@ export type TaskSurfaceProps = {
   onClose?: () => void           // drawer uses this; full host passes navigate('/work/tasks')
   /** Canonical promotion callback supplied by the shared overlay host. */
   onOpenPage?: () => void
+  onOpenRelated?: (record: TaskRelatedRecord) => void
   /**
    * R6(a) (owner review r2): the inverse of "Open full page" on the STANDALONE full canonical page —
    * re-open this same record in the split drawer over the table. Supplied only by TaskRecordPage;
@@ -56,11 +77,15 @@ export type TaskSurfaceProps = {
   /** Suppress the task-local utility bar when RecordPanelHost owns the chrome. */
   showPanelUtility?: boolean
   onTaskChanged?: (task: TaskListRow) => void  // lets the table sync optimistic status (PR-B)
-  onTaskCreated?: (id: string) => void         // C2: lets the table refetch after a create (PR-B)
+  onTaskCreated?: (id: string) => void | Promise<void> // C2: lets the table refetch after a create (PR-B)
   onTaskArchived?: (id: string) => void        // I3: lets the table refetch after an archive (PR-B)
   onTitleResolved?: (title: string) => void    // lets a host render the breadcrumb current title
   /** Bubbles RecordField draft state to a host-owned leave guard. */
   onDirtyChange?: (dirty: boolean) => void
+  /** Defaults supplied by the originating record. */
+  createInitialValues?: { title?: string; businessUnitId?: string; responsiblePersonId?: string }
+  /** null lets the record host retain its URL and own navigation after creation. */
+  createRedirect?: To | null
   /**
    * D-B1: the create form's own Cancel / Close controls route their leave through this so a host
    * (TaskDrawer) can interpose its dirty leave-guard. The surface calls it with the concrete
@@ -104,12 +129,13 @@ export function TaskSurface(props: TaskSurfaceProps) {
 // ── View mode ──────────────────────────────────────────────────────────────────
 function ViewSurface({
   taskId, width, presentation = width === 'drawer' ? 'panel' : 'page',
-  onClose, onOpenPage, onCollapseToSplit, onTaskChanged, onTaskArchived, onTitleResolved, onDirtyChange,
+  onClose, onOpenPage, onOpenRelated, onCollapseToSplit, onTaskChanged, onTaskArchived, onTitleResolved, onDirtyChange,
   showPanelUtility = true,
   identityHeadingLevel,
   fieldCommitsFrozen,
 }: TaskSurfaceProps) {
   const navigate = useNavigate()
+  const canonicalHref = useHref(taskId ? `/work/tasks/${taskId}` : '/work/tasks')
   const location = useLocation()
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
@@ -121,12 +147,17 @@ function ViewSurface({
   const [data, setData] = useState<TaskDetailData | null>(null)
   const [busDirectory, setBusDirectory] = useState<BusinessUnitOption[]>([])
   const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
+  // Keep the canonical Team directory rows here so a Team change can derive its owning BU id;
+  // TaskTeamView is a display projection and intentionally only carries the BU label.
+  const [teamDirectory, setTeamDirectory] = useState<DirectoryTeamOption[]>([])
+  const [taskTeam, setTaskTeam] = useState<TaskTeamView | null>(null)
   // #742 AC-061 (delta): the viewer's downline feeds the record's edit/archive gates and the PIC
   // picker. Loaded as a sibling of the other directory reads — a failure surfaces (not-found),
   // it never silently degrades the permission mirror to read-only. An unauthenticated viewer
   // flows through the same read with '' and resolves [] naturally.
   const [downlineIds, setDownlineIds] = useState<string[]>([])
   const [objectivesDir, setObjectivesDir] = useState<ObjectiveRow[]>([])
+  const [linkedObjective, setLinkedObjective] = useState<ObjectiveRow | null>(null)
   const [workLinesDir, setWorkLinesDir] = useState<WorkLineRow[]>([])
   const [comments, setComments] = useState<CommentRow[]>([])
   // E7 "Generated by" chip — resolved from the real generated_from_task_def_id provenance
@@ -146,6 +177,11 @@ function ViewSurface({
     requestAnimationFrame(() => setLiveMessage(msg))
   }, [])
   const ROLLBACK_MSG = t('tasks.feedback.rollback')
+  // Lifecycle action runs are swallowed by the adapter's action boundary, so keep a small scope
+  // ref around only Mark complete/Reopen. Ordinary Status field commits stay owned by RecordField's
+  // draft-preserving visible error + Retry contract and must not render a duplicate page-level cue.
+  const lifecycleActionRef = useRef(false)
+  const [lifecycleStatusError, setLifecycleStatusError] = useState<TaskStatus | null>(null)
   // OD-REDESIGN-22 (D-C1): the last FAILED checklist write, held so RecordFeed/ChecklistCard can
   // render a VISIBLE error + Retry (the optimistic rollback reverts the row, but a sighted user
   // still needs a clickable way to re-send). The closure re-runs the exact failed operation.
@@ -159,12 +195,14 @@ function ViewSurface({
     const isCurrent = () => seq === loadSeq.current
     setLoading(true)
     setNotFound(false)
+    const viewerTeamsPromise = getPersonTeams(viewerId).catch(() => [])
     Promise.all([
       getTask(taskId),
       getBusinessUnits(),
       getPeople(),
       getDownlinePersonIds(viewerId),
-    ]).then(([taskData, bus, people, downline]) => {
+      viewerTeamsPromise,
+    ]).then(([taskData, bus, people, downline, viewerTeams]) => {
       if (!isCurrent()) return
       setData(taskData)
       setLocalTask(taskData.task)
@@ -172,6 +210,14 @@ function ViewSurface({
       setBusDirectory(bus)
       setPeopleDirectory(people)
       setDownlineIds(downline)
+      setTeamDirectory(viewerTeams)
+      const taskTeamId = (taskData.task as TaskListRow & { team_id?: string | null }).team_id
+      setTaskTeam(null)
+      if (taskTeamId) {
+        getTeamsByIds([taskTeamId]).then((teams) => {
+          if (isCurrent()) setTaskTeam(toTaskTeamView(teams[0], bus))
+        }).catch(() => {})
+      }
       setLoading(false)
       // Non-blocking "Generated by" resolution — a hand-created (ad hoc) task carries no
       // generated_from_task_def_id, so the lookup is skipped entirely (listTaskDefs([]) → []).
@@ -204,6 +250,22 @@ function ViewSurface({
   useEffect(() => { load() }, [load])
   useEffect(() => () => { loadSeq.current += 1 }, [])
 
+  // A linked archived record remains readable; the active directory is only the edit choices.
+  const linkedObjectiveId = localTask?.objective_id
+  useEffect(() => {
+    let current = true
+    async function resolveLinkedObjective() {
+      try {
+        const objective = linkedObjectiveId ? await readObjective(linkedObjectiveId) : null
+        if (current) setLinkedObjective(objective)
+      } catch {
+        if (current) setLinkedObjective(null)
+      }
+    }
+    void resolveLinkedObjective()
+    return () => { current = false }
+  }, [linkedObjectiveId])
+
   // Notify a host of the resolved title (e.g. for the breadcrumb)
   useEffect(() => {
     if (localTask && onTitleResolved) onTitleResolved(localTask.title)
@@ -221,12 +283,14 @@ function ViewSurface({
   // ── Status change ────────────────────────────────────────────────────────
   // Optimistic + rollback, and — like handleUpdateField — RE-THROWS on failure so the Status
   // RecordField shows its VISIBLE error + Retry (OD-REDESIGN-22 / D-C1). Swallowing the rejection
-  // here made the field's commit resolve, wrongly rendering "Saved" on a failed write. The lifecycle
-  // ACTION buttons (Mark complete / Reopen) wrap their call in a catch (see the adapter) so a status
-  // failure they trigger stays a benign optimistic rollback rather than an unhandled rejection.
+  // here made the field's commit resolve, wrongly rendering "Saved" on a failed write. Lifecycle
+  // ACTION buttons (Mark complete / Reopen) are scoped below so their adapter catch can coexist
+  // with a visible TaskSurface-level recovery cue.
   async function handleStatusChange(newStatus: TaskStatus) {
     if (!localTask) return
     const oldStatus = localTask.status
+    const isLifecycleAction = lifecycleActionRef.current
+    if (isLifecycleAction) setLifecycleStatusError(null)
     setLocalTask(t => t ? { ...t, status: newStatus } : t)
     onTaskChanged?.({ ...localTask, status: newStatus })  // sync the table row optimistically
     try {
@@ -236,12 +300,23 @@ function ViewSurface({
       setLocalTask(refreshed.task)
       setLocalChecklist(refreshed.checklist)
       onTaskChanged?.(refreshed.task)
+      if (isLifecycleAction) setLifecycleStatusError(null)
       announce(t('tasks.feedback.statusChanged', { status: newStatus === 'Open' ? t('tasks.status.open') : newStatus === 'In Progress' ? t('tasks.status.inProgress') : newStatus === 'Blocked' ? t('tasks.status.blocked') : t('tasks.status.done') }))
     } catch (err) {
       setLocalTask(t => t ? { ...t, status: oldStatus } : t)
       onTaskChanged?.({ ...localTask, status: oldStatus })
+      if (isLifecycleAction) setLifecycleStatusError(newStatus)
       announce(ROLLBACK_MSG)
       throw err instanceof Error ? err : new Error('updateTaskStatus failed')
+    }
+  }
+
+  async function runLifecycleAction(run: () => Promise<void> | void) {
+    lifecycleActionRef.current = true
+    try {
+      await run()
+    } finally {
+      lifecycleActionRef.current = false
     }
   }
 
@@ -263,18 +338,31 @@ function ViewSurface({
   }
 
   // ── Domain-facing field commit (V3 Issue 5 DAL seam) ──────────────────────
-  // RecordViewer/RecordField commit a domain-facing key (pic/supervisor/businessUnit/dueDate/…);
-  // this is the ONE place the viewer key is translated to the legacy storage column (the plan's
+  // RecordViewer/RecordField commit a domain-facing key (team/pic/supervisor/businessUnit/dueDate/…);
+  // this is the ONE place the viewer key is translated to the storage column (the plan's
   // saveTaskViewerField switch — including the legacy responsible/accountable → PIC/Supervisor
   // storage-name mismatch, kept out of the vocabulary). It stays optimistic + rolls back, and
   // RE-THROWS on failure so RecordField shows its error/retry feedback.
   async function handleUpdateField(field: TaskViewerFieldKey, value: string | null) {
     if (!localTask) return
     const prev = { ...localTask }
+    const prevTaskTeam = taskTeam
     const v = value === '' ? null : value
-    const patch: TaskFieldsPatch = {}
-    const optimistic: Partial<TaskListRow> = {}
+    const patch: TaskFieldsPatch & { team_id?: string | null } = {}
+    const optimistic: Partial<TaskListRow> & { team_id?: string | null } = {}
     switch (field) {
+      case 'team': {
+        patch.team_id = v
+        optimistic.team_id = v
+        const selectedTeam = v ? teamDirectory.find((team) => team.id === v) : undefined
+        const selectedBusinessUnitId = selectedTeam?.businessUnitId ?? selectedTeam?.business_unit_id
+        if (selectedBusinessUnitId) {
+          patch.business_unit_id = selectedBusinessUnitId
+          optimistic.business_unit_id = selectedBusinessUnitId
+        }
+        setTaskTeam(v && selectedTeam ? toTaskTeamView(selectedTeam, busDirectory) : null)
+        break
+      }
       case 'pic': patch.responsible_person_id = v ?? ''; optimistic.responsible_person_id = v ?? ''; break
       case 'supervisor': patch.accountable_person_id = v ?? ''; optimistic.accountable_person_id = v ?? ''; break
       case 'businessUnit': patch.business_unit_id = v ?? ''; optimistic.business_unit_id = v ?? ''; break
@@ -292,13 +380,25 @@ function ViewSurface({
         : field === 'supervisor' ? prev.accountable_person_id
           : field === 'dueDate' ? prev.due_date : null
       await updateTaskFields(localTask.id, patch, viewerId, previousValue)
-      await refetchEvents(localTask.id)
+      if (field === 'team') {
+        const refreshed = await getTask(localTask.id)
+        setData(refreshed)
+        setLocalTask(refreshed.task)
+        setLocalChecklist(refreshed.checklist)
+        await getTeamsByIds([
+          (refreshed.task as TaskListRow & { team_id?: string | null }).team_id ?? '',
+        ]).then((teams) => setTaskTeam(toTaskTeamView(teams[0], busDirectory))).catch(() => {})
+        onTaskChanged?.(refreshed.task)
+      } else {
+        await refetchEvents(localTask.id)
+      }
       if (field === 'pic') announce(t('tasks.feedback.picReassigned'))
       else if (field === 'projectProcess') announce(t('tasks.feedback.workLineUpdated'))
       else if (field === 'objective') announce(t('tasks.feedback.objectiveUpdated'))
       // Other fields rely on RecordField's own visible Saving/Saved feedback.
     } catch (err) {
       setLocalTask(prev)
+      if (field === 'team') setTaskTeam(prevTaskTeam)
       onTaskChanged?.(prev)
       announce(ROLLBACK_MSG)
       throw err instanceof Error ? err : new Error('updateTaskFields failed')
@@ -338,13 +438,21 @@ function ViewSurface({
       people: peopleDirectory,
       businessUnits: busDirectory,
       objectives: objectivesDir,
+      linkedObjective,
       workLines: workLinesDir,
+      team: taskTeam,
+      teamOptions: teamDirectory
+        .map((team) => toTaskTeamView(team, busDirectory))
+        .filter((team): team is TaskTeamView => team !== null),
       generatedFromLabel,
       // item 2: the record's Due uses the SAME formatter family as the table row ("Wed 8 Jul"),
       // never the raw ISO. The field's `value` stays ISO for the edit control.
       formatDate: (iso) => formatDate(iso, locale),
+      formatCreatedAt: (iso) => formatDate(iso.slice(0, 10), locale),
+      formatAge: (iso) => formatAge(iso, now, locale),
       labels: {
         businessUnit: t('tasks.field.businessUnit'),
+        businessUnitDerived: t('tasks.field.businessUnitDerived'),
         pic: t('tasks.pic'),
         supervisor: t('tasks.supervisor'),
         team: t('tasks.team'),
@@ -352,6 +460,8 @@ function ViewSurface({
         teamFromRecord: t('tasks.field.teamFromRecord'),
         teamMigration: t('tasks.field.teamMigration'),
         dueDate: t('tasks.dueLabel'),
+        createdBy: t('tasks.field.createdBy'),
+        activity: t('tasks.fields.activity'),
       },
       recordLabels: {
         typeLabel: t('tasks.label.task'),
@@ -375,13 +485,22 @@ function ViewSurface({
         unarchive: t('tasks.unarchive'),
         readOnlyArchived: t('tasks.field.readOnlyArchived'),
         readOnlyNoPermission: t('tasks.field.readOnlyNoPermission'),
-        generatedByField: t('tasks.field.generatedBy'),
+    generatedByField: t('tasks.field.generatedBy'),
+    noObjective: t('tasks.noObjective'),
+    adHoc: t('tasks.adHoc'),
+        completedAtField: t('tasks.completedAt'),
       },
       onUpdateField: handleUpdateField,
       onUpdateStatus: handleStatusChange,
       onArchive: async () => { setShowConfirm(true) },
       onUnarchive: handleUnarchive,
+      onOpenRelated,
     })
+    const actions = base.actions.map((action) => (
+      action.id === 'complete' || action.id === 'reopen'
+        ? { ...action, run: () => runLifecycleAction(action.run) }
+        : action
+    ))
     // Content-first anatomy (OD-REDESIGN-90 §2.2): the base adapter yields the ordered content
     // slots [content, ownership, relations, checklist, activity]. Override the trailing two with
     // the LIVE interactive composition — the checklist card (add/toggle/reorder/delete) and the
@@ -425,12 +544,24 @@ function ViewSurface({
     const contentSlots = base.contentSlots.map((slot) =>
       slot.id === 'checklist' ? checklistSlot : slot.id === 'activity' ? activitySlot : slot,
     )
-    return { ...base, contentSlots }
+    return {
+      ...base,
+      actions,
+      contentSlots,
+      footerContent: (
+        <AskDeputyAction
+          variant="footer"
+          draft={t('assistant.askAbout.task', { title: localTask.title })}
+          label={t('assistant.askAbout.taskLabel')}
+          helper={t('assistant.askAbout.taskHelper')}
+        />
+      ),
+    }
   // Handler identities are intentionally excluded; their captured state is represented above.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    data, localTask, localChecklist, viewerId, downlineIds, peopleDirectory, busDirectory,
-    objectivesDir, workLinesDir, generatedFromLabel, comments, now, editable, t, locale,
+    onOpenRelated, data, localTask, localChecklist, viewerId, downlineIds, peopleDirectory, busDirectory,
+    objectivesDir, linkedObjective, workLinesDir, teamDirectory, taskTeam, generatedFromLabel, comments, now, editable, t, locale,
     checklistError,
   ])
 
@@ -517,23 +648,35 @@ function ViewSurface({
 
   // ── Archive/unarchive ────────────────────────────────────────────────────
   const [showConfirm, setShowConfirm] = useState(false)
+  const [archiveFailure, setArchiveFailure] = useState<'archive' | 'unarchive' | null>(null)
   async function handleArchive() {
     if (!localTask) return
     try {
+      setArchiveFailure(null)
       await archiveTask(localTask.id, viewerId)
       onTaskArchived?.(localTask.id)  // I3: let the table drop the row + decrement the count
       if (onClose) onClose()
       else navigate({ pathname: '/work/tasks', search: location.search })
-    } catch { /* surface */ }
+    } catch { setArchiveFailure('archive') }
   }
   async function handleUnarchive() {
     if (!localTask) return
     try {
+      setArchiveFailure(null)
       await unarchiveTask(localTask.id, viewerId)
       setLocalTask(t => t ? { ...t, archived_at: null } : t)
       load()
-    } catch { /* surface */ }
+    } catch { setArchiveFailure('unarchive') }
   }
+
+  const archiveFeedback = archiveFailure && (
+    <div className="task-lifecycle-error" role="alert">
+      <span>{t('record.field.saveError')}</span>
+      <button type="button" className="btn btn-ghost" onClick={() => void (archiveFailure === 'archive' ? handleArchive() : handleUnarchive())}>
+        {t('record.field.retry')}
+      </button>
+    </div>
+  )
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (loading) return <DetailSkeleton />
@@ -554,6 +697,24 @@ function ViewSurface({
   }
 
   const task = localTask
+
+  function retryLifecycleStatus() {
+    const targetStatus = lifecycleStatusError
+    if (!targetStatus) return
+    void runLifecycleAction(() => handleStatusChange(targetStatus)).catch(() => {})
+  }
+
+  const lifecycleStatusFeedback = lifecycleStatusError ? (
+    <div className="record-field__error task-lifecycle-error" role="alert" data-testid="task-lifecycle-error">
+      <span>{t('tasks.feedback.rollback')}</span>
+      <Button variant="outline" className="record-field__retry" onClick={retryLifecycleStatus}>
+        {t('record.field.retry')}
+      </Button>
+      <Button variant="ghost" className="record-field__retry" onClick={() => setLifecycleStatusError(null)}>
+        {t('record.close')}
+      </Button>
+    </div>
+  ) : null
 
   // Open-full-page target for the panel (drawer) utility bar. The RecordPanelHost route host may
   // not supply onOpenPage; a tenant opened from another surface (Inbox/Follow-ups via the
@@ -598,12 +759,15 @@ function ViewSurface({
             <span>{t('tasks.archivedBanner')}</span>
           </div>
         )}
+        {lifecycleStatusFeedback}
+        {archiveFeedback}
 
         {taskViewerAdapter && (
           <div className="record-details record-details-compact" data-testid="record-details">
             <RecordViewer
               adapter={taskViewerAdapter}
               mode="panel"
+              canonicalHref={canonicalHref}
               headingLevel={2}
               onDirtyChange={handleDirtyChange}
               onCommitField={commitField}
@@ -695,6 +859,8 @@ function ViewSurface({
           <span>{t('tasks.archivedBanner')}</span>
         </div>
       )}
+      {lifecycleStatusFeedback}
+        {archiveFeedback}
 
       {taskViewerAdapter && (
         <div className="record-doc">
@@ -702,6 +868,7 @@ function ViewSurface({
             <RecordViewer
               adapter={taskViewerAdapter}
               mode="page"
+              canonicalHref={canonicalHref}
               headingLevel={identityHeadingLevel ?? 1}
               onDirtyChange={handleDirtyChange}
               onCommitField={commitField}
@@ -723,18 +890,21 @@ function ViewSurface({
 }
 
 // ── Create mode ────────────────────────────────────────────────────────────────
-function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, showPanelUtility = true }: TaskSurfaceProps) {
+function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, showPanelUtility = true, createInitialValues, createRedirect }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const auth = useAuth()
   const t = useT()
   const inDrawer = width === 'drawer'
   // AC-125 / FR-123: "+ Add task" from a group header deep-links the grouped
-  // dimension via query params (?r=<personId> / ?bu=<buId>).
+  // dimension via query params (?r=<personId> / ?bu=<buId>). `bu` is retained as a
+  // compatibility hint and is resolved to a real viewer Team after the directory loads;
+  // it is never rendered or submitted as a Team value.
   // Note: Status groups do NOT pass ?status= — CreateSurface has no status field;
   // all new tasks open as "Open". Only PIC (r=) and Team (bu=) pre-fills are read.
   const [searchParams] = useSearchParams()
-  const prefillR = searchParams.get('r') ?? ''
-  const prefillBu = searchParams.get('bu') ?? ''
+  const prefillR = createInitialValues?.responsiblePersonId ?? searchParams.get('createPic') ?? searchParams.get('r') ?? ''
+  const prefillBu = createInitialValues?.businessUnitId ?? searchParams.get('createBu') ?? searchParams.get('bu') ?? ''
+  const prefillTitle = createInitialValues?.title ?? searchParams.get('createTitle') ?? ''
   const collectionParams = new URLSearchParams(searchParams)
   collectionParams.delete('r')
   collectionParams.delete('bu')
@@ -743,40 +913,32 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
 
   // Viewer details
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
-  // Primary-role BU: the first role that actually carries a business unit (roles are
-  // ordered by created_at asc from resolveViewer). F3: an org-wide/admin role carries no
-  // business_unit_id, so `roles[0]` alone left the required Team empty for the Admin/Director
-  // persona while every branch persona got a pre-fill — the admin then hit the required-field
-  // error by default. Scanning for the first role WITH a unit pre-fills any admin who also
-  // holds a branch role; a pure org-wide viewer stays empty and must pick a team (correct —
-  // there is no sensible default), flagged by the Select's "Select team…" placeholder.
-  const primaryRoleBU = auth.status === 'authenticated'
-    ? (auth.viewer.roles.map(r => r.business_unit_id).find(Boolean) ?? '')
-    : ''
 
   // Directory
-  const [busDirectory, setBusDirectory] = useState<BusinessUnitOption[]>([])
   const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
+  const [teamDirectory, setTeamDirectory] = useState<DirectoryTeamOption[]>([])
   const [dirLoading, setDirLoading] = useState(true)
   const [objectivesDir, setObjectivesDir] = useState<ObjectiveRow[]>([])
   const [workLinesDir, setWorkLinesDir] = useState<WorkLineRow[]>([])
+  const prefillTeamId = searchParams.get('team') ?? ''
 
   useEffect(() => {
-    Promise.all([getBusinessUnits(), getPeople()]).then(([bus, people]) => {
-      setBusDirectory(bus)
+    const teamsPromise = getPersonTeams(viewerId).catch(() => [])
+    Promise.all([getBusinessUnits(), getPeople(), teamsPromise]).then(([, people, teams]) => {
       setPeopleDirectory(people)
+      setTeamDirectory(teams)
       setDirLoading(false)
     }).catch(() => setDirLoading(false))
     // Non-blocking catalog loads — a slow catalog must never block the form.
     listObjectives().then(setObjectivesDir).catch(() => {})
     listWorkLines().then(setWorkLinesDir).catch(() => {})
-  }, [])
+  }, [viewerId])
 
   // ── Form state ────────────────────────────────────────────────────────────
   // Pre-fill from the group "+ Add task" deep-link (AC-125) takes precedence over
   // the creator-default; absent param → today's creator-default behavior.
-  const [title, setTitle] = useState('')
-  const [businessUnitId, setBusinessUnitId] = useState(prefillBu || primaryRoleBU)
+  const [title, setTitle] = useState(prefillTitle)
+  const [teamId, setTeamId] = useState(prefillTeamId)
   const [responsiblePersonId, setResponsiblePersonId] = useState(prefillR || viewerId)
   // Supervisor starts EMPTY, deliberately not defaulted to the creator/PIC (OD-REDESIGN-3/14/41 —
   // PIC and Supervisor are distinct accountable roles; auto-collapsing them defeats the model).
@@ -796,21 +958,27 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   // attribution is deliberate, not a wall of defaulted selects. Once revealed it stays open.
   const [contextRevealed, setContextRevealed] = useState(false)
 
+  const selectedTeam = teamDirectory.find((team) => team.id === teamId)
+  const businessUnitId = selectedTeam?.businessUnitId ?? selectedTeam?.business_unit_id ?? ''
+
   // D-B1: dirty = the user has started composing (any field the user has touched). Programmatic
-  // prefills (primaryRoleBU, viewer defaults) set state directly, never through markDirty, so an
+  // prefills (viewer Team/PIC defaults) set state directly, never through markDirty, so an
   // untouched create drawer stays clean and closes without a confirm. Bubbled to the host
   // (TaskDrawer) so its leave-guard can prompt before a typed draft is discarded on Escape/close.
   const [dirty, setDirty] = useState(false)
   const markDirty = () => setDirty((was) => (was ? was : true))
   useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
 
-  // Set BU once directory loads (in case primaryRoleBU wasn't set at mount).
-  // A pre-filled BU (deep-link) is never overwritten.
+  // Resolve compatibility deep-links/defaults to the first real Team the viewer can choose.
+  // A concrete `team` deep-link wins, then a legacy BU hint narrows the directory, and finally
+  // the first viewer Team gives the required field a useful starting point.
   useEffect(() => {
-    if (primaryRoleBU && !businessUnitId) {
-      setBusinessUnitId(primaryRoleBU)
-    }
-  }, [primaryRoleBU, businessUnitId])
+    if (teamId || teamDirectory.length === 0) return
+    const next = teamDirectory.find((team) => team.id === prefillTeamId)
+      ?? teamDirectory.find((team) => (team.businessUnitId ?? team.business_unit_id) === prefillBu)
+      ?? teamDirectory[0]
+    if (next) setTeamId(next.id)
+  }, [prefillBu, prefillTeamId, teamDirectory, teamId])
 
   // ── Validation state ──────────────────────────────────────────────────────
   // AC-108: inline-validate-ON-BLUR (design-plan §7) — a required field flags the
@@ -826,7 +994,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
     setTitleError(title.trim() ? '' : t('tasks.create.titleRequired'))
   }
   function validateBuOnBlur() {
-    setBuError(businessUnitId ? '' : t('tasks.create.teamRequired'))
+    setBuError(teamId ? '' : t('tasks.create.teamRequired'))
   }
   function validateSupervisorOnBlur() {
     setSupervisorError(accountablePersonId ? '' : t('tasks.create.supervisorRequired'))
@@ -846,7 +1014,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
     } else {
       setTitleError('')
     }
-    if (!businessUnitId) {
+    if (!teamId) {
       setBuError(t('tasks.create.teamRequired'))
       valid = false
     } else {
@@ -863,9 +1031,10 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
     setSubmitting(true)
     setSubmitError('')
     try {
-      const input: CreateTaskInput = {
+      const input = {
         title: title.trim(),
         businessUnitId,
+        teamId: teamId || null,
         responsiblePersonId,
         accountablePersonId,
         createdBy: viewerId,
@@ -873,19 +1042,27 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
         dueDate: dueDate || null,
         workLineId: workLineId || null,
         objectiveId: objectiveId || null,
-      }
+      } as CreateTaskInput & { teamId?: string | null }
       const newId = await createTask(input)
       // The create succeeded: this is no longer an unsaved draft, so the destination record must
       // NOT trip the host leave-guard as we navigate onto it.
       setDirty(false)
-      onTaskCreated?.(newId)  // C2: let the table refetch so the new row appears + count updates
+      // A host may need to finish an async hand-off (for example, link this new Task back to the
+      // Signal that opened the composer) before it can decide whether to close. Await that hand-off
+      // so a failed relationship write cannot strand this create surface in `submitting=true`.
+      await onTaskCreated?.(newId)  // C2: let the table refetch so the new row appears + count updates
+      setSubmitting(false)
       // GAP-6 (OD-REDESIGN-91 #11): after-create returns to the ORIGINATING collection with the
       // new row highlighted (a brief accent that fades) — Tasks changes to match the app-wide rule
       // (it used to open the new record in the drawer). The `?highlight=<id>` param tells the
       // collection which row to flash; it preserves the collection's view query.
       const highlightParams = new URLSearchParams(collectionSearchString)
       highlightParams.set('highlight', newId)
-      navigate({ pathname: '/work/tasks', search: `?${highlightParams.toString()}` })
+      if (createRedirect !== undefined) {
+        if (createRedirect !== null) navigate(createRedirect)
+      } else {
+        navigate({ pathname: '/work/tasks', search: `?${highlightParams.toString()}` })
+      }
     } catch {
       setSubmitError(t('tasks.create.error'))
       setSubmitting(false)
@@ -1010,7 +1187,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
 
         {/* Team */}
         <div className="tc-field">
-          <label htmlFor="task-bu" className="tc-label">
+          <label htmlFor="task-team" className="tc-label">
             {t('tasks.team')} <span aria-hidden="true" className="tc-required">*</span>
           </label>
           {dirLoading ? (
@@ -1018,24 +1195,24 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
                skeleton), with the DIRECTORY-scoped noun — this field loads teams, not tasks. */
             <LoadingShell count={1} className="tc-loading-field" label={t('tasks.create.loadingTeams')} />
           ) : (
-            <Select
-              id="task-bu"
-              className="tc-select"
+            <Picker
+              id="task-team"
+              label={t('tasks.team')}
+              className="tc-picker"
               fullWidth
+              hideLabel
               error={Boolean(buError)}
-              value={businessUnitId}
-              onChange={e => { setBusinessUnitId(e.target.value); markDirty(); if (buError) setBuError('') }}
+              value={teamId}
+              options={[
+                { value: '', label: t('tasks.create.teamPlaceholder') },
+                ...teamDirectory.map((team) => ({ value: team.id, label: team.name })),
+              ]}
+              onChange={value => { setTeamId(value); markDirty(); if (buError) setBuError('') }}
               onBlur={validateBuOnBlur}
-              aria-required="true"
-              aria-describedby={buError ? 'bu-err' : undefined}
+              required
+              describedBy={buError ? 'bu-err' : undefined}
               disabled={submitting}
-              aria-label={t('tasks.team')}
-            >
-              <option value="">{t('tasks.create.teamPlaceholder')}</option>
-              {busDirectory.map(bu => (
-                <option key={bu.id} value={bu.id}>{bu.name}</option>
-              ))}
-            </Select>
+            />
           )}
           {buError && (
             <span id="bu-err" role="alert" className="tc-field-error">{buError}</span>
@@ -1068,20 +1245,18 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
           {dirLoading ? (
             <LoadingShell count={1} className="tc-loading-field" label={t('tasks.create.loadingPeople')} />
           ) : (
-            <Select
+            <Picker
               id="task-responsible"
-              className="tc-select"
+              label={t('tasks.pic')}
+              className="tc-picker"
               fullWidth
+              hideLabel
               value={responsiblePersonId}
-              onChange={e => { setResponsiblePersonId(e.target.value); markDirty() }}
+              options={peopleDirectory.map(p => ({ value: p.id, label: p.full_name }))}
+              onChange={value => { setResponsiblePersonId(value); markDirty() }}
               disabled={submitting}
-              aria-label={t('tasks.pic')}
-              aria-required="true"
-            >
-              {peopleDirectory.map(p => (
-                <option key={p.id} value={p.id}>{p.full_name}</option>
-              ))}
-            </Select>
+              required
+            />
           )}
         </div>
 
@@ -1106,24 +1281,24 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
           {dirLoading ? (
             <LoadingShell count={1} className="tc-loading-field" label={t('tasks.create.loadingPeople')} />
           ) : (
-            <Select
+            <Picker
               id="task-accountable"
-              className="tc-select"
+              label={t('tasks.supervisor')}
+              className="tc-picker"
               fullWidth
+              hideLabel
               error={Boolean(supervisorError)}
               value={accountablePersonId}
-              onChange={e => { setAccountablePersonId(e.target.value); markDirty(); if (supervisorError) setSupervisorError('') }}
+              options={[
+                { value: '', label: t('tasks.create.supervisorPlaceholder') },
+                ...peopleDirectory.map(p => ({ value: p.id, label: p.full_name })),
+              ]}
+              onChange={value => { setAccountablePersonId(value); markDirty(); if (supervisorError) setSupervisorError('') }}
               onBlur={validateSupervisorOnBlur}
               disabled={submitting}
-              aria-label={t('tasks.supervisor')}
-              aria-required="true"
-              aria-describedby={supervisorError ? 'supervisor-err' : undefined}
-            >
-              <option value="">{t('tasks.create.supervisorPlaceholder')}</option>
-              {peopleDirectory.map(p => (
-                <option key={p.id} value={p.id}>{p.full_name}</option>
-              ))}
-            </Select>
+              required
+              describedBy={supervisorError ? 'supervisor-err' : undefined}
+            />
           )}
           {supervisorError && (
             <span id="supervisor-err" role="alert" className="tc-field-error">{supervisorError}</span>
@@ -1152,23 +1327,23 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
             {workLinesDir.length > 0 && (
               <div className="tc-field">
                 <label htmlFor="task-workline" className="tc-label">{t('tasks.filter.projectProcess')}</label>
-                <Select
+                <Picker
                   id="task-workline"
-                  className="tc-select"
+                  label={t('tasks.filter.projectProcess')}
+                  className="tc-picker"
                   fullWidth
+                  hideLabel
                   value={workLineId}
-                  onChange={e => { setWorkLineId(e.target.value); markDirty() }}
+                  options={[
+                    { value: '', label: t('tasks.create.none') },
+                    ...workLinesDir.map(wl => ({
+                      value: wl.id,
+                      label: `${wl.name} (${wl.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})`,
+                    })),
+                  ]}
+                  onChange={value => { setWorkLineId(value); markDirty() }}
                   disabled={submitting}
-                  aria-label={t('tasks.filter.projectProcess')}
-                >
-                  <option value="">{t('tasks.create.none')}</option>
-                  {/* Fix-6: append (project) / (daily) cue so attribution intent is visible at selection */}
-                  {workLinesDir.map(wl => (
-                    <option key={wl.id} value={wl.id}>
-                      {wl.name} ({wl.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})
-                    </option>
-                  ))}
-                </Select>
+                />
               </div>
             )}
 
@@ -1176,20 +1351,20 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
             {objectivesDir.length > 0 && (
               <div className="tc-field">
                 <label htmlFor="task-objective" className="tc-label">{t('tasks.objective')}</label>
-                <Select
+                <Picker
                   id="task-objective"
-                  className="tc-select"
+                  label={t('tasks.objective')}
+                  className="tc-picker"
                   fullWidth
+                  hideLabel
                   value={objectiveId}
-                  onChange={e => { setObjectiveId(e.target.value); markDirty() }}
+                  options={[
+                    { value: '', label: t('tasks.create.none') },
+                    ...objectivesDir.map(obj => ({ value: obj.id, label: obj.name })),
+                  ]}
+                  onChange={value => { setObjectiveId(value); markDirty() }}
                   disabled={submitting}
-                  aria-label={t('tasks.objective')}
-                >
-                  <option value="">{t('tasks.create.none')}</option>
-                  {objectivesDir.map(obj => (
-                    <option key={obj.id} value={obj.id}>{obj.name}</option>
-                  ))}
-                </Select>
+                />
               </div>
             )}
           </>

@@ -9,8 +9,14 @@ create temporary table definer_acl_anon_allowlist (
 ) on commit drop;
 -- The unauthenticated API role has no deliberate SECURITY DEFINER entry points today: empty.
 -- An exposed function must be inserted here with its exact identity arguments and one-line reason.
--- 31 current functions plus the non-empty-enumeration guard below.
-select plan(32);
+-- Enumerate every function, including newly added RPCs; the guard below prevents an empty pass.
+-- Keep the plan coupled to the same exposed-schema SECURITY DEFINER enumeration below. A stale
+-- literal plan count turns newly added functions into parser noise instead of an ACL failure.
+select plan(1 + (select count(*)::int
+                   from pg_proc p
+                   join pg_namespace n on n.oid = p.pronamespace
+                  where p.prosecdef
+                    and n.nspname in ('mos', 'ops', 'shared', 'integrations', 'reporting')));
 
 select ok(
   exists (

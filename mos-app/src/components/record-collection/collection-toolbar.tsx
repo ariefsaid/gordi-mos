@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
-import { Select } from '@/components/ui/select'
+import { Picker } from '@/components/ui/picker'
 import { ViewTabs } from '@/components/ui/view-tabs'
+import { ErrorState } from '@/components/ui/state-kit'
 import type { CollectionViewOperationStatus } from '@/lib/record-collection/types'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useT } from '@/i18n/use-t'
@@ -99,10 +100,13 @@ export interface CollectionToolbarSavedViews {
   label: string
   selectedId: string | null
   operation: CollectionViewOperationStatus
+  error?: string | null
+  errorMessage?: ReactNode
   items: readonly { id: string; name: string }[]
   onLoad?: () => void
+  onRetry?: () => void
   onApply: (id: string) => void | Promise<void>
-  onSave: (name: string) => void | Promise<void>
+  onSave: (name: string) => unknown | Promise<unknown>
 }
 
 export interface CollectionToolbarProps<
@@ -136,6 +140,9 @@ export interface CollectionToolbarProps<
    * and off by default — every other caller (Tasks included) keeps rendering search here.
    */
   hideSearchRow?: boolean
+  /** Work/catalog surfaces already name the view axis in their page head; omit the generic
+   * "View" micro-label so the compact toolbar does not repeat a noun with no added meaning. */
+  hideViewsLabel?: boolean
 }
 
 /**
@@ -168,6 +175,7 @@ export function CollectionToolbar<
   className,
   reserved = false,
   hideSearchRow = false,
+  hideViewsLabel = false,
 }: CollectionToolbarProps<TPresentation, TView>) {
   const t = useT()
   const isDesktop = useIsDesktop()
@@ -199,7 +207,16 @@ export function CollectionToolbar<
 
   async function saveView() {
     if (!savedViews || !canSave) return
-    await savedViews.onSave(viewName.trim())
+    let result: unknown
+    try {
+      result = await savedViews.onSave(viewName.trim())
+    } catch {
+      return
+    }
+    // Collection adapters use null as an explicit persistence failure signal. Keep the draft and
+    // anchored door open so the host's error state can offer a retry; legacy void callbacks remain
+    // successful for existing collection hosts.
+    if (result === null) return
     setViewName('')
     closeSaveView()
   }
@@ -217,9 +234,11 @@ export function CollectionToolbar<
             {/* DO-20(c) (objectives F5): "Saved view" is only honest where saved views exist. A host
                 without the savedViews capability (the catalogs' Active/Archived toggle) labels the
                 zone plain "View" instead of promising a feature the surface structurally disables. */}
-            <span className="collection-toolbar__views-label" aria-hidden="true">
-              {t(savedViews ? 'common.savedView' : 'common.view')}
-            </span>
+            {!hideViewsLabel && (
+              <span className="collection-toolbar__views-label" aria-hidden="true">
+                {t(savedViews ? 'common.savedView' : 'common.view')}
+              </span>
+            )}
             {views.options.map((option) => {
               const active = option.value === views.value && !savedViews?.selectedId
               return (
@@ -243,7 +262,7 @@ export function CollectionToolbar<
                     <button
                       key={item.id}
                       type="button"
-                      className={`collection-toolbar__view${active ? ' collection-toolbar__view--active' : ''}`}
+                      className={`collection-toolbar__view collection-toolbar__view--saved${active ? ' collection-toolbar__view--active' : ''}`}
                       aria-pressed={active}
                       onClick={() => void savedViews.onApply(item.id)}
                     >
@@ -252,6 +271,13 @@ export function CollectionToolbar<
                   )
                 })}
               </>
+            ) : null}
+            {savedViews?.error ? (
+              <ErrorState
+                className="collection-toolbar__saved-error"
+                message={savedViews.errorMessage ?? savedViews.error}
+                onRetry={saveOpen && viewName.trim() ? () => void saveView() : savedViews.onRetry}
+              />
             ) : null}
           </div>
 
@@ -298,20 +324,21 @@ export function CollectionToolbar<
                   className={`collection-toolbar__option-field${filter.tinted ? ' collection-toolbar__option-field--group' : ''}`}
                 >
                   {!isDesktop ? <span>{filter.label}</span> : null}
-                  {/* ONE dropdown-class control: the trigger borrows the select-box chrome. The
-                      choices render in the anchored Fields-menu popover (audit C20/I3 — never a
-                      new toolbar row), so a closed row holds zero checkboxes. */}
+                  {/* Filter choices stay in the anchored popover until the user opens them. */}
                   <div className="collection-toolbar__select collection-toolbar__choice">
                     <button
                       type="button"
-                      className="mk-select__box collection-toolbar__choice-trigger"
+                      className="collection-toolbar__choice-trigger"
                       aria-label={filter.label}
                       aria-haspopup="true"
                       aria-expanded={openPopoverId === filter.id}
                       onClick={() => setOpenPopoverId(openPopoverId === filter.id ? null : filter.id)}
                     >
-                      <span className="mk-select__field">{filter.display}</span>
-                      <span className="mk-select__chevron" aria-hidden="true">
+                      <span className="collection-toolbar__choice-copy">
+                        {isDesktop ? <span className="collection-toolbar__choice-label" aria-hidden="true">{filter.label}</span> : null}
+                        <span className="collection-toolbar__choice-value">{filter.display}</span>
+                      </span>
+                      <span className="collection-toolbar__choice-chevron" aria-hidden="true">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="m6 9 6 6 6-6" />
                         </svg>
@@ -334,23 +361,23 @@ export function CollectionToolbar<
                   </div>
                 </div>
               ) : (
-                <label
+                <div
                   key={filter.id}
                   className={`collection-toolbar__option-field${filter.tinted ? ' collection-toolbar__option-field--group' : ''}`}
                 >
                   {!isDesktop ? <span>{filter.label}</span> : null}
-                  <Select
+                  <Picker
                     id={`collection-filter-${filter.id}`}
-                    aria-label={filter.label}
+                    label={filter.label}
+                    hideLabel
                     value={filter.value}
-                    onChange={(event) => filter.onChange(event.target.value)}
+                    onChange={filter.onChange}
+                    options={filter.options}
+                    fullWidth
                     className="collection-toolbar__select"
-                  >
-                    {filter.options.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </Select>
-                </label>
+                    triggerClassName="collection-toolbar__picker-trigger"
+                  />
+                </div>
               )
             ))}
             {fields ? (
@@ -418,7 +445,7 @@ export function CollectionToolbar<
                       />
                     </label>
                     <div className="collection-toolbar__save-actions">
-                      <Button variant="primary" disabled={!canSave} onClick={() => void saveView()}>
+                      <Button variant="outline" disabled={!canSave} onClick={() => void saveView()}>
                         {saving ? t('common.saving') : t('common.save')}
                       </Button>
                       <Button variant="ghost" onClick={closeSaveView}>{t('common.cancel')}</Button>

@@ -36,10 +36,8 @@ export type TaskCollectionUnsupportedGroup = 'supervisor'
 export type TaskCollectionSort = 'task' | 'status' | 'pic' | 'supervisor' | 'due' | 'activity'
 export type TaskCollectionAction = never
 
-// §Task-11 (Issue-8 gate): there is NO `team` view — `view=team` is rejected until Issue 8's real
-// Task team_id contract lands. The Team-work chip is the saved-views ticket's, not this one's.
 export type TaskCollectionView =
-  | 'all' | 'my-work' | 'my-pic' | 'my-supervisor' | 'overdue'
+  | 'all' | 'my-work' | 'team-work' | 'my-pic' | 'my-supervisor' | 'overdue'
 
 export interface TaskCollectionQuery {
   layout: TaskCollectionPresentation
@@ -64,14 +62,19 @@ export interface TaskCollectionQuery {
 
 const LAYOUTS: readonly TaskCollectionPresentation[] = ['table', 'card']
 const VIEWS: readonly TaskCollectionView[] = [
-  'all', 'my-work', 'my-pic', 'my-supervisor', 'overdue',
+  'all', 'my-work', 'team-work', 'my-pic', 'my-supervisor', 'overdue',
 ]
 const GROUPS: readonly TaskCollectionGroup[] = ['none', 'status', 'pic', 'bu', 'workline', 'objective', 'occurrence']
 const SORTS: readonly TaskCollectionSort[] = ['task', 'status', 'pic', 'supervisor', 'due', 'activity']
 
-/** Legacy Task saved-view chip aliases that must be rewritten canonically, never kept raw.
- * `followups` is the retired AR Follow-ups view (#743): old links land on the All view. */
-const VIEW_ALIASES: Readonly<Record<string, TaskCollectionView>> = { mine: 'my-work', followups: 'all' }
+/** Legacy Task view aliases that must be rewritten canonically, never kept raw.
+ * `followups` is retired, and `completed` now uses the ordinary All + Done status filter. */
+const VIEW_ALIASES: Readonly<Record<string, TaskCollectionView>> = {
+  mine: 'my-work',
+  team: 'team-work',
+  followups: 'all',
+  completed: 'all',
+}
 
 /** URL slug <-> TaskStatus. The DB stores capitalized status; the URL uses a stable slug. */
 const STATUS_BY_SLUG: Readonly<Record<string, TaskStatus>> = {
@@ -126,8 +129,9 @@ function parseTaskQuery(params: URLSearchParams): CollectionQueryParse<TaskColle
   const issues: CollectionQueryIssue[] = []
   const query: TaskCollectionQuery = { ...TASK_COLLECTION_NEUTRAL_QUERY }
 
-  // Pre-Issue-8 Team guard: a Task has business_unit_id, never team_id. Reject before it can
-  // enter collection state, and never alias it to Business Unit.
+  // Team is a record-owning relation, not an arbitrary toolbar filter. The canonical Team-work
+  // scope is carried by `view`; reject ad hoc `team`/`teamId` query keys rather than letting them
+  // become a second, unsaved filter state.
   const teamRaw = params.get('team') ?? params.get('teamId')
   if (teamRaw !== null) {
     issues.push({ key: 'team', code: 'invalid-value', value: teamRaw })
@@ -140,6 +144,7 @@ function parseTaskQuery(params: URLSearchParams): CollectionQueryParse<TaskColle
   }
 
   const view = params.get('view')
+  const legacyCompleted = view === 'completed'
   if (view !== null) {
     const aliased = VIEW_ALIASES[view] ?? view
     if (VIEWS.includes(aliased as TaskCollectionView)) query.view = aliased as TaskCollectionView
@@ -174,6 +179,7 @@ function parseTaskQuery(params: URLSearchParams): CollectionQueryParse<TaskColle
     if (mapped) query.status = mapped
     else issues.push({ key: 'status', code: 'invalid-value', value: status })
   }
+  if (legacyCompleted) query.status = 'Done'
 
   const group = params.get('group')
   if (group !== null) {
@@ -231,6 +237,7 @@ function serializeTaskQuery(query: TaskCollectionQuery): URLSearchParams {
 
 export const taskCollectionQuery: CollectionQuerySchema<TaskCollectionQuery> = {
   keys: TASK_QUERY_KEYS,
+  urlKeys: ['layout', 'view', 'q', 'fields', 'bu', 'status', 'pic', 'supervisor', 'person', 'group', 'sort', 'dir', 'archived', 'overdue', 'occurrence', 'saved'],
   neutral: TASK_COLLECTION_NEUTRAL_QUERY,
   parse: (params) => parseTaskQuery(params),
   serialize: serializeTaskQuery,

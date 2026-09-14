@@ -11,6 +11,8 @@ import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { ObjectiveHint } from './objective-hint'
 import { picLockMessage } from './task-permissions'
+import { Picker } from '@/components/ui/picker'
+import type { TaskTeamOption } from './task-row'
 
 // ── Shared group-model type (aligned with TasksWorkspace.RenderGroup) ─────────
 export type MobileRenderGroup = {
@@ -80,6 +82,14 @@ export type MobileGroupedCardsProps = {
    * card's "via <role name>" generated-ownership line. Undefined outside occurrence grouping. */
   provenanceByTaskDefId?: Map<string, string>
   onEditTitle?: (taskId: string, title: string) => Promise<void>
+  onEditPic?: (taskId: string, personId: string) => Promise<void>
+  onEditTeam?: (taskId: string, teamId: string) => Promise<void>
+  onEditSupervisor?: (taskId: string, personId: string) => Promise<void>
+  onValidateNewTask?: (taskId: string) => void
+  personOptions?: readonly { id: string; full_name: string }[]
+  supervisorOptions?: readonly { id: string; full_name: string }[]
+  teamOptions?: readonly TaskTeamOption[]
+  createValidationError?: string
   draftTaskId?: string | null
   onDiscardNewTask?: () => void
   /** #742 AC-060 (W-M persona step 3): true when the viewer has nobody reporting to them, so the
@@ -97,6 +107,14 @@ type TaskCardProps = {
   recordSearch?: string
   onOpenTask: (taskId: string) => void
   onEditTitle?: (taskId: string, title: string) => Promise<void>
+  onEditPic?: (taskId: string, personId: string) => Promise<void>
+  onEditTeam?: (taskId: string, teamId: string) => Promise<void>
+  onEditSupervisor?: (taskId: string, personId: string) => Promise<void>
+  onValidateNewTask?: (taskId: string) => void
+  personOptions?: readonly { id: string; full_name: string }[]
+  supervisorOptions?: readonly { id: string; full_name: string }[]
+  teamOptions?: readonly TaskTeamOption[]
+  createValidationError?: string
   isNew?: boolean
   onDiscardNewTask?: () => void
   onCreateError?: (message: string) => void
@@ -107,7 +125,7 @@ type TaskCardProps = {
   viewerHasNoDownline?: boolean
 }
 
-function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '', provenanceRoleName, onOpenTask, onEditTitle, isNew = false, onDiscardNewTask, onCreateError, viewerHasNoDownline = false }: TaskCardProps) {
+function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '', provenanceRoleName, onOpenTask, onEditTitle, onEditPic, onEditTeam, onEditSupervisor, onValidateNewTask, personOptions = [], supervisorOptions = [], teamOptions = [], createValidationError = '', isNew = false, onDiscardNewTask, onCreateError, viewerHasNoDownline = false }: TaskCardProps) {
   const t = useT()
   const { locale } = useI18n()
   const ds = dueStatus(task.due_date, now)
@@ -122,29 +140,66 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
   const [draft, setDraft] = useState(task.title)
   const inputRef = useRef<HTMLInputElement>(null)
   const newCommitStarted = useRef(false)
+  const [createPending, setCreatePending] = useState(false)
+  const [createFailure, setCreateFailure] = useState(false)
   useEffect(() => { if (isNew) inputRef.current?.focus() }, [isNew])
+  const discardNewTask = () => {
+    newCommitStarted.current = false
+    setCreatePending(false)
+    setCreateFailure(false)
+    onDiscardNewTask?.()
+  }
   const finish = () => {
     const title = draft.trim()
-    if (newCommitStarted.current) return
-    if (!title) { onDiscardNewTask?.(); return }
+    if (newCommitStarted.current || createPending) return
+    if (!title) { discardNewTask(); return }
+    if (isNew && (!task.team_id || !task.business_unit_id || !task.accountable_person_id)) {
+      onValidateNewTask?.(task.id)
+      return
+    }
+    setCreateFailure(false)
+    onCreateError?.('')
     newCommitStarted.current = true
-    void (onEditTitle?.(task.id, title) ?? Promise.resolve()).catch(() => {
-      onDiscardNewTask?.()
-      onCreateError?.(t('tasks.feedback.rollback'))
-    })
+    setCreatePending(true)
+    void Promise.resolve()
+      .then(() => onEditTitle?.(task.id, title))
+      .then(
+        () => {
+          newCommitStarted.current = false
+          setCreatePending(false)
+        },
+        () => {
+          newCommitStarted.current = false
+          setCreatePending(false)
+          setCreateFailure(true)
+          onCreateError?.(t('tasks.feedback.rollback'))
+        },
+      )
   }
 
-  return (
-    <article data-testid="task-card" className="task-card collection-grammar-card">
-      <Link
-        to={{ pathname: `/work/tasks/${task.id}`, search: recordSearch }}
-        state={{ taskSurface: 'panel' }}
-        className="task-card-link collection-grammar-card-body"
-        onClick={(event) => {
-          event.preventDefault()
-          onOpenTask(task.id)
-        }}
-      >
+  const teamPickerOptions = teamOptions.length > 0
+    ? [
+        { value: '', label: t('tasks.create.teamPlaceholder') },
+        ...teamOptions.map((team) => ({ value: team.id, label: team.name })),
+      ]
+    : [{ value: '', label: t('tasks.field.teamUnassigned') }]
+  const supervisorPickerOptions = [
+    { value: '', label: t('tasks.create.supervisorPlaceholder') },
+    ...(task.accountable_person_id && !supervisorOptions.some((person) => person.id === task.accountable_person_id)
+      ? [{ value: task.accountable_person_id, label: supervisorName || task.accountable_person_id }]
+      : []),
+    ...supervisorOptions
+      .map((person) => ({ value: person.id, label: person.full_name })),
+  ]
+  const picPickerOptions = [
+    ...(personOptions.some((person) => person.id === task.responsible_person_id)
+      ? []
+      : [{ value: task.responsible_person_id, label: rName || task.responsible_person_id }]),
+    ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
+  ]
+
+  const cardContent = (
+    <>
         <div className="task-card-head">
           {isArchived && <span className="archived-tag">{t('tasks.archived')}</span>}
           {isNew ? (
@@ -153,14 +208,41 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
               onClick={(event) => event.stopPropagation()}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); finish() }
-                if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onDiscardNewTask?.() }
-              }} onBlur={finish} />
+                if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); discardNewTask() }
+              }} onBlur={isNew ? undefined : finish} />
           ) : (
             <span className={isArchived ? 'task-name task-name-archived collection-grammar-title' : 'task-name collection-grammar-title'}>{task.title}</span>
           )}
           <StatusPill status={task.status} />
         </div>
-        <span className="task-bu">{buName}</span>
+        {isNew && onEditTeam ? (
+          <span className="task-card-create-fields" onClick={(event) => { event.preventDefault(); event.stopPropagation() }}>
+            <span className="task-card-create-control">
+              <Picker
+                label={t('tasks.team')}
+                hideLabel
+                value={task.team_id ?? ''}
+                options={teamPickerOptions}
+                placeholder={t('tasks.create.teamPlaceholder')}
+                disabled={createPending || teamOptions.length === 0}
+                required
+                onChange={(value) => { setCreateFailure(false); void onEditTeam(task.id, value) }}
+              />
+            </span>
+            <span className="task-card-derived-bu">
+              {t('tasks.filter.businessUnit')}: {buName || '—'}
+            </span>
+          </span>
+        ) : <span className="task-bu">{buName}</span>}
+        {createValidationError && <span role="alert" className="task-row-save-error">{createValidationError}</span>}
+        {isNew && createFailure && (
+          <span role="alert" className="task-row-save-error task-card-create-error">
+            {t('record.field.saveError')}
+            <button type="button" className="task-row-retry" onClick={(event) => { event.preventDefault(); event.stopPropagation(); finish() }}>
+              {t('record.field.retry')}
+            </button>
+          </span>
+        )}
         {/* v4 distill (layout.md/distill.md): PIC + Supervisor + Due are the decision-relevant
             fields for weekly triage (WHAT GOOD LOOKS LIKE) — the same set the desktop row already
             settled on (Wave 2c, OD-REDESIGN-61..64). Project/Process, Objective, Source, and the
@@ -173,20 +255,76 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
           <span className="task-card-meta-pair">
             <dt>{t('tasks.pic')}</dt>
             <dd>
-              <PicCell fullName={rName} provenance={provenanceRoleName} />
+              {isNew && onEditPic ? (
+                <span className="task-card-create-control" onClick={(event) => { event.preventDefault(); event.stopPropagation() }}>
+                  <Picker
+                    label={t('tasks.pic')}
+                    hideLabel
+                    value={task.responsible_person_id}
+                    options={picPickerOptions}
+                    disabled={createPending}
+                    busy={createPending}
+                    onChange={(value) => { setCreateFailure(false); void onEditPic(task.id, value) }}
+                  />
+                </span>
+              ) : <PicCell fullName={rName} provenance={provenanceRoleName} />}
               {lockMessage && <span className="task-card-pic-lock">{lockMessage}</span>}
             </dd>
           </span>
           <span className="task-card-meta-pair">
             <dt>{t('tasks.supervisor')}</dt>
-            <dd>{supervisorName ? <PersonCell fullName={supervisorName} /> : '—'}</dd>
+            <dd>
+              {isNew && onEditSupervisor ? (
+                <span className="task-card-create-control" onClick={(event) => { event.preventDefault(); event.stopPropagation() }}>
+                  <Picker
+                    label={t('tasks.supervisor')}
+                    hideLabel
+                    value={task.accountable_person_id}
+                    options={supervisorPickerOptions}
+                    placeholder={t('tasks.create.supervisorPlaceholder')}
+                    required
+                    disabled={createPending}
+                    busy={createPending}
+                    onChange={(value) => { setCreateFailure(false); void onEditSupervisor(task.id, value) }}
+                  />
+                </span>
+              ) : supervisorName ? <PersonCell fullName={supervisorName} /> : '—'}
+            </dd>
           </span>
           <span className="task-card-meta-pair">
             <dt>{t('tasks.dueLabel')}</dt>
             <dd className={`tabular-nums ${dueClass}`}>{dueText}</dd>
           </span>
         </dl>
-      </Link>
+        {isNew && (
+          <div className="task-card-create-actions" onClick={(event) => { event.preventDefault(); event.stopPropagation() }}>
+            <button type="button" className="btn btn-primary" disabled={createPending} onClick={finish}>{t('common.save')}</button>
+            <button type="button" className="btn btn-ghost" disabled={createPending} onClick={discardNewTask}>{t('common.cancel')}</button>
+          </div>
+        )}
+    </>
+  )
+
+  return (
+    <article data-testid="task-card" className="task-card collection-grammar-card">
+      {isNew ? (
+        <div className="task-card-link task-card-draft collection-grammar-card-body">
+          {cardContent}
+        </div>
+      ) : (
+        <Link
+          to={{ pathname: `/work/tasks/${task.id}`, search: recordSearch }}
+          state={{ taskSurface: 'panel' }}
+          className="task-card-link collection-grammar-card-body"
+          onClick={(event) => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
+            event.preventDefault()
+            onOpenTask(task.id)
+          }}
+        >
+          {cardContent}
+        </Link>
+      )}
     </article>
   )
 }
@@ -206,7 +344,8 @@ export function MobileGroupedCards({
   groups, recordSearch = '', now, buMap, personMap,
   isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly,
   onAssignPending, provenanceByTaskDefId, onOpenTask, onEditTitle, draftTaskId, onDiscardNewTask,
-  viewerHasNoDownline = false,
+  onEditPic, onEditTeam, onEditSupervisor, onValidateNewTask, personOptions, supervisorOptions,
+  teamOptions, createValidationError, viewerHasNoDownline = false,
 }: MobileGroupedCardsProps) {
   const [createError, setCreateError] = useState<string | null>(null)
   const t = useT()
@@ -234,7 +373,17 @@ export function MobileGroupedCards({
               recordSearch={recordSearch}
               onOpenTask={openTask}
               provenanceRoleName={provenanceFor(task)}
-              onEditTitle={onEditTitle} isNew={task.id === draftTaskId} onDiscardNewTask={onDiscardNewTask}
+              onEditTitle={onEditTitle}
+              onEditPic={onEditPic}
+              onEditTeam={onEditTeam}
+              onEditSupervisor={onEditSupervisor}
+              onValidateNewTask={onValidateNewTask}
+              personOptions={personOptions}
+              supervisorOptions={supervisorOptions}
+              teamOptions={teamOptions}
+              createValidationError={task.id === draftTaskId ? createValidationError : ''}
+              isNew={task.id === draftTaskId}
+              onDiscardNewTask={onDiscardNewTask}
               onCreateError={(message) => setCreateError(message)}
               viewerHasNoDownline={viewerHasNoDownline}
             />
@@ -335,7 +484,17 @@ export function MobileGroupedCards({
                 recordSearch={recordSearch}
                 onOpenTask={openTask}
                 provenanceRoleName={provenanceFor(task)}
-                onEditTitle={onEditTitle} isNew={task.id === draftTaskId} onDiscardNewTask={onDiscardNewTask}
+                onEditTitle={onEditTitle}
+                onEditPic={onEditPic}
+                onEditTeam={onEditTeam}
+                onEditSupervisor={onEditSupervisor}
+                onValidateNewTask={onValidateNewTask}
+                personOptions={personOptions}
+                supervisorOptions={supervisorOptions}
+                teamOptions={teamOptions}
+                createValidationError={task.id === draftTaskId ? createValidationError : ''}
+                isNew={task.id === draftTaskId}
+                onDiscardNewTask={onDiscardNewTask}
                 onCreateError={(message) => setCreateError(message)}
                 viewerHasNoDownline={viewerHasNoDownline}
               />

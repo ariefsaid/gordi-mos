@@ -25,63 +25,55 @@
 // viewport (the live push/squash split, ADR-0007).
 
 import { test, expect } from '@playwright/test'
-import { readFileSync } from 'fs'
-import { resolve, dirname } from 'path'
-import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
 import { VIEWER } from './fixtures/users'
+import { localSql } from './helpers/local-sql'
+import { localSqlRead } from './helpers/local-sql-read'
+import { processRunCleanupSql } from './fixtures/cleanup'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dir = dirname(__filename)
-
-function loadEnvFile(filePath: string): Record<string, string> {
-  try {
-    const vars: Record<string, string> = {}
-    for (const line of readFileSync(filePath, 'utf-8').split('\n')) {
-      const trimmed = line.trim()
-      if (!trimmed || trimmed.startsWith('#')) continue
-      const eq = trimmed.indexOf('=')
-      if (eq !== -1) vars[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim()
-    }
-    return vars
-  } catch { return {} }
-}
-
-const e2eEnv = loadEnvFile(resolve(__dir, '../.env.e2e'))
-const SUPABASE_URL = e2eEnv.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:44321'
-const SERVICE_KEY = e2eEnv.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
 const ORG = '10000000-0000-0000-0000-000000000001'
 const WORK_LINE_ID = 'e3000000-0000-0000-0000-000000000001' // "Café Opening" (seed.dev-cafe-opening.sql)
+const ALLOW_SHARED_CAFE_OPENING_FIXTURE = process.env.MOS_E2E_ALLOW_SHARED_CAFE_OPENING_FIXTURE === '1'
 
-async function sql(query: string): Promise<Array<Record<string, unknown>>> {
-  if (!SERVICE_KEY) throw new Error('[AC-720] SUPABASE_SERVICE_ROLE_KEY not set')
-  const res = await fetch(SUPABASE_URL + '/pg/query', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SERVICE_KEY }, body: JSON.stringify({ query }),
-  })
-  if (!res.ok) throw new Error('[AC-720] SQL failed: ' + (await res.text()).slice(0, 500))
-  return (await res.json()) as Array<Record<string, unknown>>
-}
+if (!ALLOW_SHARED_CAFE_OPENING_FIXTURE) {
+  test('AC-720 is disabled until its process fixture is isolated', () => { test.skip() })
+} else {
+  let createdRunId: string | null = null
+
+const currentOpeningSql = (teamId: string) => `
+  select id::text as id
+  from mos.process_runs
+  where org_id = '${ORG}'
+    and work_line_id = '${WORK_LINE_ID}'
+    and owning_team_id = '${teamId}'
+    and period_key = to_char((now() at time zone 'Asia/Jakarta')::date, 'YYYY-MM-DD')
+  order by id
+`
+
+test.afterEach(async () => {
+  if (!createdRunId) return
+  await localSql(processRunCleanupSql([createdRunId], ORG))
+  createdRunId = null
+})
 
 test('AC-720/F2: Start today\'s opening from /cafe → single-holder Tasks group under the caption → resolve the ambiguous step → same group → Log today\'s production deep-links to /cafe/log', async ({ page }) => {
   test.setTimeout(90_000)
 
-  const teamRows = await sql(
+  const teamRows = await localSqlRead<{ id: string }>(
     `select id from shared.teams where org_id='${ORG}' and code='radiant_operations'`,
   )
-  const teamId = teamRows[0]?.id as string | undefined
+  const teamId = teamRows[0]?.id
   expect(teamId, 'seed.dev-signals.sql must have created the radiant_operations Team + Cahya\'s membership').toBeTruthy()
 
-  const processRows = await sql(`select id from mos.work_lines where id='${WORK_LINE_ID}'`)
+  const processRows = await localSqlRead(`select id from mos.work_lines where id='${WORK_LINE_ID}'`)
   expect(processRows.length, 'seed.dev-cafe-opening.sql must have seeded the Café Opening process').toBeGreaterThan(0)
 
-  // Deterministic clean slate, scoped to THIS process+Team only (never touches other org data).
-  await sql(`
-    delete from mos.process_run_pending_tasks
-      where process_run_id in (select id from mos.process_runs where work_line_id='${WORK_LINE_ID}' and owning_team_id='${teamId}');
-    delete from mos.tasks
-      where process_run_id in (select id from mos.process_runs where work_line_id='${WORK_LINE_ID}' and owning_team_id='${teamId}');
-    delete from mos.process_runs where work_line_id='${WORK_LINE_ID}' and owning_team_id='${teamId}';
-  `)
+  // A current-day run may be user/demo state. Refuse to mutate it; the journey owns only the run
+  // created by its own Start action and cleans that run by captured ID in afterEach.
+  const existingRuns = await localSqlRead<{ id: string }>(currentOpeningSql(teamId!))
+  if (existingRuns.length > 0) {
+    throw new Error('[AC-720] Refusing to mutate an existing current-day Café Opening run; preserve it and retry on a clean fixture')
+  }
 
   // ── ACT 1: VIEWER (Cahya, ops_lead — process.start + owning-Team authorized) opens /cafe ──────
   await loginAs(page, VIEWER.email, VIEWER.password)
@@ -90,7 +82,12 @@ test('AC-720/F2: Start today\'s opening from /cafe → single-holder Tasks group
 
   const startButton = page.getByRole('button', { name: "Start today's opening" })
   await expect(startButton).toBeVisible({ timeout: 15_000 })
+  const spawnResponse = page.waitForResponse((response) => /\/rpc\/spawn_process_run/.test(response.url()) && response.ok())
   await startButton.click()
+  const spawned = await (await spawnResponse).json() as { run_id: string; idempotent: boolean }
+  expect(spawned.idempotent, 'AC-720 must own a newly-created run, not an idempotent existing run').toBe(false)
+  expect(spawned.run_id).toMatch(/^[0-9a-f-]{36}$/i)
+  createdRunId = spawned.run_id
 
   // ── ASSERT: the panel switches to the started state (caption + roll-up + "1 to assign") ───────
   const captionHeader = page.getByText(/Café Opening/)
@@ -133,12 +130,6 @@ test('AC-720/F2: Start today\'s opening from /cafe → single-holder Tasks group
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   await expect(drawer.locator('[data-field-key="description"]')).toContainText('/cafe/log', { timeout: 10_000 })
 
-  // ── CLEANUP: leave no e2e-created state behind for the next run ─────────────────────────────────
-  await sql(`
-    delete from mos.process_run_pending_tasks
-      where process_run_id in (select id from mos.process_runs where work_line_id='${WORK_LINE_ID}' and owning_team_id='${teamId}');
-    delete from mos.tasks
-      where process_run_id in (select id from mos.process_runs where work_line_id='${WORK_LINE_ID}' and owning_team_id='${teamId}');
-    delete from mos.process_runs where work_line_id='${WORK_LINE_ID}' and owning_team_id='${teamId}';
-  `)
+  // afterEach removes only the captured run and its dependent rows.
 })
+}

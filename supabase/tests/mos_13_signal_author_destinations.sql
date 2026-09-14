@@ -17,7 +17,8 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select ok(mos.can_post_signal_for_team('00000000-0000-0000-0000-000000005b03'),
   'signal.create_for_team holder can post for Team X');
 select set_eq($$ select id from mos.teams_author_can_read_back() where id = '00000000-0000-0000-0000-000000005b03' $$,
-  array[]::uuid[], 'Team X is absent without membership, role, or rank');
+  array['00000000-0000-0000-0000-000000005b03']::uuid[],
+  'an active same-org Team is available without destination membership, role, or rank');
 
 reset role;
 insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
@@ -26,7 +27,7 @@ values ('00000000-0000-0000-0000-0000000000a1',
         '00000000-0000-0000-0000-000000005b03', false);
 set local role authenticated;
 select set_eq($$ select id from mos.teams_author_can_read_back() where id = '00000000-0000-0000-0000-000000005b03' $$,
-  array['00000000-0000-0000-0000-000000005b03']::uuid[], 'adding membership makes Team X readable');
+  array['00000000-0000-0000-0000-000000005b03']::uuid[], 'membership does not narrow the any-Team destination list');
 
 reset role;
 delete from shared.team_memberships
@@ -34,7 +35,7 @@ delete from shared.team_memberships
    and team_id = '00000000-0000-0000-0000-000000005b03';
 set local role authenticated;
 select set_eq($$ select id from mos.teams_author_can_read_back() where id = '00000000-0000-0000-0000-000000005b03' $$,
-  array[]::uuid[], 'removing membership makes Team X unreadable again');
+  array['00000000-0000-0000-0000-000000005b03']::uuid[], 'removing membership does not remove an active same-org destination');
 
 select set_eq($$ select id from mos.teams_author_can_read_back('00000000-0000-0000-0000-0000000000d1') $$,
   array[]::uuid[], 'a foreign p_author_id returns an empty set');

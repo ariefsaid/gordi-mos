@@ -58,13 +58,13 @@ describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () =
   // so every authenticated org member can already read what the server serves, and the rail gate
   // was hiding a screen the database already permits. Write stays behind `can('objective.manage')`
   // inside the page's own mutations — that capability is a WRITE gate, not a read one. The
-  // authorizing ruling is cited in destinations.tsx beside the entry. Projects & Processes keeps
-  // its gate, so the assertion below still proves the gate mechanism is live rather than removed.
-  it('Work children: Projects & Processes is capability-gated (workline.manage); Objectives is NOT (OD-V4-1 — visible to everyone)', () => {
+  // authorizing ruling is cited in destinations.tsx beside the entries. Both catalogs are
+  // org-readable; their write scopes are resolved inside their page/record surfaces.
+  it('Work children: Projects & Processes and Objectives are visible to everyone', () => {
     const work = DESTINATIONS.find((d) => d.id === 'work')!
     const projects = work.children!.find((c) => c.path === '/work/projects')!
     const objectives = work.children!.find((c) => c.path === '/work/objectives')!
-    expect(projects.capability).toBe('workline.manage')
+    expect(projects.capability).toBeUndefined()
     expect(objectives.capability).toBeUndefined()
   })
 

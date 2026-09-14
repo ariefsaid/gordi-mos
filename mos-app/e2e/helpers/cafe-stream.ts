@@ -12,18 +12,23 @@ import { expect } from '@playwright/test'
  * stream sails through; sessionStorage carries the choice only within one context.
  */
 export async function ensureStream(page: Page, streamLabel = /rumah rames.*kitchen/i): Promise<void> {
-  const picker = page.getByRole('combobox', { name: /production stream/i })
+  const picker = page.getByRole('combobox', { name: /production stream|tim produksi/i })
   await expect(picker).toBeVisible()
-  if ((await picker.inputValue()) !== '') return
+  await expect(picker).toBeEnabled()
+  // The stream picker is a designed trigger; its value is exposed by the visible label rather
+  // than by the hidden native form bridge. An empty selection renders the explicit placeholder.
+  const emptyStream = /choose stream|pilih tim/i
+  if (!emptyStream.test(await picker.innerText())) return
   // Default to the Rumah Rames kitchen: the stream the seed puts today's plans and logs
   // in (supabase/seed.sql), i.e. where the seeded personas actually work — the same
   // stream the pre-#440 silent fallback landed on, now chosen out loud. "First option"
   // is not equivalent: it can land on an empty stream, whose surfaces honestly render
   // their empty state instead of the content these guards measure.
-  const options = picker.locator('option:not([value=""])')
+  await picker.click()
+  const listbox = page.getByRole('listbox', { name: /production stream|tim produksi/i })
+  const options = listbox.getByRole('option').filter({ hasNotText: emptyStream })
   const labels = await options.allTextContents()
   const idx = labels.findIndex((l) => streamLabel.test(l))
   const target = options.nth(idx >= 0 ? idx : 0)
-  const value = await target.getAttribute('value')
-  if (value) await picker.selectOption(value)
+  await target.click()
 }

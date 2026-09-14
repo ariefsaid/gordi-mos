@@ -11,6 +11,8 @@ vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
 vi.mock('@/lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
+  getPersonTeams: vi.fn().mockResolvedValue([]),
+  getTeamsByIds: vi.fn().mockResolvedValue([]),
   listRoleNames: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
@@ -26,7 +28,7 @@ vi.mock('@/lib/db/user-views-collection', () => ({
 }))
 
 import { listTasks } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople, listRoleNames } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getPersonTeams, getTeamsByIds, listRoleNames } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listRunRollups, listTaskDefs } from '@/lib/db/processes'
@@ -53,8 +55,10 @@ function rawTask(over: Partial<TaskListRow> & Pick<TaskListRow, 'id' | 'title'>)
     due_date: over.due_date ?? null, objective_id: over.objective_id ?? null,
     work_line_id: over.work_line_id ?? null,
     last_activity_at: over.last_activity_at ?? '2026-07-20T00:00:00Z',
-    archived_at: over.archived_at ?? null, created_by: 'p-sari',
+    archived_at: over.archived_at ?? null, created_by: over.created_by ?? 'p-sari',
     created_at: '2026-07-01T00:00:00Z', updated_at: '2026-07-01T00:00:00Z',
+    team_id: over.team_id ?? null,
+    completed_at: over.completed_at ?? null,
     process_run_id: over.process_run_id ?? null,
     generated_from_task_def_id: over.generated_from_task_def_id ?? null,
   }
@@ -63,6 +67,8 @@ function rawTask(over: Partial<TaskListRow> & Pick<TaskListRow, 'id' | 'title'>)
 function seedDirectory() {
   mock(getBusinessUnits).mockResolvedValue([{ id: 'bu-cafe', name: 'Café Operations' }, { id: 'bu-b2b', name: 'B2B Sales' }])
   mock(getPeople).mockResolvedValue([{ id: 'p-raka', full_name: 'Raka' }, { id: 'p-sari', full_name: 'Sari' }])
+  mock(getPersonTeams).mockResolvedValue([])
+  mock(getTeamsByIds).mockResolvedValue([])
   mock(listObjectives).mockResolvedValue([{ id: 'o-1', name: 'Grow café revenue' }])
   mock(listWorkLines).mockResolvedValue([{ id: 'wl-1', name: 'Roastery output', type: 'project' }])
 }
@@ -124,6 +130,28 @@ describe('load — DAL wiring and context', () => {
     expect(data.context.rowsById.get('t-1')).toEqual(raw)
     expect(data.records[0].id).toBe('t-1')
   })
+
+  it('loads viewer Team choices and real Team identity for Team work without inferring from BU', async () => {
+    seedDirectory()
+    const raw = rawTask({ id: 't-team', title: 'Team-owned task', team_id: 'team-cafe', created_by: 'p-raka' })
+    mock(listTasks).mockResolvedValue([raw])
+    mock(getPersonTeams).mockResolvedValue([{
+      id: 'team-cafe', name: 'Café Floor', businessUnitId: 'bu-cafe', siteId: 'site-1', orgId: 'org-1', isPrimary: true,
+    }])
+    mock(getTeamsByIds).mockResolvedValue([{
+      id: 'team-cafe', name: 'Café Floor', businessUnitId: 'bu-cafe', siteId: 'site-1', orgId: 'org-1',
+    }])
+
+    const data = await taskCollectionDescriptor.load({ query: q({ view: 'team-work' }), viewerId: 'p-raka' })
+    expect(mock(getPersonTeams)).toHaveBeenCalledWith('p-raka')
+    expect(mock(getTeamsByIds)).toHaveBeenCalledWith(['team-cafe'])
+    expect(data.context.viewerTeams?.map((team) => team.id)).toEqual(['team-cafe'])
+    expect(data.context.teamNamesById?.get('team-cafe')).toBe('Café Floor')
+    expect(data.context.taskTeamViewsById?.get('t-team')).toEqual({
+      status: 'valid', teamId: 'team-cafe', teamName: 'Café Floor', businessUnitId: 'bu-cafe', siteId: 'site-1',
+    })
+    expect(data.records[0].createdById).toBe('p-raka')
+  })
 })
 
 describe('NFR-V3-001: no typed bulk capability is granted', () => {
@@ -165,6 +193,19 @@ describe('FR-V3-007: saved-view spec mapping', () => {
     expect(applied.query.direction).toBe('descending')
   })
 
+  it('persists the Person filter and accepts legacy specs that omit it', () => {
+    const spec = taskCollectionSavedViews.buildSpec({ query: q({ personId: 'p-raka' }), presentation: 'table' })
+    if (spec.collectionId !== 'tasks') throw new Error('expected a Tasks view spec')
+    expect(spec.query.personId).toBe('p-raka')
+    expect(taskCollectionSavedViews.applySpec(spec).query.personId).toBe('p-raka')
+
+    const legacyQuery = { ...spec.query }
+    delete legacyQuery.personId
+    const legacySpec = { ...spec, query: legacyQuery }
+    expect(taskCollectionSavedViews.parseAndValidate(legacySpec).ok).toBe(true)
+    expect(taskCollectionSavedViews.applySpec(legacySpec).query.personId).toBeNull()
+  })
+
   it('grouping is null in the spec when groupBy is none', () => {
     const spec = taskCollectionSavedViews.buildSpec({ query: q({ groupBy: 'none' }), presentation: 'table' })
     expect(spec.kind === 'collection' && spec.grouping).toBeNull()
@@ -197,16 +238,13 @@ describe('FR-V3-007: saved-view spec mapping', () => {
   })
 })
 
-describe('§Task-11: the Team-work view is removed until Issue 8', () => {
-  it('§Task-11: ?view=team is rejected on parse and degrades to the org-visible All view', () => {
-    // DELIBERATE goal change (record-collection plan §Task-11): `view=team` is no longer a supported
-    // saved-view identity; it is rejected before it can enter collection state and never aliased to a
-    // Business Unit filter — the query degrades to the neutral org-visible All view.
+describe('Team-work view query contract', () => {
+  it('canonicalizes legacy ?view=team to the real Team-work scope', () => {
     const parsed = taskCollectionDescriptor.query.parse(new URLSearchParams('view=team'), 'table')
-    expect(parsed.ok).toBe(false)
-    if (parsed.ok) throw new Error('view=team must be rejected')
-    expect(parsed.query?.view).toBe('all')
-    expect(parsed.issues.some((issue) => issue.key === 'view')).toBe(true)
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) throw new Error('legacy Team view must be accepted as an alias')
+    expect(parsed.query.view).toBe('team-work')
+    expect(taskCollectionDescriptor.query.serialize(parsed.query).get('view')).toBe('team-work')
   })
 
   it('D3d: visible optional fields round-trip through the URL while decision fields remain present', () => {
@@ -223,6 +261,17 @@ describe('§Task-11: the Team-work view is removed until Issue 8', () => {
     expect(parsed.ok).toBe(true)
     if (!parsed.ok) throw new Error('view=my-work must parse')
     expect(parsed.query.view).toBe('my-work')
+  })
+
+  it('maps the legacy Completed URL to the All view plus the Done status filter', () => {
+    const parsed = taskCollectionDescriptor.query.parse(new URLSearchParams('view=completed'), 'table')
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) throw new Error('legacy view=completed must be accepted as a compatibility alias')
+    expect(parsed.query.view).toBe('all')
+    expect(parsed.query.status).toBe('Done')
+    const serialized = taskCollectionDescriptor.query.serialize(parsed.query)
+    expect(serialized.get('view')).toBeNull()
+    expect(serialized.get('status')).toBe('done')
   })
 })
 
@@ -256,5 +305,19 @@ describe('table presentation (shared-surface fallback renderer)', () => {
     expect(screen.getByText('Raka')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('row', { name: /Fix the coffee machine/ }))
     expect(onOpenRecord).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the task collection surface without a redundant Work queue heading band', () => {
+    const data = makeData()
+    const projection = taskCollectionDescriptor.project(data, q(), 'table')
+    render(
+      <I18nProvider><MemoryRouter>{taskCollectionDescriptor.presentations.table.render({
+        query: q(), projection, context: data.context,
+        selectedIds: new Set(), onToggleSelected: () => {}, onOpenRecord: () => {},
+        onToggleGroup: () => {}, isGroupCollapsed: () => false,
+      })}</MemoryRouter></I18nProvider>,
+    )
+    expect(screen.getByTestId('tasks-work-queue')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 2, name: /work queue/i })).not.toBeInTheDocument()
   })
 })

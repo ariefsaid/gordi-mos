@@ -30,6 +30,8 @@ export type CollectionQueryParse<TQuery extends object> =
 
 export interface CollectionQuerySchema<TQuery extends object> {
   readonly keys: readonly QueryKey<TQuery>[]
+  /** URL keys to clear even when a compact serializer omits their neutral values. */
+  readonly urlKeys?: readonly string[]
   /** The neutral/default query. A key is "populated" when its value differs from this. */
   readonly neutral: TQuery
   parse(params: URLSearchParams, presentation: string): CollectionQueryParse<TQuery>

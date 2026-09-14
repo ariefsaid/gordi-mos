@@ -74,6 +74,16 @@ describe('getRailCounts — the one cheap rail aggregate', () => {
     ]))
   })
 
+  it('uses the same real-Team predicate as Team work and never falls back to BU', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeClient({ tasks: { count: 2, error: null } }, rec) as never,
+    )
+    await getRailCounts('40000000-0000-0000-0000-000000000001', 'team-work', ['team-1', 'team-2'])
+    expect(rec.filters).toContainEqual('or:team_id.in.(team-1,team-2)')
+    expect(rec.filters.some((filter) => filter.includes('business_unit_id'))).toBe(false)
+  })
+
   it('coalesces a null count to 0', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(

@@ -14,11 +14,15 @@
 // router actually mounts THIS shell with a /cafe/log child, so the chain never dead-ends.
 import { isValidElement } from 'react'
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation, type RouteObject } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
+vi.mock('@/lib/db/signals', () => ({
+  getSignalPostAuthority: vi.fn().mockResolvedValue({ can_post: true, can_tag: true }),
+  loadMentionRosters: vi.fn().mockResolvedValue({ teamMembers: {}, buMembers: {} }),
+}))
 vi.mock('@/lib/db/directory', () => ({
   getBusinessUnits: vi.fn().mockResolvedValue([]),
   getPeople: vi.fn().mockResolvedValue([]),
@@ -97,9 +101,13 @@ function renderShellAtHome() {
   )
 }
 
-function openLauncher() {
+async function openLauncher() {
   fireEvent.click(screen.getByRole('button', { name: 'Open actions' }))
-  return screen.getByRole('dialog', { name: 'Command menu' })
+  const dialog = await screen.findByRole('dialog', { name: 'Command menu' })
+  // Signal post authority is an async runtime gate. Wait for the universal Share action before
+  // asserting the launcher inventory so this test exercises the settled shell, not first paint.
+  await waitFor(() => expect(within(dialog).getByRole('option', { name: 'Share Signal' })).toBeInTheDocument())
+  return dialog
 }
 
 beforeEach(() => {
@@ -113,11 +121,11 @@ afterEach(() => {
 })
 
 describe('AC-022 (#755): the `+` launcher offers the Café capture only to viewers the write gate admits', () => {
-  it('AC-022: Sales (unaffiliated, no ops roles) gets Ask Deputy · Share Signal · Create task and NO Café capture', () => {
+  it('AC-022: Sales (unaffiliated, no ops roles) gets Ask Deputy · Share Signal · Create task and NO Café capture', async () => {
     setAuth({ accessRoles: [], affiliated: [] })
     renderShellAtHome()
 
-    openLauncher()
+    await openLauncher()
     expect(screen.queryByRole('option', { name: /Log Café production/i })).toBeNull()
     // The launcher mode renders the Actions group only, so the option list IS the action
     // inventory: the three universal actions, nothing else.
@@ -125,30 +133,30 @@ describe('AC-022 (#755): the `+` launcher offers the Café capture only to viewe
     expect(actions).toEqual(['Ask Deputy: what needs my attention?', 'Share Signal', 'Create task'])
   })
 
-  it('AC-022: a Café Ops lead (`ops_lead`) sees the Café capture action', () => {
+  it('AC-022: a Café Ops lead (`ops_lead`) sees the Café capture action', async () => {
     setAuth({ accessRoles: ['ops_lead'], affiliated: [] })
     renderShellAtHome()
 
-    openLauncher()
+    await openLauncher()
     expect(screen.getByRole('option', { name: /Log Café production/i })).toBeInTheDocument()
   })
 
-  it('AC-022: an affiliated member (no access role) sees it too — affiliation alone admits', () => {
+  it('AC-022: an affiliated member (no access role) sees it too — affiliation alone admits', async () => {
     setAuth({ accessRoles: [], affiliated: ['cafe'] })
     renderShellAtHome()
 
-    openLauncher()
+    await openLauncher()
     expect(screen.getByRole('option', { name: /Log Café production/i })).toBeInTheDocument()
   })
 })
 
 describe('AC-407: the shipped shell offers the floor a one-tap Café log capture path', () => {
-  it('AC-407: phone Home → an affiliated member taps the launcher entry and lands on /cafe/log', () => {
+  it('AC-407: phone Home → an affiliated member taps the launcher entry and lands on /cafe/log', async () => {
     setAuth({ accessRoles: [], affiliated: ['cafe'] })
     renderShellAtHome()
     expect(screen.getByTestId('location')).toHaveTextContent('/')
 
-    openLauncher()
+    await openLauncher()
     const entry = screen.getByRole('option', { name: /Log Café production/i })
     fireEvent.click(entry)
 

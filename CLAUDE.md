@@ -1,5 +1,21 @@
 # Gordi MOS
 
+## Active Home and Tasks replacement
+
+For Home and Tasks composition, `REDESIGN.md` is the current owner-composition brief and delivery
+scope; `DESIGN.md` is the intended style and interaction authority, amended by current owner
+direction and delegated Director Decisions in `docs/decisions.md` (DD-MVP). `REDESIGN.md` supersedes historical
+page-composition constraints only where it records current owner decisions; it does not authorize
+unrelated palette or token drift, or certify the current implementation. Retired interaction
+prescriptions must not override the current DD-MVP acceptance criteria. The active MVP acceptance
+work is scoped by `docs/plans/2026-09-14-mvp-acceptance.md` and DD-MVP to Tasks, Café WIP
+production and Signals without changing the approved Home composition.
+`docs/plans/2026-09-14-mvp-recovery.md` is the historical one-hour checkpoint; its time fences
+and pending statements do not govern this continuation. Use bounded isolated
+workers, integrate running surfaces, and review the result against actual user outcomes. Preserve
+business/security contracts and public-write safeguards.
+
+
 > ## ⚠️ THIS REPO IS PUBLIC — `github.com/ariefsaid/gordi-mos`
 >
 > Commits, issues, PRs and comments are world-readable and permanent. Deleting does not un-publish.
@@ -114,7 +130,13 @@ honest work teaches `--no-verify`, which disables the guards that matter. This o
 - typecheck + ESLint zero errors; ≥80% lines on changed code.
 - Reversible migrations. **RLS on every business table.** `org_id` seam enforced.
 - `DESIGN.md` is the design-system source of truth — never re-invent it.
-- UI is not done until rendered and looked at, at real widths (incl. ≤390px phone).
+- UI changes also require the repo-vendored design-tooling lane in local `docs/decisions.md`
+  (DD-MVP-12/13) and `docs/quality-model.md`: Impeccable detector + audit/critique + post-fix
+  polish, with Taste as the secondary anti-slop lens. Missing, unrunnable or stale tooling is an
+  explicit incomplete review, never a silent fallback.
+- UI is not done until rendered and operated at real widths (incl. ≤390px phone): open controls,
+  keyboard/focus, long content, loading/empty/error states and the persisted role-correct journey.
+  Record browser evidence separately from source/test evidence; shared-component reuse is not visual acceptance.
 
 ## Test pyramid
 Each acceptance criterion is owned by **one** test at the lowest sufficient layer: unit (Vitest/RTL)

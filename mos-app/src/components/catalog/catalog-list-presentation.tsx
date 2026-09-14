@@ -1,168 +1,29 @@
-// Typed catalog LIST presentation (V3 catalog grammar — Projects & Processes / Objectives).
-// One quiet list of small catalog rows. Each active row carries its name, an optional Project/Process
-// type tag, its FR-422 up/down trace, and the inline management actions (Rename / Archive) that ARE
-// the row's primary interaction — a catalog row has no record panel, so it never invents one. The
-// Archived view swaps those for Unarchive. Mutations are read from the page via the actions context.
+// Typed catalog presentation for Projects & Processes and Objectives.
 //
-// OD-V4-1 H4: every row ALSO carries a disclosure toggle that expands its bidirectional
-// relations — child Projects/Processes for an Objective, parent Objective(s) for a Project/Process,
-// and either way the row's own Tasks — each a real <Link> to an existing route (/work/objectives,
-// /work/projects, /work/tasks/:id) THIS viewer is admitted to; a name whose route would refuse them
-// renders inert instead. Not a new cascade page/route (docs/v4-inheritance.md INC-1): the relations
-// live on the rows themselves, reusing routes that already exist.
-//
-// VOCABULARY: an (Objective, Project/Process) pair is a cascade GROUP here, never a "branch" —
-// CONTEXT.md owns Branch as the physical-outlet noun (#204 review).
-import { useState } from 'react'
+// A catalog row is a record door. Mutations live on the record's overflow/action area, so the
+// collection stays scannable: one primary identity, a few facts, and one activation target. The
+// same DOM reflows from a dense desktop table into a phone card without inventing a second IA.
 import { Link } from 'react-router-dom'
-import { useAuth } from '@/auth/use-auth'
-import { can } from '@/lib/capabilities'
-import { Button } from '@/components/ui/button'
 import { TextInput } from '@/components/ui/text-input'
+import { Picker } from '@/components/ui/picker'
+import { Button } from '@/components/ui/button'
 import { Tag } from '@/components/ui/tag'
+import { PersonCell } from '@/components/tasks/pic-cell'
 import { useT } from '@/i18n/use-t'
+import { formatWibDateTime } from '@/lib/wib-time'
+import { readPersistedLocale } from '@/i18n/I18nProvider'
+import type { CountRollup } from '@/lib/cascade/count-rollup'
 import type { CollectionPresentationProps, CollectionProjection } from '@/lib/record-collection/types'
 import type {
   CatalogCollectionContext,
   CatalogCollectionQuery,
-  CatalogRelations,
-  CatalogRelationTask,
-  CatalogRelationsKind,
   CatalogRenderGroup,
   CatalogRow,
 } from './catalog-collection-adapter'
 import { useCatalogCollectionActions } from './catalog-collection-actions'
-import { CatalogRowActions } from './catalog-row-actions'
+import type { CatalogCreateDraft } from './catalog-collection-actions'
+import '@/components/collection-grammar.css'
 import './catalog-collection.css'
-
-/** OD-V4-1 H4 cap: an objective/work_line with dozens of tasks gets a bounded inline list, not a
-    runaway DOM — the row's disclosure is a real drill-in for the common case, not a full report. */
-const MAX_RELATIONS_TASKS = 12
-
-/** Where a capped group's overflow goes: Tasks grouped by Objective, every group in full. */
-const OVERFLOW_TASKS_DOOR = '/work/tasks?group=objective'
-
-// The disclosure marker is an SVG chevron, rotated by CSS when open — never a text triangle.
-// RI-IXD-1 (src/consistency.regression.test.tsx) fails the suite on a literal triangle character
-// anywhere in a non-test .tsx, comments included, so this note names none.
-
-function DisclosureChevron({ expanded }: { expanded: boolean }) {
-  return (
-    <svg
-      className={`catalog-collection__disclosure-chevron${expanded ? ' catalog-collection__disclosure-chevron--open' : ''}`}
-      width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"
-    >
-      <path d="m9 6 6 6-6 6" />
-    </svg>
-  )
-}
-
-function RelationsPanel({
-  relations, kind, groupPath, groupPathAdmits, t,
-}: {
-  relations: CatalogRelations
-  kind: CatalogRelationsKind
-  /** The sibling catalog this row's groups drill into. */
-  groupPath: string
-  /** False when THIS viewer's roles do not admit them to `groupPath` — see the caller. */
-  groupPathAdmits: boolean
-  t: ReturnType<typeof useT>
-}) {
-  const hasGroups = relations.groups.length > 0
-  const hasTasks = relations.tasks.length > 0
-
-  if (!hasGroups && !hasTasks) {
-    return (
-      <p className="catalog-collection__relations-empty">
-        {t(kind === 'objective' ? 'catalog.relations.empty.objective' : 'catalog.relations.empty.workLine')}
-      </p>
-    )
-  }
-
-  const groupedTaskIds = new Set(relations.groups.flatMap((group) => (group.tasks ?? []).map((task) => task.id)))
-  const ungroupedTasks = relations.tasks.filter((task) => !groupedTaskIds.has(task.id))
-
-  /**
-   * A capped list AND its way through (#204 finding 1). The cap without a door is the defect: task
-   * 13 of a group simply vanished, and the groups most likely to run long are the synthetic ones
-   * — `No Project/Process` and `(Unlinked)` — which hold exactly the work nobody is tracking. So
-   * the door is emitted by the same helper that does the capping; it cannot be forgotten for one
-   * group and remembered for another. It lands on Tasks grouped by Objective, where every group,
-   * synthetic included, is rendered in full.
-   */
-  const taskList = (tasks: readonly CatalogRelationTask[], groupName: string) => {
-    const overflow = tasks.length - MAX_RELATIONS_TASKS
-    return (
-      <ul className="catalog-collection__relations-list">
-        {tasks.slice(0, MAX_RELATIONS_TASKS).map((task) => (
-          <li key={task.id}>
-            <Link className="catalog-collection__relations-link" to={`/work/tasks/${task.id}`}>{task.title}</Link>
-          </li>
-        ))}
-        {overflow > 0 && (
-          <li>
-            <Link
-              className="catalog-collection__relations-link"
-              to={OVERFLOW_TASKS_DOOR}
-              /* Several groups can overflow in one panel, so the visible copy repeats. The
-                 accessible name carries the group, or a screen-reader user gets a list of
-                 identical "+3 more" links with no way to tell them apart. */
-              aria-label={t('catalog.relations.moreTasksAria', { count: String(overflow), name: groupName })}
-            >
-              {t('catalog.relations.moreTasks', { count: String(overflow) })}
-            </Link>
-          </li>
-        )}
-      </ul>
-    )
-  }
-
-  return (
-    <div className="catalog-collection__relations-body">
-      {hasGroups && (
-        <div className="catalog-collection__relations-column">
-          <span className="catalog-collection__relations-heading">
-            {t(kind === 'objective' ? 'catalog.relations.heading.children' : 'catalog.relations.heading.parents')}
-          </span>
-          <ul className="catalog-collection__relations-list">
-            {relations.groups.map((group) => (
-              <li key={group.id} className="catalog-collection__relations-group">
-                {/* Name + count on their own line, the group's Tasks nested beneath. The default
-                    row is a flex ROW, so without this the nested list became a third column and
-                    a group's tasks read as if they belonged to the group beside it (390px). */}
-                <span className="catalog-collection__relations-group-head">
-                  {/* Two reasons a name carries no door, one inert span. A synthetic group is not a
-                      record, so linking it into the catalog search would hunt for a name that does
-                      not exist there. And a viewer the destination route refuses (`groupPathAdmits`)
-                      would be bounced off the page by a live blue name — worse than no door. */}
-                  {group.synthetic || !groupPathAdmits ? (
-                    <span className="catalog-collection__relations-link catalog-collection__relations-link--inert">
-                      {group.name}
-                    </span>
-                  ) : (
-                    <Link className="catalog-collection__relations-link" to={{ pathname: groupPath, search: `?q=${encodeURIComponent(group.name)}` }}>
-                      {group.name}
-                    </Link>
-                  )}
-                  <span className="catalog-collection__relations-count">
-                    {t('catalog.relations.progress', { done: String(group.done), total: String(group.total) })}
-                  </span>
-                </span>
-                {group.tasks && group.tasks.length > 0 && taskList(group.tasks, group.name)}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {ungroupedTasks.length > 0 && (
-        <div className="catalog-collection__relations-column">
-          <span className="catalog-collection__relations-heading">{t('catalog.relations.heading.tasks')}</span>
-          {taskList(ungroupedTasks, t('catalog.relations.heading.tasks'))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 type CatalogListProps = CollectionPresentationProps<
   CatalogRow,
@@ -172,182 +33,295 @@ type CatalogListProps = CollectionPresentationProps<
   string
 >
 
-export function CatalogListPresentation({ query, projection, context }: CatalogListProps) {
+function recordPath(row: CatalogRow): string {
+  return row.type ? `/work/projects/${row.id}` : `/work/objectives/${row.id}`
+}
+
+function DraftRow({ draft }: { draft: CatalogCreateDraft }) {
+  const t = useT()
+  const label = draft.kind === 'objective' ? t('catalog.objectives.add') : t('catalog.projects.add')
+  return (
+    <div className="catalog-collection__draft-row">
+      <form
+        className="catalog-collection__draft"
+        aria-label={label}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') return
+          event.preventDefault()
+          if (!draft.adding) draft.onCancel()
+        }}
+        onSubmit={(event) => {
+          event.preventDefault()
+          draft.onSubmit()
+        }}
+      >
+        <TextInput
+          label={t('catalog.nameLabel')}
+          value={draft.name}
+          onChange={(event) => draft.onNameChange(event.target.value)}
+          error={Boolean(draft.error)}
+          autoFocus
+          fullWidth
+          disabled={draft.adding}
+          placeholder={t('catalog.namePlaceholder')}
+        />
+        {draft.kind === 'work-line' && draft.type && draft.onTypeChange ? (
+          <Picker
+            label={t('catalog.filter.type')}
+            value={draft.type}
+            options={[
+              { value: 'project', label: t('catalog.tag.project') },
+              { value: 'process', label: t('catalog.tag.process') },
+            ]}
+            onChange={(value) => draft.onTypeChange?.(value as 'project' | 'process')}
+            disabled={draft.adding}
+          />
+        ) : null}
+        {draft.kind === 'work-line' && draft.objectiveOptions && draft.onObjectiveChange ? (
+          <Picker
+            label={t('catalog.record.objective')}
+            value={draft.objectiveId ?? ''}
+            placeholder={t('catalog.notSet')}
+            options={[{ value: '', label: t('catalog.notSet') }, ...draft.objectiveOptions]}
+            onChange={(value) => draft.onObjectiveChange?.(value || null)}
+            disabled={draft.adding}
+          />
+        ) : null}
+        {draft.businessUnitOptions && draft.onBusinessUnitChange ? (
+          <Picker
+            label={t('catalog.record.businessUnit')}
+            value={draft.businessUnitId ?? ''}
+            placeholder={draft.businessUnitRequired ? undefined : t('catalog.notSet')}
+            options={draft.businessUnitRequired ? draft.businessUnitOptions : [{ value: '', label: t('catalog.notSet') }, ...draft.businessUnitOptions]}
+            onChange={(value) => draft.onBusinessUnitChange?.(value || null)}
+            required={draft.businessUnitRequired}
+            disabled={draft.adding}
+          />
+        ) : null}
+        <span className="catalog-collection__draft-actions">
+          <Button type="submit" variant="primary" disabled={draft.adding} aria-busy={draft.adding}>
+            {draft.adding ? t(draft.kind === 'objective' ? 'catalog.objectives.adding' : 'catalog.projects.adding') : t('common.save')}
+          </Button>
+          <Button type="button" variant="ghost" disabled={draft.adding} onClick={draft.onCancel}>
+            {t('common.cancel')}
+          </Button>
+        </span>
+        {draft.error ? <p className="catalog-collection__error" role="alert">{draft.error}</p> : null}
+      </form>
+    </div>
+  )
+}
+
+function progressText(
+  done: number,
+  total: number,
+  t: ReturnType<typeof useT>,
+): string {
+  return total > 0
+    ? t('catalog.relations.progress', { done: String(done), total: String(total) })
+    : t('catalog.noTasks')
+}
+
+function rowProgressText(
+  row: CatalogRow,
+  progress: CountRollup | undefined,
+  t: ReturnType<typeof useT>,
+): string {
+  if (row.type !== 'process') {
+    return progress ? progressText(progress.done, progress.total, t) : t('catalog.noTasks')
+  }
+
+  // A Process is a repeatable definition, so its catalog progress is about today's/current
+  // occurrence. Lifetime linked Tasks belong to the cascade relation and must not masquerade as
+  // the current run's progress on this row.
+  if (row.cadenceActive !== true || !row.cadenceKind) return t('catalog.process.noSchedule')
+  if (row.cadenceKind === 'manual' && !row.currentOccurrence) return t('catalog.process.onDemand')
+  if (!row.currentOccurrence) return t('catalog.process.notStarted')
+  if (row.currentOccurrence.pending_unresolved > 0) {
+    const pending = t('catalog.process.awaitingAssignment', {
+      count: String(row.currentOccurrence.pending_unresolved),
+    })
+    return row.currentOccurrence.total > 0
+      ? `${progressText(row.currentOccurrence.done, row.currentOccurrence.total, t)} · ${pending}`
+      : pending
+  }
+  if (row.currentOccurrence.total === 0) return t('catalog.process.startedNoTasks')
+  return progressText(row.currentOccurrence.done, row.currentOccurrence.total, t)
+}
+
+function latestActivity(
+  context: CatalogCollectionContext,
+  row: CatalogRow,
+  t: ReturnType<typeof useT>,
+): string {
+  const value = context.lastActivityById?.get(row.id)
+  return value ? formatWibDateTime(value) : t('catalog.noActivity')
+}
+
+function directoryName(
+  id: string | null | undefined,
+  names: ReadonlyMap<string, string> | undefined,
+  t: ReturnType<typeof useT>,
+): string {
+  if (!id) return t('catalog.notSet')
+  return names?.get(id) ?? t('catalog.notAvailable')
+}
+
+function ownerCellValue(
+  id: string | null | undefined,
+  names: ReadonlyMap<string, string> | undefined,
+  t: ReturnType<typeof useT>,
+) {
+  const fullName = id ? names?.get(id) : undefined
+  const displayName = fullName ?? directoryName(id, names, t)
+  return fullName ? <PersonCell fullName={fullName} /> : (
+    <span className="catalog-collection__cell-value catalog-collection__cell-value--muted" aria-hidden="true">
+      {displayName === t('catalog.notSet') ? '–' : displayName}
+    </span>
+  )
+}
+
+function visualCellValue(value: string, missing: boolean): string {
+  return missing ? '–' : value
+}
+
+function dueValue(row: CatalogRow, t: ReturnType<typeof useT>): { label: string; missing: boolean } {
+  if (row.type !== 'process') return { label: t('catalog.notSet'), missing: true }
+  const cadenceLabels = {
+    manual: t('catalog.record.cadence.manual'),
+    daily: t('catalog.record.cadence.daily'),
+    weekly: t('catalog.record.cadence.weekly'),
+    monthly: t('catalog.record.cadence.monthly'),
+  }
+  const cadence = row.cadenceKind ? cadenceLabels[row.cadenceKind] : t('catalog.notSet')
+  if (!row.nextDueDate) return { label: cadence, missing: !row.cadenceKind }
+  const locale = readPersistedLocale() === 'id' ? 'id-ID' : 'en-GB'
+  const due = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+    .format(new Date(`${row.nextDueDate}T00:00:00Z`))
+  return { label: `${cadence} · ${due}`, missing: false }
+}
+
+function primaryRelation(context: CatalogCollectionContext, row: CatalogRow) {
+  return context.relationsById.get(row.id)?.groups.find((group) => !group.synthetic)
+}
+
+export function CatalogListPresentation({ query, projection, context, onOpenRecord }: CatalogListProps) {
   const t = useT()
   const actions = useCatalogCollectionActions()
-  // A group name is a door into the SIBLING catalog, and the two catalogs are not gated alike:
-  // /work/projects sits behind RequireCapability('workline.manage') — admin and ops_lead only —
-  // while /work/objectives carries no read gate at all (OD-V4-1). So on the Objectives page most
-  // viewers were being shown a live blue name that bounced them straight back off the page. Every
-  // other affordance for that route in this codebase is conditioned on the capability; this is that
-  // condition. Affordance only — the route guard is the boundary, RLS behind it (NFR-004).
-  const auth = useAuth()
-  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const groupPath = context.relationsKind === 'objective' ? '/work/projects' : '/work/objectives'
-  const groupPathAdmits = context.relationsKind === 'objective'
-    ? can(accessRoles, 'workline.manage')
-    : true
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editError, setEditError] = useState('')
-  const [busyId, setBusyId] = useState<string | null>(null)
-  // OD-V4-1 H4: one row's relations open at a time (accordion) — a real drill target per row.
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-
-  const archivedView = query.view === 'archived'
-  const viewLabel = t(archivedView ? 'catalog.view.archived' : 'catalog.view.active')
-
-  function startEdit(row: CatalogRow) {
-    setEditingId(row.id)
-    setEditName(row.name)
-    setEditError('')
-  }
-
-  async function submitRename(event: React.FormEvent, id: string) {
-    event.preventDefault()
-    const name = editName.trim()
-    if (!name) {
-      setEditError(t('catalog.nameRequired'))
-      return
-    }
-    setBusyId(id)
-    setEditError('')
-    try {
-      await actions.rename(id, name)
-      setEditingId(null)
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : t('catalog.saveFailed'))
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function runArchive(row: CatalogRow, archive: boolean) {
-    setBusyId(row.id)
-    try {
-      await (archive ? actions.archive(row.id) : actions.unarchive(row.id))
-    } finally {
-      setBusyId(null)
-    }
-  }
+  const archived = query.view === 'archived'
+  const viewLabel = t(query.view === 'archived' ? 'catalog.view.archived' : query.view === 'all' ? 'catalog.view.all' : 'catalog.view.active')
+  const draft = actions.createDraft?.open ? actions.createDraft : null
 
   return (
-    <ul className="catalog-collection__list" aria-label={viewLabel}>
-      {projection.visibleRecords.map((row) => {
-        const busy = busyId === row.id
-        const typeTag = row.type ? (
-          <Tag color={row.type === 'project' ? 'blue' : 'sand'}>
-            {t(row.type === 'project' ? 'catalog.tag.project' : 'catalog.tag.process')}
-          </Tag>
-        ) : null
-        const trace = !archivedView ? context.traceById.get(row.id) : undefined
-        const progress = !archivedView ? context.progressById.get(row.id) : undefined
+    <div
+      className={`catalog-collection__table catalog-collection__table--${context.relationsKind}`}
+      role="table"
+      aria-label={viewLabel}
+    >
+      <div className="catalog-collection__header" role="row">
+        <span role="columnheader">{t('catalog.column.name')}</span>
+        <span role="columnheader">{context.relationsKind === 'objective' ? t('catalog.column.businessUnit') : t('catalog.column.objective')}</span>
+        <span role="columnheader">{t('catalog.column.owner')}</span>
+        <span role="columnheader">{context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}</span>
+        <span role="columnheader">{t('catalog.column.progress')}</span>
+        <span role="columnheader">{t('catalog.column.activity')}</span>
+      </div>
+      {draft ? <DraftRow draft={draft} /> : null}
+      <ul className="catalog-collection__list" aria-label={viewLabel}>
+        {projection.visibleRecords.map((row) => {
+          const relation = primaryRelation(context, row)
+          const progress = context.progressById.get(row.id)
+          const relationLabel = relation?.name ?? t('catalog.notSet')
+          const progressLabel = rowProgressText(row, progress, t)
+          const activityLabel = latestActivity(context, row, t)
+          const ownerLabel = directoryName(
+            context.relationsKind === 'objective' ? row.accountablePersonId : row.accountablePersonId,
+            context.peopleById,
+            t,
+          )
+          const businessUnitLabel = directoryName(row.businessUnitId, context.businessUnitsById, t)
+          const cadenceDue = dueValue(row, t)
+          const cadenceDueLabel = cadenceDue.label
+          const typeTag = row.type ? (
+            <Tag color={row.type === 'project' ? 'blue' : 'sand'}>
+              {t(row.type === 'project' ? 'catalog.tag.project' : 'catalog.tag.process')}
+            </Tag>
+          ) : null
 
-        if (editingId === row.id) {
           return (
-            <li key={row.id} className="catalog-collection__row">
-              <form className="catalog-collection__edit" onSubmit={(e) => submitRename(e, row.id)}>
-                <div className="catalog-collection__edit-field">
-                  <TextInput
-                    label=""
-                    aria-label={t('catalog.renameAria', { name: row.name })}
-                    value={editName}
-                    onChange={(e) => {
-                      setEditName(e.target.value)
-                      if (editError) setEditError('')
-                    }}
-                    error={!!editError}
-                    fullWidth
-                    autoFocus
-                    disabled={busy}
-                  />
+            <li
+              key={row.id}
+              className={`catalog-collection__row${archived ? ' catalog-collection__row--archived' : ''}`}
+              role="row"
+              data-catalog-row-id={row.id}
+            >
+              <Link
+                className="catalog-collection__row-link"
+                to={recordPath(row)}
+                aria-label={row.name}
+                role="link"
+                onClick={(event) => {
+                  // Keep the canonical href for refresh/new-tab semantics, while letting the
+                  // collection host promote an in-app click into the shared Work record panel.
+                  if (!onOpenRecord || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                  event.preventDefault()
+                  onOpenRecord(row)
+                }}
+              >
+                <span className="catalog-collection__identity" role="cell">
+                  <span className="catalog-collection__name">{row.name}</span>
+                  {typeTag}
+                </span>
+                <span
+                  className="catalog-collection__cell catalog-collection__cell--relation"
+                  role="cell"
+                  aria-label={`${context.relationsKind === 'objective' ? t('catalog.column.businessUnit') : t('catalog.column.objective')}: ${context.relationsKind === 'objective' ? businessUnitLabel : relationLabel}`}
+                >
+                  <span className="catalog-collection__cell-label">{context.relationsKind === 'objective' ? t('catalog.column.businessUnit') : t('catalog.column.objective')}</span>
+                  <span className={context.relationsKind === 'objective' ? (!row.businessUnitId ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value') : (relation ? 'catalog-collection__cell-value' : 'catalog-collection__cell-value catalog-collection__cell-value--muted')}>
+                    {visualCellValue(context.relationsKind === 'objective' ? businessUnitLabel : relationLabel, context.relationsKind === 'objective' ? !row.businessUnitId : !relation)}
+                  </span>
+                  {context.relationsKind === 'objective' && row.periodYear != null ? (
+                    <span className="catalog-collection__cell-note">{row.periodYear}</span>
+                  ) : null}
+                </span>
+                <div
+                  className="catalog-collection__cell catalog-collection__cell--owner"
+                  role="cell"
+                  aria-label={`${t('catalog.column.owner')}: ${ownerLabel}`}
+                  title={ownerLabel}
+                >
+                  <span className="catalog-collection__cell-label">{t('catalog.column.owner')}</span>
+                  {ownerCellValue(row.accountablePersonId, context.peopleById, t)}
                 </div>
-                <Button type="submit" variant="primary" disabled={busy} aria-busy={busy}>
-                  {t('common.save')}
-                </Button>
-                <Button type="button" variant="ghost" disabled={busy} onClick={() => setEditingId(null)}>
-                  {t('common.cancel')}
-                </Button>
-                {editError && (
-                  <span role="alert" className="catalog-collection__error">{editError}</span>
-                )}
-              </form>
+                <span
+                  className="catalog-collection__cell catalog-collection__cell--cadence"
+                  role="cell"
+                  aria-label={`${context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}: ${context.relationsKind === 'objective' ? relationLabel : cadenceDueLabel}`}
+                >
+                  <span className="catalog-collection__cell-label">{context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}</span>
+                  <span className={(context.relationsKind === 'objective' ? !relation : cadenceDue.missing) ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value'}>
+                    {visualCellValue(context.relationsKind === 'objective' ? relationLabel : cadenceDueLabel, context.relationsKind === 'objective' ? !relation : cadenceDue.missing)}
+                  </span>
+                  {context.relationsKind === 'objective' ? (
+                    <span className="catalog-collection__cell-note">
+                      {t('catalog.childCount', { count: String(context.relationsById.get(row.id)?.groups.filter((group) => !group.synthetic).length ?? 0) })}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="catalog-collection__cell catalog-collection__cell--progress" role="cell">
+                  <span className="catalog-collection__cell-label">{t('catalog.column.progress')}</span>
+                  <span className="catalog-collection__cell-value tabular-nums" data-testid="catalog-progress">{progressLabel}</span>
+                </span>
+                <span className="catalog-collection__cell catalog-collection__cell--activity" role="cell">
+                  <span className="catalog-collection__cell-label">{t('catalog.column.activity')}</span>
+                  <span className="catalog-collection__cell-value">{activityLabel}</span>
+                </span>
+              </Link>
             </li>
           )
-        }
-
-        // OD-V4-1 H4: the row's real drill target — its bidirectional relations (child
-        // Projects/Processes or parent Objective(s), plus its own Tasks), expandable in place.
-        const relations = context.relationsById.get(row.id) ?? { groups: [], tasks: [] }
-        const expanded = expandedId === row.id
-        const relationsPanelId = `catalog-relations-${row.id}`
-
-        return (
-          <li
-            key={row.id}
-            className={`catalog-collection__row${archivedView ? ' catalog-collection__row--archived' : ''}`}
-          >
-            <button
-              type="button"
-              className="catalog-collection__disclosure"
-              aria-expanded={expanded}
-              aria-controls={relationsPanelId}
-              /* polish (2026-07-28): the name announced "Show relations for X" even while the
-                 panel was open, so a screen-reader user got told to do the thing they had just
-                 done. `aria-expanded` alone carries the state; the NAME has to agree with it. */
-              aria-label={t(
-                expanded ? 'catalog.relations.hideAria' : 'catalog.relations.toggleAria',
-                { name: row.name },
-              )}
-              onClick={() => setExpandedId((current) => (current === row.id ? null : row.id))}
-            >
-              <DisclosureChevron expanded={expanded} />
-            </button>
-            <div className="catalog-collection__identity">
-              <span className="catalog-collection__name">{row.name}</span>
-              {typeTag}
-            </div>
-            {/* PORT-028: a viewer without the write capability gets the row, its trace and its
-                relations — everything that makes the cascade legible — and no write affordance at
-                all. Rendering a disabled Rename would be worse than rendering none: it advertises
-                a door that is not theirs. Objectives is the surface this can happen on (OD-V4-1
-                removed its read gate); Projects/Processes is still route-gated, so its viewers
-                always hold the capability and always see these. */}
-            <CatalogRowActions
-              name={row.name}
-              archived={archivedView}
-              canManage={actions.canManage}
-              disabled={busy}
-              onRename={() => startEdit(row)}
-              onArchive={() => void runArchive(row, true)}
-              onUnarchive={() => void runArchive(row, false)}
-            />
-            {progress && (
-              <span className="catalog-collection__trace" data-testid="catalog-progress">
-                {t('catalog.relations.progress', { done: String(progress.done), total: String(progress.total) })}
-              </span>
-            )}
-            {trace && (
-              <span className="catalog-collection__trace" data-testid="catalog-trace">{trace}</span>
-            )}
-            {expanded && (
-              <div
-                id={relationsPanelId}
-                className="catalog-collection__relations"
-                data-testid="catalog-relations"
-              >
-                <RelationsPanel
-                  relations={relations}
-                  kind={context.relationsKind}
-                  groupPath={groupPath}
-                  groupPathAdmits={groupPathAdmits}
-                  t={t}
-                />
-              </div>
-            )}
-          </li>
-        )
-      })}
-    </ul>
+        })}
+      </ul>
+    </div>
   )
 }

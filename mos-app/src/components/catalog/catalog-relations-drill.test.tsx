@@ -1,73 +1,43 @@
-// AC-204 — the Objective → Project/Process → Task drill, on the catalog records themselves.
-//
-// Driven through the REAL descriptor pipeline (load → project → the list presentation), over
-// seeded fixtures, so it covers the shared branch projection and its rendering in one pass. The
-// cascade SCREEN is not coming back (OD-WAY-32); the last case here asserts its absence, because a
-// drill that quietly grew a cascade door again would otherwise pass every other check.
+// Record relationship coverage for the canonical Objective ⇄ Project/Process documents.
+// The old collection-era accordion is intentionally gone: relationships now live in the record
+// Details/Activity sections and every destination is a real canonical link.
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { fireEvent, render, screen, within, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { AuthContext, type AuthState } from '@/auth/context'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
-vi.mock('@/lib/db/objectives', () => ({ listObjectivesAll: vi.fn() }))
-vi.mock('@/lib/db/work-lines', () => ({ listWorkLinesAll: vi.fn() }))
-vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
+vi.mock('@/lib/db/objectives', () => ({ updateObjective: vi.fn() }))
+vi.mock('@/lib/db/work-lines', () => ({ updateWorkLine: vi.fn() }))
+vi.mock('./catalog-record-loader', () => ({ loadCatalogRecordData: vi.fn(), loadCatalogRecordEditDirectory: vi.fn() }))
+const runtimeAuthority = vi.hoisted(() => ({
+  scopes: {
+    workline_org: true,
+    objective_org: true,
+    workline_bu_ids: [] as string[],
+    objective_bu_ids: [] as string[],
+  },
+}))
+vi.mock('./use-work-write-authority', () => ({
+  useWorkWriteAuthority: () => ({ scopes: runtimeAuthority.scopes, loading: false, error: false }),
+  allowedBusinessUnitIds: (kind: 'work-line' | 'objective', scopes: typeof runtimeAuthority.scopes) =>
+    kind === 'work-line'
+      ? (scopes.workline_org ? null : scopes.workline_bu_ids)
+      : (scopes.objective_org ? null : scopes.objective_bu_ids),
+  canManageForScope: (kind: 'work-line' | 'objective', businessUnitId: string | null | undefined, scopes: typeof runtimeAuthority.scopes) => {
+    const org = kind === 'work-line' ? scopes.workline_org : scopes.objective_org
+    const buIds = kind === 'work-line' ? scopes.workline_bu_ids : scopes.objective_bu_ids
+    return org || (businessUnitId !== null && businessUnitId !== undefined && buIds.includes(businessUnitId))
+  },
+}))
 
-import { listObjectivesAll } from '@/lib/db/objectives'
-import { listWorkLinesAll } from '@/lib/db/work-lines'
-import { listTasks } from '@/lib/db/tasks'
-import {
-  objectivesCollectionDescriptor,
-  projectsProcessesCollectionDescriptor,
-  type CatalogCollectionQuery,
-} from './catalog-collection-adapter'
-import { CatalogCollectionActionsProvider } from './catalog-collection-actions'
+import { updateObjective } from '@/lib/db/objectives'
+import { updateWorkLine } from '@/lib/db/work-lines'
+import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogRecordData } from './catalog-record-loader'
+import { CatalogRecordDocument } from './catalog-record-document'
 
-const QUERY: CatalogCollectionQuery = {
-  layout: 'list', view: 'active', q: '', type: 'all', coverage: 'all', savedViewId: null,
-}
-
-function task(over: Partial<TaskListRow> & { id: string; title: string }): TaskListRow {
-  return {
-    org_id: 'org-1', business_unit_id: 'bu-1', status: 'Open',
-    responsible_person_id: 'p1', accountable_person_id: 'p1',
-    consulted_person_ids: [], informed_person_ids: [], description: null, due_date: null,
-    objective_id: null, work_line_id: null,
-    last_activity_at: '2026-08-01T00:00:00Z', archived_at: null, created_by: 'p1',
-    created_at: '2026-08-01T00:00:00Z', updated_at: '2026-08-01T00:00:00Z',
-    ...over,
-  }
-}
-
-// ── The seeded world. Deliberately shaped so every AC-204 case is present at once: a real branch,
-// an Objective's own tasks (No Project/Process), a parentless work line ((Unlinked)), a Done task
-// for the count, an archived task that must NOT count, and one branch pushed past the 12-task cap.
-const OBJECTIVES = [
-  { id: 'obj-1', name: 'Grow revenue', archived_at: null },
-  { id: 'obj-2', name: 'Lonely objective', archived_at: null },
-]
-const WORK_LINES = [
-  { id: 'wl-1', name: 'Menu launch', type: 'project' as const, objective_id: 'obj-1', archived_at: null },
-  { id: 'wl-2', name: 'Daily prep', type: 'process' as const, objective_id: 'obj-1', archived_at: null },
-  { id: 'wl-orphan', name: 'Loose ends', type: 'process' as const, objective_id: null, archived_at: null },
-]
-const TASKS: TaskListRow[] = [
-  task({ id: 't-launch-done', title: 'Print the menus', work_line_id: 'wl-1', status: 'Done' }),
-  task({ id: 't-launch-open', title: 'Brief the floor', work_line_id: 'wl-1' }),
-  task({ id: 't-launch-archived', title: 'Cancelled idea', work_line_id: 'wl-1', status: 'Done', archived_at: '2026-07-01' }),
-  task({ id: 't-direct', title: 'Sign the lease', objective_id: 'obj-1' }),
-  task({ id: 't-orphan', title: 'Chase the invoice', work_line_id: 'wl-orphan' }),
-]
-
-/** 13 tasks on Daily prep — one past the 12-task cap, so the overflow door must appear. */
-const OVERFLOWING = Array.from({ length: 13 }, (_, i) =>
-  task({ id: `t-prep-${i}`, title: `Prep step ${i}`, work_line_id: 'wl-2' }))
-
-/** A viewer carrying exactly the given access roles — the drill reads them for its route gates. */
-function authWith(accessRoles: readonly string[]): AuthState {
+function auth(): AuthState {
   return {
     status: 'authenticated',
     viewer: {
@@ -76,185 +46,260 @@ function authWith(accessRoles: readonly string[]): AuthState {
         email: 'viewer@example.test', must_change_password: false, archived_at: null,
         created_at: '2026-08-01', updated_at: '2026-08-01',
       },
-      roles: [],
-      isManager: false,
-      accessRoles: [...accessRoles],
-      affiliated: [],
+      roles: [], isManager: false, accessRoles: ['admin'], affiliated: [],
     },
     signOut: vi.fn(),
   }
 }
 
-async function renderCatalog(
-  descriptor: typeof objectivesCollectionDescriptor,
-  accessRoles: readonly string[] = ['admin'],
-) {
-  const data = await descriptor.load({ query: QUERY, viewerId: null })
-  const projection = descriptor.project(data, QUERY, 'list')
-  render(
-    <AuthContext.Provider value={authWith(accessRoles)}>
+function task(overrides: Partial<TaskListRow> & { id: string; title: string }): TaskListRow {
+  return {
+    org_id: 'org-1', business_unit_id: 'bu-1', status: 'Open',
+    responsible_person_id: 'p1', accountable_person_id: 'p1', consulted_person_ids: [],
+    informed_person_ids: [], description: null, due_date: null,
+    objective_id: null, work_line_id: null,
+    last_activity_at: '2026-08-01T00:00:00Z', archived_at: null, created_by: 'p1',
+    created_at: '2026-08-01T00:00:00Z', updated_at: '2026-08-01T00:00:00Z',
+    ...overrides,
+  }
+}
+
+const objectiveRow = { id: 'obj-1', name: 'Grow revenue', archived_at: null, period_year: 2026 }
+const workLineRow = { id: 'wl-1', name: 'Menu launch', type: 'project' as const, objective_id: 'obj-1', archived_at: null }
+const relationTasks = [
+  task({ id: 'task-1', title: 'Print the menus', work_line_id: 'wl-1', status: 'Done' }),
+  task({ id: 'task-2', title: 'Brief the floor', work_line_id: 'wl-1' }),
+]
+let currentPeriodYear = 2026
+let currentObjectiveId: string | null = 'obj-1'
+
+function relationTask(row: TaskListRow) {
+  return { id: row.id, title: row.title, status: row.status, lastActivityAt: row.last_activity_at }
+}
+
+function recordData(kind: 'objective' | 'work-line', periodYear: number, objectiveId: string | null): CatalogRecordData {
+  const row = kind === 'objective'
+    ? { ...objectiveRow, periodYear }
+    : { ...workLineRow, objectiveId, businessUnitId: 'bu-1', accountablePersonId: 'p1', responsiblePersonId: 'p1' }
+  const groups = kind === 'objective'
+    ? [{ id: 'wl-1', name: 'Menu launch', taskCount: relationTasks.length, done: 1, total: relationTasks.length, tasks: relationTasks.map(relationTask) }]
+    : (objectiveId ? [{ id: 'obj-1', name: 'Grow revenue', taskCount: relationTasks.length, done: 1, total: relationTasks.length, tasks: relationTasks.map(relationTask) }] : [])
+  return {
+    row,
+    context: {
+      traceById: new Map(),
+      relationsById: new Map([[row.id, { groups, tasks: relationTasks.map(relationTask) }]]),
+      relationsKind: kind === 'objective' ? 'objective' : 'work_line',
+      progressById: new Map([[row.id, { done: 1, total: relationTasks.length }]]),
+      businessUnitsById: new Map([['bu-1', 'Retail Ops']]),
+      peopleById: new Map([['p1', 'Test Viewer']]),
+      objectiveOptions: objectiveId ? [{ value: 'obj-1', label: 'Grow revenue' }] : [],
+    },
+    process: null,
+    peopleById: new Map([['p1', 'Test Viewer']]),
+    roleNamesById: new Map(),
+    owningTeams: new Map(),
+  }
+}
+
+function renderRecord(kind: 'objective' | 'work-line', id: string) {
+  return render(
+    <AuthContext.Provider value={auth()}>
       <I18nProvider>
         <MemoryRouter>
-          <CatalogCollectionActionsProvider actions={{
-            canManage: true,
-            rename: async () => {}, archive: async () => {}, unarchive: async () => {},
-          }}>
-            {descriptor.presentations.list.render({
-              query: QUERY, projection, context: data.context,
-              selectedIds: new Set(), onToggleSelected: () => {},
-              onOpenRecord: () => {}, onToggleGroup: () => {}, isGroupCollapsed: () => false,
-            })}
-          </CatalogCollectionActionsProvider>
+          <CatalogRecordDocument kind={kind} id={id} mode="page" />
         </MemoryRouter>
       </I18nProvider>
     </AuthContext.Provider>,
   )
 }
 
-/** Open a row's relations disclosure and hand back the panel. */
-async function drillInto(name: string) {
-  await userEvent.setup().click(screen.getByRole('button', { name: `Show relations for ${name}` }))
-  return screen.getByTestId('catalog-relations')
-}
-
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(listObjectivesAll).mockResolvedValue(OBJECTIVES)
-  vi.mocked(listWorkLinesAll).mockResolvedValue(WORK_LINES)
-  vi.mocked(listTasks).mockResolvedValue(TASKS)
-})
-
-describe('AC-204: drilling down from an Objective record', () => {
-  it('rolls the count up from its Tasks and opens each one at its own record', async () => {
-    await renderCatalog(objectivesCollectionDescriptor)
-    const panel = await drillInto('Grow revenue')
-
-    // Grow revenue holds 3 active tasks (1 Done) — the archived one is not work, so it is not counted.
-    expect(screen.getAllByTestId('catalog-progress')[0]).toHaveTextContent('1 / 3 done')
-
-    const launch = within(panel).getByRole('link', { name: 'Menu launch' })
-    expect(launch).toHaveAttribute('href', '/work/projects?q=Menu%20launch')
-    expect(within(panel).getByRole('link', { name: 'Print the menus' }))
-      .toHaveAttribute('href', '/work/tasks/t-launch-done')
-    expect(within(panel).queryByRole('link', { name: 'Cancelled idea' })).toBeNull()
+  runtimeAuthority.scopes = {
+    workline_org: true,
+    objective_org: true,
+    workline_bu_ids: [],
+    objective_bu_ids: [],
+  }
+  currentPeriodYear = 2026
+  currentObjectiveId = 'obj-1'
+  vi.mocked(loadCatalogRecordData).mockImplementation(async (kind, id) => {
+    if (kind === 'objective' && id === 'obj-1') return recordData(kind, currentPeriodYear, currentObjectiveId)
+    if (kind === 'work-line' && id === 'wl-1') return recordData(kind, currentPeriodYear, currentObjectiveId)
+    return null
   })
-
-  it('renders the No Project/Process branch instead of hiding the Objective\'s own Tasks', async () => {
-    await renderCatalog(objectivesCollectionDescriptor)
-    const panel = await drillInto('Grow revenue')
-
-    const branch = within(panel).getByText('No Project/Process').closest('li')!
-    expect(branch).toHaveTextContent('0 / 1 done')
-    // A synthetic branch is not a record, so it offers no catalog door — but its task does.
-    expect(within(branch).queryByRole('link', { name: 'No Project/Process' })).toBeNull()
-    expect(within(branch).getByRole('link', { name: 'Sign the lease' }))
-      .toHaveAttribute('href', '/work/tasks/t-direct')
+  vi.mocked(loadCatalogRecordEditDirectory).mockResolvedValue({
+    businessUnitsById: new Map([['bu-1', 'Retail Ops'], ['bu-2', 'Hospitality']]),
+    peopleById: new Map([['p1', 'Test Viewer'], ['p2', 'Second Person']]),
+    objectiveOptions: [{ value: 'obj-1', label: 'Grow revenue' }, { value: 'obj-2', label: 'Improve margin' }],
   })
-
-  it('gives EVERY capped branch a door through to the rest of its Tasks', async () => {
-    vi.mocked(listTasks).mockResolvedValue([...TASKS, ...OVERFLOWING])
-    await renderCatalog(objectivesCollectionDescriptor)
-    const panel = await drillInto('Grow revenue')
-
-    const capped = within(panel).getByRole('link', { name: 'Menu launch' }).closest('li')!
-    expect(within(capped).queryAllByRole('link', { name: /^Prep step/ })).toHaveLength(0)
-    const prep = within(panel).getByRole('link', { name: 'Daily prep' }).closest('li')!
-    expect(within(prep).getAllByRole('link', { name: /^Prep step/ })).toHaveLength(12)
-    const door = within(prep).getByRole('link', { name: 'Daily prep: +1 more — open Tasks' })
-    expect(door).toHaveAttribute('href', '/work/tasks?group=objective')
-    expect(door).toHaveTextContent('+1 more — open Tasks')
+  vi.mocked(updateObjective).mockImplementation(async (_id, patch) => {
+    if (patch.period_year !== undefined && patch.period_year !== null) currentPeriodYear = patch.period_year
   })
-
-  it('gives the SYNTHETIC branch its overflow door too — the one that hides untracked work', async () => {
-    // 13 tasks hanging straight off the Objective with no Project/Process.
-    vi.mocked(listTasks).mockResolvedValue(Array.from({ length: 13 }, (_, i) =>
-      task({ id: `t-loose-${i}`, title: `Loose task ${i}`, objective_id: 'obj-1' })))
-    await renderCatalog(objectivesCollectionDescriptor)
-    const panel = await drillInto('Grow revenue')
-
-    const branch = within(panel).getByText('No Project/Process').closest('li')!
-    expect(within(branch).getAllByRole('link', { name: /^Loose task/ })).toHaveLength(12)
-    expect(within(branch).getByRole('link', { name: 'No Project/Process: +1 more — open Tasks' }))
-      .toHaveAttribute('href', '/work/tasks?group=objective')
-  })
-
-  // The Objectives catalog is ungated (OD-V4-1) but /work/projects is not — it sits behind
-  // RequireCapability('workline.manage'), held by admin and ops_lead only. A live blue branch name
-  // that bounces member/manager/supervisor/finance off the page is an affordance the surface cannot
-  // honour, so a non-holder gets the inert span the synthetic branches already use. Their drill is
-  // NOT reduced: the branch's own Tasks stay real links, and so does the overflow door.
-  it.each([['ops_lead'], ['admin']])('links the branch to Projects & Processes for %s', async (role) => {
-    await renderCatalog(objectivesCollectionDescriptor, [role])
-    const panel = await drillInto('Grow revenue')
-    expect(within(panel).getByRole('link', { name: 'Menu launch' }))
-      .toHaveAttribute('href', '/work/projects?q=Menu%20launch')
-  })
-
-  it.each([['member'], ['manager'], ['supervisor'], ['finance']])(
-    'renders the branch name inert for %s, who cannot reach /work/projects',
-    async (role) => {
-      await renderCatalog(objectivesCollectionDescriptor, [role])
-      const panel = await drillInto('Grow revenue')
-
-      expect(within(panel).queryByRole('link', { name: 'Menu launch' })).toBeNull()
-      const inert = within(panel).getByText('Menu launch')
-      expect(inert.tagName).toBe('SPAN')
-      expect(inert).toHaveClass('catalog-collection__relations-link--inert')
-      // Nothing anywhere in the panel points at the route this viewer is refused.
-      for (const link of within(panel).getAllByRole('link')) {
-        expect(link.getAttribute('href')).not.toContain('/work/projects')
-      }
-      // …and the Tasks under that branch are still real doors.
-      expect(within(panel).getByRole('link', { name: 'Print the menus' }))
-        .toHaveAttribute('href', '/work/tasks/t-launch-done')
-    },
-  )
-
-  it('shows an Objective with no work as empty rather than as a false zero', async () => {
-    await renderCatalog(objectivesCollectionDescriptor)
-    const panel = await drillInto('Lonely objective')
-    expect(panel).toHaveTextContent('No Projects, Processes, or Tasks linked yet.')
+  vi.mocked(updateWorkLine).mockImplementation(async (_id, patch) => {
+    if (patch.objective_id !== undefined) currentObjectiveId = patch.objective_id
   })
 })
 
-describe('AC-204: drilling up from a Project/Process record', () => {
-  it('names its parent Objective, counts its Tasks, and links both', async () => {
-    await renderCatalog(projectsProcessesCollectionDescriptor)
-    const panel = await drillInto('Menu launch')
+describe('record relationship grammar', () => {
+  it('links an Objective to real child Project/Process records and its Tasks', async () => {
+    renderRecord('objective', 'obj-1')
+    const record = await screen.findByRole('heading', { name: 'Grow revenue' })
+    expect(record).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Menu launch' })).toHaveAttribute('href', '/work/projects/wl-1')
 
-    const parent = within(panel).getByRole('link', { name: 'Grow revenue' })
-    expect(parent).toHaveAttribute('href', '/work/objectives?q=Grow%20revenue')
-    expect(parent.closest('li')).toHaveTextContent('1 / 2 done')
-    expect(within(panel).getByRole('link', { name: 'Brief the floor' }))
-      .toHaveAttribute('href', '/work/tasks/t-launch-open')
-  })
-
-  // The gate is one-directional, not a blanket kill: /work/objectives carries no read gate at all
-  // (OD-V4-1), so the UP-trace door stays live for a viewer holding no capability whatsoever.
-  it('keeps the parent Objective door live for a viewer with no capabilities', async () => {
-    await renderCatalog(projectsProcessesCollectionDescriptor, [])
-    const panel = await drillInto('Menu launch')
-    expect(within(panel).getByRole('link', { name: 'Grow revenue' }))
-      .toHaveAttribute('href', '/work/objectives?q=Grow%20revenue')
-  })
-
-  it('renders the (Unlinked) branch for a Project/Process with no parent Objective', async () => {
-    await renderCatalog(projectsProcessesCollectionDescriptor)
-    const panel = await drillInto('Loose ends')
-
-    const branch = within(panel).getByText('(Unlinked)').closest('li')!
-    expect(branch).toHaveTextContent('0 / 1 done')
-    expect(within(branch).queryByRole('link', { name: '(Unlinked)' })).toBeNull()
-    expect(within(branch).getByRole('link', { name: 'Chase the invoice' }))
-      .toHaveAttribute('href', '/work/tasks/t-orphan')
-  })
-
-  it('offers no cascade navigation anywhere in the drill (OD-WAY-32)', async () => {
-    await renderCatalog(objectivesCollectionDescriptor)
-    const panel = await drillInto('Grow revenue')
-    for (const link of within(panel).getAllByRole('link')) {
-      expect(link.getAttribute('href')).not.toContain('cascade')
-    }
+    fireEvent.click(screen.getByRole('tab', { name: 'Activity' }))
+    const activity = screen.getByRole('heading', { name: 'Activity' }).closest('section')!
+    expect(within(activity).getByRole('link', { name: 'Print the menus' })).toHaveAttribute('href', '/work/tasks/task-1')
+    expect(within(activity).getByRole('link', { name: 'Brief the floor' })).toHaveAttribute('href', '/work/tasks/task-2')
     expect(document.body.textContent?.toLowerCase()).not.toContain('cascade')
   })
+
+  it('links a Project/Process to its parent Objective and linked Tasks', async () => {
+    renderRecord('work-line', 'wl-1')
+    await screen.findByRole('heading', { name: 'Menu launch' })
+    expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives/obj-1')
+    fireEvent.click(screen.getByRole('tab', { name: 'Activity' }))
+    expect(screen.getByRole('link', { name: 'Brief the floor' })).toHaveAttribute('href', '/work/tasks/task-2')
+  })
+})
+
+it('saves an Objective period through its existing record API and reloads the displayed value', async () => {
+  renderRecord('objective', 'obj-1')
+  await screen.findByRole('heading', { name: 'Grow revenue' })
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Period' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Period' }), { target: { value: '2031' } })
+  fireEvent.keyDown(screen.getByRole('textbox', { name: 'Period' }), { key: 'Enter' })
+  await waitFor(() => expect(updateObjective).toHaveBeenCalledWith('obj-1', { period_year: 2031 }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Edit Period' })).toHaveTextContent('2031'))
+})
+
+it('copies the canonical WorkLine URL from a nested collection stack', async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined)
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText },
+  })
+  render(
+    <AuthContext.Provider value={auth()}>
+      <I18nProvider>
+        <MemoryRouter basename="/mos" initialEntries={['/mos/work/projects?record=wl-1']}>
+          <CatalogRecordDocument kind="work-line" id="wl-1" mode="page" />
+        </MemoryRouter>
+      </I18nProvider>
+    </AuthContext.Provider>,
+  )
+  await screen.findByRole('heading', { name: 'Menu launch' })
+  fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Copy link' }))
+
+  expect(writeText).toHaveBeenCalledWith(new URL('/mos/work/projects/wl-1', window.location.origin).href)
+})
+
+it('removes a Project Objective relation through its existing record API', async () => {
+  renderRecord('work-line', 'wl-1')
+  await screen.findByRole('heading', { name: 'Menu launch' })
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit Objective' }))
+  fireEvent.click(screen.getByRole('combobox', { name: 'Objective' }))
+  fireEvent.click(screen.getByRole('option', { name: 'Not set' }))
+  await waitFor(() => expect(updateWorkLine).toHaveBeenCalledWith('wl-1', { objective_id: null }))
+  await waitFor(() => expect(screen.queryByRole('link', { name: 'Grow revenue' })).not.toBeInTheDocument())
+})
+
+it('does not offer Not set when an own-BU editor must retain the Business Unit', async () => {
+  runtimeAuthority.scopes = {
+    workline_org: false,
+    objective_org: false,
+    workline_bu_ids: ['bu-1'],
+    objective_bu_ids: [],
+  }
+
+  renderRecord('work-line', 'wl-1')
+  await screen.findByRole('heading', { name: 'Menu launch' })
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit Business Unit' }))
+
+  const picker = screen.getByRole('combobox', { name: 'Business Unit' })
+  fireEvent.click(picker)
+  expect(screen.queryByRole('option', { name: 'Not set' })).not.toBeInTheDocument()
+  expect(screen.getByRole('option', { name: 'Retail Ops' })).toBeInTheDocument()
+})
+
+it('renders definition-level Process Teams and keeps absent bindings explicit', async () => {
+  const processData = recordData('work-line', 2026, null)
+  processData.row = { ...processData.row, id: 'wl-process', name: 'Café Opening', type: 'process', objectiveId: null }
+  processData.context.relationsById = new Map([[processData.row.id, { groups: [], tasks: [] }]])
+  processData.process = {
+    cadence: null,
+    steps: [{
+      id: 'def-1', work_line_id: 'wl-process', title: 'Open floor', description: null, position: 1,
+      due_offset_days: 0, pic_person_id: 'p1', pic_role_id: null,
+      supervisor_person_id: null, supervisor_role_id: null, checklist_items: [], archived_at: null,
+    }],
+    occurrences: [{
+      id: 'run-1', work_line_id: 'wl-process', owning_team_id: 'occurrence-team', period_key: '2026-08-01',
+      caption: 'August', scheduled_date: '2026-08-01', status: 'open', definition_version: 1,
+      started_by: null, completed_at: null, completed_by: null,
+    }],
+  }
+  processData.owningTeams = new Map([
+    ['def-1:pic', 'Definition Team'],
+    ['def-1:supervisor', null],
+  ])
+  vi.mocked(loadCatalogRecordData).mockResolvedValue(processData)
+
+  renderRecord('work-line', 'wl-process')
+  await screen.findByRole('heading', { name: 'Café Opening' })
+  expect(screen.getByText('Chosen for each occurrence')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('tab', { name: 'Steps' }))
+  const steps = screen.getByRole('tabpanel')
+  expect(within(steps).getByText('Definition Team')).toBeInTheDocument()
+  expect(within(steps).getAllByText('Not set')).toHaveLength(2)
+  expect(within(steps).queryByText('occurrence-team')).not.toBeInTheDocument()
+})
+
+
+it.each(['panel', 'page'] as const)('keeps the org-readable Work record available in %s mode for members', async (mode) => {
+  const member = auth()
+  if (member.status === 'authenticated') member.viewer.accessRoles = ['member']
+  runtimeAuthority.scopes = {
+    workline_org: false,
+    objective_org: false,
+    workline_bu_ids: [],
+    objective_bu_ids: [],
+  }
+  render(<AuthContext.Provider value={member}><I18nProvider><MemoryRouter>
+    <CatalogRecordDocument kind="work-line" id="wl-1" mode={mode} />
+  </MemoryRouter></I18nProvider></AuthContext.Provider>)
+  expect(await screen.findByRole('heading', { name: 'Menu launch' })).toBeInTheDocument()
+  expect(loadCatalogRecordData).toHaveBeenCalledWith('work-line', 'wl-1', 'p1')
+  expect(screen.queryByRole('button', { name: 'Edit Name' })).toBeNull()
+})
+
+it('keeps Objectives readable by members through the shared record renderer', async () => {
+  const member = auth()
+  if (member.status === 'authenticated') member.viewer.accessRoles = ['member']
+  runtimeAuthority.scopes = {
+    workline_org: false,
+    objective_org: false,
+    workline_bu_ids: [],
+    objective_bu_ids: [],
+  }
+  render(<AuthContext.Provider value={member}><I18nProvider><MemoryRouter>
+    <CatalogRecordDocument kind="objective" id="obj-1" mode="panel" />
+  </MemoryRouter></I18nProvider></AuthContext.Provider>)
+  expect(await screen.findByRole('heading', { name: 'Grow revenue' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Edit Name' })).toBeNull()
+})
+
+
+it('keeps the record readable when edit choices fail and restores editing after Retry', async () => {
+  vi.mocked(loadCatalogRecordEditDirectory).mockRejectedValueOnce(new Error('unavailable'))
+  renderRecord('work-line', 'wl-1')
+  expect(await screen.findByRole('heading', { name: 'Menu launch' })).toBeInTheDocument()
+  expect(await screen.findByRole('alert')).toHaveTextContent('Could not load edit choices')
+  expect(screen.queryByRole('button', { name: 'Edit Accountable' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+  expect(await screen.findByRole('button', { name: 'Edit Accountable' })).toBeInTheDocument()
+  expect(screen.queryByRole('alert')).toBeNull()
 })

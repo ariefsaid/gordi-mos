@@ -1,23 +1,68 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { ReactNode } from 'react'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { RecordField } from './record-field'
 import type { RecordFieldSpec, RecordValue } from './record-viewer.types'
+
+it('opens a related record within the app basename without activating its edit control', () => {
+  const onCommit = vi.fn(async () => {})
+  function Destination() { return <output data-testid="destination">{useLocation().pathname}</output> }
+  render(
+    <I18nProvider>
+      <MemoryRouter basename="/mos" initialEntries={['/mos/work/tasks/1']}>
+        <RecordField spec={{ key: 'objective', label: 'Objective', control: 'relation', value: 'o1', displayValue: 'Q3 Growth', href: '/work/objectives/o1', editable: true }} onCommit={onCommit} />
+        <Destination />
+      </MemoryRouter>
+    </I18nProvider>,
+  )
+  const link = screen.getByRole('link', { name: 'Q3 Growth' })
+  expect(link).toHaveAttribute('href', '/mos/work/objectives/o1')
+  expect(link.closest('button')).toBeNull()
+  fireEvent.click(link)
+  expect(screen.getByTestId('destination')).toHaveTextContent('/work/objectives/o1')
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+  expect(onCommit).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Objective' }))
+  expect(screen.getByRole('combobox', { name: 'Objective' })).toBeInTheDocument()
+})
+
+it('opens plain related clicks in the record stack and retains canonical modified-click behavior', () => {
+  const onOpen = vi.fn()
+  render(<I18nProvider><MemoryRouter basename="/mos" initialEntries={['/mos/work/tasks/1']}>
+    <RecordField spec={{ key: 'objective', label: 'Objective', control: 'relation', value: 'o1', displayValue: 'Q3 Growth', href: '/work/objectives/o1', onOpen, editable: false }} onCommit={vi.fn()} />
+  </MemoryRouter></I18nProvider>)
+  const link = screen.getByRole('link', { name: 'Q3 Growth' })
+  expect(link).toHaveAttribute('href', '/mos/work/objectives/o1')
+  expect(fireEvent.click(link)).toBe(false)
+  expect(onOpen).toHaveBeenCalledTimes(1)
+  expect(fireEvent.click(link, { metaKey: true })).toBe(true)
+  expect(fireEvent.click(link, { ctrlKey: true })).toBe(true)
+  expect(onOpen).toHaveBeenCalledTimes(1)
+})
 
 function renderField(spec: RecordFieldSpec, extra: {
   onCommit?: (v: RecordValue) => Promise<void>
   onCancel?: () => void
   onDirtyChange?: (dirty: boolean) => void
+  heading?: boolean
 } = {}) {
   const onCommit = extra.onCommit ?? vi.fn(async () => {})
   const onCancel = extra.onCancel ?? vi.fn()
   const onDirtyChange = extra.onDirtyChange ?? vi.fn()
   const wrapper = ({ children }: { children: ReactNode }) => <I18nProvider>{children}</I18nProvider>
   const utils = render(
-    <RecordField spec={spec} onCommit={onCommit} onCancel={onCancel} onDirtyChange={onDirtyChange} />,
+    <RecordField
+      spec={spec}
+      onCommit={onCommit}
+      onCancel={onCancel}
+      onDirtyChange={onDirtyChange}
+      heading={extra.heading}
+    />,
     { wrapper },
   )
   return { ...utils, onCommit, onCancel, onDirtyChange }
@@ -39,6 +84,20 @@ const textSpec: RecordFieldSpec = {
 }
 
 describe('RecordField', () => {
+  it('keeps the semantic title heading around its keyboard-edit button', async () => {
+    const user = userEvent.setup()
+    renderField(textSpec, { heading: true })
+
+    const heading = screen.getByRole('heading', { level: 1, name: 'Restock oat milk' })
+    const editButton = screen.getByRole('button', { name: 'Edit Title' })
+    expect(heading).toContainElement(editButton)
+    expect(editButton).not.toContainElement(heading)
+
+    editButton.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('textbox', { name: 'Title' })).toBeInTheDocument()
+  })
+
   it('AC-V3-008: pressing Enter commits a text field and reports Saving then Saved', async () => {
     let resolveCommit!: () => void
     const onCommit = vi.fn(
@@ -199,7 +258,8 @@ describe('RecordField', () => {
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   })
 
-  it('commits a select control eagerly on change', async () => {
+  it('commits a picker eagerly when an option is chosen', async () => {
+    const user = userEvent.setup()
     const onCommit = vi.fn(async () => {})
     const spec: RecordFieldSpec = {
       key: 'status',
@@ -216,8 +276,8 @@ describe('RecordField', () => {
     renderField(spec, { onCommit })
 
     activate('Status')
-    const select = screen.getByLabelText('Status') as HTMLSelectElement
-    fireEvent.change(select, { target: { value: 'done' } })
+    await user.click(screen.getByRole('combobox', { name: 'Status' }))
+    await user.click(screen.getByRole('option', { name: 'Done' }))
 
     await waitFor(() => expect(onCommit).toHaveBeenCalledWith('done'))
   })
@@ -255,7 +315,7 @@ describe('NFR-V3-006: field controls meet the 44px keyboard target', () => {
 
   it('encodes a 44px minimum for the field control, the shared select, and its retry action', () => {
     expect(css).toMatch(/\.record-field__control[\s\S]*min-height:\s*44px/)
-    expect(css).toMatch(/\.record-field__select \.mk-select__field[\s\S]*min-height:\s*44px/)
+    expect(css).toMatch(/\.record-field__picker-trigger[\s\S]*min-height:\s*44px/)
     expect(css).toMatch(/\.record-field__retry[\s\S]*min-height:\s*44px/)
   })
 

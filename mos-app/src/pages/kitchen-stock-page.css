@@ -31,6 +31,38 @@
   color: var(--muted-foreground);
 }
 
+/* ── FR-028: the phone row is a compact read surface, not a labelled <dl>. The
+   shared DataTable owns the card boundary; this body keeps the item and its
+   comparison figures to two readable lines. ── */
+.ks-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+.ks-card-name {
+  font-size: var(--font-size-control);
+  font-weight: 600;
+  color: var(--foreground);
+  line-height: 1.2;
+}
+.ks-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.2;
+}
+.ks-card-meta > span {
+  white-space: nowrap;
+}
+.ks-card-label {
+  color: var(--muted-foreground);
+}
+
 /* ── ERP inventory comparison cell (FR-060) — placeholder until the ERP read is
    wired. Muted so a pending '—' never reads as a live zero. ── */
 .ks-erp-pending {

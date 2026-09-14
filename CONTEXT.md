@@ -37,6 +37,18 @@ canon — "Kitchen and Bar", "Cafe Ops – General" — is superseded: those are
 **Revenue streams**, not BUs. Seeded rows predate this and need re-mapping.)
 _Avoid_: department, division; operating area (that's an **Activity**)
 
+**Team**:
+A concrete group of people within one Business Unit. A person may belong to several Teams.
+Teams organize day-to-day ownership and let people direct a Signal to the people who can act on it.
+
+**Team lead**:
+An active Team member explicitly designated to lead that Team by an administrator. The designation
+belongs to the Team; a reporting-manager position alone does not designate its holder as Team lead.
+
+**BU head**:
+A person holding a position at the top of a Business Unit's reporting line. Their BU authority
+applies to the unit they head.
+
 **Activity**:
 An **operating workstream within a BU** — kitchen, bar, ecommerce (inside Retail Ops); roasting
 (inside B2B Ops). The unit ops surfaces are organized around. A **Module** serves an Activity but
@@ -81,6 +93,8 @@ A stream is **named by its branch's canonical catalog name** wherever it is name
 `Bungur` alias names a transfer **destination** and the derived action label, never a stream.
 _Avoid_: location/site (see **Branch**); "action type" (today's `Production` / `Transfer to …` strings
 fold destination into action — a storage workaround, not the model; DD-WAY-13)
+
+**Café Opening context** (DD-MVP-11): Opening is branch-wide, unlike production's branch-and-Activity stream. The UI calls this the working location; it is the Branch, not a separate Site relationship. Effective primary membership supplies the normal default; an explicit valid per-person working-session choice can override it. The canonical Opening Team is resolved internally and is not a second selection the worker must make. Having multiple readable branches does not by itself invalidate an explicit primary default. These defaults do not change authorization.
 
 **Item** (Café production):
 The thing a **production stream makes** and the production noun across ALL Café streams — kitchen
@@ -257,12 +271,15 @@ _Avoid_: watcher, CC, stakeholder
 ## Cadence
 
 **Signal**:
-A short, past-tense floor fact posted by a person and owned by a **Team** — body + when it occurred +
+A short update about a condition, event or request, posted by a person and associated with a
+**Team** — body + when it occurred +
 an **attention level** (**FYI · Needs attention · Urgent**) + optional category, with mentions
-(person / team / BU). No owner, RACI, or Status — it is not work-to-do; a Signal can spawn a
+(person / team / BU). Any organization member can post and tag people or Teams across the organization
+to draw their attention to something that needs action. No owner, RACI, or Status; a Signal can spawn a
 follow-up **Task** that carries its context. Retracted, never deleted (a retracted Signal is a
 tombstone). Surfaces: the `/work/signals` archive, the Signal record page, and the global composer.
-_Avoid_: status (a Signal has none), alert, notification, log entry (that's the Daily Log's unit)
+_Avoid_: Task status (a Signal has no work lifecycle), notification (the delivery of an update),
+log entry (that's the Daily Log's unit). “Status update” is valid conversational language for a Signal.
 
 **Weekly Update** — ⚑ **surface fate OPEN, issue #281.** No route on `dev` (`/work/updates`
 redirects to the Signals archive); the concept below stands unchanged until the owner decides #281:
@@ -364,28 +381,14 @@ _Avoid_: role (in UI copy), title, access level (that's the authorization axis)
 ## Surfaces
 
 **Home**:
-The hub surface at `/` every user lands on: a role-aware composition of KPI tiles with drill-downs
-plus the **My Week** panel — every tile drills, no dead-end numbers (ADR-0019 D2). What a user's Home
-shows follows their **persona/access**, composed as a **stacked union of the roles the person holds** —
-one scrollable surface, **widest-scope section first** (a BU-head-who-is-also-a-lead lands on their function
-cockpit with the **My Week** lead panel stacked below; a pure lead sees only My Week). **Not a toggle, not a
-separate login** — the same person's distinct jobs stack in one Home. _(Later, if the union gets too dense:
-separate **workspaces** or a **toggle with layered rails** — deferred v2, don't build until density forces
-it.)_ For the **owner-director / function-owner** it is a **financial +
-ops cockpit**: revenue · margins · a **money-position strip (AR · AP · unbilled · unearned)** · **ops KPIs**
-(the "state of ops" per Activity — specific metric set TBD, owner-decided) · the **cascade progress +
-updates** list — ⚑ cascade progress is now a **count roll-up read on the Objective record**, not a ladder
-screen (`OD-WAY-32`/`OD-WAY-33`). Money-position workflow scope: ⚑ **AR is NOT a worked queue** — it is a
-finance reconciliation surface, retail-only, deferred until directly after the MVP (`OD-WAY-34`);
-**AP / unbilled** are visibility + drill-to-read-only with their engagement workflows phased later;
-**unearned** stays visibility-only. A **member** sees their My Week + ops content dominant, no finance row.
-"Dashboard" is acceptable UI copy for its KPI area.
-_Avoid_: My Week (as the name of the surface — that's a panel on it)
+The person's daily operating brief: what needs their attention, their next actions, personal work
+and relevant Signals. Its content and order follow the person's work and authority. Each item leads
+to the work it describes. The current composition is defined by the active Home and Work brief.
+_Avoid_: My Week (as the name of the destination), a fixed dashboard layout as the definition of Home
 
 **My Week**:
-The personal panel on **Home**: R-or-A task table grouped by urgency + weekly-update strip + ops strip
-(+ team module for managers). Formerly the home surface itself; now a component of Home.
-_Avoid_: home surface, home page (it's a panel, not the destination)
+A historical name for personal work on Home. It does not require a separate panel or a particular
+layout in the current daily operating brief.
 
 **Inbox**:
 The **to-triage** destination: notifications, @mentions, approval requests. Routes the user to the

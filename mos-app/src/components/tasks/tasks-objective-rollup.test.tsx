@@ -23,13 +23,14 @@ vi.mock('@/lib/db/tasks', () => ({
 }))
 vi.mock('@/lib/db/directory', () => ({
   getBusinessUnits: vi.fn(), getPeople: vi.fn(), listRoleNames: vi.fn(),
+  getPersonTeams: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('@/lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('@/lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
 
 import { listTasks } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople, listRoleNames, getDownlinePersonIds } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, listRoleNames, getPersonTeams, getDownlinePersonIds } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksWorkspace } from './tasks-workspace'
@@ -72,7 +73,8 @@ const TASKS: TaskListRow[] = [
   // …under a real Objective → real Project/Process.
   makeTask({ id: 't-launch', title: 'Brief the floor', work_line_id: 'wl-1' }),
   // …the work-line-only case: no objective_id of its own, reachable only via wl-1's direct edge.
-  makeTask({ id: 't-edge', title: 'Print the menus', work_line_id: 'wl-1', status: 'Done' }),
+  // A recent completion stays in My work while exercising the indirect Objective relation.
+  makeTask({ id: 't-edge', title: 'Print the menus', work_line_id: 'wl-1', status: 'Done', completed_at: new Date().toISOString() }),
   // …hanging straight off the Objective → the "No Project/Process" branch.
   makeTask({ id: 't-direct', title: 'Sign the lease', objective_id: 'obj-1' }),
   // …on a Project/Process with no parent Objective → the "(Unlinked)" branch.
@@ -123,6 +125,7 @@ beforeEach(() => {
   vi.mocked(getPeople).mockResolvedValue([
     { id: MINE, full_name: 'E2E Member' }, { id: OTHER, full_name: 'Someone Else' },
   ])
+  vi.mocked(getPersonTeams).mockResolvedValue([])
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listRoleNames).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue(OBJECTIVES)
@@ -146,7 +149,7 @@ describe('AC-204: Tasks grouped by Objective, Mine, on a phone', () => {
       expect(within(launch).queryByRole('link', { name: 'Grow revenue' })).toBeNull()
     } else {
       expect(within(launch).getByRole('link', { name: 'Grow revenue' }))
-        .toHaveAttribute('href', '/work/objectives?q=Grow%20revenue')
+        .toHaveAttribute('href', '/work/objectives/obj-1')
     }
     expect(within(launch).getByText('Brief the floor')).toBeInTheDocument()
     // The work-line-only task reaches this Objective through the direct edge, not its own field.

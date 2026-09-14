@@ -3,15 +3,9 @@
 // AFTER the Tasks table, never flooding it — design-review step-6 CRITICAL) share ONE
 // fetch/scope/expand state instead of two divergent copies.
 //
-// Scope (1a): due rows are filtered to Teams the viewer is an ACTIVE MEMBER of — reuses the
-// existing listAuthorTeams membership loader (signals.ts, Rule 11), never a parallel membership
-// query. A capable viewer with ZERO memberships (a pure admin/capability grant, no Team seat) keeps
-// every due row — there is nothing to scope down to for that viewer.
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
-import { can } from '@/lib/capabilities'
 import { listDueRuns, startRun } from '@/lib/db/processes'
-import { listAuthorTeams } from '@/lib/db/signals'
 import type { DueProcessRun, SpawnResult } from '@/lib/db/processes.types'
 
 export type DueRunsFetchState = 'loading' | 'ready' | 'error'
@@ -21,9 +15,9 @@ export function dueKey(row: DueProcessRun): string {
 }
 
 export interface UseDueRunsResult {
-  /** Whether the viewer holds process.start (RLS remains the real gate on the spawn RPC). */
+  /** Whether an authenticated viewer may receive due rows; the server filters those rows by Team. */
   capable: boolean
-  /** Due rows scoped to the viewer's active Team memberships (1a). */
+  /** Due rows already filtered by mos.due_process_runs for effective Team authority. */
   due: DueProcessRun[]
   state: DueRunsFetchState
   /** Collapsed by default (design-review step-6 CRITICAL) — the row list only renders on demand. */
@@ -44,28 +38,44 @@ export function useDueRuns(
   onStarted?: (result: SpawnResult & { workLineId: string; teamId: string }) => void,
 ): UseDueRunsResult {
   const auth = useAuth()
-  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
+  const capable = auth.status === 'authenticated'
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
-  const capable = can(accessRoles, 'process.start')
+  const viewerOrgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : null
+  const viewerKey = `${viewerId ?? ''}:${viewerOrgId ?? ''}`
 
   const [rawDue, setRawDue] = useState<DueProcessRun[]>([])
-  const [memberTeamIds, setMemberTeamIds] = useState<Set<string>>(new Set())
   const [state, setState] = useState<DueRunsFetchState>('loading')
   const [expanded, setExpanded] = useState(false)
   const [startingKey, setStartingKey] = useState<string | null>(null)
   const [startError, setStartError] = useState(false)
+  const loadGenerationRef = useRef(0)
+  const loadIdentityRef = useRef('')
 
   const load = useCallback(() => {
-    if (!capable) return
+    const generation = ++loadGenerationRef.current
+    const requestViewerKey = viewerKey
+    const identityChanged = loadIdentityRef.current !== requestViewerKey
+    loadIdentityRef.current = requestViewerKey
+    const isCurrent = () => loadGenerationRef.current === generation && loadIdentityRef.current === requestViewerKey
+    if (identityChanged) {
+      setRawDue([])
+      setExpanded(false)
+      setStartingKey(null)
+      setStartError(false)
+    }
+    if (!capable) {
+      setState('ready')
+      return
+    }
     setState('loading')
-    Promise.all([listDueRuns(), viewerId ? listAuthorTeams(viewerId) : Promise.resolve([])])
-      .then(([rows, teams]) => {
+    listDueRuns()
+      .then((rows) => {
+        if (!isCurrent()) return
         setRawDue(rows)
-        setMemberTeamIds(new Set(teams.map(team => team.id)))
         setState('ready')
       })
-      .catch(() => setState('error'))
-  }, [capable, viewerId])
+      .catch(() => { if (isCurrent()) setState('error') })
+  }, [capable, viewerKey])
 
   useEffect(() => { load() }, [load])
 
@@ -85,15 +95,9 @@ export function useDueRuns(
     }
   }, [onStarted, load])
 
-  // FR-612/Rule 4: no route hiding elsewhere gates this — a non-capable viewer simply never
-  // fetches/sees due work (RLS remains the real boundary on the spawn RPC itself).
+  // FR-612/Rule 4: the due view is server-filtered by effective Team authority; the static role map
+  // is not a client gate and cannot hide a runtime grant.
   if (!capable) return NOOP
 
-  // 1a — scope to active memberships; zero memberships (pure admin capability, no Team seat) keeps
-  // every row rather than scoping to an empty set.
-  const due = memberTeamIds.size > 0
-    ? rawDue.filter(row => memberTeamIds.has(row.owning_team_id))
-    : rawDue
-
-  return { capable, due, state, expanded, toggleExpanded, startingKey, startError, handleStart, load }
+  return { capable, due: rawDue, state, expanded, toggleExpanded, startingKey, startError, handleStart, load }
 }

@@ -3,7 +3,7 @@
 // changes status to "In Progress", and the change persists in both list and detail.
 // Requires the live stack (supabase start) and seeded users from global-setup.ts.
 
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
 import { createTaskViaUI } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
@@ -16,11 +16,8 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
 
-  // Switch to "All" to see all tasks (not just mine — in case BU filter differs). STALE fix:
-  // "All" is a saved-view chip in a role="group" "Tasks saved views" strip (collection-toolbar.tsx),
-  // never a tab — see tasks-split-view.spec.ts for the full source citation.
-  const allViewGroup = page.getByRole('group', { name: 'Tasks saved views' })
-  await allViewGroup.getByRole('button', { name: 'All' }).click()
+  const allView = page.getByRole('tab', { name: 'All', exact: true })
+  await allView.click()
 
   // ── 3. Create a new task ────────────────────────────────────────────────────
   const taskTitle = `AC-090 Task ${Date.now()}`
@@ -34,7 +31,7 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await page.waitForURL(/\/tasks$/)
 
   // Switch to "All" again to see the newly created task
-  await allViewGroup.getByRole('button', { name: 'All' }).click()
+  await allView.click()
   await expect(page.getByText(taskTitle)).toBeVisible({ timeout: 10_000 })
 
   // ── 5. Open the task detail (drawer beside the table, ADR-0007) ─────────────
@@ -46,15 +43,13 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await expect(drawer.getByRole('heading', { name: taskTitle })).toBeVisible()
 
   // ── 6. Change status to "In Progress" inline ─────────────────────────────────
-  // STALE fix: there is no "change status" trigger button + custom listbox/option popover any
-  // more. Status is a value-first RecordField (record-field.tsx): the pill activates a native
-  // <select> on click (aria-label "Edit ${label}" → "Edit Status", record.field.edit in
-  // messages.ts), and OPTION_CONTROLS (select/status/person/team/relation) commit eagerly on
-  // change — picking an option IS the commit, no separate confirm step.
+  // Activate the value-first field, then choose the status from its accessible picker.
   const statusEditBtn = drawer.getByRole('button', { name: /edit status/i })
   await expect(statusEditBtn).toBeVisible()
   await statusEditBtn.click()
-  await drawer.getByLabel('Status').selectOption({ label: 'In Progress' })
+  await drawer.getByRole('combobox', { name: 'Status', exact: true }).click()
+  await page.getByRole('listbox', { name: 'Status', exact: true })
+    .getByRole('option', { name: 'In Progress', exact: true }).click()
 
   // ── 7. Assert: pill shows "In Progress" in place (no navigation) ─────────────
   await expect(drawer.getByRole('button', { name: /edit status/i })).toContainText('In Progress', { timeout: 8_000 })
@@ -62,18 +57,15 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   expect(page.url()).toMatch(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
 
   // ── 8. Assert: the Activity section shows the status_changed event ─────────
-  // STALE fix: RecordViewer moved to content-first anatomy (OD-REDESIGN-90 §2.2) — the record
-  // reads as ONE stacked document (content → ownership → relations → checklist → activity); there
-  // is no role="tab"/"tabpanel" anywhere in src/components/records or src/components/tasks any
-  // more. Activity is a plain content-slot <section aria-label="Activity"> (record-viewer.tsx),
-  // always mounted — no click needed to reveal it.
+  // The approved record anatomy keeps Activity as a tab; the event is still persisted evidence.
+  await drawer.getByRole('tab', { name: /^Activity/ }).click()
   const activityPane = drawer.getByRole('region', { name: 'Activity' })
   await expect(activityPane.getByText(/status changed|→ In Progress|In Progress/i).first()).toBeVisible({ timeout: 8_000 })
 
   // ── 9. Assert: returning to the list shows "In Progress" on the row ─────────
   await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
-  await allViewGroup.getByRole('button', { name: 'All' }).click()
+  await allView.click()
   const taskRow = page.locator('tr', { hasText: taskTitle }).or(
     page.locator('[data-testid="task-card"]', { hasText: taskTitle }),
   )

@@ -39,10 +39,10 @@ import type {
 import { PESANAN_HORIZON_DAYS } from '@/lib/db/kitchen-logs.types'
 import {
   deriveActionLabel,
-  movementKey,
   movementsEqual,
   movementsForStream,
   PRODUCE,
+  streamProduces,
 } from '@/lib/kitchen-action-label'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
 import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
@@ -50,7 +50,6 @@ import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { PlanQtyField } from '@/components/kitchen/plan-qty-field'
-import { HelpTip } from '@/components/ui/help-tip'
 import { groupByCategory } from '@/lib/kitchen-category'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import {
@@ -73,6 +72,7 @@ type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
 export function KitchenPlanPage() {
   const auth = useAuth()
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const t = useT()
   // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
   // the catalog's own docTitle convention (tasks-layout, signals-archive).
@@ -101,7 +101,12 @@ export function KitchenPlanPage() {
     )
   }
 
-  return canEdit ? <PlanEditor /> : <PesananView />
+  // Routes stay mounted when the signed-in person changes. The whole view owns catalog, rows,
+  // drafts, and load state for one viewer, so remount it at that boundary instead of briefly
+  // presenting one person's in-memory plan to the next person.
+  return canEdit
+    ? <PlanEditor key={viewerId} />
+    : <PesananView key={viewerId} />
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -112,16 +117,37 @@ function PlanEditor() {
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
   const [logDate] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
   // The enumerable stream catalog (FR-005) — the head picker's options (#440). The branch
-  // catalog comes with it: the MOVEMENT control offers every branch as a destination, which is
-  // a different question from which stream this plan belongs to.
+  // catalog comes with it: the MOVEMENT control derives its destinations from the producing
+  // stream catalog, which is a different question from which stream this plan belongs to.
   const cafeStream = useCafeStream()
   const { branches, options: streamOptions, stream } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
+  const streamMissing = stream === null
+  const streamCanProduce = streamProduces(stream, streamOptions)
+  const streamNonProducing = stream !== null && !streamCanProduce
+  const planWriteClosed = streamMissing || streamNonProducing
+  const movementOptions = stream ? movementsForStream(stream, streamOptions) : []
+  const receivingOnlyNotice = (
+    <section className="kp-receiving-only" role="status" aria-labelledby="kp-receiving-only-title">
+      <div className="kp-receiving-only-copy">
+        <h2 id="kp-receiving-only-title" className="kp-receiving-only-title">
+          {t('kitchen.stream.receivingOnly.title')}
+        </h2>
+        <p className="kp-receiving-only-note">
+          {t('kitchen.stream.receivingOnly.body')}
+        </p>
+      </div>
+      <Link to="/cafe/stock" className="btn btn-outline btn-touch kp-receiving-only-cta">
+        {t('kitchen.stream.receivingOnly.stockCta')}
+      </Link>
+    </section>
+  )
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [items, setItems] = useState<WipItemOption[]>([])
   const [cells, setCells] = useState<PlanCell[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
+  const requestGen = useRef(0)
   const [savingId, setSavingId] = useState<string | null>(null) // wip_item_id mid-save
   // The last-committed cell — drives the transient inline ✓ Saved tick (A5). Page-level
   // (not a local saving→idle transition) because `savingId` also clears on save ERROR,
@@ -135,11 +161,8 @@ function PlanEditor() {
   const [category, setCategory] = useSearchParamState('category', 'All')
   // #401 / DD-WAY-40: the figures band is the Metric summary rule (two numbers for
   // the current movement) — the retired word-tiles are gone. Pure derivation over
-  // `cells`; the human "nothing planned" sentence stays the page note below.
+  // `cells`.
   const summary = usePlanSummary(cells, movement)
-  const hasPlannedItems = cells.some(
-    cell => movementKey(cell.movement) === movementKey(movement) && cell.qty_porsi > 0,
-  )
 
   useEffect(() => {
     function on() { setIsOnline(true) }
@@ -157,17 +180,19 @@ function PlanEditor() {
   // It now resolves the module's stream: whatever was chosen elsewhere in Café this session,
   // else the person's own stream (shared.default_stream(), FR-001), else an explicit choice.
   const fetchEditor = useCallback(async () => {
+    const gen = ++requestGen.current
     setLoad({ kind: 'loading' })
     try {
       const [itemRows, catalog] = await Promise.all([listActiveWipItems(), resolveStream()])
       const planCells = catalog.stream ? await listKitchenPlans(logDate, catalog.stream) : []
+      if (gen !== requestGen.current) return
       setItems(itemRows)
       adoptStream(catalog)
       setMovement(PRODUCE)
       setCells(planCells)
       setLoad({ kind: 'ready' })
     } catch {
-      setLoad({ kind: 'error' })
+      if (gen === requestGen.current) setLoad({ kind: 'error' })
     }
   }, [logDate, resolveStream, adoptStream])
 
@@ -176,15 +201,17 @@ function PlanEditor() {
   // Switching the stream re-reads the plan — a different (branch, activity) has its own
   // plan rows entirely, same as the capture surface's applyStream (#196).
   const applyStream = useCallback(async (nextStream: ProductionStream) => {
+    const gen = ++requestGen.current
     chooseStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
     setLoad({ kind: 'loading' })
     try {
       const planCells = await listKitchenPlans(logDate, nextStream)
+      if (gen !== requestGen.current) return
       setCells(planCells)
       setLoad({ kind: 'ready' })
     } catch {
-      setLoad({ kind: 'error' })
+      if (gen === requestGen.current) setLoad({ kind: 'error' })
     }
   }, [logDate, chooseStream])
 
@@ -195,14 +222,17 @@ function PlanEditor() {
     [cells, movement],
   )
 
-  // Persist one cell (FR-031 upsert). No-op when unchanged or offline; a commit with no
-  // resolved stream IS the attempt — it raises the alert (FR-006, Log's handleSubmit guard)
-  // and writes nothing.
+  // Persist one cell (FR-031 upsert). No-op when unchanged or offline; the stream and its
+  // producer fact are checked again here so a closed/read-only surface cannot write.
   async function saveCell(wipItemId: string, nextQty: number) {
     if (!isOnline) return
     if (nextQty < 0) return
     if (!stream) {
       setSaveError(t('kitchen.log.stream.missing'))
+      return
+    }
+    if (!streamCanProduce) {
+      setSaveError(t('kitchen.plan.stream.nonProducing'))
       return
     }
     const current = qtyOf(wipItemId)
@@ -240,11 +270,14 @@ function PlanEditor() {
 
   // Client-side search + category filter + null-safe category grouping.
   const q = search.trim().toLowerCase()
+  // Category is a desktop-only control; preserve the URL state for a later desktop return,
+  // but never apply an invisible filter while the phone face cannot clear it.
+  const effectiveCategory = isDesktop ? category : 'All'
   const visible = useMemo(
     () => items.filter(it =>
       (!q || it.name.toLowerCase().includes(q)) &&
-      (category === 'All' || (it.category ?? '') === category)),
-    [items, q, category],
+      (effectiveCategory === 'All' || (it.category ?? '') === effectiveCategory)),
+    [items, q, effectiveCategory],
   )
   const categories = ['All', ...Array.from(new Set(items.map(i => i.category ?? '').filter(Boolean)))
     .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b)))]
@@ -253,31 +286,29 @@ function PlanEditor() {
       key: g.cat ?? '__uncategorised__',
       label: g.cat ? kitchenCategoryLabel(t, g.cat) : g.cat,
       rows: g.rows,
+      headerActions: isDesktop ? (
+        <Link to="/cafe/log" className="kp-group-link">
+          {t('kitchen.plan.group.log')}
+        </Link>
+      ) : undefined,
     })),
-    [visible, t],
+    [isDesktop, visible, t],
   )
 
+  const planItemColumn: DataTableColumn<WipItemOption> = {
+    key: 'dish',
+    header: t('kitchen.plan.col.item'),
+    cardLabel: '',
+    render: item => (
+      <span className="kp-dish">
+        <span className="kp-name">{item.name}</span>
+        {item.category && <span className="kp-cat">{kitchenCategoryLabel(t, item.category)}</span>}
+      </span>
+    ),
+  }
+
   const planColumns: DataTableColumn<WipItemOption>[] = [
-    {
-      key: 'dish',
-      header: t('kitchen.plan.col.item'),
-      cardLabel: '',
-      render: item => (
-        <span className="kp-dish">
-          {/* #401: plan and log are two disconnected screens without this — the name
-              drills into the capture surface, pre-searched. aria-label speaks the
-              destination; the visible text stays the dish name. */}
-          <Link
-            to={`/cafe/log?q=${encodeURIComponent(item.name)}`}
-            className="kp-name kp-row-link"
-            aria-label={t('kitchen.plan.row.logAria', { item: item.name })}
-          >
-            {item.name}
-          </Link>
-          {item.category && <span className="kp-cat">{kitchenCategoryLabel(t, item.category)}</span>}
-        </span>
-      ),
-    },
+    planItemColumn,
     {
       key: 'plan',
       header: t('kitchen.plan.col.plan'),
@@ -300,10 +331,10 @@ function PlanEditor() {
             <PlanQtyField
               itemName={item.name}
               qty={qtyOf(item.id)}
-              // #548 FR-006: entry stays live without a stream (Log's grammar) — the commit
-              // attempt raises the alert; only offline pre-disables the field. Committed value
-              // unchanged: it renders beside the field at the page.
-              disabled={!isOnline}
+              // #548 FR-006: a missing or receiving-only stream keeps the committed value
+              // readable but closes the field; offline also pre-disables it. Commit state
+              // renders beside the field at the page.
+              disabled={!isOnline || planWriteClosed}
               onSave={next => saveCell(item.id, next)}
               dense={isDesktop}
             />
@@ -320,7 +351,18 @@ function PlanEditor() {
     },
   ]
 
-  const streamMissing = stream === null
+  const receivingPlanColumns: DataTableColumn<WipItemOption>[] = [
+    planItemColumn,
+    {
+      key: 'plan',
+      header: t('kitchen.plan.col.plan'),
+      numeric: true,
+      render: item => {
+        const quantity = qtyOf(item.id)
+        return quantity > 0 ? quantity : '—'
+      },
+    },
+  ]
 
   // #548 FR-007: Plan's phone face is the DESIGN.md compact capture row — identity left,
   // the typed plan field + unit right, no per-card field label. Same seam as Log
@@ -333,19 +375,12 @@ function PlanEditor() {
       <div className="kp-card">
         <div className="kp-card-head">
           <span className="kp-card-name">
-            <Link
-              to={`/cafe/log?q=${encodeURIComponent(item.name)}`}
-              className="kp-row-link"
-              aria-label={t('kitchen.plan.row.logAria', { item: item.name })}
-            >
-              {item.name}
-            </Link>
-            {item.category && <span className="kp-card-cat">{kitchenCategoryLabel(t, item.category)}</span>}
+            {item.name}
           </span>
           <PlanQtyField
             itemName={item.name}
             qty={qtyOf(item.id)}
-            disabled={!isOnline}
+            disabled={!isOnline || planWriteClosed}
             onSave={next => saveCell(item.id, next)}
           />
         </div>
@@ -378,18 +413,10 @@ function PlanEditor() {
         />
       }
       meta={
-        <span className="kp-meta-line">
-          {/* #401: same H10 seam six surfaces already use; rides the meta line rather
-              than claiming new chrome on a capture surface. */}
-          <HelpTip label={t('kitchen.plan.help')} />
-          <span className="kp-date tabular">{logDate}</span>
-        </span>
+        <span className="kp-date tabular">{logDate}</span>
       }
-      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
+      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : streamNonProducing ? 'read-only' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
     >
-      {load.kind === 'ready' && items.length > 0 && !hasPlannedItems && (
-        <p className="kp-nothing-planned">{t('kitchen.plan.nothingPlannedYet')}</p>
-      )}
       {/* #401 / DD-WAY-40: Plan is an ACT surface — its figures render as the DESIGN.md
           Metric summary rule: one inline line, no card, no width branch, never a tile
           row (OD-WAY-74 #2). No delta: a capture band has no state worth acting on. */}
@@ -409,13 +436,16 @@ function PlanEditor() {
         <div role="alert" className="kp-banner kp-banner-error kp-block">{saveError}</div>
       )}
       {/* #548 FR-006: the precondition is a muted hint at rest (Log's .kl-submit-reason
-          grammar, role="status" — programmatically associated as a live region, NFR-002). The
-          role="alert" banner above is reserved for an actual commit attempt (saveCell's
-          no-stream guard). */}
+          grammar, role="status" — programmatically associated as a live region, NFR-002).
+          saveCell keeps the same guard as a defensive backstop if a caller bypasses the
+          disabled field. */}
       {streamMissing && load.kind === 'ready' && (
         <p className="kp-stream-hint" role="status" aria-live="polite">
           {t('kitchen.log.stream.missing')}
         </p>
+      )}
+      {streamNonProducing && load.kind === 'ready' && (
+        receivingOnlyNotice
       )}
 
       {load.kind === 'loading' && <LoadingShell count={3} />}
@@ -440,40 +470,40 @@ function PlanEditor() {
           <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
-            categories={categories}
+            categories={isDesktop ? categories : undefined}
             categoryLabel={value => kitchenCategoryLabel(t, value)}
-            category={category}
-            onCategoryChange={setCategory}
+            category={isDesktop ? category : undefined}
+            onCategoryChange={isDesktop ? setCategory : undefined}
             searchPlaceholder={t('kitchen.plan.searchPlaceholder')}
             ariaLabel={t('kitchen.plan.toolbarAria')}
           >
-            <div className="kp-scope">
+            {movementOptions.length > 0 && <div className="kp-scope">
               {/* #440: the branch × activity pair of selects that used to lead this block is
                   gone — it named the stream a SECOND way (and named Rumah Rames by the
                   'Bungur' alias, which names a transfer destination and never a stream), while
                   the head now names it once for the whole module. What stays is the movement:
                   a property of the rows, not of the books. */}
-              {/* Same destination picker as capture (FR-013), including the origin so the
-                  intra-branch entry reads the same here as it does on the log surface —
-                  a plan for a movement the capture form cannot name is a plan nobody fills. */}
+              {/* Same destination picker as capture (FR-013), with the same producer-aware
+                  destination matrix. A plan for a movement the capture form cannot name is a
+                  plan nobody fills. */}
               <MovementSeg
                 value={movement}
-                options={movementsForStream(branches, streamOptions)}
+                options={movementOptions}
                 branches={branches}
                 origin={stream}
                 onChange={setMovement}
               />
-            </div>
+            </div>}
           </KitchenToolbar>
           <DataTable
-            columns={planColumns}
+            columns={streamNonProducing ? receivingPlanColumns : planColumns}
             rows={visible}
             groups={planGroups}
-            renderCard={renderPlanCard}
+            renderCard={streamNonProducing ? undefined : renderPlanCard}
             isDesktop={isDesktop}
             state={visible.length > 0 ? 'ready' : 'empty'}
             emptyLabel={t('kitchen.filter.noMatch')}
-            caption={t('kitchen.plan.caption')}
+            caption={streamNonProducing ? t('kitchen.stream.receivingOnly.planCaption') : t('kitchen.plan.caption')}
           />
         </div>
       )}
@@ -494,6 +524,7 @@ function PesananView() {
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
+  const requestGen = useRef(0)
   const isDesktop = useIsDesktop()
   // #401: URL-synced search + category over the ~231-row horizon (v4's KitchenToolbar
   // port; Nielsen Café·Plan 16/32). Same keys as the editor face ('q'/'category') —
@@ -508,26 +539,31 @@ function PesananView() {
   // Café surface; switching is offered here too, because "what is the OTHER stream
   // planning" is a question the floor asks and reading a plan changes nothing.
   const fetchHorizon = useCallback(async () => {
+    const gen = ++requestGen.current
     setLoad({ kind: 'loading' })
     try {
       const catalog = await resolveStream()
       const data = catalog.stream ? await listPesanan(from, PESANAN_HORIZON_DAYS, catalog.stream) : []
+      if (gen !== requestGen.current) return
       adoptStream(catalog)
       setRows(data)
       setLoad({ kind: 'ready' })
     } catch {
-      setLoad({ kind: 'error' })
+      if (gen === requestGen.current) setLoad({ kind: 'error' })
     }
   }, [from, resolveStream, adoptStream])
 
   const applyStream = useCallback(async (next: ProductionStream) => {
+    const gen = ++requestGen.current
     chooseStream(next) // the whole Café module follows this choice (#440)
     setLoad({ kind: 'loading' })
     try {
-      setRows(await listPesanan(from, PESANAN_HORIZON_DAYS, next))
+      const data = await listPesanan(from, PESANAN_HORIZON_DAYS, next)
+      if (gen !== requestGen.current) return
+      setRows(data)
       setLoad({ kind: 'ready' })
     } catch {
-      setLoad({ kind: 'error' })
+      if (gen === requestGen.current) setLoad({ kind: 'error' })
     }
   }, [from, chooseStream])
 
@@ -535,11 +571,14 @@ function PesananView() {
 
   // #401: client-side search + category over the read horizon (mirrors the editor).
   const q = search.trim().toLowerCase()
+  // Same desktop-only category affordance as the editor: a deep-linked category must not
+  // become an invisible row filter on the phone face.
+  const effectiveCategory = isDesktop ? category : 'All'
   const visible = useMemo(
     () => rows.filter(r =>
       (!q || r.wip_item_name.toLowerCase().includes(q)) &&
-      (category === 'All' || (r.category ?? '') === category)),
-    [rows, q, category],
+      (effectiveCategory === 'All' || (r.category ?? '') === effectiveCategory)),
+    [rows, q, effectiveCategory],
   )
   const categories = ['All', ...Array.from(new Set(rows.map(r => r.category ?? '').filter(Boolean)))
     .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b)))]
@@ -569,13 +608,7 @@ function PesananView() {
       cardLabel: '',
       render: r => (
         <span className="kp-dish">
-          <Link
-            to={`/cafe/log?q=${encodeURIComponent(r.wip_item_name)}`}
-            className="kp-name kp-row-link"
-            aria-label={t('kitchen.plan.row.logAria', { item: r.wip_item_name })}
-          >
-            {r.wip_item_name}
-          </Link>
+          <span className="kp-name">{r.wip_item_name}</span>
           {r.category && <span className="kp-cat">{kitchenCategoryLabel(t, r.category)}</span>}
         </span>
       ),
@@ -608,6 +641,19 @@ function PesananView() {
     >
       {/* #401: the face floor staff actually get said nothing about why it cannot be
           edited — one sentence + the CTA to the surface where their work happens. */}
+      {load.kind === 'ready' && stream !== null && !streamProduces(stream, streamOptions) ? (
+        <section className="kp-receiving-only" role="status" aria-labelledby="kp-member-receiving-title">
+          <div className="kp-receiving-only-copy">
+            <h2 id="kp-member-receiving-title" className="kp-receiving-only-title">
+              {t('kitchen.stream.receivingOnly.title')}
+            </h2>
+            <p className="kp-receiving-only-note">{t('kitchen.stream.receivingOnly.body')}</p>
+          </div>
+          <Link to="/cafe/stock" className="btn btn-outline btn-touch kp-receiving-only-cta">
+            {t('kitchen.stream.receivingOnly.stockCta')}
+          </Link>
+        </section>
+      ) : (
       <div className="kp-readonly kp-block">
         <p className="kp-readonly-note">
           {t('kitchen.plan.pesanan.readOnlyNote', { days: PESANAN_HORIZON_DAYS })}
@@ -616,6 +662,7 @@ function PesananView() {
           {t('kitchen.plan.pesanan.readOnlyCta')}
         </Link>
       </div>
+      )}
 
       {load.kind === 'loading' && <LoadingShell count={3} />}
 
@@ -646,10 +693,10 @@ function PesananView() {
           <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
-            categories={categories}
+            categories={isDesktop ? categories : undefined}
             categoryLabel={value => kitchenCategoryLabel(t, value)}
-            category={category}
-            onCategoryChange={setCategory}
+            category={isDesktop ? category : undefined}
+            onCategoryChange={isDesktop ? setCategory : undefined}
             searchPlaceholder={t('kitchen.plan.pesanan.searchPlaceholder')}
             ariaLabel={t('kitchen.plan.pesanan.toolbarAria')}
           />

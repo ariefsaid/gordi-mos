@@ -37,12 +37,12 @@ select ops._test_seed_daily_log();
 -- #744: the production-log and floor-record insert gates now arm on stream-Team affiliation, so
 -- the persona the write assertions run as needs a live membership. Peer ...0d4 (plain member, no
 -- access roles) is that affiliated member; Author ...0d1 stays membership-free, which is exactly
--- what makes her the honest unaffiliated-refused subject in both sections below.
-insert into shared.teams (id, org_id, business_unit_id, name, code, branch_id, activity) values
-  ('00000000-0000-0000-0000-00000000aa21','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','Ops03 Fixture Stream','ops03_fixture_stream',
-   '00000000-0000-0000-0000-00000000bf01','bar');
-insert into shared.team_memberships (org_id, person_id, team_id, is_primary) values
-  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d4','00000000-0000-0000-0000-00000000aa21',true);
+-- what makes her the honest unaffiliated-refused subject in both sections below. The Café fixture
+-- seeds that real stream, so the membership uses it rather than creating a duplicate coordinate.
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
+select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d4', t.id, true
+from shared.teams t
+where t.org_id = '00000000-0000-0000-0000-0000000000a1' and t.code = 'gordi_hq_bar';
 
 set local role authenticated;
 

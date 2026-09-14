@@ -9,7 +9,8 @@
 // would not make Task content-first, which composes its own content in TaskSurface, and would
 // endanger every other consumer): a Signal packs its five job regions into ordered CONTENT slots.
 //   identity(title) → [message, reach, discussion, facts, history]
-//   1. message   — the full Signal body, unclipped, leading; attention pill + occurred ride with it.
+//   1. message   — the Signal body after the identity's first line, unclipped, leading; attention
+//      pill + occurred ride with it. A retracted Signal keeps the original line in its tombstone.
 //   2. reach     — mentions + visibility, the Acknowledge action, the roster, linked work + create/link.
 //   3. discussion— the comment thread.
 //   4. facts     — Reported by · Owning Team · Business Unit · Site · Category, quiet, near the end.
@@ -23,11 +24,13 @@ import type {
 } from '@/components/records/record-viewer.types'
 import type { Attention } from '@/lib/db/signals.types'
 
-/** The record's identity name = the body's first line, UNTRUNCATED (OD-REDESIGN-90 / F2: the
- *  heading is never an ellipsized slice of the content — the full body always renders in the
- *  message region below, so the identity may safely be the first line whole). */
+/** The record's identity name = the body's first line, UNTRUNCATED (OD-REDESIGN-90 / F2). */
 export function firstLine(body: string): string {
   return body.trim().split(/\r?\n/)[0] ?? ''
+}
+
+function remainingBody(body: string): string {
+  return body.trim().split(/\r?\n/).slice(1).join('\n').trim()
 }
 
 export interface WrapSignalRecordInput {
@@ -38,7 +41,11 @@ export interface WrapSignalRecordInput {
   reach: ReactNode | null
   /** Optional author/deputy attention editor for the message region. */
   onAttentionChange?: (attention: Attention) => void
+  /** Compact action row rendered alongside attention in the record identity seam. */
+  actionControls?: ReactNode
   onRepost?: () => void
+  retractedBy?: string | null
+  retractedAtLabel?: string | null
   /** Region 3 node built by the host; null when retracted. */
   discussion: ReactNode | null
   /** Region 4 node (quiet provenance + category control) built by the host. */
@@ -56,12 +63,16 @@ export interface WrapSignalRecordInput {
  * The LIVE Signal host wrapper (OD-REDESIGN-90 anatomy). Produces a RecordViewerAdapter whose
  * generic regions (metadata / relations / activity / actions) are EMPTY: the Signal's five job
  * regions are ordered CONTENT slots instead, so the content leads (F1), the identity title is the
- * unclipped first line (F2), provenance is one quiet region near the end with no per-field captions
- * (F3/LAW-6), the revision history is a single disclosed region with no raw diff dump (F4/LAW-5),
- * and every mutating action lives in the one reach register (F5/LAW-3).
+ * unclipped first line and the live message continuation appears exactly once (F2), provenance is
+ * one quiet region near the end with no per-field captions (F3/LAW-6), the revision history is a
+ * single disclosed region with no raw diff dump (F4/LAW-5), and every mutating action lives in the
+ * one reach register (F5/LAW-3).
  */
 export function wrapSignalRecord(input: WrapSignalRecordInput): RecordViewerAdapter {
-  const { detail, occurredLabel, reach, discussion, facts, history, typeLabel = 'Signal', tombstoneLabel = 'This Signal was retracted.' } = input
+  const {
+    detail, occurredLabel, reach, discussion, facts, history, typeLabel = 'Signal',
+    tombstoneLabel = 'This Signal was retracted.', actionControls, retractedBy, retractedAtLabel,
+  } = input
   const signal = detail.signal
   const retracted = signal.retracted_at !== null
   const title = retracted ? tombstoneLabel : firstLine(signal.body)
@@ -71,13 +82,18 @@ export function wrapSignalRecord(input: WrapSignalRecordInput): RecordViewerAdap
     label: 'Message',
     render: () => (
       <SignalMessage
-        body={signal.body}
+        // Live identity owns the first line; retracted identity must retain the original line in
+        // the tombstone, so only the live branch receives the continuation here.
+        body={retracted ? signal.body : remainingBody(signal.body)}
         attention={signal.attention}
         occurredLabel={occurredLabel}
         canEditAttention={!!input.onAttentionChange}
         onAttentionChange={input.onAttentionChange}
         retracted={retracted}
         retractReason={signal.retract_reason}
+        retractedBy={retractedBy}
+        retractedAtLabel={retractedAtLabel}
+        actionControls={actionControls}
         onRepost={input.onRepost}
       />
     ),

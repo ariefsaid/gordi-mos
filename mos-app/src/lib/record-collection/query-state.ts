@@ -28,7 +28,7 @@ export function writeCollectionQuery<TQuery extends object>(
 ): URLSearchParams {
   const next = new URLSearchParams(source)
   const owned = schema.serialize(query)
-  const ownedKeys = new Set<string>()
+  const ownedKeys = new Set<string>(schema.urlKeys ?? [])
   for (const key of owned.keys()) ownedKeys.add(key)
   // Also clear any owned keys that are absent from `owned` this time (they became neutral).
   const neutralOwned = schema.serialize(schema.neutral)

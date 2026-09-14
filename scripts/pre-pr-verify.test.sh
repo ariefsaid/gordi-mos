@@ -237,6 +237,35 @@ run
 if [ -s "$tmp/npm-calls" ]; then pass=$((pass+1)); printf '  ok    scope: 64KB+ diff with one unlisted path still runs the lane (SIGPIPE race)\n'
 else fail=$((fail+1)); printf '  FAIL  scope: SIGPIPE race — big diff skipped the lane\n'; fi
 
+# A changed production stylesheet with an Impeccable finding must stop the battery before npm and
+# before the HEAD stamp. This proves the new design gate can fail; merely checking that the command
+# text exists would stay green if its exit code were ignored.
+rm -f "$tmp/npm-calls" "$STAMP"
+cat > "$tmp/repo/mos-app/src/impeccable-red.css" <<'CSS'
+.generated-card { font-family: Inter, sans-serif; }
+CSS
+G add mos-app/src/impeccable-red.css; G commit -qm "plant impeccable finding"
+if run; then bad "Impeccable finding must refuse"
+else ok "Impeccable finding refuses"; fi
+[ ! -f "$STAMP" ] && ok "no stamp after Impeccable finding" || bad "stamp written over Impeccable finding"
+[ ! -s "$tmp/npm-calls" ] && ok "Impeccable finding stops before npm" || bad "npm ran after Impeccable finding"
+G rm -q mos-app/src/impeccable-red.css; G commit -qm "remove impeccable finding"
+
+# With no resolvable origin/dev base, the heavy lane already fails closed. The design gate must
+# do the same: scan all tracked production UI rather than silently skipping Impeccable.
+G update-ref -d refs/remotes/origin/dev
+rm -f "$tmp/npm-calls" "$STAMP"
+cat > "$tmp/repo/mos-app/src/impeccable-no-base-red.css" <<'CSS'
+.generated-card { font-family: Inter, sans-serif; }
+CSS
+G add mos-app/src/impeccable-no-base-red.css; G commit -qm "plant no-base impeccable finding"
+if run; then bad "no-base Impeccable finding must refuse"
+else ok "no-base Impeccable finding refuses"; fi
+[ ! -f "$STAMP" ] && ok "no stamp after no-base Impeccable finding" || bad "stamp written over no-base Impeccable finding"
+[ ! -s "$tmp/npm-calls" ] && ok "no-base Impeccable finding stops before npm" || bad "npm ran after no-base Impeccable finding"
+G rm -q mos-app/src/impeccable-no-base-red.css; G commit -qm "remove no-base impeccable finding"
+G update-ref refs/remotes/origin/dev "$(G rev-parse HEAD)"
+
 # ── Ledger serialization: linked worktrees share one ledger through the common git dir, so a
 # run must not append while another writer holds the ledger lock. The lock timeout is bounded,
 # so a holder that outlives it causes a non-fatal deferred append failure.

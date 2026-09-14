@@ -31,6 +31,7 @@ describe('DemoLogin — dev-only one-click sign-in panel', () => {
         'Cafe Ops',
         'Kitchen',
         'Kitchen staff',
+        'Barista',
         'Supervisor',
         'Roastery',
         'Sales',

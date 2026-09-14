@@ -1,31 +1,44 @@
 // CafeOpeningPage — /cafe — the Café Module home (Step 7 / cafe-retrofit.spec.md §4, B7,
-// RATIFY-7D). Answers the Café rail job ("Run today's café floor work — openings, checks, stock,
-// shifts", Rule 1) before configuration: hosts CafeOpeningPanel's "Start today's opening" surface,
-// then a compact link row to the existing, unchanged capture screens (Log · Plan · Stock · Review,
-// FR-708). RATIFY-7C: a bare org with no Café Opening process seeded renders an EmptyState, not a
-// crash.
-import { useCallback, useEffect, useState } from 'react'
+// RATIFY-7D). Opening is branch-wide: the person's effective profile location is resolved to the
+// canonical Opening Team internally, while the page names the branch and offers a deliberate
+// location switch when more than one eligible branch is available. Production stream context
+// (branch + activity) belongs to Log/Plan/Stock and is intentionally absent from this page.
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { Button } from '@/components/ui/button'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
-import { getCafeOpeningProcessId, listCafeOpeningBranches, wibToday } from '@/lib/db/cafe-opening'
+import {
+  getCafeOpeningProcessId,
+  getTodayOpeningForTeam,
+  listCafeViewerTeams,
+  listStartableCafeTeams,
+  resolveCafeOpeningTeamForBranch,
+  resolveCafeOpeningTeamForTeam,
+  wibToday,
+} from '@/lib/db/cafe-opening'
+import { listActiveBranches } from '@/lib/db/branches'
+import { rememberCafeOpeningTeam, rememberedCafeOpeningTeamId } from '@/lib/cafe-opening-location'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
-import { canReviewCafe } from '@/lib/kitchen-gates'
-// #440: the module ROOT is where the stream context belongs first — the doors below lead into
-// five stream-scoped surfaces, and a person who lands here should be able to read (and set)
-// which books they are about to work in before they walk through one.
-import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
-import { useCafeStream } from '@/lib/use-cafe-stream'
+import { canPushCafe, canReviewCafe } from '@/lib/kitchen-gates'
 import './cafe-opening-page.css'
 
-type FetchState = 'loading' | 'ready' | 'error' | 'no-process' | 'no-team'
+type FetchState = 'loading' | 'ready' | 'choice' | 'error' | 'no-process' | 'no-team'
+type OpeningStatus = 'not-started' | 'started' | 'unknown'
 
-type BranchTeam = {
+interface BranchTeam {
   id: string
+  /** Canonical Opening Team name, kept for the server-facing panel only. */
   name: string
+  branchId: string
+  /** User-facing location label. Opening never presents `name` as a production stream. */
+  branchName: string
+  isPrimary: boolean
+  due: boolean
+  status?: OpeningStatus
 }
 
 // Capture doors every café viewer reaches (Log/Plan/Stock — read/capture for all roles).
@@ -35,64 +48,232 @@ const CAPTURE_LINKS = [
   { to: '/cafe/stock', key: 'nav.cafe.stock' as const },
 ]
 
-// JQ-1: Review + Pushes are ops_lead/admin-only day-steps. Their doors render ONLY for a
-// viewer who can actually reach the route (canReviewCafe) — a member no longer sees a tab
-// that silently bounces them off the section (the route's forbidden panel stays as backstop).
-const LEAD_LINKS = [
-  { to: '/cafe/review', key: 'nav.cafe.review' as const },
-  { to: '/cafe/pushes', key: 'nav.cafe.pushes' as const },
-]
+// JQ-1: Review admits stream supervisors; Pushes remains ops_lead/admin. Keep the links
+// separate so the opening door mirrors each route's own gate and never offers supervisors a
+// dead Pushes link.
+const REVIEW_LINK = { to: '/cafe/review', key: 'nav.cafe.review' as const }
+const PUSH_LINK = { to: '/cafe/pushes', key: 'nav.cafe.pushes' as const }
+const EMPTY_ACCESS_ROLES: string[] = []
 
+function LocationChoices({
+  choices,
+  onChoose,
+}: {
+  choices: readonly BranchTeam[]
+  onChoose: (choice: BranchTeam) => void
+}) {
+  const t = useT()
+  return (
+    <section className="cafe-location-choice" aria-labelledby="cafe-location-choice-title">
+      <h2 id="cafe-location-choice-title">{t('cafe.opening.chooseLocation')}</h2>
+      <p className="cafe-location-choice__help">{t('cafe.opening.locationChoiceHelp')}</p>
+      <div className="cafe-location-choice__list">
+        {choices.map((choice) => {
+          const statusKey = choice.status === 'started'
+            ? 'cafe.opening.locationStarted'
+            : choice.status === 'not-started'
+              ? 'cafe.opening.locationNotStarted'
+              : choice.status === 'unknown'
+                ? 'cafe.opening.locationStatusUnknown'
+                : null
+          const statusText = statusKey ? t(statusKey) : null
+          const statusId = `cafe-location-choice-status-${choice.id}`
+          return (
+            <button
+              key={choice.id}
+              type="button"
+              className="cafe-location-choice__option"
+              onClick={() => onChoose(choice)}
+              aria-label={`${t('cafe.opening.openLocation')} ${choice.branchName}${statusText ? ` — ${statusText}` : ''}`}
+              aria-describedby={statusText ? statusId : undefined}
+            >
+              <span className="cafe-location-choice__name">{choice.branchName}</span>
+              {statusText && (
+                <span id={statusId} className="cafe-location-choice__status">{statusText}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Keep the Opening context subtree keyed by viewer identity. Auth can change while the route
+ * remains mounted; remounting here prevents one person's branch/panel from appearing for the
+ * next person even for the render before the new location read starts.
+ */
 export function CafeOpeningPage() {
+  const auth = useAuth()
+  const viewerKey = auth.status === 'authenticated'
+    ? `${auth.viewer.person.id}:${auth.viewer.accessRoles.join(',')}`
+    : auth.status
+  return <CafeOpeningPageBody key={viewerKey} />
+}
+
+function CafeOpeningPageBody() {
   const t = useT()
   useDocumentTitle(t('common.docTitle', { page: t('doc.cafeOps') }))
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
-  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const captureLinks = canReviewCafe(accessRoles) ? [...CAPTURE_LINKS, ...LEAD_LINKS] : CAPTURE_LINKS
+  const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
+  const captureLinks = canReviewCafe(accessRoles)
+    ? [...CAPTURE_LINKS, REVIEW_LINK, ...(canPushCafe(accessRoles) ? [PUSH_LINK] : [])]
+    : CAPTURE_LINKS
 
   const [state, setState] = useState<FetchState>('loading')
   const [processId, setProcessId] = useState<string | null>(null)
-  const [teams, setTeams] = useState<BranchTeam[]>([])
-  // The module's stream (#440). Read on its own so a failure here never takes the opening
-  // surface down with it: the opening itself is Team-scoped, not stream-scoped, so the head's
-  // statement is context for the doors below, not a precondition for the panel.
-  const cafeStream = useCafeStream()
-  const { resolve: resolveStream, adopt: adoptStream } = cafeStream
+  const [team, setTeam] = useState<BranchTeam | null>(null)
+  const [teamChoices, setTeamChoices] = useState<BranchTeam[]>([])
+  const [changingLocation, setChangingLocation] = useState(false)
+  const changeLocationTrigger = useRef<HTMLButtonElement | null>(null)
+  const loadGeneration = useRef(0)
 
-  useEffect(() => {
+  const selectLocation = useCallback((choice: BranchTeam) => {
     if (!viewerId) return
-    let live = true
-    void (async () => {
-      try {
-        const resolved = await resolveStream()
-        if (live) adoptStream(resolved)
-      } catch {
-        // the head then reads "—": no stream known, nothing claimed
-        if (live) adoptStream({ branches: [], options: [], stream: null })
-      }
-    })()
-    return () => { live = false }
-  }, [viewerId, resolveStream, adoptStream])
+    rememberCafeOpeningTeam(viewerId, choice.id)
+    setTeam(choice)
+    setChangingLocation(false)
+    setState('ready')
+  }, [viewerId])
 
   const load = useCallback(() => {
     if (!viewerId) return
+    const generation = ++loadGeneration.current
     setState('loading')
-    setTeams([])
-    getCafeOpeningProcessId()
-      .then(async (id) => {
-        if (!id) { setState('no-process'); return }
+    setProcessId(null)
+    setTeam(null)
+    setTeamChoices([])
+    setChangingLocation(false)
+
+    void (async () => {
+      try {
+        const id = await getCafeOpeningProcessId()
+        if (generation !== loadGeneration.current) return
+        if (!id) {
+          setState('no-process')
+          return
+        }
         setProcessId(id)
-        const branches = await listCafeOpeningBranches()
-        const nextTeams = branches.map((branch) => ({ id: branch.team_id, name: branch.team_name }))
-        if (nextTeams.length === 0) { setState('no-team'); return }
-        setTeams(nextTeams)
-        setState('ready')
-      })
-      .catch(() => setState('error'))
-  }, [viewerId])
+
+        // The due catalog contains only unstarted occurrences. Profile memberships are the
+        // complementary source for an already-started primary and for authorized alternatives.
+        // Both sets are retained before canonical Opening-Team deduplication.
+        const [due, memberships, branches] = await Promise.all([
+          listStartableCafeTeams(id),
+          listCafeViewerTeams(viewerId),
+          listActiveBranches(),
+        ])
+        if (generation !== loadGeneration.current) return
+
+        const sources = [
+          ...memberships.map((membership) => ({
+            sourceTeamId: membership.id,
+            isPrimary: membership.is_primary,
+            due: false,
+          })),
+          ...due.map((run) => ({
+            sourceTeamId: run.owning_team_id,
+            isPrimary: false,
+            due: true,
+          })),
+        ]
+        // Ops leads/admins can be authorized for a branch without holding a profile membership.
+        // Their started branches never appear in due_process_runs(), so include every active
+        // branch's canonical Opening Team under the existing elevated Café gate as well.
+        if (canPushCafe(accessRoles)) {
+          const elevated = await Promise.all(
+            branches.map(async (branch) => ({
+              branch,
+              team: await resolveCafeOpeningTeamForBranch(branch.id),
+            })),
+          )
+          sources.push(
+            ...elevated
+              .filter(result => result.team !== null)
+              .map(result => ({ sourceTeamId: result.team!.id, isPrimary: false, due: false })),
+          )
+        }
+        const resolvedSources = await Promise.all(
+          sources.map(async (source) => ({ source, team: await resolveCafeOpeningTeamForTeam(source.sourceTeamId) })),
+        )
+        if (generation !== loadGeneration.current) return
+
+        const candidates = new Map<string, BranchTeam>()
+        for (const { source, team: resolved } of resolvedSources) {
+          if (!resolved) continue
+          const branch = branches.find(candidate => candidate.id === resolved.branchId)
+          // An archived/missing branch is not an eligible location for a new Opening context.
+          if (!branch) continue
+          const existing = candidates.get(resolved.id)
+          if (existing) {
+            existing.isPrimary ||= source.isPrimary
+            existing.due ||= source.due
+          } else {
+            candidates.set(resolved.id, {
+              id: resolved.id,
+              name: resolved.name,
+              branchId: resolved.branchId,
+              branchName: branch.name,
+              isPrimary: source.isPrimary,
+              due: source.due,
+            })
+          }
+        }
+
+        const eligible = [...candidates.values()]
+        const rememberedId = rememberedCafeOpeningTeamId(viewerId)
+        const remembered = rememberedId ? eligible.find(candidate => candidate.id === rememberedId) : undefined
+        if (rememberedId && !remembered) rememberCafeOpeningTeam(viewerId, null)
+        const primary = eligible.filter(candidate => candidate.isPrimary)
+        const defaultLocation = remembered
+          ?? (primary.length === 1 ? primary[0] : eligible.length === 1 ? eligible[0] : null)
+
+        if (defaultLocation) {
+          setTeam(defaultLocation)
+          setTeamChoices(eligible)
+          setState('ready')
+          return
+        }
+        if (eligible.length === 0) {
+          setState('no-team')
+          return
+        }
+
+        // Ambiguous viewers get real status where the read permits it. A per-location read failure
+        // remains an honest unknown on that option; it must not hide the actionable location choice.
+        const withStatus = await Promise.all(eligible.map(async (candidate) => {
+          if (candidate.due) return { ...candidate, status: 'not-started' as const }
+          try {
+            const opening = await getTodayOpeningForTeam(id, candidate.id)
+            return { ...candidate, status: opening.started ? 'started' as const : 'not-started' as const }
+          } catch {
+            return { ...candidate, status: 'unknown' as const }
+          }
+        }))
+        if (generation !== loadGeneration.current) return
+        setTeamChoices(withStatus)
+        setState('choice')
+      } catch {
+        if (generation === loadGeneration.current) setState('error')
+      }
+    })()
+  }, [accessRoles, viewerId])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => () => { loadGeneration.current += 1 }, [])
+  useEffect(() => {
+    if (!changingLocation) return
+    function dismissOnEscape(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      setChangingLocation(false)
+      changeLocationTrigger.current?.focus()
+    }
+    document.addEventListener('keydown', dismissOnEscape)
+    return () => document.removeEventListener('keydown', dismissOnEscape)
+  }, [changingLocation])
 
   // Shell state seam (V3 Workspace family): resolve the opening-fetch state to the shared
   // PageFamilyState; the branch bodies below keep their own skeleton/empty/error grammar.
@@ -102,39 +283,56 @@ export function CafeOpeningPage() {
     : state === 'no-process' || state === 'no-team' ? 'empty'
     : 'default'
 
+  const alternateLocations = team
+    ? teamChoices.filter(candidate => candidate.id !== team.id)
+    : []
+
   return (
     // V3 Workspace family (Issue 11): the shared frame owns the h1 + job sentence;
     // "today" rides in the head meta slot as before.
     <PageFamilyFrame
       family="workspace"
       title={t('nav.cafe')}
-      statusRow={
-        <CafeStreamBar
-          options={cafeStream.options}
-          stream={cafeStream.stream}
-          onChange={cafeStream.setStream}
-        />
-      }
       meta={wibToday()}
       state={frameState}
     >
       {state === 'loading' && <LoadingShell count={2} />}
-      {state === 'error' && <ErrorState message={t('tasks.error.load')} onRetry={load} />}
+      {state === 'error' && <ErrorState message={t('cafe.opening.loadError')} onRetry={load} />}
       {state === 'no-process' && (
-        // 'blank' (never 'quiet' — no config exists yet, so the ✓ earned-all-clear glyph would
-        // misread as "you're done" instead of "an admin still needs to set this up").
         <EmptyState variant="blank" title={t('cafe.opening.noProcess')} />
       )}
       {state === 'no-team' && (
         <EmptyState variant="blank" title={t('cafe.opening.noTeam')} />
       )}
-      {state === 'ready' && processId && (
+      {state === 'choice' && (
+        <LocationChoices choices={teamChoices} onChoose={selectLocation} />
+      )}
+      {state === 'ready' && processId && team && (
         <>
-          {teams.map((team) => (
-            <CafeOpeningPanel key={team.id} processId={processId} teamId={team.id} teamName={team.name} />
-          ))}
-          {/* Step 7 minor (item 7b): real button-styled links (btn-outline), full-width tap
-              targets at ≤390px (cafe-opening-page.css). */}
+          <section className="cafe-opening-location" aria-label={t('cafe.opening.locationLabel')}>
+            <div className="cafe-opening-location__copy">
+              <span className="cafe-opening-location__label">{t('cafe.opening.locationLabel')}</span>
+              <strong data-testid="cafe-opening-location">{team.branchName}</strong>
+            </div>
+            {alternateLocations.length > 0 && (
+              <Button
+                variant="ghost"
+                className="cafe-opening-location__change"
+                ref={changeLocationTrigger}
+                aria-expanded={changingLocation}
+                aria-controls="cafe-opening-location-switcher"
+                onClick={() => setChangingLocation(open => !open)}
+              >
+                {t('cafe.opening.changeLocation')}
+              </Button>
+            )}
+          </section>
+          {changingLocation && (
+            <div id="cafe-opening-location-switcher">
+              <LocationChoices choices={alternateLocations} onChoose={selectLocation} />
+            </div>
+          )}
+          <CafeOpeningPanel key={team.id} processId={processId} teamId={team.id} teamName={team.branchName} />
           <nav aria-label={t('nav.cafe')} className="cafe-capture-links">
             {captureLinks.map((link) => (
               <Link key={link.to} to={link.to} className="btn btn-outline cafe-capture-link">

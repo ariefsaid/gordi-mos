@@ -67,8 +67,21 @@
   cursor: pointer;
 }
 
-.collection-toolbar__view:hover { color: var(--foreground); }
+.collection-toolbar__view:not(.collection-toolbar__view--active):hover {
+  background: var(--surface-tertiary);
+  color: var(--foreground);
+}
 .collection-toolbar__view:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.collection-toolbar__view--saved {
+  /* Saved names are user-authored and may be long or unbroken in another locale. Constrain the
+     chip, but keep the full name visible by wrapping it instead of hiding the identity behind a
+     hover-only tooltip (DD-MVP-4). */
+  max-width: min(32ch, 260px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+  line-height: 1.2;
+}
 .collection-toolbar__view--active {
   background: var(--background);
   color: var(--foreground);
@@ -98,6 +111,22 @@
   white-space: nowrap;
 }
 
+/* Saved-view failures stay attached to the same row as the view axis so the toolbar does not
+   grow a third row while preserving an announced retry path. */
+.collection-toolbar__saved-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--status-lost-text);
+  font-size: var(--font-size-mono);
+}
+.collection-toolbar__saved-error .error-state-text { white-space: nowrap; }
+.collection-toolbar__saved-error .btn { min-height: 26px; padding: 0 6px; }
+
 .collection-toolbar__query {
   display: flex;
   align-items: center;
@@ -109,21 +138,46 @@
   padding: 8px 12px;
   background: color-mix(in srgb, var(--secondary) 28%, var(--card));
 }
-/* #743 r3: a popover filter (Status) is ONE dropdown-class control — the trigger borrows the
-   select-box chrome (.mk-select__box) and its choices live in the anchored Fields-menu popover,
-   so the row itself never renders a checkbox. position:relative anchors that popover. */
+/* Popover filters own their trigger styling independently of native Select consumers. */
 .collection-toolbar__choice { position: relative; }
 .collection-toolbar__choice-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 110px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
   font: inherit;
   cursor: pointer;
   text-align: left;
 }
-.collection-toolbar__choice-trigger .mk-select__field {
-  display: block;
+.collection-toolbar__choice-trigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.collection-toolbar__choice-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.collection-toolbar__choice-label {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  white-space: nowrap;
+}
+.collection-toolbar__choice-value {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.collection-toolbar__choice-chevron { display: flex; flex: none; }
 
 /* Secondary controls stay in normal document flow so focus order follows the visible row. */
 .collection-toolbar__fields { position: relative; }
@@ -161,24 +215,34 @@
   font-size: var(--font-size-label);
 }
 
-.collection-toolbar__select .mk-select__box { max-width: 180px; }
+.collection-toolbar__select { max-width: 180px; }
+.collection-toolbar__select .picker__trigger { min-height: 32px; }
 /* Tasks' twelve-control desktop grammar has one line at the 1440px reference width. Keep the
    controls compact enough to share that row; narrower desktops retain the normal wrapping rule. */
 @media (min-width: 1200px) {
   .tasks-collection-toolbar .collection-toolbar__options { flex-wrap: nowrap; gap: 8px; }
   .tasks-collection-toolbar .collection-toolbar__option-field { min-width: 0; }
-  .tasks-collection-toolbar .collection-toolbar__select .mk-select__box { max-width: 150px; }
+  .tasks-collection-toolbar .collection-toolbar__select { max-width: 150px; }
   .tasks-collection-toolbar .collection-toolbar__query { flex: 0 1 220px; min-width: 150px; }
   .tasks-collection-toolbar .collection-toolbar__search { min-width: 150px; }
+  /* The attention trigger is content-sized, so its Picker shell must not shrink around it.
+     Otherwise a wider CI font can leave the trigger's label wider than its client box while
+     the rest of the row still appears to fit. The search field remains the elastic control. */
+  .tasks-collection-toolbar .tasks-attention-picker { flex: 0 0 auto; min-width: max-content; }
 }
-.collection-toolbar__option-field--group .mk-select__box {
+.collection-toolbar__option-field--group .collection-toolbar__picker-trigger {
   background: color-mix(in srgb, var(--brand-navy) 6%, var(--background));
   border-color: var(--brand-navy);
   color: var(--brand-navy-text);
   font-weight: 600;
 }
-.collection-toolbar__option-field--group .mk-select__field { color: var(--brand-navy-text); }
-.collection-toolbar__select .mk-select__field { text-overflow: ellipsis; }
+.collection-toolbar__option-field--group .collection-toolbar__picker-trigger { color: var(--brand-navy-text); }
+.collection-toolbar__picker-trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* #743: the search lives INSIDE row 2 now (one row: search · group · filters · sort · fields ·
    save view · attention). The standalone field's own query-row chrome (padding, tinted band,
@@ -337,6 +401,7 @@
 }
 
 @media (max-width: 767px) {
+  .collection-toolbar__choice-trigger { min-height: 44px; }
   .collection-toolbar { align-items: stretch; }
   .collection-toolbar__primary { align-items: stretch; flex-wrap: wrap; padding: 8px; }
   .collection-toolbar__presentations,
@@ -349,8 +414,8 @@
      each disclosed control is a full-width 44px touch target. */
   .collection-toolbar__options { padding: 8px; gap: 12px; }
   .collection-toolbar__option-field { width: 100%; }
-  .collection-toolbar__option-field .mk-select__box { width: 100%; max-width: none; height: 44px; }
-  .collection-toolbar__select .mk-select__box { height: 44px; max-width: min(220px, 70vw); }
+  .collection-toolbar__option-field .picker__trigger { width: 100%; max-width: none; height: 44px; }
+  .collection-toolbar__select .picker__trigger { height: 44px; max-width: min(220px, 70vw); }
   .collection-toolbar__search { min-height: 44px; max-width: none; }
   /* #711: the box floors to 44px, but `align-items: center` keeps the field from stretching to
      fill it — the evidence pass measured the real `<input>` at 21.8px. Floor the field too. */
@@ -359,7 +424,8 @@
   /* Same file, later import: the base .collection-toolbar__toggle min-height would otherwise
      out-rank the shared .tap-floor utility on this one control. */
   .collection-toolbar__toggle { min-height: 44px; }
-  .collection-toolbar__view { min-height: 44px; }
+  .collection-toolbar__view { min-width: 44px; min-height: 44px; }
+  .collection-toolbar__saved-error .btn { min-height: 44px; }
   /* Phone stands on the OD-REDESIGN-84 door panel: the save door re-joins the flow as a
      full-width strip (an absolute popover would clip inside the scrolled panel). */
   .collection-toolbar__save {

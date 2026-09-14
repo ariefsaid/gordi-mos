@@ -10,25 +10,26 @@ const mos = () => supabase.schema('mos')
 export interface ObjectiveRow {
   id: string
   name: string
+  business_unit_id?: string | null
+  accountable_person_id?: string | null
+  period_year?: number | null
 }
 
-export interface ObjectiveProgress extends ObjectiveRow {
-  done: number
-  total: number
+/** Ownership an Objective carries (#801): unit, owner, and year — each optional. */
+export interface ObjectiveOwnership {
+  business_unit_id?: string | null
+  accountable_person_id?: string | null
+  period_year?: number | null
 }
 
-/** Read the active objective roll-up; counts are derived by the database view. */
-export async function listObjectiveProgress(): Promise<ObjectiveProgress[]> {
-  const { data, error } = await mos().from('objective_progress').select('id,name,done,total').order('name')
-  if (error) throw new Error(`listObjectiveProgress failed — ${error.message}`)
-  return (data ?? []) as unknown as ObjectiveProgress[]
-}
+const ACTIVE_COLUMNS = 'id,name,business_unit_id,accountable_person_id,period_year'
+const ADMIN_COLUMNS = 'id,name,archived_at,business_unit_id,accountable_person_id,period_year'
 
 /** List active (non-archived) objectives ordered by name (org-readable via RLS). */
 export async function listObjectives(): Promise<ObjectiveRow[]> {
   const { data, error } = await mos()
     .from('objectives')
-    .select('id,name')
+    .select(ACTIVE_COLUMNS)
     .is('archived_at', null)
     .order('name')
   if (error) throw new Error(`listObjectives failed — ${error.message}`)
@@ -46,15 +47,6 @@ export interface ObjectiveAdminRow {
   period_year?: number | null
 }
 
-/** Ownership an Objective carries (#801): unit, owner, year — each optional. */
-export interface ObjectiveOwnership {
-  business_unit_id?: string | null
-  accountable_person_id?: string | null
-  period_year?: number | null
-}
-
-const ADMIN_COLUMNS = 'id,name,archived_at,business_unit_id,accountable_person_id,period_year'
-
 /** List ALL objectives (active + archived) for the management surface — active first, then by name. */
 export async function listObjectivesAll(): Promise<ObjectiveAdminRow[]> {
   const { data, error } = await mos()
@@ -66,7 +58,7 @@ export async function listObjectivesAll(): Promise<ObjectiveAdminRow[]> {
   return (data ?? []) as unknown as ObjectiveAdminRow[]
 }
 
-/** Create an objective (org_id stamped by the DB; who may write in a unit is RLS's call). Returns the new row. */
+/** Create an objective (org_id stamped by the DB). Returns the new row. */
 export async function createObjective(
   name: string,
   ownership: ObjectiveOwnership = {},
@@ -93,4 +85,44 @@ export async function setObjectiveArchived(id: string, archived: boolean): Promi
     .update({ archived_at: archived ? new Date().toISOString() : null })
     .eq('id', id)
   if (error) throw new Error(`setObjectiveArchived failed — ${error.message}`)
+}
+
+// ── Record surface ────────────────────────────────────────────────────────────
+
+/** The existing columns rendered by an Objective record. */
+export interface ObjectiveRecord {
+  id: string
+  name: string
+  archived_at: string | null
+  business_unit_id: string | null
+  accountable_person_id: string | null
+  period_year: number | null
+  updated_at: string
+}
+
+const RECORD_COLUMNS =
+  'id,name,archived_at,business_unit_id,accountable_person_id,period_year,updated_at'
+
+/** Read one Objective; null means no visible row, not a transport error. */
+export async function readObjective(id: string): Promise<ObjectiveRecord | null> {
+  const { data, error } = await mos()
+    .from('objectives')
+    .select(RECORD_COLUMNS)
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(`readObjective failed — ${error.message}`)
+  return (data as unknown as ObjectiveRecord | null) ?? null
+}
+
+/** Fields an Objective record may patch; RLS and the database guard remain authoritative. */
+export interface ObjectivePatch {
+  name?: string
+  business_unit_id?: string | null
+  accountable_person_id?: string | null
+  period_year?: number | null
+}
+
+export async function updateObjective(id: string, patch: ObjectivePatch): Promise<void> {
+  const { error } = await mos().from('objectives').update(patch).eq('id', id)
+  if (error) throw new Error(`updateObjective failed — ${error.message}`)
 }

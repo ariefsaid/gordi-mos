@@ -1,9 +1,9 @@
 import type { StreamBandState, StreamItem } from '@/lib/home-stream'
 import type { MessageKey } from '@/i18n/messages'
 
-// The ONE region model. All three Home arrangements render these same regions — a layout chooses
-// how to present them, never which of them exist (NFR-924 parity). A region with zero items is
-// still returned, so an empty region is distinguishable from a hidden one (FR-929).
+// The ONE region model. The Home daily brief renders these same regions without recomputing their
+// scopes. A region with zero items is still returned, so an empty region is distinguishable from a
+// hidden one (FR-929).
 // needs-you is the task attention union: overdue → due today → blocked.
 
 export type HomeRegionId = 'needs-you' | 'failed-checks' | 'my-work'

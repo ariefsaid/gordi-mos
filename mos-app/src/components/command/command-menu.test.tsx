@@ -27,10 +27,11 @@ vi.mock('@/shell/destinations', async (importOriginal) => {
 })
 // DD-WAY-36: scoped flag flip so one test can light the follow-up palette search without
 // disturbing the darkness test below (default stays false).
-const features = vi.hoisted(() => ({ SHOW_FOLLOWUPS: false }))
+const features = vi.hoisted(() => ({ SHOW_FOLLOWUPS: false, SHOW_ASSISTANT: true }))
 vi.mock('@/config/features', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/config/features')>()),
   get SHOW_FOLLOWUPS() { return features.SHOW_FOLLOWUPS },
+  get SHOW_ASSISTANT() { return features.SHOW_ASSISTANT },
 }))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -79,6 +80,7 @@ function renderMenu(onClose = vi.fn(), locale: 'en' | 'id' = 'en', onShareSignal
 }
 
 beforeEach(() => {
+  features.SHOW_ASSISTANT = true
   localStorage.clear()
   vi.clearAllMocks()
   seam.override = null
@@ -348,6 +350,15 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
 
 // ── AC-015: universal actions (verb+object, stable order; no bare Create/Add/New) ──
 describe('AC-015: universal actions — Ask Deputy · Share Signal · Create Task', () => {
+  it.each(['search', 'launcher'] as const)('keeps creation available without an unavailable Deputy in %s mode', (mode) => {
+    features.SHOW_ASSISTANT = false
+    render(<I18nProvider><MemoryRouter>
+      <CommandMenu open mode={mode} onClose={vi.fn()} onShareSignal={vi.fn()} />
+    </MemoryRouter></I18nProvider>)
+    expect(screen.queryByRole('option', { name: /Ask Deputy/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Share.*Signal/i })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Create.*Task/i })).toBeInTheDocument()
+  })
   it('AC-015: lists the universal actions in stable order (verb+object)', () => {
     renderMenu()
     expect(screen.getByRole('option', { name: /Ask Deputy/i })).toBeInTheDocument()
@@ -455,8 +466,8 @@ describe('AC-016: Navigate group points to the new canonical routes', () => {
   })
 })
 
-// ── Step 8 (catalog re-home) — AC-804/805/806: Navigate group is capability-gated ─────────────
-describe('Step 8/AC-804/805/806: Navigate group surfaces catalog manage-mode per capability', () => {
+// ── Step 8 (catalog re-home) — AC-804/805/806: Navigate group exposes org-readable catalogs ─
+describe('Step 8/AC-804/805/806: Navigate group exposes org-readable catalogs', () => {
   it('AC-804: admin sees both Projects & Processes and Objectives; activating each navigates and closes', async () => {
     setAuth(['admin'])
     const { onClose } = renderMenu()
@@ -476,7 +487,7 @@ describe('Step 8/AC-804/805/806: Navigate group surfaces catalog manage-mode per
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('AC-805: ops_lead (workline.manage) sees Projects & Processes; Objectives is ungated (OD-V4-1)', async () => {
+  it('AC-805: ops_lead sees Projects & Processes and Objectives', async () => {
     setAuth(['ops_lead'])
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
@@ -484,15 +495,11 @@ describe('Step 8/AC-804/805/806: Navigate group surfaces catalog manage-mode per
     expect(screen.getByRole('option', { name: /^Objectives$/i })).toBeInTheDocument()
   })
 
-  // OD-V4-1 (owner-ratified 2026-07-27): Objectives carry NO read gate — the SELECT policy on
-  // mos.objectives has no role check, the rail dropped the gate in #188 and the router followed.
-  // v4's own test file still asserted the retired gate here (its component already pushed the
-  // entry ungated), so it was contradicting the component it tested. The ruling wins.
-  it('AC-806: a plain member sees no Projects & Processes but DOES see Objectives (OD-V4-1)', async () => {
+  it('AC-806: a plain member sees Projects & Processes and Objectives', async () => {
     setAuth([])
     renderMenu()
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'objectives' } })
-    expect(screen.queryByRole('option', { name: /^Projects & Processes$/i })).toBeNull()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
+    expect(await screen.findByRole('option', { name: /^Projects & Processes$/i })).toBeInTheDocument()
     expect(await screen.findByRole('option', { name: /^Objectives$/i })).toBeInTheDocument()
   })
 })

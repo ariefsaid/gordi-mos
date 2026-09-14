@@ -205,14 +205,14 @@ select is((select count(*)::int from integrations.esb_push where source_ref = 'T
 -- G. Stock is recomputed per PRODUCTION STREAM (OD-WAY-28)
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- Approved so far on (Rumah Rames, kitchen) / item ab01 / 2026-06-20: produce 12, produce 8,
--- produce 5, transfer out 4, transfer out 3 = 18. A transfer subtracts whatever its destination, including the
--- no-op: no ERP document is produced, but the WIP has left the kitchen's hands.
+-- produce 5, transfer out 4 = 21. The 3-portion no-op is filed by Rumah Rames/bar under the
+-- integrated books rules, so it belongs to that stream's balance rather than the kitchen's.
 select is((select usable_qty from ops.kitchen_stock
             where org_id = '00000000-0000-0000-0000-0000000000a1' and log_date = '2026-06-20'
               and wip_item_id = '00000000-0000-0000-0000-00000000ab01'
               and branch_id = '00000000-0000-0000-0000-00000000bf02' and activity = 'kitchen'),
-  18::numeric(12,2),
-  'FR-062: the stream''s end-of-day balance nets every Approved movement, the no-op transfer included');
+  21::numeric(12,2),
+  'FR-062: the kitchen stream''s end-of-day balance nets its Approved movements; the bar stream''s no-op is not mixed into it');
 
 -- The same item, the same date, a DIFFERENT branch's books. On the prior chains the recompute summed
 -- by (org, item, date) alone, which would have written 20 into both rows.
@@ -230,8 +230,8 @@ select is((select usable_qty from ops.kitchen_stock
             where org_id = '00000000-0000-0000-0000-0000000000a1' and log_date = '2026-06-20'
               and wip_item_id = '00000000-0000-0000-0000-00000000ab01'
               and branch_id = '00000000-0000-0000-0000-00000000bf02' and activity = 'kitchen'),
-  18::numeric(12,2),
-  '...and Rumah Rames''s is still 18 — the two streams do not sum into each other, which is the COGS defect this dimension exists to stop');
+  21::numeric(12,2),
+  '...and Rumah Rames''s kitchen stream is still 21 — the two branches and both activities do not sum into each other, which is the COGS defect this dimension exists to stop');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- H. Nothing else in the org gained an outbox row

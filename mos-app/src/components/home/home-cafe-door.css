@@ -1,3 +1,101 @@
-.home-cafe-door { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 44px; text-decoration: none; text-align: left; }
-.home-cafe-door:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-@media (max-width: 639px) { .home-cafe-door { flex-wrap: wrap; gap: 4px 12px; } }
+.home-cafe-door {
+  border-top: 2px solid var(--brand-navy);
+  padding-top: 14px;
+}
+
+.home-cafe-door-heading {
+  margin: 0 0 10px;
+  color: var(--foreground);
+  font-family: var(--font-display);
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.home-cafe-door-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-width: 0;
+  border-block: 1px solid var(--border);
+  padding: 16px 4px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.home-cafe-door-link:hover .home-cafe-door-action {
+  text-decoration: underline;
+}
+
+.home-cafe-door-link:focus-visible {
+  border-radius: var(--radius-xs);
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.home-cafe-door-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.home-cafe-door-kicker {
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-cafe-door-checklist {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.home-cafe-door-action {
+  flex: none;
+  color: var(--primary);
+  font-size: var(--font-size-control);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.home-cafe-door .loading-shell,
+.home-cafe-door .error-state,
+.home-cafe-door .empty-state {
+  margin-top: 8px;
+}
+
+.home-cafe-door-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.home-cafe-door-log-link {
+  justify-self: start;
+  padding: 4px;
+  color: var(--primary);
+  font-size: var(--font-size-control);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.home-cafe-door-log-link:hover {
+  text-decoration: underline;
+}
+
+.home-cafe-door-log-link:focus-visible {
+  border-radius: var(--radius-xs);
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .home-cafe-door-link {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+}

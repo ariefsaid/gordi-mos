@@ -13,8 +13,8 @@
 // and the ABSENCE of any −/+ affordance; Escape discards without saving (I5 /
 // OD-REDESIGN-22, via useInlineCommit).
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { act, render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
@@ -73,22 +73,29 @@ const BRANCHES = [
 ]
 // The live stream Teams behind those branches — the enumerated catalog the head picker offers.
 const STREAM_PAIRS = BRANCHES.flatMap(b => [
-  { branch_id: b.id, activity: 'kitchen' as const },
-  { branch_id: b.id, activity: 'bar' as const },
+  { branch_id: b.id, activity: 'kitchen' as const, produces: b.id !== 'branch-2' },
+  { branch_id: b.id, activity: 'bar' as const, produces: true },
 ])
-const OWN_STREAM = { branch: BRANCHES[0], activity: 'kitchen' as const }
-const RADIANT_BAR = { branch: BRANCHES[1], activity: 'bar' as const }
+const OWN_STREAM = { branch: BRANCHES[0], activity: 'kitchen' as const, produces: true }
+const RADIANT_KITCHEN = { branch: BRANCHES[1], activity: 'kitchen' as const, produces: false }
+const RADIANT_BAR = { branch: BRANCHES[1], activity: 'bar' as const, produces: true }
 /** The head picker's option value for a stream — what a switch fires. */
-function streamOption(branchId: string, activity: 'kitchen' | 'bar'): string {
-  return `${branchId}|${activity}`
+function chooseStream(optionName: string) {
+  fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+  fireEvent.click(screen.getByRole('option', { name: optionName }))
 }
 
-function viewer(accessRoles: string[]): AuthState {
+function chooseCategory(optionName: string) {
+  fireEvent.click(screen.getByRole('combobox', { name: /category/i }))
+  fireEvent.click(screen.getByRole('option', { name: optionName }))
+}
+
+function viewer(accessRoles: string[], personId = 'p-1'): AuthState {
   return {
     status: 'authenticated',
     viewer: {
       person: {
-        id: 'p-1', org_id: 'org-1', user_id: 'auth-1', full_name: 'Dina',
+        id: personId, org_id: 'org-1', user_id: 'auth-1', full_name: 'Dina',
         email: 'dina@example.test', must_change_password: false, archived_at: null,
         created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
       },
@@ -126,6 +133,21 @@ beforeEach(() => {
   mockUpsert.mockResolvedValue('new-id')
 })
 
+afterEach(() => {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+})
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 describe('KitchenPlanPage — auth', () => {
   it('auth loading: shows a busy state', () => {
@@ -157,19 +179,42 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
     const { container } = render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = within(head).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    const picker = within(head).getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Radiant · Bar')
     expect(mockPlans.mock.calls[0][1]).toEqual(RADIANT_BAR)
   })
 
   it('switching the stream in the head re-reads THAT stream\'s plan', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: streamOption(BRANCHES[1].id, 'bar') },
-    })
+    chooseStream('Radiant · Bar')
     await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
     expect(mockPlans.mock.calls[1][1]).toEqual(RADIANT_BAR)
+  })
+
+  it('account switch: a delayed previous viewer plan cannot replace the next viewer\'s plan', async () => {
+    let resolvePrevious!: (cells: PlanCell[]) => void
+    const previousPlan = new Promise<PlanCell[]>(resolve => { resolvePrevious = resolve })
+    mockPlans.mockReturnValueOnce(previousPlan).mockResolvedValueOnce([
+      { id: 'plan-b', wip_item_id: 'w1', movement: PRODUCE, qty_porsi: 27 },
+    ])
+
+    let currentViewer = viewer(['ops_lead'], 'person-a')
+    mockUseAuth.mockImplementation(() => currentViewer)
+    const { rerender } = render(<KitchenPlanPage />, { wrapper })
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(1))
+
+    currentViewer = viewer(['ops_lead'], 'person-b')
+    rerender(<KitchenPlanPage />)
+    const quantity = await screen.findByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    await waitFor(() => expect(quantity).toHaveValue(27))
+
+    await act(async () => {
+      resolvePrevious([{ id: 'plan-a', wip_item_id: 'w1', movement: PRODUCE, qty_porsi: 91 }])
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(27)
   })
 
   it('the member pesanan face states its stream too — a read-only surface still says which books', async () => {
@@ -179,8 +224,8 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
     const { container } = render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = within(head).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    const picker = within(head).getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Radiant · Bar')
   })
 
   it('issue 440: the branch × activity pair of selects is GONE — one control names the stream, once', async () => {
@@ -459,7 +504,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     expect(screen.queryByText(/no plan created yet/i)).toBeNull()
   })
 
-  it('explains an empty plan as a live-entered absence', async () => {
+  it('does not duplicate the summary with a second empty-plan sentence', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       configurable: true,
@@ -476,7 +521,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
-    expect(screen.getByText('Nothing planned yet')).toBeInTheDocument()
+    expect(screen.queryByText('Nothing planned yet')).toBeNull()
   })
 
   it('groups dishes by category (F2 categories render as group headers)', async () => {
@@ -491,20 +536,39 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     expect(labels).toContain('Main')
   })
 
-  it('(#401) the editor carries in-app help — HelpTip in the meta line (H10)', async () => {
+  it('R7: the editor has no help-tip control in the page chrome', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    fireEvent.click(screen.getByRole('button', { name: /^help$/i }))
-    const panel = await screen.findByRole('note')
-    expect(panel.textContent).toContain('there is no submit button')
+    expect(screen.queryByRole('button', { name: /^help$/i })).toBeNull()
   })
 
-  it('(#401) the editor dish name drills to the Café log (/cafe/log?q=<dish>)', async () => {
+  it('R7: the desktop category header carries one Log link, not per-row links', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     expect(
-      screen.getByRole('link', { name: /see ayam bakar in the café log/i }),
-    ).toHaveAttribute('href', '/cafe/log?q=Ayam%20Bakar')
+      screen.getByRole('link', { name: /see these in the café log/i }),
+    ).toHaveAttribute('href', '/cafe/log')
+    expect(screen.queryAllByRole('link', { name: /see .* in the café log/i })).toHaveLength(1)
+    expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
+  })
+
+  it('R7: the phone category header carries no Log link', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.queryByRole('link', { name: /see .* in the café log/i })).toBeNull()
+    expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
   })
 
   it('phone (default matchMedia): renders the cards branch, NOT the desktop table', async () => {
@@ -582,13 +646,12 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
   })
 
-  it('(#401) the pesanan item name drills to the Café log too', async () => {
+  it('R7: the pesanan item name stays plain text', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    expect(
-      screen.getByRole('link', { name: /see ayam bakar in the café log/i }),
-    ).toHaveAttribute('href', '/cafe/log?q=Ayam%20Bakar')
+    expect(screen.queryByRole('link', { name: /see .* in the café log/i })).toBeNull()
+    expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
   })
 
   it('(#401) a member can find a dish by name — search narrows the horizon (Nielsen Café·Plan 16/32: ~231 rows, no way to narrow)', async () => {
@@ -616,13 +679,25 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
   })
 
   it('(#401) the category filter narrows the horizon too', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
     mockPesanan.mockResolvedValue([
       { ...PESANAN[0], category: 'Main' },
       { ...PESANAN[1], category: 'Rice' },
     ])
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    fireEvent.change(screen.getByRole('combobox', { name: /category/i }), { target: { value: 'Rice' } })
+    chooseCategory('Rice')
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
@@ -711,7 +786,7 @@ describe('issue 455: document title', () => {
 
 // ── #548 FR-006/AC-006: the stream precondition is quiet at rest, alerts on attempt ──
 describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar', () => {
-  it('AC-006: no stream → no alert-role element, muted hint beside the commit fields; the commit attempt raises the alert', async () => {
+  it('AC-006: no stream → read-only fields and a muted hint; no commit attempt is possible', async () => {
     mockDefaultStream.mockResolvedValue(null)
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
@@ -719,13 +794,10 @@ describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar
     expect(screen.queryByRole('alert')).toBeNull()
     // The precondition is named as a muted status hint (Log's .kl-submit-reason role).
     expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
-    // Entry stays live (Log's grammar — entry is never the wall); the COMMIT is what refuses.
+    // The explicit choice is the next step; no plan can be written against a missing stream.
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
-    expect(input).toBeEnabled()
-    // Attempt: typing + Enter = the submit attempt → the alert raises, nothing is written.
-    fireEvent.change(input, { target: { value: '15' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(await screen.findByRole('alert')).toHaveTextContent(/choose a production stream/i)
+    expect(input).toBeDisabled()
+    expect(screen.queryByRole('tablist')).toBeNull()
     expect(mockUpsert).not.toHaveBeenCalled()
   })
 
@@ -734,9 +806,7 @@ describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: streamOption('branch-1', 'kitchen') },
-    })
+    chooseStream('Rumah Rames · Kitchen')
     await waitFor(() =>
       expect(screen.queryByText(/choose a production stream before submitting/i)).toBeNull(),
     )
@@ -748,6 +818,27 @@ describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar
         expect.objectContaining({ branch_id: 'branch-1', activity: 'kitchen', qty_porsi: 15 }),
       ),
     )
+  })
+})
+
+describe('DD-MVP-9: the Plan editor treats a receiving-only stream as readable, not writable', () => {
+  it('shows a receiving-only state with a Stock handoff instead of plan inputs', async () => {
+    mockDefaultStream.mockResolvedValue(RADIANT_KITCHEN)
+    mockPlans.mockResolvedValue(PLAN_CELLS)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
+    expect(picker).toHaveTextContent('Radiant · Kitchen')
+    expect(screen.getByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
+    expect(screen.getByText(/production capture and planning are unavailable/i)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', '/cafe/stock')
+    const planCard = screen.getByText('Ayam Bakar').closest('.dt-card')
+    expect(planCard).not.toBeNull()
+    expect(planCard).toHaveTextContent('12')
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+    expect(mockUpsert).not.toHaveBeenCalled()
   })
 })
 
@@ -770,4 +861,15 @@ describe('FR-007/AC-007: Plan\'s phone face is the compact capture row', () => {
     // no per-card field label: the generic <dl> fallback is gone
     expect(document.querySelector('.dt-card-detail')).toBeNull()
   })
+})
+
+
+it('gives a receiving-only member a Stock handoff without production inputs', async () => {
+  mockUseAuth.mockReturnValue(viewer(['member']))
+  mockDefaultStream.mockResolvedValue(RADIANT_KITCHEN)
+  render(<KitchenPlanPage />, { wrapper })
+  expect(await screen.findByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', '/cafe/stock')
+  expect(screen.queryByRole('spinbutton')).toBeNull()
+  expect(mockUpsert).not.toHaveBeenCalled()
 })

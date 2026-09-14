@@ -5,9 +5,9 @@
 -- Emits one `kind|object|name|detail` line per fact, ordered, so a drift names itself in a
 -- plain `diff`.
 --
--- NOTHING HERE NAMES A TABLE, A SCHEMA, A CONSTRAINT OR A MIGRATION. Every set is derived
--- from the catalog, so a new schema, table or activity is covered the day it lands and no
--- edit here is needed. That is the difference between a fingerprint and a checklist.
+-- Every general set is derived from the catalog, so a new schema, table or activity is covered
+-- the day it lands. The sole named relation below is a deployment-time audit ledger whose rows
+-- necessarily differ between a fresh install and an upgrade; its structure remains covered.
 --
 -- WHAT IS COVERED
 --   CONSTRAINT  every pg_constraint row on a business relation — CHECK, PRIMARY KEY, UNIQUE,
@@ -30,6 +30,12 @@
 --     any two resets, so including them would make the comparison fail always rather than fail
 --     meaningfully. A table whose every column is excluded still contributes its ROW COUNT, so
 --     an added or missing row is still drift.
+--   * Contents of mos.task_team_rehome_ledger, only while its table comment also carries
+--     `[applied-path-content: history-dependent]`. Its rows describe the path that upgraded data
+--     took, so a fresh database cannot and should not reproduce them. Both checks are required:
+--     copying the marker to another table cannot suppress that table's contents. The ledger's
+--     constraints, RLS posture, policies and functions remain fingerprinted; only its rows are
+--     omitted.
 --   * Function BODIES. Signatures are fingerprinted (a stale overload left behind by a
 --     conditional drop is exactly the drift this exists to catch) but prosrc is not: it would
 --     dominate the artifact and add nothing a signature change does not already flag.
@@ -55,6 +61,11 @@ owned as (
   select r.oid, r.rel
     from rel r
    where r.relrowsecurity
+     and not (
+       r.rel = 'mos.task_team_rehome_ledger'
+       and position('[applied-path-content: history-dependent]' in
+                    coalesce(obj_description(r.oid, 'pg_class'), '')) > 0
+     )
      and not exists (select 1 from pg_policy p
                       where p.polrelid = r.oid and p.polcmd in ('a','w','d','*'))
      and not exists (select 1

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { SignalRow } from '@/lib/db/signals.types'
@@ -111,6 +111,21 @@ describe('SignalFeedPresentation — Feed renderer reads the collection ACTIONS 
     await userEvent.click(screen.getByRole('button', { name: /open signal: the freezer alarm went off/i }))
     expect(onOpenRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 'signal-9' }))
     expect(screen.queryByRole('button', { name: /create task/i })).not.toBeInTheDocument()
+  })
+
+  it('uses one full-row activation in the archive without nested row actions or visible-to copy', async () => {
+    const onOpenRecord = vi.fn()
+    renderFeed([row({ id: 'signal-9', category: 'Equipment/facility' })], {}, onOpenRecord)
+
+    const rowButton = screen.getByRole('button', { name: /open signal: the freezer alarm went off/i })
+    expect(rowButton).toHaveAttribute('data-signal-id', 'signal-9')
+    expect(within(rowButton).queryAllByRole('button')).toHaveLength(0)
+    expect(within(rowButton).queryByRole('link')).toBeNull()
+    expect(screen.queryByText(/visible to/i)).toBeNull()
+    expect(rowButton.querySelector('.home-signal-location-chip')).toBeNull()
+    expect(rowButton.querySelector('.home-signal-time-chip')).toBeNull()
+    await userEvent.click(rowButton)
+    expect(onOpenRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 'signal-9' }))
   })
 })
 

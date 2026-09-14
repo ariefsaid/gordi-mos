@@ -55,10 +55,12 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'tasks.filter.sortStatus', // Status
   'tasks.filter.status', // Status
   'tasks.meta.totalCount', // ${count} total
+  'tasks.noObjective', // Objective terminology is owner-held (OPEN-10 / WORK-18 / PROOF-12)
   'tasks.objective', // Objective — id UI keeps the borrowed term today
   'tasks.pic', // PIC
   'tasks.status.label', // Status
   'tasks.supervisor', // Supervisor
+  'signals.composer.occurredHint', // WIB
   'signals.attention.caret', // disclosure symbol
   'signals.mention.group.bu', // BU
   'signals.record.revisionDiff', // “${from}” → “${to}” — symbol template
@@ -72,6 +74,7 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'kitchen.log.col.item', // Item — same word in both locales (OD-WAY-85)
   'kitchen.plan.col.item', // Item — same word in both locales (OD-WAY-85)
   'kitchen.stock.col.item', // Item — same word in both locales (OD-WAY-85)
+  'kitchen.stock.card.erp', // ERP — acronym is shared in Indonesian
   'kitchen.plan.pesanan.col.item', // Item — same word in both locales (OD-WAY-85)
   'kitchen.log.footer.item.one', // ${count} item — same word in both locales (OD-WAY-85)
   'kitchen.pushes.tally.push.one', // push — shared borrowed vocabulary

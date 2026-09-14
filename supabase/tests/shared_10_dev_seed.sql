@@ -16,7 +16,7 @@ select ok(
   'the seed grants admin to the owner stand-in, past the admin-only RLS and the self-assign guard');
 
 -- #797: Money read means holding manager. admin is users-and-settings and reads no money, so the
--- Director's Money walk works only because the seed grants manager BESIDE admin.
+-- Director''s Money walk works only because the seed grants manager BESIDE admin.
 select is(
   (select string_agg(access_role::text, ',' order by access_role)
      from shared.person_access_roles
@@ -99,12 +99,15 @@ select is((select count(*)::int from mos.certified_metrics
 -- and would have passed as an assertion while every team still read as effectively empty. The
 -- assertions below ask the questions that were actually false.
 
--- Every seeded person has a home team. Before the roster seed this was 3 of 6 people with any
--- membership at all and ZERO with a primary, so "which team is this person on" had no answer.
+-- Every canonical seeded person has a home team. The local E2E harness may add dedicated people in
+-- the same dev org (Recovery Tester, E2E Admin, and similar fixtures) without a primary Team; those
+-- rows are deliberately outside this seed contract. Scope by the seed's stable 4000… identifier
+-- family so additive test personas cannot make this assertion describe a different roster.
 select is(
   (select count(*)::int from shared.people p
     where p.org_id = '10000000-0000-0000-0000-000000000001'
       and p.archived_at is null
+      and p.id::text like '40000000-0000-0000-0000-000000000%'
       and not exists (select 1 from shared.team_memberships m
                        where m.person_id = p.id and m.is_primary and m.effective_to is null)),
   0,
@@ -138,24 +141,20 @@ select cmp_ok(
 -- ...and a unit LEAD is not line staff, so a lead's primary stays an ORG team. Without this the
 -- correction has no owner: flipping Cahya and Krishna back onto their streams as primary leaves
 -- all three assertions above green, because 14-vs-16 is still ">0" on both sides.
--- The one deliberate exception is the café demo's kitchen hand (seed.dev-cafe-opening.sql): the
--- persona walk starts the opening as the PRIMARY member of the branch's kitchen stream
--- (OD-WAY-95 (4)), so Krishna's home is the line in dev. The start gate still refuses secondary
--- members — the seed row makes the headline actor real, it does not loosen the rule.
+-- `seed.dev-cafe-opening.sql` says why in as many words — "a primary would re-point Cahya's
+-- default context app-wide".
 select is(
   (select count(*)::int
      from shared.team_memberships m
      join shared.teams t   on t.id = m.team_id
-     join shared.people p  on p.id = m.person_id
      join shared.person_roles pr on pr.person_id = m.person_id
      join shared.roles r   on r.id = pr.role_id
     where m.org_id = '10000000-0000-0000-0000-000000000001'
       and m.is_primary and m.effective_to is null
       and t.branch_id is not null
-      and (r.name like '%Lead' or r.name = 'Managing Director')
-      and p.email <> 'krishna.dev@example.test'),
+      and (r.name like '%Lead' or r.name = 'Managing Director')),
   0,
-  'no unit LEAD has a production stream as their live primary — a lead runs several lines, and a primary would re-point their default capture context app-wide; the café demo''s kitchen hand is the one deliberate exception (OD-WAY-95 (4))');
+  'no unit LEAD has a production stream as their live primary — a lead runs several lines, and a primary would re-point their default capture context app-wide');
 
 -- AC-065: the two Café walk personas have the memberships and access role the demo buttons promise.
 select is(

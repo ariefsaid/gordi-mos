@@ -70,7 +70,7 @@ values
 select throws_ok($$select ops.approve_kitchen_logs(array['00000000-0000-0000-0000-00000000e708'::uuid,'00000000-0000-0000-0000-00000000e709'::uuid], null)$$, '22023', null,
   'two cross-branch transfers refuse mixed destinations');
 insert into ops.kitchen_logs (id, business_unit_id, log_date, branch_id, activity, action, destination_branch_id, wip_item_id, qty_porsi)
-values ('00000000-0000-0000-0000-00000000e705','00000000-0000-0000-0000-00000000bb01','2026-06-24','00000000-0000-0000-0000-00000000bf02','kitchen','transfer','00000000-0000-0000-0000-00000000bf02','00000000-0000-0000-0000-00000000ab01',1);
+values ('00000000-0000-0000-0000-00000000e705','00000000-0000-0000-0000-00000000bb01','2026-06-24','00000000-0000-0000-0000-00000000bf02','bar','transfer','00000000-0000-0000-0000-00000000bf02','00000000-0000-0000-0000-00000000ab01',1);
 select throws_ok($$select ops.approve_kitchen_logs(array['00000000-0000-0000-0000-00000000e705'::uuid], null)$$, '22023', null,
   'noop-only approval does not leave a pending group');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';

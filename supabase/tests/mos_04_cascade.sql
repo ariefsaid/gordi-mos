@@ -8,24 +8,24 @@
 --   REWRITE  ops_lead can(objective.manage) = TRUE     (was 72 test 3)   -> section 1
 --   REWRITE  ops_lead INSERT objective allowed         (was 73 test 12)  -> "ops_lead INSERT"
 --   REWRITE  ops_lead UPDATE objective allowed         (was 73 test 13)  -> "ops_lead UPDATE"
---   REWRITE  granting a capability OPENS the write     (was 73 test 22)  -> section 6, subject changed
---   CARRY    granting member workline.manage opens it  (was 73 test 23)  -> section 6
+--   REWRITE  tenant authority OPENS the write           (was 73 test 22)  -> section 6
+--   REWRITE  tenant member authority opens it           (was 73 test 23)  -> section 6
 --   CARRY    everything else — the type CHECK, cross-org isolation, member denial, org stamping,
 --            the no-DELETE posture, the same-org task-reference guard, the task round-trip.
 --
 -- WHY the five inversions. `OD-V4-1` (owner, 2026-07-27) rules that Objectives are visible to
--- everyone and writeable at LEAD level, superseding `OD-C-2`'s admin-only catalog. The policies did
--- not change and could not have: they consult shared.can('objective.manage'), so extending the write
--- cost exactly one capability-grant row. Those five assertions encoded the superseded contract and
+-- everyone and writeable at LEAD level, superseding `OD-C-2`'s admin-only catalog. The current MOS
+-- policies consume the tenant-local role_authority matrix, so the write proof in section 6 uses the
+-- admin settings RPC rather than the legacy global shared.role_capabilities vocabulary. Those five
+-- assertions encoded the superseded contract and
 -- were never updated, which is the entire cause of the five reds measured on the v4 line
 -- (`DD-WAY-23`) — one ruling, five symptoms. Nothing here was reshaped for the three-level model;
 -- the shape work is section 7.
 --
 -- WHY test 22 needed a new subject rather than a straight carry. It proves the policy consults the
--- CAPABILITY rather than a hardcoded role name, by granting a capability to a role that lacks it and
--- watching the write open. Its old subject was ops_lead — which now holds objective.manage by seed,
--- so the grant is a duplicate and the proof is vacuous. `finance` replaces it: it holds five
--- capabilities and neither cascade one, so it is a genuine "has roles, not this one" negative.
+-- effective tenant authority rather than a hardcoded access-role name, by using the admin settings
+-- RPC to grant a role that lacks the action and watching the write open. `finance` is the genuine
+-- negative subject; the member proof covers the derived baseline category separately.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(53);
@@ -68,7 +68,9 @@ insert into mos.work_lines (id, org_id, name, type) values
   ('00000000-0000-0000-0001-000000000003','00000000-0000-0000-0000-0000000000cb','B Work Line','project');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- 1. shared.can() resolves the cascade capabilities — the function the write policies call
+-- 1. The legacy shared.can() capability helper remains distinct from the tenant-local MOS matrix.
+-- The values are retained here because unrelated shared capability consumers still rely on them;
+-- the catalog write policies are exercised against role_authority below.
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca12","access_roles":["admin"]}';
@@ -340,32 +342,31 @@ select is(
   'OD-WAY-32 roll-up: a Project/Process can name its parent Objective in one hop');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- 6. The contract proof — granting a capability OPENS the write
+-- 6. The contract proof — an admin authority grant OPENS the write
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- This is the assertion that makes the whole indirection worth having, and it is why OD-V4-1 cost
--- one row instead of an ALTER POLICY. It fails under a role-hardcoded policy and passes under can().
+-- This is the assertion that makes the tenant-local indirection worth having. It fails under a
+-- role-hardcoded policy and passes only when the catalog policy consumes the effective matrix.
 --
--- REWRITE (was 73 test 22, subject ops_lead). ops_lead now holds objective.manage by seed, so
--- granting it again is a duplicate and proves nothing. finance holds five capabilities and neither
--- cascade one, so it is the honest negative subject.
-reset role;
-insert into shared.role_capabilities (role, capability, scope) values ('finance','objective.manage','org');
+-- REWRITE (was 73 test 22, subject ops_lead). The old global capability table is no longer the MOS
+-- catalog write seam. An admin saves the current org override, then the finance role exercises it.
 set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca12","access_roles":["admin"]}';
+select shared.save_role_authority('[{"action":"objective.manage","role":"finance","scope":"org"}]'::jsonb);
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca13","access_roles":["finance"]}';
 select lives_ok($$
   insert into mos.objectives (name) values ('Finance Now Can')
 $$,
-  'granting finance objective.manage OPENS the write it was denied above — the policy consults the capability, not a role name');
+  'granting finance objective.manage in the tenant matrix OPENS the write it was denied above — the policy consults authority, not a role name');
 
--- CARRY (was 73 test 23). member holds process.start and signal.create and no cascade capability.
-reset role;
-insert into shared.role_capabilities (role, capability, scope) values ('member','workline.manage','org');
-set local role authenticated;
+-- REWRITE (was 73 test 23). The member category is live-org membership, and the admin RPC can grant
+-- it a tenant-local workline scope without changing the unrelated global capability vocabulary.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca12","access_roles":["admin"]}';
+select shared.save_role_authority('[{"action":"workline.manage","role":"member","scope":"org"}]'::jsonb);
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca10","access_roles":["member"]}';
 select lives_ok($$
   insert into mos.work_lines (name, type) values ('Member Now Can','process')
 $$,
-  'granting member workline.manage OPENS the work_lines write — the same property, on the other catalog');
+  'granting member workline.manage in the tenant matrix OPENS the work_lines write — the same property, on the other catalog');
 
 reset role;
 select * from finish();

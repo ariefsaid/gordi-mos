@@ -1,13 +1,13 @@
-/* Select — wraps a native <select> with token chrome. Label + box(select) + chevron-down glyph.
-   32px box, 8px radius. error → destructive border. disabled → secondary bg. */
-.mk-select { display: flex; flex-direction: column; gap: 4px; }
+/* Select — designed trigger + portaled listbox, with a visually-hidden native form bridge.
+   The trigger keeps the 32px desktop control grammar; phone targets grow to 44px. */
+.mk-select { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .mk-select__label {
   font-size: var(--font-size-label); color: var(--muted-foreground);
   font-weight: 500;
 }
 .mk-select__box {
-  display: inline-flex; align-items: center;
-  height: 32px; padding: 0 28px 0 10px;
+  display: inline-flex; align-items: stretch;
+  min-width: 0; min-height: 32px;
   background: var(--background); border: 1px solid var(--input);
   border-radius: var(--radius-sm);
   transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
@@ -23,20 +23,28 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent);
 }
 .mk-select__field {
-  flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
-  font: inherit; font-size: var(--font-size-control); color: var(--foreground); padding: 0;
-  appearance: none;
-  -webkit-appearance: none;
-  cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  flex: 1; min-width: 0; min-height: 30px;
+  border: 0; outline: 0; background: transparent;
+  font: inherit; font-size: var(--font-size-control); line-height: 1.35;
+  color: var(--foreground); padding: 5px 10px;
+  text-align: left; cursor: pointer;
 }
-.mk-select__field::placeholder { color: var(--muted-foreground); }
+.mk-select__field > span:first-child {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mk-select__field:hover:not(:disabled) { color: var(--foreground); }
+.mk-select__field:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: 2px;
+}
 .mk-select__field:disabled { cursor: not-allowed; }
+.mk-select__placeholder { color: var(--muted-foreground); }
 .mk-select__chevron {
-  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
   width: 14px; height: 14px; color: var(--muted-foreground);
   pointer-events: none; flex-shrink: 0;
 }
 .mk-select--full { width: 100%; }
+.mk-select--full .mk-select__box { width: 100%; }
 .mk-select--error .mk-select__box { border-color: var(--destructive); }
 .mk-select--error .mk-select__box:focus-within {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--destructive) 25%, transparent);
@@ -44,9 +52,52 @@
 .mk-select--disabled .mk-select__box { background: var(--secondary); cursor: not-allowed; }
 .mk-select--disabled .mk-select__field { cursor: not-allowed; }
 
-/* Phone tap-target floor (DO-15a, census-sweep R2 task-create F3) — one seam, every consumer.
-   The native select stretches with the box so the whole 44px area stays the hit target. */
+/* The bridge stays in the form and out of the accessibility tree. It is not display:none: native
+   constraint validation and FormData need a real successful form control. */
+.mk-select__native {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; border: 0; clip: rect(0 0 0 0); clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Portaled so an overflow-hidden table/panel cannot clip it. It outranks drawer sheets while
+   remaining below centered modal/confirm chrome in the shared overlay ladder. */
+.mk-select__menu {
+  position: fixed;
+  z-index: calc(var(--z-drawer) + 1);
+  box-sizing: border-box;
+  max-width: calc(100vw - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--popover);
+  color: var(--foreground);
+  box-shadow: var(--shadow-overlay);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  outline: none;
+}
+.mk-select__option {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  min-height: 44px; box-sizing: border-box; padding: 8px 12px;
+  border-radius: var(--radius-sm); cursor: pointer;
+}
+.mk-select__option > span:first-child {
+  min-width: 0; overflow-wrap: anywhere; white-space: normal;
+}
+.mk-select__option > svg { flex: none; margin-top: 2px; }
+.mk-select__option[data-active='true'] { background: var(--secondary); }
+.mk-select__option[aria-selected='true'] { color: var(--primary); font-weight: 600; }
+.mk-select__option[aria-disabled='true'] {
+  color: var(--muted-foreground); cursor: not-allowed; opacity: .56;
+}
+
+/* Phone tap-target floor (DO-15a / DD-MVP-2): both the visible trigger and every option stay
+   reachable for one-handed use. The portaled menu also clamps to the viewport in its inline
+   position calculation and wraps long option labels instead of widening the page. */
 @media (max-width: 767.98px) {
   .mk-select__box { min-height: 44px; }
-  .mk-select__field { min-height: 44px; }
+  .mk-select__field { min-height: 42px; }
 }

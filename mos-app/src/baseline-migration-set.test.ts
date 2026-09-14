@@ -88,7 +88,12 @@ describe('AC-014 — a deferral is never silent', () => {
     const empty = testFiles.filter((f) => {
       const body = readFileSync(join(TESTS, f), 'utf8')
       const plan = /select\s+plan\(\s*(\d+)\s*\)/i.exec(body)
-      return !plan || Number(plan[1]) === 0
+      if (plan) return Number(plan[1]) === 0
+
+      // Some suites derive their plan from the live catalog so a newly added object cannot make
+      // the plan stale. `1 + count(*)` is structurally positive even though static text parsing
+      // cannot evaluate its result.
+      return !/select\s+plan\(\s*1\s*\+\s*\(\s*select\s+count\(\*\)::int/i.test(body)
     })
     expect(empty).toEqual([])
   })

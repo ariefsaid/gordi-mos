@@ -134,7 +134,7 @@ function ShellContent() {
   const { open: searchOpen, mode: searchMode, setOpen: setSearchOpen, openWithMode } = useCommandMenu()
   // AC-428/FR-417: every Share Signal entry point — ⌘K, the phone action launcher (which opens
   // ⌘K), the Home feed row — dispatches the SAME useSignalComposer().open().
-  const { open: openSignalComposer } = useSignalComposer()
+  const { open: openSignalComposer, canPost } = useSignalComposer()
   const focusMoreRef = useRef<(() => void) | undefined>(undefined)
 
   // Lane B2 — reconcile the Deputy companion with any shell-owner overlay. Both consume the shell's
@@ -266,6 +266,7 @@ function ShellContent() {
         mode={searchMode}
         onClose={() => setSearchOpen(false)}
         onShareSignal={openSignalComposer}
+        canShareSignal={canPost !== false}
       />
 
       {/* Deputy assistant (ADR-0018 P2) — the state/content owner is mounted once at the shell root,

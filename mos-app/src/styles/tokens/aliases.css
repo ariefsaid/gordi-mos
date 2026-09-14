@@ -29,7 +29,7 @@
   --border-light: var(--ds-border-color-light);
   --border-accent: var(--ds-border-color-blue);
   --border-danger: var(--ds-border-color-danger);
-  --input: var(--border-medium);
+  --input: var(--control-border);
 
   /* ---- Accent (indigo) ---- */
   --accent: var(--ds-color-blue);          /* primary brand action */

@@ -32,12 +32,12 @@ select ops._test_seed_cafe();
 -- #744: the production-log insert gate arms on stream-Team affiliation. Author ...0d1 is this
 -- file's submitting member, so the fixture gives her a live (Gordi HQ, bar) membership — the unit
 -- binding contracts below are orthogonal to the gate and now run as an AFFILIATED member, which
--- is the persona the page actually serves.
-insert into shared.teams (id, org_id, business_unit_id, name, code, branch_id, activity) values
-  ('00000000-0000-0000-0000-00000000aa23','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','Ops13 Fixture Stream','ops13_fixture_stream',
-   '00000000-0000-0000-0000-00000000bf01','bar');
-insert into shared.team_memberships (org_id, person_id, team_id, is_primary) values
-  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-00000000aa23',true);
+-- is the persona the page actually serves. The Café fixture seeds that real stream, so the
+-- membership uses it rather than creating a duplicate coordinate.
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
+select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d1', t.id, true
+from shared.teams t
+where t.org_id = '00000000-0000-0000-0000-0000000000a1' and t.code = 'gordi_hq_bar';
 
 -- Alternate units for Ayam Bakar (ab02), inserted here rather than grown in the shared fixture
 -- so ops_11's per-item view counts stay untouched. Superuser context, claims cleared — the
