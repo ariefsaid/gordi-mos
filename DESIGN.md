@@ -1,11 +1,10 @@
-> **Home and Tasks recovery:** `REDESIGN.md` is the active brief for those two surfaces and
-> their immediate shared interaction seams. It may supersede historical page-composition rules
-> only where it records current owner decisions; it does not supersede this document's style
-> authority. Preserve the established v3/v4 palette, type, tokens, responsive and interaction
-> grammar, including the approved Focused/Overview/List arrangements and Personal Profile choice
-> and Signals' right-hand desktop placement. An implementation conflict is a defect, not a reason
-> to rewrite this authority or certify the current result. Unrelated surfaces continue using this
-> system. Prior snapshots are retained in local redesign records.
+> **Current MVP design authority:** This is the intended design system for Tasks, Café WIP
+> production, Signals and their shared seams. Current owner direction and explicitly delegated
+> Director Decisions amend obsolete prescriptions; see local `docs/decisions.md` (DD-MVP).
+> Preserve the approved palette, typography, Home Focused/Overview/List, Personal Profile choice
+> and Signals' right-hand desktop placement. Review actual rendered interactions, including
+> opened controls and failure states. Neither existing implementation nor a passing structural
+> test certifies conformance. `REDESIGN.md` retains the current Home/Tasks composition brief.
 
 ---
 name: Gordi MOS
@@ -628,7 +627,7 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 - **Style:** `background` fill, 1px `input` border, **8px control radius** (`{rounded.sm}` = `calc(var(--radius) - 4px)`), 32px tall, `0 10px` padding. Placeholder = `muted-foreground`. The search-mini and the header `cmdk` are the canonical field shells; inner `<input>` is borderless/transparent and inherits the font (DM Sans). No resting shadow on inputs (Soft-Elevation Rule — flat utility surface).
 - **Focus:** `:focus-visible` ring (`2px {colors.ring}`, 2px offset). The `cmdk` also shifts its border on hover (`muted-foreground/50%`).
 - **Checkbox:** 16px, 1.5px `input` border, **4px radius** (`{rounded.xs}` = `calc(var(--radius) - 8px)`); checked → `primary` fill + `primary` border + white check. Exposed with `role="checkbox"` + `aria-checked` + `tabindex`.
-- **Select (RATIFIED 2026-07-07, `[NEW]` — closes the "11 raw `<select>`" divergence, UI-coherence audit D2/E3):** the one dropdown shell for a bounded choice. It **wraps a native `<select>`** — never a custom listbox — so keyboard, type-ahead, screen-reader semantics, and the phone-native picker come for free (ponytail: no JS menu to own). The native element is visually reset (`appearance: none`, no default arrow) and the shell supplies token chrome identical to a field: `background` fill, 1px `input` border, **8px control radius** (`{rounded.sm}`), **32px tall**, `0 28px 0 10px` padding (right room for the glyph), `foreground` value text, `:focus-visible` ring (`2px {colors.ring}`, 2px offset), flat at rest (utility surface — no shadow). A **14px chevron-down** glyph (`muted-foreground`, `aria-hidden`) sits absolutely at `right: 8px`, `pointer-events: none`. Placeholder/unset option = `muted-foreground`. Disabled = `secondary` bg + `muted-foreground` text + `not-allowed` cursor (this is also the ratification of the disabled-field styling proposed below, scoped to Select). Exposed via the native `<select>` — pass `aria-label` (or a visible `<label>`); no extra ARIA. Lives at `mos-app/src/components/ui/select.tsx`; **all bounded-choice dropdowns import it — no raw `<select>` in `src/pages` or `src/components`** (grep guard).
+- **Select (DD-MVP-2):** one shared accessible bounded-choice control with a designed trigger **and opened options popup** on desktop and phone. The former native-select-only prescription is superseded. Reuse field tokens: `background`/`foreground`, `input` border, 8px control radius, visible focus ring, muted placeholder and disabled treatment; popup uses `popover`/`popover-foreground`, restrained elevation, clear selected/active states and readable wrapped option labels. Phone targets are at least 44px. The popup stays within viewport edges, scrolls long lists and layers correctly inside panels. Preserve labels, form values, controlled/uncontrolled selection, disabled options and validation semantics. Verify keyboard opening, arrows, Home/End, type-ahead, Enter/Space selection, Escape cancellation, outside dismissal and focus return. A hidden native form bridge is acceptable; browser-owned visible option chrome is not the product popup. All bounded-choice fields use `mos-app/src/components/ui/select.tsx`; a reuse guard supplements, never replaces, opened-state browser and behavior checks.
 - **Error (field validation — RATIFIED 2026-06-15, OD-P3-5):** the documented gap is now closed with two named tokens, both reusing existing palette values (no new hue):
   - `--field-error-border` = `destructive` — the field's 1px `input` border swaps to `destructive` while the field is invalid.
   - `--field-error-text` = `--status-lost-text` (`0 72% 45%`, the AA-darkened red) — for the helper/error line below the field. **Not** base `destructive`, which fails AA (~3.6:1) as small text on white; the darkened red clears AA (≥4.5:1), mirroring the Tinted-Status pattern (saturated hue for the marker/outline, darkened variant for the text).
@@ -1350,3 +1349,16 @@ Taste is an anti-slop checklist only. It yields to E7 identity, owner law, acces
 ### Issue 1 evidence boundary
 
 The route/component/style seam inventory behind this contract — existing bespoke heads/frames, route-local CSS, duplicate menus/dialogs/panels, and the current panel geometry — was taken by direct source inspection. That evidence is intentionally not a claim that AC-V3-001 or final AC-V3-014 rendered acceptance has passed. Issue 1 changes documentation and source inspection only. The reconciled DESIGN.md contract is proven by the in-tree conformance guards (`kit-vocab.test.ts`, `record-collection-conformance.test.ts`, and the token-vocab ratchet); a green run of those guards cannot claim application migration or rendered representative acceptance. The approved sequence assigns Issue 3 to **Page-family primitives and migration guards**, Issue 4 to **Shared overlay/panel/navigation host**, Issue 5 to **RecordViewer contract, field primitives, and Task adapter**, Issue 6 to **RecordCollection/view engine and Tasks/Signals adapters**, Issue 7 to **Inbox triage plus Deputy host integration**, Issue 8 to **Café canonical-record integration and Team-context correction**, and Issue 9 to **Representative-slice rendered/driven owner gate; provisional IA ratification**. Issues 10–12 remain separately owned by the master spec.
+
+## MVP interaction acceptance (DD-MVP-3 through DD-MVP-6)
+
+A feature passes design acceptance only after its real persisted journey and denied/read-only path
+are checked with the relevant roles. Review Tasks create/edit/complete/return, Café Plan/Log/Review/
+Stock and existing Pushes, and Signals post/recipient Inbox/link Task/retract. Record which behavior
+was observed in the browser and which is supported only by a unit test, database test or source read.
+
+Inspect desktop and 390px phone layouts with opened controls, long names, translated labels,
+text enlargement, loading, empty, validation/error/retry and keyboard focus states. Full values and
+actions remain reachable without horizontal page overflow. A truncated saved-view label retains an
+accessible full name and a reachable full-value presentation. Amend obsolete test assertions with
+approved behavior changes; retain persistence, authorization and error-recovery protections.

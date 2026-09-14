@@ -3,9 +3,11 @@
 ## Active Home and Tasks replacement
 
 For Home and Tasks composition, `REDESIGN.md` is the current owner-composition brief and delivery
-scope; `DESIGN.md` remains binding style authority. `REDESIGN.md` supersedes historical
+scope; `DESIGN.md` is the intended style and interaction authority, amended by current owner
+direction and delegated Director Decisions in `docs/decisions.md` (DD-MVP). `REDESIGN.md` supersedes historical
 page-composition constraints only where it records current owner decisions; it does not authorize
-palette, token or interaction-grammar drift, or certify the current implementation. The current
+unrelated palette or token drift, or certify the current implementation. Retired interaction
+prescriptions must not override the current DD-MVP acceptance criteria. The current
 MVP recovery checkpoint is scoped by `docs/plans/2026-09-14-mvp-recovery.md` to Tasks, Café WIP
 production and Signals without changing the approved Home composition. Use bounded isolated
 workers, integrate running surfaces, and review the result against actual user outcomes. Preserve
@@ -126,7 +128,9 @@ honest work teaches `--no-verify`, which disables the guards that matter. This o
 - typecheck + ESLint zero errors; ≥80% lines on changed code.
 - Reversible migrations. **RLS on every business table.** `org_id` seam enforced.
 - `DESIGN.md` is the design-system source of truth — never re-invent it.
-- UI is not done until rendered and looked at, at real widths (incl. ≤390px phone).
+- UI is not done until rendered and operated at real widths (incl. ≤390px phone): open controls,
+  keyboard/focus, long content, loading/empty/error states and the persisted role-correct journey.
+  Record browser evidence separately from source/test evidence; shared-component reuse is not visual acceptance.
 
 ## Test pyramid
 Each acceptance criterion is owned by **one** test at the lowest sufficient layer: unit (Vitest/RTL)
