@@ -32,4 +32,10 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
       /@media\s*\(min-width:\s*1200px\)[\s\S]*?\.tasks-collection-toolbar \.tasks-attention-picker\s*\{[^}]*flex:\s*0 0 auto;[^}]*min-width:\s*max-content;/s,
     )
   })
+
+  it('constrains popover triggers to their toolbar wrapper across font metrics', () => {
+    expect(css).toMatch(
+      /\.collection-toolbar__choice-trigger\s*\{[^}]*box-sizing:\s*border-box;[^}]*width:\s*100%;/s,
+    )
+  })
 })
