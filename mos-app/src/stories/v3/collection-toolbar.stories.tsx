@@ -193,7 +193,7 @@ export const DesktopActiveFilter: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByLabelText('PIC')).toHaveValue('p-aisyah')
+    await expect(canvas.getByRole('combobox', { name: 'PIC' })).toHaveTextContent('Aisyah Rahman')
   },
 }
 

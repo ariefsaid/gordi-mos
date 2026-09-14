@@ -83,11 +83,8 @@ export interface EmptyStateProps {
    */
   suggestions?: EmptyStateSuggestion[]
   /**
-   * Heading level for the title. Defaults to 3, which is what every call site on this branch
-   * already renders — the prop exists so a surface whose EmptyState sits directly under the page
-   * h1 can pass 2 and not skip a level. (v4 raised the DEFAULT to 2; that changes the outline of
-   * ~20 existing call sites and belongs to the PR that ports those surfaces, not to the route
-   * table.)
+   * Heading level for the title. Defaults to 2 because route-level empty states sit directly
+   * under the page h1. Nested record sections can pass their own deeper level.
    */
   headingLevel?: 2 | 3 | 4 | 5 | 6
   /**
@@ -126,7 +123,7 @@ export function EmptyState({
   variant = 'quiet',
   icon,
   suggestions,
-  headingLevel = 3,
+  headingLevel = 2,
   nested = false,
   children,
   className,

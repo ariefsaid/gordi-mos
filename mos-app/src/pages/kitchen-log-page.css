@@ -278,7 +278,7 @@
    left, stepper right (thumb side), basis + status on one muted line beneath.
    ~76px vs the ~200px it replaces, so a 21-dish service fits ~8 rows a screen
    instead of ~1. Token colours + documented type ramp only. */
-.kl-card { display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; }
+.kl-row { display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; }
 .kl-card-head {
   display: flex;
   /* v4: flex-start, not center — once the variance note reveals, the row grows and `center`

@@ -252,7 +252,7 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
             rows visible without scrolling. Full typed metadata still lives one tap away on the
             record (DESIGN.md "Progressive disclosure"). */}
         <dl className="task-card-meta collection-grammar-card-details">
-          <span className="task-card-meta-pair">
+          <div className="task-card-meta-pair">
             <dt>{t('tasks.pic')}</dt>
             <dd>
               {isNew && onEditPic ? (
@@ -270,8 +270,8 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
               ) : <PicCell fullName={rName} provenance={provenanceRoleName} />}
               {lockMessage && <span className="task-card-pic-lock">{lockMessage}</span>}
             </dd>
-          </span>
-          <span className="task-card-meta-pair">
+          </div>
+          <div className="task-card-meta-pair">
             <dt>{t('tasks.supervisor')}</dt>
             <dd>
               {isNew && onEditSupervisor ? (
@@ -290,11 +290,11 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
                 </span>
               ) : supervisorName ? <PersonCell fullName={supervisorName} /> : '—'}
             </dd>
-          </span>
-          <span className="task-card-meta-pair">
+          </div>
+          <div className="task-card-meta-pair">
             <dt>{t('tasks.dueLabel')}</dt>
             <dd className={`tabular-nums ${dueClass}`}>{dueText}</dd>
-          </span>
+          </div>
         </dl>
         {isNew && (
           <div className="task-card-create-actions" onClick={(event) => { event.preventDefault(); event.stopPropagation() }}>

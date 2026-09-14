@@ -7,12 +7,28 @@ const STORYBOOK_VIEWPORTS = {
   phone390: { width: 390, height: 844 },
 } as const
 
+function viewportFromStoryId(id: string): keyof typeof STORYBOOK_VIEWPORTS {
+  if (id.includes('intermediate')) return 'intermediate'
+  if (id.includes('phone') || id.endsWith('--keyboard-journeys')) return 'phone390'
+  return 'desktop1280'
+}
+
 const config: TestRunnerConfig = {
   async preVisit(page, context) {
-    const story = await getStoryContext(page, context)
-    const parameters = (story as unknown as { parameters?: { v3Viewport?: string } }).parameters
-    const viewportValue = parameters?.v3Viewport ?? 'desktop1280'
-    const viewport = STORYBOOK_VIEWPORTS[viewportValue as keyof typeof STORYBOOK_VIEWPORTS] ?? STORYBOOK_VIEWPORTS.desktop1280
+    const fallbackViewport = viewportFromStoryId(context.id)
+    let viewportValue: string | undefined
+
+    // Storybook 10 can call preVisit before its preview-side __getContext bridge exists.
+    // Use the story's v3Viewport metadata when the bridge is ready, then fall back to the
+    // stable responsive story ids so an early bridge race never fails the test runner.
+    try {
+      const story = await getStoryContext(page, context)
+      viewportValue = (story as unknown as { parameters?: { v3Viewport?: string } }).parameters?.v3Viewport
+    } catch {
+      viewportValue = undefined
+    }
+
+    const viewport = STORYBOOK_VIEWPORTS[viewportValue as keyof typeof STORYBOOK_VIEWPORTS] ?? STORYBOOK_VIEWPORTS[fallbackViewport]
     await page.setViewportSize(viewport)
   },
   async postVisit(page) {

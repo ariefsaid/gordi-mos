@@ -122,7 +122,7 @@ export const KpiTileMatrix: Story = {
     await expect(within(gm).getByText('interim — stock-movement')).toBeVisible()
     await expect(within(gm).getByText(/good/i)).toBeVisible()
     // Loading grammar: label stays visible AND names the busy status (no Pill skeleton).
-    await expect(canvas.getByRole('status', { name: 'Interim COGS' })).toBeInTheDocument()
+    await expect(canvas.getByRole('group', { name: 'Interim COGS' })).toHaveAttribute('aria-busy', 'true')
     // The value keeps the nowrap grammar at the 23px desktop ceiling.
     const value = revenue.querySelector('.kpi-tile-value--nowrap') as HTMLElement
     await expect(getComputedStyle(value).whiteSpace).toBe('nowrap')

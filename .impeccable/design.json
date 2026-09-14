@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-14T10:21:16.393Z",
+  "generatedAt": "2026-09-14T19:28:04.064Z",
   "title": "Design System: Gordi MOS",
   "extensions": {
     "colorMeta": {
@@ -211,30 +211,40 @@
     "shadows": [
       {
         "name": "rest",
-        "value": "0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04)",
+        "value": "var(--shadow-rest)",
         "purpose": "The one resting lift. Cards, KPI tiles, kanban cards and Home bento tiles ONLY — co-signs the 1px border, never replaces it (OD-P3-11). Flat utility surfaces (toolbars, rows, strips, the v4 summary rule, the v4 List band, the v4 progress track) get none."
       },
       {
         "name": "state-lift",
-        "value": "0 2px 10px hsl(240 6% 10% / 0.06)",
-        "purpose": "Card or KPI tile on hover — deepens from rest."
+        "value": "0 2px 10px color-mix(in srgb, var(--ds-font-color-primary) 6%, transparent)",
+        "purpose": "The hover state for surfaces that deepen their border or lift from rest; the current KPI card keeps the resting shadow and transitions its border."
       },
       {
         "name": "kanban-hover",
-        "value": "0 4px 14px hsl(240 6% 10% / 0.10)",
+        "value": "0 4px 14px color-mix(in srgb, var(--ds-font-color-primary) 10%, transparent)",
         "purpose": "Draggable kanban card on hover; lifts more because it is grabbable."
       },
       {
         "name": "brand-button",
-        "value": "0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent)",
+        "value": "var(--shadow-brand-button)",
         "purpose": "Faint brand-tinted lift under the primary button."
       }
     ],
     "motion": [
       {
-        "name": "state-transition",
-        "value": "background 0.2s, border-color 0.2s, box-shadow 0.2s",
-        "purpose": "Default control state easing. Motion here is a response to state, never decoration."
+        "name": "dur-fast",
+        "value": "120ms",
+        "purpose": "Control state transitions for borders, backgrounds, colors and icon buttons. Motion is a response to state, never decoration."
+      },
+      {
+        "name": "dur-med",
+        "value": "150ms",
+        "purpose": "Small movement transitions such as chevrons and tab indicators."
+      },
+      {
+        "name": "dur-slow",
+        "value": "180ms",
+        "purpose": "Overlay entrances such as drawer sheets and the Deputy panel."
       }
     ],
     "measures": [
@@ -320,7 +330,7 @@
       },
       {
         "name": "disabled-field-styling",
-        "detail": "Disabled FIELD styling is still unratified in general (the Select component ratified its own: secondary bg + muted-foreground text + not-allowed cursor). Buttons DO have it shipped in ui/Button.css (opacity .5, not-allowed, no shadow, no background-image, saturate .35)."
+        "detail": "A single cross-field disabled contract remains unratified, but the shipped TextInput, Select, Picker and DateField primitives use the secondary surface and a not-allowed cursor with their own muted/disabled affordance. Buttons use the shared ui/Button.css treatment (opacity .5, not-allowed, no shadow, no background-image, saturate .35)."
       }
     ]
   },
@@ -468,6 +478,22 @@
       "description": "Four sanctioned archetypes, matching EmptyStateVariant in components/ui/state-kit.tsx. quiet — calm nothing-to-do; icon + title + one-line reason, NO cta (e.g. /inbox caught up). next-step — one direct action resolves it; icon + title + explanation + ONE action. awaiting — refills from submissions or a sync-fed source; adds a muted retry/status line + one refresh action. blank — empty BY DESIGN (a placeholder route, an unbuilt slice); deliberately the quietest, with no accent tint, so it never reads as an earned all-clear or as pending work. Rule: one route, one empty frame, one action maximum; the archetypes vary only the message and whether the single action slot is filled. Spacing, type, icon treatment and body measure stay shared, and no new empty-state colours, fonts or chrome are minted. ADDED 2026-08-06 — absent from the v4 copy this file was ported from; `blank` postdates v4 (CardHead.css records it).",
       "html": "<section class=\"ds-empty-state ds-empty-state--quiet\" aria-labelledby=\"ds-empty-title\"><div class=\"ds-empty-state__frame\"><div class=\"ds-empty-state__icon\" aria-hidden=\"true\"><span class=\"ds-empty-state__glyph\">✓</span></div><div class=\"ds-empty-state__body\"><h3 id=\"ds-empty-title\" class=\"ds-empty-state__title\">You're all caught up</h3><p class=\"ds-empty-state__copy\">Nothing needs your attention right now.</p></div><div class=\"ds-empty-state__actions\"><button class=\"ds-empty-state__action\">Open tasks</button></div></div></section>",
       "css": ".ds-empty-state { display: flex; justify-content: center; align-items: center; padding: 28px 20px; min-height: 240px; } .ds-empty-state__frame { width: min(100%, 440px); display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; } .ds-empty-state__icon { width: 44px; height: 44px; border-radius: var(--radius-pill); display: inline-flex; align-items: center; justify-content: center; background: var(--secondary); color: var(--muted-foreground); } .ds-empty-state__glyph { font-size: var(--font-size-subheading); line-height: 1; font-weight: 600; } .ds-empty-state__body { display: flex; flex-direction: column; gap: 4px; } .ds-empty-state__title { font-size: var(--font-size-subheading); font-weight: 600; margin: 0; color: var(--foreground); } .ds-empty-state__copy { font-size: var(--font-size-body); color: var(--muted-foreground); margin: 0; } .ds-empty-state__actions { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; } .ds-empty-state__action { min-height: 32px; padding: 6px 12px; border: 1px solid var(--input); border-radius: var(--radius-sm); background: var(--background); color: var(--foreground); font: inherit; font-size: var(--font-size-control); cursor: pointer; } .ds-empty-state__action:hover { background: var(--surface-tertiary); } .ds-empty-state__action:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-empty-state--next-step .ds-empty-state__icon { background: color-mix(in srgb, var(--primary) 12%, var(--secondary)); color: var(--primary); } .ds-empty-state--awaiting .ds-empty-state__icon { background: color-mix(in srgb, var(--warning) 10%, var(--secondary)); } .ds-empty-state--blank .ds-empty-state__icon { background: var(--secondary); color: var(--muted-foreground); }"
+    },
+    {
+      "name": "Collection Toolbar",
+      "kind": "custom",
+      "refersTo": "collection-toolbar",
+      "description": "The shared two-row collection control surface used by Tasks and Signals: saved-view chips and live presentation tabs lead row 1; search, Group, domain filters, Sort, Fields, Save view and one attention count occupy row 2. It is flat at rest. On phone, the host keeps one View & filters disclosure and the same controls remain available inside it.",
+      "html": "<section class=\"ds-collection-toolbar\" aria-label=\"Collection controls\"><div class=\"ds-collection-toolbar__primary\"><span class=\"ds-collection-toolbar__views-label\">Saved view</span><div class=\"ds-collection-toolbar__views\"><button class=\"ds-collection-toolbar__view\">All</button><button class=\"ds-collection-toolbar__view ds-collection-toolbar__view--active\" aria-pressed=\"true\">Needs attention</button></div><span class=\"ds-collection-toolbar__spacer\"></span><div class=\"ds-collection-toolbar__presentations\" role=\"tablist\" aria-label=\"Presentation\"><button class=\"ds-collection-toolbar__presentation ds-collection-toolbar__presentation--active\" role=\"tab\" aria-selected=\"true\">Table</button><button class=\"ds-collection-toolbar__presentation\" role=\"tab\" aria-selected=\"false\">Card</button></div></div><button class=\"ds-collection-toolbar__mobile-door\" aria-expanded=\"false\">View &amp; filters</button><div class=\"ds-collection-toolbar__options ds-collection-toolbar__desktop\"><label class=\"ds-collection-toolbar__search\"><span class=\"ds-collection-toolbar__search-icon\" aria-hidden=\"true\">⌕</span><input type=\"search\" placeholder=\"Search tasks\" /></label><button class=\"ds-collection-toolbar__choice\">Group: None⌄</button><button class=\"ds-collection-toolbar__choice\">Status: Any⌄</button><button class=\"ds-collection-toolbar__save\">Save view</button><span class=\"ds-collection-toolbar__attention\">2 attention</span></div></section>",
+      "css": ".ds-collection-toolbar { display: flex; flex-direction: column; min-width: 0; border-bottom: 1px solid var(--border); background: var(--card); } .ds-collection-toolbar__primary { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 48px; padding: 6px 12px; border-bottom: 1px solid var(--border); } .ds-collection-toolbar__views-label { flex: none; padding-left: 4px; color: var(--muted-foreground); font-size: var(--font-size-mono); white-space: nowrap; } .ds-collection-toolbar__views { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; min-height: 32px; padding: 3px; border-radius: var(--radius-sm); background: var(--secondary); overflow-x: auto; scrollbar-width: none; } .ds-collection-toolbar__views::-webkit-scrollbar { display: none; } .ds-collection-toolbar__view { flex: none; min-height: 26px; padding: 0 10px; border: 0; border-radius: calc(var(--radius-sm) - 2px); background: transparent; color: var(--secondary-foreground); font: inherit; font-size: var(--font-size-body); white-space: nowrap; cursor: pointer; } .ds-collection-toolbar__view:hover { background: var(--surface-tertiary); color: var(--foreground); } .ds-collection-toolbar__view:focus-visible, .ds-collection-toolbar__presentation:focus-visible, .ds-collection-toolbar__choice:focus-visible, .ds-collection-toolbar__save:focus-visible, .ds-collection-toolbar__mobile-door:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-collection-toolbar__view--active { background: var(--background); color: var(--foreground); font-weight: 600; box-shadow: 0 0 0 1px var(--border-strong); } .ds-collection-toolbar__spacer { flex: 1 1 auto; min-width: 12px; } .ds-collection-toolbar__presentations { display: inline-flex; align-items: center; flex: none; gap: 4px; } .ds-collection-toolbar__presentation { min-height: 32px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--muted-foreground); font: inherit; font-size: var(--font-size-control); font-weight: 600; cursor: pointer; } .ds-collection-toolbar__presentation:hover { color: var(--foreground); } .ds-collection-toolbar__presentation--active { color: var(--brand-navy-text); border-bottom-color: var(--brand-orange); } .ds-collection-toolbar__options { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--secondary) 28%, var(--card)); } .ds-collection-toolbar__search { display: inline-flex; align-items: center; gap: 6px; flex: 1 1 220px; min-width: 150px; max-width: 320px; height: 32px; padding: 0 10px; border: 1px solid var(--input); border-radius: var(--radius-sm); background: var(--background); color: var(--muted-foreground); } .ds-collection-toolbar__search:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent); } .ds-collection-toolbar__search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--foreground); font: inherit; font-size: var(--font-size-body-lg); } .ds-collection-toolbar__choice { min-height: 32px; padding: 6px 10px; border: 1px solid var(--input); border-radius: var(--radius-sm); background: var(--background); color: var(--foreground); font: inherit; cursor: pointer; } .ds-collection-toolbar__save { min-height: 32px; padding: 6px 0; border: 0; background: transparent; color: var(--muted-foreground); font: inherit; cursor: pointer; } .ds-collection-toolbar__attention { min-height: 22px; padding: 2px 8px; border: 1px solid var(--destructive); border-radius: var(--radius-sm); color: var(--status-lost-text); font-size: var(--font-size-label); font-weight: 600; white-space: nowrap; } .ds-collection-toolbar__mobile-door { display: none; } @media (max-width: 767.98px) { .ds-collection-toolbar__desktop { display: none; } .ds-collection-toolbar__mobile-door { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-bottom: 1px solid var(--border); background: var(--card); color: var(--foreground); font: inherit; font-weight: 600; cursor: pointer; } .ds-collection-toolbar__presentations { display: none; } }"
+    },
+    {
+      "name": "Signal Row",
+      "kind": "custom",
+      "refersTo": "signal-row",
+      "description": "One Signal anatomy shared by Home's ambient tail and the Signals archive Feed: a full-wrapping body-lg title, grouped mono metadata that wraps only between facts, and an optional attention tail. Archive Urgent rows add a warning/7% fill and 2px warning leading rule; Needs attention keeps the calm amber capsule.",
+      "html": "<ul class=\"ds-signal-feed\" aria-label=\"Signals\"><li class=\"ds-signal-row ds-signal-row--urgent\"><div class=\"ds-signal-main\"><button class=\"ds-signal-title\">Supplier delivery is late for tomorrow's service</button><div class=\"ds-signal-meta\"><span class=\"ds-signal-meta-item\">Dewi</span><span class=\"ds-signal-meta-item\">Operations</span><span class=\"ds-signal-meta-item\">Today, 09:12</span></div></div><div class=\"ds-signal-tail\"><span class=\"ds-signal-attention ds-signal-attention--urgent\">Urgent</span></div></li></ul>",
+      "css": ".ds-signal-feed { list-style: none; margin: 0; padding: 0; min-width: 0; container: ds-signal-feed / inline-size; } .ds-signal-row { display: flex; align-items: flex-start; gap: 12px; min-width: 0; min-height: var(--row-min-h, 50px); padding: var(--row-pad-y, 10px) 4px; } .ds-signal-row + .ds-signal-row { border-top: 1px solid var(--row-divider); } .ds-signal-main { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; } .ds-signal-title { display: block; width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; color: var(--foreground); font: inherit; font-size: var(--font-size-body-lg); font-weight: 600; line-height: 1.45; text-align: left; white-space: normal; overflow-wrap: anywhere; cursor: pointer; } .ds-signal-title:hover { text-decoration: underline; } .ds-signal-title:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); } .ds-signal-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; color: var(--muted-foreground); font-size: var(--font-size-mono); } .ds-signal-meta-item { display: inline-flex; min-width: 0; white-space: nowrap; } .ds-signal-tail { display: flex; align-items: center; gap: 8px; flex: none; } .ds-signal-attention { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: var(--radius-pill); font-size: var(--font-size-label); font-weight: 600; white-space: nowrap; } .ds-signal-attention--urgent { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--warning-foreground); } .ds-signal-attention--urgent::before { content: \"\"; flex: none; width: 6px; height: 6px; margin-right: 5px; border-radius: var(--radius-pill); background: var(--warning); } .ds-signal-row--urgent { background: color-mix(in srgb, var(--warning) 7%, transparent); border-left: 2px solid var(--warning); } @container ds-signal-feed (max-width: 480px) { .ds-signal-row { flex-direction: column; gap: 6px; } .ds-signal-tail { align-self: flex-start; } }"
     }
   ],
   "narrative": {
@@ -478,7 +504,7 @@
       "Borders define structure; a single subtle resting shadow now co-signs elevation on cards (OD-P3-11). Heavier shadows remain a response to state (hover, focus, overlay), never decoration.",
       "12px card/overlay radius (`--radius: 0.75rem`) is the spine; 32px controls stay tighter at 8px (`calc(var(--radius) - 4px)`) so they don't go bubbly.",
       "Plus Jakarta Sans for display/headings, DM Sans for body/UI/table; `tabular-nums` for all money and metrics; SF Mono for IDs/codes only.",
-      "Status is communicated by a small colored dot + tinted pill, not by loud fills."
+      "Status is communicated by an 8px colored dot + tinted pill, not by loud fills; Signal Urgent's 6px marker is surface-specific."
     ],
     "rules": [
       {
@@ -489,6 +515,11 @@
       {
         "name": "The Boundary Hierarchy Rule",
         "body": "Quiet border defines dividers and card structure. Interactive input/control-border clears 3:1 against its surface so controls remain identifiable.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tinted-Status Rule",
+        "body": "Status uses an 8px colored dot plus a pill tinted at ~10–18% of the status hue with a darkened text variant; solid status fills are reserved for the destructive button. Signal Urgent's 6px marker is a separate surface-specific attention treatment.",
         "section": "colors"
       },
       {
@@ -556,7 +587,7 @@
       "Do drive every interactive affordance with the one primary blue, and keep it under ~10% of any screen.",
       "Do keep structural borders quiet and give interactive controls the stronger 3:1 control boundary; cards also carry the one subtle resting lift.",
       "Do apply tabular-nums to every figure in tables, KPIs, kanban and funnels.",
-      "Do show status as a 6px dot plus a tinted pill, and reserve solid fills for the destructive button only.",
+      "Do show status as an 8px dot plus a tinted pill, and reserve solid fills for the destructive button only; keep Signal Urgent's 6px marker inside its attention capsule.",
       "Do keep controls at 32px with the 8px control radius; cards and overlays take the 12px card radius.",
       "Do set headings in Plus Jakarta Sans 600 and body/UI/table text in DM Sans; SF Mono for machine IDs only.",
       "Do expose the global focus-visible ring on every focusable element.",

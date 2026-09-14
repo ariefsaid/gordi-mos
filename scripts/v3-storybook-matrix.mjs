@@ -8,7 +8,7 @@ const typescript = require('typescript')
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const DEFAULT_REPO_ROOT = resolve(SCRIPT_DIR, '..')
-const SPEC_PATH = 'docs/specs/v3-redesign.spec.md'
+const SPEC_PATH = 'docs/archive/specs/v3-redesign.spec.md'
 const PREVIEW_PATH = 'mos-app/.storybook/preview.tsx'
 const MAIN_PATH = 'mos-app/.storybook/main.ts'
 const RUNNER_PATH = 'mos-app/.storybook/test-runner.ts'
@@ -107,7 +107,7 @@ const REQUIRED_CANONICAL_COMPONENTS = {
   DataTable: { file: 'mos-app/src/components/dashboard/data-table.tsx', importPath: '@/components/dashboard/data-table' },
   CommandMenu: { file: 'mos-app/src/components/command/command-menu.tsx', importPath: '@/components/command/command-menu' },
   ConfirmDialog: { file: 'mos-app/src/components/ui/confirm-dialog.tsx', importPath: '@/components/ui/confirm-dialog' },
-  RowMenu: { file: 'mos-app/src/components/tasks/row-menu.tsx', importPath: '@/components/tasks/row-menu' },
+  CatalogRowActions: { file: 'mos-app/src/components/catalog/catalog-row-actions.tsx', importPath: '@/components/catalog/catalog-row-actions' },
   RecordPanelHost: { file: 'mos-app/src/shell/record-panel-host.tsx', importPath: '@/shell/record-panel-host' },
   ViewTabs: { file: 'mos-app/src/components/ui/view-tabs.tsx', importPath: '@/components/ui/view-tabs' },
   TasksIcon: { file: 'mos-app/src/shell/icons.tsx', importPath: '@/shell/icons' },
@@ -277,7 +277,7 @@ const REQUIRED_STORY_OWNERSHIP = {
     jobs: ['overlay.command-search', 'overlay.confirmation', 'overlay.anchored-menu', 'overlay.current-record-panel-shell'],
     states: ['overlay.current-host-shell'],
     responsive: REQUIRED_VIEWPORTS,
-    canonicalSymbols: ['CommandMenu', 'Button', 'ConfirmDialog', 'RowMenu', 'RecordPanelHost'],
+    canonicalSymbols: ['CommandMenu', 'Button', 'ConfirmDialog', 'CatalogRowActions', 'RecordPanelHost'],
   },
   'mos-app/src/stories/v3/accessibility-responsive.stories.tsx': {
     jobs: ['accessibility.runnable-a11y', 'accessibility.runtime-proof', 'accessibility.keyboard-focus'],

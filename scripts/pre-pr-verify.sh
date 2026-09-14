@@ -43,7 +43,42 @@ bash scripts/reporting-snapshot.test.sh
 
 # ponytail: diff budget — oversized tickets are what six-round review chains are made of.
 # Warn-first for one milestone (owner 2026-08-27), then flips to a refusal.
-base="$(git merge-base HEAD "origin/${MOS_PR_BASE:-dev}" 2>/dev/null || true)"
+base_ref="origin/${MOS_PR_BASE:-dev}"
+git rev-parse --verify "$base_ref^{commit}" >/dev/null 2>&1 || {
+  echo "✗ cannot resolve verification base $base_ref" >&2
+  exit 1
+}
+base="$(git merge-base HEAD "$base_ref")"
+[ -n "$base" ] || { echo "✗ cannot find merge base with $base_ref" >&2; exit 1; }
+
+# The quantitative audit is a database-free control surface. Re-run its manifest,
+# artifact, and mutation checks whenever the harness or its chain wiring changes.
+# A live render stays behind the explicit design-quality-audit.sh door.
+design_audit_paths=""
+if [ -n "$base" ]; then
+  design_audit_paths="$(git diff --name-only "$base"...HEAD)"
+fi
+if printf '%s\n' "$design_audit_paths" | grep -Eq '^(adws/adw_design_audit\.py|mos-app/e2e/design-quality/|mos-app/playwright\.design-audit\.config\.ts|mos-app/tsconfig\.e2e\.json|scripts/design-quality-audit|mos-app/package\.json|\.github/workflows/(guards|design-shots)\.yml)$'; then
+  bash scripts/design-quality-audit.test.sh
+fi
+
+# A production UI change requires a completed handoff at this exact HEAD.
+# Tests, stories, and fixtures do not trigger the live-render gate.
+material_ui_paths=""
+if [ -n "$base" ]; then
+  material_ui_paths="$(git diff --name-only "$base"...HEAD -- mos-app/src mos-app/public \
+    | grep -E '\.(css|html|js|jsx|ts|tsx|svg|png|jpe?g|webp|woff2?)$' \
+    | grep -vE '(\.test\.|\.spec\.|\.stories\.|/__tests__/|/fixtures/)' || true)"
+fi
+if [ -n "$material_ui_paths" ]; then
+  if [ -z "${DESIGN_AUDIT_EVIDENCE_DIR:-}" ]; then
+    echo "✗ production UI changes require DESIGN_AUDIT_EVIDENCE_DIR at the exact HEAD" >&2
+    exit 1
+  else
+    node --experimental-strip-types scripts/validate-design-evidence.mjs \
+      "$DESIGN_AUDIT_EVIDENCE_DIR" "$head" --require-change-gate
+  fi
+fi
 if [ -n "$base" ]; then
   changed=$(git diff --numstat "$base"...HEAD -- ':!*package-lock.json' | awk '{s+=$1+$2} END{print s+0}')
   [ "$changed" -le 400 ] || echo "⚠ diff budget: $changed changed lines (>400) — split the next ticket smaller"

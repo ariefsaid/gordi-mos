@@ -128,10 +128,12 @@ export function SignalFeedRows({
           {capped.map((signal) => {
             if (signal.retracted_at) {
               return (
-                <li key={signal.id} className="home-signal-row home-signal-row--retracted" data-signal-id={signal.id}>
+                <li key={signal.id}>
+                  <div className="home-signal-row home-signal-row--retracted" data-signal-id={signal.id}>
                   <p className="home-signal-tombstone">
                     {t('signals.retracted')} {signal.retract_reason ? <span>{signal.retract_reason}</span> : null}
                   </p>
+                  </div>
                 </li>
               )
             }
@@ -146,8 +148,8 @@ export function SignalFeedRows({
             // canonical data attribute and accessible name; no action button is nested inside it.
             const openRow = onOpen ? ' home-signal-row--open' : ''
             return (
-              <li
-                key={signal.id}
+              <li key={signal.id}>
+                <div
                 className={`home-signal-row${attentionRow}${openRow}`}
                 data-signal-id={signal.id}
                 {...(onOpen ? {
@@ -197,6 +199,7 @@ export function SignalFeedRows({
                   <span className={`home-signal-attention home-signal-attention--${attentionSlug(signal.attention)}`}>
                     {attentionLabel(t, signal.attention)}
                   </span>
+                </div>
                 </div>
               </li>
             )

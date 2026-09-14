@@ -41,7 +41,7 @@ grep -q 'adw_design_audit.py' scripts/vendor-sssf.test.sh \
   || bad "adw_design_audit.py missing from scripts/vendor-sssf.test.sh DEVIATED list"
 
 OUT="$(python3 - "$ROOT" <<'PY'
-import importlib.util, sys, tempfile, types
+import importlib.util, json, subprocess, sys, tempfile, types
 from pathlib import Path
 
 root = Path(sys.argv[1])
@@ -91,13 +91,14 @@ class PhaseCtx:
         phases.append(self.params.kw["name"]); return Ph(self.params)
     def __exit__(self, *a): return False
 class FakeRun:
-    engineer = "t"; adw_id = "test"
+    engineer = "t"; adw_id = "ab12cd34"
     session_dir = work / "session"
+    context_handoff_dir = session_dir / "context_handoff"
     def phase(self, params): return PhaseCtx(params)
     def finish(self, accepted, reason=""):
         self.accepted = accepted; return 0 if accepted else 1
 fake_run = FakeRun()
-FakeRun.session_dir.mkdir(parents=True)
+FakeRun.context_handoff_dir.mkdir(parents=True)
 
 def mod(name, **attrs):
     m = types.ModuleType(name); [setattr(m, k, v) for k, v in attrs.items()]; return m
@@ -111,7 +112,8 @@ sys.modules.update({
                               validate=lambda cfg, req: validated.append(list(req))),
     "adw_modules.gates": mod("adw_modules.gates", artifacts_exist=lambda e, r: GateReport()),
     "adw_modules.git_helper": mod("adw_modules.git_helper",
-                                  short_sha=lambda ref="HEAD": "abc1234"),
+                                  short_sha=lambda ref="HEAD": "abc1234",
+                                  rev=lambda ref="HEAD": "a" * 40),
     "adw_modules.session": mod("adw_modules.session",
                                ensure=lambda cfg, adw_id: (sessions_started.append(adw_id),
                                                            fake_run)[1]),
@@ -124,6 +126,44 @@ spec = importlib.util.spec_from_file_location("adw_design_audit",
                                               root / "adws/adw_design_audit.py")
 audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
+
+# The browser lane is intentionally stubbed, but its exact artifact contract is
+# real: create the complete, SHA/session-stamped handoff so the chain gate can be
+# exercised without a server, database, or model call.
+quant_root = FakeRun.context_handoff_dir
+quant_artifacts = tuple(audit.QUANTITATIVE_ARTIFACTS)
+candidate_sha = "a" * 40
+for artifact in quant_artifacts:
+    target = quant_root / artifact
+    if artifact == "mockup-diff":
+        target.mkdir(parents=True, exist_ok=True)
+        (target / "status.json").write_text(json.dumps({
+            "candidateSha": candidate_sha, "sessionId": FakeRun.adw_id,
+            "status": "pass", "comparisons": [{"surface": "work"}]}))
+    elif artifact == "manifest.json":
+        rendered = subprocess.run([
+            "node", "--experimental-strip-types", "--input-type=module", "-e",
+            "import {manifestForArtifact} from './mos-app/e2e/design-quality/manifest.ts'; "
+            f"console.log(JSON.stringify(manifestForArtifact('{candidate_sha}', '{FakeRun.adw_id}')))"
+        ], cwd=root, check=True, capture_output=True, text=True).stdout
+        target.write_text(rendered)
+    elif artifact == "impeccable.json":
+        target.write_text(json.dumps({
+            "candidateSha": candidate_sha, "sessionId": FakeRun.adw_id,
+            "status": "pass", "scannedFiles": ["src/app.tsx"], "findings": []}))
+    elif artifact == "gate-log.txt":
+        target.write_text(
+            f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n"
+            "browser_status=0\nchain_status=not-run\n")
+    else:
+        target.write_text(
+            f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n"
+            "status\nobserved\n")
+(quant_root / "session.json").write_text(json.dumps({
+    "candidateSha": candidate_sha,
+    "sessionId": FakeRun.adw_id,
+    "quantitativeArtifacts": [str(quant_root / artifact) for artifact in quant_artifacts],
+}))
 
 def surface(name, verdict, shots):
     return types.SimpleNamespace(surface=name, verdict=verdict, screenshots=shots)
@@ -316,6 +356,29 @@ r = gate(Envelope(surfaces=[surface("/work", "pass", ["x"]),
 check("scope gate green: full scope covered, connected screens may add entries",
       r.passed, str(r.violations))
 
+# quantitative artifact gate — exact candidate/session binding and completeness
+check("quantitative gate green: complete handoff carries the current SHA and session",
+      audit.audit_quantitative_artifacts(good, run).passed)
+missing_artifact = quant_root / "contrast.csv"
+missing_artifact.unlink()
+r = audit.audit_quantitative_artifacts(good, run)
+check("quantitative gate RED: missing census artifact", not r.passed, str(r.violations))
+missing_artifact.write_text(
+    f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n"
+    "status\nobserved\n")
+session_path = quant_root / "session.json"
+session_payload = json.loads(session_path.read_text())
+session_payload["candidateSha"] = "b" * 40
+session_path.write_text(json.dumps(session_payload))
+r = audit.audit_quantitative_artifacts(good, run)
+check("quantitative gate RED: session from a different candidate SHA", not r.passed,
+      str(r.violations))
+session_payload["candidateSha"] = candidate_sha
+session_path.write_text(json.dumps(session_payload))
+r = audit.audit_quantitative_artifacts(good, run)
+check("quantitative gate green after stale-SHA mutation is removed", r.passed,
+      str(r.violations))
+
 # ── the gates are WIRED into the AgentCall, not just unit-tested ──────────────
 # A bad envelope that ONLY the verdict gate catches: artifacts all real (both
 # width classes, session dir), full scope covered — but approved=true over a
@@ -337,7 +400,7 @@ AUDIT_ENVELOPE = Envelope(
 phases.clear(); gates_seen.clear()
 audit.main(str(scope), base_url="http://localhost:5173/mos/")
 wired = gates_seen[-1]
-check("audit AgentCall wires all four gates", len(wired) == 4,
+check("audit AgentCall wires all five gates", len(wired) == 5,
       str([getattr(g, "__name__", g) for g in wired]))
 viol = [v for g in wired for v in g(sneaky, run).violations]
 check("the wired gates refuse the inconsistent envelope", bool(viol), "no violations")
@@ -346,10 +409,10 @@ check("the wired gates refuse the inconsistent envelope", bool(viol), "no violat
 # AgentCall lets the same envelope sail through — so the wiring, not just the
 # gate function, is what this test holds.
 src = (root / "adws/adw_design_audit.py").read_text()
-needle = "audit_verdict_consistent, scope_covered(scoped)]"
+needle = "audit_quantitative_artifacts, audit_verdict_consistent,\n                   scope_covered(scoped)]"
 check("perturbation anchor present in the chain source", needle in src)
 perturbed_path = work / "adw_design_audit_perturbed.py"
-perturbed_path.write_text(src.replace(needle, "scope_covered(scoped)]"))
+perturbed_path.write_text(src.replace(needle, "audit_quantitative_artifacts, scope_covered(scoped)]"))
 spec2 = importlib.util.spec_from_file_location("adw_design_audit_perturbed", perturbed_path)
 pert = importlib.util.module_from_spec(spec2)
 spec2.loader.exec_module(pert)
@@ -358,7 +421,7 @@ pert.main(str(scope), base_url="http://localhost:5173/mos/")
 pert_wired = gates_seen[-1]
 pert_viol = [v for g in pert_wired for v in g(sneaky, run).violations]
 check("wiring check can fail: verdict gate dropped -> the bad envelope passes the call's gates",
-      len(pert_wired) == 3 and not pert_viol,
+      len(pert_wired) == 4 and not pert_viol,
       f"{len(pert_wired)} gate(s), violations: {pert_viol}")
 
 sys.exit(1 if failures else 0)

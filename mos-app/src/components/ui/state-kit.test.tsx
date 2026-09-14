@@ -69,9 +69,9 @@ describe('EmptyState', () => {
     expect(emptyState.querySelector('.empty-state-glyph')!.textContent).toBe('—')
   })
 
-  it('defaults the title to h3 and honours an explicit heading level', () => {
+  it('defaults the title to h2 and honours an explicit heading level', () => {
     const { unmount } = render(<EmptyState title="Default" />)
-    expect(screen.getByRole('heading', { level: 3, name: 'Default' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Default' })).toBeInTheDocument()
     unmount()
 
     // A caller whose EmptyState sits directly under the page h1 raises it, so the outline does

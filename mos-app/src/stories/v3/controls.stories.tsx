@@ -107,7 +107,7 @@ export const ButtonStateMatrix: Story = {
         }
       })
       .find((rule) => rule.cssText.includes('.btn-destructive:hover'))
-    expect(hoverRule?.cssText).toContain('--ds-color-red12')
+    expect(hoverRule?.cssText).toContain('--destructive-action')
 
     await userEvent.unhover(destructive)
     destructive.focus()

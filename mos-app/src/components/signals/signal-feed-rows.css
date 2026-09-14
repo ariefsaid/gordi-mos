@@ -88,7 +88,7 @@
   display: flex;
   flex-direction: column;
 }
-.home-signal-row + .home-signal-row {
+.home-signal-list > li + li > .home-signal-row {
   border-top: 1px solid var(--row-divider);
 }
 

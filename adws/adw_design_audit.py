@@ -55,7 +55,9 @@ adw_simple_sdlc's red suite: the phase did its job; the milestone is not clean.
 """
 
 import argparse
+import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
@@ -67,6 +69,21 @@ from adw_modules.data_types import (AgentCall, AuditOutput, GateReport,
 DEFAULT_BASE_URL = "http://localhost:5173/mos/"
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 WIDTH_CLASSES = ("desktop", "phone")   # phone = ≤390px viewport, per the contract
+QUANTITATIVE_ARTIFACTS = (
+    "manifest.json",
+    "gate-log.txt",
+    "contrast.csv",
+    "geometry.csv",
+    "number-census.csv",
+    "control-census.csv",
+    "state-matrix.csv",
+    "affordance-census.csv",
+    "copy-census.csv",
+    "impeccable.json",
+    "mockup-diff",
+)
+_SHA = re.compile(r"^[0-9a-f]{40}$")
+_SESSION_ID = re.compile(r"^[0-9a-f]{8}$")
 
 # The exact shape session.py mints (utils.new_id(8) -> token_hex): 8 lowercase hex
 # chars. --adw-id becomes a filesystem path component under the sessions dir, so
@@ -89,6 +106,15 @@ id. Add extra `surfaces` entries for connected screens you judge affected — a
 milestone's blast radius is wider than its diff.
 
 {scope}
+
+## Run identity and quantitative handoff
+This run is bound to candidate SHA `{candidate_sha}` and runner session `{session_id}`.
+The quantitative harness has already written the following files under
+`{context_handoff_dir}`. Treat those exact paths as the evidence for this run and
+include every one in your `artifacts` list; do not substitute files from the repo,
+another session, or a different checkout:
+
+{quantitative_artifacts}
 
 ## The battery, per your contract
 0. Confirm the guard suites green over the scoped surfaces — you may run the named
@@ -131,7 +157,7 @@ this message (it belongs to the build-review chain). Respond with ONLY:
       "rule": "<the violated token / contract rule / job story>"}}
   ],
   "audit_path": "<context_handoff_dir>/audit.md",
-  "artifacts": ["<context_handoff_dir>/audit.md", "<every screenshot path>"],
+  "artifacts": ["<context_handoff_dir>/audit.md", "<every screenshot path>", "<every quantitative artifact path>"],
   "notes_for_next_agent": "<what a findings fix-run must address, or how to verify>"
 }}
 
@@ -200,6 +226,148 @@ def _validate_adw_id(cfg, adw_id: str | None) -> str | None:
 def _inside(path: str, root: Path) -> bool:
     resolved = Path(path).resolve()
     return root.resolve() in resolved.parents
+
+
+def _context_handoff_dir(run) -> Path:
+    """Locate this run's quantitative handoff directory without widening scope."""
+    context = getattr(run, "context_handoff_dir", None)
+    return Path(context) if context else Path(run.session_dir) / "context_handoff"
+
+
+def _metadata_from_json(path: Path) -> tuple[str | None, str | None]:
+    try:
+        payload = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None, None
+    if not isinstance(payload, dict):
+        return None, None
+    candidate = payload.get("candidateSha", payload.get("candidate_sha"))
+    session_id = payload.get("sessionId", payload.get("session_id", payload.get("adwId")))
+    if not isinstance(candidate, str) or not isinstance(session_id, str):
+        return None, None
+    return candidate, session_id
+
+
+def _metadata_from_text(path: Path) -> tuple[str | None, str | None]:
+    try:
+        text = path.read_text()
+    except OSError:
+        return None, None
+    candidate = re.search(r"^# candidate_sha=([^\r\n]+)$", text, re.MULTILINE)
+    session_id = re.search(r"^# session_id=([^\r\n]+)$", text, re.MULTILINE)
+    return (candidate.group(1) if candidate else None,
+            session_id.group(1) if session_id else None)
+
+
+def _expected_candidate_sha(run) -> str | None:
+    value = getattr(run, "candidate_sha", None)
+    if not value:
+        try:
+            value = git_helper.rev("HEAD")
+        except (OSError, RuntimeError):
+            return None
+    return value if isinstance(value, str) and _SHA.fullmatch(value) else None
+
+
+def _declared_path_matches(value: object, target: Path) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        return Path(value).resolve() == target.resolve()
+    except OSError:
+        return False
+
+
+def audit_quantitative_artifacts(envelope, run) -> GateReport:
+    """Require fresh, complete quantitative evidence for this exact run.
+
+    The browser lane writes these files before the factory chain is called. Every
+    report carries the full candidate SHA and runner session id, and the session
+    envelope lists the same paths. This gate therefore catches a stale checkout,
+    a missing census, an artifact copied from another run, and a directory that
+    only exists as an empty placeholder without trusting the agent's prose.
+    """
+    report = GateReport()
+    root = _context_handoff_dir(run).resolve()
+    expected_sha = _expected_candidate_sha(run)
+    session_path = root / "session.json"
+    session_candidate: str | None = None
+    session_id: str | None = None
+    session_payload: dict = {}
+    try:
+        raw = json.loads(session_path.read_text())
+        if isinstance(raw, dict):
+            session_payload = raw
+            session_candidate, session_id = _metadata_from_json(session_path)
+    except (OSError, ValueError):
+        pass
+
+    report.check("candidate SHA is a full lowercase git revision", expected_sha is not None,
+                 expected_sha or "missing or malformed candidate SHA")
+    report.check("session.json exists under this run's context handoff",
+                 session_path.is_file() and _inside(str(session_path), root),
+                 str(session_path) if session_path.is_file() else "missing session.json")
+    report.check("session candidate SHA matches this checkout",
+                 expected_sha is not None and session_candidate == expected_sha,
+                 session_candidate or "session.json has no candidateSha")
+    run_id = getattr(run, "adw_id", None)
+    expected_session_id = run_id if isinstance(run_id, str) and _SESSION_ID.fullmatch(run_id) else session_id
+    report.check("session id is a runner-shaped id", bool(session_id and _SESSION_ID.fullmatch(session_id)),
+                 session_id or "session.json has no sessionId")
+    report.check("session id matches the run", bool(expected_session_id and session_id == expected_session_id),
+                 f"expected {expected_session_id!r}, got {session_id!r}")
+
+    validator = Path(__file__).resolve().parents[1] / "scripts" / "validate-design-evidence.mjs"
+    if not validator.is_file():
+        validator = Path.cwd() / "scripts" / "validate-design-evidence.mjs"
+    validation_note = "validator did not run"
+    validation_ok = False
+    if expected_sha is not None:
+        try:
+            validator_args = ["node", "--experimental-strip-types", str(validator), str(root), expected_sha]
+            if session_payload.get("auditMode") == "change-gate":
+                validator_args.append("--require-change-gate")
+            completed = subprocess.run(
+                validator_args,
+                check=False, capture_output=True, text=True, timeout=30,
+            )
+            validation_note = (completed.stdout or completed.stderr).strip()
+            validation_ok = completed.returncode == 0
+        except (OSError, subprocess.SubprocessError) as exc:
+            validation_note = f"validator failed to execute: {exc}"
+    report.check("quantitative artifacts pass the shared structural validator",
+                 validation_ok, validation_note)
+
+    declared = session_payload.get("quantitativeArtifacts", [])
+    for artifact in QUANTITATIVE_ARTIFACTS:
+        target = root / artifact
+        exists = target.exists() and _inside(str(target), root)
+        if artifact == "mockup-diff":
+            nested = list(target.rglob("*")) if target.is_dir() else []
+            nonempty = target.is_dir() and bool(nested) and any(item.is_file() and item.stat().st_size > 0 for item in nested)
+            report.check(f"quantitative artifact: {artifact}", exists and nonempty,
+                         "non-empty artifact directory" if exists and nonempty else "missing or empty artifact directory")
+            metadata_targets = [item for item in nested if item.is_file() and item.stat().st_size > 0]
+        else:
+            valid_file = target.is_file() and target.stat().st_size > 0
+            report.check(f"quantitative artifact: {artifact}", exists and valid_file,
+                         "non-empty artifact" if exists and valid_file else "missing or empty artifact")
+            metadata_targets = [target] if valid_file else []
+        report.check(f"session declares artifact: {artifact}",
+                     any(_declared_path_matches(item, target) for item in declared),
+                     "declared in session.json" if any(_declared_path_matches(item, target) for item in declared)
+                     else "missing from session.json quantitativeArtifacts")
+        if not metadata_targets:
+            continue
+        metadata_path = metadata_targets[0]
+        if metadata_path.suffix == ".json":
+            actual_sha, actual_id = _metadata_from_json(metadata_path)
+        else:
+            actual_sha, actual_id = _metadata_from_text(metadata_path)
+        report.check(f"fresh metadata: {artifact}",
+                     expected_sha is not None and actual_sha == expected_sha and actual_id == session_id,
+                     f"candidate={actual_sha!r}, session={actual_id!r}")
+    return report
 
 
 def audit_artifacts_exist(envelope, run) -> GateReport:
@@ -312,14 +480,19 @@ def main(scope_path: str, config: str = "adws/adw_sssf_config/sssf.config.yaml",
     cfg = agents.load_config(config)
     adw_id = _validate_adw_id(cfg, adw_id)
     agents.validate(cfg, [auditor])
+    candidate_sha = git_helper.rev("HEAD")
+    if not _SHA.fullmatch(candidate_sha):
+        raise SystemExit("candidate HEAD is not a full lowercase git SHA — quantitative evidence cannot be bound")
     run = session.ensure(cfg, adw_id)
+    run.candidate_sha = candidate_sha
 
     with run.phase(PhaseParams(name="request", kind="engineer", owner=run.engineer,
                                description="Capture the milestone audit ask: which scope, "
                                            "against which running server, on which tree")) as ph:
         ph.log(input=f"design audit of {scope_file} against {base_url}",
                scope=str(scope_file), base_url=base_url, surfaces=len(scoped),
-               tree=git_helper.short_sha("HEAD"))
+               tree=git_helper.short_sha("HEAD"), candidate_sha=candidate_sha,
+               context_handoff_dir=str(_context_handoff_dir(run)))
 
     # OD-WAY-55: no plan phase — the scope IS the plan. Recorded on the trace the
     # way findings mode records reuse_plan, then handed over as the previous
@@ -327,9 +500,13 @@ def main(scope_path: str, config: str = "adws/adw_sssf_config/sssf.config.yaml",
     scope_envelope = PlanOutput(
         status="success",
         summary=f"Milestone design-audit scope: {len(scoped)} surface(s) from {scope_file}",
-        artifacts=[str(scope_file)],
+        artifacts=[str(scope_file), str(_context_handoff_dir(run) / "session.json")]
+                  + [str(_context_handoff_dir(run) / artifact)
+                     for artifact in QUANTITATIVE_ARTIFACTS],
         notes_for_next_agent="The scope is the plan — audit every listed surface "
-                             "plus the connected screens you judge affected.")
+                             "plus the connected screens you judge affected. "
+                             f"Candidate SHA: {candidate_sha}. Session: {run.adw_id}. "
+                             "The quantitative artifact paths above are binding evidence.")
     with run.phase(PhaseParams(name="record_scope", kind="code", owner="git",
                                description="The scope IS the plan (OD-WAY-55): record it on the "
                                            "trace like findings-mode reuse_plan — no planner runs")) as ph:
@@ -341,10 +518,19 @@ def main(scope_path: str, config: str = "adws/adw_sssf_config/sssf.config.yaml",
                                            "of every scoped surface plus connected screens")) as ph:
         audit = ph.call(AgentCall(
             output_type=AuditOutput,
-            prompt=AUDIT_PROMPT.format(base_url=base_url, scope=scope_text),
+            prompt=AUDIT_PROMPT.format(
+                base_url=base_url,
+                scope=scope_text,
+                candidate_sha=candidate_sha,
+                session_id=run.adw_id,
+                context_handoff_dir=_context_handoff_dir(run),
+                quantitative_artifacts="\n".join(
+                    f"- {_context_handoff_dir(run) / artifact}"
+                    for artifact in QUANTITATIVE_ARTIFACTS)),
             previous=scope_envelope,
             gates=[gates.artifacts_exist, audit_artifacts_exist,
-                   audit_verdict_consistent, scope_covered(scoped)]))
+                   audit_quantitative_artifacts, audit_verdict_consistent,
+                   scope_covered(scoped)]))
 
     with run.phase(PhaseParams(name="verdict", kind="code", owner="git",
                                description="Put the per-surface verdicts and findings on the trace — "

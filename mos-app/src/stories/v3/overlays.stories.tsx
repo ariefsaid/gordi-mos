@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { CommandMenu } from '@/components/command/command-menu'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -23,7 +23,7 @@ export const v3Matrix = {
     { symbol: "CatalogRowActions", file: "mos-app/src/components/catalog/catalog-row-actions.tsx", importPath: "@/components/catalog/catalog-row-actions" },
     { symbol: "RecordPanelHost", file: "mos-app/src/shell/record-panel-host.tsx", importPath: "@/shell/record-panel-host" },
   ],
-  debt: ["RecordPanelHost remains the current shell; desktop split Esc behavior is intentionally non-modal, and any I2 host unification is owned by Issue 4."],
+  debt: ["RecordPanelHost remains the current shell; desktop stays non-modal while Escape closes both regimes, and any I2 host unification is owned by Issue 4."],
   scope: { applicationMigration: false, representativeAcceptance: false, futureIssue4Host: false },
 } as const
 
@@ -110,12 +110,11 @@ async function assertRecordPanelJourney(canvasElement: HTMLElement, regime: 'des
   const trigger = canvas.getByRole('button', { name: 'Review calibration task' })
   await userEvent.click(trigger)
   if (regime === 'desktop') {
-    await expect(canvas.getByRole('complementary', { name: 'Roastery calibration task' })).toBeVisible()
+    await waitFor(() => expect(canvas.getByRole('complementary', { name: 'Roastery calibration task' })).toBeVisible())
     await userEvent.keyboard('{Escape}')
-    await expect(canvas.getByRole('complementary', { name: 'Roastery calibration task' })).toBeVisible()
-    await userEvent.click(canvas.getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(canvas.queryByRole('complementary', { name: 'Roastery calibration task' })).not.toBeInTheDocument())
   } else {
-    await expect(canvas.getByRole('dialog', { name: 'Roastery calibration task' })).toBeVisible()
+    await waitFor(() => expect(canvas.getByRole('dialog', { name: 'Roastery calibration task' })).toBeVisible())
     await userEvent.click(canvas.getByRole('button', { name: 'Close' }))
   }
   await expect(canvas.queryByRole('complementary', { name: 'Roastery calibration task' })).not.toBeInTheDocument()

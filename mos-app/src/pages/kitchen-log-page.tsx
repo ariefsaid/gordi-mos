@@ -840,7 +840,7 @@ function KitchenLogPageForViewer() {
       isOffPlan: line.plan_qty <= 0,
     })
     return (
-      <div className="kl-card">
+      <div className="kl-row">
         <div className="kl-card-head">
           <div className="kl-card-identity">
             <span className="kl-card-name">{item.name}</span>
