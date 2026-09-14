@@ -318,6 +318,7 @@ type MentionMembershipRow = {
   effective_from: string
   effective_to: string | null
 }
+type EffectiveMentionMembershipRow = MentionMembershipRow & { is_primary: boolean }
 
 /** Build the composer's fan-out-preview rosters. teamMembers: Team id → active member person ids.
  * buMembers: BU id → the active members of that BU's Teams UNION the holders of a Role scoped to
@@ -339,13 +340,11 @@ export async function loadMentionRosters(today = wibToday()): Promise<MentionRos
   if (personRolesRes.error) throw new Error(`loadMentionRosters person_roles failed — ${personRolesRes.error.message}`)
 
   const teamMembers: MemberLookup = {}
-  const effectiveMemberships = filterEffectiveMemberships(
-    ((membershipsRes.data ?? []) as MentionMembershipRow[]).map((membership) => ({
+  const membershipRows: EffectiveMentionMembershipRow[] = ((membershipsRes.data ?? []) as MentionMembershipRow[]).map((membership) => ({
       ...membership,
       is_primary: false,
-    })),
-    today,
-  )
+  }))
+  const effectiveMemberships = filterEffectiveMemberships(membershipRows, today) as EffectiveMentionMembershipRow[]
   for (const m of effectiveMemberships) {
     (teamMembers[m.team_id] ??= []).push(m.person_id)
   }

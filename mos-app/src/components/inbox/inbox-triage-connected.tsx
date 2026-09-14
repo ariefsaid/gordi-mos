@@ -8,7 +8,7 @@ import { useNotifications } from '@/hooks/useNotifications'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import type { OverlayOwner } from '@/shell/overlay-navigation'
 import type { OverlayEntry } from '@/shell/overlay-host'
-import { InboxTriage, type InboxTriageState } from './inbox-triage'
+import { InboxTriage, type InboxPendingAction, type InboxTriageState } from './inbox-triage'
 import { matchesFilter, isHandled, type InboxFilter, type TriageNotificationRow } from './read-handled-semantics'
 import { resolveNotificationTarget } from './inbox-target'
 import { buildInboxTargetDeps } from './inbox-record-door'
@@ -55,28 +55,28 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
   const [unavailableKey, setUnavailableKey] = useState<string | null>(null)
   // One row can be acted on through several affordances (open, keyboard-read, Mark handled).
   // Keep the guard here, at the connected boundary, so every door shares the same in-flight
-  // semantics and a slow write cannot be double-submitted by a fast double-click.
-  const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set())
-  const pendingRef = useRef<Set<string>>(new Set())
+  // semantics and a slow write cannot be double-submitted by a fast double-click. The action kind
+  // also keeps the live status honest: a handled/read write is "Updating", not "Opening".
+  const [pendingActions, setPendingActions] = useState<Record<string, InboxPendingAction>>({})
+  const pendingRef = useRef<Record<string, InboxPendingAction>>({})
 
-  const beginPending = (id: string): boolean => {
-    if (pendingRef.current.has(id)) return false
-    const next = new Set(pendingRef.current)
-    next.add(id)
+  const beginPending = (id: string, action: InboxPendingAction): boolean => {
+    if (pendingRef.current[id] !== undefined) return false
+    const next = { ...pendingRef.current, [id]: action }
     pendingRef.current = next
-    setPendingIds(next)
+    setPendingActions(next)
     return true
   }
 
   const endPending = (id: string) => {
-    const next = new Set(pendingRef.current)
-    next.delete(id)
+    const next = { ...pendingRef.current }
+    delete next[id]
     pendingRef.current = next
-    setPendingIds(next)
+    setPendingActions(next)
   }
 
-  const runPending = async (id: string, action: () => Promise<void> | void) => {
-    if (!beginPending(id)) return
+  const runPending = async (id: string, kind: InboxPendingAction, action: () => Promise<void> | void) => {
+    if (!beginPending(id, kind)) return
     try {
       await action()
     } finally {
@@ -132,7 +132,7 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
   const onSignInAgain = canSignOut ? () => void auth.signOut() : undefined
 
   const onOpen = (row: TriageNotificationRow) => {
-    void runPending(row.id, async () => {
+    void runPending(row.id, 'open', async () => {
       setUnavailableKey(null)
       const resolution = resolveNotificationTarget(row, buildInboxTargetDeps(row, accessRoles, owner))
       // Opening marks READ only (never handled) — the queue truth updates even when the target
@@ -175,12 +175,12 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
         onFilterChange={setFilter}
         onOpen={onOpen}
         onQuickMarkRead={(row) => {
-          void runPending(row.id, () => markRead(row.id)).catch(() => {})
+          void runPending(row.id, 'read', () => markRead(row.id)).catch(() => {})
         }}
         onMarkHandled={(row) => {
-          void runPending(row.id, () => markHandled(row.id)).catch(() => {})
+          void runPending(row.id, 'handled', () => markHandled(row.id)).catch(() => {})
         }}
-        pendingIds={[...pendingIds]}
+        pendingActions={pendingActions}
         onRetry={() => void refresh()}
         onSignInAgain={onSignInAgain}
       />

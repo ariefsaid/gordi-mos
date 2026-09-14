@@ -77,7 +77,7 @@ export type TaskSurfaceProps = {
   /** Suppress the task-local utility bar when RecordPanelHost owns the chrome. */
   showPanelUtility?: boolean
   onTaskChanged?: (task: TaskListRow) => void  // lets the table sync optimistic status (PR-B)
-  onTaskCreated?: (id: string) => void         // C2: lets the table refetch after a create (PR-B)
+  onTaskCreated?: (id: string) => void | Promise<void> // C2: lets the table refetch after a create (PR-B)
   onTaskArchived?: (id: string) => void        // I3: lets the table refetch after an archive (PR-B)
   onTitleResolved?: (title: string) => void    // lets a host render the breadcrumb current title
   /** Bubbles RecordField draft state to a host-owned leave guard. */
@@ -1047,7 +1047,11 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
       // The create succeeded: this is no longer an unsaved draft, so the destination record must
       // NOT trip the host leave-guard as we navigate onto it.
       setDirty(false)
-      onTaskCreated?.(newId)  // C2: let the table refetch so the new row appears + count updates
+      // A host may need to finish an async hand-off (for example, link this new Task back to the
+      // Signal that opened the composer) before it can decide whether to close. Await that hand-off
+      // so a failed relationship write cannot strand this create surface in `submitting=true`.
+      await onTaskCreated?.(newId)  // C2: let the table refetch so the new row appears + count updates
+      setSubmitting(false)
       // GAP-6 (OD-REDESIGN-91 #11): after-create returns to the ORIGINATING collection with the
       // new row highlighted (a brief accent that fades) — Tasks changes to match the app-wide rule
       // (it used to open the new record in the drawer). The `?highlight=<id>` param tells the

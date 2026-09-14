@@ -144,6 +144,8 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
     fireEvent.click(handle)
 
     await waitFor(() => expect(handle).toBeDisabled())
+    expect(screen.getByRole('status')).toHaveTextContent(/updating/i)
+    expect(screen.getByRole('status')).not.toHaveTextContent(/opening/i)
     fireEvent.click(handle)
     expect(markHandled).toHaveBeenCalledTimes(1)
 

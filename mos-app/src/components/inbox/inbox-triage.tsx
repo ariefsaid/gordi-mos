@@ -75,9 +75,11 @@ export type InboxTriageProps = {
    * ProtectedRoute route to /login. Never a re-fire of the same failing call (see `state`).
    */
   onSignInAgain?(): void
-  /** Rows with an in-flight open/action; their open button is busy+disabled. */
-  pendingIds?: readonly string[]
+  /** Rows with an in-flight action; every affordance on that row is busy+disabled. */
+  pendingActions?: Readonly<Record<string, InboxPendingAction>>
 }
+
+export type InboxPendingAction = 'open' | 'read' | 'handled'
 
 const SEVERITY_KEY = {
   info: 'inbox.severity.info',
@@ -118,11 +120,11 @@ export function InboxTriage({
   onQuickMarkRead,
   onRetry,
   onSignInAgain,
-  pendingIds,
+  pendingActions,
 }: InboxTriageProps) {
   const t = useT()
   const { locale } = useI18n()
-  const pending = new Set(pendingIds ?? [])
+  const pending = new Map(Object.entries(pendingActions ?? {}))
   // One render-time boundary for every row (AC-141-3): a single shared `now` means every row's
   // day-bucket is judged against the SAME local midnight, so the queue can't disagree with itself.
   const now = new Date()
@@ -291,7 +293,11 @@ export function InboxTriage({
             })}
           </ul>
           <div role="status" aria-live="polite" className="inbox-triage__status">
-            {pending.size > 0 ? t('inbox.opening') : ''}
+            {pending.size > 0
+              ? [...pending.values()].some((action) => action === 'open')
+                ? t('inbox.opening')
+                : t('inbox.updating')
+              : ''}
           </div>
         </>
       )}

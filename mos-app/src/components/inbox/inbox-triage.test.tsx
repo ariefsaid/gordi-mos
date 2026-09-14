@@ -206,8 +206,8 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
     expect(screen.queryByRole('button', { name: /mark handled/i })).toBeNull()
   })
 
-  it('a pending row disables its open button with aria-busy and announces via status', () => {
-    renderTriage({ rows: [trow('a')], pendingIds: ['a'] })
+  it('a pending open row disables its open button with aria-busy and announces via status', () => {
+    renderTriage({ rows: [trow('a')], pendingActions: { a: 'open' } })
     const btn = screen.getByRole('button', { name: /Title a/ })
     expect(btn).toBeDisabled()
     expect(btn).toHaveAttribute('aria-busy', 'true')
@@ -215,11 +215,13 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
   })
 
   it('a pending row also disables its Mark handled action', () => {
-    renderTriage({ rows: [trow('a')], onMarkHandled: vi.fn(), pendingIds: ['a'] })
+    renderTriage({ rows: [trow('a')], onMarkHandled: vi.fn(), pendingActions: { a: 'handled' } })
     const row = screen.getByRole('button', { name: /Title a/ }).closest('.inbox-row')!
     const handle = within(row as HTMLElement).getByRole('button', { name: /mark handled/i })
     expect(handle).toBeDisabled()
     expect(handle).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('status')).toHaveTextContent(/updating/i)
+    expect(screen.getByRole('status')).not.toHaveTextContent(/opening/i)
   })
 
   it('is chrome-free: no dialog role, no scrim, no close button — the host owns those', () => {

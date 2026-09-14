@@ -103,11 +103,15 @@ function SignalTaskCreateFrame({
   businessUnitId: string
   responsiblePersonId: string
   session: TaskDraftSession
-  onCreated: (taskId: string) => void | Promise<void>
+  onCreated: (taskId: string) => boolean | Promise<boolean>
   onLeave: () => void
 }) {
   const t = useT()
   const [confirmOpen, setConfirmOpen] = useState(false)
+  // A Task is created before the Signal bridge write. Keep that ID in this frame so a failed
+  // bridge write can retry the same relationship without exposing the create form a second time.
+  const [createdTaskId, setCreatedTaskId] = useState<string | null>(null)
+  const [linkingTaskId, setLinkingTaskId] = useState<string | null>(null)
   const resolverRef = useRef<((decision: OverlayLeaveDecision) => void) | null>(null)
 
   useEffect(() => {
@@ -130,22 +134,56 @@ function SignalTaskCreateFrame({
     resolve?.(decision)
   }
 
+  const linkCreatedTask = async (taskId: string) => {
+    if (linkingTaskId) return
+    setCreatedTaskId(taskId)
+    setLinkingTaskId(taskId)
+    const linked = await onCreated(taskId)
+    setLinkingTaskId(null)
+    if (linked) setCreatedTaskId(null)
+  }
+
   return (
     <>
-      <div className="signal-task-create-frame">
-        <p className="signal-task-create-context">{t('signals.record.fromSignal')}: {signalTitle}</p>
-        <TaskSurface
-          taskId={null}
-          mode="create"
-          presentation="panel"
-          width="drawer"
-          showPanelUtility={false}
-          createInitialValues={{ title: signalTitle, businessUnitId, responsiblePersonId }}
-          createRedirect={null}
-          onTaskCreated={(taskId) => { session.dirty = false; void onCreated(taskId) }}
-          onDirtyChange={(dirty) => { session.dirty = dirty }}
-          onRequestLeave={() => { onLeave() }}
-        />
+        <div className="signal-task-create-frame">
+          <p className="signal-task-create-context">{t('signals.record.fromSignal')}: {signalTitle}</p>
+        {createdTaskId ? (
+          <div className="signal-task-link-recovery" data-task-id={createdTaskId}>
+            {linkingTaskId ? (
+              <p role="status" aria-live="polite">{t('signals.record.linkingTask')}</p>
+            ) : (
+              <>
+                <p role="status" aria-live="polite">{t('signals.record.taskCreatedLinkRetry')}</p>
+                <Button
+                  type="button"
+                  variant="primary"
+                  data-task-id={createdTaskId}
+                  onClick={() => { void linkCreatedTask(createdTaskId) }}
+                  disabled={!!linkingTaskId}
+                  aria-busy={!!linkingTaskId || undefined}
+                >
+                  {t('signals.record.retryLink')}
+                </Button>
+              </>
+            )}
+          </div>
+        ) : (
+          <TaskSurface
+            taskId={null}
+            mode="create"
+            presentation="panel"
+            width="drawer"
+            showPanelUtility={false}
+            createInitialValues={{ title: signalTitle, businessUnitId, responsiblePersonId }}
+            createRedirect={null}
+            onTaskCreated={async (taskId) => {
+              session.dirty = false
+              await linkCreatedTask(taskId)
+            }}
+            onDirtyChange={(dirty) => { session.dirty = dirty }}
+            onRequestLeave={() => { onLeave() }}
+          />
+        )}
       </div>
       <ConfirmDialog
         open={confirmOpen}
@@ -494,7 +532,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     setComments(await listComments({ entityType: 'signal', entityId: signalId }))
   }
 
-  async function finishTaskCreate(taskId: string) {
+  async function finishTaskCreate(taskId: string): Promise<boolean> {
     setActionError(null)
     try {
       // TaskSurface owns task creation; this host owns the Signal relationship so the return
@@ -505,7 +543,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
       // The Task exists, but the Signal relationship does not. Keep the composer visible so the
       // user can retry or leave with the created Task context still present; closing here made a
       // failed link look like a completed Signal→Task journey.
-      return
+      return false
     }
     void refreshTaskProjection()
     if (host?.session) {
@@ -513,6 +551,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     } else {
       setLocalTaskSession(null)
     }
+    return true
   }
 
   function closeLocalTaskComposer(via: 'explicit-close' | 'escape' = 'explicit-close') {
@@ -549,7 +588,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
           businessUnitId={team.business_unit_id}
           responsiblePersonId={viewerId}
           session={session}
-          onCreated={(taskId) => { void finishTaskCreate(taskId) }}
+          onCreated={finishTaskCreate}
           onLeave={() => { void host.back() }}
         />
       ),
@@ -751,7 +790,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
             businessUnitId={team?.business_unit_id ?? ''}
             responsiblePersonId={viewerId ?? ''}
             session={localTaskSession}
-            onCreated={(taskId) => { void finishTaskCreate(taskId) }}
+            onCreated={finishTaskCreate}
             onLeave={() => { closeLocalTaskComposer('explicit-close') }}
           />
         </RecordPanelHost>

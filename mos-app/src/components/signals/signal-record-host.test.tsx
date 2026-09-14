@@ -428,7 +428,7 @@ describe('SignalRecordHost — Create follow-up Task (canonical Task composer, P
     expect(await screen.findByRole('heading', { name: /discard unsaved changes/i })).toBeInTheDocument()
   })
 
-  it('keeps the Task composer open when linking the newly-created Task fails', async () => {
+  it('keeps the Task composer retryable when linking the newly-created Task fails', async () => {
     mockGetPersonTeams.mockResolvedValue([{
       id: TEAM_ID,
       name: 'HQ Operations',
@@ -450,7 +450,15 @@ describe('SignalRecordHost — Create follow-up Task (canonical Task composer, P
 
     await waitFor(() => expect(mockLinkSignalTask).toHaveBeenCalledWith(SIGNAL_ID, 'task-created'))
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not be updated/i)
-    expect(screen.getByRole('textbox', { name: /^title$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /^title$/i })).not.toBeInTheDocument()
+    expect(within(taskComposer).getByRole('button', { name: /retry link/i })).toHaveAttribute('data-task-id', 'task-created')
+
+    await userEvent.click(within(taskComposer).getByRole('button', { name: /retry link/i }))
+
+    await waitFor(() => expect(mockLinkSignalTask).toHaveBeenCalledTimes(2))
+    expect(mockLinkSignalTask).toHaveBeenNthCalledWith(2, SIGNAL_ID, 'task-created')
+    expect(mockCreateTask).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.queryByRole('button', { name: /retry link/i })).not.toBeInTheDocument())
   })
 })
 

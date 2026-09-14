@@ -361,6 +361,14 @@ describe('linkSignalTask', () => {
     mockSupabase({ 'mos.signal_tasks': [{ data: null, error: { message: 'nope' } }] }, rec)
     await expect(linkSignalTask(SIGNAL_ID, TASK_ID)).rejects.toThrow(/nope/)
   })
+
+  it('treats the unique bridge conflict as success so a retry does not create a second link', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signal_tasks': [{ data: null, error: { code: '23505', message: 'duplicate key value' } }] }, rec)
+
+    await expect(linkSignalTask(SIGNAL_ID, TASK_ID)).resolves.toBeUndefined()
+    expect(rec.inserts).toEqual([{ signal_id: SIGNAL_ID, task_id: TASK_ID }])
+  })
 })
 
 // ── composer option loaders (B6) ──────────────────────────────────────────────
