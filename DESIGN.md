@@ -1,7 +1,11 @@
-> **Home and Tasks replacement:** `REDESIGN.md` supersedes this document for those two
-> surfaces and their immediate shared interaction seams. The preserved-identity, fixed-layout,
-> native-select-only and Taste restrictions below do not constrain that redesign. Unrelated
-> surfaces continue using this system. Prior snapshots are retained in local redesign records.
+> **Home and Tasks recovery:** `REDESIGN.md` is the active brief for those two surfaces and
+> their immediate shared interaction seams. It may supersede historical page-composition rules
+> only where it records current owner decisions; it does not supersede this document's style
+> authority. Preserve the established v3/v4 palette, type, tokens, responsive and interaction
+> grammar, including the approved Focused/Overview/List arrangements and Personal Profile choice
+> and Signals' right-hand desktop placement. An implementation conflict is a defect, not a reason
+> to rewrite this authority or certify the current result. Unrelated surfaces continue using this
+> system. Prior snapshots are retained in local redesign records.
 
 ---
 name: Gordi MOS
