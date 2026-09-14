@@ -60,15 +60,6 @@ select results_eq($$
     ('00000000-0000-0000-0000-00000000bf02'::uuid) $$,
   'AC-003: Cikal bar has no intra-branch arm without a kitchen stream');
 
--- Activity alone never grants a future stream production. Add this after the matrix assertions so
--- its Roastery branch cannot change the current MVP destination set they prove.
-insert into shared.teams (org_id, business_unit_id, name, code, branch_id, activity)
-values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01',
-        'Future Roastery Kitchen','future_roastery_kitchen','00000000-0000-0000-0000-00000000bf05','kitchen');
-select is((select produces from shared.teams
-           where org_id = '00000000-0000-0000-0000-0000000000a1' and code = 'future_roastery_kitchen'), false,
-  'AC-001: a newly added stream Team defaults receive-only; activity never infers producing');
-
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
 select throws_ok($$
@@ -106,6 +97,17 @@ select throws_ok($$
   values ('2026-09-14','00000000-0000-0000-0000-00000000bf02','kitchen','transfer','00000000-0000-0000-0000-00000000bf05','00000000-0000-0000-0000-00000000ab01',1)
   $$, '42501', 'the destination is outside the production stream''s allowed books',
   'AC-003: plan writes use the same destination refusal');
+
+-- Activity alone never grants a future stream production. Create this after every Roastery
+-- destination refusal: the catalog intentionally considers live stream Teams regardless of whether
+-- they produce, so adding this Team earlier would make Roastery a legal destination by design.
+reset role;
+insert into shared.teams (org_id, business_unit_id, name, code, branch_id, activity)
+values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01',
+        'Future Roastery Kitchen','future_roastery_kitchen','00000000-0000-0000-0000-00000000bf05','kitchen');
+select is((select produces from shared.teams
+           where org_id = '00000000-0000-0000-0000-0000000000a1' and code = 'future_roastery_kitchen'), false,
+  'AC-001: a newly added stream Team defaults receive-only; activity never infers producing');
 
 -- Same-org validation predates and must run before the books guard. The z-prefixed trigger name
 -- preserves this 23514 contract instead of masking a foreign origin as a producer refusal.
