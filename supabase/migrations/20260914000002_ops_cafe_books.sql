@@ -363,3 +363,4 @@ end;
 $$;
 comment on function ops._test_seed_cafe() is
   'TEST-ONLY fixture (SECURITY DEFINER): branch catalog for both test orgs, Kitchen-and-Bar BU, WIP items, item units (#232: confirmed defaults + one unconfirmed + a cross-tenant row), plans, Submitted logs across four production streams, imported history, and stock — plus a live ops_lead. Call AFTER shared._test_seed_directory(), inside begin;...rollback; with app.allow_test_seeds=on.';
+revoke execute on function ops._test_seed_cafe() from public, anon, authenticated;
