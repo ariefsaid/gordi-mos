@@ -91,6 +91,11 @@ function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
 }
 
+function chooseStream(optionName: string) {
+  fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+  fireEvent.click(screen.getByRole('option', { name: optionName }))
+}
+
 function viewer(accessRoles: string[]): AuthState {
   return {
     status: 'authenticated',
@@ -211,9 +216,7 @@ describe('KitchenReviewPage — states', () => {
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
 
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: `${RADIANT_ID}|bar` },
-    })
+    chooseStream('Radiant · Bar')
 
     expect(await screen.findByText(/nothing to review/i)).toBeInTheDocument()
     const emptyState = screen.getByTestId('empty-state')
@@ -596,10 +599,11 @@ describe('KitchenReviewPage — the stream reads in the page head (#440)', () =>
     await screen.findByText('Nasi Goreng')
 
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = within(head).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.selectedOptions[0].textContent).toBe('Rumah Rames · Kitchen')
+    const picker = within(head).getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Rumah Rames · Kitchen')
 
-    fireEvent.change(picker, { target: { value: `${RADIANT_ID}|bar` } })
+    fireEvent.click(picker)
+    fireEvent.click(screen.getByRole('option', { name: 'Radiant · Bar' }))
     await screen.findByText('Es Kopi')
     expect(screen.queryByText('Nasi Goreng')).toBeNull()
   })
@@ -609,8 +613,8 @@ describe('KitchenReviewPage — the stream reads in the page head (#440)', () =>
     const { container } = render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = within(head).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.value).toBe('all')
+    const picker = within(head).getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('All streams')
     expect(screen.getByText('Es Kopi')).toBeInTheDocument()
   })
 
@@ -621,7 +625,7 @@ describe('KitchenReviewPage — the stream reads in the page head (#440)', () =>
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Es Kopi')
-    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveValue(`${RADIANT_ID}|bar`)
+    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveTextContent('Radiant · Bar')
     expect(screen.queryByText('Nasi Goreng')).toBeNull()
   })
 })
@@ -634,7 +638,7 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
     const filter = screen.getByRole('combobox', { name: /production stream/i })
-    expect(filter).toHaveValue(`${BRANCH_ID}|kitchen`)
+    expect(filter).toHaveTextContent('Rumah Rames · Kitchen')
     // own-stream row is shown; the other stream's row is not
     expect(screen.queryByText('Es Kopi')).not.toBeInTheDocument()
   })
@@ -643,7 +647,7 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
-    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveValue('all')
+    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveTextContent('All streams')
     expect(screen.getByText('Es Kopi')).toBeInTheDocument()
   })
 
@@ -653,9 +657,7 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: 'all' },
-    })
+    chooseStream('All streams')
     await screen.findByText('Es Kopi')
     // own-stream row keeps its controls; the other stream's row carries the ops-lead marker instead
     expect(screen.getByRole('button', { name: /approve nasi goreng/i })).toBeInTheDocument()
@@ -767,7 +769,6 @@ describe('KitchenReviewPage — offline (FR-005, NFR-008)', () => {
 // nothing here is a permission proof, only a display-honesty one.
 // ═════════════════════════════════════════════════════════════════════════════
 describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', () => {
-  const OWN_STREAM = `${BRANCH_ID}|kitchen`
 
   it('FR-031: an unconfirmed stream reads as a quiet foot checkbox, not a head action', async () => {
     mockUseAuth.mockReturnValue(viewer(['supervisor']))
@@ -833,9 +834,7 @@ describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', 
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
     // Move the filter off their own stream, onto (Radiant, bar).
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: `${RADIANT_ID}|bar` },
-    })
+    chooseStream('Radiant · Bar')
     await screen.findByText('Es Kopi')
 
     // Read is org-wide on purpose — a gap that only its own lead can see is the tribal
@@ -854,9 +853,7 @@ describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', 
     expect(screen.queryByRole('group', { name: /item list completeness/i })).not.toBeInTheDocument()
     // ...and it comes back the moment one stream is named (so the absence above is the
     // filter's doing, not a block that never renders at all).
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: OWN_STREAM },
-    })
+    chooseStream('Rumah Rames · Kitchen')
     expect(await screen.findByRole('group', { name: /item list completeness/i })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /confirm the item list is complete/i })).toBeInTheDocument()
   })
@@ -1141,9 +1138,9 @@ describe('issue 587: the row names its own stream in the All-streams view', () =
     mockPlan.mockResolvedValue({ w1: { produce: 8 } })
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
-    const filter = screen.getByRole('combobox')
-    fireEvent.change(filter, { target: { value: `${BRANCH_ID}|kitchen` } })
-    await waitFor(() => expect(filter).toHaveValue(`${BRANCH_ID}|kitchen`))
+    const filter = screen.getByRole('combobox', { name: /production stream/i })
+    chooseStream('Rumah Rames · Kitchen')
+    await waitFor(() => expect(filter).toHaveTextContent('Rumah Rames · Kitchen'))
     // the SELECT itself legitimately carries this stream's name as an <option> — the
     // assertion is on the queue row, never on the filter control.
     expect(document.querySelector('.krow-stream')).toBeNull()

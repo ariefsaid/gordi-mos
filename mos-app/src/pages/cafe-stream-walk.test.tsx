@@ -96,9 +96,8 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
     await waitFor(() => expect(fetchKitchenStock).toHaveBeenCalled())
     expect(vi.mocked(fetchKitchenStock).mock.calls[0][1]).toEqual(OWN_STREAM)
 
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: `${BRANCH_RAD.id}|bar` },
-    })
+    fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'Radiant · Bar' }))
     await waitFor(() => expect(fetchKitchenStock).toHaveBeenCalledTimes(2))
     stock.unmount() // …and walks to Plan
 
@@ -106,8 +105,8 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
     await waitFor(() => expect(listKitchenPlans).toHaveBeenCalled())
     expect(vi.mocked(listKitchenPlans).mock.calls[0][1]).toEqual(RADIANT_BAR)
     // …and Plan SAYS so, rather than showing another stream's numbers under no name at all.
-    const picker = await screen.findByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    const picker = await screen.findByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Radiant · Bar')
   })
 
   it('with nothing chosen, every surface opens on the person\'s OWN stream', async () => {
@@ -129,7 +128,7 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
     render(<KitchenPlanPage />, { wrapper })
     await waitFor(() => expect(listPesanan).toHaveBeenCalled())
     expect(vi.mocked(listPesanan).mock.calls[0][2]).toEqual(RADIANT_BAR)
-    const picker = await screen.findByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    const picker = await screen.findByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Radiant · Bar')
   })
 })

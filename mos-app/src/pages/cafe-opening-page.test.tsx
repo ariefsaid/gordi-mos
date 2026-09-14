@@ -115,11 +115,12 @@ describe('issue 440 — the Café root states the stream its doors lead into', (
     const { container } = renderPage()
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
     const picker = await waitFor(() => {
-      const el = head.querySelector('select') as HTMLSelectElement | null
-      expect(el?.value).toBeTruthy()
-      return el as HTMLSelectElement
+      const el = head.querySelector('[role="combobox"]') as HTMLElement | null
+      expect(el).toBeTruthy()
+      expect(el).toHaveTextContent('Radiant · Bar')
+      return el as HTMLElement
     })
-    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    expect(picker).toHaveTextContent('Radiant · Bar')
     expect(head.textContent).toMatch(/stream/i)
   })
 })
@@ -252,7 +253,8 @@ describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture link
     const teamPicker = await screen.findByRole('combobox', { name: /choose.*team/i })
     expect(mockGetTodayOpeningForTeam).not.toHaveBeenCalled()
 
-    await user.selectOptions(teamPicker, otherTeamId)
+    await user.click(teamPicker)
+    await user.click(screen.getByRole('option', { name: 'Kemang Operations' }))
 
     await screen.findByRole('button', { name: "Start today's opening" })
     expect(mockGetTodayOpeningForTeam).toHaveBeenCalledWith(PROCESS_ID, otherTeamId)
@@ -281,7 +283,8 @@ describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture link
     const teamPicker = await screen.findByRole('combobox', { name: /choose.*team/i })
     expect(mockGetTodayOpeningForTeam).not.toHaveBeenCalled()
 
-    await user.selectOptions(teamPicker, 'opening-kemang')
+    await user.click(teamPicker)
+    await user.click(screen.getByRole('option', { name: 'Kemang Kitchen' }))
 
     await screen.findByText('Café Opening · 17 Jul 2026')
     expect(mockGetTodayOpeningForTeam).toHaveBeenCalledWith(PROCESS_ID, 'opening-kemang')

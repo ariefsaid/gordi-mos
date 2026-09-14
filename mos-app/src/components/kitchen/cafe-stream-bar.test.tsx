@@ -25,31 +25,29 @@ function wrap(node: ReactNode) {
 describe('CafeStreamBar', () => {
   it('states the stream in view as branch · activity', () => {
     wrap(<CafeStreamBar options={CATALOG} stream={RR_KITCHEN} onChange={() => {}} />)
-    const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.selectedOptions[0].textContent).toBe('Rumah Rames · Kitchen')
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Rumah Rames · Kitchen')
   })
 
   it('the 238 ruling: names the stream by its CANONICAL branch name — never the Bungur alias', () => {
     // 'Bungur' names a transfer DESTINATION and the derived action label. One stream reading
     // under two names on two surfaces is the defect that ruling ended.
     wrap(<CafeStreamBar options={CATALOG} stream={RR_KITCHEN} onChange={() => {}} />)
-    expect(screen.getByRole('combobox', { name: /production stream/i }).textContent).not.toMatch(/Bungur/)
+    expect(screen.getByRole('combobox', { name: /production stream/i })).not.toHaveTextContent(/Bungur/)
   })
 
   it('switching hands the chosen stream back', () => {
     const onChange = vi.fn()
     wrap(<CafeStreamBar options={CATALOG} stream={RR_KITCHEN} onChange={onChange} />)
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: `${RAD.id}|bar` },
-    })
+    fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'Radiant · Bar' }))
     expect(onChange).toHaveBeenCalledWith(RAD_BAR)
   })
 
   it('FR-002: with no stream resolved it holds a placeholder and offers no stream as chosen', () => {
     wrap(<CafeStreamBar options={CATALOG} stream={null} onChange={() => {}} />)
-    const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.value).toBe('')
-    expect(screen.getByText(/choose stream/i)).toBeInTheDocument()
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent(/choose stream/i)
   })
 
   it('a read-only surface still SAYS which stream it is showing', () => {
@@ -73,9 +71,8 @@ describe('CafeStreamBar', () => {
         onAllStreams={onAllStreams}
       />,
     )
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: 'all' },
-    })
+    fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+    fireEvent.click(screen.getByRole('option', { name: /all streams/i }))
     expect(onAllStreams).toHaveBeenCalled()
   })
 

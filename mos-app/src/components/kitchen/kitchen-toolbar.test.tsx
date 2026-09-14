@@ -46,9 +46,11 @@ describe('KitchenToolbar — category filter', () => {
     )
     const select = screen.getByRole('combobox', { name: /category/i })
     expect(select).toBeInTheDocument()
-    // options reflect the provided list
-    expect(screen.getByRole('option', { name: 'Chicken' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'Seafood' })).toBeInTheDocument()
+    fireEvent.click(select)
+    // options reflect the provided list while the designed popup is open
+    const listbox = screen.getByRole('listbox', { name: /category/i })
+    expect(listbox).toContainElement(screen.getByRole('option', { name: 'Chicken' }))
+    expect(listbox).toContainElement(screen.getByRole('option', { name: 'Seafood' }))
   })
 
   it('fires onCategoryChange on selection', () => {
@@ -62,7 +64,8 @@ describe('KitchenToolbar — category filter', () => {
         onCategoryChange={onCategoryChange}
       />,
     )
-    fireEvent.change(screen.getByRole('combobox', { name: /category/i }), { target: { value: 'Chicken' } })
+    fireEvent.click(screen.getByRole('combobox', { name: /category/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'Chicken' }))
     expect(onCategoryChange).toHaveBeenCalledWith('Chicken')
   })
 
@@ -81,7 +84,7 @@ describe('KitchenToolbar — category filter', () => {
         onCategoryChange={() => {}}
       />,
     )
-    expect(screen.getByRole('combobox', { name: /category/i })).toHaveValue('Chicken')
+    expect(screen.getByRole('combobox', { name: /category/i })).toHaveTextContent('Chicken')
   })
 })
 

@@ -134,7 +134,7 @@ describe('PORT-024: ProfilePage', () => {
     const visible = languageTexts.filter((el) => !el.classList.contains('sr-only'))
     expect(visible).toHaveLength(1)
     expect(visible[0].tagName).toBe('H2')
-    expect(screen.getByLabelText('Language').tagName).toBe('SELECT')
+    expect(screen.getByLabelText('Language').tagName).toBe('BUTTON')
   })
 
   it('goal (page-scope: this harness mounts ProfilePage only): selecting Bahasa re-renders in Indonesian and persists across remount', async () => {
@@ -142,10 +142,11 @@ describe('PORT-024: ProfilePage', () => {
     renderPage()
     // English baseline
     expect(screen.getByRole('heading', { name: 'Personal Profile' })).toBeInTheDocument()
-    await user.selectOptions(screen.getByLabelText('Language'), 'id')
+    await user.click(screen.getByRole('combobox', { name: 'Language' }))
+    await user.click(screen.getByRole('option', { name: 'Bahasa Indonesia' }))
     // The page itself re-renders in Indonesian — the goal, not the mechanism
     expect(await screen.findByRole('heading', { name: 'Profil Pribadi' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Bahasa')).toHaveValue('id')
+    expect(screen.getByRole('combobox', { name: 'Bahasa' })).toHaveTextContent('Bahasa Indonesia')
     // …and its BODY re-renders too, not just the title. `useT` falls back to `en` silently when a
     // key is missing from the `id` catalog, so a page that switches its heading and keeps English
     // cards passes every title-only assertion. Found by mutation: replacing an `id` card string
@@ -168,7 +169,8 @@ describe('PORT-024: ProfilePage', () => {
     const user = userEvent.setup()
     renderPage()
     expect(document.title).toBe('Personal Profile — Gordi MOS')
-    await user.selectOptions(screen.getByLabelText('Language'), 'id')
+    await user.click(screen.getByRole('combobox', { name: 'Language' }))
+    await user.click(screen.getByRole('option', { name: 'Bahasa Indonesia' }))
     expect(document.title).toBe('Profil Pribadi — Gordi MOS')
   })
 

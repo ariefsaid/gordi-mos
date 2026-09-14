@@ -80,8 +80,14 @@ const OWN_STREAM = { branch: BRANCHES[0], activity: 'kitchen' as const, produces
 const RADIANT_KITCHEN = { branch: BRANCHES[1], activity: 'kitchen' as const, produces: false }
 const RADIANT_BAR = { branch: BRANCHES[1], activity: 'bar' as const, produces: true }
 /** The head picker's option value for a stream — what a switch fires. */
-function streamOption(branchId: string, activity: 'kitchen' | 'bar'): string {
-  return `${branchId}|${activity}`
+function chooseStream(optionName: string) {
+  fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+  fireEvent.click(screen.getByRole('option', { name: optionName }))
+}
+
+function chooseCategory(optionName: string) {
+  fireEvent.click(screen.getByRole('combobox', { name: /category/i }))
+  fireEvent.click(screen.getByRole('option', { name: optionName }))
 }
 
 function viewer(accessRoles: string[]): AuthState {
@@ -173,17 +179,15 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
     const { container } = render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = within(head).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    const picker = within(head).getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Radiant · Bar')
     expect(mockPlans.mock.calls[0][1]).toEqual(RADIANT_BAR)
   })
 
   it('switching the stream in the head re-reads THAT stream\'s plan', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: streamOption(BRANCHES[1].id, 'bar') },
-    })
+    chooseStream('Radiant · Bar')
     await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
     expect(mockPlans.mock.calls[1][1]).toEqual(RADIANT_BAR)
   })
@@ -195,8 +199,8 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
     const { container } = render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = within(head).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    const picker = within(head).getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Radiant · Bar')
   })
 
   it('issue 440: the branch × activity pair of selects is GONE — one control names the stream, once', async () => {
@@ -668,7 +672,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     ])
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    fireEvent.change(screen.getByRole('combobox', { name: /category/i }), { target: { value: 'Rice' } })
+    chooseCategory('Rice')
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
@@ -777,9 +781,7 @@ describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: streamOption('branch-1', 'kitchen') },
-    })
+    chooseStream('Rumah Rames · Kitchen')
     await waitFor(() =>
       expect(screen.queryByText(/choose a production stream before submitting/i)).toBeNull(),
     )

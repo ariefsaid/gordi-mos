@@ -100,8 +100,9 @@ const STREAM_PAIRS = [BRANCH_GHQ, BRANCH_RAD, BRANCH_RR].flatMap(b => [
 ])
 
 /** The head picker's option value for a stream — what a switch fires. */
-function streamOption(branchId: string, activity: 'kitchen' | 'bar'): string {
-  return `${branchId}|${activity}`
+function chooseStream(optionName: string) {
+  fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+  fireEvent.click(screen.getByRole('option', { name: optionName }))
 }
 
 beforeEach(() => {
@@ -221,8 +222,8 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     render(<KitchenStockPage />, { wrapper })
     expect(await screen.findByText(/choose a stream/i)).toBeInTheDocument()
     expect(mockFetchStock).not.toHaveBeenCalled()
-    const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.value).toBe('')
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent(/choose stream/i)
   })
 
   it('issue 440: the head STATES the stream in view — canonical branch · activity', async () => {
@@ -232,8 +233,8 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     await screen.findByText('Ayam Bakar')
     const head = container.querySelector('[data-testid="page-head"]')
     expect(head?.textContent).toContain('Stream')
-    const picker = within(head as HTMLElement).getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.selectedOptions[0].textContent).toBe('Radiant · Bar')
+    const picker = within(head as HTMLElement).getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Radiant · Bar')
   })
 
   it('issue 440: a stream chosen elsewhere in Café wins over the viewer\'s own default', async () => {
@@ -258,13 +259,12 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     ]
     mockFetchStock.mockResolvedValue(switched)
 
-    const picker = screen.getByRole('combobox', { name: /production stream/i })
-    fireEvent.change(picker, { target: { value: streamOption(BRANCH_RAD.id, 'kitchen') } })
+    chooseStream('Radiant · Kitchen')
     await waitFor(() => expect(mockFetchStock).toHaveBeenCalledTimes(2))
     const [, stream] = mockFetchStock.mock.calls[1]
     expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen' })
 
-    fireEvent.change(picker, { target: { value: streamOption(BRANCH_RAD.id, 'bar') } })
+    chooseStream('Radiant · Bar')
     await waitFor(() => expect(mockFetchStock).toHaveBeenCalledTimes(3))
     const [, streamAfterActivity] = mockFetchStock.mock.calls[2]
     expect(streamAfterActivity).toEqual({ branch: BRANCH_RAD, activity: 'bar' })
@@ -282,16 +282,12 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     let resolveStale!: (rows: KitchenStockRow[]) => void
     const stalePromise = new Promise<KitchenStockRow[]>(res => { resolveStale = res })
     mockFetchStock.mockReturnValueOnce(stalePromise) // switch #1 — will resolve LAST
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: streamOption(BRANCH_RAD.id, 'kitchen') },
-    })
+    chooseStream('Radiant · Kitchen')
 
     mockFetchStock.mockResolvedValueOnce([
       { wip_item_id: 'w9', wip_item_name: 'Fresh Milk', category: null, stok: 7, tersedia: 7 },
     ]) // switch #2 — the latest read
-    fireEvent.change(screen.getByRole('combobox', { name: /production stream/i }), {
-      target: { value: streamOption(BRANCH_RAD.id, 'bar') },
-    })
+    chooseStream('Radiant · Bar')
     await screen.findByText('Fresh Milk')
 
     // NOW the stale response arrives.
@@ -314,7 +310,7 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     expect(picker).not.toBeDisabled()
 
     mockFetchStock.mockResolvedValueOnce(STOCK_ROWS)
-    fireEvent.change(picker, { target: { value: streamOption(BRANCH_RAD.id, 'kitchen') } })
+    chooseStream('Radiant · Kitchen')
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     const [, stream] = mockFetchStock.mock.calls[1]
     expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen' })
@@ -341,10 +337,9 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
 
     // The selected stream option for the central kitchen reads the CATALOG name, matching the
     // capture surface exactly — the two are routinely open side by side.
-    const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker.value).toBe(streamOption(BRANCH_RR.id, 'kitchen'))
-    expect(picker.selectedOptions[0].textContent).toBe('Rumah Rames · Kitchen')
-    expect(picker.textContent).not.toMatch(/Bungur/)
+    const picker = screen.getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveTextContent('Rumah Rames · Kitchen')
+    expect(picker).not.toHaveTextContent(/Bungur/)
 
     // The incumbent's trap label never renders, anywhere on the surface. Unchanged, and the
     // reason FR-061 exists: "Stok HQ" means the central kitchen, which books to Rumah Rames.
