@@ -1,6 +1,7 @@
 import { test, expect } from './fixtures/task-browser'
 import type { Page } from '@playwright/test'
 import { loginAs } from './helpers/login'
+import { chooseSelectOption } from './helpers/select'
 import { VIEWER } from './fixtures/users'
 
 // @e2e-owned-cleanup: captured-task-ids
@@ -19,7 +20,7 @@ async function createOverdueTaskMobile(page: Page, title: string) {
   const form = page.getByRole('form', { name: /create task form/i })
   await form.getByLabel('Title').fill(title)
   await form.getByLabel('Due date').fill('2020-01-01')
-  await form.getByLabel('Supervisor', { exact: true }).selectOption({ label: 'Dewi Director' })
+  await chooseSelectOption(page, form.getByRole('combobox', { name: 'Supervisor', exact: true }), 'Dewi Director')
   await form.getByRole('button', { name: /create task/i }).click()
   await page.waitForURL(/\/work\/tasks\?.*highlight=[0-9a-f-]{36}$/, { timeout: 15_000 })
   await expect(page.locator('tr.task-row, [data-testid="task-card"]', { hasText: title }).first()).toBeVisible({ timeout: 10_000 })
@@ -34,8 +35,8 @@ async function createOverdueTask(page: Page, title: string) {
   await form.getByLabel('Title').fill(title)
   await form.getByLabel('Due date').fill('2020-01-01')
   await form.getByLabel('Team').waitFor({ state: 'visible' })
-  await expect(form.getByLabel('Team')).not.toHaveValue('')
-  await form.getByLabel('Supervisor', { exact: true }).selectOption({ label: 'Dewi Director' })
+  await expect(form.getByRole('combobox', { name: 'Team', exact: true })).not.toContainText('Select team')
+  await chooseSelectOption(page, form.getByRole('combobox', { name: 'Supervisor', exact: true }), 'Dewi Director')
   await form.getByRole('button', { name: /create task/i }).click()
   await page.waitForURL(/\/work\/tasks\?view=my-work&highlight=[0-9a-f-]{36}$/, { timeout: 15_000 })
   await expect(page.locator('tr.task-row', { hasText: title }).first()).toBeVisible({ timeout: 10_000 })
@@ -51,7 +52,7 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   await page.goto(`work/tasks/new?view=my-work&r=${VIEWER.personId}`)
   await expect(page).toHaveURL(new RegExp(`/work/tasks/new\\?r=${VIEWER.personId}&view=my-work$`))
   const createForm = page.getByRole('form', { name: /create task form/i })
-  await expect(createForm.getByLabel(/^pic$/i)).toHaveValue(VIEWER.personId)
+  await expect(createForm.getByRole('combobox', { name: /^pic$/i })).toContainText('Cahya Cafe')
   await createForm.getByRole('button', { name: /cancel/i }).click()
   await expect(page).toHaveURL(/\/work\/tasks\?view=my-work$/)
   await expect(page.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
@@ -61,7 +62,7 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   await expect(page).toHaveURL(/\/work\/tasks\/new\?view=my-work$/)
   const mineForm = page.getByRole('form', { name: /create task form/i })
   await mineForm.getByLabel('Title').fill(mineTitle)
-  await mineForm.getByLabel('Supervisor', { exact: true }).selectOption({ label: 'Dewi Director' })
+  await chooseSelectOption(page, mineForm.getByRole('combobox', { name: 'Supervisor', exact: true }), 'Dewi Director')
   await mineForm.getByRole('button', { name: /create task/i }).click()
   await page.waitForURL(/\/work\/tasks\?view=my-work&highlight=[0-9a-f-]{36}$/, { timeout: 15_000 })
   await expect(page.locator('tr.task-row', { hasText: mineTitle }).first()).toBeVisible({ timeout: 10_000 })
@@ -73,7 +74,7 @@ test('AC-306/307/308: tasks saved views survive open, refresh, close, new tab, c
   const futureForm = page.getByRole('form', { name: /create task form/i })
   await futureForm.getByLabel('Title').fill(futureTitle)
   await futureForm.getByLabel('Due date').fill('2030-12-31')
-  await futureForm.getByLabel('Supervisor', { exact: true }).selectOption({ label: 'Dewi Director' })
+  await chooseSelectOption(page, futureForm.getByRole('combobox', { name: 'Supervisor', exact: true }), 'Dewi Director')
   await futureForm.getByRole('button', { name: /create task/i }).click()
   await page.waitForURL(/\/work\/tasks\?view=my-work&highlight=[0-9a-f-]{36}$/, { timeout: 15_000 })
   await expect(page.locator('tr.task-row', { hasText: futureTitle }).first()).toBeVisible({ timeout: 10_000 })

@@ -48,7 +48,8 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await expect(statusEditBtn).toBeVisible()
   await statusEditBtn.click()
   await drawer.getByRole('combobox', { name: 'Status', exact: true }).click()
-  await page.getByRole('option', { name: 'In Progress', exact: true }).click()
+  await page.getByRole('listbox', { name: 'Status', exact: true })
+    .getByRole('option', { name: 'In Progress', exact: true }).click()
 
   // ── 7. Assert: pill shows "In Progress" in place (no navigation) ─────────────
   await expect(drawer.getByRole('button', { name: /edit status/i })).toContainText('In Progress', { timeout: 8_000 })

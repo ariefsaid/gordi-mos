@@ -16,6 +16,7 @@ import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
+import { chooseSelectOption } from './helpers/select'
 import { VIEWER, MANAGER } from './fixtures/users'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -142,7 +143,7 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
     // Select the same Rumah Rames/kitchen stream the fixture above planned Nasi Putih against.
     const streamPicker = page.getByRole('combobox', { name: /production stream/i })
     await expect(streamPicker).toBeVisible({ timeout: 10_000 })
-    await streamPicker.selectOption({ label: STREAM_LABEL })
+    await chooseSelectOption(page, streamPicker, STREAM_LABEL)
 
     // Selecting the stream re-fetches its plan/stock (kitchen-log-page.tsx applyStream) and swaps
     // the table for a loading skeleton in between — give the round-trip room before the row query.

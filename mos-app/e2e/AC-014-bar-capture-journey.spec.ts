@@ -175,8 +175,13 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     // the default is a default, not a wall (OD-WAY-49/31). Seven since OD-WAY-79 added Cikal bar.
     const streamPicker = page.getByRole('combobox', { name: /Production stream/i })
     await expect(streamPicker).toBeVisible({ timeout: 15_000 })
-    await expect(streamPicker.locator('option')).toHaveCount(7)
-    await expect(streamPicker.locator('option:checked')).toHaveText(/Rumah Rames · Bar/i)
+    await streamPicker.click()
+    const streamListbox = page.getByRole('listbox', { name: /Production stream/i })
+    await expect(streamListbox.getByRole('option')).toHaveCount(7)
+    const selectedStreamOption = streamListbox.getByRole('option', { name: /Rumah Rames · Bar/i })
+    await expect(selectedStreamOption).toHaveAttribute('aria-selected', 'true')
+    await selectedStreamOption.click()
+    await expect(streamPicker).toContainText(/Rumah Rames · Bar/i)
 
     // FR-011 / DD-WAY-29 — the item is on the form because its unit is CONFIRMED, and it carries
     // that unit as fixed master data beside the qty input (FR-020).
@@ -269,8 +274,9 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     // ...and it is VISIBLE on the stream's stock surface — the number a person actually reads.
     await page.goto('cafe/stock')
     await page.waitForURL(/\/cafe\/stock$/, { timeout: 15_000 })
-    await expect(page.getByRole('combobox', { name: /^Branch$/i })).toBeVisible({ timeout: 20_000 })
-    await expect(page.getByRole('combobox', { name: /^Activity$/i })).toHaveValue('bar')
+    const stockStreamPicker = page.getByRole('combobox', { name: /Production stream/i })
+    await expect(stockStreamPicker).toBeVisible({ timeout: 20_000 })
+    await expect(stockStreamPicker).toContainText(/Rumah Rames · Bar/i)
     const stockRow = page.getByRole('row', { name: new RegExp(ITEM_NAME, 'i') })
     await expect(stockRow).toBeVisible({ timeout: 15_000 })
     await expect(stockRow).toContainText(String(PLAN_QTY))

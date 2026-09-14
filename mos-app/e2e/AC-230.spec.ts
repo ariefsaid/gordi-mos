@@ -33,6 +33,7 @@ import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
+import { chooseSelectOption } from './helpers/select'
 import { MANAGER } from './fixtures/users'
 
 // ── Supabase direct-SQL helper (mirrors global-setup.ts / AC-134 pattern) ────
@@ -160,12 +161,12 @@ test(
 
   // ── 4. Set Group = "Work-line" ───────────────────────────────────────────────
   // Desktop Group and Person controls render inline in the options row.
-  await page.getByLabel('Group').selectOption('workline')
+  await chooseSelectOption(page, page.getByRole('combobox', { name: 'Group', exact: true }), 'Project/Process')
 
   // ── 5. Set Person = Cahya ────────────────────────────────────────────────────
   // The Person filter overrides the segment (FR-124). Only Cahya's tasks pass
   // raciMember. filterZeroWhenPerson=true suppresses empty work-line groups (RI-2).
-  await page.getByLabel('Person').selectOption(P_CAHYA)
+  await chooseSelectOption(page, page.getByRole('combobox', { name: 'Person', exact: true }), 'Cahya Cafe')
 
   // ── 6. Wait for work-line group headers ──────────────────────────────────────
   // Groups depend on useCascadeCatalogs (async non-blocking load of mos.work_lines).

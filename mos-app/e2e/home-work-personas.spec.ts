@@ -73,7 +73,8 @@ for (const width of [390, 1440]) {
     await page.getByRole('listbox', { name: 'Team', exact: true }).getByRole('option', { name: 'HQ Operations', exact: true }).click()
     await expect(draft).toHaveValue(title)
     await page.getByRole('combobox', { name: 'Supervisor', exact: true }).click()
-    await page.getByRole('option', { name: 'Cahya Cafe', exact: true }).click()
+    await page.getByRole('listbox', { name: 'Supervisor', exact: true })
+      .getByRole('option', { name: 'Cahya Cafe', exact: true }).click()
     await expect(draft).toHaveValue(title)
     let failedOnce = false
     await page.route('**/rest/v1/tasks*', async (route) => {
@@ -111,7 +112,8 @@ test(`a Signal lists its newly created follow-up Task without losing the source 
   await page.getByRole('form', { name: 'Create task form' }).getByRole('combobox', { name: 'Team', exact: true }).click()
   await page.getByRole('listbox', { name: 'Team', exact: true }).getByRole('option', { name: 'HQ Operations', exact: true }).click()
   await page.getByRole('combobox', { name: 'Supervisor', exact: true }).click()
-  await page.getByRole('option', { name: 'Cahya Cafe', exact: true }).click()
+  await page.getByRole('listbox', { name: 'Supervisor', exact: true })
+    .getByRole('option', { name: 'Cahya Cafe', exact: true }).click()
   await page.getByRole('button', { name: 'Create task', exact: true }).click()
   await expect(page.getByRole('textbox', { name: 'Title', exact: true })).not.toBeVisible()
   await expect(page.getByRole('link', { name: /^\[e2e\] Signal follow-up context(?: Open)?$/ })).toBeVisible()

@@ -50,7 +50,8 @@ test('AC-101 (J1): open a task in the drawer → table stays mounted → change 
   // Change status through the field's accessible picker without navigating.
   await drawer.getByRole('button', { name: /edit status/i }).click()
   await drawer.getByRole('combobox', { name: 'Status', exact: true }).click()
-  await page.getByRole('option', { name: 'Blocked', exact: true }).click()
+  await page.getByRole('listbox', { name: 'Status', exact: true })
+    .getByRole('option', { name: 'Blocked', exact: true }).click()
 
   // The drawer pill AND the table row both reflect Blocked, still on /tasks/:id.
   await expect(drawer.getByRole('button', { name: /edit status/i })).toContainText('Blocked', { timeout: 8_000 })

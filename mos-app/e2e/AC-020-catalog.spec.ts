@@ -107,8 +107,9 @@ test('AC-020: admin adds → renames → archives an objective; archived leaves 
   const objectivePicker = page.getByRole('combobox', { name: 'Objective', exact: true })
   await expect(objectivePicker).toBeVisible()
   await objectivePicker.click()
-  await expect(page.getByRole('option', { name: 'Q3 Growth', exact: true })).toBeVisible()
-  await expect(page.getByRole('option', { name: RENAMED, exact: true })).toHaveCount(0)
+  const objectiveListbox = page.getByRole('listbox', { name: 'Objective', exact: true })
+  await expect(objectiveListbox.getByRole('option', { name: 'Q3 Growth', exact: true })).toBeVisible()
+  await expect(objectiveListbox.getByRole('option', { name: RENAMED, exact: true })).toHaveCount(0)
 })
 
 test.afterAll(async () => {

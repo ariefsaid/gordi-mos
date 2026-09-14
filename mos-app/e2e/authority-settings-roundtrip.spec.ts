@@ -66,7 +66,8 @@ test('R6: Admin matrix and designated Team lead survive reload and govern own/cr
     const labels: Record<string, string> = { none: 'No additional permission', own_bu: 'Own Business Unit', org: 'Organization' }
     async function choose(label: string, value: string) {
       await settings.getByRole('combobox', { name: label, exact: true }).click()
-      await settings.getByRole('option', { name: value, exact: true }).click()
+      await settings.getByRole('listbox', { name: label, exact: true })
+        .getByRole('option', { name: value, exact: true }).click()
     }
     async function saveScope(value: string) {
       const picker = settings.getByRole('combobox', { name: 'Manage Projects & Processes — Team lead', exact: true })

@@ -53,7 +53,8 @@ export async function createTaskViaUI(
   const supervisor = page.getByRole('combobox', { name: 'Supervisor', exact: true })
   await expect(supervisor).toBeVisible({ timeout: 10_000 })
   await supervisor.click()
-  await page.getByRole('option', { name: 'Cahya Cafe', exact: true }).click()
+  await page.getByRole('listbox', { name: 'Supervisor', exact: true })
+    .getByRole('option', { name: 'Cahya Cafe', exact: true }).click()
   await titleField.press('Enter')
 
   // The committed task replaces the draft row: same title, but a real record id in its href
