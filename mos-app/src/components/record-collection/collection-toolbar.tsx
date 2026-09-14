@@ -28,7 +28,7 @@ export interface CollectionToolbarFilterChoice {
   onChange: (checked: boolean) => void
 }
 
-/** One filter = either a native select of exclusive options, OR — #743 ruling round 3 — ONE
+/** One filter = either a styled Picker of exclusive options, OR — #743 ruling round 3 — ONE
  * dropdown-class trigger that opens an anchored popover of CHECKBOX choices (the Fields-chooser
  * pattern: a popover's boxes are not toolbar controls, so the row itself never renders a
  * checkbox). "Include archived" rides the Status control this way: additive to the chosen

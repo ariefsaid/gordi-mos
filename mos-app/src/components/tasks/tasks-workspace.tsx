@@ -43,6 +43,7 @@ import { getActiveTaskView } from './task-collection-view'
 import { isOwnerDirector } from '@/lib/role-scope'
 import { getTaskDefaultView } from '@/lib/task-default-view'
 import { resolveTeamContext } from '@/lib/team-context'
+import { isOverdue } from '@/lib/due-status'
 
 // D-A1 (fix work-order item 4): the Task record door is URL-addressable via the ?record= query
 // seam — the SAME grammar Signals uses (backlog R6(b) "unify on ?record="), built from the shared
@@ -73,7 +74,7 @@ type LegacySavedView = {
   search: string
 }
 
-export type TasksTableStats = { total: number; open: number; blocked: number; overdue: number } | null
+export type TasksTableStats = { total: number; open: number; blocked: number; overdue: number; attentionTotal: number } | null
 
 export type TasksTableProps = {
   /** Legacy test/embedding bridge. Production TasksLayout now derives this from the typed URL query. */
@@ -709,14 +710,35 @@ export function TasksWorkspace({
   )
   const stats: TasksTableStats = state.status === 'error' || state.status === 'loading'
     ? null
-    : {
-        total: recordsForStats.length,
-        // OD-REDESIGN-91 #17: "open" mirrors the rail badge's open-count definition
-        // (lib/db/rail-counts: not archived AND not Done) so the head and the rail agree.
-        open: recordsForStats.filter((record) => record.status !== 'Done' && record.archivedAt === null).length,
-        blocked: recordsForStats.filter((record) => record.status === 'Blocked').length,
-        overdue: recordsForStats.filter((record) => record.status !== 'Done' && record.archivedAt === null && record.dueDate !== null && record.dueDate < new Date().toISOString().slice(0, 10)).length,
-      }
+    : (() => {
+        const now = dataContext?.now ?? new Date()
+        // The breakdowns remain independently useful, but the combined attention door counts
+        // task IDs once when a task is both overdue and blocked.
+        const blockedTaskIds = new Set(
+          recordsForStats
+            .filter((record) => record.status === 'Blocked' && record.archivedAt === null)
+            .map((record) => record.id),
+        )
+        const overdueTaskIds = new Set(
+          recordsForStats
+            .filter((record) => isOverdue({
+              status: record.status,
+              due_date: record.dueDate,
+              archived_at: record.archivedAt,
+            }, now))
+            .map((record) => record.id),
+        )
+        const attentionTaskIds = new Set([...blockedTaskIds, ...overdueTaskIds])
+        return {
+          total: recordsForStats.length,
+          // OD-REDESIGN-91 #17: "open" mirrors the rail badge's open-count definition
+          // (lib/db/rail-counts: not archived AND not Done) so the head and the rail agree.
+          open: recordsForStats.filter((record) => record.status !== 'Done' && record.archivedAt === null).length,
+          blocked: blockedTaskIds.size,
+          overdue: overdueTaskIds.size,
+          attentionTotal: attentionTaskIds.size,
+        }
+      })()
   // Census R2 DO-6's reserved placeholder state is gone with the AR Follow-ups view (#743):
   // every view now renders the live collection body.
   // Block 2(d) (Luna 390 audit): the header "+ Create task" is the DESKTOP create door; on phone
@@ -754,7 +776,7 @@ export function TasksWorkspace({
       overdueCount={stats?.overdue ?? 0}
       onOverdueFilter={() => setQuery({ overdueOnly: true })}
       onClearOverdue={() => setQuery({ overdueOnly: false })}
-      attentionCounts={{ overdue: stats?.overdue ?? 0, blocked: stats?.blocked ?? 0 }}
+      attentionCounts={{ overdue: stats?.overdue ?? 0, blocked: stats?.blocked ?? 0, total: stats?.attentionTotal ?? 0 }}
       onAttentionOverdue={() => setQuery({ overdueOnly: true, status: null })}
       onAttentionBlocked={() => setQuery({ overdueOnly: false, status: 'Blocked' })}
       onClearFilters={onClearFilters}

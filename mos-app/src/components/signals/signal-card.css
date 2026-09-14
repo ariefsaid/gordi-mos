@@ -131,3 +131,14 @@
 .signal-category-option[aria-selected="true"] {
   background: var(--accent-subtle); color: var(--text-accent); font-weight: 600;
 }
+
+/* Phone floor: the category list keeps its compact type and row rhythm on desktop, while each
+   option becomes a comfortable one-handed target on the floor. The label stays centered inside
+   the larger hit box; the popover itself remains the same width and visual surface. */
+@media (max-width: 767.98px) {
+  .signal-category-option {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+}

@@ -49,7 +49,7 @@ export type TasksToolbarProps = {
   buOptions: readonly BusinessUnitOption[]
   personOptions: readonly PersonOption[]
   savedViews?: TasksToolbarSavedViews
-  attentionCounts?: { overdue: number; blocked: number }
+  attentionCounts?: { overdue: number; blocked: number; total: number }
   onAttentionOverdue?: () => void
   onAttentionBlocked?: () => void
 }
@@ -112,8 +112,8 @@ export function TasksToolbar({
   const t = useT()
   const isDesktop = useIsDesktop()
   const savedViewRetryRef = useRef<SavedViewRetryAction | null>(null)
-  const attention = attentionCounts ?? { overdue: overdueCount, blocked: 0 }
-  const attentionTotal = attention.overdue + attention.blocked
+  const attention = attentionCounts ?? { overdue: overdueCount, blocked: 0, total: overdueCount }
+  const attentionTotal = attention.total
 
   const statusLabel = (key: (typeof STATUS_VALUES)[number]['key']) => t(`tasks.status.${key}` as const)
   const groupLabel = (key: (typeof GROUP_VALUES)[number]['key']) => {
