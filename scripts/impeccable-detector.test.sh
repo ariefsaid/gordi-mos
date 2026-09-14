@@ -9,6 +9,11 @@ test -f "$ENTRY"
 test -f "$VENDOR/detector/detect-antipatterns.mjs"
 test -f "$VENDOR/lib/impeccable-config.mjs"
 
+if grep -R -E -- '--no-sandbox|--disable-setuid-sandbox' "$VENDOR/detector" >/dev/null; then
+  echo "vendored browser detector disables the Chromium sandbox" >&2
+  exit 1
+fi
+
 help_output="$(node "$ENTRY" --help)"
 printf '%s\n' "$help_output" | grep -Fq 'Usage: impeccable detect'
 

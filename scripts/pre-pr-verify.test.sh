@@ -251,6 +251,21 @@ else ok "Impeccable finding refuses"; fi
 [ ! -s "$tmp/npm-calls" ] && ok "Impeccable finding stops before npm" || bad "npm ran after Impeccable finding"
 G rm -q mos-app/src/impeccable-red.css; G commit -qm "remove impeccable finding"
 
+# With no resolvable origin/dev base, the heavy lane already fails closed. The design gate must
+# do the same: scan all tracked production UI rather than silently skipping Impeccable.
+G update-ref -d refs/remotes/origin/dev
+rm -f "$tmp/npm-calls" "$STAMP"
+cat > "$tmp/repo/mos-app/src/impeccable-no-base-red.css" <<'CSS'
+.generated-card { font-family: Inter, sans-serif; }
+CSS
+G add mos-app/src/impeccable-no-base-red.css; G commit -qm "plant no-base impeccable finding"
+if run; then bad "no-base Impeccable finding must refuse"
+else ok "no-base Impeccable finding refuses"; fi
+[ ! -f "$STAMP" ] && ok "no stamp after no-base Impeccable finding" || bad "stamp written over no-base Impeccable finding"
+[ ! -s "$tmp/npm-calls" ] && ok "no-base Impeccable finding stops before npm" || bad "npm ran after no-base Impeccable finding"
+G rm -q mos-app/src/impeccable-no-base-red.css; G commit -qm "remove no-base impeccable finding"
+G update-ref refs/remotes/origin/dev "$(G rev-parse HEAD)"
+
 # ── Ledger serialization: linked worktrees share one ledger through the common git dir, so a
 # run must not append while another writer holds the ledger lock. The lock timeout is bounded,
 # so a holder that outlives it causes a non-fatal deferred append failure.

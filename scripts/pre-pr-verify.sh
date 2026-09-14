@@ -78,26 +78,10 @@ if [ -n "$base" ]; then
   fi
 fi
 if [ "$app_touched" = 1 ]; then
-  # UI diffs must pass the repository-owned Impeccable detector. Scan production source files
-  # changed on this branch; tests and fixtures are excluded because example markup is allowed to
-  # contain the anti-pattern a test is proving. The detector exits non-zero on actionable findings.
-  if [ -n "$base" ]; then
-    impeccable_files=()
-    while IFS= read -r ui_file; do
-      case "$ui_file" in
-        mos-app/src/*.css|mos-app/src/*.html|mos-app/src/*.jsx|mos-app/src/*.tsx|mos-app/src/*.vue|mos-app/src/*.svelte|mos-app/src/*.astro)
-          case "$ui_file" in
-            *.test.*|*.spec.*|*/__tests__/*|*/fixtures/*) ;;
-            *) impeccable_files+=("$ui_file") ;;
-          esac
-          ;;
-      esac
-    done <<< "$changed"
-    if [ "${#impeccable_files[@]}" -gt 0 ]; then
-      echo "── impeccable: scanning ${#impeccable_files[@]} changed UI source file(s)"
-      node scripts/impeccable-detect.mjs --no-advisory "${impeccable_files[@]}"
-    fi
-  fi
+  # UI diffs must pass the repository-owned Impeccable detector. The helper scans the branch
+  # diff when a base resolves and every tracked production UI source file when it does not.
+  # Tests and fixtures stay excluded because their example markup may intentionally prove a rule.
+  bash scripts/impeccable-changed-ui.sh "$base"
 
   # Every binary, not one sentinel: a tree with tsc but no eslint died 127 at `npm run lint`.
   # Installing is not a test, so this sits outside the test lock.

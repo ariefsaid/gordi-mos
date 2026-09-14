@@ -70,6 +70,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Impeccable changed production UI scan
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: bash scripts/impeccable-changed-ui.sh "${BASE_SHA:-HEAD^}"
       - name: pre-commit hook self-test
         run: bash scripts/pre-commit-hook.test.sh
       - name: pre-push hook self-test
@@ -80,6 +86,8 @@ jobs:
         run: bash scripts/pre-pr-verify.test.sh
       - name: Impeccable detector vendor self-test
         run: bash scripts/impeccable-detector.test.sh
+      - name: UI review skill pin self-test
+        run: bash scripts/vendor-skills.test.sh
       - name: sssf vendor conformance self-test (FAC-001)
         run: bash scripts/vendor-sssf.test.sh
       - name: sssf gate composition + chain-exit self-test (FAC-004/FAC-005)

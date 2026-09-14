@@ -43,4 +43,6 @@ The command emits the rendered findings as JSON and exits 2 when it finds an act
 Source scans are self-contained. URL scans use the detector's optional browser runtime and still
 require the browser dependency supplied by the local toolchain. The repository carries one
 fail-closed patch in `detector/cli/main.mjs`: a missing browser dependency or failed navigation
-returns a non-zero exit instead of printing an error followed by a false-clean `[]` result.
+returns a non-zero exit instead of printing an error followed by a false-clean `[]` result. The
+vendored browser engine also retains Chromium's sandbox in CI; callers may provide explicit launch
+arguments only through the programmatic API when their isolated runner requires them.

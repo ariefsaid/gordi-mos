@@ -181,12 +181,12 @@ function ownerCellValue(
   )
 }
 
-function visualCellValue(value: string, t: ReturnType<typeof useT>): string {
-  return value === t('catalog.notSet') ? '–' : value
+function visualCellValue(value: string, missing: boolean): string {
+  return missing ? '–' : value
 }
 
-function dueLabel(row: CatalogRow, t: ReturnType<typeof useT>): string {
-  if (row.type !== 'process') return t('catalog.notSet')
+function dueValue(row: CatalogRow, t: ReturnType<typeof useT>): { label: string; missing: boolean } {
+  if (row.type !== 'process') return { label: t('catalog.notSet'), missing: true }
   const cadenceLabels = {
     manual: t('catalog.record.cadence.manual'),
     daily: t('catalog.record.cadence.daily'),
@@ -194,11 +194,11 @@ function dueLabel(row: CatalogRow, t: ReturnType<typeof useT>): string {
     monthly: t('catalog.record.cadence.monthly'),
   }
   const cadence = row.cadenceKind ? cadenceLabels[row.cadenceKind] : t('catalog.notSet')
-  if (!row.nextDueDate) return cadence
+  if (!row.nextDueDate) return { label: cadence, missing: !row.cadenceKind }
   const locale = readPersistedLocale() === 'id' ? 'id-ID' : 'en-GB'
   const due = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
     .format(new Date(`${row.nextDueDate}T00:00:00Z`))
-  return `${cadence} · ${due}`
+  return { label: `${cadence} · ${due}`, missing: false }
 }
 
 function primaryRelation(context: CatalogCollectionContext, row: CatalogRow) {
@@ -240,7 +240,8 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
             t,
           )
           const businessUnitLabel = directoryName(row.businessUnitId, context.businessUnitsById, t)
-          const cadenceDueLabel = dueLabel(row, t)
+          const cadenceDue = dueValue(row, t)
+          const cadenceDueLabel = cadenceDue.label
           const typeTag = row.type ? (
             <Tag color={row.type === 'project' ? 'blue' : 'sand'}>
               {t(row.type === 'project' ? 'catalog.tag.project' : 'catalog.tag.process')}
@@ -277,8 +278,8 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
                   aria-label={`${context.relationsKind === 'objective' ? t('catalog.column.businessUnit') : t('catalog.column.objective')}: ${context.relationsKind === 'objective' ? businessUnitLabel : relationLabel}`}
                 >
                   <span className="catalog-collection__cell-label">{context.relationsKind === 'objective' ? t('catalog.column.businessUnit') : t('catalog.column.objective')}</span>
-                  <span className={context.relationsKind === 'objective' ? (businessUnitLabel === t('catalog.notSet') ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value') : (relation ? 'catalog-collection__cell-value' : 'catalog-collection__cell-value catalog-collection__cell-value--muted')}>
-                    {visualCellValue(context.relationsKind === 'objective' ? businessUnitLabel : relationLabel, t)}
+                  <span className={context.relationsKind === 'objective' ? (!row.businessUnitId ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value') : (relation ? 'catalog-collection__cell-value' : 'catalog-collection__cell-value catalog-collection__cell-value--muted')}>
+                    {visualCellValue(context.relationsKind === 'objective' ? businessUnitLabel : relationLabel, context.relationsKind === 'objective' ? !row.businessUnitId : !relation)}
                   </span>
                   {context.relationsKind === 'objective' && row.periodYear != null ? (
                     <span className="catalog-collection__cell-note">{row.periodYear}</span>
@@ -299,8 +300,8 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
                   aria-label={`${context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}: ${context.relationsKind === 'objective' ? relationLabel : cadenceDueLabel}`}
                 >
                   <span className="catalog-collection__cell-label">{context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}</span>
-                  <span className={cadenceDueLabel === t('catalog.notSet') ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value'}>
-                    {visualCellValue(context.relationsKind === 'objective' ? relationLabel : cadenceDueLabel, t)}
+                  <span className={(context.relationsKind === 'objective' ? !relation : cadenceDue.missing) ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value'}>
+                    {visualCellValue(context.relationsKind === 'objective' ? relationLabel : cadenceDueLabel, context.relationsKind === 'objective' ? !relation : cadenceDue.missing)}
                   </span>
                   {context.relationsKind === 'objective' ? (
                     <span className="catalog-collection__cell-note">

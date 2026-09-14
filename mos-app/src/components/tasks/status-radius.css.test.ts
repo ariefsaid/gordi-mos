@@ -32,6 +32,12 @@ function allCssFiles(dir: string, acc: string[] = []): string[] {
 }
 
 describe('AC-D05: status pill + dot resolve to the pill radius, not 0px', () => {
+  it('keeps the task status pill at the specified 22px height', () => {
+    const body = ruleBody(read('src/components/tasks/status-pill.css'), '.status-pill {')
+    expect(body).toMatch(/height:\s*22px/)
+    expect(body).toMatch(/padding-block:\s*0/)
+  })
+
   // Shape re-ruled after this case was written. OD-REDESIGN-91 #30/E1, recorded in DESIGN.md's
   // Geometry row: "status pills are 8px rounded-rects; 999px is reserved for circular marks (dots,
   // count badges, basis chip)." `.mk-tag` renders task/catalog/role/push tags and — through

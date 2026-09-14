@@ -65,7 +65,11 @@ rm -f "$DEST/spec-miner/SKILL.md.bak"
 
 # --- UI/UX design skills (vetted SAFE-with-caveats; see docs/design-workflow.md) ---
 echo "==> impeccable (pbakaus/impeccable) — design/critique/extract; phone-home DISABLED"
-git clone --depth 1 https://github.com/pbakaus/impeccable.git "$TMP/impeccable"
+IMPECCABLE_PIN="cb56ed6c19a07329a9fa0cd4e657bee040156593"
+git init -q "$TMP/impeccable"
+git -C "$TMP/impeccable" remote add origin https://github.com/pbakaus/impeccable.git
+git -C "$TMP/impeccable" fetch -q --depth 1 origin "$IMPECCABLE_PIN"
+git -C "$TMP/impeccable" checkout -q FETCH_HEAD
 rm -rf "${DEST:?}/impeccable"
 cp -R "$TMP/impeccable/skill" "$DEST/impeccable"
 [ -f "$DEST/impeccable/SKILL.src.md" ] && mv "$DEST/impeccable/SKILL.src.md" "$DEST/impeccable/SKILL.md"
@@ -90,7 +94,11 @@ mkdir -p "$DEST/impeccable/scripts/lib"
 cp "$IMPECCABLE_VENDOR/lib/impeccable-config.mjs" "$DEST/impeccable/scripts/lib/impeccable-config.mjs"
 
 echo "==> taste (Leonxlnx/taste-skill — v1 stable) — anti-slop craft discipline"
-git clone --depth 1 https://github.com/Leonxlnx/taste-skill.git "$TMP/taste"
+TASTE_PIN="ccbc15639c97057cbfcf32ecebc38ef716e4bb37"
+git init -q "$TMP/taste"
+git -C "$TMP/taste" remote add origin https://github.com/Leonxlnx/taste-skill.git
+git -C "$TMP/taste" fetch -q --depth 1 origin "$TASTE_PIN"
+git -C "$TMP/taste" checkout -q FETCH_HEAD
 rm -rf "${DEST:?}/taste"
 cp -R "$TMP/taste/skills/taste-skill-v1" "$DEST/taste"
 

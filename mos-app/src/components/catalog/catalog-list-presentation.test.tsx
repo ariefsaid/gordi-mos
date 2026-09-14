@@ -26,13 +26,14 @@ const actions: CatalogCollectionActions = {
   unarchive: vi.fn(),
 }
 
-function renderRows(rows: CatalogRow[]) {
+function renderRows(rows: CatalogRow[], contextOverrides: Partial<CatalogCollectionContext> = {}) {
   const context: CatalogCollectionContext = {
     traceById: new Map(),
     relationsById: new Map(rows.map((row) => [row.id, { groups: [], tasks: [] }])),
     relationsKind: 'work_line',
     progressById: new Map(),
     peopleById: new Map([['person-1', 'Raka Utama']]),
+    ...contextOverrides,
   }
   const projection: CollectionProjection<CatalogRow, CatalogRenderGroup> = {
     visibleRecords: rows,
@@ -86,5 +87,18 @@ describe('CatalogListPresentation owner-cell grammar', () => {
     expect(owner).toHaveTextContent('–')
     expect(owner.querySelector('.ownav')).toBeNull()
     expect(within(row).queryByText('Not set')).toBeNull()
+  })
+
+  it('renders a real relation named Not set instead of treating its name as missing data', () => {
+    const record = { id: 'work-3', name: 'Literal-name project', archived_at: null, type: 'project' as const, accountablePersonId: 'person-1' }
+    renderRows([record], {
+      relationsById: new Map([[record.id, {
+        groups: [{ id: 'objective-1', name: 'Not set', taskCount: 0, done: 0, total: 0 }],
+        tasks: [],
+      }]]),
+    })
+
+    const row = screen.getByRole('link', { name: 'Literal-name project' })
+    expect(within(row).getByRole('cell', { name: 'Objective: Not set' })).toHaveTextContent('Not set')
   })
 })
