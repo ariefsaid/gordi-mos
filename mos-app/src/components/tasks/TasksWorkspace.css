@@ -209,6 +209,16 @@
 }
 
 .inline-cell-trigger {
+  /* The split table has fixed decision tracks. Keep an inline edit door inside its cell so an
+     intrinsic status, person, or due label cannot widen .tasks-scroll by a few pixels. */
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   min-height: 32px;
   border: 0;
   background: transparent;

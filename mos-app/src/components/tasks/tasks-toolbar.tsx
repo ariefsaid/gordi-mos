@@ -461,7 +461,7 @@ export function TasksToolbar({
                           }}
                         />
                       </label>
-                      <Button variant="primary" disabled={!viewName.trim() || savedViews.operation === 'saving'} onClick={() => void saveView()}>
+                      <Button variant="outline" disabled={!viewName.trim() || savedViews.operation === 'saving'} onClick={() => void saveView()}>
                         {savedViews.operation === 'saving' ? t('common.saving') : t('common.save')}
                       </Button>
                       <Button variant="ghost" onClick={() => setSaveOpen(false)}>{t('common.cancel')}</Button>

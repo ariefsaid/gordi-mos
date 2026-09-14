@@ -1853,6 +1853,18 @@ describe('S2.1 — split decision-column floors', () => {
       expect(css.slice(open + 1, close), `${selector} must own its floor`).toMatch(/width:\s*\d+px/)
     }
   })
+
+  it('bounds inline cell controls to the table cell so long values cannot widen the scroll viewport', () => {
+    const body = cssRuleBody('.inline-cell-trigger')
+    expect(body).toMatch(/display:\s*block/)
+    expect(body).toMatch(/width:\s*100%/)
+    expect(body).toMatch(/max-width:\s*100%/)
+    expect(body).toMatch(/min-width:\s*0/)
+    expect(body).toMatch(/box-sizing:\s*border-box/)
+    expect(body).toMatch(/overflow:\s*hidden/)
+    expect(body).toMatch(/text-overflow:\s*ellipsis/)
+    expect(body).toMatch(/white-space:\s*nowrap/)
+  })
 })
 
 describe('PR-2 — AC-T01 thead th header (e7 grammar: 600/38 uppercase muted — supersedes OD-P4-10 weight-400)', () => {

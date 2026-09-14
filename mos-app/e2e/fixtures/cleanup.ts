@@ -106,7 +106,7 @@ export const E2E_CLEANUP_REGISTRY = {
   'AC-PB-012-budget-pricing-preflight.spec.ts': 'captured-budget-id',
   'authority-settings-roundtrip.spec.ts': 'captured-tenant-ids',
   'dev-views.spec.ts': 'captured-user-view-id',
-  'guards.geometry.spec.ts': 'fixed-task-id',
+  'guards.geometry.spec.ts': 'captured-task-ids',
   'home-cafe-parity.spec.ts': 'captured-run-and-pending-ids-plus-fixed-seed-ids',
   'home-tasks-redesign.spec.ts': 'captured-task-ids',
   'home-work-personas.spec.ts': 'captured-task-ids-plus-fixed-seed-ids',

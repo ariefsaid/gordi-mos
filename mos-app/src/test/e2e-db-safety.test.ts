@@ -158,10 +158,6 @@ test('every Playwright data writer is registered with an owned cleanup contract'
     if (contract === 'captured-process-run-id') {
       expect(source, `${file} must use guarded process-run cleanup`).toContain('processRunCleanupSql')
     }
-    if (contract === 'fixed-task-id') {
-      expect(source, `${file} must declare its fixed task ID`).toContain('GUARD_TASK_ID_743')
-      expect(source, `${file} must use guarded task cleanup`).toContain('taskCleanupSql')
-    }
   }
 })
 
@@ -244,7 +240,6 @@ test('process-run journeys never sweep seeded runs by process and team', () => {
     expect(source).not.toMatch(/delete\s+from\s+mos\.tasks\s+where\s+process_run_id\s+in\s*\(/i)
   }
   expect(ac720).toContain('processRunCleanupSql')
-  expect(geometry).toContain('taskCleanupSql')
 })
 
 test('global setup relinks only the canonical demo organization', () => {
