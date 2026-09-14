@@ -64,7 +64,20 @@ fi
 # a fresh copy; the latter is needed because cp -al copies the main link as part of the seed.
 repair_nested_node_modules_alias() {
   local nested_alias="$target_nm/node_modules"
+  local nested_target nested_target_path nested_target_real main_nm_real
   if [ -L "$nested_alias" ]; then
+    nested_target="$(readlink "$nested_alias")"
+    if [ "$nested_target" != "$main_nm" ]; then
+      [ -d "$main_nm" ] || return 0
+      case "$nested_target" in
+        /*) nested_target_path="$nested_target" ;;
+        *) nested_target_path="$(dirname "$nested_alias")/$nested_target" ;;
+      esac
+      [ -d "$nested_target_path" ] || return 0
+      nested_target_real="$(cd "$nested_target_path" && pwd -P)"
+      main_nm_real="$(cd "$main_nm" && pwd -P)"
+      [ "$nested_target_real" = "$main_nm_real" ] || return 0
+    fi
     rm -f "$nested_alias"
     echo "── worktree-npm-seed: removed inherited node_modules/node_modules symlink"
   fi

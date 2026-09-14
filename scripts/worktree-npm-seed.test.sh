@@ -172,6 +172,23 @@ printf '%s' "$out2" | grep -qi 'no-op' && ok "idempotent: says no-op" \
   && ok "idempotent: unrelated nested package symlink preserved" \
   || bad "idempotent: unrelated nested package symlink preserved"
 
+# A different target at the same nested path is not the inherited main alias and must survive an
+# idempotent repair pass. This distinguishes a readlink-target predicate from deleting every
+# symlink named node_modules.
+unrelated_nested_target="$tmp/unrelated-node-modules"
+mkdir -p "$unrelated_nested_target"
+ln -s "$unrelated_nested_target" "$wt/mos-app/node_modules/node_modules"
+rm -f "$tmp/npm-calls"
+out2b="$(run "$wt" 2>&1)"; rc2b=$?
+[ "$rc2b" -eq 0 ] && ok "idempotent-unrelated: exit 0" \
+  || bad "idempotent-unrelated: exit 0" "rc=$rc2b out=$out2b"
+[ ! -f "$tmp/npm-calls" ] && ok "idempotent-unrelated: npm ci never invoked" \
+  || bad "idempotent-unrelated: npm ci never invoked" "$(cat "$tmp/npm-calls" 2>/dev/null)"
+[ -L "$wt/mos-app/node_modules/node_modules" ] \
+  && [ "$(readlink "$wt/mos-app/node_modules/node_modules")" = "$unrelated_nested_target" ] \
+  && ok "idempotent-unrelated: nested symlink preserved" \
+  || bad "idempotent-unrelated: nested symlink preserved"
+
 ### 3. fallback-on-mismatch: target lockfile differs from main's → plain npm ci, said on stdout.
 wt2="$tmp/wt2"
 git -C "$repo" worktree add -q -b feat2 "$wt2" HEAD
