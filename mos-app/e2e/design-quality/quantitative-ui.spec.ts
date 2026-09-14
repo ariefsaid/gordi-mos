@@ -86,12 +86,15 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
       : [{ selector: 'main', authority: 'manifest default main region' }]
     const cellRegionRows = await collectPrimaryActionRegions(page, context, primaryRegions)
     regionRows.push(...cellRegionRows as unknown as Record<string, unknown>[])
-    const touchGroups = DESIGN_QUALITY_MANIFEST.lists.touchSeparationGroups
+    const touchGroups = DESIGN_QUALITY_MANIFEST.lists.touchSeparationGroups.filter((group) =>
+      (!group.routes || group.routes.includes(cell.route))
+      && (!group.viewports || group.viewports.includes(cell.viewport)),
+    )
     const cellTouchRows = cell.viewport === 'phone-390x844'
       ? await collectTouchSeparation(page, context, touchGroups)
       : []
     touchSeparation.push(...cellTouchRows as unknown as Record<string, unknown>[])
-    screenshots.push(await captureCell(page, run, cell))
+    screenshots.push(await captureCell(page, run, cell, 'quantitative'))
 
     if (cellGeometry.length === 0) failures.push(`${cell.id}: geometry census returned zero visible rows`)
     for (const row of cellGeometry) {
@@ -140,7 +143,7 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
     if (cell.viewport === 'phone-390x844') {
       for (const row of cellTouchRows) {
         if (row.observed && !row.passes) failures.push(`${cell.id}: ${row.groupSelector} targets ${row.first} and ${row.second} are ${row.gap}px apart`)
-        if (DESIGN_QUALITY_MANIFEST.lists.touchSeparationGroups.some((entry) => entry.selector === row.groupSelector) && !row.observed) failures.push(`${cell.id}: touch separation group ${row.groupSelector} returned zero or one visible target`)
+        if (touchGroups.some((entry) => entry.selector === row.groupSelector) && !row.observed) failures.push(`${cell.id}: touch separation group ${row.groupSelector} returned zero or one visible target`)
       }
     }
     const h1Count = cellHeadings.filter((heading) => heading.level === 1).length
@@ -154,6 +157,7 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
 
   const observedManifest = manifestWithCoverageResults(DESIGN_QUALITY_MANIFEST, observations)
   const untested = observedManifest.cells.filter((cell) => cell.status === 'untested')
+  const auditMode = process.env.DESIGN_AUDIT_MODE === 'change-gate' ? 'change-gate' : 'mvp-assessment'
   await run.writer.writeJson('manifest.json', observedManifest)
   await run.writer.writeCsv('geometry.csv', [...geometry, ...focusStops, ...typography, ...touchSeparation])
   await run.writer.writeCsv('control-census.csv', [...controls, ...regionRows, ...cardRows])
@@ -171,8 +175,13 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
     screenshots,
     failures,
     untested: untested.map((cell) => cell.id),
+    auditMode,
+    automaticChecksPassed: failures.length === 0,
+    completeStateCoverage: untested.length === 0,
   })
   expect(geometry.length + controls.length).toBeGreaterThan(0)
   expect(failures, `quantitative design rules failed:\n${failures.slice(0, 50).join('\n')}`).toEqual([])
-  expect(untested.map((cell) => cell.id), 'every manifest cell must have deterministic rendered state evidence').toEqual([])
+  if (auditMode === 'mvp-assessment') {
+    expect(untested.map((cell) => cell.id), 'every manifest cell must have deterministic rendered state evidence').toEqual([])
+  }
 })

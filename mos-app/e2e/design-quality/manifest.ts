@@ -37,9 +37,19 @@ export type EnforcementClass = 'automatic' | 'census' | 'judgment'
  * evidence that proves it. A prose description alone does not make a cell
  * runnable; the browser runtime still has to observe the assertion.
  */
+export type ManifestStateAction = {
+  action: 'click' | 'fill' | 'press'
+  selector: string
+  value?: string
+}
+
 export type ManifestStateContract = {
-  setup: string
-  assertion: string
+  setup: ManifestStateAction[]
+  assertion: {
+    selector: string
+    attribute?: string
+    value?: string
+  }
   writes?: boolean
 }
 
@@ -76,6 +86,8 @@ export type EnforcementRule = {
 export type NamedManifestList = {
   selector: string
   authority: string
+  routes?: string[]
+  viewports?: string[]
 }
 
 export type ManifestLists = {
@@ -207,8 +219,8 @@ function cell(
       id,
       ...values,
       stateContract: {
-        setup: 'Navigate to the manifest route with the declared fixture, viewport, theme, and language.',
-        assertion: 'A visible main landmark proves the default route state rendered.',
+        setup: [],
+        assertion: { selector: 'main, [role="main"]' },
       },
     }
   }
@@ -468,7 +480,14 @@ const emptyNamedLists: ManifestLists = {
   decisionGroups: [],
   meaningfulGraphics: [],
   fullValuePaths: [],
-  touchSeparationGroups: [],
+  touchSeparationGroups: [
+    {
+      selector: '.kl-footer-actions',
+      authority: 'DESIGN.md phone target spacing; Café Log exposes adjacent Discard and Submit actions',
+      routes: ['/mos/cafe/log'],
+      viewports: ['phone-390x844'],
+    },
+  ],
 }
 
 export const DESIGN_QUALITY_MANIFEST: DesignQualityManifest = {
@@ -535,10 +554,18 @@ export function validateManifest(manifest: DesignQualityManifest): ManifestValid
       errors.push(`cell ${cellEntry.id || '<unknown>'} is ${cellEntry.status} without an explicit reason`)
     }
     if (cellEntry.status === 'covered') {
-      if (!isNonEmptyString(cellEntry.stateContract?.setup)) {
+      if (!Array.isArray(cellEntry.stateContract?.setup)) {
         errors.push(`cell ${cellEntry.id || '<unknown>'} is covered without deterministic state setup`)
       }
-      if (!isNonEmptyString(cellEntry.stateContract?.assertion)) {
+      for (const action of cellEntry.stateContract?.setup ?? []) {
+        if (!['click', 'fill', 'press'].includes(action.action) || !isNonEmptyString(action.selector)) {
+          errors.push(`cell ${cellEntry.id || '<unknown>'} has an invalid state setup action`)
+        }
+        if ((action.action === 'fill' || action.action === 'press') && !isNonEmptyString(action.value)) {
+          errors.push(`cell ${cellEntry.id || '<unknown>'} ${action.action} setup requires a value`)
+        }
+      }
+      if (!isNonEmptyString(cellEntry.stateContract?.assertion?.selector)) {
         errors.push(`cell ${cellEntry.id || '<unknown>'} is covered without deterministic state assertion`)
       }
     }
@@ -597,6 +624,12 @@ export function validateManifest(manifest: DesignQualityManifest): ManifestValid
       if (!isNonEmptyString(entry.selector) || !isNonEmptyString(entry.authority)) {
         errors.push(`named list ${listName} entries require selector and authority`)
       }
+      if (entry.routes?.some((route) => !manifest.dimensions.route.includes(route))) {
+        errors.push(`named list ${listName} entry uses a route outside the manifest dimensions`)
+      }
+      if (entry.viewports?.some((viewport) => !manifest.dimensions.viewport.includes(viewport))) {
+        errors.push(`named list ${listName} entry uses a viewport outside the manifest dimensions`)
+      }
     }
   }
 
@@ -615,7 +648,7 @@ export function validateManifestReadiness(manifest: DesignQualityManifest): Mani
     if (cellEntry.status === 'blocked' || cellEntry.status === 'untested') {
       errors.push(`cell ${cellEntry.id || '<unknown>'} is ${cellEntry.status}; readiness cannot be green`)
     }
-    if (cellEntry.status === 'covered' && (!cellEntry.stateContract?.setup || !cellEntry.stateContract?.assertion)) {
+    if (cellEntry.status === 'covered' && (!Array.isArray(cellEntry.stateContract?.setup) || !cellEntry.stateContract?.assertion?.selector)) {
       errors.push(`cell ${cellEntry.id || '<unknown>'} lacks a runnable deterministic state contract`)
     }
   }
@@ -634,8 +667,8 @@ export function assertManifestReady(manifest: DesignQualityManifest): void {
 
 export function isManifestCellRunnable(cellEntry: ManifestCell): boolean {
   return cellEntry.status === 'covered'
-    && isNonEmptyString(cellEntry.stateContract?.setup)
-    && isNonEmptyString(cellEntry.stateContract?.assertion)
+    && Array.isArray(cellEntry.stateContract?.setup)
+    && isNonEmptyString(cellEntry.stateContract?.assertion?.selector)
 }
 
 export function manifestWithRunMetadata(

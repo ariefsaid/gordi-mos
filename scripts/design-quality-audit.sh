@@ -11,7 +11,8 @@ cd "$ROOT"
 usage() {
   cat >&2 <<'EOF'
 usage: scripts/design-quality-audit.sh <scope.md> --base-url <localhost-url>
-       [--config <sssf.config.yaml>] [--adw-id <8-hex-id>] [--check-only]
+       [--config <sssf.config.yaml>] [--adw-id <8-hex-id>]
+       [--mode mvp-assessment|change-gate] [--mockup-authority <docs/*.json>] [--check-only]
 EOF
 }
 
@@ -20,6 +21,8 @@ base_url=""
 config="adws/adw_sssf_config/sssf.config.yaml"
 audit_id="${DESIGN_AUDIT_ID:-}"
 check_only="${DESIGN_AUDIT_CHECK_ONLY:-0}"
+audit_mode="${DESIGN_AUDIT_MODE:-mvp-assessment}"
+mockup_authority="${DESIGN_AUDIT_MOCKUP_AUTHORITY:-}"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -36,6 +39,16 @@ while [ "$#" -gt 0 ]; do
     --adw-id)
       [ "$#" -ge 2 ] || { usage; exit 2; }
       audit_id="$2"
+      shift 2
+      ;;
+    --mode)
+      [ "$#" -ge 2 ] || { usage; exit 2; }
+      audit_mode="$2"
+      shift 2
+      ;;
+    --mockup-authority)
+      [ "$#" -ge 2 ] || { usage; exit 2; }
+      mockup_authority="$2"
       shift 2
       ;;
     --check-only)
@@ -62,6 +75,11 @@ while [ "$#" -gt 0 ]; do
       ;;
   esac
 done
+
+case "$audit_mode" in
+  mvp-assessment|change-gate) ;;
+  *) echo "design-quality-audit: --mode must be mvp-assessment or change-gate" >&2; exit 2 ;;
+esac
 
 [ -n "$scope_file" ] || { echo "design-quality-audit: missing scope file" >&2; usage; exit 2; }
 [ -n "$base_url" ] || {
@@ -165,8 +183,8 @@ esac
 context_dir="$data_root/sessions/$audit_id/context_handoff"
 
 if [ "$check_only" = "1" ]; then
-  printf 'design-quality-audit preflight OK\ncandidate_sha=%s\nsession_id=%s\nscope=%s\nbase_url=%s\n' \
-    "$candidate_sha" "$audit_id" "$scope_file" "$base_url"
+  printf 'design-quality-audit preflight OK\ncandidate_sha=%s\nsession_id=%s\nscope=%s\nbase_url=%s\nmode=%s\n' \
+    "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode"
   exit 0
 fi
 
@@ -190,12 +208,14 @@ if [ -z "${MOS_DEV_PORT:-}" ] && [ "$base_port" != "$derived_port" ]; then
 fi
 
 server_pid=""
+producer_hash_file=""
 cleanup() {
   status=$?
   if [ -n "$server_pid" ] && kill -0 "$server_pid" 2>/dev/null; then
     kill "$server_pid" 2>/dev/null || true
     wait "$server_pid" 2>/dev/null || true
   fi
+  [ -z "$producer_hash_file" ] || rm -f "$producer_hash_file"
   exit "$status"
 }
 trap cleanup EXIT INT TERM
@@ -236,7 +256,7 @@ mkdir -p "$context_dir/screenshots" || {
 # Seed the handoff with the exact run contract. The browser specs replace the
 # CSV/JSON placeholders; the chain gate refuses a session with missing or stale
 # artifacts, so a partial browser run cannot be mistaken for evidence.
-node --experimental-strip-types --input-type=module - "$ROOT" "$context_dir" "$candidate_sha" "$audit_id" "$scope_file" "$base_url" <<'NODE'
+node --experimental-strip-types --input-type=module - "$ROOT" "$context_dir" "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode" <<'NODE'
 import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { manifestForArtifact } from './mos-app/e2e/design-quality/manifest.ts'
@@ -248,6 +268,7 @@ const candidateSha = process.argv[4]
 const sessionId = process.argv[5]
 const scopePath = process.argv[6]
 const baseUrl = process.argv[7]
+const auditMode = process.argv[8]
 const writer = new ReportWriter({ outputDir, candidateSha, sessionId })
 await mkdir(path.join(outputDir, 'screenshots'), { recursive: true })
 await writer.writeJson('manifest.json', manifestForArtifact(candidateSha, sessionId))
@@ -271,6 +292,7 @@ await writer.writeSession({
   candidateSha,
   scopePath,
   baseUrl,
+  auditMode,
   root,
   contextHandoffDir: outputDir,
   quantitativeArtifacts: REQUIRED_ARTIFACTS.map((name) => path.join(outputDir, name)),
@@ -286,6 +308,10 @@ export DESIGN_AUDIT_OUTPUT_DIR="$context_dir"
 export DESIGN_AUDIT_CANDIDATE_SHA="$candidate_sha"
 export DESIGN_AUDIT_SESSION_ID="$audit_id"
 export DESIGN_AUDIT_SCOPE="$scope_file"
+export DESIGN_AUDIT_MODE="$audit_mode"
+if [ -n "$mockup_authority" ]; then
+  export DESIGN_AUDIT_MOCKUP_AUTHORITY="$mockup_authority"
+fi
 
 browser_status=0
 if (cd "$ROOT/mos-app" && "$ROOT/scripts/with-db-lock.sh" npx playwright test --config playwright.design-audit.config.ts); then
@@ -312,6 +338,22 @@ if [ "$browser_status" -ne 0 ]; then
   exit "$browser_status"
 fi
 
+# Freeze the browser producer's evidence before the independent reviewer sees it.
+# The reviewer may add its audit and screenshots, but a change to any declared
+# quantitative artifact invalidates the chain result.
+producer_hash_file="$(mktemp -t mos-design-producer-hashes.XXXXXX)" || exit 2
+python3 - "$context_dir/session.json" >"$producer_hash_file" <<'PY'
+import hashlib, json, pathlib, sys
+
+session = json.loads(pathlib.Path(sys.argv[1]).read_text())
+for declared in sorted(session.get("quantitativeArtifacts", [])):
+    target = pathlib.Path(declared).resolve()
+    files = sorted(path for path in target.rglob("*") if path.is_file()) if target.is_dir() else [target]
+    for path in files:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        print(f"{digest}  {path}")
+PY
+
 chain_status=0
 if bash "$ROOT/scripts/factory-run.sh" adw_design_audit.py "$scope_file" \
   --base-url "$base_url" --adw-id "$audit_id" --config "$config"; then
@@ -319,6 +361,23 @@ if bash "$ROOT/scripts/factory-run.sh" adw_design_audit.py "$scope_file" \
 else
   chain_status=$?
 fi
+current_hash_file="$(mktemp -t mos-design-current-hashes.XXXXXX)" || exit 2
+python3 - "$context_dir/session.json" >"$current_hash_file" <<'PY'
+import hashlib, json, pathlib, sys
+
+session = json.loads(pathlib.Path(sys.argv[1]).read_text())
+for declared in sorted(session.get("quantitativeArtifacts", [])):
+    target = pathlib.Path(declared).resolve()
+    files = sorted(path for path in target.rglob("*") if path.is_file()) if target.is_dir() else [target]
+    for path in files:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        print(f"{digest}  {path}")
+PY
+if ! cmp -s "$producer_hash_file" "$current_hash_file"; then
+  echo "design-quality-audit: reviewer modified browser-produced quantitative evidence" >&2
+  chain_status=1
+fi
+rm -f "$current_hash_file"
 node --experimental-strip-types --input-type=module - "$context_dir" "$chain_status" <<'NODE'
 import { readFile } from 'node:fs/promises'
 import { ReportWriter } from './mos-app/e2e/design-quality/report.ts'

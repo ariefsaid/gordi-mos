@@ -609,8 +609,9 @@ export async function collectCardNesting(page: Page, context: PageAuditContext):
     }
     const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-card], [class]')).filter(isCard)
     return cards.map((element) => {
-      const ancestor = element.parentElement?.closest('[data-card], [class]')
-      const cardAncestor = ancestor && isCard(ancestor) ? ancestor : null
+      let ancestor: Element | null = element.parentElement
+      while (ancestor && !isCard(ancestor)) ancestor = ancestor.parentElement
+      const cardAncestor = ancestor
       return {
         ...pageContext,
         selector: element.className || element.tagName.toLowerCase(),
@@ -649,36 +650,17 @@ export async function collectContrast(
 ): Promise<ContrastRow[]> {
   return page.evaluate(({ context: pageContext, state: contrastState, selector: selectorText, options: collectionOptions }) => {
     type CssColor = { rgb: [number, number, number]; alpha: number }
+    const colorCanvas = document.createElement('canvas')
+    colorCanvas.width = 1
+    colorCanvas.height = 1
+    const colorContext = colorCanvas.getContext('2d')
     const parse = (value: string): CssColor | null => {
-      const rgb = value.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+%?))?\s*\)/i)
-      if (rgb) {
-        const alphaText = rgb[4]
-        const alpha = alphaText ? (alphaText.endsWith('%') ? Number.parseFloat(alphaText) / 100 : Number(alphaText)) : 1
-        return { rgb: [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])], alpha: Math.max(0, Math.min(1, alpha)) }
-      }
-      const wide = value.match(/color\(\s*(srgb|display-p3)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+%?))?\s*\)/i)
-      if (!wide) return null
-      const alphaText = wide[5]
-      const alpha = alphaText ? (alphaText.endsWith('%') ? Number.parseFloat(alphaText) / 100 : Number(alphaText)) : 1
-      const encoded = [Number(wide[2]), Number(wide[3]), Number(wide[4])] as [number, number, number]
-      if (wide[1]?.toLowerCase() === 'srgb') {
-        return { rgb: encoded.map((channel) => channel * 255) as [number, number, number], alpha: Math.max(0, Math.min(1, alpha)) }
-      }
-      const decode = (channel: number) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
-      const encode = (channel: number) => channel <= 0.0031308 ? 12.92 * channel : 1.055 * channel ** (1 / 2.4) - 0.055
-      const [red, green, blue] = encoded.map(decode)
-      const x = 0.4865709486482162 * red + 0.26566769316909306 * green + 0.1982172852343625 * blue
-      const y = 0.2289745640697488 * red + 0.6917385218365064 * green + 0.079286914093745 * blue
-      const z = 0.04511338185890264 * green + 1.043944368900976 * blue
-      const linear = [
-        3.2409699419045226 * x - 1.537383177570094 * y - 0.4986107602930034 * z,
-        -0.9692436362808796 * x + 1.8759675015077202 * y + 0.04155505740717559 * z,
-        0.05563007969699366 * x - 0.20397695888897652 * y + 1.0569715142428786 * z,
-      ]
-      return {
-        rgb: linear.map((channel) => Math.max(0, Math.min(1, encode(channel))) * 255) as [number, number, number],
-        alpha: Math.max(0, Math.min(1, alpha)),
-      }
+      if (!colorContext || !CSS.supports('color', value)) return null
+      colorContext.clearRect(0, 0, 1, 1)
+      colorContext.fillStyle = value
+      colorContext.fillRect(0, 0, 1, 1)
+      const [red, green, blue, alpha] = colorContext.getImageData(0, 0, 1, 1).data
+      return { rgb: [red!, green!, blue!], alpha: alpha! / 255 }
     }
     const blend = (foreground: CssColor, background: [number, number, number]): [number, number, number] => [
       foreground.rgb[0] * foreground.alpha + background[0] * (1 - foreground.alpha),
@@ -710,7 +692,7 @@ export async function collectContrast(
       return background
     }
     const cssColorMatches = (value: string): CssColor[] => {
-      const matches = value.matchAll(/rgba?\(\s*[\d.]+[\s,]+[\d.]+[\s,]+[\d.]+(?:[\s,/]+[\d.]+%?)?\s*\)|color\(\s*(?:srgb|display-p3)\s+[\d.]+\s+[\d.]+\s+[\d.]+(?:\s*\/\s*[\d.]+%?)?\s*\)/gi)
+      const matches = value.matchAll(/rgba?\([^)]*\)|(?:oklab|oklch|lab|lch|color)\([^)]*\)/gi)
       return [...matches].map((match) => parse(match[0])).filter((color): color is CssColor => color !== null)
     }
     const emptyRow = (kind: 'text' | 'boundary'): ContrastRow => ({
@@ -778,21 +760,31 @@ export async function collectContrast(
 
       if (measure === 'boundary' || measure === 'both') {
         const boundaries: Array<{ source: string; color: CssColor }> = []
-        const outlineWidth = Number.parseFloat(style.outlineWidth) || 0
-        if (outlineWidth > 0 && style.outlineStyle !== 'none') {
-          const outlineColor = parse(style.outlineColor)
-          if (outlineColor) boundaries.push({ source: 'outline', color: outlineColor })
-        }
-        for (const side of ['Top', 'Right', 'Bottom', 'Left'] as const) {
-          const width = Number.parseFloat(style[`border${side}Width`]) || 0
-          if (width > 0 && style[`border${side}Style`] !== 'none') {
-            const borderColor = parse(style[`border${side}Color`])
-            if (borderColor) boundaries.push({ source: `border-${side.toLowerCase()}`, color: borderColor })
+        const boundaryElements = contrastState === 'focus'
+          ? [element, element.parentElement, element.parentElement?.parentElement]
+            .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement)
+          : [element]
+        for (const [depth, boundaryElement] of boundaryElements.entries()) {
+          const boundaryStyle = getComputedStyle(boundaryElement)
+          const sourcePrefix = depth === 0 ? '' : `ancestor-${depth}-`
+          const outlineWidth = Number.parseFloat(boundaryStyle.outlineWidth) || 0
+          if (outlineWidth > 0 && boundaryStyle.outlineStyle !== 'none') {
+            const outlineColor = parse(boundaryStyle.outlineColor)
+            if (outlineColor) boundaries.push({ source: `${sourcePrefix}outline`, color: outlineColor })
           }
-        }
-        if (contrastState === 'focus' && style.boxShadow !== 'none') {
-          const shadowColor = cssColorMatches(style.boxShadow)[0]
-          if (shadowColor) boundaries.push({ source: 'box-shadow', color: shadowColor })
+          if (contrastState !== 'focus') {
+            for (const side of ['Top', 'Right', 'Bottom', 'Left'] as const) {
+              const width = Number.parseFloat(boundaryStyle[`border${side}Width`]) || 0
+              if (width > 0 && boundaryStyle[`border${side}Style`] !== 'none') {
+                const borderColor = parse(boundaryStyle[`border${side}Color`])
+                if (borderColor) boundaries.push({ source: `${sourcePrefix}border-${side.toLowerCase()}`, color: borderColor })
+              }
+            }
+          }
+          if (contrastState === 'focus' && boundaryStyle.boxShadow !== 'none') {
+            const shadowColor = cssColorMatches(boundaryStyle.boxShadow)[0]
+            if (shadowColor) boundaries.push({ source: `${sourcePrefix}box-shadow`, color: shadowColor })
+          }
         }
         const graphicFallback = collectionOptions.allowForegroundBoundary
           && foreground
@@ -805,19 +797,19 @@ export async function collectContrast(
             const foregroundRgb = color.alpha < 1 ? blend(color, background) : color.rgb
             return { source, foregroundRgb, ratio: ratio(foregroundRgb, background) }
           })
-          const weakest = measuredBoundaries.reduce((minimum, current) => current.ratio < minimum.ratio ? current : minimum)
+          const strongest = measuredBoundaries.reduce((maximum, current) => current.ratio > maximum.ratio ? current : maximum)
           rows.push({
             ...pageContext,
-            selector: `${selectorText} (${weakest.source})`,
+            selector: `${selectorText} (${strongest.source})`,
             state: contrastState,
             kind: 'boundary',
             threshold: 3,
-            foreground: `rgb(${weakest.foregroundRgb.map((value) => Math.round(value)).join(',')})`,
+            foreground: `rgb(${strongest.foregroundRgb.map((value) => Math.round(value)).join(',')})`,
             background: `rgb(${background.join(',')})`,
-            ratio: weakest.ratio,
+            ratio: strongest.ratio,
             largeText: false,
             observed: true,
-            passes: weakest.ratio >= 3,
+            passes: strongest.ratio >= 3,
           })
         }
       }

@@ -46,14 +46,8 @@ export function assertAuditFixtureNamespace(email: string, sessionId: string): v
  */
 export function assertAuditFixtureWritePolicy(policy: AuditFixtureWritePolicy): void {
   if (!policy.writes) return
-  if (policy.fixture !== AUDIT_RECEIVING_ONLY) {
-    throw new Error(`${policy.fixture} is a shared seeded fixture; write-state audit cells require ${AUDIT_RECEIVING_ONLY}`)
-  }
-  auditOwnedReceivingFixture(policy.sessionId)
-  if (process.env.MOS_DB_LOCK_HELD !== '1') {
-    throw new Error('audit-owned write-state fixtures must be provisioned and cleaned under scripts/with-db-lock.sh')
-  }
-  if (process.env.DESIGN_AUDIT_FIXTURE_READY !== '1') {
-    throw new Error('audit-owned write-state fixture is not marked ready; run its provision step under the DB lock')
-  }
+  void policy
+  throw new Error(
+    'write-state design audit cells are disabled until a database-verified per-run provisioner and cleanup receipt exist',
+  )
 }

@@ -18,6 +18,7 @@ import {
   validateArtifactSet,
 } from './report.ts'
 import { MUTATION_FIXTURES, evaluateMutationFixture, parseCssColor } from './measurements.ts'
+import { assertAuditFixtureWritePolicy } from './audit-fixtures.ts'
 
 test('the design manifest covers every required dimension and declares complete rules', () => {
   const result = validateManifest(DESIGN_QUALITY_MANIFEST)
@@ -83,6 +84,31 @@ test('the report writer emits stable, candidate-bound JSON and CSV artifacts', a
   assert.match(await readFile(path.join(outputDir, 'geometry.csv'), 'utf8'), /^# candidate_sha=a{40}\n# session_id=a1b2c3d4\n/)
 })
 
+test('gate log status updates preserve scanner evidence and replace pending values', async () => {
+  const outputDir = await mkdtemp(path.join(os.tmpdir(), 'mos-design-quality-gate-'))
+  const writer = new ReportWriter({
+    outputDir,
+    candidateSha: 'a'.repeat(40),
+    sessionId: 'a1b2c3d4',
+  })
+
+  await writer.writeGateLog([
+    'browser_status=pending',
+    'chain_status=pending',
+    'axe_version=4.10.3',
+    'axe_findings=0',
+  ])
+  await writer.writeGateLog(['browser_status=0', 'chain_status=not-run'])
+
+  const log = await readFile(path.join(outputDir, 'gate-log.txt'), 'utf8')
+  assert.match(log, /^# candidate_sha=a{40}\n# session_id=a1b2c3d4\n/)
+  assert.match(log, /^axe_version=4\.10\.3$/m)
+  assert.match(log, /^axe_findings=0$/m)
+  assert.match(log, /^browser_status=0$/m)
+  assert.match(log, /^chain_status=not-run$/m)
+  assert.doesNotMatch(log, /pending/)
+})
+
 test('manifestForArtifact binds the shared manifest to the runner metadata', () => {
   const artifact = manifestForArtifact('a'.repeat(40), 'a1b2c3d4')
   assert.equal(artifact.candidateSha, 'a'.repeat(40))
@@ -113,4 +139,12 @@ test('computed CSS colors include modern sRGB and Display-P3 syntax', () => {
   const displayP3 = parseCssColor('color(display-p3 0.145 0.141 0.133)')
   assert.ok(displayP3)
   assert.ok(displayP3.every((channel) => Number.isFinite(channel) && channel >= 0 && channel <= 255))
+})
+
+test('write-state audit cells fail closed until a database-verified provisioner exists', () => {
+  assert.throws(() => assertAuditFixtureWritePolicy({
+    fixture: 'AUDIT_RECEIVING_ONLY',
+    sessionId: 'a1b2c3d4',
+    writes: true,
+  }), /database-verified per-run provisioner/)
 })

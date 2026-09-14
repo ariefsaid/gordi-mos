@@ -41,7 +41,7 @@ grep -q 'adw_design_audit.py' scripts/vendor-sssf.test.sh \
   || bad "adw_design_audit.py missing from scripts/vendor-sssf.test.sh DEVIATED list"
 
 OUT="$(python3 - "$ROOT" <<'PY'
-import importlib.util, json, sys, tempfile, types
+import importlib.util, json, subprocess, sys, tempfile, types
 from pathlib import Path
 
 root = Path(sys.argv[1])
@@ -139,13 +139,26 @@ for artifact in quant_artifacts:
         target.mkdir(parents=True, exist_ok=True)
         (target / "status.json").write_text(json.dumps({
             "candidateSha": candidate_sha, "sessionId": FakeRun.adw_id,
-            "status": "ready"}))
-    elif artifact.endswith(".json"):
+            "status": "pass", "comparisons": [{"surface": "work"}]}))
+    elif artifact == "manifest.json":
+        rendered = subprocess.run([
+            "node", "--experimental-strip-types", "--input-type=module", "-e",
+            "import {manifestForArtifact} from './mos-app/e2e/design-quality/manifest.ts'; "
+            f"console.log(JSON.stringify(manifestForArtifact('{candidate_sha}', '{FakeRun.adw_id}')))"
+        ], cwd=root, check=True, capture_output=True, text=True).stdout
+        target.write_text(rendered)
+    elif artifact == "impeccable.json":
         target.write_text(json.dumps({
             "candidateSha": candidate_sha, "sessionId": FakeRun.adw_id,
-            "status": "ready"}))
+            "status": "pass", "scannedFiles": ["src/app.tsx"], "findings": []}))
+    elif artifact == "gate-log.txt":
+        target.write_text(
+            f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n"
+            "browser_status=0\nchain_status=not-run\n")
     else:
-        target.write_text(f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\nready\n")
+        target.write_text(
+            f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n"
+            "status\nobserved\n")
 (quant_root / "session.json").write_text(json.dumps({
     "candidateSha": candidate_sha,
     "sessionId": FakeRun.adw_id,
@@ -350,7 +363,9 @@ missing_artifact = quant_root / "contrast.csv"
 missing_artifact.unlink()
 r = audit.audit_quantitative_artifacts(good, run)
 check("quantitative gate RED: missing census artifact", not r.passed, str(r.violations))
-missing_artifact.write_text(f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\nready\n")
+missing_artifact.write_text(
+    f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n"
+    "status\nobserved\n")
 session_path = quant_root / "session.json"
 session_payload = json.loads(session_path.read_text())
 session_payload["candidateSha"] = "b" * 40

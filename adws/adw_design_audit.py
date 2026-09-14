@@ -57,6 +57,7 @@ adw_simple_sdlc's red suite: the phase did its job; the milestone is not clean.
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
@@ -315,6 +316,24 @@ def audit_quantitative_artifacts(envelope, run) -> GateReport:
                  session_id or "session.json has no sessionId")
     report.check("session id matches the run", bool(expected_session_id and session_id == expected_session_id),
                  f"expected {expected_session_id!r}, got {session_id!r}")
+
+    validator = Path(__file__).resolve().parents[1] / "scripts" / "validate-design-evidence.mjs"
+    if not validator.is_file():
+        validator = Path.cwd() / "scripts" / "validate-design-evidence.mjs"
+    validation_note = "validator did not run"
+    validation_ok = False
+    if expected_sha is not None:
+        try:
+            completed = subprocess.run(
+                ["node", "--experimental-strip-types", str(validator), str(root), expected_sha],
+                check=False, capture_output=True, text=True, timeout=30,
+            )
+            validation_note = (completed.stdout or completed.stderr).strip()
+            validation_ok = completed.returncode == 0
+        except (OSError, subprocess.SubprocessError) as exc:
+            validation_note = f"validator failed to execute: {exc}"
+    report.check("quantitative artifacts pass the shared structural validator",
+                 validation_ok, validation_note)
 
     declared = session_payload.get("quantitativeArtifacts", [])
     for artifact in QUANTITATIVE_ARTIFACTS:

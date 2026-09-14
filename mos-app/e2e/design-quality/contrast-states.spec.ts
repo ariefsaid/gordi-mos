@@ -59,7 +59,8 @@ async function setupState(page: Parameters<typeof collectContrast>[0], state: In
   }
   const selector = interactionStateSelector(state)
   const target = page.locator(selector).filter({ visible: true })
-  return { applicable: await target.count() > 0, selector, measure: 'text' }
+  const hasVisibleText = await target.evaluateAll((elements) => elements.some((element) => (element as HTMLElement).innerText?.trim().length > 0))
+  return { applicable: hasVisibleText, selector, measure: 'text' }
 }
 
 test('contrast state entry point records browser-computed ratios for each interaction state', async ({ page }) => {
@@ -95,7 +96,7 @@ test('contrast state entry point records browser-computed ratios for each intera
       const graphicRows = await collectContrast(page, context, 'meaningful-graphics', graphic.selector, { measure: 'boundary', allowForegroundBoundary: true })
       rows.push(...graphicRows)
     }
-    screenshots.push(await captureCell(page, run, cell))
+    screenshots.push(await captureCell(page, run, cell, 'contrast'))
   }
   await run.writer.writeCsv('contrast.csv', rows as unknown as Record<string, unknown>[])
   await run.writer.writeJson('contrast-summary.json', {

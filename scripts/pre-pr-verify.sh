@@ -43,7 +43,13 @@ bash scripts/reporting-snapshot.test.sh
 
 # ponytail: diff budget — oversized tickets are what six-round review chains are made of.
 # Warn-first for one milestone (owner 2026-08-27), then flips to a refusal.
-base="$(git merge-base HEAD "origin/${MOS_PR_BASE:-dev}" 2>/dev/null || true)"
+base_ref="origin/${MOS_PR_BASE:-dev}"
+git rev-parse --verify "$base_ref^{commit}" >/dev/null 2>&1 || {
+  echo "✗ cannot resolve verification base $base_ref" >&2
+  exit 1
+}
+base="$(git merge-base HEAD "$base_ref")"
+[ -n "$base" ] || { echo "✗ cannot find merge base with $base_ref" >&2; exit 1; }
 
 # The quantitative audit is a database-free control surface. Re-run its manifest,
 # artifact, and mutation checks whenever the harness or its chain wiring changes.
@@ -69,42 +75,8 @@ if [ -n "$material_ui_paths" ]; then
     echo "✗ production UI changes require DESIGN_AUDIT_EVIDENCE_DIR at the exact HEAD" >&2
     exit 1
   else
-    python3 - "$DESIGN_AUDIT_EVIDENCE_DIR" "$head" <<'PY'
-import json, pathlib, re, sys
-
-root = pathlib.Path(sys.argv[1]).resolve()
-head = sys.argv[2]
-required = ('manifest.json', 'gate-log.txt', 'contrast.csv', 'geometry.csv',
-            'number-census.csv', 'control-census.csv', 'state-matrix.csv',
-            'affordance-census.csv', 'copy-census.csv', 'impeccable.json',
-            'mockup-diff')
-session_path = root / 'session.json'
-if not session_path.is_file(): raise SystemExit('design evidence missing session.json')
-session = json.loads(session_path.read_text())
-if session.get('candidateSha') != head: raise SystemExit('design evidence candidate SHA is stale')
-session_id = session.get('sessionId')
-if not isinstance(session_id, str) or not re.fullmatch(r'[0-9a-f]{8}', session_id): raise SystemExit('design evidence session id is invalid')
-if session.get('browserExitStatus') != 0 or session.get('chainExitStatus') != 0: raise SystemExit('design evidence run did not finish green')
-for name in required:
-    target = root / name
-    if name == 'mockup-diff':
-        status = target / 'status.json'
-        if not status.is_file(): raise SystemExit('design evidence mockup-diff/status.json is missing')
-        payload = json.loads(status.read_text())
-        if payload.get('candidateSha') != head or payload.get('sessionId') != session_id: raise SystemExit('design evidence mockup diff is stale')
-        continue
-    if not target.is_file() or not target.stat().st_size: raise SystemExit(f'design evidence artifact missing: {name}')
-    text = target.read_text()
-    if name.endswith('.json'):
-        payload = json.loads(text)
-        actual = (payload.get('candidateSha'), payload.get('sessionId'))
-    else:
-        candidate = re.search(r'^# candidate_sha=([^\n]+)$', text, re.MULTILINE)
-        sid = re.search(r'^# session_id=([^\n]+)$', text, re.MULTILINE)
-        actual = (candidate.group(1) if candidate else None, sid.group(1) if sid else None)
-    if actual != (head, session_id): raise SystemExit(f'design evidence artifact is stale: {name}')
-print('design evidence is fresh at exact HEAD')
-PY
+    node --experimental-strip-types scripts/validate-design-evidence.mjs \
+      "$DESIGN_AUDIT_EVIDENCE_DIR" "$head" --require-change-gate
   fi
 fi
 if [ -n "$base" ]; then

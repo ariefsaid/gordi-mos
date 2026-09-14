@@ -43,8 +43,8 @@ export type StateObservation = {
 
 export function isAuditCellRunnable(cell: ManifestCell): boolean {
   return cell.status === 'covered'
-    && Boolean(cell.stateContract?.setup?.trim())
-    && Boolean(cell.stateContract?.assertion?.trim())
+    && Array.isArray(cell.stateContract?.setup)
+    && Boolean(cell.stateContract?.assertion?.selector?.trim())
 }
 
 function env(name: string): string {
@@ -150,15 +150,20 @@ export async function prepareAuditPage(page: Page, run: AuditRun, cell: Manifest
   }, { theme: cell.theme, language: cell.language })
   await page.locator('main').waitFor({ state: 'visible', timeout: 10_000 })
   await page.locator('main h1').first().waitFor({ state: 'visible', timeout: 10_000 })
+  for (const action of cell.stateContract?.setup ?? []) {
+    const target = page.locator(action.selector).filter({ visible: true }).first()
+    if (action.action === 'click') await target.click()
+    else if (action.action === 'fill') await target.fill(action.value ?? '')
+    else await target.press(action.value ?? '')
+  }
   void run
 }
 
 /**
- * A route visit is only a smoke check. Non-default manifest states need a
- * rendered marker or they are written as untested and fail readiness. This
- * deliberately does not infer a state from a URL, a screenshot, or a copy word.
- * Product fixtures can expose `data-design-audit-state` (or an existing
- * `data-state`/`data-status`) once their deterministic setup is ready.
+ * A route visit is only a smoke check. Covered cells execute their declared
+ * browser actions and then require the exact selector/attribute assertion.
+ * A prose description, URL, screenshot, or incidental copy cannot make a state
+ * runnable or observed.
  */
 export async function observeManifestCellState(page: Page, cell: ManifestCell): Promise<StateObservation> {
   if (!isAuditCellRunnable(cell)) {
@@ -169,22 +174,17 @@ export async function observeManifestCellState(page: Page, cell: ManifestCell): 
         : 'manifest cell has no deterministic state setup/assertion; browser state measurement was skipped',
     }
   }
-  if (cell.state === 'default') {
-    const visible = await page.locator('main, [role="main"]').filter({ visible: true }).count()
-    return visible > 0
-      ? { status: 'covered', evidence: 'visible main landmark after route settle' }
-      : { status: 'untested', evidence: 'no visible main landmark after route settle' }
-  }
-  const escaped = cell.state.replace(/"/g, '\\"')
-  const selectors = [
-    `[data-design-audit-state="${escaped}"]`,
-    `[data-state="${escaped}"]`,
-    `[data-status="${escaped}"]`,
-  ].join(', ')
-  const count = await page.locator(selectors).filter({ visible: true }).count()
+  const assertion = cell.stateContract!.assertion
+  const target = page.locator(assertion.selector).filter({ visible: true })
+  const count = assertion.attribute
+    ? await target.evaluateAll((elements, expected) => elements.filter((element) => {
+      const actual = element.getAttribute(expected.attribute)
+      return expected.value === undefined ? actual !== null : actual === expected.value
+    }).length, { attribute: assertion.attribute, value: assertion.value })
+    : await target.count()
   return count > 0
-    ? { status: 'covered', evidence: `${count} visible state marker(s): ${selectors}` }
-    : { status: 'untested', evidence: `no visible deterministic state marker for ${cell.state}` }
+    ? { status: 'covered', evidence: `${count} visible assertion target(s): ${assertion.selector}` }
+    : { status: 'untested', evidence: `state assertion did not match: ${assertion.selector}` }
 }
 
 /** Drive a real interaction state before collecting contrast, or report it absent. */
@@ -206,14 +206,15 @@ export async function driveInteractionState(page: Page, state: string): Promise<
   return await page.locator(stateSelector).filter({ visible: true }).count() > 0
 }
 
-export function screenshotName(cell: ManifestCell): string {
+export function screenshotName(cell: ManifestCell, lane?: string): string {
   const slug = cell.route.replace(/^\/mos\//, '').replace(/[^a-z0-9]+/gi, '-')
-  return `${slug}-${cell.fixture}-${cell.viewport}-${cell.theme}-${cell.language}-${cell.state}.png`.toLowerCase()
+  const laneSuffix = lane ? `-${lane.replace(/[^a-z0-9]+/gi, '-')}` : ''
+  return `${slug}-${cell.fixture}-${cell.viewport}-${cell.theme}-${cell.language}-${cell.state}${laneSuffix}.png`.toLowerCase()
 }
 
-export async function captureCell(page: Page, run: AuditRun, cell: ManifestCell): Promise<string> {
+export async function captureCell(page: Page, run: AuditRun, cell: ManifestCell, lane?: string): Promise<string> {
   const screenshotDir = path.join(run.outputDir, 'screenshots')
-  const screenshotPath = path.join(screenshotDir, screenshotName(cell))
+  const screenshotPath = path.join(screenshotDir, screenshotName(cell, lane))
   await page.screenshot({ path: screenshotPath, fullPage: false })
   return screenshotPath
 }

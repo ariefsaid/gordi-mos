@@ -129,7 +129,21 @@ export class ReportWriter {
   }
 
   async writeGateLog(entries: readonly string[]): Promise<string> {
-    return this.writeText('gate-log.txt', entries.join('\n'))
+    const target = this.target('gate-log.txt')
+    let existing: string[] = []
+    try {
+      existing = (await readFile(target, 'utf8'))
+        .split(/\r?\n/)
+        .filter((line) => line.length > 0 && !line.startsWith('# candidate_sha=') && !line.startsWith('# session_id='))
+    } catch {
+      existing = []
+    }
+    const entryKeys = new Set(entries.map((line) => /^([a-z0-9_]+)=/i.exec(line)?.[1]).filter(Boolean))
+    const preserved = existing.filter((line) => {
+      const key = /^([a-z0-9_]+)=/i.exec(line)?.[1]
+      return !key || !entryKeys.has(key)
+    })
+    return this.writeText('gate-log.txt', [...preserved, ...entries].join('\n'))
   }
 
   async writeFindingDispositions(

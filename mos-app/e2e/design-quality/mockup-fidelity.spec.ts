@@ -18,6 +18,7 @@ import {
 const execFileAsync = promisify(execFile)
 const repoRoot = path.resolve(process.cwd(), '..')
 const DETECTOR = path.join(repoRoot, 'scripts/impeccable-detect.mjs')
+const COMP_DIFF = path.join(repoRoot, '.claude/skills/impeccable/scripts/impeccable')
 const SCORE_THRESHOLD = 0.75
 
 type MockupAuthorityEntry = {
@@ -66,8 +67,12 @@ function authorityEntry(value: unknown, inheritedAuthority = ''): MockupAuthorit
   if (row.comp_diff_valid === false) {
     throw new Error(`mockup ${image} is not valid for comp-diff according to its authority list`)
   }
+  const imagePath = path.resolve(repoRoot, image)
+  if (!imagePath.startsWith(`${repoRoot}${path.sep}`)) {
+    throw new Error(`mockup ${image} is outside the repository workspace`)
+  }
   return {
-    path: path.resolve(repoRoot, image),
+    path: imagePath,
     authority,
     requiredRegions: asStringArray(row.requiredRegions ?? row.required_regions),
     route: asString(row.route),
@@ -105,9 +110,13 @@ export async function approvedMockups(): Promise<MockupAuthorityEntry[]> {
 
   if (authorityPath || listPath) {
     const source = authorityPath || listPath
+    const sourcePath = path.resolve(repoRoot, source)
+    if (!sourcePath.startsWith(`${path.join(repoRoot, 'docs')}${path.sep}`)) {
+      throw new Error('mockup authority list must live under the private docs workspace')
+    }
     let payload: unknown
     try {
-      payload = JSON.parse(await readFile(path.resolve(repoRoot, source), 'utf8'))
+      payload = JSON.parse(await readFile(sourcePath, 'utf8'))
     } catch (error) {
       throw new Error(`mockup authority list could not be read: ${source} (${String(error)})`)
     }
@@ -254,39 +263,17 @@ function evaluateComparison(
   }
 }
 
-async function compareWithImageMagick(comp: string, build: string): Promise<unknown> {
-  try {
-    const result = await execFileAsync('magick', ['compare', '-metric', 'RMSE', comp, build, 'null:'], {
-      cwd: repoRoot,
-      maxBuffer: 1024 * 1024,
-    })
-    const text = `${result.stdout}\n${result.stderr}`
-    const fraction = /\(([0-9]+(?:\.[0-9]+)?)\)/.exec(text)?.[1]
-    const rmse = fraction === undefined ? null : Number(fraction)
-    return { score: rmse === null ? null : Math.max(0, Math.min(1, 1 - rmse)), regions: [] }
-  } catch (error) {
-    const candidate = error as { stdout?: string; stderr?: string; message?: string }
-    const text = `${candidate.stdout ?? ''}\n${candidate.stderr ?? ''}`
-    const fraction = /\(([0-9]+(?:\.[0-9]+)?)\)/.exec(text)?.[1]
-    if (fraction !== undefined) {
-      const rmse = Number(fraction)
-      return { score: Math.max(0, Math.min(1, 1 - rmse)), regions: [] }
-    }
-    throw new Error(candidate.stderr?.trim() || candidate.message || String(error))
-  }
-}
-
-async function compareMockup(entry: MockupAuthorityEntry, build: string): Promise<unknown> {
-  const configuredTool = env('DESIGN_AUDIT_COMP_DIFF')
-  if (configuredTool) {
-    const result = await execFileAsync(configuredTool, [
-      '--comp', entry.path,
-      '--build', build,
-      '--json',
-    ], { cwd: repoRoot, maxBuffer: 16 * 1024 * 1024 })
-    return JSON.parse(result.stdout)
-  }
-  return compareWithImageMagick(entry.path, build)
+async function compareMockup(entry: MockupAuthorityEntry, build: string, outDir: string): Promise<unknown> {
+  await access(COMP_DIFF)
+  const result = await execFileAsync(COMP_DIFF, [
+    'comp-diff',
+    '--comp', entry.path,
+    '--build', build,
+    '--out-dir', outDir,
+    '--threshold', String(SCORE_THRESHOLD),
+    '--json',
+  ], { cwd: repoRoot, maxBuffer: 16 * 1024 * 1024 })
+  return JSON.parse(result.stdout)
 }
 
 function viewportName(value: string | undefined): string | undefined {
@@ -357,12 +344,12 @@ test('mockup fidelity requires an authority list and enforces score and region c
       continue
     }
     await prepareAuditPage(page, run, cell)
-    const build = await captureCell(page, run, cell)
+    const build = await captureCell(page, run, cell, 'mockup')
     const relativeDir = path.join('mockup-diff', path.basename(entry.path, path.extname(entry.path)))
     const outDir = path.join(run.outputDir, relativeDir)
     await mkdir(outDir, { recursive: true })
     try {
-      const raw = await compareMockup(entry, build)
+      const raw = await compareMockup(entry, build, outDir)
       const comparison = evaluateComparison(entry, build, raw)
       comparisons.push(comparison)
       await run.writer.writeJson(path.join(relativeDir, 'report.json'), comparison)

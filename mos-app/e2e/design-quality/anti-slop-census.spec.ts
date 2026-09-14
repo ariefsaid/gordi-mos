@@ -79,9 +79,9 @@ test('anti-slop census entry point records numbers, controls, cards, headings, a
           .filter((node) => node.nodeType === Node.TEXT_NODE)
           .map((node) => node.textContent?.trim() || '')
           .filter(Boolean)
-          .map((text) => ({ element: element.tagName.toLowerCase(), text }))
+          .map((text) => ({ element: element.tagName.toLowerCase(), owner: element, text }))
       })
-      const numbers = textFragments.flatMap(({ element, text }) => {
+      const numbers = textFragments.flatMap(({ element, owner, text }) => {
         const values = text.match(numberPattern) || []
         return values.map((value) => ({
           ...pageContext,
@@ -89,6 +89,24 @@ test('anti-slop census entry point records numbers, controls, cards, headings, a
           value,
           context: text,
           naked: text === value,
+          explainedBy: (() => {
+            if (text !== value) return text
+            const candidate = owner
+            const labelledControl = candidate.closest<HTMLElement>('button, a[href], [aria-label], [title]')
+            const accessible = labelledControl?.getAttribute('aria-label') || labelledControl?.getAttribute('title') || ''
+            if (/\p{L}/u.test(accessible)) return accessible
+            if (candidate instanceof HTMLTableCellElement) {
+              const index = candidate.cellIndex
+              const header = candidate.closest('table')?.querySelectorAll<HTMLElement>('thead th')[index]?.innerText?.trim() || ''
+              if (/\p{L}/u.test(header)) return header
+            }
+            const siblings = [candidate.previousElementSibling, candidate.nextElementSibling]
+              .map((sibling) => sibling?.textContent?.trim() || '')
+              .find((label) => /\p{L}/u.test(label))
+            if (siblings) return siblings
+            const parentText = candidate.parentElement?.innerText?.trim() || ''
+            return /\p{L}/u.test(parentText) ? parentText : ''
+          })(),
         }))
       })
       const affordances = Array.from(document.querySelectorAll<HTMLElement>('[title], [aria-label], [data-full-value], h1, h2, h3')).map((element) => ({
@@ -112,7 +130,7 @@ test('anti-slop census entry point records numbers, controls, cards, headings, a
     copyRows.push(...census.copy)
     affordanceRows.push(...census.affordances)
     stateRows.push({ ...context, status: observation.status, evidence: observation.evidence, nestedCards: nestedCards.length, headingCount: census.headings.length })
-    screenshots.push(await captureCell(page, run, cell))
+    screenshots.push(await captureCell(page, run, cell, 'anti-slop'))
     if (observation.status !== 'covered') failures.push(`${cell.id}: ${observation.evidence}`)
     if (nestedCards.length > 0) failures.push(`${cell.id}: ${nestedCards.length} nested card containers`)
     if (census.headings.filter((heading) => heading.level === 1).length !== 1) failures.push(`${cell.id}: expected one h1`)
@@ -121,6 +139,11 @@ test('anti-slop census entry point records numbers, controls, cards, headings, a
     }
     for (const control of census.controls) {
       if (!String(control.name).trim()) failures.push(`${cell.id}: unnamed ${control.role}`)
+    }
+    for (const number of census.numbers) {
+      if (number.naked && !String(number.explainedBy).trim()) {
+        failures.push(`${cell.id}: naked number ${number.value} has no visible or accessible context`)
+      }
     }
     const axes = census.controls
       .filter((control) => String(control.axis).trim())
