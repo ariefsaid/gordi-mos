@@ -170,7 +170,9 @@ export default async function globalSetup() {
     SERVICE_ROLE_KEY,
     `UPDATE shared.people p SET user_id = u.id
        FROM auth.users u
-      WHERE u.email = p.email AND p.email LIKE '%.dev@example.test'`,
+      WHERE p.org_id = '${ORG}'
+        AND u.email = p.email
+        AND p.email IN (${DEV_PERSONAS.map((email) => `'${email}'`).join(', ')})`,
   )
   console.log('[global-setup] ensured + linked all *.dev personas (dev login self-healed)')
 

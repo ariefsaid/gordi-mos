@@ -1,8 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { assertFixtureSqlSafe } from '../fixtures/cleanup'
 
 /** Local fixture setup only; refuses remote hosts before sending a service credential. */
 export async function localSql(query: string): Promise<void> {
+  assertFixtureSqlSafe(query)
   const env: Record<string, string> = {}
   try {
     for (const line of readFileSync(fileURLToPath(new URL('../../.env.e2e', import.meta.url)), 'utf8').split('\n')) {

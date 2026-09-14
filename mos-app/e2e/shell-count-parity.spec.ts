@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { localSql } from './helpers/local-sql'
+import { notificationCleanupSql } from './fixtures/cleanup'
 import { ADMIN, BAR_MEMBER, MANAGER, RECOVERY_VIEWER, VIEWER } from './fixtures/users'
 import { TASKS } from './fixtures/tasks'
 
@@ -114,6 +115,6 @@ test('R1 same notification: desktop bell, phone Inbox, unread and handled parity
     await expect(row).toHaveCount(0)
     await page.screenshot({ path: info.outputPath('phone-handled.png'), animations: 'disabled' })
   } finally {
-    await localSql(`DELETE FROM mos.notifications WHERE id = '${id}' AND owner_id = '${BAR_MEMBER.personId}';`)
+    await localSql(notificationCleanupSql([id], org, BAR_MEMBER.personId))
   }
 })

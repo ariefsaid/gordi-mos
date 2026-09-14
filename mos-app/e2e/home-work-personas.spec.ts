@@ -3,9 +3,11 @@ import { loginAs } from './helpers/login'
 import { DEMO_PASSWORD } from '../src/pages/demo-personas'
 import { readFileSync } from 'node:fs'
 import { localSql } from './helpers/local-sql'
+import { taskCleanupSql } from './fixtures/cleanup'
 
 // Fixed Home fixture IDs are reserved by this suite; refuse a collision before mutation.
 const HOME_IDS = ['e9000000-0000-0000-0000-000000000001', 'e9000000-0000-0000-0000-000000000002']
+const ORG = '10000000-0000-0000-0000-000000000001'
 let ownsHome = false
 import { localSqlRead } from './helpers/local-sql-read'
 test.beforeAll(async () => {
@@ -20,7 +22,7 @@ test.beforeAll(async () => {
   console.log('Owned Barista due-today fixture', JSON.stringify(fixture))
 })
 test.afterAll(async () => {
-  if (ownsHome) await localSql(`delete from mos.tasks where id in (${HOME_IDS.map(id => `'${id}'`).join(',')})`)
+  if (ownsHome) await localSql(taskCleanupSql(HOME_IDS, ORG))
 })
 
 const personas = [

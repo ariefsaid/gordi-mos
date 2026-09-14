@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { localSql } from './helpers/local-sql'
+import { localSqlRead } from './helpers/local-sql-read'
 import { loginAs } from './helpers/login'
 
 // Every changed authority row, Team, BU, record and person belongs to this fresh tenant.
@@ -116,13 +117,15 @@ test('R6: Admin matrix and designated Team lead survive reload and govern own/cr
     await settings.getByRole('combobox', { name: 'R6 Test Team team lead' }).scrollIntoViewIfNeeded()
     await settings.locator('[data-team-lead-row]').screenshot({ path: testInfo.outputPath('team-lead-restored.png') })
     // Also restore physical absence of the one override row; effective defaults were restored through UI above.
-    await localSql(`DELETE FROM shared.role_authority WHERE org_id='${org}' AND action='workline.manage' AND role='team_lead';
-      DO $$ BEGIN IF EXISTS (SELECT 1 FROM shared.role_authority WHERE org_id='${org}') OR EXISTS (SELECT 1 FROM shared.team_lead_assignments WHERE org_id='${org}') THEN RAISE EXCEPTION 'R6 restoration mismatch'; END IF; END $$;`)
+    await localSql(`DELETE FROM shared.role_authority WHERE org_id = '${org}' AND action = 'workline.manage' AND role = 'team_lead';`)
+    const residualAuthority = await localSqlRead(`SELECT 1 AS present FROM shared.role_authority WHERE org_id = '${org}'`)
+    const residualLead = await localSqlRead(`SELECT 1 AS present FROM shared.team_lead_assignments WHERE org_id = '${org}'`)
+    expect([...residualAuthority, ...residualLead], 'R6 restoration must leave no tenant rows').toHaveLength(0)
     console.log('R6: matrix original restored; designation original null restored; own-BU grant, cross-BU denial, unrelated-member denial, and designation removal verified after reload')
   } finally {
     for (const context of contexts) await context.close()
     // This ID was allocated and inserted by this invocation. Its cascading children are all fixture-owned.
-    if (tenantCreated) await localSql(`DELETE FROM shared.orgs WHERE id='${org}';`)
+    if (tenantCreated) await localSql(`DELETE FROM shared.orgs WHERE id = '${org}';`)
     for (const actor of actors) if (actor.user) {
       const result = await admin.auth.admin.deleteUser(actor.user)
       expect(result.error, 'owned auth user cleanup').toBeNull()

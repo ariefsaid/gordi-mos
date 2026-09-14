@@ -53,6 +53,7 @@ const PLAN_QTY      = 50
 const STREAM_BRANCH_ID = '25000000-0000-0000-0000-000000000002' // Rumah Rames (shared.branches)
 const STREAM_ACTIVITY  = 'kitchen'
 const STREAM_LABEL     = 'Rumah Rames · Kitchen' // rendered "{branch.name} · {activityLabel}"
+const ALLOW_SHARED_KITCHEN_FIXTURE = process.env.MOS_E2E_ALLOW_SHARED_KITCHEN_FIXTURE === '1'
 
 function wibToday(): string {
   const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
@@ -81,6 +82,12 @@ async function execSqlRead(query: string): Promise<Array<Record<string, unknown>
 }
 
 test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', () => {
+  // This journey still upserts a shared Nasi Putih plan and tears down by org/date/item.
+  // Keep it out of the default suite until the fixture is dedicated and every row is captured.
+  if (!ALLOW_SHARED_KITCHEN_FIXTURE) {
+    test('AC-090 is disabled until its kitchen fixture is isolated', () => { test.skip() })
+    return
+  }
   const today = wibToday()
 
   test.beforeAll(async () => {

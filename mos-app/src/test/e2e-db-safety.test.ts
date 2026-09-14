@@ -3,12 +3,16 @@ import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync } from 'node:fs'
 import { afterEach, expect, test, vi } from 'vitest'
 import { AC204, TASKS } from '@/../e2e/fixtures/tasks'
+import { localSql } from '@/../e2e/helpers/local-sql'
+import { localSqlRead } from '@/../e2e/helpers/local-sql-read'
 import {
   assertFixtureSqlSafe,
+  assertFixtureSqlReadOnly,
   assertLocalFixtureDatabase,
   E2E_CLEANUP_REGISTRY,
   budgetCleanupSql,
   fixtureCleanupSql,
+  notificationCleanupSql,
   objectiveCleanupSql,
   processRunCleanupSql,
   signalCleanupSql,
@@ -201,4 +205,47 @@ test('fixture database must be local', () => {
   for (const url of ['https://example.test', 'http://localhost.example.test', 'invalid']) {
     expect(() => assertLocalFixtureDatabase(url)).toThrow()
   }
+})
+
+test('local SQL helpers enforce their safety contracts before transport', async () => {
+  const fetch = vi.fn(async () => ({ ok: true, json: async () => [], text: async () => '' }))
+  vi.stubGlobal('fetch', fetch)
+
+  await expect(localSql("DELETE FROM mos.tasks WHERE org_id = 'demo';")).rejects.toThrow(/E2E deletion/)
+  expect(fetch).not.toHaveBeenCalled()
+
+  await expect(localSqlRead("UPDATE mos.tasks SET title = 'oops';")).rejects.toThrow(/read-only/)
+  expect(fetch).not.toHaveBeenCalled()
+
+  await localSql(notificationCleanupSql(['a1000000-0000-0000-0000-000000000007']))
+  expect(fetch).toHaveBeenCalledTimes(1)
+})
+
+test('read-only SQL guard ignores comments and quoted text but rejects procedural or mutating statements', () => {
+  expect(() => assertFixtureSqlReadOnly("SELECT '-- DELETE FROM mos.tasks'; -- UPDATE is prose\nSELECT 1;"))
+    .not.toThrow()
+  for (const query of [
+    'INSERT INTO mos.tasks (title) VALUES (\'new\');',
+    'UPDATE mos.tasks SET title = \'new\';',
+    'DELETE FROM mos.tasks WHERE id = \'a1000000-0000-0000-0000-000000000001\';',
+    "DO $$ BEGIN PERFORM wipe_everything(); END $$;",
+  ]) expect(() => assertFixtureSqlReadOnly(query)).toThrow(/read-only/)
+})
+
+test('process-run journeys never sweep seeded runs by process and team', () => {
+  const ac720 = readFileSync(new URL('../../e2e/AC-720-cafe-today-opening.spec.ts', import.meta.url), 'utf8')
+  const geometry = readFileSync(new URL('../../e2e/guards.geometry.spec.ts', import.meta.url), 'utf8')
+  for (const source of [ac720, geometry]) {
+    expect(source).not.toMatch(/delete\s+from\s+mos\.process_runs\s+where\s+work_line_id/i)
+    expect(source).not.toMatch(/delete\s+from\s+mos\.tasks\s+where\s+process_run_id\s+in\s*\(/i)
+  }
+  expect(ac720).toContain('processRunCleanupSql')
+  expect(geometry).toContain('taskCleanupSql')
+})
+
+test('global setup relinks only the canonical demo organization', () => {
+  const source = readFileSync(new URL('../../e2e/global-setup.ts', import.meta.url), 'utf8')
+  expect(source).toContain("WHERE p.org_id = '${ORG}'")
+  expect(source).toContain('u.email = p.email')
+  expect(source).toContain('p.email IN')
 })

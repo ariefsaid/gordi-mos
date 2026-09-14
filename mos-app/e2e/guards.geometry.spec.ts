@@ -33,6 +33,7 @@ import { createTaskViaUI } from './helpers/tasks'
 import { assertTapFloor, AUTH_CONTROLS, TAP_FLOOR, TAP_GAP } from './helpers/tap-floor'
 import { MANAGER, ORPHAN, VIEWER } from './fixtures/users'
 import { ensureStream } from './helpers/cafe-stream'
+import { assertFixtureSqlSafe, taskCleanupSql } from './fixtures/cleanup'
 import { TASKS_SPLIT_MIN_WIDTH } from '../src/shell/use-is-split-width'
 
 // The e7 collection grammar owns mouse activation on a task title: a CLICK renames in place
@@ -212,6 +213,7 @@ const GUARD_TASK_ID_743 = '74300000-0000-0000-0000-000000000001'
 
 async function sql743(query: string): Promise<Array<Record<string, unknown>>> {
   if (!SERVICE_KEY_743) throw new Error('[guard-743] SUPABASE_SERVICE_ROLE_KEY not set')
+  assertFixtureSqlSafe(query)
   const res = await fetch(SUPABASE_URL_743 + '/pg/query', {
     method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SERVICE_KEY_743 }, body: JSON.stringify({ query }),
   })
@@ -219,21 +221,30 @@ async function sql743(query: string): Promise<Array<Record<string, unknown>>> {
   return (await res.json()) as Array<Record<string, unknown>>
 }
 
+let guardTaskOwned = false
+
 test.describe('tasks toolbar geometry — ticket 743', () => {
+  test.afterEach(async () => {
+    if (!guardTaskOwned) return
+    await sql743(taskCleanupSql([GUARD_TASK_ID_743], ORG_743))
+    guardTaskOwned = false
+  })
+
   test('743: at 1440 the two toolbar rows are one line each — twelve controls, four classes, no checkbox, exactly one pill with a seeded due run', async ({ page }) => {
     test.setTimeout(60_000)
-    // Deterministic due-run state: clear any run for the seeded daily process so it is due
-    // again (the same clean-slate AC-630 uses), and seed one overdue task so the overdue pill
-    // renders at all (the seed's own task has no due date).
+    // A seeded/current process run or a collision on the fixed guard ID is ambient state. Refuse
+    // to mutate it; this journey owns only the task it inserts after these checks.
     const teamRows = await sql743(`select id from shared.teams where org_id='${ORG_743}' and code='hq_operations'`)
     const teamId = teamRows[0]?.id as string | undefined
     expect(teamId, 'seed must have created the hq_operations Team').toBeTruthy()
+    const existingRuns = await sql743(`
+      select id from mos.process_runs
+      where org_id='${ORG_743}' and work_line_id='${WORK_LINE_ID_743}' and owning_team_id='${teamId}'
+    `)
+    if (existingRuns.length > 0) throw new Error('[guard-743] Refusing to mutate an existing Café HQ process run')
+    const existingGuardTask = await sql743(`select id from mos.tasks where org_id='${ORG_743}' and id='${GUARD_TASK_ID_743}'`)
+    if (existingGuardTask.length > 0) throw new Error('[guard-743] Reserved guard task ID already exists; preserve it')
     await sql743(`
-      delete from mos.process_run_pending_tasks
-        where process_run_id in (select id from mos.process_runs where work_line_id='${WORK_LINE_ID_743}' and owning_team_id='${teamId}');
-      delete from mos.tasks where process_run_id in (select id from mos.process_runs where work_line_id='${WORK_LINE_ID_743}' and owning_team_id='${teamId}');
-      delete from mos.process_runs where work_line_id='${WORK_LINE_ID_743}' and owning_team_id='${teamId}';
-      delete from mos.tasks where id = '${GUARD_TASK_ID_743}';
       insert into mos.tasks (
         id, org_id, title, business_unit_id, status,
         responsible_person_id, accountable_person_id, consulted_person_ids, informed_person_ids,
@@ -244,6 +255,7 @@ test.describe('tasks toolbar geometry — ticket 743', () => {
              'Guard 743: one overdue task so the count pill renders.', '2020-01-01', '${MANAGER.personId}'
       from (select id from shared.business_units where org_id = '${ORG_743}' order by id limit 1) bu;
     `)
+    guardTaskOwned = true
 
     await page.setViewportSize({ width: 1440, height: 900 })
     await loginAs(page, MANAGER.email, MANAGER.password)
@@ -315,7 +327,6 @@ test.describe('tasks toolbar geometry — ticket 743', () => {
     }))
     expect(pageScroll.scrollWidth).toBe(pageScroll.innerWidth)
 
-    await sql743(`delete from mos.tasks where id = '${GUARD_TASK_ID_743}'`)
   })
 
   test('743: all fields on at 1440 — optional columns keep floors, Task keeps 160px, headers never overlap, the page never scrolls', async ({ page }) => {

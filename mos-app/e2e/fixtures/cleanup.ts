@@ -72,6 +72,24 @@ export const budgetCleanupSql = (budgetIds: readonly string[], budgetOrg = org) 
 export const objectiveCleanupSql = (objectiveIds: readonly string[], objectiveOrg = org) =>
   capturedRowCleanupSql('mos.objectives', objectiveIds, objectiveOrg)
 
+export const processRunPendingCleanupSql = (pendingIds: readonly string[], pendingOrg = org) =>
+  capturedRowCleanupSql('mos.process_run_pending_tasks', pendingIds, pendingOrg)
+
+/** Remove notifications created by a journey, optionally asserting their owning person. */
+export function notificationCleanupSql(
+  notificationIds: readonly string[],
+  notificationOrg = org,
+  ownerId?: string,
+): string {
+  if (!UUID.test(notificationOrg) || notificationIds.some((id) => !UUID.test(id))
+    || (ownerId !== undefined && !UUID.test(ownerId))) {
+    throw new Error('E2E notification cleanup requires UUID-owned rows')
+  }
+  if (notificationIds.length === 0) return ''
+  const ownerClause = ownerId ? ` AND owner_id = '${ownerId}'` : ''
+  return `DELETE FROM mos.notifications WHERE org_id = '${notificationOrg}' AND id IN (${ids(notificationIds)})${ownerClause};`
+}
+
 /** Every Playwright data writer has an explicit cleanup contract recorded here. */
 export const E2E_CLEANUP_REGISTRY = {
   'AC-014-bar-capture-journey.spec.ts': 'fixed-item-id',
@@ -176,6 +194,11 @@ export function assertFixtureSqlSafe(query: string): void {
     new RegExp(`^delete from mos\\.process_runs where org_id = ${uuid} and id in \\(${uuidList}\\)$`),
     new RegExp(`^delete from mos\\.(?:signals|user_views|budgets|objectives) where org_id = ${uuid} and id in \\(${uuidList}\\)$`),
     new RegExp(`^delete from mos\\.notifications where org_id = ${uuid} and metadata->'entity'->>'type' = 'signal' and metadata->'entity'->>'id' in \\(${uuidList}\\)$`),
+    new RegExp(`^delete from mos\\.notifications where org_id = ${uuid} and id in \\(${uuidList}\\)$`),
+    new RegExp(`^delete from mos\\.notifications where org_id = ${uuid} and id in \\(${uuidList}\\) and owner_id = ${uuid}$`),
+    new RegExp(`^delete from mos\\.process_run_pending_tasks where org_id = ${uuid} and id in \\(${uuidList}\\)$`),
+    new RegExp(`^delete from shared\\.orgs where id = ${uuid}$`),
+    new RegExp(`^delete from shared\\.role_authority where org_id = ${uuid} and action = 'workline\\.manage' and role = 'team_lead'$`),
   ]
   if (/\b(truncate|drop|execute|prepare|call)\b/i.test(executableSql) || /(?:^|;)\s*do\b/i.test(executableSql)) {
     throw new Error('E2E SQL cannot use destructive or procedural execution')
@@ -188,6 +211,15 @@ export function assertFixtureSqlSafe(query: string): void {
       && !capturedRowDeletes.some((pattern) => pattern.test(normalized))) {
       throw new Error('E2E deletion must use the fixed fixture cleanup boundary')
     }
+  }
+}
+
+/** Validate a read-only SQL query before it reaches the service-role SQL endpoint. */
+export function assertFixtureSqlReadOnly(query: string): void {
+  const executableSql = executableSqlOnly(query).trim()
+  if (!/^(?:select|with)\b/i.test(executableSql)
+    || /\b(?:insert|update|delete|merge|truncate|drop|alter|create|grant|revoke|execute|prepare|call|do|set|reset|copy|vacuum|refresh)\b/i.test(executableSql)) {
+    throw new Error('E2E read-only SQL must be a SELECT/WITH query')
   }
 }
 

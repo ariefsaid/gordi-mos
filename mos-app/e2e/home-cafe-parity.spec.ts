@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { DEMO_PASSWORD } from '../src/pages/demo-personas'
 import { localSql } from './helpers/local-sql'
 import { localSqlRead } from './helpers/local-sql-read'
+import { processRunCleanupSql, processRunPendingCleanupSql, taskCleanupSql } from './fixtures/cleanup'
 import { loginAs } from './helpers/login'
 import type { Page } from '@playwright/test'
 
@@ -182,14 +183,14 @@ test.afterAll(async () => {
                materialized_task_id = ${nullableUuidLiteral(existingOpening.unresolvedPending.materialized_task_id)}
          where id = ${uuidLiteral(existingOpening.unresolvedPending.id)};`
       : ''
-    const restoreInsertedPending = insertedPendingId
-      ? `update mos.process_run_pending_tasks
+   const restoreInsertedPending = insertedPendingId
+     ? `update mos.process_run_pending_tasks
            set resolved_at = null, resolved_by = null, materialized_task_id = null
          where id = ${uuidLiteral(insertedPendingId)};
-         delete from mos.process_run_pending_tasks where id = ${uuidLiteral(insertedPendingId)};`
-      : ''
+        ${processRunPendingCleanupSql([insertedPendingId], ORG_ID)}`
+     : ''
     const deleteMaterializedTask = materializedTaskIdToDelete
-      ? `delete from mos.tasks where id = ${uuidLiteral(materializedTaskIdToDelete)};`
+     ? taskCleanupSql([materializedTaskIdToDelete], ORG_ID)
       : ''
     await localSql(`
       ${restoreBaselinePending}
@@ -199,20 +200,12 @@ test.afterAll(async () => {
   } else {
     const runId = createdRunId
     if (runId) {
-      await localSql(`
-        delete from mos.process_run_pending_tasks where process_run_id = ${uuidLiteral(runId)};
-        delete from mos.tasks where process_run_id = ${uuidLiteral(runId)};
-        delete from mos.process_runs where id = ${uuidLiteral(runId)};
-      `)
+      await localSql(processRunCleanupSql([runId], ORG_ID))
     }
   }
 
   if (homeTaskIdsToDelete.length > 0) {
-    await localSql(`
-      delete from mos.tasks
-      where org_id = '${ORG_ID}'
-        and id in (${homeTaskIdsToDelete.map(id => `'${id}'`).join(', ')});
-    `)
+    await localSql(taskCleanupSql(homeTaskIdsToDelete, ORG_ID))
   }
 })
 
