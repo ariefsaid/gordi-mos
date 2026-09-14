@@ -117,8 +117,9 @@ create or replace function ops._guard_cafe_books()
 returns trigger language plpgsql security invoker set search_path = '' as $$
 declare v_produces boolean;
 begin
-  if tg_op = 'INSERT' or (old.branch_id, old.activity, old.action, old.destination_branch_id)
-       is distinct from (new.branch_id, new.activity, new.action, new.destination_branch_id) then
+  if (tg_op = 'INSERT' or (old.branch_id, old.activity, old.action, old.destination_branch_id)
+      is distinct from (new.branch_id, new.activity, new.action, new.destination_branch_id))
+     and new.branch_id is not null and new.activity is not null then
     select t.produces into v_produces from shared.teams t
     where t.org_id = new.org_id and t.branch_id = new.branch_id
       and t.activity = new.activity and t.archived_at is null;
@@ -135,9 +136,11 @@ begin
   return new;
 end;
 $$;
-create trigger kitchen_logs_books_guard before insert or update of branch_id, activity, action, destination_branch_id
+-- PostgreSQL runs same-timing triggers by name. The `z_` prefix intentionally leaves the existing
+-- same-org and NOT NULL guards first, retaining their established SQLSTATE/error contracts.
+create trigger kitchen_logs_z_books_guard before insert or update of branch_id, activity, action, destination_branch_id
 on ops.kitchen_logs for each row execute function ops._guard_cafe_books();
-create trigger kitchen_plans_books_guard before insert or update of branch_id, activity, action, destination_branch_id
+create trigger kitchen_plans_z_books_guard before insert or update of branch_id, activity, action, destination_branch_id
 on ops.kitchen_plans for each row execute function ops._guard_cafe_books();
 
 comment on function ops._guard_cafe_books() is
