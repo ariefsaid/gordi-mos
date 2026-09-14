@@ -19,6 +19,13 @@ insert into ops.wip_items (id, org_id, name, flag_active) values
 select shared.seed_stream_teams();
 insert into shared.teams (id, org_id, business_unit_id, name, code)
 values ('00000000-0000-0000-0000-00000000ba18','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','Back Office','fixture_back_office');
+-- The positive capture persona needs the same real Café affiliation required by the live INSERT
+-- policy. It is deliberately only an affiliation, not an origin-stream permission: #744 keeps
+-- stream selection open for help-out while the row's own stream drives the books guard.
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from)
+select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d1', t.id, false, current_date
+from shared.teams t
+where t.org_id = '00000000-0000-0000-0000-0000000000a1' and t.code = 'rumah_rames_kitchen';
 select set_config('app.allow_test_seeds', 'off', true);
 
 select is((select produces from shared.teams where org_id = '00000000-0000-0000-0000-0000000000a1' and code = 'radiant_kitchen'), false,
