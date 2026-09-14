@@ -60,6 +60,15 @@ select results_eq($$
     ('00000000-0000-0000-0000-00000000bf02'::uuid) $$,
   'AC-003: Cikal bar has no intra-branch arm without a kitchen stream');
 
+-- Activity alone never grants a future stream production. Add this after the matrix assertions so
+-- its Roastery branch cannot change the current MVP destination set they prove.
+insert into shared.teams (org_id, business_unit_id, name, code, branch_id, activity)
+values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01',
+        'Future Roastery Kitchen','future_roastery_kitchen','00000000-0000-0000-0000-00000000bf05','kitchen');
+select is((select produces from shared.teams
+           where org_id = '00000000-0000-0000-0000-0000000000a1' and code = 'future_roastery_kitchen'), false,
+  'AC-001: a newly added stream Team defaults receive-only; activity never infers producing');
+
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
 select throws_ok($$
@@ -97,6 +106,21 @@ select throws_ok($$
   values ('2026-09-14','00000000-0000-0000-0000-00000000bf02','kitchen','transfer','00000000-0000-0000-0000-00000000bf05','00000000-0000-0000-0000-00000000ab01',1)
   $$, '42501', 'the destination is outside the production stream''s allowed books',
   'AC-003: plan writes use the same destination refusal');
+
+-- Same-org validation predates and must run before the books guard. The z-prefixed trigger name
+-- preserves this 23514 contract instead of masking a foreign origin as a producer refusal.
+reset role;
+insert into shared.business_units (id, org_id, name, code)
+values ('00000000-0000-0000-0000-00000000bb09','00000000-0000-0000-0000-0000000000b1','B Retail Ops','retail_ops');
+insert into shared.branches (id, org_id, code, name)
+values ('00000000-0000-0000-0000-00000000bf09','00000000-0000-0000-0000-0000000000b1','b_branch','B Branch');
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select throws_ok($$
+  insert into ops.kitchen_logs (business_unit_id,log_date,branch_id,activity,action,wip_item_id,qty_porsi)
+  values ('00000000-0000-0000-0000-00000000bb01','2026-09-14','00000000-0000-0000-0000-00000000bf09','kitchen','produce','00000000-0000-0000-0000-00000000ab01',1)
+  $$, '23514', 'branch_id must belong to the same org as the kitchen log',
+  'AC-005: a foreign stream cannot be selected; the same-org guard keeps its contract');
 
 reset role;
 select * from finish();
