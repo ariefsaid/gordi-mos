@@ -592,6 +592,7 @@
    in DESIGN.md § DB-view toolbar controls. */
 .overdue-filter-btn {
   display: inline-flex; align-items: center; gap: 6px;
+  box-sizing: border-box;
   height: 32px; padding: 0 10px;
   border: 1px solid color-mix(in srgb, var(--status-lost-text) 40%, transparent);
   border-radius: var(--radius-sm);

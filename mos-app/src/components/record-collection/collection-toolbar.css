@@ -225,6 +225,10 @@
   .tasks-collection-toolbar .collection-toolbar__select { max-width: 150px; }
   .tasks-collection-toolbar .collection-toolbar__query { flex: 0 1 220px; min-width: 150px; }
   .tasks-collection-toolbar .collection-toolbar__search { min-width: 150px; }
+  /* The attention trigger is content-sized, so its Picker shell must not shrink around it.
+     Otherwise a wider CI font can leave the trigger's label wider than its client box while
+     the rest of the row still appears to fit. The search field remains the elastic control. */
+  .tasks-collection-toolbar .tasks-attention-picker { flex: 0 0 auto; min-width: max-content; }
 }
 .collection-toolbar__option-field--group .collection-toolbar__picker-trigger {
   background: color-mix(in srgb, var(--brand-navy) 6%, var(--background));

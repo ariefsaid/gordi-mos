@@ -26,4 +26,10 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
       /\.collection-toolbar__view:not\(\.collection-toolbar__view--active\):hover\s*\{[^}]*background:\s*var\(--surface-tertiary\);[^}]*color:\s*var\(--foreground\);/s,
     )
   })
+
+  it('keeps the Tasks attention trigger content-sized in the desktop row', () => {
+    expect(css).toMatch(
+      /@media\s*\(min-width:\s*1200px\)[\s\S]*?\.tasks-collection-toolbar \.tasks-attention-picker\s*\{[^}]*flex:\s*0 0 auto;[^}]*min-width:\s*max-content;/s,
+    )
+  })
 })

@@ -230,7 +230,13 @@ test.describe('tasks collection toolbar geometry', () => {
           row: { x: rowRect.x, right: rowRect.right },
           controls: Array.from(controls).map((control) => {
           const rect = control.getBoundingClientRect()
+          const parent = control.parentElement
           return {
+            name: control.getAttribute('aria-label') ?? control.textContent?.trim().replace(/\s+/g, ' ') ?? control.className,
+            className: typeof control.className === 'string' ? control.className : '',
+            parentClassName: parent?.className ?? '',
+            parentFlex: parent ? getComputedStyle(parent).flex : '',
+            parentWidth: parent?.getBoundingClientRect().width ?? 0,
             centerY: rect.top + rect.height / 2,
             x: rect.x,
             right: rect.right,
@@ -249,12 +255,10 @@ test.describe('tasks collection toolbar geometry', () => {
         geometry.controls.every(({ x, right }) => x >= geometry.row.x - 0.5 && right <= geometry.row.right + 0.5),
         'toolbar controls must stay inside their row',
       ).toBe(true)
-      expect(
-        geometry.controls.every(({ scrollHeight, clientHeight, scrollWidth, clientWidth }) =>
-          scrollHeight <= clientHeight + 1 && scrollWidth <= clientWidth + 1,
-        ),
-        'toolbar controls must contain their text',
-      ).toBe(true)
+      const overflowingControls = geometry.controls.filter(({ scrollHeight, clientHeight, scrollWidth, clientWidth }) =>
+        scrollHeight > clientHeight + 1 || scrollWidth > clientWidth + 1,
+      )
+      expect(overflowingControls, `toolbar controls must contain their text; overflow: ${JSON.stringify(overflowingControls)}`).toEqual([])
     }
 
     const census = await toolbar.evaluate((element) => ({
