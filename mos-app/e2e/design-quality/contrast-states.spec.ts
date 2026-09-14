@@ -54,7 +54,25 @@ async function setupState(page: Parameters<typeof collectContrast>[0], state: In
     const target = page.locator(ACTIONABLE_SELECTOR).filter({ visible: true }).first()
     if (await target.count() === 0) return { applicable: false, selector: '', measure: 'text' }
     if (state === 'hover') await target.hover()
-    else await target.focus()
+    else {
+      await target.evaluate((element) => {
+        document.getElementById('design-audit-focus-origin')?.remove()
+        const origin = document.createElement('span')
+        origin.id = 'design-audit-focus-origin'
+        origin.tabIndex = -1
+        origin.setAttribute('aria-hidden', 'true')
+        element.parentNode?.insertBefore(origin, element)
+        origin.focus()
+      })
+      let reachedTarget = false
+      try {
+        await page.keyboard.press('Tab')
+        reachedTarget = await target.evaluate((element) => document.activeElement === element)
+      } finally {
+        await page.evaluate(() => document.getElementById('design-audit-focus-origin')?.remove())
+      }
+      if (!reachedTarget) throw new Error('Keyboard focus did not reach the first actionable audit target')
+    }
     return { applicable: true, selector: await elementSelector(target), measure: state === 'focus' ? 'both' : 'text' }
   }
   const selector = interactionStateSelector(state)
