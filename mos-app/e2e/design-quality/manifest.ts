@@ -329,7 +329,10 @@ const cells: ManifestCell[] = [
     area: 'tasks', journey: 'tasks-filter', route: '/mos/work/tasks', fixture: 'VIEWER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'empty-result', status: 'covered',
     stateContract: {
-      setup: [{ action: 'fill', selector: 'input[aria-label="Search tasks"]', value: '__design_audit_no_task_match__' }],
+      setup: [
+        { action: 'click', selector: '.mobile-task-options-trigger' },
+        { action: 'fill', selector: 'input[aria-label="Search tasks"]', value: '__design_audit_no_task_match__' },
+      ],
       assertion: { selector: '[data-collection-status="filtered-empty"]' },
     },
   }),
