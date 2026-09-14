@@ -22,7 +22,7 @@ import type {
 
 type SortDir = TaskCollectionQuery['direction']
 type TasksSavedViewSaveResult = PersistedCollectionView | null | void
-type SavedViewRetryAction = { kind: 'load' } | { kind: 'apply'; id: string } | { kind: 'save' }
+type SavedViewRetryAction = { kind: 'load' } | { kind: 'apply'; id: string } | { kind: 'save'; name: string }
 
 export type TasksToolbarSavedViews = {
   label: string
@@ -217,14 +217,14 @@ export function TasksToolbar({
         if (!retry) return
         if (retry.kind === 'load') void savedViews.onLoad?.()
         else if (retry.kind === 'apply') void savedViews.onApply(retry.id)
-        // The save door owns the draft value. Its retry is triggered by pressing Save again.
+        else void savedViews.onSave(retry.name)
       },
       onApply: (id) => {
         savedViewRetryRef.current = { kind: 'apply', id }
         return savedViews.onApply(id)
       },
       onSave: (name) => {
-        savedViewRetryRef.current = { kind: 'save' }
+        savedViewRetryRef.current = { kind: 'save', name }
         return savedViews.onSave(name)
       },
     }

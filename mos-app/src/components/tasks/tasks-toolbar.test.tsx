@@ -174,4 +174,24 @@ describe('TasksToolbar — saved view persistence states', () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(3))
     expect(screen.queryByDisplayValue('My queue')).toBeNull()
   })
+
+  it('retries the same failed saved-view name after the save form is closed', async () => {
+    const onSave = vi.fn().mockResolvedValue(null)
+    renderToolbar(makeProps({
+      savedViews: {
+        label: 'Saved views', selectedId: null, operation: 'error', error: 'Could not save view.', items: [],
+        onLoad: vi.fn(), onApply: vi.fn(), onSave,
+      },
+    }))
+
+    fireEvent.click(screen.getByRole('button', { name: /^save view$/i }))
+    fireEvent.change(screen.getByRole('textbox', { name: /view name/i }), { target: { value: 'My queue' } })
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith('My queue'))
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    expect(screen.queryByRole('textbox', { name: /view name/i })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    await waitFor(() => expect(onSave).toHaveBeenNthCalledWith(2, 'My queue'))
+  })
 })

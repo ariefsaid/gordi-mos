@@ -421,6 +421,7 @@
      out-rank the shared .tap-floor utility on this one control. */
   .collection-toolbar__toggle { min-height: 44px; }
   .collection-toolbar__view { min-width: 44px; min-height: 44px; }
+  .collection-toolbar__saved-error .btn { min-height: 44px; }
   /* Phone stands on the OD-REDESIGN-84 door panel: the save door re-joins the flow as a
      full-width strip (an absolute popover would clip inside the scrolled panel). */
   .collection-toolbar__save {

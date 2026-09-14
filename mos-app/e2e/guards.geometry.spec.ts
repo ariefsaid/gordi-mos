@@ -377,6 +377,10 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
     await expect(page.getByRole('button', { name: 'Ask Deputy' })).toBeVisible()
     await assertTapFloor(page, '.record-panel-btn.tap-floor', 'Signals record #667', { axes: 'both' })
 
+    await page.route('**/rest/v1/user_views*', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue()
+      await route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: 'guard fixture' }) })
+    })
     await page.goto('work/tasks')
     await expect(page.getByTestId('page-head')).toBeVisible()
     // OD-WAY-89: phone shows work first and has one View & filters door. The shared collection
@@ -390,6 +394,8 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
 
     const tasksToolbar = page.getByTestId('record-collection-toolbar')
     await expect(tasksToolbar).toBeVisible()
+    await expect(tasksToolbar.getByRole('button', { name: /try again/i })).toBeVisible()
+    await assertTapFloor(page, '.collection-toolbar__saved-error .btn', 'Tasks saved-view Retry #667', { axes: 'both', noOverflow: true })
     await expect(tasksToolbar.locator('.collection-toolbar__view')).toHaveCount(4)
     await expect(tasksToolbar.getByRole('searchbox', { name: /search tasks/i })).toBeVisible()
     await expect(tasksToolbar.locator('.collection-toolbar__select')).toHaveCount(5)
