@@ -450,14 +450,14 @@ describe('AC-573 — saved-view chrome uses fetched state', () => {
   it('switching scope removes the previous saved and overdue URL constraints', async () => {
     mockListTasks.mockResolvedValue([makeTask()])
     const { getLocation } = renderAt(['/work/tasks?saved=custom-view&overdue=1'])
-    fireEvent.click(await screen.findByRole('tab', { name: 'My work' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'My work' }))
     await waitFor(() => {
       const params = new URLSearchParams(getLocation()?.search)
       expect(params.get('view')).toBe('my-work')
       expect(params.has('saved')).toBe(false)
       expect(params.has('overdue')).toBe(false)
     })
-    expect(screen.getByRole('tab', { name: 'My work' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('shows a fetched custom saved-view name in TasksWorkspace and Breadcrumb', async () => {
@@ -487,25 +487,24 @@ describe('AC-573 — saved-view chrome uses fetched state', () => {
       </I18nProvider>,
     )
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /^filters/i })).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: /^filters/i }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'My queue' })).toBeInTheDocument())
     expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('My queue')
   })
 })
 
-// The replacement keeps the queue visible and puts advanced controls behind one Filters
-// disclosure. These helpers keep behavior tests focused on outcomes instead of the retired
-// desktop/phone toolbar branches.
+// Desktop exposes the e7 two-row collection grammar. Phone wraps the same controls in one
+// View & filters door. These helpers keep behavior tests focused on outcomes across both widths.
 function chooseFilterOption(trigger: HTMLElement, label: string) {
   fireEvent.click(trigger)
-  fireEvent.click(screen.getByRole('option', { name: label }))
+  const option = screen.queryByRole('option', { name: label })
+    ?? screen.getByRole('checkbox', { name: label })
+  fireEvent.click(option)
 }
 
 function ensureFiltersOpen() {
-  const trigger = screen.getByRole('button', { name: /^filters(?:\s+\d+)?$/i })
-  if (trigger.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
-  return screen.getByRole('region', { name: /filter this queue/i })
+  const trigger = screen.queryByRole('button', { name: /^view & filters$/i })
+  if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+  return screen.getByRole('group', { name: /view & filters/i })
 }
 
 function openAttentionMenu() {
@@ -518,19 +517,34 @@ function openAttentionMenu() {
   }
 }
 
-function filterSelect(name: RegExp | string) {
-  ensureFiltersOpen()
-  return screen.getByRole('combobox', { name })
-}
-
 function statusSelect() {
-  return filterSelect(/^status$/i)
+  return within(ensureFiltersOpen()).getByRole('button', { name: /^status$/i })
 }
 
 // ── F-A / OD-REDESIGN-61 — member phone disclosure (RED) ─────────────────────
 // A member's first phone viewport must show work, not the configuration wall.
 // The options control should be the only toolbar affordance before the card list.
 describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () => {
+  it('OD-WAY-89: phone exposes one View & filters door around the shared collection toolbar', async () => {
+    stubMatchMedia(false, false)
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Phone toolbar item' })])
+
+    renderTable()
+    await waitFor(() => screen.getByText('Phone toolbar item'))
+
+    const trigger = screen.getByRole('button', { name: /^view & filters$/i })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('record-collection-toolbar')).toBeNull()
+
+    fireEvent.click(trigger)
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('record-collection-toolbar')).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^filters$/i })).toBeNull()
+  })
+
   it('AC-W1-A: member phone shows a task card while Filters stays available', async () => {
     stubMatchMedia(false, false)
     mockListTasks.mockResolvedValue([makeTask({ title: 'First mobile work item' })])
@@ -538,7 +552,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     renderTable()
     await waitFor(() => screen.getByText('First mobile work item'))
 
-    const options = screen.getByRole('button', { name: /^filters/i })
+    const options = screen.getByRole('button', { name: /^view & filters$/i })
     expect(options).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('combobox', { name: /group/i })).toBeNull()
     expect(screen.getByTestId('task-card')).toContainElement(screen.getByText('First mobile work item'))
@@ -550,13 +564,12 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
 
     renderTable()
     await waitFor(() => screen.getByText('Cue task'))
-    const trigger = screen.getByRole('button', { name: /^filters/i })
-    expect(trigger).not.toHaveClass('tasks-queue-toolbar__filters-trigger--active')
+    const trigger = screen.getByRole('button', { name: /^view & filters$/i })
+    expect(trigger).toHaveAccessibleName('View & filters')
 
     fireEvent.click(trigger)
     chooseFilterOption(statusSelect(), 'Blocked')
-    await waitFor(() => expect(trigger).toHaveClass('tasks-queue-toolbar__filters-trigger--active'))
-    expect(screen.getByRole('status')).toHaveTextContent(/status/i)
+    await waitFor(() => expect(trigger).toHaveAccessibleName(/status/i))
   })
 
   it('Rule 8/11: the whole filter stack collapses behind the single shared "View options" disclosure, and reveals on expand', async () => {
@@ -574,9 +587,9 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
       expect(screen.queryByRole('combobox', { name })).toBeNull()
     }
     expect(screen.queryByRole('combobox', { name: /^status$/i })).toBeNull()
-    const options = screen.getByRole('button', { name: /^filters/i })
+    const options = screen.getByRole('button', { name: /^view & filters$/i })
     expect(options).toHaveAttribute('aria-expanded', 'false')
-    expect(options).toHaveAttribute('aria-controls', 'tasks-filter-panel')
+    expect(options).toHaveAttribute('aria-controls', 'mobile-task-options-panel')
 
     // Expanding the ONE control reveals the full filter capability (no filter is lost).
     fireEvent.click(options)
@@ -584,7 +597,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     for (const name of [/group/i, /business unit/i, /person/i]) {
       expect(screen.getByRole('combobox', { name })).toBeInTheDocument()
     }
-    expect(screen.getByRole('combobox', { name: /^status$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^status$/i })).toBeInTheDocument()
   })
 
   // RATIFY-BEFORE-MERGE: Luna 390 audit (b) — manager phones now ALSO collapse the View & filters
@@ -597,7 +610,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     renderTable({}, managerState)
     await waitFor(() => screen.getByText('Manager mobile work item'))
 
-    const options = screen.getByRole('button', { name: /^filters/i })
+    const options = screen.getByRole('button', { name: /^view & filters$/i })
     expect(options).toHaveAttribute('aria-expanded', 'false')
     // Collapsed: the dense toolbar's filter comboboxes are out of the DOM; the first card leads.
     expect(screen.queryByRole('combobox', { name: /group/i })).toBeNull()
@@ -616,7 +629,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
 
     expect(screen.queryByRole('combobox', { name: /tasks need attention/i })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /^filters/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^view & filters$/i }))
     const attention = openAttentionMenu()
     expect(attention.overdue).toBeInTheDocument()
 
@@ -666,9 +679,9 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     renderTable()
     await waitFor(() => screen.getByText('Pekerjaan pertama'))
 
-    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
-    expect(screen.getByRole('tab', { name: 'Pekerjaan saya' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tampilan & filter' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Tampilan & filter' }))
+    expect(screen.getByRole('button', { name: 'Pekerjaan saya' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Kelompok' })).toBeInTheDocument()
     localStorage.removeItem('mos.locale')
   })
@@ -709,7 +722,7 @@ describe('TasksWorkspace — V3 Workspace frame (Issue 3)', () => {
     // announced Loading tasks status mounted; a bare skeleton is not an acceptable first paint.
     expect(screen.getByRole('heading', { level: 1, name: /^tasks$/i })).toBeInTheDocument()
     expect(screen.getByText('Find and update the work in this view.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /filter/i })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /view & filters/i })).toBeInTheDocument()
     expect(screen.getByRole('status', { name: 'Loading tasks' })).toBeInTheDocument()
   })
 })
@@ -720,14 +733,14 @@ describe('TasksWorkspace — V3 Workspace frame (Issue 3)', () => {
 // shared collection filter controls, the content-header (count + inline
 // Create task), and a FLAT default list. Behavioral goal-oracles (filtering, segment
 // scope, overdue filter, Create task) are unchanged — these assert the new chrome.
-describe('V3 collection grammar — live presentation tabs', () => {
-  // The queue has scope tabs, but no separate Table/Card presentation switcher in its chrome.
+describe('V3 collection grammar — live presentation controls', () => {
+  // The queue has saved-view chips, but no separate Table/Card presentation switcher in its chrome.
   it('renders task scope navigation without a separate presentation switcher', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
-    expect(screen.getByRole('tablist', { name: /task views/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'All' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /task views/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: /table/i })).not.toBeInTheDocument()
   })
 
@@ -737,22 +750,20 @@ describe('V3 collection grammar — live presentation tabs', () => {
     await waitFor(() => screen.getByText('A task'))
     expect(screen.queryByRole('tab', { name: /board/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: /calendar/i })).not.toBeInTheDocument()
-    expect(screen.getByTestId('tasks-queue-toolbar')).toBeInTheDocument()
+    expect(screen.getByTestId('record-collection-toolbar')).toBeInTheDocument()
   })
 })
 
 describe('V3 collection grammar — shared filter controls', () => {
-  it('Filters discloses the shared controls without putting a configuration wall above the queue', async () => {
+  it('desktop exposes the shared e7 controls in the second toolbar row', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
-    expect(screen.queryByRole('combobox', { name: /business unit/i })).toBeNull()
     ensureFiltersOpen()
-    // Each advanced filter remains reachable as a labelled native select after disclosure.
-    expect(screen.getByRole('region', { name: /filter this queue/i })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /view & filters/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /group/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /^status$/i })).toBeInTheDocument()
+    expect(within(screen.getByRole('group', { name: /view & filters/i })).getByRole('button', { name: /^status$/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /person/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /sort/i })).toBeInTheDocument()
   })
@@ -861,11 +872,11 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
-    expect(screen.getByRole('tab', { name: 'All' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'My work' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Overdue' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Team work' })).toBeInTheDocument()
-    expect(screen.queryByRole('tab', { name: 'AR Follow-ups' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'My work' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Overdue' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Team work' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'AR Follow-ups' })).toBeNull()
   })
 
   it('AC-301: view=mine seeds the shipped mine scope', async () => {
@@ -876,7 +887,7 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     renderTable({ savedView: makeSavedView('mine') })
     await waitFor(() => screen.getByText('Mine task'))
     expect(screen.queryByText('Other task')).toBeNull()
-    expect(screen.getByRole('tab', { name: 'My work' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('AC-302: view=overdue seeds overdue-only behavior', async () => {
@@ -887,7 +898,7 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     renderTable({ savedView: makeSavedView('overdue') })
     await waitFor(() => screen.getByText('Late task'))
     expect(screen.queryByText('Future task')).toBeNull()
-    expect(screen.getByRole('tab', { name: 'Overdue' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'Overdue' })).toHaveAttribute('aria-pressed', 'true')
     ensureFiltersOpen()
     // The combined attention surface exposes the overdue count as a menu item.
     expect(openAttentionMenu().overdue).toHaveTextContent('1 overdue')
@@ -901,8 +912,8 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     renderTable({ savedView: makeSavedView('all') })
     await waitFor(() => screen.getByText('Mine task'))
     expect(screen.getByText('Shared task')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('tab', { name: 'Team work' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Team work' })).toBeInTheDocument()
   })
 
   // AC-002 (#743, W-D step 3): the retired AR view redirects to the All view — the URL loses
@@ -912,7 +923,7 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
     const { getLocation } = renderAt(['/work/tasks?view=followups'])
     await waitFor(() => screen.getByText('Ordinary task'))
     expect(getLocation()?.search ?? '(no location)').not.toContain('view=followups')
-    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByText(/AR Follow-up/i)).toBeNull()
     expect(screen.queryByText(/follow-ups are coming to this workspace/i)).toBeNull()
   })
@@ -937,7 +948,7 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
       expect(statusSelect()).toHaveTextContent('Blocked')
       expect(screen.getByRole('combobox', { name: /person/i })).toHaveTextContent('Budi Setiawan')
     })
-    expect(screen.getByRole('tab', { name: 'My work' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
     expect(onSavedViewChange).not.toHaveBeenCalled()
   })
 })
@@ -1089,9 +1100,10 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
 // Helper: switch to the org-visible All saved view so non-viewer tasks are visible.
 // (§Task-11: the Team-work chip was removed; All is the org-visible set.)
 async function switchToAll() {
-  const all = screen.getByRole('tab', { name: 'All' })
+  ensureFiltersOpen()
+  const all = screen.getByRole('button', { name: 'All' })
   fireEvent.click(all)
-  await waitFor(() => expect(all).toHaveAttribute('aria-selected', 'true'))
+  await waitFor(() => expect(all).toHaveAttribute('aria-pressed', 'true'))
 }
 
 // Helper: opt into a group-by dimension (the default is FLAT after the UI-fidelity
@@ -1254,7 +1266,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       mockListTasks.mockResolvedValue([makeTask({ title: 'Phone escape work' })])
       renderTable()
       await waitFor(() => screen.getByText('Phone escape work'))
-      const options = screen.getByRole('button', { name: /^filters/i })
+      const options = screen.getByRole('button', { name: /^view & filters$/i })
       fireEvent.click(options)
       expect(options).toHaveAttribute('aria-expanded', 'true')
       fireEvent.keyDown(options, { key: 'Escape' })
@@ -1267,13 +1279,13 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       mockListTasks.mockResolvedValue([makeTask({ title: 'Phone save isolation' })])
       renderTable()
       await waitFor(() => screen.getByText('Phone save isolation'))
-      fireEvent.click(screen.getByRole('button', { name: /^filters/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^view & filters$/i }))
       fireEvent.click(screen.getByRole('button', { name: /save view/i }))
       const input = screen.getByRole('textbox', { name: /view name/i })
       input.focus()
       fireEvent.keyDown(input, { key: 'Escape' })
       expect(screen.queryByRole('textbox', { name: /view name/i })).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /^filters/i })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByRole('button', { name: /^view & filters$/i })).toHaveAttribute('aria-expanded', 'true')
       expect(screen.getByRole('button', { name: /save view/i })).toHaveFocus()
     })
   })
@@ -2035,7 +2047,8 @@ describe('AC-W2C — desktop density: Due in-frame, optional cols in drawer', ()
     expect(row.querySelector('.due-calm,.due-soon,.due-overdue')).toBeTruthy() // Due
 
     ensureFiltersOpen()
-    // The Fields group stays open across toggles inside the single Filters panel.
+    fireEvent.click(screen.getByRole('button', { name: /^fields$/i }))
+    // The Fields group stays open across toggles in its anchored chooser.
     const menu = () => within(screen.getByRole('group', { name: 'Fields' }))
     // Each offered field, checked → its real column (header + data cell) appears.
     const cases: readonly (readonly [string, string, string])[] = [

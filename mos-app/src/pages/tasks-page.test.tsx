@@ -149,23 +149,22 @@ function makeSavedView(view: 'mine' | 'overdue' | 'all' = 'all'): React.Componen
   }
 }
 
-// The replacement keeps the queue visible and puts advanced controls behind one Filters
-// disclosure. Keep these seams in one place so behavior tests do not encode the retired toolbar
-// geometry or confuse view tabs with filter buttons.
+// Desktop exposes the shared collection controls; phone places the same group behind one outer
+// View & filters door. Keep that responsive seam in one place for behavior tests.
 function openFilters() {
-  const trigger = screen.getByRole('button', { name: /^filters(?:\s+\d+)?$/i })
-  if (trigger.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
-  return screen.getByRole('region', { name: /filter this queue/i })
+  const trigger = screen.queryByRole('button', { name: /^view & filters/i })
+  if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+  return screen.getByRole('group', { name: /view & filters/i })
 }
 
 function taskFilter(name: RegExp | string) {
-  openFilters()
-  return screen.getByRole('combobox', { name })
+  const controls = within(openFilters())
+  return controls.queryByRole('combobox', { name }) ?? controls.getByRole('button', { name })
 }
 
 function chooseTaskFilter(trigger: HTMLElement, label: string) {
   fireEvent.click(trigger)
-  fireEvent.click(screen.getByRole('option', { name: label }))
+  fireEvent.click(screen.queryByRole('option', { name: label }) ?? screen.getByRole('checkbox', { name: label }))
 }
 
 function taskFilterOptions(trigger: HTMLElement) {
@@ -177,9 +176,11 @@ function taskFilterOptions(trigger: HTMLElement) {
 
 // §Task-11: the Team-work chip was removed; All is the org-visible set.
 async function switchToAll() {
-  const all = screen.getByRole('tab', { name: 'All' })
+  const door = screen.queryByRole('button', { name: /^view & filters/i })
+  if (door?.getAttribute('aria-expanded') === 'false') fireEvent.click(door)
+  const all = screen.getByRole('button', { name: 'All' })
   fireEvent.click(all)
-  await waitFor(() => expect(all).toHaveAttribute('aria-selected', 'true'))
+  await waitFor(() => expect(all).toHaveAttribute('aria-pressed', 'true'))
 }
 
 // ── Render helper ─────────────────────────────────────────────────────────────
@@ -287,12 +288,11 @@ describe('AC-067 — Tasks table (live surface) states (loading, error, empty)',
     mockListTasks.mockRejectedValue(new Error('boom'))
     renderPage()
     await waitFor(() => screen.getByRole('alert'))
-    // The replacement keeps view navigation, search, and the single collapsed Filters door
-    // available while the result region reports the error. Advanced controls stay undisclosed.
-    expect(screen.getByRole('tablist', { name: /task views/i })).toBeInTheDocument()
+    // Error state keeps the same usable desktop collection controls beside the result message.
+    expect(screen.getByRole('group', { name: /task views/i })).toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^filters$/i })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('combobox', { name: /business unit/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /view & filters/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
   })
 })
 
@@ -523,16 +523,16 @@ describe('AC-064 — saved-view chips', () => {
     await waitFor(() => screen.getByText('My task'))
     expect(screen.queryByText('Other team task')).toBeNull()
     expect(screen.queryByText('Unrelated task')).toBeNull()
-    expect(screen.getByRole('tab', { name: 'My work' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('the Task scope tabs expose All, My work, Team work and Overdue', async () => {
     renderPage()
     await waitFor(() => screen.getByText('My task'))
-    expect(screen.getByRole('tab', { name: 'All' })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'My work' })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Overdue' })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Team work' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'All' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'My work' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Overdue' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Team work' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'AR Follow-ups' })).toBeNull()
   })
 
@@ -600,9 +600,8 @@ describe('AC-065 / AC-008 — archived rows hidden by default; Include archived 
     })
     await waitFor(() => screen.getByText('Archived task'))
 
-    // Filters closed → no advanced checkbox remains in the compact queue toolbar.
-    fireEvent.click(screen.getByRole('button', { name: /^filters/i }))
-    expect(screen.queryByRole('checkbox', { name: /include archived/i })).toBeNull()
+    // The Status popover keeps both choices visible until the user closes that anchored control.
+    expect(screen.getByRole('checkbox', { name: /include archived/i })).toBeVisible()
   })
 })
 
@@ -653,14 +652,13 @@ describe('responsive — card list at <768px', () => {
 
 // ── a11y: ARIA roles and labels ──────────────────────────────────────────────
 describe('a11y — aria roles and labels', () => {
-  it('saved-view controls expose tab semantics with aria-selected', async () => {
+  it('saved-view controls expose button semantics with aria-pressed', async () => {
     mockListTasks.mockResolvedValue([makeTask()])
     renderPage()
-    await waitFor(() => screen.getByRole('tab', { name: 'My work' }))
-    expect(screen.getByRole('tablist', { name: /task views/i })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'My work' }).getAttribute('aria-selected')).toBe('false')
-    // §Task-11: the All tab carries default-view selection; the Team-work tab is gone.
-    expect(screen.getByRole('tab', { name: 'All' }).getAttribute('aria-selected')).toBe('true')
+    await waitFor(() => screen.getByRole('button', { name: 'My work' }))
+    expect(screen.getByRole('group', { name: /task views/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'My work' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('loading region has aria-busy and a visually-hidden loading message', async () => {
@@ -830,8 +828,7 @@ describe('archived row treatment — "Archived" chip + muted title', () => {
   // AC-008 (delta): the archived door is the Include-archived checkbox beside Status — additive
   // to whatever status is (or is not) chosen.
   async function chooseIncludeArchived() {
-    openFilters()
-    // The archived option lives inside the single Filters disclosure.
+    fireEvent.click(taskFilter(/^status$/i))
     fireEvent.click(screen.getByRole('checkbox', { name: /include archived/i }))
   }
 
@@ -1241,14 +1238,14 @@ describe('R5 task failure and filter boundaries', () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Recovered task' })])
     fireEvent.click(screen.getByRole('button', { name: /try again/i }))
     expect(await screen.findByText('Recovered task')).toBeInTheDocument()
-    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText("Couldn't load tasks")).toBeNull()
   })
 
   it('keeps an empty additive Include archived view a true empty, without Clear filters', async () => {
     mockListTasks.mockResolvedValue([])
     renderPage()
     await screen.findByRole('link', { name: /\+ create task/i })
-    fireEvent.click(screen.getByRole('button', { name: /^filters$/i }))
+    fireEvent.click(taskFilter(/^status$/i))
     fireEvent.click(screen.getByRole('checkbox', { name: /include archived/i }))
     await waitFor(() => expect(_capturedLocation?.search).toContain('archived=1'))
     expect(await screen.findByRole('heading', { name: 'Nothing archived yet' })).toBeInTheDocument()

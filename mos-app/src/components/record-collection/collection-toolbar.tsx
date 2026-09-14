@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Picker } from '@/components/ui/picker'
 import { ViewTabs } from '@/components/ui/view-tabs'
+import { ErrorState } from '@/components/ui/state-kit'
 import type { CollectionViewOperationStatus } from '@/lib/record-collection/types'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useT } from '@/i18n/use-t'
@@ -99,10 +100,13 @@ export interface CollectionToolbarSavedViews {
   label: string
   selectedId: string | null
   operation: CollectionViewOperationStatus
+  error?: string | null
+  errorMessage?: ReactNode
   items: readonly { id: string; name: string }[]
   onLoad?: () => void
+  onRetry?: () => void
   onApply: (id: string) => void | Promise<void>
-  onSave: (name: string) => void | Promise<void>
+  onSave: (name: string) => unknown | Promise<unknown>
 }
 
 export interface CollectionToolbarProps<
@@ -203,7 +207,16 @@ export function CollectionToolbar<
 
   async function saveView() {
     if (!savedViews || !canSave) return
-    await savedViews.onSave(viewName.trim())
+    let result: unknown
+    try {
+      result = await savedViews.onSave(viewName.trim())
+    } catch {
+      return
+    }
+    // Collection adapters use null as an explicit persistence failure signal. Keep the draft and
+    // anchored door open so the host's error state can offer a retry; legacy void callbacks remain
+    // successful for existing collection hosts.
+    if (result === null) return
     setViewName('')
     closeSaveView()
   }
@@ -258,6 +271,13 @@ export function CollectionToolbar<
                   )
                 })}
               </>
+            ) : null}
+            {savedViews?.error ? (
+              <ErrorState
+                className="collection-toolbar__saved-error"
+                message={savedViews.errorMessage ?? savedViews.error}
+                onRetry={saveOpen && viewName.trim() ? () => void saveView() : savedViews.onRetry}
+              />
             ) : null}
           </div>
 
@@ -425,7 +445,7 @@ export function CollectionToolbar<
                       />
                     </label>
                     <div className="collection-toolbar__save-actions">
-                      <Button variant="primary" disabled={!canSave} onClick={() => void saveView()}>
+                      <Button variant="outline" disabled={!canSave} onClick={() => void saveView()}>
                         {saving ? t('common.saving') : t('common.save')}
                       </Button>
                       <Button variant="ghost" onClick={closeSaveView}>{t('common.cancel')}</Button>

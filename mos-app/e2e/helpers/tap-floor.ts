@@ -38,9 +38,39 @@ export type TapFloorOptions = {
 type Box = { label: string; x: number; y: number; width: number; height: number }
 
 async function measure(page: Page, selector: string, surface: string): Promise<Box[]> {
-  const controls = page.locator(selector).locator('visible=true')
+  const controls = page.locator(selector)
   const count = await controls.count()
   expect(count, `${surface}: expected interactive controls to exist`).toBeGreaterThan(0)
+
+  // Home's async region read can replace a loading link while the page head is already visible.
+  // Wait for every currently visible match to have a real layout box before taking the snapshot;
+  // otherwise a transient zero-area node is mistaken for a settled tap target. Hidden matches
+  // remain excluded, as they were by the old `visible=true` locator filter.
+  await expect.poll(async () => {
+    const states = await controls.evaluateAll((elements) => elements.map((node) => {
+      const rect = node.getBoundingClientRect()
+      const before = getComputedStyle(node, '::before')
+      const px = (value: string) => Number.parseFloat(value) || 0
+      const left = px(before.left)
+      const top = px(before.top)
+      const right = left + px(before.width)
+      const bottom = top + px(before.height)
+      const style = getComputedStyle(node)
+      const eligible = node.getClientRects().length > 0
+        && style.display !== 'none'
+        && style.visibility !== 'hidden'
+      return {
+        eligible,
+        width: Math.max(rect.width, right) - Math.min(0, left),
+        height: Math.max(rect.height, bottom) - Math.min(0, top),
+      }
+    }))
+    return states.some(({ eligible }) => eligible)
+      && states.every(({ eligible, width, height }) => !eligible || (width > 0 && height > 0))
+  }, {
+    message: `${surface}: visible controls must settle into non-empty rendered boxes`,
+    timeout: 5_000,
+  }).toBe(true)
 
   const boxes: Box[] = []
   for (let i = 0; i < count; i += 1) {
@@ -53,6 +83,8 @@ async function measure(page: Page, selector: string, surface: string): Promise<B
       const top = px(before.top)
       const right = left + px(before.width)
       const bottom = top + px(before.height)
+      const style = getComputedStyle(node)
+      if (node.getClientRects().length === 0 || style.display === 'none' || style.visibility === 'hidden') return null
       return {
         x: rect.x + Math.min(0, left),
         y: rect.y + Math.min(0, top),

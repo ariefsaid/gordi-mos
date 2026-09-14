@@ -14,6 +14,7 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import type { PageFamilyState } from '@/shell/page-families'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { createRecordRouteAdapter } from '@/shell/overlay-navigation'
+import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { useT } from '@/i18n/use-t'
 import { TasksToolbar } from './tasks-toolbar'
 import {
@@ -194,6 +195,7 @@ export function TasksWorkspace({
   const [viewerTeams, setViewerTeams] = useState<readonly TeamOption[] | null>(null)
   const [processStartTeamIds, setProcessStartTeamIds] = useState<Set<string>>(new Set())
   const [announcement, setAnnouncement] = useState('')
+  const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
   const draftSourceSignalRef = useRef<string | null>(new URLSearchParams(location.search).get('sourceSignal'))
   const createdDraftTaskRef = useRef<string | null>(null)
   const draftTitleRef = useRef('')
@@ -822,7 +824,24 @@ export function TasksWorkspace({
     processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, draftValidationError, onRetryDraftLink, viewerTeams,
   ])
 
-  const controls = tasksToolbar
+  const controls = !isDesktop ? (
+    <ViewOptionsDisclosure
+      open={mobileOptionsOpen}
+      onToggle={() => setMobileOptionsOpen((open) => !open)}
+      onClose={() => setMobileOptionsOpen(false)}
+      label={t('common.viewAndFilters')}
+      summary={taskDisclosure.summary}
+      hasActiveFilters={taskDisclosure.hasActiveFilters}
+      panelId="mobile-task-options-panel"
+      className="mobile-task-options"
+      triggerClassName="mobile-task-options-trigger"
+      summaryClassName="mobile-task-options-summary"
+      chevronClassName="mobile-task-options-chevron"
+      panelClassName="mobile-task-options-panel"
+    >
+      {tasksToolbar}
+    </ViewOptionsDisclosure>
+  ) : tasksToolbar
 
   return (
     <PageFamilyFrame

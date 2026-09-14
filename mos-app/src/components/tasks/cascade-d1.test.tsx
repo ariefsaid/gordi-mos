@@ -149,17 +149,16 @@ beforeEach(() => {
 // ── FR-231: Work-line option in the Group chip ────────────────────────────────
 
 
-// Group/Sort/toggles are disclosed behind the queue's Filters trigger. Open it when collapsed;
-// the grouping capability itself is unchanged.
+// Phone may disclose these controls; desktop exposes the same shared group inline.
 function chooseFilterOption(trigger: HTMLElement, label: string) {
   fireEvent.click(trigger)
   fireEvent.click(screen.getByRole('option', { name: label }))
 }
 
 function ensureViewOptionsOpen() {
-  const trigger = screen.getByRole('button', { name: /^filters(?:\s+\d+)?$/i })
+  const trigger = screen.queryByRole('button', { name: /^view & filters/i })
   if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
-  return screen.getByRole('region', { name: /filter this queue/i })
+  return screen.getByRole('group', { name: /view & filters/i })
 }
 
 describe('FR-231 — Work-line option in the Group chip', () => {

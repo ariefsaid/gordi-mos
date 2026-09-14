@@ -69,7 +69,7 @@ test.describe('desktop geometry guards', () => {
     // GAP-6 / OD-REDESIGN-91 #11: creation lands on the collection; reopen for drawer geometry.
     await page.goto('work/tasks')
     await page.waitForURL(/\/work\/tasks$/)
-    await page.getByRole('tab', { name: 'All', exact: true }).click()
+    await page.getByRole('button', { name: 'All', exact: true }).click()
     await openTaskRecord(page, title)
     await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
     const drawer = page.getByRole('complementary', { name: /task detail/i })
@@ -160,9 +160,9 @@ test.describe('desktop geometry guards', () => {
   })
 
   test('GUARD-PRIMARY: the Tasks page shows at most ONE solid-primary button — in every toolbar state', async ({ page }) => {
-    const toolbar = page.getByTestId('tasks-queue-toolbar')
+    const toolbar = page.getByTestId('record-collection-toolbar')
     await expect(toolbar).toBeVisible()
-    await expect(toolbar.getByRole('tab', { name: 'All', exact: true })).toBeVisible()
+    await expect(toolbar.getByRole('button', { name: 'All', exact: true })).toBeVisible()
 
     const assertOnePagePrimary = async (state: string) => {
       const labels = await page.locator('.btn-primary:visible').evaluateAll((elements) =>
@@ -174,17 +174,9 @@ test.describe('desktop geometry guards', () => {
     // Rest state: the one page CTA is the only filled primary.
     await assertOnePagePrimary('rest state')
 
-    // Advanced controls live behind Filters in the Tasks queue. The Save-view trigger remains
-    // secondary there, and its transient commit action does not multiply primaries inside the
-    // queue toolbar.
-    const filters = toolbar.getByRole('button', { name: /^filters$/i })
-    await filters.click()
-    await expect(page.getByRole('region', { name: /filter this queue/i })).toBeVisible()
     const saveTrigger = page.getByRole('button', { name: /^save view$/i })
     await expect(saveTrigger).toBeVisible()
     await expect(saveTrigger).not.toHaveClass(/btn-primary/)
-    await assertOnePagePrimary('Filters open')
-
     await saveTrigger.click()
     await expect(page.getByRole('group', { name: /save current view/i })).toBeVisible()
     // This is a page-wide law: the transient Save action must not compete with PageHead's Create
@@ -194,78 +186,90 @@ test.describe('desktop geometry guards', () => {
   })
 
   test('GUARD-R3: the saved-view label keeps a measured ≥8px gap from the first chip', async ({ page }) => {
-    const toolbar = page.getByTestId('tasks-queue-toolbar')
+    const toolbar = page.getByTestId('record-collection-toolbar')
     await expect(toolbar).toBeVisible()
-    await toolbar.getByRole('button', { name: /^filters$/i }).click()
-    const savedViews = page.locator('.tasks-saved-views')
-    await expect(savedViews).toBeVisible()
-    const label = await box(savedViews.locator('.tasks-filter-section-title'))
-    const firstItem = savedViews.locator('.tasks-saved-views__list, .tasks-saved-views__empty').first()
-    await expect(firstItem).toBeVisible()
-    const item = await box(firstItem)
-    const gap = item.y - (label.y + label.height)
+    const label = await box(toolbar.locator('.collection-toolbar__views-label'))
+    const firstChip = await box(toolbar.locator('.collection-toolbar__view').first())
+    const gap = firstChip.x - (label.x + label.width)
     expect(gap, 'saved-view label→content seam must be a real gap, not a fused blob').toBeGreaterThanOrEqual(8)
   })
 })
 
-// ── Tasks queue geometry — the current queue-first IA (formerly ticket 743) ────────────────
-// Tasks keeps its four scope tabs, search, and Filters door in the first row. The field chooser,
-// archive toggle, attention menu, and saved-view actions are advanced configuration behind that
-// door. These assertions pin the rendered hierarchy and its geometry at the desktop reference
-// width without depending on the retired RecordCollection toolbar markup.
-test.describe('tasks queue toolbar geometry', () => {
-  test('queue controls stay in one desktop row and advanced controls stay behind Filters', async ({ page }) => {
+// ── Tasks toolbar geometry — OD-WAY-89 / DESIGN.md §7 ────────────────────────────────
+// Desktop owns exactly two exposed rows. Phones place this same toolbar behind one outer
+// View & filters door, so no desktop Filters door or stacked configuration panel is allowed.
+test.describe('tasks collection toolbar geometry', () => {
+  test('desktop exposes two one-line rows with the e7 control classes', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await loginAs(page, VIEWER.email, VIEWER.password)
     await page.goto('work/tasks')
     await page.waitForURL(/\/work\/tasks$/)
 
-    const toolbar = page.getByTestId('tasks-queue-toolbar')
+    const toolbar = page.getByTestId('record-collection-toolbar')
     await expect(toolbar).toBeVisible()
-    const tablist = toolbar.getByRole('tablist', { name: /task views/i })
-    await expect(tablist).toBeVisible()
-    await expect(tablist.getByRole('tab')).toHaveCount(4)
-    await tablist.getByRole('tab', { name: 'All', exact: true }).click()
-    await expect(tablist.getByRole('tab', { name: 'All', exact: true })).toHaveAttribute('aria-selected', 'true')
+    const rows = toolbar.locator('[data-testid="collection-toolbar-row"]')
+    await expect(rows).toHaveCount(2)
+    await expect(toolbar.getByRole('button', { name: 'All', exact: true })).toBeVisible()
+    await expect(toolbar.getByRole('searchbox', { name: /search tasks/i })).toBeVisible()
+    await expect(toolbar.getByRole('combobox', { name: /^group$/i })).toBeVisible()
+    await expect(toolbar.getByRole('combobox', { name: /business unit/i })).toBeVisible()
+    await expect(toolbar.getByRole('button', { name: /^status$/i })).toBeVisible()
+    await expect(toolbar.getByRole('combobox', { name: /^person$/i })).toBeVisible()
+    await expect(toolbar.getByRole('combobox', { name: /^sort$/i })).toBeVisible()
+    await expect(toolbar.getByRole('button', { name: /^fields$/i })).toBeVisible()
+    await expect(toolbar.getByRole('button', { name: /^save view$/i })).toBeVisible()
+    await expect(toolbar.getByRole('button', { name: /^filters$/i })).toHaveCount(0)
 
-    const search = toolbar.getByRole('searchbox', { name: /search tasks/i })
-    const filters = toolbar.getByRole('button', { name: /^filters$/i })
-    await expect(search).toBeVisible()
-    await expect(filters).toBeVisible()
-
-    const top = toolbar.locator('.tasks-queue-toolbar__top')
-    const topBox = await box(top)
-    const controls = top.locator('.tasks-queue-toolbar__scope .view-tabs__tab:visible, .tasks-queue-toolbar__search:visible, .tasks-queue-toolbar__filters-trigger:visible')
-    const controlBoxes = await controls.evaluateAll((elements) => elements.map((element) => {
-      const rect = element.getBoundingClientRect()
-      return {
-        label: (element.textContent ?? element.getAttribute('aria-label') ?? '').trim().replace(/\s+/g, ' '),
-        x: rect.x,
-        y: rect.y,
-        right: rect.right,
-        bottom: rect.bottom,
-        width: rect.width,
-        height: rect.height,
-        content: element.scrollWidth,
-      }
-    }))
-    expect(controlBoxes.length, 'every current scope/search/filter control must be rendered').toBe(6)
-    const rowBottom = Math.max(...controlBoxes.map((control) => control.bottom))
-    for (const control of controlBoxes) {
-      expect(Math.abs(control.bottom - rowBottom), `${control.label} must share the desktop row bottom`).toBeLessThanOrEqual(2)
-      expect(control.y, `${control.label} must stay inside the toolbar row`).toBeGreaterThanOrEqual(topBox.y - 0.5)
-      expect(control.bottom, `${control.label} must stay inside the toolbar row`).toBeLessThanOrEqual(topBox.y + topBox.height + 0.5)
-      expect(control.x, `${control.label} must not overflow the toolbar row`).toBeGreaterThanOrEqual(topBox.x - 0.5)
-      expect(control.right, `${control.label} must not overflow the toolbar row`).toBeLessThanOrEqual(topBox.x + topBox.width + 0.5)
-      expect(control.width, `${control.label} must fit its rendered content`).toBeGreaterThanOrEqual(control.content - 0.5)
+    for (const row of await rows.all()) {
+      const geometry = await row.evaluate((element) => {
+        const rowRect = element.getBoundingClientRect()
+        const controls = element.querySelectorAll(
+          '.collection-toolbar__view, .collection-toolbar__search, .collection-toolbar__select, .collection-toolbar__fields > .btn, .collection-toolbar__save-zone > .btn, .overdue-filter-btn',
+        )
+        return {
+          row: { x: rowRect.x, right: rowRect.right },
+          controls: Array.from(controls).map((control) => {
+          const rect = control.getBoundingClientRect()
+          return {
+            centerY: rect.top + rect.height / 2,
+            x: rect.x,
+            right: rect.right,
+            scrollHeight: control.scrollHeight,
+            clientHeight: control.clientHeight,
+            scrollWidth: control.scrollWidth,
+            clientWidth: control.clientWidth,
+          }
+          }),
+        }
+      })
+      expect(geometry.controls.length, 'every toolbar row control must be rendered').toBeGreaterThan(0)
+      const centers = geometry.controls.map(({ centerY }) => centerY)
+      expect(Math.max(...centers) - Math.min(...centers), 'each row must share one vertical center').toBeLessThanOrEqual(2)
+      expect(
+        geometry.controls.every(({ x, right }) => x >= geometry.row.x - 0.5 && right <= geometry.row.right + 0.5),
+        'toolbar controls must stay inside their row',
+      ).toBe(true)
+      expect(
+        geometry.controls.every(({ scrollHeight, clientHeight, scrollWidth, clientWidth }) =>
+          scrollHeight <= clientHeight + 1 && scrollWidth <= clientWidth + 1,
+        ),
+        'toolbar controls must contain their text',
+      ).toBe(true)
     }
 
-    await expect(page.getByRole('region', { name: /filter this queue/i })).toHaveCount(0)
-    await filters.click()
-    const panel = page.getByRole('region', { name: /filter this queue/i })
-    await expect(panel).toBeVisible()
-    await expect(panel.getByRole('checkbox')).toHaveCount(5)
-    await expect(panel.getByRole('button', { name: /^save view$/i })).toBeVisible()
+    const census = await toolbar.evaluate((element) => ({
+      chips: element.querySelectorAll('.collection-toolbar__view').length,
+      dropdowns: element.querySelectorAll('.collection-toolbar__search, .collection-toolbar__select').length,
+      ghosts: element.querySelectorAll('.collection-toolbar__options .btn').length,
+      pills: element.querySelectorAll('.overdue-filter-btn').length,
+      checkboxes: element.querySelectorAll('input[type="checkbox"]').length,
+    }))
+    expect(census.chips).toBe(4)
+    expect(census.dropdowns).toBe(6)
+    expect(census.ghosts).toBe(2)
+    expect(census.pills).toBeLessThanOrEqual(1)
+    expect(census.checkboxes).toBe(0)
+
     const pageScroll = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       innerWidth: window.innerWidth,
@@ -273,39 +277,23 @@ test.describe('tasks queue toolbar geometry', () => {
     expect(pageScroll.scrollWidth).toBe(pageScroll.innerWidth)
   })
 
-  test('all optional fields preserve the Task floor and header content at 1440', async ({ page }) => {
+  test('desktop Fields chooser preserves optional columns and the Task width floor', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await loginAs(page, VIEWER.email, VIEWER.password)
     await page.goto('work/tasks')
     await page.waitForURL(/\/work\/tasks$/)
-    const toolbar = page.getByTestId('tasks-queue-toolbar')
+    const toolbar = page.getByTestId('record-collection-toolbar')
     await expect(toolbar).toBeVisible()
     await expect(page.locator('tr.task-row').first()).toBeVisible()
 
-    await toolbar.getByRole('button', { name: /^filters$/i }).click()
-    const panel = page.getByRole('region', { name: /filter this queue/i })
+    await toolbar.getByRole('button', { name: /^fields$/i }).click()
     for (const field of ['Business unit', 'Project/Process', 'Objective', 'Last activity']) {
-      await panel.getByRole('checkbox', { name: field, exact: true }).check()
+      await toolbar.getByRole('checkbox', { name: field, exact: true }).check()
     }
-    await toolbar.getByRole('button', { name: /^filters$/i }).click()
+    await toolbar.getByRole('button', { name: /^fields$/i }).click()
 
-    // Task keeps its 160px floor — optional columns may widen the collection, but the page owns
-    // no horizontal overflow and the identity column never starves.
     const taskWidth = await page.locator('tr.task-row td.td-main').first().evaluate((cell) => cell.getBoundingClientRect().width)
     expect(taskWidth, 'Task keeps its 160px floor with every optional field on').toBeGreaterThanOrEqual(160)
-
-    const headers = await page.locator('.tasks-table thead th').evaluateAll((cells) =>
-      cells.map((cell) => ({
-        text: (cell.textContent ?? '').trim(),
-        width: Math.round(cell.getBoundingClientRect().width),
-        content: cell.scrollWidth,
-      })),
-    )
-    expect(headers.length, 'all nine columns render (5 decision + 4 optional)').toBe(9)
-    for (const header of headers) {
-      expect(header.width, `"${header.text}" must fit its content at 1440 with all fields on`).toBeGreaterThanOrEqual(header.content)
-    }
-
     const pageScroll = await page.evaluate(() => ({
       scrollWidth: document.documentElement.scrollWidth,
       innerWidth: window.innerWidth,
@@ -319,9 +307,9 @@ test.describe('tasks queue toolbar geometry', () => {
 const TAP_SAMPLE = [
   'a.btn', 'button.btn', // the one button hierarchy
   'a.chip', 'button.chip', // chip-links (e.g. record name cells)
-  '.view-tabs__tab', '.home-tab', // current Tasks/Home scope tabs
+  '.collection-toolbar__view', '.view-tabs__tab', '.home-tab', // collection/Home scope tabs
   '.bottom-tab', // phone primary nav
-  '.tasks-queue-toolbar__search', '.tasks-queue-toolbar__filters-trigger', // Tasks queue controls
+  '.mobile-task-options-trigger', // the single Tasks phone "View & filters" door
 ].join(', ')
 
 test.describe('phone tap-target guards (GUARD-TAP)', () => {
@@ -391,40 +379,31 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
 
     await page.goto('work/tasks')
     await expect(page.getByTestId('page-head')).toBeVisible()
-    // The queue-first Tasks toolbar keeps scope, search, and Filters visible on the phone; the
-    // advanced field controls remain behind Filters and are measured after that real disclosure.
-    const tasksToolbar = page.getByTestId('tasks-queue-toolbar')
-    await expect(tasksToolbar).toBeVisible()
-    const toolbarTabs = tasksToolbar.locator('.view-tabs__tab')
-    const toolbarSearch = tasksToolbar.getByRole('searchbox', { name: /search tasks/i })
-    const toolbarFilters = tasksToolbar.getByRole('button', { name: /^filters$/i })
-    expect(await toolbarTabs.count(), 'Tasks toolbar #667: scope tabs must be present').toBeGreaterThan(0)
-    expect(await toolbarSearch.count(), 'Tasks toolbar #667: task search must be present').toBeGreaterThan(0)
-    expect(await toolbarFilters.count(), 'Tasks toolbar #667: Filters trigger must be present').toBeGreaterThan(0)
-    await assertTapFloor(page, '.tasks-queue-toolbar .view-tabs__tab, .tasks-queue-toolbar__search, .tasks-queue-toolbar__filters-trigger', 'Tasks toolbar #667', { axes: 'both', noOverflow: true })
-    await toolbarFilters.click()
-    const filterPanel = page.getByRole('region', { name: /filter this queue/i })
-    await expect(filterPanel).toBeVisible()
+    // OD-WAY-89: phone shows work first and has one View & filters door. The shared collection
+    // toolbar is absent until that door opens; Fields stays absent because phone renders cards.
+    const viewAndFilters = page.getByRole('button', { name: /^view & filters/i })
+    await expect(viewAndFilters).toBeVisible()
+    await expect(viewAndFilters).toHaveAttribute('aria-expanded', 'false')
+    await expect(page.getByTestId('record-collection-toolbar')).toHaveCount(0)
+    await assertTapFloor(page, '.mobile-task-options-trigger', 'Tasks View & filters #667', { axes: 'both', noOverflow: true })
+    await viewAndFilters.click()
 
-    const filterSelects = filterPanel.locator('.task-filter-select__trigger')
-    const filterCheckboxes = filterPanel.getByRole('checkbox')
-    const attentionTrigger = filterPanel.getByRole('combobox', { name: /tasks need attention/i })
-    const filterClose = filterPanel.getByRole('button', { name: /close filters/i })
-    const savedViewActions = filterPanel.locator('.tasks-saved-views__actions button')
-    expect(await filterSelects.count(), 'Tasks filter panel #667: task selects must be present').toBe(5)
-    expect(await filterCheckboxes.count(), 'Tasks filter panel #667: archive/field checkboxes must be present').toBe(5)
-    for (const name of ['Include archived', 'Business unit', 'Project/Process', 'Objective', 'Last activity']) {
-      expect(await filterPanel.getByRole('checkbox', { name, exact: true }).count(), `Tasks filter panel #667: ${name} checkbox must be present`).toBe(1)
-    }
-    expect(await attentionTrigger.count(), 'Tasks filter panel #667: Attention control must be present').toBe(1)
-    expect(await filterClose.count(), 'Tasks filter panel #667: Close filters control must be present').toBe(1)
-    expect(await savedViewActions.count(), 'Tasks filter panel #667: saved-view actions must be present').toBeGreaterThan(0)
+    const tasksToolbar = page.getByTestId('record-collection-toolbar')
+    await expect(tasksToolbar).toBeVisible()
+    await expect(tasksToolbar.locator('.collection-toolbar__view')).toHaveCount(4)
+    await expect(tasksToolbar.getByRole('searchbox', { name: /search tasks/i })).toBeVisible()
+    await expect(tasksToolbar.locator('.collection-toolbar__select')).toHaveCount(5)
+    await expect(tasksToolbar.getByRole('button', { name: /^fields$/i })).toHaveCount(0)
+    await expect(tasksToolbar.getByRole('button', { name: /^save view$/i })).toBeVisible()
     await assertTapFloor(
       page,
-      '.tasks-filter-panel .task-filter-select__trigger, .tasks-filter-panel .tasks-checkbox, .tasks-filter-panel .tasks-filter-field--checks .picker__trigger, .tasks-filter-panel .tasks-saved-view, .tasks-filter-panel .tasks-saved-views__actions button, .tasks-filter-panel__close',
-      'Tasks filter panel #667',
+      '.mobile-task-options-panel .collection-toolbar__view, .mobile-task-options-panel .collection-toolbar__search, .mobile-task-options-panel .collection-toolbar__select button, .mobile-task-options-panel .collection-toolbar__save-zone > button, .mobile-task-options-panel .tasks-attention-picker > button',
+      'Tasks View & filters panel #667',
       { axes: 'both', noOverflow: true },
     )
+
+    const attentionTrigger = tasksToolbar.getByRole('combobox', { name: /tasks need attention/i })
+    await expect(attentionTrigger).toBeVisible()
 
     await attentionTrigger.click()
     const attentionMenu = page.locator('.picker__menu[aria-label*="tasks need attention"]')
@@ -434,8 +413,8 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
     await assertTapFloor(page, '.picker__menu[aria-label*="tasks need attention"] .picker__option', 'Tasks attention options #667', { axes: 'both', noOverflow: true })
     await page.keyboard.press('Escape')
 
-    const saveViewTrigger = filterPanel.getByRole('button', { name: /^save view$/i })
-    expect(await saveViewTrigger.count(), 'Tasks filter panel #667: Save view action must be present').toBe(1)
+    const saveViewTrigger = tasksToolbar.getByRole('button', { name: /^save view$/i })
+    expect(await saveViewTrigger.count(), 'Tasks toolbar #667: Save view action must be present').toBe(1)
     await saveViewTrigger.click()
     const saveViewForm = page.getByRole('group', { name: /save current view/i })
     await expect(saveViewForm).toBeVisible()
@@ -445,7 +424,7 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
     expect(await viewName.count(), 'Tasks save-view form #667: view-name input must be present').toBe(1)
     expect(await saveButton.count(), 'Tasks save-view form #667: Save control must be present').toBe(1)
     expect(await cancelButton.count(), 'Tasks save-view form #667: Cancel control must be present').toBe(1)
-    await assertTapFloor(page, '.tasks-save-view input, .tasks-save-view .btn', 'Tasks save-view form #667', { axes: 'both', noOverflow: true })
+    await assertTapFloor(page, '.collection-toolbar__save input, .collection-toolbar__save .btn', 'Tasks save-view form #667', { axes: 'both', noOverflow: true })
     await cancelButton.click()
     await page.keyboard.press('Escape')
     // #671 retired the create FORM: create is an inline draft row with its title focused, and at
@@ -581,6 +560,7 @@ test.describe('café toolbar phone geometry guards (GUARD-SEARCH, #378)', () => 
   test('GUARD-SEARCH: Café · Log at 390 — phone composition not regressed by the fix', async ({ page }) => {
     await page.goto('cafe/log')
     await ensureStream(page)
+    await expect(page.locator('.ktb-category'), 'Café · Log @390: Category is desktop-only').toHaveCount(0)
     const search = await box(page.locator('.ktb-search'))
     await assertSearchComposed(page, 'Café · Log @390', { categoryOptional: true })
     expect(search.height, 'Café · Log @390: phone search keeps the 44px touch floor').toBeGreaterThanOrEqual(TAP_FLOOR)
@@ -592,6 +572,7 @@ test.describe('café toolbar phone geometry guards (GUARD-SEARCH, #378)', () => 
   test('GUARD-SEARCH: Café · Plan at 390 — phone composition not regressed by the fix', async ({ page }) => {
     await page.goto('cafe/plan')
     await ensureStream(page)
+    await expect(page.locator('.ktb-category'), 'Café · Plan @390: Category is desktop-only').toHaveCount(0)
     const search = await box(page.locator('.ktb-search'))
     await assertSearchComposed(page, 'Café · Plan @390', { categoryOptional: true })
     expect(search.height, 'Café · Plan @390: phone search keeps the 44px touch floor').toBeGreaterThanOrEqual(TAP_FLOOR)
@@ -635,6 +616,7 @@ test.describe('café plan capture-first guards (#401) — pesanan (member)', () 
     await page.goto('cafe/plan')
     await ensureStream(page)
     await expect(page.locator('.ktb-search')).toBeVisible()
+    await expect(page.locator('.ktb-category'), 'Café · Plan member @390: Category is desktop-only').toHaveCount(0)
     await assertSearchComposed(page, 'Café · Plan pesanan @390', { categoryOptional: true })
     await expect(page.locator('.dt-card').first()).toBeVisible()
     const firstRow = await box(page.locator('.dt-card').first())

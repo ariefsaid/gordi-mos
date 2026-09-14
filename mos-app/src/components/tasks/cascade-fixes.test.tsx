@@ -13,7 +13,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useState } from 'react'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -132,10 +132,10 @@ function makeSavedView(): React.ComponentProps<typeof TasksWorkspace>['savedView
 
 // §Task-11: the Team-work chip was removed; All is the org-visible set.
 async function switchToAll() {
-  const all = screen.getByRole('tab', { name: 'All' })
+  const all = screen.getByRole('button', { name: 'All' })
   fireEvent.click(all)
   await waitFor(() => {
-    expect(all).toHaveAttribute('aria-selected', 'true')
+    expect(all).toHaveAttribute('aria-pressed', 'true')
   })
 }
 
@@ -176,17 +176,16 @@ beforeEach(() => {
 // ── RI-3: Task column never 0 width + scroll container scrollable ─────────────
 
 
-// Group/Sort/toggles are disclosed behind the queue's Filters trigger. Open it when collapsed;
-// the grouping capability itself is unchanged.
+// Phone may disclose these controls; desktop exposes the same shared group inline.
 function chooseFilterOption(trigger: HTMLElement, label: string) {
   fireEvent.click(trigger)
-  fireEvent.click(screen.getByRole('option', { name: label }))
+  fireEvent.click(screen.queryByRole('option', { name: label }) ?? screen.getByRole('checkbox', { name: label }))
 }
 
 function ensureViewOptionsOpen() {
-  const trigger = screen.getByRole('button', { name: /^filters(?:\s+\d+)?$/i })
+  const trigger = screen.queryByRole('button', { name: /^view & filters/i })
   if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
-  return screen.getByRole('region', { name: /filter this queue/i })
+  return screen.getByRole('group', { name: /view & filters/i })
 }
 
 describe('RI-3 — Task column width and scroll container', () => {
@@ -631,7 +630,7 @@ describe('Fix-7 — useCascadeCatalogs hook', () => {
 
     // Trigger a filter change (status filter) — should NOT re-trigger catalog loads.
     ensureViewOptionsOpen()
-    const statusSelect = screen.getByRole('combobox', { name: /^status$/i })
+    const statusSelect = within(ensureViewOptionsOpen()).getByRole('button', { name: /^status$/i })
     chooseFilterOption(statusSelect, 'Open')
     await waitFor(() => {}) // allow any async effects to settle
 
