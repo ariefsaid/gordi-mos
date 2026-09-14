@@ -24,24 +24,26 @@ select shared._test_seed_directory();
 select shared._test_seed_access_roles();
 select ops._test_seed_daily_log();
 
--- The gate needs two DIFFERENT streams so "affiliated with A may log into B" is a live
--- insert, not a tautology (OD-WAY-49's help-out). Plus one org-structure team (no branch/
--- activity) — the membership that must NOT affiliate.
-insert into shared.teams (id, org_id, business_unit_id, name, code, branch_id, activity) values
-  ('00000000-0000-0000-0000-00000000aa11','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','Gate Stream A','gate_stream_a',
-    '00000000-0000-0000-0000-00000000bf01','bar'),
-  ('00000000-0000-0000-0000-00000000aa12','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','Gate Stream B','gate_stream_b',
-    '00000000-0000-0000-0000-00000000bf02','kitchen');
+-- The fixture already seeds the live Gordi HQ bar and Rumah Rames kitchen streams. Use those two
+-- DIFFERENT streams so "affiliated with A may log into B" is a live insert, not a tautology
+-- (OD-WAY-49's help-out). The separate org-structure team (no branch/activity) is the membership
+-- that must NOT affiliate.
 insert into shared.teams (id, org_id, business_unit_id, name, code) values
   ('00000000-0000-0000-0000-00000000aa13','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','Gate Org Team','gate_org_team');
 
-insert into shared.team_memberships (org_id, person_id, team_id, is_primary) values
-  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d4','00000000-0000-0000-0000-00000000aa11',true),
-  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-00000000aa13',true);
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
+select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d4', t.id, true
+from shared.teams t
+where t.org_id = '00000000-0000-0000-0000-0000000000a1' and t.code = 'gordi_hq_bar'
+union all
+select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d1',
+       '00000000-0000-0000-0000-00000000aa13', true;
 -- Report ...0d5: a stream membership that ENDED yesterday — history, not affiliation.
-insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from, effective_to) values
-  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d5','00000000-0000-0000-0000-00000000aa11',true,
-   current_date - 10, current_date - 1);
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from, effective_to)
+select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d5', t.id, true,
+       current_date - 10, current_date - 1
+from shared.teams t
+where t.org_id = '00000000-0000-0000-0000-0000000000a1' and t.code = 'gordi_hq_bar';
 
 set local role authenticated;
 

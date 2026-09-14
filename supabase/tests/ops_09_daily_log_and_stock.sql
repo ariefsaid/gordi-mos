@@ -138,9 +138,9 @@ update ops.kitchen_logs set status = 'Approved' where id = '00000000-0000-0000-0
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
 select is(
   ops.stock_available_for_date('00000000-0000-0000-0000-00000000ab01','2026-06-25',
-                               '00000000-0000-0000-0000-00000000bf02','kitchen'),
-  10::numeric(12,2),
-  'and a WITHIN-branch transfer subtracts too — the ERP records nothing, but the WIP has still left the kitchen''s hands');
+                               '00000000-0000-0000-0000-00000000bf02','bar'),
+  -3::numeric(12,2),
+  'and a WITHIN-branch transfer subtracts from its bar stream too — the ERP records nothing, but the WIP has still left that stream''s hands');
 
 -- The read is explicitly org-scoped rather than relying on the caller's RLS context, so a definer
 -- path and a member session get the same answer instead of silently different ones.
