@@ -123,7 +123,7 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
   it('the member pesanan horizon follows the same stream, not the catalog\'s first branch', async () => {
     // AC-024's read-only face. It used to resolve `defaultStreamFrom` — the catalog default —
     // so a Radiant barista read Gordi HQ's plan and had nothing on screen to tell them.
-    rememberStream(RADIANT_BAR)
+    rememberStream(RADIANT_BAR, 'p-1')
     vi.mocked(useAuth).mockReturnValue(viewer(['member']))
     render(<KitchenPlanPage />, { wrapper })
     await waitFor(() => expect(listPesanan).toHaveBeenCalled())

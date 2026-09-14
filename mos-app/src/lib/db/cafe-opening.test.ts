@@ -10,7 +10,8 @@ vi.mock('../supabase', () => {
 })
 
 import {
-  wibToday, getCafeOpeningProcessId, getCafeOpeningTeamId, resolveCafeOpeningTeamForTeam,
+  wibToday, getCafeOpeningProcessId, getCafeOpeningTeamId, listCafeViewerTeams,
+  resolveCafeOpeningTeamForTeam,
   getTodayOpeningForTeam,
   startTodayOpening, listStartableCafeTeams,
 } from './cafe-opening'
@@ -24,12 +25,13 @@ interface Recorder {
   fromTables: string[]
   selects: string[]
   eqs: Array<[string, unknown]>
+  ors: string[]
   rpcs: Array<[string, unknown]>
 }
 type Result = { data: unknown; error: unknown }
 
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], eqs: [], rpcs: [] }
+  return { fromTables: [], selects: [], eqs: [], ors: [], rpcs: [] }
 }
 
 function makeClient(responses: Record<string, Result[]>, rec: Recorder) {
@@ -46,6 +48,10 @@ function makeClient(responses: Record<string, Result[]>, rec: Recorder) {
     const builder: Record<string, unknown> = {}
     builder.select = vi.fn((s?: string) => { if (s) rec.selects.push(s); return builder })
     builder.eq = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
+    builder.lte = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
+    builder.or = vi.fn((value: string) => { rec.ors.push(value); return builder })
+    builder.in = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
+    builder.is = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.limit = vi.fn(() => builder)
     builder.single = vi.fn(() => Promise.resolve(nextResult(key)))
     builder.maybeSingle = vi.fn(() => Promise.resolve(nextResult(key)))
@@ -159,6 +165,7 @@ describe('resolveCafeOpeningTeamForTeam', () => {
     await expect(resolveCafeOpeningTeamForTeam('bar-team')).resolves.toEqual({
       id: TEAM_ID,
       name: 'Gordi HQ Kitchen',
+      branchId: 'branch-1',
     })
     expect(rec.eqs).toContainEqual(['id', 'bar-team'])
     expect(rec.rpcs).toContainEqual(['cafe_opening_team', { p_branch_id: 'branch-1' }])
@@ -171,6 +178,44 @@ describe('resolveCafeOpeningTeamForTeam', () => {
 
     await expect(resolveCafeOpeningTeamForTeam('hq-team')).resolves.toBeNull()
     expect(rec.rpcs).toHaveLength(0)
+  })
+})
+
+describe('listCafeViewerTeams', () => {
+  it('uses the effective-dated membership window and keeps the primary first', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'shared.team_memberships': [{
+        data: [
+          { team_id: 'team-secondary', is_primary: false },
+          { team_id: 'team-primary', is_primary: true },
+        ], error: null,
+      }],
+      'shared.teams': [{
+        data: [
+          { id: 'team-primary', name: 'Gordi HQ Bar', business_unit_id: 'bu-1', site_id: null },
+          { id: 'team-secondary', name: 'Radiant Bar', business_unit_id: 'bu-1', site_id: null },
+        ], error: null,
+      }],
+    }, rec)
+
+    const result = await listCafeViewerTeams('person-1')
+
+    expect(rec.eqs).toContainEqual(['person_id', 'person-1'])
+    expect(rec.eqs).toContainEqual(['effective_from', wibToday()])
+    expect(rec.ors).toContain(`effective_to.is.null,effective_to.gte.${wibToday()}`)
+    expect(rec.eqs).toContainEqual(['archived_at', null])
+    expect(result.map(team => [team.id, team.is_primary])).toEqual([
+      ['team-primary', true], ['team-secondary', false],
+    ])
+  })
+
+  it('returns no memberships without issuing a broad team read', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'shared.team_memberships': [{ data: [], error: null }] }, rec)
+
+    await expect(listCafeViewerTeams('person-1')).resolves.toEqual([])
+    expect(rec.fromTables).not.toContain('shared.teams')
   })
 })
 

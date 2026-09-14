@@ -72,6 +72,7 @@ type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
 export function KitchenPlanPage() {
   const auth = useAuth()
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const t = useT()
   // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
   // the catalog's own docTitle convention (tasks-layout, signals-archive).
@@ -100,7 +101,12 @@ export function KitchenPlanPage() {
     )
   }
 
-  return canEdit ? <PlanEditor /> : <PesananView />
+  // Routes stay mounted when the signed-in person changes. The whole view owns catalog, rows,
+  // drafts, and load state for one viewer, so remount it at that boundary instead of briefly
+  // presenting one person's in-memory plan to the next person.
+  return canEdit
+    ? <PlanEditor key={viewerId} />
+    : <PesananView key={viewerId} />
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -141,6 +147,7 @@ function PlanEditor() {
   const [cells, setCells] = useState<PlanCell[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
+  const requestGen = useRef(0)
   const [savingId, setSavingId] = useState<string | null>(null) // wip_item_id mid-save
   // The last-committed cell — drives the transient inline ✓ Saved tick (A5). Page-level
   // (not a local saving→idle transition) because `savingId` also clears on save ERROR,
@@ -173,17 +180,19 @@ function PlanEditor() {
   // It now resolves the module's stream: whatever was chosen elsewhere in Café this session,
   // else the person's own stream (shared.default_stream(), FR-001), else an explicit choice.
   const fetchEditor = useCallback(async () => {
+    const gen = ++requestGen.current
     setLoad({ kind: 'loading' })
     try {
       const [itemRows, catalog] = await Promise.all([listActiveWipItems(), resolveStream()])
       const planCells = catalog.stream ? await listKitchenPlans(logDate, catalog.stream) : []
+      if (gen !== requestGen.current) return
       setItems(itemRows)
       adoptStream(catalog)
       setMovement(PRODUCE)
       setCells(planCells)
       setLoad({ kind: 'ready' })
     } catch {
-      setLoad({ kind: 'error' })
+      if (gen === requestGen.current) setLoad({ kind: 'error' })
     }
   }, [logDate, resolveStream, adoptStream])
 
@@ -192,15 +201,17 @@ function PlanEditor() {
   // Switching the stream re-reads the plan — a different (branch, activity) has its own
   // plan rows entirely, same as the capture surface's applyStream (#196).
   const applyStream = useCallback(async (nextStream: ProductionStream) => {
+    const gen = ++requestGen.current
     chooseStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
     setLoad({ kind: 'loading' })
     try {
       const planCells = await listKitchenPlans(logDate, nextStream)
+      if (gen !== requestGen.current) return
       setCells(planCells)
       setLoad({ kind: 'ready' })
     } catch {
-      setLoad({ kind: 'error' })
+      if (gen === requestGen.current) setLoad({ kind: 'error' })
     }
   }, [logDate, chooseStream])
 
@@ -513,6 +524,7 @@ function PesananView() {
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
+  const requestGen = useRef(0)
   const isDesktop = useIsDesktop()
   // #401: URL-synced search + category over the ~231-row horizon (v4's KitchenToolbar
   // port; Nielsen Café·Plan 16/32). Same keys as the editor face ('q'/'category') —
@@ -527,26 +539,31 @@ function PesananView() {
   // Café surface; switching is offered here too, because "what is the OTHER stream
   // planning" is a question the floor asks and reading a plan changes nothing.
   const fetchHorizon = useCallback(async () => {
+    const gen = ++requestGen.current
     setLoad({ kind: 'loading' })
     try {
       const catalog = await resolveStream()
       const data = catalog.stream ? await listPesanan(from, PESANAN_HORIZON_DAYS, catalog.stream) : []
+      if (gen !== requestGen.current) return
       adoptStream(catalog)
       setRows(data)
       setLoad({ kind: 'ready' })
     } catch {
-      setLoad({ kind: 'error' })
+      if (gen === requestGen.current) setLoad({ kind: 'error' })
     }
   }, [from, resolveStream, adoptStream])
 
   const applyStream = useCallback(async (next: ProductionStream) => {
+    const gen = ++requestGen.current
     chooseStream(next) // the whole Café module follows this choice (#440)
     setLoad({ kind: 'loading' })
     try {
-      setRows(await listPesanan(from, PESANAN_HORIZON_DAYS, next))
+      const data = await listPesanan(from, PESANAN_HORIZON_DAYS, next)
+      if (gen !== requestGen.current) return
+      setRows(data)
       setLoad({ kind: 'ready' })
     } catch {
-      setLoad({ kind: 'error' })
+      if (gen === requestGen.current) setLoad({ kind: 'error' })
     }
   }, [from, chooseStream])
 

@@ -38,6 +38,47 @@ export async function getCafeOpeningTeamId(branchId: string): Promise<string | n
 export interface CafeOpeningTeam {
   id: string
   name: string
+  /** The user-facing branch context; the canonical Team id remains internal to Opening. */
+  branchId: string
+}
+
+export interface CafeViewerTeam {
+  id: string
+  name: string
+  business_unit_id: string
+  site_id: string | null
+  is_primary: boolean
+}
+
+/**
+ * Current Café-relevant profile memberships. This deliberately stays beside the Café DAL rather
+ * than changing Signals' owning-Team picker: Opening needs the effective-dated rule, including a
+ * membership that has a finite end date, while Signals keeps its existing write-time contract.
+ */
+export async function listCafeViewerTeams(personId: string): Promise<CafeViewerTeam[]> {
+  const today = wibToday()
+  const { data: memberships, error: membershipError } = await shared()
+    .from('team_memberships')
+    .select('team_id,is_primary')
+    .eq('person_id', personId)
+    .lte('effective_from', today)
+    .or(`effective_to.is.null,effective_to.gte.${today}`)
+  if (membershipError) throw new Error(`listCafeViewerTeams memberships failed — ${membershipError.message}`)
+
+  const rows = (memberships ?? []) as { team_id: string; is_primary: boolean }[]
+  if (rows.length === 0) return []
+
+  const { data: teams, error: teamError } = await shared()
+    .from('teams')
+    .select('id,name,business_unit_id,site_id')
+    .in('id', rows.map(row => row.team_id))
+    .is('archived_at', null)
+  if (teamError) throw new Error(`listCafeViewerTeams teams failed — ${teamError.message}`)
+
+  const primaryById = new Map(rows.map(row => [row.team_id, row.is_primary]))
+  return ((teams ?? []) as Omit<CafeViewerTeam, 'is_primary'>[])
+    .map(team => ({ ...team, is_primary: primaryById.get(team.id) ?? false }))
+    .sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
 }
 
 /** Resolve an authored/membership Team through its branch to the canonical Café Opening Team. */
@@ -49,6 +90,11 @@ export async function resolveCafeOpeningTeamForTeam(teamId: string): Promise<Caf
   const branchId = (source as { branch_id: string | null } | null)?.branch_id ?? null
   if (!branchId) return null
 
+  return resolveCafeOpeningTeamForBranch(branchId)
+}
+
+/** Resolve a live branch directly to the canonical Opening Team. */
+export async function resolveCafeOpeningTeamForBranch(branchId: string): Promise<CafeOpeningTeam | null> {
   const openingTeamId = await getCafeOpeningTeamId(branchId)
   if (!openingTeamId) return null
 
@@ -58,7 +104,7 @@ export async function resolveCafeOpeningTeamForTeam(teamId: string): Promise<Caf
 
   const row = openingTeam as { id?: unknown; name?: unknown } | null
   if (typeof row?.id !== 'string' || typeof row.name !== 'string') return null
-  return { id: row.id, name: row.name }
+  return { id: row.id, name: row.name, branchId }
 }
 
 export interface TodayOpening {

@@ -621,7 +621,7 @@ describe('KitchenReviewPage — the stream reads in the page head (#440)', () =>
   it('issue 440: a stream chosen elsewhere in Café opens the queue on it, over the role default', async () => {
     // An ops_lead who was just looking at Radiant · Bar on Log lands on that queue, not on
     // the cross-stream default — an explicit choice outranks a guess about what they meant.
-    rememberStream({ branch: BRANCHES[1], activity: 'bar' })
+    rememberStream({ branch: BRANCHES[1], activity: 'bar' }, 'p-lead')
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Es Kopi')

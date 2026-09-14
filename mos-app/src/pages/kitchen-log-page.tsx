@@ -146,6 +146,15 @@ type PageStatus =
 
 export function KitchenLogPage() {
   const auth = useAuth()
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : 'anonymous'
+
+  // Catalog, rows, and staged capture lines belong to one person. A route remains mounted
+  // through an auth replacement, so a key makes that replacement atomic at render time.
+  return <KitchenLogPageForViewer key={viewerId} />
+}
+
+function KitchenLogPageForViewer() {
+  const auth = useAuth()
   const t = useT()
   // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
   // the catalog's own docTitle convention (tasks-layout, signals-archive).
@@ -326,13 +335,12 @@ export function KitchenLogPage() {
       // wrong BU or capturing against a guessed stream.
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logDate, retryKey])
+  }, [adoptStream, logDate, resolveStream, t])
 
   useEffect(() => {
     if (auth.status !== 'authenticated') return
     loadData()
-  }, [auth.status, loadData])
+  }, [auth.status, loadData, retryKey])
 
   // Rebuild plan_qty / stock / gate state per line when the movement or the loaded
   // stream-scoped plan/stock change.

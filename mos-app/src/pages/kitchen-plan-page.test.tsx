@@ -14,7 +14,7 @@
 // OD-REDESIGN-22, via useInlineCommit).
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { act, render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
@@ -90,12 +90,12 @@ function chooseCategory(optionName: string) {
   fireEvent.click(screen.getByRole('option', { name: optionName }))
 }
 
-function viewer(accessRoles: string[]): AuthState {
+function viewer(accessRoles: string[], personId = 'p-1'): AuthState {
   return {
     status: 'authenticated',
     viewer: {
       person: {
-        id: 'p-1', org_id: 'org-1', user_id: 'auth-1', full_name: 'Dina',
+        id: personId, org_id: 'org-1', user_id: 'auth-1', full_name: 'Dina',
         email: 'dina@example.test', must_change_password: false, archived_at: null,
         created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
       },
@@ -190,6 +190,31 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
     chooseStream('Radiant · Bar')
     await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
     expect(mockPlans.mock.calls[1][1]).toEqual(RADIANT_BAR)
+  })
+
+  it('account switch: a delayed previous viewer plan cannot replace the next viewer\'s plan', async () => {
+    let resolvePrevious!: (cells: PlanCell[]) => void
+    const previousPlan = new Promise<PlanCell[]>(resolve => { resolvePrevious = resolve })
+    mockPlans.mockReturnValueOnce(previousPlan).mockResolvedValueOnce([
+      { id: 'plan-b', wip_item_id: 'w1', movement: PRODUCE, qty_porsi: 27 },
+    ])
+
+    let currentViewer = viewer(['ops_lead'], 'person-a')
+    mockUseAuth.mockImplementation(() => currentViewer)
+    const { rerender } = render(<KitchenPlanPage />, { wrapper })
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(1))
+
+    currentViewer = viewer(['ops_lead'], 'person-b')
+    rerender(<KitchenPlanPage />)
+    const quantity = await screen.findByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    await waitFor(() => expect(quantity).toHaveValue(27))
+
+    await act(async () => {
+      resolvePrevious([{ id: 'plan-a', wip_item_id: 'w1', movement: PRODUCE, qty_porsi: 91 }])
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(27)
   })
 
   it('the member pesanan face states its stream too — a read-only surface still says which books', async () => {

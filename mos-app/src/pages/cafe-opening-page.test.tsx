@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -8,71 +8,88 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { DueProcessRun } from '@/lib/db/processes.types'
-import type { TeamOption } from '@/lib/db/signals.types'
+import type { CafeOpeningTeam, CafeViewerTeam } from '@/lib/db/cafe-opening'
 
-// B7 (AC-716): component test mocks the DAL, never a live DB. CafeOpeningPage resolves the
-// process id + the viewer's branch Team, then hosts CafeOpeningPanel + the existing capture links.
 vi.mock('@/lib/db/cafe-opening', () => ({
   getCafeOpeningProcessId: vi.fn(),
   resolveCafeOpeningTeamForTeam: vi.fn(),
+  resolveCafeOpeningTeamForBranch: vi.fn(),
+  listCafeViewerTeams: vi.fn(),
   listStartableCafeTeams: vi.fn(),
   getTodayOpeningForTeam: vi.fn(),
   startTodayOpening: vi.fn(),
   wibToday: () => '2026-07-17',
 }))
-vi.mock('@/lib/db/signals', () => ({ listAuthorTeams: vi.fn() }))
+vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 vi.mock('@/lib/db/processes', () => ({
   canStartProcessForTeam: vi.fn(),
   listPendingTasks: vi.fn(),
   resolvePendingTask: vi.fn(),
 }))
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
-// #440: the module ROOT states the stream its five doors lead into. Mocked at the same seams
-// the capture surfaces use — un-mocked these hit Supabase and the head would silently read '—'.
-vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
-vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
-vi.mock('@/lib/db/kitchen-logs', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
-  return { ...actual, listStreamPairs: vi.fn() }
-})
 
 import {
-  getCafeOpeningProcessId, resolveCafeOpeningTeamForTeam, listStartableCafeTeams, getTodayOpeningForTeam,
+  getCafeOpeningProcessId,
+  getTodayOpeningForTeam,
+  listCafeViewerTeams,
+  listStartableCafeTeams,
+  resolveCafeOpeningTeamForBranch,
+  resolveCafeOpeningTeamForTeam,
 } from '@/lib/db/cafe-opening'
-import { listAuthorTeams } from '@/lib/db/signals'
-import { getPeople } from '@/lib/db/directory'
-import { canStartProcessForTeam } from '@/lib/db/processes'
 import { listActiveBranches } from '@/lib/db/branches'
-import { fetchDefaultStream } from '@/lib/db/default-stream'
-import { listStreamPairs } from '@/lib/db/kitchen-logs'
+import { canStartProcessForTeam } from '@/lib/db/processes'
+import { getPeople } from '@/lib/db/directory'
+import { rememberCafeOpeningTeam } from '@/lib/cafe-opening-location'
 import { CafeOpeningPage } from './cafe-opening-page'
-import { rememberStream } from '@/lib/cafe-stream'
 
 const mockGetCafeOpeningProcessId = vi.mocked(getCafeOpeningProcessId)
-const mockResolveCafeOpeningTeamForTeam = vi.mocked(resolveCafeOpeningTeamForTeam)
-const mockListStartableCafeTeams = vi.mocked(listStartableCafeTeams)
 const mockGetTodayOpeningForTeam = vi.mocked(getTodayOpeningForTeam)
-const mockListAuthorTeams = vi.mocked(listAuthorTeams)
-const mockGetPeople = vi.mocked(getPeople)
-const mockCanStartProcessForTeam = vi.mocked(canStartProcessForTeam)
+const mockListCafeViewerTeams = vi.mocked(listCafeViewerTeams)
+const mockListStartableCafeTeams = vi.mocked(listStartableCafeTeams)
+const mockResolveCafeOpeningTeamForBranch = vi.mocked(resolveCafeOpeningTeamForBranch)
+const mockResolveCafeOpeningTeamForTeam = vi.mocked(resolveCafeOpeningTeamForTeam)
 const mockBranches = vi.mocked(listActiveBranches)
-const mockStreamPairs = vi.mocked(listStreamPairs)
-const mockDefaultStream = vi.mocked(fetchDefaultStream)
+const mockCanStartProcessForTeam = vi.mocked(canStartProcessForTeam)
+const mockGetPeople = vi.mocked(getPeople)
 
 const BRANCH_RAD = { id: 'b-rad', code: 'radiant', name: 'Radiant' }
 const BRANCH_RR = { id: 'b-rr', code: 'rumah_rames', name: 'Rumah Rames' }
-const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const }
-
 const PROCESS_ID = '00000000-0000-0000-0000-00000000c001'
-const TEAM_ID = '00000000-0000-0000-0000-000000005b01'
+const TEAM_RAD = '00000000-0000-0000-0000-000000005b01'
+const TEAM_RR = '00000000-0000-0000-0000-000000005b02'
+const TEAM_HQ = '00000000-0000-0000-0000-000000005b03'
+const OPENING_RAD: CafeOpeningTeam = { id: 'opening-rad', name: 'Radiant Operations', branchId: BRANCH_RAD.id }
+const OPENING_RR: CafeOpeningTeam = { id: 'opening-rr', name: 'Rumah Rames Operations', branchId: BRANCH_RR.id }
+const VIEWER_ID = '40000000-0000-0000-0000-000000000001'
 
-function authedState(accessRoles: string[] = ['ops_lead']): AuthState {
+const notStarted = { started: false, runId: null, rollup: null }
+const started = {
+  started: true,
+  runId: 'run-1',
+  rollup: {
+    process_run_id: 'run-1', caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17',
+    status: 'open' as const, total: 2, open: 2, in_progress: 0, blocked: 0, done: 0,
+    overdue: 0, pending_unresolved: 0, completion_pct: 0,
+  },
+}
+
+function viewerTeam(id: string, isPrimary = false): CafeViewerTeam {
+  return { id, name: `${id} profile`, business_unit_id: 'bu-1', site_id: null, is_primary: isPrimary }
+}
+
+function dueTeam(owning_team_id: string): DueProcessRun {
+  return {
+    work_line_id: PROCESS_ID, process_name: 'Café Opening', owning_team_id,
+    team_name: `${owning_team_id} due`, period_key: '2026-07-17', scheduled_date: '2026-07-17',
+  }
+}
+
+function authState(accessRoles: string[] = ['ops_lead'], personId = VIEWER_ID): AuthState {
   return {
     status: 'authenticated',
     viewer: {
       person: {
-        id: '40000000-0000-0000-0000-000000000001', org_id: 'org-1', user_id: 'auth-user-001',
-        must_change_password: false,
+        id: personId, org_id: 'org-1', user_id: `auth-${personId}`, must_change_password: false,
         full_name: 'Cahya Cafe', email: 'cahya@example.test', archived_at: null,
         created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
       },
@@ -82,9 +99,9 @@ function authedState(accessRoles: string[] = ['ops_lead']): AuthState {
   }
 }
 
-function renderPage(accessRoles: string[] = ['ops_lead']) {
+function renderPage(accessRoles: string[] = ['ops_lead'], personId = VIEWER_ID) {
   return render(
-    <AuthContext.Provider value={authedState(accessRoles)}>
+    <AuthContext.Provider value={authState(accessRoles, personId)}>
       <I18nProvider>
         <MemoryRouter initialEntries={['/cafe']}>
           <CafeOpeningPage />
@@ -94,229 +111,221 @@ function renderPage(accessRoles: string[] = ['ops_lead']) {
   )
 }
 
+function mapResolver() {
+  mockResolveCafeOpeningTeamForTeam.mockImplementation(async (sourceId) => {
+    if (sourceId === TEAM_RAD || sourceId === OPENING_RAD.id) return OPENING_RAD
+    if (sourceId === TEAM_RR || sourceId === OPENING_RR.id) return OPENING_RR
+    if (sourceId === TEAM_HQ) return OPENING_RAD
+    return null
+  })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
-  rememberStream(null) // the Café stream is remembered module-wide (#440) — isolate per test
+  sessionStorage.clear()
+  localStorage.removeItem('mos.locale')
+  rememberCafeOpeningTeam(VIEWER_ID, null)
+  rememberCafeOpeningTeam('person-b', null)
   mockGetPeople.mockResolvedValue([])
   mockCanStartProcessForTeam.mockResolvedValue(true)
+  mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
+  mockListCafeViewerTeams.mockResolvedValue([])
+  mockListStartableCafeTeams.mockResolvedValue([])
   mockBranches.mockResolvedValue([BRANCH_RAD, BRANCH_RR])
-  mockStreamPairs.mockResolvedValue([BRANCH_RAD, BRANCH_RR].flatMap(b => [
-    { branch_id: b.id, activity: 'kitchen' as const },
-    { branch_id: b.id, activity: 'bar' as const },
-  ]))
-  mockDefaultStream.mockResolvedValue(RADIANT_BAR)
+  mockResolveCafeOpeningTeamForBranch.mockResolvedValue(null)
+  mockResolveCafeOpeningTeamForTeam.mockResolvedValue(null)
+  mockGetTodayOpeningForTeam.mockResolvedValue(notStarted)
 })
 
-describe('issue 440 — the Café root states the stream its doors lead into', () => {
-  it('names the stream in the page head, canonically, and lets it be set for the module', async () => {
-    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    mockListStartableCafeTeams.mockResolvedValue([])
-    mockListAuthorTeams.mockResolvedValue([])
-    const { container } = renderPage()
-    const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = await waitFor(() => {
-      const el = head.querySelector('[role="combobox"]') as HTMLElement | null
-      expect(el).toBeTruthy()
-      expect(el).toHaveTextContent('Radiant · Bar')
-      return el as HTMLElement
-    })
-    expect(picker).toHaveTextContent('Radiant · Bar')
-    expect(head.textContent).toMatch(/stream/i)
-  })
-})
+afterEach(() => localStorage.removeItem('mos.locale'))
 
-describe('AC-716 — CafeOpeningPage hosts the panel + the existing capture links', () => {
-  it('mounts CafeOpeningPanel (Start control) and links to Log/Plan/Stock/Review', async () => {
-    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    const due: DueProcessRun[] = [{
-      work_line_id: PROCESS_ID, process_name: 'Café Opening',
-      owning_team_id: TEAM_ID, team_name: 'Radiant Operations',
-      period_key: '2026-07-17', scheduled_date: '2026-07-17',
-    }]
-    mockListStartableCafeTeams.mockResolvedValue(due)
-    mockGetTodayOpeningForTeam.mockResolvedValue({ started: false, runId: null, rollup: null })
+describe('Café Opening context', () => {
+  it('uses the primary branch when another branch is due and has no production stream picker', async () => {
+    mapResolver()
+    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
+    mockListStartableCafeTeams.mockResolvedValue([dueTeam(TEAM_RAD), dueTeam(TEAM_RR)])
 
     renderPage()
 
-    // The panel mounted (its Start control renders for this ops_lead viewer).
-    await screen.findByRole('button', { name: "Start today's opening" })
-
-    // The existing capture entry points stay reachable (FR-708).
-    expect(screen.getByRole('link', { name: /log/i })).toHaveAttribute('href', '/cafe/log')
-    expect(screen.getByRole('link', { name: /plan/i })).toHaveAttribute('href', '/cafe/plan')
-    expect(screen.getByRole('link', { name: /stock/i })).toHaveAttribute('href', '/cafe/stock')
-    // JQ-1: an ops_lead sees the lead-only day-steps (Review + Pushes).
-    expect(screen.getByRole('link', { name: /review/i })).toHaveAttribute('href', '/cafe/review')
-    expect(screen.getByRole('link', { name: /pushes/i })).toHaveAttribute('href', '/cafe/pushes')
-
-    // Step 7 minor (item 7b) — real button-styled links (btn-outline: visible border/background),
-    // never plain unstyled text.
-    const logLink = screen.getByRole('link', { name: /log/i })
-    expect(logLink).toHaveClass('btn', 'btn-outline')
+    expect(await screen.findByTestId('cafe-opening-location')).toHaveTextContent('Radiant')
+    expect(screen.getByRole('button', { name: 'Change location' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
   })
 
-  it('JQ-1: a member sees Log/Plan/Stock but NOT the lead-only Review/Pushes doors', async () => {
-    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    const due: DueProcessRun[] = [{
-      work_line_id: PROCESS_ID, process_name: 'Café Opening',
-      owning_team_id: TEAM_ID, team_name: 'Radiant Operations',
-      period_key: '2026-07-17', scheduled_date: '2026-07-17',
-    }]
-    mockListStartableCafeTeams.mockResolvedValue(due)
-    mockGetTodayOpeningForTeam.mockResolvedValue({ started: false, runId: null, rollup: null })
+  it('keeps an explicit location switch and remembers it for the same person', async () => {
+    mapResolver()
+    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
+    mockListStartableCafeTeams.mockResolvedValue([dueTeam(TEAM_RAD), dueTeam(TEAM_RR)])
+    const user = userEvent.setup()
+    const first = renderPage()
+
+    await screen.findByTestId('cafe-opening-location')
+    await user.click(screen.getByRole('button', { name: 'Change location' }))
+    await user.click(screen.getByRole('button', { name: /Open location Rumah Rames/ }))
+
+    expect(await screen.findByTestId('cafe-opening-location')).toHaveTextContent('Rumah Rames')
+    expect(sessionStorage.getItem(`mos.cafe.opening.location.${VIEWER_ID}`)).toBe('opening-rr')
+    first.unmount()
+
+    renderPage()
+    expect(await screen.findByTestId('cafe-opening-location')).toHaveTextContent('Rumah Rames')
+  })
+
+  it('dismisses the location disclosure with Escape and restores trigger focus', async () => {
+    mapResolver()
+    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
+    mockListStartableCafeTeams.mockResolvedValue([dueTeam(TEAM_RAD), dueTeam(TEAM_RR)])
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByTestId('cafe-opening-location')
+    const trigger = screen.getByRole('button', { name: 'Change location' })
+    await user.click(trigger)
+    const otherLocation = await screen.findByRole('button', { name: /Open location Rumah Rames/ })
+    await user.tab()
+    expect(document.activeElement).toBe(otherLocation)
+
+    await user.keyboard('{Escape}')
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('heading', { name: 'Choose a location' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('cafe-opening-location')).toHaveTextContent('Radiant')
+    expect(document.activeElement).toBe(trigger)
+  })
+
+  it('does not render the previous person’s Opening while an identity switch reloads', async () => {
+    mapResolver()
+    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
+    const view = renderPage()
+    await screen.findByTestId('cafe-opening-location')
+
+    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RR, true)])
+    view.rerender(
+      <AuthContext.Provider value={authState(['ops_lead'], 'person-b')}>
+        <I18nProvider>
+          <MemoryRouter initialEntries={['/cafe']}>
+            <CafeOpeningPage />
+          </MemoryRouter>
+        </I18nProvider>
+      </AuthContext.Provider>,
+    )
+
+    expect(screen.queryByTestId('cafe-opening-location')).not.toBeInTheDocument()
+    expect(await screen.findByTestId('cafe-opening-location')).toHaveTextContent('Rumah Rames')
+  })
+
+  it('uses a primary non-stream profile Team as the branch fallback', async () => {
+    mapResolver()
+    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_HQ, true)])
+    mockListStartableCafeTeams.mockResolvedValue([dueTeam(TEAM_RR)])
+
+    renderPage()
+
+    expect(await screen.findByTestId('cafe-opening-location')).toHaveTextContent('Radiant')
+    expect(screen.getByRole('button', { name: 'Change location' })).toBeInTheDocument()
+  })
+
+  it('retains a primary branch whose Opening is already started even when it is absent from due runs', async () => {
+    mapResolver()
+    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
+    mockGetTodayOpeningForTeam.mockResolvedValue(started)
+
+    renderPage()
+
+    expect(await screen.findByText('Café Opening · 17 Jul 2026')).toBeInTheDocument()
+    expect(screen.getByText('Opening · Radiant')).toBeInTheDocument()
+    expect(mockGetTodayOpeningForTeam).toHaveBeenCalledWith(PROCESS_ID, OPENING_RAD.id)
+  })
+
+  it('includes started branches for an elevated viewer without profile memberships', async () => {
+    mockResolveCafeOpeningTeamForBranch.mockImplementation(async (branchId) => (
+      branchId === BRANCH_RAD.id ? OPENING_RAD : OPENING_RR
+    ))
+    mapResolver()
+    mockGetTodayOpeningForTeam.mockImplementation(async (_processId, teamId) => (
+      teamId === OPENING_RAD.id ? started : notStarted
+    ))
+
+    renderPage(['ops_lead'])
+
+    expect(await screen.findByRole('heading', { name: 'Choose a location' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open location Radiant.*Opening in progress/ })).toHaveTextContent('Opening in progress')
+    expect(screen.getByRole('button', { name: /Open location Rumah Rames.*Opening available to start/ })).toHaveTextContent('Opening available to start')
+  })
+
+  it('shows actionable status for an ambiguous viewer instead of unexplained selectors', async () => {
+    mapResolver()
+    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD), viewerTeam(TEAM_RR)])
+    mockGetTodayOpeningForTeam.mockImplementation(async (_processId, teamId) => (
+      teamId === OPENING_RAD.id ? started : notStarted
+    ))
 
     renderPage(['member'])
 
-    // A member can still start their own Team's opening (OD-71iii) — wait for the ready surface.
-    await screen.findByRole('link', { name: /log/i })
+    expect(await screen.findByRole('heading', { name: 'Choose a location' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open location Radiant.*Opening in progress/ })).toHaveTextContent('Opening in progress')
+    expect(screen.getByRole('button', { name: /Open location Rumah Rames.*Opening available to start/ })).toHaveTextContent('Opening available to start')
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+  })
 
-    // The capture doors a member reaches stay visible…
+  it('keeps the location status in the Indonesian accessible name', async () => {
+    localStorage.setItem('mos.locale', 'id')
+    mapResolver()
+    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD), viewerTeam(TEAM_RR)])
+    mockListStartableCafeTeams.mockResolvedValue([dueTeam(TEAM_RAD)])
+
+    renderPage(['member'])
+
+    expect(await screen.findByRole('button', { name: /Buka lokasi Radiant.*Pembukaan siap dimulai/ })).toBeInTheDocument()
+  })
+
+  it('distinguishes a process load failure from missing assignment', async () => {
+    mockGetCafeOpeningProcessId.mockRejectedValue(new Error('network'))
+
+    renderPage()
+
+    expect(await screen.findByText("Couldn't load today's café opening. Try again.")).toBeInTheDocument()
+    expect(screen.queryByText('No café opening process is configured.')).not.toBeInTheDocument()
+  })
+
+  it('shows the actionable assignment state when no eligible branch exists', async () => {
+    renderPage(['member'])
+
+    expect(await screen.findByText("You're not on a café branch Team yet — ask your admin to add you.")).toBeInTheDocument()
+    expect(screen.queryByText("Couldn't load today's café opening. Try again.")).not.toBeInTheDocument()
+  })
+
+  it('keeps the existing role-gated capture doors', async () => {
+    mapResolver()
+    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
+
+    renderPage()
+
+    await screen.findByRole('link', { name: /log/i })
     expect(screen.getByRole('link', { name: /plan/i })).toHaveAttribute('href', '/cafe/plan')
     expect(screen.getByRole('link', { name: /stock/i })).toHaveAttribute('href', '/cafe/stock')
-    // …but the ops_lead-only day-steps are HIDDEN — no door that only bounces the member.
+    expect(screen.getByRole('link', { name: /review/i })).toHaveAttribute('href', '/cafe/review')
+    expect(screen.getByRole('link', { name: /pushes/i })).toHaveAttribute('href', '/cafe/pushes')
+  })
+
+  it('does not show lead-only doors to a member', async () => {
+    mapResolver()
+    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
+
+    renderPage(['member'])
+
+    await screen.findByRole('link', { name: /log/i })
     expect(screen.queryByRole('link', { name: /review/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /pushes/i })).not.toBeInTheDocument()
   })
+})
 
-  it('JQ-1: a stream supervisor sees the Review door but not the Pushes door', async () => {
-    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    const due: DueProcessRun[] = [{
-      work_line_id: PROCESS_ID, process_name: 'Café Opening',
-      owning_team_id: TEAM_ID, team_name: 'Radiant Operations',
-      period_key: '2026-07-17', scheduled_date: '2026-07-17',
-    }]
-    mockListStartableCafeTeams.mockResolvedValue(due)
-    mockGetTodayOpeningForTeam.mockResolvedValue({ started: false, runId: null, rollup: null })
-
-    renderPage(['supervisor'])
-    await screen.findByRole('link', { name: /log/i })
-
-    expect(screen.getByRole('link', { name: /review/i })).toHaveAttribute('href', '/cafe/review')
-    expect(screen.queryByRole('link', { name: /pushes/i })).not.toBeInTheDocument()
-  })
-
-  // Step 7 minor (item 7b) — full-width tap targets at ≤390px (CSS lock, mirrors task-row.test.tsx's
-  // pattern of asserting the rule exists in the owning stylesheet).
-  it('item 7b: the capture links stack full-width at ≤390px (CSS lock)', () => {
+describe('Café Opening responsive capture links', () => {
+  it('stacks full-width capture links at ≤390px', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/pages/cafe-opening-page.css'), 'utf8')
     expect(css).toMatch(/@media\s*\(max-width:\s*390px\)/)
     const mediaBlock = css.slice(css.indexOf('@media (max-width: 390px)'))
     expect(mediaBlock).toMatch(/\.cafe-capture-link\s*\{[^}]*width:\s*100%/)
     expect(mediaBlock).toMatch(/\.cafe-capture-link\s*\{[^}]*min-height:\s*44px/)
-  })
-
-  it("falls back to the viewer's own Team when today's opening is already started (not in the due list)", async () => {
-    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    mockListStartableCafeTeams.mockResolvedValue([]) // already started — omitted from the due list
-    const myTeams: TeamOption[] = [
-      { id: TEAM_ID, name: 'Radiant Operations', business_unit_id: 'bu-1', site_id: null, is_primary: true },
-    ]
-    mockListAuthorTeams.mockResolvedValue(myTeams)
-    mockResolveCafeOpeningTeamForTeam.mockResolvedValue({ id: 'opening-kitchen', name: 'Radiant Kitchen' })
-    mockGetTodayOpeningForTeam.mockResolvedValue({
-      started: true, runId: 'run-1',
-      rollup: {
-        process_run_id: 'run-1', caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17',
-        status: 'open', total: 2, open: 2, in_progress: 0, blocked: 0, done: 0,
-        overdue: 0, pending_unresolved: 0, completion_pct: 0,
-      },
-    })
-
-    renderPage()
-
-    await screen.findByText('Café Opening · 17 Jul 2026')
-    expect(mockResolveCafeOpeningTeamForTeam).toHaveBeenCalledWith(TEAM_ID)
-    expect(mockGetTodayOpeningForTeam).toHaveBeenCalledWith(PROCESS_ID, 'opening-kitchen')
-    expect(screen.getByText('Opening · Radiant Kitchen')).toBeInTheDocument()
-  })
-
-  it('AC-V3-007: asks a multi-Team viewer to choose before opening the selected Team context', async () => {
-    const otherTeamId = '00000000-0000-0000-0000-000000005b02'
-    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    mockListStartableCafeTeams.mockResolvedValue([
-      {
-        work_line_id: PROCESS_ID, process_name: 'Café Opening',
-        owning_team_id: TEAM_ID, team_name: 'Radiant Operations',
-        period_key: '2026-07-17', scheduled_date: '2026-07-17',
-      },
-      {
-        work_line_id: PROCESS_ID, process_name: 'Café Opening',
-        owning_team_id: otherTeamId, team_name: 'Kemang Operations',
-        period_key: '2026-07-17', scheduled_date: '2026-07-17',
-      },
-    ])
-    mockGetTodayOpeningForTeam.mockResolvedValue({ started: false, runId: null, rollup: null })
-
-    const user = userEvent.setup()
-    renderPage()
-
-    const teamPicker = await screen.findByRole('combobox', { name: /choose.*team/i })
-    expect(mockGetTodayOpeningForTeam).not.toHaveBeenCalled()
-
-    await user.click(teamPicker)
-    await user.click(screen.getByRole('option', { name: 'Kemang Operations' }))
-
-    await screen.findByRole('button', { name: "Start today's opening" })
-    expect(mockGetTodayOpeningForTeam).toHaveBeenCalledWith(PROCESS_ID, otherTeamId)
-  })
-
-  it('AC-V3-007: asks for a choice from multi-Team membership when no opening is due', async () => {
-    const otherTeamId = '00000000-0000-0000-0000-000000005b02'
-    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    mockListStartableCafeTeams.mockResolvedValue([])
-    mockListAuthorTeams.mockResolvedValue([
-      { id: TEAM_ID, name: 'Radiant Operations', business_unit_id: 'bu-1', site_id: null, is_primary: true },
-      { id: otherTeamId, name: 'Kemang Operations', business_unit_id: 'bu-1', site_id: null, is_primary: false },
-    ])
-    mockResolveCafeOpeningTeamForTeam
-      .mockResolvedValueOnce({ id: 'opening-radiant', name: 'Radiant Kitchen' })
-      .mockResolvedValueOnce({ id: 'opening-kemang', name: 'Kemang Kitchen' })
-    mockGetTodayOpeningForTeam.mockResolvedValue({ started: true, runId: 'run-2', rollup: {
-      process_run_id: 'run-2', caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17',
-      status: 'open', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0,
-      overdue: 0, pending_unresolved: 0, completion_pct: 0,
-    } })
-
-    const user = userEvent.setup()
-    renderPage()
-
-    const teamPicker = await screen.findByRole('combobox', { name: /choose.*team/i })
-    expect(mockGetTodayOpeningForTeam).not.toHaveBeenCalled()
-
-    await user.click(teamPicker)
-    await user.click(screen.getByRole('option', { name: 'Kemang Kitchen' }))
-
-    await screen.findByText('Café Opening · 17 Jul 2026')
-    expect(mockGetTodayOpeningForTeam).toHaveBeenCalledWith(PROCESS_ID, 'opening-kemang')
-  })
-
-  it('renders an EmptyState (not a crash) when no Café Opening process is configured (RATIFY-7C)', async () => {
-    mockGetCafeOpeningProcessId.mockResolvedValue(null)
-
-    renderPage()
-
-    await waitFor(() => {
-      expect(screen.getByTestId('empty-state')).toBeInTheDocument()
-    })
-    expect(mockListStartableCafeTeams).not.toHaveBeenCalled()
-    // Half B convergence: missing configuration is never the 'quiet' ✓ earned-all-clear glyph —
-    // it reads as "you're done" when actually an admin still needs to set this up. 'blank' (—)
-    // is the honest "no source configured" variant.
-    expect(screen.getByTestId('empty-state')).toHaveAttribute('data-empty-variant', 'blank')
-    expect(screen.queryByText('✓')).not.toBeInTheDocument()
-  })
-
-  it("Half B convergence: renders the 'blank' (never 'quiet' ✓) EmptyState when the viewer has no café branch Team", async () => {
-    mockGetCafeOpeningProcessId.mockResolvedValue(PROCESS_ID)
-    mockListStartableCafeTeams.mockResolvedValue([])
-    mockListAuthorTeams.mockResolvedValue([])
-
-    renderPage()
-
-    await waitFor(() => {
-      expect(screen.getByTestId('empty-state')).toBeInTheDocument()
-    })
-    expect(screen.getByTestId('empty-state')).toHaveAttribute('data-empty-variant', 'blank')
-    expect(screen.queryByText('✓')).not.toBeInTheDocument()
   })
 })

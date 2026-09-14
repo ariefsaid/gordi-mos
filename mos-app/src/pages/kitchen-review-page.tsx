@@ -340,12 +340,22 @@ type LoadState =
   | { kind: 'ready' }
 
 export function KitchenReviewPage() {
+  const auth = useAuth()
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : 'anonymous'
+
+  // Queue data, stream defaults, and pending decisions are all viewer-scoped. Keying the
+  // subtree prevents a mounted route from rendering the prior person's queue for one frame.
+  return <KitchenReviewPageForViewer key={viewerId} />
+}
+
+function KitchenReviewPageForViewer() {
   const t = useT()
   // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
   // the catalog's own docTitle convention (tasks-layout, signals-archive).
   useDocumentTitle(t('common.docTitle', { page: `${t('nav.cafe.review')} · ${t('nav.cafe')}` }))
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.review')}`
   const auth = useAuth()
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
 
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
   // #236 (FR-040/041): stream supervisors join the review surface. The page-level split is
@@ -376,6 +386,7 @@ export function KitchenReviewPage() {
   // The default is applied ONCE, after the first load resolves the viewer's own stream — a
   // ref, not state, so re-fetches never fight the viewer's own filter choice.
   const filterInitialized = useRef(false)
+  const requestGen = useRef(0)
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
 
@@ -392,6 +403,22 @@ export function KitchenReviewPage() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const isDesktop = useIsDesktop()
 
+  // A route can stay mounted while the signed-in viewer changes. Clear the old viewer's queue
+  // and filter before the new read lands; the generation also makes a slow old response inert.
+  useEffect(() => {
+    requestGen.current += 1
+    filterInitialized.current = false
+    setStreamFilter(ALL_STREAMS)
+    setLogs([])
+    setStreamPlans(new Map())
+    setPeopleMap(new Map())
+    setBranchCatalog([])
+    setStreamCatalog([])
+    setOwnStreamKey(null)
+    setCompleteness(new Map())
+    setLoad({ kind: 'loading' })
+  }, [viewerId])
+
   useEffect(() => {
     function on() { setIsOnline(true) }
     function off() { setIsOnline(false) }
@@ -401,6 +428,7 @@ export function KitchenReviewPage() {
   }, [])
 
   const fetchQueue = useCallback(async () => {
+    const gen = ++requestGen.current
     setLoad({ kind: 'loading' })
     try {
       const [rows, branchRows, people, pairs, confirmations] = await Promise.all([
@@ -426,6 +454,7 @@ export function KitchenReviewPage() {
           async ([key, stream]) => [key, await fetchPlanMap(logDate, stream)] as const,
         ),
       )
+      if (gen !== requestGen.current) return
       const ownKey = ownStream ? streamKey(ownStream.branch.id, ownStream.activity) : null
       const catalog = streamCatalogFrom(pairs, branchRows)
       setLogs(rows)
@@ -440,7 +469,7 @@ export function KitchenReviewPage() {
       // stream Team) opens cross-stream too — sight is org-wide, decisions are not.
       // #440: a stream CHOSEN elsewhere in Café this session outranks both — it is an
       // explicit act, where the role defaults are only a guess about what you meant.
-      const chosenKey = rememberedStreamKey()
+      const chosenKey = rememberedStreamKey(viewerId)
       const chosen = chosenKey && catalog.some(s => streamKey(s.branch.id, s.activity) === chosenKey)
         ? chosenKey
         : null
@@ -451,9 +480,9 @@ export function KitchenReviewPage() {
       }
       setLoad({ kind: 'ready' })
     } catch {
-      setLoad({ kind: 'error' })
+      if (gen === requestGen.current) setLoad({ kind: 'error' })
     }
-  }, [logDate, isLeadOrAdmin, isSupervisor])
+  }, [isLeadOrAdmin, isSupervisor, logDate, viewerId])
 
   useEffect(() => {
     if (auth.status !== 'authenticated' || !allowed) return
@@ -972,7 +1001,7 @@ export function KitchenReviewPage() {
           allStreams={streamFilter === ALL_STREAMS}
           onChange={next => {
             setStreamFilter(streamKey(next.branch.id, next.activity))
-            rememberStream(next) // the whole Café module follows this choice (#440)
+            rememberStream(next, viewerId) // the whole Café module follows this choice (#440)
           }}
           onAllStreams={() => setStreamFilter(ALL_STREAMS)}
         />

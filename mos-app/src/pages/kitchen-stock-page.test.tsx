@@ -240,7 +240,7 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
   it('issue 440: a stream chosen elsewhere in Café wins over the viewer\'s own default', async () => {
     // The person switched to Radiant · Bar on Log; Stock must open on the same books rather
     // than snapping back to their own stream and showing a different branch's numbers.
-    rememberStream(RADIANT_BAR)
+  rememberStream(RADIANT_BAR, 'p-1')
     mockDefaultStream.mockResolvedValue(CENTRAL_KITCHEN)
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })

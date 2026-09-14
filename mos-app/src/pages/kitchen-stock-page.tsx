@@ -65,6 +65,15 @@ type LoadState =
 // alias, never "HQ") stated once instead of once per page.
 
 export function KitchenStockPage() {
+  const auth = useAuth()
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : 'anonymous'
+
+  // A stock table is viewer-scoped state. Remount on an in-place account switch so the new
+  // render starts empty instead of committing the previous person's rows before effects run.
+  return <KitchenStockPageForViewer key={viewerId} />
+}
+
+function KitchenStockPageForViewer() {
   const t = useT()
   // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
   // the catalog's own docTitle convention (tasks-layout, signals-archive).

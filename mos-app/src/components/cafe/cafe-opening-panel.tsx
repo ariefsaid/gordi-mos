@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useAuth } from '@/auth/use-auth'
@@ -23,7 +23,7 @@ type FetchState = 'loading' | 'ready' | 'error'
 export interface CafeOpeningPanelProps {
   processId: string
   teamId: string
-  /** The Team this opening belongs to — the panel's subject eyebrow names it (issue 457). */
+  /** The branch location this opening belongs to — canonical Team id stays internal. */
   teamName: string
 }
 
@@ -46,20 +46,26 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
   const [pending, setPending] = useState<PendingTaskRow[]>([])
   const [people, setPeople] = useState<PersonOption[]>([])
   const [pendingLoading, setPendingLoading] = useState(false)
+  const loadGeneration = useRef(0)
 
   const load = useCallback(() => {
+    const generation = ++loadGeneration.current
     setState('loading')
     getTodayOpeningForTeam(processId, teamId)
       .then((opening) => {
+        if (generation !== loadGeneration.current) return
         setStarted(opening.started)
         setRunId(opening.runId)
         setRollup(opening.rollup)
         setState('ready')
       })
-      .catch(() => setState('error'))
+      .catch(() => {
+        if (generation === loadGeneration.current) setState('error')
+      })
   }, [processId, teamId])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => () => { loadGeneration.current += 1 }, [])
 
   useEffect(() => {
     let live = true
@@ -116,10 +122,8 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
   if (!started) {
     return (
       <div className="cafe-opening-panel">
-        {/* Name the bound Team — the page auto-selects one (first due / first membership) and
-            hiding WHICH one it chose was audit finding F10. Bound as the panel's subject eyebrow
-            (census DO-24a) — same header block as the started body below, so it doesn't read as
-            an orphan that disappears on start. */}
+        {/* Name the bound branch location in every state. The canonical Team id is the server
+            context, while the branch label is the operator's useful orientation. */}
         <header className="cafe-opening-head">
           <p className="cafe-opening-team">{t('cafe.opening.teamCaption', { team: teamName })}</p>
         </header>
@@ -147,8 +151,8 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
 
   return (
     <div className="cafe-opening-panel cafe-opening-panel--started">
-      {/* Same subject eyebrow as the not-started body (census DO-24a) — the bound Team
-          now heads the panel in every state, not only before Start. layout pass (v4):
+      {/* Same subject label as the not-started body — the bound branch location now heads the
+          panel in every state, not only before Start. layout pass (v4):
           eyebrow + caption + rollup are one semantic header block (kicker/title/subtitle),
           grouped into its own tight rhythm (cafe-opening-head, 4px) rather than sharing the
           panel's looser 16px rhythm with the unrelated action link and pending-resolution
