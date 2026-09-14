@@ -90,6 +90,9 @@ afterEach(() => {
 // ─────────────────────────────────────────────────────────────────────────────
 // AC-025
 // ─────────────────────────────────────────────────────────────────────────────
+// These tests share the document, browser globals, and module mocks; keep both acceptance blocks
+// isolated from one another when a Vitest invocation enables concurrent test sequencing.
+describe.sequential('offline shell contracts', () => {
 describe('AC-025 — a rejected data read is an error inside the frame', () => {
   /**
    * A page whose read runs on mount and whose rejection reaches render — the shape every data
@@ -311,4 +314,5 @@ describe('AC-026 — the header says offline exactly once, and only while offlin
     expect(screen.getByText('Anda sedang offline')).toBeInTheDocument()
     expect(screen.queryByText('You’re offline')).toBeNull()
   })
+})
 })
