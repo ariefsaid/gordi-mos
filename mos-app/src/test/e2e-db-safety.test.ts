@@ -161,6 +161,10 @@ test('every Playwright data writer is registered with an owned cleanup contract'
     if (contract === 'captured-task-id') {
       expect(source, `${file} must use guarded task cleanup`).toContain('taskCleanupSql')
     }
+    if (contract === 'fixed-task-id') {
+      expect(source, `${file} must declare its fixed task ID`).toContain('GUARD_TASK_ID_743')
+      expect(source, `${file} must use guarded task cleanup`).toContain('taskCleanupSql')
+    }
   }
 })
 
