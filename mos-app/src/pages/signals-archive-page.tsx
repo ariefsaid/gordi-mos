@@ -47,6 +47,8 @@ import './signals-archive-page.css'
 // A Signal has no short title — its identity is the body's first line. Compact that line to ~72
 // chars (v4's cut) so the Ask Deputy composer seed reads as a record reference, not a paste.
 const DEPUTY_SEED_MAX = 72
+type SignalSavedViewRetry = { kind: 'load' } | { kind: 'apply'; id: string } | { kind: 'save'; name: string }
+
 function deputySeed(body: string): string {
   const line = firstLine(body)
   return line.length > DEPUTY_SEED_MAX ? `${line.slice(0, DEPUTY_SEED_MAX).trimEnd()}…` : line
@@ -61,6 +63,7 @@ export function SignalsArchivePage() {
   const isSplit = useIsWideOverlayWidth()
   const isDesktop = useIsDesktop()
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
+  const savedViewRetryRef = useRef<SignalSavedViewRetry | null>(null)
   const [params, setParams] = useSearchParams()
   const recordId = params.get('record')
   const hadSignalSession = useRef(false)
@@ -358,10 +361,28 @@ export function SignalsArchivePage() {
         label: t('signals.archive.savedViews'),
         selectedId: query.savedViewId,
         operation: controller.state.savedViews.operation,
+        error: controller.state.savedViews.error,
+        errorMessage: t('signals.archive.savedViewsError'),
         items: controller.state.savedViews.items,
-        onLoad: () => { void controller.loadSavedViews() },
-        onApply: async (id) => { await controller.applySavedView(id) },
-        onSave: async (name) => { await controller.saveCurrentView(name, 'private') },
+        onLoad: () => {
+          savedViewRetryRef.current = { kind: 'load' }
+          return controller.loadSavedViews()
+        },
+        onRetry: () => {
+          const retry = savedViewRetryRef.current
+          if (!retry) return
+          if (retry.kind === 'load') void controller.loadSavedViews()
+          else if (retry.kind === 'apply') void controller.applySavedView(retry.id)
+          else void controller.saveCurrentView(retry.name, 'private')
+        },
+        onApply: async (id) => {
+          savedViewRetryRef.current = { kind: 'apply', id }
+          await controller.applySavedView(id)
+        },
+        onSave: (name) => {
+          savedViewRetryRef.current = { kind: 'save', name }
+          return controller.saveCurrentView(name, 'private')
+        },
       }}
     />
   )

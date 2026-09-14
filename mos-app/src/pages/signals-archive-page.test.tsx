@@ -64,7 +64,7 @@ vi.mock('@/components/signals/signal-record-host', async () => {
 
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
-import { listCollectionViews } from '@/lib/db/user-views-collection'
+import { createCollectionView, listCollectionViews } from '@/lib/db/user-views-collection'
 import type { PersistedCollectionView } from '@/lib/record-collection/collection-view-spec'
 import { SignalsArchivePage, SignalRecordPage } from './signals-archive-page'
 import { signalCollectionDescriptor } from '@/components/signals/signal-collection-adapter'
@@ -73,6 +73,7 @@ const mockListReadableSignals = vi.mocked(listReadableSignals)
 const mockListAllTeams = vi.mocked(listAllTeams)
 const mockGetPeople = vi.mocked(getPeople)
 const mockListCollectionViews = vi.mocked(listCollectionViews)
+const mockCreateCollectionView = vi.mocked(createCollectionView)
 
 function row(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
@@ -534,6 +535,26 @@ describe('Issue 610 — a custom Signals saved view names itself in the caption'
     // The URL is the id only — the name never round-trips through it.
     expect(screen.getByTestId('location')).toHaveTextContent('saved=custom-signal-view')
     expect(screen.getByTestId('location')).not.toHaveTextContent('Radiant')
+  })
+})
+
+describe('Signals saved-view recovery', () => {
+  it('keeps a failed name and retries the same save after the form is closed', async () => {
+    mockCreateCollectionView.mockRejectedValue(new Error('save failed'))
+    renderPage()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /^save view$/i }))
+    fireEvent.change(screen.getByRole('textbox', { name: /view name/i }), { target: { value: 'Signal watch' } })
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }))
+    await waitFor(() => expect(mockCreateCollectionView).toHaveBeenCalledTimes(1))
+    expect(screen.getByDisplayValue('Signal watch')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Saved views are unavailable. Try again.')
+
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    await waitFor(() => expect(mockCreateCollectionView).toHaveBeenCalledTimes(2))
+    expect(mockCreateCollectionView.mock.calls[1]?.[0]).toMatchObject({ name: 'Signal watch' })
   })
 })
 

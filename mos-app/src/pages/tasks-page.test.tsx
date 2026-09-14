@@ -936,8 +936,8 @@ describe('DR-2 — error banner shows only friendly copy, not raw error message'
   it('DR-2a: error banner text is exactly "Couldn\'t load tasks" without appended raw error', async () => {
     mockListTasks.mockRejectedValue(new Error('listTasks failed — forced error'))
     renderPage()
-    await waitFor(() => screen.getByRole('alert'))
-    const banner = screen.getByRole('alert')
+    const results = document.querySelector('.record-collection-results') as HTMLElement
+    const banner = await waitFor(() => within(results).getByRole('alert'))
     // Should contain the friendly message
     expect(banner.textContent).toMatch(/couldn't load tasks/i)
     // Must NOT expose the internal error string
@@ -948,8 +948,9 @@ describe('DR-2 — error banner shows only friendly copy, not raw error message'
   it('DR-2b: Retry button is present alongside the friendly message', async () => {
     mockListTasks.mockRejectedValue(new Error('network timeout'))
     renderPage()
-    await waitFor(() => screen.getByRole('alert'))
-    expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()
+    const results = document.querySelector('.record-collection-results') as HTMLElement
+    const banner = await waitFor(() => within(results).getByRole('alert'))
+    expect(within(banner).getByRole('button', { name: /try again/i })).toBeTruthy()
   })
 })
 
