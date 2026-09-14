@@ -36,21 +36,23 @@ select shared._test_seed_directory();
 select shared._test_seed_access_roles();
 select ops._test_seed_cafe();
 
--- ── Stream teams (the substrate both the write predicate and the live-stream check ride) ─────
--- The migration-time seeder skips the test orgs (created long after it ran), so the stream teams
--- are authored here, exactly as shared_11/ops_12 do. (Radiant, bar) is DELIBERATELY left without
--- a team: it is this file's stand-in for a (branch, activity) pair that is not a production
--- stream — the roastery's permanent case (OD-WAY-42) with the fixture's own branches.
-insert into shared.teams (id, org_id, business_unit_id, name, code, branch_id, activity) values
-  ('00000000-0000-0000-0000-00000000cc01','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','T GHQ Bar','t_ghq_bar','00000000-0000-0000-0000-00000000bf01','bar'),
-  ('00000000-0000-0000-0000-00000000cc02','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','T RRS Kitchen','t_rrs_kitchen','00000000-0000-0000-0000-00000000bf02','kitchen');
+-- ── Stream memberships (the substrate both the write predicate and live-stream check ride) ───
+-- ops._test_seed_cafe() provisions the live catalog. An otherwise valid branch without a Team is
+-- added below as this file's unprovisioned-stream case (the Roastery analogue in this fixture).
+insert into shared.branches (id, org_id, code, name)
+values ('00000000-0000-0000-0000-00000000bf08','00000000-0000-0000-0000-0000000000a1','unprovisioned','Unprovisioned');
 
 -- Peer ...0d4: live primary on (GHQ, bar) — started, open-ended: THE stream's lead.
-insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from) values
-  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d4','00000000-0000-0000-0000-00000000cc01', true, current_date - 30);
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from)
+select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d4', t.id, true, current_date - 30
+from shared.teams t
+where t.org_id = '00000000-0000-0000-0000-0000000000a1' and t.code = 'gordi_hq_bar';
 -- DualHat ...0d6: primary on (RRS, kitchen) with a FUTURE end date — on the team today, NOT live.
-insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from, effective_to) values
-  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d6','00000000-0000-0000-0000-00000000cc02', true, current_date - 30, current_date + 7);
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from, effective_to)
+select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d6', t.id, true,
+       current_date - 30, current_date + 7
+from shared.teams t
+where t.org_id = '00000000-0000-0000-0000-0000000000a1' and t.code = 'rumah_rames_kitchen';
 
 insert into shared.person_access_roles (org_id, person_id, access_role) values
   ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d4','supervisor'),
@@ -186,12 +188,12 @@ set local role authenticated;
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 
--- (Radiant, bar) has no stream Team in this fixture — the roastery's permanent case in miniature
--- (OD-WAY-42): a branch that runs no such stream. Confirming its list would record a fact about
--- nothing. The composite FK cannot catch this — Radiant IS a branch of this org.
+-- Unprovisioned has no stream Team — the roastery's permanent case in miniature (OD-WAY-42): a
+-- branch that runs no such stream. Confirming its list would record a fact about nothing. The
+-- composite FK cannot catch this — Unprovisioned is still a branch of this org.
 select throws_ok($$
   insert into ops.stream_completeness (org_id, branch_id, activity)
-  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bf03','bar')
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bf08','bar')
   $$, '23514', null,
   'FR-005: a (branch, activity) that is not a live production stream cannot be confirmed complete');
 
