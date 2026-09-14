@@ -23,6 +23,7 @@ const helpTipTsx = readFileSync(resolve(process.cwd(), 'src/components/ui/help-t
 const attentionPickerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-attention-picker.css'), 'utf8')
 const recordPanelHostCss = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
 const kitchenPlanCss = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-plan-page.css'), 'utf8')
+const kitchenPlanTsx = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-plan-page.tsx'), 'utf8')
 // #711: search-field floor is defined in collection-toolbar.css.
 const collectionToolbarCss = readFileSync(resolve(process.cwd(), 'src/components/record-collection/collection-toolbar.css'), 'utf8')
 const signalFeedRowsTsx = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-feed-rows.tsx'), 'utf8')
@@ -158,10 +159,10 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(signalFeedRowsTsx).toMatch(/className="signal-feed-link signal-feed-link--more tap-floor"/)
   })
 
-  it('issue \u0023705: gives Plan item links a real 44px phone hit box without changing their visual box', () => {
-    const body = mediaBody(kitchenPlanCss, '@media (max-width: 767.98px)')
-    expect(body).toMatch(/\.kp-row-link\s*\{[^}]*position:\s*relative/)
-    expect(body).toMatch(/\.kp-row-link::before\s*\{[^}]*height:\s*44px[^}]*transform:\s*translateY\(-50%\)/)
+  it('issue \u0023705: Plan item names stay plain on phone while the desktop group Log link owns a 44px target', () => {
+    expect(kitchenPlanTsx).not.toMatch(/kp-row-link/)
+    const body = mediaBody(kitchenPlanCss, '@media (min-width: 768px)')
+    expect(body).toMatch(/\.kp-group-link\s*\{[^}]*min-height:\s*44px/)
   })
 
   it('ticket 702: keeps the record edit affordance floor on phone for fine pointers', () => {

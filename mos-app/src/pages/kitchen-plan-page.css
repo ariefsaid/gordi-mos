@@ -115,6 +115,13 @@
   text-underline-offset: 2px;
   white-space: nowrap;
 }
+@media (min-width: 768px) {
+  .kp-group-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
 
 /* ── "Plan" cell — typed qty + inline save status (v4, DD-5 typed-qty port) ──
    Mirrors the retired .pqcell-saving/.pqcell-saved look (plan-qty-cell.css) under this
