@@ -85,8 +85,11 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(textInputBody).toMatch(/\.mk-textinput__box[\s\S]*min-height:\s*44px/)
     expect(textInputBody).toMatch(/\.mk-textinput__field[^}]*min-height:\s*44px/)
     const selectBody = mediaBody(selectCss, '@media (max-width: 767.98px)')
-    expect(selectBody).toMatch(/\.mk-select__box[\s\S]*min-height:\s*44px/)
-    expect(selectBody).toMatch(/\.mk-select__field[\s\S]*min-height:\s*44px/)
+    // The shared Select's bordered box owns the 44px outer target; its button is 42px inside
+    // the two 1px borders. Assert both halves so a future refactor cannot accidentally put the
+    // floor on a retired/native-only selector.
+    expect(selectBody).toMatch(/\.mk-select__box\s*\{[^}]*min-height:\s*44px/)
+    expect(selectBody).toMatch(/\.mk-select__field\s*\{[^}]*min-height:\s*42px/)
     expect(mediaBody(dateFieldCss, '@media (max-width: 767.98px)'))
       .toMatch(/\.mk-date__box[\s\S]*min-height:\s*44px/)
   })

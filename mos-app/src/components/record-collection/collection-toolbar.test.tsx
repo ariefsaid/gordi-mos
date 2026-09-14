@@ -218,6 +218,33 @@ describe('CollectionToolbar — shared RecordCollection control grammar', () => 
     expect(within(group).getByRole('button', { name: 'My view' })).toBeInTheDocument()
   })
 
+  it('keeps long saved-view names readable inside a bounded chip', () => {
+    const longName = 'Follow-ups from the espresso bar with unbroken-localized-context'
+    render(
+      <I18nProvider>
+        <CollectionToolbar
+          presentation={{
+            label: 'Presentation', value: 'table',
+            options: [{ value: 'table', label: 'Table' }], onChange: vi.fn(),
+          }}
+          views={{
+            label: 'Views', value: 'all',
+            options: [{ value: 'all', label: 'All' }], onChange: vi.fn(),
+          }}
+          savedViews={{
+            label: 'Saved views', selectedId: null, operation: 'idle',
+            items: [{ id: 'long', name: longName }], onApply: vi.fn(),
+            onSave: vi.fn().mockResolvedValue(undefined),
+          }}
+        />
+      </I18nProvider>,
+    )
+
+    const chip = screen.getByRole('button', { name: longName })
+    expect(chip).toHaveClass('collection-toolbar__view--saved')
+    expect(chip).toHaveTextContent(longName)
+  })
+
   it('keeps the Saved view label when there are no user-saved views', () => {
     render(
       <I18nProvider>

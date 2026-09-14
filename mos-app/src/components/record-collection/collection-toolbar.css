@@ -69,6 +69,16 @@
 
 .collection-toolbar__view:hover { color: var(--foreground); }
 .collection-toolbar__view:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.collection-toolbar__view--saved {
+  /* Saved names are user-authored and may be long or unbroken in another locale. Constrain the
+     chip, but keep the full name visible by wrapping it instead of hiding the identity behind a
+     hover-only tooltip (DD-MVP-4). */
+  max-width: min(32ch, 260px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+  line-height: 1.2;
+}
 .collection-toolbar__view--active {
   background: var(--background);
   color: var(--foreground);

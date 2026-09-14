@@ -249,7 +249,7 @@ export function CollectionToolbar<
                     <button
                       key={item.id}
                       type="button"
-                      className={`collection-toolbar__view${active ? ' collection-toolbar__view--active' : ''}`}
+                      className={`collection-toolbar__view collection-toolbar__view--saved${active ? ' collection-toolbar__view--active' : ''}`}
                       aria-pressed={active}
                       onClick={() => void savedViews.onApply(item.id)}
                     >
