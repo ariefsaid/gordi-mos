@@ -15,6 +15,7 @@ import {
 import {
   REQUIRED_ARTIFACTS,
   ReportWriter,
+  meaningfulCsv,
   validateArtifactSet,
 } from './report.ts'
 import { MUTATION_FIXTURES, evaluateMutationFixture, parseCssColor } from './measurements.ts'
@@ -107,6 +108,18 @@ test('gate log status updates preserve scanner evidence and replace pending valu
   assert.match(log, /^browser_status=0$/m)
   assert.match(log, /^chain_status=not-run$/m)
   assert.doesNotMatch(log, /pending/)
+})
+
+test('CSV evidence accepts product copy containing pending or placeholder', () => {
+  const csv = [
+    `# candidate_sha=${'a'.repeat(40)}`,
+    '# session_id=a1b2c3d4',
+    'route,copy',
+    '/mos/cafe,Pending review on Submit',
+    '/mos/work/tasks,Placeholder shown in training copy',
+  ].join('\n')
+
+  assert.deepEqual(meaningfulCsv('copy-census.csv', csv), { ok: true })
 })
 
 test('manifestForArtifact binds the shared manifest to the runner metadata', () => {

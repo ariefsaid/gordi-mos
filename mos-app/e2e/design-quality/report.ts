@@ -214,16 +214,13 @@ function meaningfulJson(artifact: string, payload: unknown): { ok: boolean; reas
   return { ok: true }
 }
 
-function meaningfulCsv(artifact: string, text: string): { ok: boolean; reason?: string } {
+export function meaningfulCsv(artifact: string, text: string): { ok: boolean; reason?: string } {
   const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0)
   if (lines.length < 4) {
     return { ok: false, reason: `${artifact} must contain metadata, a header, and at least one data row` }
   }
   if (!lines[0]!.startsWith('# candidate_sha=') || !lines[1]!.startsWith('# session_id=')) {
     return { ok: false, reason: `${artifact} is missing its metadata preamble` }
-  }
-  if (/\bpending\b|\bplaceholder\b/i.test(lines.slice(2).join('\n'))) {
-    return { ok: false, reason: `${artifact} contains placeholder content` }
   }
   return { ok: true }
 }
