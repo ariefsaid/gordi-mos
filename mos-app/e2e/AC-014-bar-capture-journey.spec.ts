@@ -143,10 +143,22 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
   // Delete order matters: children before parents, so a partially-applied previous run cannot
   // leave a row whose parent is already gone.
   async function resetFixtureRows() {
-    const dp = today.replace(/-/g, '')
+    const ownedBatchRows = await sql(`
+      SELECT batch_id
+        FROM ops.kitchen_logs
+       WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}' AND batch_id IS NOT NULL
+    `)
+    const ownedBatchIds = ownedBatchRows
+      .map(row => row.batch_id)
+      .filter((batchId): batchId is string => typeof batchId === 'string' && batchId.length > 0)
+    if (ownedBatchIds.length > 0) {
+      const ownedBatchRefs = ownedBatchIds.map(batchId => `'${batchId.replace(/'/g, "''")}'`).join(', ')
+      await sql(`
+        DELETE FROM integrations.esb_push
+         WHERE org_id='${ORG}' AND source_module='kitchen' AND source_ref IN (${ownedBatchRefs});
+      `)
+    }
     await sql(`
-      DELETE FROM integrations.esb_push WHERE org_id='${ORG}' AND source_module='kitchen' AND source_ref LIKE 'PR-${dp}-%';
-      DELETE FROM ops.kitchen_batch_seq WHERE org_id='${ORG}' AND prefix='PR' AND log_date='${today}';
       DELETE FROM ops.kitchen_stock     WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.kitchen_logs      WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.kitchen_plans     WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
