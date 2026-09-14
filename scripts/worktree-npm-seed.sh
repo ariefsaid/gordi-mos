@@ -47,6 +47,14 @@ target_lock="$target_app/package-lock.json"
 target_nm="$target_app/node_modules"
 target_state="$target_nm/.package-lock.json"
 
+# Never inspect or reinstall through a root node_modules symlink: it may point at another
+# checkout, and even the cleanup below would then operate on that checkout's nested alias.
+# Refuse before any target path lookup that could invoke npm or traverse the link.
+if [ -L "$target_nm" ]; then
+  echo "✗ worktree-npm-seed: refusing target node_modules symlink" >&2
+  exit 1
+fi
+
 [ -f "$target_lock" ] || fallback "target has no mos-app/package-lock.json"
 
 # A root-level node_modules/node_modules path is not an npm package location. npm left an
