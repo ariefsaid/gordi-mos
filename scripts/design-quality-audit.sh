@@ -356,7 +356,7 @@ PY
 
 chain_status=0
 if bash "$ROOT/scripts/factory-run.sh" adw_design_audit.py "$scope_file" \
-  --base-url "$base_url" --adw-id "$audit_id" --config "$config"; then
+  --base-url "$base_url" --adw-id "$audit_id" --config "$config" --allow-barred; then
   chain_status=0
 else
   chain_status=$?
