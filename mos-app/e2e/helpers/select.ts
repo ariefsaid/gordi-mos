@@ -11,8 +11,13 @@ export async function chooseSelectOption(
   trigger: Locator,
   optionName: string | RegExp,
 ): Promise<void> {
+  await expect(trigger).toBeEnabled()
   await trigger.click()
-  const listbox = page.getByRole('listbox').last()
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+  const popupId = await trigger.getAttribute('aria-controls')
+  if (!popupId) throw new Error('Select trigger opened without an aria-controls listbox id')
+  const listbox = page.locator(`[id="${popupId}"]`)
+  await expect(listbox).toHaveAttribute('role', 'listbox')
   await expect(listbox).toBeVisible()
   await listbox
     .getByRole('option', { name: optionName, exact: typeof optionName === 'string' })
