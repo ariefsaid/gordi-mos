@@ -743,7 +743,15 @@ export async function collectContrast(
       const fontSize = Number.parseFloat(style.fontSize) || 0
       const weight = Number.parseInt(style.fontWeight, 10) || 400
       const largeText = fontSize >= 24 || (fontSize >= 18.67 && weight >= 700)
-      const text = element.textContent?.trim() || (element as HTMLInputElement).value?.trim() || (element as HTMLInputElement).placeholder?.trim() || ''
+      const directText = Array.from(element.childNodes)
+        .filter((node) => node.nodeType === Node.TEXT_NODE)
+        .map((node) => node.textContent?.trim() || '')
+        .filter(Boolean)
+        .join(' ')
+      const semanticText = element.matches('h1, h2, h3, p, label, button, a[href], [role="button"]')
+        ? element.innerText?.trim() || directText
+        : directText
+      const text = semanticText || (element as HTMLInputElement).value?.trim() || (element as HTMLInputElement).placeholder?.trim() || ''
       const measure = collectionOptions.measure || 'text'
       if ((measure === 'text' || measure === 'both') && text.length > 0) {
         if (!foreground) {
@@ -803,13 +811,13 @@ export async function collectContrast(
             selector: `${selectorText} (${weakest.source})`,
             state: contrastState,
             kind: 'boundary',
-            threshold: contrastThreshold('boundary'),
+            threshold: 3,
             foreground: `rgb(${weakest.foregroundRgb.map((value) => Math.round(value)).join(',')})`,
             background: `rgb(${background.join(',')})`,
             ratio: weakest.ratio,
             largeText: false,
             observed: true,
-            passes: weakest.ratio >= contrastThreshold('boundary'),
+            passes: weakest.ratio >= 3,
           })
         }
       }

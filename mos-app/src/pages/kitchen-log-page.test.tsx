@@ -1327,7 +1327,7 @@ describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    const card = screen.getByText('Ayam Bakar').closest('.kl-card')
+    const card = screen.getByText('Ayam Bakar').closest('.kl-row')
     expect(card).not.toBeNull()
     expect(within(card as HTMLElement).queryByText('Main')).toBeNull()
     expect(within(card as HTMLElement).getByText('3')).toBeInTheDocument()
