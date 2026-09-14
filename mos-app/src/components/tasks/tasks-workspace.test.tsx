@@ -1079,6 +1079,52 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
 
   })
 
+  it('counts an overdue Blocked task once in the combined attention total', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'blocked-overdue', title: 'Blocked overdue task', status: 'Blocked', due_date: '2020-01-01' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    await switchToAll()
+    await waitFor(() => expect(screen.getByText('Blocked overdue task')).toBeInTheDocument())
+
+    ensureFiltersOpen()
+    const attention = openAttentionMenu()
+    expect(attention.trigger).toHaveAccessibleName(/1 tasks need attention/i)
+    expect(attention.overdue).toHaveTextContent('1 overdue')
+    expect(attention.blocked).toHaveTextContent('1 blocked')
+  })
+
+  it('excludes archived Blocked tasks from the attention count when the archive is visible', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'archived-blocked', title: 'Archived blocked task', status: 'Blocked', archived_at: '2026-07-01T00:00:00Z' }),
+    ])
+    renderTable({}, authedState, ['/work/tasks?archived=1'])
+    await waitFor(() => expect(screen.getByText('Archived blocked task')).toBeInTheDocument())
+
+    ensureFiltersOpen()
+    expect(screen.queryByRole('combobox', { name: /tasks need attention/i })).toBeNull()
+  })
+
+  it('uses the WIB calendar day for the attention overdue count', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-07-15T18:00:00Z')) // 2026-07-16 01:00 WIB
+    try {
+      mockListTasks.mockResolvedValue([
+        makeTask({ id: 'wib-overdue', title: 'WIB overdue task', due_date: '2026-07-15' }),
+      ])
+      renderTable()
+      await waitFor(() => expect(screen.getByText('WIB overdue task')).toBeInTheDocument())
+
+      ensureFiltersOpen()
+      const attention = openAttentionMenu()
+      expect(attention.trigger).toHaveAccessibleName(/1 tasks need attention/i)
+      expect(attention.overdue).toHaveTextContent('1 overdue')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('AC-133: Clear filters button resets all filters', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Alpha task' })])
     renderTable()

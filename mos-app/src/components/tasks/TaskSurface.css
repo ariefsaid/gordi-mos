@@ -458,6 +458,8 @@
 @media (max-width: 767.98px) {
   .tc-textarea { min-height: 44px; }
   .tc-loading-field { min-height: 44px; }
+  .checklist-ctrl-btn { width: 44px; height: 44px; }
+  .checklist-retry { min-width: 44px; min-height: 44px; }
 }
 
 .tc-actions {
