@@ -7,9 +7,11 @@ scope; `DESIGN.md` is the intended style and interaction authority, amended by c
 direction and delegated Director Decisions in `docs/decisions.md` (DD-MVP). `REDESIGN.md` supersedes historical
 page-composition constraints only where it records current owner decisions; it does not authorize
 unrelated palette or token drift, or certify the current implementation. Retired interaction
-prescriptions must not override the current DD-MVP acceptance criteria. The current
-MVP recovery checkpoint is scoped by `docs/plans/2026-09-14-mvp-recovery.md` to Tasks, Café WIP
-production and Signals without changing the approved Home composition. Use bounded isolated
+prescriptions must not override the current DD-MVP acceptance criteria. The active MVP acceptance
+work is scoped by `docs/plans/2026-09-14-mvp-acceptance.md` and DD-MVP to Tasks, Café WIP
+production and Signals without changing the approved Home composition.
+`docs/plans/2026-09-14-mvp-recovery.md` is the historical one-hour checkpoint; its time fences
+and pending statements do not govern this continuation. Use bounded isolated
 workers, integrate running surfaces, and review the result against actual user outcomes. Preserve
 business/security contracts and public-write safeguards.
 

@@ -1353,9 +1353,17 @@ The route/component/style seam inventory behind this contract — existing bespo
 ## MVP interaction acceptance (DD-MVP-3 through DD-MVP-6)
 
 A feature passes design acceptance only after its real persisted journey and denied/read-only path
-are checked with the relevant roles. Review Tasks create/edit/complete/return, Café Plan/Log/Review/
-Stock and existing Pushes, and Signals post/recipient Inbox/link Task/retract. Record which behavior
-was observed in the browser and which is supported only by a unit test, database test or source read.
+are checked with the relevant roles. Use the explicit acceptance matrix:
+
+| Feature | Required persisted journey | Authority and recovery checks |
+| --- | --- | --- |
+| Tasks | Discover the relevant queue, filter/search, create, open from the queue, edit, complete and return with queue context. | Contributor and supervisor/director; unrelated/read-only record denies editing; invalid input preserves the draft and identifies the correction. |
+| Café WIP | Select an affiliated producing stream, save a plan, log production, approve in Review, observe the correct stock consequence and reach the existing Pushes handoff. | Permitted contributor and reviewer; unaffiliated/non-producing/read-only cases remain honest; validation/retry preserves entered work. |
+| Signals | Post to an allowed audience, observe recipient Inbox delivery, open, create/link a Task and return, retract with reason and observe the tombstone. | Permitted author/lead and denied non-author path under current authority; failure preserves the post or task draft. |
+
+Record which behavior was observed in the browser and which is supported only by a unit test,
+database test or source read. The local active evidence ledger is
+`docs/plans/2026-09-14-mvp-acceptance.md`; its role/state rows cannot be closed by a happy-path-only check.
 
 Inspect desktop and 390px phone layouts with opened controls, long names, translated labels,
 text enlargement, loading, empty, validation/error/retry and keyboard focus states. Full values and
