@@ -2,11 +2,14 @@
 
 ## Active Home and Tasks replacement
 
-For Home and Tasks redesign, `REDESIGN.md` is the current design and delivery authority.
-It supersedes historical presentation constraints and the ticket factory sequence for this effort.
-Use bounded isolated workers, integrate running surfaces, and review the result against actual
-user outcomes. Preserve business/security contracts and public-write safeguards. Historical
-DESIGN.md rules are reference only where this replacement brief changes them.
+For Home and Tasks composition, `REDESIGN.md` is the current owner-composition brief and delivery
+scope; `DESIGN.md` remains binding style authority. `REDESIGN.md` supersedes historical
+page-composition constraints only where it records current owner decisions; it does not authorize
+palette, token or interaction-grammar drift, or certify the current implementation. The current
+MVP recovery checkpoint is scoped by `docs/plans/2026-09-14-mvp-recovery.md` to Tasks, Café WIP
+production and Signals without changing the approved Home composition. Use bounded isolated
+workers, integrate running surfaces, and review the result against actual user outcomes. Preserve
+business/security contracts and public-write safeguards.
 
 
 > ## ⚠️ THIS REPO IS PUBLIC — `github.com/ariefsaid/gordi-mos`

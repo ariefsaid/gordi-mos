@@ -58,7 +58,9 @@ correct superseded requirements; local plans supplement the tracker. A resolved 
 its decision ticket, not the implementation ticket. The separate Codex task lane changes the
 executor, not these tracking or review obligations. Scope frontier work to this active brief.
 
-One design owner specifies the whole experience; isolated workers implement Home and Tasks.
+One design owner specifies the whole experience; native isolated workers implement the current
+MVP lanes — Tasks, Café WIP production and Signals — while preserving the approved Home
+composition.
 Integrate running application components before judging the result. Review desktop and phone
 composition and drive the actual interactions. Fix findings together, then confirm affected
 paths. A design may be restructured or replaced without another owner interview.
@@ -68,7 +70,7 @@ behavior and record the reason; never disable business safeguards to obtain gree
 Typecheck, relevant tests, lint and build support correctness. Independent design/spec, code
 quality and security review support acceptance. Neither automated checks nor source inspection
 prove a visually successful redesign. The final evidence must include rendered comparisons
-and working journeys for both Home and Tasks.
+and working journeys for the three-feature MVP and any shared Home seam it touches.
 
 Workers run checks scoped to their changes; the integrated application owns the full test
 battery. Bound local test concurrency when tasks share a machine. Normal commit hooks still
