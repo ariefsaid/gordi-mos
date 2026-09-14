@@ -315,7 +315,7 @@ export const ErrorState: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await waitFor(() => expect(canvas.getByText('The task collection could not be loaded.')).toBeVisible())
-    await expect(canvas.getByRole('button', { name: /retry/i })).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Try again' })).toBeVisible()
   },
 }
 

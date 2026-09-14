@@ -358,7 +358,8 @@ export const OptionEagerCommit: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Edit Status' }))
-    await userEvent.selectOptions(canvas.getByLabelText('Status'), 'In Progress')
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Status' }))
+    await userEvent.click(within(canvasElement.ownerDocument.body).getByRole('option', { name: 'In Progress' }))
     const field = canvasElement.querySelector('[data-field-key="status"]')
     await waitFor(() => expect(field?.getAttribute('data-mode')).toBe('view'))
     expect(canvasElement.querySelector('.record-field__pill')).toHaveTextContent('In Progress')
@@ -387,10 +388,11 @@ export const OptionErrorRevertsSelection: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Edit PIC' }))
-    await userEvent.selectOptions(canvas.getByLabelText('PIC'), 'p-budi')
+    await userEvent.click(canvas.getByRole('combobox', { name: 'PIC' }))
+    await userEvent.click(within(canvasElement.ownerDocument.body).getByRole('option', { name: 'Budi Santoso' }))
     await waitFor(() => expect(canvas.getByRole('alert')).toHaveTextContent("Couldn't save — try again."))
     // The failed choice is not left selected — the picker shows the saved baseline again.
-    expect(canvas.getByLabelText('PIC')).toHaveValue('p-aisyah')
+    expect(canvas.getByRole('combobox', { name: 'PIC' })).toHaveTextContent('Aisyah Rahman')
     await expect(canvas.getByRole('button', { name: 'Retry' })).toBeVisible()
   },
 }

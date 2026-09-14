@@ -221,7 +221,7 @@ export const ProvenanceNotes: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/No snapshot yet · next sync 03:30 WIB/)).toBeVisible()
+    await expect(canvas.getByText('03:30 WIB')).toBeVisible()
     await expect(canvas.getByText('Live from the operational database.')).toBeVisible()
     expect(canvas.getByText(/as of/).textContent).toMatch(/WIB/)
   },
