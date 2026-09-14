@@ -17,7 +17,7 @@ import {
   ReportWriter,
   validateArtifactSet,
 } from './report.ts'
-import { MUTATION_FIXTURES, evaluateMutationFixture } from './measurements.ts'
+import { MUTATION_FIXTURES, evaluateMutationFixture, parseCssColor } from './measurements.ts'
 
 test('the design manifest covers every required dimension and declares complete rules', () => {
   const result = validateManifest(DESIGN_QUALITY_MANIFEST)
@@ -106,4 +106,11 @@ test('each planted fixture defect makes its owning rule fail with the expected r
     assert.equal(result.ruleId, fixture.ruleId)
     assert.equal(result.passed, false, `${fixture.ruleId} mutation was not detected`)
   }
+})
+
+test('computed CSS colors include modern sRGB and Display-P3 syntax', () => {
+  assert.deepEqual(parseCssColor('color(srgb 0.2 0.4 0.6)'), [51, 102, 153])
+  const displayP3 = parseCssColor('color(display-p3 0.145 0.141 0.133)')
+  assert.ok(displayP3)
+  assert.ok(displayP3.every((channel) => Number.isFinite(channel) && channel >= 0 && channel <= 255))
 })

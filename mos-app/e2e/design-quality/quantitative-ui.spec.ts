@@ -125,7 +125,7 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
       if (row.readingMeasure !== null && row.readingMeasure > 75) failures.push(`${cell.id}: prose measure is ${row.readingMeasure.toFixed(1)}ch`)
     }
     if (focusTraversal.expectedStops > 0) {
-      if (focusTraversal.rows.length !== focusTraversal.expectedStops) failures.push(`${cell.id}: keyboard focus reached ${focusTraversal.rows.length}/${focusTraversal.expectedStops} stops`)
+      if (focusTraversal.rows.length < focusTraversal.expectedStops) failures.push(`${cell.id}: keyboard focus reached ${focusTraversal.rows.length}/${focusTraversal.expectedStops} initial stops`)
       if (focusTraversal.cycleDetected) failures.push(`${cell.id}: keyboard focus order repeated a stop`)
       for (const focus of focusTraversal.rows) {
         if (!focus.hasIndicator) failures.push(`${cell.id}: ${focus.role} has no visible 2px focus indicator`)

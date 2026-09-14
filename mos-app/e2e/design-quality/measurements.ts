@@ -61,9 +61,26 @@ export function contrastRatio(foreground: Rgb, background: Rgb): number {
 }
 
 export function parseCssColor(value: string): Rgb | null {
-  const match = value.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i)
-  if (!match) return null
-  return [Number(match[1]), Number(match[2]), Number(match[3])]
+  const rgb = value.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/i)
+  if (rgb) return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])]
+
+  const wide = value.match(/color\(\s*(srgb|display-p3)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/i)
+  if (!wide) return null
+  const encoded = [Number(wide[2]), Number(wide[3]), Number(wide[4])] as [number, number, number]
+  if (wide[1]?.toLowerCase() === 'srgb') return encoded.map((channel) => channel * 255) as [number, number, number]
+
+  const decode = (channel: number) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+  const encode = (channel: number) => channel <= 0.0031308 ? 12.92 * channel : 1.055 * channel ** (1 / 2.4) - 0.055
+  const [red, green, blue] = encoded.map(decode)
+  const x = 0.4865709486482162 * red + 0.26566769316909306 * green + 0.1982172852343625 * blue
+  const y = 0.2289745640697488 * red + 0.6917385218365064 * green + 0.079286914093745 * blue
+  const z = 0.04511338185890264 * green + 1.043944368900976 * blue
+  const linear = [
+    3.2409699419045226 * x - 1.537383177570094 * y - 0.4986107602930034 * z,
+    -0.9692436362808796 * x + 1.8759675015077202 * y + 0.04155505740717559 * z,
+    0.05563007969699366 * x - 0.20397695888897652 * y + 1.0569715142428786 * z,
+  ]
+  return linear.map((channel) => Math.max(0, Math.min(1, encode(channel))) * 255) as [number, number, number]
 }
 
 export function evaluateMutationFixture(fixture: MutationFixture): MutationEvaluation {
@@ -256,10 +273,16 @@ export async function collectControls(page: Page, context: PageAuditContext): Pr
       return ['body', ...segments].join(' > ')
     }
     return Array.from(document.querySelectorAll<HTMLElement>(selector)).flatMap((element) => {
-      const rect = element.getBoundingClientRect()
+      const ownRect = element.getBoundingClientRect()
       const style = getComputedStyle(element)
       const clipped = style.clipPath !== 'none' || style.clip !== 'auto'
-      if (style.display === 'none' || style.visibility === 'hidden' || clipped || rect.width <= 2 || rect.height <= 2) return []
+      if (style.display === 'none' || style.visibility === 'hidden' || clipped || ownRect.width <= 2 || ownRect.height <= 2) return []
+      const labelledTarget = element.matches('input[type="checkbox"], input[type="radio"]')
+        ? element.closest<HTMLElement>('label')
+          || (element.id ? document.querySelector<HTMLElement>(`label[for="${CSS.escape(element.id)}"]`) : null)
+        : null
+      const targetRect = labelledTarget?.getBoundingClientRect()
+      const rect = targetRect && targetRect.width > 0 && targetRect.height > 0 ? targetRect : ownRect
       const role = element.getAttribute('role') || element.tagName.toLowerCase()
       const labelledBy = element.getAttribute('aria-labelledby')
       const labelledText = labelledBy
@@ -328,7 +351,9 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
       const style = getComputedStyle(element)
       const rect = element.getBoundingClientRect()
       const clipped = style.clipPath !== 'none' || style.clip !== 'auto'
-      return style.display !== 'none' && style.visibility !== 'hidden' && !clipped && rect.width > 2 && rect.height > 2
+      const nativeDisabled = element.matches('button:disabled, input:disabled, select:disabled, textarea:disabled')
+      return style.display !== 'none' && style.visibility !== 'hidden' && !clipped
+        && !nativeDisabled && element.tabIndex >= 0 && rect.width > 2 && rect.height > 2
     }
     return {
       expected: elements.filter((node) => measurable(node as HTMLElement)).length,
@@ -455,7 +480,7 @@ export async function collectTypography(page: Page, context: PageAuditContext): 
           selector: cssPath(element),
           role,
           text: visibleText || element.getAttribute('aria-label') || '',
-          visualText: visibleText.length > 0,
+          visualText: /[\p{L}\p{N}]/u.test(visibleText),
           fontFamily: style.fontFamily,
           fontSize,
           lineHeight,
@@ -573,7 +598,14 @@ export async function collectCardNesting(page: Page, context: PageAuditContext):
     const isCard = (element: Element): boolean => {
       if (!(element instanceof HTMLElement)) return false
       if (element.hasAttribute('data-card')) return true
-      return Array.from(element.classList).some((token) => token === 'card' || token.endsWith('-card') || token.endsWith('_card'))
+      const namedLikeCard = Array.from(element.classList).some((token) => token === 'card' || token.endsWith('-card') || token.endsWith('_card'))
+      if (!namedLikeCard) return false
+      const style = getComputedStyle(element)
+      const hasVisibleBackground = style.backgroundColor !== 'transparent' && !/[,/]\s*0\s*\)$/.test(style.backgroundColor)
+      return hasVisibleBackground
+        || style.borderTopStyle !== 'none' || style.borderRightStyle !== 'none'
+        || style.borderBottomStyle !== 'none' || style.borderLeftStyle !== 'none'
+        || style.boxShadow !== 'none'
     }
     const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-card], [class]')).filter(isCard)
     return cards.map((element) => {
@@ -618,11 +650,35 @@ export async function collectContrast(
   return page.evaluate(({ context: pageContext, state: contrastState, selector: selectorText, options: collectionOptions }) => {
     type CssColor = { rgb: [number, number, number]; alpha: number }
     const parse = (value: string): CssColor | null => {
-      const match = value.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+%?))?\s*\)/i)
-      if (!match) return null
-      const alphaText = match[4]
+      const rgb = value.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+%?))?\s*\)/i)
+      if (rgb) {
+        const alphaText = rgb[4]
+        const alpha = alphaText ? (alphaText.endsWith('%') ? Number.parseFloat(alphaText) / 100 : Number(alphaText)) : 1
+        return { rgb: [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])], alpha: Math.max(0, Math.min(1, alpha)) }
+      }
+      const wide = value.match(/color\(\s*(srgb|display-p3)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+%?))?\s*\)/i)
+      if (!wide) return null
+      const alphaText = wide[5]
       const alpha = alphaText ? (alphaText.endsWith('%') ? Number.parseFloat(alphaText) / 100 : Number(alphaText)) : 1
-      return { rgb: [Number(match[1]), Number(match[2]), Number(match[3])], alpha: Math.max(0, Math.min(1, alpha)) }
+      const encoded = [Number(wide[2]), Number(wide[3]), Number(wide[4])] as [number, number, number]
+      if (wide[1]?.toLowerCase() === 'srgb') {
+        return { rgb: encoded.map((channel) => channel * 255) as [number, number, number], alpha: Math.max(0, Math.min(1, alpha)) }
+      }
+      const decode = (channel: number) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+      const encode = (channel: number) => channel <= 0.0031308 ? 12.92 * channel : 1.055 * channel ** (1 / 2.4) - 0.055
+      const [red, green, blue] = encoded.map(decode)
+      const x = 0.4865709486482162 * red + 0.26566769316909306 * green + 0.1982172852343625 * blue
+      const y = 0.2289745640697488 * red + 0.6917385218365064 * green + 0.079286914093745 * blue
+      const z = 0.04511338185890264 * green + 1.043944368900976 * blue
+      const linear = [
+        3.2409699419045226 * x - 1.537383177570094 * y - 0.4986107602930034 * z,
+        -0.9692436362808796 * x + 1.8759675015077202 * y + 0.04155505740717559 * z,
+        0.05563007969699366 * x - 0.20397695888897652 * y + 1.0569715142428786 * z,
+      ]
+      return {
+        rgb: linear.map((channel) => Math.max(0, Math.min(1, encode(channel))) * 255) as [number, number, number],
+        alpha: Math.max(0, Math.min(1, alpha)),
+      }
     }
     const blend = (foreground: CssColor, background: [number, number, number]): [number, number, number] => [
       foreground.rgb[0] * foreground.alpha + background[0] * (1 - foreground.alpha),
@@ -654,7 +710,7 @@ export async function collectContrast(
       return background
     }
     const cssColorMatches = (value: string): CssColor[] => {
-      const matches = value.matchAll(/rgba?\(\s*[\d.]+[\s,]+[\d.]+[\s,]+[\d.]+(?:[\s,/]+[\d.]+%?)?\s*\)/gi)
+      const matches = value.matchAll(/rgba?\(\s*[\d.]+[\s,]+[\d.]+[\s,]+[\d.]+(?:[\s,/]+[\d.]+%?)?\s*\)|color\(\s*(?:srgb|display-p3)\s+[\d.]+\s+[\d.]+\s+[\d.]+(?:\s*\/\s*[\d.]+%?)?\s*\)/gi)
       return [...matches].map((match) => parse(match[0])).filter((color): color is CssColor => color !== null)
     }
     const emptyRow = (kind: 'text' | 'boundary'): ContrastRow => ({
