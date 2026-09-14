@@ -15,7 +15,7 @@ bad()  { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 # Scratch repo shaped like this one: scripts/ + mos-app/, npm stubbed on PATH.
 git init -q "$tmp/repo"
 git -C "$tmp/repo" config user.email t@t && git -C "$tmp/repo" config user.name t
-mkdir -p "$tmp/repo/scripts" "$tmp/repo/mos-app" "$tmp/bin"
+mkdir -p "$tmp/repo/scripts" "$tmp/repo/mos-app/src" "$tmp/bin"
 # The whole scripts/ dir, not just the script under test: the battery now also runs the python
 # side (scripts/reporting-snapshot.test.sh), and stubbing that away would make this self-test
 # green over a step it never exercised.
@@ -23,6 +23,10 @@ cp -R "$(pwd)/scripts/." "$tmp/repo/scripts/"
 echo x > "$tmp/repo/f"; git -C "$tmp/repo" add -A; git -C "$tmp/repo" commit -qm init
 HEAD=$(git -C "$tmp/repo" rev-parse HEAD)
 STAMP="$tmp/repo/.git/pre-pr-verify-ok"
+# The production guard resolves origin/dev before it can scope the battery. Give the scratch
+# repository the same base contract so these cases exercise their intended branches instead of
+# all failing at the base-resolution gate.
+git -C "$tmp/repo" update-ref refs/remotes/origin/dev "$HEAD"
 
 printf '#!/bin/sh\nexit 0\n' > "$tmp/bin/npm"; chmod +x "$tmp/bin/npm"
 run() { (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" bash scripts/pre-pr-verify.sh) >/dev/null 2>&1; }
@@ -223,7 +227,7 @@ scope_case() { # $1 name · $2 file-to-change · $3 expect-npm yes/no
 # Manufacture the base ref the scoping reads — a skip here would be a can't-fail check.
 G update-ref refs/remotes/origin/dev "$(G rev-parse HEAD)"
 scope_case "docs/scripts-only diff skips the npm lane" "scripts/some-guard.sh" no
-scope_case "mos-app diff runs the npm lane" "mos-app/src/thing.ts" yes
+scope_case "mos-app diff runs the npm lane" "mos-app/vite.config.ts" yes
 scope_case "supabase diff runs the npm lane" "supabase/migrations/x.sql" yes
 scope_case "UNRECOGNIZED path runs the lane (allowlist polarity, rename-out class)" "shared/mod.ts" yes
 # The SIGPIPE regression: a >64KB path list with ONE unlisted path must still run the lane —
@@ -255,6 +259,7 @@ G rm -q mos-app/src/impeccable-red.css; G commit -qm "remove impeccable finding"
 # do the same: scan all tracked production UI rather than silently skipping Impeccable.
 G update-ref -d refs/remotes/origin/dev
 rm -f "$tmp/npm-calls" "$STAMP"
+mkdir -p "$tmp/repo/mos-app/src"
 cat > "$tmp/repo/mos-app/src/impeccable-no-base-red.css" <<'CSS'
 .generated-card { font-family: Inter, sans-serif; }
 CSS
