@@ -32,15 +32,16 @@ insert into shared.teams (id, org_id, business_unit_id, name, code) values
   ('00000000-0000-0000-0000-00000000aa13','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','Gate Org Team','gate_org_team');
 
 insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
-select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d4', t.id, true
+select '00000000-0000-0000-0000-0000000000a1'::uuid, '00000000-0000-0000-0000-0000000000d4'::uuid, t.id, true
 from shared.teams t
 where t.org_id = '00000000-0000-0000-0000-0000000000a1' and t.code = 'gordi_hq_bar'
-union all
-select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d1',
-       '00000000-0000-0000-0000-00000000aa13', true;
+;
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary) values
+  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d1',
+   '00000000-0000-0000-0000-00000000aa13',true);
 -- Report ...0d5: a stream membership that ENDED yesterday — history, not affiliation.
 insert into shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from, effective_to)
-select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d5', t.id, true,
+select '00000000-0000-0000-0000-0000000000a1'::uuid, '00000000-0000-0000-0000-0000000000d5'::uuid, t.id, true,
        current_date - 10, current_date - 1
 from shared.teams t
 where t.org_id = '00000000-0000-0000-0000-0000000000a1' and t.code = 'gordi_hq_bar';

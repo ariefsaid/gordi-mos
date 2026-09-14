@@ -106,10 +106,10 @@ select is((select count(*)::int from mos.process_runs
               and owning_team_id = '00000000-0000-0000-0000-00000000cc02'
               and period_key = to_char((now() at time zone 'Asia/Jakarta')::date + 4, 'YYYY-MM-DD')), 1,
   'the override still preserves one canonical occurrence per period');
-select is((select count(*)::int from mos.cafe_opening_branches()), 2,
-  'the saved member org grant makes both canonical branch openings visible');
-select is((select count(*)::int from mos.due_process_runs() where process_name = 'Café Opening'), 1,
-  'the due surface follows the saved matrix and exposes the still-unstarted canonical branch');
+select is((select count(*)::int from mos.cafe_opening_branches()), 3,
+  'the saved member org grant makes every canonical branch opening in the seeded catalog visible');
+select is((select count(*)::int from mos.due_process_runs() where process_name = 'Café Opening'), 2,
+  'the due surface follows the saved matrix and exposes both still-unstarted canonical branches');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
 select shared.save_role_authority('[{"action":"process.start","role":"member","scope":"own_team"}]'::jsonb);
