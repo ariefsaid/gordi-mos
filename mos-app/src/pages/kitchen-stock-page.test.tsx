@@ -82,8 +82,8 @@ function viewer(accessRoles: string[]): AuthState {
 const BRANCH_GHQ = { id: 'branch-ghq', code: 'gordi_hq', name: 'Gordi HQ' }
 const BRANCH_RR = { id: 'branch-rr', code: 'rumah_rames', name: 'Rumah Rames' }
 const BRANCH_RAD = { id: 'branch-rad', code: 'radiant', name: 'Radiant' }
-const CENTRAL_KITCHEN = { branch: BRANCH_RR, activity: 'kitchen' as const }
-const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const }
+const CENTRAL_KITCHEN = { branch: BRANCH_RR, activity: 'kitchen' as const, produces: true }
+const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const, produces: true }
 
 const STOCK_ROWS: KitchenStockRow[] = [
   { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 12, tersedia: 8 },
@@ -95,8 +95,8 @@ const STOCK_ROWS: KitchenStockRow[] = [
 // fixture is not grown for it. The roastery is deliberately absent even though it is a branch: it
 // is never a stream.
 const STREAM_PAIRS = [BRANCH_GHQ, BRANCH_RAD, BRANCH_RR].flatMap(b => [
-  { branch_id: b.id, activity: 'kitchen' as const },
-  { branch_id: b.id, activity: 'bar' as const },
+  { branch_id: b.id, activity: 'kitchen' as const, produces: b !== BRANCH_RAD },
+  { branch_id: b.id, activity: 'bar' as const, produces: true },
 ])
 
 /** The head picker's option value for a stream — what a switch fires. */
@@ -262,12 +262,12 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     chooseStream('Radiant · Kitchen')
     await waitFor(() => expect(mockFetchStock).toHaveBeenCalledTimes(2))
     const [, stream] = mockFetchStock.mock.calls[1]
-    expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen' })
+    expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen', produces: false })
 
     chooseStream('Radiant · Bar')
     await waitFor(() => expect(mockFetchStock).toHaveBeenCalledTimes(3))
     const [, streamAfterActivity] = mockFetchStock.mock.calls[2]
-    expect(streamAfterActivity).toEqual({ branch: BRANCH_RAD, activity: 'bar' })
+    expect(streamAfterActivity).toEqual({ branch: BRANCH_RAD, activity: 'bar', produces: true })
   })
 
   it('stale-response race: a SLOWER older fetch resolving last never overwrites the newer stream\'s rows', async () => {
@@ -313,7 +313,7 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     chooseStream('Radiant · Kitchen')
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     const [, stream] = mockFetchStock.mock.calls[1]
-    expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen' })
+    expect(stream).toEqual({ branch: BRANCH_RAD, activity: 'kitchen', produces: false })
   })
 
   // INVERTED by #238's owner ruling (CONTEXT.md, Production stream). #237 shipped this surface

@@ -29,10 +29,10 @@ const BRANCH_RR = { id: 'b-rr', code: 'rumah_rames', name: 'Rumah Rames' }
 const BRANCH_RAD = { id: 'b-rad', code: 'radiant', name: 'Radiant' }
 const BRANCHES = [BRANCH_RAD, BRANCH_RR]
 const PAIRS = BRANCHES.flatMap(b => [
-  { branch_id: b.id, activity: 'kitchen' as const },
-  { branch_id: b.id, activity: 'bar' as const },
+  { branch_id: b.id, activity: 'kitchen' as const, produces: b !== BRANCH_RAD },
+  { branch_id: b.id, activity: 'bar' as const, produces: true },
 ])
-const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const }
+const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const, produces: true }
 
 beforeEach(() => {
   vi.clearAllMocks()
