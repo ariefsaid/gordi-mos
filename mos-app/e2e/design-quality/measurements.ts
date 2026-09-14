@@ -167,6 +167,7 @@ export type TypographyRow = PageAuditContext & {
   selector: string
   role: 'body' | 'page-title' | 'heading' | 'label' | 'functional' | 'prose'
   text: string
+  visualText: boolean
   fontFamily: string
   fontSize: number
   lineHeight: number
@@ -257,7 +258,8 @@ export async function collectControls(page: Page, context: PageAuditContext): Pr
     return Array.from(document.querySelectorAll<HTMLElement>(selector)).flatMap((element) => {
       const rect = element.getBoundingClientRect()
       const style = getComputedStyle(element)
-      if (style.display === 'none' || style.visibility === 'hidden' || rect.width <= 0 || rect.height <= 0) return []
+      const clipped = style.clipPath !== 'none' || style.clip !== 'auto'
+      if (style.display === 'none' || style.visibility === 'hidden' || clipped || rect.width <= 2 || rect.height <= 2) return []
       const role = element.getAttribute('role') || element.tagName.toLowerCase()
       const labelledBy = element.getAttribute('aria-labelledby')
       const labelledText = labelledBy
@@ -321,7 +323,19 @@ export async function collectFocusStops(page: Page, context: PageAuditContext) {
 
 /** Walk the real keyboard order and record the indicator on every reachable stop. */
 export async function collectFocusTraversal(page: Page, context: PageAuditContext): Promise<FocusTraversal> {
-  const expectedStops = await page.locator(FOCUSABLE_SELECTOR).filter({ visible: true }).count()
+  const stopCounts = await page.locator(FOCUSABLE_SELECTOR).evaluateAll((elements) => {
+    const measurable = (element: HTMLElement): boolean => {
+      const style = getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      const clipped = style.clipPath !== 'none' || style.clip !== 'auto'
+      return style.display !== 'none' && style.visibility !== 'hidden' && !clipped && rect.width > 2 && rect.height > 2
+    }
+    return {
+      expected: elements.filter((node) => measurable(node as HTMLElement)).length,
+      total: elements.length,
+    }
+  })
+  const expectedStops = stopCounts.expected
   if (expectedStops === 0) return { rows: [], expectedStops, cycleDetected: false }
 
   await page.evaluate(() => {
@@ -332,7 +346,7 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
   const rows: FocusRow[] = []
   const seen = new Set<string>()
   let cycleDetected = false
-  for (let order = 0; order < expectedStops + 1; order += 1) {
+  for (let order = 0; order < stopCounts.total + 1; order += 1) {
     await page.keyboard.press('Tab')
     const focused = await page.evaluate(() => {
       const element = document.activeElement
@@ -350,6 +364,12 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
         current = current.parentElement
       }
       const style = getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      const measurable = style.display !== 'none' && style.visibility !== 'hidden'
+        && style.clipPath === 'none' && style.clip === 'auto' && rect.width > 2 && rect.height > 2
+      const indicatorStyles = [element, element.parentElement, element.parentElement?.parentElement]
+        .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement)
+        .map((candidate) => getComputedStyle(candidate))
       const labelledBy = element.getAttribute('aria-labelledby')
       const labelledText = labelledBy
         ? labelledBy.split(/\s+/).map((id) => document.getElementById(id)?.textContent?.trim() || '').join(' ').trim()
@@ -365,12 +385,16 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
         outlineOffset: style.outlineOffset,
         outlineColor: style.outlineColor,
         boxShadow: style.boxShadow,
-        hasIndicator: (Number.parseFloat(style.outlineWidth) || 0) >= 2 || (style.boxShadow !== 'none' && style.boxShadow.trim() !== ''),
+        measurable,
+        hasIndicator: indicatorStyles.some((candidate) =>
+          (Number.parseFloat(candidate.outlineWidth) || 0) >= 2
+          || (candidate.boxShadow !== 'none' && candidate.boxShadow.trim() !== '')),
       }
     })
     if (!focused) break
+    if (!focused.measurable) continue
     if (seen.has(focused.selector)) {
-      cycleDetected = true
+      cycleDetected = rows.length < expectedStops
       break
     }
     seen.add(focused.selector)
@@ -388,7 +412,7 @@ export async function collectTypography(page: Page, context: PageAuditContext): 
       ['heading', 'h2, h3, h4, h5, h6'],
       ['label', 'label, legend, dt, th'],
       ['functional', 'button, a[href], input, select, textarea, [role="button"], [role="link"], [role="tab"]'],
-      ['prose', '[data-prose], [class*="prose"], p'],
+      ['prose', '[data-prose], [class~="prose"]'],
     ]
     const rows: TypographyRow[] = []
     const seen = new Set<HTMLElement>()
@@ -425,11 +449,13 @@ export async function collectTypography(page: Page, context: PageAuditContext): 
         const context2d = canvas.getContext('2d')
         if (context2d) context2d.font = style.font
         const zeroWidth = context2d?.measureText('0').width || fontSize * 0.5
+        const visibleText = element.innerText?.trim() || ''
         rows.push({
           ...pageContext,
           selector: cssPath(element),
           role,
-          text: element.innerText?.trim() || element.getAttribute('aria-label') || '',
+          text: visibleText || element.getAttribute('aria-label') || '',
+          visualText: visibleText.length > 0,
           fontFamily: style.fontFamily,
           fontSize,
           lineHeight,

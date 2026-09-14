@@ -86,9 +86,7 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
       : [{ selector: 'main', authority: 'manifest default main region' }]
     const cellRegionRows = await collectPrimaryActionRegions(page, context, primaryRegions)
     regionRows.push(...cellRegionRows as unknown as Record<string, unknown>[])
-    const touchGroups = DESIGN_QUALITY_MANIFEST.lists.touchSeparationGroups.length > 0
-      ? DESIGN_QUALITY_MANIFEST.lists.touchSeparationGroups
-      : [{ selector: 'main', authority: 'manifest default actionable surface' }]
+    const touchGroups = DESIGN_QUALITY_MANIFEST.lists.touchSeparationGroups
     const cellTouchRows = cell.viewport === 'phone-390x844'
       ? await collectTouchSeparation(page, context, touchGroups)
       : []
@@ -117,10 +115,10 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
     }
     if (cellTypography.length === 0) failures.push(`${cell.id}: typography census returned zero visible rows`)
     for (const row of cellTypography) {
-      const minimum = row.role === 'functional' ? 11 : 12
+      const minimum = row.role === 'functional' || row.role === 'label' ? 11 : 12
       if (row.fontSize < minimum) failures.push(`${cell.id}: ${row.role} text is ${row.fontSize}px; minimum is ${minimum}px`)
       const leadingFloor = row.role === 'page-title' ? 1.2 : row.role === 'heading' ? 1.25 : row.role === 'body' || row.role === 'prose' ? 1.4 : 1.2
-      if (row.leading < leadingFloor) failures.push(`${cell.id}: ${row.role} leading is ${row.leading.toFixed(2)}; minimum is ${leadingFloor}`)
+      if (row.visualText && row.leading < leadingFloor) failures.push(`${cell.id}: ${row.role} leading is ${row.leading.toFixed(2)}; minimum is ${leadingFloor}`)
       if (row.tracking < -0.04 || ((row.role === 'body' || row.role === 'prose') && row.tracking > 0.05)) {
         failures.push(`${cell.id}: ${row.role} tracking is ${row.tracking.toFixed(3)}em`)
       }

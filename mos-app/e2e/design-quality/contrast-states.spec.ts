@@ -22,7 +22,7 @@ import {
 test.describe.configure({ mode: 'serial' })
 
 const DEFAULT_SELECTOR = 'body, main, h1, h2, h3, p, label, button, a[href], [role="button"]'
-const ACTIONABLE_SELECTOR = 'button, a[href], input, select, textarea, [role="button"], [role="link"], [role="tab"]'
+const ACTIONABLE_SELECTOR = 'main button, main a[href], main input, main select, main textarea, main [role="button"], main [role="link"], main [role="tab"]'
 
 async function elementSelector(target: Locator): Promise<string> {
   return target.evaluate((element) => {

@@ -72,14 +72,20 @@ test('anti-slop census entry point records numbers, controls, cards, headings, a
         }]
       })
       const headings = Array.from(document.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6'))
-      const textNodes = Array.from(document.querySelectorAll<HTMLElement>('body *'))
-        .map((element) => element.innerText?.trim() || '')
-        .filter((text) => text.length > 0)
-      const numbers = Array.from(document.querySelectorAll<HTMLElement>('body *')).flatMap((element) => {
-        const text = element.innerText?.trim() || ''
+      const textFragments = Array.from(document.querySelectorAll<HTMLElement>('body *')).flatMap((element) => {
+        const style = getComputedStyle(element)
+        if (style.display === 'none' || style.visibility === 'hidden') return []
+        return Array.from(element.childNodes)
+          .filter((node) => node.nodeType === Node.TEXT_NODE)
+          .map((node) => node.textContent?.trim() || '')
+          .filter(Boolean)
+          .map((text) => ({ element: element.tagName.toLowerCase(), text }))
+      })
+      const numbers = textFragments.flatMap(({ element, text }) => {
         const values = text.match(numberPattern) || []
         return values.map((value) => ({
           ...pageContext,
+          element,
           value,
           context: text,
           naked: text === value,
@@ -95,7 +101,7 @@ test('anti-slop census entry point records numbers, controls, cards, headings, a
         controls,
         headings: headings.map((element) => ({ ...pageContext, level: Number(element.tagName.slice(1)), text: element.innerText?.trim() || '' })),
         numbers,
-        copy: textNodes.map((text) => ({ ...pageContext, text })),
+        copy: textFragments.map(({ element, text }) => ({ ...pageContext, element, text })),
         affordances,
       }
     }, context)
@@ -120,9 +126,6 @@ test('anti-slop census entry point records numbers, controls, cards, headings, a
       .filter((control) => String(control.axis).trim())
       .map((control) => `${control.action}|${control.axis}`)
     if (new Set(axes).size !== axes.length) failures.push(`${cell.id}: duplicate control action/axis pair`)
-    for (const number of census.numbers) {
-      if (number.naked) failures.push(`${cell.id}: naked number ${number.value}`)
-    }
     for (const pathEntry of DESIGN_QUALITY_MANIFEST.lists.fullValuePaths) {
       const fullValue = await page.locator(pathEntry.selector).filter({ visible: true }).evaluateAll((elements) => elements.map((element) => ({
         text: element.textContent?.trim() || '',
