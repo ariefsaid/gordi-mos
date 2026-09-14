@@ -20,4 +20,10 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
       /\.collection-toolbar__picker-trigger > span \{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap;/s,
     )
   })
+
+  it('gives inactive view controls a quiet visible hover state', () => {
+    expect(css).toMatch(
+      /\.collection-toolbar__view:not\(\.collection-toolbar__view--active\):hover\s*\{[^}]*background:\s*var\(--surface-tertiary\);[^}]*color:\s*var\(--foreground\);/s,
+    )
+  })
 })

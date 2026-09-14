@@ -314,7 +314,10 @@ export function CollectionToolbar<
                       aria-expanded={openPopoverId === filter.id}
                       onClick={() => setOpenPopoverId(openPopoverId === filter.id ? null : filter.id)}
                     >
-                      <span className="collection-toolbar__choice-value">{filter.display}</span>
+                      <span className="collection-toolbar__choice-copy">
+                        {isDesktop ? <span className="collection-toolbar__choice-label" aria-hidden="true">{filter.label}</span> : null}
+                        <span className="collection-toolbar__choice-value">{filter.display}</span>
+                      </span>
                       <span className="collection-toolbar__choice-chevron" aria-hidden="true">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="m6 9 6 6 6-6" />

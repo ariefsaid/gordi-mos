@@ -67,7 +67,10 @@
   cursor: pointer;
 }
 
-.collection-toolbar__view:hover { color: var(--foreground); }
+.collection-toolbar__view:not(.collection-toolbar__view--active):hover {
+  background: var(--surface-tertiary);
+  color: var(--foreground);
+}
 .collection-toolbar__view:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 .collection-toolbar__view--saved {
   /* Saved names are user-authored and may be long or unbroken in another locale. Constrain the
@@ -140,6 +143,17 @@
 .collection-toolbar__choice-trigger:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+.collection-toolbar__choice-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.collection-toolbar__choice-label {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  white-space: nowrap;
 }
 .collection-toolbar__choice-value {
   min-width: 0;

@@ -176,7 +176,11 @@ export function ObjectivesPage() {
     : query.coverage === 'no-tasks'
       ? t('catalog.coverage.noTasks')
       : t('catalog.coverage.all')
-  const statusLabel = query.view === 'all' ? t('catalog.includeArchived') : query.view === 'archived' ? t('catalog.view.archived') : t('catalog.view.active')
+  const statusLabel = query.view === 'all'
+    ? t('catalog.view.activeAndArchived')
+    : query.view === 'archived'
+      ? t('catalog.view.archivedOnly')
+      : t('catalog.view.activeOnly')
   const search: CollectionToolbarSearch = {
     label: t('catalog.searchLabel'),
     placeholder: t('catalog.searchPlaceholder'),

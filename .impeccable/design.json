@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-07-29T12:00:00Z",
+  "generatedAt": "2026-09-14T10:21:16.393Z",
   "title": "Design System: Gordi MOS",
   "extensions": {
     "colorMeta": {
@@ -66,7 +66,7 @@
       },
       "border": {
         "role": "neutral",
-        "displayName": "The Single Border",
+        "displayName": "Quiet Structural Border",
         "canonical": "oklch(0.922 0.004 38.0)",
         "tonalRamp": [
           "oklch(0.22 0.004 38)",
@@ -271,6 +271,11 @@
         "purpose": "v4: below this the Café toolbar keeps search + category on one line instead of wrapping."
       },
       {
+        "name": "coarse-pointer-floors",
+        "value": "767.98px",
+        "purpose": "Below this width, segmented tracks and options use an auto height with a 44px minimum; independently, coarse pointers raise rail rows to a 44px target with 8px between adjacent targets."
+      },
+      {
         "name": "table-reflow",
         "value": "768px",
         "purpose": "DataTable switches between the desktop <table> and phone cards (OD-W4-4). Exactly one branch renders. The Home layout picker's 3-up thumbnail grid also drops to one column here — and stays 3-up all the way up: there is deliberately NO intermediate 2-up step. Measured: above this branch the picker's available content width never falls below 720px, and the narrowest point is the branch ITSELF (768px viewport, rail already collapsed, 24px frame gutters). It is not monotonic — the 920px icon-rail regime gives 800px and the 1100px full-rail regime 820px, both wider. At the 720px floor the card's inner width is 720 - 2 x (16px padding + 1px border) = 686px, so each thumbnail measures (686 - 2 x 12px gap) / 3 = ~221px, comfortably above the ~200px at which the CSS wireframes stop reading as diagrams. A 2-up branch would be a breakpoint with no measurement behind it."
@@ -326,15 +331,15 @@
       "refersTo": "button-primary",
       "description": "The one action affordance. The One Blue, kept under ~10% of any screen.",
       "html": "<button class=\"ds-btn-primary\">Submit</button>",
-      "css": ".ds-btn-primary { height: 32px; padding: 0 12px; background: var(--primary); background-image: var(--gradient-primary-sheen); color: var(--primary-foreground); border: 0; border-radius: 8px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 2px color-mix(in srgb, var(--primary) 25%, transparent); transition: background .2s, box-shadow .2s; } .ds-btn-primary:hover { background-image: none; background-color: color-mix(in srgb, var(--primary) 90%, transparent); } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; background-image: none; filter: saturate(.35); }"
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 7px; box-sizing: border-box; height: 32px; padding: 6px 12px; background-color: var(--primary); background-image: var(--gradient-primary-sheen); color: var(--primary-foreground); border: 0; border-radius: var(--radius-sm); font: inherit; font-size: var(--font-size-control); font-weight: 600; cursor: pointer; text-decoration: none; box-shadow: var(--shadow-brand-button); transition: background-color var(--dur-fast) ease, transform var(--dur-fast) ease; } .ds-btn-primary:hover:not(:disabled):not([aria-disabled='true']) { background-image: none; background-color: color-mix(in srgb, var(--primary) 90%, var(--brand-navy) 10%); } .ds-btn-primary:active:not(:disabled) { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; background-image: none; filter: saturate(.35); }"
     },
     {
       "name": "Secondary Button",
       "kind": "button",
-      "refersTo": "button-secondary",
+      "refersTo": "button-outline",
       "description": "Bordered neutral action (.btn .btn-outline). Discard, Cancel, and every non-primary verb — and every door in an AMBIENT region (v4: Home's '+ Signal'), where the action blue would outrank the work the region exists to surface. Pinned by guard-signal-feed-row-fit.test.tsx.",
       "html": "<button class=\"ds-btn-secondary\">Discard</button>",
-      "css": ".ds-btn-secondary { height: 32px; padding: 0 12px; background: var(--background); color: var(--foreground); border: 1px solid var(--input); border-radius: 8px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background .2s; } .ds-btn-secondary:hover { background: var(--accent); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }"
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 7px; box-sizing: border-box; height: 32px; padding: 6px 12px; background: var(--background); color: var(--foreground); border: 1px solid var(--control-border); border-radius: var(--radius-sm); font: inherit; font-size: var(--font-size-control); font-weight: 600; cursor: pointer; text-decoration: none; transition: background-color var(--dur-fast) ease, transform var(--dur-fast) ease; } .ds-btn-secondary:hover:not(:disabled):not([aria-disabled='true']) { background: var(--surface-tertiary); } .ds-btn-secondary:active:not(:disabled) { transform: translateY(1px); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-btn-secondary:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; filter: saturate(.35); }"
     },
     {
       "name": "Ghost Button",
@@ -342,39 +347,63 @@
       "refersTo": "button-ghost",
       "description": "The quietest rank in the ONE button hierarchy (.btn .btn-ghost, ui/Button.css). NOTE the weight: the .btn base is 13.5px/600 but ghost deliberately steps DOWN to 500 — that is the variant's whole point. Recorded 2026-07-29 because both DESIGN.md and a code comment had written the canonical ghost as '13.5px/600'. It is 13.5px/500. A dead standalone .btn-ghost in tasks/TaskSurface.css was silently winning the cascade app-wide (measured on Home: 15px instead of 13.5px) purely because that file loads later; it was deleted (extract, 2026-07-28).",
       "html": "<button class=\"ds-btn-ghost\">Archive</button>",
-      "css": ".ds-btn-ghost { height: 32px; padding: 0 12px; background: transparent; color: var(--muted-foreground); border: 0; border-radius: 8px; font-family: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer; } .ds-btn-ghost:hover { background: var(--accent); color: var(--foreground); } .ds-btn-ghost:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }"
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 7px; box-sizing: border-box; height: 32px; padding: 6px 12px; background: transparent; color: var(--muted-foreground); border: 0; border-radius: var(--radius-sm); font: inherit; font-size: var(--font-size-control); font-weight: 500; cursor: pointer; text-decoration: none; transition: background-color var(--dur-fast) ease, transform var(--dur-fast) ease; } .ds-btn-ghost:hover:not(:disabled):not([aria-disabled='true']) { background: var(--surface-tertiary); color: var(--foreground); } .ds-btn-ghost:active:not(:disabled) { transform: translateY(1px); } .ds-btn-ghost:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-btn-ghost:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; filter: saturate(.35); }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "The only solid status fill in the system, reserved for irreversible actions such as Delete or Mark lost. It carries no gradient.",
+      "html": "<button class=\"ds-btn-destructive\">Delete</button>",
+      "css": ".ds-btn-destructive { display: inline-flex; align-items: center; justify-content: center; gap: 7px; box-sizing: border-box; height: 32px; padding: 6px 12px; background: var(--destructive-action); color: var(--destructive-foreground); border: 0; border-radius: var(--radius-sm); font: inherit; font-size: var(--font-size-control); font-weight: 600; cursor: pointer; transition: background-color var(--dur-fast) ease, transform var(--dur-fast) ease; } .ds-btn-destructive:hover:not(:disabled):not([aria-disabled='true']) { background: color-mix(in srgb, var(--destructive-action) 90%, var(--shadow-cast) 10%); } .ds-btn-destructive:active:not(:disabled) { transform: translateY(1px); } .ds-btn-destructive:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-btn-destructive:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; background-image: none; filter: saturate(.35); }"
     },
     {
       "name": "Search Input",
       "kind": "input",
-      "refersTo": "input-search",
-      "description": "The toolbar search-mini. Single border, 8px control radius, One-Blue focus ring.",
-      "html": "<input class=\"ds-input-search\" type=\"search\" placeholder=\"Find a dish\" />",
-      "css": ".ds-input-search { height: 36px; padding: 0 10px; background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 13px; box-sizing: border-box; } .ds-input-search::placeholder { color: var(--muted-foreground); } .ds-input-search:focus { outline: 2px solid var(--ring); outline-offset: 2px; border-color: var(--ring); }"
+      "refersTo": "input",
+      "description": "The shared text field used by search-mini and labelled form fields. Identifiable 3:1 control border, 8px control radius, One-Blue focus ring, and a 44px phone floor on both the visual box and native field.",
+      "html": "<div class=\"ds-textinput\"><label class=\"ds-textinput__label\" for=\"ds-search\">Search</label><div class=\"ds-textinput__box\"><svg class=\"ds-textinput__icon\" viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"m10.8 9.7 3.1 3.1-.9.9-3.1-3.1a5 5 0 1 1 .9-.9ZM7 10.7a3.7 3.7 0 1 0 0-7.4 3.7 3.7 0 0 0 0 7.4Z\" fill=\"currentColor\"/></svg><input id=\"ds-search\" class=\"ds-textinput__field\" type=\"search\" placeholder=\"Find a dish\" /></div></div>",
+      "css": ".ds-textinput { display: flex; flex-direction: column; gap: 4px; } .ds-textinput__label { font-size: var(--font-size-label); color: var(--muted-foreground); font-weight: 500; } .ds-textinput__box { display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; background: var(--background); border: 1px solid var(--input); border-radius: var(--radius-sm); transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease; } .ds-textinput__box:hover:not(:focus-within) { border-color: color-mix(in srgb, var(--muted-foreground) 50%, var(--input)); } .ds-textinput__box:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent); } .ds-textinput__icon { display: inline-flex; width: 16px; height: 16px; color: var(--muted-foreground); flex-shrink: 0; } .ds-textinput__field { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; font-size: var(--font-size-control); color: var(--foreground); padding: 0; } .ds-textinput__field::placeholder { color: var(--muted-foreground); } .ds-textinput__field:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } @media (max-width: 767.98px) { .ds-textinput__box, .ds-textinput__field { min-height: 44px; } }"
+    },
+    {
+      "name": "Select Control",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "The shared bounded-choice control: a designed trigger plus a portaled listbox and hidden native form bridge. The visible option popup is product chrome, not browser-owned select UI.",
+      "html": "<div class=\"ds-select\"><label class=\"ds-select__label\" for=\"ds-team\">Team</label><div class=\"ds-select__box\"><button id=\"ds-team\" class=\"ds-select__field\" aria-expanded=\"false\" aria-haspopup=\"listbox\"><span>Choose a team</span><svg class=\"ds-select__chevron\" viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"m3.5 6 4.5 4 4.5-4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button></div><div class=\"ds-select__menu\" role=\"listbox\" hidden><div class=\"ds-select__option\" role=\"option\" aria-selected=\"true\">Café</div><div class=\"ds-select__option\" role=\"option\">Retail Ops</div></div></div>",
+      "css": ".ds-select { display: flex; flex-direction: column; gap: 4px; min-width: 0; } .ds-select__label { font-size: var(--font-size-label); color: var(--muted-foreground); font-weight: 500; } .ds-select__box { display: inline-flex; align-items: stretch; min-width: 0; min-height: 32px; background: var(--background); border: 1px solid var(--input); border-radius: var(--radius-sm); transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease; } .ds-select__box:hover:not(:focus-within) { border-color: color-mix(in srgb, var(--muted-foreground) 50%, var(--input)); } .ds-select__box:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent); } .ds-select__field { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 1; min-width: 0; min-height: 30px; padding: 5px 10px; border: 0; outline: 0; background: transparent; color: var(--foreground); font: inherit; font-size: var(--font-size-control); text-align: left; cursor: pointer; } .ds-select__field:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-select__chevron { width: 14px; height: 14px; color: var(--muted-foreground); pointer-events: none; flex-shrink: 0; } .ds-select__menu { position: fixed; z-index: calc(var(--z-drawer) + 1); max-width: calc(100vw - 24px); overflow-y: auto; padding: 5px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--popover); color: var(--foreground); box-shadow: var(--shadow-overlay); font-family: var(--font-sans); font-size: var(--font-size-body); } .ds-select__option { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; min-height: 44px; padding: 8px 12px; border-radius: var(--radius-sm); cursor: pointer; } .ds-select__option[data-active='true'] { background: var(--secondary); } .ds-select__option[aria-selected='true'] { color: var(--primary); font-weight: 600; } .ds-select__option[aria-disabled='true'] { color: var(--muted-foreground); cursor: not-allowed; opacity: .56; } @media (max-width: 767.98px) { .ds-select__box { min-height: 44px; } .ds-select__field { min-height: 42px; } }"
+    },
+    {
+      "name": "Picker Control",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "The searchable/contextual choice control. It shares the Select listbox contract while preserving search, contextual filtering and the caller's controlled value semantics.",
+      "html": "<div class=\"ds-picker\"><label class=\"ds-picker__label\" for=\"ds-stream\">Stream</label><button id=\"ds-stream\" class=\"ds-picker__trigger\" aria-expanded=\"false\" aria-haspopup=\"listbox\"><span>Choose a stream</span><svg class=\"ds-picker__chevron\" viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"m3.5 6 4.5 4 4.5-4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button><div class=\"ds-picker__menu\" role=\"listbox\" hidden><div class=\"ds-picker__option\" role=\"option\" aria-selected=\"true\">Opening</div><div class=\"ds-picker__option\" role=\"option\">Closing</div></div></div>",
+      "css": ".ds-picker { display: flex; flex-direction: column; gap: 4px; min-width: 0; } .ds-picker__label { color: var(--muted-foreground); font-size: var(--font-size-label); font-weight: 500; } .ds-picker__trigger { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; padding: 7px 10px; border: 1px solid var(--input); border-radius: var(--radius-sm); background: var(--background); color: var(--foreground); font: inherit; font-size: var(--font-size-control); text-align: left; cursor: pointer; transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease; } .ds-picker__trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-picker__trigger > svg { flex: none; color: var(--muted-foreground); } .ds-picker__trigger:hover:not(:disabled) { border-color: color-mix(in srgb, var(--muted-foreground) 50%, var(--input)); } .ds-picker__trigger:focus-visible, .ds-picker__trigger[aria-expanded='true'] { border-color: var(--primary); outline: 2px solid color-mix(in srgb, var(--primary) 45%, transparent); outline-offset: 1px; } .ds-picker__trigger:active:not(:disabled) { transform: translateY(1px); } .ds-picker__menu { position: fixed; z-index: var(--z-popover); max-width: calc(100vw - 24px); overflow-y: auto; padding: 5px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--popover); color: var(--foreground); box-shadow: var(--shadow-overlay); font-family: var(--font-sans); font-size: var(--font-size-body); } .ds-picker__option { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 8px 12px; border-radius: var(--radius-sm); cursor: pointer; } .ds-picker__option[data-active='true'] { background: var(--secondary); } .ds-picker__option[aria-selected='true'] { color: var(--primary); font-weight: 600; } .ds-picker__option[aria-disabled='true'] { color: var(--muted-foreground); cursor: not-allowed; opacity: .56; } @media (max-width: 767.98px) { .ds-picker__trigger { min-height: 44px; } }"
     },
     {
       "name": "Status Pill",
       "kind": "chip",
-      "refersTo": "pill-status",
+      "refersTo": "badge-status",
       "description": "Dot plus tinted background and darkened text. The SHELL is an 8px rounded-rect (ratified OD-REDESIGN-91 #30/E1 — the 999px capsule is retired for the pill shell); only the dot stays circular. For SPARSE or exceptional status only — see Row Status Text when the status is on every row.",
       "html": "<span class=\"ds-pill ds-pill--destructive\"><span class=\"ds-pill-dot\"></span>Blocked</span>",
-      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 8px; font-size: 12px; font-weight: 500; background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text, var(--destructive)); } .ds-pill-dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; flex: none; }"
+      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: var(--radius-sm); font-size: var(--font-size-label); font-weight: 600; background: color-mix(in srgb, var(--destructive) 12%, transparent); color: var(--status-lost-text, var(--destructive)); } .ds-pill-dot { width: 8px; height: 8px; border-radius: var(--radius-pill); background: currentColor; flex: none; }"
     },
     {
       "name": "Card",
       "kind": "card",
-      "refersTo": "card-surface",
+      "refersTo": "card",
       "description": "Border AND the one resting shadow — co-equal, never shadow-alone (Soft-Elevation Rule).",
       "html": "<div class=\"ds-card\">Planned total<br><strong>548</strong></div>",
-      "css": ".ds-card { background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: 0 1px 2px hsl(222 18% 12% / 0.05), 0 1px 3px hsl(222 18% 12% / 0.04); transition: box-shadow .2s; } .ds-card:hover { box-shadow: 0 2px 10px hsl(240 6% 10% / 0.06); }"
+      "css": ".ds-card { background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; box-shadow: var(--shadow-rest); transition: box-shadow var(--dur-fast) ease; } .ds-card:hover { box-shadow: 0 2px 10px color-mix(in srgb, var(--shadow-cast) 6%, transparent); }"
     },
     {
       "name": "Rail Nav Item",
       "kind": "nav",
-      "refersTo": "nav-rail-item",
-      "description": "Destination row in the two-zone rail. 36px on a fine pointer (the ratified nav-item spec); raised to a 44px floor under (pointer: coarse). Active state is a quiet wash, not a blue fill. In the 920-1099.98px rail-compact regime the rail narrows to 72px and this row becomes icon-only: the label moves to .sr-only and a CSS-only tooltip surfaces it on hover/:focus-visible.",
+      "refersTo": "nav-item",
+      "description": "Destination row in the two-zone rail. Three rungs separate overline, destination and child type; this specimen is the destination rung at 36px/600. A coarse pointer raises the row to a 44px floor with 8px between adjacent targets. Active uses the theme-aware blue tint and text token so the one-blue treatment remains legible in both themes. In the 920-1099.98px rail-compact regime the rail narrows to 72px and this row becomes icon-only: the label moves to .sr-only and a CSS-only tooltip surfaces it on hover/:focus-visible.",
       "html": "<a class=\"ds-nav-item ds-nav-item--active\" href=\"#\">Home</a>",
-      "css": ".ds-nav-item { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 8px; color: var(--foreground); text-decoration: none; font-size: 13.5px; } .ds-nav-item:hover { background: var(--secondary); } .ds-nav-item--active { background: var(--secondary); font-weight: 600; } .ds-nav-item:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } @media (pointer: coarse) { .ds-nav-item { min-height: 44px; } }"
+      "css": ".ds-nav-item { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: var(--radius-sm); color: var(--foreground); text-decoration: none; font-size: var(--font-size-control); font-weight: 600; } .ds-nav-item:hover { background: var(--surface-tertiary); } .ds-nav-item--active { background: var(--ds-color-blue3); color: var(--text-on-accent-tint); font-weight: 600; } .ds-nav-item:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } @media (pointer: coarse) { .ds-nav-item { min-height: 44px; } }"
     },
     {
       "name": "Metric Summary Rule",
@@ -420,9 +449,9 @@
       "name": "Segmented Track",
       "kind": "custom",
       "refersTo": "segmented-track",
-      "description": "extract (2026-07-28): promoted from two pixel-identical re-authorings (Money's Branch/Activity CutToggle and Home's order-preference toggle). One visual grammar, TWO ARIA shapes on top of it — a role=tablist view-switcher (aria-selected state) and a role=radiogroup persistent setting (.is-active state) — because the interaction contracts genuinely differ even though the paint doesn't. Canonical CSS: src/styles/segmented-track.css).home-order-seg-opt selectors still in the shared file are REMOVAL DEBT, not a live pattern. The shape stays documented because it is the correct contract if a persistent segmented setting returns. Geometry, live-measured: a 32px track with 3px inset padding, so each option renders at 26px (NOT the 28px previously stated). Label size borrows the mono token's 13px NUMBER for sizing only — the face stays DM Sans via font-family: inherit.  CURRENT STATE (reconciled 2026-08-06 against dev's DESIGN.md, which is ahead of the v4 copy this file was ported from): the .home-order-seg / .home-order-seg-opt selectors are GONE and no removal debt remains — guard-od-v4-10-retirement.test.ts scans src/ to keep them gone. There are TWO live consumers and ONE importer: dashboard/cut-toggle.css @imports the shared file, while dashboard/window-selector.css re-authors the same grammar pixel-for-pixel with no @import and renders directly beside it on Money's toolbar (open debt, issue #283). 'Every consumer imports it' is the intent, not the current state.",
+      "description": "extract (2026-07-28): promoted from two pixel-identical re-authorings (Money's Branch/Activity CutToggle and the former Home order-preference toggle). One visual grammar, TWO ARIA shapes on top of it — a role=tablist view-switcher (aria-selected state) and a role=radiogroup persistent setting (.is-active state) — because the interaction contracts genuinely differ even though the paint doesn't. Canonical CSS: src/styles/segmented-track.css. The former .home-order-seg selectors are retired and no longer live. Current state: dashboard/cut-toggle.css and dashboard/window-selector.css both import the shared file; each consumer keeps only its own concerns (CutToggle's narrow phone option floor; WindowSelector's fixed preset width and date-pair chip). The shared grammar is authored once, so the two controls stay adjacent without pixel drift. Geometry: a 32px track with 3px inset padding, so each option renders at 26px. Label size borrows the mono token's 13px number for sizing only — the face stays DM Sans via font-family: inherit.",
       "html": "<div class=\"ds-seg\" role=\"tablist\"><button class=\"ds-seg-opt\" role=\"tab\" aria-selected=\"true\">Branch</button><button class=\"ds-seg-opt\" role=\"tab\" aria-selected=\"false\">Activity</button></div>",
-      "css": ".ds-seg { display: inline-flex; gap: 4px; height: 32px; padding: 3px; background: var(--secondary); border-radius: 8px; box-sizing: border-box; } .ds-seg-opt { display: inline-flex; align-items: center; justify-content: center; height: 100%; padding: 0 12px; border: none; border-radius: calc(8px - 2px); background: transparent; color: var(--muted-foreground); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; } .ds-seg-opt[aria-selected='true'] { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent); cursor: default; } @media (max-width: 767.98px) { .ds-seg, .ds-seg-opt { height: auto; min-height: 44px; } }"
+      "css": ".ds-seg { display: inline-flex; gap: 4px; height: 32px; padding: 3px; background: var(--secondary); border-radius: var(--radius-sm); box-sizing: border-box; } .ds-seg-opt { display: inline-flex; align-items: center; justify-content: center; height: 100%; padding: 0 12px; border: none; border-radius: calc(var(--radius-sm) - 2px); background: transparent; color: var(--muted-foreground); font-family: inherit; font-size: var(--font-size-mono); font-weight: 600; cursor: pointer; white-space: nowrap; transition: background var(--dur-fast) ease, box-shadow var(--dur-fast) ease, color var(--dur-fast) ease; } .ds-seg-opt[aria-selected='true'] { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent); cursor: default; } .ds-seg-opt:hover:not([aria-selected='true']) { color: var(--foreground); } @media (prefers-reduced-motion: reduce) { .ds-seg-opt { transition: none; } } @media (max-width: 767.98px) { .ds-seg, .ds-seg-opt { height: auto; min-height: 44px; } }"
     },
     {
       "name": "Setting Card",
@@ -436,20 +465,20 @@
       "name": "Empty State",
       "kind": "custom",
       "refersTo": "empty-state",
-      "description": "Four sanctioned archetypes, matching EmptyStateVariant in components/ui/state-kit.tsx. quiet — calm nothing-to-do; icon + title + one-line reason, NO cta (e.g. /inbox caught up). next-step — one direct action resolves it; icon + title + explanation + ONE action. awaiting — refills from submissions or a sync-fed source; adds a muted retry/status line + one refresh action. blank — empty BY DESIGN (a placeholder route, an unbuilt slice); deliberately the quietest, with no accent tint, so it never reads as an earned all-clear or as pending work. Rule: one route, one empty frame, one action maximum; the archetypes vary only the message and whether the single action slot is filled. Spacing, type, icon treatment and body measure stay shared, and no new empty-state colours, fonts or chrome are minted. ADDED 2026-08-06 — absent from the v4 copy this file was ported from; `blank` postdates v4 (CardHead.css records it)."
+      "description": "Four sanctioned archetypes, matching EmptyStateVariant in components/ui/state-kit.tsx. quiet — calm nothing-to-do; icon + title + one-line reason, NO cta (e.g. /inbox caught up). next-step — one direct action resolves it; icon + title + explanation + ONE action. awaiting — refills from submissions or a sync-fed source; adds a muted retry/status line + one refresh action. blank — empty BY DESIGN (a placeholder route, an unbuilt slice); deliberately the quietest, with no accent tint, so it never reads as an earned all-clear or as pending work. Rule: one route, one empty frame, one action maximum; the archetypes vary only the message and whether the single action slot is filled. Spacing, type, icon treatment and body measure stay shared, and no new empty-state colours, fonts or chrome are minted. ADDED 2026-08-06 — absent from the v4 copy this file was ported from; `blank` postdates v4 (CardHead.css records it).",
+      "html": "<section class=\"ds-empty-state ds-empty-state--quiet\" aria-labelledby=\"ds-empty-title\"><div class=\"ds-empty-state__frame\"><div class=\"ds-empty-state__icon\" aria-hidden=\"true\"><span class=\"ds-empty-state__glyph\">✓</span></div><div class=\"ds-empty-state__body\"><h3 id=\"ds-empty-title\" class=\"ds-empty-state__title\">You're all caught up</h3><p class=\"ds-empty-state__copy\">Nothing needs your attention right now.</p></div><div class=\"ds-empty-state__actions\"><button class=\"ds-empty-state__action\">Open tasks</button></div></div></section>",
+      "css": ".ds-empty-state { display: flex; justify-content: center; align-items: center; padding: 28px 20px; min-height: 240px; } .ds-empty-state__frame { width: min(100%, 440px); display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; } .ds-empty-state__icon { width: 44px; height: 44px; border-radius: var(--radius-pill); display: inline-flex; align-items: center; justify-content: center; background: var(--secondary); color: var(--muted-foreground); } .ds-empty-state__glyph { font-size: var(--font-size-subheading); line-height: 1; font-weight: 600; } .ds-empty-state__body { display: flex; flex-direction: column; gap: 4px; } .ds-empty-state__title { font-size: var(--font-size-subheading); font-weight: 600; margin: 0; color: var(--foreground); } .ds-empty-state__copy { font-size: var(--font-size-body); color: var(--muted-foreground); margin: 0; } .ds-empty-state__actions { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; } .ds-empty-state__action { min-height: 32px; padding: 6px 12px; border: 1px solid var(--input); border-radius: var(--radius-sm); background: var(--background); color: var(--foreground); font: inherit; font-size: var(--font-size-control); cursor: pointer; } .ds-empty-state__action:hover { background: var(--surface-tertiary); } .ds-empty-state__action:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-empty-state--next-step .ds-empty-state__icon { background: color-mix(in srgb, var(--primary) 12%, var(--secondary)); color: var(--primary); } .ds-empty-state--awaiting .ds-empty-state__icon { background: color-mix(in srgb, var(--warning) 10%, var(--secondary)); } .ds-empty-state--blank .ds-empty-state__icon { background: var(--secondary); color: var(--muted-foreground); }"
     }
   ],
   "narrative": {
-    "northStar": "The Quiet Control Surface",
-    "overview": "A near-monochrome system whose only saturated colour in normal use is the primary blue. Status colours appear only on data state, and a single categorical violet is reserved for KPI and timeline accents — never as an action colour. Structure comes from one 1px border and surface-tone contrast, plus one subtle resting lift on cards. The system is calm, dense and data-first: it is meant to be looked at all day by people who came to get something done, on a café floor or at a desk.",
+    "northStar": "The Quiet Control Surface.",
+    "overview": "This is the existing, owner-approved RIS Portal look — a shadcn/Radix-derived, near-monochrome control surface — adopted wholesale as the Gordi MOS's visual identity. It is preserved, not reinvented. The system was extracted verbatim from the RIS reference mockups (sales-pipeline-reference.html, budget-reference.html), both of which carry one identical token block (Token System A, shadcn-vue HSL, light scheme). Every value below is reverse-engineered from those files; nothing here is a new brand, palette, or font.\n\nThe personality is calm, dense, and data-first. The surface is white-on-near-white: a single blue carries every interactive affordance against a field of warm-cool greys, so the eye goes straight to numbers, status, and the one action that matters. Density is deliberate — controls are compact (32px tall), but table rows breathe (52px) so financial figures are scannable. This is an operator's tool for a contract- and project-based business: the owner reviews budgets, procurement, and pipeline on desktop and phone, and the design optimizes for trust in the data over decoration. It explicitly rejects the AI SaaS marketing aesthetic: no neon, no glassmorphism panels, no oversized hero type, no shadow-heavy floating card soup, no purple gradients.\n\nOwner-ratified demo-aligned refresh (2026-06-18, OD-P3-9..12). After comparing the app to a reference demo, the owner directed four bounded divergences that adjust the system's texture without changing its identity: a new font pairing (Plus Jakarta Sans + DM Sans, with Inter retained only for the verified numeric tabular scope), a slightly larger card radius (12px), a single subtle resting shadow on cards (a measured relaxation of the old flat-by-default stance), and two restrained navy gradients. The One Blue Rule, the near-monochrome palette, the Boundary Hierarchy Rule, density, the Tinted-Status pattern, current status and Signal semantics, Task PIC/Supervisor grammar, governance role-chip semantics, and MOS density mode are unchanged — these are the load-bearing identity, and the refresh leaves them intact.",
     "keyCharacteristics": [
-      "One blue for every interactive affordance, under ~10% of any screen",
-      "One border value; structure by line and tone, not by shadow",
-      "Exactly one resting shadow, on cards/KPI/kanban only",
-      "Tabular figures on every number that can be compared",
-      "Density is a feature — usability and speed beat model completeness",
-      "Colour is rationed to what needs action",
-      "Two content measures: 1180px readable column, 1760px wide operating surface"
+      "One blue accent (`primary`, `hsl(221 83% 53%)`) does all the interactive work; everything else is neutral.",
+      "Borders define structure; a single subtle resting shadow now co-signs elevation on cards (OD-P3-11). Heavier shadows remain a response to state (hover, focus, overlay), never decoration.",
+      "12px card/overlay radius (`--radius: 0.75rem`) is the spine; 32px controls stay tighter at 8px (`calc(var(--radius) - 4px)`) so they don't go bubbly.",
+      "Plus Jakarta Sans for display/headings, DM Sans for body/UI/table; `tabular-nums` for all money and metrics; SF Mono for IDs/codes only.",
+      "Status is communicated by a small colored dot + tinted pill, not by loud fills."
     ],
     "rules": [
       {
@@ -458,8 +487,8 @@
         "section": "colors"
       },
       {
-        "name": "The Single-Border Rule",
-        "body": "border equals input. One border value defines all structure.",
+        "name": "The Boundary Hierarchy Rule",
+        "body": "Quiet border defines dividers and card structure. Interactive input/control-border clears 3:1 against its surface so controls remain identifiable.",
         "section": "colors"
       },
       {
@@ -525,7 +554,7 @@
     ],
     "dos": [
       "Do drive every interactive affordance with the one primary blue, and keep it under ~10% of any screen.",
-      "Do define structure with the single 1px border and surface-tone contrast; cards also carry the one subtle resting lift.",
+      "Do keep structural borders quiet and give interactive controls the stronger 3:1 control boundary; cards also carry the one subtle resting lift.",
       "Do apply tabular-nums to every figure in tables, KPIs, kanban and funnels.",
       "Do show status as a 6px dot plus a tinted pill, and reserve solid fills for the destructive button only.",
       "Do keep controls at 32px with the 8px control radius; cards and overlays take the 12px card radius.",
@@ -545,7 +574,7 @@
       "Don't ship the AI-SaaS marketing aesthetic: no neon accents, no glassmorphism, no oversized hero type, no floating-card soup, no purple gradients.",
       "Don't stack resting shadows or give a flat utility surface a resting shadow.",
       "Don't use high-opacity black for shadows.",
-      "Don't introduce a second action colour, a fourth typeface, a new gradient hue, or a new border value.",
+      "Don't introduce a second action colour, a fourth typeface, a new gradient hue, or an unapproved boundary role.",
       "Don't use mono or proportional figures for money in tables.",
       "Don't colour body text with a fully saturated status hue or fill a status pill solid.",
       "Don't invent radii outside the 4/8/10/12/999 scale.",

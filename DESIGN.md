@@ -25,7 +25,7 @@ colors:
   secondary-foreground: "oklch(0.210 0.006 30.0)"
   muted: "oklch(0.976 0.002 38.0)"                # == secondary (shadcn convention)
   muted-foreground: "oklch(0.388 0.012 30.0)"     # darkened ~40% L so muted text clears AA on secondary fills
-  accent: "oklch(0.976 0.002 38.0)"               # shadcn "accent" = quiet hover wash (NOT the blue)
+  accent: "oklch(0.976 0.002 38.0)"               # design-role/Tailwind accent = quiet hover wash; see runtime seam below
   accent-foreground: "oklch(0.210 0.006 30.0)"
   # --- Status / semantic ---
   destructive: "oklch(0.6368 0.2078 25.3259)"     # errors, destructive button, "lost"
@@ -35,8 +35,8 @@ colors:
   success: "oklch(0.7205 0.192 149.4926)"         # green — "won"/positive
   success-foreground: "oklch(0.9848 0 89.8756)"
   # --- Lines / fields / focus ---
-  border: "oklch(0.922 0.004 38.0)"              # Single-Border Rule: border == input
-  input: "oklch(0.922 0.004 38.0)"
+  border: "oklch(0.922 0.004 38.0)"              # quiet divider and card boundary
+  input: "color-mix(in srgb, var(--foreground) 50%, var(--background))" # interactive boundary, >=3:1
   ring: "oklch(0.546 0.2153 262.8719)"           # focus ring == The One Blue
   # --- Categorical accent (non-interactive) ---
   violet: "oklch(0.5424 0.2454 293.016)"         # KPI/timeline only — never action
@@ -135,34 +135,35 @@ components:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.primary-foreground}"
     rounded: "{rounded.sm}"
-    padding: "0 12px"
+    padding: "6px 12px"
     height: "32px"
   button-primary-hover:
-    backgroundColor: "{colors.primary}"
+    backgroundColor: "color-mix(in srgb, {colors.primary} 90%, var(--brand-navy) 10%)"
     textColor: "{colors.primary-foreground}"
   button-outline:
     backgroundColor: "{colors.background}"
     textColor: "{colors.foreground}"
+    borderColor: "var(--control-border)"
     rounded: "{rounded.sm}"
-    padding: "0 12px"
+    padding: "6px 12px"
     height: "32px"
   button-outline-hover:
-    backgroundColor: "{colors.accent}"
+    backgroundColor: "var(--surface-tertiary)"
     textColor: "{colors.foreground}"
   button-ghost:
     backgroundColor: "{colors.background}"
     textColor: "{colors.foreground}"
     rounded: "{rounded.sm}"
-    padding: "0 12px"
+    padding: "6px 12px"
     height: "32px"
   button-ghost-hover:
-    backgroundColor: "{colors.accent}"
+    backgroundColor: "var(--surface-tertiary)"
     textColor: "{colors.foreground}"
   button-destructive:
-    backgroundColor: "{colors.destructive}"
+    backgroundColor: "var(--destructive-action)"
     textColor: "{colors.destructive-foreground}"
     rounded: "{rounded.sm}"
-    padding: "0 12px"
+    padding: "6px 12px"
     height: "32px"
   card:
     backgroundColor: "{colors.card}"
@@ -314,8 +315,9 @@ A near-monochrome system built on shadcn-vue's HSL roles. The hue spine is a coo
 - **Background** (warm near-white canvas from the E7/runtime token foundation): App background and header. The main scroll area uses a quiet secondary wash to lift cards off the page without introducing a second visual identity.
 - **Foreground** (`hsl(240 10% 3.9%)`, near-black): Primary text.
 - **Card / Popover** (`hsl(0 0% 100%)`): Elevated surfaces (cards, table body, rail, popovers, toasts) — pure white against the tinted main area.
-- **Secondary / Muted / Accent** (`hsl(240 4.8% 95.9%)`, light cool grey): These three share one value but differ in intent. `secondary` = quiet fills (segmented controls, count pills, progress tracks). `muted` pairs with `muted-foreground` (`hsl(240 3.8% 46.1%)`) for de-emphasized text (labels, captions, breadcrumb, sub-values). `accent` is the hover wash on interactive neutral surfaces (rail items, ghost buttons, row hover, control hover).
-- **Border / Input** (`hsl(240 5.9% 90%)`): All hairline dividers, card outlines, and field strokes — one value. Table row dividers soften to 70% opacity.
+- **Secondary / Muted / design-role Accent** (`hsl(240 4.8% 95.9%)`, light cool grey): These three share one value but differ in intent. `secondary` = quiet fills (segmented controls, count pills, progress tracks). `muted` pairs with `muted-foreground` (`hsl(240 3.8% 46.1%)`) for de-emphasized text (labels, captions, breadcrumb, sub-values). The design-role/Tailwind accent is a quiet wash. In authored runtime CSS, the legacy `--accent` variable still aliases the solid action blue; therefore neutral hover, keyboard-cursor and open-state paint must use `--surface-tertiary` or `--surface-secondary` explicitly. `--accent` remains valid for focus rings and action-blue semantics. This seam is guarded by `button-contrast.css.test.ts` and the vendored Impeccable detector.
+- **Border** (`hsl(240 5.9% 90%)`): Quiet hairline dividers and card outlines. Table row dividers soften to 70% opacity.
+- **Input / control boundary** (`control-border`): a theme-aware foreground/background mix that remains at least 3:1 against its surface. Buttons, fields, selects, pickers and date controls use this stronger boundary so their affordance remains identifiable without turning structural dividers into boxes.
 
 ### Gordi brand tokens (OD-P3-7)
 
@@ -336,7 +338,7 @@ The three Gordi brand tokens are the **first owner-approved divergence** from th
 
 **The Tinted-Status Rule.** Status is shown as a 6px colored dot plus a pill tinted at ~10–18% of the status hue with a darkened text variant — never a fully saturated solid fill behind body text. Solid status fills are reserved for the destructive *button* only. *Note: Task status chips use an 8px dot (bumped from 6px for WCAG 1.4.1 visibility) + always-present text label (never dot-only) so status stays perceivable when grouping ≠ Status — see §5 Badges.*
 
-**The Single-Border Rule.** `border` and `input` are the same value on purpose. Never introduce a second border color to "separate" regions; use the `secondary`/`card` surface contrast or spacing instead. *(Restored in Step-1 styling pass OD-P3-13 — previously split for control visibility.)*
+**The Boundary Hierarchy Rule (DD-MVP-15; supersedes the interactive-control part of OD-P3-13).** Structural dividers and card outlines use the quiet `border` token. Interactive controls use `input` / `control-border`, which clears the 3:1 boundary contrast threshold in both themes. Do not use the stronger control token to box ordinary content regions; use surface contrast or spacing there.
 
 **The Structural-Navy Rule (OD-P3-7).** `brand-navy` carries *structural* weight the lone action-blue must not: the logo square + dot, the active nav indicator (inset-shadow rail marker), the group-by control, the drawer's active-tab underline, the avatar gradient (`navy → primary`), and the navy tint behind the OD-P3-12 gradients. It is **never** an action color (no buttons, no links) and **never** a status. The One-Blue Rule is preserved — `primary` blue remains the *only* interactive/action color.
 
@@ -566,11 +568,11 @@ Radii follow the `xs/sm/md/lg/full` scale (4/8/10/12/999px). **Controls stay tig
 All interactive controls are **32px tall** ("h-8") with **8px control radius** (`{rounded.sm}` = `calc(var(--radius) - 4px)`) unless noted; **cards/containers/overlays use the 12px card radius** (`{rounded.lg}` = `var(--radius)`). E7 table rows are 52px. Nested radii use `calc(var(--radius) - 2px/4px)` so inner corners sit inside outer ones. *(OD-P3-10 taste guard: the radius bump to 12px applies to the big surfaces only — 32px controls stay tight at 8px so buttons/inputs/badges/nav-items don't go bubbly.)*
 
 ### Buttons
-- **Shape:** 8px radius (`{rounded.sm}`, the control radius — unchanged in absolute px by OD-P3-10, now expressed as `calc(var(--radius) - 4px)`), 32px tall, `0 12px` padding, 7px gap to a 15px icon. Small variant (`btn-sm`): 28px tall, 13px text. Icon-only: 32px square.
-- **Primary:** `primary` bg, `primary-foreground` text, faint brand shadow at rest. **Optionally** the `gradients.primary-sheen` navy-tinted sheen fill (OD-P3-12) — same blue, AA-safe across its range. Hover → `primary` at 90% (`hsl(var(--primary) / 0.9)`); the sheen, if used, flattens to the solid hover blue.
-- **Outline:** `background` fill, `input` border, `foreground` text. Hover → `accent` wash.
-- **Ghost:** transparent, `foreground` text. Hover → `accent` wash. Used for icon buttons in the header.
-- **Destructive:** `destructive` bg, `destructive-foreground` text. Hover → 90%. The only solid status fill in the system; reserved for irreversible actions (Mark lost, Delete). No gradient (Restrained-Gradient Rule bans gradients on status).
+- **Shape:** 8px radius (`{rounded.sm}`, the control radius — unchanged in absolute px by OD-P3-10, now expressed as `calc(var(--radius) - 4px)`), 32px tall with border-box sizing, `6px 12px` padding, and a 7px gap to a 15px icon. Small variant (`btn-sm`): 28px tall, 13px text. Icon-only: 32px square.
+- **Primary:** `primary` bg, `primary-foreground` text, faint brand shadow at rest. **Optionally** the `gradients.primary-sheen` navy-tinted sheen fill (OD-P3-12) — same blue, AA-safe across its range. Hover mixes 90% `primary` with 10% `brand-navy`, keeping the solid fill and normal-size text above AA instead of compositing blue over the page.
+- **Outline:** `background` fill, `control-border` boundary (3:1 or better against its surface), `foreground` text. Hover → `surface-tertiary` wash; `accent` is the solid action blue alias and is never a neutral hover fill.
+- **Ghost:** transparent, `foreground` text. Hover → `surface-tertiary` wash. Used for icon buttons in the header.
+- **Destructive:** theme-aware `destructive-action` bg (`red12` in light, `red8` in dark), `destructive-foreground` text. Hover darkens against `shadow-cast`. The only solid status fill in the system; reserved for irreversible actions (Mark lost, Delete). No gradient (Restrained-Gradient Rule bans gradients on status).
 - **Focus:** global `:focus-visible` ring — `outline: 2px solid {colors.ring}; outline-offset: 2px`.
 - **Disabled (gap — not yet ratified):** not defined in source; proposed `opacity: 0.5; cursor: not-allowed; pointer-events: none`.
 - **One hierarchy, enforced.** `.btn .btn-{variant}` (`ui/Button.css`, applied via `<Button variant=…>`) is the ONE button implementation — never a per-surface class of the same name. A same-named standalone class elsewhere in the cascade is not a harmless synonym: extract (2026-07-28) found and removed a dead `.btn-ghost` in `tasks/TaskSurface.css` (a leftover from before Archive/Unarchive migrated to `<Button variant="ghost">`) that was live-shadowing the canonical variant app-wide — measured on Home ("+ Tambah kategori"): **15px** instead of the canonical **13.5px** (`--font-size-control`), on a page that never renders a Task. *(Corrected 2026-07-29 during ratification: the `.btn` base is 13.5px/**600**, but `.btn-ghost` deliberately steps its weight down to **500** — a ghost is the quietest rank in the hierarchy. So the canonical ghost is 13.5px/500 and the shadowing defect was the **size** alone. The "13.5px/600" first written here — and the same phrase still in `tasks/TaskSurface.css`'s removal comment — mis-states the ghost variant; `ui/Button.css` is the truth.)* Two identically-named classes always collide eventually; there is no such thing as a "locally scoped" global CSS class.
@@ -636,7 +638,7 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 
 ### Data Table (signature)
 - **Header cells:** sticky, `card` bg, 38px tall, Overline type (11.5px/600 uppercase, 0.03em, `muted-foreground`, DM Sans), bottom `border`. Sortable headers gain `foreground` on hover with a 12px sort glyph. Numeric columns right-align; selection/center columns center.
-- **Body cells:** 52px tall ("roomy rows — breathe"), 12px padding, divider = `border/70%`. Row hover → `accent/60%`; selected → `primary/7%`; expanded → `accent/50%`. Row `⋯` menu button is hidden until row hover. No per-row resting shadow (the table is one card; the Soft-Elevation rest sits on the card, not each row).
+- **Body cells:** 52px tall ("roomy rows — breathe"), 12px padding, divider = `border/70%`. Row hover → `surface-secondary/60%`; selected → `secondary`; expanded → `surface-tertiary`. Row `⋯` menu button is hidden until row hover. No per-row resting shadow (the table is one card; the Soft-Elevation rest sits on the card, not each row).
 - **Dense DB-view variant (OD-P3-6).** The full-bleed Tasks DB-view keeps the E7 52px row grammar, paired with horizontal hairline dividers (`border/70%`) and **no vertical column rules** (vertical "stripes" hurt scan-readability — owner). Any current source that uses a 50px row is inventory evidence to migrate, not a second V3 row token.
 - **In-cell patterns:** project cell (28px colored icon + 2-line name/code, code in mono); money (`tabular`, sub-values `muted`); win-% bar (track `secondary`, fill `success`/`warning`/`destructive` by threshold); age chip (turns `warning-foreground`/`destructive` when aging/stale).
 - **Person cell (A2, OD-WAY-94).** Every person rendered in a table cell uses one grammar: 24px initials avatar + first name. Full names belong to the record and to pickers. Two person columns in one row never use two grammars.
@@ -651,7 +653,7 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 - A horizontal "journey" tracker: equal-flex steps each with a 6px rounded `jbar` (track = `secondary`), a label, and a date. `done` step → bar `success`, label `foreground`/600; `current` step → bar `primary`, label `foreground`/600. Used for budget version lifecycle and the deal stage journey in detail panels. The funnel/stage-summary band is the macro analog: 4 connected `card` segments with conversion-arrow chips between them; selected stage gets `primary/6%` + an inset `primary` bottom rule.
 
 ### Navigation
-- **Rail (sidebar):** 232px (`--rail-w`), `card` bg, right `border`. Brand block (56px, matches header) with a 28px `primary` logo square. Grouped items under Overline group labels. **Nav item:** 36px tall, **8px control radius** (`{rounded.sm}` = `calc(var(--radius) - 4px)`; nav-items are controls, kept tight per OD-P3-10), optional trailing count badge. Hover → `accent`; active → `primary/10%` bg + `primary` text + 600 weight + `aria-current="page"`. Foot section (border-top) holds Admin Settings (admin only) and the identity chip; the chip's menu holds Personal Profile · Appearance · Sign out (OD-WAY-77).
+- **Rail (sidebar):** 232px (`--rail-w`), `card` bg, right `border`. Brand block (56px, matches header) with a 28px `primary` logo square. Grouped items under Overline group labels. **Nav item:** 36px tall, **8px control radius** (`{rounded.sm}` = `calc(var(--radius) - 4px)`; nav-items are controls, kept tight per OD-P3-10), optional trailing count badge. Hover → `surface-tertiary`; active → `primary/10%` bg + `primary` text + 600 weight + `aria-current="page"`. Foot section (border-top) holds Admin Settings (admin only) and the identity chip; the chip's menu holds Personal Profile · Appearance · Sign out (OD-WAY-77).
 - **The Rail Type Ladder (DD-WAY-33).** The rail carries three levels, and each one is a distinct **rung** — a nav item's weight states its level, so the tree is legible without expanding anything. This closes the gap that let Money and Inbox, sitting after Work's children, read as part of the group above them.
 
   | Rung | Members | Treatment |
@@ -673,7 +675,7 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 
   | | |
   |---|---|
-  | **Control** | A 28px square icon button (`--rail-toggle-size`), 8px control radius like every nav item, `muted-foreground` resting → `accent` bg + `foreground` on hover. Its glyph is the ONE shared disclosure `Chevron` rotated by CSS: **left when expanded** ("fold this away"), **right when collapsed** ("bring it back"). No new icon is minted for it. |
+  | **Control** | A 28px square icon button (`--rail-toggle-size`), 8px control radius like every nav item, `muted-foreground` resting → `surface-tertiary` bg + `foreground` on hover. Its glyph is the ONE shared disclosure `Chevron` rotated by CSS: **left when expanded** ("fold this away"), **right when collapsed** ("bring it back"). No new icon is minted for it. |
   | **Placement** | Trailing edge of a row above the nav, where the rail meets the content it is making room for. Collapsed, it centres on the icon column's axis — the same centre line every compact nav item below it takes. |
   | **State** | `aria-expanded` on the button, `aria-controls` pointing at the rail's `Primary` nav — the thing that actually expands. Its accessible name states the **action** (Collapse navigation / Expand navigation), never the state, because `aria-expanded` already carries state. Native `<button>`, so Tab reaches it and Enter and Space fire it. |
   | **Persistence** | One boolean in `localStorage` (`mos.rail.collapsed`), default **expanded**. A DEVICE preference — the same person wants the wide rail on a 27" monitor and the narrow one on a 13" laptop — so it is not org data and never leaves the browser. Read synchronously at first paint: no expanded flash to correct. |

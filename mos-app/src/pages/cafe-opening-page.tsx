@@ -333,8 +333,6 @@ function CafeOpeningPageBody() {
             </div>
           )}
           <CafeOpeningPanel key={team.id} processId={processId} teamId={team.id} teamName={team.branchName} />
-          {/* Step 7 minor (item 7b): real button-styled links (btn-outline), full-width tap
-              targets at ≤390px (cafe-opening-page.css). */}
           <nav aria-label={t('nav.cafe')} className="cafe-capture-links">
             {captureLinks.map((link) => (
               <Link key={link.to} to={link.to} className="btn btn-outline cafe-capture-link">

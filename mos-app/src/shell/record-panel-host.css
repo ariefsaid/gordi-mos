@@ -28,7 +28,7 @@
   display: grid; place-items: center; cursor: pointer;
   color: var(--muted-foreground);
 }
-.record-panel-btn:hover { background: var(--accent); color: var(--foreground); }
+.record-panel-btn:hover { background: var(--surface-tertiary); color: var(--foreground); }
 .record-panel-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* H3 (Luna floor): "Open full page" carries an explicit visible label (E7 grammar) — an icon-only

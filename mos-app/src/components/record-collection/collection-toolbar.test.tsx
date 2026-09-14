@@ -344,6 +344,8 @@ describe('Ticket #743 toolbar acceptance', () => {
     /></I18nProvider>)
     // The trigger is the ONE dropdown-class control; closed, the row holds zero checkboxes.
     const trigger = screen.getByRole('button', { name: 'Status' })
+    expect(trigger).toHaveTextContent('Status')
+    expect(trigger).toHaveTextContent('Blocked')
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(trigger.closest('.collection-toolbar__select')).toBeInTheDocument()
     const row = screen.getAllByTestId('collection-toolbar-row')[1]

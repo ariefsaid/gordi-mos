@@ -57,7 +57,7 @@
   font-size: var(--font-size-body);
 }
 .dev-views__list-item:hover {
-  background: var(--accent);
+  background: var(--surface-tertiary);
 }
 .dev-views__list-item:focus-visible {
   outline: 2px solid var(--ring);
@@ -131,7 +131,7 @@
   cursor: pointer;
 }
 .dev-views__btn:hover {
-  background: var(--accent);
+  background: var(--surface-tertiary);
 }
 .dev-views__btn--primary {
   background: var(--primary);
@@ -140,7 +140,7 @@
   box-shadow: var(--shadow-brand-button);
 }
 .dev-views__btn--primary:hover {
-  background: color-mix(in srgb, var(--primary) 90%, transparent);
+  background: color-mix(in srgb, var(--primary) 90%, var(--brand-navy) 10%);
 }
 .dev-views__btn:focus-visible {
   outline: 2px solid var(--ring);

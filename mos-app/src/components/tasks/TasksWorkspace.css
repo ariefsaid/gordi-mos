@@ -407,7 +407,7 @@
   border: 0; background: transparent; color: var(--muted-foreground);
   border-radius: var(--radius-xs); visibility: hidden;
 }
-.task-row-pencil:hover { background: var(--accent); color: var(--foreground); }
+.task-row-pencil:hover { background: var(--surface-tertiary); color: var(--foreground); }
 .task-row-pencil:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; visibility: visible; }
 .task-title-cell:hover .task-row-pencil,
 .task-title-cell:focus-within .task-row-pencil { visibility: visible; }

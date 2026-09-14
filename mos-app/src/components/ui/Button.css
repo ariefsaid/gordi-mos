@@ -1,12 +1,13 @@
 /* ════════════════════════════════════════════════════════════════════════════
    The ONE button hierarchy (IXD-4, PR-2; DESIGN.md §5 Buttons). 32px tall, 8px
-   radius, var(--font-size-control) (13.5px)/600, 0 12px padding. Apply `.btn .btn-{variant}` to <button>,
+   radius, var(--font-size-control) (13.5px)/600, 6px 12px padding. Apply `.btn .btn-{variant}` to <button>,
    <a>, or react-router <Link>. Replaces .tc-btn-*, .ops-add-btn, .retry-btn,
    .btn-outline-link, .confirm-cancel, and the per-surface re-implementations.
    ════════════════════════════════════════════════════════════════════════════ */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  height: 32px; padding: 0 12px; border-radius: var(--radius-sm); /* 8px — control radius, OD-P3-10 */
+  box-sizing: border-box;
+  height: 32px; padding: 6px 12px; border-radius: var(--radius-sm); /* 8px — control radius, OD-P3-10 */
   font: inherit; font-size: var(--font-size-control); font-weight: 600;
   cursor: pointer; text-decoration: none; border: 0; white-space: nowrap;
   transition: background-color var(--dur-fast) ease, transform var(--dur-fast) ease;
@@ -30,32 +31,30 @@
   color: var(--primary-foreground);
   box-shadow: var(--shadow-brand-button); /* faint brand lift — single source in index.css */
 }
-.btn-primary:hover:not(:disabled) {
+.btn-primary:hover:not(:disabled):not([aria-disabled="true"]) {
   background-image: none;                          /* flatten to solid on hover */
-  background-color: color-mix(in srgb, var(--primary) 90%, transparent);
+  background-color: color-mix(in srgb, var(--primary) 90%, var(--brand-navy) 10%);
 }
 
-/* Outline — background fill, input border, accent wash on hover */
+/* Outline — background fill, input border, quiet surface wash on hover */
 .btn-outline {
   background: var(--background); color: var(--foreground);
-  border: 1px solid var(--input);
+  border: 1px solid var(--control-border);
 }
-.btn-outline:hover:not(:disabled) { background: var(--accent); }
+.btn-outline:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--surface-tertiary); }
 
-/* Ghost — transparent, muted text; accent wash on hover (header/icon buttons) */
+/* Ghost — transparent, muted text; quiet surface wash on hover (header/icon buttons) */
 .btn-ghost {
   background: transparent; color: var(--muted-foreground); font-weight: 500;
 }
-.btn-ghost:hover:not(:disabled) { background: var(--accent); color: var(--foreground); }
+.btn-ghost:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--surface-tertiary); color: var(--foreground); }
 
 /* Destructive — the only solid status fill; irreversible actions only */
 .btn-destructive {
-  /* The saturated base red with near-white text is 3.91:1 at body size. The
-     existing E7 red-12 scale keeps the destructive hue while clearing AA. */
-  background: var(--ds-color-red12); color: var(--destructive-foreground);
+  background: var(--destructive-action); color: var(--destructive-foreground);
 }
-.btn-destructive:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ds-color-red12) 90%, var(--brand-navy) 10%);
+.btn-destructive:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: color-mix(in srgb, var(--destructive-action) 90%, var(--shadow-cast) 10%);
 }
 
 /* Full-width mobile touch variant (44px) — pairs with any .btn-{variant}.

@@ -204,7 +204,7 @@
 }
 
 .rail-collapse-toggle:hover {
-  background: var(--accent);
+  background: var(--surface-tertiary);
   color: var(--foreground);
 }
 

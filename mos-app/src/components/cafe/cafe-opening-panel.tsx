@@ -130,17 +130,22 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
         {canStart ? (
           <>
             {startError ? <ErrorState message={t('processes.due.startError')} onRetry={() => { void handleStart() }} /> : null}
-            <EmptyState variant="next-step" title={t('cafe.opening.notStartedLead')}>
+            <EmptyState
+              variant="next-step"
+              headingLevel={2}
+              title={t('cafe.opening.notStartedLead')}
+            >
               <Button variant="primary" disabled={starting} onClick={() => { void handleStart() }}>
                 {t('cafe.opening.start')}
               </Button>
             </EmptyState>
           </>
         ) : (
-          // Step 7 minor (item 7a): "awaiting" — never "quiet"'s ✓ glyph, which misreads as
-          // "already done" for a state that's actually waiting on the shift lead's action
-          // (mirrors kitchen-review-page.tsx's "nothing yet, pull again" usage).
-          <EmptyState variant="awaiting" title={t('cafe.opening.notStartedMember')} />
+          <EmptyState
+            variant="awaiting"
+            headingLevel={2}
+            title={t('cafe.opening.notStartedMember')}
+          />
         )}
       </div>
     )

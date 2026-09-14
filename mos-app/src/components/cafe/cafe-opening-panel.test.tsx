@@ -105,6 +105,10 @@ describe('AC-712 — capable viewer, opening not started', () => {
     renderPanel()
 
     const startButton = await screen.findByRole('button', { name: "Start today's opening" })
+    expect(screen.getByRole('heading', {
+      level: 2,
+      name: "Not started yet — start today's opening.",
+    })).toBeInTheDocument()
     // Never a bare "Start"/"Create" (Rule 7) — the accessible name is the full verb+object phrase.
     expect(startButton.textContent?.trim().toLowerCase()).not.toBe('start')
     expect(startButton.textContent?.trim().toLowerCase()).not.toBe('create')
@@ -158,6 +162,10 @@ describe('AC-713 — non-capable viewer (finance — member now capable, OD-71ii
     await waitFor(() => {
       expect(screen.getByText(/no one has started today.s opening/i)).toBeInTheDocument()
     })
+    expect(screen.getByRole('heading', {
+      level: 2,
+      name: /no one has started today.s opening/i,
+    })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /start/i })).not.toBeInTheDocument()
     // Never a disabled/dead Start button either (Rule 12).
     expect(document.querySelector('button:disabled')).toBeNull()

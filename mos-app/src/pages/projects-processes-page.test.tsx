@@ -255,6 +255,14 @@ describe('R5 collection state boundaries', () => {
     expect(screen.queryByText('No projects or processes yet')).toBeNull()
   })
 
+  it('labels the status trigger and states that the default view is active-only', async () => {
+    renderPage()
+    await screen.findByRole('link', { name: 'Menu launch' })
+    openViewOptions()
+    const trigger = screen.getByRole('button', { name: 'Current status' })
+    expect(trigger).toHaveTextContent('Active only')
+  })
+
   it.each(['timeout', 'server'])('keeps a %s failure out of empty success and retries', async (failure) => {
     vi.mocked(listWorkLinesAll).mockRejectedValueOnce(new Error(failure))
     renderPage()

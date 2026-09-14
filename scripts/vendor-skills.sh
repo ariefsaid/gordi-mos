@@ -75,6 +75,20 @@ if [ -f "$DEST/impeccable/scripts/context.mjs" ]; then
   rm -f "$DEST/impeccable/scripts/context.mjs.bak"
 fi
 
+# The skill distribution can contain the wrappers without the detector engine. Keep the engine
+# in the public repository and stamp the same copy into each refreshed local skill so `detect`,
+# hooks, and `doctor` never depend on an untracked partial install.
+IMPECCABLE_VENDOR="$ROOT/scripts/vendor/impeccable"
+if [ ! -f "$IMPECCABLE_VENDOR/detector/detect-antipatterns.mjs" ] || \
+   [ ! -f "$IMPECCABLE_VENDOR/lib/impeccable-config.mjs" ]; then
+  echo "ERROR: tracked Impeccable detector vendor is incomplete: $IMPECCABLE_VENDOR" >&2
+  exit 1
+fi
+rm -rf "${DEST:?}/impeccable/scripts/detector"
+cp -R "$IMPECCABLE_VENDOR/detector" "$DEST/impeccable/scripts/detector"
+mkdir -p "$DEST/impeccable/scripts/lib"
+cp "$IMPECCABLE_VENDOR/lib/impeccable-config.mjs" "$DEST/impeccable/scripts/lib/impeccable-config.mjs"
+
 echo "==> taste (Leonxlnx/taste-skill — v1 stable) — anti-slop craft discipline"
 git clone --depth 1 https://github.com/Leonxlnx/taste-skill.git "$TMP/taste"
 rm -rf "${DEST:?}/taste"
@@ -209,7 +223,7 @@ if [ -d "$OVERRIDES" ]; then
 fi
 
 echo
-echo "Vendored: gstack(careful freeze guard cso design-review design-consultation) jeffallan(spec-miner) impeccable taste ui-ux-pro-max design-system ui-styling sssf agent-browser + mattpocock full eng+prod set"
+echo "Vendored: gstack(careful freeze guard cso design-review design-consultation) jeffallan(spec-miner) impeccable(+tracked detector) taste ui-ux-pro-max design-system ui-styling sssf agent-browser + mattpocock full eng+prod set"
 echo "sssf factory skeleton stamped into adws/ at pin $SSSF_PIN (see adws/PORT-MANIFEST.md)"
 echo "Project overrides applied from .claude/skill-overrides/: $(ls "$OVERRIDES" 2>/dev/null | tr '\n' ' ')"
 echo "superpowers (plugin) — install once with:"

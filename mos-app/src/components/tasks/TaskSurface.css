@@ -179,7 +179,7 @@
   display: flex; align-items: center; gap: 8px;
   width: 100%; cursor: pointer; font: inherit; text-align: left;
 }
-.person-field-btn:hover { border-color: var(--ring); background: color-mix(in srgb, var(--accent) 50%, transparent); }
+.person-field-btn:hover { border-color: var(--ring); background: var(--surface-tertiary); }
 .person-field-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .person-field-edit-hint {
   margin-left: auto; font-size: var(--font-size-overline); color: var(--muted-foreground); flex-shrink: 0;
@@ -213,11 +213,11 @@
   border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-body-lg);
 }
 .person-picker-option:hover, .person-picker-option:focus-visible {
-  background: var(--accent);
+  background: var(--surface-tertiary);
 }
 /* GAP-8 (OD-91 #13): the shared listbox keyboard cursor (aria-activedescendant) — the active
    option reads highlighted even though DOM focus stays on the listbox container. */
-.person-picker-option.is-active { background: var(--accent); }
+.person-picker-option.is-active { background: var(--surface-tertiary); }
 .person-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } /* item #6: normalized to +2 (menu option has room) */
 
 /* ── Checklist ── */
@@ -257,7 +257,7 @@
   display: grid; place-items: center; border-radius: var(--radius-xs);
   line-height: 1;
 }
-.checklist-ctrl-btn:hover:not(:disabled) { background: var(--accent); color: var(--foreground); }
+.checklist-ctrl-btn:hover:not(:disabled) { background: var(--surface-tertiary); color: var(--foreground); }
 .checklist-ctrl-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .checklist-ctrl-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 .checklist-ctrl-delete:hover:not(:disabled) { color: var(--destructive); background: color-mix(in srgb, var(--destructive) 8%, transparent); }
@@ -513,7 +513,7 @@
   display: grid; place-items: center; cursor: pointer;
   color: var(--muted-foreground);
 }
-.dw-iconbtn:hover { background: var(--accent); color: var(--foreground); }
+.dw-iconbtn:hover { background: var(--surface-tertiary); color: var(--foreground); }
 .dw-iconbtn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 /* #718: this query carried no width guard (same class as #708's record-panel-btn fix), so ANY
@@ -529,7 +529,7 @@
   background: transparent; color: var(--status-open-text); font: inherit;
   font-size: var(--font-size-label); font-weight: 600; cursor: pointer; white-space: nowrap;
 }
-.dw-open-page:hover { background: var(--accent); }
+.dw-open-page:hover { background: var(--surface-tertiary); }
 .dw-open-page:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 @media (max-width: 767px) {
   .dw-open-page { min-height: 44px; }

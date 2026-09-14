@@ -130,6 +130,10 @@ honest work teaches `--no-verify`, which disables the guards that matter. This o
 - typecheck + ESLint zero errors; ≥80% lines on changed code.
 - Reversible migrations. **RLS on every business table.** `org_id` seam enforced.
 - `DESIGN.md` is the design-system source of truth — never re-invent it.
+- UI changes also require the repo-vendored design-tooling lane in local `docs/decisions.md`
+  (DD-MVP-12/13) and `docs/quality-model.md`: Impeccable detector + audit/critique + post-fix
+  polish, with Taste as the secondary anti-slop lens. Missing, unrunnable or stale tooling is an
+  explicit incomplete review, never a silent fallback.
 - UI is not done until rendered and operated at real widths (incl. ≤390px phone): open controls,
   keyboard/focus, long content, loading/empty/error states and the persisted role-correct journey.
   Record browser evidence separately from source/test evidence; shared-component reuse is not visual acceptance.

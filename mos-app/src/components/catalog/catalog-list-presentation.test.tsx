@@ -75,7 +75,7 @@ describe('CatalogListPresentation owner-cell grammar', () => {
     expect(owner).not.toHaveTextContent('Raka Utama')
   })
 
-  it('keeps an explicit Not set owner state without inventing an avatar', () => {
+  it('keeps missing values accessible without repeating Not set across the visual row', () => {
     renderRows([
       { id: 'work-2', name: 'Unassigned project', archived_at: null, type: 'project', accountablePersonId: null },
     ])
@@ -83,7 +83,8 @@ describe('CatalogListPresentation owner-cell grammar', () => {
     const row = screen.getByRole('link', { name: 'Unassigned project' })
     const owner = within(row).getByRole('cell', { name: 'Owner: Not set' })
     expect(owner).toHaveAttribute('title', 'Not set')
-    expect(owner).toHaveTextContent('Not set')
+    expect(owner).toHaveTextContent('–')
     expect(owner.querySelector('.ownav')).toBeNull()
+    expect(within(row).queryByText('Not set')).toBeNull()
   })
 })
