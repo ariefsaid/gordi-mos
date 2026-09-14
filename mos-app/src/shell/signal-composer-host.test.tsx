@@ -196,6 +196,28 @@ describe('SignalComposerHost — one command, many entry points (C1, AC-428 back
     expect(props.canTag).toBe(false)
   })
 
+  it('allows an ordinary member to mention a BU when effective signal.tag allows tagging', async () => {
+    mockGetSignalPostAuthority.mockResolvedValue({ can_post: true, can_tag: true })
+    renderHost({ ...authedViewer, viewer: { ...authedViewer.viewer, accessRoles: ['member'] } })
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+
+    await waitFor(() => expect(mockSignalComposer).toHaveBeenCalled())
+    const props = mockSignalComposer.mock.calls.at(-1)![0]
+    expect(props.canTag).toBe(true)
+    expect(props.canMentionBu).toBe(true)
+  })
+
+  it('denies BU mentions when effective signal.tag explicitly denies a legacy-capable role', async () => {
+    mockGetSignalPostAuthority.mockResolvedValue({ can_post: true, can_tag: false })
+    renderHost({ ...authedViewer, viewer: { ...authedViewer.viewer, accessRoles: ['ops_lead'] } })
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+
+    await waitFor(() => expect(mockSignalComposer).toHaveBeenCalled())
+    const props = mockSignalComposer.mock.calls.at(-1)![0]
+    expect(props.canTag).toBe(false)
+    expect(props.canMentionBu).toBe(false)
+  })
+
   it('loads real fan-out-preview rosters (KNOWN GAP 1) instead of the {} default', async () => {
     renderHost(authedViewer)
     await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))

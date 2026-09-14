@@ -4,7 +4,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import { can } from '@/lib/capabilities'
 import { getSignalPostAuthority, loadMentionRosters, type MentionRosters } from '@/lib/db/signals'
 import type { StagedMention } from '@/lib/db/signals.types'
 import { SignalComposer } from '@/components/signals/signal-composer'
@@ -78,9 +77,9 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
 
   const canPost = authorityReady && authority.can_post
   const canTag = authorityReady && authority.can_tag
-  // BU mentions retain their existing explicit capability. The runtime signal.tag decision applies
-  // to the newly org-wide Person/Team mention reach and must not silently broaden BU tagging.
-  const canMentionBu = can(viewer?.accessRoles ?? [], 'signal.mention_bu')
+  // All mention kinds consume the same effective signal.tag authority. Keeping this tied to canTag
+  // also fails closed while the runtime authority is loading or unavailable.
+  const canMentionBu = canTag
 
   const close = useCallback(() => {
     dirtyRef.current = false
