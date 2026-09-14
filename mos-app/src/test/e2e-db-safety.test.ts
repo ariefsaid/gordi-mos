@@ -158,6 +158,9 @@ test('every Playwright data writer is registered with an owned cleanup contract'
     if (contract === 'captured-process-run-id') {
       expect(source, `${file} must use guarded process-run cleanup`).toContain('processRunCleanupSql')
     }
+    if (contract === 'captured-task-id') {
+      expect(source, `${file} must use guarded task cleanup`).toContain('taskCleanupSql')
+    }
   }
 })
 
@@ -248,4 +251,21 @@ test('global setup relinks only the canonical demo organization', () => {
   expect(source).toContain("WHERE p.org_id = '${ORG}'")
   expect(source).toContain('u.email = p.email')
   expect(source).toContain('p.email IN')
+})
+
+test('process-spawning café journeys are opt-in before hooks register', () => {
+  const cases = [
+    ['../../e2e/AC-720-cafe-today-opening.spec.ts', 'ALLOW_SHARED_CAFE_OPENING_FIXTURE', 'MOS_E2E_ALLOW_SHARED_CAFE_OPENING_FIXTURE', 'test.afterEach'],
+    ['../../e2e/home-cafe-parity.spec.ts', 'ALLOW_SHARED_HOME_CAFE_FIXTURE', 'MOS_E2E_ALLOW_SHARED_HOME_CAFE_FIXTURE', 'test.beforeAll'],
+  ] as const
+  for (const [file, marker, envName, hook] of cases) {
+    const source = readFileSync(new URL(file, import.meta.url), 'utf8')
+    const gateIndex = source.indexOf(`if (!${marker})`)
+    expect(source).toContain(envName)
+    expect(source).toContain('spawn_process_run')
+    expect(source).toContain('idempotent')
+    expect(source).toContain('createdRunId = spawned.run_id')
+    expect(gateIndex).toBeGreaterThan(-1)
+    expect(source.indexOf(hook)).toBeGreaterThan(gateIndex)
+  }
 })

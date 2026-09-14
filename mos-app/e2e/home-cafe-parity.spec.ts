@@ -19,6 +19,7 @@ const HOME_TASK_IDS = [
   'e9000000-0000-0000-0000-000000000001',
   'e9000000-0000-0000-0000-000000000002',
 ] as const
+const ALLOW_SHARED_HOME_CAFE_FIXTURE = process.env.MOS_E2E_ALLOW_SHARED_HOME_CAFE_FIXTURE === '1'
 
 interface IdRow { id: string }
 interface PendingSnapshot {
@@ -90,6 +91,9 @@ let createdRunId: string | null = null
 let selectedPendingId: string | null = null
 let materializedTaskIdToDelete: string | null = null
 
+if (!ALLOW_SHARED_HOME_CAFE_FIXTURE) {
+  test('home-café parity is disabled until its process fixture is isolated', () => { test.skip() })
+} else {
 test.beforeAll(async () => {
   // Read the current local state first. A pre-existing run is a user fixture and must survive this
   // spec; it is never folded into a broad delete/recreate cleanup.
@@ -218,7 +222,12 @@ test('Barista Home follows the canonical Café Opening run through completion', 
   await expect(page).toHaveURL(/\/cafe$/)
 
   if (!existingOpening) {
+    const spawnResponse = page.waitForResponse((response) => /\/rpc\/spawn_process_run/.test(response.url()) && response.ok())
     await page.getByRole('button', { name: "Start today's opening", exact: true }).click()
+   const spawned = await (await spawnResponse).json() as { run_id: string; idempotent: boolean }
+   expect(spawned.idempotent, 'Home Café must own a newly-created run, not an idempotent existing run').toBe(false)
+   expect(spawned.run_id).toMatch(/^[0-9a-f-]{36}$/i)
+   createdRunId = spawned.run_id
   }
 
   const cafePanel = page.locator('.cafe-opening-panel--started')
@@ -237,7 +246,7 @@ test('Barista Home follows the canonical Café Opening run through completion', 
     : null
   expect(occurrenceId).toBeTruthy()
   if (!occurrenceId) throw new Error('Café Opening link did not contain an occurrence id')
-  if (!existingOpening) createdRunId = occurrenceId
+  if (!existingOpening) expect(occurrenceId).toBe(createdRunId)
 
   await signOutViaUi(page, 'Krishna Kitchen')
   await page.waitForURL(url => url.pathname.endsWith('/login'))
@@ -321,3 +330,4 @@ test('Barista Home follows the canonical Café Opening run through completion', 
   expect(completedCafe.total).toBe(initialCafe.total + (existingOpening ? 1 : 0))
   expect(completedCafe.pending).toBe(initialCafe.pending - (existingOpening ? 1 : 0))
 })
+}

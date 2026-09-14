@@ -33,7 +33,12 @@ import { processRunCleanupSql } from './fixtures/cleanup'
 
 const ORG = '10000000-0000-0000-0000-000000000001'
 const WORK_LINE_ID = 'e3000000-0000-0000-0000-000000000001' // "Café Opening" (seed.dev-cafe-opening.sql)
-let createdRunId: string | null = null
+const ALLOW_SHARED_CAFE_OPENING_FIXTURE = process.env.MOS_E2E_ALLOW_SHARED_CAFE_OPENING_FIXTURE === '1'
+
+if (!ALLOW_SHARED_CAFE_OPENING_FIXTURE) {
+  test('AC-720 is disabled until its process fixture is isolated', () => { test.skip() })
+} else {
+  let createdRunId: string | null = null
 
 const currentOpeningSql = (teamId: string) => `
   select id::text as id
@@ -54,13 +59,13 @@ test.afterEach(async () => {
 test('AC-720/F2: Start today\'s opening from /cafe → single-holder Tasks group under the caption → resolve the ambiguous step → same group → Log today\'s production deep-links to /cafe/log', async ({ page }) => {
   test.setTimeout(90_000)
 
- const teamRows = await localSqlRead<{ id: string }>(
+  const teamRows = await localSqlRead<{ id: string }>(
     `select id from shared.teams where org_id='${ORG}' and code='radiant_operations'`,
   )
- const teamId = teamRows[0]?.id
+  const teamId = teamRows[0]?.id
   expect(teamId, 'seed.dev-signals.sql must have created the radiant_operations Team + Cahya\'s membership').toBeTruthy()
 
- const processRows = await localSqlRead(`select id from mos.work_lines where id='${WORK_LINE_ID}'`)
+  const processRows = await localSqlRead(`select id from mos.work_lines where id='${WORK_LINE_ID}'`)
   expect(processRows.length, 'seed.dev-cafe-opening.sql must have seeded the Café Opening process').toBeGreaterThan(0)
 
   // A current-day run may be user/demo state. Refuse to mutate it; the journey owns only the run
@@ -77,10 +82,12 @@ test('AC-720/F2: Start today\'s opening from /cafe → single-holder Tasks group
 
   const startButton = page.getByRole('button', { name: "Start today's opening" })
   await expect(startButton).toBeVisible({ timeout: 15_000 })
+  const spawnResponse = page.waitForResponse((response) => /\/rpc\/spawn_process_run/.test(response.url()) && response.ok())
   await startButton.click()
-  const createdRuns = await localSqlRead<{ id: string }>(currentOpeningSql(teamId!))
-  expect(createdRuns, 'Start action must create one owned current-day Café Opening run').toHaveLength(1)
-  createdRunId = createdRuns[0].id
+  const spawned = await (await spawnResponse).json() as { run_id: string; idempotent: boolean }
+  expect(spawned.idempotent, 'AC-720 must own a newly-created run, not an idempotent existing run').toBe(false)
+  expect(spawned.run_id).toMatch(/^[0-9a-f-]{36}$/i)
+  createdRunId = spawned.run_id
 
   // ── ASSERT: the panel switches to the started state (caption + roll-up + "1 to assign") ───────
   const captionHeader = page.getByText(/Café Opening/)
@@ -125,3 +132,4 @@ test('AC-720/F2: Start today\'s opening from /cafe → single-holder Tasks group
 
   // afterEach removes only the captured run and its dependent rows.
 })
+}
