@@ -3,7 +3,7 @@
 -- a NULL completion timestamp as stale.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(27);
+select plan(28);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
@@ -26,6 +26,9 @@ select ok(
   'the rehome ledger is RLS-enabled and forced');
 select ok(not has_table_privilege('authenticated', 'mos.task_team_rehome_ledger', 'SELECT'),
   'the maintenance ledger is not exposed as a new authenticated cross-person read surface');
+select ok(position('[applied-path-content: history-dependent]' in
+                   obj_description('mos.task_team_rehome_ledger'::regclass, 'pg_class')) > 0,
+  'the deployment-time ledger declares that its row contents depend on the migration path');
 
 -- ── DB-bound rehome classifier + safe rollback proof ─────────────────────────────────────────
 -- OwnTeam and SiblingTeam are both active in Unit-1, so the ad-hoc row must remain unresolved;

@@ -42,7 +42,7 @@ create table mos.task_team_rehome_ledger (
 );
 
 comment on table mos.task_team_rehome_ledger is
-  'Auditable Task->Team rehome results. Auto-resolved rows use only process-run ownership with a matching BU; ad-hoc rows require explicit owner ratification before team_id can become NOT NULL.';
+  '[applied-path-content: history-dependent] Auditable Task->Team rehome results. Auto-resolved rows use only process-run ownership with a matching BU; ad-hoc rows require explicit owner ratification before team_id can become NOT NULL.';
 comment on column mos.task_team_rehome_ledger.candidate_team_ids is
   'All valid same-org active Team candidates for an ambiguous ad-hoc row, or the run Team for a BU mismatch; never a first/primary/name fallback.';
 

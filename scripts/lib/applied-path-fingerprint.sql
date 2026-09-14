@@ -30,6 +30,10 @@
 --     any two resets, so including them would make the comparison fail always rather than fail
 --     meaningfully. A table whose every column is excluded still contributes its ROW COUNT, so
 --     an added or missing row is still drift.
+--   * Contents of an operational ledger whose table comment carries
+--     `[applied-path-content: history-dependent]`. Its rows describe the path that upgraded data
+--     took, so a fresh database cannot and should not reproduce them. The table's constraints,
+--     RLS posture, policies and functions remain fingerprinted; only its rows are omitted.
 --   * Function BODIES. Signatures are fingerprinted (a stale overload left behind by a
 --     conditional drop is exactly the drift this exists to catch) but prosrc is not: it would
 --     dominate the artifact and add nothing a signature change does not already flag.
@@ -55,6 +59,8 @@ owned as (
   select r.oid, r.rel
     from rel r
    where r.relrowsecurity
+     and position('[applied-path-content: history-dependent]' in
+                  coalesce(obj_description(r.oid, 'pg_class'), '')) = 0
      and not exists (select 1 from pg_policy p
                       where p.polrelid = r.oid and p.polcmd in ('a','w','d','*'))
      and not exists (select 1
