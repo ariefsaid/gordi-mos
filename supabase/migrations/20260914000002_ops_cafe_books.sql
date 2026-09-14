@@ -4,11 +4,15 @@
 -- guard: focused BEFORE triggers add the new refusal at write time, preserving every later review,
 -- provenance, and same-org arm in their current definitions.
 --
--- DOWN (manual, in one explicit transaction): first drop the two *_books_guard triggers and
--- ops._guard_cafe_books(), then ops.allowed_kitchen_destinations(uuid,uuid,text); restore
--- shared.seed_stream_teams() from 20260827000001_shared_cikal_branch.sql; only after confirming
--- no stream Team or dependent reader remains, drop teams_produces_pair_check and produces. Do not
--- apply that reversal to a database containing #777 rows without a reviewed migration plan.
+-- DOWN (manual, in one explicit transaction, exact dependency order):
+--   1. Restore ops._test_seed_cafe() verbatim from 20260807000001_ops_item_units.sql, then drop
+--      ops._test_seed_streams(); the #777 test fixture calls that helper and it writes produces.
+--   2. Drop kitchen_logs_z_books_guard and kitchen_plans_z_books_guard, then
+--      ops._guard_cafe_books() and ops.allowed_kitchen_destinations(uuid,uuid,text).
+--   3. Restore shared.seed_stream_teams() verbatim from 20260827000001_shared_cikal_branch.sql.
+--   4. Drop teams_produces_default, shared._set_team_produces_default(),
+--      teams_produces_pair_check, then shared.teams.produces.
+-- Do not apply that reversal to a database containing #777 rows without a reviewed migration plan.
 
 alter table shared.teams add column produces boolean;
 
@@ -90,6 +94,7 @@ create or replace function ops.allowed_kitchen_destinations(
 language sql stable security invoker set search_path = '' as $$
   with origin as (
     select t.branch_id, t.activity, t.produces from shared.teams t
+    join shared.branches b on b.id = t.branch_id and b.org_id = t.org_id and b.archived_at is null
     where t.org_id = p_org_id and t.branch_id = p_origin_branch_id
       and t.activity = p_origin_activity and t.archived_at is null
   ), stream_branches as (
@@ -121,6 +126,7 @@ begin
       is distinct from (new.branch_id, new.activity, new.action, new.destination_branch_id))
      and new.branch_id is not null and new.activity is not null then
     select t.produces into v_produces from shared.teams t
+    join shared.branches b on b.id = t.branch_id and b.org_id = t.org_id and b.archived_at is null
     where t.org_id = new.org_id and t.branch_id = new.branch_id
       and t.activity = new.activity and t.archived_at is null;
     if v_produces is distinct from true then

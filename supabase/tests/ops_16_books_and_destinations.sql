@@ -1,7 +1,7 @@
 -- Café books and destinations (#777): prove the write boundary, not only the picker mirror.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(20);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -121,6 +121,34 @@ select throws_ok($$
   values ('00000000-0000-0000-0000-00000000bb01','2026-09-14','00000000-0000-0000-0000-00000000bf09','kitchen','produce','00000000-0000-0000-0000-00000000ab01',1)
   $$, '23514', 'branch_id must belong to the same org as the kitchen log',
   'AC-005: a foreign stream cannot be selected; the same-org guard keeps its contract');
+
+-- A Team can outlive its branch record. That archived branch is not a live production stream,
+-- so it must fail closed even while its Team remains unarchived and marked producing.
+reset role;
+update shared.branches set archived_at = now()
+where id = '00000000-0000-0000-0000-00000000bf02'
+  and org_id = '00000000-0000-0000-0000-0000000000a1';
+select is((select archived_at from shared.teams
+           where org_id = '00000000-0000-0000-0000-0000000000a1' and code = 'rumah_rames_kitchen'), null::timestamptz,
+  'AC-002 fixture: the archived origin branch retains its live producing stream Team');
+select results_eq($$
+  select destination_branch_id from ops.allowed_kitchen_destinations(
+    '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf02', 'kitchen')
+  $$, $$ select null::uuid where false $$,
+  'AC-003: an archived origin branch has no destination catalog');
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select throws_ok($$
+  insert into ops.kitchen_logs (business_unit_id,log_date,branch_id,activity,action,wip_item_id,qty_porsi)
+  values ('00000000-0000-0000-0000-00000000bb01','2026-09-14','00000000-0000-0000-0000-00000000bf02','kitchen','produce','00000000-0000-0000-0000-00000000ab01',1)
+  $$, '42501', 'the production stream does not produce',
+  'AC-002: an archived origin branch cannot write even when its stream Team remains live');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select throws_ok($$
+  insert into ops.kitchen_plans (log_date,branch_id,activity,action,wip_item_id,qty_porsi)
+  values ('2026-09-14','00000000-0000-0000-0000-00000000bf02','kitchen','produce','00000000-0000-0000-0000-00000000ab01',1)
+  $$, '42501', 'the production stream does not produce',
+  'AC-002: an archived origin branch cannot create a plan even when its stream Team remains live');
 
 reset role;
 select * from finish();
