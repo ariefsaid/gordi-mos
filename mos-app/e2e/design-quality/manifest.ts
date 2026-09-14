@@ -408,11 +408,8 @@ const cells: ManifestCell[] = [
   }),
   cell('cafe-opening-switch-desktop', {
     area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'VIEWER',
-    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'multi-location-switch', status: 'covered', primary: true,
-    stateContract: {
-      setup: [{ action: 'click', selector: '.cafe-opening-location__change' }],
-      assertion: { selector: '[id="cafe-opening-location-switcher"]' },
-    },
+    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'multi-location-switch', status: 'untested', primary: true,
+    note: 'No read-only audit fixture currently has two eligible Café locations.',
   }),
   cell('cafe-opening-missing-compact', {
     area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'ORPHAN',
