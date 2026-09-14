@@ -8,7 +8,7 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TaskComment } from '@/components/tasks/CommentThread'
 import type { PersonOption } from '@/lib/db/directory'
 import {
-  SignalMessage, SignalReach, SignalDiscussion, SignalFacts, SignalHistory,
+  SignalMessage, SignalReach, SignalDiscussion, SignalFacts, SignalHistory, SignalOverflowMenu,
   type SignalRevisionView,
 } from './signal-record'
 
@@ -56,6 +56,27 @@ describe('SignalMessage — the content leads (LAW-1/LAW-2)', () => {
     expect(message.querySelector('.signal-record-control-row')).toBeTruthy()
     expect(within(message.querySelector('.signal-record-control-row') as HTMLElement).getByRole('button', { name: /create task/i })).toBeInTheDocument()
     expect(message.innerHTML.indexOf('signal-record-control-row')).toBeLessThan(message.innerHTML.indexOf('signal-message-body'))
+  })
+})
+
+describe('SignalOverflowMenu — nested Escape stays inside the menu', () => {
+  it('closes the menu, returns focus to its trigger, and does not close the record host', async () => {
+    const onRecordClose = vi.fn()
+    wrap(
+      <div onKeyDown={(event) => { if (event.key === 'Escape') onRecordClose() }}>
+        <SignalOverflowMenu onLinkExistingTask={vi.fn()} />
+      </div>,
+    )
+
+    const trigger = screen.getByRole('button', { name: /more signal actions/i })
+    await userEvent.click(trigger)
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(onRecordClose).not.toHaveBeenCalled()
+    expect(trigger).toHaveFocus()
   })
 })
 

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { filterEffectiveMemberships } from '@/lib/team-context/eligible-teams'
 import type {
   Attention, SignalRow, MentionKind, CreateSignalInput, TeamOption, SiteOption, StagedMention,
 } from './signals.types'
@@ -305,15 +306,30 @@ export async function listSignalRevisions(signalId: string): Promise<SignalRevis
 
 export interface MentionRosters { teamMembers: MemberLookup; buMembers: MemberLookup }
 
+const WIB_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' })
+
+function wibToday(now: Date = new Date()): string {
+  return WIB_DATE.format(now)
+}
+
+type MentionMembershipRow = {
+  team_id: string
+  person_id: string
+  effective_from: string
+  effective_to: string | null
+}
+
 /** Build the composer's fan-out-preview rosters. teamMembers: Team id → active member person ids.
  * buMembers: BU id → the active members of that BU's Teams UNION the holders of a Role scoped to
  * that BU (mirrors the fan_out_signal_mention RPC's @BU recipient union, client-side, for the
- * preview count only — the RPC itself is the authoritative count at post time, D24/AC-422). Loads
- * the whole org's substrate once (small at Gordi's ~30-person scale, same pattern as getPeople()). */
-export async function loadMentionRosters(): Promise<MentionRosters> {
+ * preview count only — the RPC itself is the authoritative count at post time, D24/AC-422). A
+ * membership is eligible only inside its effective date window, matching the server fan-out rule.
+ * Loads the whole org's substrate once (small at Gordi's ~30-person scale, same pattern as
+ * getPeople()). The optional date is a deterministic seam for unit tests. */
+export async function loadMentionRosters(today = wibToday()): Promise<MentionRosters> {
   const [teamsRes, membershipsRes, rolesRes, personRolesRes] = await Promise.all([
     shared().from('teams').select('id,business_unit_id').is('archived_at', null),
-    shared().from('team_memberships').select('team_id,person_id').is('effective_to', null),
+    shared().from('team_memberships').select('team_id,person_id,effective_from,effective_to'),
     shared().from('roles').select('id,business_unit_id'),
     shared().from('person_roles').select('person_id,role_id'),
   ])
@@ -323,7 +339,14 @@ export async function loadMentionRosters(): Promise<MentionRosters> {
   if (personRolesRes.error) throw new Error(`loadMentionRosters person_roles failed — ${personRolesRes.error.message}`)
 
   const teamMembers: MemberLookup = {}
-  for (const m of (membershipsRes.data ?? []) as { team_id: string; person_id: string }[]) {
+  const effectiveMemberships = filterEffectiveMemberships(
+    ((membershipsRes.data ?? []) as MentionMembershipRow[]).map((membership) => ({
+      ...membership,
+      is_primary: false,
+    })),
+    today,
+  )
+  for (const m of effectiveMemberships) {
     (teamMembers[m.team_id] ??= []).push(m.person_id)
   }
 

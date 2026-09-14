@@ -508,7 +508,12 @@ export function OverlayHostProvider({
       const commit = () => {
         const current = sessionRef.current
         if (!current) return
-        const existing = current.frames.findIndex((f) => f.entry.key === entry.key)
+        // The key identifies the record, but the owner identifies the physical slot that can
+        // render it. A Signal opened from Signals and then addressed from Inbox must not dedupe
+        // back to the Signals-owned frame: the Inbox slot would see the old owner and render no
+        // panel at all. Only the same record in the same slot is a true stack revisit.
+        const existing = current.frames.findIndex((f) =>
+          f.entry.key === entry.key && f.entry.owner === entry.owner)
         if (existing >= 0) {
           // Pushing a key already in the stack pops back to that frame (dedupe).
           const nextFrames = current.frames.slice(0, existing + 1)

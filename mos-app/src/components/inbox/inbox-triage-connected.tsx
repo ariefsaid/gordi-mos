@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParamState } from '@/lib/use-search-param-state'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
@@ -53,6 +53,36 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
     else setLocalFilter(next)
   }
   const [unavailableKey, setUnavailableKey] = useState<string | null>(null)
+  // One row can be acted on through several affordances (open, keyboard-read, Mark handled).
+  // Keep the guard here, at the connected boundary, so every door shares the same in-flight
+  // semantics and a slow write cannot be double-submitted by a fast double-click.
+  const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set())
+  const pendingRef = useRef<Set<string>>(new Set())
+
+  const beginPending = (id: string): boolean => {
+    if (pendingRef.current.has(id)) return false
+    const next = new Set(pendingRef.current)
+    next.add(id)
+    pendingRef.current = next
+    setPendingIds(next)
+    return true
+  }
+
+  const endPending = (id: string) => {
+    const next = new Set(pendingRef.current)
+    next.delete(id)
+    pendingRef.current = next
+    setPendingIds(next)
+  }
+
+  const runPending = async (id: string, action: () => Promise<void> | void) => {
+    if (!beginPending(id)) return
+    try {
+      await action()
+    } finally {
+      endPending(id)
+    }
+  }
 
   // H9 fix (design audit, 2026-07-27): the 401 dead-loop. An expired/invalid token surfaced the
   // SAME generic error as any other failure, with a "Try again" that re-fires the identical call
@@ -102,24 +132,34 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
   const onSignInAgain = canSignOut ? () => void auth.signOut() : undefined
 
   const onOpen = (row: TriageNotificationRow) => {
-    setUnavailableKey(null)
-    const resolution = resolveNotificationTarget(row, buildInboxTargetDeps(row, accessRoles, owner))
-    // Opening marks READ only (never handled) — the queue truth updates even when the target
-    // cannot be shown, because the person has now seen the notification.
-    void markRead(row.id)
-    if (resolution.status !== 'available') {
-      setUnavailableKey(resolution.messageKey)
-      return
-    }
-    if (!host) return
-    const entry: OverlayEntry = resolution.entry
-    // Active session (quick triage) → push so Back returns to the queue; otherwise open a root
-    // over the underlying page in ROUTE mode (D-A3, fix work-order item 5): route mode pushes a real
-    // `__mosOverlay` history marker, so browser Back closes the panel and returns to Inbox. An
-    // ephemeral root pushed no history entry, so Back ejected the user OUT of Inbox — the dead-end
-    // I2 + OD-REDESIGN-20 ("Back returns to Inbox") forbid.
-    if (host.session) void host.push(entry)
-    else void host.openRoot(entry, 'route')
+    void runPending(row.id, async () => {
+      setUnavailableKey(null)
+      const resolution = resolveNotificationTarget(row, buildInboxTargetDeps(row, accessRoles, owner))
+      // Opening marks READ only (never handled) — the queue truth updates even when the target
+      // cannot be shown, because the person has now seen the notification. Keep the promise in
+      // the pending boundary so a slow read write cannot permit a duplicate action.
+      const readPromise = Promise.resolve(markRead(row.id))
+      if (resolution.status !== 'available') {
+        setUnavailableKey(resolution.messageKey)
+        await readPromise
+        return
+      }
+      if (!host) {
+        await readPromise
+        return
+      }
+      const entry: OverlayEntry = resolution.entry
+      // Active session (quick triage) → push so Back returns to the queue; otherwise open a root
+      // over the underlying page in ROUTE mode (D-A3, fix work-order item 5): route mode pushes a real
+      // `__mosOverlay` history marker, so browser Back closes the panel and returns to Inbox. An
+      // ephemeral root pushed no history entry, so Back ejected the user OUT of Inbox — the dead-end
+      // I2 + OD-REDESIGN-20 ("Back returns to Inbox") forbid.
+      const openPromise = host.session ? host.push(entry) : host.openRoot(entry, 'route')
+      await Promise.all([readPromise, Promise.resolve(openPromise)])
+    }).catch(() => {
+      // The data hook owns visible write errors; a host transition failure only needs to release
+      // the row guard so the user can retry through the same action.
+    })
   }
 
   return (
@@ -134,8 +174,13 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
         counts={counts}
         onFilterChange={setFilter}
         onOpen={onOpen}
-        onQuickMarkRead={(row) => void markRead(row.id)}
-        onMarkHandled={(row) => void markHandled(row.id)}
+        onQuickMarkRead={(row) => {
+          void runPending(row.id, () => markRead(row.id)).catch(() => {})
+        }}
+        onMarkHandled={(row) => {
+          void runPending(row.id, () => markHandled(row.id)).catch(() => {})
+        }}
+        pendingIds={[...pendingIds]}
         onRetry={() => void refresh()}
         onSignInAgain={onSignInAgain}
       />

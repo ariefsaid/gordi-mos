@@ -427,6 +427,31 @@ describe('SignalRecordHost — Create follow-up Task (canonical Task composer, P
     await userEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
     expect(await screen.findByRole('heading', { name: /discard unsaved changes/i })).toBeInTheDocument()
   })
+
+  it('keeps the Task composer open when linking the newly-created Task fails', async () => {
+    mockGetPersonTeams.mockResolvedValue([{
+      id: TEAM_ID,
+      name: 'HQ Operations',
+      businessUnitId: BU_ID,
+      siteId: 'site-1',
+      orgId: 'org-1',
+    }])
+    mockLinkSignalTask.mockRejectedValueOnce(new Error('link unavailable'))
+    renderHost()
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: /create task/i }))
+    await screen.findByRole('textbox', { name: /^title$/i })
+    await userEvent.click(await screen.findByRole('combobox', { name: /supervisor/i }))
+    await userEvent.click(screen.getByRole('option', { name: 'Author One' }))
+    const taskComposer = document.querySelector('.signal-task-create-frame') as HTMLElement
+    expect(taskComposer).toBeInTheDocument()
+    await userEvent.click(within(taskComposer).getByRole('button', { name: /^create task$/i }))
+
+    await waitFor(() => expect(mockLinkSignalTask).toHaveBeenCalledWith(SIGNAL_ID, 'task-created'))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be updated/i)
+    expect(screen.getByRole('textbox', { name: /^title$/i })).toBeInTheDocument()
+  })
 })
 
 describe('SignalRecordHost — related Task read failure', () => {

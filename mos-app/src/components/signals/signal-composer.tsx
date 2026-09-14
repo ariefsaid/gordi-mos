@@ -22,10 +22,11 @@ import './signal-composer.css'
 export interface SignalComposerProps {
   authorId: string
   authorName: string
-  /** Widens @Team mention reach to all active Teams for capability holders. The Owning Team
-   * select always uses the database's post-and-read-back list. Defaults to false (fail-closed). */
+  /** Legacy alias for the runtime signal.tag decision. The Owning Team select always uses the
+   * database's post-and-read-back list. Defaults to false (fail-closed). */
   canCreateForTeam?: boolean
-  /** signal.mention_bu — gates the @BU mention group (FR-407). Defaults to false (fail-closed). */
+  /** Legacy-compatible @BU picker gate. The shell supplies the effective signal.tag decision;
+   * defaults to false (fail-closed). */
   canMentionBu?: boolean
   /** Effective runtime signal.tag authority. Also unlocks org-wide Person/Team tagging. */
   canTag?: boolean
@@ -89,7 +90,7 @@ export function SignalComposer({
     const mentionTeamsLoad = tagAuthority ? listAllTeams() : Promise.resolve([] as TeamOption[])
     const peopleLoad = tagAuthority ? getPeople() : Promise.resolve([])
     // Keep the BU roster loaded even when the picker is disabled so the UI can explain the
-    // explicit signal.mention_bu boundary with a disabled option rather than hiding the group.
+    // effective signal.tag boundary with a disabled option rather than hiding the group.
     const businessUnitsLoad = getBusinessUnits()
     Promise.all([teamsLoad, mentionTeamsLoad, peopleLoad, businessUnitsLoad]).then(([
       teamOptions, mentionTeamOptions, peopleOptions, buOptions,

@@ -592,17 +592,39 @@ describe('loadMentionRosters', () => {
     const rec = freshRec()
     mockSupabase({
       'shared.teams': [{ data: [{ id: 'team-a', business_unit_id: 'bu-1' }, { id: 'team-b', business_unit_id: 'bu-2' }], error: null }],
-      'shared.team_memberships': [{ data: [{ team_id: 'team-a', person_id: 'p1' }, { team_id: 'team-a', person_id: 'p2' }, { team_id: 'team-b', person_id: 'p3' }], error: null }],
+      'shared.team_memberships': [{ data: [
+        { team_id: 'team-a', person_id: 'p1', effective_from: '2020-01-01', effective_to: null },
+        { team_id: 'team-a', person_id: 'p2', effective_from: '2020-01-01', effective_to: null },
+        { team_id: 'team-b', person_id: 'p3', effective_from: '2020-01-01', effective_to: null },
+      ], error: null }],
       'shared.roles': [{ data: [{ id: 'role-1', business_unit_id: 'bu-1' }], error: null }],
       'shared.person_roles': [{ data: [{ person_id: 'p4', role_id: 'role-1' }], error: null }],
     }, rec)
 
-    const { teamMembers, buMembers } = await loadMentionRosters()
+    const { teamMembers, buMembers } = await loadMentionRosters('2026-07-20')
     expect(teamMembers).toEqual({ 'team-a': ['p1', 'p2'], 'team-b': ['p3'] })
     // bu-1 = team-a's members (p1,p2) UNION role-1 holder (p4, since role-1.business_unit_id=bu-1)
     expect(buMembers['bu-1']).toEqual(expect.arrayContaining(['p1', 'p2', 'p4']))
     expect(buMembers['bu-1']).toHaveLength(3)
     expect(buMembers['bu-2']).toEqual(['p3'])
+  })
+
+  it('excludes future and ended memberships from the preview roster', async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'shared.teams': [{ data: [{ id: 'team-a', business_unit_id: 'bu-1' }], error: null }],
+      'shared.team_memberships': [{ data: [
+        { team_id: 'team-a', person_id: 'started', effective_from: '2026-07-20', effective_to: null },
+        { team_id: 'team-a', person_id: 'future', effective_from: '2026-07-21', effective_to: null },
+        { team_id: 'team-a', person_id: 'ended', effective_from: '2020-01-01', effective_to: '2026-07-19' },
+      ], error: null }],
+      'shared.roles': [{ data: [], error: null }],
+      'shared.person_roles': [{ data: [], error: null }],
+    }, rec)
+
+    const { teamMembers, buMembers } = await loadMentionRosters('2026-07-20')
+    expect(teamMembers).toEqual({ 'team-a': ['started'] })
+    expect(buMembers).toEqual({ 'bu-1': ['started'] })
   })
 
   it('throws on a non-null PostgREST error from any of the four reads', async () => {

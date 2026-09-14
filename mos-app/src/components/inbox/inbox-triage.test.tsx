@@ -214,6 +214,14 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
     expect(screen.getByRole('status')).toHaveTextContent(/opening/i)
   })
 
+  it('a pending row also disables its Mark handled action', () => {
+    renderTriage({ rows: [trow('a')], onMarkHandled: vi.fn(), pendingIds: ['a'] })
+    const row = screen.getByRole('button', { name: /Title a/ }).closest('.inbox-row')!
+    const handle = within(row as HTMLElement).getByRole('button', { name: /mark handled/i })
+    expect(handle).toBeDisabled()
+    expect(handle).toHaveAttribute('aria-busy', 'true')
+  })
+
   it('is chrome-free: no dialog role, no scrim, no close button — the host owns those', () => {
     renderTriage()
     expect(screen.queryByRole('dialog')).toBeNull()

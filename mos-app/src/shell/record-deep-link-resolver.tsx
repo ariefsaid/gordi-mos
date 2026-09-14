@@ -79,7 +79,7 @@ export function createRecordDeepLinkResolver(
   t: (key: MessageKey) => string,
   kinds: RecordKindRegistry,
 ): OverlayDeepLinkResolver {
-  return (marker): OverlayEntry | null => {
+  return (marker, location): OverlayEntry | null => {
     const idx = marker.entryKey.indexOf(':')
     if (idx < 0) return null
     const kind = marker.entryKey.slice(0, idx)
@@ -89,9 +89,18 @@ export function createRecordDeepLinkResolver(
     const descriptor = kinds[kind]
     if (!descriptor) return null
 
+    // A route marker does not persist the physical collection slot. Inbox opens Signals through
+    // its own owner so its page slot can render the panel; after a hard reload the generic Signal
+    // descriptor would otherwise restore owner="signals", which is not mounted on /inbox. Keep
+    // the canonical Signals owner everywhere else (Home/Signals), but restore the Inbox door in
+    // the Inbox route context.
+    const owner: OverlayOwner = descriptor.owner === 'signals' && location.pathname === '/inbox'
+      ? 'inbox'
+      : descriptor.owner
+
     return {
       key: marker.entryKey,
-      owner: descriptor.owner,
+      owner,
       tenant: 'record',
       label: t(descriptor.titleKey),
       title: t(descriptor.titleKey),

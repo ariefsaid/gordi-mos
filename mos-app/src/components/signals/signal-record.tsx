@@ -127,22 +127,29 @@ export function SignalOverflowMenu({
 
   useEffect(() => {
     if (!open) return
+    const root = rootRef.current
+    if (!root) return
     const onPointerDown = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
     }
+    // The shared RecordPanelHost listens for Escape on the panel itself. A document-level
+    // bubble listener is too late: the panel closes before this menu gets a chance to consume
+    // the key. Capture at the menu root so nested menu dismissal always wins over the host's
+    // record-level close, including when focus is still on the trigger after opening.
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
         event.stopPropagation()
+        event.stopImmediatePropagation()
         setOpen(false)
         triggerRef.current?.focus()
       }
     }
     document.addEventListener('pointerdown', onPointerDown)
-    document.addEventListener('keydown', onKeyDown)
+    root.addEventListener('keydown', onKeyDown, true)
     return () => {
       document.removeEventListener('pointerdown', onPointerDown)
-      document.removeEventListener('keydown', onKeyDown)
+      root.removeEventListener('keydown', onKeyDown, true)
     }
   }, [open])
 

@@ -126,6 +126,12 @@ describe('RECORD_KINDS — the live registry (#424: a marker-only deep link reop
     expect(content.props.mode).toBe('panel')
   })
 
+  it('restores an Inbox-opened Signal into the Inbox slot after a hard reload', () => {
+    const entry = live(marker('signal:sig-9'), { pathname: '/inbox' } as never)
+    expect(entry?.owner).toBe('inbox')
+    expect(entry?.pageTo).toEqual({ pathname: '/work/signals/sig-9' })
+  })
+
   it('a queue Follow-up reopens from its marker: owner shell, NO pageTo — DD-WAY-36 deleted the page', () => {
     const entry = live(marker('follow-up:fu-3'), {} as never)
     expect(entry).not.toBeNull()

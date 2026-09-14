@@ -148,7 +148,7 @@ export function InboxTriage({
       event.preventDefault()
       const id = button.closest<HTMLLIElement>('.inbox-row')?.dataset.notificationId
       const row = rows.find((r) => r.id === id)
-      if (row) onQuickMarkRead(row)
+      if (row && !pending.has(row.id)) onQuickMarkRead(row)
     }
   }
 
@@ -280,6 +280,8 @@ export function InboxTriage({
                       type="button"
                       className="inbox-row__handle"
                       onClick={() => onMarkHandled?.(n)}
+                      disabled={isPending}
+                      aria-busy={isPending || undefined}
                     >
                       {t('inbox.markHandled')}
                     </button>

@@ -502,6 +502,10 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
       await linkSignalTask(signalId, taskId)
     } catch {
       setActionError(t('signals.record.actionError'))
+      // The Task exists, but the Signal relationship does not. Keep the composer visible so the
+      // user can retry or leave with the created Task context still present; closing here made a
+      // failed link look like a completed Signal→Task journey.
+      return
     }
     void refreshTaskProjection()
     if (host?.session) {
