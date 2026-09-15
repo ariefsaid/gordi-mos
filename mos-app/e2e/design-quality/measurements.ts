@@ -31,6 +31,10 @@ export type MutationFixture =
   | { ruleId: 'structure.nested-cards'; nestedCardCount: number }
   | { ruleId: 'structure.heading-outline'; headingLevels: number[] }
   | { ruleId: 'a11y.accessible-name'; accessibleName: string }
+  | { ruleId: 'content.text-truncation'; truncated: boolean; fullValuePathExercised: boolean }
+  | { ruleId: 'geometry.viewport-occlusion'; intersectionRatio: number; centerCovered: boolean; fullyReachable: boolean }
+  | { ruleId: 'touch.phone-separation'; width: number; height: number; nearestDistance: number }
+  | { ruleId: 'identity.full-value'; truncated: boolean; ariaLabel: string; visibleReveal: string }
 
 export type MutationEvaluation = { ruleId: string; passed: boolean; detail: string }
 
@@ -43,6 +47,10 @@ export const MUTATION_FIXTURES: MutationFixture[] = [
   { ruleId: 'structure.nested-cards', nestedCardCount: 1 },
   { ruleId: 'structure.heading-outline', headingLevels: [1, 3] },
   { ruleId: 'a11y.accessible-name', accessibleName: '' },
+  { ruleId: 'content.text-truncation', truncated: true, fullValuePathExercised: false },
+  { ruleId: 'geometry.viewport-occlusion', intersectionRatio: 0.2, centerCovered: true, fullyReachable: false },
+  { ruleId: 'touch.phone-separation', width: 44, height: 44, nearestDistance: 4 },
+  { ruleId: 'identity.full-value', truncated: true, ariaLabel: 'Complete value', visibleReveal: '' },
 ]
 
 function channel(value: number): number {
@@ -115,6 +123,22 @@ export function evaluateMutationFixture(fixture: MutationFixture): MutationEvalu
       const passed = fixture.accessibleName.trim().length > 0
       return { ruleId: fixture.ruleId, passed, detail: `name=${fixture.accessibleName || '<empty>'}` }
     }
+    case 'content.text-truncation': {
+      const passed = !fixture.truncated || fixture.fullValuePathExercised
+      return { ruleId: fixture.ruleId, passed, detail: `truncated=${fixture.truncated}; reveal=${fixture.fullValuePathExercised}` }
+    }
+    case 'geometry.viewport-occlusion': {
+      const passed = fixture.intersectionRatio <= 0.1 && !fixture.centerCovered && fixture.fullyReachable
+      return { ruleId: fixture.ruleId, passed, detail: `intersection=${fixture.intersectionRatio}; center=${fixture.centerCovered}; reachable=${fixture.fullyReachable}` }
+    }
+    case 'touch.phone-separation': {
+      const passed = fixture.width >= 44 && fixture.height >= 44 && fixture.nearestDistance >= 8
+      return { ruleId: fixture.ruleId, passed, detail: `${fixture.width}x${fixture.height}px; gap=${fixture.nearestDistance}px` }
+    }
+    case 'identity.full-value': {
+      const passed = !fixture.truncated || fixture.visibleReveal.trim().length > 0
+      return { ruleId: fixture.ruleId, passed, detail: `aria=${fixture.ariaLabel || '<empty>'}; visible=${fixture.visibleReveal || '<empty>'}` }
+    }
   }
 }
 
@@ -126,6 +150,184 @@ export type PageAuditContext = {
   theme: string
   language: string
   state: string
+}
+
+export type VisibleContentKind = 'text-truncation' | 'viewport-occlusion' | 'touch-separation'
+
+export type VisibleContentRow = PageAuditContext & {
+  cellId: string
+  selector: string
+  kind: VisibleContentKind
+  observed: boolean
+  passed: boolean
+  measured: string
+}
+
+/** Measure visible text, persistent-band overlap, and the complete phone control population. */
+export async function collectVisibleContent(
+  page: Page,
+  context: PageAuditContext,
+  cellId: string,
+  exercisedFullValueSelectors: readonly string[] = [],
+): Promise<VisibleContentRow[]> {
+  return page.evaluate(({ pageContext, manifestCellId, exercisedSelectors }) => {
+    const rows: VisibleContentRow[] = []
+    const actionable = 'button, a[href], input, select, textarea, [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="tab"]'
+    const textSelector = 'h1, h2, h3, h4, h5, h6, p, span, td, th, dt, dd, label, button, a[href], [data-full-value]'
+    const visible = (element: HTMLElement): boolean => {
+      const style = getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 2 && rect.height > 2
+    }
+    const cssPath = (element: HTMLElement): string => {
+      const segments: string[] = []
+      let current: HTMLElement | null = element
+      while (current && current !== document.body) {
+        let ordinal = 1
+        let sibling = current.previousElementSibling
+        while (sibling) {
+          if (sibling.tagName === current.tagName) ordinal += 1
+          sibling = sibling.previousElementSibling
+        }
+        segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${ordinal})`)
+        current = current.parentElement
+      }
+      return ['body', ...segments].join(' > ')
+    }
+    const textTargets = Array.from(document.querySelectorAll<HTMLElement>(textSelector))
+      .filter((element) => visible(element) && /[\p{L}\p{N}]/u.test(element.innerText?.trim() || ''))
+    for (const element of textTargets) {
+      const style = getComputedStyle(element)
+      const overflowClips = ['hidden', 'clip'].includes(style.overflow)
+        || ['hidden', 'clip'].includes(style.overflowX)
+        || ['hidden', 'clip'].includes(style.overflowY)
+      const lineClamp = style.getPropertyValue('-webkit-line-clamp') || 'none'
+      const truncated = element.scrollWidth > element.clientWidth + 1
+        || (overflowClips && element.scrollHeight > element.clientHeight + 1)
+        || (lineClamp !== 'none' && lineClamp !== '0')
+        || style.textOverflow === 'ellipsis'
+      const fullValuePathExercised = exercisedSelectors.some((selector) => {
+        try { return element.matches(selector) } catch { return false }
+      })
+      rows.push({
+        ...pageContext,
+        cellId: manifestCellId,
+        selector: cssPath(element),
+        kind: 'text-truncation',
+        observed: true,
+        passed: !truncated || fullValuePathExercised,
+        measured: JSON.stringify({
+          scrollWidth: element.scrollWidth,
+          clientWidth: element.clientWidth,
+          lineClamp,
+          textOverflow: style.textOverflow,
+          fullValuePathExercised,
+        }),
+      })
+    }
+
+    const persistentBands = Array.from(document.querySelectorAll<HTMLElement>('body *')).filter((element) => {
+      if (!visible(element)) return false
+      const position = getComputedStyle(element).position
+      return position === 'fixed' || position === 'sticky'
+    })
+    const occlusionTargets = Array.from(new Set([
+      ...textTargets,
+      ...Array.from(document.querySelectorAll<HTMLElement>(actionable)).filter(visible),
+    ]))
+    for (const target of occlusionTargets) {
+      const targetRect = target.getBoundingClientRect()
+      let intersectionRatio = 0
+      let centerCovered = false
+      for (const band of persistentBands) {
+        if (band === target || band.contains(target) || target.contains(band)) continue
+        const bandRect = band.getBoundingClientRect()
+        const width = Math.max(0, Math.min(targetRect.right, bandRect.right) - Math.max(targetRect.left, bandRect.left))
+        const height = Math.max(0, Math.min(targetRect.bottom, bandRect.bottom) - Math.max(targetRect.top, bandRect.top))
+        const area = Math.max(1, targetRect.width * targetRect.height)
+        intersectionRatio = Math.max(intersectionRatio, (width * height) / area)
+        const centerX = targetRect.left + targetRect.width / 2
+        const centerY = targetRect.top + targetRect.height / 2
+        if (centerX >= bandRect.left && centerX <= bandRect.right && centerY >= bandRect.top && centerY <= bandRect.bottom) {
+          centerCovered = true
+        }
+      }
+      const topInset = persistentBands.reduce((value, band) => {
+        const rect = band.getBoundingClientRect()
+        return rect.top <= 1 ? Math.max(value, rect.bottom) : value
+      }, 0)
+      const bottomInset = persistentBands.reduce((value, band) => {
+        const rect = band.getBoundingClientRect()
+        return rect.bottom >= window.innerHeight - 1 ? Math.max(value, window.innerHeight - rect.top) : value
+      }, 0)
+      const fullyReachable = targetRect.height <= window.innerHeight - topInset - bottomInset
+      rows.push({
+        ...pageContext,
+        cellId: manifestCellId,
+        selector: cssPath(target),
+        kind: 'viewport-occlusion',
+        observed: true,
+        passed: intersectionRatio <= 0.1 && !centerCovered && fullyReachable,
+        measured: JSON.stringify({
+          intersectionRatio,
+          centerCovered,
+          fullyReachable,
+          persistentBandCount: persistentBands.length,
+        }),
+      })
+    }
+
+    if (pageContext.viewport === 'phone-390x844') {
+      const controls = Array.from(document.querySelectorAll<HTMLElement>(actionable)).filter(visible)
+      if (controls.length === 0) {
+        rows.push({
+          ...pageContext,
+          cellId: manifestCellId,
+          selector: '__empty_phone_control_population__',
+          kind: 'touch-separation',
+          observed: false,
+          passed: false,
+          measured: JSON.stringify({ width: 0, height: 0, nearestDistance: null, populationSize: 0 }),
+        })
+      }
+      for (const target of controls) {
+        const rect = target.getBoundingClientRect()
+        const container = target.closest('form, nav, [role="group"], [role="toolbar"], [role="menu"], [role="listbox"], main, aside, [role="dialog"]')
+          || document.body
+        const neighbours = controls.filter((candidate) => candidate !== target
+          && (candidate.closest('form, nav, [role="group"], [role="toolbar"], [role="menu"], [role="listbox"], main, aside, [role="dialog"]')
+            || document.body) === container)
+        let nearestDistance: number | null = null
+        let nearestSelector = ''
+        for (const neighbour of neighbours) {
+          const other = neighbour.getBoundingClientRect()
+          const dx = Math.max(rect.left - other.right, other.left - rect.right, 0)
+          const dy = Math.max(rect.top - other.bottom, other.top - rect.bottom, 0)
+          const distance = Math.hypot(dx, dy)
+          if (nearestDistance === null || distance < nearestDistance) {
+            nearestDistance = distance
+            nearestSelector = cssPath(neighbour)
+          }
+        }
+        rows.push({
+          ...pageContext,
+          cellId: manifestCellId,
+          selector: cssPath(target),
+          kind: 'touch-separation',
+          observed: true,
+          passed: rect.width >= 44 && rect.height >= 44 && (nearestDistance === null || nearestDistance >= 8),
+          measured: JSON.stringify({
+            width: rect.width,
+            height: rect.height,
+            nearestDistance,
+            nearestSelector,
+            populationSize: controls.length,
+          }),
+        })
+      }
+    }
+    return rows
+  }, { pageContext: context, manifestCellId: cellId, exercisedSelectors: exercisedFullValueSelectors })
 }
 
 export type GeometryRow = PageAuditContext & {

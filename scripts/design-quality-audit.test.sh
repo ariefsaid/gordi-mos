@@ -57,6 +57,16 @@ else
   bad "fixture receipt binding secret lifecycle is incomplete"
 fi
 
+if node --experimental-strip-types --input-type=module - <<'NODE'
+import { REQUIRED_ARTIFACTS } from './mos-app/e2e/design-quality/report.ts'
+if (!REQUIRED_ARTIFACTS.includes('visible-content.csv')) process.exit(1)
+NODE
+then
+  ok "visible-content evidence is required by the audit runner"
+else
+  bad "visible-content evidence is missing from the audit runner contract"
+fi
+
 recovery_dir="$(mktemp -d -t mos-design-recovery.XXXXXX)"
 recovery_receipt="$recovery_dir/fixture-receipt.json"
 recovery_secret="$recovery_dir/fixture-binding.secret"

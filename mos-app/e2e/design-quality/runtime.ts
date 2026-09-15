@@ -343,14 +343,25 @@ export async function observeManifestCellState(page: Page, cell: ManifestCell): 
   const assertion = cell.stateContract!.assertion
   const target = page.locator(assertion.selector).filter({ visible: true })
   await target.first().waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {})
-  const count = assertion.attribute
-    ? await target.evaluateAll((elements, expected) => elements.filter((element) => {
-      const actual = element.getAttribute(expected.attribute)
-      return expected.value === undefined ? actual !== null : actual === expected.value
-    }).length, { attribute: assertion.attribute, value: assertion.value })
-    : await target.count()
-  return count > 0
-    ? { status: 'covered', evidence: `${count} visible assertion target(s): ${assertion.selector}` }
+  const matchingCount = async (
+    selector: string,
+    expected: { attribute?: string; value?: string },
+  ): Promise<number> => {
+    const candidates = page.locator(selector).filter({ visible: true })
+    return expected.attribute
+      ? candidates.evaluateAll((elements, condition) => elements.filter((element) => {
+        const actual = element.getAttribute(condition.attribute)
+        return condition.value === undefined ? actual !== null : actual === condition.value
+      }).length, { attribute: expected.attribute, value: expected.value })
+      : candidates.count()
+  }
+  const count = await matchingCount(assertion.selector, assertion)
+  const negative = cell.stateContract!.negativeAssertion
+  const negativeCount = negative
+    ? await matchingCount(negative.selector, negative)
+    : 0
+  return count > 0 && negativeCount === 0
+    ? { status: 'covered', evidence: `${count} visible assertion target(s): ${assertion.selector}; default marker absent` }
     : { status: 'untested', evidence: `state assertion did not match: ${assertion.selector}` }
 }
 

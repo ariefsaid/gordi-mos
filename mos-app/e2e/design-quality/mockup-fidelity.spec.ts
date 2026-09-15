@@ -1,4 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { access, mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -6,6 +7,7 @@ import { promisify } from 'node:util'
 import { test, expect } from '@playwright/test'
 
 import { DESIGN_QUALITY_MANIFEST, type ManifestCell } from './manifest'
+import { APPROVED_MVP_COMPARISONS } from './baseline-contract'
 import {
   bindMockupToCell,
   parseMockupAuthorityEntry,
@@ -70,6 +72,25 @@ function payloadEntries(payload: unknown): { entries: unknown[]; authorityRows: 
   }
 }
 
+async function assertFrozenMockupPopulation(entries: readonly MockupAuthorityEntry[]): Promise<void> {
+  if (entries.length !== APPROVED_MVP_COMPARISONS.length) {
+    throw new Error(`mockup authority must contain exactly ${APPROVED_MVP_COMPARISONS.length} approved comparisons`)
+  }
+  for (const expected of APPROVED_MVP_COMPARISONS) {
+    const entry = entries.find((candidate) => candidate.cellId === expected.cellId
+      && candidate.viewport === expected.viewport)
+    if (!entry) throw new Error(`approved comparison is missing: ${expected.id}`)
+    if (path.basename(entry.path) !== expected.fileName) {
+      throw new Error(`${expected.id} uses an unapproved mockup file`)
+    }
+    if (JSON.stringify(entry.requiredRegions) !== JSON.stringify(expected.requiredRegions)) {
+      throw new Error(`${expected.id} changed its required-region set`)
+    }
+    const digest = createHash('sha256').update(await readFile(entry.path)).digest('hex')
+    if (digest !== expected.sha256) throw new Error(`${expected.id} mockup hash changed`)
+  }
+}
+
 /**
  * Load only an explicit, authority-backed list. There is intentionally no
  * directory discovery fallback: archived/private docs must never silently
@@ -106,6 +127,7 @@ export async function approvedMockups(): Promise<MockupAuthorityEntry[]> {
       : parsed.entries
     const entries = candidates.map((entry) => authorityEntry(entry, parsed.inheritedAuthority))
     if (entries.length === 0) throw new Error('mockup authority list contains no approved comp-diff image entries')
+    await assertFrozenMockupPopulation(entries)
     return entries
   }
 

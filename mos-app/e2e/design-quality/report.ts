@@ -3,7 +3,7 @@ import { mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from 'nod
 import path from 'node:path'
 
 import { validateAuditFixtureReceipt, type AuditFixtureReceipt } from './audit-provisioner.ts'
-import { validateManifest } from './manifest.ts'
+import { isManifestCellRunnable, validateManifest, type DesignQualityManifest } from './manifest.ts'
 
 export const REQUIRED_ARTIFACTS = [
   'manifest.json',
@@ -16,6 +16,7 @@ export const REQUIRED_ARTIFACTS = [
   'state-matrix.csv',
   'affordance-census.csv',
   'copy-census.csv',
+  'visible-content.csv',
   'impeccable.json',
   'mockup-diff',
 ] as const
@@ -304,6 +305,96 @@ export function meaningfulCsv(artifact: string, text: string): { ok: boolean; re
   return { ok: true }
 }
 
+function parseCsvLine(line: string): string[] {
+  const values: string[] = []
+  let value = ''
+  let quoted = false
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index]!
+    if (char === '"') {
+      if (quoted && line[index + 1] === '"') {
+        value += '"'
+        index += 1
+      } else quoted = !quoted
+    } else if (char === ',' && !quoted) {
+      values.push(value)
+      value = ''
+    } else value += char
+  }
+  values.push(value)
+  return values
+}
+
+function measuredObject(value: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(value)
+    return isRecord(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+export function validateVisibleContentCsv(
+  text: string,
+  manifest: DesignQualityManifest | null,
+): { ok: boolean; reason?: string } {
+  if (!manifest) return { ok: false, reason: 'visible-content evidence requires a valid manifest.json' }
+  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0)
+  if (lines.length < 4) return { ok: false, reason: 'visible-content.csv has no measured population' }
+  const header = parseCsvLine(lines[2]!)
+  const required = ['cellId', 'kind', 'measured', 'observed', 'passed', 'selector']
+  const missing = required.filter((column) => !header.includes(column))
+  if (missing.length > 0) return { ok: false, reason: `visible-content.csv is missing columns: ${missing.join(', ')}` }
+  const rows = lines.slice(3).map((line) => {
+    const values = parseCsvLine(line)
+    return Object.fromEntries(header.map((column, index) => [column, values[index] ?? '']))
+  })
+  const kinds = new Set(['text-truncation', 'viewport-occlusion', 'touch-separation'])
+  for (const row of rows) {
+    if (!kinds.has(row.kind)) return { ok: false, reason: `visible-content.csv has unknown kind ${row.kind}` }
+    if (!row.cellId || !row.selector) return { ok: false, reason: 'visible-content.csv contains an unbound row' }
+    if (!['true', 'false'].includes(row.observed) || !['true', 'false'].includes(row.passed)) {
+      return { ok: false, reason: 'visible-content.csv observed/passed values must be booleans' }
+    }
+    const measured = measuredObject(row.measured)
+    if (!measured || Object.keys(measured).length === 0) {
+      return { ok: false, reason: 'visible-content.csv rows require machine measurements, not self-asserted verdicts' }
+    }
+    if (row.kind === 'text-truncation'
+      && !['scrollWidth', 'clientWidth', 'lineClamp', 'textOverflow', 'fullValuePathExercised']
+        .every((field) => Object.hasOwn(measured, field))) {
+      return { ok: false, reason: 'text-truncation rows lack required measurements' }
+    }
+    if (row.kind === 'viewport-occlusion'
+      && !['intersectionRatio', 'centerCovered', 'fullyReachable', 'persistentBandCount']
+        .every((field) => Object.hasOwn(measured, field))) {
+      return { ok: false, reason: 'viewport-occlusion rows lack required measurements' }
+    }
+    if (row.kind === 'touch-separation'
+      && !['width', 'height', 'nearestDistance', 'populationSize']
+        .every((field) => Object.hasOwn(measured, field))) {
+      return { ok: false, reason: 'touch-separation rows lack required measurements' }
+    }
+  }
+  for (const cell of manifest.cells.filter(isManifestCellRunnable)) {
+    const cellRows = rows.filter((row) => row.cellId === cell.id)
+    for (const kind of ['text-truncation', 'viewport-occlusion']) {
+      if (!cellRows.some((row) => row.kind === kind)) {
+        return { ok: false, reason: `${cell.id} has no ${kind} evidence` }
+      }
+    }
+    if (cell.viewport === 'phone-390x844') {
+      const touchRows = cellRows.filter((row) => row.kind === 'touch-separation')
+      if (touchRows.length === 0) return { ok: false, reason: `${cell.id} has no phone control denominator` }
+      const sizes = touchRows.map((row) => Number(measuredObject(row.measured)?.populationSize))
+      if (sizes.some((size) => !Number.isInteger(size) || size <= 0 || size !== touchRows.length)) {
+        return { ok: false, reason: `${cell.id} touch rows do not cover every visible phone control` }
+      }
+    }
+  }
+  return { ok: true }
+}
+
 function meaningfulGateLog(text: string): { ok: boolean; reason?: string } {
   if (/\bpending\b/i.test(text)) return { ok: false, reason: 'gate log still contains a pending status' }
   if (!/^browser_status=(?:0|[1-9][0-9]*|not-run|skipped)$/m.test(text)) {
@@ -330,6 +421,13 @@ export async function validateArtifactSet(
   const invalid: string[] = []
   const files: string[] = []
   const errors: string[] = []
+  let coverageManifest: DesignQualityManifest | null = null
+  try {
+    const candidate = JSON.parse(await readFile(path.join(root, 'manifest.json'), 'utf8')) as DesignQualityManifest
+    if (validateManifest(candidate).ok) coverageManifest = candidate
+  } catch {
+    coverageManifest = null
+  }
 
   for (const artifact of REQUIRED_ARTIFACTS) {
     const target = path.join(root, artifact)
@@ -396,6 +494,8 @@ export async function validateArtifactSet(
         content = meaningfulJson(artifact, JSON.parse(text), expected)
       } else if (artifact === 'gate-log.txt') {
         content = meaningfulGateLog(text)
+      } else if (artifact === 'visible-content.csv') {
+        content = validateVisibleContentCsv(text, coverageManifest)
       } else {
         content = meaningfulCsv(artifact, text)
       }

@@ -80,6 +80,7 @@ QUANTITATIVE_ARTIFACTS = (
     "state-matrix.csv",
     "affordance-census.csv",
     "copy-census.csv",
+    "visible-content.csv",
     "impeccable.json",
     "mockup-diff",
 )
