@@ -28,6 +28,7 @@ import {
 import {
   AuditProvisioner,
   assertAuditOwnedCleanupSql,
+  auditFixtureReceiptBinding,
   cleanupAuditFixtureReceipt,
   createLocalAuditAuthClient,
   createLocalAuditSqlClient,
@@ -36,6 +37,8 @@ import {
   validateAuditFixtureProvisionedReceipt,
 } from './audit-provisioner.ts'
 import { resetAuditScroll } from './scroll.ts'
+
+const testBindingSecret = 'fixture-binding-secret-for-manifest-tests'
 
 test('the design manifest covers every required dimension and declares complete rules', () => {
   const result = validateManifest(DESIGN_QUALITY_MANIFEST)
@@ -223,20 +226,22 @@ test('write-state audit cells require a provisioned receipt bound to the candida
     candidateSha,
     sessionId: 'a1b2c3d4',
     namespace: 'design-audit-a1b2c3d4',
-    created: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'] }],
+    created: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'], fixture: 'AUDIT_RECEIVING_ONLY', lifecycle: ['created'] }],
     cleanup: [],
     unrelatedSentinelsPreserved: true,
+    binding: '',
     sentinels: [
       { table: 'mos.tasks', id: 'sentinel-task', beforeHash: 'a'.repeat(64), afterHash: 'a'.repeat(64), beforePresent: true, afterPresent: true },
       { table: 'mos.weekly_updates', id: 'sentinel-update', beforeHash: 'b'.repeat(64), afterHash: 'b'.repeat(64), beforePresent: true, afterPresent: true },
       { table: 'ops.log_entries', id: 'sentinel-log', beforeHash: 'c'.repeat(64), afterHash: 'c'.repeat(64), beforePresent: true, afterPresent: true },
     ],
-    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'] }],
+    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'], fixture: 'AUDIT_RECEIVING_ONLY', lifecycle: ['created'] }],
     ownedAuthUsers: [],
     ownedAuthUserIds: [],
     remainingAuthUserIds: [],
     cleanupOnFailure: { attempted: false, completed: false },
   }
+  receipt.binding = auditFixtureReceiptBinding(receipt, testBindingSecret)
 
   assert.throws(() => assertAuditFixtureWritePolicy({
     fixture: 'AUDIT_RECEIVING_ONLY',
@@ -248,6 +253,7 @@ test('write-state audit cells require a provisioned receipt bound to the candida
     fixture: 'AUDIT_RECEIVING_ONLY',
     sessionId: 'a1b2c3d4',
     candidateSha: 'b'.repeat(40),
+    bindingSecret: testBindingSecret,
     receipt,
     writes: true,
   }), /candidate SHA/i)
@@ -255,6 +261,7 @@ test('write-state audit cells require a provisioned receipt bound to the candida
     fixture: 'AUDIT_RECEIVING_ONLY',
     sessionId: 'a1b2c3d4',
     candidateSha,
+    bindingSecret: testBindingSecret,
     receipt,
     writes: true,
   }))
@@ -264,6 +271,7 @@ test('write-state audit cells require a provisioned receipt bound to the candida
     fixture: 'AUDIT_RECEIVING_ONLY',
     sessionId: 'a1b2c3d4',
     candidateSha,
+    bindingSecret: testBindingSecret,
     receipt: { ...receipt, sentinels: [] },
     writes: true,
   }), /sentinel/i)
@@ -271,6 +279,7 @@ test('write-state audit cells require a provisioned receipt bound to the candida
     fixture: 'AUDIT_RECEIVING_ONLY',
     sessionId: 'a1b2c3d4',
     candidateSha,
+    bindingSecret: testBindingSecret,
     receipt: { ...receipt, cleanup: [{ table: 'mos.tasks', deleted: 1, remaining: 0 }], cleanupOnFailure: { attempted: false, completed: true } },
     writes: true,
   }), /live|cleaned|provisioned/i)
@@ -282,6 +291,7 @@ test('every write-state fixture must prove at least one audit-owned identity or 
     fixture: 'AUDIT_RECEIVING_ONLY',
     sessionId: 'a1b2c3d4',
     candidateSha: 'a'.repeat(40),
+    bindingSecret: testBindingSecret,
     receipt,
     writes: true,
   }), /audit-owned records|ownership/i)
@@ -292,21 +302,24 @@ test('audit write receipts reject created identities or records outside the sess
     candidateSha: 'a'.repeat(40),
     sessionId: 'a1b2c3d4',
     namespace: 'design-audit-another-run',
-    created: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'] }],
+    created: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'], fixture: 'AUDIT_RECEIVING_ONLY', lifecycle: ['created'] }],
     cleanup: [{ table: 'mos.tasks', deleted: 1, remaining: 0 }],
     unrelatedSentinelsPreserved: true,
+    binding: '',
     sentinels: [],
-    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'] }],
+    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'], fixture: 'AUDIT_RECEIVING_ONLY', lifecycle: ['created'] }],
     ownedAuthUsers: [],
     ownedAuthUserIds: [],
     remainingAuthUserIds: [],
     cleanupOnFailure: { attempted: false, completed: true },
   }
+  receipt.binding = auditFixtureReceiptBinding(receipt, testBindingSecret)
 
   assert.throws(() => assertAuditFixtureWritePolicy({
     fixture: 'AUDIT_RECEIVING_ONLY',
     sessionId: 'a1b2c3d4',
     candidateSha: 'a'.repeat(40),
+    bindingSecret: testBindingSecret,
     receipt,
     writes: true,
 }), /namespace/i)
@@ -318,9 +331,11 @@ test('audit fixture records require inspectable namespaced columns and keep sent
   assert.throws(() => new AuditProvisioner({
     candidateSha: 'a'.repeat(40),
     sessionId: 'a1b2c3d4',
+    bindingSecret: testBindingSecret,
     sql,
     definitions: {
       records: [{
+        fixture: 'AUDIT_RECEIVING_ONLY',
         table: 'mos.tasks',
         id: 'a1b2c3d4-0000-0000-0000-000000000005',
         namespace,
@@ -330,6 +345,7 @@ test('audit fixture records require inspectable namespaced columns and keep sent
   assert.throws(() => new AuditProvisioner({
     candidateSha: 'a'.repeat(40),
     sessionId: 'a1b2c3d4',
+    bindingSecret: testBindingSecret,
     sql,
     definitions: {
       sentinels: [{
@@ -352,18 +368,21 @@ test('audit fixture ownership is session-bound and generated IDs carry the sessi
   assert.throws(() => new AuditProvisioner({
     candidateSha: 'a'.repeat(40),
     sessionId: 'a1b2c3d4',
+    bindingSecret: testBindingSecret,
     sql: { execute: async () => [], query: async () => [{ id: 'sentinel' }] },
     definitions: {
-      records: [{ table: 'mos.tasks', id: sharedId, namespace, columns: { id: sharedId, title: `${namespace} owned` } }],
+      records: [{ fixture: 'AUDIT_RECEIVING_ONLY', table: 'mos.tasks', id: sharedId, namespace, columns: { id: sharedId, title: `${namespace} owned` } }],
       sentinels,
     },
   }), /session|namespace/i)
   assert.throws(() => new AuditProvisioner({
     candidateSha: 'a'.repeat(40),
     sessionId: 'a1b2c3d4',
+    bindingSecret: testBindingSecret,
     sql: { execute: async () => [], query: async () => [{ id: 'sentinel' }] },
     definitions: {
       records: [{
+        fixture: 'AUDIT_RECEIVING_ONLY',
         table: 'mos.tasks',
         id: 'shared-design-audit-a1b2c3d4-owned',
         namespace,
@@ -377,12 +396,18 @@ test('audit fixture ownership is session-bound and generated IDs carry the sessi
   const provisioner = new AuditProvisioner({
     candidateSha: 'a'.repeat(40),
     sessionId: 'a1b2c3d4',
+    bindingSecret: testBindingSecret,
     sql: {
-      execute: async (query) => { executed.push(query); return [] },
+      execute: async (query) => {
+        executed.push(query)
+        return /^INSERT\s/i.test(query)
+          ? [{ id: [...query.matchAll(/'((?:''|[^'])*)'/g)].at(-1)?.[1]?.replace(/''/g, "'") }]
+          : []
+      },
       query: async () => [{ id: 'sentinel' }],
     },
     definitions: {
-      records: [{ table: 'mos.tasks', namespace, columns: { title: `${namespace} generated` } }],
+      records: [{ fixture: 'AUDIT_RECEIVING_ONLY', table: 'mos.tasks', namespace, columns: { title: `${namespace} generated` } }],
       sentinels,
     },
   })
@@ -399,6 +424,7 @@ test('provision receipts durably record database IDs and auth emails before side
   const provisioner = new AuditProvisioner({
     candidateSha: 'a'.repeat(40),
     sessionId: 'a1b2c3d4',
+    bindingSecret: testBindingSecret,
     sql: {
       execute: async (query) => {
         if (/^INSERT\s/i.test(query)) {
@@ -419,8 +445,8 @@ test('provision receipts durably record database IDs and auth emails before side
       listUsers: async () => [],
     },
     definitions: {
-      identities: [{ email, password: 'test-password' }],
-      records: [{ table: 'mos.tasks', id: taskId, namespace, columns: { id: taskId, title: `${namespace} owned` } }],
+      identities: [{ fixture: 'AUDIT_RECEIVING_ONLY', email, password: 'test-password' }],
+      records: [{ fixture: 'AUDIT_RECEIVING_ONLY', table: 'mos.tasks', id: taskId, namespace, columns: { id: taskId, title: `${namespace} owned` } }],
       sentinels: [
         { table: 'mos.tasks', id: 'sentinel-task' },
         { table: 'mos.weekly_updates', id: 'sentinel-update' },
@@ -446,9 +472,11 @@ test('audit-owned writes require all three unrelated sentinel tables before prov
   assert.throws(() => new AuditProvisioner({
     candidateSha: 'a'.repeat(40),
     sessionId: 'a1b2c3d4',
+    bindingSecret: testBindingSecret,
     sql: { execute: async () => [], query: async () => [] },
     definitions: {
       records: [{
+        fixture: 'AUDIT_RECEIVING_ONLY',
         table: 'mos.tasks',
         id: 'a1b2c3d4-0000-0000-0000-000000000006',
         namespace,
@@ -475,7 +503,7 @@ test('audit-owned provisioning cleans captured rows and users when a later inser
       if (inserted) rows.add(inserted)
       const deleted = query.match(/'[^']*'/g)?.map((value) => value.slice(1, -1)) ?? []
       if (/^DELETE/i.test(query)) for (const id of deleted) rows.delete(id)
-      return []
+      return /^INSERT\s/i.test(query) ? [{ id: inserted }] : []
     },
   }
   const auth = {
@@ -490,14 +518,15 @@ test('audit-owned provisioning cleans captured rows and users when a later inser
   const provisioner = new AuditProvisioner({
     candidateSha: 'a'.repeat(40),
     sessionId: 'a1b2c3d4',
+    bindingSecret: testBindingSecret,
     sql,
     auth,
     onReceipt: (receipt) => { receipts.push(receipt) },
     definitions: {
-      identities: [{ email: `${namespace}.writer@example.test`, password: 'test-password' }],
+      identities: [{ fixture: 'AUDIT_RECEIVING_ONLY', email: `${namespace}.writer@example.test`, password: 'test-password' }],
       records: [
-        { table: 'mos.tasks', id: ownedTask, namespace, columns: { id: ownedTask, title: `${namespace} first-owned-row` } },
-        { table: 'mos.tasks', namespace, columns: { title: `${namespace} second-owned-row` } },
+        { fixture: 'AUDIT_RECEIVING_ONLY', table: 'mos.tasks', id: ownedTask, namespace, columns: { id: ownedTask, title: `${namespace} first-owned-row` } },
+        { fixture: 'AUDIT_RECEIVING_ONLY', table: 'mos.tasks', namespace, columns: { title: `${namespace} second-owned-row` } },
       ],
       sentinels: [
         { table: 'mos.tasks', id: 'sentinel-task' },
@@ -677,7 +706,7 @@ test('local HTTP fixture clients recover a failed provision across separate inst
           if (/^INSERT\s/i.test(query) && table) {
             const id = /VALUES\s*\(\s*'([^']+)'/i.exec(query)?.[1]
             if (id) tables.get(table)?.set(id, { id, title: `${namespace} owned` })
-            respond(200, [])
+            respond(200, id ? [{ id }] : [])
             return
           }
           if (/^DELETE\s/i.test(query) && table) {
@@ -738,12 +767,12 @@ test('local HTTP fixture clients recover a failed provision across separate inst
   const baseUrl = `http://127.0.0.1:${address.port}`
   const definitions = {
     identities: [
-      { email: `${namespace}.one@example.test`, password: 'test-password' },
-      { email: `${namespace}.two@example.test`, password: 'test-password' },
+      { fixture: 'AUDIT_RECEIVING_ONLY', email: `${namespace}.one@example.test`, password: 'test-password' },
+      { fixture: 'AUDIT_RECEIVING_ONLY', email: `${namespace}.two@example.test`, password: 'test-password' },
     ],
     records: [
-      { table: 'mos.tasks', id: firstTask, namespace, columns: { id: firstTask, title: `${namespace} first-owned-row` } },
-      { table: 'mos.tasks', id: secondTask, namespace, columns: { id: secondTask, title: `${namespace} second-owned-row` } },
+      { fixture: 'AUDIT_RECEIVING_ONLY', table: 'mos.tasks', id: firstTask, namespace, columns: { id: firstTask, title: `${namespace} first-owned-row` } },
+      { fixture: 'AUDIT_RECEIVING_ONLY', table: 'mos.tasks', id: secondTask, namespace, columns: { id: secondTask, title: `${namespace} second-owned-row` } },
     ],
     sentinels: [
       { table: 'mos.tasks', id: 'sentinel-task', query: "SELECT * FROM mos.tasks WHERE id IN ('sentinel-task');" },
@@ -756,12 +785,13 @@ test('local HTTP fixture clients recover a failed provision across separate inst
     const first = new AuditProvisioner({
       candidateSha: 'a'.repeat(40),
       sessionId: 'a1b2c3d4',
+      bindingSecret: testBindingSecret,
       definitions,
       sql: createLocalAuditSqlClient(baseUrl, 'test-key'),
       auth: createLocalAuditAuthClient(baseUrl, 'test-key'),
       onReceipt: (receipt) => { persisted = receipt },
     })
-    await assert.rejects(() => first.provision(), /planted insert failure/)
+    await assert.rejects(() => first.provision(), /audit fixture SQL failed \(500\)/)
     assert.ok(persisted)
     assert.ok(persisted.created.some((group) => group.ids.includes(secondTask)), 'failed INSERT intent was not persisted')
     assert.ok((persisted as unknown as { ownedAuthUsers?: unknown[] }).ownedAuthUsers?.length === 2, 'auth email intents were not persisted')
@@ -770,6 +800,7 @@ test('local HTTP fixture clients recover a failed provision across separate inst
     const recovered = await cleanupAuditFixtureReceipt(persisted, {
       candidateSha: 'a'.repeat(40),
       sessionId: 'a1b2c3d4',
+      bindingSecret: testBindingSecret,
       sql: createLocalAuditSqlClient(baseUrl, 'test-key'),
       auth: createLocalAuditAuthClient(baseUrl, 'test-key'),
       onFailure: true,
@@ -833,7 +864,9 @@ test('audit-owned setup and cleanup preserve task, weekly-update, and operations
         const table = tables.get(deletion[1]!)
         for (const id of deletion[2]!.match(/'[^']*'/g)?.map((value) => value.slice(1, -1)) ?? []) table?.delete(id)
       }
-      return []
+      return /^INSERT\s/i.test(query)
+        ? [{ id: /values\s*\(\s*'([^']+)'/i.exec(query)?.[1] }]
+        : []
     },
   }
   const auth = {
@@ -847,11 +880,12 @@ test('audit-owned setup and cleanup preserve task, weekly-update, and operations
   const provisioner = new AuditProvisioner({
     candidateSha: 'a'.repeat(40),
     sessionId: 'a1b2c3d4',
+    bindingSecret: testBindingSecret,
     sql,
     auth,
     definitions: {
-      identities: [{ email: `${namespace}.writer@example.test`, password: 'test-password' }],
-      records: [{ table: 'mos.tasks', id: ownedTask, namespace, columns: { id: ownedTask, title: `${namespace} owned` } }],
+      identities: [{ fixture: 'AUDIT_RECEIVING_ONLY', email: `${namespace}.writer@example.test`, password: 'test-password' }],
+      records: [{ fixture: 'AUDIT_RECEIVING_ONLY', table: 'mos.tasks', id: ownedTask, namespace, columns: { id: ownedTask, title: `${namespace} owned` } }],
       sentinels: [
         { table: 'mos.tasks', id: 'sentinel-task', query: "SELECT * FROM mos.tasks WHERE id IN ('sentinel-task');" },
         { table: 'mos.weekly_updates', id: 'sentinel-update', query: "SELECT * FROM mos.weekly_updates WHERE id IN ('sentinel-update');" },
@@ -865,12 +899,14 @@ test('audit-owned setup and cleanup preserve task, weekly-update, and operations
     fixture: 'AUDIT_RECEIVING_ONLY',
     sessionId: 'a1b2c3d4',
     candidateSha: 'a'.repeat(40),
+    bindingSecret: testBindingSecret,
     receipt: provisioned,
     writes: true,
   }))
   const receipt = await cleanupAuditFixtureReceipt(provisioned, {
     candidateSha: 'a'.repeat(40),
     sessionId: 'a1b2c3d4',
+    bindingSecret: testBindingSecret,
     sql,
     auth,
   })
@@ -886,6 +922,7 @@ test('audit-owned setup and cleanup preserve task, weekly-update, and operations
   const repeated = await cleanupAuditFixtureReceipt(receipt, {
     candidateSha: 'a'.repeat(40),
     sessionId: 'a1b2c3d4',
+    bindingSecret: testBindingSecret,
     sql,
     auth,
   })
@@ -900,12 +937,28 @@ test('artifact validation fails closed for an incomplete or changed fixture rece
     candidateSha: 'a'.repeat(40),
     sessionId: 'a1b2c3d4',
     namespace: 'design-audit-a1b2c3d4',
-    created: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000003'] }],
+    created: [{
+      table: 'mos.tasks',
+      ids: ['a1b2c3d4-0000-0000-0000-000000000003'],
+      fixture: 'AUDIT_RECEIVING_ONLY',
+      lifecycle: ['created'],
+    }],
     cleanup: [{ table: 'mos.tasks', deleted: 0, remaining: 1 }],
     unrelatedSentinelsPreserved: false,
+    binding: '0'.repeat(64),
     sentinels: [{ table: 'mos.tasks', id: 'sentinel', beforeHash: 'a'.repeat(64), afterHash: 'b'.repeat(64) }],
-    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000003'] }],
-    ownedAuthUsers: [{ email: 'design-audit-a1b2c3d4.writer@example.test', id: 'a1b2c3d4-0000-0000-0000-000000000004' }],
+    ownedDatabaseIds: [{
+      table: 'mos.tasks',
+      ids: ['a1b2c3d4-0000-0000-0000-000000000003'],
+      fixture: 'AUDIT_RECEIVING_ONLY',
+      lifecycle: ['created'],
+    }],
+    ownedAuthUsers: [{
+      fixture: 'AUDIT_RECEIVING_ONLY',
+      email: 'design-audit-a1b2c3d4.writer@example.test',
+      id: 'a1b2c3d4-0000-0000-0000-000000000004',
+      lifecycle: 'created',
+    }],
     ownedAuthUserIds: ['a1b2c3d4-0000-0000-0000-000000000004'],
     remainingAuthUserIds: ['a1b2c3d4-0000-0000-0000-000000000004'],
     cleanupOnFailure: { attempted: true, completed: false },

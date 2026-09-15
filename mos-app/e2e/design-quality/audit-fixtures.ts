@@ -3,6 +3,7 @@ import {
   assertAuditOwnedIdentity,
   auditFixtureNamespace,
   type AuditFixtureDefinitions,
+  type AuditFixtureIdentityDefinition,
   type AuditFixtureReceipt,
   validateAuditFixtureReceipt,
 } from './audit-provisioner.ts'
@@ -37,21 +38,21 @@ export type AuditFixtureWritePolicy = {
   fixture: string
   sessionId: string
   candidateSha?: string
+  bindingSecret?: string
   writes: boolean
   receipt?: unknown
 }
 
-export function auditOwnedReceivingFixture(sessionId: string): AuditFixtureCredentials {
-  const email = process.env.DESIGN_AUDIT_RECEIVING_EMAIL?.trim() ?? ''
-  const password = process.env.DESIGN_AUDIT_RECEIVING_PASSWORD ?? ''
-  const namespace = `design-audit-${sessionId}`
-  if (!email || !password || !email.toLowerCase().includes(namespace)) {
-    throw new Error(
-      `${AUDIT_RECEIVING_ONLY} requires DESIGN_AUDIT_RECEIVING_EMAIL containing ${namespace} ` +
-      'and DESIGN_AUDIT_RECEIVING_PASSWORD; the audit will not borrow a shared fixture',
-    )
+export function auditOwnedReceivingFixture(
+  sessionId: string,
+  identity?: AuditFixtureIdentityDefinition,
+): AuditFixtureCredentials {
+  if (!identity || identity.fixture !== AUDIT_RECEIVING_ONLY) {
+    throw new Error(`${AUDIT_RECEIVING_ONLY} requires a provisioned named identity in the fixture definitions`)
   }
-  return { email, password, owned: true }
+  assertAuditFixtureNamespace(identity.email, sessionId)
+  if (!identity.password) throw new Error(`${AUDIT_RECEIVING_ONLY} provisioned identity has no password`)
+  return { email: identity.email, password: identity.password, owned: true }
 }
 
 export function assertAuditFixtureNamespace(email: string, sessionId: string): void {
@@ -77,15 +78,22 @@ export function assertAuditFixtureWritePolicy(policy: AuditFixtureWritePolicy): 
   if (!policy.candidateSha || !policy.receipt) {
     throw new Error('write-state design audit cells require a database-verified per-run provisioner receipt')
   }
+  if (!policy.bindingSecret || policy.bindingSecret.length < 16) {
+    throw new Error('write-state design audit cells require the external session binding secret')
+  }
   assertAuditFixtureProvisionedReceipt(policy.receipt, {
     candidateSha: policy.candidateSha,
     sessionId: policy.sessionId,
+    bindingSecret: policy.bindingSecret,
   })
   const receipt = policy.receipt as AuditFixtureReceipt
   const namespace = auditFixtureNamespace(policy.sessionId)
   if (receipt.namespace !== namespace) throw new Error(`write-state fixture is outside the ${namespace} namespace`)
-  const ownedRecordCount = receipt.created.reduce((count, group) => count + group.ids.length, 0)
-  if (ownedRecordCount === 0 && (receipt.ownedAuthUsers?.length ?? 0) === 0) {
+  const fixtureOwnsRecord = receipt.created.some((group) => group.fixture === policy.fixture
+    && group.ids.some((_, index) => group.lifecycle[index] === 'created'))
+  const fixtureOwnsIdentity = receipt.ownedAuthUsers?.some((owner) => owner.fixture === policy.fixture
+    && owner.lifecycle === 'created' && Boolean(owner.id)) ?? false
+  if (!fixtureOwnsRecord && !fixtureOwnsIdentity) {
     throw new Error(`write-state fixture ${policy.fixture} has no audit-owned records in the ${namespace} namespace`)
   }
   if (receipt.cleanup.length > 0 || receipt.cleanupOnFailure.attempted || receipt.cleanupOnFailure.completed) {
