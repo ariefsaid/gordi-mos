@@ -346,6 +346,8 @@ describe('Ticket #743 toolbar acceptance', () => {
     const trigger = screen.getByRole('button', { name: 'Status' })
     expect(trigger).toHaveTextContent('Status')
     expect(trigger).toHaveTextContent('Blocked')
+    expect(trigger).toHaveAttribute('title', 'Blocked')
+    expect(trigger).toHaveAttribute('data-full-value', 'Blocked')
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(trigger.closest('.collection-toolbar__select')).toBeInTheDocument()
     const row = screen.getAllByTestId('collection-toolbar-row')[1]
@@ -368,6 +370,23 @@ describe('Ticket #743 toolbar acceptance', () => {
     // Closed again → the boxes are gone from the row.
     await userEvent.click(trigger)
     expect(row.querySelectorAll('input[type="checkbox"]')).toHaveLength(0)
+  })
+
+  it('keeps a clipped choice value available through the full-value presentation', () => {
+    stubDesktop()
+    const display = 'Gordi HQ Retail Operations and Customer Experience'
+    render(<I18nProvider><CollectionToolbar
+      presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
+      views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+      filters={[{
+        id: 'status', label: 'Status', display,
+        popover: { choices: [{ key: 'status', label: display, checked: true, onChange: vi.fn() }] },
+      }]}
+    /></I18nProvider>)
+
+    const trigger = screen.getByRole('button', { name: 'Status' })
+    expect(trigger).toHaveTextContent(display)
+    expect(trigger).toHaveAttribute('data-full-value', display)
   })
 
   it('AC-003: no switcher while one presentation is live; the segment renders at row 1 when two are', () => {

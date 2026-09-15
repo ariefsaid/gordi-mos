@@ -219,18 +219,131 @@
 
 .collection-toolbar__select { max-width: 180px; }
 .collection-toolbar__select .picker__trigger { min-height: 32px; }
-/* Tasks' twelve-control desktop grammar has one line at the 1440px reference width. Keep the
-   controls compact enough to share that row; narrower desktops retain the normal wrapping rule. */
-@media (min-width: 1200px) {
-  .tasks-collection-toolbar .collection-toolbar__options { flex-wrap: nowrap; gap: 8px; }
+/* Tasks' desktop grammar is exactly two toolbar rows from 1024px upward. Row 2 stays on one
+   line; its dropdown boxes may contract and ellipsize while their full values remain available
+   through the trigger title. */
+@media (min-width: 1024px) {
+  .tasks-collection-toolbar .collection-toolbar__options { flex-wrap: nowrap; gap: 4px; }
   .tasks-collection-toolbar .collection-toolbar__option-field { min-width: 0; }
   .tasks-collection-toolbar .collection-toolbar__select { max-width: 150px; }
-  .tasks-collection-toolbar .collection-toolbar__query { flex: 0 1 220px; min-width: 150px; }
-  .tasks-collection-toolbar .collection-toolbar__search { min-width: 150px; }
+  .tasks-collection-toolbar .collection-toolbar__select .picker__trigger,
+  .tasks-collection-toolbar .tasks-attention-picker .picker__trigger {
+    box-sizing: border-box;
+    height: 32px;
+    min-height: 32px;
+    padding-block: 4px;
+  }
+  .tasks-collection-toolbar .collection-toolbar__choice-trigger { min-width: 0; }
+  /* The reference desktop keeps ordinary filter values readable while the row remains one
+     bounded line. Exceptional directory names continue to use the existing ellipsis/title path
+     inside these fixed boxes. */
+  .tasks-collection-toolbar [data-filter-id='group'],
+  .tasks-collection-toolbar [data-filter-id='group'] .collection-toolbar__select {
+    flex: 0 0 136px;
+    width: 136px;
+    max-width: none;
+  }
+  .tasks-collection-toolbar [data-filter-id='business-unit'],
+  .tasks-collection-toolbar [data-filter-id='business-unit'] .collection-toolbar__select {
+    flex: 0 0 100px;
+    width: 100px;
+    max-width: none;
+  }
+  .tasks-collection-toolbar [data-filter-id='status'] {
+    flex: 0 0 108px;
+    width: 108px;
+    max-width: none;
+  }
+  .tasks-collection-toolbar [data-filter-id='status'] .collection-toolbar__select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+  .tasks-collection-toolbar [data-filter-id='person'],
+  .tasks-collection-toolbar [data-filter-id='person'] .collection-toolbar__select {
+    flex: 0 0 100px;
+    width: 100px;
+    max-width: none;
+  }
+  .tasks-collection-toolbar [data-filter-id='sort'],
+  .tasks-collection-toolbar [data-filter-id='sort'] .collection-toolbar__select {
+    flex: 0 0 142px;
+    width: 142px;
+    max-width: none;
+  }
+  .tasks-collection-toolbar .collection-toolbar__query { flex: 1 1 112px; min-width: 96px; }
+  .tasks-collection-toolbar .collection-toolbar__search { min-width: 96px; }
   /* The attention trigger is content-sized, so its Picker shell must not shrink around it.
      Otherwise a wider CI font can leave the trigger's label wider than its client box while
      the rest of the row still appears to fit. The search field remains the elastic control. */
   .tasks-collection-toolbar .tasks-attention-picker { flex: 0 0 auto; min-width: max-content; }
+  .tasks-collection-toolbar [data-filter-id='status'] .collection-toolbar__choice-label { display: none; }
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='business-unit'],
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='business-unit'] .collection-toolbar__select {
+    flex-basis: 120px;
+    width: 120px;
+  }
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='status'] { flex-basis: 124px; width: 124px; }
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='group'],
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='group'] .collection-toolbar__select {
+    flex-basis: 156px;
+    width: 156px;
+  }
+}
+.collection-toolbar__action-icon { flex: none; }
+.collection-toolbar__save-compact-label { display: none; }
+/* Compact desktop keeps the complete visible two-row grammar. Tight padding and text-only ghost
+   actions preserve every ordinary value without turning Fields or Save view into mystery icons. */
+@media (min-width: 1024px) and (max-width: 1440px) {
+  .tasks-collection-toolbar .collection-toolbar__options { padding-inline: 8px; }
+  .tasks-collection-toolbar [data-filter-id='group'],
+  .tasks-collection-toolbar [data-filter-id='group'] .collection-toolbar__select { flex-basis: 120px; width: 120px; }
+  .tasks-collection-toolbar [data-filter-id='business-unit'],
+  .tasks-collection-toolbar [data-filter-id='business-unit'] .collection-toolbar__select { flex-basis: 90px; width: 90px; }
+  .tasks-collection-toolbar [data-filter-id='status'] { flex-basis: 108px; width: 108px; }
+  .tasks-collection-toolbar [data-filter-id='person'],
+  .tasks-collection-toolbar [data-filter-id='person'] .collection-toolbar__select { flex-basis: 82px; width: 82px; }
+  .tasks-collection-toolbar [data-filter-id='sort'],
+  .tasks-collection-toolbar [data-filter-id='sort'] .collection-toolbar__select { flex-basis: 112px; width: 112px; }
+  .tasks-collection-toolbar .collection-toolbar__picker-trigger { gap: 3px; padding-inline: 3px; }
+  .tasks-collection-toolbar .collection-toolbar__search { gap: 0; padding-inline: 4px; }
+  .tasks-collection-toolbar .collection-toolbar__search > svg { display: none; }
+  .tasks-collection-toolbar .collection-toolbar__fields > .btn,
+  .tasks-collection-toolbar .collection-toolbar__save-zone > .btn {
+    padding-inline: 0;
+    gap: 0;
+  }
+  .tasks-collection-toolbar .collection-toolbar__action-icon { display: none; }
+  .tasks-collection-toolbar .tasks-attention-picker .picker__trigger { gap: 4px; padding-inline: 3px; }
+  html:lang(id) .tasks-collection-toolbar .collection-toolbar__save-view-label { display: none; }
+  html:lang(id) .tasks-collection-toolbar .collection-toolbar__save-compact-label { display: inline; }
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='business-unit'],
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='business-unit'] .collection-toolbar__select {
+    flex-basis: 100px;
+    width: 100px;
+  }
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='status'] { flex-basis: 124px; width: 124px; }
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='sort'],
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='sort'] .collection-toolbar__select {
+    flex-basis: 120px;
+    width: 120px;
+  }
+  html:lang(id) .tasks-collection-toolbar .collection-toolbar__options {
+    gap: 2px;
+    padding-inline: 2px;
+  }
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='group'],
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='group'] .collection-toolbar__select {
+    flex-basis: 144px;
+    width: 144px;
+  }
+  html:lang(id) .tasks-collection-toolbar .collection-toolbar__query { flex-basis: 86px; min-width: 86px; }
+  html:lang(id) .tasks-collection-toolbar .collection-toolbar__search { min-width: 86px; }
+  html:lang(id) .tasks-collection-toolbar .tasks-attention-picker .picker__trigger {
+    gap: 2px;
+    padding-inline: 1px;
+  }
+  html:lang(id) .tasks-collection-toolbar .collection-toolbar__fields { margin-inline: 3px; }
 }
 .collection-toolbar__option-field--group .collection-toolbar__picker-trigger {
   background: color-mix(in srgb, var(--brand-navy) 6%, var(--background));

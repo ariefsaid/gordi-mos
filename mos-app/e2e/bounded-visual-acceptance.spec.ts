@@ -4,7 +4,7 @@ import { MANAGER } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
 
 const LONG_SIGNAL = 'A long Signal leaf title that stays readable without breaking a word across the record header boundary'
-const WIDTHS = [390, 768, 1280, 1370, 1440] as const
+const WIDTHS = [390, 768, 1024, 1280, 1370, 1440] as const
 
 function capture(name: string, page: Page) {
   return page.screenshot({ path: `/tmp/gordi-final-${name}.png`, animations: 'disabled', fullPage: true })
@@ -104,6 +104,7 @@ test.describe('bounded visual and interaction acceptance', () => {
       await loginAs(page, MANAGER.email, MANAGER.password)
       await page.goto('work/tasks')
       await expect(page.getByRole('heading', { name: 'Tasks', exact: true })).toBeVisible()
+      await expect(page.getByText(TASKS.VIEWER_ACCOUNTABLE.title, { exact: true }).first()).toBeVisible()
       const mobileDoor = page.getByRole('button', { name: 'View & filters', exact: true })
       if (width < 768) {
         await expect(mobileDoor).toBeVisible()
@@ -125,6 +126,79 @@ test.describe('bounded visual and interaction acceptance', () => {
       await expect(filters.getByRole('button', { name: 'Status', exact: true })).toBeVisible()
       await expect(filters.getByRole('combobox', { name: 'Person', exact: true })).toBeVisible()
       await expect(filters.getByRole('combobox', { name: 'Sort', exact: true })).toBeVisible()
+      if (width >= 1024) {
+        for (const expected of [
+          { id: 'group', value: 'Group: None' },
+          { id: 'business-unit', value: 'All units' },
+          { id: 'status', value: 'Any status' },
+          { id: 'person', value: 'Anyone' },
+          { id: 'sort', value: 'Due soonest' },
+        ]) {
+          const trigger = filters.locator(`[data-filter-id="${expected.id}"] button[data-full-value]`)
+          await expect(trigger).toHaveAttribute('data-full-value', expected.value)
+          const valueGeometry = await trigger.locator('span[data-full-value]').evaluate((element) => {
+            const rect = element.getBoundingClientRect()
+            return {
+              text: element.textContent?.trim() ?? '',
+              clientWidth: element.clientWidth,
+              scrollWidth: element.scrollWidth,
+              right: rect.right,
+            }
+          })
+          expect(valueGeometry.text).toBe(expected.value)
+          expect(valueGeometry.scrollWidth, `${expected.id} value must remain fully visible`).toBeLessThanOrEqual(valueGeometry.clientWidth)
+          expect(valueGeometry.right).toBeLessThanOrEqual(width)
+        }
+        const optionsGeometry = await filters.evaluate((element) => ({
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+          height: element.getBoundingClientRect().height,
+        }))
+        expect(optionsGeometry.scrollWidth).toBeLessThanOrEqual(optionsGeometry.clientWidth + 1)
+        expect(optionsGeometry.height, 'desktop toolbar row 2 must remain one visual line').toBeLessThanOrEqual(60)
+        const searchFit = await filters.getByRole('searchbox', { name: 'Search tasks', exact: true }).evaluate((element) => {
+          const input = element as HTMLInputElement
+          const canvas = document.createElement('canvas')
+          const context = canvas.getContext('2d')
+          if (!context) return false
+          context.font = getComputedStyle(input).font
+          return context.measureText(input.placeholder).width + 4 <= input.clientWidth
+        })
+        expect(searchFit, 'Search tasks placeholder must remain fully visible').toBe(true)
+        await expect(filters.getByRole('button', { name: 'Fields', exact: true })).toContainText('Fields')
+        await expect(filters.getByRole('button', { name: 'Save view', exact: true })).toContainText('Save view')
+        const groupTrigger = filters.getByRole('combobox', { name: 'Group', exact: true })
+        await groupTrigger.click()
+        await page.getByRole('option', { name: 'Status', exact: true }).click()
+        await expect(groupTrigger).toHaveAttribute('data-full-value', 'Group: Status')
+        const activeGroupFit = await groupTrigger.locator('span[data-full-value]').evaluate((element) => element.scrollWidth <= element.clientWidth)
+        expect(activeGroupFit, 'active Group: Status value must remain fully visible').toBe(true)
+        const controlRects = await filters.locator(':scope > *').evaluateAll((elements) => elements
+          .map((element) => {
+            const container = element.getBoundingClientRect()
+            const interactive = element.querySelector('button, input, [role="combobox"]')?.getBoundingClientRect() ?? container
+            return {
+              name: element.getAttribute('data-filter-id') || element.className,
+              left: interactive.left,
+              right: interactive.right,
+              centerY: interactive.top + interactive.height / 2,
+              containerLeft: container.left,
+              containerRight: container.right,
+              width: interactive.width,
+              height: interactive.height,
+            }
+          })
+          .filter((rect) => rect.width > 0 && rect.height > 0))
+        for (const rect of controlRects) {
+          expect(rect.left, `${rect.name} control must stay inside its toolbar slot`).toBeGreaterThanOrEqual(rect.containerLeft - 1)
+          expect(rect.right, `${rect.name} control must stay inside its toolbar slot: ${JSON.stringify(rect)}`).toBeLessThanOrEqual(rect.containerRight + 1)
+        }
+        for (let index = 1; index < controlRects.length; index += 1) {
+          expect(controlRects[index - 1].right).toBeLessThanOrEqual(controlRects[index].left + 1)
+        }
+        const centers = controlRects.map((rect) => rect.centerY)
+        expect(Math.max(...centers) - Math.min(...centers), 'desktop toolbar row 2 must share one center').toBeLessThanOrEqual(2)
+      }
       await capture(`tasks-filters-${width}`, page)
 
       const groupPicker = filters.getByRole('combobox', { name: 'Group', exact: true })
@@ -149,6 +223,73 @@ test.describe('bounded visual and interaction acceptance', () => {
       await assertNoPageOverflow(page)
       await capture(`tasks-record-${width}`, page)
       await page.goto('work/tasks')
+    })
+  }
+
+  for (const width of [1024, 1440] as const) {
+    test(`Tasks toolbar keeps Indonesian labels and active Group visible at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.addInitScript(() => {
+        localStorage.setItem('mos.locale', 'id')
+        localStorage.removeItem('mos.tasks.groupBy')
+      })
+      await loginAs(page, MANAGER.email, MANAGER.password)
+      await page.goto('work/tasks')
+      await expect(page.getByText(TASKS.VIEWER_ACCOUNTABLE.title, { exact: true }).first()).toBeVisible()
+      const filters = page.getByRole('group', { name: 'Tampilan & filter', exact: true })
+      const expectedValues = [
+        { name: 'Kelompok', value: 'Kelompok: Tidak' },
+        { name: 'Unit bisnis', value: 'Semua unit' },
+        { name: 'Status', value: 'Semua status', role: 'button' as const },
+        { name: 'Orang', value: 'Semua' },
+        { name: 'Urutkan', value: 'Tenggat dekat' },
+      ]
+      for (const expected of expectedValues) {
+        const trigger = filters.getByRole(expected.role ?? 'combobox', { name: expected.name, exact: true })
+        await expect(trigger).toHaveAttribute('data-full-value', expected.value)
+        const fit = await trigger.locator('span[data-full-value]').evaluate((element) => ({
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+        }))
+        expect(fit.scrollWidth, `${expected.value} must remain fully visible`).toBeLessThanOrEqual(fit.clientWidth)
+      }
+      const toolbarFit = await filters.evaluate((element) => ({
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+      }))
+      expect(toolbarFit.scrollWidth, 'the complete toolbar row must fit its own visible container').toBeLessThanOrEqual(toolbarFit.clientWidth)
+      const controlHeights = await filters.locator([
+        '.collection-toolbar__search',
+        '.picker__trigger',
+        '.collection-toolbar__choice-trigger',
+        '.collection-toolbar__fields > .btn',
+        '.collection-toolbar__save-zone > .btn',
+      ].join(', ')).evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height))
+      expect(controlHeights.length).toBeGreaterThan(0)
+      for (const height of controlHeights) {
+        expect(height, 'desktop toolbar controls must share the 32px height token').toBeCloseTo(32, 1)
+      }
+      const searchFit = await filters.getByRole('searchbox', { name: 'Cari tugas', exact: true }).evaluate((element) => {
+        const input = element as HTMLInputElement
+        const canvas = document.createElement('canvas')
+        const context = canvas.getContext('2d')
+        if (!context) return false
+        context.font = getComputedStyle(input).font
+        return context.measureText(input.placeholder).width + 4 <= input.clientWidth
+      })
+      expect(searchFit, 'Cari tugas placeholder must remain fully visible').toBe(true)
+      await expect(filters.getByRole('button', { name: 'Kolom', exact: true })).toContainText('Kolom')
+      await expect(filters.getByRole('button', { name: 'Simpan tampilan', exact: true })).toContainText('Simpan')
+      await expect(filters.getByRole('combobox', { name: /memerlukan perhatian/i })).toContainText('3 perlu perhatian')
+
+      const group = filters.getByRole('combobox', { name: 'Kelompok', exact: true })
+      await group.click()
+      await page.getByRole('option', { name: 'Status', exact: true }).click()
+      await expect(group).toHaveAttribute('data-full-value', 'Kelompok: Status')
+      const activeFit = await group.locator('span[data-full-value]').evaluate((element) => element.scrollWidth <= element.clientWidth)
+      expect(activeFit, 'Kelompok: Status must remain fully visible').toBe(true)
+      await assertNoPageOverflow(page)
+      await capture(`tasks-toolbar-id-${width}`, page)
     })
   }
 

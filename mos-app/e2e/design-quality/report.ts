@@ -63,6 +63,51 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+export function validateMockupStatus(
+  payload: unknown,
+  allowMockupGaps: boolean,
+): { ok: boolean; reason?: string } {
+  if (!isRecord(payload) || !Array.isArray(payload.comparisons) || payload.comparisons.length === 0) {
+    return { ok: false, reason: 'status.json must contain at least one comparison' }
+  }
+  const comparisons = payload.comparisons
+  const measured = comparisons.every((comparison) => isRecord(comparison)
+    && (comparison.status === 'pass' || comparison.status === 'fail')
+    && typeof comparison.score === 'number'
+    && typeof comparison.build === 'string'
+    && comparison.build.length > 0
+    && Array.isArray(comparison.missingRegions)
+    && Array.isArray(comparison.contradictedRegions))
+  if (!measured) {
+    return { ok: false, reason: 'every comparison must be completed; blocked or unmeasured comparisons are invalid' }
+  }
+  const passEntriesMeetContract = comparisons.every((comparison) => !isRecord(comparison)
+    || comparison.status !== 'pass'
+    || ((comparison.score as number) >= 0.75
+      && (comparison.missingRegions as unknown[]).length === 0
+      && (comparison.contradictedRegions as unknown[]).length === 0))
+  if (!passEntriesMeetContract) {
+    return { ok: false, reason: 'every pass comparison must meet the 0.75 score and region contract' }
+  }
+  if (payload.status === 'pass') {
+    return comparisons.every((comparison) => isRecord(comparison)
+      && comparison.status === 'pass'
+      && (comparison.score as number) >= 0.75
+      && (comparison.missingRegions as unknown[]).length === 0
+      && (comparison.contradictedRegions as unknown[]).length === 0)
+      ? { ok: true }
+      : { ok: false, reason: 'pass status requires every comparison to meet the 0.75 score and region contract' }
+  }
+  if (allowMockupGaps && payload.status === 'assessed-with-gaps') {
+    const failures = comparisons.filter((comparison) => isRecord(comparison) && comparison.status === 'fail')
+    if (failures.length > 0 && failures.every((comparison) => (comparison.score as number) < 0.75)) {
+      return { ok: true }
+    }
+    return { ok: false, reason: 'assessed-with-gaps requires at least one completed comparison below the 0.75 threshold' }
+  }
+  return { ok: false, reason: 'status.json does not report an allowed completed status' }
+}
+
 function csvValue(value: unknown): string {
   const text = value === null || value === undefined ? '' : String(value)
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
@@ -275,12 +320,10 @@ export async function validateArtifactSet(
               const actual = metadataFromJson(payload)
               if (!actual) addUnique(invalid, artifact)
               else if (!metadataMatches(actual, expected)) addUnique(stale, artifact)
-              const comparisons = isRecord(payload) ? payload.comparisons : null
-              const completedStatus = payload.status === 'pass'
-                || (options.allowMockupGaps === true && payload.status === 'assessed-with-gaps')
-              if (!isRecord(payload) || !completedStatus || !Array.isArray(comparisons) || comparisons.length === 0) {
+              const mockupStatus = validateMockupStatus(payload, options.allowMockupGaps === true)
+              if (!mockupStatus.ok) {
                 addUnique(invalid, artifact)
-                errors.push(`${artifact}: status.json must report an allowed completed status with at least one comparison`)
+                errors.push(`${artifact}: ${mockupStatus.reason}`)
               }
             } catch (error) {
               addUnique(invalid, artifact)

@@ -14,6 +14,7 @@ import {
 } from './audit-fixtures'
 import { ReportWriter } from './report'
 import type { DesignQualityManifest, ManifestCell } from './manifest'
+import { resetAuditScroll } from './scroll'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = path.dirname(__filename)
@@ -143,13 +144,32 @@ export async function prepareAuditPage(page: Page, run: AuditRun, cell: Manifest
     writes: cell.stateContract?.writes === true,
   })
   await loginAuditFixture(page, cell.fixture, run.sessionId)
-  await page.goto(cell.route, { waitUntil: 'domcontentloaded' })
   await page.evaluate(({ theme, language }) => {
-    document.documentElement.dataset.theme = theme
-    document.documentElement.lang = language === 'id' ? 'id' : 'en'
+    // Providers read their persisted state during the first render. Seed both values while the
+    // authenticated page is still mounted so each matrix cell exercises the real provider path.
+    window.localStorage.setItem('mos.locale', language === 'id' ? 'id' : 'en')
+    window.localStorage.setItem('mos-theme', theme === 'dark' ? 'dark' : 'light')
   }, { theme: cell.theme, language: cell.language })
+  await page.goto(cell.route, { waitUntil: 'domcontentloaded' })
   await page.locator('main').waitFor({ state: 'visible', timeout: 10_000 })
   await page.locator('main h1').first().waitFor({ state: 'visible', timeout: 10_000 })
+  const expectedLanguage = cell.language === 'id' ? 'id' : 'en'
+  const expectedTheme = cell.theme === 'dark' ? 'dark' : 'light'
+  await page.waitForFunction(
+    ({ language, theme }) => document.documentElement.lang === language
+      && document.documentElement.classList.contains('dark') === (theme === 'dark'),
+    { language: expectedLanguage, theme: expectedTheme },
+  )
+  const actualPreferences = await page.evaluate(() => ({
+    language: document.documentElement.lang,
+    theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+  }))
+  if (actualPreferences.language !== expectedLanguage || actualPreferences.theme !== expectedTheme) {
+    throw new Error(
+      `audit providers did not apply ${expectedTheme}/${expectedLanguage}; `
+      + `observed ${actualPreferences.theme}/${actualPreferences.language}`,
+    )
+  }
   for (const action of cell.stateContract?.setup ?? []) {
     const target = page.locator(action.selector).filter({ visible: true }).first()
     if (action.action === 'click') await target.click()
@@ -176,6 +196,7 @@ export async function observeManifestCellState(page: Page, cell: ManifestCell): 
   }
   const assertion = cell.stateContract!.assertion
   const target = page.locator(assertion.selector).filter({ visible: true })
+  await target.first().waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {})
   const count = assertion.attribute
     ? await target.evaluateAll((elements, expected) => elements.filter((element) => {
       const actual = element.getAttribute(expected.attribute)
@@ -215,6 +236,7 @@ export function screenshotName(cell: ManifestCell, lane?: string): string {
 export async function captureCell(page: Page, run: AuditRun, cell: ManifestCell, lane?: string): Promise<string> {
   const screenshotDir = path.join(run.outputDir, 'screenshots')
   const screenshotPath = path.join(screenshotDir, screenshotName(cell, lane))
+  await page.evaluate(resetAuditScroll)
   await page.screenshot({ path: screenshotPath, fullPage: false })
   return screenshotPath
 }

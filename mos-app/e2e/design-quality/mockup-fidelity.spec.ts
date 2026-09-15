@@ -7,11 +7,17 @@ import { test, expect } from '@playwright/test'
 
 import { DESIGN_QUALITY_MANIFEST, type ManifestCell } from './manifest'
 import {
+  bindMockupToCell,
+  parseMockupAuthorityEntry,
+  type MockupAuthorityEntry,
+} from './mockup-authority'
+import {
   assertAuditEnvironment,
   assertAuditServer,
   auditEnabled,
   auditRun,
   captureCell,
+  observeManifestCellState,
   prepareAuditPage,
 } from './runtime'
 
@@ -21,18 +27,11 @@ const DETECTOR = path.join(repoRoot, 'scripts/impeccable-detect.mjs')
 const COMP_DIFF = path.join(repoRoot, '.claude/skills/impeccable/scripts/impeccable')
 const SCORE_THRESHOLD = 0.75
 
-type MockupAuthorityEntry = {
-  path: string
-  authority: string
-  requiredRegions: string[]
-  route?: string
-  viewport?: string
-}
-
 type DiffComparison = {
   mockup: string
   build: string
   authority: string
+  cellId: string
   score: number | null
   requiredRegions: string[]
   missingRegions: string[]
@@ -49,35 +48,8 @@ function asString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-function asStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.map(asString).filter(Boolean) : []
-}
-
 function authorityEntry(value: unknown, inheritedAuthority = ''): MockupAuthorityEntry {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new Error('mockup authority entries must be objects')
-  }
-  const row = value as Record<string, unknown>
-  const image = asString(row.path || row.file || row.authority_image)
-  const authority = asString(row.authority || row.source_decision_citation || inheritedAuthority)
-  if (!image || !authority) throw new Error('every mockup must name an image and its authority')
-  if (row.status !== undefined && row.status !== 'approved') {
-    throw new Error(`mockup ${image} is not approved by the supplied authority list`)
-  }
-  if (row.comp_diff_valid === false) {
-    throw new Error(`mockup ${image} is not valid for comp-diff according to its authority list`)
-  }
-  const imagePath = path.resolve(repoRoot, image)
-  if (!imagePath.startsWith(`${repoRoot}${path.sep}`)) {
-    throw new Error(`mockup ${image} is outside the repository workspace`)
-  }
-  return {
-    path: imagePath,
-    authority,
-    requiredRegions: asStringArray(row.requiredRegions ?? row.required_regions),
-    route: asString(row.route),
-    viewport: asString(row.viewport),
-  }
+  return parseMockupAuthorityEntry(value, repoRoot, inheritedAuthority)
 }
 
 function payloadEntries(payload: unknown): { entries: unknown[]; authorityRows: boolean; inheritedAuthority: string } {
@@ -138,11 +110,10 @@ export async function approvedMockups(): Promise<MockupAuthorityEntry[]> {
   }
 
   if (configuredPaths) {
-    const authority = env('DESIGN_AUDIT_MOCKUP_AUTHORITY_CITATION')
-    if (!authority) {
-      throw new Error('DESIGN_AUDIT_MOCKUPS requires DESIGN_AUDIT_MOCKUP_AUTHORITY_CITATION')
-    }
-    return configuredPaths.split(',').map((value) => authorityEntry({ path: value, authority }))
+    throw new Error(
+      'DESIGN_AUDIT_MOCKUPS is not accepted without explicit authority rows; use ' +
+      'DESIGN_AUDIT_MOCKUP_AUTHORITY with cellId and all manifest dimensions',
+    )
   }
 
   throw new Error(
@@ -255,6 +226,7 @@ function evaluateComparison(
     mockup: entry.path,
     build,
     authority: entry.authority,
+    cellId: entry.cellId,
     score,
     requiredRegions: entry.requiredRegions,
     missingRegions,
@@ -286,21 +258,6 @@ async function compareMockup(entry: MockupAuthorityEntry, build: string, outDir:
       throw new Error(candidate.stderr?.trim() || candidate.message || String(error))
     }
   }
-}
-
-function viewportName(value: string | undefined): string | undefined {
-  if (!value) return undefined
-  const match = /^(\d+)x(\d+)$/.exec(value)
-  if (!match) return undefined
-  const prefix = match[1] === '390' ? 'phone' : match[1] === '1024' ? 'compact' : 'desktop'
-  return `${prefix}-${match[1]}x${match[2]}`
-}
-
-function cellForMockup(entry: MockupAuthorityEntry): ManifestCell | undefined {
-  const viewport = viewportName(entry.viewport)
-  return DESIGN_QUALITY_MANIFEST.cells.find((cell) =>
-    (!entry.route || cell.route === entry.route) && (!viewport || cell.viewport === viewport),
-  )
 }
 
 test.describe.configure({ mode: 'serial' })
@@ -340,22 +297,41 @@ test('mockup fidelity requires an authority list and enforces score and region c
 
   for (const entry of authorityEntries) {
     await access(entry.path)
-    const cell = cellForMockup(entry)
-    if (!cell) {
+    let cell: ManifestCell
+    try {
+      cell = bindMockupToCell(entry, DESIGN_QUALITY_MANIFEST)
+    } catch (error) {
       comparisons.push({
         mockup: entry.path,
         build: '',
         authority: entry.authority,
+        cellId: entry.cellId,
         score: null,
         requiredRegions: entry.requiredRegions,
         missingRegions: entry.requiredRegions,
         contradictedRegions: [],
         status: 'blocked',
-        reason: 'authority row does not map to a manifest route and viewport',
+        reason: String(error),
       })
       continue
     }
     await prepareAuditPage(page, run, cell)
+    const observation = await observeManifestCellState(page, cell)
+    if (observation.status !== 'covered') {
+      comparisons.push({
+        mockup: entry.path,
+        build: '',
+        authority: entry.authority,
+        cellId: entry.cellId,
+        score: null,
+        requiredRegions: entry.requiredRegions,
+        missingRegions: entry.requiredRegions,
+        contradictedRegions: [],
+        status: 'blocked',
+        reason: `mockup state was not established: ${observation.evidence}`,
+      })
+      continue
+    }
     const build = await captureCell(page, run, cell, 'mockup')
     const relativeDir = path.join('mockup-diff', path.basename(entry.path, path.extname(entry.path)))
     const outDir = path.join(run.outputDir, relativeDir)
@@ -370,6 +346,7 @@ test('mockup fidelity requires an authority list and enforces score and region c
         mockup: entry.path,
         build,
         authority: entry.authority,
+        cellId: entry.cellId,
         score: null,
         requiredRegions: entry.requiredRegions,
         missingRegions: entry.requiredRegions,
@@ -383,9 +360,10 @@ test('mockup fidelity requires an authority list and enforces score and region c
   }
 
   const passed = comparisons.length > 0 && comparisons.every((comparison) => comparison.status === 'pass')
+  const blocked = comparisons.some((comparison) => comparison.status === 'blocked')
   const auditMode = process.env.DESIGN_AUDIT_MODE === 'change-gate' ? 'change-gate' : 'mvp-assessment'
   await run.writer.writeJson('mockup-diff/status.json', {
-    status: passed ? 'pass' : auditMode === 'change-gate' ? 'assessed-with-gaps' : 'fail',
+    status: blocked ? 'blocked' : passed ? 'pass' : auditMode === 'change-gate' ? 'assessed-with-gaps' : 'fail',
     auditMode,
     threshold: SCORE_THRESHOLD,
     comparisons,

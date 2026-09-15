@@ -27,10 +27,13 @@ for required in \
   if [ -e "$required" ]; then ok "required entry point exists: $required"; else bad "missing entry point: $required"; fi
 done
 
-if node --experimental-strip-types --test mos-app/e2e/design-quality/manifest.test.ts >/tmp/mos-design-quality-manifest-test.log 2>&1; then
-  ok "manifest/report/mutation unit tests pass"
+if node --experimental-strip-types --test \
+  mos-app/e2e/design-quality/manifest.test.ts \
+  mos-app/e2e/design-quality/mockup-authority.test.ts \
+  >/tmp/mos-design-quality-manifest-test.log 2>&1; then
+  ok "manifest/report/authority/mutation unit tests pass"
 else
-  bad "manifest/report/mutation unit tests fail"
+  bad "manifest/report/authority/mutation unit tests fail"
   sed -n '1,120p' /tmp/mos-design-quality-manifest-test.log
 fi
 

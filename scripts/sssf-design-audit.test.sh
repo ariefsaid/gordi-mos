@@ -139,7 +139,10 @@ for artifact in quant_artifacts:
         target.mkdir(parents=True, exist_ok=True)
         (target / "status.json").write_text(json.dumps({
             "candidateSha": candidate_sha, "sessionId": FakeRun.adw_id,
-            "status": "pass", "comparisons": [{"surface": "work"}]}))
+            "status": "pass", "comparisons": [{
+                "surface": "work", "status": "pass", "score": 0.9,
+                "build": "/tmp/render.png", "missingRegions": [],
+                "contradictedRegions": []}]}))
     elif artifact == "manifest.json":
         rendered = subprocess.run([
             "node", "--experimental-strip-types", "--input-type=module", "-e",
@@ -162,7 +165,17 @@ for artifact in quant_artifacts:
 (quant_root / "session.json").write_text(json.dumps({
     "candidateSha": candidate_sha,
     "sessionId": FakeRun.adw_id,
+    "auditMode": "change-gate",
+    "browserExitStatus": 0,
+    "chainExitStatus": "not-run",
     "quantitativeArtifacts": [str(quant_root / artifact) for artifact in quant_artifacts],
+}))
+(quant_root / "quantitative-summary.json").write_text(json.dumps({
+    "candidateSha": candidate_sha,
+    "sessionId": FakeRun.adw_id,
+    "auditMode": "change-gate",
+    "automaticChecksPassed": True,
+    "failures": [],
 }))
 
 def surface(name, verdict, shots):
@@ -258,8 +271,29 @@ check("audit prompt carries the base url, the scope text, and the AuditOutput ov
       and "AuditOutput" in audit_prompts[0], str(audit_prompts)[:400])
 check("audit prompt forbids booting the server (already running)",
       audit_prompts and "ALREADY RUNNING" in audit_prompts[0])
+check("change-gate prompt evaluates the candidate delta and preserves later MVP gaps",
+      audit_prompts and "CHANGE-GATE" in audit_prompts[0]
+      and "must not fail a surface solely because" in audit_prompts[0]
+      and "untested" in audit_prompts[0])
 check("scope envelope handed to the auditor as previous",
       previous_seen and str(scope) in previous_seen[-1].artifacts, str(previous_seen))
+
+# A syntactically valid non-object session payload is malformed evidence, not a
+# reason for the orchestration process to crash before its gates can report it.
+session_path = quant_root / "session.json"
+valid_session_payload = session_path.read_text()
+session_path.write_text("[]")
+prompts_seen.clear()
+try:
+    malformed_rc = audit.main(str(scope), base_url="http://localhost:5173/mos/")
+    malformed_prompts = [p for name, p in prompts_seen if name == "audit"]
+    check("non-object session metadata reaches the audit gates without crashing",
+          malformed_rc == 0 and malformed_prompts
+          and "MVP-ASSESSMENT" in malformed_prompts[0])
+except Exception as exc:
+    check("non-object session metadata reaches the audit gates without crashing", False, repr(exc))
+finally:
+    session_path.write_text(valid_session_payload)
 
 # ── failing verdict: the chain completes, the RUN is not accepted ─────────────
 AUDIT_ENVELOPE = Envelope(
@@ -359,6 +393,24 @@ check("scope gate green: full scope covered, connected screens may add entries",
 # quantitative artifact gate — exact candidate/session binding and completeness
 check("quantitative gate green: complete handoff carries the current SHA and session",
       audit.audit_quantitative_artifacts(good, run).passed)
+session_path = quant_root / "session.json"
+session_payload = json.loads(session_path.read_text())
+session_payload.update({
+    "auditMode": "change-gate",
+    "browserExitStatus": 0,
+    "chainExitStatus": "not-run",
+})
+session_path.write_text(json.dumps(session_payload))
+(quant_root / "quantitative-summary.json").write_text(json.dumps({
+    "candidateSha": candidate_sha,
+    "sessionId": FakeRun.adw_id,
+    "auditMode": "change-gate",
+    "automaticChecksPassed": True,
+    "failures": [],
+}))
+r = audit.audit_quantitative_artifacts(good, run)
+check("quantitative gate green while a reviewer evaluates browser-green change-gate evidence",
+      r.passed, str(r.violations))
 missing_artifact = quant_root / "contrast.csv"
 missing_artifact.unlink()
 r = audit.audit_quantitative_artifacts(good, run)
@@ -366,8 +418,6 @@ check("quantitative gate RED: missing census artifact", not r.passed, str(r.viol
 missing_artifact.write_text(
     f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n"
     "status\nobserved\n")
-session_path = quant_root / "session.json"
-session_payload = json.loads(session_path.read_text())
 session_payload["candidateSha"] = "b" * 40
 session_path.write_text(json.dumps(session_payload))
 r = audit.audit_quantitative_artifacts(good, run)

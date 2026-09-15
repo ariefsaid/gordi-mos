@@ -19,6 +19,7 @@ export interface CollectionToolbarChoice<T extends string = string> {
   value: T
   options: readonly CollectionToolbarOption<T>[]
   onChange: (value: T) => void
+  triggerPrefix?: string
 }
 
 export interface CollectionToolbarFilterChoice {
@@ -322,6 +323,7 @@ export function CollectionToolbar<
                 <div
                   key={filter.id}
                   className={`collection-toolbar__option-field${filter.tinted ? ' collection-toolbar__option-field--group' : ''}`}
+                  data-filter-id={filter.id}
                 >
                   {!isDesktop ? <span>{filter.label}</span> : null}
                   {/* Filter choices stay in the anchored popover until the user opens them. */}
@@ -332,11 +334,19 @@ export function CollectionToolbar<
                       aria-label={filter.label}
                       aria-haspopup="true"
                       aria-expanded={openPopoverId === filter.id}
+                      title={filter.display}
+                      data-full-value={filter.display}
                       onClick={() => setOpenPopoverId(openPopoverId === filter.id ? null : filter.id)}
                     >
                       <span className="collection-toolbar__choice-copy">
                         {isDesktop ? <span className="collection-toolbar__choice-label" aria-hidden="true">{filter.label}</span> : null}
-                        <span className="collection-toolbar__choice-value">{filter.display}</span>
+                        <span
+                          className="collection-toolbar__choice-value"
+                          title={filter.display}
+                          data-full-value={filter.display}
+                        >
+                          {filter.display}
+                        </span>
                       </span>
                       <span className="collection-toolbar__choice-chevron" aria-hidden="true">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -364,6 +374,7 @@ export function CollectionToolbar<
                 <div
                   key={filter.id}
                   className={`collection-toolbar__option-field${filter.tinted ? ' collection-toolbar__option-field--group' : ''}`}
+                  data-filter-id={filter.id}
                 >
                   {!isDesktop ? <span>{filter.label}</span> : null}
                   <Picker
@@ -373,6 +384,7 @@ export function CollectionToolbar<
                     value={filter.value}
                     onChange={filter.onChange}
                     options={filter.options}
+                    triggerPrefix={filter.triggerPrefix}
                     fullWidth
                     className="collection-toolbar__select"
                     triggerClassName="collection-toolbar__picker-trigger"
@@ -382,8 +394,11 @@ export function CollectionToolbar<
             ))}
             {fields ? (
               <div className="collection-toolbar__fields">
-                <Button variant="ghost" aria-expanded={fieldsOpen} onClick={() => setFieldsOpen((open) => !open)}>
-                  {fields.label}
+                <Button variant="ghost" aria-label={fields.label} title={fields.label} aria-expanded={fieldsOpen} onClick={() => setFieldsOpen((open) => !open)}>
+                  <svg className="collection-toolbar__action-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M4 6h16M7 12h10M10 18h4" />
+                  </svg>
+                  <span className="collection-toolbar__action-label">{fields.label}</span>
                 </Button>
                 {fieldsOpen ? (
                   <div role="group" aria-label={fields.label} className="collection-toolbar__fields-menu">
@@ -410,6 +425,8 @@ export function CollectionToolbar<
                 <Button
                   variant="ghost"
                   ref={saveTriggerRef}
+                  aria-label={t('common.saveView')}
+                  title={t('common.saveView')}
                   aria-expanded={saveOpen}
                   onClick={() => {
                     if (saveOpen) closeSaveView()
@@ -424,7 +441,11 @@ export function CollectionToolbar<
                     closeSaveView()
                   }}
                 >
-                  {t('common.saveView')}
+                  <svg className="collection-toolbar__action-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z" />
+                  </svg>
+                  <span className="collection-toolbar__action-label collection-toolbar__save-view-label">{t('common.saveView')}</span>
+                  <span className="collection-toolbar__action-label collection-toolbar__save-compact-label">{t('common.save')}</span>
                 </Button>
                 {saveOpen ? (
                   <div className="collection-toolbar__save" role="group" aria-label={t('common.saveCurrentView')}>

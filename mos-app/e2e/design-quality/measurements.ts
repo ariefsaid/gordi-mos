@@ -364,66 +364,75 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
   if (expectedStops === 0) return { rows: [], expectedStops, cycleDetected: false }
 
   await page.evaluate(() => {
-    const active = document.activeElement
-    if (active instanceof HTMLElement) active.blur()
+    document.getElementById('design-audit-focus-origin')?.remove()
+    const origin = document.createElement('span')
+    origin.id = 'design-audit-focus-origin'
+    origin.tabIndex = -1
+    origin.setAttribute('aria-hidden', 'true')
+    document.body.prepend(origin)
+    origin.focus()
   })
 
   const rows: FocusRow[] = []
   const seen = new Set<string>()
   let cycleDetected = false
-  for (let order = 0; order < stopCounts.total + 1; order += 1) {
-    await page.keyboard.press('Tab')
-    const focused = await page.evaluate(() => {
-      const element = document.activeElement
-      if (!(element instanceof HTMLElement) || element === document.body) return null
-      const segments: string[] = []
-      let current: HTMLElement | null = element
-      while (current && current !== document.body) {
-        let ordinal = 1
-        let sibling = current.previousElementSibling
-        while (sibling) {
-          if (sibling.tagName === current.tagName) ordinal += 1
-          sibling = sibling.previousElementSibling
+  try {
+    for (let order = 0; order < stopCounts.total + 1; order += 1) {
+      await page.keyboard.press('Tab')
+      const focused = await page.evaluate(() => {
+        const element = document.activeElement
+        if (!(element instanceof HTMLElement) || element === document.body) return null
+        const segments: string[] = []
+        let current: HTMLElement | null = element
+        while (current && current !== document.body) {
+          let ordinal = 1
+          let sibling = current.previousElementSibling
+          while (sibling) {
+            if (sibling.tagName === current.tagName) ordinal += 1
+            sibling = sibling.previousElementSibling
+          }
+          segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${ordinal})`)
+          current = current.parentElement
         }
-        segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${ordinal})`)
-        current = current.parentElement
+        const style = getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        const measurable = style.display !== 'none' && style.visibility !== 'hidden'
+          && style.clipPath === 'none' && style.clip === 'auto' && rect.width > 2 && rect.height > 2
+        const indicatorStyles = [element, element.parentElement, element.parentElement?.parentElement]
+          .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement)
+          .map((candidate) => getComputedStyle(candidate))
+        const labelledBy = element.getAttribute('aria-labelledby')
+        const labelledText = labelledBy
+          ? labelledBy.split(/\s+/).map((id) => document.getElementById(id)?.textContent?.trim() || '').join(' ').trim()
+          : ''
+        const selector = ['body', ...segments].join(' > ')
+        return {
+          selector,
+          role: element.getAttribute('role') || element.tagName.toLowerCase(),
+          name: element.getAttribute('aria-label') || labelledText || element.getAttribute('title') || element.textContent?.trim() || '',
+          tabIndex: element.tabIndex,
+          outlineWidth: Number.parseFloat(style.outlineWidth) || 0,
+          outlineStyle: style.outlineStyle,
+          outlineOffset: style.outlineOffset,
+          outlineColor: style.outlineColor,
+          boxShadow: style.boxShadow,
+          measurable,
+          hasIndicator: indicatorStyles.some((candidate) =>
+            (Number.parseFloat(candidate.outlineWidth) || 0) >= 2
+            || (candidate.boxShadow !== 'none' && candidate.boxShadow.trim() !== '')),
+        }
+      })
+      if (!focused) break
+      if (!focused.measurable) continue
+      if (seen.has(focused.selector)) {
+        cycleDetected = rows.length < expectedStops
+        break
       }
-      const style = getComputedStyle(element)
-      const rect = element.getBoundingClientRect()
-      const measurable = style.display !== 'none' && style.visibility !== 'hidden'
-        && style.clipPath === 'none' && style.clip === 'auto' && rect.width > 2 && rect.height > 2
-      const indicatorStyles = [element, element.parentElement, element.parentElement?.parentElement]
-        .filter((candidate): candidate is HTMLElement => candidate instanceof HTMLElement)
-        .map((candidate) => getComputedStyle(candidate))
-      const labelledBy = element.getAttribute('aria-labelledby')
-      const labelledText = labelledBy
-        ? labelledBy.split(/\s+/).map((id) => document.getElementById(id)?.textContent?.trim() || '').join(' ').trim()
-        : ''
-      const selector = ['body', ...segments].join(' > ')
-      return {
-        selector,
-        role: element.getAttribute('role') || element.tagName.toLowerCase(),
-        name: element.getAttribute('aria-label') || labelledText || element.getAttribute('title') || element.textContent?.trim() || '',
-        tabIndex: element.tabIndex,
-        outlineWidth: Number.parseFloat(style.outlineWidth) || 0,
-        outlineStyle: style.outlineStyle,
-        outlineOffset: style.outlineOffset,
-        outlineColor: style.outlineColor,
-        boxShadow: style.boxShadow,
-        measurable,
-        hasIndicator: indicatorStyles.some((candidate) =>
-          (Number.parseFloat(candidate.outlineWidth) || 0) >= 2
-          || (candidate.boxShadow !== 'none' && candidate.boxShadow.trim() !== '')),
-      }
-    })
-    if (!focused) break
-    if (!focused.measurable) continue
-    if (seen.has(focused.selector)) {
-      cycleDetected = rows.length < expectedStops
-      break
+      seen.add(focused.selector)
+      rows.push({ ...context, ...focused })
     }
-    seen.add(focused.selector)
-    rows.push({ ...context, ...focused })
+  } finally {
+    await page.evaluate(() => document.getElementById('design-audit-focus-origin')?.remove())
   }
   return { rows, expectedStops, cycleDetected }
 }

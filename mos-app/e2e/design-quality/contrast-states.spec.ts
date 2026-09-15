@@ -48,13 +48,50 @@ type StateSetup = {
   measure: 'text' | 'both'
 }
 
+async function firstKeyboardActionable(page: Parameters<typeof collectContrast>[0]): Promise<Locator | null> {
+  const candidates = page.locator(ACTIONABLE_SELECTOR).filter({ visible: true })
+  for (let index = 0; index < await candidates.count(); index += 1) {
+    const candidate = candidates.nth(index)
+    const reachable = await candidate.evaluate((element) => {
+      if (!(element instanceof HTMLElement)) return false
+      if (element.matches(':disabled') || element.getAttribute('aria-disabled') === 'true') return false
+      return element.tabIndex >= 0
+    })
+    if (reachable) return candidate
+  }
+  return null
+}
+
 async function setupState(page: Parameters<typeof collectContrast>[0], state: InteractionState): Promise<StateSetup> {
   if (state === 'default') return { applicable: true, selector: DEFAULT_SELECTOR, measure: 'text' }
   if (state === 'hover' || state === 'focus') {
-    const target = page.locator(ACTIONABLE_SELECTOR).filter({ visible: true }).first()
-    if (await target.count() === 0) return { applicable: false, selector: '', measure: 'text' }
+    const target = state === 'focus'
+      ? await firstKeyboardActionable(page)
+      : page.locator(ACTIONABLE_SELECTOR).filter({ visible: true }).first()
+    if (!target || await target.count() === 0) return { applicable: false, selector: '', measure: 'text' }
     if (state === 'hover') await target.hover()
-    else await target.focus()
+    else {
+      await target.evaluate((element) => {
+        document.getElementById('design-audit-focus-origin')?.remove()
+        const origin = document.createElement('span')
+        origin.id = 'design-audit-focus-origin'
+        // Keep the temporary origin in the sequential focus order. Starting Tab from a
+        // programmatically focused tabindex=-1 node is browser-dependent and intermittently
+        // restarts at the document chrome instead of advancing to the adjacent audit target.
+        origin.tabIndex = 0
+        origin.setAttribute('aria-hidden', 'true')
+        element.parentNode?.insertBefore(origin, element)
+        origin.focus()
+      })
+      let reachedTarget = false
+      try {
+        await page.keyboard.press('Tab')
+        reachedTarget = await target.evaluate((element) => document.activeElement === element)
+      } finally {
+        await page.evaluate(() => document.getElementById('design-audit-focus-origin')?.remove())
+      }
+      if (!reachedTarget) throw new Error('Keyboard focus did not reach the first actionable audit target')
+    }
     return { applicable: true, selector: await elementSelector(target), measure: state === 'focus' ? 'both' : 'text' }
   }
   const selector = interactionStateSelector(state)
@@ -62,6 +99,20 @@ async function setupState(page: Parameters<typeof collectContrast>[0], state: In
   const hasVisibleText = await target.evaluateAll((elements) => elements.some((element) => (element as HTMLElement).innerText?.trim().length > 0))
   return { applicable: hasVisibleText, selector, measure: 'text' }
 }
+
+test('focus setup skips a disabled first action and reaches the next keyboard target', async ({ page }) => {
+  await page.setContent(`
+    <main>
+      <button disabled>Unavailable</button>
+      <button>Continue</button>
+    </main>
+  `)
+
+  const setup = await setupState(page, 'focus')
+
+  expect(setup.applicable).toBe(true)
+  await expect(page.getByRole('button', { name: 'Continue' })).toBeFocused()
+})
 
 test('contrast state entry point records browser-computed ratios for each interaction state', async ({ page }) => {
   test.skip(!auditEnabled(), 'set DESIGN_QUALITY_RUN=1 through scripts/design-quality-audit.sh')

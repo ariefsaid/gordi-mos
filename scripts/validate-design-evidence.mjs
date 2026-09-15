@@ -11,8 +11,13 @@ function fail(message, details = {}) {
 
 const [evidenceArg, expectedSha, ...flags] = process.argv.slice(2)
 if (!evidenceArg || !/^[0-9a-f]{40}$/.test(expectedSha || '')) {
-  fail('usage: validate-design-evidence.mjs <evidence-dir> <40-char-sha> [--require-green|--require-change-gate]')
+  fail('usage: validate-design-evidence.mjs <evidence-dir> <40-char-sha> [--require-green|--require-change-gate|--require-browser-change-gate]')
 }
+const knownFlags = new Set(['--require-green', '--require-change-gate', '--require-browser-change-gate'])
+const unknownFlags = flags.filter((flag) => !knownFlags.has(flag))
+if (unknownFlags.length > 0) fail(`unknown flag(s): ${unknownFlags.join(', ')}`)
+const requireFinalChangeGate = flags.includes('--require-change-gate')
+const requireBrowserChangeGate = flags.includes('--require-browser-change-gate')
 const evidenceDir = await realpath(path.resolve(evidenceArg))
 let session
 try {
@@ -32,7 +37,7 @@ if (session.candidateSha !== expectedSha || !/^[0-9a-f]{8}$/.test(sessionId)) {
 const validation = await validateArtifactSet(
   evidenceDir,
   { candidateSha: expectedSha, sessionId },
-  { allowMockupGaps: flags.includes('--require-change-gate') },
+  { allowMockupGaps: requireFinalChangeGate || requireBrowserChangeGate },
 )
 const declared = new Set(await Promise.all(
   (Array.isArray(session.quantitativeArtifacts) ? session.quantitativeArtifacts : []).map(async (entry) => {
@@ -52,9 +57,9 @@ const statusErrors = flags.includes('--require-green') && (session.browserExitSt
   ? [`evidence run is not green (browser=${String(session.browserExitStatus)}, chain=${String(session.chainExitStatus)})`]
   : []
 const changeGateErrors = []
-if (flags.includes('--require-change-gate')) {
+if (requireFinalChangeGate || requireBrowserChangeGate) {
   if (session.auditMode !== 'change-gate') changeGateErrors.push('evidence was not produced in change-gate mode')
-  if (session.browserExitStatus !== 0 || session.chainExitStatus !== 0) {
+  if (session.browserExitStatus !== 0 || (requireFinalChangeGate && session.chainExitStatus !== 0)) {
     changeGateErrors.push(`change gate is not green (browser=${String(session.browserExitStatus)}, chain=${String(session.chainExitStatus)})`)
   }
   try {

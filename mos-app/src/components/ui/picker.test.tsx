@@ -113,4 +113,29 @@ describe('Picker', () => {
     await user.click(screen.getByRole('button', { name: 'Next control' }))
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
+
+  it('keeps a long selected value discoverable when the trigger must clip it', () => {
+    const longLabel = 'Gordi HQ Retail Operations and Customer Experience'
+    renderPicker({
+      value: 'long',
+      options: [{ value: 'long', label: longLabel }],
+    })
+
+    const trigger = screen.getByRole('combobox', { name: 'Status' })
+    expect(trigger).toHaveAttribute('title', longLabel)
+    expect(trigger).toHaveAttribute('data-full-value', longLabel)
+    expect(trigger.querySelector('[data-full-value]')).toHaveAttribute('title', longLabel)
+  })
+
+  it('adds an optional trigger prefix without repeating it in the menu', async () => {
+    const user = userEvent.setup()
+    renderPicker({ triggerPrefix: 'Group' })
+
+    const trigger = screen.getByRole('combobox', { name: 'Status' })
+    expect(trigger).toHaveTextContent('Group: Open')
+    expect(trigger).toHaveAttribute('data-full-value', 'Group: Open')
+    await user.click(trigger)
+    expect(screen.getByRole('option', { name: 'Done' })).toHaveTextContent('Done')
+    expect(screen.queryByRole('option', { name: 'Group: Done' })).not.toBeInTheDocument()
+  })
 })

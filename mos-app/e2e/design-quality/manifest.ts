@@ -154,6 +154,7 @@ const states = [
   'default',
   'create-draft',
   'filtered-queue',
+  'filtered-empty',
   'open-task',
   'editable',
   'read-only',
@@ -307,6 +308,10 @@ const cells: ManifestCell[] = [
   cell('tasks-filter-compact-en-light', {
     area: 'tasks', journey: 'tasks-filter', route: '/mos/work/tasks', fixture: 'VIEWER',
     viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'filtered-queue', status: 'covered',
+    stateContract: {
+      setup: [{ action: 'fill', selector: 'input[aria-label="Search tasks"]', value: 'espresso' }],
+      assertion: { selector: 'tr.task-row' },
+    },
   }),
   cell('tasks-record-phone-id-dark', {
     area: 'tasks', journey: 'tasks-record', route: '/mos/work/tasks', fixture: 'VIEWER',
@@ -323,7 +328,19 @@ const cells: ManifestCell[] = [
   }),
   cell('tasks-empty-phone', {
     area: 'tasks', journey: 'tasks-filter', route: '/mos/work/tasks', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'empty-result', status: 'covered',
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'empty-result', status: 'untested',
+    note: 'The shared VIEWER fixture has Tasks; a true unfiltered empty fixture is not available.',
+  }),
+  cell('tasks-filtered-empty-phone', {
+    area: 'tasks', journey: 'tasks-filter', route: '/mos/work/tasks', fixture: 'VIEWER',
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'filtered-empty', status: 'covered',
+    stateContract: {
+      setup: [
+        { action: 'click', selector: '.mobile-task-options-trigger' },
+        { action: 'fill', selector: 'input[aria-label="Search tasks"]', value: '__design_audit_no_task_match__' },
+      ],
+      assertion: { selector: '[data-collection-status="filtered-empty"]' },
+    },
   }),
   cell('tasks-error-phone', {
     area: 'tasks', journey: 'tasks-record', route: '/mos/work/tasks', fixture: 'VIEWER',
@@ -344,10 +361,18 @@ const cells: ManifestCell[] = [
   cell('signals-feed-compact', {
     area: 'signals', journey: 'signals-feed', route: '/mos/work/signals', fixture: 'VIEWER',
     viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'populated-feed', status: 'covered',
+    stateContract: {
+      setup: [],
+      assertion: { selector: '[data-testid="signal-feed"] [data-signal-id]' },
+    },
   }),
   cell('signals-feed-phone-empty', {
     area: 'signals', journey: 'signals-feed', route: '/mos/work/signals', fixture: 'VIEWER',
     viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'empty-filter-result', status: 'covered',
+    stateContract: {
+      setup: [{ action: 'fill', selector: 'input[aria-label="Cari Sinyal"]', value: '__design_audit_no_signal_match__' }],
+      assertion: { selector: '[data-collection-status="filtered-empty"]' },
+    },
   }),
   cell('signals-record-desktop', {
     area: 'signals', journey: 'signals-record', route: '/mos/work/signals', fixture: 'BAR_SUPERVISOR',
@@ -359,11 +384,13 @@ const cells: ManifestCell[] = [
   }),
   cell('inbox-unread-phone', {
     area: 'inbox', journey: 'inbox-triage', route: '/mos/inbox', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'unread', status: 'covered', primary: true,
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'unread', status: 'untested', primary: true,
+    note: 'No read-only audit fixture currently guarantees at least one unread Inbox record.',
   }),
   cell('inbox-handled-desktop', {
     area: 'inbox', journey: 'inbox-triage', route: '/mos/inbox', fixture: 'VIEWER',
-    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'handled', status: 'covered', primary: true,
+    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'handled', status: 'untested', primary: true,
+    note: 'No read-only audit fixture currently guarantees at least one handled Inbox record.',
   }),
   cell('inbox-open-signal-compact', {
     area: 'inbox', journey: 'inbox-triage', route: '/mos/inbox', fixture: 'VIEWER',
@@ -378,16 +405,22 @@ const cells: ManifestCell[] = [
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'task-link', status: 'covered',
   }),
   cell('cafe-opening-assigned-phone', {
-    area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'VIEWER',
+    area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'assigned-location', status: 'covered', primary: true,
+    stateContract: {
+      setup: [],
+      assertion: { selector: '[data-testid="cafe-opening-location"]' },
+    },
   }),
   cell('cafe-opening-switch-desktop', {
     area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'VIEWER',
-    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'multi-location-switch', status: 'covered', primary: true,
+    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'multi-location-switch', status: 'untested', primary: true,
+    note: 'No read-only audit fixture currently has two eligible Café locations.',
   }),
   cell('cafe-opening-missing-compact', {
     area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'ORPHAN',
-    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'missing-assignment', status: 'covered',
+    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'missing-assignment', status: 'untested',
+    note: 'ORPHAN is stopped by the authentication boundary; no linked no-location fixture exists.',
   }),
   cell('cafe-opening-failed-phone', {
     area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'VIEWER',

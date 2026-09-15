@@ -16,10 +16,12 @@ import {
   REQUIRED_ARTIFACTS,
   ReportWriter,
   meaningfulCsv,
+  validateMockupStatus,
   validateArtifactSet,
 } from './report.ts'
 import { MUTATION_FIXTURES, evaluateMutationFixture, parseCssColor } from './measurements.ts'
 import { assertAuditFixtureWritePolicy } from './audit-fixtures.ts'
+import { resetAuditScroll } from './scroll.ts'
 
 test('the design manifest covers every required dimension and declares complete rules', () => {
   const result = validateManifest(DESIGN_QUALITY_MANIFEST)
@@ -122,6 +124,51 @@ test('CSV evidence accepts product copy containing pending or placeholder', () =
   assert.deepEqual(meaningfulCsv('copy-census.csv', csv), { ok: true })
 })
 
+test('change-gate mockup gaps accept measured mismatches but reject blocked comparisons', () => {
+  assert.equal(validateMockupStatus({
+    status: 'assessed-with-gaps',
+    comparisons: [{ status: 'fail', score: 0.7, build: '/tmp/render.png', missingRegions: [], contradictedRegions: [] }],
+  }, true).ok, true)
+
+  const blocked = validateMockupStatus({
+    status: 'assessed-with-gaps',
+    comparisons: [{ status: 'blocked', score: null, build: '', missingRegions: [], contradictedRegions: [] }],
+  }, true)
+  assert.equal(blocked.ok, false)
+  assert.match(blocked.reason ?? '', /blocked|completed/i)
+
+  const allPass = validateMockupStatus({
+    status: 'assessed-with-gaps',
+    comparisons: [{ status: 'pass', score: 0.92, build: '/tmp/render.png', missingRegions: [], contradictedRegions: [] }],
+  }, true)
+  assert.equal(allPass.ok, false)
+  assert.match(allPass.reason ?? '', /below the 0\.75 threshold/i)
+
+  const regionOnlyFailure = validateMockupStatus({
+    status: 'assessed-with-gaps',
+    comparisons: [{ status: 'fail', score: 0.92, build: '/tmp/render.png', missingRegions: ['toolbar'], contradictedRegions: [] }],
+  }, true)
+  assert.equal(regionOnlyFailure.ok, false)
+  assert.match(regionOnlyFailure.reason ?? '', /below the 0\.75 threshold/i)
+
+  const mixedFalsePass = validateMockupStatus({
+    status: 'assessed-with-gaps',
+    comparisons: [
+      { status: 'fail', score: 0.7, build: '/tmp/render-a.png', missingRegions: [], contradictedRegions: [] },
+      { status: 'pass', score: 0.1, build: '/tmp/render-b.png', missingRegions: [], contradictedRegions: [] },
+    ],
+  }, true)
+  assert.equal(mixedFalsePass.ok, false)
+  assert.match(mixedFalsePass.reason ?? '', /every pass comparison must meet the 0\.75 score and region contract/i)
+
+  const falsePass = validateMockupStatus({
+    status: 'pass',
+    comparisons: [{ status: 'pass', score: 0.7, build: '/tmp/render.png', missingRegions: [], contradictedRegions: [] }],
+  }, false)
+  assert.equal(falsePass.ok, false)
+  assert.match(falsePass.reason ?? '', /0\.75 score and region contract/i)
+})
+
 test('manifestForArtifact binds the shared manifest to the runner metadata', () => {
   const artifact = manifestForArtifact('a'.repeat(40), 'a1b2c3d4')
   assert.equal(artifact.candidateSha, 'a'.repeat(40))
@@ -160,4 +207,42 @@ test('write-state audit cells fail closed until a database-verified provisioner 
     sessionId: 'a1b2c3d4',
     writes: true,
   }), /database-verified per-run provisioner/)
+})
+
+test('audit captures reset the browser and app-owned scroll regions to the origin', () => {
+  const windowTarget = { scrollTop: 96, scrollLeft: 17 }
+  const mainTarget = { scrollTop: 240, scrollLeft: 12 }
+  const dataTarget = { scrollTop: 180, scrollLeft: 8 }
+  const taskTarget = { scrollTop: 120, scrollLeft: 32 }
+  const viewTarget = { scrollTop: 4, scrollLeft: 88 }
+  const recordPanelTarget = { scrollTop: 200, scrollLeft: 0 }
+  const scrollCalls: unknown[][] = []
+  const fakeDocument = {
+    scrollingElement: windowTarget,
+    documentElement: windowTarget,
+    body: windowTarget,
+    querySelectorAll: (selector: string) => {
+      if (selector === '*') return [mainTarget, dataTarget, taskTarget, viewTarget, recordPanelTarget]
+      return []
+    },
+  }
+  const fakeWindow = { scrollTo: (...args: unknown[]) => scrollCalls.push(args) }
+  const previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document')
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, 'window')
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: fakeDocument })
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: fakeWindow })
+  try {
+    resetAuditScroll()
+  } finally {
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument)
+    else delete (globalThis as Record<string, unknown>).document
+    if (previousWindow) Object.defineProperty(globalThis, 'window', previousWindow)
+    else delete (globalThis as Record<string, unknown>).window
+  }
+
+  assert.deepEqual(scrollCalls, [[0, 0]])
+  for (const target of [windowTarget, mainTarget, dataTarget, taskTarget, viewTarget, recordPanelTarget]) {
+    assert.equal(target.scrollTop, 0)
+    assert.equal(target.scrollLeft, 0)
+  }
 })
