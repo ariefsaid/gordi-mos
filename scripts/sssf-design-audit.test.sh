@@ -139,7 +139,10 @@ for artifact in quant_artifacts:
         target.mkdir(parents=True, exist_ok=True)
         (target / "status.json").write_text(json.dumps({
             "candidateSha": candidate_sha, "sessionId": FakeRun.adw_id,
-            "status": "pass", "comparisons": [{"surface": "work"}]}))
+            "status": "pass", "comparisons": [{
+                "surface": "work", "status": "pass", "score": 0.9,
+                "build": "/tmp/render.png", "missingRegions": [],
+                "contradictedRegions": []}]}))
     elif artifact == "manifest.json":
         rendered = subprocess.run([
             "node", "--experimental-strip-types", "--input-type=module", "-e",

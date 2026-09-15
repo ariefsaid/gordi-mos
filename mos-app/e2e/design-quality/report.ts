@@ -75,16 +75,28 @@ export function validateMockupStatus(
     && (comparison.status === 'pass' || comparison.status === 'fail')
     && typeof comparison.score === 'number'
     && typeof comparison.build === 'string'
-    && comparison.build.length > 0)
+    && comparison.build.length > 0
+    && Array.isArray(comparison.missingRegions)
+    && Array.isArray(comparison.contradictedRegions))
   if (!measured) {
     return { ok: false, reason: 'every comparison must be completed; blocked or unmeasured comparisons are invalid' }
   }
   if (payload.status === 'pass') {
-    return comparisons.every((comparison) => isRecord(comparison) && comparison.status === 'pass')
+    return comparisons.every((comparison) => isRecord(comparison)
+      && comparison.status === 'pass'
+      && (comparison.score as number) >= 0.75
+      && (comparison.missingRegions as unknown[]).length === 0
+      && (comparison.contradictedRegions as unknown[]).length === 0)
       ? { ok: true }
-      : { ok: false, reason: 'pass status requires every comparison to pass' }
+      : { ok: false, reason: 'pass status requires every comparison to meet the 0.75 score and region contract' }
   }
-  if (allowMockupGaps && payload.status === 'assessed-with-gaps') return { ok: true }
+  if (allowMockupGaps && payload.status === 'assessed-with-gaps') {
+    const failures = comparisons.filter((comparison) => isRecord(comparison) && comparison.status === 'fail')
+    if (failures.length > 0 && failures.every((comparison) => (comparison.score as number) < 0.75)) {
+      return { ok: true }
+    }
+    return { ok: false, reason: 'assessed-with-gaps requires at least one completed comparison below the 0.75 threshold' }
+  }
   return { ok: false, reason: 'status.json does not report an allowed completed status' }
 }
 

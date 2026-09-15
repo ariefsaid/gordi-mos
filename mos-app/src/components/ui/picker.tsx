@@ -35,6 +35,8 @@ export interface PickerProps {
   autoFocus?: boolean
   required?: boolean
   placeholder?: string
+  /** Visible prefix for the trigger only; menu option labels stay concise. */
+  triggerPrefix?: string
   describedBy?: string
   className?: string
   triggerClassName?: string
@@ -70,6 +72,7 @@ export function Picker({
   autoFocus = false,
   required = false,
   placeholder,
+  triggerPrefix,
   describedBy,
   className,
   triggerClassName,
@@ -238,7 +241,8 @@ export function Picker({
   }
 
   const selectedLabel = options.find((option) => option.value === value)?.label
-  const fullValue = selectedLabel ?? placeholder ?? label
+  const selectedValue = selectedLabel ?? placeholder ?? label
+  const fullValue = triggerPrefix ? `${triggerPrefix}: ${selectedValue}` : selectedValue
   const rootClassName = [
     'picker',
     fullWidth ? 'picker--full' : null,

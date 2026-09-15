@@ -104,6 +104,7 @@ test.describe('bounded visual and interaction acceptance', () => {
       await loginAs(page, MANAGER.email, MANAGER.password)
       await page.goto('work/tasks')
       await expect(page.getByRole('heading', { name: 'Tasks', exact: true })).toBeVisible()
+      await expect(page.getByText(TASKS.VIEWER_ACCOUNTABLE.title, { exact: true }).first()).toBeVisible()
       const mobileDoor = page.getByRole('button', { name: 'View & filters', exact: true })
       if (width < 768) {
         await expect(mobileDoor).toBeVisible()
@@ -127,12 +128,13 @@ test.describe('bounded visual and interaction acceptance', () => {
       await expect(filters.getByRole('combobox', { name: 'Sort', exact: true })).toBeVisible()
       if (width >= 1024) {
         for (const expected of [
-          { id: 'group', value: 'None' },
-          { id: 'business-unit', value: 'Any business unit' },
+          { id: 'group', value: 'Group: None' },
+          { id: 'business-unit', value: 'All units' },
+          { id: 'status', value: 'Any status' },
           { id: 'person', value: 'Anyone' },
           { id: 'sort', value: 'Due soonest' },
         ]) {
-          const trigger = filters.locator(`[data-filter-id="${expected.id}"] .picker__trigger`)
+          const trigger = filters.locator(`[data-filter-id="${expected.id}"] button[data-full-value]`)
           await expect(trigger).toHaveAttribute('data-full-value', expected.value)
           const valueGeometry = await trigger.locator('span[data-full-value]').evaluate((element) => {
             const rect = element.getBoundingClientRect()
@@ -144,7 +146,7 @@ test.describe('bounded visual and interaction acceptance', () => {
             }
           })
           expect(valueGeometry.text).toBe(expected.value)
-          expect(valueGeometry.scrollWidth).toBeLessThanOrEqual(valueGeometry.clientWidth)
+          expect(valueGeometry.scrollWidth, `${expected.id} value must remain fully visible`).toBeLessThanOrEqual(valueGeometry.clientWidth)
           expect(valueGeometry.right).toBeLessThanOrEqual(width)
         }
         const optionsGeometry = await filters.evaluate((element) => ({
@@ -154,6 +156,23 @@ test.describe('bounded visual and interaction acceptance', () => {
         }))
         expect(optionsGeometry.scrollWidth).toBeLessThanOrEqual(optionsGeometry.clientWidth + 1)
         expect(optionsGeometry.height, 'desktop toolbar row 2 must remain one visual line').toBeLessThanOrEqual(60)
+        const searchFit = await filters.getByRole('searchbox', { name: 'Search tasks', exact: true }).evaluate((element) => {
+          const input = element as HTMLInputElement
+          const canvas = document.createElement('canvas')
+          const context = canvas.getContext('2d')
+          if (!context) return false
+          context.font = getComputedStyle(input).font
+          return context.measureText(input.placeholder).width + 4 <= input.clientWidth
+        })
+        expect(searchFit, 'Search tasks placeholder must remain fully visible').toBe(true)
+        await expect(filters.getByRole('button', { name: 'Fields', exact: true })).toContainText('Fields')
+        await expect(filters.getByRole('button', { name: 'Save view', exact: true })).toContainText('Save view')
+        const groupTrigger = filters.getByRole('combobox', { name: 'Group', exact: true })
+        await groupTrigger.click()
+        await page.getByRole('option', { name: 'Status', exact: true }).click()
+        await expect(groupTrigger).toHaveAttribute('data-full-value', 'Group: Status')
+        const activeGroupFit = await groupTrigger.locator('span[data-full-value]').evaluate((element) => element.scrollWidth <= element.clientWidth)
+        expect(activeGroupFit, 'active Group: Status value must remain fully visible').toBe(true)
         const controlRects = await filters.locator(':scope > *').evaluateAll((elements) => elements
           .map((element) => {
             const container = element.getBoundingClientRect()
@@ -207,6 +226,57 @@ test.describe('bounded visual and interaction acceptance', () => {
     })
   }
 
+  for (const width of [1024, 1440] as const) {
+    test(`Tasks toolbar keeps Indonesian labels and active Group visible at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.addInitScript(() => {
+        localStorage.setItem('mos.locale', 'id')
+        localStorage.removeItem('mos.tasks.groupBy')
+      })
+      await loginAs(page, MANAGER.email, MANAGER.password)
+      await page.goto('work/tasks')
+      await expect(page.getByText(TASKS.VIEWER_ACCOUNTABLE.title, { exact: true }).first()).toBeVisible()
+      const filters = page.getByRole('group', { name: 'Tampilan & filter', exact: true })
+      const expectedValues = [
+        { name: 'Grup', value: 'Grup: Tidak' },
+        { name: 'Unit bisnis', value: 'Semua unit' },
+        { name: 'Status', value: 'Semua status', role: 'button' as const },
+        { name: 'Orang', value: 'Semua' },
+        { name: 'Urutkan', value: 'Tenggat dekat' },
+      ]
+      for (const expected of expectedValues) {
+        const trigger = filters.getByRole(expected.role ?? 'combobox', { name: expected.name, exact: true })
+        await expect(trigger).toHaveAttribute('data-full-value', expected.value)
+        const fit = await trigger.locator('span[data-full-value]').evaluate((element) => ({
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+        }))
+        expect(fit.scrollWidth, `${expected.value} must remain fully visible`).toBeLessThanOrEqual(fit.clientWidth)
+      }
+      const searchFit = await filters.getByRole('searchbox', { name: 'Cari tugas', exact: true }).evaluate((element) => {
+        const input = element as HTMLInputElement
+        const canvas = document.createElement('canvas')
+        const context = canvas.getContext('2d')
+        if (!context) return false
+        context.font = getComputedStyle(input).font
+        return context.measureText(input.placeholder).width + 4 <= input.clientWidth
+      })
+      expect(searchFit, 'Cari tugas placeholder must remain fully visible').toBe(true)
+      await expect(filters.getByRole('button', { name: 'Kolom', exact: true })).toContainText('Kolom')
+      await expect(filters.getByRole('button', { name: 'Simpan tampilan', exact: true })).toContainText('Simpan')
+      await expect(filters.getByRole('combobox', { name: /memerlukan perhatian/i })).toContainText('3 perlu perhatian')
+
+      const group = filters.getByRole('combobox', { name: 'Grup', exact: true })
+      await group.click()
+      await page.getByRole('option', { name: 'Status', exact: true }).click()
+      await expect(group).toHaveAttribute('data-full-value', 'Grup: Status')
+      const activeFit = await group.locator('span[data-full-value]').evaluate((element) => element.scrollWidth <= element.clientWidth)
+      expect(activeFit, 'Grup: Status must remain fully visible').toBe(true)
+      await assertNoPageOverflow(page)
+      await capture(`tasks-toolbar-id-${width}`, page)
+    })
+  }
+
   for (const locale of ['en', 'id'] as const) {
     for (const width of [390, 768, 1280] as const) {
       test(`Tasks grouped copy and focus are stable in ${locale} at ${width}px`, async ({ page }) => {
@@ -225,9 +295,9 @@ test.describe('bounded visual and interaction acceptance', () => {
         const toolbar = page.getByTestId('record-collection-toolbar')
         await expect(toolbar).toBeVisible()
         const filters = toolbar.getByRole('group', { name: doorName, exact: true })
-        const group = filters.getByRole('combobox', { name: locale === 'id' ? 'Kelompok' : 'Group', exact: true })
+        const group = filters.getByRole('combobox', { name: locale === 'id' ? 'Grup' : 'Group', exact: true })
         await group.click()
-        await page.getByRole('listbox', { name: locale === 'id' ? 'Kelompok' : 'Group', exact: true })
+        await page.getByRole('listbox', { name: locale === 'id' ? 'Grup' : 'Group', exact: true })
           .getByRole('option', { name: 'PIC', exact: true }).click()
         await expect(group).toContainText('PIC')
         await group.focus()

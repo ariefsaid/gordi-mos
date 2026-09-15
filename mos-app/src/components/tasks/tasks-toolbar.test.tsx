@@ -62,7 +62,8 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
     expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /group/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /business unit/i })).toHaveTextContent('Any business unit')
+    expect(screen.getByRole('combobox', { name: /group/i })).toHaveTextContent('Group: None')
+    expect(screen.getByRole('combobox', { name: /business unit/i })).toHaveTextContent('All units')
     expect(screen.getByRole('button', { name: /status/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /person/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /sort/i })).toBeInTheDocument()
@@ -70,6 +71,7 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
     expect(screen.getByRole('button', { name: /^fields$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^save view$/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /attention/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /attention/i })).toHaveTextContent('3 need attention')
     expect(screen.queryByRole('button', { name: /^filters$/i })).not.toBeInTheDocument()
   })
 

@@ -35,19 +35,19 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
 
   it('reserves enough desktop width for the ordinary Tasks filter values', () => {
     expect(css).toMatch(
-      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='group'\][\s\S]*?flex:\s*0 0 86px;[\s\S]*?max-width:\s*none;/s,
+      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='group'\][\s\S]*?flex:\s*0 0 136px;[\s\S]*?max-width:\s*none;/s,
     )
     expect(css).toMatch(
-      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='business-unit'\][\s\S]*?flex:\s*0 0 160px;[\s\S]*?max-width:\s*none;/s,
+      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='business-unit'\][\s\S]*?flex:\s*0 0 100px;[\s\S]*?max-width:\s*none;/s,
     )
     expect(css).toMatch(
-      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='status'\]\s*\{[^}]*flex:\s*0 1 160px;[^}]*max-width:\s*none;[^}]*\}[\s\S]*?\[data-filter-id='status'\] \.collection-toolbar__select\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s,
+      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='status'\]\s*\{[^}]*flex:\s*0 0 108px;[^}]*max-width:\s*none;[^}]*\}[\s\S]*?\[data-filter-id='status'\] \.collection-toolbar__select\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s,
     )
     expect(css).toMatch(
-      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='person'\][\s\S]*?flex:\s*0 0 98px;[\s\S]*?max-width:\s*none;/s,
+      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='person'\][\s\S]*?flex:\s*0 0 100px;[\s\S]*?max-width:\s*none;/s,
     )
     expect(css).toMatch(
-      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='sort'\][\s\S]*?flex:\s*0 0 130px;[\s\S]*?max-width:\s*none;/s,
+      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='sort'\][\s\S]*?flex:\s*0 0 142px;[\s\S]*?max-width:\s*none;/s,
     )
   })
 
@@ -57,9 +57,10 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
     )
   })
 
-  it('uses compact labelled-icon actions and removes the duplicate Status label at compact desktop', () => {
+  it('keeps compact action text visible and removes the duplicate Status label at compact desktop', () => {
     expect(css).toMatch(
-      /@media\s*\(min-width:\s*1024px\)\s*and\s*\(max-width:\s*1199px\)[\s\S]*?\.collection-toolbar__action-label[\s\S]*?\[data-filter-id='status'\] \.collection-toolbar__choice-label[^{]*\{[^}]*display:\s*none;/s,
+      /@media\s*\(min-width:\s*1024px\)\s*and\s*\(max-width:\s*1440px\)[\s\S]*?\.collection-toolbar__action-icon\s*\{[^}]*display:\s*none;/s,
     )
+    expect(css).not.toMatch(/\.collection-toolbar__action-label\s*\{[^}]*display:\s*none;/s)
   })
 })

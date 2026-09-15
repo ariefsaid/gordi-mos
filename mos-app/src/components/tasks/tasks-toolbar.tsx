@@ -130,6 +130,7 @@ export function TasksToolbar({
     {
       id: 'group',
       label: t('tasks.filter.group'),
+      triggerPrefix: t('tasks.filter.group'),
       value: query.groupBy,
       options: GROUP_VALUES.map(({ value, key }) => ({ value, label: groupLabel(key) })),
       tinted: query.groupBy !== 'none',

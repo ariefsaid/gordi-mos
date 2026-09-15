@@ -126,4 +126,16 @@ describe('Picker', () => {
     expect(trigger).toHaveAttribute('data-full-value', longLabel)
     expect(trigger.querySelector('[data-full-value]')).toHaveAttribute('title', longLabel)
   })
+
+  it('adds an optional trigger prefix without repeating it in the menu', async () => {
+    const user = userEvent.setup()
+    renderPicker({ triggerPrefix: 'Group' })
+
+    const trigger = screen.getByRole('combobox', { name: 'Status' })
+    expect(trigger).toHaveTextContent('Group: Open')
+    expect(trigger).toHaveAttribute('data-full-value', 'Group: Open')
+    await user.click(trigger)
+    expect(screen.getByRole('option', { name: 'Done' })).toHaveTextContent('Done')
+    expect(screen.queryByRole('option', { name: 'Group: Done' })).not.toBeInTheDocument()
+  })
 })

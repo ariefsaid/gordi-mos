@@ -19,6 +19,7 @@ export interface CollectionToolbarChoice<T extends string = string> {
   value: T
   options: readonly CollectionToolbarOption<T>[]
   onChange: (value: T) => void
+  triggerPrefix?: string
 }
 
 export interface CollectionToolbarFilterChoice {
@@ -383,6 +384,7 @@ export function CollectionToolbar<
                     value={filter.value}
                     onChange={filter.onChange}
                     options={filter.options}
+                    triggerPrefix={filter.triggerPrefix}
                     fullWidth
                     className="collection-toolbar__select"
                     triggerClassName="collection-toolbar__picker-trigger"
@@ -442,7 +444,8 @@ export function CollectionToolbar<
                   <svg className="collection-toolbar__action-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                     <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z" />
                   </svg>
-                  <span className="collection-toolbar__action-label">{t('common.saveView')}</span>
+                  <span className="collection-toolbar__action-label collection-toolbar__save-view-label">{t('common.saveView')}</span>
+                  <span className="collection-toolbar__action-label collection-toolbar__save-compact-label">{t('common.save')}</span>
                 </Button>
                 {saveOpen ? (
                   <div className="collection-toolbar__save" role="group" aria-label={t('common.saveCurrentView')}>

@@ -127,15 +127,36 @@ test('CSV evidence accepts product copy containing pending or placeholder', () =
 test('change-gate mockup gaps accept measured mismatches but reject blocked comparisons', () => {
   assert.equal(validateMockupStatus({
     status: 'assessed-with-gaps',
-    comparisons: [{ status: 'fail', score: 0.7, build: '/tmp/render.png' }],
+    comparisons: [{ status: 'fail', score: 0.7, build: '/tmp/render.png', missingRegions: [], contradictedRegions: [] }],
   }, true).ok, true)
 
   const blocked = validateMockupStatus({
     status: 'assessed-with-gaps',
-    comparisons: [{ status: 'blocked', score: null, build: '' }],
+    comparisons: [{ status: 'blocked', score: null, build: '', missingRegions: [], contradictedRegions: [] }],
   }, true)
   assert.equal(blocked.ok, false)
   assert.match(blocked.reason ?? '', /blocked|completed/i)
+
+  const allPass = validateMockupStatus({
+    status: 'assessed-with-gaps',
+    comparisons: [{ status: 'pass', score: 0.92, build: '/tmp/render.png', missingRegions: [], contradictedRegions: [] }],
+  }, true)
+  assert.equal(allPass.ok, false)
+  assert.match(allPass.reason ?? '', /below the 0\.75 threshold/i)
+
+  const regionOnlyFailure = validateMockupStatus({
+    status: 'assessed-with-gaps',
+    comparisons: [{ status: 'fail', score: 0.92, build: '/tmp/render.png', missingRegions: ['toolbar'], contradictedRegions: [] }],
+  }, true)
+  assert.equal(regionOnlyFailure.ok, false)
+  assert.match(regionOnlyFailure.reason ?? '', /below the 0\.75 threshold/i)
+
+  const falsePass = validateMockupStatus({
+    status: 'pass',
+    comparisons: [{ status: 'pass', score: 0.7, build: '/tmp/render.png', missingRegions: [], contradictedRegions: [] }],
+  }, false)
+  assert.equal(falsePass.ok, false)
+  assert.match(falsePass.reason ?? '', /0\.75 score and region contract/i)
 })
 
 test('manifestForArtifact binds the shared manifest to the runner metadata', () => {

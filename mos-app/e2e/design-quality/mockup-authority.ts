@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import { isManifestCellRunnable, type DesignQualityManifest, type ManifestCell } from './manifest'
+import { isManifestCellRunnable, type DesignQualityManifest, type ManifestCell } from './manifest.ts'
 
 export type MockupAuthorityEntry = {
   path: string
