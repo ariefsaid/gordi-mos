@@ -1654,8 +1654,12 @@ export class AuditProvisioner {
 
 export async function cleanupAuditFixtureReceipt(
   receipt: AuditFixtureReceipt,
-  options: Omit<AuditProvisionerOptions, 'definitions'> & { onFailure?: boolean },
+  options: Omit<AuditProvisionerOptions, 'definitions' | 'bindingSecret'> & {
+    bindingSecret: string
+    onFailure?: boolean
+  },
 ): Promise<AuditFixtureReceipt> {
+  assertBindingSecret(options.bindingSecret, true)
   const finalValidation = validateAuditFixtureReceipt(receipt, {
     candidateSha: options.candidateSha,
     sessionId: options.sessionId,

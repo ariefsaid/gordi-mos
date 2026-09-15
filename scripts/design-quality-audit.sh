@@ -295,6 +295,71 @@ mkdir -p "$context_dir/screenshots" || {
   echo "design-quality-audit: unable to create the session artifact directory" >&2
   exit 2
 }
+
+recover_previous_fixture_receipt() {
+  local previous_receipt="$context_dir/fixture-receipt.json"
+  local previous_secret="$context_dir/fixture-binding.secret"
+  if [ ! -e "$previous_receipt" ] && [ ! -e "$previous_secret" ]; then
+    return 0
+  fi
+  if [ ! -f "$previous_receipt" ] || [ ! -f "$previous_secret" ]; then
+    echo "design-quality-audit: prior fixture recovery artifacts are incomplete; refusing to overwrite them" >&2
+    return 2
+  fi
+  if (cd "$ROOT/mos-app" && "$ROOT/scripts/with-db-lock.sh" node --experimental-strip-types --input-type=module - "$context_dir" <<'NODE'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { ReportWriter } from './e2e/design-quality/report.ts'
+import {
+  cleanupAuditFixtureReceipt,
+  createLocalAuditAuthClient,
+  createLocalAuditSqlClient,
+  validateAuditFixtureReceipt,
+} from './e2e/design-quality/audit-provisioner.ts'
+
+const outputDir = process.argv[2]
+const receipt = JSON.parse(await readFile(path.join(outputDir, 'fixture-receipt.json'), 'utf8'))
+const bindingSecret = (await readFile(path.join(outputDir, 'fixture-binding.secret'), 'utf8')).trim()
+let fileEnv = {}
+try {
+  const content = await readFile('./.env.e2e', 'utf8')
+  fileEnv = Object.fromEntries(content.split('\n').flatMap((line) => {
+    const value = line.trim()
+    const split = value.indexOf('=')
+    return split > 0 && !value.startsWith('#')
+      ? [[value.slice(0, split).trim(), value.slice(split + 1).trim()]]
+      : []
+  }))
+} catch { /* CI supplies credentials through process.env. */ }
+const url = process.env.VITE_SUPABASE_URL || fileEnv.VITE_SUPABASE_URL || 'http://127.0.0.1:44321'
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY || fileEnv.SUPABASE_SERVICE_ROLE_KEY || ''
+if (!key) throw new Error('prior audit fixture recovery requires SUPABASE_SERVICE_ROLE_KEY')
+const writer = new ReportWriter({ outputDir, candidateSha: receipt.candidateSha, sessionId: receipt.sessionId })
+const cleaned = await cleanupAuditFixtureReceipt(receipt, {
+  candidateSha: receipt.candidateSha,
+  sessionId: receipt.sessionId,
+  bindingSecret,
+  sql: createLocalAuditSqlClient(url, key),
+  auth: createLocalAuditAuthClient(url, key),
+  onFailure: true,
+  onReceipt: async (nextReceipt) => { await writer.writeFixtureReceipt(nextReceipt) },
+})
+const validation = validateAuditFixtureReceipt(cleaned, {
+  candidateSha: receipt.candidateSha,
+  sessionId: receipt.sessionId,
+  bindingSecret,
+})
+if (!validation.ok) throw new Error(`prior audit fixture recovery did not validate: ${validation.errors.join('; ')}`)
+NODE
+  ); then
+    rm -f "$previous_secret"
+  else
+    echo "design-quality-audit: prior fixture cleanup failed; recovery artifacts were retained" >&2
+    return 2
+  fi
+}
+
+recover_previous_fixture_receipt || exit $?
 binding_secret_file="$context_dir/fixture-binding.secret"
 (umask 077 && python3 - <<'PY' > "$binding_secret_file"
 import secrets
