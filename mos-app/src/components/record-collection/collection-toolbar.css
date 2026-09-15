@@ -242,10 +242,14 @@
     width: 160px;
     max-width: none;
   }
-  .tasks-collection-toolbar [data-filter-id='status'],
-  .tasks-collection-toolbar [data-filter-id='status'] .collection-toolbar__select {
+  .tasks-collection-toolbar [data-filter-id='status'] {
     flex: 0 1 160px;
     width: 160px;
+    max-width: none;
+  }
+  .tasks-collection-toolbar [data-filter-id='status'] .collection-toolbar__select {
+    width: 100%;
+    min-width: 0;
     max-width: none;
   }
   .tasks-collection-toolbar [data-filter-id='person'],

@@ -16,6 +16,7 @@ import {
   REQUIRED_ARTIFACTS,
   ReportWriter,
   meaningfulCsv,
+  validateMockupStatus,
   validateArtifactSet,
 } from './report.ts'
 import { MUTATION_FIXTURES, evaluateMutationFixture, parseCssColor } from './measurements.ts'
@@ -121,6 +122,20 @@ test('CSV evidence accepts product copy containing pending or placeholder', () =
   ].join('\n')
 
   assert.deepEqual(meaningfulCsv('copy-census.csv', csv), { ok: true })
+})
+
+test('change-gate mockup gaps accept measured mismatches but reject blocked comparisons', () => {
+  assert.equal(validateMockupStatus({
+    status: 'assessed-with-gaps',
+    comparisons: [{ status: 'fail', score: 0.7, build: '/tmp/render.png' }],
+  }, true).ok, true)
+
+  const blocked = validateMockupStatus({
+    status: 'assessed-with-gaps',
+    comparisons: [{ status: 'blocked', score: null, build: '' }],
+  }, true)
+  assert.equal(blocked.ok, false)
+  assert.match(blocked.reason ?? '', /blocked|completed/i)
 })
 
 test('manifestForArtifact binds the shared manifest to the runner metadata', () => {

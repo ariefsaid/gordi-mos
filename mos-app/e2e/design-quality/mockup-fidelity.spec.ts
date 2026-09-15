@@ -360,9 +360,10 @@ test('mockup fidelity requires an authority list and enforces score and region c
   }
 
   const passed = comparisons.length > 0 && comparisons.every((comparison) => comparison.status === 'pass')
+  const blocked = comparisons.some((comparison) => comparison.status === 'blocked')
   const auditMode = process.env.DESIGN_AUDIT_MODE === 'change-gate' ? 'change-gate' : 'mvp-assessment'
   await run.writer.writeJson('mockup-diff/status.json', {
-    status: passed ? 'pass' : auditMode === 'change-gate' ? 'assessed-with-gaps' : 'fail',
+    status: blocked ? 'blocked' : passed ? 'pass' : auditMode === 'change-gate' ? 'assessed-with-gaps' : 'fail',
     auditMode,
     threshold: SCORE_THRESHOLD,
     comparisons,

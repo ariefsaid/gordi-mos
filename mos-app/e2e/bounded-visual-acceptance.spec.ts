@@ -155,9 +155,25 @@ test.describe('bounded visual and interaction acceptance', () => {
         expect(optionsGeometry.scrollWidth).toBeLessThanOrEqual(optionsGeometry.clientWidth + 1)
         expect(optionsGeometry.height, 'desktop toolbar row 2 must remain one visual line').toBeLessThanOrEqual(60)
         const controlRects = await filters.locator(':scope > *').evaluateAll((elements) => elements
-          .map((element) => element.getBoundingClientRect())
-          .filter((rect) => rect.width > 0 && rect.height > 0)
-          .map((rect) => ({ left: rect.left, right: rect.right, centerY: rect.top + rect.height / 2 })))
+          .map((element) => {
+            const container = element.getBoundingClientRect()
+            const interactive = element.querySelector('button, input, [role="combobox"]')?.getBoundingClientRect() ?? container
+            return {
+              name: element.getAttribute('data-filter-id') || element.className,
+              left: interactive.left,
+              right: interactive.right,
+              centerY: interactive.top + interactive.height / 2,
+              containerLeft: container.left,
+              containerRight: container.right,
+              width: interactive.width,
+              height: interactive.height,
+            }
+          })
+          .filter((rect) => rect.width > 0 && rect.height > 0))
+        for (const rect of controlRects) {
+          expect(rect.left, `${rect.name} control must stay inside its toolbar slot`).toBeGreaterThanOrEqual(rect.containerLeft - 1)
+          expect(rect.right, `${rect.name} control must stay inside its toolbar slot: ${JSON.stringify(rect)}`).toBeLessThanOrEqual(rect.containerRight + 1)
+        }
         for (let index = 1; index < controlRects.length; index += 1) {
           expect(controlRects[index - 1].right).toBeLessThanOrEqual(controlRects[index].left + 1)
         }
