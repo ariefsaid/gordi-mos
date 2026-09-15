@@ -209,8 +209,41 @@ fi
 
 server_pid=""
 producer_hash_file=""
+binding_secret_file=""
+active_child_pid=""
+
+stop_active_child() {
+  local child_pid="${active_child_pid:-}"
+  [ -n "$child_pid" ] || return 0
+  if kill -0 "$child_pid" 2>/dev/null; then
+    kill -TERM -- "-$child_pid" 2>/dev/null || kill -TERM "$child_pid" 2>/dev/null || true
+    for _ in $(seq 1 20); do
+      kill -0 "$child_pid" 2>/dev/null || break
+      sleep 0.1
+    done
+    if kill -0 "$child_pid" 2>/dev/null; then
+      kill -KILL -- "-$child_pid" 2>/dev/null || kill -KILL "$child_pid" 2>/dev/null || true
+    fi
+  fi
+  wait "$child_pid" 2>/dev/null || true
+  active_child_pid=""
+}
+
+run_in_child_group() {
+  local status
+  set -m
+  "$@" &
+  active_child_pid=$!
+  if wait "$active_child_pid"; then status=0; else status=$?; fi
+  active_child_pid=""
+  set +m
+  return "$status"
+}
+
 cleanup() {
   status=$?
+  trap - EXIT
+  stop_active_child
   if [ "${fixture_cleanup_done:-0}" -ne 1 ] && [ -n "${context_dir:-}" ] \
     && declare -F run_fixture_cleanup >/dev/null 2>&1; then
     run_fixture_cleanup "${browser_status:-$status}" || true
@@ -220,6 +253,7 @@ cleanup() {
     wait "$server_pid" 2>/dev/null || true
   fi
   [ -z "$producer_hash_file" ] || rm -f "$producer_hash_file"
+  [ -z "$binding_secret_file" ] || rm -f "$binding_secret_file"
   exit "$status"
 }
 trap cleanup EXIT
@@ -258,12 +292,22 @@ mkdir -p "$context_dir/screenshots" || {
   echo "design-quality-audit: unable to create the session artifact directory" >&2
   exit 2
 }
+binding_secret_file="$context_dir/fixture-binding.secret"
+(umask 077 && python3 - <<'PY' > "$binding_secret_file"
+import secrets
+print(secrets.token_hex(32))
+PY
+) || {
+  echo "design-quality-audit: unable to create the fixture binding secret" >&2
+  exit 2
+}
+chmod 600 "$binding_secret_file" || exit 2
 
 # Seed the handoff with the exact run contract. The browser specs replace the
 # CSV/JSON placeholders; the chain gate refuses a session with missing or stale
 # artifacts, so a partial browser run cannot be mistaken for evidence.
-node --experimental-strip-types --input-type=module - "$ROOT" "$context_dir" "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode" <<'NODE'
-import { mkdir } from 'node:fs/promises'
+node --experimental-strip-types --input-type=module - "$ROOT" "$context_dir" "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode" "$binding_secret_file" <<'NODE'
+import { mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { manifestForArtifact } from './mos-app/e2e/design-quality/manifest.ts'
 import { REQUIRED_ARTIFACTS, ReportWriter } from './mos-app/e2e/design-quality/report.ts'
@@ -276,6 +320,7 @@ const sessionId = process.argv[5]
 const scopePath = process.argv[6]
 const baseUrl = process.argv[7]
 const auditMode = process.argv[8]
+const bindingSecret = (await readFile(process.argv[9], 'utf8')).trim()
 const writer = new ReportWriter({ outputDir, candidateSha, sessionId })
 await mkdir(path.join(outputDir, 'screenshots'), { recursive: true })
 await writer.writeJson('manifest.json', manifestForArtifact(candidateSha, sessionId))
@@ -293,7 +338,7 @@ for (const artifact of REQUIRED_ARTIFACTS) {
   if (artifact.endsWith('.json')) await writer.writeJson(artifact, { status: 'pending' })
   else await writer.writeCsv(artifact, [])
 }
-await writer.writeFixtureReceipt(emptyAuditFixtureReceipt(candidateSha, sessionId))
+await writer.writeFixtureReceipt(emptyAuditFixtureReceipt(candidateSha, sessionId, bindingSecret))
 await writer.writeJson('mockup-diff/status.json', { status: 'pending' })
 await writer.writeSession({
   auditId: sessionId,
@@ -344,6 +389,7 @@ import {
   createLocalAuditAuthClient,
   createLocalAuditSqlClient,
   emptyAuditFixtureReceipt,
+  validateAuditFixtureReceipt,
   validateAuditFixtureProvisionedReceipt,
 } from './e2e/design-quality/audit-provisioner.ts'
 
@@ -357,13 +403,19 @@ if (session.candidateSha !== candidateSha || session.sessionId !== sessionId) {
 }
 const writer = new ReportWriter({ outputDir, candidateSha, sessionId })
 const receipt = JSON.parse(await readFile(path.join(outputDir, 'fixture-receipt.json'), 'utf8'))
-const validation = validateAuditFixtureProvisionedReceipt(receipt, { candidateSha, sessionId })
-if (!validation.ok) throw new Error(`invalid audit fixture receipt before cleanup: ${validation.errors.join('; ')}`)
+const bindingSecret = (await readFile(path.join(outputDir, 'fixture-binding.secret'), 'utf8')).trim()
+const expected = { candidateSha, sessionId, bindingSecret }
+const provisionedValidation = validateAuditFixtureProvisionedReceipt(receipt, expected)
+const cleanedValidation = validateAuditFixtureReceipt(receipt, expected)
+if (!provisionedValidation.ok && !cleanedValidation.ok) {
+  const errors = [...new Set([...provisionedValidation.errors, ...cleanedValidation.errors])]
+  throw new Error(`invalid audit fixture receipt before cleanup: ${errors.join('; ')}`)
+}
 const owned = Array.isArray(receipt.created) && receipt.created.some((group) => Array.isArray(group.ids) && group.ids.length > 0)
   || Array.isArray(receipt.ownedAuthUsers) && receipt.ownedAuthUsers.length > 0
 const hasSentinels = Array.isArray(receipt.sentinels) && receipt.sentinels.length > 0
 if (!owned && !hasSentinels) {
-  await writer.writeFixtureReceipt(emptyAuditFixtureReceipt(candidateSha, sessionId))
+  await writer.writeFixtureReceipt(emptyAuditFixtureReceipt(candidateSha, sessionId, bindingSecret))
 } else {
   let fileEnv = {}
   try {
@@ -383,6 +435,7 @@ if (!owned && !hasSentinels) {
     sessionId,
     sql: createLocalAuditSqlClient(url, key),
     auth: createLocalAuditAuthClient(url, key),
+    bindingSecret,
     onFailure: browserStatus !== 0,
   })
   await writer.writeFixtureReceipt(cleaned)
@@ -424,20 +477,28 @@ handle_audit_signal() {
   local signal_status="$1"
   trap - INT TERM
   browser_status="$signal_status"
+  stop_active_child
   run_fixture_cleanup "$signal_status" || true
   write_terminal_evidence "$signal_status" "$fixture_status" skipped || true
+  [ -z "$binding_secret_file" ] || rm -f "$binding_secret_file"
   exit "$signal_status"
 }
 
 trap 'handle_audit_signal 130' INT
 trap 'handle_audit_signal 143' TERM
 
-if (cd "$ROOT/mos-app" && "$ROOT/scripts/with-db-lock.sh" npx playwright test --config playwright.design-audit.config.ts); then
+run_browser_lane() {
+  cd "$ROOT/mos-app" && "$ROOT/scripts/with-db-lock.sh" npx playwright test --config playwright.design-audit.config.ts
+}
+
+if run_in_child_group run_browser_lane; then
   browser_status=0
 else
   browser_status=$?
 fi
 run_fixture_cleanup "$browser_status" || true
+rm -f "$binding_secret_file"
+binding_secret_file=""
 write_terminal_evidence "$browser_status" "$fixture_status" "$([ "$browser_status" -eq 0 ] && [ "$fixture_status" -eq 0 ] && echo not-run || echo skipped)"
 if [ "$browser_status" -ne 0 ]; then
   echo "design-quality-audit: browser lane failed; factory chain was not started" >&2
@@ -464,9 +525,13 @@ for declared in sorted(session.get("quantitativeArtifacts", [])):
         print(f"{digest}  {path}")
 PY
 
+run_factory_lane() {
+  bash "$ROOT/scripts/factory-run.sh" --allow-barred adw_design_audit.py "$scope_file" \
+    --base-url "$base_url" --adw-id "$audit_id" --config "$config"
+}
+
 chain_status=0
-if bash "$ROOT/scripts/factory-run.sh" --allow-barred adw_design_audit.py "$scope_file" \
-  --base-url "$base_url" --adw-id "$audit_id" --config "$config"; then
+if run_in_child_group run_factory_lane; then
   chain_status=0
 else
   chain_status=$?

@@ -158,6 +158,7 @@ for artifact in quant_artifacts:
             "namespace": f"design-audit-{FakeRun.adw_id}",
             "created": [], "cleanup": [],
             "unrelatedSentinelsPreserved": True,
+            "binding": "0" * 64,
             "sentinels": [], "ownedDatabaseIds": [],
             "ownedAuthUsers": [],
             "ownedAuthUserIds": [], "remainingAuthUserIds": [],

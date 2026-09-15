@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   assertAuditFixtureWritePolicy,
+  auditOwnedReceivingFixture,
   type AuditFixtureReceipt,
 } from './audit-fixtures.ts'
 import {
@@ -142,6 +143,20 @@ test('identity names must start with the exact session namespace', () => {
   assert.throws(() => assertAuditOwnedIdentity(`writer.${namespace}@example.test`, namespace), /namespace|identity/i)
 })
 
+test('the receiving-only login resolves only its provisioned named identity', () => {
+  assert.deepEqual(auditOwnedReceivingFixture(sessionId, definitions().identities[0]), {
+    email: `${namespace}.writer@example.test`,
+    password: 'test-password',
+    owned: true,
+  })
+  assert.throws(() => auditOwnedReceivingFixture(sessionId), /provisioned named identity/)
+  assert.throws(() => auditOwnedReceivingFixture(sessionId, {
+    fixture: 'BAR_MEMBER',
+    email: `${namespace}.other@example.test`,
+    password: 'test-password',
+  }), /provisioned named identity/)
+})
+
 test('pre-existing database IDs and auth emails are never adopted for cleanup', async () => {
   const fixtureStore = store()
   const taskId = `${sessionId}-0000-0000-0000-000000000001`
@@ -167,6 +182,26 @@ test('pre-existing database IDs and auth emails are never adopted for cleanup', 
   assert.equal(createCalls, 0)
   assert.equal(fixtureStore.tables.get('mos.tasks')!.has(taskId), true)
   assert.equal(fixtureStore.authUsers.has(existingId), true)
+})
+
+test('an auth create error never adopts or deletes a concurrently-created same-email user', async () => {
+  const fixtureStore = store()
+  const concurrentId = `${sessionId}-0000-0000-0000-000000000099`
+  fixtureStore.auth.createUser = async (input) => {
+    fixtureStore.authUsers.set(concurrentId, { id: concurrentId, email: input.email })
+    return { error: { message: 'user already exists' } }
+  }
+  const provisioner = new AuditProvisioner({
+    candidateSha,
+    sessionId,
+    bindingSecret,
+    definitions: definitions(),
+    sql: fixtureStore.sql,
+    auth: fixtureStore.auth,
+  })
+
+  await assert.rejects(() => provisioner.provision(), /user already exists/)
+  assert.equal(fixtureStore.authUsers.has(concurrentId), true)
 })
 
 test('INSERT RETURNING must contain the exact intended primary key', async () => {

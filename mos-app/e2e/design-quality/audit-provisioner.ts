@@ -10,6 +10,7 @@ const FIXTURE = /^[A-Za-z][A-Za-z0-9_-]*$/
 const REQUIRED_SENTINEL_TABLES = ['mos.tasks', 'mos.weekly_updates', 'ops.log_entries'] as const
 const REQUEST_TIMEOUT_MS = 10_000
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+const MAX_AUTH_USERS = 10_000
 
 export type AuditFixtureLifecycleState = 'planned' | 'created' | 'deleted'
 
@@ -274,18 +275,6 @@ export function assertAuditOwnedRecord(definition: AuditFixtureRecordDefinition,
       throw new Error(`audit record ${definition.table} primary key column does not match its declared ID`)
     }
     assertSessionBoundPrimaryKey(declaredColumnId, namespace, `audit record ${definition.table} primary key`)
-  }
-}
-
-function assertReadOnlySentinelQuery(query: string): void {
-  const statement = query.trim().replace(/\s+/g, ' ')
-  const withoutTerminator = statement.endsWith(';') ? statement.slice(0, -1).trimEnd() : statement
-  const sqlCode = withoutTerminator.replace(/'(?:''|[^'])*'/g, "''")
-  if (!/^select\s+\*\s+from\s+[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*\s+where\b/i.test(withoutTerminator)
-    || /\b(?:insert|update|delete|truncate|drop|alter|create|do|call|execute|prepare|grant|revoke|copy|vacuum|analyze|refresh|into)\b/i.test(sqlCode)
-    || /\bfor\s+(?:update|no\s+key\s+update|share|key\s+share)\b/i.test(sqlCode)
-    || withoutTerminator.includes(';')) {
-    throw new Error('audit sentinel queries must be read-only full-row SELECT * statements')
   }
 }
 
@@ -604,11 +593,7 @@ function validationErrors(
         errors.push(`fixture sentinel ${sentinel.table}:${sentinel.id} contains an invalid primary key`)
       }
       if (sentinel.query !== undefined) {
-        if (typeof sentinel.query !== 'string') errors.push(`fixture sentinel ${sentinel.table}:${sentinel.id} has an invalid query`)
-        else {
-          try { assertReadOnlySentinelQuery(sentinel.query) }
-          catch { errors.push(`fixture sentinel ${sentinel.table}:${sentinel.id} query is not read-only`) }
-        }
+        errors.push(`fixture sentinel ${sentinel.table}:${sentinel.id} cannot carry a custom query`)
       }
       if (sentinel.beforeHash !== sentinel.afterHash) {
         errors.push(`fixture sentinel ${sentinel.table}:${sentinel.id} changed during the audit`)
@@ -741,7 +726,9 @@ export class AuditProvisioner {
       assertTable(sentinel.table)
       assertIdentifier(sentinel.primaryKey ?? 'id', 'sentinel primary key')
       if (!sentinel.id.trim()) throw new Error(`audit sentinel ${sentinel.table} has an empty ID`)
-      if (sentinel.query !== undefined) assertReadOnlySentinelQuery(sentinel.query)
+      if (sentinel.query !== undefined) {
+        throw new Error('custom sentinel queries are not supported; sentinel snapshots always select the full row by exact ID')
+      }
     }
     const hasOwnedWrites = (this.definitions.identities?.length ?? 0) > 0
       || (this.definitions.records?.length ?? 0) > 0
@@ -761,8 +748,7 @@ export class AuditProvisioner {
   }
 
   private async readSentinel(definition: AuditFixtureSentinelDefinition): Promise<Snapshot> {
-    const query = definition.query ?? selectByIds(definition.table, definition.primaryKey ?? 'id', [definition.id])
-    if (definition.query !== undefined) assertReadOnlySentinelQuery(query)
+    const query = selectByIds(definition.table, definition.primaryKey ?? 'id', [definition.id])
     const result = rows(await this.sql.query(query))
     return { definition, hash: hashRows(result), present: result.length > 0 }
   }
@@ -867,7 +853,6 @@ export class AuditProvisioner {
         table: before.definition.table,
         id: before.definition.id,
         primaryKey: before.definition.primaryKey,
-        query: before.definition.query,
         beforeHash: before.hash,
         afterHash: after.hash,
         beforePresent: before.present,
@@ -899,7 +884,9 @@ export class AuditProvisioner {
     const allAuthUsers = this.ownedAuthUsers.length > 0 ? await this.listAuthUsers() : []
     this.resolveAuthOwners(allAuthUsers)
     const ownedAuthUserIds = this.ownedAuthUsers.flatMap(({ id }) => id ? [id] : [])
-    const ownedAuthEmails = new Set(this.ownedAuthUsers.map(({ email }) => email.toLowerCase()))
+    const ownedAuthEmails = new Set(this.ownedAuthUsers
+      .filter(({ lifecycle }) => lifecycle !== 'planned')
+      .map(({ email }) => email.toLowerCase()))
     const ownedAuthIds = new Set(ownedAuthUserIds)
     const remainingAuthUserIds = allAuthUsers
       .filter((user) => ownedAuthIds.has(user.id) || ownedAuthEmails.has(user.email.toLowerCase()))
@@ -948,7 +935,6 @@ export class AuditProvisioner {
         await this.emit(await this.receipt([], { attempted: false, completed: false }))
         const result = await this.auth!.createUser({ email: identity.email, password: identity.password, email_confirm: true })
         if (result.error) {
-          await this.recoverAuthOwner(owner)
           throw new Error(`audit fixture auth user creation failed: ${result.error.message ?? 'unknown error'}`)
         }
         const userId = result.data?.user?.id
@@ -1076,7 +1062,9 @@ export class AuditProvisioner {
           owner.lifecycle = 'deleted'
         }
         const remainingAuthUsers = await this.listAuthUsers()
-        const ownedEmails = new Set(this.ownedAuthUsers.map(({ email }) => email.toLowerCase()))
+        const ownedEmails = new Set(this.ownedAuthUsers
+          .filter(({ lifecycle }) => lifecycle !== 'planned')
+          .map(({ email }) => email.toLowerCase()))
         const ownedIds = new Set(this.ownedAuthUsers
           .filter(({ lifecycle }) => lifecycle !== 'planned')
           .flatMap(({ id }) => id ? [id] : []))
@@ -1144,7 +1132,6 @@ export class AuditProvisioner {
           table: sentinel.table,
           id: sentinel.id,
           primaryKey: sentinel.primaryKey,
-          query: sentinel.query,
         },
         hash: sentinel.beforeHash,
         present: sentinel.beforePresent ?? true,
@@ -1200,7 +1187,6 @@ export async function cleanupAuditFixtureReceipt(
       table: sentinel.table,
       id: sentinel.id,
       primaryKey: sentinel.primaryKey,
-      query: sentinel.query,
     })),
   }, bindingSecret: options.bindingSecret })
   provisioner.seedReceipt(receipt)
@@ -1251,16 +1237,16 @@ async function boundedRequest(
 ): Promise<{ response: Response; body: unknown }> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-  let response: Response
   try {
-    response = await fetch(url, { ...init, signal: controller.signal })
-  } catch {
+    const response = await fetch(url, { ...init, signal: controller.signal })
+    return { response, body: await boundedJson(response, kind) }
+  } catch (error) {
     if (controller.signal.aborted) throw new Error(`audit fixture ${kind} request timed out`)
+    if (error instanceof Error && error.message.startsWith(`audit fixture ${kind} `)) throw error
     throw new Error(`audit fixture ${kind} request failed`)
   } finally {
     clearTimeout(timeout)
   }
-  return { response, body: await boundedJson(response, kind) }
 }
 
 export function createLocalAuditSqlClient(url: string, serviceKey: string): AuditFixtureSqlClient {
@@ -1310,7 +1296,8 @@ export function createLocalAuditAuthClient(url: string, serviceKey: string): Aud
       const perPage = 1000
       const users: AuditFixtureAuthUser[] = []
       let reachedTerminalPage = false
-      for (let page = 1; page <= 10_000; page += 1) {
+      const maxPages = Math.ceil(MAX_AUTH_USERS / perPage) + 1
+      for (let page = 1; page <= maxPages; page += 1) {
         const { response, body } = await request(`/auth/v1/admin/users?page=${page}&per_page=${perPage}`)
         if (!response.ok) throw new Error(`audit fixture auth user listing failed (${response.status})`)
         if (!isRecord(body) || !Array.isArray(body.users)) {
@@ -1322,6 +1309,9 @@ export function createLocalAuditAuthClient(url: string, serviceKey: string): Aud
             throw new Error('audit fixture auth user listing returned an invalid user')
           }
           users.push({ id: user.id, email: user.email })
+          if (users.length > MAX_AUTH_USERS) {
+            throw new Error('audit fixture auth user listing exceeded the local population limit')
+          }
         }
         const headerTotalValue = response.headers.get('x-total-count')
         let headerTotal: number | undefined
@@ -1352,7 +1342,7 @@ export function createLocalAuditAuthClient(url: string, serviceKey: string): Aud
           break
         }
       }
-      if (!reachedTerminalPage) throw new Error('audit fixture auth user listing exceeded pagination limit')
+      if (!reachedTerminalPage) throw new Error('audit fixture auth user listing exceeded the local pagination limit')
       const ids = new Set<string>()
       for (const user of users) {
         if (ids.has(user.id)) throw new Error(`audit fixture auth user listing returned duplicate ID ${user.id}`)

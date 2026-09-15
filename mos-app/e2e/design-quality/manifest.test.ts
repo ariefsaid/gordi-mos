@@ -354,7 +354,7 @@ test('audit fixture records require inspectable namespaced columns and keep sent
         query: "DELETE FROM mos.tasks WHERE id IN ('sentinel');",
       }],
     },
-  }), /read-only/i)
+  }), /custom sentinel|full row/i)
 })
 
 test('audit fixture ownership is session-bound and generated IDs carry the session prefix', async () => {
@@ -775,9 +775,9 @@ test('local HTTP fixture clients recover a failed provision across separate inst
       { fixture: 'AUDIT_RECEIVING_ONLY', table: 'mos.tasks', id: secondTask, namespace, columns: { id: secondTask, title: `${namespace} second-owned-row` } },
     ],
     sentinels: [
-      { table: 'mos.tasks', id: 'sentinel-task', query: "SELECT * FROM mos.tasks WHERE id IN ('sentinel-task');" },
-      { table: 'mos.weekly_updates', id: 'sentinel-update', query: "SELECT * FROM mos.weekly_updates WHERE id IN ('sentinel-update');" },
-      { table: 'ops.log_entries', id: 'sentinel-log', query: "SELECT * FROM ops.log_entries WHERE id IN ('sentinel-log');" },
+      { table: 'mos.tasks', id: 'sentinel-task' },
+      { table: 'mos.weekly_updates', id: 'sentinel-update' },
+      { table: 'ops.log_entries', id: 'sentinel-log' },
     ],
   }
   let persisted: AuditFixtureReceipt | undefined
@@ -887,9 +887,9 @@ test('audit-owned setup and cleanup preserve task, weekly-update, and operations
       identities: [{ fixture: 'AUDIT_RECEIVING_ONLY', email: `${namespace}.writer@example.test`, password: 'test-password' }],
       records: [{ fixture: 'AUDIT_RECEIVING_ONLY', table: 'mos.tasks', id: ownedTask, namespace, columns: { id: ownedTask, title: `${namespace} owned` } }],
       sentinels: [
-        { table: 'mos.tasks', id: 'sentinel-task', query: "SELECT * FROM mos.tasks WHERE id IN ('sentinel-task');" },
-        { table: 'mos.weekly_updates', id: 'sentinel-update', query: "SELECT * FROM mos.weekly_updates WHERE id IN ('sentinel-update');" },
-        { table: 'ops.log_entries', id: 'sentinel-log', query: "SELECT * FROM ops.log_entries WHERE id IN ('sentinel-log');" },
+        { table: 'mos.tasks', id: 'sentinel-task' },
+        { table: 'mos.weekly_updates', id: 'sentinel-update' },
+        { table: 'ops.log_entries', id: 'sentinel-log' },
       ],
     },
   })

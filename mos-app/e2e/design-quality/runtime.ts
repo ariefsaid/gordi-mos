@@ -13,6 +13,7 @@ import {
   auditOwnedReceivingFixture,
   assertAuditFixtureNamespace,
   assertAuditFixtureWritePolicy,
+  type AuditFixtureIdentityDefinition,
 } from './audit-fixtures'
 import {
   AuditProvisioner,
@@ -51,6 +52,8 @@ export type AuditRun = {
 type FixtureRunState = {
   provisioner: AuditProvisioner
   receipt: AuditFixtureReceipt
+  bindingSecret: string
+  identities: Map<string, AuditFixtureIdentityDefinition>
 }
 
 const fixtureRuns = new Map<string, FixtureRunState>()
@@ -110,24 +113,47 @@ function fixtureRunKey(run: AuditRun): string {
   return `${path.resolve(run.outputDir)}:${run.candidateSha}:${run.sessionId}`
 }
 
-async function ensureAuditFixtures(run: AuditRun): Promise<AuditFixtureReceipt> {
+function fixtureBindingSecret(run: AuditRun, required: boolean): string {
+  let secret = ''
+  try {
+    secret = readFileSync(path.join(run.outputDir, 'fixture-binding.secret'), 'utf8').trim()
+  } catch {
+    if (required) throw new Error('audit-owned fixture writes require the controller-provided session binding secret')
+  }
+  if (required && secret.length < 16) {
+    throw new Error('audit-owned fixture writes require the controller-provided session binding secret')
+  }
+  return secret
+}
+
+function fixtureState(definitions: ReturnType<typeof auditFixtureDefinitions>, provisioner: AuditProvisioner, receipt: AuditFixtureReceipt, bindingSecret: string): FixtureRunState {
+  const identities = new Map<string, AuditFixtureIdentityDefinition>()
+  for (const identity of definitions.identities ?? []) identities.set(identity.fixture, identity)
+  return { provisioner, receipt, bindingSecret, identities }
+}
+
+async function ensureAuditFixtures(run: AuditRun): Promise<FixtureRunState> {
   const key = fixtureRunKey(run)
   const current = fixtureRuns.get(key)
-  if (current) return current.receipt
+  if (current) return current
   const definitions = auditFixtureDefinitions(run.sessionId)
   const clients = fixtureClients(definitions)
+  const hasWrites = (definitions.identities?.length ?? 0) > 0 || (definitions.records?.length ?? 0) > 0
+  const bindingSecret = fixtureBindingSecret(run, hasWrites)
   const provisioner = new AuditProvisioner({
     candidateSha: run.candidateSha,
     sessionId: run.sessionId,
     definitions,
+    bindingSecret,
     sql: clients.sql,
     auth: clients.auth,
     onReceipt: async (receipt) => { await run.writer.writeFixtureReceipt(receipt) },
   })
   const receipt = await provisioner.provision()
-  fixtureRuns.set(key, { provisioner, receipt })
+  const state = fixtureState(definitions, provisioner, receipt, bindingSecret)
+  fixtureRuns.set(key, state)
   await run.writer.writeFixtureReceipt(receipt)
-  return receipt
+  return state
 }
 
 /** Finish the audit-owned fixture lifecycle and persist the final cleanup receipt. */
@@ -137,14 +163,22 @@ export async function cleanupAuditFixtures(run: AuditRun, onFailure = false): Pr
   if (!state) {
     const definitions = auditFixtureDefinitions(run.sessionId)
     const clients = fixtureClients(definitions)
+    const hasWrites = (definitions.identities?.length ?? 0) > 0 || (definitions.records?.length ?? 0) > 0
+    const bindingSecret = fixtureBindingSecret(run, hasWrites)
     const provisioner = new AuditProvisioner({
       candidateSha: run.candidateSha,
       sessionId: run.sessionId,
       definitions,
+      bindingSecret,
       sql: clients.sql,
       auth: clients.auth,
     })
-    state = { provisioner, receipt: emptyAuditFixtureReceipt(run.candidateSha, run.sessionId) }
+    state = fixtureState(
+      definitions,
+      provisioner,
+      emptyAuditFixtureReceipt(run.candidateSha, run.sessionId, bindingSecret),
+      bindingSecret,
+    )
     fixtureRuns.set(key, state)
   }
   if (state.receipt.created.length === 0 && (state.receipt.ownedAuthUsers?.length ?? 0) === 0) {
@@ -224,10 +258,15 @@ const fixtureCredentials = {
   ORPHAN,
 } as const
 
-export async function loginAuditFixture(page: Page, fixtureName: string, sessionId = env('DESIGN_AUDIT_SESSION_ID')): Promise<void> {
+export async function loginAuditFixture(
+  page: Page,
+  fixtureName: string,
+  sessionId = env('DESIGN_AUDIT_SESSION_ID'),
+  identity?: AuditFixtureIdentityDefinition,
+): Promise<void> {
   if (authenticatedFixture.get(page) === fixtureName) return
   const fixture = fixtureName === AUDIT_RECEIVING_ONLY
-    ? auditOwnedReceivingFixture(sessionId)
+    ? auditOwnedReceivingFixture(sessionId, identity)
     : fixtureCredentials[fixtureName as keyof typeof fixtureCredentials]
   if (!fixture || !('password' in fixture)) throw new Error(`unknown audit fixture ${fixtureName}`)
   if ('owned' in fixture && fixture.owned) assertAuditFixtureNamespace(fixture.email, sessionId)
@@ -242,15 +281,16 @@ export async function prepareAuditPage(page: Page, run: AuditRun, cell: Manifest
   const viewport = VIEWPORT_SIZES[cell.viewport]
   if (!viewport) throw new Error(`unknown audit viewport ${cell.viewport}`)
   await page.setViewportSize(viewport)
-  const receipt = await ensureAuditFixtures(run)
+  const state = await ensureAuditFixtures(run)
   assertAuditFixtureWritePolicy({
     fixture: cell.fixture,
     sessionId: run.sessionId,
     candidateSha: run.candidateSha,
-    receipt,
+    bindingSecret: state.bindingSecret,
+    receipt: state.receipt,
     writes: cell.stateContract?.writes === true,
   })
-  await loginAuditFixture(page, cell.fixture, run.sessionId)
+  await loginAuditFixture(page, cell.fixture, run.sessionId, state.identities.get(cell.fixture))
   await page.evaluate(({ theme, language }) => {
     // Providers read their persisted state during the first render. Seed both values while the
     // authenticated page is still mounted so each matrix cell exercises the real provider path.

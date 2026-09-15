@@ -35,6 +35,24 @@ else
   bad "interrupt cleanup does not preserve a terminal fixture status"
 fi
 
+if grep -Fq 'run_in_child_group run_browser_lane' scripts/design-quality-audit.sh \
+  && grep -Fq 'run_in_child_group run_factory_lane' scripts/design-quality-audit.sh \
+  && grep -Fq 'kill -TERM -- "-$child_pid"' scripts/design-quality-audit.sh \
+  && grep -Fq 'wait "$child_pid"' scripts/design-quality-audit.sh \
+  && grep -Fq 'stop_active_child' scripts/design-quality-audit.sh; then
+  ok "interrupt cleanup stops and waits for each active child process group"
+else
+  bad "interrupt cleanup can race an active child process group"
+fi
+
+if grep -Fq 'fixture-binding.secret' scripts/design-quality-audit.sh \
+  && grep -Fq 'chmod 600 "$binding_secret_file"' scripts/design-quality-audit.sh \
+  && grep -Fq 'rm -f "$binding_secret_file"' scripts/design-quality-audit.sh; then
+  ok "fixture receipt binding secret is private and removed before handoff"
+else
+  bad "fixture receipt binding secret lifecycle is incomplete"
+fi
+
 if node --experimental-strip-types --test \
   mos-app/e2e/design-quality/manifest.test.ts \
   mos-app/e2e/design-quality/mockup-authority.test.ts \
