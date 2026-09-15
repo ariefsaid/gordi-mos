@@ -134,6 +134,8 @@ quant_root = FakeRun.context_handoff_dir
 quant_artifacts = tuple(audit.QUANTITATIVE_ARTIFACTS)
 check("fixture receipt is registered in the ADW quantitative artifact contract",
       "fixture-receipt.json" in quant_artifacts)
+check("visible content is registered in the ADW quantitative artifact contract",
+      "visible-content.csv" in quant_artifacts)
 candidate_sha = "a" * 40
 for artifact in quant_artifacts:
     target = quant_root / artifact
@@ -171,6 +173,28 @@ for artifact in quant_artifacts:
         target.write_text(
             f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n"
             "browser_status=0\nfixture_status=0\nchain_status=not-run\n")
+    elif artifact == "visible-content.csv":
+        import csv
+        manifest = json.loads((quant_root / "manifest.json").read_text())
+        with target.open("w", newline="") as handle:
+            handle.write(f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n")
+            writer = csv.DictWriter(handle, fieldnames=[
+                "cellId", "kind", "measured", "observed", "passed", "selector",
+            ])
+            writer.writeheader()
+            for cell in manifest["cells"]:
+                if cell["status"] != "covered" or not cell.get("stateContract"):
+                    continue
+                shared = {"cellId": cell["id"], "observed": "true", "passed": "true", "selector": "main h1"}
+                writer.writerow({**shared, "kind": "text-truncation", "measured": json.dumps({
+                    "scrollWidth": 100, "clientWidth": 100, "lineClamp": "none",
+                    "textOverflow": "clip", "fullValuePathExercised": False})})
+                writer.writerow({**shared, "kind": "viewport-occlusion", "measured": json.dumps({
+                    "intersectionRatio": 0, "centerCovered": False,
+                    "fullyReachable": True, "persistentBandCount": 0})})
+                if cell["viewport"] == "phone-390x844":
+                    writer.writerow({**shared, "kind": "touch-separation", "measured": json.dumps({
+                        "width": 44, "height": 44, "nearestDistance": None, "populationSize": 1})})
     else:
         target.write_text(
             f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n"

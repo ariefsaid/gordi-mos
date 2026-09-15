@@ -13,6 +13,13 @@ fail=0
 ok() { pass=$((pass + 1)); printf '  ok    %s\n' "$1"; }
 bad() { fail=$((fail + 1)); printf '  FAIL  %s\n' "$1"; }
 
+if bash scripts/lib/audit-workspace.test.sh >/tmp/mos-audit-workspace-test.log 2>&1; then
+  ok "worktree audit context resolves and parses safely"
+else
+  bad "worktree audit context is invalid"
+  sed -n '1,120p' /tmp/mos-audit-workspace-test.log
+fi
+
 for required in \
   mos-app/e2e/design-quality/manifest.ts \
   mos-app/e2e/design-quality/measurements.ts \
@@ -57,6 +64,16 @@ else
   bad "fixture receipt binding secret lifecycle is incomplete"
 fi
 
+if node --experimental-strip-types --input-type=module - <<'NODE'
+import { REQUIRED_ARTIFACTS } from './mos-app/e2e/design-quality/report.ts'
+if (!REQUIRED_ARTIFACTS.includes('visible-content.csv')) process.exit(1)
+NODE
+then
+  ok "visible-content evidence is required by the audit runner"
+else
+  bad "visible-content evidence is missing from the audit runner contract"
+fi
+
 recovery_dir="$(mktemp -d -t mos-design-recovery.XXXXXX)"
 recovery_receipt="$recovery_dir/fixture-receipt.json"
 recovery_secret="$recovery_dir/fixture-binding.secret"
@@ -96,7 +113,7 @@ else
 fi
 
 scope="$(mktemp -t mos-design-quality-scope.XXXXXX)"
-trap 'rm -f "$scope" /tmp/mos-design-quality-manifest-test.log /tmp/mos-design-quality-check.log /tmp/mos-design-quality-mutated.log' EXIT
+trap 'rm -f "$scope" /tmp/mos-audit-workspace-test.log /tmp/mos-design-quality-manifest-test.log /tmp/mos-design-quality-check.log /tmp/mos-design-quality-mutated.log' EXIT
 cat > "$scope" <<'EOF'
 - Tasks — /mos/work/tasks
 - Signals — /mos/work/signals

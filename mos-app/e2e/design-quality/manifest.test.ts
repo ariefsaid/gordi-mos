@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, readdir } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import os from 'node:os'
@@ -7,6 +8,7 @@ import test from 'node:test'
 
 import {
   DESIGN_QUALITY_MANIFEST,
+  isManifestCellRunnable,
   manifestForArtifact,
   REQUIRED_DIMENSIONS,
   REQUIRED_RULE_FIELDS,
@@ -14,11 +16,17 @@ import {
   validateManifestReadiness,
 } from './manifest.ts'
 import {
+  APPROVED_MVP_COMPARISONS,
+  FROZEN_MVP_CELL_IDS,
+  FROZEN_MVP_CELL_IDS_SHA256,
+} from './baseline-contract.ts'
+import {
   REQUIRED_ARTIFACTS,
   ReportWriter,
   meaningfulCsv,
   validateMockupStatus,
   validateArtifactSet,
+  validateVisibleContentCsv,
 } from './report.ts'
 import { MUTATION_FIXTURES, evaluateMutationFixture, parseCssColor } from './measurements.ts'
 import {
@@ -52,30 +60,65 @@ test('the design manifest covers every required dimension and declares complete 
   }
 })
 
-test('a required blocked or untested cell fails readiness while authority-backed not-applicable passes', () => {
-  const baseline = structuredClone(DESIGN_QUALITY_MANIFEST)
-  baseline.cells = baseline.cells.map((cell) => ({
-    ...cell,
-    status: 'not-applicable',
-    authority: 'DD-MVP-12',
-  }))
+test('the MVP cell and approved comparison populations are frozen', () => {
+  const ids = DESIGN_QUALITY_MANIFEST.cells.map((cell) => cell.id).sort()
+  const digest = createHash('sha256').update(`${ids.join('\n')}\n`).digest('hex')
 
-  const blocked = structuredClone(baseline)
+  assert.equal(ids.length, 55)
+  assert.deepEqual(ids, [...FROZEN_MVP_CELL_IDS])
+  assert.equal(digest, FROZEN_MVP_CELL_IDS_SHA256)
+  assert.equal(APPROVED_MVP_COMPARISONS.length, 5)
+  assert.deepEqual(
+    APPROVED_MVP_COMPARISONS.map((entry) => entry.sha256),
+    [
+      '030c2d84c7bf15086bcf6e4cdfa7d577c9f55e9c1811389c6e124ea2dc6943af',
+      '3ae431c67ebf19f13ecad5cbd3f74dba13c530f78fe1cb64d4b8912676c5ede1',
+      '23fa138616229ae0c43427097647b2ddcfa4d1eacf1c442d35383ccf4afd65c4',
+      'f5263feab91d8e63fa612adbd9a501ab52cdd67b07f985f3e77760735dab46e9',
+      '6fee9a716aa294e164b2f4ed49edc5d74986a8303f1804c3533a47a422307058',
+    ],
+  )
+})
+
+test('non-default cells require positive and negative state-specific evidence', () => {
+  const generic = structuredClone(DESIGN_QUALITY_MANIFEST)
+  const target = generic.cells.find((cell) => cell.id === 'tasks-filter-compact-en-light')!
+  target.stateContract = {
+    setup: [],
+    assertion: { selector: 'main, [role="main"]' },
+  }
+  const genericResult = validateManifest(generic)
+  assert.equal(genericResult.ok, false)
+  assert.match(genericResult.errors.join('\n'), /generic main|negative assertion/i)
+
+  const missingNegative = structuredClone(DESIGN_QUALITY_MANIFEST)
+  delete missingNegative.cells.find((cell) => cell.id === 'signals-feed-compact')!.stateContract!.negativeAssertion
+  const negativeResult = validateManifest(missingNegative)
+  assert.equal(negativeResult.ok, false)
+  assert.match(negativeResult.errors.join('\n'), /negative assertion/i)
+})
+
+test('a frozen cell cannot become blocked, untested, or not-applicable through self-assertion', () => {
+  const blocked = structuredClone(DESIGN_QUALITY_MANIFEST)
   blocked.cells[0]!.status = 'blocked'
   blocked.cells[0]!.note = 'fixture intentionally unavailable'
   const blockedResult = validateManifestReadiness(blocked)
   assert.equal(blockedResult.ok, false)
   assert.match(blockedResult.errors.join('\n'), /blocked/i)
 
-  const untested = structuredClone(baseline)
+  const untested = structuredClone(DESIGN_QUALITY_MANIFEST)
   untested.cells[0]!.status = 'untested'
   untested.cells[0]!.note = 'state setup intentionally absent'
   const untestedResult = validateManifestReadiness(untested)
   assert.equal(untestedResult.ok, false)
   assert.match(untestedResult.errors.join('\n'), /untested/i)
 
-  const notApplicableResult = validateManifestReadiness(baseline)
-  assert.equal(notApplicableResult.ok, true, notApplicableResult.errors.join('\n'))
+  const notApplicable = structuredClone(DESIGN_QUALITY_MANIFEST)
+  notApplicable.cells[0]!.status = 'not-applicable'
+  notApplicable.cells[0]!.authority = 'self-asserted exception'
+  const notApplicableResult = validateManifestReadiness(notApplicable)
+  assert.equal(notApplicableResult.ok, false)
+  assert.match(notApplicableResult.errors.join('\n'), /exact-cell Director Decision/i)
 })
 
 test('the report writer emits stable, candidate-bound JSON and CSV artifacts', async () => {
@@ -102,6 +145,79 @@ test('the report writer emits stable, candidate-bound JSON and CSV artifacts', a
   assert.equal(manifest.candidateSha, 'a'.repeat(40))
   assert.equal(manifest.sessionId, 'a1b2c3d4')
   assert.match(await readFile(path.join(outputDir, 'geometry.csv'), 'utf8'), /^# candidate_sha=a{40}\n# session_id=a1b2c3d4\n/)
+})
+
+test('visible-content evidence is measured for every runnable cell and every phone control', async () => {
+  const outputDir = await mkdtemp(path.join(os.tmpdir(), 'mos-visible-content-'))
+  const writer = new ReportWriter({
+    outputDir,
+    candidateSha: 'a'.repeat(40),
+    sessionId: 'a1b2c3d4',
+  })
+  const rows = DESIGN_QUALITY_MANIFEST.cells.filter(isManifestCellRunnable).flatMap((cell) => {
+    const shared = { cellId: cell.id, selector: 'main h1', observed: true, passed: true }
+    const measured = [
+      {
+        ...shared,
+        kind: 'text-truncation',
+        measured: JSON.stringify({
+          scrollWidth: 100,
+          clientWidth: 100,
+          lineClamp: 'none',
+          textOverflow: 'clip',
+          fullValuePathExercised: false,
+        }),
+      },
+      {
+        ...shared,
+        kind: 'viewport-occlusion',
+        measured: JSON.stringify({
+          intersectionRatio: 0,
+          centerCovered: false,
+          fullyReachable: true,
+          persistentBandCount: 1,
+        }),
+      },
+    ]
+    return cell.viewport === 'phone-390x844'
+      ? [...measured, {
+        ...shared,
+        kind: 'touch-separation',
+        measured: JSON.stringify({ width: 44, height: 44, nearestDistance: null, populationSize: 1 }),
+      }]
+      : measured
+  })
+  const target = await writer.writeCsv('visible-content.csv', rows)
+  const validText = await readFile(target, 'utf8')
+  const valid = validateVisibleContentCsv(validText, DESIGN_QUALITY_MANIFEST)
+  assert.equal(valid.ok, true, valid.reason)
+
+  const missingColumn = validateVisibleContentCsv(
+    validText.replace('cellId,kind,measured,observed,passed,selector', 'cellId,kind,measured,observed,passed'),
+    DESIGN_QUALITY_MANIFEST,
+  )
+  assert.equal(missingColumn.ok, false)
+  assert.match(missingColumn.reason ?? '', /missing columns/i)
+
+  const missingPhoneControl = validateVisibleContentCsv(
+    validText.split('\n').filter((line) =>
+      !line.includes('tasks-default-phone') || !line.includes('touch-separation')).join('\n'),
+    DESIGN_QUALITY_MANIFEST,
+  )
+  assert.equal(missingPhoneControl.ok, false)
+  assert.match(missingPhoneControl.reason ?? '', /phone control denominator/i)
+
+  const selfAsserted = await writer.writeCsv('visible-content.csv', [{
+    cellId: 'tasks-default-desktop',
+    selector: 'main',
+    kind: 'text-truncation',
+    observed: true,
+    passed: true,
+    measured: '{}',
+  }])
+  const invalid = validateVisibleContentCsv(await readFile(selfAsserted, 'utf8'), DESIGN_QUALITY_MANIFEST)
+  assert.equal(invalid.ok, false)
+  assert.match(invalid.reason ?? '', /measurements|self-asserted/i)
 })
 
 test('gate log status updates preserve scanner evidence and replace pending values', async () => {
@@ -204,6 +320,10 @@ test('each planted fixture defect makes its owning rule fail with the expected r
     'structure.nested-cards',
     'structure.heading-outline',
     'a11y.accessible-name',
+    'content.text-truncation',
+    'geometry.viewport-occlusion',
+    'touch.phone-separation',
+    'identity.full-value',
   ]
   assert.deepEqual(MUTATION_FIXTURES.map((fixture) => fixture.ruleId), expectedRules)
   for (const fixture of MUTATION_FIXTURES) {

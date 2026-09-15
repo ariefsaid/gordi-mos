@@ -1,4 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { access, mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -6,9 +7,11 @@ import { promisify } from 'node:util'
 import { test, expect } from '@playwright/test'
 
 import { DESIGN_QUALITY_MANIFEST, type ManifestCell } from './manifest'
+import { APPROVED_MVP_COMPARISONS } from './baseline-contract'
 import {
   bindMockupToCell,
   parseMockupAuthorityEntry,
+  resolvePrivateAuthorityPath,
   type MockupAuthorityEntry,
 } from './mockup-authority'
 import {
@@ -23,8 +26,14 @@ import {
 
 const execFileAsync = promisify(execFile)
 const repoRoot = path.resolve(process.cwd(), '..')
+const gitCommonDir = execFileSync(
+  'git',
+  ['rev-parse', '--path-format=absolute', '--git-common-dir'],
+  { cwd: repoRoot, encoding: 'utf8' },
+).trim()
+const primaryWorkspaceRoot = path.resolve(path.dirname(gitCommonDir))
 const DETECTOR = path.join(repoRoot, 'scripts/impeccable-detect.mjs')
-const COMP_DIFF = path.join(repoRoot, '.claude/skills/impeccable/scripts/impeccable')
+const COMP_DIFF = path.join(primaryWorkspaceRoot, '.claude/skills/impeccable/scripts/impeccable')
 const SCORE_THRESHOLD = 0.75
 
 type DiffComparison = {
@@ -49,7 +58,7 @@ function asString(value: unknown): string {
 }
 
 function authorityEntry(value: unknown, inheritedAuthority = ''): MockupAuthorityEntry {
-  return parseMockupAuthorityEntry(value, repoRoot, inheritedAuthority)
+  return parseMockupAuthorityEntry(value, primaryWorkspaceRoot, inheritedAuthority)
 }
 
 function payloadEntries(payload: unknown): { entries: unknown[]; authorityRows: boolean; inheritedAuthority: string } {
@@ -70,6 +79,25 @@ function payloadEntries(payload: unknown): { entries: unknown[]; authorityRows: 
   }
 }
 
+async function assertFrozenMockupPopulation(entries: readonly MockupAuthorityEntry[]): Promise<void> {
+  if (entries.length !== APPROVED_MVP_COMPARISONS.length) {
+    throw new Error(`mockup authority must contain exactly ${APPROVED_MVP_COMPARISONS.length} approved comparisons`)
+  }
+  for (const expected of APPROVED_MVP_COMPARISONS) {
+    const entry = entries.find((candidate) => candidate.cellId === expected.cellId
+      && candidate.viewport === expected.viewport)
+    if (!entry) throw new Error(`approved comparison is missing: ${expected.id}`)
+    if (path.basename(entry.path) !== expected.fileName) {
+      throw new Error(`${expected.id} uses an unapproved mockup file`)
+    }
+    if (JSON.stringify(entry.requiredRegions) !== JSON.stringify(expected.requiredRegions)) {
+      throw new Error(`${expected.id} changed its required-region set`)
+    }
+    const digest = createHash('sha256').update(await readFile(entry.path)).digest('hex')
+    if (digest !== expected.sha256) throw new Error(`${expected.id} mockup hash changed`)
+  }
+}
+
 /**
  * Load only an explicit, authority-backed list. There is intentionally no
  * directory discovery fallback: archived/private docs must never silently
@@ -82,10 +110,7 @@ export async function approvedMockups(): Promise<MockupAuthorityEntry[]> {
 
   if (authorityPath || listPath) {
     const source = authorityPath || listPath
-    const sourcePath = path.resolve(repoRoot, source)
-    if (!sourcePath.startsWith(`${path.join(repoRoot, 'docs')}${path.sep}`)) {
-      throw new Error('mockup authority list must live under the private docs workspace')
-    }
+    const sourcePath = resolvePrivateAuthorityPath(source, primaryWorkspaceRoot)
     let payload: unknown
     try {
       payload = JSON.parse(await readFile(sourcePath, 'utf8'))
@@ -106,6 +131,7 @@ export async function approvedMockups(): Promise<MockupAuthorityEntry[]> {
       : parsed.entries
     const entries = candidates.map((entry) => authorityEntry(entry, parsed.inheritedAuthority))
     if (entries.length === 0) throw new Error('mockup authority list contains no approved comp-diff image entries')
+    await assertFrozenMockupPopulation(entries)
     return entries
   }
 

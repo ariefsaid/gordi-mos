@@ -11,6 +11,8 @@ import {
   collectPrimaryActionRegions,
   collectTouchSeparation,
   collectTypography,
+  collectVisibleContent,
+  type VisibleContentRow,
 } from './measurements'
 import {
   assertAuditEnvironment,
@@ -24,6 +26,33 @@ import {
 } from './runtime'
 
 test.describe.configure({ mode: 'serial' })
+
+async function exerciseFullValuePaths(page: import('@playwright/test').Page, cell: import('./manifest').ManifestCell): Promise<string[]> {
+  const exercised: string[] = []
+  const paths = DESIGN_QUALITY_MANIFEST.lists.fullValuePaths.filter((entry) =>
+    (!entry.routes || entry.routes.includes(cell.route))
+    && (!entry.viewports || entry.viewports.includes(cell.viewport)),
+  )
+  for (const pathEntry of paths) {
+    if (!pathEntry.reveal) continue
+    const target = page.locator(pathEntry.selector).filter({ visible: true }).first()
+    if (await target.count() === 0) continue
+    const expected = (await target.getAttribute('data-full-value'))
+      || (await target.getAttribute('title'))
+      || (await target.textContent())
+      || ''
+    if (pathEntry.reveal.action === 'focus') await target.focus()
+    else if (pathEntry.reveal.action === 'hover') await target.hover()
+    else await target.click()
+    const visibleReveal = page.locator(pathEntry.reveal.selector).filter({ visible: true })
+    const text = await visibleReveal.allTextContents()
+    if (expected.trim() && text.some((value) => value.trim().includes(expected.trim()))) {
+      exercised.push(pathEntry.selector)
+    }
+    if (pathEntry.reveal.action === 'click') await page.keyboard.press('Escape')
+  }
+  return exercised
+}
 
 test('quantitative geometry, typography, controls, focus, and state entry point writes its census', async ({ page }) => {
   test.skip(!auditEnabled(), 'set DESIGN_QUALITY_RUN=1 through scripts/design-quality-audit.sh')
@@ -39,6 +68,7 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
   const touchSeparation: Record<string, unknown>[] = []
   const regionRows: Record<string, unknown>[] = []
   const cardRows: Record<string, unknown>[] = []
+  const visibleContent: VisibleContentRow[] = []
   const screenshots: string[] = []
   const observations = new Map<string, { status: 'covered' | 'untested'; evidence: string }>()
   const failures: string[] = []
@@ -81,6 +111,9 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
     focusStops.push(...focusTraversal.rows as unknown as Record<string, unknown>[])
     const cellCards = await collectCardNesting(page, context)
     cardRows.push(...cellCards as unknown as Record<string, unknown>[])
+    const exercisedFullValueSelectors = await exerciseFullValuePaths(page, cell)
+    const cellVisibleContent = await collectVisibleContent(page, context, cell.id, exercisedFullValueSelectors)
+    visibleContent.push(...cellVisibleContent)
     const primaryRegions = DESIGN_QUALITY_MANIFEST.lists.primaryActionRegions.length > 0
       ? DESIGN_QUALITY_MANIFEST.lists.primaryActionRegions
       : [{ selector: 'main', authority: 'manifest default main region' }]
@@ -140,6 +173,9 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
     for (const row of cellCards) {
       if (row.nested) failures.push(`${cell.id}: nested card ${row.selector} inside ${row.ancestor}`)
     }
+    for (const row of cellVisibleContent) {
+      if (!row.observed || !row.passed) failures.push(`${cell.id}: ${row.kind} failed at ${row.selector} (${row.measured})`)
+    }
     if (cell.viewport === 'phone-390x844') {
       for (const row of cellTouchRows) {
         if (row.observed && !row.passes) failures.push(`${cell.id}: ${row.groupSelector} targets ${row.first} and ${row.second} are ${row.gap}px apart`)
@@ -162,6 +198,7 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
   await run.writer.writeCsv('geometry.csv', [...geometry, ...focusStops, ...typography, ...touchSeparation])
   await run.writer.writeCsv('control-census.csv', [...controls, ...regionRows, ...cardRows])
   await run.writer.writeCsv('state-matrix.csv', observedManifest.cells as unknown as Record<string, unknown>[])
+  await run.writer.writeCsv('visible-content.csv', visibleContent as unknown as Record<string, unknown>[])
   await run.writer.writeJson('quantitative-summary.json', {
     ruleIds: DESIGN_QUALITY_MANIFEST.rules.filter((rule) => rule.artifact === 'geometry.csv').map((rule) => rule.id),
     geometryRows: geometry.length,
@@ -172,6 +209,7 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
     touchSeparationRows: touchSeparation.length,
     regionRows: regionRows.length,
     cardRows: cardRows.length,
+    visibleContentRows: visibleContent.length,
     screenshots,
     failures,
     untested: untested.map((cell) => cell.id),

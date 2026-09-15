@@ -1,3 +1,9 @@
+import { CAFE_CELL_INPUTS } from './manifest-cells/cafe.ts'
+import { INBOX_CELL_INPUTS } from './manifest-cells/inbox.ts'
+import { SIGNAL_CELL_INPUTS } from './manifest-cells/signals.ts'
+import { TASK_CELL_INPUTS } from './manifest-cells/tasks.ts'
+import { frozenPopulationErrors } from './baseline-contract.ts'
+
 /**
  * The quantitative audit's coverage contract.
  *
@@ -50,6 +56,11 @@ export type ManifestStateContract = {
     attribute?: string
     value?: string
   }
+  negativeAssertion?: {
+    selector: string
+    attribute?: string
+    value?: string
+  }
   writes?: boolean
 }
 
@@ -88,6 +99,10 @@ export type NamedManifestList = {
   authority: string
   routes?: string[]
   viewports?: string[]
+  reveal?: {
+    action: 'focus' | 'hover' | 'click'
+    selector: string
+  }
 }
 
 export type ManifestLists = {
@@ -229,256 +244,11 @@ function cell(
 }
 
 const cells: ManifestCell[] = [
-  cell('tasks-default-desktop', {
-    area: 'tasks', journey: 'tasks-filter', route: '/mos/work/tasks', fixture: 'VIEWER',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('tasks-default-phone', {
-    area: 'tasks', journey: 'tasks-filter', route: '/mos/work/tasks', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('signals-default-desktop', {
-    area: 'signals', journey: 'signals-feed', route: '/mos/work/signals', fixture: 'VIEWER',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('signals-default-phone', {
-    area: 'signals', journey: 'signals-feed', route: '/mos/work/signals', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('inbox-default-desktop', {
-    area: 'inbox', journey: 'inbox-triage', route: '/mos/inbox', fixture: 'VIEWER',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('inbox-default-phone', {
-    area: 'inbox', journey: 'inbox-triage', route: '/mos/inbox', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('cafe-opening-default-desktop', {
-    area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'VIEWER',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('cafe-opening-default-phone', {
-    area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('cafe-plan-default-desktop', {
-    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BAR_MEMBER',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('cafe-plan-default-phone', {
-    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('cafe-log-default-desktop', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('cafe-log-default-phone', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('cafe-review-default-phone', {
-    area: 'cafe-wip', journey: 'cafe-review', route: '/mos/cafe/review', fixture: 'BAR_SUPERVISOR',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('cafe-stock-default-desktop', {
-    area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'VIEWER',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('cafe-stock-default-phone', {
-    area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('cafe-pushes-default-desktop', {
-    area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'ADMIN',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('cafe-pushes-default-phone', {
-    area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'ADMIN',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }),
-  cell('tasks-create-phone-en-light', {
-    area: 'tasks', journey: 'tasks-create', route: '/mos/work/tasks', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'create-draft', status: 'covered', primary: true,
-  }),
-  cell('tasks-create-desktop-id-dark', {
-    area: 'tasks', journey: 'tasks-create', route: '/mos/work/tasks', fixture: 'VIEWER',
-    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'persistence-success', status: 'covered', primary: true,
-  }),
-  cell('tasks-filter-compact-en-light', {
-    area: 'tasks', journey: 'tasks-filter', route: '/mos/work/tasks', fixture: 'VIEWER',
-    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'filtered-queue', status: 'covered',
-    stateContract: {
-      setup: [{ action: 'fill', selector: 'input[aria-label="Search tasks"]', value: 'espresso' }],
-      assertion: { selector: 'tr.task-row' },
-    },
-  }),
-  cell('tasks-record-phone-id-dark', {
-    area: 'tasks', journey: 'tasks-record', route: '/mos/work/tasks', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'open-task', status: 'covered', primary: true,
-  }),
-  cell('tasks-record-desktop-en-light', {
-    area: 'tasks', journey: 'tasks-record', route: '/mos/work/tasks', fixture: 'MANAGER',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'editable', status: 'covered', primary: true,
-  }),
-  cell('tasks-record-desktop-readonly', {
-    area: 'tasks', journey: 'tasks-record', route: '/mos/work/tasks', fixture: 'ORPHAN',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'read-only', status: 'covered',
-    note: 'Role-correct read-only or denied record face is recorded explicitly.',
-  }),
-  cell('tasks-empty-phone', {
-    area: 'tasks', journey: 'tasks-filter', route: '/mos/work/tasks', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'empty-result', status: 'untested',
-    note: 'The shared VIEWER fixture has Tasks; a true unfiltered empty fixture is not available.',
-  }),
-  cell('tasks-filtered-empty-phone', {
-    area: 'tasks', journey: 'tasks-filter', route: '/mos/work/tasks', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'filtered-empty', status: 'covered',
-    stateContract: {
-      setup: [
-        { action: 'click', selector: '.mobile-task-options-trigger' },
-        { action: 'fill', selector: 'input[aria-label="Search tasks"]', value: '__design_audit_no_task_match__' },
-      ],
-      assertion: { selector: '[data-collection-status="filtered-empty"]' },
-    },
-  }),
-  cell('tasks-error-phone', {
-    area: 'tasks', journey: 'tasks-record', route: '/mos/work/tasks', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'save-failure-retry', status: 'covered',
-  }),
-  cell('tasks-long-desktop', {
-    area: 'tasks', journey: 'tasks-record', route: '/mos/work/tasks', fixture: 'VIEWER',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'id', state: 'long-content', status: 'covered',
-  }),
-  cell('signals-compose-phone-en-light', {
-    area: 'signals', journey: 'signals-compose', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'composer', status: 'covered', primary: true,
-  }),
-  cell('signals-compose-desktop-id-dark', {
-    area: 'signals', journey: 'signals-compose', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
-    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'delivery-failure-retry', status: 'covered', primary: true,
-  }),
-  cell('signals-feed-compact', {
-    area: 'signals', journey: 'signals-feed', route: '/mos/work/signals', fixture: 'VIEWER',
-    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'populated-feed', status: 'covered',
-    stateContract: {
-      setup: [],
-      assertion: { selector: '[data-testid="signal-feed"] [data-signal-id]' },
-    },
-  }),
-  cell('signals-feed-phone-empty', {
-    area: 'signals', journey: 'signals-feed', route: '/mos/work/signals', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'empty-filter-result', status: 'covered',
-    stateContract: {
-      setup: [{ action: 'fill', selector: 'input[aria-label="Cari Sinyal"]', value: '__design_audit_no_signal_match__' }],
-      assertion: { selector: '[data-collection-status="filtered-empty"]' },
-    },
-  }),
-  cell('signals-record-desktop', {
-    area: 'signals', journey: 'signals-record', route: '/mos/work/signals', fixture: 'BAR_SUPERVISOR',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'record-panel', status: 'covered',
-  }),
-  cell('signals-retract-phone', {
-    area: 'signals', journey: 'signals-record', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'retract-menu', status: 'covered',
-  }),
-  cell('inbox-unread-phone', {
-    area: 'inbox', journey: 'inbox-triage', route: '/mos/inbox', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'unread', status: 'untested', primary: true,
-    note: 'No read-only audit fixture currently guarantees at least one unread Inbox record.',
-  }),
-  cell('inbox-handled-desktop', {
-    area: 'inbox', journey: 'inbox-triage', route: '/mos/inbox', fixture: 'VIEWER',
-    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'handled', status: 'untested', primary: true,
-    note: 'No read-only audit fixture currently guarantees at least one handled Inbox record.',
-  }),
-  cell('inbox-open-signal-compact', {
-    area: 'inbox', journey: 'inbox-triage', route: '/mos/inbox', fixture: 'VIEWER',
-    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'open-signal', status: 'covered',
-  }),
-  cell('inbox-tombstone-phone', {
-    area: 'inbox', journey: 'inbox-triage', route: '/mos/inbox', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'retracted-tombstone', status: 'covered',
-  }),
-  cell('inbox-task-link-desktop', {
-    area: 'inbox', journey: 'inbox-triage', route: '/mos/inbox', fixture: 'VIEWER',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'task-link', status: 'covered',
-  }),
-  cell('cafe-opening-assigned-phone', {
-    area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'assigned-location', status: 'covered', primary: true,
-    stateContract: {
-      setup: [],
-      assertion: { selector: '[data-testid="cafe-opening-location"]' },
-    },
-  }),
-  cell('cafe-opening-switch-desktop', {
-    area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'VIEWER',
-    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'multi-location-switch', status: 'untested', primary: true,
-    note: 'No read-only audit fixture currently has two eligible Café locations.',
-  }),
-  cell('cafe-opening-missing-compact', {
-    area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'ORPHAN',
-    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'missing-assignment', status: 'untested',
-    note: 'ORPHAN is stopped by the authentication boundary; no linked no-location fixture exists.',
-  }),
-  cell('cafe-opening-failed-phone', {
-    area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'failed-configuration-load', status: 'covered',
-  }),
-  cell('cafe-plan-producing-phone', {
-    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'producing', status: 'covered', primary: true,
-  }),
-  cell('cafe-plan-receiving-desktop', {
-    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'AUDIT_RECEIVING_ONLY',
-    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'receiving-only', status: 'covered', primary: true,
-  }),
-  cell('cafe-log-producing-compact', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
-    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'producing', status: 'covered', primary: true,
-  }),
-  cell('cafe-log-loading-phone', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'loading', status: 'covered', primary: true,
-  }),
-  cell('cafe-log-success-desktop', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'success', status: 'covered', primary: true,
-  }),
-  cell('cafe-review-authorized-desktop', {
-    area: 'cafe-wip', journey: 'cafe-review', route: '/mos/cafe/review', fixture: 'BAR_SUPERVISOR',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered', primary: true,
-  }),
-  cell('cafe-review-denied-phone', {
-    area: 'cafe-wip', journey: 'cafe-review', route: '/mos/cafe/review', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'covered', primary: true,
-  }),
-  cell('cafe-stock-empty-compact', {
-    area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'VIEWER',
-    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'empty', status: 'covered', primary: true,
-  }),
-  cell('cafe-stock-validation-phone', {
-    area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'validation', status: 'covered', primary: true,
-  }),
-  cell('cafe-pushes-authorized-desktop', {
-    area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'ADMIN',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'success', status: 'covered', primary: true,
-  }),
-  cell('cafe-pushes-denied-phone', {
-    area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'covered', primary: true,
-  }),
-  cell('cafe-pushes-error-compact', {
-    area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'ADMIN',
-    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'error', status: 'covered',
-  }),
-  cell('cafe-wip-long-content', {
-    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BAR_MEMBER',
-    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'long-content', status: 'covered',
-  }),
-]
+  ...TASK_CELL_INPUTS,
+  ...SIGNAL_CELL_INPUTS,
+  ...INBOX_CELL_INPUTS,
+  ...CAFE_CELL_INPUTS,
+].map(([id, values]) => cell(id, values))
 
 const rules: EnforcementRule[] = [
   { id: 'contrast.body', class: 'automatic', population: ['text', 'body'], algorithm: 'computed foreground/background WCAG relative luminance', unit: 'ratio', threshold: '>=4.5:1', artifact: 'contrast.csv' },
@@ -489,6 +259,9 @@ const rules: EnforcementRule[] = [
   { id: 'geometry.horizontal-fit', class: 'automatic', population: ['document', 'main', 'panels', 'popovers', 'collections'], algorithm: 'scrollWidth <= clientWidth + 1', unit: 'px', threshold: '<=1px overflow', artifact: 'geometry.csv', exceptionAuthority: 'named intentionalDataScrollers entry' },
   { id: 'geometry.popup-fit', class: 'automatic', population: ['menus', 'listboxes', 'dialogs'], algorithm: 'opened bounding box within viewport with reachable scroll', unit: 'px/boolean', threshold: 'fully contained and selected item reachable', artifact: 'geometry.csv' },
   { id: 'identity.full-value', class: 'automatic', population: ['primary-record-identity'], algorithm: 'width, accessible name, and keyboard/touch full-value path', unit: 'px/boolean', threshold: 'width >0; truncated identity remains discoverable', artifact: 'affordance-census.csv', exceptionAuthority: 'named fullValuePaths entry' },
+  { id: 'content.text-truncation', class: 'automatic', population: ['visible-text'], algorithm: 'scroll/client geometry, line clamp, and text-overflow with an exercised visible reveal path', unit: 'px/boolean', threshold: 'unclipped or full value visibly revealed in the same cell', artifact: 'visible-content.csv', exceptionAuthority: 'named fullValuePaths entry' },
+  { id: 'geometry.viewport-occlusion', class: 'automatic', population: ['visible-text', 'actionable-controls', 'persistent-bands'], algorithm: 'target/band intersection and center coverage with reachable viewport height', unit: 'ratio/boolean', threshold: '<=10% intersection; center uncovered; fully reachable', artifact: 'visible-content.csv' },
+  { id: 'touch.phone-separation', class: 'automatic', population: ['every-visible-phone-control'], algorithm: 'nearest actionable neighbour in the same semantic container', unit: 'px/count', threshold: 'target >=44x44; nearest edge distance >=8; population >0', artifact: 'visible-content.csv' },
   { id: 'geometry.rail-containment', class: 'automatic', population: ['rail', 'main-scroll-region'], algorithm: 'rail top delta before/after driven main scroll', unit: 'px', threshold: '<=1px; document scroll remains zero', artifact: 'geometry.csv' },
   { id: 'geometry.split-panels', class: 'automatic', population: ['aligned-panel-groups'], algorithm: 'sibling panel height difference', unit: 'px', threshold: '<=1px unless authority says independent', artifact: 'geometry.csv', exceptionAuthority: 'named alignedPanelGroups entry' },
   { id: 'type.minimum-size', class: 'automatic', population: ['body', 'functional-ui'], algorithm: 'computed font-size', unit: 'px', threshold: 'body >=12; functional >=11', artifact: 'geometry.csv' },
@@ -539,6 +312,7 @@ function isNonEmptyString(value: unknown): value is string {
 
 export function validateManifest(manifest: DesignQualityManifest): ManifestValidation {
   const errors: string[] = []
+  errors.push(...frozenPopulationErrors(Array.isArray(manifest.cells) ? manifest.cells : []))
   if (!isNonEmptyString(manifest.version)) errors.push('manifest version is required')
   if (!isNonEmptyString(manifest.name)) errors.push('manifest name is required')
   const actualDimensions = Object.keys(manifest.dimensions ?? {})
@@ -601,6 +375,15 @@ export function validateManifest(manifest: DesignQualityManifest): ManifestValid
       if (!isNonEmptyString(cellEntry.stateContract?.assertion?.selector)) {
         errors.push(`cell ${cellEntry.id || '<unknown>'} is covered without deterministic state assertion`)
       }
+      if (cellEntry.state !== 'default') {
+        const assertionSelector = cellEntry.stateContract?.assertion?.selector?.trim() ?? ''
+        if (/^main(?:\s*,\s*\[role=["']main["']\])?$/.test(assertionSelector)) {
+          errors.push(`cell ${cellEntry.id || '<unknown>'} uses a generic main landmark as non-default state evidence`)
+        }
+        if (!isNonEmptyString(cellEntry.stateContract?.negativeAssertion?.selector)) {
+          errors.push(`cell ${cellEntry.id || '<unknown>'} has no negative assertion distinguishing it from default`)
+        }
+      }
     }
   }
   for (const dimension of REQUIRED_DIMENSIONS) {
@@ -656,6 +439,11 @@ export function validateManifest(manifest: DesignQualityManifest): ManifestValid
     for (const entry of entries) {
       if (!isNonEmptyString(entry.selector) || !isNonEmptyString(entry.authority)) {
         errors.push(`named list ${listName} entries require selector and authority`)
+      }
+      if (listName === 'fullValuePaths'
+        && (!['focus', 'hover', 'click'].includes(entry.reveal?.action ?? '')
+          || !isNonEmptyString(entry.reveal?.selector))) {
+        errors.push(`named list fullValuePaths entry ${entry.selector || '<unknown>'} requires a driven visible reveal`)
       }
       if (entry.routes?.some((route) => !manifest.dimensions.route.includes(route))) {
         errors.push(`named list ${listName} entry uses a route outside the manifest dimensions`)
