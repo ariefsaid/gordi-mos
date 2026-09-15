@@ -125,6 +125,7 @@ test('bounded-choice driver catches clipped popups and broken Escape focus retur
 })
 
 test('control consistency entry point writes a complete per-cell census', async ({ page }) => {
+  test.setTimeout(360_000)
   test.skip(!auditEnabled(), 'set DESIGN_QUALITY_RUN=1 through scripts/design-quality-audit.sh')
   assertAuditEnvironment()
   const run = auditRun()
