@@ -55,7 +55,13 @@ describe('movementsForStream', () => {
     expect(movementsForStream(RADIANT_KITCHEN, STREAMS)).toEqual([])
   })
 
-  it('AC-003: derives the known kitchen and bar matrices from the live stream catalog', () => {
+  it('AC-006: derives every producing stream\'s matrix from the live stream catalog', () => {
+    expect(movementsForStream(GHQ_KITCHEN, STREAMS)).toEqual([
+      PRODUCE,
+      { action: 'transfer', destinationBranchId: RRS.id },
+      { action: 'transfer', destinationBranchId: RADIANT.id },
+      { action: 'transfer', destinationBranchId: CIKAL.id },
+    ])
     expect(movementsForStream(RRS_KITCHEN, STREAMS)).toEqual([
       PRODUCE,
       { action: 'transfer', destinationBranchId: GHQ.id },
@@ -67,6 +73,20 @@ describe('movementsForStream', () => {
       { action: 'transfer', destinationBranchId: GHQ.id }, // held intra-branch movement
       { action: 'transfer', destinationBranchId: RRS.id },
       { action: 'transfer', destinationBranchId: RADIANT.id },
+      { action: 'transfer', destinationBranchId: CIKAL.id },
+    ])
+    expect(movementsForStream(RRS_BAR, STREAMS)).toEqual([
+      PRODUCE,
+      { action: 'transfer', destinationBranchId: GHQ.id },
+      { action: 'transfer', destinationBranchId: RRS.id }, // held intra-branch movement
+      { action: 'transfer', destinationBranchId: RADIANT.id },
+      { action: 'transfer', destinationBranchId: CIKAL.id },
+    ])
+    expect(movementsForStream(RADIANT_BAR, STREAMS)).toEqual([
+      PRODUCE,
+      { action: 'transfer', destinationBranchId: GHQ.id },
+      { action: 'transfer', destinationBranchId: RRS.id },
+      { action: 'transfer', destinationBranchId: RADIANT.id }, // held intra-branch movement
       { action: 'transfer', destinationBranchId: CIKAL.id },
     ])
     expect(movementsForStream(CIKAL_BAR, STREAMS)).toEqual([

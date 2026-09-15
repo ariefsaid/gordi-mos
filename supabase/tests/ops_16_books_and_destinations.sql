@@ -1,7 +1,7 @@
 -- Café books and destinations (#777): prove the write boundary, not only the picker mirror.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(26);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -48,6 +48,14 @@ select results_eq($$
   'AC-003: RRS kitchen sends to each other stream branch, never itself');
 select results_eq($$
   select destination_branch_id from ops.allowed_kitchen_destinations(
+    '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf01', 'kitchen')
+  $$, $$ values
+    ('00000000-0000-0000-0000-00000000bf04'::uuid),
+    ('00000000-0000-0000-0000-00000000bf03'::uuid),
+    ('00000000-0000-0000-0000-00000000bf02'::uuid) $$,
+  'AC-003: GHQ kitchen sends to every other stream branch, never itself or Roastery');
+select results_eq($$
+  select destination_branch_id from ops.allowed_kitchen_destinations(
     '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf03', 'kitchen')
   $$, $$ select null::uuid where false $$,
   'AC-003: receive-only Radiant kitchen sends nowhere');
@@ -59,6 +67,33 @@ select results_eq($$
     ('00000000-0000-0000-0000-00000000bf03'::uuid),
     ('00000000-0000-0000-0000-00000000bf02'::uuid) $$,
   'AC-003: Cikal bar has no intra-branch arm without a kitchen stream');
+select results_eq($$
+  select destination_branch_id from ops.allowed_kitchen_destinations(
+    '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf01', 'bar')
+  $$, $$ values
+    ('00000000-0000-0000-0000-00000000bf04'::uuid),
+    ('00000000-0000-0000-0000-00000000bf01'::uuid),
+    ('00000000-0000-0000-0000-00000000bf03'::uuid),
+    ('00000000-0000-0000-0000-00000000bf02'::uuid) $$,
+  'AC-003: GHQ bar includes its held intra-branch arm and every other bar branch');
+select results_eq($$
+  select destination_branch_id from ops.allowed_kitchen_destinations(
+    '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf02', 'bar')
+  $$, $$ values
+    ('00000000-0000-0000-0000-00000000bf04'::uuid),
+    ('00000000-0000-0000-0000-00000000bf01'::uuid),
+    ('00000000-0000-0000-0000-00000000bf03'::uuid),
+    ('00000000-0000-0000-0000-00000000bf02'::uuid) $$,
+  'AC-003: RRS bar includes its held intra-branch arm and every other bar branch');
+select results_eq($$
+  select destination_branch_id from ops.allowed_kitchen_destinations(
+    '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf03', 'bar')
+  $$, $$ values
+    ('00000000-0000-0000-0000-00000000bf04'::uuid),
+    ('00000000-0000-0000-0000-00000000bf01'::uuid),
+    ('00000000-0000-0000-0000-00000000bf03'::uuid),
+    ('00000000-0000-0000-0000-00000000bf02'::uuid) $$,
+  'AC-003: Radiant bar includes its held intra-branch arm and every other bar branch');
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
@@ -76,6 +111,14 @@ select lives_ok($$
   insert into ops.kitchen_logs (business_unit_id,log_date,branch_id,activity,action,wip_item_id,qty_porsi)
   values ('00000000-0000-0000-0000-00000000bb01','2026-09-14','00000000-0000-0000-0000-00000000bf02','kitchen','produce','00000000-0000-0000-0000-00000000ab01',1)
   $$, 'AC-002: producing RRS kitchen may log production');
+select lives_ok($$
+  insert into ops.kitchen_logs (business_unit_id,log_date,branch_id,activity,action,wip_item_id,qty_porsi)
+  values ('00000000-0000-0000-0000-00000000bb01','2026-09-14','00000000-0000-0000-0000-00000000bf01','bar','produce','00000000-0000-0000-0000-00000000ab01',2)
+  $$, 'AC-005: an RRS kitchen member may write GHQ bar; the books guard reads the row stream, never the caller membership');
+select lives_ok($$
+  insert into ops.kitchen_logs (business_unit_id,log_date,branch_id,activity,action,destination_branch_id,wip_item_id,qty_porsi)
+  values ('00000000-0000-0000-0000-00000000bb01','2026-09-14','00000000-0000-0000-0000-00000000bf02','kitchen','transfer','00000000-0000-0000-0000-00000000bf03','00000000-0000-0000-0000-00000000ab01',1)
+  $$, 'AC-004: RRS kitchen may transfer to Radiant');
 select throws_ok($$
   insert into ops.kitchen_logs (business_unit_id,log_date,branch_id,activity,action,destination_branch_id,wip_item_id,qty_porsi)
   values ('00000000-0000-0000-0000-00000000bb01','2026-09-14','00000000-0000-0000-0000-00000000bf02','kitchen','transfer','00000000-0000-0000-0000-00000000bf05','00000000-0000-0000-0000-00000000ab01',1)
