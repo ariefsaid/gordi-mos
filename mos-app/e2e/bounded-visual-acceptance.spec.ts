@@ -4,7 +4,7 @@ import { MANAGER } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
 
 const LONG_SIGNAL = 'A long Signal leaf title that stays readable without breaking a word across the record header boundary'
-const WIDTHS = [390, 768, 1280, 1370, 1440] as const
+const WIDTHS = [390, 768, 1024, 1280, 1370, 1440] as const
 
 function capture(name: string, page: Page) {
   return page.screenshot({ path: `/tmp/gordi-final-${name}.png`, animations: 'disabled', fullPage: true })
@@ -125,7 +125,7 @@ test.describe('bounded visual and interaction acceptance', () => {
       await expect(filters.getByRole('button', { name: 'Status', exact: true })).toBeVisible()
       await expect(filters.getByRole('combobox', { name: 'Person', exact: true })).toBeVisible()
       await expect(filters.getByRole('combobox', { name: 'Sort', exact: true })).toBeVisible()
-      if (width === 1440) {
+      if (width >= 1024) {
         for (const expected of [
           { id: 'group', value: 'None' },
           { id: 'business-unit', value: 'Any business unit' },
@@ -145,20 +145,24 @@ test.describe('bounded visual and interaction acceptance', () => {
           })
           expect(valueGeometry.text).toBe(expected.value)
           expect(valueGeometry.scrollWidth).toBeLessThanOrEqual(valueGeometry.clientWidth)
-          expect(valueGeometry.right).toBeLessThanOrEqual(1440)
+          expect(valueGeometry.right).toBeLessThanOrEqual(width)
         }
         const optionsGeometry = await filters.evaluate((element) => ({
           clientWidth: element.clientWidth,
           scrollWidth: element.scrollWidth,
+          height: element.getBoundingClientRect().height,
         }))
         expect(optionsGeometry.scrollWidth).toBeLessThanOrEqual(optionsGeometry.clientWidth + 1)
+        expect(optionsGeometry.height, 'desktop toolbar row 2 must remain one visual line').toBeLessThanOrEqual(60)
         const controlRects = await filters.locator(':scope > *').evaluateAll((elements) => elements
           .map((element) => element.getBoundingClientRect())
           .filter((rect) => rect.width > 0 && rect.height > 0)
-          .map((rect) => ({ left: rect.left, right: rect.right })))
+          .map((rect) => ({ left: rect.left, right: rect.right, centerY: rect.top + rect.height / 2 })))
         for (let index = 1; index < controlRects.length; index += 1) {
           expect(controlRects[index - 1].right).toBeLessThanOrEqual(controlRects[index].left + 1)
         }
+        const centers = controlRects.map((rect) => rect.centerY)
+        expect(Math.max(...centers) - Math.min(...centers), 'desktop toolbar row 2 must share one center').toBeLessThanOrEqual(2)
       }
       await capture(`tasks-filters-${width}`, page)
 

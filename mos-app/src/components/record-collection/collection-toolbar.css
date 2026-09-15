@@ -219,12 +219,14 @@
 
 .collection-toolbar__select { max-width: 180px; }
 .collection-toolbar__select .picker__trigger { min-height: 32px; }
-/* Tasks' twelve-control desktop grammar has one line at the 1440px reference width. Keep the
-   controls compact enough to share that row; narrower desktops retain the normal wrapping rule. */
-@media (min-width: 1400px) {
-  .tasks-collection-toolbar .collection-toolbar__options { flex-wrap: nowrap; gap: 5px; }
+/* Tasks' desktop grammar is exactly two toolbar rows from 1024px upward. Row 2 stays on one
+   line; its dropdown boxes may contract and ellipsize while their full values remain available
+   through the trigger title. */
+@media (min-width: 1024px) {
+  .tasks-collection-toolbar .collection-toolbar__options { flex-wrap: nowrap; gap: 4px; }
   .tasks-collection-toolbar .collection-toolbar__option-field { min-width: 0; }
   .tasks-collection-toolbar .collection-toolbar__select { max-width: 150px; }
+  .tasks-collection-toolbar .collection-toolbar__choice-trigger { min-width: 0; }
   /* The reference desktop keeps ordinary filter values readable while the row remains one
      bounded line. Exceptional directory names continue to use the existing ellipsis/title path
      inside these fixed boxes. */
@@ -242,7 +244,7 @@
   }
   .tasks-collection-toolbar [data-filter-id='status'],
   .tasks-collection-toolbar [data-filter-id='status'] .collection-toolbar__select {
-    flex: 0 0 160px;
+    flex: 0 1 160px;
     width: 160px;
     max-width: none;
   }
@@ -258,8 +260,8 @@
     width: 130px;
     max-width: none;
   }
-  .tasks-collection-toolbar .collection-toolbar__query { flex: 0 1 220px; min-width: 150px; }
-  .tasks-collection-toolbar .collection-toolbar__search { min-width: 150px; }
+  .tasks-collection-toolbar .collection-toolbar__query { flex: 1 1 220px; min-width: 96px; }
+  .tasks-collection-toolbar .collection-toolbar__search { min-width: 96px; }
   /* The attention trigger is content-sized, so its Picker shell must not shrink around it.
      Otherwise a wider CI font can leave the trigger's label wider than its client box while
      the rest of the row still appears to fit. The search field remains the elastic control. */

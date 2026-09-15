@@ -326,7 +326,9 @@ def audit_quantitative_artifacts(envelope, run) -> GateReport:
         try:
             validator_args = ["node", "--experimental-strip-types", str(validator), str(root), expected_sha]
             if session_payload.get("auditMode") == "change-gate":
-                validator_args.append("--require-change-gate")
+                # The reviewer is part of the chain, so its input gate can only require the
+                # browser half. The outer pre-PR gate separately requires the finished chain.
+                validator_args.append("--require-browser-change-gate")
             completed = subprocess.run(
                 validator_args,
                 check=False, capture_output=True, text=True, timeout=30,

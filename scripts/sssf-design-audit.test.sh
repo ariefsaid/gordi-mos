@@ -359,6 +359,24 @@ check("scope gate green: full scope covered, connected screens may add entries",
 # quantitative artifact gate — exact candidate/session binding and completeness
 check("quantitative gate green: complete handoff carries the current SHA and session",
       audit.audit_quantitative_artifacts(good, run).passed)
+session_path = quant_root / "session.json"
+session_payload = json.loads(session_path.read_text())
+session_payload.update({
+    "auditMode": "change-gate",
+    "browserExitStatus": 0,
+    "chainExitStatus": "not-run",
+})
+session_path.write_text(json.dumps(session_payload))
+(quant_root / "quantitative-summary.json").write_text(json.dumps({
+    "candidateSha": candidate_sha,
+    "sessionId": FakeRun.adw_id,
+    "auditMode": "change-gate",
+    "automaticChecksPassed": True,
+    "failures": [],
+}))
+r = audit.audit_quantitative_artifacts(good, run)
+check("quantitative gate green while a reviewer evaluates browser-green change-gate evidence",
+      r.passed, str(r.violations))
 missing_artifact = quant_root / "contrast.csv"
 missing_artifact.unlink()
 r = audit.audit_quantitative_artifacts(good, run)
@@ -366,8 +384,6 @@ check("quantitative gate RED: missing census artifact", not r.passed, str(r.viol
 missing_artifact.write_text(
     f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n"
     "status\nobserved\n")
-session_path = quant_root / "session.json"
-session_payload = json.loads(session_path.read_text())
 session_payload["candidateSha"] = "b" * 40
 session_path.write_text(json.dumps(session_payload))
 r = audit.audit_quantitative_artifacts(good, run)

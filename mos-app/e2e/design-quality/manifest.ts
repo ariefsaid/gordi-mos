@@ -154,6 +154,7 @@ const states = [
   'default',
   'create-draft',
   'filtered-queue',
+  'filtered-empty',
   'open-task',
   'editable',
   'read-only',
@@ -308,8 +309,8 @@ const cells: ManifestCell[] = [
     area: 'tasks', journey: 'tasks-filter', route: '/mos/work/tasks', fixture: 'VIEWER',
     viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'filtered-queue', status: 'covered',
     stateContract: {
-      setup: [{ action: 'fill', selector: 'input[aria-label="Search tasks"]', value: '__design_audit_no_task_match__' }],
-      assertion: { selector: '[data-collection-status="filtered-empty"]' },
+      setup: [{ action: 'fill', selector: 'input[aria-label="Search tasks"]', value: 'espresso' }],
+      assertion: { selector: 'tr.task-row' },
     },
   }),
   cell('tasks-record-phone-id-dark', {
@@ -327,7 +328,12 @@ const cells: ManifestCell[] = [
   }),
   cell('tasks-empty-phone', {
     area: 'tasks', journey: 'tasks-filter', route: '/mos/work/tasks', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'empty-result', status: 'covered',
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'empty-result', status: 'untested',
+    note: 'The shared VIEWER fixture has Tasks; a true unfiltered empty fixture is not available.',
+  }),
+  cell('tasks-filtered-empty-phone', {
+    area: 'tasks', journey: 'tasks-filter', route: '/mos/work/tasks', fixture: 'VIEWER',
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'filtered-empty', status: 'covered',
     stateContract: {
       setup: [
         { action: 'click', selector: '.mobile-task-options-trigger' },
