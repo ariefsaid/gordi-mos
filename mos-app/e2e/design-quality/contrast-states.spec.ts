@@ -75,7 +75,10 @@ async function setupState(page: Parameters<typeof collectContrast>[0], state: In
         document.getElementById('design-audit-focus-origin')?.remove()
         const origin = document.createElement('span')
         origin.id = 'design-audit-focus-origin'
-        origin.tabIndex = -1
+        // Keep the temporary origin in the sequential focus order. Starting Tab from a
+        // programmatically focused tabindex=-1 node is browser-dependent and intermittently
+        // restarts at the document chrome instead of advancing to the adjacent audit target.
+        origin.tabIndex = 0
         origin.setAttribute('aria-hidden', 'true')
         element.parentNode?.insertBefore(origin, element)
         origin.focus()
