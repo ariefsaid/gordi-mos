@@ -12,7 +12,7 @@ const REQUEST_TIMEOUT_MS = 10_000
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 const MAX_AUTH_USERS = 10_000
 
-export type AuditFixtureLifecycleState = 'planned' | 'created' | 'deleted'
+export type AuditFixtureLifecycleState = 'planned' | 'created' | 'deleted' | 'absent'
 
 export type AuditFixtureRowGroup = {
   table: string
@@ -30,6 +30,8 @@ export type AuditFixtureOwnedRowGroup = AuditFixtureRowGroup & {
 export type AuditFixtureCleanupRow = {
   table: string
   deleted: number
+  /** Planned writes proven never to have committed. */
+  absent?: number
   remaining: number
 }
 
@@ -482,7 +484,7 @@ function validationErrors(
         const recordKey = `${group.table}:${group.fixture}:${id}`
         if (seenIds.has(recordKey)) errors.push(`fixture receipt duplicates owned ID ${group.table}:${id}`)
         else seenIds.add(recordKey)
-        if (lifecycle !== 'planned' && lifecycle !== 'created' && lifecycle !== 'deleted') {
+        if (!['planned', 'created', 'deleted', 'absent'].includes(lifecycle)) {
           errors.push(`fixture receipt ${group.table}:${id} has an invalid lifecycle state`)
         } else lifecycleByRecord.set(recordKey, lifecycle)
         if (lifecycle === 'created' || lifecycle === 'deleted') {
@@ -491,21 +493,29 @@ function validationErrors(
       }
     }
   }
-  const cleanupCounts = new Map<string, { deleted: number; remaining: number }>()
+  const absentCounts = new Map<string, number>()
+  for (const group of created) {
+    if (!isRecord(group) || typeof group.table !== 'string' || !Array.isArray(group.lifecycle)) continue
+    for (const lifecycle of group.lifecycle) {
+      if (lifecycle === 'absent') absentCounts.set(group.table, (absentCounts.get(group.table) ?? 0) + 1)
+    }
+  }
+  const cleanupCounts = new Map<string, { deleted: number; absent: number; remaining: number }>()
   for (const entry of cleanup) {
     if (!isRecord(entry) || typeof entry.table !== 'string' || !TABLE.test(entry.table)
       || !Number.isInteger(entry.deleted) || !Number.isInteger(entry.remaining)
-      || Number(entry.deleted) < 0 || Number(entry.remaining) < 0) {
+      || (entry.absent !== undefined && !Number.isInteger(entry.absent))
+      || Number(entry.deleted) < 0 || Number(entry.absent ?? 0) < 0 || Number(entry.remaining) < 0) {
       errors.push('fixture receipt cleanup contains an invalid count')
       continue
     }
     if (cleanupCounts.has(entry.table)) errors.push(`fixture receipt has duplicate cleanup table ${entry.table}`)
-    cleanupCounts.set(entry.table, { deleted: Number(entry.deleted), remaining: Number(entry.remaining) })
+    cleanupCounts.set(entry.table, { deleted: Number(entry.deleted), absent: Number(entry.absent ?? 0), remaining: Number(entry.remaining) })
   }
   for (const [table, entry] of cleanupCounts) {
-    if (!createdCounts.has(table)) {
+    if (!createdCounts.has(table) && !absentCounts.has(table)) {
       errors.push(`fixture receipt reports cleanup for a table with no confirmed insertion ${table}`)
-    } else if (entry.deleted === 0 && entry.remaining === 0
+    } else if (entry.deleted === 0 && entry.absent === 0 && entry.remaining === 0
       && !created.some((group) => isRecord(group) && group.table === table
         && Array.isArray(group.lifecycle) && group.lifecycle.some((state) => state === 'deleted'))) {
       errors.push(`fixture receipt reports zero cleanup for an inserted record in ${table}`)
@@ -529,11 +539,16 @@ function validationErrors(
         if (cleanupEntry.deleted !== count) errors.push(`fixture receipt cleanup count is inconsistent with insertion lifecycle for ${table}`)
       }
     }
+    for (const [table, count] of absentCounts) {
+      const cleanupEntry = cleanupCounts.get(table)
+      if (!cleanupEntry) errors.push(`fixture receipt has no absence result for ${table}`)
+      else if (cleanupEntry.absent !== count) errors.push(`fixture receipt absence count is inconsistent with planned-write lifecycle for ${table}`)
+    }
     for (const [table, entry] of cleanupCounts) {
       if (entry.remaining !== 0) errors.push(`fixture receipt leaves owned rows in ${table}`)
     }
     for (const [record, lifecycle] of lifecycleByRecord) {
-      if (lifecycle !== 'deleted') errors.push(`fixture receipt leaves an owned record unresolved: ${record}`)
+      if (lifecycle !== 'deleted' && lifecycle !== 'absent') errors.push(`fixture receipt leaves an owned record unresolved: ${record}`)
     }
   }
   const authOwners = Array.isArray(receipt.ownedAuthUsers) ? receipt.ownedAuthUsers : []
@@ -545,7 +560,7 @@ function validationErrors(
     if (!isRecord(owner) || typeof owner.fixture !== 'string' || !FIXTURE.test(owner.fixture)
       || typeof owner.email !== 'string' || !owner.email.trim()
       || typeof owner.ownershipToken !== 'string' || !UUID.test(owner.ownershipToken)
-      || !['planned', 'created', 'deleted'].includes(String(owner.lifecycle))) {
+      || !['planned', 'created', 'deleted', 'absent'].includes(String(owner.lifecycle))) {
       errors.push('fixture receipt contains an invalid owned auth user email')
       continue
     }
@@ -556,6 +571,9 @@ function validationErrors(
     ownerEmails.add(emailKey)
     if (owner.lifecycle === 'planned' && owner.id !== undefined) {
       errors.push(`fixture receipt planned auth user ${owner.email} cannot carry an ID`)
+    }
+    if (owner.lifecycle === 'absent' && owner.id !== undefined) {
+      errors.push(`fixture receipt absent auth user ${owner.email} cannot carry an ID`)
     }
     if (owner.lifecycle === 'created' && owner.id === undefined) {
       errors.push(`fixture receipt ${owner.email} is missing its confirmed auth user ID`)
@@ -583,7 +601,7 @@ function validationErrors(
 
   if (phase === 'cleaned') {
     for (const owner of authOwners) {
-      if (isRecord(owner) && owner.lifecycle !== 'deleted') {
+      if (isRecord(owner) && owner.lifecycle !== 'deleted' && owner.lifecycle !== 'absent') {
         errors.push(`fixture receipt leaves auth user ${String(owner.email)} unresolved`)
       }
     }
@@ -1066,10 +1084,11 @@ export class AuditProvisioner {
   async cleanup(options: { onFailure?: boolean } = {}): Promise<AuditFixtureReceipt> {
     if (this.cleaned) return this.lastReceipt
     const pendingRecords = this.createdRecords
-      .filter((record) => record.lifecycle !== 'deleted')
+      .filter((record) => record.lifecycle !== 'deleted' && record.lifecycle !== 'absent')
       .sort((left, right) => right.order - left.order)
     try {
       for (const record of pendingRecords) {
+        const previouslyCreated = record.lifecycle === 'created'
         const before = await this.exactRecordRows(record)
         if (before.length > 1) throw new Error(`audit fixture cleanup found duplicate ownership for ${record.fixture}`)
         if (before.length === 1) {
@@ -1084,15 +1103,18 @@ export class AuditProvisioner {
           if (!this.recordMatchesOwnedDefinition(record, definition, before[0])) {
             throw new Error(`audit fixture cleanup ownership mismatch for ${record.fixture}:${record.table}:${record.id}`)
           }
+          record.lifecycle = 'created'
           await this.sql.execute(exactOwnedDelete(record))
         }
         const remaining = await this.exactRecordRows(record)
         if (remaining.length > 0) throw new Error(`audit fixture cleanup left owned rows in ${record.table}`)
-        record.lifecycle = 'deleted'
+        record.lifecycle = previouslyCreated || before.length === 1 ? 'deleted' : 'absent'
         const previous = this.cleanupCounts.get(record.table)
+        const absent = (previous?.absent ?? 0) + (record.lifecycle === 'absent' ? 1 : 0)
         this.cleanupCounts.set(record.table, {
           table: record.table,
-          deleted: (previous?.deleted ?? 0) + 1,
+          deleted: (previous?.deleted ?? 0) + (record.lifecycle === 'deleted' ? 1 : 0),
+          ...(absent > 0 ? { absent } : {}),
           remaining: 0,
         })
       }
@@ -1101,7 +1123,8 @@ export class AuditProvisioner {
         const existingAuthUsers = await this.listAuthUsers()
         this.resolveAuthOwners(existingAuthUsers)
         for (const owner of [...this.ownedAuthUsers].reverse()) {
-          if (owner.lifecycle === 'deleted') continue
+          if (owner.lifecycle === 'deleted' || owner.lifecycle === 'absent') continue
+          const previouslyCreated = owner.lifecycle === 'created'
           const current = await this.listAuthUsers()
           const ownedMatches = current.filter((user) => this.authUserMatchesOwner(user, owner))
           const emailMatches = current.filter((user) => user.email.toLowerCase() === owner.email.toLowerCase())
@@ -1116,7 +1139,7 @@ export class AuditProvisioner {
           }
           if (!owner.id && exact) owner.id = exact.id
           if (!exact) {
-            owner.lifecycle = 'deleted'
+            owner.lifecycle = previouslyCreated ? 'deleted' : 'absent'
             continue
           }
           const result = await this.auth.deleteUser(exact.id)

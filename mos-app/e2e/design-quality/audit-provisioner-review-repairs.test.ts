@@ -261,6 +261,33 @@ test('a planned row receipt is reconciled after an interrupted write commits', a
   assert.equal(validateAuditFixtureReceipt(cleaned, { candidateSha, sessionId, bindingSecret }).ok, true)
 })
 
+test('a planned write proven absent is not reported as a deletion', async () => {
+  const fixtureStore = store()
+  const receipts: AuditFixtureReceipt[] = []
+  let interrupted = false
+  const provisioner = new AuditProvisioner({
+    candidateSha,
+    sessionId,
+    bindingSecret,
+    definitions: { records: definitions().records, sentinels: definitions().sentinels },
+    sql: fixtureStore.sql,
+    onReceipt: (receipt) => {
+      receipts.push(structuredClone(receipt))
+      if (!interrupted && receipt.created.some((group) => group.lifecycle.includes('planned'))) {
+        interrupted = true
+        throw new Error('stop before INSERT')
+      }
+    },
+  })
+
+  await assert.rejects(() => provisioner.provision(), /stop before INSERT/)
+  const cleaned = receipts.at(-1)
+  assert.ok(cleaned)
+  assert.deepEqual(cleaned.created[0]?.lifecycle, ['absent'])
+  assert.deepEqual(cleaned.cleanup, [{ table: 'mos.tasks', deleted: 0, absent: 1, remaining: 0 }])
+  assert.equal(validateAuditFixtureReceipt(cleaned, { candidateSha, sessionId, bindingSecret }).ok, true)
+})
+
 test('cleanup fails closed when a captured ID now belongs to a different row', async () => {
   const fixtureStore = store()
   const provisioner = new AuditProvisioner({

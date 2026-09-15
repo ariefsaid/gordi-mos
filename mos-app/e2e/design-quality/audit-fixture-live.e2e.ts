@@ -42,8 +42,40 @@ function uuid(sessionId: string, suffix: string): string {
   return `${sessionId}-0000-4000-8000-${suffix}`
 }
 
-async function exactDelete(sql: AuditFixtureSqlClient, table: string, id: string): Promise<void> {
-  await sql.execute(`DELETE FROM ${table} WHERE id = ${quote(id)};`)
+type SentinelIntent = {
+  table: string
+  id: string
+  ownership: Record<string, string>
+}
+
+async function exactRows(sql: AuditFixtureSqlClient, table: string, id: string): Promise<unknown[]> {
+  return sql.query(`SELECT * FROM ${table} WHERE id = ${quote(id)};`)
+}
+
+function matchesOwnership(value: unknown, ownership: Record<string, string>): boolean {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    && Object.entries(ownership).every(([column, expected]) => (value as Record<string, unknown>)[column] === expected)
+}
+
+async function cleanupSentinels(sql: AuditFixtureSqlClient, intents: SentinelIntent[]): Promise<void> {
+  const errors: unknown[] = []
+  for (const intent of [...intents].reverse()) {
+    try {
+      const before = await exactRows(sql, intent.table, intent.id)
+      if (before.length === 0) continue
+      assert.equal(before.length, 1, `sentinel cleanup found duplicate ID for ${intent.table}`)
+      assert.equal(matchesOwnership(before[0], intent.ownership), true, `sentinel cleanup ownership changed for ${intent.table}`)
+      const predicates = Object.entries(intent.ownership).map(([column, value]) => {
+        assert.match(column, /^[a-z_][a-z0-9_]*$/i)
+        return `${column} = ${quote(value)}`
+      })
+      await sql.execute(`DELETE FROM ${intent.table} WHERE ${predicates.join(' AND ')};`)
+      assert.deepEqual(await exactRows(sql, intent.table, intent.id), [])
+    } catch (error) {
+      errors.push(error)
+    }
+  }
+  if (errors.length > 0) throw new AggregateError(errors, 'one or more sentinel cleanup attempts failed')
 }
 
 async function insertSentinel(
@@ -51,13 +83,18 @@ async function insertSentinel(
   table: string,
   id: string,
   statement: string,
-  inserted: Array<readonly [string, string]>,
+  ownership: Record<string, string>,
+  intents: SentinelIntent[],
 ): Promise<void> {
+  assert.deepEqual(await exactRows(sql, table, id), [], `sentinel ID must be absent before insert for ${table}`)
+  intents.push({ table, id, ownership })
   const result = await sql.execute(statement)
   const rows = Array.isArray(result) ? result : []
   assert.equal(rows.length, 1, `sentinel INSERT must return one row for ${table}`)
   assert.deepEqual(rows[0], { id }, `sentinel INSERT must return its exact ID for ${table}`)
-  inserted.push([table, id])
+  const stored = await exactRows(sql, table, id)
+  assert.equal(stored.length, 1, `sentinel INSERT must persist one row for ${table}`)
+  assert.equal(matchesOwnership(stored[0], ownership), true, `sentinel INSERT must persist its exact ownership marker for ${table}`)
 }
 
 test('live fixture lifecycle preserves unrelated rows and removes every audit-owned row and auth user', async ({ page }) => {
@@ -86,7 +123,8 @@ test('live fixture lifecycle preserves unrelated rows and removes every audit-ow
   const weekStart = new Date(Date.UTC(2090, 0, 1 + weekOffset)).toISOString().slice(0, 10)
   const authEmail = `${namespace}.live@example.test`
   let provisioner: AuditProvisioner | undefined
-  const insertedSentinels: Array<readonly [string, string]> = []
+  const sentinelIntents: SentinelIntent[] = []
+  const cleanupErrors: unknown[] = []
 
   try {
     const requiredSeedRows = await sql.query(`
@@ -105,6 +143,37 @@ test('live fixture lifecycle preserves unrelated rows and removes every audit-ow
     const primaryTeamId = (seedRow as Record<string, unknown>).team_id
     if (typeof primaryTeamId !== 'string') throw new Error('the demo profile must have one live primary team')
 
+    const sentinelTask = {
+      id: sentinelTaskId,
+      org_id: TASKS.VIEWER_ACCOUNTABLE.orgId,
+      title: `${namespace} sentinel task`,
+      business_unit_id: TASKS.VIEWER_ACCOUNTABLE.businessUnitId,
+      team_id: primaryTeamId,
+      status: 'Open',
+      responsible_person_id: VIEWER.personId,
+      accountable_person_id: VIEWER.personId,
+      created_by: VIEWER.personId,
+    }
+    const sentinelUpdate = {
+      id: sentinelUpdateId,
+      org_id: TASKS.VIEWER_ACCOUNTABLE.orgId,
+      person_id: VIEWER.personId,
+      week_start: weekStart,
+      summary: `${namespace} sentinel weekly update`,
+      status: 'draft',
+      created_by: VIEWER.personId,
+    }
+    const sentinelLog = {
+      id: sentinelLogId,
+      org_id: TASKS.VIEWER_ACCOUNTABLE.orgId,
+      business_unit_id: TASKS.VIEWER_ACCOUNTABLE.businessUnitId,
+      origin: 'manual',
+      event_type: 'other',
+      title: `${namespace} sentinel log`,
+      detail: 'full-row sentinel detail',
+      created_by: VIEWER.personId,
+    }
+
     await insertSentinel(sql, 'mos.tasks', sentinelTaskId, `
       INSERT INTO mos.tasks
         (id, org_id, title, business_unit_id, team_id, status, responsible_person_id, accountable_person_id, created_by)
@@ -113,20 +182,20 @@ test('live fixture lifecycle preserves unrelated rows and removes every audit-ow
          ${quote(TASKS.VIEWER_ACCOUNTABLE.businessUnitId)}, ${quote(primaryTeamId)}, 'Open', ${quote(VIEWER.personId)},
          ${quote(VIEWER.personId)}, ${quote(VIEWER.personId)})
       RETURNING id;
-    `, insertedSentinels)
+    `, sentinelTask, sentinelIntents)
     await insertSentinel(sql, 'mos.weekly_updates', sentinelUpdateId, `
       INSERT INTO mos.weekly_updates (id, org_id, person_id, week_start, summary, status, created_by)
       VALUES (${quote(sentinelUpdateId)}, ${quote(TASKS.VIEWER_ACCOUNTABLE.orgId)}, ${quote(VIEWER.personId)},
         ${quote(weekStart)}, ${quote(`${namespace} sentinel weekly update`)}, 'draft', ${quote(VIEWER.personId)})
       RETURNING id;
-    `, insertedSentinels)
+    `, sentinelUpdate, sentinelIntents)
     await insertSentinel(sql, 'ops.log_entries', sentinelLogId, `
       INSERT INTO ops.log_entries (id, org_id, business_unit_id, origin, event_type, title, detail, created_by)
       VALUES (${quote(sentinelLogId)}, ${quote(TASKS.VIEWER_ACCOUNTABLE.orgId)},
         ${quote(TASKS.VIEWER_ACCOUNTABLE.businessUnitId)}, 'manual', 'other',
         ${quote(`${namespace} sentinel log`)}, ${quote('full-row sentinel detail')}, ${quote(VIEWER.personId)})
       RETURNING id;
-    `, insertedSentinels)
+    `, sentinelLog, sentinelIntents)
 
     provisioner = new AuditProvisioner({
       candidateSha,
@@ -176,11 +245,14 @@ test('live fixture lifecycle preserves unrelated rows and removes every audit-ow
     assert.ok(cleaned.cleanup.every((row) => row.remaining === 0))
     assert.deepEqual(await sql.query(`SELECT * FROM mos.tasks WHERE id = ${quote(ownedTaskId)};`), [])
     assert.equal((await auth.listUsers?.())?.some((user) => user.email.toLowerCase() === authEmail), false)
-  } finally {
-    if (provisioner) await provisioner.cleanup({ onFailure: true })
-    for (const [table, id] of [...insertedSentinels].reverse()) await exactDelete(sql, table, id)
-    for (const [table, id] of insertedSentinels) {
-      assert.deepEqual(await sql.query(`SELECT * FROM ${table} WHERE id = ${quote(id)};`), [])
-    }
+  } catch (error) {
+    cleanupErrors.push(error)
   }
+  if (provisioner) {
+    try { await provisioner.cleanup({ onFailure: true }) }
+    catch (error) { cleanupErrors.push(error) }
+  }
+  try { await cleanupSentinels(sql, sentinelIntents) }
+  catch (error) { cleanupErrors.push(error) }
+  if (cleanupErrors.length > 0) throw new AggregateError(cleanupErrors, 'audit fixture run or teardown did not complete')
 })
