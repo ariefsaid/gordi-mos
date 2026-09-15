@@ -33,7 +33,7 @@ const gitCommonDir = execFileSync(
 ).trim()
 const primaryWorkspaceRoot = path.resolve(path.dirname(gitCommonDir))
 const DETECTOR = path.join(repoRoot, 'scripts/impeccable-detect.mjs')
-const COMP_DIFF = path.join(repoRoot, '.claude/skills/impeccable/scripts/impeccable')
+const COMP_DIFF = path.join(primaryWorkspaceRoot, '.claude/skills/impeccable/scripts/impeccable')
 const SCORE_THRESHOLD = 0.75
 
 type DiffComparison = {
