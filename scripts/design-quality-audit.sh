@@ -211,6 +211,10 @@ server_pid=""
 producer_hash_file=""
 cleanup() {
   status=$?
+  if [ "${fixture_cleanup_done:-0}" -ne 1 ] && [ -n "${context_dir:-}" ] \
+    && declare -F run_fixture_cleanup >/dev/null 2>&1; then
+    run_fixture_cleanup "${browser_status:-$status}" || true
+  fi
   if [ -n "$server_pid" ] && kill -0 "$server_pid" 2>/dev/null; then
     kill "$server_pid" 2>/dev/null || true
     wait "$server_pid" 2>/dev/null || true
@@ -218,7 +222,9 @@ cleanup() {
   [ -z "$producer_hash_file" ] || rm -f "$producer_hash_file"
   exit "$status"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 server_identity=""
 if server_identity="$(curl --silent --show-error --fail --max-time 2 "$base_origin/_mos_dev_identity" 2>/dev/null)"; then
@@ -279,6 +285,7 @@ await writer.writeGateLog([
   `scope=${scopePath}`,
   `base_url=${baseUrl}`,
   'browser_status=pending',
+  'fixture_status=pending',
   'chain_status=pending',
 ])
 for (const artifact of REQUIRED_ARTIFACTS) {
@@ -301,6 +308,7 @@ await writer.writeSession({
   fixtureReceiptPath: path.join(outputDir, 'fixture-receipt.json'),
   fixtureWritesOccurred: false,
   browserExitStatus: null,
+  fixtureExitStatus: null,
   chainExitStatus: null,
   fixturePolicy: 'read-only seeded fixtures; any audit-owned writes stay under this session',
 })
@@ -318,16 +326,16 @@ if [ -n "$mockup_authority" ]; then
 fi
 
 browser_status=0
-if (cd "$ROOT/mos-app" && "$ROOT/scripts/with-db-lock.sh" npx playwright test --config playwright.design-audit.config.ts); then
-  browser_status=0
-else
-  browser_status=$?
-fi
-# The audit Playwright config intentionally has no ordinary global hooks. Finish
-# the ownership ledger here, under the same DB lock, so a browser failure still
-# gets a cleanup attempt and a receipt before the lane exits.
-fixture_status=0
-if (cd "$ROOT/mos-app" && "$ROOT/scripts/with-db-lock.sh" node --experimental-strip-types --input-type=module - "$context_dir" "$browser_status" "$candidate_sha" "$audit_id" <<'NODE'
+fixture_status=125
+fixture_cleanup_done=0
+
+run_fixture_cleanup() {
+  if [ "$fixture_cleanup_done" -eq 1 ]; then
+    return "$fixture_status"
+  fi
+  local cleanup_browser_status="${1:-0}"
+  fixture_status=0
+  if (cd "$ROOT/mos-app" && "$ROOT/scripts/with-db-lock.sh" node --experimental-strip-types --input-type=module - "$context_dir" "$cleanup_browser_status" "$candidate_sha" "$audit_id" <<'NODE'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { ReportWriter } from './e2e/design-quality/report.ts'
@@ -352,7 +360,7 @@ const receipt = JSON.parse(await readFile(path.join(outputDir, 'fixture-receipt.
 const validation = validateAuditFixtureProvisionedReceipt(receipt, { candidateSha, sessionId })
 if (!validation.ok) throw new Error(`invalid audit fixture receipt before cleanup: ${validation.errors.join('; ')}`)
 const owned = Array.isArray(receipt.created) && receipt.created.some((group) => Array.isArray(group.ids) && group.ids.length > 0)
-  || Array.isArray(receipt.ownedAuthUserIds) && receipt.ownedAuthUserIds.length > 0
+  || Array.isArray(receipt.ownedAuthUsers) && receipt.ownedAuthUsers.length > 0
 const hasSentinels = Array.isArray(receipt.sentinels) && receipt.sentinels.length > 0
 if (!owned && !hasSentinels) {
   await writer.writeFixtureReceipt(emptyAuditFixtureReceipt(candidateSha, sessionId))
@@ -380,31 +388,64 @@ if (!owned && !hasSentinels) {
   await writer.writeFixtureReceipt(cleaned)
 }
 NODE
-); then
-  fixture_status=0
-else
-  fixture_status=$?
-fi
-if [ "$fixture_status" -ne 0 ] && [ "$browser_status" -eq 0 ]; then
-  browser_status=$fixture_status
-fi
-node --experimental-strip-types --input-type=module - "$context_dir" "$browser_status" <<'NODE'
+  ); then
+    fixture_status=0
+  else
+    fixture_status=$?
+  fi
+  fixture_cleanup_done=1
+  return "$fixture_status"
+}
+
+write_terminal_evidence() {
+  local terminal_browser_status="$1"
+  local terminal_fixture_status="$2"
+  local terminal_chain_status="$3"
+  node --experimental-strip-types --input-type=module - "$context_dir" "$terminal_browser_status" "$terminal_fixture_status" "$terminal_chain_status" <<'NODE'
 import { readFile } from 'node:fs/promises'
 import { ReportWriter } from './mos-app/e2e/design-quality/report.ts'
 const outputDir = process.argv[2]
-const status = Number(process.argv[3])
+const parseStatus = (value) => /^-?[0-9]+$/.test(value) ? Number(value) : value
+const browserStatus = parseStatus(process.argv[3])
+const fixtureStatus = parseStatus(process.argv[4])
+const chainStatus = parseStatus(process.argv[5])
 const session = JSON.parse(await readFile(`${outputDir}/session.json`, 'utf8'))
 const writer = new ReportWriter({ outputDir, candidateSha: session.candidateSha, sessionId: session.sessionId })
-const chainStatus = status === 0 ? 'not-run' : 'skipped'
-await writer.writeSession({ ...session, browserExitStatus: status, chainExitStatus: chainStatus })
+await writer.writeSession({ ...session, browserExitStatus: browserStatus, fixtureExitStatus: fixtureStatus, chainExitStatus: chainStatus })
 await writer.writeGateLog([
-  `browser_status=${status}`,
+  `browser_status=${browserStatus}`,
+  `fixture_status=${fixtureStatus}`,
   `chain_status=${chainStatus}`,
 ])
 NODE
+}
+
+handle_audit_signal() {
+  local signal_status="$1"
+  trap - INT TERM
+  browser_status="$signal_status"
+  run_fixture_cleanup "$signal_status" || true
+  write_terminal_evidence "$signal_status" "$fixture_status" skipped || true
+  exit "$signal_status"
+}
+
+trap 'handle_audit_signal 130' INT
+trap 'handle_audit_signal 143' TERM
+
+if (cd "$ROOT/mos-app" && "$ROOT/scripts/with-db-lock.sh" npx playwright test --config playwright.design-audit.config.ts); then
+  browser_status=0
+else
+  browser_status=$?
+fi
+run_fixture_cleanup "$browser_status" || true
+write_terminal_evidence "$browser_status" "$fixture_status" "$([ "$browser_status" -eq 0 ] && [ "$fixture_status" -eq 0 ] && echo not-run || echo skipped)"
 if [ "$browser_status" -ne 0 ]; then
   echo "design-quality-audit: browser lane failed; factory chain was not started" >&2
   exit "$browser_status"
+fi
+if [ "$fixture_status" -ne 0 ]; then
+  echo "design-quality-audit: fixture cleanup failed; factory chain was not started" >&2
+  exit "$fixture_status"
 fi
 
 # Freeze the browser producer's evidence before the independent reviewer sees it.
@@ -457,6 +498,7 @@ const writer = new ReportWriter({ outputDir, candidateSha: session.candidateSha,
 await writer.writeSession({ ...session, chainExitStatus: status })
 await writer.writeGateLog([
   `browser_status=${session.browserExitStatus}`,
+  `fixture_status=${session.fixtureExitStatus}`,
   `chain_status=${status}`,
 ])
 NODE

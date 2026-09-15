@@ -147,7 +147,7 @@ export async function cleanupAuditFixtures(run: AuditRun, onFailure = false): Pr
     state = { provisioner, receipt: emptyAuditFixtureReceipt(run.candidateSha, run.sessionId) }
     fixtureRuns.set(key, state)
   }
-  if (state.receipt.created.length === 0 && (state.receipt.ownedAuthUserIds?.length ?? 0) === 0) {
+  if (state.receipt.created.length === 0 && (state.receipt.ownedAuthUsers?.length ?? 0) === 0) {
     await state.provisioner.provision()
   }
   const receipt = await state.provisioner.cleanup({ onFailure })

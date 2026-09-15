@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto'
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { createHash, randomUUID } from 'node:crypto'
+import { mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { validateAuditFixtureReceipt, type AuditFixtureReceipt } from './audit-provisioner.ts'
@@ -204,7 +204,24 @@ export class ReportWriter {
   }
 
   async writeFixtureReceipt(receipt: AuditFixtureReceipt): Promise<string> {
-    return this.writeJson('fixture-receipt.json', receipt)
+    const target = this.target('fixture-receipt.json')
+    await mkdir(path.dirname(target), { recursive: true })
+    const payload = { ...receipt, candidateSha: this.metadata.candidateSha, sessionId: this.metadata.sessionId }
+    const temporary = `${target}.${process.pid}.${randomUUID()}.tmp`
+    try {
+      const handle = await open(temporary, 'wx')
+      try {
+        await handle.writeFile(`${JSON.stringify(payload, null, 2)}\n`, 'utf8')
+        await handle.sync()
+      } finally {
+        await handle.close()
+      }
+      await rename(temporary, target)
+      return target
+    } catch (error) {
+      await rm(temporary, { force: true })
+      throw error
+    }
   }
 
   async hash(name: string): Promise<string> {
@@ -291,6 +308,9 @@ function meaningfulGateLog(text: string): { ok: boolean; reason?: string } {
   if (/\bpending\b/i.test(text)) return { ok: false, reason: 'gate log still contains a pending status' }
   if (!/^browser_status=(?:0|[1-9][0-9]*|not-run|skipped)$/m.test(text)) {
     return { ok: false, reason: 'gate log has no terminal browser status' }
+  }
+  if (!/^fixture_status=(?:0|[1-9][0-9]*|not-run|skipped)$/m.test(text)) {
+    return { ok: false, reason: 'gate log has no terminal fixture status' }
   }
   if (!/^chain_status=(?:0|[1-9][0-9]*|not-run|skipped)$/m.test(text)) {
     return { ok: false, reason: 'gate log has no terminal chain status' }

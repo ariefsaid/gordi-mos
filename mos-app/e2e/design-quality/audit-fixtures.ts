@@ -12,6 +12,8 @@ export type {
   AuditFixtureIdentityDefinition,
   AuditFixtureRecordDefinition,
   AuditFixtureSentinelDefinition,
+  AuditFixtureAuthOwnership,
+  AuditFixtureAuthUser,
   AuditFixtureReceipt,
 } from './audit-provisioner.ts'
 
@@ -83,8 +85,11 @@ export function assertAuditFixtureWritePolicy(policy: AuditFixtureWritePolicy): 
   const namespace = auditFixtureNamespace(policy.sessionId)
   if (receipt.namespace !== namespace) throw new Error(`write-state fixture is outside the ${namespace} namespace`)
   const ownedRecordCount = receipt.created.reduce((count, group) => count + group.ids.length, 0)
-  if (ownedRecordCount === 0 && (receipt.ownedAuthUserIds?.length ?? 0) === 0) {
+  if (ownedRecordCount === 0 && (receipt.ownedAuthUsers?.length ?? 0) === 0) {
     throw new Error(`write-state fixture ${policy.fixture} has no audit-owned records in the ${namespace} namespace`)
+  }
+  if (receipt.cleanup.length > 0 || receipt.cleanupOnFailure.attempted || receipt.cleanupOnFailure.completed) {
+    throw new Error(`write-state fixture ${policy.fixture} does not represent a live provisioned receipt`)
   }
 }
 

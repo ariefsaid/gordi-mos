@@ -159,6 +159,7 @@ for artifact in quant_artifacts:
             "created": [], "cleanup": [],
             "unrelatedSentinelsPreserved": True,
             "sentinels": [], "ownedDatabaseIds": [],
+            "ownedAuthUsers": [],
             "ownedAuthUserIds": [], "remainingAuthUserIds": [],
             "cleanupOnFailure": {"attempted": False, "completed": True}}))
     elif artifact == "impeccable.json":
@@ -168,7 +169,7 @@ for artifact in quant_artifacts:
     elif artifact == "gate-log.txt":
         target.write_text(
             f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n"
-            "browser_status=0\nchain_status=not-run\n")
+            "browser_status=0\nfixture_status=0\nchain_status=not-run\n")
     else:
         target.write_text(
             f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n"
@@ -178,6 +179,7 @@ for artifact in quant_artifacts:
     "sessionId": FakeRun.adw_id,
     "auditMode": "change-gate",
     "browserExitStatus": 0,
+    "fixtureExitStatus": 0,
     "chainExitStatus": "not-run",
     "quantitativeArtifacts": [str(quant_root / artifact) for artifact in quant_artifacts],
 }))

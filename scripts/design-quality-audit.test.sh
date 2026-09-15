@@ -27,6 +27,14 @@ for required in \
   if [ -e "$required" ]; then ok "required entry point exists: $required"; else bad "missing entry point: $required"; fi
 done
 
+if grep -q 'handle_audit_signal' scripts/design-quality-audit.sh \
+  && grep -q 'fixtureExitStatus' scripts/design-quality-audit.sh \
+  && grep -q 'fixture_status=' scripts/design-quality-audit.sh; then
+  ok "interrupt cleanup preserves a terminal fixture status"
+else
+  bad "interrupt cleanup does not preserve a terminal fixture status"
+fi
+
 if node --experimental-strip-types --test \
   mos-app/e2e/design-quality/manifest.test.ts \
   mos-app/e2e/design-quality/mockup-authority.test.ts \
