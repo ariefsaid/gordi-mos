@@ -13,6 +13,7 @@ export const REQUIRED_ARTIFACTS = [
   'geometry.csv',
   'number-census.csv',
   'control-census.csv',
+  'control-consistency.csv',
   'state-matrix.csv',
   'affordance-census.csv',
   'copy-census.csv',
@@ -294,7 +295,11 @@ function meaningfulJson(
   return { ok: true }
 }
 
-export function meaningfulCsv(artifact: string, text: string): { ok: boolean; reason?: string } {
+export function meaningfulCsv(
+  artifact: string,
+  text: string,
+  manifest: DesignQualityManifest | null = null,
+): { ok: boolean; reason?: string } {
   const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0)
   if (lines.length < 4) {
     return { ok: false, reason: `${artifact} must contain metadata, a header, and at least one data row` }
@@ -302,6 +307,7 @@ export function meaningfulCsv(artifact: string, text: string): { ok: boolean; re
   if (!lines[0]!.startsWith('# candidate_sha=') || !lines[1]!.startsWith('# session_id=')) {
     return { ok: false, reason: `${artifact} is missing its metadata preamble` }
   }
+  if (artifact === 'control-consistency.csv') return validateControlConsistencyCsv(text, manifest)
   return { ok: true }
 }
 
@@ -332,6 +338,127 @@ function measuredObject(value: string): Record<string, unknown> | null {
   } catch {
     return null
   }
+}
+
+export function validateControlConsistencyCsv(
+  text: string,
+  manifest: DesignQualityManifest | null,
+): { ok: boolean; reason?: string } {
+  if (!manifest) return { ok: false, reason: 'control-consistency evidence requires a valid manifest.json' }
+  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0)
+  if (lines.length < 4) return { ok: false, reason: 'control-consistency.csv has no measured population' }
+  const header = parseCsvLine(lines[2]!)
+  const required = ['authority', 'cellId', 'component', 'kind', 'measured', 'observed', 'passed', 'selector', 'size', 'state', 'variant']
+  const missing = required.filter((column) => !header.includes(column))
+  if (missing.length > 0) return { ok: false, reason: `control-consistency.csv is missing columns: ${missing.join(', ')}` }
+  const rows = lines.slice(3).map((line) => {
+    const values = parseCsvLine(line)
+    return Object.fromEntries(header.map((column, index) => [column, values[index] ?? '']))
+  })
+  const runnable = manifest.cells.filter(isManifestCellRunnable)
+  const runnableIds = new Set(runnable.map((cell) => cell.id))
+  const kinds = new Set(['population', 'control', 'control-state', 'bounded-choice', 'native-select'])
+  for (const row of rows) {
+    if (!runnableIds.has(row.cellId)) return { ok: false, reason: `control-consistency.csv has a row outside the runnable manifest: ${row.cellId}` }
+    if (!kinds.has(row.kind)) return { ok: false, reason: `control-consistency.csv has unknown kind ${row.kind}` }
+    if (!row.selector || !['true', 'false'].includes(row.observed) || !['true', 'false'].includes(row.passed)) {
+      return { ok: false, reason: 'control-consistency.csv contains an unbound or self-asserted row' }
+    }
+    if (!measuredObject(row.measured)) return { ok: false, reason: 'control-consistency.csv rows require machine measurements' }
+  }
+  for (const cell of runnable) {
+    const cellRows = rows.filter((row) => row.cellId === cell.id)
+    const populationRows = cellRows.filter((row) => row.kind === 'population')
+    if (populationRows.length !== 1) return { ok: false, reason: `${cell.id} requires exactly one control denominator row` }
+    const population = measuredObject(populationRows[0]!.measured)!
+    const populationSize = Number(population.populationSize)
+    const boundedChoicePopulation = Number(population.boundedChoicePopulation)
+    const nativeSelectPopulation = Number(population.nativeSelectPopulation)
+    if (!Number.isInteger(populationSize) || populationSize <= 0) {
+      return { ok: false, reason: `${cell.id} control denominator must be greater than zero` }
+    }
+    const controls = cellRows.filter((row) => row.kind === 'control')
+    if (controls.length !== populationSize) return { ok: false, reason: `${cell.id} control rows do not match the denominator` }
+    if (cellRows.filter((row) => row.kind === 'bounded-choice').length !== boundedChoicePopulation) {
+      return { ok: false, reason: `${cell.id} bounded-choice rows do not match the denominator` }
+    }
+    if (cellRows.filter((row) => row.kind === 'native-select').length !== nativeSelectPopulation) {
+      return { ok: false, reason: `${cell.id} native-select rows do not match the denominator` }
+    }
+    for (const row of cellRows.filter((candidate) => candidate.kind === 'bounded-choice')) {
+      const measured = measuredObject(row.measured)!
+      if (measured.lifecycleApplicable === false) {
+        if (measured.disabled !== true || typeof measured.closed !== 'boolean' || typeof measured.textContrast !== 'number') {
+          return { ok: false, reason: `${cell.id} disabled bounded choice lacks lifecycle measurements` }
+        }
+        continue
+      }
+      const lifecycleFields = [
+        'closed',
+        'opened',
+        'arrowKey',
+        'typeahead',
+        'enterSelected',
+        'escapeDismissed',
+        'outsideDismissed',
+        'focusReturnedAfterEscape',
+        'focusReturnedAfterEnter',
+        'popupContained',
+        'activeReachable',
+        'selectedEvidence',
+      ]
+      if (measured.lifecycleApplicable !== true
+        || lifecycleFields.some((field) => typeof measured[field] !== 'boolean')
+        || typeof measured.textContrast !== 'number') {
+        return { ok: false, reason: `${cell.id} bounded choice lacks lifecycle measurements` }
+      }
+      if (typeof measured.openTextContrast !== 'number'
+        || typeof measured.openBoundaryContrast !== 'number'
+        || typeof measured.selectedTextContrast !== 'number'
+        || !Array.isArray(measured.openContrastRows)
+        || !Array.isArray(measured.selectedContrastRows)) {
+        return { ok: false, reason: `${cell.id} bounded choice lacks state contrast measurements` }
+      }
+    }
+    for (const row of cellRows.filter((candidate) => candidate.kind === 'native-select')) {
+      const measured = measuredObject(row.measured)!
+      if (typeof measured.exceptionMatched !== 'boolean') {
+        return { ok: false, reason: `${cell.id} native select lacks exact exception evidence` }
+      }
+    }
+    for (const row of controls) {
+      const measured = measuredObject(row.measured)!
+      if (!['height', 'radius', 'borderWidth', 'foreground', 'background', 'textContrast', 'boundaryContrast', 'populationSize']
+        .every((field) => Object.hasOwn(measured, field))) {
+        return { ok: false, reason: `${cell.id} control row lacks computed style measurements` }
+      }
+      if (Number(measured.populationSize) !== populationSize) {
+        return { ok: false, reason: `${cell.id} control row carries the wrong denominator` }
+      }
+      if (row.passed === 'true' && (!row.component || !row.variant || !row.size || !row.state || !row.authority)) {
+        return { ok: false, reason: `${cell.id} passing control row lacks a named classification or authority` }
+      }
+    }
+  }
+  for (const state of ['disabled', 'error']) {
+    const stateRows = rows.filter((row) => row.kind === 'control-state' && row.state === state && row.selector === '__population__')
+    if (stateRows.length !== 1) return { ok: false, reason: `control-consistency.csv requires exactly one ${state} state population row` }
+    const measured = measuredObject(stateRows[0]!.measured)!
+    if (measured.state !== state || !Number.isInteger(Number(measured.populationSize))) {
+      return { ok: false, reason: `control-consistency.csv has invalid ${state} state measurements` }
+    }
+  }
+  for (const row of rows.filter((candidate) => candidate.kind === 'control-state' && candidate.selector !== '__population__')) {
+    const measured = measuredObject(row.measured)!
+    if (!Array.isArray(measured.contrastRows)
+      || (typeof measured.textContrast !== 'number' && typeof measured.boundaryContrast !== 'number')) {
+      return { ok: false, reason: `${row.cellId} ${row.state} control state lacks computed contrast measurements` }
+    }
+    if (row.passed === 'true' && (!row.component || !row.variant || !row.size || !row.authority)) {
+      return { ok: false, reason: `${row.cellId} passing ${row.state} control state lacks classification authority` }
+    }
+  }
+  return { ok: true }
 }
 
 export function validateVisibleContentCsv(
@@ -497,7 +624,7 @@ export async function validateArtifactSet(
       } else if (artifact === 'visible-content.csv') {
         content = validateVisibleContentCsv(text, coverageManifest)
       } else {
-        content = meaningfulCsv(artifact, text)
+        content = meaningfulCsv(artifact, text, coverageManifest)
       }
       if (!content.ok) {
         addUnique(invalid, artifact)

@@ -77,6 +77,7 @@ QUANTITATIVE_ARTIFACTS = (
     "geometry.csv",
     "number-census.csv",
     "control-census.csv",
+    "control-consistency.csv",
     "state-matrix.csv",
     "affordance-census.csv",
     "copy-census.csv",

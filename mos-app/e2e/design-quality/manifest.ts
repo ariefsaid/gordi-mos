@@ -106,6 +106,7 @@ export type NamedManifestList = {
 }
 
 export type ManifestLists = {
+  nativeSelectExceptions: NamedManifestList[]
   intentionalDataScrollers: NamedManifestList[]
   alignedPanelGroups: NamedManifestList[]
   primaryActionRegions: NamedManifestList[]
@@ -272,6 +273,12 @@ const rules: EnforcementRule[] = [
   { id: 'actions.primary', class: 'census', population: ['primaryActionRegions'], algorithm: 'visible solid-primary action census by region', unit: 'count', threshold: '<=1 per region; one create route', artifact: 'control-census.csv', exceptionAuthority: 'named primaryActionRegions entry' },
   { id: 'cognitive.decision-load', class: 'census', population: ['decisionGroups'], algorithm: 'simultaneously visible choices per group', unit: 'count', threshold: '<=4; workspace nav <=5', artifact: 'control-census.csv', exceptionAuthority: 'named decisionGroups entry' },
   { id: 'controls.duplicate-axes', class: 'census', population: ['controls'], algorithm: 'label/action/state axis census', unit: 'count', threshold: 'zero undocumented duplicates', artifact: 'control-census.csv' },
+  { id: 'controls.native-select', class: 'automatic', population: ['visible-native-selects'], algorithm: 'rendered select census excluding hidden shared-component form bridges', unit: 'count', threshold: 'zero unless an exact named exception cites authority', artifact: 'control-consistency.csv', exceptionAuthority: 'named nativeSelectExceptions entry' },
+  { id: 'controls.bounded-choice-lifecycle', class: 'automatic', population: ['rendered-comboboxes', 'rendered-listboxes'], algorithm: 'drive closed, open, selected, disabled, error, Arrow key, typeahead, Enter, Escape, outside dismissal, and focus return states', unit: 'boolean/state', threshold: 'every applicable transition passes; disabled and error represented across the population', artifact: 'control-consistency.csv' },
+  { id: 'controls.popup-containment', class: 'automatic', population: ['opened-choice-popups'], algorithm: 'opened popup viewport geometry plus active option reachability', unit: 'px/boolean', threshold: 'fully contained and active option reachable', artifact: 'control-consistency.csv' },
+  { id: 'controls.bounded-choice-contrast', class: 'automatic', population: ['bounded-choice-states'], algorithm: 'computed foreground/background WCAG relative luminance for each driven state', unit: 'ratio', threshold: '>=4.5:1 text; >=3:1 boundaries and state indicators', artifact: 'control-consistency.csv' },
+  { id: 'controls.variant-classification', class: 'census', population: ['buttons', 'links', 'bounded-choices', 'chips', 'pills'], algorithm: 'classify each visible control by approved component, variant, size, state, and authority', unit: 'count/boolean', threshold: 'every control classified; zero raw unclassified controls; population >0 per runnable cell', artifact: 'control-consistency.csv' },
+  { id: 'controls.variant-consistency', class: 'automatic', population: ['classified-control-groups'], algorithm: 'compare computed geometry and colors within component, variant, size, and state groups', unit: 'px/count', threshold: '<=1px geometry spread; identical resolved foreground and background colors', artifact: 'control-consistency.csv' },
   { id: 'structure.nested-cards', class: 'automatic', population: ['card-containers'], algorithm: 'DOM card containment census', unit: 'count', threshold: 'zero page-structure nesting', artifact: 'control-census.csv' },
   { id: 'states.completeness', class: 'census', population: ['manifest-cells'], algorithm: 'state matrix coverage', unit: 'status', threshold: 'all applicable states rendered', artifact: 'state-matrix.csv' },
   { id: 'a11y.axe', class: 'automatic', population: ['required-stories', 'required-routes'], algorithm: 'axe/Storybook accessibility result classification', unit: 'violations', threshold: 'zero serious/critical; moderate classified', artifact: 'gate-log.txt' },
@@ -280,6 +287,7 @@ const rules: EnforcementRule[] = [
 ]
 
 const emptyNamedLists: ManifestLists = {
+  nativeSelectExceptions: [],
   intentionalDataScrollers: [],
   alignedPanelGroups: [],
   primaryActionRegions: [],
@@ -297,7 +305,7 @@ const emptyNamedLists: ManifestLists = {
 }
 
 export const DESIGN_QUALITY_MANIFEST: DesignQualityManifest = {
-  version: '1.0.0',
+  version: '1.1.0',
   name: 'mvp-quantitative-ui-quality',
   dimensions,
   primaryJourneys: ['tasks-create', 'tasks-record', 'signals-compose', 'inbox-triage', 'cafe-opening', 'cafe-plan', 'cafe-log'],
@@ -422,6 +430,7 @@ export function validateManifest(manifest: DesignQualityManifest): ManifestValid
   }
 
   const listNames: (keyof ManifestLists)[] = [
+    'nativeSelectExceptions',
     'intentionalDataScrollers',
     'alignedPanelGroups',
     'primaryActionRegions',

@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax -- candidate artifact fixtures model literal browser-computed colors. */
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { mkdtemp, readFile, readdir } from 'node:fs/promises'
@@ -58,6 +59,26 @@ test('the design manifest covers every required dimension and declares complete 
       assert.ok(rule[field], `${rule.id} is missing ${field}`)
     }
   }
+})
+
+test('the manifest declares the bounded-choice and control-consistency contract', () => {
+  assert.equal(DESIGN_QUALITY_MANIFEST.version, '1.1.0')
+  const ruleIds = new Set(DESIGN_QUALITY_MANIFEST.rules.map((rule) => rule.id))
+  for (const ruleId of [
+    'controls.native-select',
+    'controls.bounded-choice-lifecycle',
+    'controls.popup-containment',
+    'controls.bounded-choice-contrast',
+    'controls.variant-classification',
+    'controls.variant-consistency',
+  ]) assert.ok(ruleIds.has(ruleId), `missing control rule ${ruleId}`)
+  assert.deepEqual(DESIGN_QUALITY_MANIFEST.lists.nativeSelectExceptions, [])
+
+  const missingExceptions = structuredClone(DESIGN_QUALITY_MANIFEST)
+  delete (missingExceptions.lists as Partial<typeof missingExceptions.lists>).nativeSelectExceptions
+  const result = validateManifest(missingExceptions)
+  assert.equal(result.ok, false)
+  assert.match(result.errors.join('\n'), /nativeSelectExceptions/)
 })
 
 test('the MVP cell and approved comparison populations are frozen', () => {
@@ -220,6 +241,145 @@ test('visible-content evidence is measured for every runnable cell and every pho
   assert.match(invalid.reason ?? '', /measurements|self-asserted/i)
 })
 
+test('control-consistency evidence covers every runnable cell with an exact control denominator', async () => {
+  assert.ok(REQUIRED_ARTIFACTS.includes('control-consistency.csv' as never))
+  const outputDir = await mkdtemp(path.join(os.tmpdir(), 'mos-control-consistency-'))
+  const writer = new ReportWriter({
+    outputDir,
+    candidateSha: 'a'.repeat(40),
+    sessionId: 'a1b2c3d4',
+  })
+  const runnableCells = DESIGN_QUALITY_MANIFEST.cells.filter(isManifestCellRunnable)
+  const firstCellId = runnableCells[0]!.id
+  const rows = runnableCells.flatMap((cell) => [
+    {
+      cellId: cell.id,
+      kind: 'population',
+      selector: '__cell__',
+      component: 'all-controls',
+      variant: 'population',
+      size: 'all',
+      state: 'default',
+      authority: 'issue #856 per-cell denominator',
+      observed: true,
+      passed: true,
+      measured: JSON.stringify({ populationSize: 1, boundedChoicePopulation: cell.id === firstCellId ? 1 : 0, nativeSelectPopulation: 0 }),
+    },
+    {
+      cellId: cell.id,
+      kind: 'control',
+      selector: 'main button:nth-of-type(1)',
+      component: 'button',
+      variant: 'outline',
+      size: 'standard',
+      state: 'default',
+      authority: 'DESIGN.md button contract',
+      observed: true,
+      passed: true,
+      measured: JSON.stringify({
+        populationSize: 1,
+        height: 32,
+        radius: 8,
+        borderWidth: 1,
+        foreground: 'rgb(20, 20, 20)',
+        background: 'rgb(255, 255, 255)',
+        textContrast: 18,
+        boundaryContrast: 3.1,
+      }),
+    },
+    ...(cell.id === firstCellId ? [{
+      cellId: cell.id,
+      kind: 'bounded-choice',
+      selector: 'main button[role="combobox"]',
+      component: 'bounded-choice',
+      variant: 'picker',
+      size: 'control-32',
+      state: 'lifecycle',
+      authority: 'issue #856 lifecycle contract',
+      observed: true,
+      passed: true,
+      measured: JSON.stringify({
+        lifecycleApplicable: true,
+        closed: true,
+        opened: true,
+        arrowKey: true,
+        typeahead: true,
+        enterSelected: true,
+        escapeDismissed: true,
+        outsideDismissed: true,
+        focusReturnedAfterEscape: true,
+        focusReturnedAfterEnter: true,
+        popupContained: true,
+        activeReachable: true,
+        selectedEvidence: true,
+        textContrast: 18,
+        openTextContrast: 18,
+        openBoundaryContrast: 3.1,
+        selectedTextContrast: 18,
+        openContrastRows: [{}],
+        selectedContrastRows: [{}],
+      }),
+    }] : []),
+  ])
+  rows.push(...(['disabled', 'error'] as const).map((state) => ({
+    cellId: firstCellId,
+    kind: 'control-state',
+    selector: '__population__',
+    component: 'all-controls',
+    variant: 'state-face',
+    size: 'all',
+    state,
+    authority: 'issue #856 rendered population state contract',
+    observed: true,
+    passed: true,
+    measured: JSON.stringify({ state, populationSize: 1 }),
+  })))
+  rows.push({
+    cellId: firstCellId,
+    kind: 'control-state',
+    selector: 'main button:nth-of-type(1)',
+    component: 'button',
+    variant: 'outline',
+    size: 'control-32',
+    state: 'error',
+    authority: 'DESIGN.md button state contract',
+    observed: true,
+    passed: true,
+    measured: JSON.stringify({ textContrast: 18, boundaryContrast: 3.1, contrastRows: [{}] }),
+  })
+  const target = await writer.writeCsv('control-consistency.csv', rows)
+  const validText = await readFile(target, 'utf8')
+  const valid = meaningfulCsv('control-consistency.csv', validText, DESIGN_QUALITY_MANIFEST)
+  assert.equal(valid.ok, true, valid.reason)
+
+  const missingCell = DESIGN_QUALITY_MANIFEST.cells.find(isManifestCellRunnable)!.id
+  const missingText = validText.split('\n').filter((line) => !line.includes(missingCell)).join('\n')
+  const invalid = meaningfulCsv('control-consistency.csv', missingText, DESIGN_QUALITY_MANIFEST)
+  assert.equal(invalid.ok, false)
+  assert.match(invalid.reason ?? '', /runnable cell|denominator/i)
+
+  const weakLifecycleRows = rows.map((row) => row.kind === 'bounded-choice'
+    ? { ...row, measured: JSON.stringify({ opened: true }) }
+    : row)
+  const weakTarget = await writer.writeCsv('control-consistency.csv', weakLifecycleRows)
+  const weakLifecycle = meaningfulCsv('control-consistency.csv', await readFile(weakTarget, 'utf8'), DESIGN_QUALITY_MANIFEST)
+  assert.equal(weakLifecycle.ok, false)
+  assert.match(weakLifecycle.reason ?? '', /lifecycle measurements/i)
+
+  const missingStateContrastRows = rows.map((row) => row.kind === 'bounded-choice'
+    ? { ...row, measured: JSON.stringify({ ...JSON.parse(row.measured), openTextContrast: undefined }) }
+    : row)
+  const missingContrastTarget = await writer.writeCsv('control-consistency.csv', missingStateContrastRows)
+  const missingContrast = meaningfulCsv('control-consistency.csv', await readFile(missingContrastTarget, 'utf8'), DESIGN_QUALITY_MANIFEST)
+  assert.equal(missingContrast.ok, false)
+  assert.match(missingContrast.reason ?? '', /state contrast measurements/i)
+
+  const missingStateTarget = await writer.writeCsv('control-consistency.csv', rows.filter((row) => row.state !== 'error'))
+  const missingState = meaningfulCsv('control-consistency.csv', await readFile(missingStateTarget, 'utf8'), DESIGN_QUALITY_MANIFEST)
+  assert.equal(missingState.ok, false)
+  assert.match(missingState.reason ?? '', /error state/i)
+})
+
 test('gate log status updates preserve scanner evidence and replace pending values', async () => {
   const outputDir = await mkdtemp(path.join(os.tmpdir(), 'mos-design-quality-gate-'))
   const writer = new ReportWriter({
@@ -324,6 +484,12 @@ test('each planted fixture defect makes its owning rule fail with the expected r
     'geometry.viewport-occlusion',
     'touch.phone-separation',
     'identity.full-value',
+    'controls.native-select',
+    'controls.bounded-choice-lifecycle',
+    'controls.popup-containment',
+    'controls.bounded-choice-contrast',
+    'controls.variant-classification',
+    'controls.variant-consistency',
   ]
   assert.deepEqual(MUTATION_FIXTURES.map((fixture) => fixture.ruleId), expectedRules)
   for (const fixture of MUTATION_FIXTURES) {
