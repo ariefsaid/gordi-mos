@@ -30,6 +30,16 @@ test('requires an explicit manifest cellId even when route and viewport are supp
   )
 })
 
+test('rejects malformed requiredRegions instead of silently disabling region checks', () => {
+  assert.throws(
+    () => parseMockupAuthorityEntry({
+      ...exactTasksAuthority,
+      requiredRegions: 'toolbar',
+    }, repoRoot),
+    /requiredRegions.*array/i,
+  )
+})
+
 test('rejects an authority binding when a declared dimension disagrees with its cellId', () => {
   const mismatches = {
     route: '/mos/inbox',

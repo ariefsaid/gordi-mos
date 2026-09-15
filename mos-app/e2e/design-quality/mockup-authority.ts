@@ -19,8 +19,14 @@ function asString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-function asStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.map(asString).filter(Boolean) : []
+function asStringArray(value: unknown, field: string): string[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) throw new Error(`${field} must be an array of non-empty strings`)
+  const strings = value.map(asString)
+  if (strings.some((entry) => !entry)) {
+    throw new Error(`${field} must be an array of non-empty strings`)
+  }
+  return strings
 }
 
 function manifestViewport(value: string): string | undefined {
@@ -83,7 +89,7 @@ export function parseMockupAuthorityEntry(
   return {
     path: imagePath,
     authority,
-    requiredRegions: asStringArray(value.requiredRegions ?? value.required_regions),
+    requiredRegions: asStringArray(value.requiredRegions ?? value.required_regions, 'requiredRegions'),
     ...dimensions,
   }
 }
