@@ -392,8 +392,11 @@ export function CollectionToolbar<
             ))}
             {fields ? (
               <div className="collection-toolbar__fields">
-                <Button variant="ghost" aria-expanded={fieldsOpen} onClick={() => setFieldsOpen((open) => !open)}>
-                  {fields.label}
+                <Button variant="ghost" aria-label={fields.label} title={fields.label} aria-expanded={fieldsOpen} onClick={() => setFieldsOpen((open) => !open)}>
+                  <svg className="collection-toolbar__action-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M4 6h16M7 12h10M10 18h4" />
+                  </svg>
+                  <span className="collection-toolbar__action-label">{fields.label}</span>
                 </Button>
                 {fieldsOpen ? (
                   <div role="group" aria-label={fields.label} className="collection-toolbar__fields-menu">
@@ -420,6 +423,8 @@ export function CollectionToolbar<
                 <Button
                   variant="ghost"
                   ref={saveTriggerRef}
+                  aria-label={t('common.saveView')}
+                  title={t('common.saveView')}
                   aria-expanded={saveOpen}
                   onClick={() => {
                     if (saveOpen) closeSaveView()
@@ -434,7 +439,10 @@ export function CollectionToolbar<
                     closeSaveView()
                   }}
                 >
-                  {t('common.saveView')}
+                  <svg className="collection-toolbar__action-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z" />
+                  </svg>
+                  <span className="collection-toolbar__action-label">{t('common.saveView')}</span>
                 </Button>
                 {saveOpen ? (
                   <div className="collection-toolbar__save" role="group" aria-label={t('common.saveCurrentView')}>

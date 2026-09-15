@@ -17,6 +17,7 @@ import {
   auditEnabled,
   auditRun,
   captureCell,
+  observeManifestCellState,
   prepareAuditPage,
 } from './runtime'
 
@@ -315,6 +316,22 @@ test('mockup fidelity requires an authority list and enforces score and region c
       continue
     }
     await prepareAuditPage(page, run, cell)
+    const observation = await observeManifestCellState(page, cell)
+    if (observation.status !== 'covered') {
+      comparisons.push({
+        mockup: entry.path,
+        build: '',
+        authority: entry.authority,
+        cellId: entry.cellId,
+        score: null,
+        requiredRegions: entry.requiredRegions,
+        missingRegions: entry.requiredRegions,
+        contradictedRegions: [],
+        status: 'blocked',
+        reason: `mockup state was not established: ${observation.evidence}`,
+      })
+      continue
+    }
     const build = await captureCell(page, run, cell, 'mockup')
     const relativeDir = path.join('mockup-diff', path.basename(entry.path, path.extname(entry.path)))
     const outDir = path.join(run.outputDir, relativeDir)

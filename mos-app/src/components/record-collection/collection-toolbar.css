@@ -267,6 +267,21 @@
      the rest of the row still appears to fit. The search field remains the elastic control. */
   .tasks-collection-toolbar .tasks-attention-picker { flex: 0 0 auto; min-width: max-content; }
 }
+.collection-toolbar__action-icon { flex: none; }
+/* Compact desktop has the full two-row grammar but less horizontal room after the navigation
+   rail. Keep secondary actions as labelled icon buttons through their accessible names, and
+   remove the duplicated Status micro-label so the actual filter value gets the space. */
+@media (min-width: 1024px) and (max-width: 1199px) {
+  .tasks-collection-toolbar .collection-toolbar__fields > .btn,
+  .tasks-collection-toolbar .collection-toolbar__save-zone > .btn {
+    width: 32px;
+    padding-inline: 6px;
+  }
+  .tasks-collection-toolbar .collection-toolbar__action-label,
+  .tasks-collection-toolbar [data-filter-id='status'] .collection-toolbar__choice-label {
+    display: none;
+  }
+}
 .collection-toolbar__option-field--group .collection-toolbar__picker-trigger {
   background: color-mix(in srgb, var(--brand-navy) 6%, var(--background));
   border-color: var(--brand-navy);

@@ -38,6 +38,14 @@ test('rejects malformed requiredRegions instead of silently disabling region che
     }, repoRoot),
     /requiredRegions.*array/i,
   )
+
+  assert.throws(
+    () => parseMockupAuthorityEntry({
+      ...exactTasksAuthority,
+      requiredRegions: null,
+    }, repoRoot),
+    /requiredRegions.*array/i,
+  )
 })
 
 test('rejects an authority binding when a declared dimension disagrees with its cellId', () => {
@@ -78,4 +86,24 @@ test('accepts an authority entry whose six dimensions match its explicit cellId'
   const cell = bindMockupToCell(entry, DESIGN_QUALITY_MANIFEST)
 
   assert.equal(cell.id, 'tasks-default-desktop')
+})
+
+test('rejects authority bindings to states that the browser cannot establish', () => {
+  const untested = DESIGN_QUALITY_MANIFEST.cells.find((cell) => cell.id === 'tasks-create-phone-en-light')
+  assert.ok(untested)
+  const entry = parseMockupAuthorityEntry({
+    ...exactTasksAuthority,
+    cellId: untested.id,
+    route: untested.route,
+    viewport: untested.viewport,
+    fixture: untested.fixture,
+    theme: untested.theme,
+    language: untested.language,
+    state: untested.state,
+  }, repoRoot)
+
+  assert.throws(
+    () => bindMockupToCell(entry, DESIGN_QUALITY_MANIFEST),
+    /not runnable/i,
+  )
 })

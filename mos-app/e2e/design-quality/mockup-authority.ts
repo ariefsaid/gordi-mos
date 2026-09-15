@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import type { DesignQualityManifest, ManifestCell } from './manifest'
+import { isManifestCellRunnable, type DesignQualityManifest, type ManifestCell } from './manifest'
 
 export type MockupAuthorityEntry = {
   path: string
@@ -85,11 +85,14 @@ export function parseMockupAuthorityEntry(
   if (missing.length > 0) {
     throw new Error(`mockup ${image} must declare ${missing.join(', ')}, including an explicit manifest cellId`)
   }
+  const requiredRegionsValue = Object.prototype.hasOwnProperty.call(value, 'requiredRegions')
+    ? value.requiredRegions
+    : value.required_regions
 
   return {
     path: imagePath,
     authority,
-    requiredRegions: asStringArray(value.requiredRegions ?? value.required_regions, 'requiredRegions'),
+    requiredRegions: asStringArray(requiredRegionsValue, 'requiredRegions'),
     ...dimensions,
   }
 }
@@ -106,6 +109,9 @@ export function bindMockupToCell(
   const cell = manifest.cells.find((candidate) => candidate.id === entry.cellId)
   if (!cell) {
     throw new Error(`mockup ${entry.path} references unknown manifest cellId ${entry.cellId}`)
+  }
+  if (!isManifestCellRunnable(cell)) {
+    throw new Error(`mockup ${entry.path} references manifest cellId ${entry.cellId}, which is not runnable`)
   }
 
   const dimensionNames = ['route', 'viewport', 'fixture', 'theme', 'language', 'state'] as const
