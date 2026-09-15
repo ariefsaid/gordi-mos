@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import test from 'node:test'
+import os from 'node:os'
+import path from 'node:path'
 
 import {
   assertAuditFixtureWritePolicy,
@@ -9,10 +12,15 @@ import {
 import {
   AuditProvisioner,
   assertAuditOwnedIdentity,
+  auditFixtureSentinelLedgerBinding,
   cleanupAuditFixtureReceipt,
+  cleanupAuditFixtureSentinelLedger,
   createLocalAuditAuthClient,
   createLocalAuditSqlClient,
+  auditFixtureValuesEqual,
+  writeAuditFixtureSentinelLedger,
   type AuditFixtureAuthClient,
+  type AuditFixtureSentinelLedger,
   type AuditProvisionerOptions,
   validateAuditFixtureReceipt,
 } from './audit-provisioner.ts'
@@ -53,6 +61,12 @@ function store() {
     ['mos.weekly_updates', new Map([['sentinel-update', { id: 'sentinel-update', body: 'keep update', week: '2026-W37' }]])],
     ['ops.log_entries', new Map([['sentinel-log', { id: 'sentinel-log', detail: 'keep log', actor: 'audit-test' }]])],
   ])
+  const versions = new Map<string, Map<string, string>>([
+    ['mos.tasks', new Map()],
+    ['mos.weekly_updates', new Map()],
+    ['ops.log_entries', new Map()],
+  ])
+  let nextVersion = 100
   const sql = {
     async query(query: string): Promise<unknown[]> {
       const tableName = /from\s+([a-z_]+\.[a-z_]+)/i.exec(query)?.[1]
@@ -63,7 +77,10 @@ function store() {
       return ids.flatMap((id) => {
         const row = table.get(id)
         if (!row) return []
-        return [selectedId ? { [selectedId]: row[selectedId] } : { ...row }]
+        const selected = selectedId ? { [selectedId]: row[selectedId] } : { ...row }
+        return query.includes('audit_fixture_xmin')
+          ? [{ ...selected, audit_fixture_xmin: versions.get(tableName!)?.get(id) }]
+          : [selected]
       })
     },
     async execute(query: string): Promise<unknown> {
@@ -73,16 +90,30 @@ function store() {
         const columns = insert[2]!.split(',').map((value) => value.trim())
         const values = [...insert[3]!.matchAll(/'((?:''|[^'])*)'/g)].map((match) => match[1]!.replace(/''/g, "'"))
         const row = Object.fromEntries(columns.map((column, index) => [column, values[index]]))
-        if (table && typeof row.id === 'string') table.set(row.id, row)
-        return [{ id: row.id }]
+        const version = String(nextVersion++)
+        if (table && typeof row.id === 'string') {
+          table.set(row.id, row)
+          versions.get(insert[1]!)?.set(row.id, version)
+        }
+        return [{ id: row.id, audit_fixture_xmin: version }]
       }
-      const deletion = /delete\s+from\s+([a-z_]+\.[a-z_]+)\s+where\s+[a-z_][a-z0-9_]*\s+in\s*\(([^)]+)\)/i.exec(query)
+      const deletion = /delete\s+from\s+([a-z_]+\.[a-z_]+)\s+where\s+([\s\S]*?);?$/i.exec(query.trim())
       if (deletion) {
-        const table = tables.get(deletion[1]!)
-        for (const value of deletion[2]!.match(/'[^']*'/g) ?? []) table?.delete(value.slice(1, -1))
+        const tableName = deletion[1]!
+        const table = tables.get(tableName)
+        const versionMatch = /xmin::text\s*=\s*'((?:''|[^'])*)'/i.exec(deletion[2]!)
+        const predicates = [...deletion[2]!.matchAll(/\b([a-z_][a-z0-9_]*)\s*=\s*'((?:''|[^'])*)'/gi)]
+          .filter((match) => !deletion[2]!.slice(0, match.index).match(/xmin::$/i))
+          .map((match) => [match[1]!, match[2]!.replace(/''/g, "'")] as const)
+        for (const [id, row] of table ?? []) {
+          const sameVersion = !versionMatch || versions.get(tableName)?.get(id) === versionMatch[1]!.replace(/''/g, "'")
+          const sameOwnership = predicates.every(([column, value]) => String(row[column]) === value)
+          if (sameVersion && sameOwnership) {
+            table?.delete(id)
+            versions.get(tableName)?.delete(id)
+          }
+        }
       }
-      const exactDeletion = /delete\s+from\s+([a-z_]+\.[a-z_]+)\s+where\s+id\s*=\s*'([^']+)'/i.exec(query)
-      if (exactDeletion) tables.get(exactDeletion[1]!)?.delete(exactDeletion[2]!)
       return []
     },
   }
@@ -103,7 +134,7 @@ function store() {
     },
     async listUsers() { return [...authUsers.values()] },
   }
-  return { tables, authUsers, sql, auth }
+  return { tables, versions, authUsers, sql, auth }
 }
 
 async function provision(overrides: Partial<AuditProvisionerOptions> = {}) {
@@ -249,6 +280,7 @@ test('a planned row receipt is reconciled after an interrupted write commits', a
   assert.ok(plannedReceipt)
   const owned = recordDefinitions.records[0]!
   fixtureStore.tables.get(owned.table)!.set(owned.id!, { ...owned.columns })
+  fixtureStore.versions.get(owned.table)!.set(owned.id!, '776')
 
   const cleaned = await cleanupAuditFixtureReceipt(plannedReceipt, {
     candidateSha,
@@ -286,6 +318,227 @@ test('a planned write proven absent is not reported as a deletion', async () => 
   assert.deepEqual(cleaned.created[0]?.lifecycle, ['absent'])
   assert.deepEqual(cleaned.cleanup, [{ table: 'mos.tasks', deleted: 0, absent: 1, remaining: 0 }])
   assert.equal(validateAuditFixtureReceipt(cleaned, { candidateSha, sessionId, bindingSecret }).ok, true)
+})
+
+test('a planned database write waits for late commit reconciliation before declaring absence', async () => {
+  const fixtureStore = store()
+  const owned = definitions().records[0]!
+  const waits: number[] = []
+  let interrupted = false
+  const provisioner = new AuditProvisioner({
+    candidateSha,
+    sessionId,
+    bindingSecret,
+    definitions: { records: definitions().records, sentinels: definitions().sentinels },
+    sql: fixtureStore.sql,
+    reconciliationWaitMs: 5,
+    wait: async (milliseconds) => {
+      waits.push(milliseconds)
+      fixtureStore.tables.get(owned.table)!.set(owned.id!, { ...owned.columns })
+      fixtureStore.versions.get(owned.table)!.set(owned.id!, '777')
+    },
+    onReceipt: (receipt) => {
+      if (!interrupted && receipt.created.some((group) => group.lifecycle.includes('planned'))) {
+        interrupted = true
+        throw new Error('stop before late commit')
+      }
+    },
+  })
+
+  await assert.rejects(() => provisioner.provision(), /stop before late commit/)
+  assert.deepEqual(waits, [5])
+  assert.equal(fixtureStore.tables.get(owned.table)!.has(owned.id!), false)
+})
+
+test('a planned auth write waits for late commit reconciliation before declaring absence', async () => {
+  const fixtureStore = store()
+  const identity = definitions().identities[0]!
+  const waits: number[] = []
+  let interrupted = false
+  let plannedOwner: AuditFixtureReceipt['ownedAuthUsers'][number] | undefined
+  const lateUserId = `${sessionId}-0000-0000-0000-000000000099`
+  const provisioner = new AuditProvisioner({
+    candidateSha,
+    sessionId,
+    bindingSecret,
+    definitions: { identities: definitions().identities, sentinels: definitions().sentinels },
+    sql: fixtureStore.sql,
+    auth: fixtureStore.auth,
+    reconciliationWaitMs: 5,
+    wait: async (milliseconds) => {
+      waits.push(milliseconds)
+      assert.ok(plannedOwner)
+      fixtureStore.authUsers.set(lateUserId, {
+        id: lateUserId,
+        email: identity.email,
+        userMetadata: {
+          audit_fixture_namespace: namespace,
+          audit_fixture_token: plannedOwner!.ownershipToken,
+        },
+      })
+    },
+    onReceipt: (receipt) => {
+      const owner = receipt.ownedAuthUsers.find((entry) => entry.lifecycle === 'planned')
+      if (!interrupted && owner) {
+        interrupted = true
+        plannedOwner = structuredClone(owner)
+        throw new Error('stop before late auth commit')
+      }
+    },
+  })
+
+  await assert.rejects(() => provisioner.provision(), /stop before late auth commit/)
+  assert.deepEqual(waits, [5])
+  assert.equal(fixtureStore.authUsers.has(lateUserId), false)
+})
+
+test('ownership equality compares nested values canonically', () => {
+  const left = {
+    id: `${sessionId}-0000-0000-0000-000000000001`,
+    metadata: { z: [{ b: 2, a: 1 }], a: true },
+    labels: ['one', 'two'],
+  }
+  const same = {
+    labels: ['one', 'two'],
+    metadata: { a: true, z: [{ a: 1, b: 2 }] },
+    id: `${sessionId}-0000-0000-0000-000000000001`,
+  }
+  const changed = {
+    ...same,
+    metadata: { ...same.metadata, z: [{ a: 1, b: 3 }] },
+  }
+
+  assert.equal(auditFixtureValuesEqual(left, same), true)
+  assert.equal(auditFixtureValuesEqual(left, changed), false)
+})
+
+test('cleanup rejects a same-value replacement with a new row version', async () => {
+  const fixtureStore = store()
+  const provisioner = new AuditProvisioner({
+    candidateSha,
+    sessionId,
+    bindingSecret,
+    definitions: { records: definitions().records, sentinels: definitions().sentinels },
+    sql: fixtureStore.sql,
+  })
+  await provisioner.provision()
+  const owned = definitions().records[0]!
+  fixtureStore.tables.get(owned.table)!.set(owned.id!, { ...owned.columns })
+  fixtureStore.versions.get(owned.table)!.set(owned.id!, '999')
+
+  await assert.rejects(() => provisioner.cleanup(), /version|ownership/i)
+  assert.deepEqual(fixtureStore.tables.get(owned.table)!.get(owned.id!), owned.columns)
+})
+
+test('durable sentinel ledger recovers a version and deletes only its exact row', async () => {
+  const fixtureStore = store()
+  const id = `${sessionId}-0000-0000-0000-000000000101`
+  const ownership = { id, title: `${namespace} durable sentinel` }
+  fixtureStore.tables.get('mos.tasks')!.set(id, { ...ownership, metadata: { source: 'audit' } })
+  fixtureStore.versions.get('mos.tasks')!.set(id, '701')
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'mos-audit-sentinel-ledger-'))
+  const ledgerPath = path.join(directory, 'sentinel-ledger.json')
+  const ledger: AuditFixtureSentinelLedger = {
+    candidateSha,
+    sessionId,
+    namespace,
+    intents: [{ table: 'mos.tasks', id, ownership }],
+    binding: '',
+  }
+  const deleteQueries: string[] = []
+  const sql = {
+    ...fixtureStore.sql,
+    async execute(query: string) {
+      if (/^DELETE\s/i.test(query)) deleteQueries.push(query)
+      return fixtureStore.sql.execute(query)
+    },
+  }
+
+  try {
+    await writeAuditFixtureSentinelLedger(ledgerPath, ledger, bindingSecret)
+    const stored = JSON.parse(await readFile(ledgerPath, 'utf8')) as AuditFixtureSentinelLedger
+    assert.equal(stored.binding, auditFixtureSentinelLedgerBinding(stored, bindingSecret))
+
+    await assert.rejects(() => cleanupAuditFixtureSentinelLedger(ledgerPath, {
+      candidateSha,
+      sessionId,
+      bindingSecret: 'wrong-binding-secret',
+      sql,
+    }), /binding/i)
+    assert.equal(fixtureStore.tables.get('mos.tasks')!.has(id), true)
+
+    await cleanupAuditFixtureSentinelLedger(ledgerPath, {
+      candidateSha,
+      sessionId,
+      bindingSecret,
+      sql,
+    })
+    assert.equal(fixtureStore.tables.get('mos.tasks')!.has(id), false)
+    assert.match(deleteQueries.join('\n'), /xmin::text\s*=\s*'701'/i)
+    await assert.rejects(() => readFile(ledgerPath, 'utf8'), /ENOENT/)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('durable sentinel cleanup resumes all intents after a lost DELETE response', async () => {
+  const fixtureStore = store()
+  const firstId = `${sessionId}-0000-0000-0000-000000000102`
+  const secondId = `${sessionId}-0000-0000-0000-000000000103`
+  const firstOwnership = { id: firstId, title: `${namespace} first durable sentinel` }
+  const secondOwnership = { id: secondId, title: `${namespace} second durable sentinel` }
+  fixtureStore.tables.get('mos.tasks')!.set(firstId, firstOwnership)
+  fixtureStore.tables.get('mos.tasks')!.set(secondId, secondOwnership)
+  fixtureStore.versions.get('mos.tasks')!.set(firstId, '702')
+  fixtureStore.versions.get('mos.tasks')!.set(secondId, '703')
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'mos-audit-sentinel-ledger-retry-'))
+  const ledgerPath = path.join(directory, 'sentinel-ledger.json')
+  const ledger: AuditFixtureSentinelLedger = {
+    candidateSha,
+    sessionId,
+    namespace,
+    intents: [
+      { table: 'mos.tasks', id: firstId, ownership: firstOwnership, version: '702' },
+      { table: 'mos.tasks', id: secondId, ownership: secondOwnership, version: '703' },
+    ],
+    binding: '',
+  }
+  let loseResponse = true
+  const sql = {
+    ...fixtureStore.sql,
+    async execute(query: string) {
+      const result = await fixtureStore.sql.execute(query)
+      if (loseResponse && /^DELETE\s/i.test(query)) {
+        loseResponse = false
+        throw new Error('lost committed sentinel DELETE response')
+      }
+      return result
+    },
+  }
+
+  try {
+    await writeAuditFixtureSentinelLedger(ledgerPath, ledger, bindingSecret)
+    await assert.rejects(() => cleanupAuditFixtureSentinelLedger(ledgerPath, {
+      candidateSha,
+      sessionId,
+      bindingSecret,
+      sql,
+    }), /lost committed sentinel DELETE response/)
+    assert.equal(fixtureStore.tables.get('mos.tasks')!.has(secondId), false)
+    assert.equal(fixtureStore.tables.get('mos.tasks')!.has(firstId), true)
+
+    await cleanupAuditFixtureSentinelLedger(ledgerPath, {
+      candidateSha,
+      sessionId,
+      bindingSecret,
+      sql,
+    })
+    assert.equal(fixtureStore.tables.get('mos.tasks')!.has(firstId), false)
+    assert.equal(fixtureStore.tables.get('mos.tasks')!.has(secondId), false)
+    await assert.rejects(() => readFile(ledgerPath, 'utf8'), /ENOENT/)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
 })
 
 test('cleanup fails closed when a captured ID now belongs to a different row', async () => {

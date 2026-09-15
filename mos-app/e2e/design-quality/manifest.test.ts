@@ -235,7 +235,7 @@ test('write-state audit cells require a provisioned receipt bound to the candida
       { table: 'mos.weekly_updates', id: 'sentinel-update', beforeHash: 'b'.repeat(64), afterHash: 'b'.repeat(64), beforePresent: true, afterPresent: true },
       { table: 'ops.log_entries', id: 'sentinel-log', beforeHash: 'c'.repeat(64), afterHash: 'c'.repeat(64), beforePresent: true, afterPresent: true },
     ],
-    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'], fixture: 'AUDIT_RECEIVING_ONLY', lifecycle: ['created'], ownership: [{ id: 'a1b2c3d4-0000-0000-0000-000000000001', title: 'design-audit-a1b2c3d4 owned' }] }],
+    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'], fixture: 'AUDIT_RECEIVING_ONLY', lifecycle: ['created'], ownership: [{ id: 'a1b2c3d4-0000-0000-0000-000000000001', title: 'design-audit-a1b2c3d4 owned' }], versions: ['101'] }],
     ownedAuthUsers: [],
     ownedAuthUserIds: [],
     remainingAuthUserIds: [],
@@ -307,7 +307,7 @@ test('audit write receipts reject created identities or records outside the sess
     unrelatedSentinelsPreserved: true,
     binding: '',
     sentinels: [],
-    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'], fixture: 'AUDIT_RECEIVING_ONLY', lifecycle: ['created'], ownership: [{ id: 'a1b2c3d4-0000-0000-0000-000000000001', title: 'design-audit-a1b2c3d4 owned' }] }],
+    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'], fixture: 'AUDIT_RECEIVING_ONLY', lifecycle: ['created'], ownership: [{ id: 'a1b2c3d4-0000-0000-0000-000000000001', title: 'design-audit-a1b2c3d4 owned' }], versions: ['101'] }],
     ownedAuthUsers: [],
     ownedAuthUserIds: [],
     remainingAuthUserIds: [],
@@ -401,7 +401,7 @@ test('audit fixture ownership is session-bound and generated IDs carry the sessi
       execute: async (query) => {
         executed.push(query)
         return /^INSERT\s/i.test(query)
-          ? [{ id: [...query.matchAll(/'((?:''|[^'])*)'/g)].at(-1)?.[1]?.replace(/''/g, "'") }]
+          ? [{ id: [...query.matchAll(/'((?:''|[^'])*)'/g)].at(-1)?.[1]?.replace(/''/g, "'"), audit_fixture_xmin: '101' }]
           : []
       },
       query: async () => [{ id: 'sentinel' }],
@@ -491,21 +491,25 @@ test('audit-owned provisioning cleans captured rows and users when a later inser
   const ownedTask = 'a1b2c3d4-0000-0000-0000-000000000006'
   const authUser = 'a1b2c3d4-0000-0000-0000-000000000007'
   const rows = new Set<string>(['sentinel-task', 'sentinel-update', 'sentinel-log'])
+  const versions = new Map<string, string>([[ownedTask, '101']])
   const users = new Map<string, { id: string; email: string; userMetadata?: Record<string, unknown> }>()
   const sql = {
     async query(query: string): Promise<unknown[]> {
       const ids = query.match(/'[^']*'/g)?.map((value) => value.slice(1, -1)) ?? []
       return ids.flatMap((id) => rows.has(id)
-        ? [{ id, ...(id === ownedTask ? { title: `${namespace} first-owned-row` } : {}) }]
+        ? [{ id, ...(id === ownedTask ? { title: `${namespace} first-owned-row` } : {}), ...(query.includes('audit_fixture_xmin') ? { audit_fixture_xmin: versions.get(id) } : {}) }]
         : [])
     },
     async execute(query: string): Promise<unknown> {
       if (query.includes('second-owned-row')) throw new Error('planted insert failure')
       const inserted = /values\s*\(\s*'([^']+)'/i.exec(query)?.[1]
       if (inserted) rows.add(inserted)
-      const deletedId = /^delete[\s\S]+?where\s+id\s*=\s*'([^']+)'/i.exec(query)?.[1]
-      if (deletedId) rows.delete(deletedId)
-      return /^INSERT\s/i.test(query) ? [{ id: inserted }] : []
+      const deleted = /delete\s+from\s+([a-z_]+\.[a-z_]+)\s+where\s+xmin::text\s*=\s*'([^']+)'\s+and\s+id\s*=\s*'([^']+)'/i.exec(query)
+      if (deleted && versions.get(deleted[3]!) === deleted[2]) {
+        rows.delete(deleted[3]!)
+        versions.delete(deleted[3]!)
+      }
+      return /^INSERT\s/i.test(query) ? [{ id: inserted, audit_fixture_xmin: inserted === ownedTask ? '101' : '102' }] : []
     },
   }
   const auth = {
@@ -668,11 +672,13 @@ test('local HTTP fixture clients recover a failed provision across separate inst
     ['mos.weekly_updates', new Map([['sentinel-update', { id: 'sentinel-update', body: 'keep update' }]])],
     ['ops.log_entries', new Map([['sentinel-log', { id: 'sentinel-log', detail: 'keep log' }]])],
   ])
+  const rowVersions = new Map<string, string>()
   const sqlRequests: string[] = []
   const authListPages: number[] = []
   let failSecondInsert = true
   let failFirstDelete = true
   let nextAuthId = 20
+  let nextRowVersion = 100
 
   const server = createServer((request, response) => {
     void (async () => {
@@ -710,19 +716,30 @@ test('local HTTP fixture clients recover a failed provision across separate inst
             const title = query.includes('first-owned-row')
               ? `${namespace} first-owned-row`
               : `${namespace} second-owned-row`
-            if (id) tables.get(table)?.set(id, { id, title })
-            respond(200, id ? [{ id }] : [])
+            const version = String(nextRowVersion++)
+            if (id) {
+              tables.get(table)?.set(id, { id, title })
+              rowVersions.set(id, version)
+            }
+            respond(200, id ? [{ id, audit_fixture_xmin: version }] : [])
             return
           }
           if (/^DELETE\s/i.test(query) && table) {
-            for (const id of ids) tables.get(table)?.delete(id)
+            const version = /xmin::text\s*=\s*'([^']+)'/i.exec(query)?.[1]
+            const id = /\bid\s*=\s*'([^']+)'/i.exec(query)?.[1]
+            if (id && version && rowVersions.get(id) === version) {
+              tables.get(table)?.delete(id)
+              rowVersions.delete(id)
+            }
             respond(200, [])
             return
           }
           if (/^(?:SELECT|WITH)\s/i.test(query) && table) {
             const rows = [...(tables.get(table)?.entries() ?? [])]
               .filter(([id]) => ids.includes(id))
-              .map(([, row]) => row)
+              .map(([id, row]) => query.includes('audit_fixture_xmin')
+                ? { ...row, audit_fixture_xmin: rowVersions.get(id) }
+                : row)
             respond(200, rows)
             return
           }
@@ -835,7 +852,7 @@ test('local HTTP fixture clients recover a failed provision across separate inst
 
 test('audit cleanup permits captured IDs and rejects broad business-data deletion', () => {
   assert.doesNotThrow(() => assertAuditOwnedCleanupSql(
-    "DELETE FROM mos.tasks WHERE id IN ('a1000000-0000-0000-0000-000000000005');",
+    "DELETE FROM mos.tasks WHERE xmin::text = '101' AND id = 'a1000000-0000-0000-0000-000000000005';",
   ))
   assert.throws(() => assertAuditOwnedCleanupSql(
     "DELETE FROM mos.tasks WHERE org_id = 'shared-org';",
@@ -851,6 +868,7 @@ test('audit-owned setup and cleanup preserve task, weekly-update, and operations
     ['mos.weekly_updates', new Map([['sentinel-update', { id: 'sentinel-update', body: 'Owner update' }]])],
     ['ops.log_entries', new Map([['sentinel-log', { id: 'sentinel-log', detail: 'Owner log' }]])],
   ])
+  const rowVersions = new Map<string, string>()
   const users = new Map<string, { id: string; email: string; userMetadata?: Record<string, unknown> }>()
   const sql = {
     async query(query: string): Promise<unknown[]> {
@@ -859,15 +877,23 @@ test('audit-owned setup and cleanup preserve task, weekly-update, and operations
       const table = tables.get(match[1]!)
       if (!table) return []
       const ids = match[2]!.match(/'[^']*'/g)?.map((id) => id.slice(1, -1)) ?? []
-      return ids.flatMap((id) => table.has(id) ? [table.get(id)] : [])
+      return ids.flatMap((id) => table.has(id)
+        ? [query.includes('audit_fixture_xmin') ? { ...table.get(id), audit_fixture_xmin: rowVersions.get(id) } : table.get(id)]
+        : [])
     },
     async execute(query: string): Promise<unknown> {
       const insert = /insert\s+into\s+([a-z_]+\.[a-z_]+)\s*\([^)]*\)\s*values\s*\(\s*'([^']+)'/i.exec(query)
-      if (insert) tables.get(insert[1]!)?.set(insert[2]!, { id: insert[2]!, title: `${namespace} owned` })
-      const deletion = /delete\s+from\s+([a-z_]+\.[a-z_]+)\s+where\s+id\s*=\s*'([^']+)'/i.exec(query)
-      if (deletion) tables.get(deletion[1]!)?.delete(deletion[2]!)
+      if (insert) {
+        tables.get(insert[1]!)?.set(insert[2]!, { id: insert[2]!, title: `${namespace} owned` })
+        rowVersions.set(insert[2]!, '101')
+      }
+      const deletion = /delete\s+from\s+([a-z_]+\.[a-z_]+)\s+where\s+xmin::text\s*=\s*'([^']+)'\s+and\s+id\s*=\s*'([^']+)'/i.exec(query)
+      if (deletion && rowVersions.get(deletion[3]!) === deletion[2]) {
+        tables.get(deletion[1]!)?.delete(deletion[3]!)
+        rowVersions.delete(deletion[3]!)
+      }
       return /^INSERT\s/i.test(query)
-        ? [{ id: /values\s*\(\s*'([^']+)'/i.exec(query)?.[1] }]
+        ? [{ id: /values\s*\(\s*'([^']+)'/i.exec(query)?.[1], audit_fixture_xmin: '101' }]
         : []
     },
   }
@@ -955,6 +981,7 @@ test('artifact validation fails closed for an incomplete or changed fixture rece
       fixture: 'AUDIT_RECEIVING_ONLY',
       lifecycle: ['created'],
       ownership: [{ id: 'a1b2c3d4-0000-0000-0000-000000000003', title: 'design-audit-a1b2c3d4 owned' }],
+      versions: ['102'],
     }],
     ownedAuthUsers: [{
       fixture: 'AUDIT_RECEIVING_ONLY',
