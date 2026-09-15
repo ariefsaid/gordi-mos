@@ -45,7 +45,9 @@ describe('Signal presentation labels', () => {
       'Urgent',
     ])
     expect(attentions.map((attention) => attentionLabel(indonesian, attention))).toEqual([
-      'Untuk diketahui',
+      // FR-024 / AC-031 / AC-066 (#770): the borrowed initialism "FYI" STAYS in Indonesian —
+      // only the other two attention words translate.
+      'FYI',
       'Perlu perhatian',
       'Mendesak',
     ])

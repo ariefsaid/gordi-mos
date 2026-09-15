@@ -123,10 +123,18 @@ describe('GUARD: a meta separator can never wrap onto a line of its own', () => 
     }
   })
 
-  it('the meta group is one non-breaking inline unit in CSS', () => {
+  it('the meta group keeps its separator attached while allowing long facts to wrap', () => {
     const body = ruleBody(/\.home-signal-meta-item\s*\{/)
     expect(body).toMatch(/display:\s*inline-flex/)
-    expect(body).toMatch(/white-space:\s*nowrap/)
+    expect(body).toMatch(/white-space:\s*normal/)
+    const fact = ruleBody(/\.home-signal-meta-fact\s*\{/)
+    expect(fact).toMatch(/overflow-wrap:\s*anywhere/)
+    expect(fact).not.toMatch(/text-overflow:\s*ellipsis/)
+  })
+
+  it('separates adjacent full-row touch targets without changing their one-row anatomy', () => {
+    const body = ruleBody(/\.home-signal-list\s*\{/)
+    expect(body).toMatch(/gap:\s*8px/)
   })
 })
 

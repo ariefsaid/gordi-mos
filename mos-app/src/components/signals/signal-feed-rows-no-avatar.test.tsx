@@ -109,8 +109,6 @@ describe('AC-061 archive rows keep one clean record activation', () => {
             authorNamesById={AUTHORS}
             teamNamesById={TEAMS}
             variant="archive"
-            createTaskHref={() => '/work/tasks/new'}
-            onCategorize={vi.fn()}
             onOpen={vi.fn()}
           />
         </I18nProvider>
@@ -124,7 +122,7 @@ describe('AC-061 archive rows keep one clean record activation', () => {
 describe.each(['ambient', 'archive'] as const)('Signal row (%s) names its author, never their initials', (variant) => {
   it('renders the author name as plain text', () => {
     renderFeed(variant)
-    expect(screen.getByText('Author One')).toBeInTheDocument()
+    expect(screen.getByText('Author One')).toHaveAttribute('title', 'Author One')
   })
 
   it('renders no initials mark anywhere in the row', () => {
@@ -133,19 +131,83 @@ describe.each(['ambient', 'archive'] as const)('Signal row (%s) names its author
     expect(container.querySelector('.home-signal-avatar')).toBeNull()
   })
 
-  it('the meta line carries the author, time, and the variant-appropriate fact treatment', () => {
+  it('the meta line is plain text — author · Team · time — with no bordered chips and no visibility line', () => {
     const { container } = renderFeed(variant)
     const meta = container.querySelector('.home-signal-meta')!
     expect(within(meta as HTMLElement).getByText('Author One')).toBeInTheDocument()
     expect(within(meta as HTMLElement).getByText('HQ Operations')).toBeInTheDocument()
-    if (variant === 'archive') {
-      expect(meta.querySelector('.home-signal-location-chip')).toBeNull()
-      expect(meta.querySelector('.home-signal-time-chip')).toBeNull()
-      expect(meta.querySelectorAll('.home-signal-meta-fact').length).toBeGreaterThan(0)
-      expect(within(meta as HTMLElement).queryByText('Visible to HQ Operations')).not.toBeInTheDocument()
-    } else {
-      expect(meta.querySelector('.home-signal-location-chip')).toHaveTextContent('HQ Operations')
-      expect(meta.querySelector('.home-signal-time-chip')).toHaveTextContent(/2026/)
+    expect(meta.querySelector('.home-signal-location-chip')).toBeNull()
+    expect(meta.querySelector('.home-signal-time-chip')).toBeNull()
+    expect(meta.querySelectorAll('.home-signal-meta-fact').length).toBeGreaterThan(0)
+    expect(within(meta as HTMLElement).queryByText('Visible to HQ Operations')).not.toBeInTheDocument()
+  })
+
+  // AC-025: each separator is bound into one group with the fact it introduces, so a narrow
+  // column wraps BETWEEN facts and never orphans a bare "·" on its own line.
+  it('binds every meta separator to the fact it introduces', () => {
+    const { container } = renderFeed(variant)
+    const meta = container.querySelector('.home-signal-meta')!
+    const seps = meta.querySelectorAll('.home-signal-sep')
+    expect(seps.length).toBeGreaterThan(0)
+    for (const sep of seps) {
+      expect(sep.parentElement!.textContent).toContain('·')
+      expect(sep.parentElement!.textContent!.length).toBeGreaterThan(1)
     }
+  })
+
+  // AC-025 / P1: the meta carries the category when one is set — plain text on the same line,
+  // in BOTH variants (one anatomy; a difference between Home and the archive is a defect).
+  it('renders the category on the meta line when set', () => {
+    const { container } = render(
+      <I18nProvider>
+        <SignalFeedRows
+          signals={[row({ category: 'Quality' })]}
+          authorNamesById={AUTHORS}
+          teamNamesById={TEAMS}
+          variant={variant}
+        />
+      </I18nProvider>,
+    )
+    const meta = container.querySelector('.home-signal-meta')!
+    expect(within(meta as HTMLElement).getByText('Quality')).toHaveAttribute('title', 'Quality')
+  })
+})
+
+// AC-026 (#770, cross-surface pin): the Home Signals column and the archive Feed render the SAME
+// fixture through the ONE row component, and their row markup differs ONLY by the variant class —
+// a structural difference between the two is P1's definition of a defect. The diff here is
+// byte-exact on each row's outerHTML, so any variant-conditional element/class/text inside a row
+// fails this test even when both variants look plausible in isolation.
+describe('AC-026: Home column and archive Feed are one row anatomy', () => {
+  const onOpen = vi.fn()
+
+  function renderVariant(variant: 'ambient' | 'archive') {
+    return render(
+      <I18nProvider>
+        <SignalFeedRows
+          variant={variant}
+          onOpen={onOpen}
+          signals={[
+            row({ id: 's-1', body: 'The freezer alarm went off', attention: 'Urgent', category: 'Equipment/facility' }),
+            row({ id: 's-2', body: 'Espresso machine repaired', attention: 'FYI', category: null }),
+          ]}
+          authorNamesById={AUTHORS}
+          teamNamesById={TEAMS}
+        />
+      </I18nProvider>,
+    )
+  }
+
+  it('renders byte-identical row markup across the ambient and archive variants', () => {
+    const ambient = renderVariant('ambient')
+    const ambientRows = Array.from(ambient.container.querySelectorAll('.home-signal-row'))
+      .map((row) => row.outerHTML)
+
+    const archive = renderVariant('archive')
+    const archiveRows = Array.from(archive.container.querySelectorAll('.home-signal-row'))
+      .map((row) => row.outerHTML)
+
+    expect(archiveRows).toHaveLength(2)
+    expect(ambientRows).toEqual(archiveRows)
   })
 })

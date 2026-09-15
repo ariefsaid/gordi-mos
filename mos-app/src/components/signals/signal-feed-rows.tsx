@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { EmptyState } from '@/components/ui/state-kit'
-import { formatWibDateTime } from '@/lib/wib-time'
+import { formatWibShortDateTime } from '@/lib/wib-time'
 import { orderSignalsForFeed } from '@/lib/db/signals'
-import { attentionSlug, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
+import { attentionSlug, type SignalRow } from '@/lib/db/signals.types'
 import { signalMatchesText } from './signal-collection-adapter'
 import { attentionLabel } from './signal-attention-label'
 import { signalCategoryLabel } from './signal-labels'
@@ -24,9 +24,6 @@ export interface SignalFeedRowsProps {
   authorNamesById: Record<string, string>
   teamNamesById: Record<string, string>
   onShareClick?: () => void
-  onCategorize?: (signalId: string, category: SignalCategory) => void
-  onCreateTask?: (signal: SignalRow) => void
-  createTaskHref?: (signal: SignalRow) => string | undefined
   onOpen?: (signal: SignalRow) => void
   /** Home members can keep the feed toolbar to the Share door only. */
   showSearch?: boolean
@@ -139,6 +136,7 @@ export function SignalFeedRows({
             }
             const authorName = authorNamesById[signal.author_id] ?? t('signals.card.unknownAuthor')
             const teamName = teamNamesById[signal.owning_team_id] ?? ''
+            const categoryLabel = signal.category ? signalCategoryLabel(t, signal.category) : null
             // F3 (OD-REDESIGN-91 #18): the archive row-fill is URGENT ONLY — the amber fill + 2px
             // rule is the "act now" top tier. Needs attention keeps its amber pill on a calm row.
             // The CSS treatment is scoped to `.home-signal-feed--archive`, so tagging the row here
@@ -167,30 +165,33 @@ export function SignalFeedRows({
               >
                 <div className="home-signal-main">
                   {/* Body = the row title. The parent row owns activation in both variants. */}
-                  <span className="home-signal-body home-signal-body--static">
+                  <span className="home-signal-body">
                     <span className="home-signal-body-text">{signal.body}</span>
                   </span>
-                  {/* Meta subline: author name · team · time. The author is NAMED, never drawn as
+                  {/* Meta subline: author · Team · time · category-when-set — PLAIN TEXT in BOTH
+                      variants (P1, #770: never bordered chips, never a visibility sentence; Home
+                      and the archive render the same component and a difference between them is a
+                      defect — AC-026 pins that byte-exactly). The author is NAMED, never drawn as
                       an initials disc (owner, 2026-07-28) — in a 300px feed column that disc cost
                       28px of the measure the name itself needs. Each separator is bound into one
                       group with the fact it introduces, so a narrow feed column wraps BETWEEN
                       facts and can never strand a bare "·" on a line of its own. */}
-                  <div className={`home-signal-meta${variant === 'archive' ? ' home-signal-meta--archive' : ''}`}>
-                    <span className="home-signal-who-name">{authorName}</span>
+                  <div className="home-signal-meta">
+                    <span className="home-signal-who-name" title={authorName}>{authorName}</span>
                     {teamName && (
                       <span className="home-signal-meta-item">
                         <span className="home-signal-sep" aria-hidden="true">·</span>
-                        <span className={variant === 'archive' ? 'home-signal-meta-fact' : 'home-signal-location-chip'}>{teamName}</span>
+                        <span className="home-signal-meta-fact" title={teamName}>{teamName}</span>
                       </span>
                     )}
                     <span className="home-signal-meta-item">
                       <span className="home-signal-sep" aria-hidden="true">·</span>
-                      <span className={variant === 'archive' ? 'home-signal-meta-fact' : 'home-signal-time-chip'}>{formatWibDateTime(signal.occurred_at)}</span>
+                      <span className="home-signal-meta-fact">{formatWibShortDateTime(signal.occurred_at)}</span>
                     </span>
-                    {variant === 'archive' && signal.category && (
+                    {categoryLabel && (
                       <span className="home-signal-meta-item">
                         <span className="home-signal-sep" aria-hidden="true">·</span>
-                        <span className="home-signal-meta-fact">{signalCategoryLabel(t, signal.category)}</span>
+                        <span className="home-signal-meta-fact" title={categoryLabel}>{categoryLabel}</span>
                       </span>
                     )}
                   </div>
