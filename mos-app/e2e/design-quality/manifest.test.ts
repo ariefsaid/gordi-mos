@@ -20,7 +20,20 @@ import {
   validateArtifactSet,
 } from './report.ts'
 import { MUTATION_FIXTURES, evaluateMutationFixture, parseCssColor } from './measurements.ts'
-import { assertAuditFixtureWritePolicy } from './audit-fixtures.ts'
+import {
+  assertAuditFixtureWritePolicy,
+  type AuditFixtureReceipt,
+} from './audit-fixtures.ts'
+import {
+  AuditProvisioner,
+  assertAuditOwnedCleanupSql,
+  cleanupAuditFixtureReceipt,
+  createLocalAuditAuthClient,
+  createLocalAuditSqlClient,
+  emptyAuditFixtureReceipt,
+  validateAuditFixtureReceipt,
+  validateAuditFixtureProvisionedReceipt,
+} from './audit-provisioner.ts'
 import { resetAuditScroll } from './scroll.ts'
 
 test('the design manifest covers every required dimension and declares complete rules', () => {
@@ -201,12 +214,329 @@ test('computed CSS colors include modern sRGB and Display-P3 syntax', () => {
   assert.ok(displayP3.every((channel) => Number.isFinite(channel) && channel >= 0 && channel <= 255))
 })
 
-test('write-state audit cells fail closed until a database-verified provisioner exists', () => {
+test('write-state audit cells require a provisioned receipt bound to the candidate and session', () => {
+  const candidateSha = 'a'.repeat(40)
+  const receipt: AuditFixtureReceipt = {
+    candidateSha,
+    sessionId: 'a1b2c3d4',
+    namespace: 'design-audit-a1b2c3d4',
+    created: [{ table: 'mos.tasks', ids: ['a1000000-0000-0000-0000-000000000001'] }],
+    cleanup: [],
+    unrelatedSentinelsPreserved: true,
+    sentinels: [
+      { table: 'mos.tasks', id: 'sentinel-task', beforeHash: 'a'.repeat(64), afterHash: 'a'.repeat(64) },
+      { table: 'mos.weekly_updates', id: 'sentinel-update', beforeHash: 'b'.repeat(64), afterHash: 'b'.repeat(64) },
+      { table: 'ops.log_entries', id: 'sentinel-log', beforeHash: 'c'.repeat(64), afterHash: 'c'.repeat(64) },
+    ],
+    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1000000-0000-0000-0000-000000000001'] }],
+    ownedAuthUserIds: [],
+    remainingAuthUserIds: [],
+    cleanupOnFailure: { attempted: false, completed: false },
+  }
+
   assert.throws(() => assertAuditFixtureWritePolicy({
     fixture: 'AUDIT_RECEIVING_ONLY',
     sessionId: 'a1b2c3d4',
+    candidateSha,
     writes: true,
-  }), /database-verified per-run provisioner/)
+  }), /receipt/i)
+  assert.throws(() => assertAuditFixtureWritePolicy({
+    fixture: 'AUDIT_RECEIVING_ONLY',
+    sessionId: 'a1b2c3d4',
+    candidateSha: 'b'.repeat(40),
+    receipt,
+    writes: true,
+  }), /candidate SHA/i)
+  assert.doesNotThrow(() => assertAuditFixtureWritePolicy({
+    fixture: 'AUDIT_RECEIVING_ONLY',
+    sessionId: 'a1b2c3d4',
+    candidateSha,
+    receipt,
+    writes: true,
+  }))
+  assert.equal(validateAuditFixtureProvisionedReceipt(receipt, { candidateSha, sessionId: 'a1b2c3d4' }).ok, true)
+  assert.equal(validateAuditFixtureReceipt(receipt, { candidateSha, sessionId: 'a1b2c3d4' }).ok, false)
+  assert.throws(() => assertAuditFixtureWritePolicy({
+    fixture: 'AUDIT_RECEIVING_ONLY',
+    sessionId: 'a1b2c3d4',
+    candidateSha,
+    receipt: { ...receipt, sentinels: [] },
+    writes: true,
+  }), /sentinel/i)
+})
+
+test('every write-state fixture must prove at least one audit-owned identity or record', () => {
+  const receipt = emptyAuditFixtureReceipt('a'.repeat(40), 'a1b2c3d4')
+  assert.throws(() => assertAuditFixtureWritePolicy({
+    fixture: 'AUDIT_RECEIVING_ONLY',
+    sessionId: 'a1b2c3d4',
+    candidateSha: 'a'.repeat(40),
+    receipt,
+    writes: true,
+  }), /audit-owned records|ownership/i)
+})
+
+test('audit write receipts reject created identities or records outside the session namespace', () => {
+  const receipt: AuditFixtureReceipt = {
+    candidateSha: 'a'.repeat(40),
+    sessionId: 'a1b2c3d4',
+    namespace: 'design-audit-another-run',
+    created: [{ table: 'mos.tasks', ids: ['a1000000-0000-0000-0000-000000000001'] }],
+    cleanup: [{ table: 'mos.tasks', deleted: 1, remaining: 0 }],
+    unrelatedSentinelsPreserved: true,
+    sentinels: [],
+    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1000000-0000-0000-0000-000000000001'] }],
+    ownedAuthUserIds: [],
+    remainingAuthUserIds: [],
+    cleanupOnFailure: { attempted: false, completed: true },
+  }
+
+  assert.throws(() => assertAuditFixtureWritePolicy({
+    fixture: 'AUDIT_RECEIVING_ONLY',
+    sessionId: 'a1b2c3d4',
+    candidateSha: 'a'.repeat(40),
+    receipt,
+    writes: true,
+}), /namespace/i)
+})
+
+test('audit fixture records require inspectable namespaced columns and keep sentinels read-only', () => {
+  const namespace = 'design-audit-a1b2c3d4'
+  const sql = { execute: async () => [], query: async () => [] }
+  assert.throws(() => new AuditProvisioner({
+    candidateSha: 'a'.repeat(40),
+    sessionId: 'a1b2c3d4',
+    sql,
+    definitions: {
+      records: [{
+        table: 'mos.tasks',
+        id: 'a1000000-0000-0000-0000-000000000005',
+        namespace,
+      }],
+    },
+  }), /columns/i)
+  assert.throws(() => new AuditProvisioner({
+    candidateSha: 'a'.repeat(40),
+    sessionId: 'a1b2c3d4',
+    sql,
+    definitions: {
+      sentinels: [{
+        table: 'mos.tasks',
+        id: 'sentinel',
+        query: "DELETE FROM mos.tasks WHERE id IN ('sentinel');",
+      }],
+    },
+  }), /read-only/i)
+})
+
+test('audit-owned writes require all three unrelated sentinel tables before provisioning can begin', () => {
+  const namespace = 'design-audit-a1b2c3d4'
+  assert.throws(() => new AuditProvisioner({
+    candidateSha: 'a'.repeat(40),
+    sessionId: 'a1b2c3d4',
+    sql: { execute: async () => [], query: async () => [] },
+    definitions: {
+      records: [{
+        table: 'mos.tasks',
+        id: 'a1000000-0000-0000-0000-000000000006',
+        namespace,
+        columns: { id: 'a1000000-0000-0000-0000-000000000006', title: `${namespace} owned` },
+      }],
+    },
+  }), /mos\.tasks.*mos\.weekly_updates.*ops\.log_entries/i)
+})
+
+test('audit-owned provisioning cleans captured rows and users when a later insert fails', async () => {
+  const namespace = 'design-audit-a1b2c3d4'
+  const ownedTask = 'a1000000-0000-0000-0000-000000000006'
+  const authUser = 'a1000000-0000-0000-0000-000000000007'
+  const rows = new Set<string>(['sentinel-task', 'sentinel-update', 'sentinel-log'])
+  const users = new Set<string>()
+  const sql = {
+    async query(query: string): Promise<unknown[]> {
+      const ids = query.match(/'[^']*'/g)?.map((value) => value.slice(1, -1)) ?? []
+      return ids.flatMap((id) => rows.has(id) ? [{ id }] : [])
+    },
+    async execute(query: string): Promise<unknown> {
+      if (query.includes('second-owned-row')) throw new Error('planted insert failure')
+      const inserted = /values\s*\(\s*'([^']+)'/i.exec(query)?.[1]
+      if (inserted) rows.add(inserted)
+      const deleted = query.match(/'[^']*'/g)?.map((value) => value.slice(1, -1)) ?? []
+      if (/^DELETE/i.test(query)) for (const id of deleted) rows.delete(id)
+      return []
+    },
+  }
+  const auth = {
+    async createUser() { users.add(authUser); return { data: { user: { id: authUser } } } },
+    async deleteUser(id: string) { users.delete(id); return {} },
+    async listUsers() { return [...users] },
+  }
+  const receipts: AuditFixtureReceipt[] = []
+  const provisioner = new AuditProvisioner({
+    candidateSha: 'a'.repeat(40),
+    sessionId: 'a1b2c3d4',
+    sql,
+    auth,
+    onReceipt: (receipt) => { receipts.push(receipt) },
+    definitions: {
+      identities: [{ email: `${namespace}.writer@example.test`, password: 'test-password' }],
+      records: [
+        { table: 'mos.tasks', id: ownedTask, namespace, columns: { id: ownedTask, title: `${namespace} first-owned-row` } },
+        { table: 'mos.tasks', namespace, columns: { title: `${namespace} second-owned-row` } },
+      ],
+      sentinels: [
+        { table: 'mos.tasks', id: 'sentinel-task' },
+        { table: 'mos.weekly_updates', id: 'sentinel-update' },
+        { table: 'ops.log_entries', id: 'sentinel-log' },
+      ],
+    },
+  })
+
+  await assert.rejects(provisioner.provision(), /planted insert failure/)
+  assert.equal(rows.has(ownedTask), false)
+  assert.deepEqual([...users], [])
+  const finalReceipt = receipts.at(-1)
+  assert.ok(finalReceipt)
+  assert.deepEqual(finalReceipt.cleanupOnFailure, { attempted: true, completed: true })
+  assert.equal(finalReceipt.cleanup.every(({ remaining }) => remaining === 0), true)
+  assert.equal(finalReceipt.unrelatedSentinelsPreserved, true)
+})
+
+test('local fixture clients fail closed on malformed database and auth responses', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    globalThis.fetch = async () => new Response('not-json', { status: 200 })
+    await assert.rejects(
+      createLocalAuditSqlClient('http://127.0.0.1:44321', 'test-key').query('SELECT 1'),
+      /invalid JSON/,
+    )
+
+    globalThis.fetch = async () => new Response('{}', {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+    await assert.rejects(
+      createLocalAuditAuthClient('http://127.0.0.1:44321', 'test-key').listUsers!(),
+      /invalid response/,
+    )
+  } finally {
+    globalThis.fetch = previousFetch
+  }
+})
+
+test('audit cleanup permits captured IDs and rejects broad business-data deletion', () => {
+  assert.doesNotThrow(() => assertAuditOwnedCleanupSql(
+    "DELETE FROM mos.tasks WHERE id IN ('a1000000-0000-0000-0000-000000000005');",
+  ))
+  assert.throws(() => assertAuditOwnedCleanupSql(
+    "DELETE FROM mos.tasks WHERE org_id = 'shared-org';",
+  ), /explicit captured primary-key list/i)
+})
+
+test('audit-owned setup and cleanup preserve task, weekly-update, and operations-log sentinels', async () => {
+  const namespace = 'design-audit-a1b2c3d4'
+  const ownedTask = 'a1000000-0000-0000-0000-000000000001'
+  const authUser = 'a1000000-0000-0000-0000-000000000002'
+  const tables = new Map<string, Map<string, Record<string, unknown>>>([
+    ['mos.tasks', new Map([['sentinel-task', { id: 'sentinel-task', title: 'Owner task' }]])],
+    ['mos.weekly_updates', new Map([['sentinel-update', { id: 'sentinel-update', body: 'Owner update' }]])],
+    ['ops.log_entries', new Map([['sentinel-log', { id: 'sentinel-log', detail: 'Owner log' }]])],
+  ])
+  const users = new Set<string>()
+  const sql = {
+    async query(query: string): Promise<unknown[]> {
+      const match = /from\s+([a-z_]+\.[a-z_]+)[\s\S]*?in\s*\(([^)]+)\)/i.exec(query)
+      if (!match) return []
+      const table = tables.get(match[1]!)
+      if (!table) return []
+      const ids = match[2]!.match(/'[^']*'/g)?.map((id) => id.slice(1, -1)) ?? []
+      return ids.flatMap((id) => table.has(id) ? [table.get(id)] : [])
+    },
+    async execute(query: string): Promise<unknown> {
+      const insert = /insert\s+into\s+([a-z_]+\.[a-z_]+)\s*\([^)]*\)\s*values\s*\(\s*'([^']+)'/i.exec(query)
+      if (insert) tables.get(insert[1]!)?.set(insert[2]!, { id: insert[2]!, title: `${namespace} owned` })
+      const deletion = /delete\s+from\s+([a-z_]+\.[a-z_]+)\s+where\s+\w+\s+in\s*\(([^)]+)\)/i.exec(query)
+      if (deletion) {
+        const table = tables.get(deletion[1]!)
+        for (const id of deletion[2]!.match(/'[^']*'/g)?.map((value) => value.slice(1, -1)) ?? []) table?.delete(id)
+      }
+      return []
+    },
+  }
+  const auth = {
+    async createUser() { users.add(authUser); return { data: { user: { id: authUser } } } },
+    async deleteUser(id: string) { users.delete(id); return {} },
+    async listUsers() { return [...users] },
+  }
+  const provisioner = new AuditProvisioner({
+    candidateSha: 'a'.repeat(40),
+    sessionId: 'a1b2c3d4',
+    sql,
+    auth,
+    definitions: {
+      identities: [{ email: `${namespace}.writer@example.test`, password: 'test-password' }],
+      records: [{ table: 'mos.tasks', id: ownedTask, namespace, columns: { id: ownedTask, title: `${namespace} owned` } }],
+      sentinels: [
+        { table: 'mos.tasks', id: 'sentinel-task', query: "SELECT * FROM mos.tasks WHERE id IN ('sentinel-task');" },
+        { table: 'mos.weekly_updates', id: 'sentinel-update', query: "SELECT * FROM mos.weekly_updates WHERE id IN ('sentinel-update');" },
+        { table: 'ops.log_entries', id: 'sentinel-log', query: "SELECT * FROM ops.log_entries WHERE id IN ('sentinel-log');" },
+      ],
+    },
+  })
+
+  const provisioned = await provisioner.provision()
+  assert.doesNotThrow(() => assertAuditFixtureWritePolicy({
+    fixture: 'AUDIT_RECEIVING_ONLY',
+    sessionId: 'a1b2c3d4',
+    candidateSha: 'a'.repeat(40),
+    receipt: provisioned,
+    writes: true,
+  }))
+  const receipt = await cleanupAuditFixtureReceipt(provisioned, {
+    candidateSha: 'a'.repeat(40),
+    sessionId: 'a1b2c3d4',
+    sql,
+    auth,
+  })
+  assert.equal(tables.get('mos.tasks')?.has(ownedTask), false)
+  assert.equal(tables.get('mos.tasks')?.has('sentinel-task'), true)
+  assert.equal(tables.get('mos.weekly_updates')?.has('sentinel-update'), true)
+  assert.equal(tables.get('ops.log_entries')?.has('sentinel-log'), true)
+  assert.deepEqual([...users], [])
+  assert.equal(receipt.unrelatedSentinelsPreserved, true)
+  assert.equal(receipt.sentinels?.length, 3)
+  assert.deepEqual(receipt.cleanup, [{ table: 'mos.tasks', deleted: 1, remaining: 0 }])
+  assert.equal(validateAuditFixtureReceipt(receipt, { candidateSha: 'a'.repeat(40), sessionId: 'a1b2c3d4' }).ok, true)
+  const repeated = await cleanupAuditFixtureReceipt(receipt, {
+    candidateSha: 'a'.repeat(40),
+    sessionId: 'a1b2c3d4',
+    sql,
+    auth,
+  })
+  assert.equal(validateAuditFixtureReceipt(repeated, { candidateSha: 'a'.repeat(40), sessionId: 'a1b2c3d4' }).ok, true)
+  assert.deepEqual(repeated.cleanup, [{ table: 'mos.tasks', deleted: 1, remaining: 0 }])
+})
+
+test('artifact validation fails closed for an incomplete or changed fixture receipt', async () => {
+  const outputDir = await mkdtemp(path.join(os.tmpdir(), 'mos-design-quality-receipt-'))
+  const writer = new ReportWriter({ outputDir, candidateSha: 'a'.repeat(40), sessionId: 'a1b2c3d4' })
+  await writer.writeFixtureReceipt({
+    candidateSha: 'a'.repeat(40),
+    sessionId: 'a1b2c3d4',
+    namespace: 'design-audit-a1b2c3d4',
+    created: [{ table: 'mos.tasks', ids: ['a1000000-0000-0000-0000-000000000003'] }],
+    cleanup: [{ table: 'mos.tasks', deleted: 0, remaining: 1 }],
+    unrelatedSentinelsPreserved: false,
+    sentinels: [{ table: 'mos.tasks', id: 'sentinel', beforeHash: 'a'.repeat(64), afterHash: 'b'.repeat(64) }],
+    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1000000-0000-0000-0000-000000000003'] }],
+    ownedAuthUserIds: ['a1000000-0000-0000-0000-000000000004'],
+    remainingAuthUserIds: ['a1000000-0000-0000-0000-000000000004'],
+    cleanupOnFailure: { attempted: true, completed: false },
+  })
+  const validation = await validateArtifactSet(outputDir, { candidateSha: 'a'.repeat(40), sessionId: 'a1b2c3d4' })
+  assert.equal(validation.ok, false)
+  assert.ok(validation.invalid.includes('fixture-receipt.json'))
+  assert.match(validation.errors.join('\n'), /leaves owned rows|sentinel|auth user|cleanup did not complete/i)
 })
 
 test('audit captures reset the browser and app-owned scroll regions to the origin', () => {

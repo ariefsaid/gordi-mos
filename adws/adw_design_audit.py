@@ -71,6 +71,7 @@ LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 WIDTH_CLASSES = ("desktop", "phone")   # phone = ≤390px viewport, per the contract
 QUANTITATIVE_ARTIFACTS = (
     "manifest.json",
+    "fixture-receipt.json",
     "gate-log.txt",
     "contrast.csv",
     "geometry.csv",

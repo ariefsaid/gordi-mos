@@ -132,6 +132,8 @@ spec.loader.exec_module(audit)
 # exercised without a server, database, or model call.
 quant_root = FakeRun.context_handoff_dir
 quant_artifacts = tuple(audit.QUANTITATIVE_ARTIFACTS)
+check("fixture receipt is registered in the ADW quantitative artifact contract",
+      "fixture-receipt.json" in quant_artifacts)
 candidate_sha = "a" * 40
 for artifact in quant_artifacts:
     target = quant_root / artifact
@@ -150,6 +152,15 @@ for artifact in quant_artifacts:
             f"console.log(JSON.stringify(manifestForArtifact('{candidate_sha}', '{FakeRun.adw_id}')))"
         ], cwd=root, check=True, capture_output=True, text=True).stdout
         target.write_text(rendered)
+    elif artifact == "fixture-receipt.json":
+        target.write_text(json.dumps({
+            "candidateSha": candidate_sha, "sessionId": FakeRun.adw_id,
+            "namespace": f"design-audit-{FakeRun.adw_id}",
+            "created": [], "cleanup": [],
+            "unrelatedSentinelsPreserved": True,
+            "sentinels": [], "ownedDatabaseIds": [],
+            "ownedAuthUserIds": [], "remainingAuthUserIds": [],
+            "cleanupOnFailure": {"attempted": False, "completed": True}}))
     elif artifact == "impeccable.json":
         target.write_text(json.dumps({
             "candidateSha": candidate_sha, "sessionId": FakeRun.adw_id,

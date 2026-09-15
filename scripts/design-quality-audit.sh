@@ -261,6 +261,7 @@ import { mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { manifestForArtifact } from './mos-app/e2e/design-quality/manifest.ts'
 import { REQUIRED_ARTIFACTS, ReportWriter } from './mos-app/e2e/design-quality/report.ts'
+import { emptyAuditFixtureReceipt } from './mos-app/e2e/design-quality/audit-provisioner.ts'
 
 const root = process.argv[2]
 const outputDir = process.argv[3]
@@ -281,10 +282,11 @@ await writer.writeGateLog([
   'chain_status=pending',
 ])
 for (const artifact of REQUIRED_ARTIFACTS) {
-  if (artifact === 'manifest.json' || artifact === 'gate-log.txt' || artifact === 'mockup-diff') continue
+  if (artifact === 'manifest.json' || artifact === 'gate-log.txt' || artifact === 'fixture-receipt.json' || artifact === 'mockup-diff') continue
   if (artifact.endsWith('.json')) await writer.writeJson(artifact, { status: 'pending' })
   else await writer.writeCsv(artifact, [])
 }
+await writer.writeFixtureReceipt(emptyAuditFixtureReceipt(candidateSha, sessionId))
 await writer.writeJson('mockup-diff/status.json', { status: 'pending' })
 await writer.writeSession({
   auditId: sessionId,
@@ -296,6 +298,8 @@ await writer.writeSession({
   root,
   contextHandoffDir: outputDir,
   quantitativeArtifacts: REQUIRED_ARTIFACTS.map((name) => path.join(outputDir, name)),
+  fixtureReceiptPath: path.join(outputDir, 'fixture-receipt.json'),
+  fixtureWritesOccurred: false,
   browserExitStatus: null,
   chainExitStatus: null,
   fixturePolicy: 'read-only seeded fixtures; any audit-owned writes stay under this session',
@@ -318,6 +322,71 @@ if (cd "$ROOT/mos-app" && "$ROOT/scripts/with-db-lock.sh" npx playwright test --
   browser_status=0
 else
   browser_status=$?
+fi
+# The audit Playwright config intentionally has no ordinary global hooks. Finish
+# the ownership ledger here, under the same DB lock, so a browser failure still
+# gets a cleanup attempt and a receipt before the lane exits.
+fixture_status=0
+if (cd "$ROOT/mos-app" && "$ROOT/scripts/with-db-lock.sh" node --experimental-strip-types --input-type=module - "$context_dir" "$browser_status" "$candidate_sha" "$audit_id" <<'NODE'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { ReportWriter } from './e2e/design-quality/report.ts'
+import {
+  cleanupAuditFixtureReceipt,
+  createLocalAuditAuthClient,
+  createLocalAuditSqlClient,
+  emptyAuditFixtureReceipt,
+  validateAuditFixtureProvisionedReceipt,
+} from './e2e/design-quality/audit-provisioner.ts'
+
+const outputDir = process.argv[2]
+const browserStatus = Number(process.argv[3])
+const candidateSha = process.argv[4]
+const sessionId = process.argv[5]
+const session = JSON.parse(await readFile(path.join(outputDir, 'session.json'), 'utf8'))
+if (session.candidateSha !== candidateSha || session.sessionId !== sessionId) {
+  throw new Error('audit session metadata changed before fixture cleanup')
+}
+const writer = new ReportWriter({ outputDir, candidateSha, sessionId })
+const receipt = JSON.parse(await readFile(path.join(outputDir, 'fixture-receipt.json'), 'utf8'))
+const validation = validateAuditFixtureProvisionedReceipt(receipt, { candidateSha, sessionId })
+if (!validation.ok) throw new Error(`invalid audit fixture receipt before cleanup: ${validation.errors.join('; ')}`)
+const owned = Array.isArray(receipt.created) && receipt.created.some((group) => Array.isArray(group.ids) && group.ids.length > 0)
+  || Array.isArray(receipt.ownedAuthUserIds) && receipt.ownedAuthUserIds.length > 0
+const hasSentinels = Array.isArray(receipt.sentinels) && receipt.sentinels.length > 0
+if (!owned && !hasSentinels) {
+  await writer.writeFixtureReceipt(emptyAuditFixtureReceipt(candidateSha, sessionId))
+} else {
+  let fileEnv = {}
+  try {
+    const content = await readFile('./.env.e2e', 'utf8')
+    fileEnv = Object.fromEntries(content.split('\n').flatMap((line) => {
+      const trimmed = line.trim()
+      const separator = trimmed.indexOf('=')
+      return !trimmed || trimmed.startsWith('#') || separator < 1
+        ? [] : [[trimmed.slice(0, separator).trim(), trimmed.slice(separator + 1).trim()]]
+    }))
+  } catch { /* CI supplies credentials through process.env. */ }
+  const url = process.env.VITE_SUPABASE_URL || fileEnv.VITE_SUPABASE_URL || 'http://127.0.0.1:44321'
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || fileEnv.SUPABASE_SERVICE_ROLE_KEY || ''
+  if (!key) throw new Error('audit fixture cleanup requires SUPABASE_SERVICE_ROLE_KEY')
+  const cleaned = await cleanupAuditFixtureReceipt(receipt, {
+    candidateSha,
+    sessionId,
+    sql: createLocalAuditSqlClient(url, key),
+    auth: createLocalAuditAuthClient(url, key),
+    onFailure: browserStatus !== 0,
+  })
+  await writer.writeFixtureReceipt(cleaned)
+}
+NODE
+); then
+  fixture_status=0
+else
+  fixture_status=$?
+fi
+if [ "$fixture_status" -ne 0 ] && [ "$browser_status" -eq 0 ]; then
+  browser_status=$fixture_status
 fi
 node --experimental-strip-types --input-type=module - "$context_dir" "$browser_status" <<'NODE'
 import { readFile } from 'node:fs/promises'

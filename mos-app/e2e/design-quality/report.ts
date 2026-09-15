@@ -2,10 +2,12 @@ import { createHash } from 'node:crypto'
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
+import { validateAuditFixtureReceipt, type AuditFixtureReceipt } from './audit-provisioner.ts'
 import { validateManifest } from './manifest.ts'
 
 export const REQUIRED_ARTIFACTS = [
   'manifest.json',
+  'fixture-receipt.json',
   'gate-log.txt',
   'contrast.csv',
   'geometry.csv',
@@ -201,6 +203,10 @@ export class ReportWriter {
     return this.writeJson('session.json', session)
   }
 
+  async writeFixtureReceipt(receipt: AuditFixtureReceipt): Promise<string> {
+    return this.writeJson('fixture-receipt.json', receipt)
+  }
+
   async hash(name: string): Promise<string> {
     const content = await readFile(this.target(name))
     return createHash('sha256').update(content).digest('hex')
@@ -230,7 +236,11 @@ function addUnique(values: string[], value: string): void {
   if (!values.includes(value)) values.push(value)
 }
 
-function meaningfulJson(artifact: string, payload: unknown): { ok: boolean; reason?: string } {
+function meaningfulJson(
+  artifact: string,
+  payload: unknown,
+  expected?: ReportRunMetadata,
+): { ok: boolean; reason?: string } {
   if (!isRecord(payload)) return { ok: false, reason: 'JSON payload must be an object' }
   if (payload.status === 'pending' || payload.status === 'running') {
     return { ok: false, reason: `status=${String(payload.status)} is not a completed result` }
@@ -244,6 +254,13 @@ function meaningfulJson(artifact: string, payload: unknown): { ok: boolean; reas
     return validation.ok
       ? { ok: true }
       : { ok: false, reason: `structurally invalid manifest: ${validation.errors.join('; ')}` }
+  }
+  if (artifact === 'fixture-receipt.json') {
+    if (!expected) return { ok: false, reason: 'fixture receipt validation requires the expected run metadata' }
+    const validation = validateAuditFixtureReceipt(payload, expected)
+    return validation.ok
+      ? { ok: true }
+      : { ok: false, reason: validation.errors.join('; ') }
   }
   if (artifact === 'impeccable.json') {
     if (!Array.isArray(payload.scannedFiles) || payload.scannedFiles.length === 0) {
@@ -356,7 +373,7 @@ export async function validateArtifactSet(
 
       let content: { ok: boolean; reason?: string }
       if (artifact.endsWith('.json')) {
-        content = meaningfulJson(artifact, JSON.parse(text))
+        content = meaningfulJson(artifact, JSON.parse(text), expected)
       } else if (artifact === 'gate-log.txt') {
         content = meaningfulGateLog(text)
       } else {
