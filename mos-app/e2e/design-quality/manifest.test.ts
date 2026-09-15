@@ -548,6 +548,85 @@ test('local fixture clients fail closed on malformed database and auth responses
   }
 })
 
+test('local auth cleanup paginates short pages until an empty page when totals are absent', async () => {
+  const namespace = 'design-audit-a1b2c3d4'
+  const unrelatedId = 'b1b2c3d4-0000-0000-0000-000000000001'
+  const unrelatedLaterId = 'b1b2c3d4-0000-0000-0000-000000000002'
+  const ownedId = 'a1b2c3d4-0000-0000-0000-000000000001'
+  const users = new Map<string, { id: string; email: string }>([
+    [unrelatedId, { id: unrelatedId, email: 'unrelated@example.test' }],
+    [ownedId, { id: ownedId, email: `${namespace}.later@example.test` }],
+    [unrelatedLaterId, { id: unrelatedLaterId, email: 'unrelated-later@example.test' }],
+  ])
+  const requestedPages: number[] = []
+  const server = createServer((request, response) => {
+    const requestUrl = new URL(request.url ?? '/', 'http://127.0.0.1')
+    response.setHeader('Content-Type', 'application/json')
+    if (requestUrl.pathname === '/auth/v1/admin/users' && request.method === 'GET') {
+      const page = Number(requestUrl.searchParams.get('page') ?? '1')
+      requestedPages.push(page)
+      const pageUsers = [...users.values()].slice(page - 1, page)
+      response.end(JSON.stringify({ users: pageUsers }))
+      return
+    }
+    const deleteMatch = /^\/auth\/v1\/admin\/users\/([^/]+)$/.exec(requestUrl.pathname)
+    if (deleteMatch && request.method === 'DELETE') {
+      users.delete(decodeURIComponent(deleteMatch[1]!))
+      response.end(JSON.stringify({}))
+      return
+    }
+    response.statusCode = 404
+    response.end(JSON.stringify({ message: 'not found' }))
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+  const address = server.address()
+  assert.ok(address && typeof address === 'object')
+  try {
+    const auth = createLocalAuditAuthClient(`http://127.0.0.1:${address.port}`, 'test-key')
+    const discovered = await auth.listUsers!()
+    const owned = discovered.find((user) => user.id === ownedId)
+    assert.ok(owned, 'the namespaced account on the later page was not discovered')
+    const deletion = await auth.deleteUser(owned.id)
+    assert.equal(deletion.error, undefined)
+
+    const afterCleanup = await auth.listUsers!()
+    assert.equal(afterCleanup.some((user) => user.id === ownedId), false)
+    assert.ok(requestedPages.filter((page) => page === 3).length >= 2,
+      `pagination did not reach the empty page for cleanup verification: ${requestedPages.join(',')}`)
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
+test('local auth pagination honors the Supabase x-total-count header', async () => {
+  const users = [
+    { id: 'b1b2c3d4-0000-0000-0000-000000000001', email: 'first@example.test' },
+    { id: 'b1b2c3d4-0000-0000-0000-000000000002', email: 'second@example.test' },
+  ]
+  const requestedPages: number[] = []
+  const previousFetch = globalThis.fetch
+  try {
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input))
+      const page = Number(url.searchParams.get('page') ?? '1')
+      requestedPages.push(page)
+      assert.equal(page, 1, 'the reported total should terminate pagination without another request')
+      return new Response(JSON.stringify({ users }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'x-total-count': String(users.length) },
+      })
+    }
+    const listed = await createLocalAuditAuthClient('http://127.0.0.1:44321', 'test-key').listUsers!()
+    assert.deepEqual(listed, users)
+    assert.deepEqual(requestedPages, [1])
+  } finally {
+    globalThis.fetch = previousFetch
+  }
+})
+
 test('local HTTP fixture clients recover a failed provision across separate instances', async () => {
   const namespace = 'design-audit-a1b2c3d4'
   const firstTask = 'a1b2c3d4-0000-0000-0000-000000000010'

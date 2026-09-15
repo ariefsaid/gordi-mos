@@ -992,6 +992,7 @@ export function createLocalAuditAuthClient(url: string, serviceKey: string): Aud
     listUsers: async () => {
       const perPage = 1000
       const users: AuditFixtureAuthUser[] = []
+      let reachedTerminalPage = false
       for (let page = 1; page <= 10_000; page += 1) {
         const { response, body } = await request(`/auth/v1/admin/users?page=${page}&per_page=${perPage}`)
         if (!response.ok) throw new Error(`audit fixture auth user listing failed (${response.status})`)
@@ -1005,15 +1006,36 @@ export function createLocalAuditAuthClient(url: string, serviceKey: string): Aud
           }
           users.push({ id: user.id, email: user.email })
         }
-        const total = body.total
-        if (typeof total === 'number' && Number.isInteger(total) && total >= 0) {
-          if (users.length >= total) break
-        } else if (body.users.length < perPage || body.users.length === 0) {
+        const headerTotalValue = response.headers.get('x-total-count')
+        let headerTotal: number | undefined
+        if (headerTotalValue !== null) {
+          const normalized = headerTotalValue.trim()
+          if (!/^\d+$/.test(normalized)) {
+            throw new Error('audit fixture auth user listing returned an invalid x-total-count header')
+          }
+          headerTotal = Number(normalized)
+          if (!Number.isSafeInteger(headerTotal)) {
+            throw new Error('audit fixture auth user listing returned an invalid x-total-count header')
+          }
+        }
+        const bodyTotal = typeof body.total === 'number' && Number.isSafeInteger(body.total) && body.total >= 0
+          ? body.total
+          : undefined
+        const total = headerTotal ?? bodyTotal
+        if (total !== undefined) {
+          if (users.length > total) {
+            throw new Error('audit fixture auth user listing exceeded the reported total')
+          }
+          if (users.length === total) {
+            reachedTerminalPage = true
+            break
+          }
+        } else if (body.users.length === 0) {
+          reachedTerminalPage = true
           break
         }
-        if (body.users.length === 0) break
       }
-      if (users.length >= 10_000 * perPage) throw new Error('audit fixture auth user listing exceeded pagination limit')
+      if (!reachedTerminalPage) throw new Error('audit fixture auth user listing exceeded pagination limit')
       const ids = new Set<string>()
       for (const user of users) {
         if (ids.has(user.id)) throw new Error(`audit fixture auth user listing returned duplicate ID ${user.id}`)
