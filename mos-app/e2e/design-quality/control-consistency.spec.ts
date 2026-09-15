@@ -86,6 +86,11 @@ test('bounded-choice driver catches clipped popups and broken Escape focus retur
       <div id="no-typeahead-b" role="option">Beta</div>
     </div>
     <button id="disabled" role="combobox" aria-haspopup="listbox" aria-expanded="false" disabled>Disabled picker</button>
+    <button id="popup-owner" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="popup-owner-list">Popup-owned cursor</button>
+    <div id="popup-owner-list" role="listbox" hidden tabindex="0">
+      <div id="popup-owner-a" role="option" aria-selected="true"><span>Alpha</span></div>
+      <div id="popup-owner-b" role="option"><span>Beta</span></div>
+    </div>
     <script>
       for (const id of ['good', 'bad', 'no-typeahead']) {
         const trigger = document.getElementById(id)
@@ -103,11 +108,35 @@ test('bounded-choice driver catches clipped popups and broken Escape focus retur
           if (!trigger.contains(event.target) && !list.contains(event.target)) close(true)
         })
       }
+      {
+        const trigger = document.getElementById('popup-owner')
+        const list = document.getElementById('popup-owner-list')
+        const open = () => {
+          trigger.ariaExpanded = 'true'
+          list.hidden = false
+          list.setAttribute('aria-activedescendant', 'popup-owner-a')
+          list.focus()
+        }
+        const close = () => {
+          trigger.ariaExpanded = 'false'
+          list.hidden = true
+          trigger.focus()
+        }
+        trigger.addEventListener('click', open)
+        list.addEventListener('keydown', (event) => {
+          if (event.key === 'ArrowDown') list.setAttribute('aria-activedescendant', 'popup-owner-b')
+          if (event.key.toLowerCase() === 'a') list.setAttribute('aria-activedescendant', 'popup-owner-a')
+          if (event.key === 'Escape' || event.key === 'Enter') { event.preventDefault(); close() }
+        })
+        document.addEventListener('pointerdown', (event) => {
+          if (!trigger.contains(event.target) && !list.contains(event.target)) close()
+        })
+      }
     </script>
   `)
 
   const rows = await exerciseBoundedChoices(page, 'planted-cell')
-  expect(rows).toHaveLength(4)
+  expect(rows).toHaveLength(5)
   const passing = rows.find((row) => row.selector.includes('button:nth-of-type(1)'))!
   expect(passing.passed, passing.measured).toBe(true)
   expect(JSON.parse(passing.measured).openTextContrast).toBeGreaterThanOrEqual(4.5)
@@ -122,6 +151,9 @@ test('bounded-choice driver catches clipped popups and broken Escape focus retur
   const disabled = rows.find((row) => row.state === 'disabled')!
   expect(disabled.passed).toBe(true)
   expect(JSON.parse(disabled.measured).lifecycleApplicable).toBe(false)
+  const popupOwner = rows.find((row) => row.selector.includes('button:nth-of-type(5)'))!
+  expect(popupOwner.passed, popupOwner.measured).toBe(true)
+  expect(JSON.parse(popupOwner.measured).selectedTextContrast).toBeGreaterThanOrEqual(4.5)
 })
 
 test('control consistency entry point writes a complete per-cell census', async ({ page }) => {

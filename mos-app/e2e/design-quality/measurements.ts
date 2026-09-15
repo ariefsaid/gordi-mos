@@ -979,7 +979,7 @@ export async function collectContrast(
         .map((node) => node.textContent?.trim() || '')
         .filter(Boolean)
         .join(' ')
-      const semanticText = element.matches('h1, h2, h3, p, label, button, a[href], [role="button"]')
+      const semanticText = element.matches('h1, h2, h3, p, label, button, a[href], [role="button"], [role="combobox"], [role="option"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]')
         ? element.innerText?.trim() || directText
         : directText
       const text = semanticText || (element as HTMLInputElement).value?.trim() || (element as HTMLInputElement).placeholder?.trim() || ''

@@ -201,8 +201,7 @@ export async function collectControlConsistency(
       }))
     const boundedChoices = controls.filter((control) => control.role === 'combobox'
       || control.matchedSelector === '.picker__trigger'
-      || control.matchedSelector === '.mk-select__field'
-      || document.querySelector<HTMLElement>(control.selector)?.getAttribute('aria-haspopup') === 'menu')
+      || control.matchedSelector === '.mk-select__field')
     return { controls, nativeSelects, boundedChoiceSelectors: boundedChoices.map((control) => control.selector) }
   }, {
     vocabulary: CONTROL_VARIANT_VOCABULARY,
@@ -301,7 +300,7 @@ export async function exerciseBoundedChoices(
     state: 'default',
   },
 ): Promise<ControlConsistencyRow[]> {
-  const triggers = page.locator('[role="combobox"], button[aria-haspopup="listbox"], button[aria-haspopup="menu"]').filter({ visible: true })
+  const triggers = page.locator('[role="combobox"], button[aria-haspopup="listbox"]').filter({ visible: true })
   const rows: ControlConsistencyRow[] = []
   for (let index = 0; index < await triggers.count(); index += 1) {
     const trigger = triggers.nth(index)
@@ -374,12 +373,13 @@ export async function exerciseBoundedChoices(
           const rect = element.getBoundingClientRect()
           const activeId = element.getAttribute('aria-activedescendant')
           const active = activeId ? document.getElementById(activeId) : element.querySelector<HTMLElement>('[aria-selected="true"], [role="option"]')
+          const selected = element.querySelector<HTMLElement>('[role="option"][aria-selected="true"], [role="option"][aria-checked="true"]')
           const activeRect = active?.getBoundingClientRect()
           return {
             popupContained: rect.left >= -1 && rect.top >= -1 && rect.right <= window.innerWidth + 1 && rect.bottom <= window.innerHeight + 1,
             activeReachable: Boolean(activeRect && activeRect.bottom >= rect.top - 1 && activeRect.top <= rect.bottom + 1),
-            selectedEvidence: Boolean(element.querySelector('[aria-selected="true"], [aria-checked="true"]')),
-            selectedSelector: active?.id ? `#${CSS.escape(active.id)}` : '',
+            selectedEvidence: Boolean(selected),
+            selectedSelector: selected?.id ? `#${CSS.escape(selected.id)}` : '',
             popup: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
           }
         })
@@ -398,22 +398,36 @@ export async function exerciseBoundedChoices(
     const openBoundaryContrast = minimumRatio(openContrastRows, 'boundary')
     const selectedTextContrast = minimumRatio(selectedContrastRows, 'text')
 
-    const activeBeforeArrow = await page.evaluate(() => document.activeElement?.getAttribute('aria-activedescendant') ?? '')
+    const activeOptionId = async (): Promise<string> => {
+      const popupActive = await popup.getAttribute('aria-activedescendant').catch(() => null)
+      if (popupActive) return popupActive
+      const triggerActive = await trigger.getAttribute('aria-activedescendant')
+      if (triggerActive) return triggerActive
+      return (await popup.locator('[role="option"]:focus, [role="option"][data-active="true"]').first().getAttribute('id').catch(() => null)) ?? ''
+    }
+    const activeBeforeArrow = await activeOptionId()
     await page.keyboard.press('ArrowDown')
-    const activeAfterArrow = await page.evaluate(() => document.activeElement?.getAttribute('aria-activedescendant') ?? '')
+    const activeAfterArrow = await activeOptionId()
     const arrowKey = Boolean(activeAfterArrow && activeAfterArrow !== activeBeforeArrow)
     const typeaheadTarget = opened
-      ? await popup.locator('[role="option"]:not([aria-disabled="true"])').evaluateAll((options) => {
-          const activeId = document.activeElement?.getAttribute('aria-activedescendant')
-          const target = options.find((option) => option.id !== activeId && option.textContent?.trim()) ?? options[0]
-          return {
-            key: target?.textContent?.trim().slice(0, 1).toLocaleLowerCase() ?? '',
-            targetId: target?.id ?? '',
+      ? await popup.locator('[role="option"]:not([aria-disabled="true"])').evaluateAll((options, activeId) => {
+          const activeIndex = options.findIndex((option) => option.id === activeId)
+          const keys = [...new Set(options.map((option) => option.textContent?.trim().slice(0, 1).toLocaleLowerCase() ?? '').filter(Boolean))]
+          for (const key of keys) {
+            for (let offset = 1; offset <= options.length; offset += 1) {
+              const start = activeIndex < 0 ? -1 : activeIndex
+              const target = options[(start + offset) % options.length]
+              if (target?.textContent?.trim().toLocaleLowerCase().startsWith(key)) {
+                if (target.id !== activeId) return { key, targetId: target.id }
+                break
+              }
+            }
           }
-        })
+          return { key: '', targetId: '' }
+        }, activeAfterArrow)
       : { key: '', targetId: '' }
     if (typeaheadTarget.key) await page.keyboard.press(typeaheadTarget.key)
-    const activeAfterTypeahead = await page.evaluate(() => document.activeElement?.getAttribute('aria-activedescendant') ?? '')
+    const activeAfterTypeahead = await activeOptionId()
     const typeahead = Boolean(typeaheadTarget.key && typeaheadTarget.targetId && activeAfterTypeahead === typeaheadTarget.targetId)
 
     await page.keyboard.press('Escape')
