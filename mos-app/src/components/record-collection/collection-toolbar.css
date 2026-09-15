@@ -226,6 +226,13 @@
   .tasks-collection-toolbar .collection-toolbar__options { flex-wrap: nowrap; gap: 4px; }
   .tasks-collection-toolbar .collection-toolbar__option-field { min-width: 0; }
   .tasks-collection-toolbar .collection-toolbar__select { max-width: 150px; }
+  .tasks-collection-toolbar .collection-toolbar__select .picker__trigger,
+  .tasks-collection-toolbar .tasks-attention-picker .picker__trigger {
+    box-sizing: border-box;
+    height: 32px;
+    min-height: 32px;
+    padding-block: 4px;
+  }
   .tasks-collection-toolbar .collection-toolbar__choice-trigger { min-width: 0; }
   /* The reference desktop keeps ordinary filter values readable while the row remains one
      bounded line. Exceptional directory names continue to use the existing ellipsis/title path
@@ -298,7 +305,7 @@
   .tasks-collection-toolbar [data-filter-id='person'] .collection-toolbar__select { flex-basis: 82px; width: 82px; }
   .tasks-collection-toolbar [data-filter-id='sort'],
   .tasks-collection-toolbar [data-filter-id='sort'] .collection-toolbar__select { flex-basis: 112px; width: 112px; }
-  .tasks-collection-toolbar .collection-toolbar__picker-trigger { gap: 4px; padding-inline: 4px; }
+  .tasks-collection-toolbar .collection-toolbar__picker-trigger { gap: 3px; padding-inline: 3px; }
   .tasks-collection-toolbar .collection-toolbar__search { gap: 0; padding-inline: 4px; }
   .tasks-collection-toolbar .collection-toolbar__search > svg { display: none; }
   .tasks-collection-toolbar .collection-toolbar__fields > .btn,
@@ -312,8 +319,8 @@
   html:lang(id) .tasks-collection-toolbar .collection-toolbar__save-compact-label { display: inline; }
   html:lang(id) .tasks-collection-toolbar [data-filter-id='business-unit'],
   html:lang(id) .tasks-collection-toolbar [data-filter-id='business-unit'] .collection-toolbar__select {
-    flex-basis: 102px;
-    width: 102px;
+    flex-basis: 100px;
+    width: 100px;
   }
   html:lang(id) .tasks-collection-toolbar [data-filter-id='status'] { flex-basis: 124px; width: 124px; }
   html:lang(id) .tasks-collection-toolbar [data-filter-id='sort'],
@@ -321,6 +328,22 @@
     flex-basis: 120px;
     width: 120px;
   }
+  html:lang(id) .tasks-collection-toolbar .collection-toolbar__options {
+    gap: 2px;
+    padding-inline: 2px;
+  }
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='group'],
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='group'] .collection-toolbar__select {
+    flex-basis: 144px;
+    width: 144px;
+  }
+  html:lang(id) .tasks-collection-toolbar .collection-toolbar__query { flex-basis: 86px; min-width: 86px; }
+  html:lang(id) .tasks-collection-toolbar .collection-toolbar__search { min-width: 86px; }
+  html:lang(id) .tasks-collection-toolbar .tasks-attention-picker .picker__trigger {
+    gap: 2px;
+    padding-inline: 1px;
+  }
+  html:lang(id) .tasks-collection-toolbar .collection-toolbar__fields { margin-inline: 3px; }
 }
 .collection-toolbar__option-field--group .collection-toolbar__picker-trigger {
   background: color-mix(in srgb, var(--brand-navy) 6%, var(--background));

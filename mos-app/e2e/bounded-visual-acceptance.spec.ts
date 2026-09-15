@@ -253,6 +253,22 @@ test.describe('bounded visual and interaction acceptance', () => {
         }))
         expect(fit.scrollWidth, `${expected.value} must remain fully visible`).toBeLessThanOrEqual(fit.clientWidth)
       }
+      const toolbarFit = await filters.evaluate((element) => ({
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+      }))
+      expect(toolbarFit.scrollWidth, 'the complete toolbar row must fit its own visible container').toBeLessThanOrEqual(toolbarFit.clientWidth)
+      const controlHeights = await filters.locator([
+        '.collection-toolbar__search',
+        '.picker__trigger',
+        '.collection-toolbar__choice-trigger',
+        '.collection-toolbar__fields > .btn',
+        '.collection-toolbar__save-zone > .btn',
+      ].join(', ')).evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height))
+      expect(controlHeights.length).toBeGreaterThan(0)
+      for (const height of controlHeights) {
+        expect(height, 'desktop toolbar controls must share the 32px height token').toBeCloseTo(32, 1)
+      }
       const searchFit = await filters.getByRole('searchbox', { name: 'Cari tugas', exact: true }).evaluate((element) => {
         const input = element as HTMLInputElement
         const canvas = document.createElement('canvas')
