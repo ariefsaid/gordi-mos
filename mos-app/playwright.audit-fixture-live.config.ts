@@ -34,6 +34,8 @@ export default defineConfig({
   timeout: 120_000,
   expect: { timeout: 15_000 },
   reporter: 'list',
+  globalSetup: './e2e/design-quality/audit-fixture-live-global-setup.ts',
+  globalTeardown: './e2e/design-quality/audit-fixture-live-global-teardown.ts',
   use: { baseURL, trace: 'retain-on-failure' },
   projects: [{
     name: 'chromium-audit-fixture-live',

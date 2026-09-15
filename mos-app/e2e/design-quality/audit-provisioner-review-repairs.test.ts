@@ -24,6 +24,7 @@ import {
   type AuditProvisionerOptions,
   validateAuditFixtureReceipt,
 } from './audit-provisioner.ts'
+import { ReportWriter } from './report.ts'
 
 const candidateSha = 'a'.repeat(40)
 const sessionId = 'a1b2c3d4'
@@ -53,6 +54,45 @@ function definitions() {
       { table: 'ops.log_entries', id: 'sentinel-log' },
     ],
   }
+}
+
+function splitSqlPredicates(value: string): string[] {
+  const predicates: string[] = []
+  let start = 0
+  let quoteOpen = false
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index]
+    if (quoteOpen) {
+      if (character === "'" && value[index + 1] === "'") index += 1
+      else if (character === "'") quoteOpen = false
+      continue
+    }
+    if (character === "'") {
+      quoteOpen = true
+      continue
+    }
+    if (value.slice(index, index + 5).toLowerCase() === ' and ') {
+      predicates.push(value.slice(start, index).trim())
+      start = index + 5
+      index += 4
+    }
+  }
+  predicates.push(value.slice(start).replace(/;\s*$/, '').trim())
+  return predicates
+}
+
+function fakeSqlLiteral(value: string): unknown {
+  if (/^null$/i.test(value)) return null
+  if (/^true$/i.test(value)) return true
+  if (/^false$/i.test(value)) return false
+  if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(value)) return Number(value)
+  const quoted = /^'(.*)'$/.exec(value)
+  if (!quoted) return undefined
+  const decoded = quoted[1]!.replace(/''/g, "'")
+  if (/^[{[]/.test(decoded)) {
+    try { return JSON.parse(decoded) as unknown } catch { /* keep it a string */ }
+  }
+  return decoded
 }
 
 function store() {
@@ -101,14 +141,18 @@ function store() {
       if (deletion) {
         const tableName = deletion[1]!
         const table = tables.get(tableName)
-        const versionMatch = /xmin::text\s*=\s*'((?:''|[^'])*)'/i.exec(deletion[2]!)
-        const predicates = [...deletion[2]!.matchAll(/\b([a-z_][a-z0-9_]*)\s*=\s*'((?:''|[^'])*)'/gi)]
-          .filter((match) => !deletion[2]!.slice(0, match.index).match(/xmin::$/i))
-          .map((match) => [match[1]!, match[2]!.replace(/''/g, "'")] as const)
+        const predicates = splitSqlPredicates(deletion[2]!)
         for (const [id, row] of table ?? []) {
-          const sameVersion = !versionMatch || versions.get(tableName)?.get(id) === versionMatch[1]!.replace(/''/g, "'")
-          const sameOwnership = predicates.every(([column, value]) => String(row[column]) === value)
-          if (sameVersion && sameOwnership) {
+          const sameOwnership = predicates.every((predicate) => {
+            const version = /^xmin::text\s*=\s*(.+)$/i.exec(predicate)
+            if (version) return versions.get(tableName)?.get(id) === fakeSqlLiteral(version[1]!.trim())
+            const isNull = /^([a-z_][a-z0-9_]*)\s+is\s+null$/i.exec(predicate)
+            if (isNull) return row[isNull[1]!] === null || row[isNull[1]!] === undefined
+            const equality = /^([a-z_][a-z0-9_]*)\s*=\s*(.+)$/i.exec(predicate)
+            if (!equality) return false
+            return auditFixtureValuesEqual(row[equality[1]!], fakeSqlLiteral(equality[2]!.trim()))
+          })
+          if (sameOwnership) {
             table?.delete(id)
             versions.get(tableName)?.delete(id)
           }
@@ -293,6 +337,103 @@ test('a planned row receipt is reconciled after an interrupted write commits', a
   assert.equal(validateAuditFixtureReceipt(cleaned, { candidateSha, sessionId, bindingSecret }).ok, true)
 })
 
+test('a late-commit planned receipt survives a ReportWriter disk round trip', async () => {
+  const fixtureStore = store()
+  const recordDefinitions = { records: definitions().records, sentinels: definitions().sentinels }
+  const owned = recordDefinitions.records[0]!
+  let plannedReceipt: AuditFixtureReceipt | undefined
+  const first = new AuditProvisioner({
+    candidateSha,
+    sessionId,
+    bindingSecret,
+    definitions: recordDefinitions,
+    sql: fixtureStore.sql,
+    reconciliationWaitMs: 0,
+    wait: async () => {},
+    onReceipt: (receipt) => {
+      if (receipt.created.some((group) => group.lifecycle.includes('planned'))) {
+        plannedReceipt = structuredClone(receipt)
+        throw new Error('simulate interrupted receipt persistence')
+      }
+    },
+  })
+  await assert.rejects(() => first.provision(), /interrupted receipt persistence/)
+  assert.ok(plannedReceipt)
+  fixtureStore.tables.get(owned.table)!.set(owned.id!, { ...owned.columns })
+  fixtureStore.versions.get(owned.table)!.set(owned.id!, '778')
+
+  const outputDir = await mkdtemp(path.join(os.tmpdir(), 'mos-audit-receipt-round-trip-'))
+  try {
+    const writer = new ReportWriter({ outputDir, candidateSha, sessionId })
+    const receiptPath = await writer.writeFixtureReceipt(plannedReceipt)
+    const diskReceipt = JSON.parse(await readFile(receiptPath, 'utf8')) as AuditFixtureReceipt
+    assert.deepEqual(diskReceipt.ownedDatabaseIds[0]?.versions, [null])
+
+    const cleaned = await cleanupAuditFixtureReceipt(diskReceipt, {
+      candidateSha,
+      sessionId,
+      bindingSecret,
+      sql: fixtureStore.sql,
+      onFailure: true,
+      reconciliationWaitMs: 0,
+      wait: async () => {},
+    })
+    assert.deepEqual(cleaned.created[0]?.lifecycle, ['deleted'])
+    assert.deepEqual(cleaned.ownedDatabaseIds[0]?.versions, ['778'])
+    assert.equal(fixtureStore.tables.get(owned.table)!.has(owned.id!), false)
+    assert.equal(validateAuditFixtureReceipt(cleaned, { candidateSha, sessionId, bindingSecret }).ok, true)
+  } finally {
+    await rm(outputDir, { recursive: true, force: true })
+  }
+})
+
+test('an absent planned receipt survives a ReportWriter disk round trip with null version', async () => {
+  const fixtureStore = store()
+  const recordDefinitions = { records: definitions().records, sentinels: definitions().sentinels }
+  let plannedReceipt: AuditFixtureReceipt | undefined
+  const first = new AuditProvisioner({
+    candidateSha,
+    sessionId,
+    bindingSecret,
+    definitions: recordDefinitions,
+    sql: fixtureStore.sql,
+    reconciliationWaitMs: 0,
+    wait: async () => {},
+    onReceipt: (receipt) => {
+      if (receipt.created.some((group) => group.lifecycle.includes('planned'))) {
+        plannedReceipt = structuredClone(receipt)
+        throw new Error('simulate absent receipt persistence')
+      }
+    },
+  })
+  await assert.rejects(() => first.provision(), /absent receipt persistence/)
+  assert.ok(plannedReceipt)
+
+  const outputDir = await mkdtemp(path.join(os.tmpdir(), 'mos-audit-absent-round-trip-'))
+  try {
+    const writer = new ReportWriter({ outputDir, candidateSha, sessionId })
+    const receiptPath = await writer.writeFixtureReceipt(plannedReceipt)
+    const diskReceipt = JSON.parse(await readFile(receiptPath, 'utf8')) as AuditFixtureReceipt
+    assert.deepEqual(diskReceipt.ownedDatabaseIds[0]?.versions, [null])
+
+    const cleaned = await cleanupAuditFixtureReceipt(diskReceipt, {
+      candidateSha,
+      sessionId,
+      bindingSecret,
+      sql: fixtureStore.sql,
+      onFailure: true,
+      reconciliationWaitMs: 0,
+      wait: async () => {},
+    })
+    assert.deepEqual(cleaned.created[0]?.lifecycle, ['absent'])
+    assert.deepEqual(cleaned.ownedDatabaseIds[0]?.versions, [null])
+    assert.deepEqual(cleaned.cleanup, [{ table: 'mos.tasks', deleted: 0, absent: 1, remaining: 0 }])
+    assert.equal(validateAuditFixtureReceipt(cleaned, { candidateSha, sessionId, bindingSecret }).ok, true)
+  } finally {
+    await rm(outputDir, { recursive: true, force: true })
+  }
+})
+
 test('a planned write proven absent is not reported as a deletion', async () => {
   const fixtureStore = store()
   const receipts: AuditFixtureReceipt[] = []
@@ -430,6 +571,36 @@ test('cleanup rejects a same-value replacement with a new row version', async ()
   assert.deepEqual(fixtureStore.tables.get(owned.table)!.get(owned.id!), owned.columns)
 })
 
+test('cleanup does not delete a same-value replacement made between read and delete', async () => {
+  const fixtureStore = store()
+  const owned = definitions().records[0]!
+  let replaceBeforeDelete = false
+  const sql = {
+    ...fixtureStore.sql,
+    async execute(query: string) {
+      if (replaceBeforeDelete && /^DELETE\s/i.test(query)) {
+        replaceBeforeDelete = false
+        fixtureStore.tables.get(owned.table)!.set(owned.id!, { ...owned.columns })
+        fixtureStore.versions.get(owned.table)!.set(owned.id!, '1001')
+      }
+      return fixtureStore.sql.execute(query)
+    },
+  }
+  const provisioner = new AuditProvisioner({
+    candidateSha,
+    sessionId,
+    bindingSecret,
+    definitions: { records: definitions().records, sentinels: definitions().sentinels },
+    sql,
+  })
+  await provisioner.provision()
+  replaceBeforeDelete = true
+
+  await assert.rejects(() => provisioner.cleanup(), /left owned rows|version/i)
+  assert.deepEqual(fixtureStore.tables.get(owned.table)!.get(owned.id!), owned.columns)
+  assert.equal(fixtureStore.versions.get(owned.table)!.get(owned.id!), '1001')
+})
+
 test('durable sentinel ledger recovers a version and deletes only its exact row', async () => {
   const fixtureStore = store()
   const id = `${sessionId}-0000-0000-0000-000000000101`
@@ -442,7 +613,7 @@ test('durable sentinel ledger recovers a version and deletes only its exact row'
     candidateSha,
     sessionId,
     namespace,
-    intents: [{ table: 'mos.tasks', id, ownership }],
+    intents: [{ table: 'mos.tasks', id, ownership, version: null }],
     binding: '',
   }
   const deleteQueries: string[] = []
@@ -518,24 +689,61 @@ test('durable sentinel cleanup resumes all intents after a lost DELETE response'
 
   try {
     await writeAuditFixtureSentinelLedger(ledgerPath, ledger, bindingSecret)
-    await assert.rejects(() => cleanupAuditFixtureSentinelLedger(ledgerPath, {
-      candidateSha,
-      sessionId,
-      bindingSecret,
-      sql,
-    }), /lost committed sentinel DELETE response/)
-    assert.equal(fixtureStore.tables.get('mos.tasks')!.has(secondId), false)
-    assert.equal(fixtureStore.tables.get('mos.tasks')!.has(firstId), true)
-
     await cleanupAuditFixtureSentinelLedger(ledgerPath, {
       candidateSha,
       sessionId,
       bindingSecret,
       sql,
+      reconciliationWaitMs: 0,
+      wait: async () => {},
     })
     assert.equal(fixtureStore.tables.get('mos.tasks')!.has(firstId), false)
     assert.equal(fixtureStore.tables.get('mos.tasks')!.has(secondId), false)
     await assert.rejects(() => readFile(ledgerPath, 'utf8'), /ENOENT/)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('durable sentinel cleanup continues after one intent fails and retains only the unresolved intent', async () => {
+  const fixtureStore = store()
+  const failedId = `${sessionId}-0000-0000-0000-000000000104`
+  const cleanedId = `${sessionId}-0000-0000-0000-000000000105`
+  const failedOwnership = { id: failedId, title: `${namespace} changed sentinel` }
+  const cleanedOwnership = { id: cleanedId, title: `${namespace} intact sentinel` }
+  fixtureStore.tables.get('mos.tasks')!.set(failedId, { ...failedOwnership, title: 'foreign replacement' })
+  fixtureStore.tables.get('mos.tasks')!.set(cleanedId, cleanedOwnership)
+  fixtureStore.versions.get('mos.tasks')!.set(failedId, '704')
+  fixtureStore.versions.get('mos.tasks')!.set(cleanedId, '705')
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'mos-audit-sentinel-ledger-partial-'))
+  const ledgerPath = path.join(directory, 'sentinel-ledger.json')
+  const ledger: AuditFixtureSentinelLedger = {
+    candidateSha,
+    sessionId,
+    namespace,
+    intents: [
+      { table: 'mos.tasks', id: cleanedId, ownership: cleanedOwnership, version: '705' },
+      { table: 'mos.tasks', id: failedId, ownership: failedOwnership, version: '704' },
+    ],
+    binding: '',
+  }
+
+  try {
+    await writeAuditFixtureSentinelLedger(ledgerPath, ledger, bindingSecret)
+    await assert.rejects(() => cleanupAuditFixtureSentinelLedger(ledgerPath, {
+      candidateSha,
+      sessionId,
+      bindingSecret,
+      sql: fixtureStore.sql,
+      reconciliationWaitMs: 0,
+      wait: async () => {},
+    }), /ownership mismatch/i)
+
+    assert.equal(fixtureStore.tables.get('mos.tasks')!.has(cleanedId), false)
+    assert.equal(fixtureStore.tables.get('mos.tasks')!.has(failedId), true)
+    const retained = JSON.parse(await readFile(ledgerPath, 'utf8')) as AuditFixtureSentinelLedger
+    assert.deepEqual(retained.intents.map((intent) => intent.id), [failedId])
+    assert.equal(retained.binding, auditFixtureSentinelLedgerBinding(retained, bindingSecret))
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

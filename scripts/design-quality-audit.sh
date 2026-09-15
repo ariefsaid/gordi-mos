@@ -253,7 +253,10 @@ cleanup() {
     wait "$server_pid" 2>/dev/null || true
   fi
   [ -z "$producer_hash_file" ] || rm -f "$producer_hash_file"
-  [ -z "$binding_secret_file" ] || rm -f "$binding_secret_file"
+  if [ -n "$binding_secret_file" ] && [ "${fixture_cleanup_done:-0}" -eq 1 ] \
+    && [ "${fixture_status:-125}" -eq 0 ]; then
+    rm -f "$binding_secret_file"
+  fi
   exit "$status"
 }
 trap cleanup EXIT
@@ -437,6 +440,7 @@ if (!owned && !hasSentinels) {
     auth: createLocalAuditAuthClient(url, key),
     bindingSecret,
     onFailure: browserStatus !== 0,
+    onReceipt: async (nextReceipt) => { await writer.writeFixtureReceipt(nextReceipt) },
   })
   await writer.writeFixtureReceipt(cleaned)
 }
@@ -480,7 +484,10 @@ handle_audit_signal() {
   stop_active_child
   run_fixture_cleanup "$signal_status" || true
   write_terminal_evidence "$signal_status" "$fixture_status" skipped || true
-  [ -z "$binding_secret_file" ] || rm -f "$binding_secret_file"
+  if [ "$fixture_status" -eq 0 ] && [ -n "$binding_secret_file" ]; then
+    rm -f "$binding_secret_file"
+    binding_secret_file=""
+  fi
   exit "$signal_status"
 }
 
@@ -497,8 +504,10 @@ else
   browser_status=$?
 fi
 run_fixture_cleanup "$browser_status" || true
-rm -f "$binding_secret_file"
-binding_secret_file=""
+if [ "$fixture_status" -eq 0 ]; then
+  rm -f "$binding_secret_file"
+  binding_secret_file=""
+fi
 write_terminal_evidence "$browser_status" "$fixture_status" "$([ "$browser_status" -eq 0 ] && [ "$fixture_status" -eq 0 ] && echo not-run || echo skipped)"
 if [ "$browser_status" -ne 0 ]; then
   echo "design-quality-audit: browser lane failed; factory chain was not started" >&2

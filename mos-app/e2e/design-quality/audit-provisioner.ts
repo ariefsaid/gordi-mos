@@ -30,7 +30,7 @@ export type AuditFixtureOwnedRowGroup = AuditFixtureRowGroup & {
   /** Exact signed values used to prove each row still belongs to this run. */
   ownership: Record<string, unknown>[]
   /** Postgres xmin captured by INSERT ... RETURNING and used for atomic cleanup. */
-  versions: Array<string | undefined>
+  versions: Array<string | null>
 }
 
 export type AuditFixtureCleanupRow = {
@@ -132,7 +132,7 @@ export type AuditFixtureSentinelIntent = {
   id: string
   ownership: Record<string, unknown>
   /** Postgres xmin captured from the sentinel INSERT, or recovered after interruption. */
-  version?: string
+  version: string | null
 }
 
 export type AuditFixtureSentinelLedger = {
@@ -184,7 +184,7 @@ type CreatedRecord = {
   fixture: string
   order: number
   ownership: Record<string, unknown>
-  version?: string
+  version: string | null
   lifecycle: AuditFixtureLifecycleState
 }
 
@@ -276,6 +276,10 @@ function isRowVersion(value: unknown): value is string {
 
 function assertRowVersion(value: unknown, label: string): asserts value is string {
   if (!isRowVersion(value)) throw new Error(`${label} must be a Postgres xmin value`)
+}
+
+function isJsonRowVersion(value: unknown): value is string | null {
+  return value === null || isRowVersion(value)
 }
 
 function structuralEqual(left: unknown, right: unknown): boolean {
@@ -465,7 +469,7 @@ function assertSentinelLedgerShape(value: unknown): asserts value is AuditFixtur
     if (!isRecord(intent) || typeof intent.table !== 'string' || !TABLE.test(intent.table)
       || typeof intent.id !== 'string' || !intent.id.trim() || !isRecord(intent.ownership)
       || !auditFixtureValuesEqual(intent.ownership.id, intent.id)
-      || (intent.version !== undefined && !isRowVersion(intent.version))) {
+      || !isJsonRowVersion(intent.version)) {
       throw new Error('audit fixture sentinel ledger contains an invalid intent')
     }
     assertSessionBoundPrimaryKey(intent.id, value.namespace, `audit fixture sentinel ${intent.table} primary key`)
@@ -543,35 +547,111 @@ function exactSentinelDelete(intent: AuditFixtureSentinelIntent, namespace: stri
 
 export async function cleanupAuditFixtureSentinelLedger(
   ledgerPath: string,
-  options: { candidateSha: string; sessionId: string; bindingSecret: string; sql: AuditFixtureSqlClient },
+  options: {
+    candidateSha: string
+    sessionId: string
+    bindingSecret: string
+    sql: AuditFixtureSqlClient
+    reconciliationWaitMs?: number
+    wait?: (milliseconds: number) => Promise<void>
+  },
 ): Promise<void> {
   const ledger = await readAuditFixtureSentinelLedger(ledgerPath, options.bindingSecret)
   if (ledger.candidateSha !== options.candidateSha || ledger.sessionId !== options.sessionId) {
     throw new Error('audit fixture sentinel ledger metadata does not match the cleanup run')
   }
-  for (const intent of [...ledger.intents].reverse()) {
-    const current = rows(await options.sql.query(selectOwnedRows(intent.table, 'id', [intent.id])))
-    if (current.length === 0) continue
-    if (current.length > 1 || !isRecord(current[0])) {
-      throw new Error(`audit fixture sentinel cleanup found duplicate ownership for ${intent.table}:${intent.id}`)
-    }
-    for (const [column, expected] of Object.entries(intent.ownership)) {
-      if (!auditFixtureValuesEqual(current[0][column], expected)) {
-        throw new Error(`audit fixture sentinel cleanup ownership mismatch for ${intent.table}:${intent.id}`)
-      }
-    }
-    const currentVersion = current[0][ROW_VERSION_COLUMN]
-    assertRowVersion(currentVersion, `audit fixture sentinel ${intent.table}:${intent.id} row version`)
-    if (intent.version !== undefined && intent.version !== currentVersion) {
-      throw new Error(`audit fixture sentinel ${intent.table}:${intent.id} row version changed before cleanup`)
-    }
-    intent.version = currentVersion
-    await writeAuditFixtureSentinelLedger(ledgerPath, ledger, options.bindingSecret)
-    await options.sql.execute(exactSentinelDelete(intent, ledger.namespace))
-    const remaining = rows(await options.sql.query(selectOwnedRows(intent.table, 'id', [intent.id])))
-    if (remaining.length > 0) throw new Error(`audit fixture sentinel cleanup left ${intent.table}:${intent.id}`)
+  const reconciliationWaitMs = options.reconciliationWaitMs ?? REQUEST_TIMEOUT_MS
+  if (!Number.isInteger(reconciliationWaitMs) || reconciliationWaitMs < 0 || reconciliationWaitMs > REQUEST_TIMEOUT_MS) {
+    throw new Error(`audit fixture sentinel reconciliation wait must be an integer between 0 and ${REQUEST_TIMEOUT_MS} milliseconds`)
   }
-  await rm(ledgerPath, { force: true })
+  const wait = options.wait ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)))
+  const unresolved: AuditFixtureSentinelIntent[] = []
+  const failures: unknown[] = []
+
+  const readCurrent = async (intent: AuditFixtureSentinelIntent): Promise<unknown[]> =>
+    rows(await options.sql.query(selectOwnedRows(intent.table, 'id', [intent.id])))
+  const readWithReconciliation = async (intent: AuditFixtureSentinelIntent): Promise<unknown[]> => {
+    let current = await readCurrent(intent)
+    if (current.length === 0) {
+      await wait(reconciliationWaitMs)
+      current = await readCurrent(intent)
+    }
+    return current
+  }
+
+  for (const intent of [...ledger.intents].reverse()) {
+    try {
+      const current = await readWithReconciliation(intent)
+      if (current.length === 0) continue
+      if (current.length > 1 || !isRecord(current[0])) {
+        throw new Error(`audit fixture sentinel cleanup found duplicate ownership for ${intent.table}:${intent.id}`)
+      }
+      for (const [column, expected] of Object.entries(intent.ownership)) {
+        if (!auditFixtureValuesEqual(current[0][column], expected)) {
+          throw new Error(`audit fixture sentinel cleanup ownership mismatch for ${intent.table}:${intent.id}`)
+        }
+      }
+      const currentVersion = current[0][ROW_VERSION_COLUMN]
+      assertRowVersion(currentVersion, `audit fixture sentinel ${intent.table}:${intent.id} row version`)
+      if (intent.version !== null && intent.version !== currentVersion) {
+        throw new Error(`audit fixture sentinel ${intent.table}:${intent.id} row version changed before cleanup`)
+      }
+      intent.version = currentVersion
+      const deletion = exactSentinelDelete(intent, ledger.namespace)
+      assertAuditOwnedCleanupSql(deletion, 'id')
+      await writeAuditFixtureSentinelLedger(ledgerPath, ledger, options.bindingSecret)
+      try {
+        await options.sql.execute(deletion)
+      } catch (error) {
+        // A successful DELETE can lose its response. Reconcile, then retry the
+        // same exact conditional DELETE only when the row is still unchanged.
+        const reconciled = await readWithReconciliation(intent)
+        if (reconciled.length === 0) continue
+        if (reconciled.length > 1 || !isRecord(reconciled[0])) {
+          throw new AggregateError([error], `audit fixture sentinel cleanup found duplicate ownership for ${intent.table}:${intent.id}`)
+        }
+        const reconciledRow = reconciled[0]
+        const reconciledVersion = reconciledRow[ROW_VERSION_COLUMN]
+        if (!auditFixtureValuesEqual(reconciledRow.id, intent.id)
+          || !Object.entries(intent.ownership).every(([column, expected]) => auditFixtureValuesEqual(reconciledRow[column], expected))
+          || reconciledVersion !== intent.version) {
+          throw new AggregateError([error], `audit fixture sentinel cleanup ownership or version changed for ${intent.table}:${intent.id}`)
+        }
+        try {
+          await options.sql.execute(deletion)
+        } catch (retryError) {
+          const afterRetry = await readWithReconciliation(intent)
+          if (afterRetry.length === 0) continue
+          throw new AggregateError([error, retryError], `audit fixture sentinel cleanup failed for ${intent.table}:${intent.id}`)
+        }
+      }
+      const remaining = await readCurrent(intent)
+      if (remaining.length > 0) throw new Error(`audit fixture sentinel cleanup left ${intent.table}:${intent.id}`)
+    } catch (error) {
+      unresolved.push(intent)
+      failures.push(error)
+    }
+  }
+
+  const unresolvedInOrder = unresolved.reverse()
+  if (unresolvedInOrder.length > 0) {
+    try {
+      ledger.intents = unresolvedInOrder
+      await writeAuditFixtureSentinelLedger(ledgerPath, ledger, options.bindingSecret)
+    } catch (error) {
+      failures.push(error)
+    }
+  } else {
+    try {
+      await rm(ledgerPath, { force: true })
+    } catch (error) {
+      failures.push(error)
+    }
+  }
+  if (failures.length > 0) {
+    const detail = failures.map((error) => String(error)).join('; ')
+    throw new AggregateError(failures, `audit fixture sentinel cleanup did not complete: ${detail}`)
+  }
 }
 
 /** Create the durable ledger signature with the session secret kept outside the receipt. */
@@ -659,7 +739,8 @@ function isSafeSqlLiteral(value: string): boolean {
  * The audit cleanup path is allowed to delete captured ownership rows only.
  * Organization predicates are deliberately insufficient ownership evidence.
  */
-export function assertAuditOwnedCleanupSql(query: string): void {
+export function assertAuditOwnedCleanupSql(query: string, primaryKey = 'id'): void {
+  assertIdentifier(primaryKey, 'cleanup primary key')
   const normalized = query.trim().replace(/\s+/g, ' ')
   if (/\b(?:truncate|drop|execute|prepare|call|do)\b/i.test(normalized)) {
     throw new Error('audit fixture cleanup cannot use destructive or procedural SQL')
@@ -673,8 +754,13 @@ export function assertAuditOwnedCleanupSql(query: string): void {
     const equality = /^([a-z_][a-z0-9_]*)\s*=\s*(.+)$/i.exec(predicate)
     return equality !== null && isSafeSqlLiteral(equality[2]!.trim())
   })
-  if (!validVersion || !validOwnership) {
-    throw new Error('audit fixture cleanup must use an explicit captured primary-key list with a captured row version and exact ownership predicates')
+  const validPrimaryKey = predicates?.slice(1).some((predicate) => {
+    const equality = /^([a-z_][a-z0-9_]*)\s*=\s*(.+)$/i.exec(predicate)
+    return equality !== null && equality[1]!.toLowerCase() === primaryKey.toLowerCase()
+      && isSafeSqlLiteral(equality[2]!.trim())
+  })
+  if (!validVersion || !validOwnership || !validPrimaryKey) {
+    throw new Error('audit fixture cleanup must use an explicit captured primary-key list, captured row version, and exact ownership predicates')
   }
 }
 
@@ -950,10 +1036,13 @@ function validationErrors(
               if (!IDENTIFIER.test(column)) errors.push(`fixture receipt ownership marker has an invalid column for ${group.table}:${id}`)
             }
           }
+          if (!isJsonRowVersion(version)) {
+            errors.push(`fixture receipt ${group.table}:${id} has a non-JSON-safe row version`)
+          }
           if ((group.lifecycle[index] === 'created' || group.lifecycle[index] === 'deleted') && !isRowVersion(version)) {
             errors.push(`fixture receipt ${group.table}:${id} is missing its captured row version`)
           }
-          if ((group.lifecycle[index] === 'planned' || group.lifecycle[index] === 'absent') && version !== undefined) {
+          if ((group.lifecycle[index] === 'planned' || group.lifecycle[index] === 'absent') && version !== null) {
             errors.push(`fixture receipt ${group.table}:${id} has a row version before insertion was confirmed`)
           }
         }
@@ -1174,9 +1263,12 @@ export class AuditProvisioner {
   private async recoverRecord(record: CreatedRecord, definition: AuditFixtureRecordDefinition): Promise<void> {
     const matches = await this.exactRecordRows(record)
     const version = matches.length === 1 && isRecord(matches[0]) ? matches[0][ROW_VERSION_COLUMN] : undefined
-    if (matches.length === 1 && this.recordMatchesOwnedDefinition(record, definition, matches[0]) && isRowVersion(version)) {
-      record.version = version
-      record.lifecycle = 'created'
+    if (matches.length === 1 && this.recordMatchesOwnedDefinition(record, definition, matches[0])) {
+      // The session-random primary key plus the complete namespaced ownership marker
+      // is the per-insert marker when an INSERT response omits xmin. Cleanup captures
+      // the current xmin before its conditional DELETE when it is available.
+      record.version = isRowVersion(version) ? version : null
+      record.lifecycle = isRowVersion(version) ? 'created' : 'planned'
     }
   }
 
@@ -1213,7 +1305,7 @@ export class AuditProvisioner {
         afterPresent: after.present,
       })
     }
-    const grouped = new Map<string, { table: string; ids: string[]; fixture: string; primaryKey?: string; lifecycle: AuditFixtureLifecycleState[]; ownership: Record<string, unknown>[]; versions: Array<string | undefined> }>()
+    const grouped = new Map<string, { table: string; ids: string[]; fixture: string; primaryKey?: string; lifecycle: AuditFixtureLifecycleState[]; ownership: Record<string, unknown>[]; versions: Array<string | null> }>()
     for (const record of this.createdRecords) {
       const key = `${record.table}:${record.fixture}:${record.primaryKey}`
       const group = grouped.get(key) ?? {
@@ -1325,6 +1417,7 @@ export class AuditProvisioner {
           fixture: definition.fixture,
           order,
           ownership: owned.ownership,
+          version: null,
           lifecycle: 'planned',
         }
         const existingRows = await this.exactRecordRows(record)
@@ -1409,7 +1502,9 @@ export class AuditProvisioner {
             record.version = currentVersion
           }
           record.lifecycle = 'created'
-          await this.sql.execute(exactOwnedDelete(record))
+          const deletion = exactOwnedDelete(record)
+          assertAuditOwnedCleanupSql(deletion, record.primaryKey)
+          await this.sql.execute(deletion)
         }
         const remaining = await this.exactRecordRows(record)
         if (remaining.length > 0) throw new Error(`audit fixture cleanup left owned rows in ${record.table}`)
@@ -1501,7 +1596,7 @@ export class AuditProvisioner {
     })
     const primaryKeys = new Map<string, string>()
     const ownership = new Map<string, Record<string, unknown>>()
-    const versions = new Map<string, string | undefined>()
+    const versions = new Map<string, string | null>()
     for (const group of receipt.ownedDatabaseIds) {
       const primaryKey = group.primaryKey ?? 'id'
       for (const [index, id] of group.ids.entries()) {
@@ -1510,7 +1605,9 @@ export class AuditProvisioner {
         const marker = group.ownership[index]
         if (!isRecord(marker)) throw new Error(`audit fixture receipt has no ownership marker for ${group.table}:${id}`)
         ownership.set(key, marker)
-        versions.set(key, group.versions[index])
+        // JSON receipts use null for an unresolved planned/absent version. Normalize
+        // an in-memory undefined from an older caller before seeding the ledger.
+        versions.set(key, group.versions[index] ?? null)
       }
     }
     this.createdRecords.length = 0
@@ -1529,7 +1626,7 @@ export class AuditProvisioner {
           fixture: group.fixture,
           order,
           ownership: ownership.get(key) ?? {},
-          version: versions.get(key),
+          version: versions.get(key) ?? null,
           lifecycle: group.lifecycle[index]!,
         })
       }
@@ -1557,7 +1654,7 @@ export class AuditProvisioner {
 
 export async function cleanupAuditFixtureReceipt(
   receipt: AuditFixtureReceipt,
-  options: Omit<AuditProvisionerOptions, 'definitions' | 'onReceipt'> & { onFailure?: boolean },
+  options: Omit<AuditProvisionerOptions, 'definitions'> & { onFailure?: boolean },
 ): Promise<AuditFixtureReceipt> {
   const finalValidation = validateAuditFixtureReceipt(receipt, {
     candidateSha: options.candidateSha,

@@ -22,6 +22,70 @@ state_key="$(printf '%s' "$ROOT" | shasum -a 256 | cut -c1-16)"
 state_dir="${TMPDIR:-/tmp}"
 export AUDIT_FIXTURE_LEDGER_PATH="$state_dir/gordi-mos-audit-fixture-${state_key}.ledger.json"
 export AUDIT_FIXTURE_BINDING_SECRET_FILE="$state_dir/gordi-mos-audit-fixture-${state_key}.secret"
+export AUDIT_FIXTURE_RECEIPT_OUTPUT_DIR="$state_dir/gordi-mos-audit-fixture-${state_key}.receipt"
+receipt_path="$AUDIT_FIXTURE_RECEIPT_OUTPUT_DIR/fixture-receipt.json"
+mkdir -p "$AUDIT_FIXTURE_RECEIPT_OUTPUT_DIR"
+
+recover_durable_receipt() {
+  if [ ! -e "$receipt_path" ]; then
+    return 0
+  fi
+  if [ ! -f "$AUDIT_FIXTURE_BINDING_SECRET_FILE" ]; then
+    echo "audit-fixture-live-proof: durable receipt exists without its binding secret" >&2
+    return 2
+  fi
+  if node --experimental-strip-types --input-type=module - \
+    "$ROOT/mos-app/e2e/design-quality/audit-provisioner.ts" \
+    "$ROOT/mos-app/e2e/design-quality/report.ts" \
+    "$AUDIT_FIXTURE_ENV_FILE" "$receipt_path" "$AUDIT_FIXTURE_BINDING_SECRET_FILE" \
+    "$AUDIT_FIXTURE_RECEIPT_OUTPUT_DIR" <<'NODE'
+import { readFile, rm } from 'node:fs/promises'
+
+const provisionerPath = process.argv[2]
+const reportPath = process.argv[3]
+const envPath = process.argv[4]
+const receiptPath = process.argv[5]
+const secretPath = process.argv[6]
+const outputDir = process.argv[7]
+const provisioner = await import(provisionerPath)
+const { ReportWriter } = await import(reportPath)
+const env = Object.fromEntries((await readFile(envPath, 'utf8')).split('\n').flatMap((line) => {
+  const value = line.trim()
+  const split = value.indexOf('=')
+  return split > 0 && !value.startsWith('#')
+    ? [[value.slice(0, split).trim(), value.slice(split + 1).trim()]]
+    : []
+}))
+const url = process.env.VITE_SUPABASE_URL ?? env.VITE_SUPABASE_URL
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY
+if (!url || !serviceKey) throw new Error('local E2E environment is missing the database service credentials')
+const bindingSecret = (await readFile(secretPath, 'utf8')).trim()
+const receipt = JSON.parse(await readFile(receiptPath, 'utf8'))
+const writer = new ReportWriter({ outputDir, candidateSha: receipt.candidateSha, sessionId: receipt.sessionId })
+const cleaned = await provisioner.cleanupAuditFixtureReceipt(receipt, {
+  candidateSha: receipt.candidateSha,
+  sessionId: receipt.sessionId,
+  bindingSecret,
+  sql: provisioner.createLocalAuditSqlClient(url, serviceKey),
+  auth: provisioner.createLocalAuditAuthClient(url, serviceKey),
+  onFailure: true,
+  onReceipt: async (nextReceipt) => { await writer.writeFixtureReceipt(nextReceipt) },
+})
+const validation = provisioner.validateAuditFixtureReceipt(cleaned, {
+  candidateSha: receipt.candidateSha,
+  sessionId: receipt.sessionId,
+  bindingSecret,
+})
+if (!validation.ok) throw new Error(`durable receipt cleanup did not validate: ${validation.errors.join('; ')}`)
+await rm(receiptPath, { force: true })
+NODE
+  then
+    return 0
+  else
+    echo "audit-fixture-live-proof: durable receipt cleanup failed" >&2
+    return 2
+  fi
+}
 
 recover_durable_ledger() {
   if [ ! -e "$AUDIT_FIXTURE_LEDGER_PATH" ]; then
@@ -69,7 +133,8 @@ NODE
   fi
 }
 
-if [ -e "$AUDIT_FIXTURE_LEDGER_PATH" ]; then
+if [ -e "$receipt_path" ] || [ -e "$AUDIT_FIXTURE_LEDGER_PATH" ]; then
+  recover_durable_receipt
   recover_durable_ledger
 fi
 
@@ -90,8 +155,9 @@ PY
 
 on_interrupt() {
   cleanup_status=0
+  recover_durable_receipt || cleanup_status=$?
   recover_durable_ledger || cleanup_status=$?
-  if [ "$cleanup_status" -eq 0 ] && [ ! -e "$AUDIT_FIXTURE_LEDGER_PATH" ]; then
+  if [ "$cleanup_status" -eq 0 ] && [ ! -e "$receipt_path" ] && [ ! -e "$AUDIT_FIXTURE_LEDGER_PATH" ]; then
     rm -f "$AUDIT_FIXTURE_BINDING_SECRET_FILE"
   fi
   if [ "$cleanup_status" -ne 0 ]; then
@@ -108,8 +174,9 @@ playwright_status=$?
 set -e
 
 cleanup_status=0
+recover_durable_receipt || cleanup_status=$?
 recover_durable_ledger || cleanup_status=$?
-if [ "$cleanup_status" -eq 0 ] && [ ! -e "$AUDIT_FIXTURE_LEDGER_PATH" ]; then
+if [ "$cleanup_status" -eq 0 ] && [ ! -e "$receipt_path" ] && [ ! -e "$AUDIT_FIXTURE_LEDGER_PATH" ]; then
   rm -f "$AUDIT_FIXTURE_BINDING_SECRET_FILE"
 fi
 if [ "$playwright_status" -ne 0 ]; then

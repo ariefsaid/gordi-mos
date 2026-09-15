@@ -60,7 +60,7 @@ function loadEnvFile(path: string): Record<string, string> {
 }
 
 // Load .env.e2e (preferred) then fall back to process.env
-const envFile = loadEnvFile(resolve(__dir, '../.env.e2e'))
+const envFile = loadEnvFile(process.env.AUDIT_FIXTURE_ENV_FILE ?? resolve(__dir, '../.env.e2e'))
 const SUPABASE_URL = envFile.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:44321'
 const SERVICE_ROLE_KEY = envFile.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
 

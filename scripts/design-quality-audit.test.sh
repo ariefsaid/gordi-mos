@@ -47,8 +47,9 @@ fi
 
 if grep -Fq 'fixture-binding.secret' scripts/design-quality-audit.sh \
   && grep -Fq 'chmod 600 "$binding_secret_file"' scripts/design-quality-audit.sh \
-  && grep -Fq 'rm -f "$binding_secret_file"' scripts/design-quality-audit.sh; then
-  ok "fixture receipt binding secret is private and removed before handoff"
+  && grep -Fq 'onReceipt: async (nextReceipt)' scripts/design-quality-audit.sh \
+  && grep -Fq 'if [ "$fixture_status" -eq 0 ]' scripts/design-quality-audit.sh; then
+  ok "fixture receipt and binding secret remain recoverable until cleanup succeeds"
 else
   bad "fixture receipt binding secret lifecycle is incomplete"
 fi
