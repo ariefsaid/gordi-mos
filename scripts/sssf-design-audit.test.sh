@@ -278,6 +278,23 @@ check("change-gate prompt evaluates the candidate delta and preserves later MVP 
 check("scope envelope handed to the auditor as previous",
       previous_seen and str(scope) in previous_seen[-1].artifacts, str(previous_seen))
 
+# A syntactically valid non-object session payload is malformed evidence, not a
+# reason for the orchestration process to crash before its gates can report it.
+session_path = quant_root / "session.json"
+valid_session_payload = session_path.read_text()
+session_path.write_text("[]")
+prompts_seen.clear()
+try:
+    malformed_rc = audit.main(str(scope), base_url="http://localhost:5173/mos/")
+    malformed_prompts = [p for name, p in prompts_seen if name == "audit"]
+    check("non-object session metadata reaches the audit gates without crashing",
+          malformed_rc == 0 and malformed_prompts
+          and "MVP-ASSESSMENT" in malformed_prompts[0])
+except Exception as exc:
+    check("non-object session metadata reaches the audit gates without crashing", False, repr(exc))
+finally:
+    session_path.write_text(valid_session_payload)
+
 # ── failing verdict: the chain completes, the RUN is not accepted ─────────────
 AUDIT_ENVELOPE = Envelope(
     approved=False, audit_path=str(audit_md),

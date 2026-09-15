@@ -494,6 +494,8 @@ def main(scope_path: str, config: str = "adws/adw_sssf_config/sssf.config.yaml",
         session_payload = json.loads((_context_handoff_dir(run) / "session.json").read_text())
     except (OSError, ValueError):
         session_payload = {}
+    if not isinstance(session_payload, dict):
+        session_payload = {}
     audit_mode = session_payload.get("auditMode", "mvp-assessment")
     if audit_mode == "change-gate":
         audit_mode_heading = "CHANGE-GATE"
