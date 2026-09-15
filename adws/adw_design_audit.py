@@ -82,6 +82,11 @@ QUANTITATIVE_ARTIFACTS = (
     "affordance-census.csv",
     "copy-census.csv",
     "visible-content.csv",
+    "quantitative-summary.json",
+    "control-consistency-summary.json",
+    "contrast-summary.json",
+    "anti-slop-summary.json",
+    "axe-summary.json",
     "impeccable.json",
     "mockup-diff",
 )
@@ -284,6 +289,82 @@ def _declared_path_matches(value: object, target: Path) -> bool:
         return False
 
 
+def _exact_base_binding(run, session_payload: dict, report: GateReport) -> None:
+    """Validate the required change-gate baseline against the resolved merge-base.
+
+    The browser controller resolves this before it starts a run. Rechecking the
+    binding here keeps a copied or edited session from turning an old handoff
+    into a trusted baseline during the independent factory phase.
+    """
+    baseline_dir = session_payload.get("baselineEvidenceDir")
+    baseline_fields = [
+        session_payload.get("baselineCandidateSha"),
+        session_payload.get("baselineSessionId"),
+        session_payload.get("verificationBase"),
+        session_payload.get("mergeBaseSha"),
+        session_payload.get("baselineDigest"),
+    ]
+    change_gate = session_payload.get("auditMode") == "change-gate"
+    if not baseline_dir and not any(baseline_fields) and not change_gate:
+        return
+
+    report.check("change-gate baseline path is declared", isinstance(baseline_dir, str) and bool(baseline_dir),
+                 "session.json has no baselineEvidenceDir")
+    baseline_sha = session_payload.get("baselineCandidateSha")
+    merge_sha = session_payload.get("mergeBaseSha")
+    verification_base = session_payload.get("verificationBase")
+    report.check("change-gate baseline SHA is a full revision", isinstance(baseline_sha, str)
+                 and bool(_SHA.fullmatch(baseline_sha)), baseline_sha or "missing baselineCandidateSha")
+    report.check("change-gate merge-base binding is a full revision", isinstance(merge_sha, str)
+                 and bool(_SHA.fullmatch(merge_sha)), merge_sha or "missing mergeBaseSha")
+    report.check("change-gate baseline SHA equals recorded merge-base", baseline_sha == merge_sha,
+                 f"baselineCandidateSha={baseline_sha!r}, mergeBaseSha={merge_sha!r}")
+    report.check("change-gate baseline session is runner-shaped", isinstance(session_payload.get("baselineSessionId"), str)
+                 and bool(_SESSION_ID.fullmatch(session_payload.get("baselineSessionId", ""))),
+                 session_payload.get("baselineSessionId") or "missing baselineSessionId")
+    report.check("change-gate verification base is declared", isinstance(verification_base, str)
+                 and bool(verification_base), verification_base or "missing verificationBase")
+    baseline_digest = session_payload.get("baselineDigest")
+    report.check("change-gate baseline digest is a full SHA-256", isinstance(baseline_digest, str)
+                 and bool(re.fullmatch(r"[0-9a-f]{64}", baseline_digest)),
+                 baseline_digest or "missing baselineDigest")
+
+    actual_merge = None
+    configured_root = getattr(run, "repo_root", None)
+    repo_root = Path(configured_root).resolve() if configured_root else Path.cwd().resolve()
+    if not (repo_root / "scripts" / "validate-design-baseline.mjs").is_file():
+        repo_root = Path(__file__).resolve().parents[1]
+    if isinstance(verification_base, str) and verification_base and isinstance(merge_sha, str):
+        try:
+            completed = subprocess.run(
+                ["git", "merge-base", "HEAD", verification_base],
+                cwd=repo_root, check=False, capture_output=True, text=True, timeout=10,
+            )
+            if completed.returncode == 0:
+                actual_merge = completed.stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            actual_merge = None
+    report.check("change-gate merge-base matches verification base", actual_merge == merge_sha,
+                 f"resolved {actual_merge!r} from {verification_base!r}")
+
+    validator = repo_root / "scripts" / "validate-design-baseline.mjs"
+    validation_note = "baseline validator did not run"
+    validation_ok = False
+    if (isinstance(baseline_dir, str) and isinstance(merge_sha, str)
+            and isinstance(baseline_digest, str) and validator.is_file()):
+        try:
+            completed = subprocess.run(
+                ["node", "--experimental-strip-types", str(validator), baseline_dir, merge_sha,
+                 baseline_digest],
+                cwd=repo_root, check=False, capture_output=True, text=True, timeout=30,
+            )
+            validation_note = (completed.stdout or completed.stderr).strip()
+            validation_ok = completed.returncode == 0
+        except (OSError, subprocess.SubprocessError) as exc:
+            validation_note = f"baseline validator failed to execute: {exc}"
+    report.check("change-gate baseline evidence is valid and exact-base bound", validation_ok, validation_note)
+
+
 def audit_quantitative_artifacts(envelope, run) -> GateReport:
     """Require fresh, complete quantitative evidence for this exact run.
 
@@ -322,6 +403,13 @@ def audit_quantitative_artifacts(envelope, run) -> GateReport:
                  session_id or "session.json has no sessionId")
     report.check("session id matches the run", bool(expected_session_id and session_id == expected_session_id),
                  f"expected {expected_session_id!r}, got {session_id!r}")
+    if session_payload.get("auditMode") == "change-gate" or any(
+        session_payload.get(field) for field in (
+            "baselineEvidenceDir", "baselineCandidateSha", "baselineSessionId",
+            "verificationBase", "mergeBaseSha",
+        )
+    ):
+        _exact_base_binding(run, session_payload, report)
 
     validator = Path(__file__).resolve().parents[1] / "scripts" / "validate-design-evidence.mjs"
     if not validator.is_file():
@@ -502,13 +590,24 @@ def main(scope_path: str, config: str = "adws/adw_sssf_config/sssf.config.yaml",
     audit_mode = session_payload.get("auditMode", "mvp-assessment")
     if audit_mode == "change-gate":
         audit_mode_heading = "CHANGE-GATE"
-        audit_mode_policy = (
-            "Evaluate regressions introduced by the candidate delta. The quantitative browser "
-            "lane has already proved its automatic checks green. Record inherited untested state "
-            "cells and assessed-with-gaps mockup comparisons as Important follow-up evidence, but "
-            "you must not fail a surface solely because either remains. Fail a surface only for a live "
-            "defect introduced by this candidate or another red change-gate check."
-        )
+        if session_payload.get("baselineEvidenceDir"):
+            audit_mode_policy = (
+                "Evaluate regressions introduced by the candidate delta against the exact merge-base "
+                f"evidence at {session_payload.get('baselineEvidenceDir')} (SHA "
+                f"{session_payload.get('baselineCandidateSha')}). The quantitative browser lane "
+                "retains the complete candidate census and reports only new failure signatures as "
+                "automatic blockers. Record inherited untested state cells and assessed-with-gaps "
+                "mockup comparisons as Important follow-up evidence, but you must not fail a surface "
+                "solely because either remains. Fail a surface only for a live defect introduced by "
+                "this candidate or another red change-gate check."
+            )
+        else:
+            audit_mode_policy = (
+                "No exact-base baseline was supplied, so evaluate the complete candidate evidence "
+                "with the globally strict MVP checks. You must not fail a surface solely because a "
+                "follow-up note is absent; fail it for any red automatic check, untested required "
+                "state, or live defect."
+            )
     else:
         audit_mode_heading = "MVP-ASSESSMENT"
         audit_mode_policy = (

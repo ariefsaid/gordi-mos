@@ -14,7 +14,8 @@ usage() {
   cat >&2 <<'EOF'
 usage: scripts/design-quality-audit.sh <scope.md> --base-url <localhost-url>
        [--config <sssf.config.yaml>] [--adw-id <8-hex-id>]
-       [--mode mvp-assessment|change-gate] [--mockup-authority <docs/*.json>] [--check-only]
+       [--mode mvp-assessment|change-gate] [--baseline <exact-base-evidence-dir>]
+       [--mockup-authority <docs/*.json>] [--check-only]
 EOF
 }
 
@@ -25,6 +26,7 @@ audit_id="${DESIGN_AUDIT_ID:-}"
 check_only="${DESIGN_AUDIT_CHECK_ONLY:-0}"
 audit_mode="${DESIGN_AUDIT_MODE:-mvp-assessment}"
 mockup_authority="${DESIGN_AUDIT_MOCKUP_AUTHORITY:-}"
+baseline_dir="${DESIGN_AUDIT_BASELINE_EVIDENCE_DIR:-${DESIGN_AUDIT_BASELINE_DIR:-}}"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -51,6 +53,11 @@ while [ "$#" -gt 0 ]; do
     --mockup-authority)
       [ "$#" -ge 2 ] || { usage; exit 2; }
       mockup_authority="$2"
+      shift 2
+      ;;
+    --baseline|--baseline-dir|--baseline-evidence)
+      [ "$#" -ge 2 ] || { usage; exit 2; }
+      baseline_dir="$2"
       shift 2
       ;;
     --check-only)
@@ -82,6 +89,11 @@ case "$audit_mode" in
   mvp-assessment|change-gate) ;;
   *) echo "design-quality-audit: --mode must be mvp-assessment or change-gate" >&2; exit 2 ;;
 esac
+
+if [ "$audit_mode" = "change-gate" ] && [ -z "$baseline_dir" ]; then
+  echo "design-quality-audit: --mode change-gate requires --baseline <exact-base-evidence-dir>" >&2
+  exit 2
+fi
 
 [ -n "$scope_file" ] || { echo "design-quality-audit: missing scope file" >&2; usage; exit 2; }
 [ -n "$base_url" ] || {
@@ -160,6 +172,57 @@ printf '%s\n' "$candidate_sha" | grep -Eq '^[0-9a-f]{40}$' || {
   exit 2
 }
 
+verification_base_ref=""
+merge_base_sha=""
+baseline_session_id=""
+baseline_digest=""
+if [ -n "$baseline_dir" ]; then
+  [ "$audit_mode" = "change-gate" ] || {
+    echo "design-quality-audit: --baseline requires --mode change-gate" >&2
+    exit 2
+  }
+  verification_base_name="$(printenv MOS_PR_BASE 2>/dev/null || true)"
+  [ -n "$verification_base_name" ] || verification_base_name=dev
+  verification_base_ref="origin/$verification_base_name"
+  git rev-parse --verify "$verification_base_ref^{commit}" >/dev/null 2>&1 || {
+    echo "design-quality-audit: verification base is unavailable: $verification_base_ref" >&2
+    exit 2
+  }
+  merge_base_sha="$(git merge-base HEAD "$verification_base_ref" 2>/dev/null)" || {
+    echo "design-quality-audit: unable to resolve exact merge-base with $verification_base_ref" >&2
+    exit 2
+  }
+  printf '%s\n' "$merge_base_sha" | grep -Eq '^[0-9a-f]{40}$' || {
+    echo "design-quality-audit: exact merge-base is not a full lowercase SHA" >&2
+    exit 2
+  }
+  baseline_dir="$(cd "$baseline_dir" 2>/dev/null && pwd -P)" || {
+    echo "design-quality-audit: baseline evidence directory is missing or unreadable" >&2
+    exit 2
+  }
+  baseline_binding="$(cd "$ROOT" && node --experimental-strip-types --input-type=module - "$baseline_dir" "$merge_base_sha" <<'NODE'
+import { loadChangeGateBaseline } from './mos-app/e2e/design-quality/change-gate.ts'
+
+const [evidenceDir, expectedSha] = process.argv.slice(2)
+const result = await loadChangeGateBaseline(evidenceDir, expectedSha)
+if (!result.ok || !result.baseline) {
+  for (const error of result.errors) console.error('design-quality-audit: ' + error)
+  process.exit(1)
+}
+process.stdout.write(`${result.baseline.sessionId}\t${result.baseline.artifactDigest}`)
+NODE
+  )" || {
+    echo "design-quality-audit: exact-base baseline evidence validation failed" >&2
+    exit 2
+  }
+  baseline_session_id="${baseline_binding%%$'\t'*}"
+  baseline_digest="${baseline_binding#*$'\t'}"
+  printf '%s\n' "$baseline_digest" | grep -Eq '^[0-9a-f]{64}$' || {
+    echo "design-quality-audit: baseline artifact digest is not a full SHA-256" >&2
+    exit 2
+  }
+fi
+
 if [ -z "$audit_id" ]; then
   audit_id="$(python3 - <<'PY'
 import secrets
@@ -185,8 +248,9 @@ esac
 context_dir="$data_root/sessions/$audit_id/context_handoff"
 
 if [ "$check_only" = "1" ]; then
-  printf 'design-quality-audit preflight OK\ncandidate_sha=%s\nsession_id=%s\nscope=%s\nbase_url=%s\nmode=%s\n' \
-    "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode"
+  printf 'design-quality-audit preflight OK\ncandidate_sha=%s\nsession_id=%s\nscope=%s\nbase_url=%s\nmode=%s\nbaseline_dir=%s\nverification_base=%s\nmerge_base_sha=%s\nbaseline_session_id=%s\nbaseline_digest=%s\n' \
+    "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode" \
+    "$baseline_dir" "$verification_base_ref" "$merge_base_sha" "$baseline_session_id" "$baseline_digest"
   exit 0
 fi
 
@@ -411,7 +475,7 @@ chmod 600 "$binding_secret_file" || exit 2
 # Seed the handoff with the exact run contract. The browser specs replace the
 # CSV/JSON placeholders; the chain gate refuses a session with missing or stale
 # artifacts, so a partial browser run cannot be mistaken for evidence.
-if node --experimental-strip-types --input-type=module - "$ROOT" "$context_dir" "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode" "$binding_secret_file" <<'NODE'
+if node --experimental-strip-types --input-type=module - "$ROOT" "$context_dir" "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode" "$binding_secret_file" "$baseline_dir" "$baseline_session_id" "$verification_base_ref" "$merge_base_sha" "$baseline_digest" <<'NODE'
 import { mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { manifestForArtifact } from './mos-app/e2e/design-quality/manifest.ts'
@@ -426,6 +490,11 @@ const scopePath = process.argv[6]
 const baseUrl = process.argv[7]
 const auditMode = process.argv[8]
 const bindingSecret = (await readFile(process.argv[9], 'utf8')).trim()
+const baselineEvidenceDir = process.argv[10] || ''
+const baselineSessionId = process.argv[11] || ''
+const verificationBase = process.argv[12] || ''
+const mergeBaseSha = process.argv[13] || ''
+const baselineDigest = process.argv[14] || ''
 const writer = new ReportWriter({ outputDir, candidateSha, sessionId })
 await mkdir(path.join(outputDir, 'screenshots'), { recursive: true })
 await writer.writeJson('manifest.json', manifestForArtifact(candidateSha, sessionId))
@@ -434,6 +503,11 @@ await writer.writeGateLog([
   `session_id=${sessionId}`,
   `scope=${scopePath}`,
   `base_url=${baseUrl}`,
+  `baseline_dir=${baselineEvidenceDir}`,
+  `verification_base=${verificationBase}`,
+  `merge_base_sha=${mergeBaseSha}`,
+  `baseline_session_id=${baselineSessionId}`,
+  `baseline_digest=${baselineDigest}`,
   'browser_status=pending',
   'fixture_status=pending',
   'chain_status=pending',
@@ -452,6 +526,12 @@ await writer.writeSession({
   scopePath,
   baseUrl,
   auditMode,
+  baselineEvidenceDir: baselineEvidenceDir || null,
+  baselineCandidateSha: mergeBaseSha || null,
+  baselineSessionId: baselineSessionId || null,
+  baselineDigest: baselineDigest || null,
+  verificationBase: verificationBase || null,
+  mergeBaseSha: mergeBaseSha || null,
   root,
   contextHandoffDir: outputDir,
   quantitativeArtifacts: REQUIRED_ARTIFACTS.map((name) => path.join(outputDir, name)),
@@ -480,6 +560,15 @@ export DESIGN_AUDIT_CANDIDATE_SHA="$candidate_sha"
 export DESIGN_AUDIT_SESSION_ID="$audit_id"
 export DESIGN_AUDIT_SCOPE="$scope_file"
 export DESIGN_AUDIT_MODE="$audit_mode"
+if [ -n "$baseline_dir" ]; then
+  export DESIGN_AUDIT_BASELINE_EVIDENCE_DIR="$baseline_dir"
+  export DESIGN_AUDIT_BASELINE_DIR="$baseline_dir"
+  export DESIGN_AUDIT_BASELINE_SHA="$merge_base_sha"
+  export DESIGN_AUDIT_BASELINE_SESSION_ID="$baseline_session_id"
+  export DESIGN_AUDIT_BASELINE_DIGEST="$baseline_digest"
+  export DESIGN_AUDIT_VERIFICATION_BASE="$verification_base_ref"
+  export DESIGN_AUDIT_MERGE_BASE_SHA="$merge_base_sha"
+fi
 if [ -n "$mockup_authority" ]; then
   export DESIGN_AUDIT_MOCKUP_AUTHORITY="$mockup_authority"
 fi
@@ -569,8 +658,9 @@ write_terminal_evidence() {
   local terminal_browser_status="$1"
   local terminal_fixture_status="$2"
   local terminal_chain_status="$3"
-  node --experimental-strip-types --input-type=module - "$context_dir" "$terminal_browser_status" "$terminal_fixture_status" "$terminal_chain_status" <<'NODE'
+node --experimental-strip-types --input-type=module - "$context_dir" "$terminal_browser_status" "$terminal_fixture_status" "$terminal_chain_status" <<'NODE'
 import { readFile } from 'node:fs/promises'
+import { computeArtifactDigest } from './mos-app/e2e/design-quality/change-gate.ts'
 import { ReportWriter } from './mos-app/e2e/design-quality/report.ts'
 const outputDir = process.argv[2]
 const parseStatus = (value) => /^-?[0-9]+$/.test(value) ? Number(value) : value
@@ -579,12 +669,26 @@ const fixtureStatus = parseStatus(process.argv[4])
 const chainStatus = parseStatus(process.argv[5])
 const session = JSON.parse(await readFile(`${outputDir}/session.json`, 'utf8'))
 const writer = new ReportWriter({ outputDir, candidateSha: session.candidateSha, sessionId: session.sessionId })
-await writer.writeSession({ ...session, browserExitStatus: browserStatus, fixtureExitStatus: fixtureStatus, chainExitStatus: chainStatus })
 await writer.writeGateLog([
   `browser_status=${browserStatus}`,
   `fixture_status=${fixtureStatus}`,
   `chain_status=${chainStatus}`,
 ])
+let artifactDigest = session.artifactDigest
+try {
+  const digestResult = await computeArtifactDigest(outputDir, session)
+  if (digestResult.ok) artifactDigest = digestResult.digest
+} catch {
+  // A failed browser lane may leave incomplete placeholders; its terminal
+  // status still needs to be recorded so recovery can run on the next attempt.
+}
+await writer.writeSession({
+  ...session,
+  ...(artifactDigest ? { artifactDigest } : {}),
+  browserExitStatus: browserStatus,
+  fixtureExitStatus: fixtureStatus,
+  chainExitStatus: chainStatus,
+})
 NODE
 }
 

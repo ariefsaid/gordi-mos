@@ -29,6 +29,12 @@ import {
 import { ReportWriter } from './report'
 import type { DesignQualityManifest, ManifestCell } from './manifest'
 import { resetAuditScroll } from './scroll'
+import {
+  classifyFailureSet,
+  loadChangeGateBaseline,
+  type AutomaticFailure,
+  type FailureComparison,
+} from './change-gate.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = path.dirname(__filename)
@@ -49,6 +55,12 @@ export type AuditRun = {
   candidateSha: string
   sessionId: string
   writer: ReportWriter
+  baselineEvidenceDir?: string
+  baselineCandidateSha?: string
+  baselineSessionId?: string
+  baselineDigest?: string
+  verificationBase?: string
+  mergeBaseSha?: string
 }
 
 type FixtureRunState = {
@@ -59,6 +71,7 @@ type FixtureRunState = {
 }
 
 const fixtureRuns = new Map<string, FixtureRunState>()
+const baselineRuns = new Map<string, Promise<AutomaticFailure[]>>()
 
 export type StateObservation = {
   status: 'covered' | 'untested'
@@ -200,7 +213,49 @@ export function auditRun(): AuditRun {
   if (!baseURL || !outputDir || !candidateSha || !sessionId) {
     throw new Error('design audit requires DESIGN_AUDIT_BASE_URL, OUTPUT_DIR, CANDIDATE_SHA, and SESSION_ID')
   }
-  return { baseURL, outputDir, candidateSha, sessionId, writer: new ReportWriter({ outputDir, candidateSha, sessionId }) }
+  const baselineEvidenceDir = env('DESIGN_AUDIT_BASELINE_EVIDENCE_DIR') || env('DESIGN_AUDIT_BASELINE_DIR')
+  const baselineCandidateSha = env('DESIGN_AUDIT_BASELINE_SHA')
+  const baselineSessionId = env('DESIGN_AUDIT_BASELINE_SESSION_ID')
+  const baselineDigest = env('DESIGN_AUDIT_BASELINE_DIGEST')
+  const verificationBase = env('DESIGN_AUDIT_VERIFICATION_BASE')
+  const mergeBaseSha = env('DESIGN_AUDIT_MERGE_BASE_SHA')
+  return {
+    baseURL,
+    outputDir,
+    candidateSha,
+    sessionId,
+    writer: new ReportWriter({ outputDir, candidateSha, sessionId }),
+    baselineEvidenceDir: baselineEvidenceDir || undefined,
+    baselineCandidateSha: baselineCandidateSha || undefined,
+    baselineSessionId: baselineSessionId || undefined,
+    baselineDigest: baselineDigest || undefined,
+    verificationBase: verificationBase || undefined,
+    mergeBaseSha: mergeBaseSha || undefined,
+  }
+}
+
+/** Compare the complete candidate census against the exact-base evidence. */
+export async function compareAutomaticFailures(
+  run: AuditRun,
+  candidateFailures: AutomaticFailure[],
+): Promise<FailureComparison> {
+  if (!run.baselineEvidenceDir) return classifyFailureSet(candidateFailures, [])
+  const expectedSha = run.baselineCandidateSha || run.mergeBaseSha || ''
+  if (!run.baselineDigest) {
+    throw new Error('change-gate baseline is missing its preflight artifact digest')
+  }
+  const key = `${path.resolve(run.baselineEvidenceDir)}:${expectedSha}:${run.baselineDigest || ''}`
+  let pending = baselineRuns.get(key)
+  if (!pending) {
+    pending = loadChangeGateBaseline(run.baselineEvidenceDir, expectedSha, run.baselineDigest).then((result) => {
+      if (!result.ok || !result.baseline) {
+        throw new Error(`change-gate baseline is invalid:\n${result.errors.join('\n')}`)
+      }
+      return result.baseline.failures
+    })
+    baselineRuns.set(key, pending)
+  }
+  return classifyFailureSet(candidateFailures, await pending)
 }
 
 export function auditEnabled(): boolean {

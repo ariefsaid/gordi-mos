@@ -18,6 +18,11 @@ export const REQUIRED_ARTIFACTS = [
   'affordance-census.csv',
   'copy-census.csv',
   'visible-content.csv',
+  'quantitative-summary.json',
+  'control-consistency-summary.json',
+  'contrast-summary.json',
+  'anti-slop-summary.json',
+  'axe-summary.json',
   'impeccable.json',
   'mockup-diff',
 ] as const
@@ -102,7 +107,7 @@ export function validateMockupStatus(
       ? { ok: true }
       : { ok: false, reason: 'pass status requires every comparison to meet the 0.75 score and region contract' }
   }
-  if (allowMockupGaps && payload.status === 'assessed-with-gaps') {
+  if (allowMockupGaps && (payload.status === 'assessed-with-gaps' || payload.status === 'fail')) {
     const failures = comparisons.filter((comparison) => isRecord(comparison) && comparison.status === 'fail')
     if (failures.length > 0 && failures.every((comparison) => (comparison.score as number) < 0.75)) {
       return { ok: true }
@@ -291,6 +296,47 @@ function meaningfulJson(
     if (!['pass', 'findings', 'blocked'].includes(String(payload.status))) {
       return { ok: false, reason: 'detector artifact has no completed status' }
     }
+  }
+  if (artifact.endsWith('-summary.json')) {
+    const automaticSummary = validateAutomaticSummary(artifact, payload)
+    if (!automaticSummary.ok) return automaticSummary
+  }
+  return { ok: true }
+}
+
+function validateAutomaticSummary(
+  artifact: string,
+  payload: Record<string, unknown>,
+): { ok: boolean; reason?: string } {
+  if (!['mvp-assessment', 'change-gate'].includes(String(payload.auditMode))) {
+    return { ok: false, reason: `${artifact} must declare a completed auditMode` }
+  }
+  if (typeof payload.automaticChecksPassed !== 'boolean') {
+    return { ok: false, reason: `${artifact} must declare automaticChecksPassed` }
+  }
+  const failureArrays = ['failures', 'allFailures', 'inheritedFailures', 'newFailures']
+  if (failureArrays.some((key) => !Array.isArray(payload[key]))) {
+    return { ok: false, reason: `${artifact} must include complete failure census arrays` }
+  }
+  if (artifact === 'axe-summary.json' && (!Array.isArray(payload.scans) || payload.scans.length === 0)) {
+    return { ok: false, reason: `${artifact} must include at least one scan result` }
+  }
+  if (artifact === 'quantitative-summary.json'
+    && (!Number.isInteger(payload.geometryRows) || Number(payload.geometryRows) <= 0
+      || !Number.isInteger(payload.visibleContentRows) || Number(payload.visibleContentRows) <= 0)) {
+    return { ok: false, reason: `${artifact} must include measured geometry and visible-content rows` }
+  }
+  if (artifact === 'control-consistency-summary.json'
+    && (!Number.isInteger(payload.rows) || Number(payload.rows) <= 0)) {
+    return { ok: false, reason: `${artifact} must include measured control rows` }
+  }
+  if (artifact === 'contrast-summary.json'
+    && (!Number.isInteger(payload.rows) || Number(payload.rows) <= 0)) {
+    return { ok: false, reason: `${artifact} must include measured contrast rows` }
+  }
+  if (artifact === 'anti-slop-summary.json'
+    && (!Number.isInteger(payload.cells) || Number(payload.cells) <= 0)) {
+    return { ok: false, reason: `${artifact} must include measured cells` }
   }
   return { ok: true }
 }

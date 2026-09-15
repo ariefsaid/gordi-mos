@@ -3,6 +3,7 @@ import { readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
 
 import { REQUIRED_ARTIFACTS, validateArtifactSet } from '../mos-app/e2e/design-quality/report.ts'
+import { loadChangeGateBaseline } from '../mos-app/e2e/design-quality/change-gate.ts'
 
 function fail(message, details = {}) {
   process.stdout.write(`${JSON.stringify({ ok: false, errors: [message], ...details })}\n`)
@@ -43,16 +44,30 @@ const declared = new Set(await Promise.all(
   (Array.isArray(session.quantitativeArtifacts) ? session.quantitativeArtifacts : []).map(async (entry) => {
     if (typeof entry !== 'string') return ''
     try {
-      return await realpath(path.resolve(entry))
+      const resolved = path.resolve(evidenceDir, entry)
+      const actual = await realpath(resolved)
+      if (actual !== evidenceDir && !actual.startsWith(`${evidenceDir}${path.sep}`)) return ''
+      return actual
     } catch {
-      return path.resolve(entry)
+      return ''
     }
   }),
 ))
-const declarationErrors = REQUIRED_ARTIFACTS
-  .map((artifact) => path.join(evidenceDir, artifact))
-  .filter((artifactPath) => !declared.has(artifactPath))
-  .map((artifactPath) => `session does not declare ${path.relative(evidenceDir, artifactPath)}`)
+const declarationErrors = []
+for (const artifact of REQUIRED_ARTIFACTS) {
+  const artifactPath = path.join(evidenceDir, artifact)
+  try {
+    const actual = await realpath(artifactPath)
+    if (actual !== evidenceDir && !actual.startsWith(`${evidenceDir}${path.sep}`)) {
+      declarationErrors.push(`artifact escapes evidence directory: ${artifact}`)
+    } else if (!declared.has(actual)) {
+      declarationErrors.push(`session does not declare ${path.relative(evidenceDir, artifactPath)}`)
+    }
+  } catch {
+    // validateArtifactSet reports missing/unreadable paths with the shared
+    // artifact contract below.
+  }
+}
 const statusErrors = flags.includes('--require-green')
   && (session.browserExitStatus !== 0 || session.fixtureExitStatus !== 0 || session.chainExitStatus !== 0)
   ? [`evidence run is not green (browser=${String(session.browserExitStatus)}, fixture=${String(session.fixtureExitStatus)}, chain=${String(session.chainExitStatus)})`]
@@ -72,6 +87,30 @@ if (requireFinalChangeGate || requireBrowserChangeGate) {
     }
   } catch (error) {
     changeGateErrors.push(`quantitative summary is missing or invalid: ${String(error)}`)
+  }
+  const baselineEvidenceDir = typeof session.baselineEvidenceDir === 'string' ? session.baselineEvidenceDir : ''
+  const baselineSha = typeof session.baselineCandidateSha === 'string' ? session.baselineCandidateSha : ''
+  const mergeBaseSha = typeof session.mergeBaseSha === 'string' ? session.mergeBaseSha : ''
+  const baselineSessionId = typeof session.baselineSessionId === 'string' ? session.baselineSessionId : ''
+  const baselineDigest = typeof session.baselineDigest === 'string' ? session.baselineDigest : ''
+  if (!baselineEvidenceDir) changeGateErrors.push('change-gate baseline is missing baselineEvidenceDir')
+  if (!/^[0-9a-f]{40}$/.test(baselineSha) || baselineSha !== mergeBaseSha) {
+    changeGateErrors.push('change-gate baseline is missing or not bound to its recorded exact merge-base')
+  }
+  if (!/^[0-9a-f]{8}$/.test(baselineSessionId)) {
+    changeGateErrors.push('change-gate baseline is missing a valid baselineSessionId')
+  }
+  if (!/^[0-9a-f]{64}$/.test(baselineDigest)) {
+    changeGateErrors.push('change-gate baseline is missing its preflight SHA-256 digest')
+  }
+  if (baselineEvidenceDir && /^[0-9a-f]{40}$/.test(baselineSha)
+    && baselineSha === mergeBaseSha && /^[0-9a-f]{64}$/.test(baselineDigest)) {
+    const baseline = await loadChangeGateBaseline(baselineEvidenceDir, baselineSha, baselineDigest)
+    if (!baseline.ok || !baseline.baseline) {
+      changeGateErrors.push(`change-gate baseline evidence is invalid: ${baseline.errors.join('; ')}`)
+    } else if (baselineSessionId !== baseline.baseline.sessionId) {
+      changeGateErrors.push('change-gate baseline session binding is stale')
+    }
   }
 }
 const errors = [...validation.errors, ...declarationErrors, ...statusErrors, ...changeGateErrors]

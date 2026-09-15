@@ -139,6 +139,9 @@ check("visible content is registered in the ADW quantitative artifact contract",
 check("control consistency is registered in the ADW quantitative artifact contract",
       "control-consistency.csv" in quant_artifacts)
 candidate_sha = "a" * 40
+baseline_sha = subprocess.run(["git", "merge-base", "HEAD", "origin/dev"], cwd=root,
+                              check=True, capture_output=True, text=True).stdout.strip()
+baseline_id = "b1c2d3e4"
 for artifact in quant_artifacts:
     target = quant_root / artifact
     if artifact == "mockup-diff":
@@ -171,6 +174,23 @@ for artifact in quant_artifacts:
         target.write_text(json.dumps({
             "candidateSha": candidate_sha, "sessionId": FakeRun.adw_id,
             "status": "pass", "scannedFiles": ["src/app.tsx"], "findings": []}))
+    elif artifact.endswith("-summary.json"):
+        payload = {
+            "candidateSha": candidate_sha, "sessionId": FakeRun.adw_id,
+            "auditMode": "change-gate", "automaticChecksPassed": True,
+            "failures": [], "allFailures": [], "inheritedFailures": [], "newFailures": [],
+        }
+        if artifact == "quantitative-summary.json":
+            payload.update({"geometryRows": 1, "visibleContentRows": 1})
+        elif artifact == "control-consistency-summary.json":
+            payload["rows"] = 1
+        elif artifact == "contrast-summary.json":
+            payload["rows"] = 1
+        elif artifact == "anti-slop-summary.json":
+            payload["cells"] = 1
+        elif artifact == "axe-summary.json":
+            payload["scans"] = [{"cellId": "tasks-default-desktop", "status": "pass"}]
+        target.write_text(json.dumps(payload))
     elif artifact == "gate-log.txt":
         target.write_text(
             f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n"
@@ -240,6 +260,11 @@ for artifact in quant_artifacts:
     "candidateSha": candidate_sha,
     "sessionId": FakeRun.adw_id,
     "auditMode": "change-gate",
+    "baselineEvidenceDir": str(work / "baseline"),
+    "baselineCandidateSha": baseline_sha,
+    "baselineSessionId": baseline_id,
+    "verificationBase": "origin/dev",
+    "mergeBaseSha": baseline_sha,
     "browserExitStatus": 0,
     "fixtureExitStatus": 0,
     "chainExitStatus": "not-run",
@@ -250,8 +275,43 @@ for artifact in quant_artifacts:
     "sessionId": FakeRun.adw_id,
     "auditMode": "change-gate",
     "automaticChecksPassed": True,
-    "failures": [],
+    "failures": [], "allFailures": [], "inheritedFailures": [], "newFailures": [],
+    "geometryRows": 1, "visibleContentRows": 1,
 }))
+
+# Build a separate exact-base handoff from the complete fixture. It carries
+# independent base/session metadata and a persisted digest over every declared
+# artifact, matching the browser controller binding contract.
+import shutil
+baseline_root = work / "baseline"
+shutil.copytree(quant_root, baseline_root)
+for item in baseline_root.rglob("*"):
+    if not item.is_file() or item.suffix.lower() not in {".json", ".csv", ".txt"}:
+        continue
+    item.write_text(item.read_text().replace(candidate_sha, baseline_sha).replace(FakeRun.adw_id, baseline_id))
+baseline_session = json.loads((baseline_root / "session.json").read_text())
+baseline_session.update({
+    "candidateSha": baseline_sha, "sessionId": baseline_id,
+    "auditMode": "mvp-assessment", "contextHandoffDir": str(baseline_root),
+    "quantitativeArtifacts": [str(baseline_root / artifact) for artifact in quant_artifacts],
+})
+(baseline_root / "session.json").write_text(json.dumps(baseline_session))
+digest_script = ("import { readFile } from 'node:fs/promises'; "
+                 "import path from 'node:path'; "
+                 "import { computeArtifactDigest } from './mos-app/e2e/design-quality/change-gate.ts'; "
+                 "const sessionPath = process.argv[1]; "
+                 "const session = JSON.parse(await readFile(sessionPath, 'utf8')); "
+                 "const result = await computeArtifactDigest(path.dirname(sessionPath), session); "
+                 "if (!result.ok) throw new Error(result.errors.join('; ')); "
+                 "process.stdout.write(result.digest);")
+baseline_session["artifactDigest"] = subprocess.run([
+    "node", "--experimental-strip-types", "--input-type=module", "-e", digest_script,
+    str(baseline_root / "session.json"),
+], cwd=root, check=True, capture_output=True, text=True).stdout.strip()
+(baseline_root / "session.json").write_text(json.dumps(baseline_session))
+session_payload = json.loads((quant_root / "session.json").read_text())
+session_payload["baselineDigest"] = baseline_session["artifactDigest"]
+(quant_root / "session.json").write_text(json.dumps(session_payload))
 
 def surface(name, verdict, shots):
     return types.SimpleNamespace(surface=name, verdict=verdict, screenshots=shots)
@@ -481,7 +541,8 @@ session_path.write_text(json.dumps(session_payload))
     "sessionId": FakeRun.adw_id,
     "auditMode": "change-gate",
     "automaticChecksPassed": True,
-    "failures": [],
+    "failures": [], "allFailures": [], "inheritedFailures": [], "newFailures": [],
+    "geometryRows": 1, "visibleContentRows": 1,
 }))
 r = audit.audit_quantitative_artifacts(good, run)
 check("quantitative gate green while a reviewer evaluates browser-green change-gate evidence",
