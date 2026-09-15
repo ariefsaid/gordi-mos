@@ -25,7 +25,7 @@ export interface UseRecordCollectionOptions<
   descriptor: RecordCollectionDescriptor<TRecord, TId, TQuery, TContext, TGroup, TAction, TPresentation>
   urlMode: 'synced' | 'fixed'
   fixedQuery?: TQuery
-  /** Initial typed query used by compatibility embedders when the URL has no collection query. */
+  /** Caller-composed typed query for the first synced render; explicit URL precedence stays with the caller. */
   initialQuery?: TQuery
   /** Phone hosts are state-constrained to the collection's default presentation. */
   isDesktop?: boolean
@@ -81,7 +81,7 @@ export function useRecordCollection<
     if (urlMode === 'fixed' && fixedQuery) {
       query = fixedQuery
       desired = presentationOf(fixedQuery, descriptor.defaultPresentation)
-    } else if (initialQuery && location.search === '') {
+    } else if (initialQuery) {
       query = initialQuery
       desired = presentationOf(initialQuery, descriptor.defaultPresentation)
     } else {

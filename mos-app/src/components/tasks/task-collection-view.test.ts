@@ -4,7 +4,7 @@ import type { TaskCollectionQuery } from './task-collection-adapter'
 
 const labels = {
   all: 'All', 'my-work': 'My work', 'my-pic': 'My work', 'my-supervisor': 'My work',
-  overdue: 'Overdue',
+  'team-work': 'Team work', overdue: 'Overdue',
 }
 const query = (patch: Partial<TaskCollectionQuery> = {}) => ({
   view: 'all' as const, savedViewId: null, ...patch,
@@ -14,6 +14,14 @@ describe('getActiveTaskView', () => {
   it('uses the typed built-in label', () => {
     expect(getActiveTaskView({ query: query({ view: 'my-work' }), savedViews: [], labels })).toEqual({
       savedViewId: null, label: 'My work', hasNonDefaultView: true,
+    })
+  })
+
+  // #749 AC-011: the breadcrumb leaf names the active view — Team work included, both as the
+  // role default and as an explicit URL view.
+  it('AC-011: the active Team work view names itself for the breadcrumb leaf', () => {
+    expect(getActiveTaskView({ query: query({ view: 'team-work' }), savedViews: [], labels })).toEqual({
+      savedViewId: null, label: 'Team work', hasNonDefaultView: true,
     })
   })
 

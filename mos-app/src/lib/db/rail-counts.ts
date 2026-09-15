@@ -19,7 +19,8 @@ async function headCount(build: () => PromiseLike<{ count: number | null; error:
 export async function getRailCounts(
   personId?: string,
   defaultView: TaskDefaultView = 'my-work',
-  teamIds: readonly string[] = [],
+  /** The viewer's teams with their Business units, so Team work can match the collection view. */
+  teams: readonly { id: string; businessUnitId: string }[] = [],
 ): Promise<RailCounts | null> {
   if (!personId || !UUID.test(personId)) return null
 
@@ -30,10 +31,17 @@ export async function getRailCounts(
       .is('archived_at', null)
       .neq('status', 'Done')
     if (defaultView === 'team-work') {
-      // A Team scope is keyed only by canonical task.team_id. Empty membership must remain empty;
-      // it must never widen to a BU/org count while the viewer's Team context is unresolved.
-      if (teamIds.length > 0) query = query.or(`team_id.in.(${teamIds.join(',')})`)
-      else query = query.in('id', [])
+      // The count IS the Team work view (AC-014): canonical team ownership plus the FR-011
+      // legacy fallback — a null-Team task whose Business unit equals one of those teams'.
+      // Empty membership must remain empty; it must never widen to a BU/org count while the
+      // viewer's Team context is unresolved.
+      if (teams.length > 0) {
+        const teamIds = teams.map((team) => team.id).join(',')
+        const bus = [...new Set(teams.map((team) => team.businessUnitId))].join(',')
+        query = query.or(`team_id.in.(${teamIds}),and(team_id.is.null,business_unit_id.in.(${bus}))`)
+      } else {
+        query = query.in('id', [])
+      }
     } else if (defaultView === 'all') {
       // All is intentionally org-wide; RLS supplies the tenant boundary.
     } else {

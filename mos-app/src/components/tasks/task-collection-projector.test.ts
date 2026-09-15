@@ -24,8 +24,9 @@ const NOW = new Date('2026-07-21T03:00:00Z') // 2026-07-21 10:00 WIB
 
 const BU_CAFE = 'bu-cafe'
 const BU_B2B = 'bu-b2b'
+const BU_MARKETING = 'bu-marketing'
 const TEAM_CAFE = 'team-cafe'
-const TEAM_B2B = 'team-b2b'
+const TEAM_MARKETING = 'team-marketing'
 const P_RAKA = 'p-raka'
 const P_SARI = 'p-sari'
 const P_ADI = 'p-adi'
@@ -157,11 +158,14 @@ describe('projectTaskCollection — filtering', () => {
     expect(p.visibleRecordsAreFiltered).toBe(true)
   })
 
-  it('view=team-work uses real Team membership only and excludes legacy null-Team rows even in the same BU', () => {
+  // #749 AC-012 (W-G step 2): Cahya at Team work sees his teams' rows, plus legacy null-Team
+  // rows whose Business unit equals one of his teams' BUs; other teams' work never shows.
+  it('AC-012: Team work keeps the viewer teams, lets a null-Team row ride in on a matching BU, and never shows another team\'s work', () => {
     const rows = [
-      rawTask({ id: 'team-owned', title: 'Owned by Café team', team_id: TEAM_CAFE }),
-      rawTask({ id: 'other-team', title: 'Owned by another team', team_id: TEAM_B2B }),
-      rawTask({ id: 'legacy-bu-only', title: 'Legacy BU-only row', team_id: null, business_unit_id: BU_CAFE }),
+      rawTask({ id: 'cafe-team', title: 'Café team task', team_id: TEAM_CAFE }),
+      rawTask({ id: 'legacy-bu', title: 'Legacy Retail Ops row', team_id: null, business_unit_id: BU_CAFE }),
+      rawTask({ id: 'other-team', title: 'Marketing task', team_id: TEAM_MARKETING }),
+      rawTask({ id: 'legacy-marketing', title: 'Legacy Marketing row', team_id: null, business_unit_id: BU_MARKETING }),
     ]
     const p = projectTaskCollection(
       makeData(rows, {
@@ -169,7 +173,15 @@ describe('projectTaskCollection — filtering', () => {
       }),
       q({ view: 'team-work' }),
     )
-    expect(p.visibleRecords.map((r) => r.id)).toEqual(['team-owned'])
+    expect(p.visibleRecords.map((r) => r.id)).toEqual(['cafe-team', 'legacy-bu'])
+  })
+
+  it('AC-012: a viewer with no teams sees no Team work rows — the BU fallback never widens alone', () => {
+    const p = projectTaskCollection(
+      makeData(RAW, { viewerTeams: [] }),
+      q({ view: 'team-work' }),
+    )
+    expect(p.visibleRecords).toHaveLength(0)
   })
 
   it('My work and Team work hide Done older than seven days, while All keeps the explicit archive history', () => {

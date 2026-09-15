@@ -74,13 +74,29 @@ describe('getRailCounts — the one cheap rail aggregate', () => {
     ]))
   })
 
-  it('uses the same real-Team predicate as Team work and never falls back to BU', async () => {
+  // #749 AC-014: the badge must equal the Team work view's open count, so the count carries
+  // the same FR-011 shape — viewer teams, plus null-Team rows riding in on a viewer team's BU.
+  it('AC-014: counts the Team work view — viewer teams plus null-Team rows on the same BU', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeClient({ tasks: { count: 2, error: null } }, rec) as never,
     )
-    await getRailCounts('40000000-0000-0000-0000-000000000001', 'team-work', ['team-1', 'team-2'])
-    expect(rec.filters).toContainEqual('or:team_id.in.(team-1,team-2)')
+    await getRailCounts('40000000-0000-0000-0000-000000000001', 'team-work', [
+      { id: 'team-1', businessUnitId: 'bu-retail' },
+      { id: 'team-2', businessUnitId: 'bu-other' },
+    ])
+    expect(rec.filters).toContainEqual(
+      'or:team_id.in.(team-1,team-2),and(team_id.is.null,business_unit_id.in.(bu-retail,bu-other))',
+    )
+  })
+
+  it('an empty Team membership stays empty — no BU or org widening while context is unresolved', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeClient({ tasks: { count: 0, error: null } }, rec) as never,
+    )
+    await getRailCounts('40000000-0000-0000-0000-000000000001', 'team-work', [])
+    expect(rec.filters).toContainEqual('in:id=')
     expect(rec.filters.some((filter) => filter.includes('business_unit_id'))).toBe(false)
   })
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { TASK_COLLECTION_NEUTRAL_QUERY } from './task-collection-adapter'
 import { TasksToolbar } from './tasks-toolbar'
@@ -48,6 +48,27 @@ beforeEach(() => {
 })
 
 describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
+  // #749 AC-011 (W-G step 2): the system view set reads All · My work · Team work · Overdue,
+  // and the viewer's own saved views follow them in that same strip.
+  it('AC-011: the chip row reads All · My work · Team work · Overdue, then the viewer\'s saved views', () => {
+    const savedViews = {
+      label: 'Saved views', selectedId: null, operation: 'idle' as const, error: null,
+      items: [{ id: 'view-1', name: 'My queue' }], onApply: vi.fn(), onSave: vi.fn(),
+    }
+    renderToolbar(makeProps({ savedViews }))
+    const strip = screen.getByRole('group', { name: 'Task views' })
+    const chips = within(strip).getAllByRole('button').map((chip) => chip.textContent)
+    expect(chips).toEqual(['All', 'My work', 'Team work', 'Overdue', 'My queue'])
+  })
+
+  // #749: both locales carry the new chip label (EN "Team work").
+  it('AC-011: the ID locale carries the Team work chip as "Pekerjaan tim"', () => {
+    localStorage.setItem('mos.locale', 'id')
+    renderToolbar()
+    expect(screen.getByRole('button', { name: 'Pekerjaan tim' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
+  })
+
   it('exposes the e7 desktop two-row grammar without a Filters door', () => {
     const savedViews = {
       label: 'Saved views', selectedId: null, operation: 'idle' as const, error: null,

@@ -26,7 +26,7 @@ export function useRailCounts(): RailCounts | null {
     let live = true
     async function read() {
       const teams = defaultView === 'team-work' && personId ? await getPersonTeams(personId) : []
-      return getRailCounts(personId, defaultView, teams.map((team) => team.id))
+      return getRailCounts(personId, defaultView, teams)
     }
     read()
       .then((counts) => { if (live) setResult({ scopeKey, counts }) })
