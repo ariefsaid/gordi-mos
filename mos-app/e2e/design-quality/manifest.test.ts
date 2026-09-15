@@ -151,6 +151,16 @@ test('change-gate mockup gaps accept measured mismatches but reject blocked comp
   assert.equal(regionOnlyFailure.ok, false)
   assert.match(regionOnlyFailure.reason ?? '', /below the 0\.75 threshold/i)
 
+  const mixedFalsePass = validateMockupStatus({
+    status: 'assessed-with-gaps',
+    comparisons: [
+      { status: 'fail', score: 0.7, build: '/tmp/render-a.png', missingRegions: [], contradictedRegions: [] },
+      { status: 'pass', score: 0.1, build: '/tmp/render-b.png', missingRegions: [], contradictedRegions: [] },
+    ],
+  }, true)
+  assert.equal(mixedFalsePass.ok, false)
+  assert.match(mixedFalsePass.reason ?? '', /every pass comparison must meet the 0\.75 score and region contract/i)
+
   const falsePass = validateMockupStatus({
     status: 'pass',
     comparisons: [{ status: 'pass', score: 0.7, build: '/tmp/render.png', missingRegions: [], contradictedRegions: [] }],

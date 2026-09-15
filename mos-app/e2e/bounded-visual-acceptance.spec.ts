@@ -238,7 +238,7 @@ test.describe('bounded visual and interaction acceptance', () => {
       await expect(page.getByText(TASKS.VIEWER_ACCOUNTABLE.title, { exact: true }).first()).toBeVisible()
       const filters = page.getByRole('group', { name: 'Tampilan & filter', exact: true })
       const expectedValues = [
-        { name: 'Grup', value: 'Grup: Tidak' },
+        { name: 'Kelompok', value: 'Kelompok: Tidak' },
         { name: 'Unit bisnis', value: 'Semua unit' },
         { name: 'Status', value: 'Semua status', role: 'button' as const },
         { name: 'Orang', value: 'Semua' },
@@ -266,12 +266,12 @@ test.describe('bounded visual and interaction acceptance', () => {
       await expect(filters.getByRole('button', { name: 'Simpan tampilan', exact: true })).toContainText('Simpan')
       await expect(filters.getByRole('combobox', { name: /memerlukan perhatian/i })).toContainText('3 perlu perhatian')
 
-      const group = filters.getByRole('combobox', { name: 'Grup', exact: true })
+      const group = filters.getByRole('combobox', { name: 'Kelompok', exact: true })
       await group.click()
       await page.getByRole('option', { name: 'Status', exact: true }).click()
-      await expect(group).toHaveAttribute('data-full-value', 'Grup: Status')
+      await expect(group).toHaveAttribute('data-full-value', 'Kelompok: Status')
       const activeFit = await group.locator('span[data-full-value]').evaluate((element) => element.scrollWidth <= element.clientWidth)
-      expect(activeFit, 'Grup: Status must remain fully visible').toBe(true)
+      expect(activeFit, 'Kelompok: Status must remain fully visible').toBe(true)
       await assertNoPageOverflow(page)
       await capture(`tasks-toolbar-id-${width}`, page)
     })
@@ -295,9 +295,9 @@ test.describe('bounded visual and interaction acceptance', () => {
         const toolbar = page.getByTestId('record-collection-toolbar')
         await expect(toolbar).toBeVisible()
         const filters = toolbar.getByRole('group', { name: doorName, exact: true })
-        const group = filters.getByRole('combobox', { name: locale === 'id' ? 'Grup' : 'Group', exact: true })
+        const group = filters.getByRole('combobox', { name: locale === 'id' ? 'Kelompok' : 'Group', exact: true })
         await group.click()
-        await page.getByRole('listbox', { name: locale === 'id' ? 'Grup' : 'Group', exact: true })
+        await page.getByRole('listbox', { name: locale === 'id' ? 'Kelompok' : 'Group', exact: true })
           .getByRole('option', { name: 'PIC', exact: true }).click()
         await expect(group).toContainText('PIC')
         await group.focus()

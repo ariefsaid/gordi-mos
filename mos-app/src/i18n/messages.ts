@@ -2491,7 +2491,7 @@ export const messages = {
     'tasks.filter.anyBusinessUnit': "Semua unit",
     'tasks.filter.anyone': "Semua",
     'tasks.filter.businessUnit': "Unit bisnis",
-    'tasks.filter.group': "Grup",
+    'tasks.filter.group': "Kelompok",
     'tasks.filter.includeArchived': "Sertakan arsip",
     'tasks.filter.none': "Tidak",
     'tasks.filter.occurrence': "Kejadian",

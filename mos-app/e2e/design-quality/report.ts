@@ -81,6 +81,14 @@ export function validateMockupStatus(
   if (!measured) {
     return { ok: false, reason: 'every comparison must be completed; blocked or unmeasured comparisons are invalid' }
   }
+  const passEntriesMeetContract = comparisons.every((comparison) => !isRecord(comparison)
+    || comparison.status !== 'pass'
+    || ((comparison.score as number) >= 0.75
+      && (comparison.missingRegions as unknown[]).length === 0
+      && (comparison.contradictedRegions as unknown[]).length === 0))
+  if (!passEntriesMeetContract) {
+    return { ok: false, reason: 'every pass comparison must meet the 0.75 score and region contract' }
+  }
   if (payload.status === 'pass') {
     return comparisons.every((comparison) => isRecord(comparison)
       && comparison.status === 'pass'

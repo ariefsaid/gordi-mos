@@ -277,6 +277,11 @@
     width: 120px;
   }
   html:lang(id) .tasks-collection-toolbar [data-filter-id='status'] { flex-basis: 124px; width: 124px; }
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='group'],
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='group'] .collection-toolbar__select {
+    flex-basis: 156px;
+    width: 156px;
+  }
 }
 .collection-toolbar__action-icon { flex: none; }
 .collection-toolbar__save-compact-label { display: none; }

@@ -682,7 +682,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     expect(screen.getByRole('button', { name: 'Tampilan & filter' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Tampilan & filter' }))
     expect(screen.getByRole('button', { name: 'Pekerjaan saya' })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: 'Grup' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Kelompok' })).toBeInTheDocument()
     localStorage.removeItem('mos.locale')
   })
 })
