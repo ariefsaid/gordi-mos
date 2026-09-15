@@ -11,6 +11,7 @@ import { APPROVED_MVP_COMPARISONS } from './baseline-contract'
 import {
   bindMockupToCell,
   parseMockupAuthorityEntry,
+  resolvePrivateAuthorityPath,
   type MockupAuthorityEntry,
 } from './mockup-authority'
 import {
@@ -25,6 +26,12 @@ import {
 
 const execFileAsync = promisify(execFile)
 const repoRoot = path.resolve(process.cwd(), '..')
+const gitCommonDir = execFileSync(
+  'git',
+  ['rev-parse', '--path-format=absolute', '--git-common-dir'],
+  { cwd: repoRoot, encoding: 'utf8' },
+).trim()
+const primaryWorkspaceRoot = path.resolve(path.dirname(gitCommonDir))
 const DETECTOR = path.join(repoRoot, 'scripts/impeccable-detect.mjs')
 const COMP_DIFF = path.join(repoRoot, '.claude/skills/impeccable/scripts/impeccable')
 const SCORE_THRESHOLD = 0.75
@@ -51,7 +58,7 @@ function asString(value: unknown): string {
 }
 
 function authorityEntry(value: unknown, inheritedAuthority = ''): MockupAuthorityEntry {
-  return parseMockupAuthorityEntry(value, repoRoot, inheritedAuthority)
+  return parseMockupAuthorityEntry(value, primaryWorkspaceRoot, inheritedAuthority)
 }
 
 function payloadEntries(payload: unknown): { entries: unknown[]; authorityRows: boolean; inheritedAuthority: string } {
@@ -103,10 +110,7 @@ export async function approvedMockups(): Promise<MockupAuthorityEntry[]> {
 
   if (authorityPath || listPath) {
     const source = authorityPath || listPath
-    const sourcePath = path.resolve(repoRoot, source)
-    if (!sourcePath.startsWith(`${path.join(repoRoot, 'docs')}${path.sep}`)) {
-      throw new Error('mockup authority list must live under the private docs workspace')
-    }
+    const sourcePath = resolvePrivateAuthorityPath(source, primaryWorkspaceRoot)
     let payload: unknown
     try {
       payload = JSON.parse(await readFile(sourcePath, 'utf8'))

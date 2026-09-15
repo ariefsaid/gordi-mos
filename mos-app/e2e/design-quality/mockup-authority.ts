@@ -43,6 +43,15 @@ function assertObject(value: unknown): asserts value is Record<string, unknown> 
   }
 }
 
+export function resolvePrivateAuthorityPath(value: string, primaryWorkspaceRoot: string): string {
+  const sourcePath = path.resolve(primaryWorkspaceRoot, value)
+  const docsRoot = path.join(path.resolve(primaryWorkspaceRoot), 'docs')
+  if (!sourcePath.startsWith(`${docsRoot}${path.sep}`)) {
+    throw new Error('mockup authority list must live under the private docs workspace')
+  }
+  return sourcePath
+}
+
 /**
  * Parse an approved authority row into the dimensions needed to select its
  * browser evidence. Every row is required to name the exact manifest cell;

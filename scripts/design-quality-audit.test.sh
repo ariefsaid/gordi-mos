@@ -13,6 +13,13 @@ fail=0
 ok() { pass=$((pass + 1)); printf '  ok    %s\n' "$1"; }
 bad() { fail=$((fail + 1)); printf '  FAIL  %s\n' "$1"; }
 
+if bash scripts/lib/audit-workspace.test.sh >/tmp/mos-audit-workspace-test.log 2>&1; then
+  ok "worktree audit context resolves and parses safely"
+else
+  bad "worktree audit context is invalid"
+  sed -n '1,120p' /tmp/mos-audit-workspace-test.log
+fi
+
 for required in \
   mos-app/e2e/design-quality/manifest.ts \
   mos-app/e2e/design-quality/measurements.ts \
@@ -106,7 +113,7 @@ else
 fi
 
 scope="$(mktemp -t mos-design-quality-scope.XXXXXX)"
-trap 'rm -f "$scope" /tmp/mos-design-quality-manifest-test.log /tmp/mos-design-quality-check.log /tmp/mos-design-quality-mutated.log' EXIT
+trap 'rm -f "$scope" /tmp/mos-audit-workspace-test.log /tmp/mos-design-quality-manifest-test.log /tmp/mos-design-quality-check.log /tmp/mos-design-quality-mutated.log' EXIT
 cat > "$scope" <<'EOF'
 - Tasks — /mos/work/tasks
 - Signals — /mos/work/signals

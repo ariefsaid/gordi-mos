@@ -5,6 +5,7 @@ import { DESIGN_QUALITY_MANIFEST } from './manifest.ts'
 import {
   bindMockupToCell,
   parseMockupAuthorityEntry,
+  resolvePrivateAuthorityPath,
 } from './mockup-authority.ts'
 
 const repoRoot = '/workspace'
@@ -106,4 +107,29 @@ test('rejects authority bindings to states that the browser cannot establish', (
     () => bindMockupToCell(entry, DESIGN_QUALITY_MANIFEST),
     /not runnable/i,
   )
+})
+
+test('accepts authority files only beneath the explicit private docs root', () => {
+  assert.equal(
+    resolvePrivateAuthorityPath('/primary/docs/reviews/authority.json', '/primary'),
+    '/primary/docs/reviews/authority.json',
+  )
+  assert.throws(
+    () => resolvePrivateAuthorityPath('/primary/DESIGN.md', '/primary'),
+    /private docs workspace/i,
+  )
+  assert.throws(
+    () => resolvePrivateAuthorityPath('/other/docs/authority.json', '/primary'),
+    /private docs workspace/i,
+  )
+})
+
+test('parses private mockup images relative to the primary workspace rather than a linked worktree', () => {
+  const privateRoot = '/primary'
+  const entry = parseMockupAuthorityEntry({
+    ...exactTasksAuthority,
+    path: '/primary/docs/mockups/tasks-desktop.png',
+  }, privateRoot)
+
+  assert.equal(entry.path, '/primary/docs/mockups/tasks-desktop.png')
 })

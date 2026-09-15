@@ -8,6 +8,7 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
 }
 cd "$ROOT"
 . "$ROOT/scripts/lib/audit-fixture-recovery.sh"
+. "$ROOT/scripts/lib/audit-workspace.sh"
 
 usage() {
   cat >&2 <<'EOF'
@@ -187,6 +188,34 @@ if [ "$check_only" = "1" ]; then
   printf 'design-quality-audit preflight OK\ncandidate_sha=%s\nsession_id=%s\nscope=%s\nbase_url=%s\nmode=%s\n' \
     "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode"
   exit 0
+fi
+
+audit_candidate_worktree_clean "$ROOT" || {
+  echo "design-quality-audit: candidate worktree must be clean before a live evidence run" >&2
+  exit 2
+}
+
+primary_workspace_root="$(audit_primary_workspace_root "$ROOT")" || {
+  echo "design-quality-audit: cannot resolve the primary workspace" >&2
+  exit 2
+}
+fixture_env_file="$(audit_fixture_env_file "$ROOT" "$primary_workspace_root")"
+if [ -n "${AUDIT_FIXTURE_ENV_FILE:-}" ] && [ ! -f "$fixture_env_file" ]; then
+  echo "design-quality-audit: configured fixture environment file was not found" >&2
+  exit 2
+fi
+if [ -f "$fixture_env_file" ]; then
+  export AUDIT_FIXTURE_ENV_FILE="$fixture_env_file"
+  for env_name in VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY; do
+    if [ -z "${!env_name:-}" ]; then
+      env_value="$(audit_env_value "$fixture_env_file" "$env_name")" || exit 2
+      if [ -n "$env_value" ]; then export "$env_name=$env_value"; fi
+    fi
+  done
+fi
+if [ -z "${VITE_SUPABASE_URL:-}" ] || [ -z "${VITE_SUPABASE_ANON_KEY:-}" ]; then
+  echo "design-quality-audit: app environment is incomplete for the owned dev server" >&2
+  exit 2
 fi
 
 # A live run owns only a server it started. A listener that identifies as this
