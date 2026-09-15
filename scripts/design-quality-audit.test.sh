@@ -23,10 +23,13 @@ fi
 for required in \
   mos-app/e2e/design-quality/manifest.ts \
   mos-app/e2e/design-quality/measurements.ts \
+  mos-app/e2e/design-quality/bounded-choices.ts \
+  mos-app/e2e/design-quality/audit-route.ts \
   mos-app/e2e/design-quality/report.ts \
   mos-app/e2e/design-quality/audit-fixtures.ts \
   mos-app/e2e/design-quality/axe.spec.ts \
   mos-app/e2e/design-quality/quantitative-ui.spec.ts \
+  mos-app/e2e/design-quality/control-consistency.spec.ts \
   mos-app/e2e/design-quality/contrast-states.spec.ts \
   mos-app/e2e/design-quality/anti-slop-census.spec.ts \
   mos-app/e2e/design-quality/mockup-fidelity.spec.ts \
@@ -67,11 +70,12 @@ fi
 if node --experimental-strip-types --input-type=module - <<'NODE'
 import { REQUIRED_ARTIFACTS } from './mos-app/e2e/design-quality/report.ts'
 if (!REQUIRED_ARTIFACTS.includes('visible-content.csv')) process.exit(1)
+if (!REQUIRED_ARTIFACTS.includes('control-consistency.csv')) process.exit(1)
 NODE
 then
-  ok "visible-content evidence is required by the audit runner"
+  ok "visible-content and control-consistency evidence are required by the audit runner"
 else
-  bad "visible-content evidence is missing from the audit runner contract"
+  bad "visible-content or control-consistency evidence is missing from the audit runner contract"
 fi
 
 recovery_dir="$(mktemp -d -t mos-design-recovery.XXXXXX)"
@@ -104,6 +108,8 @@ rm -rf "$recovery_dir"
 
 if node --experimental-strip-types --test \
   mos-app/e2e/design-quality/manifest.test.ts \
+  mos-app/e2e/design-quality/bounded-choices.test.ts \
+  mos-app/e2e/design-quality/audit-route.test.ts \
   mos-app/e2e/design-quality/mockup-authority.test.ts \
   >/tmp/mos-design-quality-manifest-test.log 2>&1; then
   ok "manifest/report/authority/mutation unit tests pass"

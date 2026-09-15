@@ -136,6 +136,8 @@ check("fixture receipt is registered in the ADW quantitative artifact contract",
       "fixture-receipt.json" in quant_artifacts)
 check("visible content is registered in the ADW quantitative artifact contract",
       "visible-content.csv" in quant_artifacts)
+check("control consistency is registered in the ADW quantitative artifact contract",
+      "control-consistency.csv" in quant_artifacts)
 candidate_sha = "a" * 40
 for artifact in quant_artifacts:
     target = quant_root / artifact
@@ -173,6 +175,41 @@ for artifact in quant_artifacts:
         target.write_text(
             f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n"
             "browser_status=0\nfixture_status=0\nchain_status=not-run\n")
+    elif artifact == "control-consistency.csv":
+        import csv
+        manifest = json.loads((quant_root / "manifest.json").read_text())
+        cells = [cell for cell in manifest["cells"]
+                 if cell["status"] == "covered" and cell.get("stateContract")]
+        fields = ["authority", "cellId", "component", "kind", "measured",
+                  "observed", "passed", "selector", "size", "state", "variant"]
+        with target.open("w", newline="") as handle:
+            handle.write(f"# candidate_sha={candidate_sha}\n# session_id={FakeRun.adw_id}\n")
+            writer = csv.DictWriter(handle, fieldnames=fields)
+            writer.writeheader()
+            for cell in cells:
+                writer.writerow({
+                    "authority": "issue #856 fixture denominator", "cellId": cell["id"],
+                    "component": "all-controls", "kind": "population",
+                    "measured": json.dumps({"populationSize": 1, "boundedChoicePopulation": 0,
+                                            "nativeSelectPopulation": 0}),
+                    "observed": "true", "passed": "true", "selector": "__cell__",
+                    "size": "all", "state": "default", "variant": "population"})
+                writer.writerow({
+                    "authority": "DESIGN.md button contract", "cellId": cell["id"],
+                    "component": "button", "kind": "control",
+                    "measured": json.dumps({"populationSize": 1, "height": 32, "radius": 8,
+                                            "borderWidth": 1, "foreground": "rgb(20,20,20)",
+                                            "background": "rgb(255,255,255)", "textContrast": 18,
+                                            "boundaryContrast": 3.1}),
+                    "observed": "true", "passed": "true", "selector": "main button",
+                    "size": "control-32", "state": "default", "variant": "outline"})
+            for state in ("disabled", "error"):
+                writer.writerow({
+                    "authority": "issue #856 state population", "cellId": cells[0]["id"],
+                    "component": "all-controls", "kind": "control-state",
+                    "measured": json.dumps({"state": state, "populationSize": 1}),
+                    "observed": "true", "passed": "true", "selector": "__population__",
+                    "size": "all", "state": state, "variant": "state-face"})
     elif artifact == "visible-content.csv":
         import csv
         manifest = json.loads((quant_root / "manifest.json").read_text())

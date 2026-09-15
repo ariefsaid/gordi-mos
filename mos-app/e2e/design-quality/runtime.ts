@@ -4,6 +4,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
 
+import { assertAuditRoute } from './audit-route.ts'
+
 import { loginAs } from '../helpers/login'
 import { ADMIN, BAR_MEMBER, BAR_SUPERVISOR, MANAGER, ORPHAN, VIEWER } from '../fixtures/users'
 import { assertDevServerOwnership, worktreeFingerprint } from '../../src/lib/dev-server'
@@ -298,6 +300,7 @@ export async function prepareAuditPage(page: Page, run: AuditRun, cell: Manifest
     window.localStorage.setItem('mos-theme', theme === 'dark' ? 'dark' : 'light')
   }, { theme: cell.theme, language: cell.language })
   await page.goto(cell.route, { waitUntil: 'domcontentloaded' })
+  assertAuditRoute(page.url(), cell.route)
   await page.locator('main').waitFor({ state: 'visible', timeout: 10_000 })
   await page.locator('main h1').first().waitFor({ state: 'visible', timeout: 10_000 })
   const expectedLanguage = cell.language === 'id' ? 'id' : 'en'

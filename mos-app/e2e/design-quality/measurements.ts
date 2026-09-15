@@ -35,6 +35,12 @@ export type MutationFixture =
   | { ruleId: 'geometry.viewport-occlusion'; intersectionRatio: number; centerCovered: boolean; fullyReachable: boolean }
   | { ruleId: 'touch.phone-separation'; width: number; height: number; nearestDistance: number }
   | { ruleId: 'identity.full-value'; truncated: boolean; ariaLabel: string; visibleReveal: string }
+  | { ruleId: 'controls.native-select'; nativeSelectCount: number; exceptionAuthority: string }
+  | { ruleId: 'controls.bounded-choice-lifecycle'; opened: boolean; arrowKey: boolean; typeahead: boolean; enter: boolean; escapeDismissed: boolean; outsideDismissed: boolean; focusReturned: boolean }
+  | { ruleId: 'controls.popup-containment'; x: number; y: number; right: number; bottom: number; viewportWidth: number; viewportHeight: number; activeReachable: boolean }
+  | { ruleId: 'controls.bounded-choice-contrast'; foreground: Rgb; background: Rgb; threshold: number }
+  | { ruleId: 'controls.variant-classification'; variant: string; size: string; state: string }
+  | { ruleId: 'controls.variant-consistency'; spreadPx: number; colorsIdentical: boolean }
 
 export type MutationEvaluation = { ruleId: string; passed: boolean; detail: string }
 
@@ -51,6 +57,12 @@ export const MUTATION_FIXTURES: MutationFixture[] = [
   { ruleId: 'geometry.viewport-occlusion', intersectionRatio: 0.2, centerCovered: true, fullyReachable: false },
   { ruleId: 'touch.phone-separation', width: 44, height: 44, nearestDistance: 4 },
   { ruleId: 'identity.full-value', truncated: true, ariaLabel: 'Complete value', visibleReveal: '' },
+  { ruleId: 'controls.native-select', nativeSelectCount: 1, exceptionAuthority: '' },
+  { ruleId: 'controls.bounded-choice-lifecycle', opened: true, arrowKey: true, typeahead: true, enter: true, escapeDismissed: true, outsideDismissed: true, focusReturned: false },
+  { ruleId: 'controls.popup-containment', x: -1, y: 0, right: 400, bottom: 844, viewportWidth: 390, viewportHeight: 844, activeReachable: false },
+  { ruleId: 'controls.bounded-choice-contrast', foreground: [170, 170, 170], background: [255, 255, 255], threshold: 4.5 },
+  { ruleId: 'controls.variant-classification', variant: '', size: '', state: '' },
+  { ruleId: 'controls.variant-consistency', spreadPx: 2, colorsIdentical: true },
 ]
 
 function channel(value: number): number {
@@ -138,6 +150,32 @@ export function evaluateMutationFixture(fixture: MutationFixture): MutationEvalu
     case 'identity.full-value': {
       const passed = !fixture.truncated || fixture.visibleReveal.trim().length > 0
       return { ruleId: fixture.ruleId, passed, detail: `aria=${fixture.ariaLabel || '<empty>'}; visible=${fixture.visibleReveal || '<empty>'}` }
+    }
+    case 'controls.native-select': {
+      const passed = fixture.nativeSelectCount === 0 || fixture.exceptionAuthority.trim().length > 0
+      return { ruleId: fixture.ruleId, passed, detail: `native-selects=${fixture.nativeSelectCount}; authority=${fixture.exceptionAuthority || '<none>'}` }
+    }
+    case 'controls.bounded-choice-lifecycle': {
+      const passed = fixture.opened && fixture.arrowKey && fixture.typeahead && fixture.enter
+        && fixture.escapeDismissed && fixture.outsideDismissed && fixture.focusReturned
+      return { ruleId: fixture.ruleId, passed, detail: `opened=${fixture.opened}; focus-returned=${fixture.focusReturned}` }
+    }
+    case 'controls.popup-containment': {
+      const contained = fixture.x >= 0 && fixture.y >= 0
+        && fixture.right <= fixture.viewportWidth + 1
+        && fixture.bottom <= fixture.viewportHeight + 1
+      return { ruleId: fixture.ruleId, passed: contained && fixture.activeReachable, detail: `contained=${contained}; active-reachable=${fixture.activeReachable}` }
+    }
+    case 'controls.bounded-choice-contrast': {
+      const ratio = contrastRatio(fixture.foreground, fixture.background)
+      return { ruleId: fixture.ruleId, passed: ratio >= fixture.threshold, detail: `ratio=${ratio.toFixed(2)}; threshold=${fixture.threshold}` }
+    }
+    case 'controls.variant-classification': {
+      const passed = [fixture.variant, fixture.size, fixture.state].every((value) => value.trim().length > 0)
+      return { ruleId: fixture.ruleId, passed, detail: `variant=${fixture.variant || '<none>'}; size=${fixture.size || '<none>'}; state=${fixture.state || '<none>'}` }
+    }
+    case 'controls.variant-consistency': {
+      return { ruleId: fixture.ruleId, passed: fixture.spreadPx <= 1 && fixture.colorsIdentical, detail: `spread=${fixture.spreadPx}px; colors-identical=${fixture.colorsIdentical}` }
     }
   }
 }
@@ -941,7 +979,7 @@ export async function collectContrast(
         .map((node) => node.textContent?.trim() || '')
         .filter(Boolean)
         .join(' ')
-      const semanticText = element.matches('h1, h2, h3, p, label, button, a[href], [role="button"]')
+      const semanticText = element.matches('h1, h2, h3, p, label, button, a[href], [role="button"], [role="combobox"], [role="option"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]')
         ? element.innerText?.trim() || directText
         : directText
       const text = semanticText || (element as HTMLInputElement).value?.trim() || (element as HTMLInputElement).placeholder?.trim() || ''
