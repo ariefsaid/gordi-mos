@@ -141,6 +141,10 @@ export async function collectControlConsistency(
         && style.opacity !== '0'
         && rect.width > 2
         && rect.height > 2
+        && rect.right > 0
+        && rect.bottom > 0
+        && rect.left < window.innerWidth
+        && rect.top < window.innerHeight
     }
     const elementPath = (element: HTMLElement): string => {
       const segments: string[] = []
@@ -301,6 +305,11 @@ export async function exerciseBoundedChoices(
   const rows: ControlConsistencyRow[] = []
   for (let index = 0; index < await triggers.count(); index += 1) {
     const trigger = triggers.nth(index)
+    const intersectsViewport = await trigger.evaluate((element) => {
+      const rect = element.getBoundingClientRect()
+      return rect.right > 0 && rect.bottom > 0 && rect.left < window.innerWidth && rect.top < window.innerHeight
+    })
+    if (!intersectsViewport) continue
     const selector = await trigger.evaluate((element) => {
       const segments: string[] = []
       let current: HTMLElement | null = element as HTMLElement
@@ -496,6 +505,11 @@ export async function exerciseControlStateColors(
   const rows: ControlConsistencyRow[] = []
   for (let index = 0; index < await controls.count(); index += 1) {
     const control = controls.nth(index)
+    const intersectsViewport = await control.evaluate((element) => {
+      const rect = element.getBoundingClientRect()
+      return rect.right > 0 && rect.bottom > 0 && rect.left < window.innerWidth && rect.top < window.innerHeight
+    })
+    if (!intersectsViewport) continue
     const identity = await control.evaluate((element, vocabulary) => {
       const segments: string[] = []
       let current: HTMLElement | null = element as HTMLElement

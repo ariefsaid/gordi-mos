@@ -32,6 +32,7 @@ test('control census detects planted raw controls and matches native exceptions 
       #weak-hover:hover { color: rgb(190, 190, 190); }
     </style>
     <main>
+      <a id="skip" href="#main" style="position:fixed;top:-100px">Skip link</a>
       <button class="btn btn-outline">Classified</button>
       <button id="raw-button">Raw</button>
       <button class="btn btn-outline" style="border-color:rgb(220,220,220)">Weak boundary</button>
@@ -56,7 +57,8 @@ test('control census detects planted raw controls and matches native exceptions 
   expect(weakBoundary.passed).toBe(false)
   expect(JSON.parse(weakBoundary.measured).boundaryContrast).toBeLessThan(3)
   const stateRows = await exerciseControlStateColors(page, context, 'planted-cell')
-  const weakHover = stateRows.find((row) => row.selector.includes('a:nth-of-type(1)') && row.state === 'hover')!
+  expect(stateRows.some((row) => row.selector.includes('a:nth-of-type(1)'))).toBe(false)
+  const weakHover = stateRows.find((row) => row.selector.includes('a:nth-of-type(2)') && row.state === 'hover')!
   expect(weakHover.passed).toBe(false)
   expect(JSON.parse(weakHover.measured).textContrast).toBeLessThan(4.5)
   const nativeRows = rows.filter((row) => row.kind === 'native-select')
