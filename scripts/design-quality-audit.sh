@@ -7,6 +7,7 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   exit 2
 }
 cd "$ROOT"
+. "$ROOT/scripts/lib/audit-fixture-recovery.sh"
 
 usage() {
   cat >&2 <<'EOF'
@@ -209,16 +210,59 @@ fi
 
 server_pid=""
 producer_hash_file=""
+binding_secret_file=""
+active_child_pid=""
+
+stop_active_child() {
+  local child_pid="${active_child_pid:-}"
+  [ -n "$child_pid" ] || return 0
+  if kill -0 "$child_pid" 2>/dev/null; then
+    kill -TERM -- "-$child_pid" 2>/dev/null || kill -TERM "$child_pid" 2>/dev/null || true
+    for _ in $(seq 1 20); do
+      kill -0 "$child_pid" 2>/dev/null || break
+      sleep 0.1
+    done
+    if kill -0 "$child_pid" 2>/dev/null; then
+      kill -KILL -- "-$child_pid" 2>/dev/null || kill -KILL "$child_pid" 2>/dev/null || true
+    fi
+  fi
+  wait "$child_pid" 2>/dev/null || true
+  active_child_pid=""
+}
+
+run_in_child_group() {
+  local status
+  set -m
+  "$@" &
+  active_child_pid=$!
+  if wait "$active_child_pid"; then status=0; else status=$?; fi
+  active_child_pid=""
+  set +m
+  return "$status"
+}
+
 cleanup() {
   status=$?
+  trap - EXIT
+  stop_active_child
+  if [ "${fixture_cleanup_done:-0}" -ne 1 ] && [ -n "${context_dir:-}" ] \
+    && declare -F run_fixture_cleanup >/dev/null 2>&1; then
+    run_fixture_cleanup "${browser_status:-$status}" || true
+  fi
   if [ -n "$server_pid" ] && kill -0 "$server_pid" 2>/dev/null; then
     kill "$server_pid" 2>/dev/null || true
     wait "$server_pid" 2>/dev/null || true
   fi
   [ -z "$producer_hash_file" ] || rm -f "$producer_hash_file"
+  if [ -n "$binding_secret_file" ] && [ "${fixture_cleanup_done:-0}" -eq 1 ] \
+    && [ "${fixture_status:-125}" -eq 0 ]; then
+    rm -f "$binding_secret_file"
+  fi
   exit "$status"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 server_identity=""
 if server_identity="$(curl --silent --show-error --fail --max-time 2 "$base_origin/_mos_dev_identity" 2>/dev/null)"; then
@@ -253,14 +297,97 @@ mkdir -p "$context_dir/screenshots" || {
   exit 2
 }
 
+recover_previous_fixture_receipt() {
+  local previous_receipt="$context_dir/fixture-receipt.json"
+  local previous_secret="$context_dir/fixture-binding.secret"
+  local recovery_state
+  recovery_state="$(audit_fixture_recovery_state "$previous_receipt" "$previous_secret")"
+  case "$recovery_state" in
+    none|completed) return 0 ;;
+    incomplete)
+      echo "design-quality-audit: prior fixture recovery artifacts are incomplete; refusing to overwrite them" >&2
+      return 2
+      ;;
+    recover) ;;
+    *)
+      echo "design-quality-audit: prior fixture recovery state is invalid" >&2
+      return 2
+      ;;
+  esac
+  if (cd "$ROOT/mos-app" && "$ROOT/scripts/with-db-lock.sh" node --experimental-strip-types --input-type=module - "$context_dir" <<'NODE'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { ReportWriter } from './e2e/design-quality/report.ts'
+import {
+  cleanupAuditFixtureReceipt,
+  createLocalAuditAuthClient,
+  createLocalAuditSqlClient,
+  validateAuditFixtureReceipt,
+} from './e2e/design-quality/audit-provisioner.ts'
+
+const outputDir = process.argv[2]
+const receipt = JSON.parse(await readFile(path.join(outputDir, 'fixture-receipt.json'), 'utf8'))
+const bindingSecret = (await readFile(path.join(outputDir, 'fixture-binding.secret'), 'utf8')).trim()
+let fileEnv = {}
+try {
+  const content = await readFile('./.env.e2e', 'utf8')
+  fileEnv = Object.fromEntries(content.split('\n').flatMap((line) => {
+    const value = line.trim()
+    const split = value.indexOf('=')
+    return split > 0 && !value.startsWith('#')
+      ? [[value.slice(0, split).trim(), value.slice(split + 1).trim()]]
+      : []
+  }))
+} catch { /* CI supplies credentials through process.env. */ }
+const url = process.env.VITE_SUPABASE_URL || fileEnv.VITE_SUPABASE_URL || 'http://127.0.0.1:44321'
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY || fileEnv.SUPABASE_SERVICE_ROLE_KEY || ''
+if (!key) throw new Error('prior audit fixture recovery requires SUPABASE_SERVICE_ROLE_KEY')
+const writer = new ReportWriter({ outputDir, candidateSha: receipt.candidateSha, sessionId: receipt.sessionId })
+const cleaned = await cleanupAuditFixtureReceipt(receipt, {
+  candidateSha: receipt.candidateSha,
+  sessionId: receipt.sessionId,
+  bindingSecret,
+  sql: createLocalAuditSqlClient(url, key),
+  auth: createLocalAuditAuthClient(url, key),
+  onFailure: true,
+  onReceipt: async (nextReceipt) => { await writer.writeFixtureReceipt(nextReceipt) },
+})
+const validation = validateAuditFixtureReceipt(cleaned, {
+  candidateSha: receipt.candidateSha,
+  sessionId: receipt.sessionId,
+  bindingSecret,
+})
+if (!validation.ok) throw new Error(`prior audit fixture recovery did not validate: ${validation.errors.join('; ')}`)
+NODE
+  ); then
+    rm -f "$previous_secret" "$previous_receipt"
+  else
+    echo "design-quality-audit: prior fixture cleanup failed; recovery artifacts were retained" >&2
+    return 2
+  fi
+}
+
+recover_previous_fixture_receipt || exit $?
+binding_secret_file="$context_dir/fixture-binding.secret"
+(umask 077 && python3 - <<'PY' > "$binding_secret_file"
+import secrets
+print(secrets.token_hex(32))
+PY
+) || {
+  echo "design-quality-audit: unable to create the fixture binding secret" >&2
+  exit 2
+}
+chmod 600 "$binding_secret_file" || exit 2
+
 # Seed the handoff with the exact run contract. The browser specs replace the
 # CSV/JSON placeholders; the chain gate refuses a session with missing or stale
 # artifacts, so a partial browser run cannot be mistaken for evidence.
-node --experimental-strip-types --input-type=module - "$ROOT" "$context_dir" "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode" <<'NODE'
-import { mkdir } from 'node:fs/promises'
+if node --experimental-strip-types --input-type=module - "$ROOT" "$context_dir" "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode" "$binding_secret_file" <<'NODE'
+import { mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { manifestForArtifact } from './mos-app/e2e/design-quality/manifest.ts'
 import { REQUIRED_ARTIFACTS, ReportWriter } from './mos-app/e2e/design-quality/report.ts'
+import { emptyAuditFixtureReceipt } from './mos-app/e2e/design-quality/audit-provisioner.ts'
 
 const root = process.argv[2]
 const outputDir = process.argv[3]
@@ -269,6 +396,7 @@ const sessionId = process.argv[5]
 const scopePath = process.argv[6]
 const baseUrl = process.argv[7]
 const auditMode = process.argv[8]
+const bindingSecret = (await readFile(process.argv[9], 'utf8')).trim()
 const writer = new ReportWriter({ outputDir, candidateSha, sessionId })
 await mkdir(path.join(outputDir, 'screenshots'), { recursive: true })
 await writer.writeJson('manifest.json', manifestForArtifact(candidateSha, sessionId))
@@ -278,13 +406,15 @@ await writer.writeGateLog([
   `scope=${scopePath}`,
   `base_url=${baseUrl}`,
   'browser_status=pending',
+  'fixture_status=pending',
   'chain_status=pending',
 ])
 for (const artifact of REQUIRED_ARTIFACTS) {
-  if (artifact === 'manifest.json' || artifact === 'gate-log.txt' || artifact === 'mockup-diff') continue
+  if (artifact === 'manifest.json' || artifact === 'gate-log.txt' || artifact === 'fixture-receipt.json' || artifact === 'mockup-diff') continue
   if (artifact.endsWith('.json')) await writer.writeJson(artifact, { status: 'pending' })
   else await writer.writeCsv(artifact, [])
 }
+await writer.writeFixtureReceipt(emptyAuditFixtureReceipt(candidateSha, sessionId, bindingSecret))
 await writer.writeJson('mockup-diff/status.json', { status: 'pending' })
 await writer.writeSession({
   auditId: sessionId,
@@ -296,11 +426,23 @@ await writer.writeSession({
   root,
   contextHandoffDir: outputDir,
   quantitativeArtifacts: REQUIRED_ARTIFACTS.map((name) => path.join(outputDir, name)),
+  fixtureReceiptPath: path.join(outputDir, 'fixture-receipt.json'),
+  fixtureWritesOccurred: false,
   browserExitStatus: null,
+  fixtureExitStatus: null,
   chainExitStatus: null,
   fixturePolicy: 'read-only seeded fixtures; any audit-owned writes stay under this session',
 })
 NODE
+then
+  :
+else
+  seed_status=$?
+  rm -f "$binding_secret_file" "$context_dir/fixture-receipt.json"
+  binding_secret_file=""
+  echo "design-quality-audit: unable to seed the audit evidence contract" >&2
+  exit "$seed_status"
+fi
 
 export DESIGN_QUALITY_RUN=1
 export DESIGN_AUDIT_BASE_URL="$base_url"
@@ -314,28 +456,148 @@ if [ -n "$mockup_authority" ]; then
 fi
 
 browser_status=0
-if (cd "$ROOT/mos-app" && "$ROOT/scripts/with-db-lock.sh" npx playwright test --config playwright.design-audit.config.ts); then
+fixture_status=125
+fixture_cleanup_done=0
+
+run_fixture_cleanup() {
+  if [ "$fixture_cleanup_done" -eq 1 ]; then
+    return "$fixture_status"
+  fi
+  local cleanup_browser_status="${1:-0}"
+  fixture_status=0
+  if (cd "$ROOT/mos-app" && "$ROOT/scripts/with-db-lock.sh" node --experimental-strip-types --input-type=module - "$context_dir" "$cleanup_browser_status" "$candidate_sha" "$audit_id" <<'NODE'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { ReportWriter } from './e2e/design-quality/report.ts'
+import {
+  cleanupAuditFixtureReceipt,
+  createLocalAuditAuthClient,
+  createLocalAuditSqlClient,
+  emptyAuditFixtureReceipt,
+  validateAuditFixtureReceipt,
+  validateAuditFixtureProvisionedReceipt,
+} from './e2e/design-quality/audit-provisioner.ts'
+
+const outputDir = process.argv[2]
+const browserStatus = Number(process.argv[3])
+const candidateSha = process.argv[4]
+const sessionId = process.argv[5]
+const session = JSON.parse(await readFile(path.join(outputDir, 'session.json'), 'utf8'))
+if (session.candidateSha !== candidateSha || session.sessionId !== sessionId) {
+  throw new Error('audit session metadata changed before fixture cleanup')
+}
+const writer = new ReportWriter({ outputDir, candidateSha, sessionId })
+const receipt = JSON.parse(await readFile(path.join(outputDir, 'fixture-receipt.json'), 'utf8'))
+const bindingSecret = (await readFile(path.join(outputDir, 'fixture-binding.secret'), 'utf8')).trim()
+const expected = { candidateSha, sessionId, bindingSecret }
+const provisionedValidation = validateAuditFixtureProvisionedReceipt(receipt, expected)
+const cleanedValidation = validateAuditFixtureReceipt(receipt, expected)
+if (!provisionedValidation.ok && !cleanedValidation.ok) {
+  const errors = [...new Set([...provisionedValidation.errors, ...cleanedValidation.errors])]
+  throw new Error(`invalid audit fixture receipt before cleanup: ${errors.join('; ')}`)
+}
+const owned = Array.isArray(receipt.created) && receipt.created.some((group) => Array.isArray(group.ids) && group.ids.length > 0)
+  || Array.isArray(receipt.ownedAuthUsers) && receipt.ownedAuthUsers.length > 0
+const hasSentinels = Array.isArray(receipt.sentinels) && receipt.sentinels.length > 0
+if (!owned && !hasSentinels) {
+  await writer.writeFixtureReceipt(emptyAuditFixtureReceipt(candidateSha, sessionId, bindingSecret))
+} else {
+  let fileEnv = {}
+  try {
+    const content = await readFile('./.env.e2e', 'utf8')
+    fileEnv = Object.fromEntries(content.split('\n').flatMap((line) => {
+      const trimmed = line.trim()
+      const separator = trimmed.indexOf('=')
+      return !trimmed || trimmed.startsWith('#') || separator < 1
+        ? [] : [[trimmed.slice(0, separator).trim(), trimmed.slice(separator + 1).trim()]]
+    }))
+  } catch { /* CI supplies credentials through process.env. */ }
+  const url = process.env.VITE_SUPABASE_URL || fileEnv.VITE_SUPABASE_URL || 'http://127.0.0.1:44321'
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || fileEnv.SUPABASE_SERVICE_ROLE_KEY || ''
+  if (!key) throw new Error('audit fixture cleanup requires SUPABASE_SERVICE_ROLE_KEY')
+  const cleaned = await cleanupAuditFixtureReceipt(receipt, {
+    candidateSha,
+    sessionId,
+    sql: createLocalAuditSqlClient(url, key),
+    auth: createLocalAuditAuthClient(url, key),
+    bindingSecret,
+    onFailure: browserStatus !== 0,
+    onReceipt: async (nextReceipt) => { await writer.writeFixtureReceipt(nextReceipt) },
+  })
+  await writer.writeFixtureReceipt(cleaned)
+}
+NODE
+  ); then
+    fixture_status=0
+  else
+    fixture_status=$?
+  fi
+  fixture_cleanup_done=1
+  return "$fixture_status"
+}
+
+write_terminal_evidence() {
+  local terminal_browser_status="$1"
+  local terminal_fixture_status="$2"
+  local terminal_chain_status="$3"
+  node --experimental-strip-types --input-type=module - "$context_dir" "$terminal_browser_status" "$terminal_fixture_status" "$terminal_chain_status" <<'NODE'
+import { readFile } from 'node:fs/promises'
+import { ReportWriter } from './mos-app/e2e/design-quality/report.ts'
+const outputDir = process.argv[2]
+const parseStatus = (value) => /^-?[0-9]+$/.test(value) ? Number(value) : value
+const browserStatus = parseStatus(process.argv[3])
+const fixtureStatus = parseStatus(process.argv[4])
+const chainStatus = parseStatus(process.argv[5])
+const session = JSON.parse(await readFile(`${outputDir}/session.json`, 'utf8'))
+const writer = new ReportWriter({ outputDir, candidateSha: session.candidateSha, sessionId: session.sessionId })
+await writer.writeSession({ ...session, browserExitStatus: browserStatus, fixtureExitStatus: fixtureStatus, chainExitStatus: chainStatus })
+await writer.writeGateLog([
+  `browser_status=${browserStatus}`,
+  `fixture_status=${fixtureStatus}`,
+  `chain_status=${chainStatus}`,
+])
+NODE
+}
+
+handle_audit_signal() {
+  local signal_status="$1"
+  trap - INT TERM
+  browser_status="$signal_status"
+  stop_active_child
+  run_fixture_cleanup "$signal_status" || true
+  write_terminal_evidence "$signal_status" "$fixture_status" skipped || true
+  if [ "$fixture_status" -eq 0 ] && [ -n "$binding_secret_file" ]; then
+    rm -f "$binding_secret_file"
+    binding_secret_file=""
+  fi
+  exit "$signal_status"
+}
+
+trap 'handle_audit_signal 130' INT
+trap 'handle_audit_signal 143' TERM
+
+run_browser_lane() {
+  cd "$ROOT/mos-app" && "$ROOT/scripts/with-db-lock.sh" npx playwright test --config playwright.design-audit.config.ts
+}
+
+if run_in_child_group run_browser_lane; then
   browser_status=0
 else
   browser_status=$?
 fi
-node --experimental-strip-types --input-type=module - "$context_dir" "$browser_status" <<'NODE'
-import { readFile } from 'node:fs/promises'
-import { ReportWriter } from './mos-app/e2e/design-quality/report.ts'
-const outputDir = process.argv[2]
-const status = Number(process.argv[3])
-const session = JSON.parse(await readFile(`${outputDir}/session.json`, 'utf8'))
-const writer = new ReportWriter({ outputDir, candidateSha: session.candidateSha, sessionId: session.sessionId })
-const chainStatus = status === 0 ? 'not-run' : 'skipped'
-await writer.writeSession({ ...session, browserExitStatus: status, chainExitStatus: chainStatus })
-await writer.writeGateLog([
-  `browser_status=${status}`,
-  `chain_status=${chainStatus}`,
-])
-NODE
+run_fixture_cleanup "$browser_status" || true
+if [ "$fixture_status" -eq 0 ]; then
+  rm -f "$binding_secret_file"
+  binding_secret_file=""
+fi
+write_terminal_evidence "$browser_status" "$fixture_status" "$([ "$browser_status" -eq 0 ] && [ "$fixture_status" -eq 0 ] && echo not-run || echo skipped)"
 if [ "$browser_status" -ne 0 ]; then
   echo "design-quality-audit: browser lane failed; factory chain was not started" >&2
   exit "$browser_status"
+fi
+if [ "$fixture_status" -ne 0 ]; then
+  echo "design-quality-audit: fixture cleanup failed; factory chain was not started" >&2
+  exit "$fixture_status"
 fi
 
 # Freeze the browser producer's evidence before the independent reviewer sees it.
@@ -354,9 +616,13 @@ for declared in sorted(session.get("quantitativeArtifacts", [])):
         print(f"{digest}  {path}")
 PY
 
+run_factory_lane() {
+  bash "$ROOT/scripts/factory-run.sh" --allow-barred adw_design_audit.py "$scope_file" \
+    --base-url "$base_url" --adw-id "$audit_id" --config "$config"
+}
+
 chain_status=0
-if bash "$ROOT/scripts/factory-run.sh" --allow-barred adw_design_audit.py "$scope_file" \
-  --base-url "$base_url" --adw-id "$audit_id" --config "$config"; then
+if run_in_child_group run_factory_lane; then
   chain_status=0
 else
   chain_status=$?
@@ -388,6 +654,7 @@ const writer = new ReportWriter({ outputDir, candidateSha: session.candidateSha,
 await writer.writeSession({ ...session, chainExitStatus: status })
 await writer.writeGateLog([
   `browser_status=${session.browserExitStatus}`,
+  `fixture_status=${session.fixtureExitStatus}`,
   `chain_status=${status}`,
 ])
 NODE

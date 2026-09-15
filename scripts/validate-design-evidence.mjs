@@ -53,14 +53,16 @@ const declarationErrors = REQUIRED_ARTIFACTS
   .map((artifact) => path.join(evidenceDir, artifact))
   .filter((artifactPath) => !declared.has(artifactPath))
   .map((artifactPath) => `session does not declare ${path.relative(evidenceDir, artifactPath)}`)
-const statusErrors = flags.includes('--require-green') && (session.browserExitStatus !== 0 || session.chainExitStatus !== 0)
-  ? [`evidence run is not green (browser=${String(session.browserExitStatus)}, chain=${String(session.chainExitStatus)})`]
+const statusErrors = flags.includes('--require-green')
+  && (session.browserExitStatus !== 0 || session.fixtureExitStatus !== 0 || session.chainExitStatus !== 0)
+  ? [`evidence run is not green (browser=${String(session.browserExitStatus)}, fixture=${String(session.fixtureExitStatus)}, chain=${String(session.chainExitStatus)})`]
   : []
 const changeGateErrors = []
 if (requireFinalChangeGate || requireBrowserChangeGate) {
   if (session.auditMode !== 'change-gate') changeGateErrors.push('evidence was not produced in change-gate mode')
-  if (session.browserExitStatus !== 0 || (requireFinalChangeGate && session.chainExitStatus !== 0)) {
-    changeGateErrors.push(`change gate is not green (browser=${String(session.browserExitStatus)}, chain=${String(session.chainExitStatus)})`)
+  if (session.browserExitStatus !== 0 || session.fixtureExitStatus !== 0
+    || (requireFinalChangeGate && session.chainExitStatus !== 0)) {
+    changeGateErrors.push(`change gate is not green (browser=${String(session.browserExitStatus)}, fixture=${String(session.fixtureExitStatus)}, chain=${String(session.chainExitStatus)})`)
   }
   try {
     const summary = JSON.parse(await readFile(path.join(evidenceDir, 'quantitative-summary.json'), 'utf8'))

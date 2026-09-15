@@ -4,7 +4,7 @@ import { assertFixtureSqlSafe, assertLocalFixtureDatabase, fixtureCleanupSql } f
 
 function loadEnvFile(): Record<string, string> {
   try {
-    const content = readFileSync(new URL('../.env.e2e', import.meta.url), 'utf8')
+    const content = readFileSync(process.env.AUDIT_FIXTURE_ENV_FILE ?? new URL('../.env.e2e', import.meta.url), 'utf8')
     return Object.fromEntries(content.split('\n').flatMap((line) => {
       const trimmed = line.trim()
       const eq = trimmed.indexOf('=')

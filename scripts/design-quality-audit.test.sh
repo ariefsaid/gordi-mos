@@ -7,6 +7,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
+. "$ROOT/scripts/lib/audit-fixture-recovery.sh"
 pass=0
 fail=0
 ok() { pass=$((pass + 1)); printf '  ok    %s\n' "$1"; }
@@ -26,6 +27,63 @@ for required in \
   scripts/design-quality-audit.sh; do
   if [ -e "$required" ]; then ok "required entry point exists: $required"; else bad "missing entry point: $required"; fi
 done
+
+if grep -q 'handle_audit_signal' scripts/design-quality-audit.sh \
+  && grep -q 'fixtureExitStatus' scripts/design-quality-audit.sh \
+  && grep -q 'fixture_status=' scripts/design-quality-audit.sh; then
+  ok "interrupt cleanup preserves a terminal fixture status"
+else
+  bad "interrupt cleanup does not preserve a terminal fixture status"
+fi
+
+if grep -Fq 'run_in_child_group run_browser_lane' scripts/design-quality-audit.sh \
+  && grep -Fq 'run_in_child_group run_factory_lane' scripts/design-quality-audit.sh \
+  && grep -Fq 'kill -TERM -- "-$child_pid"' scripts/design-quality-audit.sh \
+  && grep -Fq 'wait "$child_pid"' scripts/design-quality-audit.sh \
+  && grep -Fq 'stop_active_child' scripts/design-quality-audit.sh; then
+  ok "interrupt cleanup stops and waits for each active child process group"
+else
+  bad "interrupt cleanup can race an active child process group"
+fi
+
+if grep -Fq 'fixture-binding.secret' scripts/design-quality-audit.sh \
+  && grep -Fq 'chmod 600 "$binding_secret_file"' scripts/design-quality-audit.sh \
+  && grep -Fq 'onReceipt: async (nextReceipt)' scripts/design-quality-audit.sh \
+  && grep -Fq 'if [ "$fixture_status" -eq 0 ]' scripts/design-quality-audit.sh \
+  && grep -Fq 'recover_previous_fixture_receipt' scripts/design-quality-audit.sh \
+  && grep -Fq 'recovery artifacts were retained' scripts/design-quality-audit.sh; then
+  ok "fixture receipt and binding secret remain recoverable until cleanup succeeds"
+else
+  bad "fixture receipt binding secret lifecycle is incomplete"
+fi
+
+recovery_dir="$(mktemp -d -t mos-design-recovery.XXXXXX)"
+recovery_receipt="$recovery_dir/fixture-receipt.json"
+recovery_secret="$recovery_dir/fixture-binding.secret"
+if [ "$(audit_fixture_recovery_state "$recovery_receipt" "$recovery_secret")" = none ]; then
+  ok "fresh audit id has no recovery work"
+else
+  bad "fresh audit id recovery state is wrong"
+fi
+printf '{}\n' > "$recovery_receipt"
+if [ "$(audit_fixture_recovery_state "$recovery_receipt" "$recovery_secret")" = completed ]; then
+  ok "successful prior audit receipt can be replaced on rerun"
+else
+  bad "successful prior audit receipt bricks rerun"
+fi
+printf '0123456789abcdef\n' > "$recovery_secret"
+if [ "$(audit_fixture_recovery_state "$recovery_receipt" "$recovery_secret")" = recover ]; then
+  ok "retained receipt and secret require recovery"
+else
+  bad "retained recovery pair is not recognized"
+fi
+rm -f "$recovery_receipt"
+if [ "$(audit_fixture_recovery_state "$recovery_receipt" "$recovery_secret")" = incomplete ]; then
+  ok "orphaned binding secret fails closed"
+else
+  bad "orphaned binding secret was accepted"
+fi
+rm -rf "$recovery_dir"
 
 if node --experimental-strip-types --test \
   mos-app/e2e/design-quality/manifest.test.ts \
