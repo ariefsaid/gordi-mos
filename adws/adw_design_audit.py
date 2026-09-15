@@ -116,6 +116,9 @@ another session, or a different checkout:
 
 {quantitative_artifacts}
 
+## Audit mode — {audit_mode_heading}
+{audit_mode_policy}
+
 ## The battery, per your contract
 0. Confirm the guard suites green over the scoped surfaces — you may run the named
    guard test files (read-only; they change nothing tracked). A red guard is a
@@ -487,6 +490,26 @@ def main(scope_path: str, config: str = "adws/adw_sssf_config/sssf.config.yaml",
         raise SystemExit("candidate HEAD is not a full lowercase git SHA — quantitative evidence cannot be bound")
     run = session.ensure(cfg, adw_id)
     run.candidate_sha = candidate_sha
+    try:
+        session_payload = json.loads((_context_handoff_dir(run) / "session.json").read_text())
+    except (OSError, ValueError):
+        session_payload = {}
+    audit_mode = session_payload.get("auditMode", "mvp-assessment")
+    if audit_mode == "change-gate":
+        audit_mode_heading = "CHANGE-GATE"
+        audit_mode_policy = (
+            "Evaluate regressions introduced by the candidate delta. The quantitative browser "
+            "lane has already proved its automatic checks green. Record inherited untested state "
+            "cells and assessed-with-gaps mockup comparisons as Important follow-up evidence, but "
+            "you must not fail a surface solely because either remains. Fail a surface only for a live "
+            "defect introduced by this candidate or another red change-gate check."
+        )
+    else:
+        audit_mode_heading = "MVP-ASSESSMENT"
+        audit_mode_policy = (
+            "Evaluate the complete MVP scope. Missing requested states, breakpoints, or required "
+            "evidence blocks the affected surface."
+        )
 
     with run.phase(PhaseParams(name="request", kind="engineer", owner=run.engineer,
                                description="Capture the milestone audit ask: which scope, "
@@ -526,6 +549,8 @@ def main(scope_path: str, config: str = "adws/adw_sssf_config/sssf.config.yaml",
                 candidate_sha=candidate_sha,
                 session_id=run.adw_id,
                 context_handoff_dir=_context_handoff_dir(run),
+                audit_mode_heading=audit_mode_heading,
+                audit_mode_policy=audit_mode_policy,
                 quantitative_artifacts="\n".join(
                     f"- {_context_handoff_dir(run) / artifact}"
                     for artifact in QUANTITATIVE_ARTIFACTS)),

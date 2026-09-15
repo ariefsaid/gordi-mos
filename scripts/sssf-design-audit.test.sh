@@ -165,7 +165,17 @@ for artifact in quant_artifacts:
 (quant_root / "session.json").write_text(json.dumps({
     "candidateSha": candidate_sha,
     "sessionId": FakeRun.adw_id,
+    "auditMode": "change-gate",
+    "browserExitStatus": 0,
+    "chainExitStatus": "not-run",
     "quantitativeArtifacts": [str(quant_root / artifact) for artifact in quant_artifacts],
+}))
+(quant_root / "quantitative-summary.json").write_text(json.dumps({
+    "candidateSha": candidate_sha,
+    "sessionId": FakeRun.adw_id,
+    "auditMode": "change-gate",
+    "automaticChecksPassed": True,
+    "failures": [],
 }))
 
 def surface(name, verdict, shots):
@@ -261,6 +271,10 @@ check("audit prompt carries the base url, the scope text, and the AuditOutput ov
       and "AuditOutput" in audit_prompts[0], str(audit_prompts)[:400])
 check("audit prompt forbids booting the server (already running)",
       audit_prompts and "ALREADY RUNNING" in audit_prompts[0])
+check("change-gate prompt evaluates the candidate delta and preserves later MVP gaps",
+      audit_prompts and "CHANGE-GATE" in audit_prompts[0]
+      and "must not fail a surface solely because" in audit_prompts[0]
+      and "untested" in audit_prompts[0])
 check("scope envelope handed to the auditor as previous",
       previous_seen and str(scope) in previous_seen[-1].artifacts, str(previous_seen))
 
