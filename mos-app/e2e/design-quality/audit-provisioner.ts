@@ -22,6 +22,11 @@ export type AuditFixtureRowGroup = {
   primaryKey?: string
 }
 
+export type AuditFixtureOwnedRowGroup = AuditFixtureRowGroup & {
+  /** Exact signed values used to prove each row still belongs to this run. */
+  ownership: Record<string, unknown>[]
+}
+
 export type AuditFixtureCleanupRow = {
   table: string
   deleted: number
@@ -42,6 +47,7 @@ export type AuditFixtureSentinel = {
 export type AuditFixtureAuthUser = {
   id: string
   email: string
+  userMetadata?: Record<string, unknown>
 }
 
 export type AuditFixtureAuthOwnership = {
@@ -49,6 +55,8 @@ export type AuditFixtureAuthOwnership = {
   email: string
   /** The ID is intentionally optional until createUser has returned it. */
   id?: string
+  /** Random signed token stored in auth user metadata for unambiguous recovery. */
+  ownershipToken: string
   lifecycle: AuditFixtureLifecycleState
 }
 
@@ -67,7 +75,7 @@ export type AuditFixtureReceipt = {
   /** HMAC over the immutable ownership/sentinel ledger; verified with an external session secret. */
   binding: string
   sentinels: AuditFixtureSentinel[]
-  ownedDatabaseIds: Array<AuditFixtureRowGroup & { primaryKey?: string }>
+  ownedDatabaseIds: AuditFixtureOwnedRowGroup[]
   ownedAuthUsers: AuditFixtureAuthOwnership[]
   /** Compatibility evidence derived from ownedAuthUsers; never an independent ledger. */
   ownedAuthUserIds: string[]
@@ -117,7 +125,7 @@ export type AuditFixtureSqlClient = {
 }
 
 export type AuditFixtureAuthClient = {
-  createUser(input: { email: string; password: string; email_confirm: boolean }): Promise<{
+  createUser(input: { email: string; password: string; email_confirm: boolean; user_metadata: Record<string, unknown> }): Promise<{
     data?: { user?: { id?: string } }
     error?: { message?: string } | null
   }>
@@ -146,6 +154,7 @@ type CreatedRecord = {
   primaryKey: string
   fixture: string
   order: number
+  ownership: Record<string, unknown>
   lifecycle: AuditFixtureLifecycleState
 }
 
@@ -282,6 +291,7 @@ type OwnedRecordInsert = {
   id: string
   sql: string
   primaryKey: string
+  ownership: Record<string, unknown>
 }
 
 function ownedRecordInsert(definition: AuditFixtureRecordDefinition, namespace: string): OwnedRecordInsert {
@@ -299,7 +309,24 @@ function ownedRecordInsert(definition: AuditFixtureRecordDefinition, namespace: 
     id: String(columns[primaryKey]),
     sql: `INSERT INTO ${definition.table} (${names.join(', ')}) VALUES (${names.map((name) => sqlValue(columns[name])).join(', ')}) RETURNING ${primaryKey};`,
     primaryKey,
+    ownership: columns,
   }
+}
+
+function exactOwnedDelete(record: CreatedRecord): string {
+  assertTable(record.table)
+  assertIdentifier(record.primaryKey, 'record primary key')
+  const columns = Object.entries(record.ownership)
+  if (columns.length === 0 || record.ownership[record.primaryKey] !== record.id) {
+    throw new Error(`audit fixture record ${record.fixture} has incomplete cleanup ownership`)
+  }
+  const predicates = columns.map(([column, value]) => {
+    assertIdentifier(column, 'record column')
+    return value === null || value === undefined
+      ? `${column} IS NULL`
+      : `${column} = ${sqlValue(value)}`
+  })
+  return `DELETE FROM ${record.table} WHERE ${predicates.join(' AND ')};`
 }
 
 function rows(value: unknown): unknown[] {
@@ -506,7 +533,7 @@ function validationErrors(
       if (entry.remaining !== 0) errors.push(`fixture receipt leaves owned rows in ${table}`)
     }
     for (const [record, lifecycle] of lifecycleByRecord) {
-      if (lifecycle === 'created') errors.push(`fixture receipt leaves an owned record in created lifecycle: ${record}`)
+      if (lifecycle !== 'deleted') errors.push(`fixture receipt leaves an owned record unresolved: ${record}`)
     }
   }
   const authOwners = Array.isArray(receipt.ownedAuthUsers) ? receipt.ownedAuthUsers : []
@@ -517,6 +544,7 @@ function validationErrors(
   for (const owner of authOwners) {
     if (!isRecord(owner) || typeof owner.fixture !== 'string' || !FIXTURE.test(owner.fixture)
       || typeof owner.email !== 'string' || !owner.email.trim()
+      || typeof owner.ownershipToken !== 'string' || !UUID.test(owner.ownershipToken)
       || !['planned', 'created', 'deleted'].includes(String(owner.lifecycle))) {
       errors.push('fixture receipt contains an invalid owned auth user email')
       continue
@@ -529,7 +557,7 @@ function validationErrors(
     if (owner.lifecycle === 'planned' && owner.id !== undefined) {
       errors.push(`fixture receipt planned auth user ${owner.email} cannot carry an ID`)
     }
-    if (owner.lifecycle !== 'planned' && owner.id === undefined) {
+    if (owner.lifecycle === 'created' && owner.id === undefined) {
       errors.push(`fixture receipt ${owner.email} is missing its confirmed auth user ID`)
     }
     if (owner.id !== undefined) {
@@ -555,8 +583,8 @@ function validationErrors(
 
   if (phase === 'cleaned') {
     for (const owner of authOwners) {
-      if (isRecord(owner) && owner.lifecycle === 'created') {
-        errors.push(`fixture receipt leaves auth user ${String(owner.email)} in created lifecycle`)
+      if (isRecord(owner) && owner.lifecycle !== 'deleted') {
+        errors.push(`fixture receipt leaves auth user ${String(owner.email)} unresolved`)
       }
     }
   }
@@ -610,7 +638,8 @@ function validationErrors(
     for (const group of receipt.ownedDatabaseIds) {
       if (!isRecord(group) || typeof group.table !== 'string' || !TABLE.test(group.table)
         || typeof group.fixture !== 'string' || !FIXTURE.test(group.fixture)
-        || !Array.isArray(group.ids) || !Array.isArray(group.lifecycle) || group.lifecycle.length !== group.ids.length) {
+        || !Array.isArray(group.ids) || !Array.isArray(group.lifecycle) || group.lifecycle.length !== group.ids.length
+        || !Array.isArray(group.ownership) || group.ownership.length !== group.ids.length) {
         errors.push('fixture receipt ownedDatabaseIds contains an invalid table/ID group')
         continue
       }
@@ -629,6 +658,15 @@ function validationErrors(
           else declared.add(key)
           if (group.lifecycle[index] !== lifecycleByRecord.get(key)) {
             errors.push(`fixture receipt lifecycle does not match the created ledger for ${group.table}:${id}`)
+          }
+          const ownership = group.ownership[index]
+          const primaryKey = typeof group.primaryKey === 'string' ? group.primaryKey : 'id'
+          if (!isRecord(ownership) || ownership[primaryKey] !== id || !containsNamespace(ownership, namespace)) {
+            errors.push(`fixture receipt ownership marker is invalid for ${group.table}:${id}`)
+          } else {
+            for (const column of Object.keys(ownership)) {
+              if (!IDENTIFIER.test(column)) errors.push(`fixture receipt ownership marker has an invalid column for ${group.table}:${id}`)
+            }
           }
         }
       }
@@ -773,12 +811,22 @@ export class AuditProvisioner {
       }
       if (ids.has(user.id)) throw new Error(`audit fixture auth user listing returned duplicate ID ${user.id}`)
       ids.add(user.id)
-      result.push({ id: user.id, email: user.email })
+      result.push({
+        id: user.id,
+        email: user.email,
+        ...(isRecord(user.userMetadata) ? { userMetadata: user.userMetadata } : {}),
+      })
     }
     return result
   }
 
-  /** Validate only IDs confirmed by this run; an email match never adopts an existing user. */
+  private authUserMatchesOwner(user: AuditFixtureAuthUser, owner: AuditFixtureAuthOwnership): boolean {
+    return user.email.toLowerCase() === owner.email.toLowerCase()
+      && user.userMetadata?.audit_fixture_namespace === this.namespace
+      && user.userMetadata?.audit_fixture_token === owner.ownershipToken
+  }
+
+  /** Validate only IDs or signed metadata tokens confirmed by this run. */
   private resolveAuthOwners(users: AuditFixtureAuthUser[]): void {
     const byId = new Map(users.map((user) => [user.id, user]))
     const byEmail = new Map<string, AuditFixtureAuthUser[]>()
@@ -793,8 +841,8 @@ export class AuditProvisioner {
       const emailMatches = byEmail.get(owner.email.toLowerCase()) ?? []
       if (owner.id) {
         const exact = byId.get(owner.id)
-        if (exact && exact.email.toLowerCase() !== owner.email.toLowerCase()) {
-          throw new Error(`audit fixture auth user ${owner.id} does not match its captured email`)
+        if (exact && !this.authUserMatchesOwner(exact, owner)) {
+          throw new Error(`audit fixture auth user ${owner.id} does not match its ownership token`)
         }
         if (emailMatches.some((user) => user.id !== owner.id)) {
           throw new Error(`audit fixture auth user ${owner.email} exists with an unexpected ID`)
@@ -803,8 +851,12 @@ export class AuditProvisioner {
           if (resolved.has(exact.id)) throw new Error(`audit fixture auth ownership reuses user ID ${exact.id}`)
           resolved.add(exact.id)
         }
-      } else if (emailMatches.length > 1) {
-        throw new Error(`audit fixture auth user email ${owner.email} is not unique`)
+      } else {
+        const tokenMatches = users.filter((user) => this.authUserMatchesOwner(user, owner))
+        if (tokenMatches.length > 1) throw new Error(`audit fixture auth token for ${owner.email} is not unique`)
+        if (emailMatches.some((user) => !this.authUserMatchesOwner(user, owner))) {
+          throw new Error(`audit fixture auth user ${owner.email} exists without this run's ownership token`)
+        }
       }
     }
   }
@@ -830,11 +882,15 @@ export class AuditProvisioner {
     }
   }
 
-  /** Recover an auth create whose response was lost, using only the exact generated email. */
+  /** Recover an auth create whose response was lost using its random metadata token. */
   private async recoverAuthOwner(owner: AuditFixtureAuthOwnership): Promise<void> {
     const users = await this.listAuthUsers()
-    const matches = users.filter((user) => user.email.toLowerCase() === owner.email.toLowerCase())
-    if (matches.length > 1) throw new Error(`audit fixture auth user email ${owner.email} is not unique`)
+    const emailMatches = users.filter((user) => user.email.toLowerCase() === owner.email.toLowerCase())
+    const matches = users.filter((user) => this.authUserMatchesOwner(user, owner))
+    if (matches.length > 1) throw new Error(`audit fixture auth token for ${owner.email} is not unique`)
+    if (emailMatches.some((user) => !this.authUserMatchesOwner(user, owner))) {
+      throw new Error(`audit fixture auth user ${owner.email} exists without this run's ownership token`)
+    }
     const match = matches[0]
     if (match) {
       assertAuditOwnedIdentity(match.email, this.namespace)
@@ -859,7 +915,7 @@ export class AuditProvisioner {
         afterPresent: after.present,
       })
     }
-    const grouped = new Map<string, { table: string; ids: string[]; fixture: string; primaryKey?: string; lifecycle: AuditFixtureLifecycleState[] }>()
+    const grouped = new Map<string, { table: string; ids: string[]; fixture: string; primaryKey?: string; lifecycle: AuditFixtureLifecycleState[]; ownership: Record<string, unknown>[] }>()
     for (const record of this.createdRecords) {
       const key = `${record.table}:${record.fixture}:${record.primaryKey}`
       const group = grouped.get(key) ?? {
@@ -868,9 +924,11 @@ export class AuditProvisioner {
         fixture: record.fixture,
         primaryKey: record.primaryKey,
         lifecycle: [],
+        ownership: [],
       }
       group.ids.push(record.id)
       group.lifecycle.push(record.lifecycle)
+      group.ownership.push(record.ownership)
       grouped.set(key, group)
     }
     const created = [...grouped.values()].map(({ table, ids, fixture, primaryKey, lifecycle }) => ({
@@ -880,16 +938,14 @@ export class AuditProvisioner {
       primaryKey,
       lifecycle,
     }))
-    const ownedDatabaseIds = [...grouped.values()]
+    const ownedDatabaseIds = [...grouped.values()].map((group) => ({ ...group, ownership: group.ownership.map((row) => ({ ...row })) }))
     const allAuthUsers = this.ownedAuthUsers.length > 0 ? await this.listAuthUsers() : []
     this.resolveAuthOwners(allAuthUsers)
     const ownedAuthUserIds = this.ownedAuthUsers.flatMap(({ id }) => id ? [id] : [])
-    const ownedAuthEmails = new Set(this.ownedAuthUsers
-      .filter(({ lifecycle }) => lifecycle !== 'planned')
-      .map(({ email }) => email.toLowerCase()))
     const ownedAuthIds = new Set(ownedAuthUserIds)
     const remainingAuthUserIds = allAuthUsers
-      .filter((user) => ownedAuthIds.has(user.id) || ownedAuthEmails.has(user.email.toLowerCase()))
+      .filter((user) => ownedAuthIds.has(user.id)
+        || this.ownedAuthUsers.some((owner) => this.authUserMatchesOwner(user, owner)))
       .map(({ id }) => id)
     const receipt: AuditFixtureReceipt = {
       candidateSha: this.candidateSha,
@@ -929,11 +985,20 @@ export class AuditProvisioner {
         const owner: AuditFixtureAuthOwnership = {
           fixture: identity.fixture,
           email: identity.email,
+          ownershipToken: randomUUID(),
           lifecycle: 'planned',
         }
         this.ownedAuthUsers.push(owner)
         await this.emit(await this.receipt([], { attempted: false, completed: false }))
-        const result = await this.auth!.createUser({ email: identity.email, password: identity.password, email_confirm: true })
+        const result = await this.auth!.createUser({
+          email: identity.email,
+          password: identity.password,
+          email_confirm: true,
+          user_metadata: {
+            audit_fixture_namespace: this.namespace,
+            audit_fixture_token: owner.ownershipToken,
+          },
+        })
         if (result.error) {
           throw new Error(`audit fixture auth user creation failed: ${result.error.message ?? 'unknown error'}`)
         }
@@ -955,6 +1020,7 @@ export class AuditProvisioner {
           primaryKey: owned.primaryKey,
           fixture: definition.fixture,
           order,
+          ownership: owned.ownership,
           lifecycle: 'planned',
         }
         const existingRows = await this.exactRecordRows(record)
@@ -999,76 +1065,76 @@ export class AuditProvisioner {
 
   async cleanup(options: { onFailure?: boolean } = {}): Promise<AuditFixtureReceipt> {
     if (this.cleaned) return this.lastReceipt
-    const groups = new Map<string, { table: string; primaryKey: string; ids: string[] }>()
-    for (const record of this.createdRecords) {
-      if (record.lifecycle !== 'created') continue
-      const key = `${record.table}:${record.primaryKey}`
-      const group = groups.get(key) ?? { table: record.table, primaryKey: record.primaryKey, ids: [] }
-      group.ids.push(record.id)
-      groups.set(key, group)
-    }
-    const orderedGroups = [...groups.values()].sort((left, right) => {
-      const leftOrder = Math.max(...this.createdRecords.filter((record) => record.table === left.table && record.primaryKey === left.primaryKey).map((record) => record.order))
-      const rightOrder = Math.max(...this.createdRecords.filter((record) => record.table === right.table && record.primaryKey === right.primaryKey).map((record) => record.order))
-      return rightOrder - leftOrder
-    })
+    const pendingRecords = this.createdRecords
+      .filter((record) => record.lifecycle !== 'deleted')
+      .sort((left, right) => right.order - left.order)
     try {
-      for (const group of orderedGroups) {
-        const statement = `DELETE FROM ${group.table} WHERE ${group.primaryKey} IN (${group.ids.map(quote).join(', ')});`
-        assertAuditOwnedCleanupSql(statement)
-        const before = rows(await this.sql.query(selectByIds(group.table, group.primaryKey, group.ids))).length
-        await this.sql.execute(statement)
-        const remaining = rows(await this.sql.query(selectByIds(group.table, group.primaryKey, group.ids))).length
-        const deleted = Math.max(before - remaining, 0)
-        if (remaining > 0) throw new Error(`audit fixture cleanup left owned rows in ${group.table}`)
-        for (const record of this.createdRecords) {
-          if (record.table === group.table && record.primaryKey === group.primaryKey && group.ids.includes(record.id)) {
-            record.lifecycle = 'deleted'
+      for (const record of pendingRecords) {
+        const before = await this.exactRecordRows(record)
+        if (before.length > 1) throw new Error(`audit fixture cleanup found duplicate ownership for ${record.fixture}`)
+        if (before.length === 1) {
+          const definition: AuditFixtureRecordDefinition = {
+            fixture: record.fixture,
+            table: record.table,
+            id: record.id,
+            primaryKey: record.primaryKey,
+            namespace: this.namespace,
+            columns: record.ownership,
           }
+          if (!this.recordMatchesOwnedDefinition(record, definition, before[0])) {
+            throw new Error(`audit fixture cleanup ownership mismatch for ${record.fixture}:${record.table}:${record.id}`)
+          }
+          await this.sql.execute(exactOwnedDelete(record))
         }
-        const previous = this.cleanupCounts.get(group.table)
-        this.cleanupCounts.set(group.table, previous
-          ? { table: group.table, deleted: previous.deleted + deleted, remaining }
-          : { table: group.table, deleted, remaining })
+        const remaining = await this.exactRecordRows(record)
+        if (remaining.length > 0) throw new Error(`audit fixture cleanup left owned rows in ${record.table}`)
+        record.lifecycle = 'deleted'
+        const previous = this.cleanupCounts.get(record.table)
+        this.cleanupCounts.set(record.table, {
+          table: record.table,
+          deleted: (previous?.deleted ?? 0) + 1,
+          remaining: 0,
+        })
       }
       if (this.ownedAuthUsers.length > 0) {
         if (!this.auth) throw new Error('audit fixture auth cleanup requires an auth admin client')
         const existingAuthUsers = await this.listAuthUsers()
         this.resolveAuthOwners(existingAuthUsers)
         for (const owner of [...this.ownedAuthUsers].reverse()) {
-          if (owner.lifecycle !== 'created') continue
-          if (!owner.id) throw new Error(`audit fixture auth owner ${owner.fixture} has no confirmed ID`)
+          if (owner.lifecycle === 'deleted') continue
           const current = await this.listAuthUsers()
-          const exact = current.find((user) => user.id === owner.id)
+          const ownedMatches = current.filter((user) => this.authUserMatchesOwner(user, owner))
           const emailMatches = current.filter((user) => user.email.toLowerCase() === owner.email.toLowerCase())
-          if (emailMatches.some((user) => user.id !== owner.id)
-            || (exact && exact.email.toLowerCase() !== owner.email.toLowerCase())) {
-            throw new Error(`audit fixture auth owner ${owner.fixture} does not match the live ID/email binding`)
+          if (ownedMatches.length > 1 || emailMatches.some((user) => !this.authUserMatchesOwner(user, owner))) {
+            throw new Error(`audit fixture auth owner ${owner.fixture} does not match the live ownership token`)
           }
+          const exact = owner.id
+            ? current.find((user) => user.id === owner.id)
+            : ownedMatches[0]
+          if (owner.id && exact && !this.authUserMatchesOwner(exact, owner)) {
+            throw new Error(`audit fixture auth owner ${owner.fixture} does not match the live ownership token`)
+          }
+          if (!owner.id && exact) owner.id = exact.id
           if (!exact) {
-            // The delete may already have committed before a response was lost.
             owner.lifecycle = 'deleted'
             continue
           }
-          const result = await this.auth.deleteUser(owner.id)
+          const result = await this.auth.deleteUser(exact.id)
           if (result?.error && result.error.status !== 404 && !/\b404\b/.test(result.error.message ?? '')) {
             throw new Error(`audit fixture auth cleanup failed for ${owner.fixture}`)
           }
           const afterDelete = await this.listAuthUsers()
-          if (afterDelete.some((user) => user.id === owner.id
-            || user.email.toLowerCase() === owner.email.toLowerCase())) {
+          if (afterDelete.some((user) => this.authUserMatchesOwner(user, owner))) {
             throw new Error(`audit fixture auth cleanup left an owned user behind for ${owner.fixture}`)
           }
           owner.lifecycle = 'deleted'
         }
         const remainingAuthUsers = await this.listAuthUsers()
-        const ownedEmails = new Set(this.ownedAuthUsers
-          .filter(({ lifecycle }) => lifecycle !== 'planned')
-          .map(({ email }) => email.toLowerCase()))
         const ownedIds = new Set(this.ownedAuthUsers
-          .filter(({ lifecycle }) => lifecycle !== 'planned')
           .flatMap(({ id }) => id ? [id] : []))
-        if (remainingAuthUsers.some((user) => ownedIds.has(user.id) || ownedEmails.has(user.email.toLowerCase()))) {
+        if (remainingAuthUsers.some((user) => ownedIds.has(user.id)
+          || this.ownedAuthUsers.some((owner) => user.email.toLowerCase() === owner.email.toLowerCase()
+            || this.authUserMatchesOwner(user, owner)))) {
           throw new Error('audit fixture auth cleanup left an owned user behind')
         }
       }
@@ -1099,9 +1165,16 @@ export class AuditProvisioner {
       bindingSecret: this.bindingSecret,
     })
     const primaryKeys = new Map<string, string>()
+    const ownership = new Map<string, Record<string, unknown>>()
     for (const group of receipt.ownedDatabaseIds) {
       const primaryKey = group.primaryKey ?? 'id'
-      for (const id of group.ids) primaryKeys.set(`${group.table}:${group.fixture}:${id}`, primaryKey)
+      for (const [index, id] of group.ids.entries()) {
+        const key = `${group.table}:${group.fixture}:${id}`
+        primaryKeys.set(key, primaryKey)
+        const marker = group.ownership[index]
+        if (!isRecord(marker)) throw new Error(`audit fixture receipt has no ownership marker for ${group.table}:${id}`)
+        ownership.set(key, marker)
+      }
     }
     this.createdRecords.length = 0
     for (const [order, group] of receipt.created.entries()) {
@@ -1111,12 +1184,14 @@ export class AuditProvisioner {
         throw new Error(`audit fixture receipt has inconsistent primary keys for ${group.table}`)
       }
       for (const [index, id] of group.ids.entries()) {
+        const key = `${group.table}:${group.fixture}:${id}`
         this.createdRecords.push({
           table: group.table,
           id,
           primaryKey,
           fixture: group.fixture,
           order,
+          ownership: ownership.get(key) ?? {},
           lifecycle: group.lifecycle[index]!,
         })
       }
@@ -1167,9 +1242,14 @@ export async function cleanupAuditFixtureReceipt(
   }
   if (finalValidation.ok) return receipt
   const primaryKeys = new Map<string, string>()
+  const ownership = new Map<string, Record<string, unknown>>()
   for (const group of receipt.ownedDatabaseIds) {
     const primaryKey = group.primaryKey ?? 'id'
-    for (const id of group.ids) primaryKeys.set(`${group.table}:${group.fixture}:${id}`, primaryKey)
+    for (const [index, id] of group.ids.entries()) {
+      const key = `${group.table}:${group.fixture}:${id}`
+      primaryKeys.set(key, primaryKey)
+      ownership.set(key, group.ownership[index] ?? {})
+    }
   }
   const provisioner = new AuditProvisioner({ ...options, definitions: {
     records: receipt.created.flatMap((group) => group.ids.map((id) => ({
@@ -1178,10 +1258,7 @@ export async function cleanupAuditFixtureReceipt(
       primaryKey: primaryKeys.get(`${group.table}:${group.fixture}:${id}`) ?? 'id',
       fixture: group.fixture,
       namespace: receipt.namespace,
-      columns: {
-        [primaryKeys.get(`${group.table}:${group.fixture}:${id}`) ?? 'id']: id,
-        namespace: receipt.namespace,
-      },
+      columns: ownership.get(`${group.table}:${group.fixture}:${id}`) ?? {},
     }))),
     sentinels: receipt.sentinels.map((sentinel) => ({
       table: sentinel.table,
@@ -1308,7 +1385,11 @@ export function createLocalAuditAuthClient(url: string, serviceKey: string): Aud
             || typeof user.email !== 'string' || !user.email.trim()) {
             throw new Error('audit fixture auth user listing returned an invalid user')
           }
-          users.push({ id: user.id, email: user.email })
+          users.push({
+            id: user.id,
+            email: user.email,
+            ...(isRecord(user.user_metadata) ? { userMetadata: user.user_metadata } : {}),
+          })
           if (users.length > MAX_AUTH_USERS) {
             throw new Error('audit fixture auth user listing exceeded the local population limit')
           }

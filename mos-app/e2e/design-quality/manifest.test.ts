@@ -235,7 +235,7 @@ test('write-state audit cells require a provisioned receipt bound to the candida
       { table: 'mos.weekly_updates', id: 'sentinel-update', beforeHash: 'b'.repeat(64), afterHash: 'b'.repeat(64), beforePresent: true, afterPresent: true },
       { table: 'ops.log_entries', id: 'sentinel-log', beforeHash: 'c'.repeat(64), afterHash: 'c'.repeat(64), beforePresent: true, afterPresent: true },
     ],
-    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'], fixture: 'AUDIT_RECEIVING_ONLY', lifecycle: ['created'] }],
+    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'], fixture: 'AUDIT_RECEIVING_ONLY', lifecycle: ['created'], ownership: [{ id: 'a1b2c3d4-0000-0000-0000-000000000001', title: 'design-audit-a1b2c3d4 owned' }] }],
     ownedAuthUsers: [],
     ownedAuthUserIds: [],
     remainingAuthUserIds: [],
@@ -307,7 +307,7 @@ test('audit write receipts reject created identities or records outside the sess
     unrelatedSentinelsPreserved: true,
     binding: '',
     sentinels: [],
-    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'], fixture: 'AUDIT_RECEIVING_ONLY', lifecycle: ['created'] }],
+    ownedDatabaseIds: [{ table: 'mos.tasks', ids: ['a1b2c3d4-0000-0000-0000-000000000001'], fixture: 'AUDIT_RECEIVING_ONLY', lifecycle: ['created'], ownership: [{ id: 'a1b2c3d4-0000-0000-0000-000000000001', title: 'design-audit-a1b2c3d4 owned' }] }],
     ownedAuthUsers: [],
     ownedAuthUserIds: [],
     remainingAuthUserIds: [],
@@ -491,24 +491,26 @@ test('audit-owned provisioning cleans captured rows and users when a later inser
   const ownedTask = 'a1b2c3d4-0000-0000-0000-000000000006'
   const authUser = 'a1b2c3d4-0000-0000-0000-000000000007'
   const rows = new Set<string>(['sentinel-task', 'sentinel-update', 'sentinel-log'])
-  const users = new Map<string, { id: string; email: string }>()
+  const users = new Map<string, { id: string; email: string; userMetadata?: Record<string, unknown> }>()
   const sql = {
     async query(query: string): Promise<unknown[]> {
       const ids = query.match(/'[^']*'/g)?.map((value) => value.slice(1, -1)) ?? []
-      return ids.flatMap((id) => rows.has(id) ? [{ id }] : [])
+      return ids.flatMap((id) => rows.has(id)
+        ? [{ id, ...(id === ownedTask ? { title: `${namespace} first-owned-row` } : {}) }]
+        : [])
     },
     async execute(query: string): Promise<unknown> {
       if (query.includes('second-owned-row')) throw new Error('planted insert failure')
       const inserted = /values\s*\(\s*'([^']+)'/i.exec(query)?.[1]
       if (inserted) rows.add(inserted)
-      const deleted = query.match(/'[^']*'/g)?.map((value) => value.slice(1, -1)) ?? []
-      if (/^DELETE/i.test(query)) for (const id of deleted) rows.delete(id)
+      const deletedId = /^delete[\s\S]+?where\s+id\s*=\s*'([^']+)'/i.exec(query)?.[1]
+      if (deletedId) rows.delete(deletedId)
       return /^INSERT\s/i.test(query) ? [{ id: inserted }] : []
     },
   }
   const auth = {
-    async createUser(input: { email: string }) {
-      users.set(authUser, { id: authUser, email: input.email })
+    async createUser(input: { email: string; user_metadata: Record<string, unknown> }) {
+      users.set(authUser, { id: authUser, email: input.email, userMetadata: input.user_metadata })
       return { data: { user: { id: authUser } } }
     },
     async deleteUser(id: string) { users.delete(id); return {} },
@@ -705,7 +707,10 @@ test('local HTTP fixture clients recover a failed provision across separate inst
           const ids = query.match(/'[^']*'/g)?.map((value) => value.slice(1, -1)) ?? []
           if (/^INSERT\s/i.test(query) && table) {
             const id = /VALUES\s*\(\s*'([^']+)'/i.exec(query)?.[1]
-            if (id) tables.get(table)?.set(id, { id, title: `${namespace} owned` })
+            const title = query.includes('first-owned-row')
+              ? `${namespace} first-owned-row`
+              : `${namespace} second-owned-row`
+            if (id) tables.get(table)?.set(id, { id, title })
             respond(200, id ? [{ id }] : [])
             return
           }
@@ -731,9 +736,9 @@ test('local HTTP fixture clients recover a failed provision across separate inst
             request.on('data', (chunk) => { content += chunk })
             request.on('end', () => resolve(content))
             request.on('error', reject)
-          })) as { email?: string }
+          })) as { email?: string; user_metadata?: Record<string, unknown> }
           const id = `a1b2c3d4-0000-0000-0000-0000000000${nextAuthId++}`
-          const user = { id, email: body.email ?? '' }
+          const user = { id, email: body.email ?? '', user_metadata: body.user_metadata ?? {} }
           authUsers.set(id, user)
           respond(200, user)
           return
@@ -846,7 +851,7 @@ test('audit-owned setup and cleanup preserve task, weekly-update, and operations
     ['mos.weekly_updates', new Map([['sentinel-update', { id: 'sentinel-update', body: 'Owner update' }]])],
     ['ops.log_entries', new Map([['sentinel-log', { id: 'sentinel-log', detail: 'Owner log' }]])],
   ])
-  const users = new Map<string, { id: string; email: string }>()
+  const users = new Map<string, { id: string; email: string; userMetadata?: Record<string, unknown> }>()
   const sql = {
     async query(query: string): Promise<unknown[]> {
       const match = /from\s+([a-z_]+\.[a-z_]+)[\s\S]*?in\s*\(([^)]+)\)/i.exec(query)
@@ -859,19 +864,16 @@ test('audit-owned setup and cleanup preserve task, weekly-update, and operations
     async execute(query: string): Promise<unknown> {
       const insert = /insert\s+into\s+([a-z_]+\.[a-z_]+)\s*\([^)]*\)\s*values\s*\(\s*'([^']+)'/i.exec(query)
       if (insert) tables.get(insert[1]!)?.set(insert[2]!, { id: insert[2]!, title: `${namespace} owned` })
-      const deletion = /delete\s+from\s+([a-z_]+\.[a-z_]+)\s+where\s+\w+\s+in\s*\(([^)]+)\)/i.exec(query)
-      if (deletion) {
-        const table = tables.get(deletion[1]!)
-        for (const id of deletion[2]!.match(/'[^']*'/g)?.map((value) => value.slice(1, -1)) ?? []) table?.delete(id)
-      }
+      const deletion = /delete\s+from\s+([a-z_]+\.[a-z_]+)\s+where\s+id\s*=\s*'([^']+)'/i.exec(query)
+      if (deletion) tables.get(deletion[1]!)?.delete(deletion[2]!)
       return /^INSERT\s/i.test(query)
         ? [{ id: /values\s*\(\s*'([^']+)'/i.exec(query)?.[1] }]
         : []
     },
   }
   const auth = {
-    async createUser(input: { email: string }) {
-      users.set(authUser, { id: authUser, email: input.email })
+    async createUser(input: { email: string; user_metadata: Record<string, unknown> }) {
+      users.set(authUser, { id: authUser, email: input.email, userMetadata: input.user_metadata })
       return { data: { user: { id: authUser } } }
     },
     async deleteUser(id: string) { users.delete(id); return {} },
@@ -952,11 +954,13 @@ test('artifact validation fails closed for an incomplete or changed fixture rece
       ids: ['a1b2c3d4-0000-0000-0000-000000000003'],
       fixture: 'AUDIT_RECEIVING_ONLY',
       lifecycle: ['created'],
+      ownership: [{ id: 'a1b2c3d4-0000-0000-0000-000000000003', title: 'design-audit-a1b2c3d4 owned' }],
     }],
     ownedAuthUsers: [{
       fixture: 'AUDIT_RECEIVING_ONLY',
       email: 'design-audit-a1b2c3d4.writer@example.test',
       id: 'a1b2c3d4-0000-0000-0000-000000000004',
+      ownershipToken: 'a1b2c3d4-0000-0000-0000-000000000005',
       lifecycle: 'created',
     }],
     ownedAuthUserIds: ['a1b2c3d4-0000-0000-0000-000000000004'],

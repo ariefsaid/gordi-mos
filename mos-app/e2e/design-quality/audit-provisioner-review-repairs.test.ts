@@ -9,8 +9,10 @@ import {
 import {
   AuditProvisioner,
   assertAuditOwnedIdentity,
+  cleanupAuditFixtureReceipt,
   createLocalAuditAuthClient,
   createLocalAuditSqlClient,
+  type AuditFixtureAuthClient,
   type AuditProvisionerOptions,
   validateAuditFixtureReceipt,
 } from './audit-provisioner.ts'
@@ -79,18 +81,20 @@ function store() {
         const table = tables.get(deletion[1]!)
         for (const value of deletion[2]!.match(/'[^']*'/g) ?? []) table?.delete(value.slice(1, -1))
       }
+      const exactDeletion = /delete\s+from\s+([a-z_]+\.[a-z_]+)\s+where\s+id\s*=\s*'([^']+)'/i.exec(query)
+      if (exactDeletion) tables.get(exactDeletion[1]!)?.delete(exactDeletion[2]!)
       return []
     },
   }
-  const authUsers = new Map<string, { id: string; email: string }>()
+  const authUsers = new Map<string, { id: string; email: string; userMetadata?: Record<string, unknown> }>()
   let nextId = 2
-  const auth = {
-    async createUser(input: { email: string; password: string; email_confirm: boolean }) {
+  const auth: AuditFixtureAuthClient = {
+    async createUser(input: { email: string; password: string; email_confirm: boolean; user_metadata: Record<string, unknown> }) {
       if ([...authUsers.values()].some((user) => user.email.toLowerCase() === input.email.toLowerCase())) {
         return { error: { message: 'user already exists' } }
       }
       const id = `${sessionId}-0000-0000-0000-00000000000${nextId++}`
-      authUsers.set(id, { id, email: input.email })
+      authUsers.set(id, { id, email: input.email, userMetadata: input.user_metadata })
       return { data: { user: { id } } }
     },
     async deleteUser(id: string) {
@@ -202,6 +206,114 @@ test('an auth create error never adopts or deletes a concurrently-created same-e
 
   await assert.rejects(() => provisioner.provision(), /user already exists/)
   assert.equal(fixtureStore.authUsers.has(concurrentId), true)
+})
+
+test('a missing auth create ID never adopts a same-email user without the random ownership token', async () => {
+  const fixtureStore = store()
+  const concurrentId = `${sessionId}-0000-0000-0000-000000000099`
+  fixtureStore.auth.createUser = async (input) => {
+    fixtureStore.authUsers.set(concurrentId, { id: concurrentId, email: input.email })
+    return { data: { user: {} } }
+  }
+  const provisioner = new AuditProvisioner({
+    candidateSha,
+    sessionId,
+    bindingSecret,
+    definitions: definitions(),
+    sql: fixtureStore.sql,
+    auth: fixtureStore.auth,
+  })
+
+  await assert.rejects(() => provisioner.provision(), /ownership token|cleanup failed/i)
+  assert.equal(fixtureStore.authUsers.has(concurrentId), true)
+})
+
+test('a planned row receipt is reconciled after an interrupted write commits', async () => {
+  const fixtureStore = store()
+  const recordDefinitions = { records: definitions().records, sentinels: definitions().sentinels }
+  let plannedReceipt: AuditFixtureReceipt | undefined
+  const first = new AuditProvisioner({
+    candidateSha,
+    sessionId,
+    bindingSecret,
+    definitions: recordDefinitions,
+    sql: fixtureStore.sql,
+    onReceipt: (receipt) => {
+      if (receipt.created.some((group) => group.lifecycle.includes('planned'))) {
+        plannedReceipt = structuredClone(receipt)
+        throw new Error('simulate process interruption before response')
+      }
+    },
+  })
+  await assert.rejects(() => first.provision(), /interruption/)
+  assert.ok(plannedReceipt)
+  const owned = recordDefinitions.records[0]!
+  fixtureStore.tables.get(owned.table)!.set(owned.id!, { ...owned.columns })
+
+  const cleaned = await cleanupAuditFixtureReceipt(plannedReceipt, {
+    candidateSha,
+    sessionId,
+    bindingSecret,
+    sql: fixtureStore.sql,
+    onFailure: true,
+  })
+  assert.equal(fixtureStore.tables.get(owned.table)!.has(owned.id!), false)
+  assert.equal(validateAuditFixtureReceipt(cleaned, { candidateSha, sessionId, bindingSecret }).ok, true)
+})
+
+test('cleanup fails closed when a captured ID now belongs to a different row', async () => {
+  const fixtureStore = store()
+  const provisioner = new AuditProvisioner({
+    candidateSha,
+    sessionId,
+    bindingSecret,
+    definitions: { records: definitions().records, sentinels: definitions().sentinels },
+    sql: fixtureStore.sql,
+  })
+  await provisioner.provision()
+  const owned = definitions().records[0]!
+  fixtureStore.tables.get(owned.table)!.set(owned.id!, { id: owned.id, title: 'replacement row' })
+
+  await assert.rejects(() => provisioner.cleanup(), /ownership mismatch/i)
+  assert.equal(fixtureStore.tables.get(owned.table)!.get(owned.id!)?.title, 'replacement row')
+})
+
+test('cleanup retry converges after a DELETE commits but its response is lost', async () => {
+  const fixtureStore = store()
+  let loseDeleteResponse = true
+  const sql = {
+    ...fixtureStore.sql,
+    async execute(query: string) {
+      const result = await fixtureStore.sql.execute(query)
+      if (/^DELETE\s/i.test(query) && loseDeleteResponse) {
+        loseDeleteResponse = false
+        throw new Error('lost committed DELETE response')
+      }
+      return result
+    },
+  }
+  let persisted: AuditFixtureReceipt | undefined
+  const provisioner = new AuditProvisioner({
+    candidateSha,
+    sessionId,
+    bindingSecret,
+    definitions: { records: definitions().records, sentinels: definitions().sentinels },
+    sql,
+    onReceipt: (receipt) => { persisted = structuredClone(receipt) },
+  })
+  await provisioner.provision()
+  await assert.rejects(() => provisioner.cleanup(), /lost committed DELETE response/)
+  assert.ok(persisted)
+
+  const cleaned = await cleanupAuditFixtureReceipt(persisted, {
+    candidateSha,
+    sessionId,
+    bindingSecret,
+    sql,
+    onFailure: true,
+  })
+  assert.equal(validateAuditFixtureReceipt(cleaned, { candidateSha, sessionId, bindingSecret }).ok, true)
+  assert.deepEqual(cleaned.cleanup, [{ table: 'mos.tasks', deleted: 1, remaining: 0 }])
 })
 
 test('INSERT RETURNING must contain the exact intended primary key', async () => {

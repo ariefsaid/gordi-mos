@@ -46,6 +46,20 @@ async function exactDelete(sql: AuditFixtureSqlClient, table: string, id: string
   await sql.execute(`DELETE FROM ${table} WHERE id = ${quote(id)};`)
 }
 
+async function insertSentinel(
+  sql: AuditFixtureSqlClient,
+  table: string,
+  id: string,
+  statement: string,
+  inserted: Array<readonly [string, string]>,
+): Promise<void> {
+  const result = await sql.execute(statement)
+  const rows = Array.isArray(result) ? result : []
+  assert.equal(rows.length, 1, `sentinel INSERT must return one row for ${table}`)
+  assert.deepEqual(rows[0], { id }, `sentinel INSERT must return its exact ID for ${table}`)
+  inserted.push([table, id])
+}
+
 test('live fixture lifecycle preserves unrelated rows and removes every audit-owned row and auth user', async ({ page }) => {
   assert.equal(process.env.MOS_DB_LOCK_HELD, '1', 'live fixture proof must run under scripts/with-db-lock.sh')
   const candidateSha = process.env.AUDIT_FIXTURE_CANDIDATE_SHA ?? ''
@@ -68,15 +82,11 @@ test('live fixture lifecycle preserves unrelated rows and removes every audit-ow
   const sentinelUpdateId = uuid(sessionId, '000000000201')
   const sentinelLogId = uuid(sessionId, '000000000301')
   const title = `${namespace} browser-visible task`
-  const sentinelIds = [
-    ['ops.log_entries', sentinelLogId],
-    ['mos.weekly_updates', sentinelUpdateId],
-    ['mos.tasks', sentinelTaskId],
-  ] as const
   const weekOffset = Number.parseInt(sessionId, 16) % 3650
   const weekStart = new Date(Date.UTC(2090, 0, 1 + weekOffset)).toISOString().slice(0, 10)
   const authEmail = `${namespace}.live@example.test`
   let provisioner: AuditProvisioner | undefined
+  const insertedSentinels: Array<readonly [string, string]> = []
 
   try {
     const requiredSeedRows = await sql.query(`
@@ -95,7 +105,7 @@ test('live fixture lifecycle preserves unrelated rows and removes every audit-ow
     const primaryTeamId = (seedRow as Record<string, unknown>).team_id
     if (typeof primaryTeamId !== 'string') throw new Error('the demo profile must have one live primary team')
 
-    await sql.execute(`
+    await insertSentinel(sql, 'mos.tasks', sentinelTaskId, `
       INSERT INTO mos.tasks
         (id, org_id, title, business_unit_id, team_id, status, responsible_person_id, accountable_person_id, created_by)
       VALUES
@@ -103,20 +113,20 @@ test('live fixture lifecycle preserves unrelated rows and removes every audit-ow
          ${quote(TASKS.VIEWER_ACCOUNTABLE.businessUnitId)}, ${quote(primaryTeamId)}, 'Open', ${quote(VIEWER.personId)},
          ${quote(VIEWER.personId)}, ${quote(VIEWER.personId)})
       RETURNING id;
-    `)
-    await sql.execute(`
+    `, insertedSentinels)
+    await insertSentinel(sql, 'mos.weekly_updates', sentinelUpdateId, `
       INSERT INTO mos.weekly_updates (id, org_id, person_id, week_start, summary, status, created_by)
       VALUES (${quote(sentinelUpdateId)}, ${quote(TASKS.VIEWER_ACCOUNTABLE.orgId)}, ${quote(VIEWER.personId)},
         ${quote(weekStart)}, ${quote(`${namespace} sentinel weekly update`)}, 'draft', ${quote(VIEWER.personId)})
       RETURNING id;
-    `)
-    await sql.execute(`
+    `, insertedSentinels)
+    await insertSentinel(sql, 'ops.log_entries', sentinelLogId, `
       INSERT INTO ops.log_entries (id, org_id, business_unit_id, origin, event_type, title, detail, created_by)
       VALUES (${quote(sentinelLogId)}, ${quote(TASKS.VIEWER_ACCOUNTABLE.orgId)},
         ${quote(TASKS.VIEWER_ACCOUNTABLE.businessUnitId)}, 'manual', 'other',
         ${quote(`${namespace} sentinel log`)}, ${quote('full-row sentinel detail')}, ${quote(VIEWER.personId)})
       RETURNING id;
-    `)
+    `, insertedSentinels)
 
     provisioner = new AuditProvisioner({
       candidateSha,
@@ -168,8 +178,8 @@ test('live fixture lifecycle preserves unrelated rows and removes every audit-ow
     assert.equal((await auth.listUsers?.())?.some((user) => user.email.toLowerCase() === authEmail), false)
   } finally {
     if (provisioner) await provisioner.cleanup({ onFailure: true })
-    for (const [table, id] of sentinelIds) await exactDelete(sql, table, id)
-    for (const [table, id] of sentinelIds) {
+    for (const [table, id] of [...insertedSentinels].reverse()) await exactDelete(sql, table, id)
+    for (const [table, id] of insertedSentinels) {
       assert.deepEqual(await sql.query(`SELECT * FROM ${table} WHERE id = ${quote(id)};`), [])
     }
   }
