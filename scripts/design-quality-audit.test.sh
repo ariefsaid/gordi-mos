@@ -7,6 +7,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
+. "$ROOT/scripts/lib/audit-fixture-recovery.sh"
 pass=0
 fail=0
 ok() { pass=$((pass + 1)); printf '  ok    %s\n' "$1"; }
@@ -55,6 +56,34 @@ if grep -Fq 'fixture-binding.secret' scripts/design-quality-audit.sh \
 else
   bad "fixture receipt binding secret lifecycle is incomplete"
 fi
+
+recovery_dir="$(mktemp -d -t mos-design-recovery.XXXXXX)"
+recovery_receipt="$recovery_dir/fixture-receipt.json"
+recovery_secret="$recovery_dir/fixture-binding.secret"
+if [ "$(audit_fixture_recovery_state "$recovery_receipt" "$recovery_secret")" = none ]; then
+  ok "fresh audit id has no recovery work"
+else
+  bad "fresh audit id recovery state is wrong"
+fi
+printf '{}\n' > "$recovery_receipt"
+if [ "$(audit_fixture_recovery_state "$recovery_receipt" "$recovery_secret")" = completed ]; then
+  ok "successful prior audit receipt can be replaced on rerun"
+else
+  bad "successful prior audit receipt bricks rerun"
+fi
+printf '0123456789abcdef\n' > "$recovery_secret"
+if [ "$(audit_fixture_recovery_state "$recovery_receipt" "$recovery_secret")" = recover ]; then
+  ok "retained receipt and secret require recovery"
+else
+  bad "retained recovery pair is not recognized"
+fi
+rm -f "$recovery_receipt"
+if [ "$(audit_fixture_recovery_state "$recovery_receipt" "$recovery_secret")" = incomplete ]; then
+  ok "orphaned binding secret fails closed"
+else
+  bad "orphaned binding secret was accepted"
+fi
+rm -rf "$recovery_dir"
 
 if node --experimental-strip-types --test \
   mos-app/e2e/design-quality/manifest.test.ts \

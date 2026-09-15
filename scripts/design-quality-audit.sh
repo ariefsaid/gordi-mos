@@ -7,6 +7,7 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   exit 2
 }
 cd "$ROOT"
+. "$ROOT/scripts/lib/audit-fixture-recovery.sh"
 
 usage() {
   cat >&2 <<'EOF'
@@ -299,13 +300,20 @@ mkdir -p "$context_dir/screenshots" || {
 recover_previous_fixture_receipt() {
   local previous_receipt="$context_dir/fixture-receipt.json"
   local previous_secret="$context_dir/fixture-binding.secret"
-  if [ ! -e "$previous_receipt" ] && [ ! -e "$previous_secret" ]; then
-    return 0
-  fi
-  if [ ! -f "$previous_receipt" ] || [ ! -f "$previous_secret" ]; then
-    echo "design-quality-audit: prior fixture recovery artifacts are incomplete; refusing to overwrite them" >&2
-    return 2
-  fi
+  local recovery_state
+  recovery_state="$(audit_fixture_recovery_state "$previous_receipt" "$previous_secret")"
+  case "$recovery_state" in
+    none|completed) return 0 ;;
+    incomplete)
+      echo "design-quality-audit: prior fixture recovery artifacts are incomplete; refusing to overwrite them" >&2
+      return 2
+      ;;
+    recover) ;;
+    *)
+      echo "design-quality-audit: prior fixture recovery state is invalid" >&2
+      return 2
+      ;;
+  esac
   if (cd "$ROOT/mos-app" && "$ROOT/scripts/with-db-lock.sh" node --experimental-strip-types --input-type=module - "$context_dir" <<'NODE'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -352,7 +360,7 @@ const validation = validateAuditFixtureReceipt(cleaned, {
 if (!validation.ok) throw new Error(`prior audit fixture recovery did not validate: ${validation.errors.join('; ')}`)
 NODE
   ); then
-    rm -f "$previous_secret"
+    rm -f "$previous_secret" "$previous_receipt"
   else
     echo "design-quality-audit: prior fixture cleanup failed; recovery artifacts were retained" >&2
     return 2
@@ -374,7 +382,7 @@ chmod 600 "$binding_secret_file" || exit 2
 # Seed the handoff with the exact run contract. The browser specs replace the
 # CSV/JSON placeholders; the chain gate refuses a session with missing or stale
 # artifacts, so a partial browser run cannot be mistaken for evidence.
-node --experimental-strip-types --input-type=module - "$ROOT" "$context_dir" "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode" "$binding_secret_file" <<'NODE'
+if node --experimental-strip-types --input-type=module - "$ROOT" "$context_dir" "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode" "$binding_secret_file" <<'NODE'
 import { mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { manifestForArtifact } from './mos-app/e2e/design-quality/manifest.ts'
@@ -426,6 +434,15 @@ await writer.writeSession({
   fixturePolicy: 'read-only seeded fixtures; any audit-owned writes stay under this session',
 })
 NODE
+then
+  :
+else
+  seed_status=$?
+  rm -f "$binding_secret_file" "$context_dir/fixture-receipt.json"
+  binding_secret_file=""
+  echo "design-quality-audit: unable to seed the audit evidence contract" >&2
+  exit "$seed_status"
+fi
 
 export DESIGN_QUALITY_RUN=1
 export DESIGN_AUDIT_BASE_URL="$base_url"
