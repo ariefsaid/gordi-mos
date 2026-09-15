@@ -119,6 +119,14 @@ export function summarizeControlGroups(controls: readonly ClassifiedControlMetri
   })
 }
 
+function minimumObservedRatio(
+  entries: Awaited<ReturnType<typeof collectContrast>>,
+  kind: 'text' | 'boundary',
+): number {
+  const ratios = entries.filter((entry) => entry.kind === kind && entry.observed).map((entry) => entry.ratio ?? 0)
+  return ratios.length > 0 ? Math.min(...ratios) : 0
+}
+
 function ratio(foreground: string, background: string): number {
   const foregroundRgb = parseCssColor(foreground)
   const backgroundRgb = parseCssColor(background)
@@ -133,6 +141,38 @@ export async function collectControlConsistency(
   nativeSelectExceptions: readonly NativeSelectException[] = [],
 ): Promise<ControlConsistencyRow[]> {
   const rendered = await page.evaluate(({ vocabulary, exceptionSelectors }) => {
+    type CssColor = { rgb: [number, number, number]; alpha: number }
+    const colorCanvas = document.createElement('canvas')
+    colorCanvas.width = 1
+    colorCanvas.height = 1
+    const colorContext = colorCanvas.getContext('2d')
+    const parse = (value: string): CssColor | null => {
+      if (!colorContext || !CSS.supports('color', value)) return null
+      colorContext.clearRect(0, 0, 1, 1)
+      colorContext.fillStyle = value
+      colorContext.fillRect(0, 0, 1, 1)
+      const [red, green, blue, alpha] = colorContext.getImageData(0, 0, 1, 1).data
+      return { rgb: [red!, green!, blue!], alpha: alpha! / 255 }
+    }
+    const blend = (foreground: CssColor, background: [number, number, number]): [number, number, number] => [
+      foreground.rgb[0] * foreground.alpha + background[0] * (1 - foreground.alpha),
+      foreground.rgb[1] * foreground.alpha + background[1] * (1 - foreground.alpha),
+      foreground.rgb[2] * foreground.alpha + background[2] * (1 - foreground.alpha),
+    ]
+    const backgroundFor = (element: HTMLElement): [number, number, number] => {
+      const ancestors: HTMLElement[] = []
+      let current: HTMLElement | null = element
+      while (current) {
+        ancestors.push(current)
+        current = current.parentElement
+      }
+      let background: [number, number, number] = [255, 255, 255]
+      for (const ancestor of ancestors.reverse()) {
+        const color = parse(getComputedStyle(ancestor).backgroundColor)
+        if (color && color.alpha > 0) background = blend(color, background)
+      }
+      return background
+    }
     const visible = (element: HTMLElement) => {
       const style = getComputedStyle(element)
       const rect = element.getBoundingClientRect()
@@ -183,7 +223,7 @@ export async function collectControlConsistency(
         borderColor: style.borderTopColor,
         borderStyle: style.borderTopStyle,
         foreground: style.color,
-        background: style.backgroundColor,
+        background: `rgb(${backgroundFor(element).map((value) => Math.round(value)).join(', ')})`,
         disabled,
         invalid,
         expanded,
@@ -339,6 +379,8 @@ export async function exerciseBoundedChoices(
         const style = getComputedStyle(element)
         return { foreground: style.color, background: style.backgroundColor }
       })
+      const disabledContrastRows = await collectContrast(page, context, 'disabled', selector, { measure: 'text' })
+      const textContrast = minimumObservedRatio(disabledContrastRows, 'text')
       rows.push({
         cellId,
         kind: 'bounded-choice',
@@ -349,14 +391,15 @@ export async function exerciseBoundedChoices(
         state: 'disabled',
         authority: 'DD-MVP-2 designed bounded choice; issue #856 disabled-state contract',
         observed: true,
-        passed: initial.closed && ratio(colors.foreground, colors.background) >= 3,
+        passed: initial.closed && textContrast >= 3,
         measured: JSON.stringify({
           lifecycleApplicable: false,
           disabled: true,
           closed: initial.closed,
           foreground: colors.foreground,
           background: colors.background,
-          textContrast: ratio(colors.foreground, colors.background),
+          textContrast,
+          contrastRows: disabledContrastRows,
         }),
       })
       continue
@@ -390,13 +433,9 @@ export async function exerciseBoundedChoices(
     const selectedContrastRows = opened && popupEvidence.selectedSelector
       ? await collectContrast(page, context, 'selected', popupEvidence.selectedSelector, { measure: 'text' })
       : []
-    const minimumRatio = (entries: Awaited<ReturnType<typeof collectContrast>>, kind: 'text' | 'boundary') => {
-      const ratios = entries.filter((entry) => entry.kind === kind && entry.observed).map((entry) => entry.ratio ?? 0)
-      return ratios.length > 0 ? Math.min(...ratios) : 0
-    }
-    const openTextContrast = minimumRatio(openContrastRows, 'text')
-    const openBoundaryContrast = minimumRatio(openContrastRows, 'boundary')
-    const selectedTextContrast = minimumRatio(selectedContrastRows, 'text')
+    const openTextContrast = minimumObservedRatio(openContrastRows, 'text')
+    const openBoundaryContrast = minimumObservedRatio(openContrastRows, 'boundary')
+    const selectedTextContrast = minimumObservedRatio(selectedContrastRows, 'text')
 
     const activeOptionId = async (): Promise<string> => {
       const popupActive = await popup.getAttribute('aria-activedescendant').catch(() => null)
@@ -453,7 +492,8 @@ export async function exerciseBoundedChoices(
       const style = getComputedStyle(element)
       return { foreground: style.color, background: style.backgroundColor }
     })
-    const textContrast = ratio(colors.foreground, colors.background)
+    const closedContrastRows = await collectContrast(page, context, 'selected', selector, { measure: 'text' })
+    const textContrast = minimumObservedRatio(closedContrastRows, 'text')
     const passed = initial.closed
       && opened
       && arrowKey
@@ -504,6 +544,7 @@ export async function exerciseBoundedChoices(
         selectedTextContrast,
         openContrastRows,
         selectedContrastRows,
+        closedContrastRows,
       }),
     })
   }

@@ -36,6 +36,7 @@ test('control census detects planted raw controls and matches native exceptions 
       <button class="btn btn-outline">Classified</button>
       <button id="raw-button">Raw</button>
       <button class="btn btn-outline" style="border-color:rgb(220,220,220)">Weak boundary</button>
+      <button class="btn btn-ghost" style="background:transparent">Transparent surface</button>
       <a id="weak-hover" class="btn btn-outline" href="#target">Weak hover link</a>
       <select id="raw-native"><option>Raw choice</option></select>
       <select id="approved-native"><option>Approved choice</option></select>
@@ -48,7 +49,7 @@ test('control census detects planted raw controls and matches native exceptions 
     authority: 'DD-TEST approved native control',
   }])
   const population = JSON.parse(rows.find((row) => row.kind === 'population')!.measured)
-  expect(population.populationSize).toBe(4)
+  expect(population.populationSize).toBe(5)
   expect(population.nativeSelectPopulation).toBe(2)
   const good = rows.find((row) => row.selector.includes('button:nth-of-type(1)'))!
   expect(good.passed, good.measured).toBe(true)
@@ -56,6 +57,9 @@ test('control census detects planted raw controls and matches native exceptions 
   const weakBoundary = rows.find((row) => row.selector.includes('button:nth-of-type(3)'))!
   expect(weakBoundary.passed).toBe(false)
   expect(JSON.parse(weakBoundary.measured).boundaryContrast).toBeLessThan(3)
+  const transparentSurface = rows.find((row) => row.selector.includes('button:nth-of-type(4)'))!
+  expect(transparentSurface.passed, transparentSurface.measured).toBe(true)
+  expect(JSON.parse(transparentSurface.measured).textContrast).toBeGreaterThanOrEqual(4.5)
   const stateRows = await exerciseControlStateColors(page, context, 'planted-cell')
   expect(stateRows.some((row) => row.selector.includes('a:nth-of-type(1)'))).toBe(false)
   const weakHover = stateRows.find((row) => row.selector.includes('a:nth-of-type(2)') && row.state === 'hover')!
