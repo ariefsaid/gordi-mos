@@ -11,8 +11,7 @@ export const SIGNAL_CELL_INPUTS = [
   }],
   ['signals-compose-phone-en-light', {
     area: 'signals', journey: 'signals-compose', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'composer', status: 'untested',
-    note: 'Contract written and verified, held out of the change gate: driving this state for the first time surfaces real defects on a face that has never been measured, and a regression-only gate cannot tell new coverage from new breakage. Covering it belongs with the fixes for what it finds.', primary: true,
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'composer', status: 'covered', primary: true,
     // Share Signal has no phone head door (the head action is desktop-only): the shell's `+`
     // Action Launcher owns it there.
     stateContract: {
