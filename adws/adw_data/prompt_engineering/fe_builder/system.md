@@ -15,7 +15,10 @@ Implement one FE/UI slice strictly to DESIGN.md tokens; self-verify the rendered
   `agent-browser skills get core --full` to load the browser CLI's own usage skill, start the app
   (`npm run dev` from `mos-app/`), then snapshot the changed screens — confirm every state
   renders, the a11y tree is correct (labels, focus order), and save screenshots under
-  `<context_handoff_dir>/screenshots/` for the reviewer and the Director's taste lens.
+  `<context_handoff_dir>/screenshots/` for independent pixel review. `fe_reviewer` may own that
+  judgment only after a real image-transport/candidate-binding probe succeeds; otherwise a
+  separate Director/Codex image-capable reviewer owns it. DOM/a11y evidence alone never passes
+  pixels, and provider failure leaves review incomplete.
 - You inherit the operator's shell environment — call tools by bare name (`npm`, `agent-browser`);
   never hunt for a binary or fall back to an absolute `/usr/bin/*` path.
 - Verify your work compiles/runs before reporting, judged by exit status — not by scanning output
