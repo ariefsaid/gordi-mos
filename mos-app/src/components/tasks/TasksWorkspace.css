@@ -164,6 +164,13 @@
    "Overdue · <date>" exceeds the fixed due track, wrap between the state and
    the date instead of clipping mid-value (run 861b0004: 157px in a 152px cell). */
 .inline-cell-trigger--stacked { white-space: normal; text-overflow: clip; line-height: 1.25; padding-block: 2px; }
+/* Same ruling for the status value. The vocabulary is closed and its longest member is
+   the Indonesian "Sedang berjalan", which overruns the status track and was clipped
+   mid-word; the English "In Progress" clips at the compact width too. The decision
+   tracks are fixed, so the value wraps in place rather than the column moving. */
+.td-status .inline-cell-trigger { white-space: normal; text-overflow: clip; line-height: 1.25; }
+.td-status .inline-status-editor { height: auto; min-height: var(--control-height); max-height: none; }
+.td-status .status-pill { white-space: normal; }
 .inline-status-editor {
   display: inline-flex;
   height: var(--control-height);
