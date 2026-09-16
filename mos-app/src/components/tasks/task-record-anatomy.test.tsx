@@ -197,6 +197,19 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
     expect(context).toHaveTextContent('2026-07-25')
   })
 
+  it('a record on its own page reads h1 then h2, with no level skipped into its sections', () => {
+    // The sections are content SLOTS, and the slot context carried no heading rung — so they
+    // took the default and a page record read h1 → h3 whatever level the identity was given.
+    const { container } = renderRecord()
+    const levels = [...container.querySelectorAll('h1, h2, h3, h4, h5, h6')]
+      .map((heading) => Number(heading.tagName.slice(1)))
+
+    expect(levels[0], 'the identity owns the page h1').toBe(1)
+    for (const [index, level] of levels.entries()) {
+      expect(level - (levels[index - 1] ?? level)).toBeLessThanOrEqual(1)
+    }
+  })
+
   it('tasks-redesign-C: omits absent due context so the canonical null marker stays singular', () => {
     const { container } = renderRecord({ detail: makeDetail(makeTask({ due_date: null })) })
 

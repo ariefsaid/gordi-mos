@@ -11,8 +11,7 @@ export const SIGNAL_CELL_INPUTS = [
   }],
   ['signals-compose-phone-en-light', {
     area: 'signals', journey: 'signals-compose', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'composer', status: 'untested',
-    note: 'Contract written and verified, held out of the change gate: driving this state for the first time surfaces real defects on a face that has never been measured, and a regression-only gate cannot tell new coverage from new breakage. Covering it belongs with the fixes for what it finds.', primary: true,
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'composer', status: 'covered', primary: true,
     // Share Signal has no phone head door (the head action is desktop-only): the shell's `+`
     // Action Launcher owns it there.
     stateContract: {
@@ -58,6 +57,13 @@ export const SIGNAL_CELL_INPUTS = [
   }],
   ['signals-retract-phone', {
     area: 'signals', journey: 'signals-record', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'retract-menu', status: 'covered',
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'retract-menu', status: 'untested',
+    note: 'Reachable read-only and verified by hand, but no contract is registered: a setup selector that does not resolve under this cell\'s own fixture blocks fifteen seconds and then throws out of prepareAuditPage, taking the whole lane down before it writes an artifact.',
+    // The menu itself is reachable read-only — open a Signal, press its overflow trigger — and
+    // was verified by hand. The contract is NOT registered: a setup selector that does not
+    // resolve blocks for fifteen seconds and then THROWS out of prepareAuditPage, which takes
+    // the whole lane down before it writes an artifact. `.home-signal-row` is what the author's
+    // own session renders; what BAR_MEMBER sees on this route has not been established, and a
+    // cell worth one row is not worth risking every other row in the run on that guess.
   }],
 ] satisfies readonly ManifestCellInput[]

@@ -1200,6 +1200,22 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       ).toBeTruthy()
     })
 
+    it('opening a record closes the create door, so one solid primary is on screen at a time', async () => {
+      // The split class and the collection runtime both read "a record is open" as the prop OR an
+      // overlay session this surface owns; this door read only the prop. Opening a row from the
+      // table therefore left "+ Create task" standing beside the record's own primary action.
+      mockListTasks.mockResolvedValue([makeTask({ id: 'task-addr', title: 'Addressable task' })])
+      renderAt(['/work/tasks'])
+      await waitFor(() => screen.getByText('Addressable task'))
+      expect(screen.getByRole('button', { name: '+ Create task' })).toBeInTheDocument()
+
+      fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
+      await waitFor(() =>
+        expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy(),
+      )
+      expect(screen.queryByRole('button', { name: '+ Create task' })).toBeNull()
+    })
+
     it('bookmark/refresh: rendering at /work/tasks?record=<id> restores the open task drawer', async () => {
       const task = makeTask({ id: 'task-restore', title: 'Restored task' })
       mockListTasks.mockResolvedValue([task])

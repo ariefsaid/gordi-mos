@@ -454,7 +454,7 @@ export async function loginAuditFixture(
   authenticatedFixture.set(page, fixtureName)
 }
 
-export async function prepareAuditPage(page: Page, run: AuditRun, cell: ManifestCell): Promise<void> {
+export async function prepareAuditPage(page: Page, run: AuditRun, cell: ManifestCell): Promise<{ setupFailure?: string }> {
   const viewport = VIEWPORT_SIZES[cell.viewport]
   if (!viewport) throw new Error(`unknown audit viewport ${cell.viewport}`)
   await page.setViewportSize(viewport)
@@ -495,12 +495,22 @@ export async function prepareAuditPage(page: Page, run: AuditRun, cell: Manifest
       + `observed ${actualPreferences.theme}/${actualPreferences.language}`,
     )
   }
+  // A setup selector that does not resolve blocks for the action timeout and then throws. The
+  // spec runs serial, so that used to end the whole lane before it wrote a single artifact: one
+  // wrong selector cost an entire assessment run, which came back as empty stubs. A cell that
+  // cannot reach its own state is one untested cell, not a lost run — the failure is carried on
+  // the cell, where observeManifestCellState reports it, and every other cell still measures.
   for (const action of cell.stateContract?.setup ?? []) {
     const target = page.locator(action.selector).filter({ visible: true }).first()
-    if (action.action === 'click') await target.click()
-    else if (action.action === 'fill') await target.fill(action.value ?? '')
-    else await target.press(action.value ?? '')
+    try {
+      if (action.action === 'click') await target.click()
+      else if (action.action === 'fill') await target.fill(action.value ?? '')
+      else await target.press(action.value ?? '')
+    } catch (error) {
+      return { setupFailure: `${action.action} ${action.selector}: ${(error as Error).message.split('\n')[0]}` }
+    }
   }
+  return {}
 }
 
 /**
@@ -509,7 +519,10 @@ export async function prepareAuditPage(page: Page, run: AuditRun, cell: Manifest
  * A prose description, URL, screenshot, or incidental copy cannot make a state
  * runnable or observed.
  */
-export async function observeManifestCellState(page: Page, cell: ManifestCell): Promise<StateObservation> {
+export async function observeManifestCellState(page: Page, cell: ManifestCell, setupFailure?: string): Promise<StateObservation> {
+  // The cell could not reach its own state. Say which action failed rather than reporting the
+  // assertion that was never given a chance to match.
+  if (setupFailure) return { status: 'untested', evidence: `state setup did not run: ${setupFailure}` }
   if (!isAuditCellRunnable(cell)) {
     return {
       status: 'untested',
@@ -538,9 +551,29 @@ export async function observeManifestCellState(page: Page, cell: ManifestCell): 
   const negativeCount = negative
     ? await matchingCount(negative.selector, negative)
     : 0
+  if (count > 0 && negativeCount === 0) await settleAnimations(page)
   return count > 0 && negativeCount === 0
     ? { status: 'covered', evidence: `${count} visible assertion target(s): ${assertion.selector}; default marker absent` }
     : { status: 'untested', evidence: `state assertion did not match: ${assertion.selector}` }
+}
+
+/**
+ * Wait out entry transitions before anything is measured or captured.
+ *
+ * A surface that animates in is at its FROM keyframe the moment its assertion target becomes
+ * visible. The Signals composer enters with `translateY(4px)` and a fade, so it measured 4px
+ * past the bottom of the viewport and photographed half-transparent — a geometry failure and a
+ * ghosted screenshot, both of a surface that fits and is opaque a sixth of a second later.
+ */
+export async function settleAnimations(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const running = document.getAnimations().filter((animation) => animation.playState === 'running')
+    // An animation that never ends (a spinner) would hang the run, so give the batch a ceiling.
+    await Promise.race([
+      Promise.allSettled(running.map((animation) => animation.finished)),
+      new Promise((resolve) => setTimeout(resolve, 1_000)),
+    ])
+  })
 }
 
 /** Drive a real interaction state before collecting contrast, or report it absent. */
@@ -572,6 +605,7 @@ export async function captureCell(page: Page, run: AuditRun, cell: ManifestCell,
   const screenshotDir = path.join(run.outputDir, 'screenshots')
   const screenshotPath = path.join(screenshotDir, screenshotName(cell, lane))
   await page.evaluate(resetAuditScroll)
+  await settleAnimations(page)
   await page.screenshot({ path: screenshotPath, fullPage: false })
   return screenshotPath
 }

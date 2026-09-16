@@ -300,7 +300,22 @@ const emptyNamedLists: ManifestLists = {
   primaryActionRegions: [],
   decisionGroups: [],
   meaningfulGraphics: [],
-  fullValuePaths: [],
+  fullValuePaths: [
+    {
+      // The status filter's value is the one ordinary value the compact row cannot render whole
+      // once a filter is applied and the clear action joins the row. Its full string is on the
+      // trigger's title and data-full-value, and opening the filter lists it as a choice — so the
+      // reveal is real and in the same cell. This entry does not excuse the clip: the driver reads
+      // the expected string from the element, performs the click, and only marks the path
+      // exercised when a VISIBLE element actually contains that string, so a wrong selector or a
+      // reveal that stops working fails closed.
+      selector: "[data-filter-id='status'] .collection-toolbar__choice-value",
+      authority: 'DESIGN.md compact toolbar: a contracted value keeps its full string on the trigger and in the choice list it opens',
+      routes: ['/mos/work/tasks'],
+      viewports: ['compact-1024x768'],
+      reveal: { action: 'click', selector: "[data-filter-id='status'] .collection-toolbar__fields-menu .collection-toolbar__toggle span" },
+    },
+  ],
   touchSeparationGroups: [
     {
       selector: '.kl-footer-actions',
@@ -465,6 +480,25 @@ export function validateManifest(manifest: DesignQualityManifest): ManifestValid
         && (!['focus', 'hover', 'click'].includes(entry.reveal?.action ?? '')
           || !isNonEmptyString(entry.reveal?.selector))) {
         errors.push(`named list fullValuePaths entry ${entry.selector || '<unknown>'} requires a driven visible reveal`)
+      }
+      // A reveal is proved by finding the expected string inside it, and `textContent` does not
+      // know about clipping — so an ANCESTOR of the clipped element always contains that string.
+      // A page-level reveal selector would therefore exempt any truncation anywhere while looking
+      // exercised. The driver cannot catch that; only this can.
+      if (listName === 'fullValuePaths' && isNonEmptyString(entry.reveal?.selector)) {
+        const reveal = entry.reveal!.selector.trim()
+        const pageLevel = ['html', 'body', 'main', '#root', '[role="main"]', "[role='main']"]
+        // Exempting a reveal that merely CONTAINS a class or attribute was the hole: `main
+        // .composer` named a page-level root and walked straight through. The test is not what
+        // the reveal looks like, it is whether the reveal is scoped to the same thing the entry
+        // is. Require the reveal to carry the entry's own leading scope, so a reveal can only
+        // open something inside the subtree the clipped value lives in.
+        const scope = (entry.selector ?? '').trim().split(/\s+/)[0] ?? ''
+        if (pageLevel.includes(reveal) || pageLevel.some((token) => reveal === token || reveal.startsWith(`${token} `))) {
+          errors.push(`named list fullValuePaths entry ${entry.selector || '<unknown>'} reveals into a page-level container, which contains the value whether or not anything reveals it`)
+        } else if (!scope || pageLevel.includes(scope) || !reveal.includes(scope)) {
+          errors.push(`named list fullValuePaths entry ${entry.selector || '<unknown>'} reveals outside its own scope ${scope || '<none>'}, so the reveal is not proved to belong to the clipped value`)
+        }
       }
       if (entry.routes?.some((route) => !manifest.dimensions.route.includes(route))) {
         errors.push(`named list ${listName} entry uses a route outside the manifest dimensions`)

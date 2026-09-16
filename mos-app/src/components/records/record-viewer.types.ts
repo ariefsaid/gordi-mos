@@ -97,6 +97,9 @@ export interface RecordContentSlotContext {
   onDirtyChange?: (dirty: boolean) => void
   /** True while a host leave-guard dialog is open (see RecordField's commitsFrozen note). */
   fieldCommitsFrozen?: boolean
+  /** The viewer's own title rung, so a slot heading lands one under it instead of guessing.
+   *  Without it a record on its own page read h1 → h3, skipping a level. */
+  headingLevel?: 1 | 2
 }
 
 /** A domain-owned content region rendered through a typed renderer. Issue 5 only

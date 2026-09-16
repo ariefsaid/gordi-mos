@@ -103,7 +103,8 @@ export const CAFE_CELL_INPUTS = [
   }],
   ['cafe-stock-empty-compact', {
     area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'VIEWER',
-    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'empty', status: 'covered', primary: true,
+    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'empty', status: 'untested', primary: true,
+    note: 'No seeded production stream has an empty stock list: all seven return 32 rows, so no read-only drive reaches this state. The page-level "choose a stream" face is a missing selection, not an empty list.',
   }],
   ['cafe-stock-validation-phone', {
     area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'VIEWER',

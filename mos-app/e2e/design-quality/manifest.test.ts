@@ -49,6 +49,52 @@ import { resetAuditScroll } from './scroll.ts'
 
 const testBindingSecret = 'fixture-binding-secret-for-manifest-tests'
 
+test('a full-value reveal may not point at a page-level container', () => {
+  // The driver proves a reveal by finding the expected string inside it, and textContent does not
+  // know about clipping — so any ancestor of the clipped element already contains it. A reveal of
+  // `main` or `body` would exempt every truncation on the page while looking exercised. The driver
+  // cannot tell the difference; this is the only thing that can.
+  for (const reveal of ['main', 'body', '[role="main"]', '#root']) {
+    const result = validateManifest({
+      ...DESIGN_QUALITY_MANIFEST,
+      lists: {
+        ...DESIGN_QUALITY_MANIFEST.lists,
+        fullValuePaths: [{
+          selector: '.some-clipped-value',
+          authority: 'test',
+          reveal: { action: 'click' as const, selector: reveal },
+        }],
+      },
+    })
+    assert.equal(result.ok, false, `a reveal into ${reveal} must be refused`)
+    assert.ok(
+      result.errors.some((error) => error.includes('page-level container')),
+      `a reveal into ${reveal} must say why: ${result.errors.join(' | ')}`,
+    )
+  }
+
+  // The hole an independent review found: exempting anything that merely CONTAINED a class or
+  // attribute meant `main .composer` named a page-level root and walked straight through the
+  // guard built to stop exactly that. A reveal must carry the entry's own leading scope.
+  for (const reveal of ['main .composer', 'body p.value', '[role="main"] .toolbar', '.some-other-field .menu']) {
+    const result = validateManifest({
+      ...DESIGN_QUALITY_MANIFEST,
+      lists: {
+        ...DESIGN_QUALITY_MANIFEST.lists,
+        fullValuePaths: [{
+          selector: "[data-filter-id='status'] .collection-toolbar__choice-value",
+          authority: 'test',
+          reveal: { action: 'click' as const, selector: reveal },
+        }],
+      },
+    })
+    assert.equal(result.ok, false, `a reveal of ${reveal} escapes the entry's own scope and must be refused`)
+  }
+
+  // And the real entry, which reveals into its own field's popover, must still be accepted.
+  assert.ok(validateManifest(DESIGN_QUALITY_MANIFEST).ok, 'the shipped manifest stays valid')
+})
+
 test('the design manifest covers every required dimension and declares complete rules', () => {
   const result = validateManifest(DESIGN_QUALITY_MANIFEST)
 

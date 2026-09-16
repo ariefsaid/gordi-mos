@@ -754,7 +754,12 @@ export function TasksWorkspace({
   // launcher location app-wide) — hide the header button at phone width to kill the duplicate door.
   // DO-17: the FAB renders whenever the rail is collapsed (<920), so the gate is !isNarrow — the
   // 768–919 band must never show both doors.
-  const showNewTask = !drawerOpen && state.status === 'ready' && !isNarrow
+  // A record is open in either of two ways — the `drawerOpen` prop, or an overlay session this
+  // surface owns. The split class and the collection runtime already read both; this door read
+  // only the prop, so opening a row from the table left the create door standing beside the
+  // record's own primary action, two solid blues competing across one page.
+  const recordOpen = drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks'
+  const showNewTask = !recordOpen && state.status === 'ready' && !isNarrow
   const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
   const emptyTitle = query.includeArchived
     ? t('tasks.empty.archivedTitle')
@@ -810,7 +815,7 @@ export function TasksWorkspace({
     selectedId: host.session?.frames.at(-1)?.entry.owner === 'tasks'
       ? host.session.frames.at(-1)?.entry.key.replace(/^task:/, '') ?? selectedId
       : selectedId,
-    drawerOpen: drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks',
+    drawerOpen: recordOpen,
     splitLayout,
     isDesktop,
     recordSearch: currentSearch,
@@ -848,7 +853,7 @@ export function TasksWorkspace({
       return teamId !== null && teamId !== undefined && processStartTeamIds.has(teamId)
     },
   }), [
-    currentSearch, drawerOpen, draftTask, host.session, isDesktop, onAddTask,
+    currentSearch, recordOpen, draftTask, host.session, isDesktop, onAddTask,
     params,
     onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onValidateNewTask, onNewTask, onOpenTask, onClearFilters, onSort,
     processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, draftValidationError, onRetryDraftLink, viewerTeams,
@@ -901,7 +906,7 @@ export function TasksWorkspace({
       }
     >
       {announcement && <span role="status" aria-live="polite" className="sr-only">{announcement}</span>}
-      <div className={`split${(drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks') ? '' : ' nodrawer'}`}>
+      <div className={`split${recordOpen ? '' : ' nodrawer'}`}>
         <section className={`assembly record-collection-view tasks-collection-surface record-collection-view--${controller.state.presentation}${drawerOpen && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
           <TaskCollectionRuntimeProvider value={runtime}>
             <RecordCollectionSurface

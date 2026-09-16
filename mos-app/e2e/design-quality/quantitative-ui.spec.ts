@@ -25,6 +25,7 @@ import {
   cellsFor,
   observeManifestCellState,
   prepareAuditPage,
+  settleAnimations,
   writeAutomaticLaneSummary,
 } from './runtime'
 
@@ -96,9 +97,46 @@ test('occlusion judges reachability, not whichever row a band happens to sit ove
       <div class="scrim">Overlay</div>
     </main>
   `)
+  // Not measured, rather than measured and passed. A mode is not a band, but the content under
+  // it is not clear either, and "reachable" is a pass the reader could never collect: an opaque
+  // layer would hide a real defect behind a green row. The same cell without the mode measures it.
   const behindOverlay = await collectVisibleContent(page, context, 'planted-overlay', [])
-  expect(occlusionRow(behindOverlay, 2).passed, occlusionRow(behindOverlay, 2).measured).toBe(true)
-  expect(occlusionRow(behindOverlay, 5).passed, occlusionRow(behindOverlay, 5).measured).toBe(true)
+  const occluded = behindOverlay.filter((entry) => entry.kind === 'viewport-occlusion')
+  expect(
+    occluded.filter((entry) => /main:nth-of-type\(1\) > p:nth-of-type\(\d+\)$/.test(entry.selector)),
+    JSON.stringify(occluded.map((entry) => entry.selector)),
+  ).toEqual([])
+
+  // ── A band clipped by its own scroller covers nothing ─────────────────────
+  // A sticky block inside a side panel that has scrolled up out of that panel still reports a
+  // bounding rect at its off-screen position, which spanned the top bar and reported three
+  // header controls as fully covered by a block nobody can see.
+  await page.setContent(`
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      .topbar { position: fixed; top: 0; left: 0; right: 0; height: 48px; background: rgb(250,250,250); }
+      .topbar p { margin: 12px; }
+      .panel { position: absolute; top: 200px; left: 0; width: 400px; height: 300px; overflow: auto; }
+      .panel .inner { height: 1200px; }
+      .panel .chrome { position: sticky; height: 240px; background: rgb(235,233,229); }
+    </style>
+    <div class="topbar"><p>Header control</p></div>
+    <main>
+      <div class="panel" id="panel"><div class="inner"><div class="chrome">Panel chrome</div></div></div>
+    </main>
+  `)
+  // Scroll the panel so its sticky chrome sits above the panel, where only its untrimmed
+  // rect — not a single painted pixel — reaches the header.
+  // 331 puts the chrome's untrimmed rect at y -131 with a height of 240, so it spans the
+  // header control at y 12 exactly as the record drawer's chrome did.
+  await page.locator('#panel').evaluate((element) => { element.scrollTop = 331 })
+  const clippedBand = await collectVisibleContent(page, context, 'planted-clipped-band', [])
+  const headerRow = clippedBand.find((row) => row.kind === 'viewport-occlusion' && row.selector.endsWith('p:nth-of-type(1)'))
+  expect(headerRow, JSON.stringify(clippedBand.map((row) => row.selector))).toBeDefined()
+  expect(headerRow!.passed, headerRow!.measured).toBe(true)
+  // Not vacuously: the untrimmed rect really does span this control, so the ratio has to be
+  // zero because the band was clipped, not because the two boxes never met.
+  expect(JSON.parse(headerRow!.measured).intersectionRatio, headerRow!.measured).toBe(0)
 
   // ── Top edge: a sticky header, which the bottom-only measurement could not see ──
   const headerPage = (headPull: string) => `
@@ -262,6 +300,168 @@ async function exerciseFullValuePaths(page: import('@playwright/test').Page, cel
   return exercised
 }
 
+test('a surface is measured where it lands, not at the first frame of its entry animation', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  // Full-height sheet that enters 12px low, exactly like the composer's `translateY(4px)`. At
+  // the FROM keyframe it hangs past the bottom of the viewport; where it lands, it fits.
+  await page.setContent(`
+    <style>
+      body { margin: 0; background: rgb(255,255,255); }
+      .sheet { position: fixed; inset: 0; height: 100vh; background: rgb(255,255,255);
+        animation: enter 400ms ease-out; }
+      @keyframes enter { from { transform: translateY(12px); } }
+    </style>
+    <div class="sheet" role="dialog" aria-modal="true">Composer</div>
+  `)
+  const rectOf = () => page.locator('[role="dialog"]').evaluate((element) => element.getBoundingClientRect().bottom)
+
+  expect(await rectOf(), 'the plant must actually start out of bounds, or it proves nothing')
+    .toBeGreaterThan(844)
+  await settleAnimations(page)
+  expect(await rectOf(), 'settled, the sheet fits its viewport').toBe(844)
+
+  // A surface that never stops moving must not hang the run.
+  await page.setContent(`
+    <style>
+      body { margin: 0; }
+      .spinner { width: 40px; height: 40px; animation: spin 600ms linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+    <div class="spinner"></div>
+  `)
+  const started = Date.now()
+  await settleAnimations(page)
+  expect(Date.now() - started, 'an endless animation is waited out, not waited on').toBeLessThan(3_000)
+})
+
+test('an open modal owns the keyboard population, and a trap that leaks still fails', async ({ page }) => {
+  const context = {
+    route: '/planted', journey: 'planted', fixture: 'planted', viewport: 'phone-390x844',
+    theme: 'light', language: 'en', state: 'composer',
+  }
+  // Six focusables on the page, three inside the dialog. Unscoped, a working trap reads as
+  // "3/6 stops" plus a repeated stop — which is what the Signals composer was being failed for.
+  const markup = (trap: boolean) => `
+    <style>body{margin:0;font:14px system-ui}button{display:block;width:120px;height:32px}</style>
+    <main>
+      <button id="p1">page one</button><button id="p2">page two</button><button id="p3">page three</button>
+    </main>
+    <div role="dialog" aria-modal="true" id="d">
+      <button id="d1">first</button><button id="d2">second</button><button id="d3">last</button>
+    </div>
+    <script>
+      const dialog = document.getElementById('d')
+      const stops = () => [...dialog.querySelectorAll('button')]
+      if (${trap}) document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Tab') return
+        const list = stops()
+        const at = list.indexOf(document.activeElement)
+        const next = event.shiftKey ? at - 1 : at + 1
+        event.preventDefault()
+        list[(next + list.length) % list.length].focus()
+      })
+    </script>`
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setContent(markup(true))
+  const trapped = await collectFocusTraversal(page, context)
+  expect(trapped.modalSelector, 'the open modal must be found').toBe('[data-design-audit-modal]')
+  expect(trapped.expectedStops, 'the population is the dialog, not the inert page behind it').toBe(3)
+  expect(trapped.rows.map((row) => row.name)).toEqual(['first', 'second', 'last'])
+  expect(trapped.cycleDetected, 'closing the cycle after every stop is the trap working').toBe(false)
+  expect(trapped.escapedStops).toEqual([])
+
+  // Same dialog, no trap: Tab walks straight out onto the page behind it. That is the real
+  // defect the scoping must not hide, so it fails here and names where it went.
+  await page.setContent(markup(false))
+  const leaking = await collectFocusTraversal(page, context)
+  expect(leaking.expectedStops).toBe(3)
+  expect(leaking.escapedStops.length, JSON.stringify(leaking.rows.map((row) => row.name))).toBeGreaterThan(0)
+
+  // A composite native control keeps focus across several Tab presses — `datetime-local` holds
+  // it through month, day, year, hour and minute. Reading the second press as the order
+  // repeating a stop ended the walk one control early: the Signals composer's team picker was
+  // never reached, and the composer was failed for a defect it does not have.
+  await page.setContent(`
+    <style>body{margin:0;font:14px system-ui}button,input{display:block;width:160px;height:32px}</style>
+    <div role="dialog" aria-modal="true" id="d">
+      <button aria-label="close">close</button>
+      <input aria-label="occurred at" type="datetime-local" value="2026-09-17T02:52">
+      <button aria-label="team">team</button>
+    </div>
+  `)
+  const composite = await collectFocusTraversal(page, context)
+  expect(composite.expectedStops).toBe(3)
+  expect(composite.rows.map((row) => row.name), 'the control after the segmented input is reached')
+    .toEqual(['close', 'occurred at', 'team'])
+  expect(composite.cycleDetected, 'holding focus is not the order repeating a stop').toBe(false)
+})
+
+test('a line clamp is truncation only when something actually overruns it', async ({ page }) => {
+  const context = {
+    route: '/planted', journey: 'planted', fixture: 'planted',
+    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default',
+  }
+  // Both boxes declare the same two-line clamp. One title fits in two lines; the other does not.
+  // Reading the DECLARATION as truncation failed every Task title in the drawer-narrowed table,
+  // where the clamp exists so titles wrap instead of being ellipsised onto a single line.
+  await page.setContent(`
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); font: 14px system-ui; }
+      p { width: 160px; margin: 0; display: -webkit-box; -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2; overflow: hidden; }
+    </style>
+    <main>
+      <p>Replace grinder burrs</p>
+      <p>A title so long that two lines cannot hold it, not at this width, not by a wide margin at all</p>
+    </main>
+  `)
+  const rows = await collectVisibleContent(page, context, 'planted-clamp', [])
+  const clampRow = (nth: number) => {
+    const row = rows.find((entry) => entry.kind === 'text-truncation' && entry.selector.endsWith(`p:nth-of-type(${nth})`))
+    expect(row, JSON.stringify(rows.filter((entry) => entry.kind === 'text-truncation').map((entry) => entry.selector))).toBeDefined()
+    return row!
+  }
+  expect(clampRow(1).passed, clampRow(1).measured).toBe(true)
+  expect(clampRow(2).passed, clampRow(2).measured).toBe(false)
+})
+
+test('an open modal is the surface under measurement; the inert page behind it is not', async ({ page }) => {
+  const context = {
+    route: '/planted', journey: 'planted', fixture: 'planted',
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'composer',
+  }
+  await page.setViewportSize({ width: 390, height: 844 })
+  // Clipped text on the page, and a sticky band INSIDE the modal sitting over where it was.
+  // Both are true statements about two layers nobody is looking at together.
+  const markup = (modal: string) => `
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      .clipped { width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .sheet { position: fixed; inset: 0; background: rgb(255,255,255); }
+      .sheet .band { position: sticky; top: 0; height: 60px; background: rgb(240,238,234); }
+    </style>
+    <main><p class="clipped">A page value far too long for its box</p></main>
+    ${modal}
+  `
+  const sheet = `<div class="sheet" role="dialog" aria-modal="true"><div class="band">Composer</div><p>Body</p></div>`
+
+  await page.setContent(markup(sheet))
+  const withModal = await collectVisibleContent(page, context, 'planted-modal', [])
+  expect(
+    withModal.filter((row) => row.selector.includes('main')),
+    'nothing behind an open modal is measured',
+  ).toEqual([])
+  expect(withModal.length, 'the modal itself is still measured').toBeGreaterThan(0)
+
+  // Close the modal and the same clipped value is measured again, and still fails.
+  await page.setContent(markup(''))
+  const withoutModal = await collectVisibleContent(page, context, 'planted-no-modal', [])
+  const clipped = withoutModal.find((row) => row.kind === 'text-truncation' && row.selector.includes('p:nth-of-type(1)'))
+  expect(clipped, JSON.stringify(withoutModal.map((row) => row.selector))).toBeDefined()
+  expect(clipped!.passed, clipped!.measured).toBe(false)
+})
+
 test('quantitative geometry, typography, controls, focus, and state entry point writes its census', async ({ page }) => {
   test.skip(!auditEnabled(), 'set DESIGN_QUALITY_RUN=1 through scripts/design-quality-audit.sh')
   assertAuditEnvironment()
@@ -289,8 +489,8 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
     measured?: unknown,
   ) => failures.push({ ruleId, cellId, selector, state, message, measured })
   for (const cell of cellsFor(DESIGN_QUALITY_MANIFEST).filter(isManifestCellRunnable)) {
-    await prepareAuditPage(page, run, cell)
-    const observation = await observeManifestCellState(page, cell)
+    const prepared = await prepareAuditPage(page, run, cell)
+    const observation = await observeManifestCellState(page, cell, prepared.setupFailure)
     observations.set(cell.id, observation)
     if (observation.status !== 'covered') addFailure('state.coverage', cell.id, '__state__', cell.state, observation.evidence)
     const context = {
@@ -380,6 +580,9 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
     if (focusTraversal.expectedStops > 0) {
       if (focusTraversal.rows.length < focusTraversal.expectedStops) addFailure('focus.keyboard-coverage', cell.id, '__focus__', cell.state, `keyboard focus reached ${focusTraversal.rows.length}/${focusTraversal.expectedStops} initial stops`, focusTraversal)
       if (focusTraversal.cycleDetected) addFailure('focus.keyboard-order', cell.id, '__focus__', cell.state, 'keyboard focus order repeated a stop', focusTraversal)
+      for (const escaped of focusTraversal.escapedStops) {
+        addFailure('focus.modal-containment', cell.id, escaped, cell.state, `Tab left the open modal and reached ${escaped}`, focusTraversal)
+      }
       for (const focus of focusTraversal.rows) {
         if (!focus.hasIndicator) addFailure('focus.visible-indicator', cell.id, focus.selector, cell.state, `${focus.role} has no visible 2px focus indicator`, focus)
       }
