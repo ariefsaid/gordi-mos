@@ -168,9 +168,12 @@
    the Indonesian "Sedang berjalan", which overruns the status track and was clipped
    mid-word; the English "In Progress" clips at the compact width too. The decision
    tracks are fixed, so the value wraps in place rather than the column moving. */
-.td-status .inline-cell-trigger { white-space: normal; text-overflow: clip; line-height: 1.25; }
+.td-status .inline-cell-trigger { white-space: normal; text-overflow: clip; line-height: 1.25; overflow: visible; }
 .td-status .inline-status-editor { height: auto; min-height: var(--control-height); max-height: none; }
-.td-status .status-pill { white-space: normal; }
+/* The pill's own box has to grow with the wrap, or the second line paints outside its
+   background and the trigger clips it — which is what the value looked like in Indonesian
+   even though the census measured it as fitting. */
+.td-status .status-pill { white-space: normal; height: auto; align-items: flex-start; }
 .inline-status-editor {
   display: inline-flex;
   height: var(--control-height);

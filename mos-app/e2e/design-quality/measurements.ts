@@ -390,26 +390,19 @@ export async function collectVisibleContent(
           measured: JSON.stringify({ width: 0, height: 0, nearestDistance: null, populationSize: 0 }),
         })
       }
-      // A control's touch target is the area that activates it, which is not always its own
-      // box. A checkbox painted at 16px inside a <label> is hit anywhere on that label, so
-      // the label is the target a thumb actually has — measuring the input alone reports a
-      // 16px failure for a control the floor is already met for. Union the input with the
-      // label that activates it; a bare small checkbox with no such label still fails, and
-      // the neighbour distance is measured from the same real area.
+      // A checkbox painted at 16px inside a <label> is hit anywhere on that label, so the
+      // label is the target a thumb actually has. Same rule, same scope and same substitution
+      // as the control census uses (see `labelledTarget` in collectControlCensus below) —
+      // deliberately NOT a union of the two rects, which for a stacked label above a field
+      // would span the gap between them and report a target no thumb can press.
       const targetArea = (element: HTMLElement): DOMRect => {
-        const rect = element.getBoundingClientRect()
-        const tag = element.tagName.toLowerCase()
-        if (tag !== 'input' && tag !== 'select' && tag !== 'textarea') return rect
-        const id = element.getAttribute('id')
-        const label = element.closest('label')
-          ?? (id ? document.querySelector<HTMLLabelElement>(`label[for="${CSS.escape(id)}"]`) : null)
-        if (!label || !visible(label)) return rect
+        const own = element.getBoundingClientRect()
+        if (!element.matches('input[type="checkbox"], input[type="radio"]')) return own
+        const label = element.closest<HTMLElement>('label')
+          ?? (element.id ? document.querySelector<HTMLElement>(`label[for="${CSS.escape(element.id)}"]`) : null)
+        if (!label || !visible(label)) return own
         const box = label.getBoundingClientRect()
-        const left = Math.min(rect.left, box.left)
-        const top = Math.min(rect.top, box.top)
-        const right = Math.max(rect.right, box.right)
-        const bottom = Math.max(rect.bottom, box.bottom)
-        return new DOMRect(left, top, right - left, bottom - top)
+        return box.width > 0 && box.height > 0 ? box : own
       }
       for (const target of controls) {
         const rect = targetArea(target)

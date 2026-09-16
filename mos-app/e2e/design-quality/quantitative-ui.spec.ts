@@ -174,6 +174,47 @@ test('touch separation pairs targets that sit beside each other, not ones split 
   expect(field.passed, field.measured).toBe(true)
 })
 
+test('a checkbox is measured on the label that activates it, and a bare one still fails', async ({ page }) => {
+  // A 16px checkbox inside a 44px label is hit anywhere on that label, so the label is the
+  // target a thumb has. Measuring the input alone reported a floor failure for a control that
+  // already meets it. A checkbox with no such label has only its own 16px box and must fail.
+  const context = {
+    route: '/planted', journey: 'planted', fixture: 'planted',
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default',
+  }
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setContent(`
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      label.wrapped { display: flex; align-items: center; gap: 8px; min-height: 44px; width: 220px; }
+      label.wrapped input { width: 16px; height: 16px; margin: 0; }
+      .spacer { height: 80px; }
+      input.bare { width: 16px; height: 16px; display: block; margin: 0; }
+    </style>
+    <main>
+      <label class="wrapped"><input type="checkbox" /><span>Confirm the list is complete</span></label>
+      <div class="spacer"></div>
+      <input class="bare" type="checkbox" aria-label="Bare checkbox" />
+    </main>
+  `)
+  const rows = await collectVisibleContent(page, context, 'planted-targets', [])
+  const touch = rows.filter((row) => row.kind === 'touch-separation')
+  const wrapped = touch.find((row) => row.selector.includes('label'))!
+  const bare = touch.find((row) => row.selector.includes('input') && !row.selector.includes('label'))!
+  expect(wrapped, JSON.stringify(touch.map((r) => r.selector.slice(-40)))).toBeDefined()
+  expect(bare, JSON.stringify(touch.map((r) => r.selector.slice(-40)))).toBeDefined()
+
+  // Measured on its label: 220x44, clears the floor.
+  const wrappedMeasured = JSON.parse(wrapped.measured)
+  expect(wrappedMeasured.height, wrapped.measured).toBeGreaterThanOrEqual(44)
+  expect(wrapped.passed, wrapped.measured).toBe(true)
+
+  // No activating label: its own 16px box, and it still fails.
+  const bareMeasured = JSON.parse(bare.measured)
+  expect(bareMeasured.height, bare.measured).toBeLessThan(44)
+  expect(bare.passed, bare.measured).toBe(false)
+})
+
 async function exerciseFullValuePaths(page: import('@playwright/test').Page, cell: import('./manifest').ManifestCell): Promise<string[]> {
   const exercised: string[] = []
   const paths = DESIGN_QUALITY_MANIFEST.lists.fullValuePaths.filter((entry) =>
