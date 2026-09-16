@@ -418,10 +418,26 @@ export async function collectVisibleContent(
         const neighbours = controls.filter((candidate) => candidate !== target
           && (candidate.closest('form, nav, [role="group"], [role="toolbar"], [role="menu"], [role="listbox"], main, aside, [role="dialog"]')
             || document.body) === container)
+        // A control that scrolls UNDER a sticky bar is not a neighbour of it — their boxes
+        // overlap because one layer is above the other, and a pair reported 0px apart that
+        // way is not two targets a thumb can confuse. Adjacent targets sit beside each
+        // other and never intersect. Same-layer overlap is left alone: that is a real
+        // defect, and this only excuses a pair split across a sticky or fixed layer.
+        const stickyLayer = (element: HTMLElement): boolean => {
+          for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+            const position = getComputedStyle(node).position
+            if (position === 'fixed' || position === 'sticky') return true
+          }
+          return false
+        }
+        const targetSticky = stickyLayer(target)
         let nearestDistance: number | null = null
         let nearestSelector = ''
         for (const neighbour of neighbours) {
           const other = targetArea(neighbour)
+          const intersects = other.left < rect.right && other.right > rect.left
+            && other.top < rect.bottom && other.bottom > rect.top
+          if (intersects && stickyLayer(neighbour) !== targetSticky) continue
           // A control inside the same activating label is the same target, not a neighbour
           // 0px away from itself.
           if (other.left === rect.left && other.top === rect.top

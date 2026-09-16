@@ -131,6 +131,49 @@ test('occlusion judges reachability, not whichever row a band happens to sit ove
   expect(occlusionRow(headerPinned, 8).passed, occlusionRow(headerPinned, 8).measured).toBe(true)
 })
 
+test('touch separation pairs targets that sit beside each other, not ones split across a sticky layer', async ({ page }) => {
+  // A quantity field scrolling under a sticky submit bar overlaps it, and the pair was
+  // reported 0px apart — but a thumb cannot confuse a control it cannot see. Adjacent
+  // targets sit beside each other and never intersect. Same-layer overlap stays a failure.
+  const context = {
+    route: '/planted', journey: 'planted', fixture: 'planted',
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default',
+  }
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setContent(`
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      main { padding-bottom: 200px; }
+      .spacer { height: 700px; }
+      .field { display: block; width: 120px; height: 44px; margin: 0; }
+      .bar { position: fixed; left: 0; right: 0; bottom: 0; height: 60px; background: rgb(240,238,234); }
+      .bar button { width: 200px; height: 48px; }
+      .tight { display: flex; gap: 4px; }
+      .tight button { width: 80px; height: 44px; }
+    </style>
+    <main>
+      <div class="tight"><button>One</button><button>Two</button></div>
+      <div class="spacer"></div>
+      <input class="field" aria-label="Quantity" />
+      <div class="bar"><button>Submit</button></div>
+    </main>
+  `)
+  const rows = await collectVisibleContent(page, context, 'planted-touch', [])
+  const touch = rows.filter((row) => row.kind === 'touch-separation')
+  const find = (needle: string) => touch.find((row) => row.selector.includes(needle))!
+
+  // The two chips 4px apart are a real separation failure and must stay one.
+  const tight = touch.filter((row) => row.selector.includes('button') && !row.selector.includes('div:nth-of-type(3)'))
+  expect(tight.some((row) => !row.passed), JSON.stringify(tight.map((r) => [r.selector.slice(-40), r.measured]))).toBe(true)
+
+  // The field under the sticky bar is not paired with it.
+  const field = find('input')
+  expect(field, JSON.stringify(touch.map((r) => r.selector.slice(-40)))).toBeDefined()
+  const measured = JSON.parse(field.measured)
+  expect(measured.nearestDistance === null || measured.nearestDistance >= 8, field.measured).toBe(true)
+  expect(field.passed, field.measured).toBe(true)
+})
+
 async function exerciseFullValuePaths(page: import('@playwright/test').Page, cell: import('./manifest').ManifestCell): Promise<string[]> {
   const exercised: string[] = []
   const paths = DESIGN_QUALITY_MANIFEST.lists.fullValuePaths.filter((entry) =>
