@@ -224,9 +224,14 @@ export function isTextTruncated(measure: TextTruncationMeasure): boolean {
     || ['hidden', 'clip'].includes(measure.overflowY || '')
   const lineClamp = measure.lineClamp || 'none'
   const horizontallyClipped = measure.scrollWidth > measure.clientWidth + 1
+  // Same rule the live collector applies: a declared clamp that clamps nothing has truncated
+  // nothing. These two drifted apart once the collector was corrected, and a self-test encoding
+  // the older semantics is a trap for whoever next tries to make them agree.
+  const clampOverruns = lineClamp !== 'none' && lineClamp !== '0'
+    && measure.scrollHeight > measure.clientHeight + 1
   return horizontallyClipped
     || (overflowClips && measure.scrollHeight > measure.clientHeight + 1)
-    || (lineClamp !== 'none' && lineClamp !== '0')
+    || clampOverruns
     || (measure.textOverflow === 'ellipsis' && horizontallyClipped)
 }
 
@@ -775,7 +780,11 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
     target.setAttribute('data-design-audit-modal', '')
     return '[data-design-audit-modal]'
   })
-  const stopCounts = await page.locator(modalSelector ? `${modalSelector} :is(${FOCUSABLE_SELECTOR})` : FOCUSABLE_SELECTOR).evaluateAll((elements) => {
+  // Scope by the role itself, not only by the marker: if the dialog re-rendered between the two
+  // evaluations the marker would be gone, expectedStops would be 0, and every keyboard rule for
+  // the cell would be skipped with no failure row to show for it.
+  const modalScope = modalSelector ? '[role="dialog"][aria-modal="true"][data-design-audit-modal]' : null
+  const stopCounts = await page.locator(modalScope ? `${modalScope} :is(${FOCUSABLE_SELECTOR})` : FOCUSABLE_SELECTOR).evaluateAll((elements) => {
     const measurable = (element: HTMLElement): boolean => {
       const style = getComputedStyle(element)
       const rect = element.getBoundingClientRect()
@@ -790,6 +799,11 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
     }
   })
   const expectedStops = stopCounts.expected
+  if (expectedStops === 0 && modalSelector) {
+    // A modal with no reachable stop is a finding, not a quiet skip.
+    const stillMarked = await page.locator(modalSelector).count()
+    if (stillMarked === 0) throw new Error('the open modal lost its audit marker before its keyboard population was counted')
+  }
   if (expectedStops === 0) return { rows: [], expectedStops, cycleDetected: false, modalSelector, escapedStops: [] }
   // Only the EXPECTED population is scoped to the modal. The walk itself has to be able to step
   // outside it, or a trap that leaks would simply run out of iterations and read as contained.
@@ -875,7 +889,7 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
         continue
       }
       if (!focused.measurable) continue
-      if (focused.escaped) escapedStops.push(focused.selector)
+      if (focused.escaped && !escapedStops.includes(focused.selector)) escapedStops.push(focused.selector)
       // A composite native control owns several Tab presses without handing focus on: a
       // `datetime-local` holds it across month, day, year, hour and minute. The walk read the
       // second press as the order repeating a stop and stopped there, one control short of the

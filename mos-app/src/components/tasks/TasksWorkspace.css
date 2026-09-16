@@ -519,8 +519,8 @@
   /* In a read-only card these cells hold text, and 4px between two lines is right. In the
      DRAFT card they hold 44px pickers, so the same 4px put two tap targets half the phone
      floor apart — Team above, PIC beside Supervisor below. Only the draft row opens up.
-     Four classes deliberately: the queue's own `.tasks-work-queue .task-card... .task-card-meta`
-     carries three and comes later in source order, so three would lose the tie-break. */
+     Selectors carry four and five classes deliberately: the competing queue rules carry three
+     and four and come later in source order, so matching their count would lose the tie-break. */
   .tasks-work-queue .task-card .task-card-draft .task-card-meta,
   .tasks-work-queue .task-card .task-card-draft .task-card-meta.collection-grammar-card-details {
     row-gap: 8px;

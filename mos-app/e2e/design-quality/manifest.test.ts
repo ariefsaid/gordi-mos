@@ -73,6 +73,24 @@ test('a full-value reveal may not point at a page-level container', () => {
     )
   }
 
+  // The hole an independent review found: exempting anything that merely CONTAINED a class or
+  // attribute meant `main .composer` named a page-level root and walked straight through the
+  // guard built to stop exactly that. A reveal must carry the entry's own leading scope.
+  for (const reveal of ['main .composer', 'body p.value', '[role="main"] .toolbar', '.some-other-field .menu']) {
+    const result = validateManifest({
+      ...DESIGN_QUALITY_MANIFEST,
+      lists: {
+        ...DESIGN_QUALITY_MANIFEST.lists,
+        fullValuePaths: [{
+          selector: "[data-filter-id='status'] .collection-toolbar__choice-value",
+          authority: 'test',
+          reveal: { action: 'click' as const, selector: reveal },
+        }],
+      },
+    })
+    assert.equal(result.ok, false, `a reveal of ${reveal} escapes the entry's own scope and must be refused`)
+  }
+
   // And the real entry, which reveals into its own field's popover, must still be accepted.
   assert.ok(validateManifest(DESIGN_QUALITY_MANIFEST).ok, 'the shipped manifest stays valid')
 })

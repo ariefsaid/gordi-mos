@@ -590,8 +590,11 @@
 
    Below its own comfortable width the row wraps instead of squeezing. Nothing is
    hidden and nothing scrolls sideways — the two-row grammar simply becomes three,
-   and every value reads whole. Restores each field to the compact-desktop budget,
-   which the squeeze had been eating into.
+   and every value reads whole. Each field is restored to a width its own value fits,
+   at or a little above the compact-desktop budget the squeeze had been eating into.
+   The `html:lang(id)` rules in the compact band carry more classes than these and so
+   keep their own wider boxes in that locale; wrapping, not width, is what stops the
+   clipping, so both locales read whole.
    ════════════════════════════════════════════════════════════════════════════ */
 .tasks-collection-toolbar { container-type: inline-size; }
 

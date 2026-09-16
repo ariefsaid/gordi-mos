@@ -489,8 +489,8 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
     measured?: unknown,
   ) => failures.push({ ruleId, cellId, selector, state, message, measured })
   for (const cell of cellsFor(DESIGN_QUALITY_MANIFEST).filter(isManifestCellRunnable)) {
-    await prepareAuditPage(page, run, cell)
-    const observation = await observeManifestCellState(page, cell)
+    const prepared = await prepareAuditPage(page, run, cell)
+    const observation = await observeManifestCellState(page, cell, prepared.setupFailure)
     observations.set(cell.id, observation)
     if (observation.status !== 'covered') addFailure('state.coverage', cell.id, '__state__', cell.state, observation.evidence)
     const context = {

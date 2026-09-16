@@ -488,8 +488,16 @@ export function validateManifest(manifest: DesignQualityManifest): ManifestValid
       if (listName === 'fullValuePaths' && isNonEmptyString(entry.reveal?.selector)) {
         const reveal = entry.reveal!.selector.trim()
         const pageLevel = ['html', 'body', 'main', '#root', '[role="main"]', "[role='main']"]
-        if (pageLevel.includes(reveal) || pageLevel.some((token) => reveal.startsWith(`${token} `) && !reveal.includes('.') && !reveal.includes('['))) {
+        // Exempting a reveal that merely CONTAINS a class or attribute was the hole: `main
+        // .composer` named a page-level root and walked straight through. The test is not what
+        // the reveal looks like, it is whether the reveal is scoped to the same thing the entry
+        // is. Require the reveal to carry the entry's own leading scope, so a reveal can only
+        // open something inside the subtree the clipped value lives in.
+        const scope = (entry.selector ?? '').trim().split(/\s+/)[0] ?? ''
+        if (pageLevel.includes(reveal) || pageLevel.some((token) => reveal === token || reveal.startsWith(`${token} `))) {
           errors.push(`named list fullValuePaths entry ${entry.selector || '<unknown>'} reveals into a page-level container, which contains the value whether or not anything reveals it`)
+        } else if (!scope || pageLevel.includes(scope) || !reveal.includes(scope)) {
+          errors.push(`named list fullValuePaths entry ${entry.selector || '<unknown>'} reveals outside its own scope ${scope || '<none>'}, so the reveal is not proved to belong to the clipped value`)
         }
       }
       if (entry.routes?.some((route) => !manifest.dimensions.route.includes(route))) {
