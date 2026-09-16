@@ -84,6 +84,8 @@ jobs:
         run: bash scripts/agent-git-shim.test.sh
       - name: pre-pr-verify self-test
         run: bash scripts/pre-pr-verify.test.sh
+      - name: MVP handoff preflight self-test
+        run: bash scripts/mvp-handoff-preflight.test.sh
       - name: Impeccable detector vendor self-test
         run: bash scripts/impeccable-detector.test.sh
       - name: UI review skill pin self-test
