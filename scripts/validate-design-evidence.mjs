@@ -1,9 +1,18 @@
 #!/usr/bin/env node
+
 import { readFile, realpath } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
 import { REQUIRED_ARTIFACTS, validateArtifactSet } from '../mos-app/e2e/design-quality/report.ts'
-import { loadChangeGateBaseline } from '../mos-app/e2e/design-quality/change-gate.ts'
+import {
+  AUTOMATIC_FAILURE_BASELINE_PATH,
+  loadTrustedAutomaticFailureBaseline,
+  revalidateChangeGateSnapshot,
+  serializeAutomaticFailureBaseline,
+  validateAutomaticFailureBaselineSource,
+  validateAutomaticFailureBaseline,
+} from '../mos-app/e2e/design-quality/change-gate.ts'
 
 function fail(message, details = {}) {
   process.stdout.write(`${JSON.stringify({ ok: false, errors: [message], ...details })}\n`)
@@ -20,11 +29,15 @@ if (unknownFlags.length > 0) fail(`unknown flag(s): ${unknownFlags.join(', ')}`)
 const requireFinalChangeGate = flags.includes('--require-change-gate')
 const requireBrowserChangeGate = flags.includes('--require-browser-change-gate')
 const evidenceDir = await realpath(path.resolve(evidenceArg))
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 let session
 try {
   session = JSON.parse(await readFile(path.join(evidenceDir, 'session.json'), 'utf8'))
 } catch (error) {
   fail(`session.json is missing or invalid: ${String(error)}`)
+}
+if (!session || typeof session !== 'object' || Array.isArray(session)) {
+  fail('session.json must contain an object')
 }
 const sessionId = typeof session.sessionId === 'string' ? session.sessionId : ''
 if (session.candidateSha !== expectedSha || !/^[0-9a-f]{8}$/.test(sessionId)) {
@@ -73,6 +86,17 @@ const statusErrors = flags.includes('--require-green')
   ? [`evidence run is not green (browser=${String(session.browserExitStatus)}, fixture=${String(session.fixtureExitStatus)}, chain=${String(session.chainExitStatus)})`]
   : []
 const changeGateErrors = []
+const forbiddenBaselineFields = [
+  'baselineEvidenceDir', 'baselineCandidateSha', 'baselineSessionId', 'baselineDigest',
+]
+if ((requireFinalChangeGate || requireBrowserChangeGate) && forbiddenBaselineFields.some((field) => Object.prototype.hasOwnProperty.call(session, field))) {
+  changeGateErrors.push('filesystem baseline/session inputs are rejected; change-gate authority is the committed merge-base snapshot')
+}
+
+async function readJson(relativePath) {
+  return JSON.parse(await readFile(path.join(evidenceDir, relativePath), 'utf8'))
+}
+
 if (requireFinalChangeGate || requireBrowserChangeGate) {
   if (session.auditMode !== 'change-gate') changeGateErrors.push('evidence was not produced in change-gate mode')
   if (session.browserExitStatus !== 0 || session.fixtureExitStatus !== 0
@@ -80,7 +104,7 @@ if (requireFinalChangeGate || requireBrowserChangeGate) {
     changeGateErrors.push(`change gate is not green (browser=${String(session.browserExitStatus)}, fixture=${String(session.fixtureExitStatus)}, chain=${String(session.chainExitStatus)})`)
   }
   try {
-    const summary = JSON.parse(await readFile(path.join(evidenceDir, 'quantitative-summary.json'), 'utf8'))
+    const summary = await readJson('quantitative-summary.json')
     if (summary.candidateSha !== expectedSha || summary.sessionId !== sessionId) changeGateErrors.push('quantitative summary is stale')
     if (summary.auditMode !== 'change-gate' || summary.automaticChecksPassed !== true || !Array.isArray(summary.failures) || summary.failures.length > 0) {
       changeGateErrors.push('quantitative automatic checks did not pass in change-gate mode')
@@ -88,29 +112,47 @@ if (requireFinalChangeGate || requireBrowserChangeGate) {
   } catch (error) {
     changeGateErrors.push(`quantitative summary is missing or invalid: ${String(error)}`)
   }
-  const baselineEvidenceDir = typeof session.baselineEvidenceDir === 'string' ? session.baselineEvidenceDir : ''
-  const baselineSha = typeof session.baselineCandidateSha === 'string' ? session.baselineCandidateSha : ''
-  const mergeBaseSha = typeof session.mergeBaseSha === 'string' ? session.mergeBaseSha : ''
-  const baselineSessionId = typeof session.baselineSessionId === 'string' ? session.baselineSessionId : ''
-  const baselineDigest = typeof session.baselineDigest === 'string' ? session.baselineDigest : ''
-  if (!baselineEvidenceDir) changeGateErrors.push('change-gate baseline is missing baselineEvidenceDir')
-  if (!/^[0-9a-f]{40}$/.test(baselineSha) || baselineSha !== mergeBaseSha) {
-    changeGateErrors.push('change-gate baseline is missing or not bound to its recorded exact merge-base')
-  }
-  if (!/^[0-9a-f]{8}$/.test(baselineSessionId)) {
-    changeGateErrors.push('change-gate baseline is missing a valid baselineSessionId')
-  }
-  if (!/^[0-9a-f]{64}$/.test(baselineDigest)) {
-    changeGateErrors.push('change-gate baseline is missing its preflight SHA-256 digest')
-  }
-  if (baselineEvidenceDir && /^[0-9a-f]{40}$/.test(baselineSha)
-    && baselineSha === mergeBaseSha && /^[0-9a-f]{64}$/.test(baselineDigest)) {
-    const baseline = await loadChangeGateBaseline(baselineEvidenceDir, baselineSha, baselineDigest)
-    if (!baseline.ok || !baseline.baseline) {
-      changeGateErrors.push(`change-gate baseline evidence is invalid: ${baseline.errors.join('; ')}`)
-    } else if (baselineSessionId !== baseline.baseline.sessionId) {
-      changeGateErrors.push('change-gate baseline session binding is stale')
+
+  const verificationBase = typeof session.verificationBase === 'string' && session.verificationBase.trim()
+    ? session.verificationBase
+    : `origin/${process.env.MOS_PR_BASE || 'dev'}`
+  if (requireBrowserChangeGate) {
+    const trusted = await loadTrustedAutomaticFailureBaseline({ repoRoot, candidateSha: expectedSha, verificationBase })
+    if (!trusted.ok || !trusted.snapshot) {
+      changeGateErrors.push(`exact merge-base snapshot is invalid: ${trusted.errors.join('; ')}`)
+    } else {
+      if (session.mergeBaseSha !== trusted.mergeBaseSha) changeGateErrors.push('session mergeBaseSha does not match the independently resolved merge base')
+      if (session.snapshotBlobDigest !== trusted.blobDigest) changeGateErrors.push('session snapshot blob digest is missing or does not match the independently loaded Git blob')
     }
+    try {
+      const emittedPath = path.join(evidenceDir, path.basename(AUTOMATIC_FAILURE_BASELINE_PATH))
+      const emittedRealPath = await realpath(emittedPath)
+      if (emittedRealPath !== evidenceDir && !emittedRealPath.startsWith(`${evidenceDir}${path.sep}`)) {
+        throw new Error('emitted automatic-failure snapshot escapes the evidence directory')
+      }
+      if (!declared.has(emittedRealPath)) changeGateErrors.push('session does not declare the emitted automatic-failure snapshot')
+      const emittedBytes = await readFile(emittedPath, 'utf8')
+      const emitted = JSON.parse(emittedBytes)
+      const emittedValidation = validateAutomaticFailureBaseline(emitted)
+      if (!emittedValidation.ok) changeGateErrors.push(...emittedValidation.errors.map((error) => `emitted snapshot: ${error}`))
+      else {
+        changeGateErrors.push(...validateAutomaticFailureBaselineSource(repoRoot, emitted, expectedSha)
+          .map((error) => `emitted snapshot: ${error}`))
+        if (serializeAutomaticFailureBaseline(emitted) !== emittedBytes) changeGateErrors.push('emitted snapshot is not canonical')
+      }
+    } catch (error) {
+      changeGateErrors.push(`emitted automatic-failure snapshot is missing or invalid: ${String(error)}`)
+    }
+  }
+  if (requireFinalChangeGate) {
+    const result = await revalidateChangeGateSnapshot({
+      repoRoot,
+      evidenceDir,
+      candidateSha: expectedSha,
+      sessionId,
+      verificationBase,
+    })
+    if (!result.ok) changeGateErrors.push(...result.errors)
   }
 }
 const errors = [...validation.errors, ...declarationErrors, ...statusErrors, ...changeGateErrors]

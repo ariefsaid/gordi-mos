@@ -20,9 +20,10 @@ import {
   auditEnabled,
   auditRun,
   captureCell,
-  compareAutomaticFailures,
+  compareAutomaticFailuresForLane,
   observeManifestCellState,
   prepareAuditPage,
+  writeAutomaticLaneSummary,
 } from './runtime'
 import { type AutomaticFailure } from './change-gate.ts'
 
@@ -306,20 +307,15 @@ test('the vendored Impeccable detector scans production UI and writes its own ar
       measured: finding,
     }
   })
-  const comparison = await compareAutomaticFailures(run, allFailures)
-  await run.writer.writeJson('impeccable.json', {
+  const comparison = await compareAutomaticFailuresForLane(run, allFailures)
+  await writeAutomaticLaneSummary(run, 'impeccable.json', {
     ...result,
     failures: comparison.failures,
     allFailures: comparison.allFailures,
     inheritedFailures: comparison.inheritedFailures,
     newFailures: comparison.newFailures,
     automaticChecksPassed: comparison.automaticChecksPassed,
-    baselineEvidenceDir: run.baselineEvidenceDir || null,
-    baselineCandidateSha: run.baselineCandidateSha || run.mergeBaseSha || null,
-    baselineSessionId: run.baselineSessionId || null,
-    verificationBase: run.verificationBase || null,
-    mergeBaseSha: run.mergeBaseSha || null,
-  })
+  }, result.scannedFiles.length)
   expect(comparison.failures, result.error ?? 'Impeccable detector found blocking production findings').toEqual([])
 })
 
@@ -338,11 +334,23 @@ test('mockup fidelity requires an authority list and enforces score and region c
   }
 
   if (authorityEntries.length === 0) {
-    await run.writer.writeJson('mockup-diff/status.json', {
+    const failureComparison = await compareAutomaticFailuresForLane(run, [{
+      ruleId: 'mockup.authority',
+      cellId: '__mockup__',
+      selector: '__authority__',
+      state: 'default',
+      message: blockedReason || 'no authority-backed mockups were supplied',
+    }])
+    await writeAutomaticLaneSummary(run, 'mockup-diff/status.json', {
       status: 'blocked',
       comparisons,
       reason: blockedReason || 'no authority-backed mockups were supplied',
-    })
+      failures: failureComparison.failures,
+      allFailures: failureComparison.allFailures,
+      inheritedFailures: failureComparison.inheritedFailures,
+      newFailures: failureComparison.newFailures,
+      automaticChecksPassed: failureComparison.automaticChecksPassed,
+    }, comparisons.length)
     expect(authorityEntries, blockedReason || 'mockup authority list is required').toHaveLength(1)
     return
   }
@@ -424,8 +432,8 @@ test('mockup fidelity requires an authority list and enforces score and region c
       message: comparison.reason || 'mockup fidelity comparison failed',
       measured: comparison,
     }))
-  const failureComparison = await compareAutomaticFailures(run, allFailures)
-  await run.writer.writeJson('mockup-diff/status.json', {
+  const failureComparison = await compareAutomaticFailuresForLane(run, allFailures)
+  await writeAutomaticLaneSummary(run, 'mockup-diff/status.json', {
     status: blocked ? 'blocked' : passed ? 'pass' : auditMode === 'change-gate' ? 'assessed-with-gaps' : 'fail',
     auditMode,
     threshold: SCORE_THRESHOLD,
@@ -435,14 +443,9 @@ test('mockup fidelity requires an authority list and enforces score and region c
     inheritedFailures: failureComparison.inheritedFailures,
     newFailures: failureComparison.newFailures,
     automaticChecksPassed: failureComparison.automaticChecksPassed,
-    baselineEvidenceDir: run.baselineEvidenceDir || null,
-    baselineCandidateSha: run.baselineCandidateSha || run.mergeBaseSha || null,
-    baselineSessionId: run.baselineSessionId || null,
-    verificationBase: run.verificationBase || null,
-    mergeBaseSha: run.mergeBaseSha || null,
-  })
+  }, comparisons.length)
   expect(comparisons, 'every authority entry must produce a comparison').not.toHaveLength(0)
-  if (auditMode === 'mvp-assessment' || !run.baselineEvidenceDir) {
+  if (auditMode === 'mvp-assessment') {
     expect(failureComparison.failures, 'mockup fidelity score/region contract failed').toEqual([])
   } else {
     expect(failureComparison.failures, 'mockup fidelity introduced a new score/region regression').toEqual([])

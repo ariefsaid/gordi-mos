@@ -17,8 +17,9 @@ import {
   auditRun,
   captureCell,
   cellsFor,
-  compareAutomaticFailures,
+  compareAutomaticFailuresForLane,
   prepareAuditPage,
+  writeAutomaticLaneSummary,
 } from './runtime'
 
 test.describe.configure({ mode: 'serial' })
@@ -162,8 +163,8 @@ test('contrast state entry point records browser-computed ratios for each intera
       message: `${row.kind} contrast is below its threshold`,
       measured: row,
     }))
-  const comparison = await compareAutomaticFailures(run, allFailures)
-  await run.writer.writeJson('contrast-summary.json', {
+  const comparison = await compareAutomaticFailuresForLane(run, allFailures)
+  await writeAutomaticLaneSummary(run, 'contrast-summary.json', {
     states: INTERACTION_STATES,
     rows: rows.length,
     applicableStates: applicability.filter((entry) => entry.applicable).length,
@@ -178,14 +179,9 @@ test('contrast state entry point records browser-computed ratios for each intera
       new: comparison.newFailures.length,
     },
     automaticChecksPassed: comparison.automaticChecksPassed,
-    baselineEvidenceDir: run.baselineEvidenceDir || null,
-    baselineCandidateSha: run.baselineCandidateSha || run.mergeBaseSha || null,
-    baselineSessionId: run.baselineSessionId || null,
-    verificationBase: run.verificationBase || null,
-    mergeBaseSha: run.mergeBaseSha || null,
     applicability,
     screenshots,
-  })
+  }, rows.length)
   expect(rows.length).toBeGreaterThan(0)
   expect(comparison.failures, 'contrast or applicable interaction-state checks failed').toEqual([])
   expect(contrastThreshold('text', false)).toBe(4.5)

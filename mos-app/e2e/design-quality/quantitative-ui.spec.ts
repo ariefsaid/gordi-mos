@@ -20,11 +20,12 @@ import {
   assertAuditServer,
   auditEnabled,
   auditRun,
+  compareAutomaticFailuresForLane,
   captureCell,
   cellsFor,
-  compareAutomaticFailures,
   observeManifestCellState,
   prepareAuditPage,
+  writeAutomaticLaneSummary,
 } from './runtime'
 
 test.describe.configure({ mode: 'serial' })
@@ -204,13 +205,20 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
   const observedManifest = manifestWithCoverageResults(DESIGN_QUALITY_MANIFEST, observations)
   const untested = observedManifest.cells.filter((cell) => cell.status === 'untested')
   const auditMode = process.env.DESIGN_AUDIT_MODE === 'change-gate' ? 'change-gate' : 'mvp-assessment'
-  const comparison = await compareAutomaticFailures(run, failures)
+  const coverageFailures: AutomaticFailure[] = untested.map((cell) => ({
+    ruleId: 'state.coverage',
+    cellId: cell.id,
+    selector: '__state__',
+    state: cell.state,
+    message: cell.note || 'manifest cell was untested',
+  }))
+  const comparison = await compareAutomaticFailuresForLane(run, [...failures, ...coverageFailures])
   await run.writer.writeJson('manifest.json', observedManifest)
   await run.writer.writeCsv('geometry.csv', [...geometry, ...focusStops, ...typography, ...touchSeparation])
   await run.writer.writeCsv('control-census.csv', [...controls, ...regionRows, ...cardRows])
   await run.writer.writeCsv('state-matrix.csv', observedManifest.cells as unknown as Record<string, unknown>[])
   await run.writer.writeCsv('visible-content.csv', visibleContent as unknown as Record<string, unknown>[])
-  await run.writer.writeJson('quantitative-summary.json', {
+  await writeAutomaticLaneSummary(run, 'quantitative-summary.json', {
     ruleIds: DESIGN_QUALITY_MANIFEST.rules.filter((rule) => rule.artifact === 'geometry.csv').map((rule) => rule.id),
     geometryRows: geometry.length,
     controlRows: controls.length,
@@ -234,16 +242,11 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
     untested: untested.map((cell) => cell.id),
     auditMode,
     automaticChecksPassed: comparison.automaticChecksPassed,
-    baselineEvidenceDir: run.baselineEvidenceDir || null,
-    baselineCandidateSha: run.baselineCandidateSha || run.mergeBaseSha || null,
-    baselineSessionId: run.baselineSessionId || null,
-    verificationBase: run.verificationBase || null,
-    mergeBaseSha: run.mergeBaseSha || null,
     completeStateCoverage: untested.length === 0,
-  })
+  }, geometry.length + controls.length + headings.length + focusStops.length + typography.length + touchSeparation.length + regionRows.length + cardRows.length + visibleContent.length)
   expect(geometry.length + controls.length).toBeGreaterThan(0)
   expect(comparison.failures, `quantitative design rules failed:\n${comparison.failures.slice(0, 50).map((failure) => failure.message).join('\n')}`).toEqual([])
-  if (auditMode === 'mvp-assessment' || !run.baselineEvidenceDir) {
+  if (auditMode === 'mvp-assessment') {
     expect(untested.map((cell) => cell.id), 'every manifest cell must have deterministic rendered state evidence').toEqual([])
   }
 })

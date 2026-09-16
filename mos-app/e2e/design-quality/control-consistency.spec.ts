@@ -11,8 +11,9 @@ import {
   auditEnabled,
   auditRun,
   cellsFor,
-  compareAutomaticFailures,
+  compareAutomaticFailuresForLane,
   prepareAuditPage,
+  writeAutomaticLaneSummary,
 } from './runtime'
 
 const context = {
@@ -216,8 +217,8 @@ test('control consistency entry point writes a complete per-cell census', async 
   const allFailures = rows
     .filter((row) => !row.passed)
     .map((row) => failureFromControlConsistencyRow(row as unknown as Record<string, unknown>))
-  const comparison = await compareAutomaticFailures(run, allFailures)
-  await run.writer.writeJson('control-consistency-summary.json', {
+  const comparison = await compareAutomaticFailuresForLane(run, allFailures)
+  await writeAutomaticLaneSummary(run, 'control-consistency-summary.json', {
     rows: rows.length,
     auditMode: process.env.DESIGN_AUDIT_MODE === 'change-gate' ? 'change-gate' : 'mvp-assessment',
     failures: comparison.failures,
@@ -230,12 +231,7 @@ test('control consistency entry point writes a complete per-cell census', async 
       new: comparison.newFailures.length,
     },
     automaticChecksPassed: comparison.automaticChecksPassed,
-    baselineEvidenceDir: run.baselineEvidenceDir || null,
-    baselineCandidateSha: run.baselineCandidateSha || run.mergeBaseSha || null,
-    baselineSessionId: run.baselineSessionId || null,
-    verificationBase: run.verificationBase || null,
-    mergeBaseSha: run.mergeBaseSha || null,
-  })
+  }, rows.length)
   expect(rows.length).toBeGreaterThan(0)
   expect(comparison.failures, `control consistency failures:\n${comparison.failures.slice(0, 80).map((failure) => `${failure.cellId} ${failure.ruleId} ${failure.selector}`).join('\n')}`).toEqual([])
 })

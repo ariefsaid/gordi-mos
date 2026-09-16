@@ -10,9 +10,10 @@ import {
   auditRun,
   captureCell,
   cellsFor,
-  compareAutomaticFailures,
+  compareAutomaticFailuresForLane,
   observeManifestCellState,
   prepareAuditPage,
+  writeAutomaticLaneSummary,
 } from './runtime'
 
 test.describe.configure({ mode: 'serial' })
@@ -182,8 +183,8 @@ test('anti-slop census entry point records numbers, controls, cards, headings, a
   await run.writer.writeCsv('control-census.csv', controlRows)
   await run.writer.writeCsv('affordance-census.csv', affordanceRows)
   await run.writer.writeCsv('copy-census.csv', copyRows)
-  const comparison = await compareAutomaticFailures(run, failures)
-  await run.writer.writeJson('anti-slop-summary.json', {
+  const comparison = await compareAutomaticFailuresForLane(run, failures)
+  await writeAutomaticLaneSummary(run, 'anti-slop-summary.json', {
     cells: runnableCells.length,
     numberRows: numberRows.length,
     controlRows: controlRows.length,
@@ -199,13 +200,8 @@ test('anti-slop census entry point records numbers, controls, cards, headings, a
       new: comparison.newFailures.length,
     },
     automaticChecksPassed: comparison.automaticChecksPassed,
-    baselineEvidenceDir: run.baselineEvidenceDir || null,
-    baselineCandidateSha: run.baselineCandidateSha || run.mergeBaseSha || null,
-    baselineSessionId: run.baselineSessionId || null,
-    verificationBase: run.verificationBase || null,
-    mergeBaseSha: run.mergeBaseSha || null,
     screenshots,
-  })
+  }, runnableCells.length)
   expect(stateRows.length).toBe(runnableCells.length)
   expect(comparison.failures, `anti-slop census rules failed:\n${comparison.failures.slice(0, 50).map((failure) => failure.message).join('\n')}`).toEqual([])
 })

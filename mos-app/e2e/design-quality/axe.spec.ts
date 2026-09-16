@@ -9,9 +9,10 @@ import {
   auditEnabled,
   auditRun,
   cellsFor,
-  compareAutomaticFailures,
+  compareAutomaticFailuresForLane,
   observeManifestCellState,
   prepareAuditPage,
+  writeAutomaticLaneSummary,
 } from './runtime'
 import { type AutomaticFailure } from './change-gate.ts'
 
@@ -108,9 +109,9 @@ test('axe-core scans every rendered audit route and records moderate findings', 
       measured: finding,
     }]
   })
-  const comparison = await compareAutomaticFailures(run, allFailures)
+  const comparison = await compareAutomaticFailuresForLane(run, allFailures)
   await run.writer.writeGateLog(gateEntries)
-  await run.writer.writeJson('axe-summary.json', {
+  await writeAutomaticLaneSummary(run, 'axe-summary.json', {
     cells: runnableCells.length,
     auditMode: process.env.DESIGN_AUDIT_MODE === 'change-gate' ? 'change-gate' : 'mvp-assessment',
     scans,
@@ -126,12 +127,7 @@ test('axe-core scans every rendered audit route and records moderate findings', 
     inheritedBlocking: comparison.inheritedFailures,
     newBlocking: comparison.newFailures,
     automaticChecksPassed: comparison.automaticChecksPassed,
-    baselineEvidenceDir: run.baselineEvidenceDir || null,
-    baselineCandidateSha: run.baselineCandidateSha || run.mergeBaseSha || null,
-    baselineSessionId: run.baselineSessionId || null,
-    verificationBase: run.verificationBase || null,
-    mergeBaseSha: run.mergeBaseSha || null,
-  })
+  }, scans)
 
   expect(scans, 'axe-core must scan every runnable manifest route cell').toBe(runnableCells.length)
   expect(comparison.failures, 'axe-core serious and critical violations must be fixed').toEqual([])

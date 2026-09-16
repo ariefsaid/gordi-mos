@@ -24,7 +24,7 @@ bad() { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 grep -q 'commit_all' adws/adw_design_audit.py \
   && bad "audit chain reaches for commit_all — it must never commit" \
   || ok "audit chain has no commit path (findings become tickets/fix-runs, not commits)"
-grep -q 'run_tests\|quality' adws/adw_design_audit.py \
+grep -q 'run_tests\|quality_block' adws/adw_design_audit.py \
   && bad "audit chain wires the quality gate — guard suites are the auditor's read-only step" \
   || ok "audit chain runs no quality block (the auditor confirms guards itself, read-only)"
 grep -q 'never audits staging' adws/adw_design_audit.py \
@@ -41,7 +41,7 @@ grep -q 'adw_design_audit.py' scripts/vendor-sssf.test.sh \
   || bad "adw_design_audit.py missing from scripts/vendor-sssf.test.sh DEVIATED list"
 
 OUT="$(python3 - "$ROOT" <<'PY'
-import importlib.util, json, subprocess, sys, tempfile, types
+import hashlib, importlib.util, json, subprocess, sys, tempfile, types
 from pathlib import Path
 
 root = Path(sys.argv[1])
@@ -52,6 +52,21 @@ def check(name, cond, detail=""):
         failures.append(name)
 
 work = Path(tempfile.mkdtemp())
+
+def stable(value):
+    if isinstance(value, list): return [stable(item) for item in value]
+    if isinstance(value, dict): return {key: stable(value[key]) for key in sorted(value)}
+    return value
+
+def lane_digest(payload):
+    volatile = {"candidateSha", "candidate_sha", "sessionId", "session_id", "auditId", "adwId",
+                "auditMode", "verificationBase", "mergeBaseSha", "screenshots", "paths", "build",
+                "outputPath", "artifactPath", "artifactDigest", "digest", "complete", "count"}
+    measured = {key: value for key, value in payload.items() if key not in volatile}
+    return hashlib.sha256(json.dumps(stable(measured), ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
+
+def snapshot_digest(payload):
+    return hashlib.sha256(json.dumps(stable({key: value for key, value in payload.items() if key != "digest"}), ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 
 # ── stub siblings (the REAL chain file runs; nothing else does) ───────────────
 class GateReport:
@@ -139,9 +154,6 @@ check("visible content is registered in the ADW quantitative artifact contract",
 check("control consistency is registered in the ADW quantitative artifact contract",
       "control-consistency.csv" in quant_artifacts)
 candidate_sha = "a" * 40
-baseline_sha = subprocess.run(["git", "merge-base", "HEAD", "origin/dev"], cwd=root,
-                              check=True, capture_output=True, text=True).stdout.strip()
-baseline_id = "b1c2d3e4"
 for artifact in quant_artifacts:
     target = quant_root / artifact
     if artifact == "mockup-diff":
@@ -151,7 +163,9 @@ for artifact in quant_artifacts:
             "status": "pass", "comparisons": [{
                 "surface": "work", "status": "pass", "score": 0.9,
                 "build": "/tmp/render.png", "missingRegions": [],
-                "contradictedRegions": []}]}))
+                "contradictedRegions": []}], "complete": True, "count": 1,
+            "digest": "0" * 64,
+        }))
     elif artifact == "manifest.json":
         rendered = subprocess.run([
             "node", "--experimental-strip-types", "--input-type=module", "-e",
@@ -171,25 +185,31 @@ for artifact in quant_artifacts:
             "ownedAuthUserIds": [], "remainingAuthUserIds": [],
             "cleanupOnFailure": {"attempted": False, "completed": True}}))
     elif artifact == "impeccable.json":
-        target.write_text(json.dumps({
+        payload = {
             "candidateSha": candidate_sha, "sessionId": FakeRun.adw_id,
-            "status": "pass", "scannedFiles": ["src/app.tsx"], "findings": []}))
+            "status": "pass", "scannedFiles": ["src/app.tsx"], "findings": [],
+            "auditMode": "change-gate", "complete": True, "count": 1,
+            "failures": [], "allFailures": [], "inheritedFailures": [], "newFailures": [],
+        }
+        payload["digest"] = lane_digest(payload)
+        target.write_text(json.dumps(payload))
     elif artifact.endswith("-summary.json"):
         payload = {
             "candidateSha": candidate_sha, "sessionId": FakeRun.adw_id,
             "auditMode": "change-gate", "automaticChecksPassed": True,
-            "failures": [], "allFailures": [], "inheritedFailures": [], "newFailures": [],
+            "complete": True, "failures": [], "allFailures": [], "inheritedFailures": [], "newFailures": [],
         }
         if artifact == "quantitative-summary.json":
-            payload.update({"geometryRows": 1, "visibleContentRows": 1})
+            payload.update({"geometryRows": 1, "visibleContentRows": 1, "count": 2})
         elif artifact == "control-consistency-summary.json":
-            payload["rows"] = 1
+            payload.update({"rows": 1, "count": 1})
         elif artifact == "contrast-summary.json":
-            payload["rows"] = 1
+            payload.update({"rows": 1, "count": 1})
         elif artifact == "anti-slop-summary.json":
-            payload["cells"] = 1
+            payload.update({"cells": 1, "count": 1})
         elif artifact == "axe-summary.json":
-            payload["scans"] = [{"cellId": "tasks-default-desktop", "status": "pass"}]
+            payload.update({"scans": [{"cellId": "tasks-default-desktop", "status": "pass"}], "count": 1})
+        payload["digest"] = lane_digest(payload)
         target.write_text(json.dumps(payload))
     elif artifact == "gate-log.txt":
         target.write_text(
@@ -259,59 +279,12 @@ for artifact in quant_artifacts:
 (quant_root / "session.json").write_text(json.dumps({
     "candidateSha": candidate_sha,
     "sessionId": FakeRun.adw_id,
-    "auditMode": "change-gate",
-    "baselineEvidenceDir": str(work / "baseline"),
-    "baselineCandidateSha": baseline_sha,
-    "baselineSessionId": baseline_id,
-    "verificationBase": "origin/dev",
-    "mergeBaseSha": baseline_sha,
+    "auditMode": "mvp-assessment",
     "browserExitStatus": 0,
     "fixtureExitStatus": 0,
     "chainExitStatus": "not-run",
     "quantitativeArtifacts": [str(quant_root / artifact) for artifact in quant_artifacts],
 }))
-(quant_root / "quantitative-summary.json").write_text(json.dumps({
-    "candidateSha": candidate_sha,
-    "sessionId": FakeRun.adw_id,
-    "auditMode": "change-gate",
-    "automaticChecksPassed": True,
-    "failures": [], "allFailures": [], "inheritedFailures": [], "newFailures": [],
-    "geometryRows": 1, "visibleContentRows": 1,
-}))
-
-# Build a separate exact-base handoff from the complete fixture. It carries
-# independent base/session metadata and a persisted digest over every declared
-# artifact, matching the browser controller binding contract.
-import shutil
-baseline_root = work / "baseline"
-shutil.copytree(quant_root, baseline_root)
-for item in baseline_root.rglob("*"):
-    if not item.is_file() or item.suffix.lower() not in {".json", ".csv", ".txt"}:
-        continue
-    item.write_text(item.read_text().replace(candidate_sha, baseline_sha).replace(FakeRun.adw_id, baseline_id))
-baseline_session = json.loads((baseline_root / "session.json").read_text())
-baseline_session.update({
-    "candidateSha": baseline_sha, "sessionId": baseline_id,
-    "auditMode": "mvp-assessment", "contextHandoffDir": str(baseline_root),
-    "quantitativeArtifacts": [str(baseline_root / artifact) for artifact in quant_artifacts],
-})
-(baseline_root / "session.json").write_text(json.dumps(baseline_session))
-digest_script = ("import { readFile } from 'node:fs/promises'; "
-                 "import path from 'node:path'; "
-                 "import { computeArtifactDigest } from './mos-app/e2e/design-quality/change-gate.ts'; "
-                 "const sessionPath = process.argv[1]; "
-                 "const session = JSON.parse(await readFile(sessionPath, 'utf8')); "
-                 "const result = await computeArtifactDigest(path.dirname(sessionPath), session); "
-                 "if (!result.ok) throw new Error(result.errors.join('; ')); "
-                 "process.stdout.write(result.digest);")
-baseline_session["artifactDigest"] = subprocess.run([
-    "node", "--experimental-strip-types", "--input-type=module", "-e", digest_script,
-    str(baseline_root / "session.json"),
-], cwd=root, check=True, capture_output=True, text=True).stdout.strip()
-(baseline_root / "session.json").write_text(json.dumps(baseline_session))
-session_payload = json.loads((quant_root / "session.json").read_text())
-session_payload["baselineDigest"] = baseline_session["artifactDigest"]
-(quant_root / "session.json").write_text(json.dumps(session_payload))
 
 def surface(name, verdict, shots):
     return types.SimpleNamespace(surface=name, verdict=verdict, screenshots=shots)
@@ -406,9 +379,9 @@ check("audit prompt carries the base url, the scope text, and the AuditOutput ov
       and "AuditOutput" in audit_prompts[0], str(audit_prompts)[:400])
 check("audit prompt forbids booting the server (already running)",
       audit_prompts and "ALREADY RUNNING" in audit_prompts[0])
-check("change-gate prompt evaluates the candidate delta and preserves later MVP gaps",
-      audit_prompts and "CHANGE-GATE" in audit_prompts[0]
-      and "must not fail a surface solely because" in audit_prompts[0]
+check("MVP prompt requires complete evidence and preserves strict gaps",
+      audit_prompts and "MVP-ASSESSMENT" in audit_prompts[0]
+      and "Missing requested states" in audit_prompts[0]
       and "untested" in audit_prompts[0])
 check("scope envelope handed to the auditor as previous",
       previous_seen and str(scope) in previous_seen[-1].artifacts, str(previous_seen))
@@ -531,7 +504,7 @@ check("quantitative gate green: complete handoff carries the current SHA and ses
 session_path = quant_root / "session.json"
 session_payload = json.loads(session_path.read_text())
 session_payload.update({
-    "auditMode": "change-gate",
+    "auditMode": "mvp-assessment",
     "browserExitStatus": 0,
     "chainExitStatus": "not-run",
 })
@@ -539,13 +512,16 @@ session_path.write_text(json.dumps(session_payload))
 (quant_root / "quantitative-summary.json").write_text(json.dumps({
     "candidateSha": candidate_sha,
     "sessionId": FakeRun.adw_id,
-    "auditMode": "change-gate",
+    "auditMode": "mvp-assessment",
     "automaticChecksPassed": True,
-    "failures": [], "allFailures": [], "inheritedFailures": [], "newFailures": [],
-    "geometryRows": 1, "visibleContentRows": 1,
+    "complete": True, "failures": [], "allFailures": [], "inheritedFailures": [], "newFailures": [],
+    "geometryRows": 1, "visibleContentRows": 1, "count": 2,
 }))
+summary_payload = json.loads((quant_root / "quantitative-summary.json").read_text())
+summary_payload["digest"] = lane_digest(summary_payload)
+(quant_root / "quantitative-summary.json").write_text(json.dumps(summary_payload))
 r = audit.audit_quantitative_artifacts(good, run)
-check("quantitative gate green while a reviewer evaluates browser-green change-gate evidence",
+check("quantitative gate green for an MVP evidence handoff",
       r.passed, str(r.violations))
 missing_artifact = quant_root / "contrast.csv"
 missing_artifact.unlink()
@@ -564,6 +540,64 @@ session_path.write_text(json.dumps(session_payload))
 r = audit.audit_quantitative_artifacts(good, run)
 check("quantitative gate green after stale-SHA mutation is removed", r.passed,
       str(r.violations))
+
+# Python ADW binding independently reads the fixed Git blob.  A poisoned
+# working-tree copy and an old filesystem baseline cannot affect this result.
+binding_repo = Path(tempfile.mkdtemp())
+def binding_git(*args):
+    return subprocess.run(["git", *args], cwd=binding_repo, check=True,
+                          capture_output=True, text=True).stdout.strip()
+binding_git("init", "-q")
+binding_git("config", "user.email", "test@example.invalid")
+binding_git("config", "user.name", "test")
+(binding_repo / "mos-app/src").mkdir(parents=True)
+(binding_repo / "mos-app/e2e/design-quality").mkdir(parents=True)
+(binding_repo / "mos-app/src/product.ts").write_text("base\n")
+(binding_repo / "mos-app/e2e/design-quality/manifest.ts").write_text("manifest\n")
+binding_git("add", ".")
+binding_git("commit", "-qm", "product")
+binding_product_sha = binding_git("rev-parse", "HEAD")
+binding_manifest_digest = hashlib.sha256(b"manifest\n").hexdigest()
+binding_snapshot = {
+    "kind": audit.AUTOMATIC_FAILURE_BASELINE_KIND,
+    "version": audit.AUTOMATIC_FAILURE_BASELINE_VERSION,
+    "source": {"productSha": binding_product_sha, "harnessSha": binding_product_sha,
+                "sessionId": "a1b2c3d4", "manifestDigest": binding_manifest_digest},
+    "failures": [], "untestedCellIds": [],
+    "lanes": {name: {"complete": True, "count": 1, "digest": "0" * 64}
+              for name in audit.AUTOMATIC_FAILURE_LANES},
+}
+binding_snapshot["digest"] = snapshot_digest(binding_snapshot)
+binding_path = binding_repo / audit.AUTOMATIC_FAILURE_BASELINE_PATH
+binding_path.write_text(json.dumps(binding_snapshot, separators=(",", ":")) + "\n")
+binding_git("add", ".")
+binding_git("commit", "-qm", "reviewed snapshot")
+binding_base_sha = binding_git("rev-parse", "HEAD")
+(binding_repo / "mos-app/src/product.ts").write_text("candidate\n")
+binding_git("add", ".")
+binding_git("commit", "-qm", "candidate")
+binding_candidate_sha = binding_git("rev-parse", "HEAD")
+binding_git("update-ref", "refs/remotes/origin/dev", binding_base_sha)
+binding_run = types.SimpleNamespace(candidate_sha=binding_candidate_sha, repo_root=binding_repo)
+binding_session = {"auditMode": "change-gate", "verificationBase": "origin/dev",
+                   "mergeBaseSha": binding_base_sha,
+                   "snapshotBlobDigest": hashlib.sha256(binding_path.read_bytes()).hexdigest()}
+binding_report = audit.GateReport()
+audit._exact_base_binding(binding_run, binding_session, binding_report)
+check("ADW Git binding accepts the reviewed merge-base blob", binding_report.passed,
+      str(binding_report.violations))
+binding_path.write_text("poisoned working tree\n")
+poisoned_report = audit.GateReport()
+audit._exact_base_binding(binding_run, binding_session, poisoned_report)
+check("ADW Git binding rejects a poisoned working-tree snapshot", not poisoned_report.passed
+      and any("worktree" in violation for violation in poisoned_report.violations),
+      str(poisoned_report.violations))
+bad_session = dict(binding_session, snapshotBlobDigest="f" * 64,
+                   baselineEvidenceDir=str(work / "forged-baseline"))
+bad_report = audit.GateReport()
+audit._exact_base_binding(binding_run, bad_session, bad_report)
+check("ADW Git binding rejects legacy filesystem baseline and digest mutation",
+      not bad_report.passed, str(bad_report.violations))
 
 # ── the gates are WIRED into the AgentCall, not just unit-tested ──────────────
 # A bad envelope that ONLY the verdict gate catches: artifacts all real (both

@@ -79,6 +79,10 @@ export function validateMockupStatus(
   if (!isRecord(payload) || !Array.isArray(payload.comparisons) || payload.comparisons.length === 0) {
     return { ok: false, reason: 'status.json must contain at least one comparison' }
   }
+  if (payload.complete !== true || !Number.isInteger(payload.count) || Number(payload.count) !== payload.comparisons.length
+    || typeof payload.digest !== 'string' || !/^[0-9a-f]{64}$/.test(payload.digest)) {
+    return { ok: false, reason: 'status.json must declare complete/count/digest lane metadata' }
+  }
   const comparisons = payload.comparisons
   const measured = comparisons.every((comparison) => isRecord(comparison)
     && (comparison.status === 'pass' || comparison.status === 'fail')
@@ -296,6 +300,13 @@ function meaningfulJson(
     if (!['pass', 'findings', 'blocked'].includes(String(payload.status))) {
       return { ok: false, reason: 'detector artifact has no completed status' }
     }
+    if (!['mvp-assessment', 'change-gate'].includes(String(payload.auditMode))
+      || payload.complete !== true || !Number.isInteger(payload.count) || Number(payload.count) <= 0
+      || typeof payload.digest !== 'string' || !/^[0-9a-f]{64}$/.test(payload.digest)
+      || !Array.isArray(payload.failures) || !Array.isArray(payload.allFailures)
+      || !Array.isArray(payload.inheritedFailures) || !Array.isArray(payload.newFailures)) {
+      return { ok: false, reason: 'detector artifact must declare complete lane metadata and failure census arrays' }
+    }
   }
   if (artifact.endsWith('-summary.json')) {
     const automaticSummary = validateAutomaticSummary(artifact, payload)
@@ -313,6 +324,10 @@ function validateAutomaticSummary(
   }
   if (typeof payload.automaticChecksPassed !== 'boolean') {
     return { ok: false, reason: `${artifact} must declare automaticChecksPassed` }
+  }
+  if (payload.complete !== true || !Number.isInteger(payload.count) || Number(payload.count) <= 0
+    || typeof payload.digest !== 'string' || !/^[0-9a-f]{64}$/.test(payload.digest)) {
+    return { ok: false, reason: `${artifact} must declare complete/count/digest lane metadata` }
   }
   const failureArrays = ['failures', 'allFailures', 'inheritedFailures', 'newFailures']
   if (failureArrays.some((key) => !Array.isArray(payload[key]))) {
