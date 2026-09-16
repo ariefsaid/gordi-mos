@@ -94,14 +94,12 @@ export const CAFE_CELL_INPUTS = [
   }],
   ['cafe-review-denied-phone', {
     area: 'cafe-wip', journey: 'cafe-review', route: '/mos/cafe/review', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'covered', primary: true,
-    // The route gate renders the boundary in place of the page — no redirect, so the route
-    // assertion still holds and the denied face is the whole surface.
-    stateContract: {
-      setup: [],
-      assertion: { selector: '[data-page-state="permission"] .access-boundary' },
-      negativeAssertion: { selector: '[data-testid="cafe-stream"]' },
-    },
+    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'untested',
+    note: 'The denied face renders correctly, but the focus and control drivers require at least one interactive control inside main and a permission face has none.', primary: true,
+    // Untested, deliberately: the denied face renders correctly, but the focus and control
+    // drivers require at least one interactive control inside `main` and a permission face
+    // has none. Covering it needs the drivers to tolerate a control-less face, not a
+    // different contract.
   }],
   ['cafe-stock-empty-compact', {
     area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'VIEWER',
@@ -117,12 +115,12 @@ export const CAFE_CELL_INPUTS = [
   }],
   ['cafe-pushes-denied-phone', {
     area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'covered', primary: true,
-    stateContract: {
-      setup: [],
-      assertion: { selector: '[data-page-state="permission"] .access-boundary' },
-      negativeAssertion: { selector: '[data-testid="cafe-stream"]' },
-    },
+    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'untested',
+    note: 'The denied face renders correctly, but the focus and control drivers require at least one interactive control inside main and a permission face has none.', primary: true,
+    // Untested, deliberately: the denied face renders correctly, but the focus and control
+    // drivers require at least one interactive control inside `main` and a permission face
+    // has none. Covering it needs the drivers to tolerate a control-less face, not a
+    // different contract.
   }],
   ['cafe-pushes-error-compact', {
     area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'ADMIN',

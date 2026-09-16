@@ -48,13 +48,12 @@ export const SIGNAL_CELL_INPUTS = [
   }],
   ['signals-record-desktop', {
     area: 'signals', journey: 'signals-record', route: '/mos/work/signals', fixture: 'BAR_SUPERVISOR',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'record-panel', status: 'covered',
-    stateContract: {
-      setup: [{ action: 'click', selector: '.home-signal-row--open' }],
-      assertion: { selector: '[data-overlay-host="true"][data-overlay-owner="signals"]' },
-      // The list gains a `.record-split` parent only while a record is open beside it.
-      negativeAssertion: { selector: 'div:not(.record-split) > .signals-archive-main' },
-    },
+    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'record-panel', status: 'untested',
+    note: 'The record opener is a status-modifier class; this fixture is not guaranteed a signal in that status, so the driver waits out the timeout on a row that never renders.',
+    // Untested, deliberately: the opener class exists on this route but `--open` is a status
+    // modifier, and this cell's fixture is not guaranteed a signal in that status. The driver
+    // waited the full timeout for a row that never rendered. Needs a fixture-independent door,
+    // or a fixture that guarantees one open signal.
   }],
   ['signals-retract-phone', {
     area: 'signals', journey: 'signals-record', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
