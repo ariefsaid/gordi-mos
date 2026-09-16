@@ -593,6 +593,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     })
     render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByRole('table', { name: /café plan/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /category/i })).toHaveAttribute('id', 'cafe-plan-category')
   })
 })
 
@@ -697,6 +698,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     ])
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
+    expect(screen.getByRole('combobox', { name: /category/i })).toHaveAttribute('id', 'cafe-plan-category')
     chooseCategory('Rice')
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()

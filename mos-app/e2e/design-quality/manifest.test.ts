@@ -352,6 +352,35 @@ test('control-consistency evidence covers every runnable cell with an exact cont
   const valid = meaningfulCsv('control-consistency.csv', validText, DESIGN_QUALITY_MANIFEST)
   assert.equal(valid.ok, true, valid.reason)
 
+  const resolutionFailureRows = rows.map((row) => row.kind === 'bounded-choice'
+    ? {
+        ...row,
+        selector: 'body > main > button:nth-of-type(1)',
+        observed: false,
+        passed: false,
+        measured: JSON.stringify({
+          lifecycleApplicable: true,
+          resolutionFailure: {
+            identity: 'body > main > button:nth-of-type(1)',
+            id: '',
+            role: 'combobox',
+            marker: 'role=combobox',
+            label: 'Status',
+            diagnosticSelector: 'body > main > button:nth-of-type(1)',
+            matchCount: 0,
+            roleMatched: false,
+            markerMatched: false,
+            reason: 'keyless',
+            passed: false,
+          },
+        }),
+      }
+    : row)
+  const resolutionFailureTarget = await writer.writeCsv('control-consistency.csv', resolutionFailureRows)
+  const resolutionFailure = meaningfulCsv('control-consistency.csv', await readFile(resolutionFailureTarget, 'utf8'), DESIGN_QUALITY_MANIFEST)
+  assert.equal(resolutionFailure.ok, true, resolutionFailure.reason)
+  assert.equal(resolutionFailureRows.find((row) => row.kind === 'bounded-choice')?.passed, false)
+
   const missingCell = DESIGN_QUALITY_MANIFEST.cells.find(isManifestCellRunnable)!.id
   const missingText = validText.split('\n').filter((line) => !line.includes(missingCell)).join('\n')
   const invalid = meaningfulCsv('control-consistency.csv', missingText, DESIGN_QUALITY_MANIFEST)

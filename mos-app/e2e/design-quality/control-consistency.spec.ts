@@ -171,6 +171,176 @@ test('bounded-choice driver catches clipped popups and broken Escape focus retur
   expect(JSON.parse(popupOwner.measured).selectedTextContrast).toBeGreaterThanOrEqual(4.5)
 })
 
+test('bounded-choice lifecycle follows an id through a rerender and label change', async ({ page }) => {
+  await page.setContent(`
+    <style>
+      html, body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      body { padding: 16px; }
+      button { box-sizing: border-box; display: inline-flex; height: 32px; border: 1px solid rgb(20,20,20); border-radius: 8px; color: rgb(20,20,20); background: rgb(255,255,255); }
+      #rerender-list { position: fixed; left: 16px; top: 64px; width: 160px; height: 72px; padding: 0; border: 1px solid rgb(20,20,20); background: rgb(255,255,255); }
+      #rerender-list [role="option"] { display: block; height: 32px; color: rgb(20,20,20); background: rgb(255,255,255); }
+    </style>
+    <main>
+      <button id="rerender-choice" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="rerender-list" aria-label="12 tasks need attention">12 tasks need attention</button>
+      <div id="rerender-list" role="listbox" hidden>
+        <div id="rerender-a" role="option" aria-selected="true">Alpha</div>
+        <div id="rerender-b" role="option">Beta</div>
+      </div>
+    </main>
+    <script>
+      const list = document.getElementById('rerender-list')
+      const bindTrigger = (trigger) => {
+        const open = () => {
+          trigger.setAttribute('aria-expanded', 'true')
+          list.hidden = false
+          trigger.setAttribute('aria-activedescendant', 'rerender-a')
+        }
+        const close = () => {
+          trigger.setAttribute('aria-expanded', 'false')
+          list.hidden = true
+          trigger.focus()
+        }
+        trigger.addEventListener('click', () => trigger.getAttribute('aria-expanded') === 'true' ? close() : open())
+        trigger.addEventListener('keydown', (event) => {
+          if (event.key === 'ArrowDown') { event.preventDefault(); open(); trigger.setAttribute('aria-activedescendant', 'rerender-b') }
+          if (event.key.toLowerCase() === 'a') trigger.setAttribute('aria-activedescendant', 'rerender-a')
+          if (event.key === 'Escape' && trigger.getAttribute('aria-expanded') === 'true') { event.preventDefault(); close() }
+          if (event.key === 'Enter' && trigger.getAttribute('aria-expanded') === 'true') { event.preventDefault(); close() }
+        })
+        document.addEventListener('pointerdown', (event) => {
+          if (!trigger.contains(event.target) && !list.contains(event.target)) close()
+        })
+      }
+      bindTrigger(document.getElementById('rerender-choice'))
+    </script>
+  `)
+
+  const captured = await captureBoundedChoicePopulation(page)
+  expect(captured).toHaveLength(1)
+  const capturedPath = captured[0]!.diagnosticSelector
+  await page.evaluate(() => {
+    const oldTrigger = document.getElementById('rerender-choice')!
+    const inserted = document.createElement('button')
+    inserted.textContent = 'Inserted during rerender'
+    inserted.setAttribute('aria-hidden', 'true')
+    inserted.style.display = 'block'
+    inserted.style.marginTop = '4px'
+    oldTrigger.before(inserted)
+    const nextTrigger = oldTrigger.cloneNode(true) as HTMLElement
+    nextTrigger.setAttribute('aria-label', '11 tasks need attention')
+    nextTrigger.textContent = '11 tasks need attention'
+    oldTrigger.replaceWith(nextTrigger)
+    const list = document.getElementById('rerender-list')!
+    const open = () => {
+      nextTrigger.setAttribute('aria-expanded', 'true')
+      list.hidden = false
+      nextTrigger.setAttribute('aria-activedescendant', 'rerender-a')
+    }
+    const close = () => {
+      nextTrigger.setAttribute('aria-expanded', 'false')
+      list.hidden = true
+      nextTrigger.focus()
+    }
+    nextTrigger.addEventListener('click', () => nextTrigger.getAttribute('aria-expanded') === 'true' ? close() : open())
+    nextTrigger.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowDown') { event.preventDefault(); open(); nextTrigger.setAttribute('aria-activedescendant', 'rerender-b') }
+      if (event.key.toLowerCase() === 'a') nextTrigger.setAttribute('aria-activedescendant', 'rerender-a')
+      if (event.key === 'Escape' && nextTrigger.getAttribute('aria-expanded') === 'true') { event.preventDefault(); close() }
+      if (event.key === 'Enter' && nextTrigger.getAttribute('aria-expanded') === 'true') { event.preventDefault(); close() }
+    })
+    document.addEventListener('pointerdown', (event) => {
+      const eventTarget = event.target as Node | null
+      if (!nextTrigger.contains(eventTarget) && !list.contains(eventTarget)) close()
+    })
+  })
+
+  const rows = await exerciseBoundedChoices(page, 'rerender-cell', context, captured)
+  const row = rows.find((candidate) => candidate.selector === 'rerender-choice')!
+  const measured = JSON.parse(row.measured) as { diagnosticSelector: string; label: string }
+  expect(row.passed, row.measured).toBe(true)
+  expect(measured.label).toBe('12 tasks need attention')
+  expect(await page.locator('#rerender-choice').getAttribute('aria-label')).toBe('11 tasks need attention')
+  expect(measured.diagnosticSelector).not.toBe(capturedPath)
+  const population = validateBoundedChoiceLifecyclePopulation(captured, rows)
+  expect(population.passed, JSON.stringify(population)).toBe(true)
+  expect(population.expectedCount).toBe(1)
+  expect(population.lifecycleCount).toBe(1)
+})
+
+test('duplicate visible labels stay addressable by their distinct runtime ids', async ({ page }) => {
+  await page.setContent(`
+    <style>
+      body { margin: 16px; background: rgb(255,255,255); color: rgb(20,20,20); }
+      button { box-sizing: border-box; display: inline-flex; height: 32px; margin-right: 8px; border: 1px solid rgb(20,20,20); border-radius: 8px; color: rgb(20,20,20); background: rgb(255,255,255); }
+    </style>
+    <button id="status-primary" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="status-primary-list" aria-label="Status">Status</button>
+    <button id="status-secondary" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="status-secondary-list" aria-label="Status">Status</button>
+    <div id="status-primary-list" role="listbox" hidden></div>
+    <div id="status-secondary-list" role="listbox" hidden></div>
+  `)
+
+  const captured = await captureBoundedChoicePopulation(page)
+  expect(captured.map((target) => target.id)).toEqual(['status-primary', 'status-secondary'])
+  expect(captured.map((target) => target.label)).toEqual(['Status', 'Status'])
+  for (const target of captured) {
+    const trigger = page.locator(`#${target.id}`)
+    expect(await trigger.count()).toBe(1)
+    expect(await trigger.getAttribute('aria-label')).toBe('Status')
+  }
+})
+
+test('missing, duplicate, and keyless bounded-choice identities fail before any action', async ({ page }) => {
+  const scenarios = [
+    {
+      name: 'missing',
+      markup: '<button id="missing-choice" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-label="Missing">Missing</button>',
+      mutate: () => { document.getElementById('missing-choice')?.remove() },
+      reason: 'missing',
+    },
+    {
+      name: 'duplicate',
+      markup: '<button id="duplicate-choice" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-label="Duplicate">Duplicate</button>',
+      mutate: () => {
+        const original = document.getElementById('duplicate-choice')!
+        original.parentElement!.appendChild(original.cloneNode(true))
+      },
+      reason: 'ambiguous',
+    },
+    {
+      name: 'keyless',
+      markup: '<button role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-label="Keyless">Keyless</button>',
+      mutate: () => {},
+      reason: 'keyless',
+    },
+  ] as const
+
+  for (const scenario of scenarios) {
+    await page.setContent(`
+      <style>body { margin: 16px; background: rgb(255,255,255); color: rgb(20,20,20); } button { width: 140px; height: 32px; color: rgb(20,20,20); background: rgb(255,255,255); border: 1px solid rgb(20,20,20); }</style>
+      <main>${scenario.markup}</main>
+    `)
+    const captured = await captureBoundedChoicePopulation(page)
+    await page.evaluate(() => {
+      const actions = { click: 0, keydown: 0 }
+      ;(window as unknown as { __boundedChoiceActions: typeof actions }).__boundedChoiceActions = actions
+      document.addEventListener('click', () => { actions.click += 1 }, true)
+      document.addEventListener('keydown', () => { actions.keydown += 1 }, true)
+    })
+    await page.evaluate(scenario.mutate)
+    const rows = await exerciseBoundedChoices(page, `resolution-${scenario.name}`, context, captured)
+    expect(rows).toHaveLength(1)
+    const row = rows[0]!
+    const measured = JSON.parse(row.measured) as { resolutionFailure?: { identity: string; reason: string; passed: boolean } }
+    expect(row.passed).toBe(false)
+    expect(row.observed).toBe(false)
+    expect(measured.resolutionFailure?.reason).toBe(scenario.reason)
+    expect(measured.resolutionFailure?.identity).toBeTruthy()
+    expect(measured.resolutionFailure?.passed).toBe(false)
+    const actions = await page.evaluate(() => (window as unknown as { __boundedChoiceActions: { click: number; keydown: number } }).__boundedChoiceActions)
+    expect(actions).toEqual({ click: 0, keydown: 0 })
+  }
+})
+
 test('control consistency entry point writes a complete per-cell census', async ({ page }) => {
   test.setTimeout(360_000)
   test.skip(!auditEnabled(), 'set DESIGN_QUALITY_RUN=1 through scripts/design-quality-audit.sh')

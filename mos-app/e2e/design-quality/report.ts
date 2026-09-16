@@ -403,6 +403,34 @@ function measuredObject(value: string): Record<string, unknown> | null {
   }
 }
 
+const BOUNDED_CHOICE_RESOLUTION_FAILURE_REASONS = new Set([
+  'keyless',
+  'invalid-id',
+  'missing',
+  'ambiguous',
+  'duplicate',
+  'role-mismatched',
+  'action-failed',
+  'popup-unassociated',
+  'popup-missing',
+  'popup-ambiguous',
+  'popup-role-mismatched',
+  'popup-not-open',
+  'active-option-missing',
+  'active-option-ambiguous',
+  'active-option-role-mismatched',
+  'selected-option-missing',
+  'selected-option-ambiguous',
+  'selected-option-id-missing',
+])
+
+const BOUNDED_CHOICE_MARKERS = new Set([
+  'role=combobox',
+  'aria-haspopup=listbox',
+  'picker-trigger',
+  'select-field',
+])
+
 export function validateControlConsistencyCsv(
   text: string,
   manifest: DesignQualityManifest | null,
@@ -450,6 +478,35 @@ export function validateControlConsistencyCsv(
     }
     for (const row of cellRows.filter((candidate) => candidate.kind === 'bounded-choice')) {
       const measured = measuredObject(row.measured)!
+      const resolutionFailure = measured.resolutionFailure
+      if (isRecord(resolutionFailure)) {
+        const identity = resolutionFailure.identity
+        if (row.observed !== 'false'
+          || row.passed !== 'false'
+          || measured.lifecycleApplicable !== true
+          || typeof identity !== 'string'
+          || identity.trim().length === 0
+          || row.selector !== identity
+          || typeof resolutionFailure.id !== 'string'
+          || typeof resolutionFailure.role !== 'string'
+          || resolutionFailure.role.trim().length === 0
+          || typeof resolutionFailure.marker !== 'string'
+          || !BOUNDED_CHOICE_MARKERS.has(resolutionFailure.marker)
+          || typeof resolutionFailure.label !== 'string'
+          || typeof resolutionFailure.diagnosticSelector !== 'string'
+          || resolutionFailure.diagnosticSelector.trim().length === 0
+          || !Number.isInteger(resolutionFailure.matchCount)
+          || Number(resolutionFailure.matchCount) < 0
+          || typeof resolutionFailure.roleMatched !== 'boolean'
+          || typeof resolutionFailure.markerMatched !== 'boolean'
+          || typeof resolutionFailure.reason !== 'string'
+          || !BOUNDED_CHOICE_RESOLUTION_FAILURE_REASONS.has(resolutionFailure.reason)
+          || resolutionFailure.passed !== false
+          || (resolutionFailure.error !== undefined && typeof resolutionFailure.error !== 'string')) {
+          return { ok: false, reason: `${cell.id} bounded choice resolution failure is malformed` }
+        }
+        continue
+      }
       if (measured.lifecycleApplicable === false) {
         if (measured.disabled !== true || typeof measured.closed !== 'boolean' || typeof measured.textContrast !== 'number') {
           return { ok: false, reason: `${cell.id} disabled bounded choice lacks lifecycle measurements` }
