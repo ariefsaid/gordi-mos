@@ -56,9 +56,11 @@ GH
 write_checkpoint() {
   local repo="$1"
   local expected_sha="$2"
-  local active_json="${3:-[]}"
+  local items_json="${3:-[]}"
   local live_status="${4:-qualified}"
-  local assessment_status="${5:-current}"
+  local remediation_status="${5:-in-progress}"
+  local final_status="${6:-pending}"
+  local patterns_json="${7:-[\"^mvp-owned/.+$\"]}"
   local docs="$repo/docs"
   local skills="$repo/.claude"
   mkdir -p "$docs/takeover" "$docs/superpowers/plans" "$docs/reviews/mvp-ui-quantitative/current" "$skills/skill-overrides/handoff"
@@ -68,7 +70,7 @@ write_checkpoint() {
   printf 'remediation plan\n' > "$docs/superpowers/plans/2026-09-15-mvp-quantitative-ui-remediation.md"
   printf 'handoff override\n' > "$skills/skill-overrides/handoff/SKILL.md"
 
-  python3 - "$docs" "$skills" "$expected_sha" "$active_json" "$live_status" "$assessment_status" <<'PY'
+  python3 - "$docs" "$skills" "$expected_sha" "$items_json" "$live_status" "$remediation_status" "$final_status" "$patterns_json" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -77,9 +79,11 @@ import sys
 docs = pathlib.Path(sys.argv[1])
 skills = pathlib.Path(sys.argv[2])
 expected = sys.argv[3]
-active = json.loads(sys.argv[4])
+items = json.loads(sys.argv[4])
 live = sys.argv[5]
-assessment_status = sys.argv[6]
+remediation_status = sys.argv[6]
+final_status = sys.argv[7]
+patterns = json.loads(sys.argv[8])
 
 files = [
     ("docs", "superpowers/plans/2026-09-16-mvp-remediation-takeover.md"),
@@ -95,22 +99,34 @@ for root, relative in files:
     required.append({"root": root, "path": relative, "sha256": digest})
 
 manifest = {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "expectedDevSha": expected,
     "requiredFiles": required,
-    "activeMvpBranches": active,
+    "mvpWork": {
+        "branchPatterns": patterns,
+        "items": items,
+    },
     "issue": {"number": 855, "requiredState": "OPEN"},
     "provider": {
-        "route": "zai/glm-5.3-flash",
-        "staticStatus": "catalogued",
+        "staticStatus": "qualified",
         "liveStatus": live,
         "liveProbeTimestamp": "2026-09-16T00:00:00Z" if live == "qualified" else None,
     },
     "assessment": {
-        "sessionId": "ready-session" if assessment_status == "current" else "historical-session",
-        "candidateSha": expected if assessment_status == "current" else "1" * 40,
-        "status": assessment_status,
+        "baseline": {
+            "sessionId": "historical-red-session",
+            "candidateSha": "1" * 40,
+            "status": "completed-red",
+            "filePath": "reviews/mvp-ui-quantitative/current/ASSESSMENT.md",
+            "fileSha256": next(item["sha256"] for item in required if item["path"] == "reviews/mvp-ui-quantitative/current/ASSESSMENT.md"),
+        },
+        "final": {
+            "sessionId": "final-session" if final_status == "completed" else None,
+            "candidateSha": expected if final_status == "completed" else None,
+            "status": final_status,
+        },
     },
+    "remediation": {"status": remediation_status},
     "database": {
         "envFile": "mos-app/.env.e2e",
         "lockWrapper": "scripts/with-db-lock.sh",
@@ -123,6 +139,46 @@ manifest = {
 (docs / "takeover/mvp-remediation-checkpoint.json").write_text(
     json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
 )
+PY
+}
+
+create_owned_worktree() {
+  local repo="$1"
+  local branch="$2"
+  local relative="$3"
+  git -C "$repo" branch "$branch"
+  mkdir -p "$(dirname "$repo/$relative")"
+  git -C "$repo" worktree add "$repo/$relative" "$branch" >/dev/null 2>&1
+  printf 'unfinished\n' > "$repo/$relative/untracked-product-file"
+}
+
+malform_checkpoint() {
+  local repo="$1"
+  local mode="$2"
+  python3 - "$repo/docs/takeover/mvp-remediation-checkpoint.json" "$mode" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+mode = sys.argv[2]
+value = json.loads(path.read_text())
+if mode == "numeric-digest":
+    value["requiredFiles"][0]["sha256"] = 123
+elif mode == "array-root":
+    value["requiredFiles"][0]["root"] = ["docs"]
+elif mode == "numeric-work-sha":
+    value["mvpWork"]["items"] = [{
+        "branch": "mvp-owned/malformed",
+        "expectedSha": 123,
+        "worktreePath": ".claude/worktrees/malformed",
+        "disposition": "active",
+    }]
+elif mode == "numeric-provider-status":
+    value["provider"]["staticStatus"] = 123
+else:
+    raise SystemExit(f"unknown mode: {mode}")
+path.write_text(json.dumps(value, indent=2) + "\n")
 PY
 }
 
@@ -230,9 +286,47 @@ write_checkpoint "$repo" "0000000000000000000000000000000000000000"
 expect_blocked "$repo" stale-sha checkpoint-dev-sha-stale
 
 repo="$(new_fixture active-work)"
-active='[{"branch":"feat/pending","expectedSha":"2222222222222222222222222222222222222222","worktreePath":".claude/worktrees/pending","status":"pending"}]'
+create_owned_worktree "$repo" mvp-owned/pending .claude/worktrees/pending
+active_sha="$(git -C "$repo" rev-parse mvp-owned/pending)"
+active="[{\"branch\":\"mvp-owned/pending\",\"expectedSha\":\"$active_sha\",\"worktreePath\":\".claude/worktrees/pending\",\"disposition\":\"active\"}]"
 write_checkpoint "$repo" "$(git -C "$repo" rev-parse HEAD)" "$active"
 expect_blocked "$repo" active-work active-mvp-work-remains
+
+repo="$(new_fixture omitted-active-work)"
+create_owned_worktree "$repo" mvp-owned/omitted .claude/worktrees/omitted
+expect_blocked "$repo" omitted-active-work active-mvp-work-remains
+json_assert "$RUN_JSON" "value['activeWork'][0]['disposition'] == 'unrecorded'" || bad "omitted MVP work is reported as unrecorded"
+
+repo="$(new_fixture unverified-disposition)"
+create_owned_worktree "$repo" mvp-owned/merged .claude/worktrees/merged
+merged_sha="$(git -C "$repo" rev-parse mvp-owned/merged)"
+merged="[{\"branch\":\"mvp-owned/merged\",\"expectedSha\":\"$merged_sha\",\"worktreePath\":\".claude/worktrees/merged\",\"disposition\":\"merged\",\"integratedDevSha\":\"2222222222222222222222222222222222222222\"}]"
+write_checkpoint "$repo" "$(git -C "$repo" rev-parse HEAD)" "$merged"
+expect_blocked "$repo" unverified-disposition mvp-disposition-unverified
+
+repo="$(new_fixture verified-merged)"
+create_owned_worktree "$repo" mvp-owned/merged .claude/worktrees/merged
+merged_sha="$(git -C "$repo" rev-parse mvp-owned/merged)"
+integrated_sha="$(git -C "$repo" rev-parse HEAD)"
+merged="[{\"branch\":\"mvp-owned/merged\",\"expectedSha\":\"$merged_sha\",\"worktreePath\":\".claude/worktrees/merged\",\"disposition\":\"merged\",\"integratedDevSha\":\"$integrated_sha\"}]"
+write_checkpoint "$repo" "$integrated_sha" "$merged"
+run_preflight "$repo" verified-merged
+if [ "$RUN_RC" -eq 0 ] && json_assert "$RUN_JSON" "value['ready'] is True and value['activeWork'] == []"; then
+  ok "verified merged disposition permits a retained MVP worktree"
+else
+  bad "verified merged disposition permits a retained MVP worktree"
+fi
+
+for malformed in numeric-digest array-root numeric-work-sha numeric-provider-status; do
+  repo="$(new_fixture "malformed-$malformed")"
+  malform_checkpoint "$repo" "$malformed"
+  expect_blocked "$repo" "malformed-$malformed" checkpoint-invalid
+  if [ "$(wc -l < "$RUN_JSON" | tr -d ' ')" = "1" ] && ! grep -q 'Traceback' "$RUN_ERR"; then
+    ok "$malformed emits one JSON object without a traceback"
+  else
+    bad "$malformed emits one JSON object without a traceback"
+  fi
+done
 
 repo="$(new_fixture offline-tracker)"
 expect_blocked "$repo" offline-tracker tracker-unverified FAKE_GH_MODE=offline
@@ -247,6 +341,8 @@ expect_blocked "$repo" missing-env database-prerequisites-unsafe
 
 repo="$(new_fixture ready)"
 case_dir="$(dirname "$repo")"
+git -C "$repo" branch unrelated/retained
+git -C "$repo" worktree add "$case_dir/unrelated-retained" unrelated/retained >/dev/null 2>&1
 mv "$repo/docs" "$case_dir/private-docs"
 mv "$repo/.claude" "$case_dir/private-skills"
 before_status="$(git -C "$repo" status --porcelain --untracked-files=normal)"
@@ -256,15 +352,16 @@ run_preflight "$repo" ready \
   GORDI_TEST_CREDENTIAL=never-print-this-value
 if [ "$RUN_RC" -eq 0 ] &&
    json_assert "$RUN_JSON" "value['ready'] is True and value['blockers'] == [] and value['nextAction'] == 'Begin MVP remediation takeover.'" &&
-   json_assert "$RUN_JSON" "value['schemaVersion'] == 1 and value['tracker']['status'] == 'verified' and value['provider']['liveStatus'] == 'qualified'" &&
+   json_assert "$RUN_JSON" "value['schemaVersion'] == 2 and value['tracker']['status'] == 'verified' and value['provider'] == {'staticStatus': 'qualified', 'liveStatus': 'qualified', 'liveProbeTimestamp': '2026-09-16T00:00:00Z'}" &&
+   json_assert "$RUN_JSON" "value['checkpoint']['assessment']['baseline']['status'] == 'completed-red' and value['checkpoint']['assessment']['final']['status'] == 'pending' and value['checkpoint']['remediation']['status'] == 'in-progress'" &&
    json_assert "$RUN_JSON" "value['privateRoots']['docs']['source'] == 'override' and value['privateRoots']['skills']['source'] == 'override'" &&
    ! grep -q 'never-print-this-value\|private-docs\|private-skills' "$RUN_JSON" "$RUN_ERR" &&
    [ "$(git -C "$repo" status --porcelain --untracked-files=normal)" = "$before_status" ] &&
    [ "$(wc -l < "$RUN_JSON" | tr -d ' ')" = "1" ] &&
    [ -s "$RUN_ERR" ]; then
-  ok "clean ready state emits one JSON object and a human summary"
+  ok "clean ready state ignores unrelated retained work and emits one JSON object"
 else
-  bad "clean ready state emits one JSON object and a human summary"
+  bad "clean ready state ignores unrelated retained work and emits one JSON object"
 fi
 
 if [ "$FAIL" -ne 0 ]; then
