@@ -60,6 +60,10 @@ export interface RecordFieldProps {
   commitsFrozen?: boolean
   /** Render the resting value as the record's semantic title heading. */
   heading?: boolean
+  /** The rung that heading sits on. A record shown on its own page owns the page's h1; one
+   *  shown in an overlay beside a page that already has an h1 must sit under it, or the page
+   *  carries two h1s and the section headings below skip a level. */
+  headingLevel?: 1 | 2
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
@@ -81,7 +85,8 @@ function toInputValue(value: RecordValue): string {
   return String(value)
 }
 
-export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFrozen = false, heading = false }: RecordFieldProps) {
+export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFrozen = false, heading = false, headingLevel = 1 }: RecordFieldProps) {
+  const Heading = headingLevel === 1 ? 'h1' : 'h2'
   const t = useT()
   const labelId = useId()
   const controlId = useId()
@@ -232,7 +237,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
         </span>
         <div className="record-field__value-cell">
           {heading ? (
-            <h1 className="record-field__value record-field__heading">{renderValueNode(spec)}</h1>
+            <Heading className="record-field__value record-field__heading">{renderValueNode(spec)}</Heading>
           ) : (
             <div className="record-field__value" aria-labelledby={labelId}>
               {renderValueNode(spec)}
@@ -287,7 +292,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
               <span className="record-field__value">{renderValueNode(spec)}</span>
               {editButton}
             </div>
-          ) : heading ? <h1 aria-labelledby={`${controlId}-value`} className="record-field__value record-field__heading">{editButton}</h1> : editButton}
+          ) : heading ? <Heading aria-labelledby={`${controlId}-value`} className="record-field__value record-field__heading">{editButton}</Heading> : editButton}
           {feedback}
         </div>
       </div>
