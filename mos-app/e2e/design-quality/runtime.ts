@@ -538,9 +538,29 @@ export async function observeManifestCellState(page: Page, cell: ManifestCell): 
   const negativeCount = negative
     ? await matchingCount(negative.selector, negative)
     : 0
+  if (count > 0 && negativeCount === 0) await settleAnimations(page)
   return count > 0 && negativeCount === 0
     ? { status: 'covered', evidence: `${count} visible assertion target(s): ${assertion.selector}; default marker absent` }
     : { status: 'untested', evidence: `state assertion did not match: ${assertion.selector}` }
+}
+
+/**
+ * Wait out entry transitions before anything is measured or captured.
+ *
+ * A surface that animates in is at its FROM keyframe the moment its assertion target becomes
+ * visible. The Signals composer enters with `translateY(4px)` and a fade, so it measured 4px
+ * past the bottom of the viewport and photographed half-transparent — a geometry failure and a
+ * ghosted screenshot, both of a surface that fits and is opaque a sixth of a second later.
+ */
+export async function settleAnimations(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const running = document.getAnimations().filter((animation) => animation.playState === 'running')
+    // An animation that never ends (a spinner) would hang the run, so give the batch a ceiling.
+    await Promise.race([
+      Promise.allSettled(running.map((animation) => animation.finished)),
+      new Promise((resolve) => setTimeout(resolve, 1_000)),
+    ])
+  })
 }
 
 /** Drive a real interaction state before collecting contrast, or report it absent. */
@@ -572,6 +592,7 @@ export async function captureCell(page: Page, run: AuditRun, cell: ManifestCell,
   const screenshotDir = path.join(run.outputDir, 'screenshots')
   const screenshotPath = path.join(screenshotDir, screenshotName(cell, lane))
   await page.evaluate(resetAuditScroll)
+  await settleAnimations(page)
   await page.screenshot({ path: screenshotPath, fullPage: false })
   return screenshotPath
 }

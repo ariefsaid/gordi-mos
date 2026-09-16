@@ -25,6 +25,7 @@ import {
   cellsFor,
   observeManifestCellState,
   prepareAuditPage,
+  settleAnimations,
   writeAutomaticLaneSummary,
 } from './runtime'
 
@@ -261,6 +262,40 @@ async function exerciseFullValuePaths(page: import('@playwright/test').Page, cel
   }
   return exercised
 }
+
+test('a surface is measured where it lands, not at the first frame of its entry animation', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  // Full-height sheet that enters 12px low, exactly like the composer's `translateY(4px)`. At
+  // the FROM keyframe it hangs past the bottom of the viewport; where it lands, it fits.
+  await page.setContent(`
+    <style>
+      body { margin: 0; background: rgb(255,255,255); }
+      .sheet { position: fixed; inset: 0; height: 100vh; background: rgb(255,255,255);
+        animation: enter 400ms ease-out; }
+      @keyframes enter { from { transform: translateY(12px); } }
+    </style>
+    <div class="sheet" role="dialog" aria-modal="true">Composer</div>
+  `)
+  const rectOf = () => page.locator('[role="dialog"]').evaluate((element) => element.getBoundingClientRect().bottom)
+
+  expect(await rectOf(), 'the plant must actually start out of bounds, or it proves nothing')
+    .toBeGreaterThan(844)
+  await settleAnimations(page)
+  expect(await rectOf(), 'settled, the sheet fits its viewport').toBe(844)
+
+  // A surface that never stops moving must not hang the run.
+  await page.setContent(`
+    <style>
+      body { margin: 0; }
+      .spinner { width: 40px; height: 40px; animation: spin 600ms linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+    <div class="spinner"></div>
+  `)
+  const started = Date.now()
+  await settleAnimations(page)
+  expect(Date.now() - started, 'an endless animation is waited out, not waited on').toBeLessThan(3_000)
+})
 
 test('an open modal owns the keyboard population, and a trap that leaks still fails', async ({ page }) => {
   const context = {
