@@ -97,9 +97,15 @@ test('occlusion judges reachability, not whichever row a band happens to sit ove
       <div class="scrim">Overlay</div>
     </main>
   `)
+  // Not measured, rather than measured and passed. A mode is not a band, but the content under
+  // it is not clear either, and "reachable" is a pass the reader could never collect: an opaque
+  // layer would hide a real defect behind a green row. The same cell without the mode measures it.
   const behindOverlay = await collectVisibleContent(page, context, 'planted-overlay', [])
-  expect(occlusionRow(behindOverlay, 2).passed, occlusionRow(behindOverlay, 2).measured).toBe(true)
-  expect(occlusionRow(behindOverlay, 5).passed, occlusionRow(behindOverlay, 5).measured).toBe(true)
+  const occluded = behindOverlay.filter((entry) => entry.kind === 'viewport-occlusion')
+  expect(
+    occluded.filter((entry) => /main:nth-of-type\(1\) > p:nth-of-type\(\d+\)$/.test(entry.selector)),
+    JSON.stringify(occluded.map((entry) => entry.selector)),
+  ).toEqual([])
 
   // ── A band clipped by its own scroller covers nothing ─────────────────────
   // A sticky block inside a side panel that has scrolled up out of that panel still reports a

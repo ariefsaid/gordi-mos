@@ -345,6 +345,19 @@ export async function collectVisibleContent(
         * (Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0))
       return covered / viewportArea < 0.8
     })
+    // The layers the filter above just rejected. A mode is not a band, but the content under it
+    // is not clear either — reporting it as reachable is a pass the reader could never collect.
+    // Content under a mode is not measured at all; the same cell without the mode measures it.
+    const modeLayers = Array.from(document.querySelectorAll<HTMLElement>('body *')).filter((element) => {
+      if (!visible(element)) return false
+      const position = getComputedStyle(element).position
+      if (position !== 'fixed' && position !== 'sticky') return false
+      const rect = paintedRect(element)
+      if (rect.width <= 0 || rect.height <= 0) return false
+      const covered = (Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0))
+        * (Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0))
+      return covered / viewportArea >= 0.8
+    })
     const occlusionTargets = Array.from(new Set([
       ...textTargets,
       ...Array.from(measuredRoot.querySelectorAll<HTMLElement>(actionable)).filter(visible),
@@ -362,6 +375,8 @@ export async function collectVisibleContent(
     // reserve, a last row under a footer with no bottom reserve) cannot be centred and still
     // fails, which is the case the rule exists for.
     for (const target of occlusionTargets) {
+      // Under a mode layer and not part of it: say nothing rather than say "clear".
+      if (modeLayers.some((layer) => layer !== target && !layer.contains(target) && !target.contains(layer))) continue
       target.scrollIntoView({ block: 'center', inline: 'nearest' })
       const targetRect = target.getBoundingClientRect()
       let intersectionRatio = 0
