@@ -57,7 +57,8 @@ export const SIGNAL_CELL_INPUTS = [
   }],
   ['signals-retract-phone', {
     area: 'signals', journey: 'signals-record', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'retract-menu', status: 'covered',
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'retract-menu', status: 'untested',
+    note: 'Reachable read-only and verified by hand, but no contract is registered: a setup selector that does not resolve under this cell\'s own fixture blocks fifteen seconds and then throws out of prepareAuditPage, taking the whole lane down before it writes an artifact.',
     // The menu itself is reachable read-only — open a Signal, press its overflow trigger — and
     // was verified by hand. The contract is NOT registered: a setup selector that does not
     // resolve blocks for fifteen seconds and then THROWS out of prepareAuditPage, which takes
