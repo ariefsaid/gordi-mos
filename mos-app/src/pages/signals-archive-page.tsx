@@ -20,6 +20,7 @@ import {
   type CollectionToolbarSearch,
 } from '@/components/record-collection/collection-toolbar'
 import { SIGNAL_CATEGORIES } from '@/lib/db/signals.types'
+import { signalCategoryLabel } from '@/components/signals/signal-labels'
 import {
   signalCollectionDescriptor,
   SIGNAL_COLLECTION_NEUTRAL_QUERY,
@@ -160,6 +161,11 @@ export function SignalsArchivePage() {
     onSort: (sort, direction) => setQuery({ sort, direction }),
   }
 
+  // The page head owns the ONE Share Signal primary (#770 AC-021: the head holds the only
+  // .btn-primary — the toolbar renders no second door inside <main>). On phone the head action
+  // steps aside: the + launcher owns Share Signal there (AC-029), exactly as Tasks' head yields
+  // "New task" to the launcher (showNewTask && !isNarrow).
+
   // The list-search query minus ?record= — shared by the canonical-page redirect and the
   // panel's "Open full page" escalation, so the search state (q / retracted) survives the jump.
   const searchWithoutRecord = useCallback(() => {
@@ -256,7 +262,7 @@ export function SignalsArchivePage() {
   }
 
   const clearFilters = () =>
-    setQuery({ q: '', attention: null, category: null, teamId: null, view: 'all' })
+    setQuery({ q: '', attention: null, category: null, teamId: null, view: 'all', showRetracted: false })
 
   // #581: named once so the phone composition below can plant the same search field OUTSIDE the
   // "View & filters" door while the toolbar instance (rendered either standalone on desktop, or
@@ -271,17 +277,9 @@ export function SignalsArchivePage() {
   const signalToolbar = (
     <CollectionToolbar
       className="signals-archive-toolbar"
-      // D-D2 / Rule 7: the ONE compose door for /work/signals lives in the toolbar, so it is present
-      // in BOTH Table and Feed (it used to appear only as the in-feed row and vanish in Table). The
-      // in-feed "Share a Signal" row is now ambient-only (Home tail) — see SignalFeedRows.
-      primaryAction={canPost === false ? undefined : (
-        <Button variant="primary" onClick={() => openSignalComposer()}>
-          {t('signals.action.share')}
-        </Button>
-      )}
-      // #581: on phone this same toolbar instance renders INSIDE the "View & filters" door — the
-      // search field is already planted outside it (see signalControls below), so skip the
-      // toolbar's own copy there. Desktop renders the toolbar standalone and keeps its search row.
+      // #770: the Share Signal primary lives in the PAGE HEAD (D-D2, AC-021) — layout-independent
+      // across Table and Feed, and never inside the phone door. The in-feed "Share a Signal" row
+      // is ambient-only (Home tail) — see SignalFeedRows.
       hideSearchRow={!isDesktop}
       presentation={{
         label: t('signals.archive.presentationLabel'),
@@ -312,14 +310,7 @@ export function SignalsArchivePage() {
         // Attention filter dropdown died here. The needs-attention view already surfaces every
         // attention-worthy Signal (Urgent + Needs attention); grouping-by-attention and
         // sort-by-Urgent below cover the remaining slices without re-duplicating the chip.
-        {
-          id: 'category', label: t('signals.archive.filterCategory'), value: query.category ?? '',
-          options: [
-            { value: '', label: t('signals.archive.filterAnyCategory') },
-            ...SIGNAL_CATEGORIES.map((category) => ({ value: category, label: category })),
-          ],
-          onChange: (category) => setQuery({ category: category ? category as SignalCollectionQuery['category'] : null }),
-        },
+        // Row-2 order per the #770 After state: search · Team · Category (· Group · Sort) · Save view.
         {
           id: 'team', label: t('signals.archive.filterTeam'), value: query.teamId ?? '',
           options: [
@@ -328,9 +319,23 @@ export function SignalsArchivePage() {
           ],
           onChange: (teamId) => setQuery({ teamId: teamId || null }),
         },
+        {
+          id: 'category', label: t('signals.archive.filterCategory'), value: query.category ?? '',
+          options: [
+            { value: '', label: t('signals.archive.filterAnyCategory') },
+            // AC-031/FR-024: the eight families render in the viewer's locale — the enum value
+            // stays the storage/query contract; the label goes through the ONE category seam.
+            ...SIGNAL_CATEGORIES.map((category) => ({ value: category, label: signalCategoryLabel(t, category) })),
+          ],
+          onChange: (category) => setQuery({ category: category ? category as SignalCollectionQuery['category'] : null }),
+        },
         ...(controller.state.presentation === 'table' ? [
           {
-            id: 'group', label: t('signals.archive.groupLabel'), value: query.groupBy,
+            // AC-022 (#770, per Tasks AC-005): the active group carries the structural-navy tint
+            // and the trigger reads "Group: Team" / "Kelompok: Tim" — visually distinct from the
+            // Team FILTER beside it, which has no prefix and no tint.
+            id: 'group', label: t('signals.archive.groupLabel'), triggerPrefix: t('signals.archive.groupLabel'), value: query.groupBy,
+            tinted: query.groupBy !== 'none',
             options: [
               { value: 'none', label: t('signals.archive.groupNone') },
               { value: 'team', label: t('signals.archive.filterTeam') },
@@ -421,6 +426,13 @@ export function SignalsArchivePage() {
       title={t('nav.work.signals')}
       jobSentence={t('job.signals')}
       count={projection ? projection.visibleRecords.length : null}
+      // AC-021 (#770): the head holds the ONE .btn-primary on the surface — the same head-action
+      // slot Tasks uses for "New task". Desktop only; the phone launcher owns Share Signal.
+      action={canPost === false || !isDesktop ? undefined : (
+        <Button variant="primary" onClick={() => openSignalComposer()}>
+          {t('signals.action.share')}
+        </Button>
+      )}
     >
       <SignalCollectionActionsProvider actions={actions}>
         <div className={splitOpen ? 'record-split' : undefined}>
@@ -437,6 +449,16 @@ export function SignalsArchivePage() {
                 title: query.q.trim()
                   ? t('signals.archive.empty', { query: query.q })
                   : t('signals.archive.emptyUnfiltered'),
+                // AC-030 (#770): the true-empty door exists only for a viewer who can post. It is a
+                // door in an ambient surface, so it takes the outline weight — the head keeps the
+                // one action blue (DESIGN.md § Signal row (v4) / §5 Buttons).
+                ...(canPost === false ? {} : {
+                  create: (
+                    <Button variant="outline" onClick={() => openSignalComposer()}>
+                      {t('signals.archive.emptyShareFirst')}
+                    </Button>
+                  ),
+                }),
               }}
               filteredEmpty={{ title: t('signals.archive.filteredEmpty'), clear: clearFilters }}
               error={{ message: t('signals.archive.error'), retry: () => controller.retry() }}

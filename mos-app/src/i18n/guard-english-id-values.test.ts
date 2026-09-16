@@ -26,6 +26,7 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'locale.id', // Bahasa Indonesia
   'dev.views.render', // Render (dev-only surface)
   'inbox.severity.info', // Info
+  'signals.archive.attentionFyi', // FYI — the borrowed initialism stays in id (FR-024 "FYI kept", AC-031/AC-066)
   'inbox.target.type.followUp', // AR Follow-up — product term
   'followUps.counterparty', // Counterparty — domain term, no adopted id label yet
   'money.footnote.interim', // Interim

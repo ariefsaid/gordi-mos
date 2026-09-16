@@ -63,6 +63,8 @@ export function SignalTablePresentation({
   })
   const cursorId = keyboard.cursor >= 0 ? flatRows[keyboard.cursor]?.id ?? null : null
 
+  // AC-027 (#770): the ratified column order is Message (category subline) · Team · Attention ·
+  // Occurred — a weekly review scans who/what, then how loud, then how long ago.
   const columns: DataTableColumn<SignalRow>[] = [
     {
       key: 'message',
@@ -96,12 +98,6 @@ export function SignalTablePresentation({
       render: (signal) => context.teamNamesById.get(signal.owning_team_id) ?? '',
     },
     {
-      key: 'occurredAt',
-      header: t('signals.table.occurredAt'),
-      sortable: Boolean(actions.onSort),
-      render: (signal) => formatWibDateTime(signal.occurred_at),
-    },
-    {
       key: 'attention',
       header: t('signals.table.attention'),
       sortable: Boolean(actions.onSort),
@@ -113,6 +109,12 @@ export function SignalTablePresentation({
             {attentionLabel(t, signal.attention)}
           </span>
         ),
+    },
+    {
+      key: 'occurredAt',
+      header: t('signals.table.occurredAt'),
+      sortable: Boolean(actions.onSort),
+      render: (signal) => formatWibDateTime(signal.occurred_at),
     },
   ]
 

@@ -46,7 +46,8 @@ export function formatDayMonthYear(iso: string, locale?: Locale): string {
   })
 }
 
-/** "12 Jun 2026, 12:30 WIB" — Asia/Jakarta wall clock with the WIB suffix. */
+/** "12 Jun 2026, 12:30 WIB" — Asia/Jakarta wall clock with the WIB suffix (records, meta lines
+ *  that carry the full date). */
 export function formatWibDateTime(value: string | Date, locale?: Locale): string {
   const date = value instanceof Date ? value : new Date(value)
   const parts = new Intl.DateTimeFormat(resolveTag(locale), {
@@ -61,4 +62,21 @@ export function formatWibDateTime(value: string | Date, locale?: Locale): string
   const pick = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((part) => part.type === type)?.value ?? ''
   return `${pick('day')} ${pick('month')} ${pick('year')}, ${pick('hour')}:${pick('minute')} WIB`
+}
+
+/** "16 Jul 09:00" — the Signal ROW meta shape (FR-020/AC-025): `dd Mon HH:MM`, WIB implied
+ *  (FR-046), never a browser-locale string. Shares the formatter pipeline with the full form. */
+export function formatWibShortDateTime(value: string | Date, locale?: Locale): string {
+  const date = value instanceof Date ? value : new Date(value)
+  const parts = new Intl.DateTimeFormat(resolveTag(locale), {
+    timeZone: 'Asia/Jakarta',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date)
+  const pick = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? ''
+  return `${pick('day')} ${pick('month')} ${pick('hour')}:${pick('minute')}`
 }

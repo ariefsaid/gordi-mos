@@ -87,6 +87,7 @@
   padding: 0;
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
 .home-signal-list > li + li > .home-signal-row {
   border-top: 1px solid var(--row-divider);
@@ -142,25 +143,9 @@
   overflow-wrap: anywhere;
   text-decoration: none;
 }
-/* P1-4 (c): the visible title line is only ~22px tall, well under the 44px tap floor. Expand the
-   real hit area to cover the whole record row (title + meta subline ≈ 50px) with a transparent
-   overlay — no visual bloat, and bounded to .home-signal-main so the tail's attention pill and
-   category control stay independently clickable. The vertical -3px reach stays inside the row's own
-   10px padding, so adjacent rows never steal each other's taps. Not applied to the static
-   (non-clickable) variant. */
-.home-signal-body:not(.home-signal-body--static)::after {
-  content: "";
-  position: absolute;
-  inset: -3px 0;
-}
-.home-signal-body:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-xs); }
-.home-signal-body--static { cursor: default; }
 /* AC-060: an ambient open-row IS the record button (the row itself carries role="button"), so its
-   whole surface points — including the static body span, whose `cursor: default` above is the
-   non-clickable variant's rule. Scoped to `--open`: the archive opens via its own body button,
-   and retracted tombstones are not doors. */
+   whole surface points and retracted tombstones remain inert. */
 .home-signal-row--open { cursor: pointer; }
-.home-signal-row--open .home-signal-body--static { cursor: inherit; }
 
 .home-signal-meta {
   display: flex;
@@ -180,8 +165,8 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden; /* an unusually long Team name clips, never overflows the feed column */
+  max-width: 100%;
+  white-space: normal;
 }
 /* The author is their NAME (owner, 2026-07-28) — the 20px initials disc that used to lead this
    line is gone, giving the 300px Home tail back 28px of measure. The name takes the weight the
@@ -190,41 +175,16 @@
    same fact on the ranked-stream row. */
 .home-signal-who-name {
   font-weight: 600; color: var(--foreground);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .home-signal-sep { color: var(--muted-foreground); }
-.home-signal-location-chip,
-.home-signal-time-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--secondary);
-  color: var(--muted-foreground);
-  white-space: nowrap;
-}
-.home-signal-visible-to {
-  flex-basis: 100%;
-  color: var(--muted-foreground);
-}
 
-/* Archive rows are a revisit surface: metadata is one quiet fact line (author · Team · time ·
-   category), not a second visibility/action treatment. The chips remain an ambient-only cue. */
-.home-signal-meta--archive {
-  gap: 6px;
-}
-
-.home-signal-meta--archive .home-signal-meta-fact {
-  display: inline;
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+/* Meta facts are PLAIN TEXT in both variants (P1, #770): author · Team · time · category — never
+   bordered chips, never a visibility sentence. Each fact sits inside its separator-bound group. */
+.home-signal-meta-fact {
   color: var(--muted-foreground);
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .home-signal-tail {
