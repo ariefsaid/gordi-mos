@@ -75,9 +75,13 @@ export const CAFE_CELL_INPUTS = [
   ['cafe-plan-producing-phone', {
     area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'producing', status: 'covered', primary: true,
+    // `.pqf` is the planned-quantity field itself, which the plan renders at every width. The
+    // table cell that holds it on desktop, `.kp-cell-qty`, does not exist on a phone, where the
+    // plan is cards — and the state being asserted is "this stream produces", not "it produces
+    // at one width".
     stateContract: {
       setup: [],
-      assertion: { selector: '.kp-cell-qty' },
+      assertion: { selector: '.pqf' },
       negativeAssertion: { selector: '.kp-receiving-only-title' },
     },
   }],
@@ -88,7 +92,7 @@ export const CAFE_CELL_INPUTS = [
     stateContract: {
       setup: [],
       assertion: { selector: '.kp-receiving-only-title' },
-      negativeAssertion: { selector: '.kp-cell-qty' },
+      negativeAssertion: { selector: '.pqf' },
     },
   }],
   ['cafe-log-producing-compact', {
