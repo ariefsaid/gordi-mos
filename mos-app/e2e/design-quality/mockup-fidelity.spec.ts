@@ -20,9 +20,12 @@ import {
   auditEnabled,
   auditRun,
   captureCell,
+  compareAutomaticFailuresForLane,
   observeManifestCellState,
   prepareAuditPage,
+  writeAutomaticLaneSummary,
 } from './runtime'
+import { type AutomaticFailure } from './change-gate.ts'
 
 const execFileAsync = promisify(execFile)
 const repoRoot = path.resolve(process.cwd(), '..')
@@ -293,8 +296,27 @@ test('the vendored Impeccable detector scans production UI and writes its own ar
   assertAuditEnvironment()
   const run = auditRun()
   const result = await runImpeccableDetector()
-  await run.writer.writeJson('impeccable.json', result)
-  expect(result.status, result.error ?? 'Impeccable detector found blocking production findings').toBe('pass')
+  const allFailures: AutomaticFailure[] = result.findings.map((finding) => {
+    const item = finding as Record<string, unknown>
+    return {
+      ruleId: 'impeccable.finding',
+      cellId: String(item.cellId || item.file || item.path || ''),
+      selector: String(item.selector || item.rule || item.id || '__impeccable__'),
+      state: 'default',
+      message: String(item.message || item.reason || item.rule || 'Impeccable detector finding'),
+      measured: finding,
+    }
+  })
+  const comparison = await compareAutomaticFailuresForLane(run, allFailures)
+  await writeAutomaticLaneSummary(run, 'impeccable.json', {
+    ...result,
+    failures: comparison.failures,
+    allFailures: comparison.allFailures,
+    inheritedFailures: comparison.inheritedFailures,
+    newFailures: comparison.newFailures,
+    automaticChecksPassed: comparison.automaticChecksPassed,
+  }, result.scannedFiles.length)
+  expect(comparison.failures, result.error ?? 'Impeccable detector found blocking production findings').toEqual([])
 })
 
 test('mockup fidelity requires an authority list and enforces score and region contracts', async ({ page }) => {
@@ -312,11 +334,23 @@ test('mockup fidelity requires an authority list and enforces score and region c
   }
 
   if (authorityEntries.length === 0) {
-    await run.writer.writeJson('mockup-diff/status.json', {
+    const failureComparison = await compareAutomaticFailuresForLane(run, [{
+      ruleId: 'mockup.authority',
+      cellId: '__mockup__',
+      selector: '__authority__',
+      state: 'default',
+      message: blockedReason || 'no authority-backed mockups were supplied',
+    }])
+    await writeAutomaticLaneSummary(run, 'mockup-diff/status.json', {
       status: 'blocked',
       comparisons,
       reason: blockedReason || 'no authority-backed mockups were supplied',
-    })
+      failures: failureComparison.failures,
+      allFailures: failureComparison.allFailures,
+      inheritedFailures: failureComparison.inheritedFailures,
+      newFailures: failureComparison.newFailures,
+      automaticChecksPassed: failureComparison.automaticChecksPassed,
+    }, comparisons.length)
     expect(authorityEntries, blockedReason || 'mockup authority list is required').toHaveLength(1)
     return
   }
@@ -388,14 +422,32 @@ test('mockup fidelity requires an authority list and enforces score and region c
   const passed = comparisons.length > 0 && comparisons.every((comparison) => comparison.status === 'pass')
   const blocked = comparisons.some((comparison) => comparison.status === 'blocked')
   const auditMode = process.env.DESIGN_AUDIT_MODE === 'change-gate' ? 'change-gate' : 'mvp-assessment'
-  await run.writer.writeJson('mockup-diff/status.json', {
+  const allFailures: AutomaticFailure[] = comparisons
+    .filter((comparison) => comparison.status !== 'pass')
+    .map((comparison) => ({
+      ruleId: 'mockup.fidelity',
+      cellId: comparison.cellId,
+      selector: comparison.mockup || '__mockup__',
+      state: 'default',
+      message: comparison.reason || 'mockup fidelity comparison failed',
+      measured: comparison,
+    }))
+  const failureComparison = await compareAutomaticFailuresForLane(run, allFailures)
+  await writeAutomaticLaneSummary(run, 'mockup-diff/status.json', {
     status: blocked ? 'blocked' : passed ? 'pass' : auditMode === 'change-gate' ? 'assessed-with-gaps' : 'fail',
     auditMode,
     threshold: SCORE_THRESHOLD,
     comparisons,
-  })
+    failures: failureComparison.failures,
+    allFailures: failureComparison.allFailures,
+    inheritedFailures: failureComparison.inheritedFailures,
+    newFailures: failureComparison.newFailures,
+    automaticChecksPassed: failureComparison.automaticChecksPassed,
+  }, comparisons.length)
   expect(comparisons, 'every authority entry must produce a comparison').not.toHaveLength(0)
   if (auditMode === 'mvp-assessment') {
-    expect(comparisons.filter((comparison) => comparison.status !== 'pass'), 'mockup fidelity score/region contract failed').toEqual([])
+    expect(failureComparison.failures, 'mockup fidelity score/region contract failed').toEqual([])
+  } else {
+    expect(failureComparison.failures, 'mockup fidelity introduced a new score/region regression').toEqual([])
   }
 })

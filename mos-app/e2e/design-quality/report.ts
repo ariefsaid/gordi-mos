@@ -18,6 +18,11 @@ export const REQUIRED_ARTIFACTS = [
   'affordance-census.csv',
   'copy-census.csv',
   'visible-content.csv',
+  'quantitative-summary.json',
+  'control-consistency-summary.json',
+  'contrast-summary.json',
+  'anti-slop-summary.json',
+  'axe-summary.json',
   'impeccable.json',
   'mockup-diff',
 ] as const
@@ -74,6 +79,10 @@ export function validateMockupStatus(
   if (!isRecord(payload) || !Array.isArray(payload.comparisons) || payload.comparisons.length === 0) {
     return { ok: false, reason: 'status.json must contain at least one comparison' }
   }
+  if (payload.complete !== true || !Number.isInteger(payload.count) || Number(payload.count) !== payload.comparisons.length
+    || typeof payload.digest !== 'string' || !/^[0-9a-f]{64}$/.test(payload.digest)) {
+    return { ok: false, reason: 'status.json must declare complete/count/digest lane metadata' }
+  }
   const comparisons = payload.comparisons
   const measured = comparisons.every((comparison) => isRecord(comparison)
     && (comparison.status === 'pass' || comparison.status === 'fail')
@@ -102,7 +111,7 @@ export function validateMockupStatus(
       ? { ok: true }
       : { ok: false, reason: 'pass status requires every comparison to meet the 0.75 score and region contract' }
   }
-  if (allowMockupGaps && payload.status === 'assessed-with-gaps') {
+  if (allowMockupGaps && (payload.status === 'assessed-with-gaps' || payload.status === 'fail')) {
     const failures = comparisons.filter((comparison) => isRecord(comparison) && comparison.status === 'fail')
     if (failures.length > 0 && failures.every((comparison) => (comparison.score as number) < 0.75)) {
       return { ok: true }
@@ -291,6 +300,60 @@ function meaningfulJson(
     if (!['pass', 'findings', 'blocked'].includes(String(payload.status))) {
       return { ok: false, reason: 'detector artifact has no completed status' }
     }
+    if (!['mvp-assessment', 'change-gate'].includes(String(payload.auditMode))
+      || payload.complete !== true || !Number.isInteger(payload.count) || Number(payload.count) <= 0
+      || typeof payload.digest !== 'string' || !/^[0-9a-f]{64}$/.test(payload.digest)
+      || !Array.isArray(payload.failures) || !Array.isArray(payload.allFailures)
+      || !Array.isArray(payload.inheritedFailures) || !Array.isArray(payload.newFailures)) {
+      return { ok: false, reason: 'detector artifact must declare complete lane metadata and failure census arrays' }
+    }
+  }
+  if (artifact.endsWith('-summary.json')) {
+    const automaticSummary = validateAutomaticSummary(artifact, payload)
+    if (!automaticSummary.ok) return automaticSummary
+  }
+  return { ok: true }
+}
+
+function validateAutomaticSummary(
+  artifact: string,
+  payload: Record<string, unknown>,
+): { ok: boolean; reason?: string } {
+  if (!['mvp-assessment', 'change-gate'].includes(String(payload.auditMode))) {
+    return { ok: false, reason: `${artifact} must declare a completed auditMode` }
+  }
+  if (typeof payload.automaticChecksPassed !== 'boolean') {
+    return { ok: false, reason: `${artifact} must declare automaticChecksPassed` }
+  }
+  if (payload.complete !== true || !Number.isInteger(payload.count) || Number(payload.count) <= 0
+    || typeof payload.digest !== 'string' || !/^[0-9a-f]{64}$/.test(payload.digest)) {
+    return { ok: false, reason: `${artifact} must declare complete/count/digest lane metadata` }
+  }
+  const failureArrays = ['failures', 'allFailures', 'inheritedFailures', 'newFailures']
+  if (failureArrays.some((key) => !Array.isArray(payload[key]))) {
+    return { ok: false, reason: `${artifact} must include complete failure census arrays` }
+  }
+  if (artifact === 'axe-summary.json'
+    && !((Array.isArray(payload.scans) && payload.scans.length > 0)
+      || (Number.isInteger(payload.scans) && Number(payload.scans) > 0))) {
+    return { ok: false, reason: `${artifact} must include at least one scan result` }
+  }
+  if (artifact === 'quantitative-summary.json'
+    && (!Number.isInteger(payload.geometryRows) || Number(payload.geometryRows) <= 0
+      || !Number.isInteger(payload.visibleContentRows) || Number(payload.visibleContentRows) <= 0)) {
+    return { ok: false, reason: `${artifact} must include measured geometry and visible-content rows` }
+  }
+  if (artifact === 'control-consistency-summary.json'
+    && (!Number.isInteger(payload.rows) || Number(payload.rows) <= 0)) {
+    return { ok: false, reason: `${artifact} must include measured control rows` }
+  }
+  if (artifact === 'contrast-summary.json'
+    && (!Number.isInteger(payload.rows) || Number(payload.rows) <= 0)) {
+    return { ok: false, reason: `${artifact} must include measured contrast rows` }
+  }
+  if (artifact === 'anti-slop-summary.json'
+    && (!Number.isInteger(payload.cells) || Number(payload.cells) <= 0)) {
+    return { ok: false, reason: `${artifact} must include measured cells` }
   }
   return { ok: true }
 }
@@ -340,6 +403,35 @@ function measuredObject(value: string): Record<string, unknown> | null {
   }
 }
 
+const BOUNDED_CHOICE_RESOLUTION_FAILURE_REASONS = new Set([
+  'keyless',
+  'invalid-id',
+  'missing',
+  'ambiguous',
+  'duplicate',
+  'role-mismatched',
+  'action-failed',
+  'popup-unassociated',
+  'popup-missing',
+  'popup-ambiguous',
+  'popup-role-mismatched',
+  'popup-not-open',
+  'outside-dismissal-failed',
+  'active-option-missing',
+  'active-option-ambiguous',
+  'active-option-role-mismatched',
+  'selected-option-missing',
+  'selected-option-ambiguous',
+  'selected-option-id-missing',
+])
+
+const BOUNDED_CHOICE_MARKERS = new Set([
+  'role=combobox',
+  'aria-haspopup=listbox',
+  'picker-trigger',
+  'select-field',
+])
+
 export function validateControlConsistencyCsv(
   text: string,
   manifest: DesignQualityManifest | null,
@@ -387,6 +479,35 @@ export function validateControlConsistencyCsv(
     }
     for (const row of cellRows.filter((candidate) => candidate.kind === 'bounded-choice')) {
       const measured = measuredObject(row.measured)!
+      const resolutionFailure = measured.resolutionFailure
+      if (isRecord(resolutionFailure)) {
+        const identity = resolutionFailure.identity
+        if (row.observed !== 'false'
+          || row.passed !== 'false'
+          || measured.lifecycleApplicable !== true
+          || typeof identity !== 'string'
+          || identity.trim().length === 0
+          || row.selector !== identity
+          || typeof resolutionFailure.id !== 'string'
+          || typeof resolutionFailure.role !== 'string'
+          || resolutionFailure.role.trim().length === 0
+          || typeof resolutionFailure.marker !== 'string'
+          || !BOUNDED_CHOICE_MARKERS.has(resolutionFailure.marker)
+          || typeof resolutionFailure.label !== 'string'
+          || typeof resolutionFailure.diagnosticSelector !== 'string'
+          || resolutionFailure.diagnosticSelector.trim().length === 0
+          || !Number.isInteger(resolutionFailure.matchCount)
+          || Number(resolutionFailure.matchCount) < 0
+          || typeof resolutionFailure.roleMatched !== 'boolean'
+          || typeof resolutionFailure.markerMatched !== 'boolean'
+          || typeof resolutionFailure.reason !== 'string'
+          || !BOUNDED_CHOICE_RESOLUTION_FAILURE_REASONS.has(resolutionFailure.reason)
+          || resolutionFailure.passed !== false
+          || (resolutionFailure.error !== undefined && typeof resolutionFailure.error !== 'string')) {
+          return { ok: false, reason: `${cell.id} bounded choice resolution failure is malformed` }
+        }
+        continue
+      }
       if (measured.lifecycleApplicable === false) {
         if (measured.disabled !== true || typeof measured.closed !== 'boolean' || typeof measured.textContrast !== 'number') {
           return { ok: false, reason: `${cell.id} disabled bounded choice lacks lifecycle measurements` }

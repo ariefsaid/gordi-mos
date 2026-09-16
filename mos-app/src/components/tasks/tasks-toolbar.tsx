@@ -275,6 +275,7 @@ export function TasksToolbar({
         <>
           {attentionTotal > 0 ? (
             <Picker
+              id="tasks-filter-attention"
               label={t('tasks.filter.attentionAria', { count: attentionTotal })}
               hideLabel
               value=""

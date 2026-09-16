@@ -61,6 +61,7 @@ export function CafeStreamBar({
       <span className="cafe-stream__label">{t('cafe.stream.label')}</span>
       {onChange ? (
         <Select
+          id="cafe-stream"
           className="cafe-stream__select"
           aria-label={t('kitchen.log.stream.pickerAria')}
           value={value}

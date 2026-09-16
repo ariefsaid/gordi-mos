@@ -14,7 +14,8 @@ usage() {
   cat >&2 <<'EOF'
 usage: scripts/design-quality-audit.sh <scope.md> --base-url <localhost-url>
        [--config <sssf.config.yaml>] [--adw-id <8-hex-id>]
-       [--mode mvp-assessment|change-gate] [--mockup-authority <docs/*.json>] [--check-only]
+       [--mode mvp-assessment|change-gate]
+       [--mockup-authority <docs/*.json>] [--check-only]
 EOF
 }
 
@@ -53,6 +54,10 @@ while [ "$#" -gt 0 ]; do
       mockup_authority="$2"
       shift 2
       ;;
+    --baseline|--baseline-dir|--baseline-evidence)
+      echo "design-quality-audit: --baseline filesystem inputs are rejected; the change gate reads the committed merge-base snapshot" >&2
+      exit 2
+      ;;
     --check-only)
       check_only=1
       shift
@@ -82,6 +87,11 @@ case "$audit_mode" in
   mvp-assessment|change-gate) ;;
   *) echo "design-quality-audit: --mode must be mvp-assessment or change-gate" >&2; exit 2 ;;
 esac
+
+for forbidden_name in $(printenv | sed -n 's/^\(DESIGN_AUDIT_BASELINE_[A-Za-z0-9_]*\)=.*/\1/p'); do
+  echo "design-quality-audit: $forbidden_name is rejected; baseline authority comes only from the committed merge-base snapshot" >&2
+  exit 2
+done
 
 [ -n "$scope_file" ] || { echo "design-quality-audit: missing scope file" >&2; usage; exit 2; }
 [ -n "$base_url" ] || {
@@ -160,6 +170,53 @@ printf '%s\n' "$candidate_sha" | grep -Eq '^[0-9a-f]{40}$' || {
   exit 2
 }
 
+verification_base_ref=""
+merge_base_sha=""
+snapshot_merge_base=""
+snapshot_blob_digest=""
+if [ "$audit_mode" = "change-gate" ]; then
+  verification_base_name="$(printenv MOS_PR_BASE 2>/dev/null || true)"
+  [ -n "$verification_base_name" ] || verification_base_name=dev
+  verification_base_ref="origin/$verification_base_name"
+  git rev-parse --verify "$verification_base_ref^{commit}" >/dev/null 2>&1 || {
+    echo "design-quality-audit: verification base is unavailable: $verification_base_ref" >&2
+    exit 2
+  }
+  merge_base_sha="$(git merge-base HEAD "$verification_base_ref" 2>/dev/null)" || {
+    echo "design-quality-audit: unable to resolve exact merge-base with $verification_base_ref" >&2
+    exit 2
+  }
+  printf '%s\n' "$merge_base_sha" | grep -Eq '^[0-9a-f]{40}$' || {
+    echo "design-quality-audit: exact merge-base is not a full lowercase SHA" >&2
+    exit 2
+  }
+  snapshot_binding="$(cd "$ROOT" && node --experimental-strip-types --input-type=module - "$ROOT" "$candidate_sha" "$verification_base_ref" <<'NODE'
+import { loadTrustedAutomaticFailureBaseline } from './mos-app/e2e/design-quality/change-gate.ts'
+
+const [repoRoot, candidateSha, verificationBase] = process.argv.slice(2)
+const result = await loadTrustedAutomaticFailureBaseline({ repoRoot, candidateSha, verificationBase })
+if (!result.ok || !result.snapshot) {
+  for (const error of result.errors) console.error('design-quality-audit: ' + error)
+  process.exit(1)
+}
+process.stdout.write(`${result.mergeBaseSha}\t${result.blobDigest}`)
+NODE
+  )" || {
+    echo "design-quality-audit: committed exact-merge-base snapshot validation failed" >&2
+    exit 2
+  }
+  snapshot_merge_base="${snapshot_binding%%$'\t'*}"
+  snapshot_blob_digest="${snapshot_binding#*$'\t'}"
+  if [ "$snapshot_merge_base" != "$merge_base_sha" ]; then
+    echo "design-quality-audit: snapshot merge base changed during preflight" >&2
+    exit 2
+  fi
+  printf '%s\n' "$snapshot_blob_digest" | grep -Eq '^[0-9a-f]{64}$' || {
+    echo "design-quality-audit: exact merge-base snapshot is not a full SHA-256 blob" >&2
+    exit 2
+  }
+fi
+
 if [ -z "$audit_id" ]; then
   audit_id="$(python3 - <<'PY'
 import secrets
@@ -185,8 +242,9 @@ esac
 context_dir="$data_root/sessions/$audit_id/context_handoff"
 
 if [ "$check_only" = "1" ]; then
-  printf 'design-quality-audit preflight OK\ncandidate_sha=%s\nsession_id=%s\nscope=%s\nbase_url=%s\nmode=%s\n' \
-    "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode"
+  printf 'design-quality-audit preflight OK\ncandidate_sha=%s\nsession_id=%s\nscope=%s\nbase_url=%s\nmode=%s\nverification_base=%s\nmerge_base_sha=%s\nsnapshot_blob_digest=%s\n' \
+    "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode" \
+    "$verification_base_ref" "$merge_base_sha" "$snapshot_blob_digest"
   exit 0
 fi
 
@@ -411,7 +469,7 @@ chmod 600 "$binding_secret_file" || exit 2
 # Seed the handoff with the exact run contract. The browser specs replace the
 # CSV/JSON placeholders; the chain gate refuses a session with missing or stale
 # artifacts, so a partial browser run cannot be mistaken for evidence.
-if node --experimental-strip-types --input-type=module - "$ROOT" "$context_dir" "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode" "$binding_secret_file" <<'NODE'
+if node --experimental-strip-types --input-type=module - "$ROOT" "$context_dir" "$candidate_sha" "$audit_id" "$scope_file" "$base_url" "$audit_mode" "$binding_secret_file" "$verification_base_ref" "$merge_base_sha" "$snapshot_blob_digest" <<'NODE'
 import { mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { manifestForArtifact } from './mos-app/e2e/design-quality/manifest.ts'
@@ -426,7 +484,12 @@ const scopePath = process.argv[6]
 const baseUrl = process.argv[7]
 const auditMode = process.argv[8]
 const bindingSecret = (await readFile(process.argv[9], 'utf8')).trim()
+const verificationBase = process.argv[10] || ''
+const mergeBaseSha = process.argv[11] || ''
+const snapshotBlobDigest = process.argv[12] || ''
 const writer = new ReportWriter({ outputDir, candidateSha, sessionId })
+const quantitativeArtifacts = REQUIRED_ARTIFACTS.map((name) => path.join(outputDir, name))
+if (auditMode === 'change-gate') quantitativeArtifacts.push(path.join(outputDir, 'automatic-failure-baseline.json'))
 await mkdir(path.join(outputDir, 'screenshots'), { recursive: true })
 await writer.writeJson('manifest.json', manifestForArtifact(candidateSha, sessionId))
 await writer.writeGateLog([
@@ -434,6 +497,8 @@ await writer.writeGateLog([
   `session_id=${sessionId}`,
   `scope=${scopePath}`,
   `base_url=${baseUrl}`,
+  `verification_base=${verificationBase}`,
+  `merge_base_sha=${mergeBaseSha}`,
   'browser_status=pending',
   'fixture_status=pending',
   'chain_status=pending',
@@ -452,9 +517,13 @@ await writer.writeSession({
   scopePath,
   baseUrl,
   auditMode,
+  verificationBase: verificationBase || null,
+  mergeBaseSha: mergeBaseSha || null,
+  snapshotBlobDigest: snapshotBlobDigest || null,
   root,
   contextHandoffDir: outputDir,
-  quantitativeArtifacts: REQUIRED_ARTIFACTS.map((name) => path.join(outputDir, name)),
+  nextSnapshotPath: path.join(outputDir, 'automatic-failure-baseline.json'),
+  quantitativeArtifacts,
   fixtureReceiptPath: path.join(outputDir, 'fixture-receipt.json'),
   fixtureWritesOccurred: false,
   browserExitStatus: null,
@@ -480,6 +549,10 @@ export DESIGN_AUDIT_CANDIDATE_SHA="$candidate_sha"
 export DESIGN_AUDIT_SESSION_ID="$audit_id"
 export DESIGN_AUDIT_SCOPE="$scope_file"
 export DESIGN_AUDIT_MODE="$audit_mode"
+if [ "$audit_mode" = "change-gate" ]; then
+  export DESIGN_AUDIT_VERIFICATION_BASE="$verification_base_ref"
+  export DESIGN_AUDIT_MERGE_BASE_SHA="$merge_base_sha"
+fi
 if [ -n "$mockup_authority" ]; then
   export DESIGN_AUDIT_MOCKUP_AUTHORITY="$mockup_authority"
 fi
@@ -569,8 +642,9 @@ write_terminal_evidence() {
   local terminal_browser_status="$1"
   local terminal_fixture_status="$2"
   local terminal_chain_status="$3"
-  node --experimental-strip-types --input-type=module - "$context_dir" "$terminal_browser_status" "$terminal_fixture_status" "$terminal_chain_status" <<'NODE'
+node --experimental-strip-types --input-type=module - "$context_dir" "$terminal_browser_status" "$terminal_fixture_status" "$terminal_chain_status" <<'NODE'
 import { readFile } from 'node:fs/promises'
+import { computeArtifactDigest } from './mos-app/e2e/design-quality/change-gate.ts'
 import { ReportWriter } from './mos-app/e2e/design-quality/report.ts'
 const outputDir = process.argv[2]
 const parseStatus = (value) => /^-?[0-9]+$/.test(value) ? Number(value) : value
@@ -579,12 +653,26 @@ const fixtureStatus = parseStatus(process.argv[4])
 const chainStatus = parseStatus(process.argv[5])
 const session = JSON.parse(await readFile(`${outputDir}/session.json`, 'utf8'))
 const writer = new ReportWriter({ outputDir, candidateSha: session.candidateSha, sessionId: session.sessionId })
-await writer.writeSession({ ...session, browserExitStatus: browserStatus, fixtureExitStatus: fixtureStatus, chainExitStatus: chainStatus })
 await writer.writeGateLog([
   `browser_status=${browserStatus}`,
   `fixture_status=${fixtureStatus}`,
   `chain_status=${chainStatus}`,
 ])
+let artifactDigest = session.artifactDigest
+try {
+  const digestResult = await computeArtifactDigest(outputDir, session)
+  if (digestResult.ok) artifactDigest = digestResult.digest
+} catch {
+  // A failed browser lane may leave incomplete placeholders; its terminal
+  // status still needs to be recorded so recovery can run on the next attempt.
+}
+await writer.writeSession({
+  ...session,
+  ...(artifactDigest ? { artifactDigest } : {}),
+  browserExitStatus: browserStatus,
+  fixtureExitStatus: fixtureStatus,
+  chainExitStatus: chainStatus,
+})
 NODE
 }
 
@@ -620,6 +708,47 @@ if [ "$fixture_status" -eq 0 ]; then
   binding_secret_file=""
 fi
 write_terminal_evidence "$browser_status" "$fixture_status" "$([ "$browser_status" -eq 0 ] && [ "$fixture_status" -eq 0 ] && echo not-run || echo skipped)"
+
+# Emit the next snapshot even when a deliberate browser assertion failed. The
+# lane summaries are written before those assertions, so a failed run still
+# produces reviewable census evidence; missing or incomplete evidence remains a
+# hard producer failure.
+snapshot_status=0
+if [ "$audit_mode" = "change-gate" ]; then
+  if node --experimental-strip-types --input-type=module - "$ROOT" "$context_dir" "$candidate_sha" "$audit_id" "$verification_base_ref" <<'NODE'
+import path from 'node:path'
+import { createAutomaticFailureBaseline, loadTrustedAutomaticFailureBaseline } from './mos-app/e2e/design-quality/change-gate.ts'
+
+const [repoRoot, evidenceDir, candidateSha, sessionId, verificationBase] = process.argv.slice(2)
+const trusted = await loadTrustedAutomaticFailureBaseline({ repoRoot, candidateSha, verificationBase })
+if (!trusted.ok || !trusted.snapshot) {
+  for (const error of trusted.errors) console.error(`design-quality-audit: ${error}`)
+  process.exit(1)
+}
+const produced = await createAutomaticFailureBaseline({
+  evidenceDir,
+  sourceProductSha: candidateSha,
+  sourceHarnessSha: candidateSha,
+  sourceSessionId: sessionId,
+  repoRoot,
+  previousSnapshot: trusted.snapshot,
+  outputPath: path.join(evidenceDir, 'automatic-failure-baseline.json'),
+})
+if (!produced.ok || !produced.bytes) {
+  for (const error of produced.errors) console.error(`design-quality-audit: ${error}`)
+  process.exit(1)
+}
+process.stdout.write(`next snapshot emitted: ${produced.outputPath}\n`)
+NODE
+  then
+    :
+  else
+    snapshot_status=$?
+    echo "design-quality-audit: unable to emit the deterministic next snapshot" >&2
+  fi
+fi
+write_terminal_evidence "$browser_status" "$fixture_status" "$([ "$browser_status" -eq 0 ] && [ "$fixture_status" -eq 0 ] && echo not-run || echo skipped)" || true
+
 if [ "$browser_status" -ne 0 ]; then
   echo "design-quality-audit: browser lane failed; factory chain was not started" >&2
   exit "$browser_status"
@@ -627,6 +756,9 @@ fi
 if [ "$fixture_status" -ne 0 ]; then
   echo "design-quality-audit: fixture cleanup failed; factory chain was not started" >&2
   exit "$fixture_status"
+fi
+if [ "$snapshot_status" -ne 0 ]; then
+  exit "$snapshot_status"
 fi
 
 # Freeze the browser producer's evidence before the independent reviewer sees it.
@@ -637,7 +769,10 @@ python3 - "$context_dir/session.json" >"$producer_hash_file" <<'PY'
 import hashlib, json, pathlib, sys
 
 session = json.loads(pathlib.Path(sys.argv[1]).read_text())
-for declared in sorted(session.get("quantitativeArtifacts", [])):
+declared = list(session.get("quantitativeArtifacts", []))
+if session.get("nextSnapshotPath"):
+    declared.append(session["nextSnapshotPath"])
+for declared in sorted(declared):
     target = pathlib.Path(declared).resolve()
     files = sorted(path for path in target.rglob("*") if path.is_file()) if target.is_dir() else [target]
     for path in files:
@@ -661,7 +796,10 @@ python3 - "$context_dir/session.json" >"$current_hash_file" <<'PY'
 import hashlib, json, pathlib, sys
 
 session = json.loads(pathlib.Path(sys.argv[1]).read_text())
-for declared in sorted(session.get("quantitativeArtifacts", [])):
+declared = list(session.get("quantitativeArtifacts", []))
+if session.get("nextSnapshotPath"):
+    declared.append(session["nextSnapshotPath"])
+for declared in sorted(declared):
     target = pathlib.Path(declared).resolve()
     files = sorted(path for path in target.rglob("*") if path.is_file()) if target.is_dir() else [target]
     for path in files:

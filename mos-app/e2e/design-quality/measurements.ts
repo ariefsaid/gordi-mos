@@ -201,6 +201,35 @@ export type VisibleContentRow = PageAuditContext & {
   measured: string
 }
 
+export type TextTruncationMeasure = {
+  scrollWidth: number
+  clientWidth: number
+  scrollHeight: number
+  clientHeight: number
+  overflow?: string
+  overflowX?: string
+  overflowY?: string
+  lineClamp: string
+  textOverflow: string
+}
+
+/**
+ * CSS `text-overflow: ellipsis` is an authoring hint, not evidence that text
+ * is clipped.  A fitting element can still carry that style, so require a
+ * measurable overflow before treating ellipsis as truncation.
+ */
+export function isTextTruncated(measure: TextTruncationMeasure): boolean {
+  const overflowClips = ['hidden', 'clip'].includes(measure.overflow || '')
+    || ['hidden', 'clip'].includes(measure.overflowX || '')
+    || ['hidden', 'clip'].includes(measure.overflowY || '')
+  const lineClamp = measure.lineClamp || 'none'
+  const horizontallyClipped = measure.scrollWidth > measure.clientWidth + 1
+  return horizontallyClipped
+    || (overflowClips && measure.scrollHeight > measure.clientHeight + 1)
+    || (lineClamp !== 'none' && lineClamp !== '0')
+    || (measure.textOverflow === 'ellipsis' && horizontallyClipped)
+}
+
 /** Measure visible text, persistent-band overlap, and the complete phone control population. */
 export async function collectVisibleContent(
   page: Page,
@@ -243,7 +272,6 @@ export async function collectVisibleContent(
       const truncated = element.scrollWidth > element.clientWidth + 1
         || (overflowClips && element.scrollHeight > element.clientHeight + 1)
         || (lineClamp !== 'none' && lineClamp !== '0')
-        || style.textOverflow === 'ellipsis'
       const fullValuePathExercised = exercisedSelectors.some((selector) => {
         try { return element.matches(selector) } catch { return false }
       })

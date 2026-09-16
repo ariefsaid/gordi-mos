@@ -352,6 +352,35 @@ test('control-consistency evidence covers every runnable cell with an exact cont
   const valid = meaningfulCsv('control-consistency.csv', validText, DESIGN_QUALITY_MANIFEST)
   assert.equal(valid.ok, true, valid.reason)
 
+  const resolutionFailureRows = rows.map((row) => row.kind === 'bounded-choice'
+    ? {
+        ...row,
+        selector: 'body > main > button:nth-of-type(1)',
+        observed: false,
+        passed: false,
+        measured: JSON.stringify({
+          lifecycleApplicable: true,
+          resolutionFailure: {
+            identity: 'body > main > button:nth-of-type(1)',
+            id: '',
+            role: 'combobox',
+            marker: 'role=combobox',
+            label: 'Status',
+            diagnosticSelector: 'body > main > button:nth-of-type(1)',
+            matchCount: 0,
+            roleMatched: false,
+            markerMatched: false,
+            reason: 'keyless',
+            passed: false,
+          },
+        }),
+      }
+    : row)
+  const resolutionFailureTarget = await writer.writeCsv('control-consistency.csv', resolutionFailureRows)
+  const resolutionFailure = meaningfulCsv('control-consistency.csv', await readFile(resolutionFailureTarget, 'utf8'), DESIGN_QUALITY_MANIFEST)
+  assert.equal(resolutionFailure.ok, true, resolutionFailure.reason)
+  assert.equal(resolutionFailureRows.find((row) => row.kind === 'bounded-choice')?.passed, false)
+
   const missingCell = DESIGN_QUALITY_MANIFEST.cells.find(isManifestCellRunnable)!.id
   const missingText = validText.split('\n').filter((line) => !line.includes(missingCell)).join('\n')
   const invalid = meaningfulCsv('control-consistency.csv', missingText, DESIGN_QUALITY_MANIFEST)
@@ -420,14 +449,17 @@ test('CSV evidence accepts product copy containing pending or placeholder', () =
 })
 
 test('change-gate mockup gaps accept measured mismatches but reject blocked comparisons', () => {
+  const laneMetadata = { complete: true, count: 1, digest: '0'.repeat(64) }
   assert.equal(validateMockupStatus({
     status: 'assessed-with-gaps',
     comparisons: [{ status: 'fail', score: 0.7, build: '/tmp/render.png', missingRegions: [], contradictedRegions: [] }],
+    ...laneMetadata,
   }, true).ok, true)
 
   const blocked = validateMockupStatus({
     status: 'assessed-with-gaps',
     comparisons: [{ status: 'blocked', score: null, build: '', missingRegions: [], contradictedRegions: [] }],
+    ...laneMetadata,
   }, true)
   assert.equal(blocked.ok, false)
   assert.match(blocked.reason ?? '', /blocked|completed/i)
@@ -435,6 +467,7 @@ test('change-gate mockup gaps accept measured mismatches but reject blocked comp
   const allPass = validateMockupStatus({
     status: 'assessed-with-gaps',
     comparisons: [{ status: 'pass', score: 0.92, build: '/tmp/render.png', missingRegions: [], contradictedRegions: [] }],
+    ...laneMetadata,
   }, true)
   assert.equal(allPass.ok, false)
   assert.match(allPass.reason ?? '', /below the 0\.75 threshold/i)
@@ -442,6 +475,7 @@ test('change-gate mockup gaps accept measured mismatches but reject blocked comp
   const regionOnlyFailure = validateMockupStatus({
     status: 'assessed-with-gaps',
     comparisons: [{ status: 'fail', score: 0.92, build: '/tmp/render.png', missingRegions: ['toolbar'], contradictedRegions: [] }],
+    ...laneMetadata,
   }, true)
   assert.equal(regionOnlyFailure.ok, false)
   assert.match(regionOnlyFailure.reason ?? '', /below the 0\.75 threshold/i)
@@ -452,6 +486,8 @@ test('change-gate mockup gaps accept measured mismatches but reject blocked comp
       { status: 'fail', score: 0.7, build: '/tmp/render-a.png', missingRegions: [], contradictedRegions: [] },
       { status: 'pass', score: 0.1, build: '/tmp/render-b.png', missingRegions: [], contradictedRegions: [] },
     ],
+    ...laneMetadata,
+    count: 2,
   }, true)
   assert.equal(mixedFalsePass.ok, false)
   assert.match(mixedFalsePass.reason ?? '', /every pass comparison must meet the 0\.75 score and region contract/i)
@@ -459,6 +495,7 @@ test('change-gate mockup gaps accept measured mismatches but reject blocked comp
   const falsePass = validateMockupStatus({
     status: 'pass',
     comparisons: [{ status: 'pass', score: 0.7, build: '/tmp/render.png', missingRegions: [], contradictedRegions: [] }],
+    ...laneMetadata,
   }, false)
   assert.equal(falsePass.ok, false)
   assert.match(falsePass.reason ?? '', /0\.75 score and region contract/i)

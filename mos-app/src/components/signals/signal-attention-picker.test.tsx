@@ -8,7 +8,7 @@ function renderPicker(onChange = vi.fn()) {
   render(
     <I18nProvider>
       <div onKeyDown={(event) => { if (event.key === 'Escape') onChange('host' as never) }}>
-        <SignalAttentionPicker value="FYI" onChange={onChange} />
+        <SignalAttentionPicker id="test-signal-attention" value="FYI" onChange={onChange} />
       </div>
     </I18nProvider>,
   )
@@ -19,9 +19,13 @@ describe('SignalAttentionPicker', () => {
   it('uses the shared listbox keyboard contract and commits the selected attention', async () => {
     const onChange = renderPicker()
     const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { name: /attention.*FYI/i }))
+    const trigger = screen.getByRole('button', { name: /attention.*FYI/i })
+    expect(trigger).toHaveAttribute('id', 'test-signal-attention')
+    await user.click(trigger)
 
     const listbox = screen.getByRole('listbox', { name: /attention/i })
+    expect(trigger).toHaveAttribute('aria-controls', 'test-signal-attention-listbox')
+    expect(listbox).toHaveAttribute('id', 'test-signal-attention-listbox')
     expect(listbox).toHaveFocus()
     await user.keyboard('{ArrowDown}{Enter}')
 
@@ -46,7 +50,7 @@ describe('SignalAttentionPicker', () => {
     const onChange = vi.fn()
     const view = render(
       <I18nProvider>
-        <SignalAttentionPicker value="FYI" onChange={onChange} />
+        <SignalAttentionPicker id="test-signal-attention" value="FYI" onChange={onChange} />
       </I18nProvider>,
     )
     const user = userEvent.setup()
@@ -54,7 +58,7 @@ describe('SignalAttentionPicker', () => {
     await user.click(screen.getByRole('option', { name: /urgent/i }))
     view.rerender(
       <I18nProvider>
-        <SignalAttentionPicker value="Urgent" onChange={onChange} />
+        <SignalAttentionPicker id="test-signal-attention" value="Urgent" onChange={onChange} />
       </I18nProvider>,
     )
 

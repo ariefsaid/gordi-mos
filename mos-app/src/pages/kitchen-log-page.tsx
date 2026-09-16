@@ -905,6 +905,7 @@ function KitchenLogPageForViewer() {
       search={search}
       onSearchChange={setSearch}
       categories={isDesktop ? categories : undefined}
+      categoryId="cafe-log-category"
       categoryLabel={value => kitchenCategoryLabel(t, value)}
       category={isDesktop ? category : undefined}
       onCategoryChange={isDesktop ? setCategory : undefined}

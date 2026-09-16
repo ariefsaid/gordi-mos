@@ -26,7 +26,22 @@ describe('CafeStreamBar', () => {
   it('states the stream in view as branch · activity', () => {
     wrap(<CafeStreamBar options={CATALOG} stream={RR_KITCHEN} onChange={() => {}} />)
     const picker = screen.getByRole('combobox', { name: /production stream/i })
+    expect(picker).toHaveAttribute('id', 'cafe-stream')
     expect(picker).toHaveTextContent('Rumah Rames · Kitchen')
+  })
+
+  it('keeps the stream trigger id when the selected stream and options rerender', () => {
+    const view = wrap(<CafeStreamBar options={CATALOG} stream={RR_KITCHEN} onChange={() => {}} />)
+    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveAttribute('id', 'cafe-stream')
+
+    view.rerender(
+      <I18nProvider>
+        <CafeStreamBar options={[RAD_BAR]} stream={RAD_BAR} onChange={() => {}} />
+      </I18nProvider>,
+    )
+
+    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveAttribute('id', 'cafe-stream')
+    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveTextContent('Radiant · Bar')
   })
 
   it('the 238 ruling: names the stream by its CANONICAL branch name — never the Bungur alias', () => {
