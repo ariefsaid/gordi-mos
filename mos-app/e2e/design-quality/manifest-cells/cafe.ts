@@ -83,7 +83,8 @@ export const CAFE_CELL_INPUTS = [
   }],
   ['cafe-plan-receiving-desktop', {
     area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'AUDIT_RECEIVING_ONLY',
-    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'receiving-only', status: 'covered', primary: true,
+    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'receiving-only', status: 'untested', primary: true,
+    note: 'AUDIT_RECEIVING_ONLY is named here but no provisioned identity exists for it, so the cell cannot be signed in as. The contract below is verified against the rendered receiving-only face and becomes runnable the moment that identity is provisioned.',
     stateContract: {
       setup: [],
       assertion: { selector: '.kp-receiving-only-title' },

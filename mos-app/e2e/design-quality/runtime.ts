@@ -458,57 +458,66 @@ export async function prepareAuditPage(page: Page, run: AuditRun, cell: Manifest
   const viewport = VIEWPORT_SIZES[cell.viewport]
   if (!viewport) throw new Error(`unknown audit viewport ${cell.viewport}`)
   await page.setViewportSize(viewport)
+  // Everything from here on depends on THIS cell: its fixture's identity, its route, its own
+  // setup actions. A cell that cannot be signed in as, or cannot reach its state, is one
+  // untested cell — not a lost run. `ensureAuditFixtures` stays outside, because a failure to
+  // provision at all is a run-level fault and must not be laundered into 55 quiet untested
+  // cells. Declaring a contract for a fixture nobody provisioned took a whole run down once.
   const state = await ensureAuditFixtures(run)
-  assertAuditFixtureWritePolicy({
-    fixture: cell.fixture,
-    sessionId: run.sessionId,
-    candidateSha: run.candidateSha,
-    bindingSecret: state.bindingSecret,
-    receipt: state.receipt,
-    writes: cell.stateContract?.writes === true,
-  })
-  await loginAuditFixture(page, cell.fixture, run.sessionId, state.identities.get(cell.fixture))
-  await page.evaluate(({ theme, language }) => {
-    // Providers read their persisted state during the first render. Seed both values while the
-    // authenticated page is still mounted so each matrix cell exercises the real provider path.
-    window.localStorage.setItem('mos.locale', language === 'id' ? 'id' : 'en')
-    window.localStorage.setItem('mos-theme', theme === 'dark' ? 'dark' : 'light')
-  }, { theme: cell.theme, language: cell.language })
-  await page.goto(cell.route, { waitUntil: 'domcontentloaded' })
-  assertAuditRoute(page.url(), cell.route)
-  await page.locator('main').waitFor({ state: 'visible', timeout: 10_000 })
-  await page.locator('main h1').first().waitFor({ state: 'visible', timeout: 10_000 })
-  const expectedLanguage = cell.language === 'id' ? 'id' : 'en'
-  const expectedTheme = cell.theme === 'dark' ? 'dark' : 'light'
-  await page.waitForFunction(
-    ({ language, theme }) => document.documentElement.lang === language
-      && document.documentElement.classList.contains('dark') === (theme === 'dark'),
-    { language: expectedLanguage, theme: expectedTheme },
-  )
-  const actualPreferences = await page.evaluate(() => ({
-    language: document.documentElement.lang,
-    theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-  }))
-  if (actualPreferences.language !== expectedLanguage || actualPreferences.theme !== expectedTheme) {
-    throw new Error(
-      `audit providers did not apply ${expectedTheme}/${expectedLanguage}; `
-      + `observed ${actualPreferences.theme}/${actualPreferences.language}`,
+  try {
+    assertAuditFixtureWritePolicy({
+      fixture: cell.fixture,
+      sessionId: run.sessionId,
+      candidateSha: run.candidateSha,
+      bindingSecret: state.bindingSecret,
+      receipt: state.receipt,
+      writes: cell.stateContract?.writes === true,
+    })
+    await loginAuditFixture(page, cell.fixture, run.sessionId, state.identities.get(cell.fixture))
+    await page.evaluate(({ theme, language }) => {
+      // Providers read their persisted state during the first render. Seed both values while the
+      // authenticated page is still mounted so each matrix cell exercises the real provider path.
+      window.localStorage.setItem('mos.locale', language === 'id' ? 'id' : 'en')
+      window.localStorage.setItem('mos-theme', theme === 'dark' ? 'dark' : 'light')
+    }, { theme: cell.theme, language: cell.language })
+    await page.goto(cell.route, { waitUntil: 'domcontentloaded' })
+    assertAuditRoute(page.url(), cell.route)
+    await page.locator('main').waitFor({ state: 'visible', timeout: 10_000 })
+    await page.locator('main h1').first().waitFor({ state: 'visible', timeout: 10_000 })
+    const expectedLanguage = cell.language === 'id' ? 'id' : 'en'
+    const expectedTheme = cell.theme === 'dark' ? 'dark' : 'light'
+    await page.waitForFunction(
+      ({ language, theme }) => document.documentElement.lang === language
+        && document.documentElement.classList.contains('dark') === (theme === 'dark'),
+      { language: expectedLanguage, theme: expectedTheme },
     )
-  }
-  // A setup selector that does not resolve blocks for the action timeout and then throws. The
-  // spec runs serial, so that used to end the whole lane before it wrote a single artifact: one
-  // wrong selector cost an entire assessment run, which came back as empty stubs. A cell that
-  // cannot reach its own state is one untested cell, not a lost run — the failure is carried on
-  // the cell, where observeManifestCellState reports it, and every other cell still measures.
-  for (const action of cell.stateContract?.setup ?? []) {
-    const target = page.locator(action.selector).filter({ visible: true }).first()
-    try {
-      if (action.action === 'click') await target.click()
-      else if (action.action === 'fill') await target.fill(action.value ?? '')
-      else await target.press(action.value ?? '')
-    } catch (error) {
-      return { setupFailure: `${action.action} ${action.selector}: ${(error as Error).message.split('\n')[0]}` }
+    const actualPreferences = await page.evaluate(() => ({
+      language: document.documentElement.lang,
+      theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+    }))
+    if (actualPreferences.language !== expectedLanguage || actualPreferences.theme !== expectedTheme) {
+      throw new Error(
+        `audit providers did not apply ${expectedTheme}/${expectedLanguage}; `
+        + `observed ${actualPreferences.theme}/${actualPreferences.language}`,
+      )
     }
+    // A setup selector that does not resolve blocks for the action timeout and then throws. The
+    // spec runs serial, so that used to end the whole lane before it wrote a single artifact: one
+    // wrong selector cost an entire assessment run, which came back as empty stubs. A cell that
+    // cannot reach its own state is one untested cell, not a lost run — the failure is carried on
+    // the cell, where observeManifestCellState reports it, and every other cell still measures.
+    for (const action of cell.stateContract?.setup ?? []) {
+      const target = page.locator(action.selector).filter({ visible: true }).first()
+      try {
+        if (action.action === 'click') await target.click()
+        else if (action.action === 'fill') await target.fill(action.value ?? '')
+        else await target.press(action.value ?? '')
+      } catch (error) {
+        return { setupFailure: `${action.action} ${action.selector}: ${(error as Error).message.split('\n')[0]}` }
+      }
+    }
+  } catch (error) {
+    return { setupFailure: (error as Error).message.split('\n')[0] }
   }
   return {}
 }
