@@ -91,7 +91,7 @@ test('bounded-choice driver catches clipped popups and broken Escape focus retur
       <div id="good-b" role="option">Beta</div>
     </div>
     <button id="bad" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="bad-list">Broken picker</button>
-    <div id="bad-list" role="listbox" hidden style="position:fixed;left:-40px;top:0;width:120px">
+    <div id="bad-list" role="listbox" hidden style="position:fixed;left:-40px;top:64px;width:120px">
       <div id="bad-a" role="option" aria-selected="true">Alpha</div>
       <div id="bad-b" role="option">Beta</div>
     </div>
