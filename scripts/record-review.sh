@@ -8,7 +8,7 @@
 #
 # Rules:
 #   - reviewer: an agent that did not write the branch — glm / luna (cross-family), opus fallback.
-#   - the artifact is the reviewer's actual output: it must cite this HEAD (≥12-char prefix),
+#   - the artifact is the reviewer's actual output: each lens must cite the full 40-character HEAD,
 #     carry a `Reviewer:` line, and carry a Verdict for THIS lens that is MERGE or
 #     MERGE WITH CHANGES — a DO NOT MERGE cannot be stamped into a passing gate.
 #
@@ -39,7 +39,6 @@ esac
 [ -s "$artifact" ] || die "artifact missing or empty: $artifact"
 
 head="$(git rev-parse HEAD)" || die "not a git repo"
-grep -q "${head:0:12}" "$artifact" || die "artifact does not cite HEAD ${head:0:12} — the review must be OF this commit"
 
 # Any refusal anywhere in the artifact poisons every stamp from it — conservative on purpose.
 if grep -iE '^Verdict:' "$artifact" | grep -q "DO NOT MERGE"; then
@@ -57,6 +56,8 @@ section="$(awk -v lens="$lens" '
   open { print }
 ' "$artifact")"
 [ -n "$section" ] || die "artifact has no section for lens '$lens' (a 'Reviewer: … ($lens)' line or '## $lens' heading) — each lens is its own record (OD-WAY-83)"
+printf '%s\n' "$section" | grep -qE "^Commit:[[:space:]]+$head[[:space:]]*$" \
+  || die "the '$lens' section must cite full 40-character HEAD $head on its Commit: line"
 printf '%s\n' "$section" | grep -qi '^Reviewer:' \
   || die "the '$lens' section has no 'Reviewer:' line — it must be the reviewer's own record"
 sec_model="$(printf '%s\n' "$section" | grep -i '^Reviewer:' | head -1 \

@@ -11,7 +11,8 @@ Inputs: the issue/request, and its spec where one exists (`docs/specs/*.spec.md`
 repo; EARS requirements `FR-`/`NFR-` and Given/When/Then acceptance criteria).
 
 Your job:
-1. Brainstorm the design one decision at a time; surface architecture, components, data flow, error
+1. Consume the settled brief and original outcome/provenance; batch unresolved owner-class
+   decisions for the Director. Surface architecture, components, data flow, error
    handling, and testing. Prefer reuse of existing code (`mos-app/src/lib/db/*`,
    `mos-app/src/types/`, `mos-app/src/components/*`). Scale sections to complexity.
 2. Write the plan following the **no-placeholder** rule:
@@ -19,8 +20,9 @@ Your job:
      no "add error handling", no "similar to Task N"), and the exact command to verify.
    - Every behavior task names the acceptance criterion it satisfies so tests trace back.
    - Type/signature consistency across tasks.
-3. TDD-first: every behavior task specifies the failing test to write before the implementation,
-   at the lowest sufficient layer (see Test pyramid below).
+3. Name each behavior's goal-level test at the lowest sufficient layer. Under OD-REDESIGN-88,
+   understood seams may use test-with in the same commit; require red-first for bug fixes,
+   uncertain logic and protected interaction-contract changes.
 4. An architectural decision worth an ADR is **flagged in the plan for the Director** — you never
    write documentary artifacts into this tree (see bindings).
 

@@ -20,14 +20,17 @@ half `docs/audits/surfaces.json`). Treat it as input, not discovery:
   after ratification the Director locks it (`audit-register.sh lock`). Enforcement is the
   pre-pr-verify lane + the review roster (DD-WAY-31) — there is no separate pre-merge script.
 
-## Iron law (TDD)
-NO production UI without a failing test first. RED → GREEN → REFACTOR. Component tests (Vitest/RTL)
+## Test discipline (OD-REDESIGN-88)
+Understood UI seams may use test-with against the approved rendered oracle, with the goal-level
+test in the same commit. Red-first remains required for bug fixes, uncertain logic and protected
+interaction contracts (Escape isolation, dirty-guard, commit-freeze). Component tests (Vitest/RTL)
 verify real rendered behavior — loading / empty / error / edge states, a11y roles/labels — not
-mocks of themselves. The app conforms to the test, never the test to the app.
+mocks of themselves. Preserve assertions for unchanged behavior; approved behavior changes update
+obsolete assertions and acceptance evidence together, never solely to go green.
 
 ## Your job
 1. Build/refactor exactly what the task specifies — nothing more (YAGNI).
-2. Failing component test first → minimal code to pass → refactor.
+2. Apply the test discipline above → minimal code to pass → refactor.
 3. Implement **all states** (loading / empty / error / edge), **responsive** breakpoints, and
    **WCAG-AA a11y** (semantic roles, labels, focus order, keyboard paths) per the design-plan.
 4. Verify: the task's verify command + `npm run typecheck` + `npm run lint -- --max-warnings=0`

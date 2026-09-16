@@ -5,11 +5,12 @@
 # planner zai/glm-5.3-flash · builder AND fe_builder bitdeer/deepseek-ai/DeepSeek-V4-Flash ·
 # reviewer zai/glm-5.3-flash · fe_reviewer zai/glm-5.3-flash (luna = fallback).
 #
-# Owner directive 2026-08-28: the DEFAULT reviewer is zai/glm-5.3-flash — cheaper, and multimodal
-# where the gpt-5.6 pair is not. Pixel judgment is the fe_reviewer's whole job, so a text-only
-# reviewer there was the wrong shape. luna stays the fallback. ⚑ The slug is accepted by z.ai but
-# was NOT smoke-tested green (account at its cap when the ruling landed) — confirm before relying
-# on it. Ruling recorded here AND in docs/agents/pi-delegation.md, per the two-places rule above.
+# The DEFAULT reviewer is zai/glm-5.3-flash; luna stays the fallback. Model registration is not
+# qualification: probe the actual selected route before relying on it. Pixel judgment belongs
+# to an independent image-capable reviewer. fe_reviewer owns it only after a real image-transport
+# and candidate-binding probe succeeds; otherwise use a separate Director/Codex image-capable
+# lane. DOM/a11y alone never passes pixels; provider failure leaves review incomplete.
+# Routing is also recorded in docs/agents/pi-delegation.md, per the two-places rule above.
 #
 # Three families now sit on the roster, so build and review are cross-family by CONSTRUCTION
 # rather than by the careful pairing OD-WAY-64 had to settle for. Escalation ladders by
@@ -215,7 +216,7 @@ agents:
       - write
 
   - name: fe_reviewer
-    model: zai/glm-5.3-flash            # design/FE review (owner 2026-08-28) — MULTIMODAL, which the gpt-5.6 pair is not: pixel judgment is this slot's whole job. Cross-family vs the DeepSeek fe_builder; luna is the text fallback.
+    model: zai/glm-5.3-flash            # FE review; pixel authority requires the image/candidate probe above.
     thinking: high
     color: "#f472b6"
     purpose: Audit the built UI rendered in a real browser against DESIGN.md + the plan; change nothing.
