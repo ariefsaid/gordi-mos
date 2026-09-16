@@ -30,13 +30,12 @@ import {
 
 test.describe.configure({ mode: 'serial' })
 
-test('occlusion is measured at the scrolled state so scrollable-clear content is not a false failure', async ({ page }) => {
-  // A sticky action band is the designed pattern: rows pass under it while scrolling, and
-  // the reserve below the list lets the FINAL row scroll clear. Measuring at the initial
-  // scroll position flagged every below-fold row of every sticky-band surface (run
-  // 861b0004: eight Café Log rows, all fully scrollable clear). The collector must measure
-  // the contract's worst case — each container fully scrolled — and keep failing a final
-  // row that a broken layout still pins under the band.
+test('occlusion judges reachability, not whichever row a band happens to sit over', async ({ page }) => {
+  // A sticky band is the designed pattern: rows pass under it on the way past. The rule must
+  // fail only content that can never be brought clear. Measuring at one scroll position cannot
+  // tell those apart — at rest every below-fold row of a sticky-footer surface failed, and at
+  // the bottom whichever row landed behind the sticky header failed while the rows after it
+  // passed. These four plants pin both directions at both edges.
   const context = {
     route: '/planted',
     journey: 'planted',
@@ -46,12 +45,19 @@ test('occlusion is measured at the scrolled state so scrollable-clear content is
     language: 'en',
     state: 'default',
   }
-  const plantedPage = (bandPull: string, reserve: string) => `
+  const occlusionRow = (rows: Awaited<ReturnType<typeof collectVisibleContent>>, nth: number) => {
+    const row = rows.find((entry) => entry.kind === 'viewport-occlusion' && entry.selector.endsWith(`p:nth-of-type(${nth})`))
+    expect(row, JSON.stringify(rows.filter((entry) => entry.kind === 'viewport-occlusion').map((entry) => entry.selector))).toBeDefined()
+    return row!
+  }
+
+  // ── Bottom edge: a sticky footer with reserve below the list ───────────────
+  const footerPage = (bandPull: string) => `
     <style>
       body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
       .row { height: 120px; margin: 0; }
       .band { position: sticky; bottom: 0; height: 56px; background: rgb(230, 228, 224); margin-top: ${bandPull}; }
-      main::after { content: ''; display: block; height: ${reserve}; }
+      main::after { content: ''; display: block; height: 160px; }
     </style>
     <main>
       ${Array.from({ length: 10 }, (_, i) => `<p class="row">Row ${i + 1}</p>`).join('')}
@@ -61,19 +67,49 @@ test('occlusion is measured at the scrolled state so scrollable-clear content is
   `
 
   // cssPath selectors carry only positional segments; the final row is main > p(11).
-  await page.setContent(plantedPage('0px', '160px'))
+  await page.setContent(footerPage('0px'))
   const reserved = await collectVisibleContent(page, context, 'planted-reserved', [])
-  const reservedFinal = reserved.find((row) => row.kind === 'viewport-occlusion' && row.selector.endsWith('p:nth-of-type(11)'))!
-  expect(reservedFinal, JSON.stringify(reserved.map((row) => row.selector))).toBeDefined()
-  expect(reservedFinal.passed, reservedFinal.measured).toBe(true)
+  expect(occlusionRow(reserved, 11).passed, occlusionRow(reserved, 11).measured).toBe(true)
+  // A row in the middle of the list is reachable too — it is not failed for passing under
+  // the band at whatever offset the collector happened to settle on.
+  expect(occlusionRow(reserved, 6).passed, occlusionRow(reserved, 6).measured).toBe(true)
 
-  // A band pulled up over the final row keeps covering it even fully scrolled: a real defect.
-  await page.setContent(plantedPage('-88px', '160px'))
+  // A band pulled up over the final row keeps covering it at every offset: a real defect.
+  await page.setContent(footerPage('-88px'))
   const uncovered = await collectVisibleContent(page, context, 'planted-uncovered', [])
-  const brokenFinal = uncovered.find((row) => row.kind === 'viewport-occlusion' && row.selector.endsWith('p:nth-of-type(11)'))!
-  expect(brokenFinal, JSON.stringify(uncovered.map((row) => row.selector))).toBeDefined()
+  const brokenFinal = occlusionRow(uncovered, 11)
   expect(brokenFinal.passed, brokenFinal.measured).toBe(false)
   expect(JSON.parse(brokenFinal.measured).centerCovered).toBe(true)
+
+  // ── Top edge: a sticky header, which the bottom-only measurement could not see ──
+  const headerPage = (headPull: string) => `
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      .row { height: 120px; margin: 0; }
+      .head { position: sticky; top: 0; height: 56px; background: rgb(230, 228, 224); margin-bottom: ${headPull}; }
+    </style>
+    <main>
+      <div class="head">Sticky header</div>
+      ${Array.from({ length: 12 }, (_, i) => `<p class="row">Row ${i + 1}</p>`).join('')}
+    </main>
+  `
+
+  // Header in flow: every row can be scrolled clear of it, including the first.
+  await page.setContent(headerPage('0px'))
+  const headerClear = await collectVisibleContent(page, context, 'planted-header-clear', [])
+  expect(occlusionRow(headerClear, 1).passed, occlusionRow(headerClear, 1).measured).toBe(true)
+  expect(occlusionRow(headerClear, 6).passed, occlusionRow(headerClear, 6).measured).toBe(true)
+
+  // Header pulled down over the first row: the page cannot scroll above its own top, so that
+  // row has nowhere clear to go and must still fail, while later rows stay reachable.
+  await page.setContent(headerPage('-56px'))
+  const headerPinned = await collectVisibleContent(page, context, 'planted-header-pinned', [])
+  const pinnedFirst = occlusionRow(headerPinned, 1)
+  expect(pinnedFirst.passed, pinnedFirst.measured).toBe(false)
+  // A 120px row under a 56px header keeps its centre clear, so the overlap ratio is what
+  // carries this failure — assert that rather than a mechanism this plant does not exercise.
+  expect(JSON.parse(pinnedFirst.measured).intersectionRatio).toBeGreaterThan(0.1)
+  expect(occlusionRow(headerPinned, 8).passed, occlusionRow(headerPinned, 8).measured).toBe(true)
 })
 
 async function exerciseFullValuePaths(page: import('@playwright/test').Page, cell: import('./manifest').ManifestCell): Promise<string[]> {

@@ -297,27 +297,24 @@ export async function collectVisibleContent(
       const position = getComputedStyle(element).position
       return position === 'fixed' || position === 'sticky'
     })
-    // The occlusion contract is about content that CANNOT clear a persistent band, not
-    // content that merely passes under one while scrolling there (sticky footers are the
-    // designed pattern — the band exists so the action stays reachable while rows slide
-    // beneath it). The worst case for that contract is each scroll container fully
-    // scrolled: the final content row must then sit above the band. Measure at that
-    // settled state; an at-rest measurement instead flagged every below-fold row of every
-    // sticky-band surface (run 861b0004: eight Café Log rows, all fully scrollable clear).
-    for (const scroller of new Set([
-      document.scrollingElement,
-      ...Array.from(document.querySelectorAll<HTMLElement>('body *')).filter((element) => {
-        const style = getComputedStyle(element)
-        return (style.overflowY === 'auto' || style.overflowY === 'scroll') && element.scrollHeight > element.clientHeight + 1
-      }),
-    ])) {
-      if (scroller) scroller.scrollTop = scroller.scrollHeight
-    }
     const occlusionTargets = Array.from(new Set([
       ...textTargets,
       ...Array.from(document.querySelectorAll<HTMLElement>(actionable)).filter(visible),
     ]))
+    // The contract is reachability: content fails only when it CANNOT be brought clear of a
+    // persistent band, not when it happens to sit under one at some scroll offset. Sticky
+    // headers and footers are the designed pattern — rows slide beneath them on the way past.
+    //
+    // No single scroll position can decide that. Measuring at rest failed every below-fold row
+    // of every sticky-footer surface. Measuring at the bottom just moves the arbitrariness:
+    // whichever row lands behind the sticky table header there fails while the rows after it
+    // pass, which is how row 22 of 33 came to be the one Café Log failure. So ask the question
+    // directly — scroll each target to the middle of its scroller and see whether it is still
+    // covered. Content with nowhere clear to go (a first row under a header with no top
+    // reserve, a last row under a footer with no bottom reserve) cannot be centred and still
+    // fails, which is the case the rule exists for.
     for (const target of occlusionTargets) {
+      target.scrollIntoView({ block: 'center', inline: 'nearest' })
       const targetRect = target.getBoundingClientRect()
       let intersectionRatio = 0
       let centerCovered = false
@@ -355,8 +352,20 @@ export async function collectVisibleContent(
           centerCovered,
           fullyReachable,
           persistentBandCount: persistentBands.length,
+          measuredAt: 'scrolled-into-centre',
         }),
       })
+    }
+    // Leave the page where the other rules expect it rather than wherever the last target
+    // happened to land.
+    for (const scroller of new Set<Element>([
+      ...(document.scrollingElement ? [document.scrollingElement] : []),
+      ...Array.from(document.querySelectorAll<HTMLElement>('body *')).filter((element) => {
+        const style = getComputedStyle(element)
+        return (style.overflowY === 'auto' || style.overflowY === 'scroll') && element.scrollHeight > element.clientHeight + 1
+      }),
+    ])) {
+      scroller.scrollTop = 0
     }
 
     if (pageContext.viewport === 'phone-390x844') {
