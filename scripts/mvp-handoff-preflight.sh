@@ -84,6 +84,18 @@ def git_success(args: list[str], cwd: pathlib.Path) -> bool:
     return command(["git", "--no-optional-locks", *args], cwd).returncode == 0
 
 
+def worktree_clean_status(worktree: pathlib.Path | None) -> str:
+    if worktree is None:
+        return "not-present"
+    result = command(
+        ["git", "--no-optional-locks", "status", "--porcelain", "--untracked-files=normal"],
+        worktree,
+    )
+    if result.returncode != 0:
+        return "unverified"
+    return "clean" if result.stdout == "" else "dirty"
+
+
 def add_blocker(blockers: list[str], blocker: str) -> None:
     if blocker not in blockers:
         blockers.append(blocker)
@@ -133,6 +145,7 @@ def next_action_for(blocker: str) -> str:
         "required-private-file-digest-mismatch": "Reconcile the first changed private handoff file and refresh its digest.",
         "active-mvp-work-remains": "Finish or record a verified disposition for the discovered MVP work.",
         "mvp-disposition-unverified": "Repair the first unverified MVP work disposition.",
+        "mvp-worktree-dirty": "Clean or preserve the changes in the first dirty retained MVP worktree.",
         "required-tool-missing": "Install the first missing required handoff tool.",
         "node-major-mismatch": "Activate Node major 22 before takeover.",
         "database-prerequisites-unsafe": "Restore the recorded local database environment and lock wrapper prerequisites.",
@@ -340,6 +353,7 @@ for item in item_spec:
     actual_worktree = worktree_inventory.get(branch_name)
     ref_status = "matched" if ref_sha == expected_sha else ("missing" if ref_sha is None else "mismatch")
     worktree_status = "present" if actual_worktree == expected_worktree else ("missing" if actual_worktree is None else "mismatch")
+    clean_status = worktree_clean_status(actual_worktree)
     record = {
         "branch": branch_name,
         "expectedSha": expected_sha,
@@ -347,6 +361,7 @@ for item in item_spec:
         "worktreePath": worktree_value,
         "refStatus": ref_status,
         "worktreeStatus": worktree_status,
+        "worktreeCleanStatus": clean_status,
     }
     if disposition == "active":
         active_work.append(record)
@@ -358,7 +373,16 @@ for item in item_spec:
             and git_success(["merge-base", "--is-ancestor", integrated_sha, "HEAD"], primary)
             and git_success(["merge-base", "--is-ancestor", expected_sha, integrated_sha], primary)
         )
-        if not integrated_valid or ref_status == "mismatch":
+        if clean_status == "dirty":
+            record["dispositionStatus"] = "blocked-dirty-worktree"
+            active_work.append(record)
+            add_blocker(blockers, "mvp-worktree-dirty")
+        elif (
+            not integrated_valid
+            or ref_status == "mismatch"
+            or worktree_status == "mismatch"
+            or clean_status == "unverified"
+        ):
             record["disposition"] = "unverified"
             active_work.append(record)
             add_blocker(blockers, "mvp-disposition-unverified")
@@ -391,6 +415,7 @@ for branch_name in sorted(set(discovered_owned) - recorded_branches):
             "worktreePath": worktree_value,
             "refStatus": "present",
             "worktreeStatus": "present" if actual_worktree is not None else "missing",
+            "worktreeCleanStatus": worktree_clean_status(actual_worktree),
         }
     )
     add_blocker(blockers, "active-mvp-work-remains")

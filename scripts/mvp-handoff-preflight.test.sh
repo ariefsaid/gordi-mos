@@ -146,10 +146,16 @@ create_owned_worktree() {
   local repo="$1"
   local branch="$2"
   local relative="$3"
+  local dirt="${4:-untracked}"
   git -C "$repo" branch "$branch"
   mkdir -p "$(dirname "$repo/$relative")"
   git -C "$repo" worktree add "$repo/$relative" "$branch" >/dev/null 2>&1
-  printf 'unfinished\n' > "$repo/$relative/untracked-product-file"
+  case "$dirt" in
+    clean) ;;
+    tracked) printf 'unfinished\n' >> "$repo/$relative/mos-app/.nvmrc" ;;
+    untracked) printf 'unfinished\n' > "$repo/$relative/untracked-product-file" ;;
+    *) bad "unknown worktree dirt fixture: $dirt" ;;
+  esac
 }
 
 malform_checkpoint() {
@@ -298,23 +304,40 @@ expect_blocked "$repo" omitted-active-work active-mvp-work-remains
 json_assert "$RUN_JSON" "value['activeWork'][0]['disposition'] == 'unrecorded'" || bad "omitted MVP work is reported as unrecorded"
 
 repo="$(new_fixture unverified-disposition)"
-create_owned_worktree "$repo" mvp-owned/merged .claude/worktrees/merged
+create_owned_worktree "$repo" mvp-owned/merged .claude/worktrees/merged clean
 merged_sha="$(git -C "$repo" rev-parse mvp-owned/merged)"
 merged="[{\"branch\":\"mvp-owned/merged\",\"expectedSha\":\"$merged_sha\",\"worktreePath\":\".claude/worktrees/merged\",\"disposition\":\"merged\",\"integratedDevSha\":\"2222222222222222222222222222222222222222\"}]"
 write_checkpoint "$repo" "$(git -C "$repo" rev-parse HEAD)" "$merged"
 expect_blocked "$repo" unverified-disposition mvp-disposition-unverified
 
+for dirt in untracked tracked; do
+  repo="$(new_fixture "dirty-merged-$dirt")"
+  create_owned_worktree "$repo" mvp-owned/merged .claude/worktrees/merged "$dirt"
+  merged_sha="$(git -C "$repo" rev-parse mvp-owned/merged)"
+  integrated_sha="$(git -C "$repo" rev-parse HEAD)"
+  merged="[{\"branch\":\"mvp-owned/merged\",\"expectedSha\":\"$merged_sha\",\"worktreePath\":\".claude/worktrees/merged\",\"disposition\":\"merged\",\"integratedDevSha\":\"$integrated_sha\"}]"
+  write_checkpoint "$repo" "$integrated_sha" "$merged"
+  before_worktree_status="$(git -C "$repo/.claude/worktrees/merged" status --porcelain --untracked-files=normal)"
+  expect_blocked "$repo" "dirty-merged-$dirt" mvp-worktree-dirty
+  if json_assert "$RUN_JSON" "value['activeWork'][0]['worktreeCleanStatus'] == 'dirty'" &&
+     [ "$(git -C "$repo/.claude/worktrees/merged" status --porcelain --untracked-files=normal)" = "$before_worktree_status" ]; then
+    ok "dirty merged $dirt worktree is reported and preserved"
+  else
+    bad "dirty merged $dirt worktree is reported and preserved"
+  fi
+done
+
 repo="$(new_fixture verified-merged)"
-create_owned_worktree "$repo" mvp-owned/merged .claude/worktrees/merged
+create_owned_worktree "$repo" mvp-owned/merged .claude/worktrees/merged clean
 merged_sha="$(git -C "$repo" rev-parse mvp-owned/merged)"
 integrated_sha="$(git -C "$repo" rev-parse HEAD)"
 merged="[{\"branch\":\"mvp-owned/merged\",\"expectedSha\":\"$merged_sha\",\"worktreePath\":\".claude/worktrees/merged\",\"disposition\":\"merged\",\"integratedDevSha\":\"$integrated_sha\"}]"
 write_checkpoint "$repo" "$integrated_sha" "$merged"
 run_preflight "$repo" verified-merged
 if [ "$RUN_RC" -eq 0 ] && json_assert "$RUN_JSON" "value['ready'] is True and value['activeWork'] == []"; then
-  ok "verified merged disposition permits a retained MVP worktree"
+  ok "verified merged disposition permits a clean retained MVP worktree"
 else
-  bad "verified merged disposition permits a retained MVP worktree"
+  bad "verified merged disposition permits a clean retained MVP worktree"
 fi
 
 for malformed in numeric-digest array-root numeric-work-sha numeric-provider-status; do
