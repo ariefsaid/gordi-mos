@@ -90,8 +90,11 @@ test('accepts an authority entry whose six dimensions match its explicit cellId'
 })
 
 test('rejects authority bindings to states that the browser cannot establish', () => {
-  const untested = DESIGN_QUALITY_MANIFEST.cells.find((cell) => cell.id === 'tasks-create-phone-en-light')
-  assert.ok(untested)
+  // Derived, not named: this guards the rule that an authority cannot bind to a cell the
+  // browser will not run, and naming one cell made the test go stale the moment that cell
+  // was contracted and became runnable. Any untested cell exercises the same rule.
+  const untested = DESIGN_QUALITY_MANIFEST.cells.find((cell) => cell.status === 'untested')
+  assert.ok(untested, 'the manifest must retain at least one untested cell for this rule')
   const entry = parseMockupAuthorityEntry({
     ...exactTasksAuthority,
     cellId: untested.id,
