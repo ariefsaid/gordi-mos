@@ -1070,6 +1070,39 @@ export async function exerciseBoundedChoices(
   return rows
 }
 
+/**
+ * Reach the control with real keyboard focus modality. The product's focus contract is the
+ * global `:focus-visible` ring (DESIGN.md); a bare `element.focus()` inherits the pointer
+ * modality left by the earlier hover/active drivers, suppresses that ring, and makes the
+ * collector sample elevation shadows or report "unobserved" instead of the real keyboard
+ * indicator. Parking a temporary origin directly before the control and pressing Tab —
+ * the same seam the broad contrast lane uses — reproduces the keyboard journey.
+ */
+async function focusThroughKeyboard(page: Page, control: ReturnType<Page['locator']>): Promise<void> {
+  const parked = await control.evaluate((element) => {
+    document.getElementById('design-audit-focus-origin')?.remove()
+    if (!(element instanceof HTMLElement)) return false
+    const origin = document.createElement('span')
+    origin.id = 'design-audit-focus-origin'
+    origin.tabIndex = 0
+    origin.setAttribute('aria-hidden', 'true')
+    element.parentNode?.insertBefore(origin, element)
+    origin.focus()
+    return document.activeElement === origin
+  })
+  if (!parked) {
+    await control.focus()
+    return
+  }
+  try {
+    await page.keyboard.press('Tab')
+  } finally {
+    await page.evaluate(() => document.getElementById('design-audit-focus-origin')?.remove())
+  }
+  const reached = await control.evaluate((element) => document.activeElement === element)
+  if (!reached) await control.focus()
+}
+
 export async function exerciseControlStateColors(
   page: Page,
   context: PageAuditContext,
@@ -1117,7 +1150,7 @@ export async function exerciseControlStateColors(
       : ['default', 'hover', 'focus', 'active', ...(identity.error ? ['error'] : []), ...(identity.selected ? ['selected'] : []), ...(identity.open ? ['open'] : [])]
     for (const state of states) {
       if (state === 'hover') await control.hover()
-      else if (state === 'focus') await control.focus()
+      else if (state === 'focus') await focusThroughKeyboard(page, control)
       else if (state === 'active') {
         await control.hover()
         await page.mouse.down()

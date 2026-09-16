@@ -132,6 +132,42 @@ test('focus setup skips a disabled first action and reaches the next keyboard ta
   await expect(page.getByRole('button', { name: 'Continue' })).toBeFocused()
 })
 
+test('icon-only controls are measured on their glyph under the foreground boundary fallback', async ({ page }) => {
+  // DD-MVP-19: a borderless control may carry its affordance in the glyph. The boundary
+  // collector must observe that glyph instead of reporting "unobserved", and it must still
+  // fail a glyph that misses the 3:1 control floor — both arms of the fallback are pinned.
+  await page.setContent(`
+    <main>
+      <button id="ok-icon" aria-label="Inbox" style="border: none; background: transparent; color: rgb(20, 20, 20); display: inline-flex; padding: 8px;">
+        <svg width="16" height="16" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="14" fill="currentColor"/></svg>
+      </button>
+      <button id="weak-icon" aria-label="Archive" style="border: none; background: transparent; color: rgb(222, 220, 214); display: inline-flex; padding: 8px;">
+        <svg width="16" height="16" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="14" fill="currentColor"/></svg>
+      </button>
+    </main>
+  `)
+
+  const context = {
+    route: '/planted',
+    journey: 'planted',
+    fixture: 'planted',
+    viewport: 'desktop-1440x900',
+    theme: 'light',
+    language: 'en',
+    state: 'default',
+  }
+  const rows = await collectContrast(page, context, 'default', 'button#ok-icon, button#weak-icon', { measure: 'boundary', allowForegroundBoundary: true })
+  expect(rows).toHaveLength(2)
+  // Both rows carry the combined input selector; document order puts #ok-icon first.
+  const [ok, weak] = rows
+  expect(ok.observed, JSON.stringify(ok)).toBe(true)
+  expect(ok.passes, JSON.stringify(ok)).toBe(true)
+  expect(ok.selector, JSON.stringify(ok)).toContain('foreground')
+  expect(weak.observed, JSON.stringify(weak)).toBe(true)
+  expect(weak.passes, JSON.stringify(weak)).toBe(false)
+  expect(weak.ratio ?? 0).toBeLessThan(3)
+})
+
 test('contrast setup waits for a populated cell before sampling a transient permission action', async ({ page }) => {
   await page.setContent(`
     <main>

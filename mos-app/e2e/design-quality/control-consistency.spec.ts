@@ -82,6 +82,42 @@ test('control census detects planted raw controls and matches native exceptions 
   expect(nativeRows.filter((row) => !row.passed)).toHaveLength(1)
 })
 
+test('focus state is driven through keyboard modality so the real :focus-visible ring is sampled', async ({ page }) => {
+  // A decoy elevation shadow is the only resting "boundary"; the keyboard focus indicator is
+  // the global grammar's outline. Driven with a bare element.focus() after a hover, the
+  // pointer modality suppresses :focus-visible, the shadow wins the strongest-boundary pick,
+  // and the row fails — which is exactly the false failure the integrated dev run produced
+  // for borderless icon controls. The keyboard seam must observe the outline instead.
+  await page.setContent(`
+    <style>
+      body { background: rgb(255, 255, 255); }
+      .btn.btn-ghost { background: transparent; }
+      button { height: 32px; }
+      #kbd-ring { border: none; box-shadow: 0 1px 2px rgb(235, 232, 226); background: rgb(255, 255, 255); }
+      #kbd-ring:focus-visible { outline: 2px solid rgb(20, 20, 20); outline-offset: 2px; }
+      /* The only genuinely indicator-less control suppresses the outline outright — an
+         elevation shadow alone must never carry keyboard focus evidence. */
+      #decoy-ring { border: none; outline: none; box-shadow: 0 1px 2px rgb(235, 232, 226); background: rgb(255, 255, 255); }
+    </style>
+    <main>
+      <button id="kbd-ring" class="btn btn-ghost">Ring control</button>
+      <button id="decoy-ring" class="btn btn-ghost">Shadow-only control</button>
+    </main>
+  `)
+
+  const rows = await exerciseControlStateColors(page, context, 'planted-cell')
+  const ringRow = rows.find((row) => row.state === 'focus' && row.selector.includes('button:nth-of-type(1)'))!
+  expect(ringRow, 'ring control focus row missing').toBeDefined()
+  expect(ringRow.passed, ringRow.measured).toBe(true)
+  const measured = JSON.parse(ringRow.measured)
+  const boundaryRows = measured.contrastRows.filter((row: { kind: string }) => row.kind === 'boundary')
+  expect(boundaryRows.some((row: { observed: boolean; passes: boolean; source?: string }) => row.observed && row.passes)).toBe(true)
+  const decoyRow = rows.find((row) => row.state === 'focus' && row.selector.includes('button:nth-of-type(2)'))!
+  // The suppressed-outline control has no real focus indicator; with keyboard modality the
+  // is absent and the decoy shadow cannot pass — the row must stay failing.
+  expect(decoyRow.passed).toBe(false)
+})
+
 test('bounded-choice driver catches clipped popups and broken Escape focus return', async ({ page }) => {
   await page.setContent(`
     <style>button { color: rgb(20,20,20); background: rgb(255,255,255); border: 1px solid rgb(20,20,20); height: 32px; }</style>

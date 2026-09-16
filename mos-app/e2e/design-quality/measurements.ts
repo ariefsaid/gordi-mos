@@ -1073,7 +1073,14 @@ export async function collectContrast(
         }
         const graphicFallback = collectionOptions.allowForegroundBoundary
           && foreground
-          && (element.matches('svg, svg *, img, [role="img"], [data-meaningful-graphic]'))
+          && (element.matches('svg, svg *, img, [role="img"], [data-meaningful-graphic]')
+            // DD-MVP-19 allows borderless controls to carry their affordance in the glyph:
+            // an actionable element whose visible content is only a graphic (icon button)
+            // is measured on that glyph's color. Without this arm the collector reports
+            // "unobserved" for every shared borderless icon button even when its glyph
+            // clears 3:1, which misclassifies a design-contract affordance as a failure.
+            || (element.matches('button, a[href], [role="button"], [role="link"], [role="combobox"], [role="menuitem"], [role="tab"]')
+              && element.querySelector(':scope > svg, :scope > img, :scope svg')))
         if (boundaries.length === 0 && graphicFallback && foreground) boundaries.push({ source: 'foreground', color: foreground, adjacent: background })
         if (boundaries.length === 0) {
           rows.push(emptyRow('boundary'))
