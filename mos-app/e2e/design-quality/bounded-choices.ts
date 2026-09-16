@@ -742,6 +742,13 @@ export async function exerciseBoundedChoices(
     state: 'default',
   },
   capturedBoundedChoiceIdentities?: readonly BoundedChoiceIdentity[],
+  /** Restores the captured cell state after a drive committed a value change. The
+   * lifecycle's ArrowDown+Enter selects the highlighted option; on real pages that
+   * commits a filter or form value that can legitimately unmount LATER captured
+   * identities (run 861b0004: the tasks attention pill and the Café Log category
+   * picker both disappeared this way), turning inherited interactions into false
+   * "missing" resolution failures. */
+  restoreCell?: () => Promise<void>,
 ): Promise<ControlConsistencyRow[]> {
   const identities = capturedBoundedChoiceIdentities ?? await captureBoundedChoicePopulation(page)
   const rows: ControlConsistencyRow[] = []
@@ -995,6 +1002,11 @@ export async function exerciseBoundedChoices(
     await page.keyboard.press('Enter')
     const enterSelected = await trigger.getAttribute('aria-expanded') !== 'true'
     const focusReturnedAfterEnter = await trigger.evaluate((element) => document.activeElement === element)
+    // Whether Enter committed a value the captured state did not have — used after the row
+    // is recorded to restore the cell (the drive's own value change can unmount later
+    // captured controls and turn inherited interactions into false "missing" rows).
+    const committedChangedValue = enterSelected
+      && (selectedOptionResolution.id === '' || selectedOptionResolution.id !== enterActiveAfter.id)
 
     const colors = await trigger.evaluate((element) => {
       const style = getComputedStyle(element)
@@ -1057,6 +1069,7 @@ export async function exerciseBoundedChoices(
         closedContrastRows,
       }),
     })
+    if (restoreCell && committedChangedValue) await restoreCell()
     } catch (error) {
       rows.push(resolutionFailureRow(cellId, target, {
         matchCount: target.id ? 1 : 0,

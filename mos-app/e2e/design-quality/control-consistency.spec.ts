@@ -18,6 +18,7 @@ import {
   auditRun,
   cellsFor,
   compareAutomaticFailuresForLane,
+  observeManifestCellState,
   prepareAuditPage,
   writeAutomaticLaneSummary,
 } from './runtime'
@@ -116,6 +117,124 @@ test('focus state is driven through keyboard modality so the real :focus-visible
   // The suppressed-outline control has no real focus indicator; with keyboard modality the
   // is absent and the decoy shadow cannot pass — the row must stay failing.
   expect(decoyRow.passed).toBe(false)
+})
+
+const MUTATING_PICKER_PAGE = `
+  <style>button { color: rgb(20,20,20); background: rgb(255,255,255); border: 1px solid rgb(20,20,20); height: 32px; }</style>
+  <button id="first" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="first-list">First picker</button>
+  <div id="first-list" role="listbox" hidden>
+    <div id="first-a" role="option" aria-selected="true">Alpha</div>
+    <div id="first-b" role="option">Beta</div>
+  </div>
+  <button id="second" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="second-list">Second picker</button>
+  <div id="second-list" role="listbox" hidden>
+    <div id="second-a" role="option" aria-selected="true">Gamma</div>
+    <div id="second-b" role="option">Delta</div>
+  </div>
+  <script>
+    {
+      const trigger = document.getElementById('first')
+      const list = document.getElementById('first-list')
+      const open = () => { trigger.ariaExpanded = 'true'; list.hidden = false; trigger.setAttribute('aria-activedescendant', 'first-a') }
+      const close = (restore) => { trigger.ariaExpanded = 'false'; list.hidden = true; if (restore) trigger.focus() }
+      trigger.addEventListener('click', () => trigger.ariaExpanded === 'true' ? close(true) : open())
+      trigger.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowDown') { event.preventDefault(); if (trigger.ariaExpanded !== 'true') open(); trigger.setAttribute('aria-activedescendant', 'first-b') }
+        if (event.key.length === 1 && event.key.toLowerCase() === 'a') trigger.setAttribute('aria-activedescendant', 'first-a')
+        if (event.key === 'Enter' && trigger.ariaExpanded === 'true') {
+          event.preventDefault(); close(true)
+          // Committing "Beta" removes the later captured picker, exactly as a real
+          // filter or form value change can unmount a sibling control.
+          document.getElementById('second')?.remove()
+          document.getElementById('second-list')?.remove()
+        }
+        if (event.key === 'Escape' && trigger.ariaExpanded === 'true') close(true)
+      })
+      document.addEventListener('pointerdown', (event) => {
+        if (!trigger.contains(event.target) && !list.contains(event.target)) close(true)
+      })
+    }
+    {
+      const trigger = document.getElementById('second')
+      const list = document.getElementById('second-list')
+      const open = () => { trigger.ariaExpanded = 'true'; list.hidden = false; trigger.setAttribute('aria-activedescendant', 'second-a') }
+      const close = (restore) => { trigger.ariaExpanded = 'false'; list.hidden = true; if (restore) trigger.focus() }
+      trigger.addEventListener('click', () => trigger.ariaExpanded === 'true' ? close(true) : open())
+      trigger.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowDown') { event.preventDefault(); if (trigger.ariaExpanded !== 'true') open(); trigger.setAttribute('aria-activedescendant', 'second-b') }
+        if (event.key === 'Enter' && trigger.ariaExpanded === 'true') { event.preventDefault(); close(true) }
+        if (event.key === 'Escape' && trigger.ariaExpanded === 'true') close(true)
+      })
+      document.addEventListener('pointerdown', (event) => {
+        if (!trigger.contains(event.target) && !list.contains(event.target)) close(true)
+      })
+    }
+  </script>
+`
+
+test('lifecycle driver restores the cell after a value-commit that unmounts later identities', async ({ page }) => {
+  // Without restoration the drive's own ArrowDown+Enter on the first picker removes the
+  // second picker; resolving it then reports a false "missing" interaction failure.
+  await page.setContent(MUTATING_PICKER_PAGE)
+  const withoutRestore = await exerciseBoundedChoices(page, 'planted-cell')
+  const secondMissing = withoutRestore.find((row) => row.selector === 'second')!
+  expect(secondMissing.passed).toBe(false)
+  expect(JSON.parse(secondMissing.measured).resolutionFailure.reason).toBe('missing')
+
+  await page.setContent(MUTATING_PICKER_PAGE)
+  const withRestore = await exerciseBoundedChoices(page, 'planted-cell', context, undefined, async () => {
+    if ((await page.locator('#second').count()) > 0) return
+    // Recreate the removed picker with the same behavior the page script gave it.
+    await page.evaluate(() => {
+      const second = document.createElement('button')
+      second.id = 'second'
+      second.setAttribute('role', 'combobox')
+      second.setAttribute('aria-haspopup', 'listbox')
+      second.setAttribute('aria-expanded', 'false')
+      second.setAttribute('aria-controls', 'second-list')
+      second.textContent = 'Second picker'
+      document.body.appendChild(second)
+      const list = document.createElement('div')
+      list.id = 'second-list'
+      list.setAttribute('role', 'listbox')
+      list.hidden = true
+      list.innerHTML = '<div id="second-a" role="option" aria-selected="true">Gamma</div><div id="second-b" role="option">Delta</div>'
+      document.body.appendChild(list)
+      const open = () => {
+        second.setAttribute('aria-expanded', 'true')
+        list.hidden = false
+        second.setAttribute('aria-activedescendant', 'second-a')
+      }
+      const close = (restore: boolean) => {
+        second.setAttribute('aria-expanded', 'false')
+        list.hidden = true
+        if (restore) second.focus()
+      }
+      second.addEventListener('click', () => (second.getAttribute('aria-expanded') === 'true' ? close(true) : open()))
+      second.addEventListener('keydown', (event) => {
+        const key = event.key
+        if (key === 'ArrowDown') {
+          event.preventDefault()
+          if (second.getAttribute('aria-expanded') !== 'true') open()
+          second.setAttribute('aria-activedescendant', 'second-b')
+        }
+        if (key.length === 1 && key.toLocaleLowerCase() === 'g') second.setAttribute('aria-activedescendant', 'second-a')
+        if (key === 'Enter' && second.getAttribute('aria-expanded') === 'true') {
+          event.preventDefault()
+          close(true)
+        }
+        if (key === 'Escape' && second.getAttribute('aria-expanded') === 'true') close(true)
+      })
+      document.addEventListener('pointerdown', (event) => {
+        const target = event.target as Node
+        if (!second.contains(target) && !list.contains(target)) close(true)
+      })
+    })
+  })
+  const firstRow = withRestore.find((row) => row.selector === 'first')!
+  expect(firstRow.passed, firstRow.measured).toBe(true)
+  const secondRow = withRestore.find((row) => row.selector === 'second')!
+  expect(secondRow.passed, secondRow.measured).toBe(true)
 })
 
 test('bounded-choice driver catches clipped popups and broken Escape focus return', async ({ page }) => {
@@ -603,7 +722,14 @@ test('control consistency entry point writes a complete per-cell census', async 
     const capturedBoundedChoices = await captureBoundedChoicePopulation(page)
     const census = await collectControlConsistency(page, cellContext, cell.id, nativeSelectExceptions, capturedBoundedChoices)
     const stateColors = await exerciseControlStateColors(page, cellContext, cell.id)
-    const lifecycle = await exerciseBoundedChoices(page, cell.id, cellContext, capturedBoundedChoices)
+    // A lifecycle drive commits a value (ArrowDown+Enter). Restore the captured cell state
+    // after such a drive so later identities resolve against the state they were captured
+    // in; the manifest assertion is the readiness seam after the reload.
+    const restoreCell = async (): Promise<void> => {
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await observeManifestCellState(page, cell)
+    }
+    const lifecycle = await exerciseBoundedChoices(page, cell.id, cellContext, capturedBoundedChoices, restoreCell)
     const lifecyclePopulation = validateBoundedChoiceLifecyclePopulation(capturedBoundedChoices, lifecycle)
     const populationRow = census.find((row) => row.kind === 'population')
     const population = populationRow ? JSON.parse(populationRow.measured) as { boundedChoicePopulation?: number } : {}
