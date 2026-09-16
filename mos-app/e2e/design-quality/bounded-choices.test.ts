@@ -5,6 +5,7 @@ import test from 'node:test'
 import {
   CONTROL_VARIANT_VOCABULARY,
   classifyControlSize,
+  validateBoundedChoiceLifecyclePopulation,
   summarizeControlGroups,
   type ClassifiedControlMetrics,
 } from './bounded-choices.ts'
@@ -59,4 +60,52 @@ test('variant groups enforce one-pixel geometry tolerance and identical resolved
   const colorDrift = summarizeControlGroups([base, { ...base, foreground: 'rgb(30, 30, 30)' }])[0]!
   assert.equal(colorDrift.distinctForegrounds, 2)
   assert.equal(colorDrift.passed, false)
+})
+
+test('Tasks and Café Log lifecycle rows cover every captured bounded choice after scrolling', () => {
+  const capturedByCell = [
+    {
+      cellId: 'tasks-default-desktop',
+      selectors: ['#group', '#business-unit', '#person', '#sort', '#attention'],
+    },
+    {
+      cellId: 'cafe-log-default-desktop',
+      selectors: ['#destination', '#status'],
+    },
+  ]
+
+  for (const { cellId, selectors } of capturedByCell) {
+    const lifecycleRows = selectors.map((selector) => ({
+      cellId,
+      kind: 'bounded-choice' as const,
+      selector,
+      component: 'bounded-choice',
+      variant: 'picker',
+      size: 'control-32',
+      state: 'lifecycle',
+      authority: 'test',
+      observed: true,
+      passed: true,
+      measured: '{}',
+    }))
+    const result = validateBoundedChoiceLifecyclePopulation(selectors, lifecycleRows)
+    assert.equal(result.expectedCount, new Set(selectors).size)
+    assert.equal(result.lifecycleCount, lifecycleRows.length)
+    assert.equal(result.passed, true, `${cellId}: ${JSON.stringify(result)}`)
+
+    const missingLast = validateBoundedChoiceLifecyclePopulation(selectors, lifecycleRows.slice(0, -1))
+    assert.equal(missingLast.passed, false, `${cellId} accepted a missing lifecycle row`)
+    assert.deepEqual(missingLast.missingSelectors, [selectors.at(-1)])
+
+    const duplicate = validateBoundedChoiceLifecyclePopulation(selectors, [...lifecycleRows, lifecycleRows[0]!])
+    assert.equal(duplicate.passed, false, `${cellId} accepted a duplicate lifecycle row`)
+    assert.deepEqual(duplicate.duplicateSelectors, [selectors[0]])
+
+    const extra = validateBoundedChoiceLifecyclePopulation(selectors, [...lifecycleRows, {
+      ...lifecycleRows[0]!,
+      selector: `${selectors[0]} + .unexpected`,
+    }])
+    assert.equal(extra.passed, false, `${cellId} accepted an uncaptured lifecycle row`)
+    assert.deepEqual(extra.extraSelectors, [`${selectors[0]} + .unexpected`])
+  }
 })

@@ -39,18 +39,26 @@ try {
 if (!session || typeof session !== 'object' || Array.isArray(session)) {
   fail('session.json must contain an object')
 }
+const sessionCandidateSha = typeof session.candidateSha === 'string' ? session.candidateSha : ''
 const sessionId = typeof session.sessionId === 'string' ? session.sessionId : ''
-if (session.candidateSha !== expectedSha || !/^[0-9a-f]{8}$/.test(sessionId)) {
+const baselineOnlyFollowUp = sessionCandidateSha !== expectedSha
+if ((baselineOnlyFollowUp && !(requireFinalChangeGate || requireBrowserChangeGate))
+  || !/^[0-9a-f]{8}$/.test(sessionId)) {
   fail('session metadata does not match the expected candidate', {
     expectedSha,
-    candidateSha: session.candidateSha,
+    candidateSha: sessionCandidateSha,
     sessionId,
   })
 }
 
+// A baseline-only H1 follow-up validates all measured artifacts against the
+// bound H0 session. The snapshot revalidator below proves the H0→H1 Git and
+// source relationship before this alternate metadata identity is accepted.
+const evidenceCandidateSha = baselineOnlyFollowUp ? sessionCandidateSha : expectedSha
+
 const validation = await validateArtifactSet(
   evidenceDir,
-  { candidateSha: expectedSha, sessionId },
+  { candidateSha: evidenceCandidateSha, sessionId },
   { allowMockupGaps: requireFinalChangeGate || requireBrowserChangeGate },
 )
 const declared = new Set(await Promise.all(
@@ -105,7 +113,7 @@ if (requireFinalChangeGate || requireBrowserChangeGate) {
   }
   try {
     const summary = await readJson('quantitative-summary.json')
-    if (summary.candidateSha !== expectedSha || summary.sessionId !== sessionId) changeGateErrors.push('quantitative summary is stale')
+    if (summary.candidateSha !== evidenceCandidateSha || summary.sessionId !== sessionId) changeGateErrors.push('quantitative summary is stale')
     if (summary.auditMode !== 'change-gate' || summary.automaticChecksPassed !== true || !Array.isArray(summary.failures) || summary.failures.length > 0) {
       changeGateErrors.push('quantitative automatic checks did not pass in change-gate mode')
     }
@@ -144,13 +152,14 @@ if (requireFinalChangeGate || requireBrowserChangeGate) {
       changeGateErrors.push(`emitted automatic-failure snapshot is missing or invalid: ${String(error)}`)
     }
   }
-  if (requireFinalChangeGate) {
+  if (requireFinalChangeGate || (requireBrowserChangeGate && baselineOnlyFollowUp)) {
     const result = await revalidateChangeGateSnapshot({
       repoRoot,
       evidenceDir,
       candidateSha: expectedSha,
       sessionId,
       verificationBase,
+      ...(baselineOnlyFollowUp ? { measuredCandidateSha: evidenceCandidateSha } : {}),
     })
     if (!result.ok) changeGateErrors.push(...result.errors)
   }

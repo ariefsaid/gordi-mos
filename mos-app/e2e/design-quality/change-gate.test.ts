@@ -14,6 +14,7 @@ import {
   digestAutomaticFailureBaseline,
   loadTrustedAutomaticFailureBaseline,
   produceAutomaticFailureBaseline,
+  revalidateChangeGateSnapshot,
   serializeAutomaticFailureBaseline,
   validateAutomaticFailureBaseline,
   validateBaselineBinding,
@@ -127,6 +128,185 @@ const baselineSnapshot = (overrides: Record<string, unknown> = {}) => ({
 
 function git(cwd: string, ...args: string[]): string {
   return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
+}
+
+const followupArtifactNames = [
+  'contrast.csv',
+  'geometry.csv',
+  'number-census.csv',
+  'control-census.csv',
+  'control-consistency.csv',
+  'state-matrix.csv',
+  'affordance-census.csv',
+  'copy-census.csv',
+  'visible-content.csv',
+] as const
+
+type FollowupFixture = {
+  repo: string
+  evidenceDir: string
+  baseSha: string
+  measuredSha: string
+  candidateSha: string
+  sessionId: string
+}
+
+async function createBaselineOnlyFollowup(extraPath = ''): Promise<FollowupFixture> {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'mos-change-gate-followup-repo-'))
+  git(repo, 'init', '-q')
+  git(repo, 'config', 'user.email', 'test@example.invalid')
+  git(repo, 'config', 'user.name', 'test')
+  await mkdir(path.join(repo, 'mos-app/src'), { recursive: true })
+  await mkdir(path.join(repo, 'mos-app/e2e/design-quality'), { recursive: true })
+  await writeFile(path.join(repo, 'mos-app/src/product.ts'), 'product\n')
+  await writeFile(path.join(repo, 'mos-app/e2e/design-quality/manifest.ts'), 'manifest\n')
+  git(repo, 'add', '.')
+  git(repo, 'commit', '-qm', 'product')
+  const productSha = git(repo, 'rev-parse', 'HEAD')
+
+  const trustedBytes = canonicalSnapshotWithDigest(baselineSnapshot({
+    source: {
+      productSha,
+      harnessSha: productSha,
+      sessionId: 'a1b2c3d4',
+      manifestDigest: createHash('sha256').update('manifest\n').digest('hex'),
+    },
+    failures: [
+      { ruleId: 'content.text-truncation', cellId: 'tasks-default-desktop', selector: 'main h1', state: 'default' },
+      { ruleId: 'state.coverage', cellId: 'tasks-empty-phone', selector: '__state__', state: 'default' },
+    ],
+    untestedCellIds: ['tasks-empty-phone'],
+  }) as Record<string, unknown>)
+  const trustedPath = path.join(repo, AUTOMATIC_FAILURE_BASELINE_PATH)
+  await mkdir(path.dirname(trustedPath), { recursive: true })
+  await writeFile(trustedPath, serializeAutomaticFailureBaseline(trustedBytes as never))
+  git(repo, 'add', '.')
+  git(repo, 'commit', '-qm', 'trusted baseline')
+  const baseSha = git(repo, 'rev-parse', 'HEAD')
+  git(repo, 'update-ref', 'refs/remotes/origin/dev', baseSha)
+
+  await writeFile(path.join(repo, 'mos-app/e2e/design-quality/change-gate.ts'), 'harness\n')
+  git(repo, 'add', '.')
+  git(repo, 'commit', '-qm', 'implementation')
+  const measuredSha = git(repo, 'rev-parse', 'HEAD')
+  const sessionId = 'b2c3d4e5'
+  const evidenceDir = await mkdtemp(path.join(os.tmpdir(), 'mos-change-gate-followup-evidence-'))
+  const cell = {
+    id: 'tasks-default-desktop',
+    area: 'tasks',
+    journey: 'tasks-create',
+    route: '/mos/work/tasks',
+    fixture: 'BAR_MEMBER',
+    viewport: 'desktop-1440x900',
+    theme: 'light',
+    language: 'en',
+    state: 'default',
+    status: 'covered',
+    stateContract: { setup: [], assertion: { selector: 'main' } },
+  }
+  const untestedCell = {
+    id: 'tasks-empty-phone',
+    area: cell.area,
+    journey: cell.journey,
+    route: cell.route,
+    fixture: cell.fixture,
+    viewport: 'phone-390x844',
+    theme: cell.theme,
+    language: cell.language,
+    state: cell.state,
+    status: 'untested',
+  }
+  await writeFile(path.join(evidenceDir, 'manifest.json'), JSON.stringify({
+    candidateSha: measuredSha,
+    sessionId,
+    cells: [cell, untestedCell],
+  }))
+  const laneValues: Record<string, Record<string, unknown>> = {
+    'quantitative-summary.json': { geometryRows: 1, visibleContentRows: 1, count: 2 },
+    'control-consistency-summary.json': { rows: 1, count: 1 },
+    'contrast-summary.json': { rows: 1, count: 1 },
+    'anti-slop-summary.json': { cells: 1, count: 1 },
+    'axe-summary.json': { scans: 1, count: 1 },
+    'mockup-diff/status.json': {
+      status: 'pass',
+      comparisons: [{ cellId: cell.id, status: 'pass', score: 1, build: 'x', missingRegions: [], contradictedRegions: [] }],
+      count: 1,
+    },
+  }
+  const summary = (values: Record<string, unknown>) => {
+    const payload = {
+      candidateSha: measuredSha,
+      sessionId,
+      auditMode: 'change-gate',
+      automaticChecksPassed: true,
+      complete: true,
+      failures: [],
+      allFailures: [],
+      inheritedFailures: [],
+      newFailures: [],
+      ...values,
+    }
+    return { ...payload, digest: digestAutomaticFailureLane(payload) }
+  }
+  for (const [name, values] of Object.entries(laneValues)) {
+    const target = path.join(evidenceDir, name)
+    await mkdir(path.dirname(target), { recursive: true })
+    await writeFile(target, JSON.stringify(summary(values)))
+  }
+  await writeFile(path.join(evidenceDir, 'fixture-receipt.json'), JSON.stringify({
+    candidateSha: measuredSha,
+    sessionId,
+    created: [],
+    ownedAuthUsers: [],
+    sentinels: [],
+  }))
+  await writeFile(path.join(evidenceDir, 'gate-log.txt'), `candidate_sha=${measuredSha}\nsession_id=${sessionId}\nbrowser_status=0\n`)
+  for (const name of followupArtifactNames) {
+    const row = name === 'visible-content.csv'
+      ? `${cell.id},text-truncation,main h1,default,false\n`
+      : `${cell.id},true\n`
+    const header = name === 'visible-content.csv' ? 'cellId,kind,selector,state,passed' : 'cellId,passed'
+    await writeFile(path.join(evidenceDir, name), `# candidate_sha=${measuredSha}\n# session_id=${sessionId}\n${header}\n${row}`)
+  }
+  await writeFile(path.join(evidenceDir, 'impeccable.json'), JSON.stringify(summary({ status: 'pass', scannedFiles: ['src/App.tsx'], findings: [] })))
+
+  const trusted = await loadTrustedAutomaticFailureBaseline({ repoRoot: repo, candidateSha: measuredSha, verificationBase: 'origin/dev' })
+  assert.equal(trusted.ok, true, trusted.errors.join('; '))
+  const produced = await produceAutomaticFailureBaseline({
+    evidenceDir,
+    sourceProductSha: measuredSha,
+    sourceHarnessSha: measuredSha,
+    sourceSessionId: sessionId,
+    repoRoot: repo,
+    previousSnapshot: trusted.snapshot,
+  })
+  assert.equal(produced.ok, true, produced.errors.join('; '))
+  assert.equal(produced.snapshot?.source.productSha, measuredSha)
+  await writeFile(path.join(evidenceDir, 'session.json'), JSON.stringify({
+    auditId: sessionId,
+    sessionId,
+    candidateSha: measuredSha,
+    auditMode: 'change-gate',
+    verificationBase: 'origin/dev',
+    mergeBaseSha: baseSha,
+    snapshotBlobDigest: createHash('sha256').update(gitBlobForTest(repo, baseSha, AUTOMATIC_FAILURE_BASELINE_PATH)).digest('hex'),
+    quantitativeArtifacts: [],
+  }))
+
+  await writeFile(trustedPath, produced.bytes!)
+  if (extraPath) {
+    const extraTarget = path.join(repo, extraPath)
+    await mkdir(path.dirname(extraTarget), { recursive: true })
+    await writeFile(extraTarget, 'unexpected H1 change\n')
+  }
+  git(repo, 'add', '.')
+  git(repo, 'commit', '-qm', 'baseline-only follow-up')
+  const candidateSha = git(repo, 'rev-parse', 'HEAD')
+  return { repo, evidenceDir, baseSha, measuredSha, candidateSha, sessionId }
+}
+
+function gitBlobForTest(repo: string, revision: string, relativePath: string): Buffer {
+  return execFileSync('git', ['show', `${revision}:${relativePath}`], { cwd: repo, encoding: 'buffer' }) as Buffer
 }
 
 function canonicalSnapshotWithDigest(snapshot: Record<string, unknown>): Record<string, unknown> {
@@ -319,6 +499,80 @@ test('operator bootstrap rejects a harness commit that changed the product tree'
   })
   assert.equal(result.ok, false)
   assert.match(result.errors.join('\n'), /product tree|bootstrap/i)
+})
+
+test('H0 evidence is accepted by the sole H1 baseline-only follow-up', async () => {
+  const fixture = await createBaselineOnlyFollowup()
+  const result = await revalidateChangeGateSnapshot({
+    repoRoot: fixture.repo,
+    evidenceDir: fixture.evidenceDir,
+    candidateSha: fixture.candidateSha,
+    sessionId: fixture.sessionId,
+    verificationBase: 'origin/dev',
+  })
+  assert.equal(result.ok, true, result.errors.join('\n'))
+  assert.equal(result.mergeBaseSha, fixture.baseSha)
+})
+
+test('baseline-only follow-up rejects any additional product or harness path change', async () => {
+  for (const extraPath of ['mos-app/src/product.ts', 'mos-app/e2e/design-quality/extra-harness.ts']) {
+    const fixture = await createBaselineOnlyFollowup(extraPath)
+    const result = await revalidateChangeGateSnapshot({
+      repoRoot: fixture.repo,
+      evidenceDir: fixture.evidenceDir,
+      candidateSha: fixture.candidateSha,
+      sessionId: fixture.sessionId,
+      verificationBase: 'origin/dev',
+    })
+    assert.equal(result.ok, false, `${extraPath} was accepted`)
+    assert.match(result.errors.join('\n'), /baseline-only|snapshot-only|path|diff/i)
+  }
+})
+
+test('baseline-only follow-up rejects stale H0 session binding and tampered or missing evidence', async () => {
+  const stale = await createBaselineOnlyFollowup()
+  await writeFile(path.join(stale.evidenceDir, 'session.json'), JSON.stringify({
+    candidateSha: stale.baseSha,
+    sessionId: stale.sessionId,
+    auditMode: 'change-gate',
+    verificationBase: 'origin/dev',
+    mergeBaseSha: stale.baseSha,
+    snapshotBlobDigest: createHash('sha256').update(gitBlobForTest(stale.repo, stale.baseSha, AUTOMATIC_FAILURE_BASELINE_PATH)).digest('hex'),
+  }))
+  const staleResult = await revalidateChangeGateSnapshot({
+    repoRoot: stale.repo,
+    evidenceDir: stale.evidenceDir,
+    candidateSha: stale.candidateSha,
+    sessionId: stale.sessionId,
+    verificationBase: 'origin/dev',
+  })
+  assert.equal(staleResult.ok, false)
+  assert.match(staleResult.errors.join('\n'), /H0|source|session|candidate|stale/i)
+
+  const tampered = await createBaselineOnlyFollowup()
+  const emittedPath = path.join(tampered.evidenceDir, 'automatic-failure-baseline.json')
+  await writeFile(emittedPath, `${await readFile(emittedPath, 'utf8')} `)
+  const tamperedResult = await revalidateChangeGateSnapshot({
+    repoRoot: tampered.repo,
+    evidenceDir: tampered.evidenceDir,
+    candidateSha: tampered.candidateSha,
+    sessionId: tampered.sessionId,
+    verificationBase: 'origin/dev',
+  })
+  assert.equal(tamperedResult.ok, false)
+  assert.match(tamperedResult.errors.join('\n'), /canonical|byte-match|tamper/i)
+
+  const missing = await createBaselineOnlyFollowup()
+  await rm(path.join(missing.evidenceDir, 'visible-content.csv'))
+  const missingResult = await revalidateChangeGateSnapshot({
+    repoRoot: missing.repo,
+    evidenceDir: missing.evidenceDir,
+    candidateSha: missing.candidateSha,
+    sessionId: missing.sessionId,
+    verificationBase: 'origin/dev',
+  })
+  assert.equal(missingResult.ok, false)
+  assert.match(missingResult.errors.join('\n'), /missing|visible-content/i)
 })
 
 test('fitting ellipsis is not truncation while clipped ellipsis remains a failure', () => {

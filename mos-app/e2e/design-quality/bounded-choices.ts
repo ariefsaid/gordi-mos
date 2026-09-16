@@ -46,6 +46,15 @@ export type ControlConsistencyRow = {
   measured: string
 }
 
+export type BoundedChoiceLifecyclePopulationResult = {
+  expectedCount: number
+  lifecycleCount: number
+  missingSelectors: string[]
+  duplicateSelectors: string[]
+  extraSelectors: string[]
+  passed: boolean
+}
+
 export type NativeSelectException = {
   selector: string
   authority: string
@@ -61,8 +70,43 @@ type RenderedControl = ClassifiedControlMetrics & {
   invalid: boolean
   expanded: boolean
   selected: boolean
+  elementHasListboxPopup: boolean
   matchedSelector: string
   authority: string
+}
+
+/**
+ * Compare lifecycle rows with the selector set captured before any control is
+ * exercised. The set is intentionally supplied by the caller so scrolling or
+ * focus changes cannot silently change the denominator midway through a cell.
+ */
+export function validateBoundedChoiceLifecyclePopulation(
+  capturedSelectors: readonly string[],
+  lifecycleRows: readonly ControlConsistencyRow[],
+): BoundedChoiceLifecyclePopulationResult {
+  const expectedSelectors = [...new Set(capturedSelectors.filter(Boolean))]
+  const lifecycleSelectors = lifecycleRows
+    .filter((row) => row.kind === 'bounded-choice')
+    .map((row) => row.selector)
+  const counts = new Map<string, number>()
+  for (const selector of lifecycleSelectors) counts.set(selector, (counts.get(selector) ?? 0) + 1)
+  const missingSelectors = expectedSelectors.filter((selector) => !counts.has(selector))
+  const duplicateSelectors = [...counts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([selector]) => selector)
+  const expectedSet = new Set(expectedSelectors)
+  const extraSelectors = [...new Set(lifecycleSelectors)].filter((selector) => !expectedSet.has(selector))
+  return {
+    expectedCount: expectedSelectors.length,
+    lifecycleCount: lifecycleSelectors.length,
+    missingSelectors,
+    duplicateSelectors,
+    extraSelectors,
+    passed: missingSelectors.length === 0
+      && duplicateSelectors.length === 0
+      && extraSelectors.length === 0
+      && lifecycleSelectors.length === expectedSelectors.length,
+  }
 }
 
 export const CONTROL_VARIANT_VOCABULARY: readonly ControlVariantEntry[] = [
@@ -77,6 +121,52 @@ export const CONTROL_VARIANT_VOCABULARY: readonly ControlVariantEntry[] = [
   { selector: '.mk-chip--clickable', component: 'chip', variant: 'clickable', authority: 'components/ui/Chip.css clickable chip contract' },
   { selector: '.pill', component: 'pill', variant: 'pill', authority: 'components/ui/Pill.css shared pill contract' },
 ]
+
+/** Capture the bounded-choice identities before any state or lifecycle interaction can scroll. */
+export async function captureBoundedChoicePopulation(page: Page): Promise<string[]> {
+  const selectors = await page.evaluate(({ vocabulary }) => {
+    const visible = (element: HTMLElement) => {
+      const style = getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none'
+        && style.visibility !== 'hidden'
+        && style.opacity !== '0'
+        && rect.width > 2
+        && rect.height > 2
+        && rect.right > 0
+        && rect.bottom > 0
+        && rect.left < window.innerWidth
+        && rect.top < window.innerHeight
+    }
+    const elementPath = (element: HTMLElement): string => {
+      const segments: string[] = []
+      let current: HTMLElement | null = element
+      while (current && current !== document.body) {
+        let ordinal = 1
+        let sibling = current.previousElementSibling
+        while (sibling) {
+          if (sibling.tagName === current.tagName) ordinal += 1
+          sibling = sibling.previousElementSibling
+        }
+        segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${ordinal})`)
+        current = current.parentElement
+      }
+      return ['body', ...segments].join(' > ')
+    }
+    const actionable = 'button, a[href], [role="button"], [role="link"], [role="combobox"], .mk-chip--clickable'
+    return Array.from(document.querySelectorAll<HTMLElement>(actionable))
+      .filter(visible)
+      .filter((element) => {
+        const match = vocabulary.find((entry) => element.matches(entry.selector))
+        return element.getAttribute('role') === 'combobox'
+          || (element.tagName.toLowerCase() === 'button' && element.getAttribute('aria-haspopup') === 'listbox')
+          || match?.selector === '.picker__trigger'
+          || match?.selector === '.mk-select__field'
+      })
+      .map(elementPath)
+  }, { vocabulary: CONTROL_VARIANT_VOCABULARY }) as string[]
+  return [...new Set(selectors)]
+}
 
 /** Resolve rendered heights to the named control sizes in the approved design system. */
 export function classifyControlSize(height: number): string {
@@ -139,6 +229,7 @@ export async function collectControlConsistency(
   _context: PageAuditContext,
   cellId: string,
   nativeSelectExceptions: readonly NativeSelectException[] = [],
+  capturedBoundedChoiceSelectors?: readonly string[],
 ): Promise<ControlConsistencyRow[]> {
   const rendered = await page.evaluate(({ vocabulary, exceptionSelectors }) => {
     type CssColor = { rgb: [number, number, number]; alpha: number }
@@ -228,6 +319,7 @@ export async function collectControlConsistency(
         invalid,
         expanded,
         selected,
+        elementHasListboxPopup: element.getAttribute('aria-haspopup') === 'listbox',
         state: disabled ? 'disabled' : invalid ? 'error' : expanded ? 'open' : selected ? 'selected' : 'default',
         size: '',
         matchedSelector: match?.selector ?? '',
@@ -240,6 +332,7 @@ export async function collectControlConsistency(
         exceptionSelector: exceptionSelectors.find((selector) => element.matches(selector)) ?? '',
       }))
     const boundedChoices = controls.filter((control) => control.role === 'combobox'
+      || (control.tag === 'button' && control.elementHasListboxPopup)
       || control.matchedSelector === '.picker__trigger'
       || control.matchedSelector === '.mk-select__field')
     return { controls, nativeSelects, boundedChoiceSelectors: boundedChoices.map((control) => control.selector) }
@@ -256,7 +349,7 @@ export async function collectControlConsistency(
   const groupSummaries = summarizeControlGroups(rendered.controls)
   const groupByKey = new Map(groupSummaries.map((group) => [group.group, group]))
   const populationSize = rendered.controls.length
-  const boundedChoicePopulation = rendered.boundedChoiceSelectors.length
+  const boundedChoicePopulation = capturedBoundedChoiceSelectors?.length ?? rendered.boundedChoiceSelectors.length
   const nativeSelectPopulation = rendered.nativeSelects.length
   const rows: ControlConsistencyRow[] = [{
     cellId,
@@ -339,31 +432,31 @@ export async function exerciseBoundedChoices(
     language: 'en',
     state: 'default',
   },
+  capturedBoundedChoiceSelectors?: readonly string[],
 ): Promise<ControlConsistencyRow[]> {
-  const triggers = page.locator('[role="combobox"], button[aria-haspopup="listbox"]').filter({ visible: true })
+  const selectors = capturedBoundedChoiceSelectors ?? await captureBoundedChoicePopulation(page)
   const rows: ControlConsistencyRow[] = []
-  for (let index = 0; index < await triggers.count(); index += 1) {
-    const trigger = triggers.nth(index)
-    const intersectsViewport = await trigger.evaluate((element) => {
-      const rect = element.getBoundingClientRect()
-      return rect.right > 0 && rect.bottom > 0 && rect.left < window.innerWidth && rect.top < window.innerHeight
-    })
-    if (!intersectsViewport) continue
-    const selector = await trigger.evaluate((element) => {
-      const segments: string[] = []
-      let current: HTMLElement | null = element as HTMLElement
-      while (current && current !== document.body) {
-        let ordinal = 1
-        let sibling = current.previousElementSibling
-        while (sibling) {
-          if (sibling.tagName === current.tagName) ordinal += 1
-          sibling = sibling.previousElementSibling
-        }
-        segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${ordinal})`)
-        current = current.parentElement
-      }
-      return ['body', ...segments].join(' > ')
-    })
+  for (const selector of selectors) {
+    const trigger = page.locator(selector).first()
+    if (await trigger.count() === 0) {
+      rows.push({
+        cellId,
+        kind: 'bounded-choice',
+        selector,
+        component: 'bounded-choice',
+        variant: 'unknown',
+        size: 'unresolved',
+        state: 'lifecycle',
+        authority: 'DD-MVP-2 designed bounded choice; issue #856 lifecycle contract',
+        observed: false,
+        passed: false,
+        measured: JSON.stringify({ lifecycleApplicable: true, missing: true }),
+      })
+      continue
+    }
+    // A locator action may scroll the page. Scroll each already-captured target
+    // into view deliberately; never rebuild the population after that happens.
+    await trigger.scrollIntoViewIfNeeded()
     const initial = await trigger.evaluate((element) => ({
       closed: element.getAttribute('aria-expanded') !== 'true',
       component: element.classList.contains('picker__trigger') || element.classList.contains('mk-select__field')

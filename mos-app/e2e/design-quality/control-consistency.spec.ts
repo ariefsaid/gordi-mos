@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test'
 
-import { collectControlConsistency, exerciseBoundedChoices, exerciseControlStateColors } from './bounded-choices'
+import {
+  captureBoundedChoicePopulation,
+  collectControlConsistency,
+  exerciseBoundedChoices,
+  exerciseControlStateColors,
+  validateBoundedChoiceLifecyclePopulation,
+} from './bounded-choices'
 import { DESIGN_QUALITY_MANIFEST, isManifestCellRunnable } from './manifest'
 import {
   failureFromControlConsistencyRow,
@@ -188,9 +194,31 @@ test('control consistency entry point writes a complete per-cell census', async 
       .filter((entry) => (!entry.routes || entry.routes.includes(cell.route))
         && (!entry.viewports || entry.viewports.includes(cell.viewport)))
       .map(({ selector, authority }) => ({ selector, authority }))
-    const census = await collectControlConsistency(page, cellContext, cell.id, nativeSelectExceptions)
+    // Freeze bounded-choice identities before state exercises can scroll the
+    // page. Both the denominator and lifecycle pass consume this same set.
+    const capturedBoundedChoices = await captureBoundedChoicePopulation(page)
+    const census = await collectControlConsistency(page, cellContext, cell.id, nativeSelectExceptions, capturedBoundedChoices)
     const stateColors = await exerciseControlStateColors(page, cellContext, cell.id)
-    const lifecycle = await exerciseBoundedChoices(page, cell.id, cellContext)
+    const lifecycle = await exerciseBoundedChoices(page, cell.id, cellContext, capturedBoundedChoices)
+    const lifecyclePopulation = validateBoundedChoiceLifecyclePopulation(capturedBoundedChoices, lifecycle)
+    const populationRow = census.find((row) => row.kind === 'population')
+    const population = populationRow ? JSON.parse(populationRow.measured) as { boundedChoicePopulation?: number } : {}
+    const populationMatchesCapture = population.boundedChoicePopulation === lifecyclePopulation.expectedCount
+    if (populationRow) {
+      const measured = JSON.parse(populationRow.measured) as Record<string, unknown>
+      populationRow.passed = populationRow.passed && populationMatchesCapture && lifecyclePopulation.passed
+      populationRow.measured = JSON.stringify({
+        ...measured,
+        boundedChoiceLifecycle: {
+          denominator: population.boundedChoicePopulation,
+          captured: lifecyclePopulation.expectedCount,
+          lifecycle: lifecyclePopulation.lifecycleCount,
+          missingSelectors: lifecyclePopulation.missingSelectors,
+          duplicateSelectors: lifecyclePopulation.duplicateSelectors,
+          extraSelectors: lifecyclePopulation.extraSelectors,
+        },
+      })
+    }
     rows.push(...census, ...stateColors, ...lifecycle)
   }
 

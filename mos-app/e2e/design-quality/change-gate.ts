@@ -130,6 +130,8 @@ export type ChangeGateSnapshotRevalidationOptions = {
   candidateSha: string
   sessionId: string
   verificationBase?: string
+  /** H0 measured revision when validating a snapshot-only H1 follow-up. */
+  measuredCandidateSha?: string
 }
 
 export type ChangeGateSnapshotRevalidationResult = {
@@ -948,6 +950,19 @@ function gitText(repoRoot: string, args: string[]): string {
   return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
 }
 
+function gitChangedPaths(repoRoot: string, ancestor: string, descendant: string): string[] | null {
+  try {
+    const output = execFileSync('git', ['diff', '--name-only', '--no-renames', `${ancestor}..${descendant}`], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+    return output.split(/\r?\n/).map((value) => value.trim()).filter(Boolean)
+  } catch {
+    return null
+  }
+}
+
 function isAncestor(repoRoot: string, ancestor: string, descendant: string): boolean {
   try {
     execFileSync('git', ['merge-base', '--is-ancestor', ancestor, descendant], { cwd: repoRoot, stdio: 'ignore' })
@@ -964,6 +979,18 @@ function productTreeEquivalent(repoRoot: string, sourceProductSha: string, sourc
     return true
   } catch {
     return false
+  }
+}
+
+function snapshotCensusContains(
+  candidate: AutomaticFailureBaseline,
+  trusted: AutomaticFailureBaseline,
+): { missingFailures: AutomaticFailureIdentity[]; missingUntestedCellIds: string[] } {
+  const candidateFailures = new Set(candidate.failures.map((failure) => JSON.stringify(failure)))
+  const candidateUntested = new Set(candidate.untestedCellIds)
+  return {
+    missingFailures: trusted.failures.filter((failure) => !candidateFailures.has(JSON.stringify(failure))),
+    missingUntestedCellIds: trusted.untestedCellIds.filter((cellId) => !candidateUntested.has(cellId)),
   }
 }
 
@@ -1376,13 +1403,24 @@ export async function revalidateChangeGateSnapshot(
     errors.push(`unable to inspect candidate Git state: ${String(error)}`)
   }
   let session: Record<string, unknown> | null = null
+  let measuredCandidateSha = options.measuredCandidateSha || ''
+  let baselineOnlyFollowUp = false
   try {
     session = record(JSON.parse((await safeEvidenceFile(path.resolve(options.evidenceDir), 'session.json')).text))
   } catch (error) {
     errors.push(`audit session is missing or invalid: ${String(error)}`)
   }
   if (!session) return { ok: false, errors }
-  if (session.candidateSha !== options.candidateSha || session.sessionId !== options.sessionId) errors.push('audit session metadata changed during final validation')
+  const sessionCandidateSha = text(session.candidateSha)
+  if (!SHA_RE.test(sessionCandidateSha)) errors.push('audit session candidate SHA is missing or invalid')
+  if (sessionCandidateSha !== options.candidateSha) {
+    baselineOnlyFollowUp = true
+    measuredCandidateSha ||= sessionCandidateSha
+    if (options.measuredCandidateSha && options.measuredCandidateSha !== sessionCandidateSha) {
+      errors.push('explicit measured H0 SHA does not match the bound audit session')
+    }
+  }
+  if (session.sessionId !== options.sessionId) errors.push('audit session metadata changed during final validation')
   if (session.auditMode !== 'change-gate') errors.push('audit session is not in change-gate mode')
 
   const sessionVerificationBase = text(session.verificationBase)
@@ -1402,6 +1440,29 @@ export async function revalidateChangeGateSnapshot(
       const snapshot = normalizedSnapshot(payload as Record<string, unknown>)
       errors.push(...validateAutomaticFailureBaselineSource(options.repoRoot, snapshot, options.candidateSha).map((error) => `emitted snapshot: ${error}`))
       if (serializeAutomaticFailureBaseline(snapshot) !== emittedFile.text) errors.push('emitted snapshot is not canonical compact serialization')
+      if (baselineOnlyFollowUp) {
+        if (!SHA_RE.test(measuredCandidateSha) || snapshot.source.productSha !== measuredCandidateSha || snapshot.source.harnessSha !== measuredCandidateSha) {
+          errors.push('baseline-only follow-up emitted snapshot is not bound to the measured H0 source')
+        }
+        if (snapshot.source.sessionId !== options.sessionId) {
+          errors.push('baseline-only follow-up emitted snapshot session binding is stale')
+        }
+        if (!isAncestor(options.repoRoot, measuredCandidateSha, options.candidateSha)) {
+          errors.push('baseline-only follow-up measured H0 is not an ancestor of H1')
+        }
+        if (trusted.mergeBaseSha && !isAncestor(options.repoRoot, trusted.mergeBaseSha, measuredCandidateSha)) {
+          errors.push('baseline-only follow-up measured H0 is unrelated to the trusted merge base')
+        }
+        const changedPaths = SHA_RE.test(measuredCandidateSha)
+          ? gitChangedPaths(options.repoRoot, measuredCandidateSha, options.candidateSha)
+          : null
+        if (!changedPaths || changedPaths.length !== 1 || changedPaths[0] !== AUTOMATIC_FAILURE_BASELINE_PATH) {
+          errors.push('baseline-only follow-up H0..H1 diff must contain exactly the committed automatic-failure snapshot')
+        }
+        if (SHA_RE.test(measuredCandidateSha) && !productTreeEquivalent(options.repoRoot, measuredCandidateSha, options.candidateSha)) {
+          errors.push('baseline-only follow-up changed the covered product or harness tree')
+        }
+      }
       emitted = { bytes: emittedFile.text, snapshot }
     }
   } catch (error) {
@@ -1423,14 +1484,24 @@ export async function revalidateChangeGateSnapshot(
     errors.push(`committed candidate snapshot is missing or invalid: ${String(error)}`)
   }
   if (emitted && candidateBytes && candidateBytes !== emitted.bytes) errors.push('committed candidate snapshot does not byte-match emitted output')
+  if (baselineOnlyFollowUp && emitted && trusted.snapshot) {
+    const census = snapshotCensusContains(emitted.snapshot, trusted.snapshot)
+    if (census.missingFailures.length > 0) errors.push(`emitted snapshot drops ${census.missingFailures.length} inherited automatic failure identity(ies)`)
+    if (census.missingUntestedCellIds.length > 0) errors.push(`emitted snapshot drops ${census.missingUntestedCellIds.length} inherited untested cell(s)`)
+    if (emitted.snapshot.failures.some((failure) => !trusted.snapshot!.failures.some((baselineFailure) => JSON.stringify(baselineFailure) === JSON.stringify(failure)))) {
+      errors.push('emitted snapshot contains new automatic failure identities')
+    }
+  }
   if (emitted && trusted.snapshot) {
-    const rederivedPath = path.join(path.resolve(options.evidenceDir), '.automatic-failure-baseline.revalidated.json')
+    const evidenceRoot = await realpath(path.resolve(options.evidenceDir)).catch(() => path.resolve(options.evidenceDir))
+    const rederivedPath = path.join(evidenceRoot, '.automatic-failure-baseline.revalidated.json')
     let derived: AutomaticFailureBaselineProducerResult
     try {
+      const sourceSha = baselineOnlyFollowUp ? measuredCandidateSha : options.candidateSha
       derived = await produceAutomaticFailureBaseline({
         evidenceDir: options.evidenceDir,
-        sourceProductSha: options.candidateSha,
-        sourceHarnessSha: options.candidateSha,
+        sourceProductSha: sourceSha,
+        sourceHarnessSha: sourceSha,
         sourceSessionId: options.sessionId,
         repoRoot: options.repoRoot,
         previousSnapshot: trusted.snapshot,
