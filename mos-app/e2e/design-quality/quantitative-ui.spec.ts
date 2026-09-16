@@ -262,6 +262,51 @@ async function exerciseFullValuePaths(page: import('@playwright/test').Page, cel
   return exercised
 }
 
+test('an open modal owns the keyboard population, and a trap that leaks still fails', async ({ page }) => {
+  const context = {
+    route: '/planted', journey: 'planted', fixture: 'planted', viewport: 'phone-390x844',
+    theme: 'light', language: 'en', state: 'composer',
+  }
+  // Six focusables on the page, three inside the dialog. Unscoped, a working trap reads as
+  // "3/6 stops" plus a repeated stop — which is what the Signals composer was being failed for.
+  const markup = (trap: boolean) => `
+    <style>body{margin:0;font:14px system-ui}button{display:block;width:120px;height:32px}</style>
+    <main>
+      <button id="p1">page one</button><button id="p2">page two</button><button id="p3">page three</button>
+    </main>
+    <div role="dialog" aria-modal="true" id="d">
+      <button id="d1">first</button><button id="d2">second</button><button id="d3">last</button>
+    </div>
+    <script>
+      const dialog = document.getElementById('d')
+      const stops = () => [...dialog.querySelectorAll('button')]
+      if (${trap}) document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Tab') return
+        const list = stops()
+        const at = list.indexOf(document.activeElement)
+        const next = event.shiftKey ? at - 1 : at + 1
+        event.preventDefault()
+        list[(next + list.length) % list.length].focus()
+      })
+    </script>`
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setContent(markup(true))
+  const trapped = await collectFocusTraversal(page, context)
+  expect(trapped.modalSelector, 'the open modal must be found').toBe('[data-design-audit-modal]')
+  expect(trapped.expectedStops, 'the population is the dialog, not the inert page behind it').toBe(3)
+  expect(trapped.rows.map((row) => row.name)).toEqual(['first', 'second', 'last'])
+  expect(trapped.cycleDetected, 'closing the cycle after every stop is the trap working').toBe(false)
+  expect(trapped.escapedStops).toEqual([])
+
+  // Same dialog, no trap: Tab walks straight out onto the page behind it. That is the real
+  // defect the scoping must not hide, so it fails here and names where it went.
+  await page.setContent(markup(false))
+  const leaking = await collectFocusTraversal(page, context)
+  expect(leaking.expectedStops).toBe(3)
+  expect(leaking.escapedStops.length, JSON.stringify(leaking.rows.map((row) => row.name))).toBeGreaterThan(0)
+})
+
 test('quantitative geometry, typography, controls, focus, and state entry point writes its census', async ({ page }) => {
   test.skip(!auditEnabled(), 'set DESIGN_QUALITY_RUN=1 through scripts/design-quality-audit.sh')
   assertAuditEnvironment()
@@ -380,6 +425,9 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
     if (focusTraversal.expectedStops > 0) {
       if (focusTraversal.rows.length < focusTraversal.expectedStops) addFailure('focus.keyboard-coverage', cell.id, '__focus__', cell.state, `keyboard focus reached ${focusTraversal.rows.length}/${focusTraversal.expectedStops} initial stops`, focusTraversal)
       if (focusTraversal.cycleDetected) addFailure('focus.keyboard-order', cell.id, '__focus__', cell.state, 'keyboard focus order repeated a stop', focusTraversal)
+      for (const escaped of focusTraversal.escapedStops) {
+        addFailure('focus.modal-containment', cell.id, escaped, cell.state, `Tab left the open modal and reached ${escaped}`, focusTraversal)
+      }
       for (const focus of focusTraversal.rows) {
         if (!focus.hasIndicator) addFailure('focus.visible-indicator', cell.id, focus.selector, cell.state, `${focus.role} has no visible 2px focus indicator`, focus)
       }

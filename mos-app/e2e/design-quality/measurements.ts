@@ -327,17 +327,26 @@ export async function collectVisibleContent(
       const targetRect = target.getBoundingClientRect()
       let intersectionRatio = 0
       let centerCovered = false
+      // Which band did it, not just that one did: without this a failing row names the covered
+      // element and leaves the cover anonymous, and the only way to find it is to re-drive the
+      // state by hand and guess.
+      let occludedBy: string | null = null
       for (const band of persistentBands) {
         if (band === target || band.contains(target) || target.contains(band)) continue
         const bandRect = band.getBoundingClientRect()
         const width = Math.max(0, Math.min(targetRect.right, bandRect.right) - Math.max(targetRect.left, bandRect.left))
         const height = Math.max(0, Math.min(targetRect.bottom, bandRect.bottom) - Math.max(targetRect.top, bandRect.top))
         const area = Math.max(1, targetRect.width * targetRect.height)
-        intersectionRatio = Math.max(intersectionRatio, (width * height) / area)
+        const ratio = (width * height) / area
+        if (ratio > intersectionRatio) {
+          intersectionRatio = ratio
+          occludedBy = cssPath(band)
+        }
         const centerX = targetRect.left + targetRect.width / 2
         const centerY = targetRect.top + targetRect.height / 2
         if (centerX >= bandRect.left && centerX <= bandRect.right && centerY >= bandRect.top && centerY <= bandRect.bottom) {
           centerCovered = true
+          occludedBy ??= cssPath(band)
         }
       }
       const topInset = persistentBands.reduce((value, band) => {
@@ -360,6 +369,7 @@ export async function collectVisibleContent(
           intersectionRatio,
           centerCovered,
           fullyReachable,
+          occludedBy,
           persistentBandCount: persistentBands.length,
           measuredAt: 'scrolled-into-centre',
         }),
@@ -508,12 +518,18 @@ export type FocusRow = PageAuditContext & {
   outlineColor: string
   boxShadow: string
   hasIndicator: boolean
+  /** Only meaningful while a modal is open: this stop is outside it. */
+  escaped?: boolean
 }
 
 export type FocusTraversal = {
   rows: FocusRow[]
   expectedStops: number
   cycleDetected: boolean
+  /** Set when a modal is open; the traversal population is scoped to it. */
+  modalSelector: string | null
+  /** Stops a modal let Tab escape to. Non-empty means the trap leaks. */
+  escapedStops: string[]
 }
 
 export type TypographyRow = PageAuditContext & {
@@ -682,7 +698,24 @@ export async function collectFocusStops(page: Page, context: PageAuditContext) {
 
 /** Walk the real keyboard order and record the indicator on every reachable stop. */
 export async function collectFocusTraversal(page: Page, context: PageAuditContext): Promise<FocusTraversal> {
-  const stopCounts = await page.locator(FOCUSABLE_SELECTOR).evaluateAll((elements) => {
+  // A modal traps Tab inside itself and makes the page behind it inert — that is the pattern
+  // working, not failing. Counting the whole document against it reported the Signals composer
+  // as reaching 4 of 16 stops and called its closing cycle a repeated stop. The population is
+  // the modal; leaking OUT of it is what the rule below now catches instead.
+  const modalSelector = await page.evaluate(() => {
+    const open = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]'))
+      .filter((element) => {
+        const style = getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      })
+    // Innermost wins: a dialog opened from a dialog owns the keyboard.
+    const target = open.findLast((element) => !open.some((other) => other !== element && element.contains(other)))
+    if (!target) return null
+    target.setAttribute('data-design-audit-modal', '')
+    return '[data-design-audit-modal]'
+  })
+  const stopCounts = await page.locator(modalSelector ? `${modalSelector} :is(${FOCUSABLE_SELECTOR})` : FOCUSABLE_SELECTOR).evaluateAll((elements) => {
     const measurable = (element: HTMLElement): boolean => {
       const style = getComputedStyle(element)
       const rect = element.getBoundingClientRect()
@@ -697,26 +730,37 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
     }
   })
   const expectedStops = stopCounts.expected
-  if (expectedStops === 0) return { rows: [], expectedStops, cycleDetected: false }
+  if (expectedStops === 0) return { rows: [], expectedStops, cycleDetected: false, modalSelector, escapedStops: [] }
+  // Only the EXPECTED population is scoped to the modal. The walk itself has to be able to step
+  // outside it, or a trap that leaks would simply run out of iterations and read as contained.
+  const walkLimit = modalSelector
+    ? await page.locator(FOCUSABLE_SELECTOR).count()
+    : stopCounts.total
 
-  await page.evaluate(() => {
+  await page.evaluate((modal: string | null) => {
     document.getElementById('design-audit-focus-origin')?.remove()
     const origin = document.createElement('span')
     origin.id = 'design-audit-focus-origin'
     origin.tabIndex = -1
     origin.setAttribute('aria-hidden', 'true')
-    document.body.prepend(origin)
+    // Start inside the modal, or the first Tab measures the trap's entry rather than its order.
+    const host = modal ? document.querySelector(modal) : null
+    if (host) host.prepend(origin)
+    else document.body.prepend(origin)
     origin.focus()
-  })
+  }, modalSelector)
 
   const rows: FocusRow[] = []
   const seen = new Set<string>()
+  const escapedStops: string[] = []
   let cycleDetected = false
   try {
-    for (let order = 0; order < stopCounts.total + 1; order += 1) {
+    for (let order = 0; order < walkLimit + 1; order += 1) {
       await page.keyboard.press('Tab')
-      const focused = await page.evaluate(() => {
+      const focused = await page.evaluate((modal: string | null) => {
         const element = document.activeElement
+        const host = modal ? document.querySelector(modal) : null
+        const escaped = Boolean(host) && element instanceof Node && !host!.contains(element)
         if (!(element instanceof HTMLElement) || element === document.body) return null
         const segments: string[] = []
         let current: HTMLElement | null = element
@@ -753,13 +797,21 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
           outlineColor: style.outlineColor,
           boxShadow: style.boxShadow,
           measurable,
+          escaped,
           hasIndicator: indicatorStyles.some((candidate) =>
             (Number.parseFloat(candidate.outlineWidth) || 0) >= 2
             || (candidate.boxShadow !== 'none' && candidate.boxShadow.trim() !== '')),
         }
-      })
-      if (!focused) break
+      }, modalSelector)
+      if (!focused) {
+        // Nothing focused. With no modal that is the end of the order; with one open it means
+        // the trap let go, so record it and keep walking to see where Tab lands next.
+        if (!modalSelector) break
+        if (!escapedStops.includes('body')) escapedStops.push('body')
+        continue
+      }
       if (!focused.measurable) continue
+      if (focused.escaped) escapedStops.push(focused.selector)
       if (seen.has(focused.selector)) {
         cycleDetected = rows.length < expectedStops
         break
@@ -768,9 +820,12 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
       rows.push({ ...context, ...focused })
     }
   } finally {
-    await page.evaluate(() => document.getElementById('design-audit-focus-origin')?.remove())
+    await page.evaluate((modal: string | null) => {
+      document.getElementById('design-audit-focus-origin')?.remove()
+      if (modal) document.querySelector(modal)?.removeAttribute('data-design-audit-modal')
+    }, modalSelector)
   }
-  return { rows, expectedStops, cycleDetected }
+  return { rows, expectedStops, cycleDetected, modalSelector, escapedStops }
 }
 
 /** Collect the type values that are enforceable from the rendered CSS, by design role. */
