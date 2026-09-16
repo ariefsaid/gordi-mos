@@ -29,6 +29,34 @@ MANDATORY_FILES = {
 }
 MANDATORY_TOOLS = {"node", "npm", "python3", "uv", "supabase", "docker", "gh", "pi"}
 
+# The private manifest can add exact branch patterns for prepared work. This public
+# fallback only recognizes the repository's generated lane namespaces: MVP,
+# handoff, design-baseline/design-audit, quantitative design, Café Books, and
+# numeric detached review snapshots. A user branch outside `codex/`/`feat/`, or a
+# worktree outside `.claude/worktrees/` with one of these names, stays unrelated.
+PROJECT_BRANCH_PATTERN = re.compile(
+    r"^(?:codex|feat)/(?:"
+    r"mvp(?:[-/].+)?|"
+    r"design-baseline(?:[-/].+)?|"
+    r"design-audit(?:[-/].+)?|"
+    r"handoff(?:[-/].+)?|"
+    r"cafe-books(?:[-/].+)?|"
+    r"ui-quantitative(?:[-/].+)?|"
+    r"review-[0-9]+(?:-(?:base|quality|security|spec|design|[0-9a-f]{8,40}))?"
+    r")$"
+)
+PROJECT_WORKTREE_PATTERN = re.compile(
+    r"^(?:"
+    r"mvp(?:[-/].+)?|"
+    r"design-baseline(?:[-/].+)?|"
+    r"design-audit(?:[-/].+)?|"
+    r"handoff(?:[-/].+)?|"
+    r"cafe-books(?:[-/].+)?|"
+    r"ui-quantitative(?:[-/].+)?|"
+    r"review-[0-9]+(?:-(?:base|quality|security|spec|design|[0-9a-f]{8,40}))?"
+    r")$"
+)
+
 
 def deterministic_failure(_exc_type: type[BaseException], _exc: BaseException, _tb: Any) -> None:
     """Fail closed without leaking malformed input or a Python traceback."""
@@ -144,6 +172,7 @@ def next_action_for(blocker: str) -> str:
         "required-private-file-missing": "Restore the first missing private handoff file.",
         "required-private-file-digest-mismatch": "Reconcile the first changed private handoff file and refresh its digest.",
         "active-mvp-work-remains": "Finish or record a verified disposition for the discovered MVP work.",
+        "mvp-work-unrecorded": "Record a verified disposition for each discovered MVP branch or worktree.",
         "mvp-disposition-unverified": "Repair the first unverified MVP work disposition.",
         "mvp-worktree-dirty": "Clean or preserve the changes in the first dirty retained MVP worktree.",
         "required-tool-missing": "Install the first missing required handoff tool.",
@@ -300,24 +329,65 @@ for line in (branch_lines or "").splitlines():
         branch_inventory[parts[0]] = parts[1]
 
 worktree_inventory: dict[str, pathlib.Path] = {}
+worktree_head_inventory: dict[str, str] = {}
+detached_worktree_inventory: list[tuple[pathlib.Path, str]] = []
 worktree_text = git(["worktree", "list", "--porcelain"], primary)
 worktree_record: dict[str, str] = {}
 for line in [*(worktree_text or "").splitlines(), ""]:
     if not line:
+        worktree_path = worktree_record.get("worktree")
+        worktree_head = worktree_record.get("HEAD")
         branch_ref = worktree_record.get("branch", "")
-        if branch_ref.startswith("refs/heads/") and "worktree" in worktree_record:
-            worktree_inventory[branch_ref.removeprefix("refs/heads/")] = pathlib.Path(worktree_record["worktree"]).resolve()
+        if (
+            branch_ref.startswith("refs/heads/")
+            and worktree_path
+            and worktree_head
+            and re.fullmatch(r"[0-9a-f]{40}", worktree_head)
+        ):
+            branch_name = branch_ref.removeprefix("refs/heads/")
+            worktree_inventory[branch_name] = pathlib.Path(worktree_path).resolve()
+            worktree_head_inventory[branch_name] = worktree_head
+        elif (
+            worktree_path
+            and worktree_head
+            and re.fullmatch(r"[0-9a-f]{40}", worktree_head)
+            and "detached" in worktree_record
+        ):
+            detached_worktree_inventory.append((pathlib.Path(worktree_path).resolve(), worktree_head))
         worktree_record = {}
         continue
     key, _, value = line.partition(" ")
     if value:
         worktree_record[key] = value
+    elif key == "detached":
+        worktree_record[key] = ""
 
 def owned_branch(name: str) -> bool:
-    return any(pattern.fullmatch(name) for pattern in compiled_patterns)
+    return any(pattern.fullmatch(name) for pattern in compiled_patterns) or PROJECT_BRANCH_PATTERN.fullmatch(name) is not None
+
+
+def worktree_relative_path(worktree: pathlib.Path) -> pathlib.PurePosixPath | None:
+    try:
+        relative = worktree.relative_to(primary)
+    except ValueError:
+        return None
+    return pathlib.PurePosixPath(*relative.parts)
+
+
+def owned_worktree(worktree: pathlib.Path) -> bool:
+    relative = worktree_relative_path(worktree)
+    return (
+        relative is not None
+        and len(relative.parts) == 3
+        and relative.parts[:2] == (".claude", "worktrees")
+        and PROJECT_WORKTREE_PATTERN.fullmatch(relative.parts[-1]) is not None
+    )
 
 
 discovered_owned = {name: sha for name, sha in branch_inventory.items() if owned_branch(name)}
+for branch_name, actual_worktree in worktree_inventory.items():
+    if owned_worktree(actual_worktree):
+        discovered_owned.setdefault(branch_name, branch_inventory.get(branch_name) or worktree_head_inventory.get(branch_name))
 item_spec = mvp_spec.get("items")
 if not isinstance(item_spec, list):
     add_blocker(blockers, "checkpoint-invalid")
@@ -400,25 +470,45 @@ for item in item_spec:
 
 for branch_name in sorted(set(discovered_owned) - recorded_branches):
     actual_worktree = worktree_inventory.get(branch_name)
-    if actual_worktree is not None:
-        try:
-            worktree_value = str(actual_worktree.relative_to(primary))
-        except ValueError:
-            worktree_value = "outside-primary"
-    else:
-        worktree_value = None
+    relative_worktree = worktree_relative_path(actual_worktree) if actual_worktree is not None else None
+    worktree_value = (
+        str(relative_worktree)
+        if relative_worktree is not None
+        else ("outside-primary" if actual_worktree is not None else None)
+    )
+    expected_sha = discovered_owned[branch_name] or worktree_head_inventory.get(branch_name)
     active_work.append(
         {
             "branch": branch_name,
-            "expectedSha": discovered_owned[branch_name],
+            "expectedSha": expected_sha,
             "disposition": "unrecorded",
             "worktreePath": worktree_value,
-            "refStatus": "present",
+            "inventorySource": "local-ref" if owned_branch(branch_name) else "worktree-path",
+            "refStatus": "present" if branch_name in branch_inventory else "missing",
             "worktreeStatus": "present" if actual_worktree is not None else "missing",
             "worktreeCleanStatus": worktree_clean_status(actual_worktree),
         }
     )
-    add_blocker(blockers, "active-mvp-work-remains")
+    add_blocker(blockers, "mvp-work-unrecorded")
+
+for actual_worktree, head_sha in sorted(detached_worktree_inventory, key=lambda value: str(value[0])):
+    if not owned_worktree(actual_worktree):
+        continue
+    relative_worktree = worktree_relative_path(actual_worktree)
+    worktree_value = str(relative_worktree) if relative_worktree is not None else "outside-primary"
+    active_work.append(
+        {
+            "branch": None,
+            "expectedSha": head_sha,
+            "disposition": "unrecorded",
+            "worktreePath": worktree_value,
+            "inventorySource": "detached-worktree",
+            "refStatus": "not-applicable",
+            "worktreeStatus": "present",
+            "worktreeCleanStatus": worktree_clean_status(actual_worktree),
+        }
+    )
+    add_blocker(blockers, "mvp-work-unrecorded")
 
 toolchain_spec = manifest.get("toolchain", {})
 if not isinstance(toolchain_spec, dict):

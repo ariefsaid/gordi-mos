@@ -158,6 +158,12 @@ create_owned_worktree() {
   esac
 }
 
+create_detached_worktree() {
+  local repo="$1"
+  local relative="$2"
+  git -C "$repo" worktree add --detach "$repo/$relative" HEAD >/dev/null 2>&1
+}
+
 malform_checkpoint() {
   local repo="$1"
   local mode="$2"
@@ -300,8 +306,53 @@ expect_blocked "$repo" active-work active-mvp-work-remains
 
 repo="$(new_fixture omitted-active-work)"
 create_owned_worktree "$repo" mvp-owned/omitted .claude/worktrees/omitted
-expect_blocked "$repo" omitted-active-work active-mvp-work-remains
+expect_blocked "$repo" omitted-active-work mvp-work-unrecorded
 json_assert "$RUN_JSON" "value['activeWork'][0]['disposition'] == 'unrecorded'" || bad "omitted MVP work is reported as unrecorded"
+
+for lane in mvp design-baseline design-audit handoff cafe-books ui-quantitative; do
+  repo="$(new_fixture "unrecorded-$lane")"
+  branch="codex/${lane}-unrecorded"
+  create_owned_worktree "$repo" "$branch" ".claude/worktrees/${lane}-unrecorded" clean
+  write_checkpoint "$repo" "$(git -C "$repo" rev-parse HEAD)"
+  expect_blocked "$repo" "unrecorded-$lane" mvp-work-unrecorded
+  if json_assert "$RUN_JSON" "value['activeWork'][0]['branch'] == '$branch' and value['activeWork'][0]['inventorySource'] == 'local-ref'"; then
+    ok "$lane ownership prefix is explicit in inventory evidence"
+  else
+    bad "$lane ownership prefix is explicit in inventory evidence"
+  fi
+done
+
+repo="$(new_fixture unrecorded-owned-worktree-path)"
+git -C "$repo" branch user/owned-worktree
+git -C "$repo" worktree add "$repo/.claude/worktrees/mvp-path-only" user/owned-worktree >/dev/null 2>&1
+expect_blocked "$repo" unrecorded-owned-worktree-path mvp-work-unrecorded
+if json_assert "$RUN_JSON" "value['activeWork'][0]['branch'] == 'user/owned-worktree' and value['activeWork'][0]['inventorySource'] == 'worktree-path'"; then
+  ok "owned worktree prefix is explicit even when its branch name is unrelated"
+else
+  bad "owned worktree prefix is explicit even when its branch name is unrelated"
+fi
+
+repo="$(new_fixture unrecorded-detached-review)"
+create_detached_worktree "$repo" .claude/worktrees/review-123-spec
+expect_blocked "$repo" unrecorded-detached-review mvp-work-unrecorded
+if json_assert "$RUN_JSON" "value['activeWork'][0]['disposition'] == 'unrecorded' and value['activeWork'][0]['inventorySource'] == 'detached-worktree' and value['activeWork'][0]['worktreePath'] == '.claude/worktrees/review-123-spec'"; then
+  ok "detached review ownership is explicit in inventory evidence"
+else
+  bad "detached review ownership is explicit in inventory evidence"
+fi
+
+repo="$(new_fixture unrelated-inventory-controls)"
+git -C "$repo" branch user/mvp-unrelated
+git -C "$repo" worktree add "$repo/.claude/worktrees/user-owned" user/mvp-unrelated >/dev/null 2>&1
+git -C "$repo" branch codex/feature-unrelated
+git -C "$repo" worktree add "$repo/.claude/worktrees/scratch" codex/feature-unrelated >/dev/null 2>&1
+create_detached_worktree "$repo" .claude/worktrees/review-user-experiment
+run_preflight "$repo" unrelated-inventory-controls
+if [ "$RUN_RC" -eq 0 ] && json_assert "$RUN_JSON" "value['ready'] is True and value['blockers'] == []"; then
+  ok "unrelated branches and worktrees do not trigger MVP ownership"
+else
+  bad "unrelated branches and worktrees do not trigger MVP ownership"
+fi
 
 repo="$(new_fixture unverified-disposition)"
 create_owned_worktree "$repo" mvp-owned/merged .claude/worktrees/merged clean
