@@ -53,7 +53,9 @@ independent review → PR → auto-merge to dev → next. Its machinery binds ou
    in-flight marker, and keep the same brief, verification, independent review, public-write, and
    security gates. A Claude subagent dispatch additionally needs a logged lane —
    `scripts/lane-exempt.sh` (hook denies otherwise; Explore/Plan free).
-3. Review: three lenses as independent review, parallel where useful. Never your own read.
+3. Review: three independent lens verdicts. One reviewer who did not build the candidate may
+   cover all three; separate contexts are needed only when the selected route requires them for
+   independence or calibration. Never your own read.
 4. A PR needs four stamps: `bash scripts/pre-pr-verify.sh` + one per lens via
    `scripts/record-review.sh --lens spec|code-quality|security` (a reviewer that didn't build
    it: glm/luna, opus fallback). CI on the PR is the merge gate.
@@ -80,7 +82,7 @@ claiming done. One record per lens, a PR comment whose ENTIRE body is:
 <!-- review-gate -->
 Reviewer: spec | code-quality | security
 Verdict: MERGE | MERGE WITH CHANGES | DO NOT MERGE
-Commit: <head sha>
+Commit: <full 40-character HEAD sha>
 ```
 
 Findings in a separate comment, never the PR body. Records certify the exact HEAD: a content push
@@ -139,6 +141,11 @@ honest work teaches `--no-verify`, which disables the guards that matter. This o
   Record browser evidence separately from source/test evidence; shared-component reuse is not visual acceptance.
 
 ## Test pyramid
+
+Retain a test or review requirement only when it owns a current behavior or risk, has a
+deterministic failure condition, and runs at the cheapest sufficient layer. Remove or archive
+stale product assertions, overlapping checks, duplicate evidence and prose-only refusal gates.
+Security, data-integrity and public-write safeguards remain binding.
 Each acceptance criterion is owned by **one** test at the lowest sufficient layer: unit (Vitest/RTL)
 for logic and components; **pgTAP** for RLS and role read/write contracts; Playwright for a handful
 of real cross-stack journeys only.
@@ -147,6 +154,20 @@ of real cross-stack journeys only.
 behavior, the app conforms to the test. When an approved behavior change makes an assertion
 obsolete, update the test and its acceptance evidence in the same diff while keeping the assertion
 at the behavior level; never weaken an assertion solely to go green.
+
+The project lifecycle owns phase routing: discovery/grilling → `to-spec` synthesis of settled
+intent → bounded factory or authorized Director execution → independent review → milestone
+acceptance. Superpowers techniques serve these phases; they do not restart a second approval or
+specification loop. Preserve batched owner questions and original outcome/provenance in briefs.
+Under OD-REDESIGN-88, understood seams may use test-with against the approved acceptance oracle;
+retain red-first for bug fixes, uncertain logic and protected interaction-contract changes.
+Automatic UI guards and changed-surface browser checks run per change. Deep rendered judgment
+covers touched and connected surfaces at a signed milestone boundary, or when the ticket's
+contract explicitly requires it; ordinary tickets do not repeat the whole-product assessment.
+The pixel layer belongs to an independent image-capable reviewer: `fe_reviewer` qualifies only
+after a real image-transport and candidate-binding probe succeeds, otherwise use a separate
+Director/Codex image-capable lane. DOM/a11y evidence alone cannot pass pixels; provider failure
+leaves review incomplete. See `docs/quality-model.md` for the two-speed design contract.
 
 ## Pointers
 | for | read |

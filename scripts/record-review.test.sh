@@ -36,6 +36,16 @@ check "terra refused — retired" 1 --lens spec --reviewer gpt-5.6-terra --artif
 check "no Reviewer: line in the lens section refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact noreviewer.md
 check "no Verdict: line in the lens section refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact noverdict.md
 check "stale sha refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact stale.md
+for length in 11 12; do
+  printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "${head:0:$length}" > "$tmp/repo/short.md"
+  check "$length-character HEAD refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact short.md
+done
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/full.md"
+check "full 40-character HEAD accepted" 0 --lens spec --reviewer gpt-5.6-luna --artifact full.md
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s0\n' "$head" > "$tmp/repo/extended.md"
+check "HEAD embedded in a longer hash refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact extended.md
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: stale\n\n## security\nReviewer: gpt-5.6-luna (security)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/other-head.md"
+check "another lens HEAD cannot certify this lens" 1 --lens spec --reviewer gpt-5.6-luna --artifact other-head.md
 check "untagged artifact refused — a stamp needs ITS lens's section" 1 --lens spec --reviewer gpt-5.6-luna --artifact untagged.md
 printf '## special\nReviewer: gpt-5.6-luna (specialist)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/substr.md"
 check "substring collision refused ('## special'/'(specialist)' is not spec)" 1 --lens spec --reviewer gpt-5.6-luna --artifact substr.md
