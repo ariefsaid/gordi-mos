@@ -234,13 +234,13 @@ export const CONTROL_VARIANT_VOCABULARY: readonly ControlVariantEntry[] = [
   { selector: 'th[aria-sort="ascending"] .th-sort-btn, th[aria-sort="descending"] .th-sort-btn', component: 'table-sort', variant: 'column-header-tasks-sorted', authority: 'components/tasks/TasksWorkspace.css sorted column header; the active sort carries its own foreground' },
   { selector: '.th-sort-btn', component: 'table-sort', variant: 'column-header-tasks', authority: 'components/tasks/TasksWorkspace.css sortable column header; inherits the Tasks header overline treatment' },
   { selector: '.collection-toolbar__choice-trigger', component: 'bounded-choice', variant: 'filter-chip', authority: 'components/record-collection/collection-toolbar.css filter trigger' },
+  { selector: '.collection-toolbar__view--active', component: 'chip', variant: 'saved-view-active', authority: 'components/record-collection/collection-toolbar.css active saved view; own background and colour' },
+  { selector: '.collection-toolbar__view', component: 'chip', variant: 'saved-view', authority: 'components/record-collection/collection-toolbar.css saved-view chip' },
+  { selector: '.view-tabs__tab--active', component: 'tab', variant: 'view-tab-active', authority: 'the collection presentation switcher, active face; own background and colour' },
+  { selector: '.view-tabs__tab', component: 'tab', variant: 'view-tab', authority: 'the collection presentation switcher (Table / Feed)' },
   { selector: '.rail-collapse-toggle', component: 'icon-button', variant: 'rail-collapse', authority: 'src/index.css --rail-toggle-size: 28px square, chosen to clear the icon-button footprint at a fine pointer without out-shouting a 36px nav item; 44px under a coarse pointer' },
   { selector: '.kms-tab', component: 'tab', variant: 'stream-tab', authority: 'components/kitchen/movement-seg.css production-stream segment; the Cafe capture destination strip' },
   { selector: '.dt-group-toggle, .dt-cards-group-toggle', component: 'disclosure', variant: 'group-toggle', authority: 'components/dashboard/data-table.css collapsible group header' },
-  // The saved-view chip is deliberately NOT named here. It renders at 26px, which no named
-  // size covers because DESIGN.md puts interactive controls at 32px — so naming it would
-  // only re-key an already-failing row instead of resolving it. The 26px chip is a real
-  // finding against that authority, and it is the fix that should carry the registry entry.
 ]
 
 /** Capture bounded-choice identities before any state or lifecycle interaction can scroll. */
@@ -513,10 +513,10 @@ export function classifyControlSize(height: number): string {
     [22, 'compact-22'],
     [36, 'nav-36'],
     [60, 'tabbar-60'],
-    // The rail's collapse toggle. Its own token documents 28px as deliberate — quieter than
-    // the 36px nav rows it sits under — so the size vocabulary was missing a step the design
-    // system had already chosen, exactly as it was for the 36px nav item above.
-    [28, 'rail-toggle-28'],
+    // Named by its value like the three above, not by one consumer: the rail's collapse
+    // toggle documents 28px as deliberate, and the collection's saved-view chip sits at 26px
+    // inside the same tolerance. A step the design system had already chosen twice.
+    [28, 'compact-28'],
   ] as const
   return named.find(([pixels]) => Math.abs(height - pixels) <= 2)?.[1] ?? 'unresolved'
 }
