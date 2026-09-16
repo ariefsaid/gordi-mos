@@ -234,6 +234,8 @@ export const CONTROL_VARIANT_VOCABULARY: readonly ControlVariantEntry[] = [
   { selector: 'th[aria-sort="ascending"] .th-sort-btn, th[aria-sort="descending"] .th-sort-btn', component: 'table-sort', variant: 'column-header-tasks-sorted', authority: 'components/tasks/TasksWorkspace.css sorted column header; the active sort carries its own foreground' },
   { selector: '.th-sort-btn', component: 'table-sort', variant: 'column-header-tasks', authority: 'components/tasks/TasksWorkspace.css sortable column header; inherits the Tasks header overline treatment' },
   { selector: '.collection-toolbar__choice-trigger', component: 'bounded-choice', variant: 'filter-chip', authority: 'components/record-collection/collection-toolbar.css filter trigger' },
+  { selector: '.kms-tab', component: 'tab', variant: 'stream-tab', authority: 'components/kitchen/movement-seg.css production-stream segment; the Cafe capture destination strip' },
+  { selector: '.dt-group-toggle, .dt-cards-group-toggle', component: 'disclosure', variant: 'group-toggle', authority: 'components/dashboard/data-table.css collapsible group header' },
   // The saved-view chip is deliberately NOT named here. It renders at 26px, which no named
   // size covers because DESIGN.md puts interactive controls at 32px — so naming it would
   // only re-key an already-failing row instead of resolving it. The 26px chip is a real

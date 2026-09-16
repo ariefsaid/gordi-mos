@@ -43,6 +43,8 @@ test('the control vocabulary names every approved shared primitive with authorit
     '.dt-sort-button',
     '.th-sort-btn',
     '.collection-toolbar__choice-trigger',
+    '.kms-tab',
+    '.dt-group-toggle, .dt-cards-group-toggle',
   ]) assert.ok(selectors.includes(selector), `missing vocabulary entry ${selector}`)
   assert.ok(
     selectors.indexOf('.overdue-filter-btn--active') < selectors.indexOf('.overdue-filter-btn'),
