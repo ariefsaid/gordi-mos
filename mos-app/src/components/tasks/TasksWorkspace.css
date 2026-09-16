@@ -516,6 +516,16 @@
      last wins — and the tighter phone gap this rule exists to set was being silently overridden. */
   .task-card-meta,
   .task-card-meta.collection-grammar-card-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; gap: 4px 12px; }
+  /* In a read-only card these cells hold text, and 4px between two lines is right. In the
+     DRAFT card they hold 44px pickers, so the same 4px put two tap targets half the phone
+     floor apart — Team above, PIC beside Supervisor below. Only the draft row opens up.
+     Four classes deliberately: the queue's own `.tasks-work-queue .task-card... .task-card-meta`
+     carries three and comes later in source order, so three would lose the tie-break. */
+  .tasks-work-queue .task-card .task-card-draft .task-card-meta,
+  .tasks-work-queue .task-card .task-card-draft .task-card-meta.collection-grammar-card-details {
+    row-gap: 8px;
+    margin-top: 8px;
+  }
   .task-card-meta-pair { max-width: 100%; min-width: 0; }
   .task-card-meta-pair:last-child { grid-column: 1 / -1; }
   .task-card-meta dd {

@@ -713,3 +713,16 @@
 .record-field__linked-value > .record-field__value { min-width: 0; }
 .record-field__linked-value .record-field__edit { width: 44px; min-width: 44px; flex: none; justify-content: center; }
 .record-field__linked-value .record-field__edit-affordance { opacity: 1; }
+
+/* Phone tap targets inside a record (DESIGN.md phone floor: >=44x44, >=8px apart).
+   The tab row sat 2px apart and a relation value was a 17px inline link — the value IS the
+   link, not a word inside a sentence, so the inline exemption does not reach it. */
+@media (pointer: coarse) {
+  .record-viewer__tabs { gap: 8px; }
+  .record-field__value > a,
+  .record-field__value > span > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
