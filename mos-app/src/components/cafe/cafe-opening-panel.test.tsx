@@ -390,7 +390,8 @@ describe('DD-MVP-17 — door presentation', () => {
     mockGetTodayOpeningForTeam.mockResolvedValue({
       started: true, runId: RUN_ID,
       rollup: {
-        caption: 'Café Opening · 16 Sep 2026', done: 1, total: 3,
+        process_run_id: RUN_ID, caption: 'Café Opening · 16 Sep 2026', scheduled_date: '2026-09-16',
+        status: 'open', total: 3, open: 2, in_progress: 0, blocked: 0, done: 1,
         overdue: 0, pending_unresolved: 0, completion_pct: 33,
       },
     })
