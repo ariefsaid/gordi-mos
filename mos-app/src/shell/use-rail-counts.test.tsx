@@ -25,16 +25,23 @@ describe('useRailCounts — the single rail count-fetch seam', () => {
     { roles: ['member'], isManager: false, view: 'my-work' },
     { roles: ['member'], isManager: true, view: 'team-work' },
     { roles: ['ops_lead'], isManager: false, view: 'team-work' },
+    { roles: ['supervisor'], isManager: false, view: 'team-work' },
     { roles: ['admin'], isManager: true, view: 'all' },
-  ])('counts the $view default for $roles with reporting=$isManager', async ({ roles, isManager, view }) => {
+  ])('AC-014: counts the $view default for $roles with reporting=$isManager', async ({ roles, isManager, view }) => {
     mockUseAuth.mockReturnValue({ status: 'authenticated', viewer: {
       person: { id: 'viewer' }, accessRoles: roles, isManager,
     } } as never)
-    mockGetPersonTeams.mockResolvedValue([{ id: 'actual-team' }] as never)
+    mockGetPersonTeams.mockResolvedValue([{ id: 'actual-team', businessUnitId: 'bu-retail' }] as never)
     mockGetRailCounts.mockResolvedValue({ openTasks: 4 })
     const { result } = renderHook(() => useRailCounts())
     await waitFor(() => expect(result.current).toEqual({ openTasks: 4 }))
-    expect(mockGetRailCounts).toHaveBeenCalledWith('viewer', view, view === 'team-work' ? ['actual-team'] : [])
+    // AC-014: the whole Team option rides through (id + BU) so the count can match the view's
+    // FR-011 shape — never a bare id list that drops the null-Team BU fallback.
+    expect(mockGetRailCounts).toHaveBeenCalledWith(
+      'viewer',
+      view,
+      view === 'team-work' ? [{ id: 'actual-team', businessUnitId: 'bu-retail' }] : [],
+    )
     expect(mockGetPersonTeams).toHaveBeenCalledTimes(view === 'team-work' ? 1 : 0)
   })
 

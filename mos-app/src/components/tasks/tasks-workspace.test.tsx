@@ -2231,3 +2231,93 @@ describe('Ticket #750 — AC-024 the skeleton never outlives the request', () =>
     expect(screen.queryByRole('alert')).toBeNull()
   })
 })
+
+// ── Issue #749 — role default view (T2) ─────────────────────────────────────
+
+// Walk personas (docs/specs/tasks-judgment.md): Bulan member without reports, Cahya ops_lead
+// with a downline, Sinta supervisor, Dewi the owner-director. Role shape matches the dev seed:
+// the director is the only role with no reports_to_role_id above it.
+function roleRow(name: string, reportsTo: string | null): RolesRow {
+  return {
+    id: `role-${name.toLowerCase().replace(/\s+/g, '-')}`, org_id: 'org', business_unit_id: 'bu-1',
+    name, reports_to_role_id: reportsTo,
+    created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+  }
+}
+
+function personaAuth(over: { roles: RolesRow[]; isManager: boolean; accessRoles: string[] }): AuthState {
+  return {
+    status: 'authenticated',
+    viewer: { person: VIEWER_PERSON, roles: over.roles, isManager: over.isManager, accessRoles: over.accessRoles, affiliated: [] },
+    signOut: async () => {},
+  }
+}
+
+const BULAN = personaAuth({ roles: [roleRow('Barista', 'role-head-barista')], isManager: false, accessRoles: ['member'] })
+const CAHYA = personaAuth({ roles: [roleRow('Cafe Ops Lead', 'role-managing-director')], isManager: true, accessRoles: ['ops_lead'] })
+const SINTA = personaAuth({ roles: [roleRow('Bar Supervisor', 'role-cafe-ops-lead')], isManager: false, accessRoles: ['supervisor'] })
+const DEWI = personaAuth({ roles: [roleRow('Managing Director', null)], isManager: true, accessRoles: ['admin'] })
+
+// The production shape: no `savedView` bridge prop, so the URL (or its absence) is the only
+// input to the initial view — exactly what TasksLayout renders.
+function renderCollectionAt(entries: string[], auth: AuthState) {
+  return render(
+    <I18nProvider>
+      <AuthContext.Provider value={auth}>
+        <MemoryRouter initialEntries={entries}>
+          <BreadcrumbTitleProvider>
+            <OverlayHostProvider>
+              <nav aria-label="Breadcrumb"><Breadcrumb /></nav>
+              <TasksWorkspace />
+            </OverlayHostProvider>
+          </BreadcrumbTitleProvider>
+        </MemoryRouter>
+      </AuthContext.Provider>
+    </I18nProvider>,
+  )
+}
+
+async function landingAssertions(auth: AuthState, chip: string, breadcrumb: string) {
+  // The row must be visible in EVERY default scope: owned by the viewer (My work) and on a
+  // viewer team (Team work), which All shows regardless.
+  mockListTasks.mockResolvedValue([makeTask({ title: 'Landing task', team_id: 'team-1' })])
+  renderCollectionAt(['/work/tasks'], auth)
+  await waitFor(() => screen.getByText('Landing task'))
+  expect(screen.getByRole('button', { name: chip })).toHaveAttribute('aria-pressed', 'true')
+  const nav = screen.getByRole('navigation', { name: 'Breadcrumb' })
+  expect(nav.textContent?.replace(/\s*·\s*/g, ' · ').replace(/\s+/g, ' ').trim()).toContain(breadcrumb)
+}
+
+describe('Issue #749 — Tasks opens on your own work (AC-011/AC-013)', () => {
+  it('AC-013: Bulan lands on My work and the breadcrumb leaf names it', async () => {
+    await landingAssertions(BULAN, 'My work', 'Work · Tasks · My work')
+  })
+
+  it('AC-013: Cahya lands on Team work and the leaf names the active view (AC-011)', async () => {
+    await landingAssertions(CAHYA, 'Team work', 'Work · Tasks · Team work')
+  })
+
+  it('AC-013: Sinta (supervisor) lands on Team work', async () => {
+    await landingAssertions(SINTA, 'Team work', 'Work · Tasks · Team work')
+  })
+
+  it('AC-013: Dewi lands on All — the org view, no named leaf', async () => {
+    await landingAssertions(DEWI, 'All', 'Work · Tasks')
+  })
+
+  it('AC-013: a URL carrying a view wins over the role default', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'late', title: 'Late task', due_date: '2020-01-01' })])
+    renderCollectionAt(['/work/tasks?view=overdue'], BULAN)
+    await waitFor(() => screen.getByText('Late task'))
+    expect(screen.getByRole('button', { name: 'Overdue' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('AC-013: unrelated URL state keeps the role default when view is absent', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Landing task' })])
+    renderCollectionAt(['/work/tasks?q=Landing'], BULAN)
+    await waitFor(() => screen.getByText('Landing task'))
+    expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('searchbox', { name: 'Search tasks' })).toHaveValue('Landing')
+  })
+})

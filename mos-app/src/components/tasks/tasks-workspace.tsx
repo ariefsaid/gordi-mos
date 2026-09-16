@@ -182,11 +182,19 @@ export function TasksWorkspace({
   const currentSearch = location.search
   const initialQuery = useMemo(() => {
     const legacy = queryFromLegacySavedView(savedView)
-    if (legacy) return legacy
+    // The savedView prop is a compatibility bridge for URL-less embedders. Any URL state belongs
+    // to the collection query and must win; otherwise occurrence/record links lose their scope.
+    if (legacy && location.search === '') return legacy
     // An explicit URL view is authoritative. Only seed the role-aware default when the user has
-    // not supplied one, so Overdue/Team/My work links survive reload exactly as written.
-    if (new URLSearchParams(location.search).has('view')) return undefined
-    return { ...TASK_COLLECTION_NEUTRAL_QUERY, view: defaultTaskView(auth, accessRoles) }
+    // not supplied one, so Overdue/Team/My work links survive reload exactly as written. Parse the
+    // rest of the URL into this initial query: q, record and create must not silently force All.
+    const params = new URLSearchParams(location.search)
+    if (params.has('view')) return undefined
+    const parsed = taskCollectionDescriptor.query.parse(params, taskCollectionDescriptor.defaultPresentation)
+    return {
+      ...(parsed.query ?? TASK_COLLECTION_NEUTRAL_QUERY),
+      view: defaultTaskView(auth, accessRoles),
+    }
   }, [accessRoles, auth, location.search, savedView])
   const [draftTask, setDraftTask] = useState<TaskListRow | null>(null)
   const [draftLinkError, setDraftLinkError] = useState(false)
