@@ -276,9 +276,16 @@ export async function collectVisibleContent(
         || ['hidden', 'clip'].includes(style.overflowX)
         || ['hidden', 'clip'].includes(style.overflowY)
       const lineClamp = style.getPropertyValue('-webkit-line-clamp') || 'none'
+      // A clamp that is not clamping has truncated nothing. Treating the DECLARATION as
+      // truncation failed every Task title in the drawer-narrowed table — thirteen rows whose
+      // scrollWidth equalled their clientWidth and whose two lines fit in two lines — and the
+      // clamp is there on purpose, so titles wrap instead of being ellipsised onto one line.
+      // Content that really does overrun its clamp still overflows its box, which is measurable.
+      const clampOverruns = lineClamp !== 'none' && lineClamp !== '0'
+        && element.scrollHeight > element.clientHeight + 1
       const truncated = element.scrollWidth > element.clientWidth + 1
         || (overflowClips && element.scrollHeight > element.clientHeight + 1)
-        || (lineClamp !== 'none' && lineClamp !== '0')
+        || clampOverruns
       const fullValuePathExercised = exercisedSelectors.some((selector) => {
         try { return element.matches(selector) } catch { return false }
       })
@@ -338,6 +345,7 @@ export async function collectVisibleContent(
       // element and leaves the cover anonymous, and the only way to find it is to re-drive the
       // state by hand and guess.
       let occludedBy: string | null = null
+      let occludingRect: DOMRect | null = null
       for (const band of persistentBands) {
         if (band === target || band.contains(target) || target.contains(band)) continue
         const bandRect = band.getBoundingClientRect()
@@ -348,12 +356,14 @@ export async function collectVisibleContent(
         if (ratio > intersectionRatio) {
           intersectionRatio = ratio
           occludedBy = cssPath(band)
+          occludingRect = bandRect
         }
         const centerX = targetRect.left + targetRect.width / 2
         const centerY = targetRect.top + targetRect.height / 2
         if (centerX >= bandRect.left && centerX <= bandRect.right && centerY >= bandRect.top && centerY <= bandRect.bottom) {
           centerCovered = true
           occludedBy ??= cssPath(band)
+          occludingRect ??= bandRect
         }
       }
       const topInset = persistentBands.reduce((value, band) => {
@@ -377,6 +387,8 @@ export async function collectVisibleContent(
           centerCovered,
           fullyReachable,
           occludedBy,
+          targetRect: { x: Math.round(targetRect.x), y: Math.round(targetRect.y), width: Math.round(targetRect.width), height: Math.round(targetRect.height) },
+          bandRect: occludingRect && { x: Math.round(occludingRect.x), y: Math.round(occludingRect.y), width: Math.round(occludingRect.width), height: Math.round(occludingRect.height) },
           persistentBandCount: persistentBands.length,
           measuredAt: 'scrolled-into-centre',
         }),

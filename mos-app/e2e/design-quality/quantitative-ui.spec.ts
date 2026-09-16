@@ -360,6 +360,35 @@ test('an open modal owns the keyboard population, and a trap that leaks still fa
   expect(composite.cycleDetected, 'holding focus is not the order repeating a stop').toBe(false)
 })
 
+test('a line clamp is truncation only when something actually overruns it', async ({ page }) => {
+  const context = {
+    route: '/planted', journey: 'planted', fixture: 'planted',
+    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default',
+  }
+  // Both boxes declare the same two-line clamp. One title fits in two lines; the other does not.
+  // Reading the DECLARATION as truncation failed every Task title in the drawer-narrowed table,
+  // where the clamp exists so titles wrap instead of being ellipsised onto a single line.
+  await page.setContent(`
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); font: 14px system-ui; }
+      p { width: 160px; margin: 0; display: -webkit-box; -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2; overflow: hidden; }
+    </style>
+    <main>
+      <p>Replace grinder burrs</p>
+      <p>A title so long that two lines cannot hold it, not at this width, not by a wide margin at all</p>
+    </main>
+  `)
+  const rows = await collectVisibleContent(page, context, 'planted-clamp', [])
+  const clampRow = (nth: number) => {
+    const row = rows.find((entry) => entry.kind === 'text-truncation' && entry.selector.endsWith(`p:nth-of-type(${nth})`))
+    expect(row, JSON.stringify(rows.filter((entry) => entry.kind === 'text-truncation').map((entry) => entry.selector))).toBeDefined()
+    return row!
+  }
+  expect(clampRow(1).passed, clampRow(1).measured).toBe(true)
+  expect(clampRow(2).passed, clampRow(2).measured).toBe(false)
+})
+
 test('an open modal is the surface under measurement; the inert page behind it is not', async ({ page }) => {
   const context = {
     route: '/planted', journey: 'planted', fixture: 'planted',
