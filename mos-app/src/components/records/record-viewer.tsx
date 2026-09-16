@@ -525,7 +525,7 @@ function RecordBody({
           data-content-slot={slot.id}
           aria-label={slot.label}
         >
-          {slot.render({ mode, readOnly, onCommitField, onDirtyChange, fieldCommitsFrozen })}
+          {slot.render({ mode, readOnly, onCommitField, onDirtyChange, fieldCommitsFrozen, headingLevel })}
         </section>
       ))}
 
