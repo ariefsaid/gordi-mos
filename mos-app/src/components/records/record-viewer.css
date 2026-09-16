@@ -716,8 +716,13 @@
 
 /* Phone tap targets inside a record (DESIGN.md phone floor: >=44x44, >=8px apart).
    The tab row sat 2px apart and a relation value was a 17px inline link — the value IS the
-   link, not a word inside a sentence, so the inline exemption does not reach it. */
-@media (pointer: coarse) {
+   link, not a word inside a sentence, so the inline exemption does not reach it.
+
+   Keyed to WIDTH, not `pointer: coarse`. A browser at phone width reports a fine pointer
+   unless it is also emulating a device, so a coarse gate leaves the floor unapplied on the
+   very viewport it exists for — and the audit, which measures at 390px in a desktop
+   headless browser, went on reading 2px gaps and 17px links with the rule in place. */
+@media (max-width: 767.98px) {
   .record-viewer__tabs { gap: 8px; }
   .record-field__value > a,
   .record-field__value > span > a {

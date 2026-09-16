@@ -525,7 +525,15 @@
   .tasks-work-queue .task-card .task-card-draft .task-card-meta.collection-grammar-card-details {
     row-gap: 8px;
     margin-top: 8px;
+    /* One column, not two. A read-only cell holds a short value beside its label and two fit
+       across a phone; a draft cell holds a 44px picker whose placeholder is a sentence, and
+       half a phone left "Select supervisor…" needing 120px in an 89px box. */
+    grid-template-columns: minmax(0, 1fr);
   }
+  .tasks-work-queue .task-card .task-card-draft .task-card-meta-pair { width: 100%; }
+  .tasks-work-queue .task-card .task-card-draft .task-card-create-control { flex: 1 1 auto; min-width: 0; }
+  .tasks-work-queue .task-card .task-card-draft .task-card-create-control .picker,
+  .tasks-work-queue .task-card .task-card-draft .task-card-create-control .picker__trigger { width: 100%; }
   .task-card-meta-pair { max-width: 100%; min-width: 0; }
   .task-card-meta-pair:last-child { grid-column: 1 / -1; }
   .task-card-meta dd {

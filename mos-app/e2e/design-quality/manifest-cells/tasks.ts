@@ -41,11 +41,15 @@ export const TASK_CELL_INPUTS = [
   ['tasks-record-phone-id-dark', {
     area: 'tasks', journey: 'tasks-record', route: '/mos/work/tasks', fixture: 'VIEWER',
     viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'open-task', status: 'covered', primary: true,
+    // A phone has no room for a drawer beside the queue: opening a card NAVIGATES to the
+    // record's own page. The contract asserted the overlay host, which only exists where the
+    // record opens beside the collection, so this cell reported `state assertion did not match`
+    // and was never covered — while still being counted as one of the four this pass drove.
     stateContract: {
       setup: [{ action: 'click', selector: 'a.task-card-link' }],
-      assertion: { selector: '[data-overlay-host="true"][data-overlay-owner="tasks"]' },
-      // `nodrawer` is on the split wrapper exactly while no Task record session is open.
-      negativeAssertion: { selector: '.split.nodrawer' },
+      assertion: { selector: '.record-viewer[data-record-kind="task"][data-record-mode="page"]' },
+      // The queue's cards are the surface this one replaces, so their absence is the proof.
+      negativeAssertion: { selector: 'article[data-testid="task-card"]' },
     },
   }],
   ['tasks-record-desktop-en-light', {
