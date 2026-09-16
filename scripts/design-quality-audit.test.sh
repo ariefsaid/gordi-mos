@@ -122,7 +122,12 @@ else
 fi
 
 scope="$(mktemp -t mos-design-quality-scope.XXXXXX)"
-trap 'rm -f "$scope" /tmp/mos-audit-workspace-test.log /tmp/mos-design-quality-manifest-test.log /tmp/mos-design-quality-check.log /tmp/mos-design-quality-mutated.log' EXIT
+missing_snapshot_base="design-audit-no-snapshot-$$"
+missing_snapshot_ref="refs/remotes/origin/$missing_snapshot_base"
+snapshot_intro="$(git log --format=%H --diff-filter=A -- mos-app/e2e/design-quality/automatic-failure-baseline.json | tail -1)"
+snapshot_parent="$(git rev-parse "$snapshot_intro^")"
+git update-ref "$missing_snapshot_ref" "$snapshot_parent"
+trap 'git update-ref -d "$missing_snapshot_ref"; rm -f "$scope" /tmp/mos-audit-workspace-test.log /tmp/mos-design-quality-manifest-test.log /tmp/mos-design-quality-check.log /tmp/mos-design-quality-mutated.log' EXIT
 cat > "$scope" <<'EOF'
 - Tasks — /mos/work/tasks
 - Signals — /mos/work/signals
@@ -160,7 +165,7 @@ else
   ok "baseline environment input is rejected"
 fi
 
-if DESIGN_AUDIT_CHECK_ONLY=1 DESIGN_AUDIT_ID=a1b2c3d4 \
+if MOS_PR_BASE="$missing_snapshot_base" DESIGN_AUDIT_CHECK_ONLY=1 DESIGN_AUDIT_ID=a1b2c3d4 \
   bash scripts/design-quality-audit.sh "$scope" --base-url http://localhost:5173/mos/ \
   --mode change-gate >/tmp/mos-design-quality-mutated.log 2>&1; then
   bad "change-gate without a committed merge-base snapshot was accepted"
