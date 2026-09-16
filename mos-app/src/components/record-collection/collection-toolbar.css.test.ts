@@ -33,21 +33,25 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
     )
   })
 
+  // Each box reserves its basis and never grows past it, and MAY shrink below it. The bases
+  // budget the row without the clear-filters action, which appears only once a filter is
+  // applied; a box that could not give way pushed the page 57px sideways at 1024. A contracted
+  // box ellipsizes with its full value on the trigger, which the rule's own comment promises.
   it('reserves enough desktop width for the ordinary Tasks filter values', () => {
     expect(css).toMatch(
-      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='group'\][\s\S]*?flex:\s*0 0 136px;[\s\S]*?max-width:\s*none;/s,
+      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='group'\][\s\S]*?flex:\s*0 1 136px;[\s\S]*?max-width:\s*none;/s,
     )
     expect(css).toMatch(
-      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='business-unit'\][\s\S]*?flex:\s*0 0 100px;[\s\S]*?max-width:\s*none;/s,
+      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='business-unit'\][\s\S]*?flex:\s*0 1 100px;[\s\S]*?max-width:\s*none;/s,
     )
     expect(css).toMatch(
-      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='status'\]\s*\{[^}]*flex:\s*0 0 108px;[^}]*max-width:\s*none;[^}]*\}[\s\S]*?\[data-filter-id='status'\] \.collection-toolbar__select\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s,
+      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='status'\]\s*\{[^}]*flex:\s*0 1 108px;[^}]*max-width:\s*none;[^}]*\}[\s\S]*?\[data-filter-id='status'\] \.collection-toolbar__select\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s,
     )
     expect(css).toMatch(
-      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='person'\][\s\S]*?flex:\s*0 0 100px;[\s\S]*?max-width:\s*none;/s,
+      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='person'\][\s\S]*?flex:\s*0 1 100px;[\s\S]*?max-width:\s*none;/s,
     )
     expect(css).toMatch(
-      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='sort'\][\s\S]*?flex:\s*0 0 142px;[\s\S]*?max-width:\s*none;/s,
+      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='sort'\][\s\S]*?flex:\s*0 1 142px;[\s\S]*?max-width:\s*none;/s,
     )
   })
 

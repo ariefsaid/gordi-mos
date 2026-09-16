@@ -236,21 +236,26 @@
   .tasks-collection-toolbar .collection-toolbar__choice-trigger { min-width: 0; }
   /* The reference desktop keeps ordinary filter values readable while the row remains one
      bounded line. Exceptional directory names continue to use the existing ellipsis/title path
-     inside these fixed boxes. */
+     inside these fixed boxes.
+     The bases are a budget for the row WITHOUT the clear-filters action, which appears only once
+     a filter is applied — so applying one pushed the row 57px past the viewport at 1024 and the
+     page scrolled sideways. These boxes may now shrink below their basis, which is what the
+     grammar above already says they do: the row stays one line and a contracted box ellipsizes
+     with its full value on the trigger. They still never grow past it. */
   .tasks-collection-toolbar [data-filter-id='group'],
   .tasks-collection-toolbar [data-filter-id='group'] .collection-toolbar__select {
-    flex: 0 0 136px;
+    flex: 0 1 136px;
     width: 136px;
     max-width: none;
   }
   .tasks-collection-toolbar [data-filter-id='business-unit'],
   .tasks-collection-toolbar [data-filter-id='business-unit'] .collection-toolbar__select {
-    flex: 0 0 100px;
+    flex: 0 1 100px;
     width: 100px;
     max-width: none;
   }
   .tasks-collection-toolbar [data-filter-id='status'] {
-    flex: 0 0 108px;
+    flex: 0 1 108px;
     width: 108px;
     max-width: none;
   }
@@ -261,13 +266,13 @@
   }
   .tasks-collection-toolbar [data-filter-id='person'],
   .tasks-collection-toolbar [data-filter-id='person'] .collection-toolbar__select {
-    flex: 0 0 100px;
+    flex: 0 1 100px;
     width: 100px;
     max-width: none;
   }
   .tasks-collection-toolbar [data-filter-id='sort'],
   .tasks-collection-toolbar [data-filter-id='sort'] .collection-toolbar__select {
-    flex: 0 0 142px;
+    flex: 0 1 142px;
     width: 142px;
     max-width: none;
   }
