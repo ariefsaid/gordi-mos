@@ -288,4 +288,8 @@
   .inbox-row__title { white-space: normal; overflow-wrap: anywhere; font-size: var(--font-size-body-lg); }
   .inbox-row__body { font-size: var(--font-size-body); line-height: 1.5; }
   .inbox-triage__kbd-hint { display: none; }
+  /* Phone touch floor: the three filters are separate targets, so the interval between
+     them clears 8px here. The 4px above is the segmented grammar's pointer rhythm, which
+     segmented-track.css opens to the same 8px at this width so the two stay in step. */
+  .inbox-triage__filters { gap: 8px; }
 }

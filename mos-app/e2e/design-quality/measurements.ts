@@ -381,8 +381,29 @@ export async function collectVisibleContent(
           measured: JSON.stringify({ width: 0, height: 0, nearestDistance: null, populationSize: 0 }),
         })
       }
+      // A control's touch target is the area that activates it, which is not always its own
+      // box. A checkbox painted at 16px inside a <label> is hit anywhere on that label, so
+      // the label is the target a thumb actually has — measuring the input alone reports a
+      // 16px failure for a control the floor is already met for. Union the input with the
+      // label that activates it; a bare small checkbox with no such label still fails, and
+      // the neighbour distance is measured from the same real area.
+      const targetArea = (element: HTMLElement): DOMRect => {
+        const rect = element.getBoundingClientRect()
+        const tag = element.tagName.toLowerCase()
+        if (tag !== 'input' && tag !== 'select' && tag !== 'textarea') return rect
+        const id = element.getAttribute('id')
+        const label = element.closest('label')
+          ?? (id ? document.querySelector<HTMLLabelElement>(`label[for="${CSS.escape(id)}"]`) : null)
+        if (!label || !visible(label)) return rect
+        const box = label.getBoundingClientRect()
+        const left = Math.min(rect.left, box.left)
+        const top = Math.min(rect.top, box.top)
+        const right = Math.max(rect.right, box.right)
+        const bottom = Math.max(rect.bottom, box.bottom)
+        return new DOMRect(left, top, right - left, bottom - top)
+      }
       for (const target of controls) {
-        const rect = target.getBoundingClientRect()
+        const rect = targetArea(target)
         const container = target.closest('form, nav, [role="group"], [role="toolbar"], [role="menu"], [role="listbox"], main, aside, [role="dialog"]')
           || document.body
         const neighbours = controls.filter((candidate) => candidate !== target
@@ -391,7 +412,11 @@ export async function collectVisibleContent(
         let nearestDistance: number | null = null
         let nearestSelector = ''
         for (const neighbour of neighbours) {
-          const other = neighbour.getBoundingClientRect()
+          const other = targetArea(neighbour)
+          // A control inside the same activating label is the same target, not a neighbour
+          // 0px away from itself.
+          if (other.left === rect.left && other.top === rect.top
+            && other.width === rect.width && other.height === rect.height) continue
           const dx = Math.max(rect.left - other.right, other.left - rect.right, 0)
           const dy = Math.max(rect.top - other.bottom, other.top - rect.bottom, 0)
           const distance = Math.hypot(dx, dy)
