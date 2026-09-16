@@ -132,6 +132,35 @@ const MUTATING_PICKER_PAGE = `
     <div id="second-b" role="option">Delta</div>
   </div>
   <script>
+    function ensureSecond() {
+      if (document.getElementById('second')) return
+      const second = document.createElement('button')
+      second.id = 'second'
+      second.setAttribute('role', 'combobox')
+      second.setAttribute('aria-haspopup', 'listbox')
+      second.setAttribute('aria-expanded', 'false')
+      second.setAttribute('aria-controls', 'second-list')
+      second.textContent = 'Second picker'
+      document.body.appendChild(second)
+      const list = document.createElement('div')
+      list.id = 'second-list'
+      list.setAttribute('role', 'listbox')
+      list.hidden = true
+      list.innerHTML = '<div id="second-a" role="option" aria-selected="true">Gamma</div><div id="second-b" role="option">Delta</div>'
+      document.body.appendChild(list)
+      const open = () => { second.setAttribute('aria-expanded', 'true'); list.hidden = false; second.setAttribute('aria-activedescendant', 'second-a') }
+      const close = (restore) => { second.setAttribute('aria-expanded', 'false'); list.hidden = true; if (restore) second.focus() }
+      second.addEventListener('click', () => second.getAttribute('aria-expanded') === 'true' ? close(true) : open())
+      second.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowDown') { event.preventDefault(); if (second.getAttribute('aria-expanded') !== 'true') open(); second.setAttribute('aria-activedescendant', 'second-b') }
+        if (event.key.length === 1 && event.key.toLowerCase() === 'g') second.setAttribute('aria-activedescendant', 'second-a')
+        if (event.key === 'Enter' && second.getAttribute('aria-expanded') === 'true') { event.preventDefault(); close(true) }
+        if (event.key === 'Escape' && second.getAttribute('aria-expanded') === 'true') close(true)
+      })
+      document.addEventListener('pointerdown', (event) => {
+        if (!second.contains(event.target) && !list.contains(event.target)) close(true)
+      })
+    }
     {
       const trigger = document.getElementById('first')
       const list = document.getElementById('first-list')
@@ -143,16 +172,35 @@ const MUTATING_PICKER_PAGE = `
         if (event.key.length === 1 && event.key.toLowerCase() === 'a') trigger.setAttribute('aria-activedescendant', 'first-a')
         if (event.key === 'Enter' && trigger.ariaExpanded === 'true') {
           event.preventDefault(); close(true)
-          // Committing "Beta" removes the later captured picker, exactly as a real
-          // filter or form value change can unmount a sibling control.
-          document.getElementById('second')?.remove()
-          document.getElementById('second-list')?.remove()
+          // Committing a value drives what is mounted — exactly as a real filter or form
+          // value change can unmount (or re-mount) a sibling control. Selecting "Beta"
+          // removes the later captured picker; selecting "Alpha" puts it back.
+          if (trigger.getAttribute('aria-activedescendant') === 'first-b') {
+            document.getElementById('second')?.remove()
+            document.getElementById('second-list')?.remove()
+          } else {
+            ensureSecond()
+          }
         }
         if (event.key === 'Escape' && trigger.ariaExpanded === 'true') close(true)
       })
       document.addEventListener('pointerdown', (event) => {
         if (!trigger.contains(event.target) && !list.contains(event.target)) close(true)
       })
+      // Click-to-select on the options (mirrors the real Picker): selecting "Alpha" re-mounts
+      // the later picker, selecting "Beta" removes it.
+      for (const option of list.querySelectorAll('[role="option"]')) {
+        option.addEventListener('click', () => {
+          trigger.setAttribute('aria-activedescendant', option.id)
+          close(true)
+          if (option.id === 'first-b') {
+            document.getElementById('second')?.remove()
+            document.getElementById('second-list')?.remove()
+          } else {
+            ensureSecond()
+          }
+        })
+      }
     }
     {
       const trigger = document.getElementById('second')
@@ -724,9 +772,11 @@ test('control consistency entry point writes a complete per-cell census', async 
     const stateColors = await exerciseControlStateColors(page, cellContext, cell.id)
     // A lifecycle drive commits a value (ArrowDown+Enter). Restore the captured cell state
     // after such a drive so later identities resolve against the state they were captured
-    // in; the manifest assertion is the readiness seam after the reload.
+    // in; the manifest assertion is the readiness seam after the reload, and the network
+    // settle keeps data-driven controls (e.g. a count pill) from racing their re-render.
     const restoreCell = async (): Promise<void> => {
       await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {})
       await observeManifestCellState(page, cell)
     }
     const lifecycle = await exerciseBoundedChoices(page, cell.id, cellContext, capturedBoundedChoices, restoreCell)

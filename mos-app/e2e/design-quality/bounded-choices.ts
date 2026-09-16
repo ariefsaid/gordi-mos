@@ -1069,7 +1069,30 @@ export async function exerciseBoundedChoices(
         closedContrastRows,
       }),
     })
-    if (restoreCell && committedChangedValue) await restoreCell()
+    if (committedChangedValue && restoreCell) {
+      // Prefer restoring in place: re-open the popup and re-select the captured option.
+      // A reload resets component state too — an open phone disclosure panel closes and
+      // every identity captured inside it goes "missing" — and races the data re-fetch.
+      let restored = false
+      if (selectedOptionResolution.id !== '') {
+        await trigger.click()
+        const restorePopup = await resolveAssociatedPopup(page, trigger)
+        if (restorePopup.popup && restorePopup.reason === null) {
+          const original = restorePopup.popup.locator(idAttributeSelector(selectedOptionResolution.id))
+          if ((await original.count()) === 1) {
+            await original.click()
+            restored = true
+          } else {
+            await page.keyboard.press('Escape')
+          }
+        }
+      }
+      if (!restored) await restoreCell()
+      // The restored value re-arms the captured view asynchronously (a refetch re-renders
+      // data-driven controls like count pills); let the network settle before the next
+      // identity resolves against the page.
+      await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {})
+    }
     } catch (error) {
       rows.push(resolutionFailureRow(cellId, target, {
         matchCount: target.id ? 1 : 0,
