@@ -313,7 +313,7 @@ const emptyNamedLists: ManifestLists = {
       authority: 'DESIGN.md compact toolbar: a contracted value keeps its full string on the trigger and in the choice list it opens',
       routes: ['/mos/work/tasks'],
       viewports: ['compact-1024x768'],
-      reveal: { action: 'click', selector: '.collection-toolbar__fields-menu .collection-toolbar__toggle span' },
+      reveal: { action: 'click', selector: "[data-filter-id='status'] .collection-toolbar__fields-menu .collection-toolbar__toggle span" },
     },
   ],
   touchSeparationGroups: [
@@ -480,6 +480,17 @@ export function validateManifest(manifest: DesignQualityManifest): ManifestValid
         && (!['focus', 'hover', 'click'].includes(entry.reveal?.action ?? '')
           || !isNonEmptyString(entry.reveal?.selector))) {
         errors.push(`named list fullValuePaths entry ${entry.selector || '<unknown>'} requires a driven visible reveal`)
+      }
+      // A reveal is proved by finding the expected string inside it, and `textContent` does not
+      // know about clipping — so an ANCESTOR of the clipped element always contains that string.
+      // A page-level reveal selector would therefore exempt any truncation anywhere while looking
+      // exercised. The driver cannot catch that; only this can.
+      if (listName === 'fullValuePaths' && isNonEmptyString(entry.reveal?.selector)) {
+        const reveal = entry.reveal!.selector.trim()
+        const pageLevel = ['html', 'body', 'main', '#root', '[role="main"]', "[role='main']"]
+        if (pageLevel.includes(reveal) || pageLevel.some((token) => reveal.startsWith(`${token} `) && !reveal.includes('.') && !reveal.includes('['))) {
+          errors.push(`named list fullValuePaths entry ${entry.selector || '<unknown>'} reveals into a page-level container, which contains the value whether or not anything reveals it`)
+        }
       }
       if (entry.routes?.some((route) => !manifest.dimensions.route.includes(route))) {
         errors.push(`named list ${listName} entry uses a route outside the manifest dimensions`)
