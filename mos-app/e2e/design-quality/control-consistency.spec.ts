@@ -3,17 +3,12 @@ import { expect, test } from '@playwright/test'
 import { collectControlConsistency, exerciseBoundedChoices, exerciseControlStateColors } from './bounded-choices'
 import { DESIGN_QUALITY_MANIFEST, isManifestCellRunnable } from './manifest'
 import {
-  failureFromControlConsistencyRow,
-} from './change-gate.ts'
-import {
   assertAuditEnvironment,
   assertAuditServer,
   auditEnabled,
   auditRun,
   cellsFor,
-  compareAutomaticFailuresForLane,
   prepareAuditPage,
-  writeAutomaticLaneSummary,
 } from './runtime'
 
 const context = {
@@ -214,24 +209,7 @@ test('control consistency entry point writes a complete per-cell census', async 
   }
 
   await run.writer.writeCsv('control-consistency.csv', rows as unknown as Record<string, unknown>[])
-  const allFailures = rows
-    .filter((row) => !row.passed)
-    .map((row) => failureFromControlConsistencyRow(row as unknown as Record<string, unknown>))
-  const comparison = await compareAutomaticFailuresForLane(run, allFailures)
-  await writeAutomaticLaneSummary(run, 'control-consistency-summary.json', {
-    rows: rows.length,
-    auditMode: process.env.DESIGN_AUDIT_MODE === 'change-gate' ? 'change-gate' : 'mvp-assessment',
-    failures: comparison.failures,
-    allFailures: comparison.allFailures,
-    inheritedFailures: comparison.inheritedFailures,
-    newFailures: comparison.newFailures,
-    failureCounts: {
-      all: comparison.allFailures.length,
-      inherited: comparison.inheritedFailures.length,
-      new: comparison.newFailures.length,
-    },
-    automaticChecksPassed: comparison.automaticChecksPassed,
-  }, rows.length)
+  const failures = rows.filter((row) => !row.passed)
   expect(rows.length).toBeGreaterThan(0)
-  expect(comparison.failures, `control consistency failures:\n${comparison.failures.slice(0, 80).map((failure) => `${failure.cellId} ${failure.ruleId} ${failure.selector}`).join('\n')}`).toEqual([])
+  expect(failures, `control consistency failures:\n${failures.slice(0, 80).map((row) => `${row.cellId} ${row.kind} ${row.selector}`).join('\n')}`).toEqual([])
 })

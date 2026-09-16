@@ -9,12 +9,9 @@ import {
   auditEnabled,
   auditRun,
   cellsFor,
-  compareAutomaticFailuresForLane,
   observeManifestCellState,
   prepareAuditPage,
-  writeAutomaticLaneSummary,
 } from './runtime'
-import { type AutomaticFailure } from './change-gate.ts'
 
 const require = createRequire(import.meta.url)
 const axeScript = require.resolve('axe-core/axe.min.js') as string
@@ -72,7 +69,6 @@ test('axe-core scans every rendered audit route and records moderate findings', 
         viewport: cell.viewport,
         theme: cell.theme,
         language: cell.language,
-        cellId: cell.id,
         state: cell.state,
         stateObserved: observation.status === 'covered',
         stateEvidence: observation.evidence,
@@ -98,37 +94,16 @@ test('axe-core scans every rendered audit route and records moderate findings', 
     `axe_serious_or_critical=${blocking.length}`,
     ...findings.map((finding) => `axe_finding=${JSON.stringify(finding)}`),
   ]
-  const allFailures: AutomaticFailure[] = blocking.flatMap((finding) => {
-    const targets = Array.isArray(finding.targets) ? finding.targets as string[] : []
-    return [{
-      ruleId: 'a11y.axe',
-      cellId: String(finding.cellId || ''),
-      selector: targets.join('|') || '__axe__',
-      state: String(finding.state || 'default'),
-      message: String(finding.help || finding.id || 'axe blocking violation'),
-      measured: finding,
-    }]
-  })
-  const comparison = await compareAutomaticFailuresForLane(run, allFailures)
   await run.writer.writeGateLog(gateEntries)
-  await writeAutomaticLaneSummary(run, 'axe-summary.json', {
+  await run.writer.writeJson('axe-summary.json', {
     cells: runnableCells.length,
-    auditMode: process.env.DESIGN_AUDIT_MODE === 'change-gate' ? 'change-gate' : 'mvp-assessment',
     scans,
     versions: [...versions],
     findings,
     moderate,
-    failures: comparison.failures,
-    allFailures: comparison.allFailures,
-    inheritedFailures: comparison.inheritedFailures,
-    newFailures: comparison.newFailures,
-    blocking: comparison.failures,
-    allBlocking: comparison.allFailures,
-    inheritedBlocking: comparison.inheritedFailures,
-    newBlocking: comparison.newFailures,
-    automaticChecksPassed: comparison.automaticChecksPassed,
-  }, scans)
+    blocking,
+  })
 
   expect(scans, 'axe-core must scan every runnable manifest route cell').toBe(runnableCells.length)
-  expect(comparison.failures, 'axe-core serious and critical violations must be fixed').toEqual([])
+  expect(blocking, 'axe-core serious and critical violations must be fixed').toEqual([])
 })

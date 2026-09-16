@@ -9,7 +9,6 @@ import {
   type ContrastRow,
   type InteractionState,
 } from './measurements'
-import { type AutomaticFailure } from './change-gate.ts'
 import {
   assertAuditEnvironment,
   assertAuditServer,
@@ -17,9 +16,7 @@ import {
   auditRun,
   captureCell,
   cellsFor,
-  compareAutomaticFailuresForLane,
   prepareAuditPage,
-  writeAutomaticLaneSummary,
 } from './runtime'
 
 test.describe.configure({ mode: 'serial' })
@@ -153,37 +150,17 @@ test('contrast state entry point records browser-computed ratios for each intera
     screenshots.push(await captureCell(page, run, cell, 'contrast'))
   }
   await run.writer.writeCsv('contrast.csv', rows as unknown as Record<string, unknown>[])
-  const allFailures: AutomaticFailure[] = rows
-    .filter((row) => !row.passes || !row.observed)
-    .map((row) => ({
-      ruleId: row.kind === 'boundary' ? 'contrast.boundary' : 'contrast.text',
-      cellId: `${row.route}|${row.journey}|${row.fixture}|${row.viewport}|${row.theme}|${row.language}`,
-      selector: row.selector,
-      state: row.state,
-      message: `${row.kind} contrast is below its threshold`,
-      measured: row,
-    }))
-  const comparison = await compareAutomaticFailuresForLane(run, allFailures)
-  await writeAutomaticLaneSummary(run, 'contrast-summary.json', {
+  await run.writer.writeJson('contrast-summary.json', {
     states: INTERACTION_STATES,
     rows: rows.length,
     applicableStates: applicability.filter((entry) => entry.applicable).length,
     notApplicableStates: applicability.filter((entry) => !entry.applicable).length,
-    failures: comparison.failures,
-    allFailures: comparison.allFailures,
-    inheritedFailures: comparison.inheritedFailures,
-    newFailures: comparison.newFailures,
-    failureCounts: {
-      all: comparison.allFailures.length,
-      inherited: comparison.inheritedFailures.length,
-      new: comparison.newFailures.length,
-    },
-    automaticChecksPassed: comparison.automaticChecksPassed,
+    failures: rows.filter((row) => !row.passes || !row.observed).map((row) => ({ state: row.state, selector: row.selector, kind: row.kind, ratio: row.ratio, threshold: row.threshold })),
     applicability,
     screenshots,
-  }, rows.length)
+  })
   expect(rows.length).toBeGreaterThan(0)
-  expect(comparison.failures, 'contrast or applicable interaction-state checks failed').toEqual([])
+  expect(rows.filter((row) => !row.passes || !row.observed), 'contrast or applicable interaction-state checks failed').toEqual([])
   expect(contrastThreshold('text', false)).toBe(4.5)
   expect(contrastThreshold('text', true)).toBe(3)
   expect(contrastThreshold('boundary')).toBe(3)

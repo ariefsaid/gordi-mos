@@ -23,8 +23,6 @@ fi
 for required in \
   mos-app/e2e/design-quality/manifest.ts \
   mos-app/e2e/design-quality/measurements.ts \
-  mos-app/e2e/design-quality/change-gate.ts \
-  mos-app/e2e/design-quality/change-gate.test.ts \
   mos-app/e2e/design-quality/bounded-choices.ts \
   mos-app/e2e/design-quality/audit-route.ts \
   mos-app/e2e/design-quality/report.ts \
@@ -113,7 +111,6 @@ if node --experimental-strip-types --test \
   mos-app/e2e/design-quality/bounded-choices.test.ts \
   mos-app/e2e/design-quality/audit-route.test.ts \
   mos-app/e2e/design-quality/mockup-authority.test.ts \
-  mos-app/e2e/design-quality/change-gate.test.ts \
   >/tmp/mos-design-quality-manifest-test.log 2>&1; then
   ok "manifest/report/authority/mutation unit tests pass"
 else
@@ -142,30 +139,6 @@ if DESIGN_AUDIT_CHECK_ONLY=1 DESIGN_AUDIT_ID=a1b2c3d4 \
 else
   bad "valid scope and localhost preflight refused"
   sed -n '1,120p' /tmp/mos-design-quality-check.log
-fi
-
-if bash scripts/design-quality-audit.sh "$scope" --base-url http://localhost:5173/mos/ \
-  --mode change-gate --baseline /tmp/forged-baseline \
-  >/tmp/mos-design-quality-mutated.log 2>&1; then
-  bad "filesystem baseline option was accepted"
-else
-  ok "filesystem baseline option is rejected"
-fi
-
-if DESIGN_AUDIT_BASELINE_DIR=/tmp/forged-baseline DESIGN_AUDIT_CHECK_ONLY=1 DESIGN_AUDIT_ID=a1b2c3d4 \
-  bash scripts/design-quality-audit.sh "$scope" --base-url http://localhost:5173/mos/ \
-  --mode mvp-assessment >/tmp/mos-design-quality-mutated.log 2>&1; then
-  bad "baseline environment input was accepted"
-else
-  ok "baseline environment input is rejected"
-fi
-
-if DESIGN_AUDIT_CHECK_ONLY=1 DESIGN_AUDIT_ID=a1b2c3d4 \
-  bash scripts/design-quality-audit.sh "$scope" --base-url http://localhost:5173/mos/ \
-  --mode change-gate >/tmp/mos-design-quality-mutated.log 2>&1; then
-  bad "change-gate without a committed merge-base snapshot was accepted"
-else
-  ok "change-gate without a committed merge-base snapshot fails closed"
 fi
 
 if DESIGN_AUDIT_CHECK_ONLY=1 DESIGN_AUDIT_ID=a1b2c3d4 \
