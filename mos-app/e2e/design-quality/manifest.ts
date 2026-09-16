@@ -300,7 +300,22 @@ const emptyNamedLists: ManifestLists = {
   primaryActionRegions: [],
   decisionGroups: [],
   meaningfulGraphics: [],
-  fullValuePaths: [],
+  fullValuePaths: [
+    {
+      // The status filter's value is the one ordinary value the compact row cannot render whole
+      // once a filter is applied and the clear action joins the row. Its full string is on the
+      // trigger's title and data-full-value, and opening the filter lists it as a choice — so the
+      // reveal is real and in the same cell. This entry does not excuse the clip: the driver reads
+      // the expected string from the element, performs the click, and only marks the path
+      // exercised when a VISIBLE element actually contains that string, so a wrong selector or a
+      // reveal that stops working fails closed.
+      selector: "[data-filter-id='status'] .collection-toolbar__choice-value",
+      authority: 'DESIGN.md compact toolbar: a contracted value keeps its full string on the trigger and in the choice list it opens',
+      routes: ['/mos/work/tasks'],
+      viewports: ['compact-1024x768'],
+      reveal: { action: 'click', selector: '.collection-toolbar__fields-menu .collection-toolbar__toggle span' },
+    },
+  ],
   touchSeparationGroups: [
     {
       selector: '.kl-footer-actions',
