@@ -14,15 +14,18 @@ import {
   collectVisibleContent,
   type VisibleContentRow,
 } from './measurements'
+import { failureFromVisibleContentRow, type AutomaticFailure } from './change-gate.ts'
 import {
   assertAuditEnvironment,
   assertAuditServer,
   auditEnabled,
   auditRun,
+  compareAutomaticFailuresForLane,
   captureCell,
   cellsFor,
   observeManifestCellState,
   prepareAuditPage,
+  writeAutomaticLaneSummary,
 } from './runtime'
 
 test.describe.configure({ mode: 'serial' })
@@ -71,12 +74,20 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
   const visibleContent: VisibleContentRow[] = []
   const screenshots: string[] = []
   const observations = new Map<string, { status: 'covered' | 'untested'; evidence: string }>()
-  const failures: string[] = []
+  const failures: AutomaticFailure[] = []
+  const addFailure = (
+    ruleId: string,
+    cellId: string,
+    selector: string,
+    state: string,
+    message: string,
+    measured?: unknown,
+  ) => failures.push({ ruleId, cellId, selector, state, message, measured })
   for (const cell of cellsFor(DESIGN_QUALITY_MANIFEST).filter(isManifestCellRunnable)) {
     await prepareAuditPage(page, run, cell)
     const observation = await observeManifestCellState(page, cell)
     observations.set(cell.id, observation)
-    if (observation.status !== 'covered') failures.push(`${cell.id}: ${observation.evidence}`)
+    if (observation.status !== 'covered') addFailure('state.coverage', cell.id, '__state__', cell.state, observation.evidence)
     const context = {
       route: cell.route,
       journey: cell.journey,
@@ -129,64 +140,64 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
     touchSeparation.push(...cellTouchRows as unknown as Record<string, unknown>[])
     screenshots.push(await captureCell(page, run, cell, 'quantitative'))
 
-    if (cellGeometry.length === 0) failures.push(`${cell.id}: geometry census returned zero visible rows`)
+    if (cellGeometry.length === 0) addFailure('geometry.census', cell.id, '__geometry__', cell.state, 'geometry census returned zero visible rows')
     for (const row of cellGeometry) {
       if (row.overflowX > 1 && !DESIGN_QUALITY_MANIFEST.lists.intentionalDataScrollers.some((entry) => row.selector.includes(entry.selector))) {
-        failures.push(`${cell.id}: ${row.selector} overflows horizontally by ${row.overflowX}px`)
+        addFailure('geometry.horizontal-fit', cell.id, row.selector, cell.state, `${row.selector} overflows horizontally by ${row.overflowX}px`, row)
       }
       if (row.selector.includes('[role="dialog"]') || row.selector.includes('[role="listbox"]') || row.selector.includes('[role="menu"]')) {
         const viewport = page.viewportSize()
         if (viewport && (row.x < 0 || row.y < 0 || row.right > viewport.width + 1 || row.bottom > viewport.height + 1)) {
-          failures.push(`${cell.id}: ${row.selector} is outside the viewport (${row.x},${row.y},${row.right},${row.bottom})`)
+          addFailure('geometry.viewport-fit', cell.id, row.selector, cell.state, `${row.selector} is outside the viewport (${row.x},${row.y},${row.right},${row.bottom})`, row)
         }
       }
     }
     if (cell.viewport === 'phone-390x844') {
       for (const control of cellControls) {
-        if (control.width < 44 || control.height < 44) failures.push(`${cell.id}: ${control.role} target is ${control.width}x${control.height}px`)
+        if (control.width < 44 || control.height < 44) addFailure('touch.phone-target', cell.id, control.elementPath, cell.state, `${control.role} target is ${control.width}x${control.height}px`, control)
       }
     }
     for (const control of cellControls) {
-      if (!control.accessibleName.trim()) failures.push(`${cell.id}: ${control.role} has no accessible name`)
+      if (!control.accessibleName.trim()) addFailure('a11y.accessible-name', cell.id, control.elementPath, cell.state, `${control.role} has no accessible name`, control)
     }
-    if (cellTypography.length === 0) failures.push(`${cell.id}: typography census returned zero visible rows`)
+    if (cellTypography.length === 0) addFailure('typography.census', cell.id, '__typography__', cell.state, 'typography census returned zero visible rows')
     for (const row of cellTypography) {
       const minimum = row.role === 'functional' || row.role === 'label' ? 11 : 12
-      if (row.fontSize < minimum) failures.push(`${cell.id}: ${row.role} text is ${row.fontSize}px; minimum is ${minimum}px`)
+      if (row.fontSize < minimum) addFailure('typography.font-size', cell.id, row.selector, cell.state, `${row.role} text is ${row.fontSize}px; minimum is ${minimum}px`, row)
       const leadingFloor = row.role === 'page-title' ? 1.2 : row.role === 'heading' ? 1.25 : row.role === 'body' || row.role === 'prose' ? 1.4 : 1.2
-      if (row.visualText && row.leading < leadingFloor) failures.push(`${cell.id}: ${row.role} leading is ${row.leading.toFixed(2)}; minimum is ${leadingFloor}`)
+      if (row.visualText && row.leading < leadingFloor) addFailure('typography.leading', cell.id, row.selector, cell.state, `${row.role} leading is ${row.leading.toFixed(2)}; minimum is ${leadingFloor}`, row)
       if (row.tracking < -0.04 || ((row.role === 'body' || row.role === 'prose') && row.tracking > 0.05)) {
-        failures.push(`${cell.id}: ${row.role} tracking is ${row.tracking.toFixed(3)}em`)
+        addFailure('typography.tracking', cell.id, row.selector, cell.state, `${row.role} tracking is ${row.tracking.toFixed(3)}em`, row)
       }
-      if (row.readingMeasure !== null && row.readingMeasure > 75) failures.push(`${cell.id}: prose measure is ${row.readingMeasure.toFixed(1)}ch`)
+      if (row.readingMeasure !== null && row.readingMeasure > 75) addFailure('typography.reading-measure', cell.id, row.selector, cell.state, `prose measure is ${row.readingMeasure.toFixed(1)}ch`, row)
     }
     if (focusTraversal.expectedStops > 0) {
-      if (focusTraversal.rows.length < focusTraversal.expectedStops) failures.push(`${cell.id}: keyboard focus reached ${focusTraversal.rows.length}/${focusTraversal.expectedStops} initial stops`)
-      if (focusTraversal.cycleDetected) failures.push(`${cell.id}: keyboard focus order repeated a stop`)
+      if (focusTraversal.rows.length < focusTraversal.expectedStops) addFailure('focus.keyboard-coverage', cell.id, '__focus__', cell.state, `keyboard focus reached ${focusTraversal.rows.length}/${focusTraversal.expectedStops} initial stops`, focusTraversal)
+      if (focusTraversal.cycleDetected) addFailure('focus.keyboard-order', cell.id, '__focus__', cell.state, 'keyboard focus order repeated a stop', focusTraversal)
       for (const focus of focusTraversal.rows) {
-        if (!focus.hasIndicator) failures.push(`${cell.id}: ${focus.role} has no visible 2px focus indicator`)
+        if (!focus.hasIndicator) addFailure('focus.visible-indicator', cell.id, focus.selector, cell.state, `${focus.role} has no visible 2px focus indicator`, focus)
       }
     }
     for (const row of cellRegionRows) {
-      if (!row.observed || !row.passes) failures.push(`${cell.id}: ${row.regionSelector} has ${row.count} primary actions or is missing`)
+      if (!row.observed || !row.passes) addFailure('actions.primary', cell.id, row.regionSelector, cell.state, `${row.regionSelector} has ${row.count} primary actions or is missing`, row)
     }
     for (const row of cellCards) {
-      if (row.nested) failures.push(`${cell.id}: nested card ${row.selector} inside ${row.ancestor}`)
+      if (row.nested) addFailure('structure.nested-cards', cell.id, row.selector, cell.state, `nested card ${row.selector} inside ${row.ancestor}`, row)
     }
     for (const row of cellVisibleContent) {
-      if (!row.observed || !row.passed) failures.push(`${cell.id}: ${row.kind} failed at ${row.selector} (${row.measured})`)
+      if (!row.observed || !row.passed) failures.push(failureFromVisibleContentRow(row as unknown as Record<string, unknown>))
     }
     if (cell.viewport === 'phone-390x844') {
       for (const row of cellTouchRows) {
-        if (row.observed && !row.passes) failures.push(`${cell.id}: ${row.groupSelector} targets ${row.first} and ${row.second} are ${row.gap}px apart`)
-        if (touchGroups.some((entry) => entry.selector === row.groupSelector) && !row.observed) failures.push(`${cell.id}: touch separation group ${row.groupSelector} returned zero or one visible target`)
+        if (row.observed && !row.passes) addFailure('touch.target-separation', cell.id, row.groupSelector, cell.state, `${row.groupSelector} targets ${row.first} and ${row.second} are ${row.gap}px apart`, row)
+        if (touchGroups.some((entry) => entry.selector === row.groupSelector) && !row.observed) addFailure('touch.target-separation', cell.id, row.groupSelector, cell.state, `touch separation group ${row.groupSelector} returned zero or one visible target`, row)
       }
     }
     const h1Count = cellHeadings.filter((heading) => heading.level === 1).length
-    if (h1Count !== 1) failures.push(`${cell.id}: expected one h1, found ${h1Count}`)
+    if (h1Count !== 1) addFailure('structure.heading-outline', cell.id, '__headings__', cell.state, `expected one h1, found ${h1Count}`, cellHeadings)
     for (let index = 1; index < cellHeadings.length; index += 1) {
       if (cellHeadings[index]!.level > cellHeadings[index - 1]!.level + 1) {
-        failures.push(`${cell.id}: heading level skipped before ${cellHeadings[index]!.text}`)
+        addFailure('structure.heading-outline', cell.id, '__headings__', cell.state, `heading level skipped before ${cellHeadings[index]!.text}`, cellHeadings)
       }
     }
   }
@@ -194,12 +205,20 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
   const observedManifest = manifestWithCoverageResults(DESIGN_QUALITY_MANIFEST, observations)
   const untested = observedManifest.cells.filter((cell) => cell.status === 'untested')
   const auditMode = process.env.DESIGN_AUDIT_MODE === 'change-gate' ? 'change-gate' : 'mvp-assessment'
+  const coverageFailures: AutomaticFailure[] = untested.map((cell) => ({
+    ruleId: 'state.coverage',
+    cellId: cell.id,
+    selector: '__state__',
+    state: cell.state,
+    message: cell.note || 'manifest cell was untested',
+  }))
+  const comparison = await compareAutomaticFailuresForLane(run, [...failures, ...coverageFailures])
   await run.writer.writeJson('manifest.json', observedManifest)
   await run.writer.writeCsv('geometry.csv', [...geometry, ...focusStops, ...typography, ...touchSeparation])
   await run.writer.writeCsv('control-census.csv', [...controls, ...regionRows, ...cardRows])
   await run.writer.writeCsv('state-matrix.csv', observedManifest.cells as unknown as Record<string, unknown>[])
   await run.writer.writeCsv('visible-content.csv', visibleContent as unknown as Record<string, unknown>[])
-  await run.writer.writeJson('quantitative-summary.json', {
+  await writeAutomaticLaneSummary(run, 'quantitative-summary.json', {
     ruleIds: DESIGN_QUALITY_MANIFEST.rules.filter((rule) => rule.artifact === 'geometry.csv').map((rule) => rule.id),
     geometryRows: geometry.length,
     controlRows: controls.length,
@@ -211,14 +230,22 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
     cardRows: cardRows.length,
     visibleContentRows: visibleContent.length,
     screenshots,
-    failures,
+    failures: comparison.failures,
+    allFailures: comparison.allFailures,
+    inheritedFailures: comparison.inheritedFailures,
+    newFailures: comparison.newFailures,
+    failureCounts: {
+      all: comparison.allFailures.length,
+      inherited: comparison.inheritedFailures.length,
+      new: comparison.newFailures.length,
+    },
     untested: untested.map((cell) => cell.id),
     auditMode,
-    automaticChecksPassed: failures.length === 0,
+    automaticChecksPassed: comparison.automaticChecksPassed,
     completeStateCoverage: untested.length === 0,
-  })
+  }, geometry.length + controls.length + headings.length + focusStops.length + typography.length + touchSeparation.length + regionRows.length + cardRows.length + visibleContent.length)
   expect(geometry.length + controls.length).toBeGreaterThan(0)
-  expect(failures, `quantitative design rules failed:\n${failures.slice(0, 50).join('\n')}`).toEqual([])
+  expect(comparison.failures, `quantitative design rules failed:\n${comparison.failures.slice(0, 50).map((failure) => failure.message).join('\n')}`).toEqual([])
   if (auditMode === 'mvp-assessment') {
     expect(untested.map((cell) => cell.id), 'every manifest cell must have deterministic rendered state evidence').toEqual([])
   }

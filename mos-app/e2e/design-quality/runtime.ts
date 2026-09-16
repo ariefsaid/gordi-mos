@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -29,6 +30,15 @@ import {
 import { ReportWriter } from './report'
 import type { DesignQualityManifest, ManifestCell } from './manifest'
 import { resetAuditScroll } from './scroll'
+import {
+  classifyFailureSet,
+  digestAutomaticFailureLane,
+  AUTOMATIC_FAILURE_BASELINE_PATH,
+  loadTrustedAutomaticFailureBaseline,
+  type AutomaticFailureBaseline,
+  type AutomaticFailure,
+  type FailureComparison,
+} from './change-gate.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = path.dirname(__filename)
@@ -49,6 +59,9 @@ export type AuditRun = {
   candidateSha: string
   sessionId: string
   writer: ReportWriter
+  verificationBase?: string
+  mergeBaseSha?: string
+  baselineSnapshot?: AutomaticFailureBaseline
 }
 
 type FixtureRunState = {
@@ -59,6 +72,7 @@ type FixtureRunState = {
 }
 
 const fixtureRuns = new Map<string, FixtureRunState>()
+const baselineRuns = new Map<string, Promise<AutomaticFailureBaseline>>()
 
 export type StateObservation = {
   status: 'covered' | 'untested'
@@ -73,6 +87,15 @@ export function isAuditCellRunnable(cell: ManifestCell): boolean {
 
 function env(name: string): string {
   return process.env[name]?.trim() ?? ''
+}
+
+function exactSnapshotBlobDigest(mergeBaseSha: string): string {
+  const blob = execFileSync('git', ['show', `${mergeBaseSha}:${AUTOMATIC_FAILURE_BASELINE_PATH}`], {
+    cwd: repoRoot,
+    encoding: 'buffer',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  }) as Buffer
+  return createHash('sha256').update(blob).digest('hex')
 }
 
 function auditEnv(): Record<string, string> {
@@ -200,7 +223,116 @@ export function auditRun(): AuditRun {
   if (!baseURL || !outputDir || !candidateSha || !sessionId) {
     throw new Error('design audit requires DESIGN_AUDIT_BASE_URL, OUTPUT_DIR, CANDIDATE_SHA, and SESSION_ID')
   }
-  return { baseURL, outputDir, candidateSha, sessionId, writer: new ReportWriter({ outputDir, candidateSha, sessionId }) }
+  const forbiddenBaselineEnv = Object.keys(process.env).filter((name) => name.startsWith('DESIGN_AUDIT_BASELINE_'))
+  if (forbiddenBaselineEnv.length > 0) {
+    throw new Error(`change-gate baseline directory/session inputs are rejected: ${forbiddenBaselineEnv.join(', ')}`)
+  }
+  const verificationBase = env('DESIGN_AUDIT_VERIFICATION_BASE')
+    || `origin/${env('MOS_PR_BASE') || 'dev'}`
+  const mergeBaseSha = env('DESIGN_AUDIT_MERGE_BASE_SHA')
+  return {
+    baseURL,
+    outputDir,
+    candidateSha,
+    sessionId,
+    writer: new ReportWriter({ outputDir, candidateSha, sessionId }),
+    verificationBase: verificationBase || undefined,
+    mergeBaseSha: mergeBaseSha || undefined,
+  }
+}
+
+/** Compare the complete candidate census against the exact-base evidence. */
+export async function compareAutomaticFailures(
+  run: AuditRun,
+  candidateFailures: AutomaticFailure[],
+): Promise<FailureComparison> {
+  if (env('DESIGN_AUDIT_MODE') !== 'change-gate') return classifyFailureSet(candidateFailures, [])
+  const expectedSha = run.candidateSha
+  const verificationBase = run.verificationBase || `origin/${env('MOS_PR_BASE') || 'dev'}`
+  const key = `${repoRoot}:${expectedSha}:${verificationBase}:${run.sessionId}`
+  let pending = baselineRuns.get(key)
+  if (!pending) {
+    pending = loadTrustedAutomaticFailureBaseline({ repoRoot, candidateSha: expectedSha, verificationBase }).then((result) => {
+      if (!result.ok || !result.snapshot) {
+        throw new Error(`change-gate exact merge-base snapshot is invalid:\n${result.errors.join('\n')}`)
+      }
+      run.mergeBaseSha = result.mergeBaseSha
+      run.baselineSnapshot = result.snapshot
+      return result.snapshot
+    })
+    baselineRuns.set(key, pending)
+  }
+  const snapshot = await pending
+  const baselineFailures: AutomaticFailure[] = snapshot.failures.map((identity) => ({
+    ...identity,
+    message: 'automatic failure recorded in exact merge-base snapshot',
+  }))
+  const untested = new Set(snapshot.untestedCellIds)
+  // The compact snapshot stores untested IDs without a state field. Match the
+  // candidate's actual state when classifying those coverage records, so an
+  // inherited non-default cell does not become a false regression.
+  for (const failure of candidateFailures) {
+    if (failure.ruleId === 'state.coverage' && untested.has(failure.cellId)) {
+      baselineFailures.push({
+        ...failure,
+        message: 'manifest cell was untested in the exact merge-base snapshot',
+      })
+    }
+  }
+  return classifyFailureSet(candidateFailures, baselineFailures)
+}
+
+/**
+ * Lane-facing comparison seam. A malformed or missing exact-base snapshot is
+ * itself a blocking failure, but the lane still writes its complete summary
+ * before the caller performs its deliberate assertion.
+ */
+export async function compareAutomaticFailuresForLane(
+  run: AuditRun,
+  candidateFailures: AutomaticFailure[],
+): Promise<FailureComparison> {
+  try {
+    return await compareAutomaticFailures(run, candidateFailures)
+  } catch (error) {
+    const baselineFailure: AutomaticFailure = {
+      ruleId: 'change-gate.baseline',
+      cellId: '__baseline__',
+      selector: '__exact-merge-base-snapshot__',
+      state: 'default',
+      message: String(error),
+    }
+    const allFailures = [...candidateFailures, baselineFailure]
+    return {
+      allFailures,
+      inheritedFailures: [],
+      newFailures: allFailures,
+      failures: allFailures,
+      automaticChecksPassed: false,
+    }
+  }
+}
+
+export function auditMode(): 'mvp-assessment' | 'change-gate' {
+  return env('DESIGN_AUDIT_MODE') === 'change-gate' ? 'change-gate' : 'mvp-assessment'
+}
+
+/** Write the common completion/count/digest envelope for an automatic lane. */
+export async function writeAutomaticLaneSummary(
+  run: AuditRun,
+  artifact: string,
+  payload: Record<string, unknown>,
+  count: number,
+): Promise<string> {
+  const measured = {
+    ...payload,
+    auditMode: auditMode(),
+    complete: true,
+    count,
+  }
+  return run.writer.writeJson(artifact, {
+    ...measured,
+    digest: digestAutomaticFailureLane(measured),
+  })
 }
 
 export function auditEnabled(): boolean {
@@ -216,6 +348,40 @@ export function assertAuditEnvironment(): void {
   const currentSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).trim()
   if (currentSha !== run.candidateSha) {
     throw new Error(`candidate SHA changed during audit: expected ${run.candidateSha}, found ${currentSha}`)
+  }
+  const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: repoRoot, encoding: 'utf8' }).trim()
+  if (status) throw new Error('working tree changed during audit; evidence must be bound to one committed candidate')
+  let session: Record<string, unknown>
+  try {
+    session = JSON.parse(readFileSync(path.join(run.outputDir, 'session.json'), 'utf8')) as Record<string, unknown>
+  } catch {
+    throw new Error('audit session metadata is missing or invalid')
+  }
+  if (session.candidateSha !== run.candidateSha || session.sessionId !== run.sessionId) {
+    throw new Error('audit session metadata changed during the run')
+  }
+  if (env('DESIGN_AUDIT_MODE') === 'change-gate') {
+    const verificationBase = run.verificationBase || `origin/${env('MOS_PR_BASE') || 'dev'}`
+    const resolvedMergeBase = execFileSync('git', ['merge-base', run.candidateSha, verificationBase], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    }).trim()
+    if (!/^[0-9a-f]{40}$/.test(resolvedMergeBase)) throw new Error('exact merge base is not a full lowercase SHA')
+    if (session.verificationBase !== verificationBase || session.mergeBaseSha !== resolvedMergeBase) {
+      throw new Error('audit session merge-base binding changed during the run')
+    }
+    if (typeof session.snapshotBlobDigest !== 'string' || !/^[0-9a-f]{64}$/.test(session.snapshotBlobDigest)) {
+      throw new Error('audit session snapshot blob digest is missing or invalid')
+    }
+    let actualSnapshotBlobDigest = ''
+    try {
+      actualSnapshotBlobDigest = exactSnapshotBlobDigest(resolvedMergeBase)
+    } catch {
+      throw new Error('exact merge-base snapshot blob is missing or unreadable')
+    }
+    if (session.snapshotBlobDigest !== actualSnapshotBlobDigest) {
+      throw new Error('audit session snapshot blob digest changed during the run')
+    }
   }
 }
 
@@ -238,8 +404,17 @@ export async function assertAuditServer(baseURL: string): Promise<void> {
   const parsed = localBaseUrl(baseURL)
   const run = auditEnabled() ? auditRun() : null
   if (run) {
-    const currentSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).trim()
-    if (currentSha !== run.candidateSha) throw new Error('candidate SHA changed before browser measurement')
+    assertAuditEnvironment()
+    if (process.env.DESIGN_AUDIT_MODE === 'change-gate') {
+      const trusted = await loadTrustedAutomaticFailureBaseline({
+        repoRoot,
+        candidateSha: run.candidateSha,
+        verificationBase: run.verificationBase || `origin/${env('MOS_PR_BASE') || 'dev'}`,
+      })
+      if (!trusted.ok || !trusted.snapshot) throw new Error(`change-gate exact merge-base snapshot is invalid:\n${trusted.errors.join('\n')}`)
+      run.mergeBaseSha = trusted.mergeBaseSha
+      run.baselineSnapshot = trusted.snapshot
+    }
   }
   let actual: string | null = null
   try {
