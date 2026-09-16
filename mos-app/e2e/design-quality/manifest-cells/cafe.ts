@@ -74,7 +74,8 @@ export const CAFE_CELL_INPUTS = [
   // on the wrong stream reports itself instead of passing as the face it is not.
   ['cafe-plan-producing-phone', {
     area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'producing', status: 'covered', primary: true,
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'producing', status: 'untested', primary: true,
+    note: 'The contract is verified against a producing plan, but not under THIS fixture: BAR_MEMBER reaches no planned-quantity field on this route, while the same member does reach the production capture form on the Café root. Planning looks to be a capability a bar member does not hold, which would make the fixture wrong for the state rather than the selector wrong for the page. Needs a session as this fixture to settle, not another guess.',
     // `.pqf` is the planned-quantity field itself, which the plan renders at every width. The
     // table cell that holds it on desktop, `.kp-cell-qty`, does not exist on a phone, where the
     // plan is cards — and the state being asserted is "this stream produces", not "it produces
