@@ -192,7 +192,9 @@ test('a checkbox is measured on the label that activates it, and a bare one stil
       input.bare { width: 16px; height: 16px; display: block; margin: 0; }
       label.stacked { display: block; width: 300px; }
       label.stacked span { display: block; height: 20px; }
-      label.stacked input { display: block; width: 128px; height: 30px; margin-top: 60px; }
+      /* box-sizing pinned: a UA that puts border and padding outside the box would make the
+         declared size and the rendered one differ, and these bounds are about the rendered one. */
+      label.stacked input { display: block; box-sizing: border-box; width: 128px; height: 30px; margin-top: 60px; }
     </style>
     <main>
       <label class="wrapped"><input type="checkbox" /><span>Confirm the list is complete</span></label>
@@ -221,8 +223,9 @@ test('a checkbox is measured on the label that activates it, and a bare one stil
 
   // The discriminating case. A text field under its own label is NOT hit by pressing the
   // label's text, and the label box spans the gap between them — so measuring their union
-  // would report a 300x110 target for a 128x30 field and manufacture a pass. Only the
-  // checkbox rule substitutes; everything else keeps its own box.
+  // spans both and manufactures a floor pass for a field that does not meet it. Only the
+  // checkbox rule substitutes; everything else keeps its own box. The `passed` assertion is
+  // the one that carries the defect; the two bounds just say which box was measured.
   const stacked = touch.find((row) => row.selector.includes('input') && row.selector.includes('label')
     && row.selector !== wrapped.selector)
   expect(stacked, JSON.stringify(touch.map((r) => r.selector.slice(-46)))).toBeDefined()

@@ -239,7 +239,7 @@ export const CONTROL_VARIANT_VOCABULARY: readonly ControlVariantEntry[] = [
   // control resolves to control-32. An earlier comment here refused to name this chip because
   // no named step covered 26px — that was true before the 28px step existed, and naming the
   // step is what changed it. The chip's own 26px is still off DESIGN.md's 32px control rule
-  // and is recorded as a finding; this entry does not bless the height.
+  // and is recorded as a finding (#864); this entry does not bless the height.
   { selector: '.collection-toolbar__view', component: 'chip', variant: 'saved-view', authority: 'components/record-collection/collection-toolbar.css saved-view chip' },
   // The phone collection disclosure — one job, two class names, because Tasks and the shared
   // collection each named their own. Same variant: same 44px trigger opening the same panel.
