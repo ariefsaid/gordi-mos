@@ -333,7 +333,9 @@ function validateAutomaticSummary(
   if (failureArrays.some((key) => !Array.isArray(payload[key]))) {
     return { ok: false, reason: `${artifact} must include complete failure census arrays` }
   }
-  if (artifact === 'axe-summary.json' && (!Array.isArray(payload.scans) || payload.scans.length === 0)) {
+  if (artifact === 'axe-summary.json'
+    && !((Array.isArray(payload.scans) && payload.scans.length > 0)
+      || (Number.isInteger(payload.scans) && Number(payload.scans) > 0))) {
     return { ok: false, reason: `${artifact} must include at least one scan result` }
   }
   if (artifact === 'quantitative-summary.json'

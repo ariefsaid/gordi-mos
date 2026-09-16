@@ -217,6 +217,7 @@ test('snapshot serialization is canonical and retains sorted identity failures a
 test('operator producer is deterministic and rejects missing or incomplete lanes', async () => {
   const evidenceDir = await mkdtemp(path.join(os.tmpdir(), 'mos-change-gate-evidence-'))
   const candidateSha = 'a'.repeat(40)
+  const sourceProductSha = 'b'.repeat(40)
   const sessionId = 'a1b2c3d4'
   const cell = (id: string, status: string) => ({
     id,
@@ -241,7 +242,7 @@ test('operator producer is deterministic and rejects missing or incomplete lanes
     'control-consistency-summary.json': { rows: 1, count: 1 },
     'contrast-summary.json': { rows: 1, count: 1 },
     'anti-slop-summary.json': { cells: 1, count: 1 },
-    'axe-summary.json': { scans: [{ cellId: 'a', status: 'pass' }], count: 1 },
+    'axe-summary.json': { scans: 1, count: 1 },
     'mockup-diff/status.json': { status: 'pass', comparisons: [{ cellId: 'a', status: 'pass', score: 1, build: 'x', missingRegions: [], contradictedRegions: [] }], count: 1 },
   }
   const summary = (values: Record<string, unknown>) => {
@@ -260,12 +261,14 @@ test('operator producer is deterministic and rejects missing or incomplete lanes
   }
   const impeccable = summary({ status: 'pass', scannedFiles: ['src/App.tsx'], findings: [] })
   await writeFile(path.join(evidenceDir, 'impeccable.json'), JSON.stringify(impeccable))
-  const options: AutomaticFailureBaselineProducerOptions = { evidenceDir, sourceProductSha: candidateSha, sourceHarnessSha: candidateSha, sourceSessionId: sessionId }
+  const options: AutomaticFailureBaselineProducerOptions = { evidenceDir, sourceProductSha, sourceHarnessSha: candidateSha, sourceSessionId: sessionId }
   const first = await createAutomaticFailureBaseline(options)
   const second = await createAutomaticFailureBaseline(options)
   assert.equal(first.ok, true, first.errors.join('; '))
   assert.equal(second.ok, true, second.errors.join('; '))
   assert.equal(first.bytes, second.bytes)
+  assert.equal(first.snapshot?.source.productSha, sourceProductSha)
+  assert.equal(first.snapshot?.source.harnessSha, candidateSha)
   assert.deepEqual(first.snapshot?.untestedCellIds, ['z'])
 
   const originalVisible = await readFile(path.join(evidenceDir, 'visible-content.csv'), 'utf8')

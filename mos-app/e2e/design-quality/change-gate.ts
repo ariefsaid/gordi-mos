@@ -1083,7 +1083,9 @@ function laneCount(name: keyof typeof SNAPSHOT_PATHS, payload: Record<string, un
     case 'controlConsistency': return Math.max(0, Number(payload.rows) || 0)
     case 'contrast': return Math.max(0, Number(payload.rows) || 0)
     case 'antiSlop': return Math.max(0, Number(payload.cells) || 0)
-    case 'axe': return Array.isArray(payload.scans) ? payload.scans.length : 0
+    case 'axe': return Array.isArray(payload.scans)
+      ? payload.scans.length
+      : Math.max(0, Number(payload.scans) || 0)
     case 'mockup': return Array.isArray(payload.comparisons) ? payload.comparisons.length : 0
   }
 }
@@ -1098,7 +1100,8 @@ function laneComplete(name: keyof typeof SNAPSHOT_PATHS, payload: Record<string,
     case 'controlConsistency': return Number(payload.rows) > 0
     case 'contrast': return Number(payload.rows) > 0
     case 'antiSlop': return Number(payload.cells) > 0
-    case 'axe': return Array.isArray(payload.scans) && payload.scans.length > 0
+    case 'axe': return (Array.isArray(payload.scans) && payload.scans.length > 0)
+      || (Number.isInteger(payload.scans) && Number(payload.scans) > 0)
     case 'mockup': return Array.isArray(payload.comparisons) && payload.comparisons.length > 0
   }
 }
@@ -1145,6 +1148,7 @@ export async function produceAutomaticFailureBaseline(
   options: AutomaticFailureBaselineProducerOptions,
 ): Promise<AutomaticFailureBaselineProducerResult> {
   const errors: string[] = []
+  const evidenceCandidateSha = options.sourceHarnessSha
   const root = path.resolve(options.evidenceDir)
   let rootReal: string
   try {
@@ -1187,7 +1191,7 @@ export async function produceAutomaticFailureBaseline(
     manifestPayload = record(JSON.parse(file.text))
     if (!manifestPayload) throw new Error('manifest must be a JSON object')
     const manifestMetadataErrors = []
-    if (manifestPayload.candidateSha !== options.sourceProductSha) manifestMetadataErrors.push('candidate SHA metadata is stale')
+    if (manifestPayload.candidateSha !== evidenceCandidateSha) manifestMetadataErrors.push('candidate SHA metadata is stale')
     if (manifestPayload.sessionId !== options.sourceSessionId) manifestMetadataErrors.push('session metadata is stale')
     errors.push(...manifestMetadataErrors.map((message) => `manifest.json: ${message}`))
     if (!Array.isArray(manifestPayload.cells) || manifestPayload.cells.length === 0) errors.push('manifest.json has no complete cell census')
@@ -1243,21 +1247,21 @@ export async function produceAutomaticFailureBaseline(
       if (relativePath.endsWith('.json')) {
         const payload = record(JSON.parse(file.text))
         if (!payload) throw new Error('JSON artifact must be an object')
-        if (payload.candidateSha !== options.sourceProductSha || payload.sessionId !== options.sourceSessionId) {
-          throw new Error('artifact metadata does not match the source product/session')
+        if (payload.candidateSha !== evidenceCandidateSha || payload.sessionId !== options.sourceSessionId) {
+          throw new Error('artifact metadata does not match the source harness/session')
         }
       } else if (relativePath.endsWith('.csv')) {
         const lines = file.text.split(/\r?\n/).filter((line) => line.trim().length > 0)
         if (lines.length < 4 || !lines[0]!.startsWith('# candidate_sha=') || !lines[1]!.startsWith('# session_id=')) {
           throw new Error('CSV artifact is missing metadata or measured rows')
         }
-        if (lines[0]!.slice('# candidate_sha='.length) !== options.sourceProductSha
+        if (lines[0]!.slice('# candidate_sha='.length) !== evidenceCandidateSha
           || lines[1]!.slice('# session_id='.length) !== options.sourceSessionId) {
-          throw new Error('CSV artifact metadata does not match the source product/session')
+          throw new Error('CSV artifact metadata does not match the source harness/session')
         }
       } else if (relativePath === 'gate-log.txt') {
         const lines = file.text.split(/\r?\n/).filter((line) => line.trim().length > 0)
-        if (lines.length < 3 || !lines.some((line) => line === `candidate_sha=${options.sourceProductSha}`)
+        if (lines.length < 3 || !lines.some((line) => line === `candidate_sha=${evidenceCandidateSha}`)
           || !lines.some((line) => line === `session_id=${options.sourceSessionId}`)) {
           throw new Error('gate log is missing source metadata or status entries')
         }
@@ -1276,7 +1280,7 @@ export async function produceAutomaticFailureBaseline(
       payload = record(JSON.parse(file.text))
       if (!payload) throw new Error('lane artifact must be a JSON object')
       contents.set(relativePath, file.text)
-      errors.push(...metadataMatchesPayload(payload, options.sourceProductSha, options.sourceSessionId).map((message) => `${relativePath}: ${message}`))
+      errors.push(...metadataMatchesPayload(payload, evidenceCandidateSha, options.sourceSessionId).map((message) => `${relativePath}: ${message}`))
       if (!laneComplete(name, payload)) errors.push(`${relativePath}: lane is incomplete or has no measured census`)
       const count = laneDeclaredCount(payload)
       const measuredCount = laneCount(name, payload)
