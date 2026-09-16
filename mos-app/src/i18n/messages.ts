@@ -1064,6 +1064,7 @@ export const messages = {
 
     // -- Ported for #192 (Tasks), second pass -- dynamically-keyed t() calls a static grep missed.
     'common.savedView': "Saved view",
+    'common.retrySavedViews': "Retry saved views",
     'common.view': "View",
     'processes.rollup.summary': "${done}/${total} done · ${overdue} overdue · ${pending} to assign",
     'processes.rollup.summaryNoAssign': "${done}/${total} done · ${overdue} overdue",
@@ -2577,6 +2578,7 @@ export const messages = {
 
     // -- Ported for #192 (Tasks), second pass -- dynamically-keyed t() calls a static grep missed.
     'common.savedView': "Tampilan tersimpan",
+    'common.retrySavedViews': "Muat ulang tampilan tersimpan",
     'common.view': "Tampilan",
     'processes.rollup.summary': "${done}/${total} selesai · ${overdue} terlambat · ${pending} perlu ditetapkan",
     'processes.rollup.summaryNoAssign': "${done}/${total} selesai · ${overdue} terlambat",

@@ -37,6 +37,26 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
   // budget the row without the clear-filters action, which appears only once a filter is
   // applied; a box that could not give way pushed the page 57px sideways at 1024. A contracted
   // box ellipsizes with its full value on the trigger, which the rule's own comment promises.
+  it('keeps the filtered row readable by shortening its two longest actions, and floors the give', () => {
+    // These three rules are what buy the readability back once a filter is applied and the
+    // clear action joins the row. Delete any of them and the English filtered row silently
+    // returns to five truncated values with every other test still green — the flex bases
+    // beside them were pinned, these were not.
+    const compact = css.slice(css.indexOf('@media (min-width: 1024px) and (max-width: 1440px)'))
+    expect(compact, 'the clear action must shorten at compact').toMatch(
+      /\.tasks-toolbar__clear-label\s*\{[^}]*display:\s*none/s,
+    )
+    expect(compact, 'its compact label must take over').toMatch(
+      /\.tasks-toolbar__clear-compact-label\s*\{[^}]*display:\s*inline/s,
+    )
+    expect(compact, 'Save view must shorten for every locale, not one').toMatch(
+      /(?<!html:lang\(id\) )\.tasks-collection-toolbar \.collection-toolbar__save-view-label\s*\{[^}]*display:\s*none/s,
+    )
+    expect(css, 'the boxes must have a floor, not zero').toMatch(
+      /\.tasks-collection-toolbar \.collection-toolbar__option-field\s*\{[^}]*min-width:\s*72px/s,
+    )
+  })
+
   it('reserves enough desktop width for the ordinary Tasks filter values', () => {
     expect(css).toMatch(
       /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='group'\][\s\S]*?flex:\s*0 1 136px;[\s\S]*?max-width:\s*none;/s,

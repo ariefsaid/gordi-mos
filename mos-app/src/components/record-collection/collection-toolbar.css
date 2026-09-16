@@ -224,7 +224,9 @@
    through the trigger title. */
 @media (min-width: 1024px) {
   .tasks-collection-toolbar .collection-toolbar__options { flex-wrap: nowrap; gap: 4px; }
-  .tasks-collection-toolbar .collection-toolbar__option-field { min-width: 0; }
+  /* A floor on the give, not zero: these boxes may contract, but not to a sliver if the fixed
+     chrome beside them ever grows. Bounded degradation instead of open-ended. */
+  .tasks-collection-toolbar .collection-toolbar__option-field { min-width: 72px; }
   .tasks-collection-toolbar .collection-toolbar__select { max-width: 150px; }
   .tasks-collection-toolbar .collection-toolbar__select .picker__trigger,
   .tasks-collection-toolbar .tasks-attention-picker .picker__trigger {
@@ -234,9 +236,6 @@
     padding-block: 4px;
   }
   .tasks-collection-toolbar .collection-toolbar__choice-trigger { min-width: 0; }
-  /* A floor on the give: the boxes may contract, but not to a sliver if the fixed chrome
-     beside them ever grows. Bounded degradation instead of open-ended. */
-  .tasks-collection-toolbar .collection-toolbar__option-field { min-width: 72px; }
   /* What this row guarantees: it stays one bounded line, and it never scrolls the page. Each box
      reserves its basis, never grows past it, and gives way when it must — a contracted value
      ellipsizes with the full string on the trigger and in its title.

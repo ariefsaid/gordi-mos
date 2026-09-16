@@ -278,6 +278,11 @@ export function CollectionToolbar<
                 className="collection-toolbar__saved-error"
                 message={savedViews.errorMessage ?? savedViews.error}
                 onRetry={saveOpen && viewName.trim() ? () => void saveView() : savedViews.onRetry}
+                /* The saved-view read and the collection read fail independently, so both
+                   retries can be on screen at once. With the default label they were two
+                   buttons named "Try again" in bare alert regions, and nothing said which
+                   read each one re-issues. */
+                retryLabel={t('common.retrySavedViews')}
               />
             ) : null}
           </div>

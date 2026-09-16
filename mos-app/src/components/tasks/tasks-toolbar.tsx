@@ -298,6 +298,7 @@ export function TasksToolbar({
               className="tasks-toolbar__clear"
               onClick={onClearFilters}
               aria-label={t('tasks.toolbar.clearFilters')}
+              title={t('tasks.toolbar.clearFilters')}
             >
               <span className="tasks-toolbar__clear-label">{t('tasks.toolbar.clearFilters')}</span>
               <span className="tasks-toolbar__clear-compact-label">{t('tasks.toolbar.clearFiltersCompact')}</span>
