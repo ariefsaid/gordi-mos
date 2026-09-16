@@ -224,16 +224,20 @@ export const CONTROL_VARIANT_VOCABULARY: readonly ControlVariantEntry[] = [
   { selector: '.pill', component: 'pill', variant: 'pill', authority: 'components/ui/Pill.css shared pill contract' },
   // Shell and collection chrome. Appended, never interleaved: `find` takes the first match, so
   // appending leaves every entry above unchanged. Within this block the narrower selector leads.
+  { selector: '.rail-item--dest[aria-current="location"]', component: 'nav-item', variant: 'rail-destination-location', authority: 'Rule 5 rail current-location parent; shell/rail-nav.css — a parent that owns the active child is a LOCATION and carries its own treatment' },
   { selector: '.rail-item--dest', component: 'nav-item', variant: 'rail-destination', authority: 'DESIGN.md §Navigation Rail "Nav item: 36px tall"; shell/rail-nav.css rung 2' },
   { selector: '.rail-item--child', component: 'nav-item', variant: 'rail-child', authority: 'DD-WAY-33 rail type ladder rung 3 (quieter size, weight and colour); shell/rail-nav.css' },
   { selector: '.bottom-tab', component: 'nav-item', variant: 'bottom-tab', authority: 'phone bottom-tab bar, --tabbar-h: 60px (src/index.css); shell/bottom-tab-bar.css' },
   { selector: '.top-bar .border-input.bg-secondary', component: 'search-trigger', variant: 'top-bar-search', authority: 'shell/top-bar.tsx command-menu trigger; bordered secondary resting fill, unlike the header doors' },
   { selector: '.top-bar .tap-target-phone--icon', component: 'icon-button', variant: 'top-bar-door', authority: 'shell/top-bar.css header doors; transparent resting fill' },
   { selector: '.dt-sort-button', component: 'table-sort', variant: 'column-header', authority: 'components/dashboard/data-table.css sortable column header' },
+  { selector: 'th[aria-sort="ascending"] .th-sort-btn, th[aria-sort="descending"] .th-sort-btn', component: 'table-sort', variant: 'column-header-tasks-sorted', authority: 'components/tasks/TasksWorkspace.css sorted column header; the active sort carries its own foreground' },
   { selector: '.th-sort-btn', component: 'table-sort', variant: 'column-header-tasks', authority: 'components/tasks/TasksWorkspace.css sortable column header; inherits the Tasks header overline treatment' },
   { selector: '.collection-toolbar__choice-trigger', component: 'bounded-choice', variant: 'filter-chip', authority: 'components/record-collection/collection-toolbar.css filter trigger' },
-  { selector: '.collection-toolbar__view--active', component: 'chip', variant: 'saved-view-active', authority: 'components/record-collection/collection-toolbar.css active saved view; own background and colour' },
-  { selector: '.collection-toolbar__view', component: 'chip', variant: 'saved-view', authority: 'components/record-collection/collection-toolbar.css saved view chip' },
+  // The saved-view chip is deliberately NOT named here. It renders at 26px, which no named
+  // size covers because DESIGN.md puts interactive controls at 32px — so naming it would
+  // only re-key an already-failing row instead of resolving it. The 26px chip is a real
+  // finding against that authority, and it is the fix that should carry the registry entry.
 ]
 
 /** Capture bounded-choice identities before any state or lifecycle interaction can scroll. */

@@ -43,8 +43,6 @@ test('the control vocabulary names every approved shared primitive with authorit
     '.dt-sort-button',
     '.th-sort-btn',
     '.collection-toolbar__choice-trigger',
-    '.collection-toolbar__view--active',
-    '.collection-toolbar__view',
   ]) assert.ok(selectors.includes(selector), `missing vocabulary entry ${selector}`)
   assert.ok(
     selectors.indexOf('.overdue-filter-btn--active') < selectors.indexOf('.overdue-filter-btn'),
@@ -55,8 +53,13 @@ test('the control vocabulary names every approved shared primitive with authorit
     'the tinted attention pill must be matched before the generic picker trigger',
   )
   assert.ok(
-    selectors.indexOf('.collection-toolbar__view--active') < selectors.indexOf('.collection-toolbar__view'),
-    'the active saved view must be matched before the base chip',
+    selectors.indexOf('th[aria-sort="ascending"] .th-sort-btn, th[aria-sort="descending"] .th-sort-btn')
+      < selectors.indexOf('.th-sort-btn'),
+    'the sorted column header must be matched before the generic one',
+  )
+  assert.ok(
+    selectors.indexOf('.rail-item--dest[aria-current="location"]') < selectors.indexOf('.rail-item--dest'),
+    'the current-location rail parent must be matched before the generic destination',
   )
   assert.ok(
     selectors.indexOf('.top-bar .border-input.bg-secondary') < selectors.indexOf('.top-bar .tap-target-phone--icon'),
