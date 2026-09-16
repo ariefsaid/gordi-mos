@@ -81,6 +81,25 @@ test('occlusion judges reachability, not whichever row a band happens to sit ove
   expect(brokenFinal.passed, brokenFinal.measured).toBe(false)
   expect(JSON.parse(brokenFinal.measured).centerCovered).toBe(true)
 
+  // ── A full-viewport layer is a mode, not a band ───────────────────────────
+  // An open composer or record overlay covers the page on purpose. Counting it as a
+  // persistent band reported every control on the covered page as unreachable — 49 rows
+  // across two overlay cells, all of them content the reader is not looking at.
+  await page.setContent(`
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      .row { height: 120px; margin: 0; }
+      .scrim { position: fixed; inset: 0; background: rgba(10,10,10,0.4); }
+    </style>
+    <main>
+      ${Array.from({ length: 6 }, (_, i) => `<p class="row">Row ${i + 1}</p>`).join('')}
+      <div class="scrim">Overlay</div>
+    </main>
+  `)
+  const behindOverlay = await collectVisibleContent(page, context, 'planted-overlay', [])
+  expect(occlusionRow(behindOverlay, 2).passed, occlusionRow(behindOverlay, 2).measured).toBe(true)
+  expect(occlusionRow(behindOverlay, 5).passed, occlusionRow(behindOverlay, 5).measured).toBe(true)
+
   // ── Top edge: a sticky header, which the bottom-only measurement could not see ──
   const headerPage = (headPull: string) => `
     <style>

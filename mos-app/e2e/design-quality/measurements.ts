@@ -292,10 +292,19 @@ export async function collectVisibleContent(
       })
     }
 
+    const viewportArea = Math.max(1, window.innerWidth * window.innerHeight)
     const persistentBands = Array.from(document.querySelectorAll<HTMLElement>('body *')).filter((element) => {
       if (!visible(element)) return false
       const position = getComputedStyle(element).position
-      return position === 'fixed' || position === 'sticky'
+      if (position !== 'fixed' && position !== 'sticky') return false
+      // A band is chrome pinned to an edge — a header, a footer, a sticky table head. A layer
+      // that covers most of the viewport is a MODE, not a band: an open composer or record
+      // overlay is meant to cover the page behind it, and counting it here reported every
+      // control on the covered page as unreachable content.
+      const rect = element.getBoundingClientRect()
+      const covered = (Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0))
+        * (Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0))
+      return covered / viewportArea < 0.8
     })
     const occlusionTargets = Array.from(new Set([
       ...textTargets,
