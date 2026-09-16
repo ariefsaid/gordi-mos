@@ -14,14 +14,16 @@ const MEANING_KEYS: Record<Attention, MessageKey> = {
 }
 
 export interface SignalAttentionPickerProps {
+  id: string
   value: Attention
   onChange: (value: Attention) => void
   label?: string
 }
 
-export function SignalAttentionPicker({ value, onChange, label }: SignalAttentionPickerProps) {
+export function SignalAttentionPicker({ id, value, onChange, label }: SignalAttentionPickerProps) {
   const t = useT()
   const groupLabel = label ?? t('signals.attention.label')
+  const listboxId = `${id}-listbox`
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const { listboxProps, getOptionProps, activeIndex, setActiveIndex } = useListboxPopover({
@@ -52,10 +54,12 @@ export function SignalAttentionPicker({ value, onChange, label }: SignalAttentio
     <div className="signal-attention-picker" ref={rootRef}>
       <span className="signal-attention-picker-label" aria-hidden="true">{groupLabel}</span>
       <button
+        id={id}
         type="button"
         className="signal-attention-picker-trigger"
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? listboxId : undefined}
         aria-label={`${groupLabel}: ${attentionLabel(t, value)}`}
         onClick={() => setOpen((wasOpen) => !wasOpen)}
       >
@@ -66,6 +70,7 @@ export function SignalAttentionPicker({ value, onChange, label }: SignalAttentio
       </button>
       {open && <div
         {...listboxProps}
+        id={listboxId}
         aria-label={groupLabel}
         className="signal-attention-picker-options"
       >

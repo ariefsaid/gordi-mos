@@ -166,6 +166,7 @@ describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
     expect(screen.queryByRole('combobox', { name: /categor/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /categor/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /attention.*FYI|FYI.*attention/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /attention.*FYI|FYI.*attention/i })).toHaveAttribute('id', 'signals-compose-attention')
 
     const shareButton = screen.getByRole('button', { name: /share signal/i })
     expect(shareButton).toBeDisabled()
@@ -215,6 +216,7 @@ describe('SignalComposer — owning-team must-pick (OD-REDESIGN-91 #19 / F4)', (
 
     const teamPicker = await screen.findByRole('combobox', { name: /team/i })
     expect(teamPicker).toHaveTextContent('Choose a team…') // no pre-pick, no arbitrary first
+    expect(teamPicker).toHaveAttribute('id', 'signals-compose-team')
 
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, 'The freezer alarm went off')

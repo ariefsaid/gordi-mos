@@ -256,7 +256,7 @@ export function SignalComposer({
             <span aria-hidden="true">⌖</span>{site.name}
           </span>
         )}
-        <SignalAttentionPicker value={attention} onChange={(next) => { setAttention(next); onDirtyChange?.(true) }} />
+        <SignalAttentionPicker id="signals-compose-attention" value={attention} onChange={(next) => { setAttention(next); onDirtyChange?.(true) }} />
         <label className="signal-composer-context-pill signal-composer-occurred-pill">
           <span aria-hidden="true">◷</span>
           <span>{t('signals.composer.occurredNow')}</span>
@@ -273,6 +273,7 @@ export function SignalComposer({
       {teams.length > 1 ? (
         <div className="signal-composer-team-choice">
           <Picker
+            id="signals-compose-team"
             label={t('signals.composer.teamLabel')}
             value={teamId}
             options={teams.map((team) => ({ value: team.id, label: team.name }))}

@@ -267,26 +267,136 @@ test('bounded-choice lifecycle follows an id through a rerender and label change
   expect(population.lifecycleCount).toBe(1)
 })
 
+test('bounded-choice outside-dismissal failure stops without a post-failure keyboard action', async ({ page }) => {
+  await page.setContent(`
+    <style>
+      html, body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      main { padding: 16px; }
+      button { box-sizing: border-box; display: inline-flex; height: 32px; border: 1px solid rgb(20,20,20); border-radius: 8px; color: rgb(20,20,20); background: rgb(255,255,255); }
+      #outside-failure-list { position: fixed; left: 16px; top: 64px; width: 160px; height: 72px; padding: 0; border: 1px solid rgb(20,20,20); background: rgb(255,255,255); }
+      #outside-failure-list [role="option"] { display: block; height: 32px; color: rgb(20,20,20); background: rgb(255,255,255); }
+    </style>
+    <main>
+      <button id="outside-failure-choice" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="outside-failure-list" aria-label="Outside failure">Outside failure</button>
+      <div id="outside-failure-list" role="listbox" hidden>
+        <div id="outside-failure-a" role="option" aria-selected="true">Alpha</div>
+        <div id="outside-failure-b" role="option">Beta</div>
+      </div>
+    </main>
+    <script>
+      const trigger = document.getElementById('outside-failure-choice')
+      const list = document.getElementById('outside-failure-list')
+      const state = { failed: false, postFailureKeys: 0 }
+      window.__outsideFailureState = state
+      const open = () => {
+        trigger.setAttribute('aria-expanded', 'true')
+        list.hidden = false
+        trigger.setAttribute('aria-activedescendant', 'outside-failure-a')
+      }
+      const close = () => {
+        trigger.setAttribute('aria-expanded', 'false')
+        list.hidden = true
+        trigger.focus()
+      }
+      trigger.addEventListener('click', () => trigger.getAttribute('aria-expanded') === 'true' ? close() : open())
+      trigger.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowDown') { event.preventDefault(); open(); trigger.setAttribute('aria-activedescendant', 'outside-failure-b') }
+        if (event.key.toLowerCase() === 'a') { event.preventDefault(); trigger.setAttribute('aria-activedescendant', 'outside-failure-a') }
+        if (event.key === 'Escape' && trigger.getAttribute('aria-expanded') === 'true') { event.preventDefault(); close() }
+        if (event.key === 'Enter' && trigger.getAttribute('aria-expanded') === 'true') { event.preventDefault(); close() }
+      })
+      document.addEventListener('pointerdown', (event) => {
+        if (!trigger.contains(event.target) && !list.contains(event.target)) state.failed = true
+      }, true)
+      document.addEventListener('keydown', (event) => {
+        if (state.failed) state.postFailureKeys += 1
+      }, true)
+    </script>
+  `)
+
+  const captured = await captureBoundedChoicePopulation(page)
+  const rows = await exerciseBoundedChoices(page, 'outside-dismissal-failure', context, captured)
+  expect(rows).toHaveLength(1)
+  const row = rows[0]!
+  const measured = JSON.parse(row.measured) as { resolutionFailure?: { reason: string; passed: boolean } }
+  expect(row.passed).toBe(false)
+  expect(row.observed).toBe(false)
+  expect(measured.resolutionFailure?.reason).toBe('outside-dismissal-failed')
+  expect(measured.resolutionFailure?.passed).toBe(false)
+  expect(await page.evaluate(() => (window as unknown as {
+    __outsideFailureState: { failed: boolean; postFailureKeys: number }
+  }).__outsideFailureState)).toEqual({ failed: true, postFailureKeys: 0 })
+})
+
 test('duplicate visible labels stay addressable by their distinct runtime ids', async ({ page }) => {
   await page.setContent(`
     <style>
-      body { margin: 16px; background: rgb(255,255,255); color: rgb(20,20,20); }
+      html, body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      main { padding: 16px; }
       button { box-sizing: border-box; display: inline-flex; height: 32px; margin-right: 8px; border: 1px solid rgb(20,20,20); border-radius: 8px; color: rgb(20,20,20); background: rgb(255,255,255); }
+      #status-primary-list, #status-secondary-list { position: fixed; top: 64px; width: 160px; height: 72px; padding: 0; border: 1px solid rgb(20,20,20); background: rgb(255,255,255); }
+      #status-primary-list { left: 16px; }
+      #status-secondary-list { left: 220px; }
+      [role="option"] { display: block; height: 32px; color: rgb(20,20,20); background: rgb(255,255,255); }
     </style>
-    <button id="status-primary" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="status-primary-list" aria-label="Status">Status</button>
-    <button id="status-secondary" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="status-secondary-list" aria-label="Status">Status</button>
-    <div id="status-primary-list" role="listbox" hidden></div>
-    <div id="status-secondary-list" role="listbox" hidden></div>
+    <main>
+      <button id="status-primary" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="status-primary-list" aria-label="Status">Status</button>
+      <button id="status-secondary" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="status-secondary-list" aria-label="Status">Status</button>
+      <div id="status-primary-list" role="listbox" hidden>
+        <div id="status-primary-a" role="option" aria-selected="true">Alpha</div>
+        <div id="status-primary-b" role="option">Beta</div>
+      </div>
+      <div id="status-secondary-list" role="listbox" hidden>
+        <div id="status-secondary-a" role="option" aria-selected="true">Alpha</div>
+        <div id="status-secondary-b" role="option">Beta</div>
+      </div>
+    </main>
+    <script>
+      const selections = {}
+      window.__boundedChoiceSelections = selections
+      const bind = (trigger, list, prefix) => {
+        const open = () => {
+          trigger.setAttribute('aria-expanded', 'true')
+          list.hidden = false
+          trigger.setAttribute('aria-activedescendant', prefix + '-a')
+        }
+        const close = () => {
+          trigger.setAttribute('aria-expanded', 'false')
+          list.hidden = true
+          trigger.focus()
+        }
+        trigger.addEventListener('click', () => trigger.getAttribute('aria-expanded') === 'true' ? close() : open())
+        trigger.addEventListener('keydown', (event) => {
+          if (event.key === 'ArrowDown') { event.preventDefault(); open(); trigger.setAttribute('aria-activedescendant', prefix + '-b') }
+          if (event.key.toLowerCase() === 'a') { event.preventDefault(); trigger.setAttribute('aria-activedescendant', prefix + '-a') }
+          if (event.key === 'Escape' && trigger.getAttribute('aria-expanded') === 'true') { event.preventDefault(); close() }
+          if (event.key === 'Enter' && trigger.getAttribute('aria-expanded') === 'true') {
+            event.preventDefault()
+            selections[trigger.id] = trigger.getAttribute('aria-activedescendant')
+            close()
+          }
+        })
+        document.addEventListener('pointerdown', (event) => {
+          if (!trigger.contains(event.target) && !list.contains(event.target)) close()
+        })
+      }
+      bind(document.getElementById('status-primary'), document.getElementById('status-primary-list'), 'status-primary')
+      bind(document.getElementById('status-secondary'), document.getElementById('status-secondary-list'), 'status-secondary')
+    </script>
   `)
 
   const captured = await captureBoundedChoicePopulation(page)
   expect(captured.map((target) => target.id)).toEqual(['status-primary', 'status-secondary'])
   expect(captured.map((target) => target.label)).toEqual(['Status', 'Status'])
-  for (const target of captured) {
-    const trigger = page.locator(`#${target.id}`)
-    expect(await trigger.count()).toBe(1)
-    expect(await trigger.getAttribute('aria-label')).toBe('Status')
-  }
+  const rows = await exerciseBoundedChoices(page, 'duplicate-labels', context, captured)
+  expect(rows).toHaveLength(2)
+  expect(rows.every((row) => row.passed), rows.map((row) => row.measured).join('\n')).toBe(true)
+  expect(await page.evaluate(() => (window as unknown as {
+    __boundedChoiceSelections: Record<string, string | null>
+  }).__boundedChoiceSelections)).toEqual({
+    'status-primary': 'status-primary-b',
+    'status-secondary': 'status-secondary-b',
+  })
 })
 
 test('missing, duplicate, and keyless bounded-choice identities fail before any action', async ({ page }) => {
@@ -338,6 +448,93 @@ test('missing, duplicate, and keyless bounded-choice identities fail before any 
     expect(measured.resolutionFailure?.passed).toBe(false)
     const actions = await page.evaluate(() => (window as unknown as { __boundedChoiceActions: { click: number; keydown: number } }).__boundedChoiceActions)
     expect(actions).toEqual({ click: 0, keydown: 0 })
+  }
+})
+
+test('duplicate bounded-choice ids captured before action remain invalid and inert', async ({ page }) => {
+  await page.setContent(`
+    <style>
+      html, body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      main { padding: 16px; }
+      button { box-sizing: border-box; display: inline-flex; width: 160px; height: 32px; margin-right: 8px; border: 1px solid rgb(20,20,20); border-radius: 8px; color: rgb(20,20,20); background: rgb(255,255,255); }
+    </style>
+    <main>
+      <button id="duplicate-before-capture" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-label="Primary duplicate">Primary duplicate</button>
+      <button id="duplicate-before-capture" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-label="Secondary duplicate">Secondary duplicate</button>
+    </main>
+  `)
+
+  const captured = await captureBoundedChoicePopulation(page)
+  expect(captured).toHaveLength(2)
+  expect(captured.map((target) => target.id)).toEqual(['duplicate-before-capture', 'duplicate-before-capture'])
+  expect(captured.every((target) => target.valid === false && target.invalidReason === 'duplicate')).toBe(true)
+  await page.evaluate(() => {
+    const actions = { scroll: 0, click: 0, keydown: 0 }
+    ;(window as unknown as { __duplicateIdActions: typeof actions }).__duplicateIdActions = actions
+    document.addEventListener('click', () => { actions.click += 1 }, true)
+    document.addEventListener('keydown', () => { actions.keydown += 1 }, true)
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: () => { actions.scroll += 1 },
+    })
+  })
+
+  const rows = await exerciseBoundedChoices(page, 'duplicate-before-capture', context, captured)
+  expect(rows).toHaveLength(2)
+  expect(rows.every((row) => row.passed === false && row.observed === false)).toBe(true)
+  for (const row of rows) {
+    const measured = JSON.parse(row.measured) as { resolutionFailure?: { reason: string; passed: boolean } }
+    expect(measured.resolutionFailure?.reason).toBe('ambiguous')
+    expect(measured.resolutionFailure?.passed).toBe(false)
+  }
+  expect(await page.evaluate(() => (window as unknown as {
+    __duplicateIdActions: { scroll: number; click: number; keydown: number }
+  }).__duplicateIdActions)).toEqual({ scroll: 0, click: 0, keydown: 0 })
+
+  const population = validateBoundedChoiceLifecyclePopulation(captured, rows)
+  expect(population.expectedCount).toBe(2)
+  expect(population.lifecycleCount).toBe(2)
+  expect(population.duplicateIdentities).toEqual(['duplicate-before-capture'])
+  expect(population.invalidIdentities).toEqual(['duplicate-before-capture'])
+  expect(population.passed).toBe(false)
+})
+
+test('Signals composer runtime fixture keeps caller ids associated with their listboxes', async ({ page }) => {
+  await page.setContent(`
+    <style>
+      html, body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      main { padding: 16px; }
+      button { box-sizing: border-box; display: inline-flex; width: 180px; height: 32px; margin-right: 8px; border: 1px solid rgb(20,20,20); border-radius: 8px; color: rgb(20,20,20); background: rgb(255,255,255); }
+    </style>
+    <main>
+      <button id="signals-compose-attention" aria-haspopup="listbox" aria-expanded="false" aria-label="Attention">FYI</button>
+      <div id="signals-compose-attention-listbox" role="listbox" hidden></div>
+      <button id="signals-compose-team" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-label="Team">Choose a team</button>
+      <div id="signals-compose-team-listbox" role="listbox" hidden></div>
+    </main>
+    <script>
+      for (const id of ['signals-compose-attention', 'signals-compose-team']) {
+        const trigger = document.getElementById(id)
+        const list = document.getElementById(id + '-listbox')
+        trigger.addEventListener('click', () => {
+          trigger.setAttribute('aria-expanded', 'true')
+          trigger.setAttribute('aria-controls', list.id)
+          list.hidden = false
+        })
+      }
+    </script>
+  `)
+
+  const captured = await captureBoundedChoicePopulation(page)
+  expect(captured.map((target) => target.id)).toEqual(['signals-compose-attention', 'signals-compose-team'])
+  for (const id of ['signals-compose-attention', 'signals-compose-team']) {
+    const trigger = page.locator(`#${id}`)
+    await trigger.click()
+    const popupId = await trigger.getAttribute('aria-controls')
+    expect(popupId).toBe(`${id}-listbox`)
+    const popup = page.locator(`#${popupId}`)
+    expect(await popup.count()).toBe(1)
+    expect(await popup.getAttribute('role')).toBe('listbox')
   }
 })
 

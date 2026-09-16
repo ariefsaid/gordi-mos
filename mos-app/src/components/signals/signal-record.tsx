@@ -109,7 +109,7 @@ export function SignalMessage({
 
 function SignalAttentionEditor({ value, onChange }: { value: Attention; onChange: (value: Attention) => void }) {
   const t = useT()
-  return <SignalAttentionPicker value={value} label={t('signals.record.editAttention')} onChange={onChange} />
+  return <SignalAttentionPicker id="signals-record-attention" value={value} label={t('signals.record.editAttention')} onChange={onChange} />
 }
 
 export function SignalOverflowMenu({

@@ -416,6 +416,7 @@ const BOUNDED_CHOICE_RESOLUTION_FAILURE_REASONS = new Set([
   'popup-ambiguous',
   'popup-role-mismatched',
   'popup-not-open',
+  'outside-dismissal-failed',
   'active-option-missing',
   'active-option-ambiguous',
   'active-option-role-mismatched',

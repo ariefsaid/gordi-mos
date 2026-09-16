@@ -97,6 +97,7 @@ export type BoundedChoiceResolutionFailureReason =
   | 'popup-ambiguous'
   | 'popup-role-mismatched'
   | 'popup-not-open'
+  | 'outside-dismissal-failed'
   | 'active-option-missing'
   | 'active-option-ambiguous'
   | 'active-option-role-mismatched'
@@ -947,7 +948,15 @@ export async function exerciseBoundedChoices(
     }
     await page.mouse.click(1, 1)
     const outsideDismissed = await trigger.getAttribute('aria-expanded') !== 'true'
-    if (!outsideDismissed) await page.keyboard.press('Escape')
+    if (!outsideDismissed) {
+      rows.push(resolutionFailureRow(cellId, target, {
+        matchCount: outsidePopupResolution.matchCount,
+        roleMatched: markerState.roleMatched,
+        markerMatched: markerState.markerMatched,
+        reason: 'outside-dismissal-failed',
+      }, await diagnosticSelector()))
+      continue
+    }
 
     await trigger.focus()
     await trigger.click()
