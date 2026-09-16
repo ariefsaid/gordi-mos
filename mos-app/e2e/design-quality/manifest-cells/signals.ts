@@ -12,6 +12,17 @@ export const SIGNAL_CELL_INPUTS = [
   ['signals-compose-phone-en-light', {
     area: 'signals', journey: 'signals-compose', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'composer', status: 'covered', primary: true,
+    // Share Signal has no phone head door (the head action is desktop-only): the shell's `+`
+    // Action Launcher owns it there.
+    stateContract: {
+      setup: [
+        { action: 'click', selector: '.mobile-action-launcher' },
+        { action: 'click', selector: '#a-signal' },
+      ],
+      assertion: { selector: '[data-testid="signal-composer"] textarea' },
+      // The composer's other face — no eligible Team — renders an EmptyState and no body field.
+      negativeAssertion: { selector: '[data-testid="signal-composer"] [data-testid="empty-state"]' },
+    },
   }],
   ['signals-compose-desktop-id-dark', {
     area: 'signals', journey: 'signals-compose', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
@@ -38,6 +49,12 @@ export const SIGNAL_CELL_INPUTS = [
   ['signals-record-desktop', {
     area: 'signals', journey: 'signals-record', route: '/mos/work/signals', fixture: 'BAR_SUPERVISOR',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'record-panel', status: 'covered',
+    stateContract: {
+      setup: [{ action: 'click', selector: '.home-signal-row--open' }],
+      assertion: { selector: '[data-overlay-host="true"][data-overlay-owner="signals"]' },
+      // The list gains a `.record-split` parent only while a record is open beside it.
+      negativeAssertion: { selector: 'div:not(.record-split) > .signals-archive-main' },
+    },
   }],
   ['signals-retract-phone', {
     area: 'signals', journey: 'signals-record', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
