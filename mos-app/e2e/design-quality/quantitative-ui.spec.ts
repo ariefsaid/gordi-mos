@@ -340,6 +340,60 @@ test('an open modal owns the keyboard population, and a trap that leaks still fa
   const leaking = await collectFocusTraversal(page, context)
   expect(leaking.expectedStops).toBe(3)
   expect(leaking.escapedStops.length, JSON.stringify(leaking.rows.map((row) => row.name))).toBeGreaterThan(0)
+
+  // A composite native control keeps focus across several Tab presses — `datetime-local` holds
+  // it through month, day, year, hour and minute. Reading the second press as the order
+  // repeating a stop ended the walk one control early: the Signals composer's team picker was
+  // never reached, and the composer was failed for a defect it does not have.
+  await page.setContent(`
+    <style>body{margin:0;font:14px system-ui}button,input{display:block;width:160px;height:32px}</style>
+    <div role="dialog" aria-modal="true" id="d">
+      <button aria-label="close">close</button>
+      <input aria-label="occurred at" type="datetime-local" value="2026-09-17T02:52">
+      <button aria-label="team">team</button>
+    </div>
+  `)
+  const composite = await collectFocusTraversal(page, context)
+  expect(composite.expectedStops).toBe(3)
+  expect(composite.rows.map((row) => row.name), 'the control after the segmented input is reached')
+    .toEqual(['close', 'occurred at', 'team'])
+  expect(composite.cycleDetected, 'holding focus is not the order repeating a stop').toBe(false)
+})
+
+test('an open modal is the surface under measurement; the inert page behind it is not', async ({ page }) => {
+  const context = {
+    route: '/planted', journey: 'planted', fixture: 'planted',
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'composer',
+  }
+  await page.setViewportSize({ width: 390, height: 844 })
+  // Clipped text on the page, and a sticky band INSIDE the modal sitting over where it was.
+  // Both are true statements about two layers nobody is looking at together.
+  const markup = (modal: string) => `
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      .clipped { width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .sheet { position: fixed; inset: 0; background: rgb(255,255,255); }
+      .sheet .band { position: sticky; top: 0; height: 60px; background: rgb(240,238,234); }
+    </style>
+    <main><p class="clipped">A page value far too long for its box</p></main>
+    ${modal}
+  `
+  const sheet = `<div class="sheet" role="dialog" aria-modal="true"><div class="band">Composer</div><p>Body</p></div>`
+
+  await page.setContent(markup(sheet))
+  const withModal = await collectVisibleContent(page, context, 'planted-modal', [])
+  expect(
+    withModal.filter((row) => row.selector.includes('main')),
+    'nothing behind an open modal is measured',
+  ).toEqual([])
+  expect(withModal.length, 'the modal itself is still measured').toBeGreaterThan(0)
+
+  // Close the modal and the same clipped value is measured again, and still fails.
+  await page.setContent(markup(''))
+  const withoutModal = await collectVisibleContent(page, context, 'planted-no-modal', [])
+  const clipped = withoutModal.find((row) => row.kind === 'text-truncation' && row.selector.includes('p:nth-of-type(1)'))
+  expect(clipped, JSON.stringify(withoutModal.map((row) => row.selector))).toBeDefined()
+  expect(clipped!.passed, clipped!.measured).toBe(false)
 })
 
 test('quantitative geometry, typography, controls, focus, and state entry point writes its census', async ({ page }) => {

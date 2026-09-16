@@ -261,7 +261,14 @@ export async function collectVisibleContent(
       }
       return ['body', ...segments].join(' > ')
     }
-    const textTargets = Array.from(document.querySelectorAll<HTMLElement>(textSelector))
+    // While a modal is open the page behind it is inert: the reader cannot reach it, and it is
+    // covered on purpose. Measuring it reported a heading on the Signals archive as occluded by
+    // a sticky band INSIDE the composer sitting over it — a true statement about two layers
+    // nobody is looking at together. The open modal is the surface under measurement.
+    const openModals = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')).filter(visible)
+    const measuredRoot: ParentNode = openModals
+      .findLast((element) => !openModals.some((other) => other !== element && element.contains(other))) ?? document
+    const textTargets = Array.from(measuredRoot.querySelectorAll<HTMLElement>(textSelector))
       .filter((element) => visible(element) && /[\p{L}\p{N}]/u.test(element.innerText?.trim() || ''))
     for (const element of textTargets) {
       const style = getComputedStyle(element)
@@ -308,7 +315,7 @@ export async function collectVisibleContent(
     })
     const occlusionTargets = Array.from(new Set([
       ...textTargets,
-      ...Array.from(document.querySelectorAll<HTMLElement>(actionable)).filter(visible),
+      ...Array.from(measuredRoot.querySelectorAll<HTMLElement>(actionable)).filter(visible),
     ]))
     // The contract is reachability: content fails only when it CANNOT be brought clear of a
     // persistent band, not when it happens to sit under one at some scroll offset. Sticky
@@ -388,7 +395,7 @@ export async function collectVisibleContent(
     }
 
     if (pageContext.viewport === 'phone-390x844') {
-      const controls = Array.from(document.querySelectorAll<HTMLElement>(actionable)).filter(visible)
+      const controls = Array.from(measuredRoot.querySelectorAll<HTMLElement>(actionable)).filter(visible)
       if (controls.length === 0) {
         rows.push({
           ...pageContext,
@@ -753,9 +760,13 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
   const rows: FocusRow[] = []
   const seen = new Set<string>()
   const escapedStops: string[] = []
+  let previousSelector: string | null = null
   let cycleDetected = false
   try {
-    for (let order = 0; order < walkLimit + 1; order += 1) {
+    // A press that stays on the same composite control has not advanced the order, so it does
+    // not spend the budget; the outer guard still bounds the walk.
+    let advanced = 0
+    for (let order = 0; order < (walkLimit + 1) * 8 && advanced <= walkLimit; order += 1) {
       await page.keyboard.press('Tab')
       const focused = await page.evaluate((modal: string | null) => {
         const element = document.activeElement
@@ -812,6 +823,14 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
       }
       if (!focused.measurable) continue
       if (focused.escaped) escapedStops.push(focused.selector)
+      // A composite native control owns several Tab presses without handing focus on: a
+      // `datetime-local` holds it across month, day, year, hour and minute. The walk read the
+      // second press as the order repeating a stop and stopped there, one control short of the
+      // end — the Signals composer's team picker was never reached, and the composer was failed
+      // for a defect it does not have. Staying on the same element is not a repeat.
+      if (focused.selector === previousSelector) continue
+      previousSelector = focused.selector
+      advanced += 1
       if (seen.has(focused.selector)) {
         cycleDetected = rows.length < expectedStops
         break
