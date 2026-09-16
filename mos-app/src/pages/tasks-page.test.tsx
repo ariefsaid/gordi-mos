@@ -1237,7 +1237,13 @@ describe('R5 task failure and filter boundaries', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load tasks")
     expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
     mockListTasks.mockResolvedValue([makeTask({ title: 'Recovered task' })])
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    // Scoped to the results region, the way DR-2b below already scopes to its banner. The
+    // toolbar's saved-view read is a separate failure with its own retry, and when it also
+    // fails the page carries two "Try again" buttons — correctly, one per failure. An
+    // unscoped query then matched both and this test failed intermittently on the ambiguity,
+    // not on the retry. The assertion is unchanged: this retry must bring back real rows.
+    const results = document.querySelector('.record-collection-results') as HTMLElement
+    fireEvent.click(within(results).getByRole('button', { name: /try again/i }))
     expect(await screen.findByText('Recovered task')).toBeInTheDocument()
     expect(screen.queryByText("Couldn't load tasks")).toBeNull()
   })

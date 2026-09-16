@@ -1049,6 +1049,7 @@ export const messages = {
     'tasks.type.daily': "Daily / ongoing",
     'tasks.type.project': "Project",
     'tasks.toolbar.clearFilters': "Clear filters",
+    'tasks.toolbar.clearFiltersCompact': "Clear",
     'tasks.toolbar.viewNavigation': "Task views",
     'tasks.unarchive': "Unarchive",
     'tasks.unsaved.copy': "Your edits are not saved. Discard them and leave this task?",
@@ -1063,6 +1064,7 @@ export const messages = {
 
     // -- Ported for #192 (Tasks), second pass -- dynamically-keyed t() calls a static grep missed.
     'common.savedView': "Saved view",
+    'common.retrySavedViews': "Retry saved views",
     'common.view': "View",
     'processes.rollup.summary': "${done}/${total} done · ${overdue} overdue · ${pending} to assign",
     'processes.rollup.summaryNoAssign': "${done}/${total} done · ${overdue} overdue",
@@ -2561,6 +2563,7 @@ export const messages = {
     'tasks.type.daily': "Harian / berkelanjutan",
     'tasks.type.project': "Proyek",
     'tasks.toolbar.clearFilters': "Hapus filter",
+    'tasks.toolbar.clearFiltersCompact': "Hapus",
     'tasks.toolbar.viewNavigation': "Tampilan tugas",
     'tasks.unarchive': "Pulihkan dari arsip",
     'tasks.unsaved.copy': "Perubahan Anda belum disimpan. Buang dan tinggalkan tugas ini?",
@@ -2575,6 +2578,7 @@ export const messages = {
 
     // -- Ported for #192 (Tasks), second pass -- dynamically-keyed t() calls a static grep missed.
     'common.savedView': "Tampilan tersimpan",
+    'common.retrySavedViews': "Muat ulang tampilan tersimpan",
     'common.view': "Tampilan",
     'processes.rollup.summary': "${done}/${total} selesai · ${overdue} terlambat · ${pending} perlu ditetapkan",
     'processes.rollup.summaryNoAssign': "${done}/${total} selesai · ${overdue} terlambat",

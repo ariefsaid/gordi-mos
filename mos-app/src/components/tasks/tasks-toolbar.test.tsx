@@ -191,7 +191,9 @@ describe('TasksToolbar — saved view persistence states', () => {
 
     await waitFor(() => expect(onLoad).toHaveBeenCalledTimes(1))
     expect(screen.getByRole('alert')).toHaveTextContent('Saved views are unavailable. Try again.')
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    // Named for the read it re-issues: the saved-view retry and the collection retry can be on
+    // screen together, and both were called "Try again" with nothing telling them apart.
+    fireEvent.click(screen.getByRole('button', { name: /retry saved views/i }))
     await waitFor(() => expect(onLoad).toHaveBeenCalledTimes(2))
   })
 
@@ -211,7 +213,7 @@ describe('TasksToolbar — saved view persistence states', () => {
       </I18nProvider>,
     )
     expect(screen.getByRole('alert')).toHaveTextContent('Saved views are unavailable. Try again.')
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    fireEvent.click(screen.getByRole('button', { name: /retry saved views/i }))
     await waitFor(() => expect(onApply).toHaveBeenCalledTimes(2))
   })
 
@@ -231,7 +233,7 @@ describe('TasksToolbar — saved view persistence states', () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
     expect(screen.getByDisplayValue('My queue')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    fireEvent.click(screen.getByRole('button', { name: /retry saved views/i }))
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2))
     succeed = true
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }))
@@ -255,7 +257,7 @@ describe('TasksToolbar — saved view persistence states', () => {
     fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
     expect(screen.queryByRole('textbox', { name: /view name/i })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    fireEvent.click(screen.getByRole('button', { name: /retry saved views/i }))
     await waitFor(() => expect(onSave).toHaveBeenNthCalledWith(2, 'My queue'))
   })
 })

@@ -569,7 +569,7 @@ describe('Signals saved-view recovery', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Saved views are unavailable. Try again.')
 
     fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    fireEvent.click(screen.getByRole('button', { name: /retry saved views/i }))
     await waitFor(() => expect(mockCreateCollectionView).toHaveBeenCalledTimes(2))
     expect(mockCreateCollectionView.mock.calls[1]?.[0]).toMatchObject({ name: 'Signal watch' })
   })
