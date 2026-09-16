@@ -535,7 +535,14 @@
   display: inline-flex; align-items: center; gap: 6px;
   box-sizing: border-box;
   height: 32px; padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--status-lost-text) 40%, transparent);
+  /* Mixed toward the card surface, not toward `transparent`, and at 70%. At 40% over
+     transparent the boundary composited to 2.5:1 in light while the four neutral toolbar
+     pickers beside it sat at 3.2:1 — and mixing with `transparent` inverts between themes,
+     so whatever percentage satisfies one theme starves the other. Against the surface the
+     result is deterministic in both. A visible control boundary clears 3:1 (DD-MVP-19),
+     and this one is visible: the attention chip is the control in the toolbar a reader is
+     meant to find first. */
+  border: 1px solid color-mix(in srgb, var(--status-lost-text) 70%, var(--card));
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--status-lost-text) 8%, transparent);
   font: inherit;
@@ -557,7 +564,9 @@
    Same hue family, deepened, so pressed reads as "this filter is on" at a glance. */
 .overdue-filter-btn--active {
   background: color-mix(in srgb, var(--status-lost-text) 18%, transparent);
-  border-color: color-mix(in srgb, var(--status-lost-text) 70%, transparent);
+  /* Same surface-mixed construction as the resting boundary above, one step stronger so
+     the pressed state still reads as the stronger of the two. */
+  border-color: color-mix(in srgb, var(--status-lost-text) 85%, var(--card));
   color: var(--status-lost-text);
 }
 .overdue-filter-btn--active:hover {

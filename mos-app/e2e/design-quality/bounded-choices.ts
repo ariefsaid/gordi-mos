@@ -214,10 +214,26 @@ export const CONTROL_VARIANT_VOCABULARY: readonly ControlVariantEntry[] = [
   { selector: '.btn.btn-destructive', component: 'button', variant: 'destructive', authority: 'DESIGN.md §5 Buttons; components/ui/Button.css' },
   { selector: '.btn-touch', component: 'button', variant: 'touch', authority: 'DESIGN.md §5 Buttons phone action; components/ui/Button.css' },
   { selector: '.mk-iconbtn', component: 'icon-button', variant: 'icon', authority: 'DESIGN.md §5 Buttons; components/ui/IconButton.css' },
+  // The Tasks attention pill is a Picker trigger with its own tinted resting fill and border, so
+  // it leads the generic trigger entry; the neutral toolbar pickers keep matching that entry.
+  { selector: '.overdue-filter-btn--active', component: 'bounded-choice', variant: 'attention-filter-active', authority: 'DESIGN.md § DB-view toolbar controls amendment A1 attention pill, pressed; components/tasks/TasksWorkspace.css' },
+  { selector: '.overdue-filter-btn', component: 'bounded-choice', variant: 'attention-filter', authority: 'DESIGN.md § DB-view toolbar controls amendment A1 attention pill; components/tasks/TasksWorkspace.css' },
   { selector: '.picker__trigger', component: 'bounded-choice', variant: 'picker', authority: 'DD-MVP-2 designed bounded choice; components/ui/Picker.css' },
   { selector: '.mk-select__field', component: 'bounded-choice', variant: 'select', authority: 'DD-MVP-2 designed bounded choice; components/ui/Select.css' },
   { selector: '.mk-chip--clickable', component: 'chip', variant: 'clickable', authority: 'components/ui/Chip.css clickable chip contract' },
   { selector: '.pill', component: 'pill', variant: 'pill', authority: 'components/ui/Pill.css shared pill contract' },
+  // Shell and collection chrome. Appended, never interleaved: `find` takes the first match, so
+  // appending leaves every entry above unchanged. Within this block the narrower selector leads.
+  { selector: '.rail-item--dest', component: 'nav-item', variant: 'rail-destination', authority: 'DESIGN.md §Navigation Rail "Nav item: 36px tall"; shell/rail-nav.css rung 2' },
+  { selector: '.rail-item--child', component: 'nav-item', variant: 'rail-child', authority: 'DD-WAY-33 rail type ladder rung 3 (quieter size, weight and colour); shell/rail-nav.css' },
+  { selector: '.bottom-tab', component: 'nav-item', variant: 'bottom-tab', authority: 'phone bottom-tab bar, --tabbar-h: 60px (src/index.css); shell/bottom-tab-bar.css' },
+  { selector: '.top-bar .border-input.bg-secondary', component: 'search-trigger', variant: 'top-bar-search', authority: 'shell/top-bar.tsx command-menu trigger; bordered secondary resting fill, unlike the header doors' },
+  { selector: '.top-bar .tap-target-phone--icon', component: 'icon-button', variant: 'top-bar-door', authority: 'shell/top-bar.css header doors; transparent resting fill' },
+  { selector: '.dt-sort-button', component: 'table-sort', variant: 'column-header', authority: 'components/dashboard/data-table.css sortable column header' },
+  { selector: '.th-sort-btn', component: 'table-sort', variant: 'column-header-tasks', authority: 'components/tasks/TasksWorkspace.css sortable column header; inherits the Tasks header overline treatment' },
+  { selector: '.collection-toolbar__choice-trigger', component: 'bounded-choice', variant: 'filter-chip', authority: 'components/record-collection/collection-toolbar.css filter trigger' },
+  { selector: '.collection-toolbar__view--active', component: 'chip', variant: 'saved-view-active', authority: 'components/record-collection/collection-toolbar.css active saved view; own background and colour' },
+  { selector: '.collection-toolbar__view', component: 'chip', variant: 'saved-view', authority: 'components/record-collection/collection-toolbar.css saved view chip' },
 ]
 
 /** Capture bounded-choice identities before any state or lifecycle interaction can scroll. */
@@ -483,10 +499,13 @@ export function validateBoundedChoiceResolution(
 
 /** Resolve rendered heights to the named control sizes in the approved design system. */
 export function classifyControlSize(height: number): string {
+  // Order is precedence: the tolerance bands overlap, and `find` takes the first hit.
   const named = [
     [44, 'touch-44'],
     [32, 'control-32'],
     [22, 'compact-22'],
+    [36, 'nav-36'],
+    [60, 'tabbar-60'],
   ] as const
   return named.find(([pixels]) => Math.abs(height - pixels) <= 2)?.[1] ?? 'unresolved'
 }
