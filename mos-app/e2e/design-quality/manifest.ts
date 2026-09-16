@@ -157,7 +157,9 @@ const routes = [
   '/mos/inbox',
   '/mos/cafe',
   '/mos/cafe/plan',
-  '/mos/cafe/log',
+  // DD-MVP-17 retired /mos/cafe/log as a page: it redirects to the capture root, so the
+  // cafe-log journey's cells measure /mos/cafe. A retired route cannot carry coverage, and
+  // leaving it in this denominator failed the manifest contract outright.
   '/mos/cafe/review',
   '/mos/cafe/stock',
   '/mos/cafe/pushes',
