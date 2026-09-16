@@ -234,14 +234,18 @@
     padding-block: 4px;
   }
   .tasks-collection-toolbar .collection-toolbar__choice-trigger { min-width: 0; }
-  /* The reference desktop keeps ordinary filter values readable while the row remains one
-     bounded line. Exceptional directory names continue to use the existing ellipsis/title path
-     inside these fixed boxes.
-     The bases are a budget for the row WITHOUT the clear-filters action, which appears only once
-     a filter is applied — so applying one pushed the row 57px past the viewport at 1024 and the
-     page scrolled sideways. These boxes may now shrink below their basis, which is what the
-     grammar above already says they do: the row stays one line and a contracted box ellipsizes
-     with its full value on the trigger. They still never grow past it. */
+  /* A floor on the give: the boxes may contract, but not to a sliver if the fixed chrome
+     beside them ever grows. Bounded degradation instead of open-ended. */
+  .tasks-collection-toolbar .collection-toolbar__option-field { min-width: 72px; }
+  /* What this row guarantees: it stays one bounded line, and it never scrolls the page. Each box
+     reserves its basis, never grows past it, and gives way when it must — a contracted value
+     ellipsizes with the full string on the trigger and in its title.
+     What it no longer promises: that every ordinary value renders whole. The bases budget the row
+     WITHOUT the clear-filters action, which appears only once a filter is applied, so applying one
+     used to push the page 57px sideways at 1024. Shortening that action and Save view at this
+     width buys most of it back — one English value loses a character or two in the filtered state,
+     where five did before — but the row is budgeted to the pixel and an exceptional directory name
+     still costs more than that. Widen a box here and a neighbour pays for it. */
   .tasks-collection-toolbar [data-filter-id='group'],
   .tasks-collection-toolbar [data-filter-id='group'] .collection-toolbar__select {
     flex: 0 1 136px;
@@ -297,6 +301,7 @@
 }
 .collection-toolbar__action-icon { flex: none; }
 .collection-toolbar__save-compact-label { display: none; }
+.tasks-toolbar__clear-compact-label { display: none; }
 /* Compact desktop keeps the complete visible two-row grammar. Tight padding and text-only ghost
    actions preserve every ordinary value without turning Fields or Save view into mystery icons. */
 @media (min-width: 1024px) and (max-width: 1440px) {
@@ -319,9 +324,18 @@
     gap: 0;
   }
   .tasks-collection-toolbar .collection-toolbar__action-icon { display: none; }
+  /* The clear action only exists once a filter is applied, and row 2's widths are budgeted
+     without it. Shortening it here is what keeps the ordinary filter values readable: the
+     boxes may contract, but they should not have to just because this appeared. The full
+     string stays the accessible name. */
+  .tasks-collection-toolbar .tasks-toolbar__clear-label { display: none; }
+  .tasks-collection-toolbar .tasks-toolbar__clear-compact-label { display: inline; }
   .tasks-collection-toolbar .tasks-attention-picker .picker__trigger { gap: 4px; padding-inline: 3px; }
-  html:lang(id) .tasks-collection-toolbar .collection-toolbar__save-view-label { display: none; }
-  html:lang(id) .tasks-collection-toolbar .collection-toolbar__save-compact-label { display: inline; }
+  /* Save view shortens to Save at this width for every locale, not only the one whose string
+     was longest. The row is budgeted to the pixel here; the two labels this band shortens are
+     what keeps the filter values themselves readable. */
+  .tasks-collection-toolbar .collection-toolbar__save-view-label { display: none; }
+  .tasks-collection-toolbar .collection-toolbar__save-compact-label { display: inline; }
   html:lang(id) .tasks-collection-toolbar [data-filter-id='business-unit'],
   html:lang(id) .tasks-collection-toolbar [data-filter-id='business-unit'] .collection-toolbar__select {
     flex-basis: 100px;
