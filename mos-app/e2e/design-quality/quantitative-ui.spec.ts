@@ -190,11 +190,16 @@ test('a checkbox is measured on the label that activates it, and a bare one stil
       label.wrapped input { width: 16px; height: 16px; margin: 0; }
       .spacer { height: 80px; }
       input.bare { width: 16px; height: 16px; display: block; margin: 0; }
+      label.stacked { display: block; width: 300px; }
+      label.stacked span { display: block; height: 20px; }
+      label.stacked input { display: block; width: 128px; height: 30px; margin-top: 60px; }
     </style>
     <main>
       <label class="wrapped"><input type="checkbox" /><span>Confirm the list is complete</span></label>
       <div class="spacer"></div>
       <input class="bare" type="checkbox" aria-label="Bare checkbox" />
+      <div class="spacer"></div>
+      <label class="stacked"><span>Amount</span><input type="text" aria-label="Amount" /></label>
     </main>
   `)
   const rows = await collectVisibleContent(page, context, 'planted-targets', [])
@@ -213,6 +218,18 @@ test('a checkbox is measured on the label that activates it, and a bare one stil
   const bareMeasured = JSON.parse(bare.measured)
   expect(bareMeasured.height, bare.measured).toBeLessThan(44)
   expect(bare.passed, bare.measured).toBe(false)
+
+  // The discriminating case. A text field under its own label is NOT hit by pressing the
+  // label's text, and the label box spans the gap between them — so measuring their union
+  // would report a 300x110 target for a 128x30 field and manufacture a pass. Only the
+  // checkbox rule substitutes; everything else keeps its own box.
+  const stacked = touch.find((row) => row.selector.includes('input') && row.selector.includes('label')
+    && row.selector !== wrapped.selector)
+  expect(stacked, JSON.stringify(touch.map((r) => r.selector.slice(-46)))).toBeDefined()
+  const stackedMeasured = JSON.parse(stacked!.measured)
+  expect(stackedMeasured.width, stacked!.measured).toBeLessThanOrEqual(128 + 2)
+  expect(stackedMeasured.height, stacked!.measured).toBeLessThanOrEqual(30 + 2)
+  expect(stacked!.passed, stacked!.measured).toBe(false)
 })
 
 async function exerciseFullValuePaths(page: import('@playwright/test').Page, cell: import('./manifest').ManifestCell): Promise<string[]> {

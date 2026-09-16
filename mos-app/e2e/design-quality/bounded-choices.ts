@@ -235,9 +235,12 @@ export const CONTROL_VARIANT_VOCABULARY: readonly ControlVariantEntry[] = [
   { selector: '.th-sort-btn', component: 'table-sort', variant: 'column-header-tasks', authority: 'components/tasks/TasksWorkspace.css sortable column header; inherits the Tasks header overline treatment' },
   { selector: '.collection-toolbar__choice-trigger', component: 'bounded-choice', variant: 'filter-chip', authority: 'components/record-collection/collection-toolbar.css filter trigger' },
   { selector: '.collection-toolbar__view--active', component: 'chip', variant: 'saved-view-active', authority: 'components/record-collection/collection-toolbar.css active saved view; own background and colour' },
+  // Resolves at 26px through the size vocabulary's own ±2 tolerance, the same way a 34px
+  // control resolves to control-32. An earlier comment here refused to name this chip because
+  // no named step covered 26px — that was true before the 28px step existed, and naming the
+  // step is what changed it. The chip's own 26px is still off DESIGN.md's 32px control rule
+  // and is recorded as a finding; this entry does not bless the height.
   { selector: '.collection-toolbar__view', component: 'chip', variant: 'saved-view', authority: 'components/record-collection/collection-toolbar.css saved-view chip' },
-  { selector: '.view-tabs__tab--active', component: 'tab', variant: 'view-tab-active', authority: 'the collection presentation switcher, active face; own background and colour' },
-  { selector: '.view-tabs__tab', component: 'tab', variant: 'view-tab', authority: 'the collection presentation switcher (Table / Feed)' },
   // The phone collection disclosure — one job, two class names, because Tasks and the shared
   // collection each named their own. Same variant: same 44px trigger opening the same panel.
   { selector: '.mobile-task-options-trigger, .collection-mobile-options-trigger', component: 'disclosure', variant: 'collection-options', authority: 'the phone View & filters door over the collection toolbar' },

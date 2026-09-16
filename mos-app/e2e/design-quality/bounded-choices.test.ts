@@ -46,7 +46,6 @@ test('the control vocabulary names every approved shared primitive with authorit
     '.collection-toolbar__choice-trigger',
     '.rail-collapse-toggle',
     '.collection-toolbar__view',
-    '.view-tabs__tab',
     '.mobile-task-options-trigger, .collection-mobile-options-trigger',
     '.inline-cell-trigger',
     '.kms-tab',
