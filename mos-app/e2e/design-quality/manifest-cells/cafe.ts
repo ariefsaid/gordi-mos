@@ -68,17 +68,39 @@ export const CAFE_CELL_INPUTS = [
     area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'VIEWER',
     viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'failed-configuration-load', status: 'covered',
   }],
+  // The two faces of a plan are decided by the stream the fixture lands on, so neither needs a
+  // setup action: a producing stream gets the quantity cells, a receiving-only one gets the
+  // read view and no capture at all. Each cell's assertion is the other's negative, so landing
+  // on the wrong stream reports itself instead of passing as the face it is not.
   ['cafe-plan-producing-phone', {
     area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'producing', status: 'covered', primary: true,
+    stateContract: {
+      setup: [],
+      assertion: { selector: '.kp-cell-qty' },
+      negativeAssertion: { selector: '.kp-receiving-only-title' },
+    },
   }],
   ['cafe-plan-receiving-desktop', {
     area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'AUDIT_RECEIVING_ONLY',
     viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'receiving-only', status: 'covered', primary: true,
+    stateContract: {
+      setup: [],
+      assertion: { selector: '.kp-receiving-only-title' },
+      negativeAssertion: { selector: '.kp-cell-qty' },
+    },
   }],
   ['cafe-log-producing-compact', {
     area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'producing', status: 'covered', primary: true,
+    // A producing stream gets the capture form; a receiving-only one gets a read view and no
+    // form at all. BAR_MEMBER has one assigned location, so the root IS the capture surface
+    // (DD-MVP-17) and no location has to be chosen first.
+    stateContract: {
+      setup: [],
+      assertion: { selector: '.kl-form .kl-submit' },
+      negativeAssertion: { selector: '.kl-receiving-only' },
+    },
   }],
   ['cafe-log-loading-phone', {
     area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
