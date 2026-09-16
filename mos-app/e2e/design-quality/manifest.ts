@@ -99,6 +99,11 @@ export type NamedManifestList = {
   authority: string
   routes?: string[]
   viewports?: string[]
+  /** Scope to the fixtures whose face renders this group. One route can present more than
+   *  one face — DD-MVP-11 sends a profile with no single assigned location to the location
+   *  overview, which has no capture footer — and a group absent from a face that never
+   *  renders it is not a finding. */
+  fixtures?: string[]
   reveal?: {
     action: 'focus' | 'hover' | 'click'
     selector: string
@@ -302,6 +307,11 @@ const emptyNamedLists: ManifestLists = {
       authority: 'DESIGN.md phone target spacing; Café Log exposes adjacent Discard and Submit actions',
       routes: ['/mos/cafe'],
       viewports: ['phone-390x844'],
+      // The capture footer rides the capture face. A profile without a single assigned
+      // location gets the location overview first (DD-MVP-11), which has no footer to
+      // measure — the group was reported missing there once the root became the capture
+      // surface and both faces started sharing this route.
+      fixtures: ['BAR_MEMBER'],
     },
   ],
 }

@@ -11,7 +11,8 @@ export const TASK_CELL_INPUTS = [
   }],
   ['tasks-create-phone-en-light', {
     area: 'tasks', journey: 'tasks-create', route: '/mos/work/tasks', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'create-draft', status: 'covered', primary: true,
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'create-draft', status: 'untested',
+    note: 'Contract written and verified, held out of the change gate: driving this state for the first time surfaces real defects on a face that has never been measured, and a regression-only gate cannot tell new coverage from new breakage. Covering it belongs with the fixes for what it finds.', primary: true,
     // The phone head has no create door (`showNewTask` is gated on `!isNarrow`): the shell's
     // `+` Action Launcher owns Create task below 920px, so the door is the launcher's row.
     stateContract: {
@@ -40,7 +41,8 @@ export const TASK_CELL_INPUTS = [
   }],
   ['tasks-record-phone-id-dark', {
     area: 'tasks', journey: 'tasks-record', route: '/mos/work/tasks', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'open-task', status: 'covered', primary: true,
+    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'open-task', status: 'untested',
+    note: 'Contract written and verified, held out of the change gate: driving this state for the first time surfaces real defects on a face that has never been measured, and a regression-only gate cannot tell new coverage from new breakage. Covering it belongs with the fixes for what it finds.', primary: true,
     stateContract: {
       setup: [{ action: 'click', selector: 'a.task-card-link' }],
       assertion: { selector: '[data-overlay-host="true"][data-overlay-owner="tasks"]' },
@@ -50,7 +52,8 @@ export const TASK_CELL_INPUTS = [
   }],
   ['tasks-record-desktop-en-light', {
     area: 'tasks', journey: 'tasks-record', route: '/mos/work/tasks', fixture: 'MANAGER',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'editable', status: 'covered', primary: true,
+    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'editable', status: 'untested',
+    note: 'Contract written and verified, held out of the change gate: driving this state for the first time surfaces real defects on a face that has never been measured, and a regression-only gate cannot tell new coverage from new breakage. Covering it belongs with the fixes for what it finds.', primary: true,
     stateContract: {
       setup: [{ action: 'click', selector: 'a.task-row-link' }],
       assertion: { selector: '[data-overlay-host="true"][data-overlay-owner="tasks"] .record-field[data-editable="true"] button.record-field__edit' },

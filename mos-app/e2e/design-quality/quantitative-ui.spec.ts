@@ -276,7 +276,8 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
     regionRows.push(...cellRegionRows as unknown as Record<string, unknown>[])
     const touchGroups = DESIGN_QUALITY_MANIFEST.lists.touchSeparationGroups.filter((group) =>
       (!group.routes || group.routes.includes(cell.route))
-      && (!group.viewports || group.viewports.includes(cell.viewport)),
+      && (!group.viewports || group.viewports.includes(cell.viewport))
+      && (!group.fixtures || group.fixtures.includes(cell.fixture)),
     )
     const cellTouchRows = cell.viewport === 'phone-390x844'
       ? await collectTouchSeparation(page, context, touchGroups)
