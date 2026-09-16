@@ -18,6 +18,7 @@ test('rendered control heights resolve to the named design-system sizes', () => 
   assert.equal(classifyControlSize(32), 'control-32')
   assert.equal(classifyControlSize(22), 'compact-22')
   assert.equal(classifyControlSize(36), 'nav-36')
+  assert.equal(classifyControlSize(28), 'rail-toggle-28')
   assert.equal(classifyControlSize(59), 'tabbar-60')
   assert.equal(classifyControlSize(50), 'unresolved')
 })
@@ -43,6 +44,7 @@ test('the control vocabulary names every approved shared primitive with authorit
     '.dt-sort-button',
     '.th-sort-btn',
     '.collection-toolbar__choice-trigger',
+    '.rail-collapse-toggle',
     '.kms-tab',
     '.dt-group-toggle, .dt-cards-group-toggle',
   ]) assert.ok(selectors.includes(selector), `missing vocabulary entry ${selector}`)
