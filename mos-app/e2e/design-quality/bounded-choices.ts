@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 
 import { collectContrast, contrastRatio, parseCssColor, type PageAuditContext } from './measurements.ts'
 
@@ -46,12 +46,41 @@ export type ControlConsistencyRow = {
   measured: string
 }
 
+/**
+ * A bounded choice's semantic identity is the caller-owned id on its visible
+ * trigger. The generated path and label are snapshots for diagnostics only.
+ */
+export type BoundedChoiceIdentity = {
+  id: string
+  role: string
+  label: string
+  marker: BoundedChoiceMarker
+  diagnosticSelector: string
+  valid: boolean
+  invalidReason?: BoundedChoiceInvalidReason
+}
+
+type BoundedChoiceMarker = 'role=combobox' | 'aria-haspopup=listbox' | 'picker-trigger' | 'select-field'
+type BoundedChoiceInvalidReason = 'keyless' | 'invalid-id' | 'duplicate'
+
 export type BoundedChoiceLifecyclePopulationResult = {
   expectedCount: number
   lifecycleCount: number
-  missingSelectors: string[]
-  duplicateSelectors: string[]
-  extraSelectors: string[]
+  missingIdentities: string[]
+  duplicateIdentities: string[]
+  extraIdentities: string[]
+  failedIdentities: string[]
+  keylessIdentities: string[]
+  invalidIdentities: string[]
+  passed: boolean
+}
+
+export type BoundedChoiceResolutionResult = {
+  id: string
+  matchCount: number
+  roleMatched: boolean
+  markerMatched: boolean
+  reason: 'keyless' | 'invalid-id' | 'missing' | 'ambiguous' | 'duplicate' | 'role-mismatched' | null
   passed: boolean
 }
 
@@ -76,37 +105,65 @@ type RenderedControl = ClassifiedControlMetrics & {
 }
 
 /**
- * Compare lifecycle rows with the selector set captured before any control is
- * exercised. The set is intentionally supplied by the caller so scrolling or
- * focus changes cannot silently change the denominator midway through a cell.
+ * Compare lifecycle rows with the semantic identity set captured before any
+ * control is exercised. The set is intentionally supplied by the caller so
+ * scrolling or focus changes cannot silently change the denominator midway
+ * through a cell.
  */
 export function validateBoundedChoiceLifecyclePopulation(
-  capturedSelectors: readonly string[],
+  capturedIdentities: readonly BoundedChoiceIdentity[],
   lifecycleRows: readonly ControlConsistencyRow[],
 ): BoundedChoiceLifecyclePopulationResult {
-  const expectedSelectors = [...new Set(capturedSelectors.filter(Boolean))]
-  const lifecycleSelectors = lifecycleRows
+  const expectedIdentities = capturedIdentities.map(identity => identity.id)
+
+  const lifecycleIdentities = lifecycleRows
     .filter((row) => row.kind === 'bounded-choice')
     .map((row) => row.selector)
-  const counts = new Map<string, number>()
-  for (const selector of lifecycleSelectors) counts.set(selector, (counts.get(selector) ?? 0) + 1)
-  const missingSelectors = expectedSelectors.filter((selector) => !counts.has(selector))
-  const duplicateSelectors = [...counts.entries()]
-    .filter(([, count]) => count > 1)
-    .map(([selector]) => selector)
-  const expectedSet = new Set(expectedSelectors)
-  const extraSelectors = [...new Set(lifecycleSelectors)].filter((selector) => !expectedSet.has(selector))
+  const expectedCounts = countIdentities(expectedIdentities)
+  const lifecycleCounts = countIdentities(lifecycleIdentities)
+  const missingIdentities = [...expectedCounts.entries()]
+    .filter(([identity, count]) => (lifecycleCounts.get(identity) ?? 0) < count)
+    .map(([identity]) => identity || '<missing-id>')
+  const duplicateIdentities = [...new Set([
+    ...[...expectedCounts.entries()].filter(([identity, count]) => Boolean(identity) && count > 1).map(([identity]) => identity),
+    ...[...lifecycleCounts.entries()].filter(([identity, count]) => Boolean(identity) && count > 1).map(([identity]) => identity),
+  ])]
+  const expectedSet = new Set(expectedIdentities)
+  const extraIdentities = [...new Set(lifecycleIdentities)]
+    .filter((identity) => !expectedSet.has(identity))
+    .map((identity) => identity || '<missing-id>')
+  const failedIdentities = [...new Set(lifecycleRows
+    .filter((row) => row.kind === 'bounded-choice' && !row.passed)
+    .map((row) => row.selector || '<missing-id>'))]
+  const keylessIdentities = capturedIdentities
+    .filter((identity) => !identity.id)
+    .map((identity) => identity.diagnosticSelector || '<missing-id>')
+  const invalidIdentities = [...new Set(capturedIdentities
+    .filter((identity) => !identity.valid)
+    .map(identity => identity.id || identity.diagnosticSelector || '<missing-id>'))]
   return {
-    expectedCount: expectedSelectors.length,
-    lifecycleCount: lifecycleSelectors.length,
-    missingSelectors,
-    duplicateSelectors,
-    extraSelectors,
-    passed: missingSelectors.length === 0
-      && duplicateSelectors.length === 0
-      && extraSelectors.length === 0
-      && lifecycleSelectors.length === expectedSelectors.length,
+    expectedCount: capturedIdentities.length,
+    lifecycleCount: lifecycleIdentities.length,
+    missingIdentities,
+    duplicateIdentities,
+    extraIdentities,
+    failedIdentities,
+    keylessIdentities,
+    invalidIdentities,
+    passed: missingIdentities.length === 0
+      && duplicateIdentities.length === 0
+      && extraIdentities.length === 0
+      && failedIdentities.length === 0
+      && keylessIdentities.length === 0
+      && invalidIdentities.length === 0
+      && lifecycleIdentities.length === capturedIdentities.length,
   }
+}
+
+function countIdentities(identities: readonly string[]): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const identity of identities) counts.set(identity, (counts.get(identity) ?? 0) + 1)
+  return counts
 }
 
 export const CONTROL_VARIANT_VOCABULARY: readonly ControlVariantEntry[] = [
@@ -122,9 +179,9 @@ export const CONTROL_VARIANT_VOCABULARY: readonly ControlVariantEntry[] = [
   { selector: '.pill', component: 'pill', variant: 'pill', authority: 'components/ui/Pill.css shared pill contract' },
 ]
 
-/** Capture the bounded-choice identities before any state or lifecycle interaction can scroll. */
-export async function captureBoundedChoicePopulation(page: Page): Promise<string[]> {
-  const selectors = await page.evaluate(({ vocabulary }) => {
+/** Capture bounded-choice identities before any state or lifecycle interaction can scroll. */
+export async function captureBoundedChoicePopulation(page: Page): Promise<BoundedChoiceIdentity[]> {
+  const identities = await page.evaluate(({ vocabulary }) => {
     const visible = (element: HTMLElement) => {
       const style = getComputedStyle(element)
       const rect = element.getBoundingClientRect()
@@ -153,8 +210,27 @@ export async function captureBoundedChoicePopulation(page: Page): Promise<string
       }
       return ['body', ...segments].join(' > ')
     }
+    const accessibleName = (element: HTMLElement): string => {
+      const labelledBy = element.getAttribute('aria-labelledby')
+        ?.split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
+        .filter(Boolean)
+        .join(' ')
+      const associatedLabel = element.id
+        ? Array.from(document.querySelectorAll<HTMLLabelElement>('label')).find((label) => label.htmlFor === element.id)?.textContent?.trim()
+        : ''
+      const parentLabel = element.closest('label')?.textContent?.trim()
+      const raw = element.getAttribute('aria-label')?.trim()
+        || labelledBy
+        || associatedLabel
+        || parentLabel
+        || element.innerText?.trim()
+        || element.textContent?.trim()
+        || ''
+      return raw.replace(/\s+/g, ' ')
+    }
     const actionable = 'button, a[href], [role="button"], [role="link"], [role="combobox"], .mk-chip--clickable'
-    return Array.from(document.querySelectorAll<HTMLElement>(actionable))
+    const captures = Array.from(document.querySelectorAll<HTMLElement>(actionable))
       .filter(visible)
       .filter((element) => {
         const match = vocabulary.find((entry) => element.matches(entry.selector))
@@ -163,9 +239,82 @@ export async function captureBoundedChoicePopulation(page: Page): Promise<string
           || match?.selector === '.picker__trigger'
           || match?.selector === '.mk-select__field'
       })
-      .map(elementPath)
-  }, { vocabulary: CONTROL_VARIANT_VOCABULARY }) as string[]
-  return [...new Set(selectors)]
+      .map((element) => {
+        const role = element.getAttribute('role') || element.tagName.toLowerCase()
+        const marker: BoundedChoiceMarker = element.getAttribute('role') === 'combobox'
+          ? 'role=combobox'
+          : element.tagName.toLowerCase() === 'button' && element.getAttribute('aria-haspopup') === 'listbox'
+            ? 'aria-haspopup=listbox'
+            : element.classList.contains('picker__trigger')
+              ? 'picker-trigger'
+              : 'select-field'
+        return {
+          id: element.id.trim(),
+          role,
+          label: accessibleName(element),
+          marker,
+          diagnosticSelector: elementPath(element),
+        }
+      })
+    const idCounts = new Map<string, number>()
+    for (const capture of captures) idCounts.set(capture.id, (idCounts.get(capture.id) ?? 0) + 1)
+    return captures.map((capture) => {
+      const duplicate = Boolean(capture.id) && (idCounts.get(capture.id) ?? 0) > 1
+      const invalidReason: BoundedChoiceInvalidReason | undefined = !capture.id
+        ? 'keyless'
+        : !/^[a-z0-9][a-z0-9-]*$/.test(capture.id)
+          ? 'invalid-id'
+          : duplicate ? 'duplicate' : undefined
+      return {
+        ...capture,
+        valid: invalidReason === undefined,
+        ...(invalidReason ? { invalidReason } : {}),
+      }
+    })
+  }, { vocabulary: CONTROL_VARIANT_VOCABULARY }) as BoundedChoiceIdentity[]
+  return identities
+}
+
+function currentElementPath(locator: Locator): Promise<string> {
+  return locator.evaluate((element) => {
+    const segments: string[] = []
+    let current: HTMLElement | null = element as HTMLElement
+    while (current && current !== document.body) {
+      let ordinal = 1
+      let sibling = current.previousElementSibling
+      while (sibling) {
+        if (sibling.tagName === current.tagName) ordinal += 1
+        sibling = sibling.previousElementSibling
+      }
+      segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${ordinal})`)
+      current = current.parentElement
+    }
+    return ['body', ...segments].join(' > ')
+  })
+}
+
+/** Require exactly one current trigger with its captured role and bounded-choice marker. */
+export function validateBoundedChoiceResolution(
+  target: BoundedChoiceIdentity,
+  matchCount: number,
+  roleMatched: boolean,
+  markerMatched: boolean,
+): BoundedChoiceResolutionResult {
+  let reason: BoundedChoiceResolutionResult['reason'] = null
+  if (!target.id) reason = 'keyless'
+  else if (target.invalidReason === 'invalid-id' || (!target.valid && target.invalidReason !== 'duplicate')) reason = 'invalid-id'
+  else if (matchCount === 0) reason = 'missing'
+  else if (matchCount !== 1) reason = 'ambiguous'
+  else if (target.invalidReason === 'duplicate') reason = 'duplicate'
+  else if (!roleMatched || !markerMatched) reason = 'role-mismatched'
+  return {
+    id: target.id,
+    matchCount,
+    roleMatched,
+    markerMatched,
+    reason,
+    passed: reason === null,
+  }
 }
 
 /** Resolve rendered heights to the named control sizes in the approved design system. */
@@ -229,8 +378,9 @@ export async function collectControlConsistency(
   _context: PageAuditContext,
   cellId: string,
   nativeSelectExceptions: readonly NativeSelectException[] = [],
-  capturedBoundedChoiceSelectors?: readonly string[],
+  capturedBoundedChoiceIdentities?: readonly BoundedChoiceIdentity[],
 ): Promise<ControlConsistencyRow[]> {
+  const capturedIdentities = capturedBoundedChoiceIdentities ?? await captureBoundedChoicePopulation(page)
   const rendered = await page.evaluate(({ vocabulary, exceptionSelectors }) => {
     type CssColor = { rgb: [number, number, number]; alpha: number }
     const colorCanvas = document.createElement('canvas')
@@ -331,25 +481,20 @@ export async function collectControlConsistency(
         selector: elementPath(element),
         exceptionSelector: exceptionSelectors.find((selector) => element.matches(selector)) ?? '',
       }))
-    const boundedChoices = controls.filter((control) => control.role === 'combobox'
-      || (control.tag === 'button' && control.elementHasListboxPopup)
-      || control.matchedSelector === '.picker__trigger'
-      || control.matchedSelector === '.mk-select__field')
-    return { controls, nativeSelects, boundedChoiceSelectors: boundedChoices.map((control) => control.selector) }
+    return { controls, nativeSelects }
   }, {
     vocabulary: CONTROL_VARIANT_VOCABULARY,
     exceptionSelectors: nativeSelectExceptions.map((entry) => entry.selector),
   }) as {
     controls: RenderedControl[]
     nativeSelects: { selector: string; exceptionSelector: string }[]
-    boundedChoiceSelectors: string[]
   }
 
   for (const control of rendered.controls) control.size = classifyControlSize(control.height)
   const groupSummaries = summarizeControlGroups(rendered.controls)
   const groupByKey = new Map(groupSummaries.map((group) => [group.group, group]))
   const populationSize = rendered.controls.length
-  const boundedChoicePopulation = capturedBoundedChoiceSelectors?.length ?? rendered.boundedChoiceSelectors.length
+  const boundedChoicePopulation = capturedIdentities.length
   const nativeSelectPopulation = rendered.nativeSelects.length
   const rows: ControlConsistencyRow[] = [{
     cellId,
@@ -432,13 +577,32 @@ export async function exerciseBoundedChoices(
     language: 'en',
     state: 'default',
   },
-  capturedBoundedChoiceSelectors?: readonly string[],
+  capturedBoundedChoiceIdentities?: readonly BoundedChoiceIdentity[],
 ): Promise<ControlConsistencyRow[]> {
-  const selectors = capturedBoundedChoiceSelectors ?? await captureBoundedChoicePopulation(page)
+  const identities = capturedBoundedChoiceIdentities ?? await captureBoundedChoicePopulation(page)
   const rows: ControlConsistencyRow[] = []
-  for (const selector of selectors) {
-    const trigger = page.locator(selector).first()
-    if (await trigger.count() === 0) {
+  for (const target of identities) {
+    try {
+    const selector = target.id
+    const trigger = target.id && /^[a-z0-9][a-z0-9-]*$/.test(target.id)
+      ? page.locator(`#${target.id}`)
+      : null
+    const candidateCount = trigger ? await trigger.count() : 0
+    const markerState = trigger && candidateCount === 1
+      ? await trigger.evaluate((element, expected) => {
+          const role = element.getAttribute('role') || element.tagName.toLowerCase()
+          const markerMatched = expected.marker === 'role=combobox'
+            ? element.getAttribute('role') === 'combobox'
+            : expected.marker === 'aria-haspopup=listbox'
+              ? element.getAttribute('aria-haspopup') === 'listbox'
+              : expected.marker === 'picker-trigger'
+                ? element.classList.contains('picker__trigger')
+                : element.classList.contains('mk-select__field')
+          return { roleMatched: role === expected.role, markerMatched }
+        }, target)
+      : { roleMatched: false, markerMatched: false }
+    const resolution = validateBoundedChoiceResolution(target, candidateCount, markerState.roleMatched, markerState.markerMatched)
+    if (!resolution.passed || !trigger) {
       rows.push({
         cellId,
         kind: 'bounded-choice',
@@ -450,10 +614,16 @@ export async function exerciseBoundedChoices(
         authority: 'DD-MVP-2 designed bounded choice; issue #856 lifecycle contract',
         observed: false,
         passed: false,
-        measured: JSON.stringify({ lifecycleApplicable: true, missing: true }),
+        measured: JSON.stringify({
+          lifecycleApplicable: true,
+          diagnosticSelector: target.diagnosticSelector,
+          label: target.label,
+          ...resolution,
+        }),
       })
       continue
     }
+    const measurementSelector = async (): Promise<string> => currentElementPath(trigger).catch(() => selector ? `#${selector}` : target.diagnosticSelector)
     // A locator action may scroll the page. Scroll each already-captured target
     // into view deliberately; never rebuild the population after that happens.
     await trigger.scrollIntoViewIfNeeded()
@@ -472,7 +642,7 @@ export async function exerciseBoundedChoices(
         const style = getComputedStyle(element)
         return { foreground: style.color, background: style.backgroundColor }
       })
-      const disabledContrastRows = await collectContrast(page, context, 'disabled', selector, { measure: 'text' })
+      const disabledContrastRows = await collectContrast(page, context, 'disabled', await measurementSelector(), { measure: 'text' })
       const textContrast = minimumObservedRatio(disabledContrastRows, 'text')
       rows.push({
         cellId,
@@ -487,6 +657,8 @@ export async function exerciseBoundedChoices(
         passed: initial.closed && textContrast >= 3,
         measured: JSON.stringify({
           lifecycleApplicable: false,
+          diagnosticSelector: await measurementSelector(),
+          label: target.label,
           disabled: true,
           closed: initial.closed,
           foreground: colors.foreground,
@@ -521,7 +693,7 @@ export async function exerciseBoundedChoices(
         })
       : { popupContained: false, activeReachable: false, selectedEvidence: false, selectedSelector: '', popup: null }
     const openContrastRows = opened
-      ? await collectContrast(page, context, 'open', selector, { measure: 'both' })
+      ? await collectContrast(page, context, 'open', await measurementSelector(), { measure: 'both' })
       : []
     const selectedContrastRows = opened && popupEvidence.selectedSelector
       ? await collectContrast(page, context, 'selected', popupEvidence.selectedSelector, { measure: 'text' })
@@ -585,7 +757,7 @@ export async function exerciseBoundedChoices(
       const style = getComputedStyle(element)
       return { foreground: style.color, background: style.backgroundColor }
     })
-    const closedContrastRows = await collectContrast(page, context, 'selected', selector, { measure: 'text' })
+    const closedContrastRows = await collectContrast(page, context, 'selected', await measurementSelector(), { measure: 'text' })
     const textContrast = minimumObservedRatio(closedContrastRows, 'text')
     const passed = initial.closed
       && opened
@@ -616,6 +788,8 @@ export async function exerciseBoundedChoices(
       passed,
       measured: JSON.stringify({
         lifecycleApplicable: true,
+        diagnosticSelector: await measurementSelector(),
+        label: target.label,
         closed: initial.closed,
         opened,
         arrowKey,
@@ -640,6 +814,28 @@ export async function exerciseBoundedChoices(
         closedContrastRows,
       }),
     })
+    } catch (error) {
+      await page.keyboard.press('Escape').catch(() => {})
+      rows.push({
+        cellId,
+        kind: 'bounded-choice',
+        selector: target.id,
+        component: 'bounded-choice',
+        variant: 'unknown',
+        size: 'unresolved',
+        state: 'lifecycle',
+        authority: 'DD-MVP-2 designed bounded choice; issue #856 lifecycle contract',
+        observed: false,
+        passed: false,
+        measured: JSON.stringify({
+          lifecycleApplicable: true,
+          diagnosticSelector: target.diagnosticSelector,
+          label: target.label,
+          reason: 'action-failed',
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      })
+    }
   }
   return rows
 }

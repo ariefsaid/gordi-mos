@@ -28,6 +28,8 @@ interface KitchenToolbarProps {
   onCategoryChange?: (c: string) => void
   /** Optional display formatter; option values remain stable source category IDs. */
   categoryLabel?: (category: string) => string
+  /** Optional stable id for the visible category trigger when a surface is audited. */
+  categoryId?: string
   /** default: the shared "Find a dish" catalog string */
   searchPlaceholder?: string
   /** optional LEADING scope slot (ActionTypeSeg on the Log + Plan capture surfaces) */
@@ -43,6 +45,7 @@ export function KitchenToolbar({
   category,
   onCategoryChange,
   categoryLabel,
+  categoryId,
   searchPlaceholder,
   children,
   ariaLabel = 'Filter',
@@ -76,6 +79,7 @@ export function KitchenToolbar({
       </div>
       {categories && onCategoryChange && (
         <Select
+          id={categoryId}
           className="ktb-category"
           aria-label={t('kitchen.toolbar.category.ariaLabel')}
           value={category}

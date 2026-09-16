@@ -152,21 +152,21 @@ test('bounded-choice driver catches clipped popups and broken Escape focus retur
 
   const rows = await exerciseBoundedChoices(page, 'planted-cell')
   expect(rows).toHaveLength(5)
-  const passing = rows.find((row) => row.selector.includes('button:nth-of-type(1)'))!
+  const passing = rows.find((row) => row.selector === 'good')!
   expect(passing.passed, passing.measured).toBe(true)
   expect(JSON.parse(passing.measured).openTextContrast).toBeGreaterThanOrEqual(4.5)
   expect(JSON.parse(passing.measured).selectedTextContrast).toBeGreaterThanOrEqual(4.5)
-  const broken = rows.find((row) => row.selector.includes('button:nth-of-type(2)'))!
+  const broken = rows.find((row) => row.selector === 'bad')!
   expect(broken.passed).toBe(false)
   expect(JSON.parse(broken.measured).popupContained).toBe(false)
   expect(JSON.parse(broken.measured).focusReturnedAfterEscape).toBe(false)
-  const noTypeahead = rows.find((row) => row.selector.includes('button:nth-of-type(3)'))!
+  const noTypeahead = rows.find((row) => row.selector === 'no-typeahead')!
   expect(noTypeahead.passed).toBe(false)
   expect(JSON.parse(noTypeahead.measured).typeahead).toBe(false)
   const disabled = rows.find((row) => row.state === 'disabled')!
   expect(disabled.passed).toBe(true)
   expect(JSON.parse(disabled.measured).lifecycleApplicable).toBe(false)
-  const popupOwner = rows.find((row) => row.selector.includes('button:nth-of-type(5)'))!
+  const popupOwner = rows.find((row) => row.selector === 'popup-owner')!
   expect(popupOwner.passed, popupOwner.measured).toBe(true)
   expect(JSON.parse(popupOwner.measured).selectedTextContrast).toBeGreaterThanOrEqual(4.5)
 })
@@ -194,8 +194,9 @@ test('control consistency entry point writes a complete per-cell census', async 
       .filter((entry) => (!entry.routes || entry.routes.includes(cell.route))
         && (!entry.viewports || entry.viewports.includes(cell.viewport)))
       .map(({ selector, authority }) => ({ selector, authority }))
-    // Freeze bounded-choice identities before state exercises can scroll the
-    // page. Both the denominator and lifecycle pass consume this same set.
+    // Freeze bounded-choice semantic identities before state exercises can
+    // scroll the page. Both the denominator and lifecycle pass consume this
+    // same set.
     const capturedBoundedChoices = await captureBoundedChoicePopulation(page)
     const census = await collectControlConsistency(page, cellContext, cell.id, nativeSelectExceptions, capturedBoundedChoices)
     const stateColors = await exerciseControlStateColors(page, cellContext, cell.id)
@@ -213,9 +214,12 @@ test('control consistency entry point writes a complete per-cell census', async 
           denominator: population.boundedChoicePopulation,
           captured: lifecyclePopulation.expectedCount,
           lifecycle: lifecyclePopulation.lifecycleCount,
-          missingSelectors: lifecyclePopulation.missingSelectors,
-          duplicateSelectors: lifecyclePopulation.duplicateSelectors,
-          extraSelectors: lifecyclePopulation.extraSelectors,
+          missingIdentities: lifecyclePopulation.missingIdentities,
+          duplicateIdentities: lifecyclePopulation.duplicateIdentities,
+          extraIdentities: lifecyclePopulation.extraIdentities,
+          failedIdentities: lifecyclePopulation.failedIdentities,
+          keylessIdentities: lifecyclePopulation.keylessIdentities,
+          invalidIdentities: lifecyclePopulation.invalidIdentities,
         },
       })
     }

@@ -70,9 +70,23 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
     expect(screen.getByRole('combobox', { name: /sort/i })).toHaveTextContent('Due soonest')
     expect(screen.getByRole('button', { name: /^fields$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^save view$/i })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /attention/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /attention/i })).toHaveAttribute('id', 'tasks-filter-attention')
     expect(screen.getByRole('combobox', { name: /attention/i })).toHaveTextContent('3 need attention')
     expect(screen.queryByRole('button', { name: /^filters$/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps the attention trigger id when its count and label rerender', () => {
+    const result = renderToolbar(makeProps({ attentionCounts: { overdue: 2, blocked: 1, total: 3 } }))
+    expect(screen.getByRole('combobox', { name: /attention/i })).toHaveAttribute('id', 'tasks-filter-attention')
+
+    result.rerender(
+      <I18nProvider>
+        <TasksToolbar {...makeProps({ attentionCounts: { overdue: 1, blocked: 0, total: 1 } })} />
+      </I18nProvider>,
+    )
+
+    expect(screen.getByRole('combobox', { name: /attention/i })).toHaveAttribute('id', 'tasks-filter-attention')
+    expect(screen.getByRole('combobox', { name: /attention/i })).toHaveTextContent('1 need attention')
   })
 
   it('keeps group, domain, status, person, sort, fields, and attention controls independently reachable', () => {
