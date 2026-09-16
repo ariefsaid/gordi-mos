@@ -109,10 +109,12 @@
    band below it (36px), and the row's height is already set by the 44px select, so the
    floor is free. */
 @media (max-width: 639px) {
-  /* row-gap 4 / column-gap 8: the two rows are ONE group, so the interval between them is
-     the tight one and the band's own padding is the generous one. An 8px row-gap matched
-     the band's bottom padding exactly and read as two bands again. */
-  .ktb { gap: 4px 8px; flex-wrap: wrap; padding: 4px 0 8px; }
+  /* The two rows are ONE group, so the interval between them stays tighter than the band's
+     own padding — otherwise the band reads as two bands. The interval cannot go below the
+     8px phone touch floor, though, because the rows either side of it carry live targets.
+     So the interval sits ON the floor and the band's padding opens above it to keep the
+     hierarchy: 8px inside, 14px around. */
+  .ktb { gap: 8px; flex-wrap: wrap; padding: 8px 0 14px; }
   .ktb-children { flex: 1 0 100%; }
   .ktb-children > * { width: 100%; }
   .ktb-search-wrap { max-width: none; }

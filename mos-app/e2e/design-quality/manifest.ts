@@ -99,6 +99,11 @@ export type NamedManifestList = {
   authority: string
   routes?: string[]
   viewports?: string[]
+  /** Scope to the fixtures whose face renders this group. One route can present more than
+   *  one face — DD-MVP-11 sends a profile with no single assigned location to the location
+   *  overview, which has no capture footer — and a group absent from a face that never
+   *  renders it is not a finding. */
+  fixtures?: string[]
   reveal?: {
     action: 'focus' | 'hover' | 'click'
     selector: string
@@ -157,7 +162,9 @@ const routes = [
   '/mos/inbox',
   '/mos/cafe',
   '/mos/cafe/plan',
-  '/mos/cafe/log',
+  // DD-MVP-17 retired /mos/cafe/log as a page: it redirects to the capture root, so the
+  // cafe-log journey's cells measure /mos/cafe. A retired route cannot carry coverage, and
+  // leaving it in this denominator failed the manifest contract outright.
   '/mos/cafe/review',
   '/mos/cafe/stock',
   '/mos/cafe/pushes',
@@ -298,8 +305,13 @@ const emptyNamedLists: ManifestLists = {
     {
       selector: '.kl-footer-actions',
       authority: 'DESIGN.md phone target spacing; Café Log exposes adjacent Discard and Submit actions',
-      routes: ['/mos/cafe/log'],
+      routes: ['/mos/cafe'],
       viewports: ['phone-390x844'],
+      // The capture footer rides the capture face. A profile without a single assigned
+      // location gets the location overview first (DD-MVP-11), which has no footer to
+      // measure — the group was reported missing there once the root became the capture
+      // surface and both faces started sharing this route.
+      fixtures: ['BAR_MEMBER'],
     },
   ],
 }

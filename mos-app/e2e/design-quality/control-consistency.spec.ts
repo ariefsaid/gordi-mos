@@ -18,6 +18,7 @@ import {
   auditRun,
   cellsFor,
   compareAutomaticFailuresForLane,
+  observeManifestCellState,
   prepareAuditPage,
   writeAutomaticLaneSummary,
 } from './runtime'
@@ -80,6 +81,208 @@ test('control census detects planted raw controls and matches native exceptions 
   expect(nativeRows).toHaveLength(2)
   expect(nativeRows.find((row) => row.authority.includes('DD-TEST'))?.passed).toBe(true)
   expect(nativeRows.filter((row) => !row.passed)).toHaveLength(1)
+})
+
+test('focus state is driven through keyboard modality so the real :focus-visible ring is sampled', async ({ page }) => {
+  // A decoy elevation shadow is the only resting "boundary"; the keyboard focus indicator is
+  // the global grammar's outline. Driven with a bare element.focus() after a hover, the
+  // pointer modality suppresses :focus-visible, the shadow wins the strongest-boundary pick,
+  // and the row fails — which is exactly the false failure the integrated dev run produced
+  // for borderless icon controls. The keyboard seam must observe the outline instead.
+  await page.setContent(`
+    <style>
+      body { background: rgb(255, 255, 255); }
+      .btn.btn-ghost { background: transparent; }
+      button { height: 32px; }
+      #kbd-ring { border: none; box-shadow: 0 1px 2px rgb(235, 232, 226); background: rgb(255, 255, 255); }
+      #kbd-ring:focus-visible { outline: 2px solid rgb(20, 20, 20); outline-offset: 2px; }
+      /* The only genuinely indicator-less control suppresses the outline outright — an
+         elevation shadow alone must never carry keyboard focus evidence. */
+      #decoy-ring { border: none; outline: none; box-shadow: 0 1px 2px rgb(235, 232, 226); background: rgb(255, 255, 255); }
+    </style>
+    <main>
+      <button id="kbd-ring" class="btn btn-ghost">Ring control</button>
+      <button id="decoy-ring" class="btn btn-ghost">Shadow-only control</button>
+    </main>
+  `)
+
+  const rows = await exerciseControlStateColors(page, context, 'planted-cell')
+  const ringRow = rows.find((row) => row.state === 'focus' && row.selector.includes('button:nth-of-type(1)'))!
+  expect(ringRow, 'ring control focus row missing').toBeDefined()
+  expect(ringRow.passed, ringRow.measured).toBe(true)
+  const measured = JSON.parse(ringRow.measured)
+  const boundaryRows = measured.contrastRows.filter((row: { kind: string }) => row.kind === 'boundary')
+  expect(boundaryRows.some((row: { observed: boolean; passes: boolean; source?: string }) => row.observed && row.passes)).toBe(true)
+  const decoyRow = rows.find((row) => row.state === 'focus' && row.selector.includes('button:nth-of-type(2)'))!
+  // The suppressed-outline control has no real focus indicator; with keyboard modality the
+  // is absent and the decoy shadow cannot pass — the row must stay failing.
+  expect(decoyRow.passed).toBe(false)
+})
+
+const MUTATING_PICKER_PAGE = `
+  <style>button { color: rgb(20,20,20); background: rgb(255,255,255); border: 1px solid rgb(20,20,20); height: 32px; }</style>
+  <button id="first" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="first-list">First picker</button>
+  <div id="first-list" role="listbox" hidden>
+    <div id="first-a" role="option" aria-selected="true">Alpha</div>
+    <div id="first-b" role="option">Beta</div>
+  </div>
+  <button id="second" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="second-list">Second picker</button>
+  <div id="second-list" role="listbox" hidden>
+    <div id="second-a" role="option" aria-selected="true">Gamma</div>
+    <div id="second-b" role="option">Delta</div>
+  </div>
+  <script>
+    function ensureSecond() {
+      if (document.getElementById('second')) return
+      const second = document.createElement('button')
+      second.id = 'second'
+      second.setAttribute('role', 'combobox')
+      second.setAttribute('aria-haspopup', 'listbox')
+      second.setAttribute('aria-expanded', 'false')
+      second.setAttribute('aria-controls', 'second-list')
+      second.textContent = 'Second picker'
+      document.body.appendChild(second)
+      const list = document.createElement('div')
+      list.id = 'second-list'
+      list.setAttribute('role', 'listbox')
+      list.hidden = true
+      list.innerHTML = '<div id="second-a" role="option" aria-selected="true">Gamma</div><div id="second-b" role="option">Delta</div>'
+      document.body.appendChild(list)
+      const open = () => { second.setAttribute('aria-expanded', 'true'); list.hidden = false; second.setAttribute('aria-activedescendant', 'second-a') }
+      const close = (restore) => { second.setAttribute('aria-expanded', 'false'); list.hidden = true; if (restore) second.focus() }
+      second.addEventListener('click', () => second.getAttribute('aria-expanded') === 'true' ? close(true) : open())
+      second.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowDown') { event.preventDefault(); if (second.getAttribute('aria-expanded') !== 'true') open(); second.setAttribute('aria-activedescendant', 'second-b') }
+        if (event.key.length === 1 && event.key.toLowerCase() === 'g') second.setAttribute('aria-activedescendant', 'second-a')
+        if (event.key === 'Enter' && second.getAttribute('aria-expanded') === 'true') { event.preventDefault(); close(true) }
+        if (event.key === 'Escape' && second.getAttribute('aria-expanded') === 'true') close(true)
+      })
+      document.addEventListener('pointerdown', (event) => {
+        if (!second.contains(event.target) && !list.contains(event.target)) close(true)
+      })
+    }
+    {
+      const trigger = document.getElementById('first')
+      const list = document.getElementById('first-list')
+      const open = () => { trigger.ariaExpanded = 'true'; list.hidden = false; trigger.setAttribute('aria-activedescendant', 'first-a') }
+      const close = (restore) => { trigger.ariaExpanded = 'false'; list.hidden = true; if (restore) trigger.focus() }
+      trigger.addEventListener('click', () => trigger.ariaExpanded === 'true' ? close(true) : open())
+      trigger.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowDown') { event.preventDefault(); if (trigger.ariaExpanded !== 'true') open(); trigger.setAttribute('aria-activedescendant', 'first-b') }
+        if (event.key.length === 1 && event.key.toLowerCase() === 'a') trigger.setAttribute('aria-activedescendant', 'first-a')
+        if (event.key === 'Enter' && trigger.ariaExpanded === 'true') {
+          event.preventDefault(); close(true)
+          // Committing a value drives what is mounted — exactly as a real filter or form
+          // value change can unmount (or re-mount) a sibling control. Selecting "Beta"
+          // removes the later captured picker; selecting "Alpha" puts it back.
+          if (trigger.getAttribute('aria-activedescendant') === 'first-b') {
+            document.getElementById('second')?.remove()
+            document.getElementById('second-list')?.remove()
+          } else {
+            ensureSecond()
+          }
+        }
+        if (event.key === 'Escape' && trigger.ariaExpanded === 'true') close(true)
+      })
+      document.addEventListener('pointerdown', (event) => {
+        if (!trigger.contains(event.target) && !list.contains(event.target)) close(true)
+      })
+      // Click-to-select on the options (mirrors the real Picker): selecting "Alpha" re-mounts
+      // the later picker, selecting "Beta" removes it.
+      for (const option of list.querySelectorAll('[role="option"]')) {
+        option.addEventListener('click', () => {
+          trigger.setAttribute('aria-activedescendant', option.id)
+          close(true)
+          if (option.id === 'first-b') {
+            document.getElementById('second')?.remove()
+            document.getElementById('second-list')?.remove()
+          } else {
+            ensureSecond()
+          }
+        })
+      }
+    }
+    {
+      const trigger = document.getElementById('second')
+      const list = document.getElementById('second-list')
+      const open = () => { trigger.ariaExpanded = 'true'; list.hidden = false; trigger.setAttribute('aria-activedescendant', 'second-a') }
+      const close = (restore) => { trigger.ariaExpanded = 'false'; list.hidden = true; if (restore) trigger.focus() }
+      trigger.addEventListener('click', () => trigger.ariaExpanded === 'true' ? close(true) : open())
+      trigger.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowDown') { event.preventDefault(); if (trigger.ariaExpanded !== 'true') open(); trigger.setAttribute('aria-activedescendant', 'second-b') }
+        if (event.key === 'Enter' && trigger.ariaExpanded === 'true') { event.preventDefault(); close(true) }
+        if (event.key === 'Escape' && trigger.ariaExpanded === 'true') close(true)
+      })
+      document.addEventListener('pointerdown', (event) => {
+        if (!trigger.contains(event.target) && !list.contains(event.target)) close(true)
+      })
+    }
+  </script>
+`
+
+test('lifecycle driver restores the cell after a value-commit that unmounts later identities', async ({ page }) => {
+  // Without restoration the drive's own ArrowDown+Enter on the first picker removes the
+  // second picker; resolving it then reports a false "missing" interaction failure.
+  await page.setContent(MUTATING_PICKER_PAGE)
+  const withoutRestore = await exerciseBoundedChoices(page, 'planted-cell')
+  const secondMissing = withoutRestore.find((row) => row.selector === 'second')!
+  expect(secondMissing.passed).toBe(false)
+  expect(JSON.parse(secondMissing.measured).resolutionFailure.reason).toBe('missing')
+
+  await page.setContent(MUTATING_PICKER_PAGE)
+  const withRestore = await exerciseBoundedChoices(page, 'planted-cell', context, undefined, async () => {
+    if ((await page.locator('#second').count()) > 0) return
+    // Recreate the removed picker with the same behavior the page script gave it.
+    await page.evaluate(() => {
+      const second = document.createElement('button')
+      second.id = 'second'
+      second.setAttribute('role', 'combobox')
+      second.setAttribute('aria-haspopup', 'listbox')
+      second.setAttribute('aria-expanded', 'false')
+      second.setAttribute('aria-controls', 'second-list')
+      second.textContent = 'Second picker'
+      document.body.appendChild(second)
+      const list = document.createElement('div')
+      list.id = 'second-list'
+      list.setAttribute('role', 'listbox')
+      list.hidden = true
+      list.innerHTML = '<div id="second-a" role="option" aria-selected="true">Gamma</div><div id="second-b" role="option">Delta</div>'
+      document.body.appendChild(list)
+      const open = () => {
+        second.setAttribute('aria-expanded', 'true')
+        list.hidden = false
+        second.setAttribute('aria-activedescendant', 'second-a')
+      }
+      const close = (restore: boolean) => {
+        second.setAttribute('aria-expanded', 'false')
+        list.hidden = true
+        if (restore) second.focus()
+      }
+      second.addEventListener('click', () => (second.getAttribute('aria-expanded') === 'true' ? close(true) : open()))
+      second.addEventListener('keydown', (event) => {
+        const key = event.key
+        if (key === 'ArrowDown') {
+          event.preventDefault()
+          if (second.getAttribute('aria-expanded') !== 'true') open()
+          second.setAttribute('aria-activedescendant', 'second-b')
+        }
+        if (key.length === 1 && key.toLocaleLowerCase() === 'g') second.setAttribute('aria-activedescendant', 'second-a')
+        if (key === 'Enter' && second.getAttribute('aria-expanded') === 'true') {
+          event.preventDefault()
+          close(true)
+        }
+        if (key === 'Escape' && second.getAttribute('aria-expanded') === 'true') close(true)
+      })
+      document.addEventListener('pointerdown', (event) => {
+        const target = event.target as Node
+        if (!second.contains(target) && !list.contains(target)) close(true)
+      })
+    })
+  })
+  const firstRow = withRestore.find((row) => row.selector === 'first')!
+  expect(firstRow.passed, firstRow.measured).toBe(true)
+  const secondRow = withRestore.find((row) => row.selector === 'second')!
+  expect(secondRow.passed, secondRow.measured).toBe(true)
 })
 
 test('bounded-choice driver catches clipped popups and broken Escape focus return', async ({ page }) => {
@@ -567,7 +770,16 @@ test('control consistency entry point writes a complete per-cell census', async 
     const capturedBoundedChoices = await captureBoundedChoicePopulation(page)
     const census = await collectControlConsistency(page, cellContext, cell.id, nativeSelectExceptions, capturedBoundedChoices)
     const stateColors = await exerciseControlStateColors(page, cellContext, cell.id)
-    const lifecycle = await exerciseBoundedChoices(page, cell.id, cellContext, capturedBoundedChoices)
+    // A lifecycle drive commits a value (ArrowDown+Enter). Restore the captured cell state
+    // after such a drive so later identities resolve against the state they were captured
+    // in; the manifest assertion is the readiness seam after the reload, and the network
+    // settle keeps data-driven controls (e.g. a count pill) from racing their re-render.
+    const restoreCell = async (): Promise<void> => {
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {})
+      await observeManifestCellState(page, cell)
+    }
+    const lifecycle = await exerciseBoundedChoices(page, cell.id, cellContext, capturedBoundedChoices, restoreCell)
     const lifecyclePopulation = validateBoundedChoiceLifecyclePopulation(capturedBoundedChoices, lifecycle)
     const populationRow = census.find((row) => row.kind === 'population')
     const population = populationRow ? JSON.parse(populationRow.measured) as { boundedChoicePopulation?: number } : {}

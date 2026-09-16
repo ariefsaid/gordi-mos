@@ -292,16 +292,38 @@ export async function collectVisibleContent(
       })
     }
 
+    const viewportArea = Math.max(1, window.innerWidth * window.innerHeight)
     const persistentBands = Array.from(document.querySelectorAll<HTMLElement>('body *')).filter((element) => {
       if (!visible(element)) return false
       const position = getComputedStyle(element).position
-      return position === 'fixed' || position === 'sticky'
+      if (position !== 'fixed' && position !== 'sticky') return false
+      // A band is chrome pinned to an edge — a header, a footer, a sticky table head. A layer
+      // that covers most of the viewport is a MODE, not a band: an open composer or record
+      // overlay is meant to cover the page behind it, and counting it here reported every
+      // control on the covered page as unreachable content.
+      const rect = element.getBoundingClientRect()
+      const covered = (Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0))
+        * (Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0))
+      return covered / viewportArea < 0.8
     })
     const occlusionTargets = Array.from(new Set([
       ...textTargets,
       ...Array.from(document.querySelectorAll<HTMLElement>(actionable)).filter(visible),
     ]))
+    // The contract is reachability: content fails only when it CANNOT be brought clear of a
+    // persistent band, not when it happens to sit under one at some scroll offset. Sticky
+    // headers and footers are the designed pattern — rows slide beneath them on the way past.
+    //
+    // No single scroll position can decide that. Measuring at rest failed every below-fold row
+    // of every sticky-footer surface. Measuring at the bottom just moves the arbitrariness:
+    // whichever row lands behind the sticky table header there fails while the rows after it
+    // pass, which is how row 22 of 33 came to be the one Café Log failure. So ask the question
+    // directly — scroll each target to the middle of its scroller and see whether it is still
+    // covered. Content with nowhere clear to go (a first row under a header with no top
+    // reserve, a last row under a footer with no bottom reserve) cannot be centred and still
+    // fails, which is the case the rule exists for.
     for (const target of occlusionTargets) {
+      target.scrollIntoView({ block: 'center', inline: 'nearest' })
       const targetRect = target.getBoundingClientRect()
       let intersectionRatio = 0
       let centerCovered = false
@@ -339,8 +361,20 @@ export async function collectVisibleContent(
           centerCovered,
           fullyReachable,
           persistentBandCount: persistentBands.length,
+          measuredAt: 'scrolled-into-centre',
         }),
       })
+    }
+    // Leave the page where the other rules expect it rather than wherever the last target
+    // happened to land.
+    for (const scroller of new Set<Element>([
+      ...(document.scrollingElement ? [document.scrollingElement] : []),
+      ...Array.from(document.querySelectorAll<HTMLElement>('body *')).filter((element) => {
+        const style = getComputedStyle(element)
+        return (style.overflowY === 'auto' || style.overflowY === 'scroll') && element.scrollHeight > element.clientHeight + 1
+      }),
+    ])) {
+      scroller.scrollTop = 0
     }
 
     if (pageContext.viewport === 'phone-390x844') {
@@ -356,17 +390,51 @@ export async function collectVisibleContent(
           measured: JSON.stringify({ width: 0, height: 0, nearestDistance: null, populationSize: 0 }),
         })
       }
+      // A checkbox painted at 16px inside a <label> is hit anywhere on that label, so the
+      // label is the target a thumb actually has. Same rule, same scope and same substitution
+      // as the control census uses (see `labelledTarget` in collectControlCensus below) —
+      // deliberately NOT a union of the two rects, which for a stacked label above a field
+      // would span the gap between them and report a target no thumb can press.
+      const targetArea = (element: HTMLElement): DOMRect => {
+        const own = element.getBoundingClientRect()
+        if (!element.matches('input[type="checkbox"], input[type="radio"]')) return own
+        const label = element.closest<HTMLElement>('label')
+          ?? (element.id ? document.querySelector<HTMLElement>(`label[for="${CSS.escape(element.id)}"]`) : null)
+        if (!label || !visible(label)) return own
+        const box = label.getBoundingClientRect()
+        return box.width > 0 && box.height > 0 ? box : own
+      }
       for (const target of controls) {
-        const rect = target.getBoundingClientRect()
+        const rect = targetArea(target)
         const container = target.closest('form, nav, [role="group"], [role="toolbar"], [role="menu"], [role="listbox"], main, aside, [role="dialog"]')
           || document.body
         const neighbours = controls.filter((candidate) => candidate !== target
           && (candidate.closest('form, nav, [role="group"], [role="toolbar"], [role="menu"], [role="listbox"], main, aside, [role="dialog"]')
             || document.body) === container)
+        // A control that scrolls UNDER a sticky bar is not a neighbour of it — their boxes
+        // overlap because one layer is above the other, and a pair reported 0px apart that
+        // way is not two targets a thumb can confuse. Adjacent targets sit beside each
+        // other and never intersect. Same-layer overlap is left alone: that is a real
+        // defect, and this only excuses a pair split across a sticky or fixed layer.
+        const stickyLayer = (element: HTMLElement): boolean => {
+          for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+            const position = getComputedStyle(node).position
+            if (position === 'fixed' || position === 'sticky') return true
+          }
+          return false
+        }
+        const targetSticky = stickyLayer(target)
         let nearestDistance: number | null = null
         let nearestSelector = ''
         for (const neighbour of neighbours) {
-          const other = neighbour.getBoundingClientRect()
+          const other = targetArea(neighbour)
+          const intersects = other.left < rect.right && other.right > rect.left
+            && other.top < rect.bottom && other.bottom > rect.top
+          if (intersects && stickyLayer(neighbour) !== targetSticky) continue
+          // A control inside the same activating label is the same target, not a neighbour
+          // 0px away from itself.
+          if (other.left === rect.left && other.top === rect.top
+            && other.width === rect.width && other.height === rect.height) continue
           const dx = Math.max(rect.left - other.right, other.left - rect.right, 0)
           const dy = Math.max(rect.top - other.bottom, other.top - rect.bottom, 0)
           const distance = Math.hypot(dx, dy)
@@ -1073,7 +1141,14 @@ export async function collectContrast(
         }
         const graphicFallback = collectionOptions.allowForegroundBoundary
           && foreground
-          && (element.matches('svg, svg *, img, [role="img"], [data-meaningful-graphic]'))
+          && (element.matches('svg, svg *, img, [role="img"], [data-meaningful-graphic]')
+            // DD-MVP-19 allows borderless controls to carry their affordance in the glyph:
+            // an actionable element whose visible content is only a graphic (icon button)
+            // is measured on that glyph's color. Without this arm the collector reports
+            // "unobserved" for every shared borderless icon button even when its glyph
+            // clears 3:1, which misclassifies a design-contract affordance as a failure.
+            || (element.matches('button, a[href], [role="button"], [role="link"], [role="combobox"], [role="menuitem"], [role="tab"]')
+              && element.querySelector(':scope > svg, :scope > img, :scope svg')))
         if (boundaries.length === 0 && graphicFallback && foreground) boundaries.push({ source: 'foreground', color: foreground, adjacent: background })
         if (boundaries.length === 0) {
           rows.push(emptyRow('boundary'))

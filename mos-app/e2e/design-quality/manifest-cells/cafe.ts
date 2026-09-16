@@ -18,11 +18,11 @@ export const CAFE_CELL_INPUTS = [
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-log-default-desktop', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-log-default-phone', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-review-default-phone', {
@@ -77,15 +77,15 @@ export const CAFE_CELL_INPUTS = [
     viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'receiving-only', status: 'covered', primary: true,
   }],
   ['cafe-log-producing-compact', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'producing', status: 'covered', primary: true,
   }],
   ['cafe-log-loading-phone', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'loading', status: 'covered', primary: true,
   }],
   ['cafe-log-success-desktop', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'success', status: 'covered', primary: true,
   }],
   ['cafe-review-authorized-desktop', {
@@ -94,7 +94,12 @@ export const CAFE_CELL_INPUTS = [
   }],
   ['cafe-review-denied-phone', {
     area: 'cafe-wip', journey: 'cafe-review', route: '/mos/cafe/review', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'covered', primary: true,
+    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'untested',
+    note: 'The denied face renders correctly, but the focus and control drivers require at least one interactive control inside main and a permission face has none.', primary: true,
+    // Untested, deliberately: the denied face renders correctly, but the focus and control
+    // drivers require at least one interactive control inside `main` and a permission face
+    // has none. Covering it needs the drivers to tolerate a control-less face, not a
+    // different contract.
   }],
   ['cafe-stock-empty-compact', {
     area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'VIEWER',
@@ -110,7 +115,12 @@ export const CAFE_CELL_INPUTS = [
   }],
   ['cafe-pushes-denied-phone', {
     area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'covered', primary: true,
+    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'untested',
+    note: 'The denied face renders correctly, but the focus and control drivers require at least one interactive control inside main and a permission face has none.', primary: true,
+    // Untested, deliberately: the denied face renders correctly, but the focus and control
+    // drivers require at least one interactive control inside `main` and a permission face
+    // has none. Covering it needs the drivers to tolerate a control-less face, not a
+    // different contract.
   }],
   ['cafe-pushes-error-compact', {
     area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'ADMIN',

@@ -128,13 +128,16 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(within(nav).queryByRole('link', { name: 'Pushes' })).toBeNull()
   })
 
-  it('AC-012: an unaffiliated Director at Café Log sees all six Café children', () => {
+  it('AC-012: an unaffiliated Director at the capture root sees the five Café children', () => {
     setAuthAs(['admin'], 'Managing Director')
-    renderRailNav('/cafe/log')
+    renderRailNav('/cafe')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    for (const name of ['Opening', 'Log', 'Plan', 'Stock', 'Review', 'Pushes']) {
+    // DD-MVP-17: the root IS the capture surface, so the children are Log + the working
+    // screens — the separate Opening child retired with /cafe/log.
+    for (const name of ['Log', 'Plan', 'Stock', 'Review', 'Pushes']) {
       expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
     }
+    expect(within(nav).queryByRole('link', { name: 'Opening' })).not.toBeInTheDocument()
   })
 
   it('AC-011b: a café-role viewer gets Café under a "Retail Ops" BU overline, plus its five screens', () => {
@@ -355,8 +358,8 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
   // that they render, Café follows the same rule Work does. Still "exactly one page" — the
   // invariant is unchanged and the case is stronger, because it now pins WHICH element holds it.
   it.each([
-    ['/cafe', 'Opening'],
-    ['/cafe/log', 'Log'],
+    // DD-MVP-17: /cafe IS the capture root — its child is Log; /cafe/log retired.
+    ['/cafe', 'Log'],
     ['/cafe/plan', 'Plan'],
     ['/cafe/stock', 'Stock'],
     ['/cafe/review', 'Review'],
@@ -579,12 +582,32 @@ describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
     expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
   })
 
-  it('visually hides each link label via sr-only (present in the DOM, not shown)', () => {
+  it('renders no visible label text in compact mode, and still names the link', () => {
     setAuthAs(['admin'], 'Managing Director')
-    renderRailNav('/work/tasks', { compact: true })
-    const home = screen.getByRole('link', { name: 'Home' })
-    const label = within(home).getByText('Home')
-    expect(label.className).toMatch(/sr-only/)
+    const { rerender } = renderRailNav('/work/tasks', { compact: true })
+    const compactHome = screen.getByRole('link', { name: 'Home' })
+    // Compact: the name comes from the link itself, so no label text sits in the subtree at all.
+    // A hidden label span would still widen the link's scroll area and read as clipped content.
+    expect(within(compactHome).queryByText('Home')).toBeNull()
+    expect(compactHome).toHaveAccessibleName('Home')
+    // The tooltip is the sighted reveal for the same string.
+    expect(compactHome.getAttribute('data-label')).toBe('Home')
+
+    rerender(
+      <ThemeProvider>
+        <I18nProvider>
+          <MemoryRouter initialEntries={['/work/tasks']}>
+            <Routes>
+              <Route path="*" element={<RailNav />} />
+            </Routes>
+          </MemoryRouter>
+        </I18nProvider>
+      </ThemeProvider>,
+    )
+    // Full width: the label is visible text again, and no tooltip stands in for it.
+    const fullHome = screen.getByRole('link', { name: 'Home' })
+    expect(within(fullHome).getByText('Home')).toBeInTheDocument()
+    expect(fullHome.getAttribute('data-label')).toBeNull()
   })
 
   it('a Work child renders its section icon in compact mode (none at full width, B2 unaffected)', () => {

@@ -5,7 +5,7 @@ import { isShipGated } from '@/lib/ship-gate'
 import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
   MoneyIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
-  ProfileIcon, PeopleIcon, OpeningIcon,
+  ProfileIcon, PeopleIcon,
   LogIcon, PlanIcon, StockIcon, ReviewIcon, DispatchIcon,
 } from './icons'
 
@@ -68,8 +68,9 @@ export const CAFE_SECTIONS: Section[] = [
   // rail a column of identical cups told apart by tooltip alone, and #439 made the icon the sole
   // rung carrier in that regime. Not borrowed marks — a borrowed one is either a live duplicate
   // or a duplicate waiting for its twin to leave SHIP_GATED_PATHS.
-  { path: '/cafe', label: 'Opening', labelKey: 'nav.cafe.opening', Icon: OpeningIcon },
-  { path: '/cafe/log', label: 'Log', labelKey: 'nav.cafe.log', Icon: LogIcon },
+  // DD-MVP-17: /cafe IS the Today capture root (the Log surface); the separate Opening
+  // child retired with the /cafe/log route.
+  { path: '/cafe', label: 'Log', labelKey: 'nav.cafe.log', Icon: LogIcon },
   { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: PlanIcon },
   { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: StockIcon },
   // `anyOf` matches each one's OWN route gate exactly (router.tsx: two RequireAccessRole

@@ -30,6 +30,211 @@ import {
 
 test.describe.configure({ mode: 'serial' })
 
+test('occlusion judges reachability, not whichever row a band happens to sit over', async ({ page }) => {
+  // A sticky band is the designed pattern: rows pass under it on the way past. The rule must
+  // fail only content that can never be brought clear. Measuring at one scroll position cannot
+  // tell those apart — at rest every below-fold row of a sticky-footer surface failed, and at
+  // the bottom whichever row landed behind the sticky header failed while the rows after it
+  // passed. These four plants pin both directions at both edges.
+  const context = {
+    route: '/planted',
+    journey: 'planted',
+    fixture: 'planted',
+    viewport: 'desktop-1440x900',
+    theme: 'light',
+    language: 'en',
+    state: 'default',
+  }
+  const occlusionRow = (rows: Awaited<ReturnType<typeof collectVisibleContent>>, nth: number) => {
+    const row = rows.find((entry) => entry.kind === 'viewport-occlusion' && entry.selector.endsWith(`p:nth-of-type(${nth})`))
+    expect(row, JSON.stringify(rows.filter((entry) => entry.kind === 'viewport-occlusion').map((entry) => entry.selector))).toBeDefined()
+    return row!
+  }
+
+  // ── Bottom edge: a sticky footer with reserve below the list ───────────────
+  const footerPage = (bandPull: string) => `
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      .row { height: 120px; margin: 0; }
+      .band { position: sticky; bottom: 0; height: 56px; background: rgb(230, 228, 224); margin-top: ${bandPull}; }
+      main::after { content: ''; display: block; height: 160px; }
+    </style>
+    <main>
+      ${Array.from({ length: 10 }, (_, i) => `<p class="row">Row ${i + 1}</p>`).join('')}
+      <p class="row final-row">Final row</p>
+      <div class="band">Sticky action band</div>
+    </main>
+  `
+
+  // cssPath selectors carry only positional segments; the final row is main > p(11).
+  await page.setContent(footerPage('0px'))
+  const reserved = await collectVisibleContent(page, context, 'planted-reserved', [])
+  expect(occlusionRow(reserved, 11).passed, occlusionRow(reserved, 11).measured).toBe(true)
+  // A row in the middle of the list is reachable too — it is not failed for passing under
+  // the band at whatever offset the collector happened to settle on.
+  expect(occlusionRow(reserved, 6).passed, occlusionRow(reserved, 6).measured).toBe(true)
+
+  // A band pulled up over the final row keeps covering it at every offset: a real defect.
+  await page.setContent(footerPage('-88px'))
+  const uncovered = await collectVisibleContent(page, context, 'planted-uncovered', [])
+  const brokenFinal = occlusionRow(uncovered, 11)
+  expect(brokenFinal.passed, brokenFinal.measured).toBe(false)
+  expect(JSON.parse(brokenFinal.measured).centerCovered).toBe(true)
+
+  // ── A full-viewport layer is a mode, not a band ───────────────────────────
+  // An open composer or record overlay covers the page on purpose. Counting it as a
+  // persistent band reported every control on the covered page as unreachable — 49 rows
+  // across two overlay cells, all of them content the reader is not looking at.
+  await page.setContent(`
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      .row { height: 120px; margin: 0; }
+      .scrim { position: fixed; inset: 0; background: rgba(10,10,10,0.4); }
+    </style>
+    <main>
+      ${Array.from({ length: 6 }, (_, i) => `<p class="row">Row ${i + 1}</p>`).join('')}
+      <div class="scrim">Overlay</div>
+    </main>
+  `)
+  const behindOverlay = await collectVisibleContent(page, context, 'planted-overlay', [])
+  expect(occlusionRow(behindOverlay, 2).passed, occlusionRow(behindOverlay, 2).measured).toBe(true)
+  expect(occlusionRow(behindOverlay, 5).passed, occlusionRow(behindOverlay, 5).measured).toBe(true)
+
+  // ── Top edge: a sticky header, which the bottom-only measurement could not see ──
+  const headerPage = (headPull: string) => `
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      .row { height: 120px; margin: 0; }
+      .head { position: sticky; top: 0; height: 56px; background: rgb(230, 228, 224); margin-bottom: ${headPull}; }
+    </style>
+    <main>
+      <div class="head">Sticky header</div>
+      ${Array.from({ length: 12 }, (_, i) => `<p class="row">Row ${i + 1}</p>`).join('')}
+    </main>
+  `
+
+  // Header in flow: every row can be scrolled clear of it, including the first.
+  await page.setContent(headerPage('0px'))
+  const headerClear = await collectVisibleContent(page, context, 'planted-header-clear', [])
+  expect(occlusionRow(headerClear, 1).passed, occlusionRow(headerClear, 1).measured).toBe(true)
+  expect(occlusionRow(headerClear, 6).passed, occlusionRow(headerClear, 6).measured).toBe(true)
+
+  // Header pulled down over the first row: the page cannot scroll above its own top, so that
+  // row has nowhere clear to go and must still fail, while later rows stay reachable.
+  await page.setContent(headerPage('-56px'))
+  const headerPinned = await collectVisibleContent(page, context, 'planted-header-pinned', [])
+  const pinnedFirst = occlusionRow(headerPinned, 1)
+  expect(pinnedFirst.passed, pinnedFirst.measured).toBe(false)
+  // A 120px row under a 56px header keeps its centre clear, so the overlap ratio is what
+  // carries this failure — assert that rather than a mechanism this plant does not exercise.
+  expect(JSON.parse(pinnedFirst.measured).intersectionRatio).toBeGreaterThan(0.1)
+  expect(occlusionRow(headerPinned, 8).passed, occlusionRow(headerPinned, 8).measured).toBe(true)
+})
+
+test('touch separation pairs targets that sit beside each other, not ones split across a sticky layer', async ({ page }) => {
+  // A quantity field scrolling under a sticky submit bar overlaps it, and the pair was
+  // reported 0px apart — but a thumb cannot confuse a control it cannot see. Adjacent
+  // targets sit beside each other and never intersect. Same-layer overlap stays a failure.
+  const context = {
+    route: '/planted', journey: 'planted', fixture: 'planted',
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default',
+  }
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setContent(`
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      main { padding-bottom: 200px; }
+      .spacer { height: 700px; }
+      .field { display: block; width: 120px; height: 44px; margin: 0; }
+      .bar { position: fixed; left: 0; right: 0; bottom: 0; height: 60px; background: rgb(240,238,234); }
+      .bar button { width: 200px; height: 48px; }
+      .tight { display: flex; gap: 4px; }
+      .tight button { width: 80px; height: 44px; }
+    </style>
+    <main>
+      <div class="tight"><button>One</button><button>Two</button></div>
+      <div class="spacer"></div>
+      <input class="field" aria-label="Quantity" />
+      <div class="bar"><button>Submit</button></div>
+    </main>
+  `)
+  const rows = await collectVisibleContent(page, context, 'planted-touch', [])
+  const touch = rows.filter((row) => row.kind === 'touch-separation')
+  const find = (needle: string) => touch.find((row) => row.selector.includes(needle))!
+
+  // The two chips 4px apart are a real separation failure and must stay one.
+  const tight = touch.filter((row) => row.selector.includes('button') && !row.selector.includes('div:nth-of-type(3)'))
+  expect(tight.some((row) => !row.passed), JSON.stringify(tight.map((r) => [r.selector.slice(-40), r.measured]))).toBe(true)
+
+  // The field under the sticky bar is not paired with it.
+  const field = find('input')
+  expect(field, JSON.stringify(touch.map((r) => r.selector.slice(-40)))).toBeDefined()
+  const measured = JSON.parse(field.measured)
+  expect(measured.nearestDistance === null || measured.nearestDistance >= 8, field.measured).toBe(true)
+  expect(field.passed, field.measured).toBe(true)
+})
+
+test('a checkbox is measured on the label that activates it, and a bare one still fails', async ({ page }) => {
+  // A 16px checkbox inside a 44px label is hit anywhere on that label, so the label is the
+  // target a thumb has. Measuring the input alone reported a floor failure for a control that
+  // already meets it. A checkbox with no such label has only its own 16px box and must fail.
+  const context = {
+    route: '/planted', journey: 'planted', fixture: 'planted',
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default',
+  }
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setContent(`
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      label.wrapped { display: flex; align-items: center; gap: 8px; min-height: 44px; width: 220px; }
+      label.wrapped input { width: 16px; height: 16px; margin: 0; }
+      .spacer { height: 80px; }
+      input.bare { width: 16px; height: 16px; display: block; margin: 0; }
+      label.stacked { display: block; width: 300px; }
+      label.stacked span { display: block; height: 20px; }
+      /* box-sizing pinned: a UA that puts border and padding outside the box would make the
+         declared size and the rendered one differ, and these bounds are about the rendered one. */
+      label.stacked input { display: block; box-sizing: border-box; width: 128px; height: 30px; margin-top: 60px; }
+    </style>
+    <main>
+      <label class="wrapped"><input type="checkbox" /><span>Confirm the list is complete</span></label>
+      <div class="spacer"></div>
+      <input class="bare" type="checkbox" aria-label="Bare checkbox" />
+      <div class="spacer"></div>
+      <label class="stacked"><span>Amount</span><input type="text" aria-label="Amount" /></label>
+    </main>
+  `)
+  const rows = await collectVisibleContent(page, context, 'planted-targets', [])
+  const touch = rows.filter((row) => row.kind === 'touch-separation')
+  const wrapped = touch.find((row) => row.selector.includes('label'))!
+  const bare = touch.find((row) => row.selector.includes('input') && !row.selector.includes('label'))!
+  expect(wrapped, JSON.stringify(touch.map((r) => r.selector.slice(-40)))).toBeDefined()
+  expect(bare, JSON.stringify(touch.map((r) => r.selector.slice(-40)))).toBeDefined()
+
+  // Measured on its label: 220x44, clears the floor.
+  const wrappedMeasured = JSON.parse(wrapped.measured)
+  expect(wrappedMeasured.height, wrapped.measured).toBeGreaterThanOrEqual(44)
+  expect(wrapped.passed, wrapped.measured).toBe(true)
+
+  // No activating label: its own 16px box, and it still fails.
+  const bareMeasured = JSON.parse(bare.measured)
+  expect(bareMeasured.height, bare.measured).toBeLessThan(44)
+  expect(bare.passed, bare.measured).toBe(false)
+
+  // The discriminating case. A text field under its own label is NOT hit by pressing the
+  // label's text, and the label box spans the gap between them — so measuring their union
+  // spans both and manufactures a floor pass for a field that does not meet it. Only the
+  // checkbox rule substitutes; everything else keeps its own box. The `passed` assertion is
+  // the one that carries the defect; the two bounds just say which box was measured.
+  const stacked = touch.find((row) => row.selector.includes('input') && row.selector.includes('label')
+    && row.selector !== wrapped.selector)
+  expect(stacked, JSON.stringify(touch.map((r) => r.selector.slice(-46)))).toBeDefined()
+  const stackedMeasured = JSON.parse(stacked!.measured)
+  expect(stackedMeasured.width, stacked!.measured).toBeLessThanOrEqual(128 + 2)
+  expect(stackedMeasured.height, stacked!.measured).toBeLessThanOrEqual(30 + 2)
+  expect(stacked!.passed, stacked!.measured).toBe(false)
+})
+
 async function exerciseFullValuePaths(page: import('@playwright/test').Page, cell: import('./manifest').ManifestCell): Promise<string[]> {
   const exercised: string[] = []
   const paths = DESIGN_QUALITY_MANIFEST.lists.fullValuePaths.filter((entry) =>
@@ -132,7 +337,8 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
     regionRows.push(...cellRegionRows as unknown as Record<string, unknown>[])
     const touchGroups = DESIGN_QUALITY_MANIFEST.lists.touchSeparationGroups.filter((group) =>
       (!group.routes || group.routes.includes(cell.route))
-      && (!group.viewports || group.viewports.includes(cell.viewport)),
+      && (!group.viewports || group.viewports.includes(cell.viewport))
+      && (!group.fixtures || group.fixtures.includes(cell.fixture)),
     )
     const cellTouchRows = cell.viewport === 'phone-390x844'
       ? await collectTouchSeparation(page, context, touchGroups)

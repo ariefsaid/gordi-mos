@@ -521,6 +521,12 @@
   .collection-toolbar__primary { align-items: stretch; flex-wrap: wrap; padding: 8px; }
   .collection-toolbar__presentations,
   .collection-toolbar__views { max-width: 100%; }
+  /* The chips carry no interval at any width, so on a phone four 44px targets sit edge to
+     edge. Give the strip the 8px touch floor — the guards' `overflow-x: auto` +
+     `flex-wrap: nowrap` + per-chip `flex: none` are untouched, so the strip still scrolls
+     rather than wrapping or squashing a chip. */
+  .collection-toolbar__presentations,
+  .collection-toolbar__views { gap: 8px; }
   .collection-toolbar__primary-spacer { display: none; }
   .collection-toolbar__query { justify-content: flex-start; padding: 8px; }
   .collection-toolbar__filter-group { width: 100%; }

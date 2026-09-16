@@ -75,6 +75,14 @@
   cursor: default;
 }
 
+/* Phone touch floor (DESIGN.md): adjacent segments are separate actionable targets, so the
+   interval between them clears 8px on a touch width. The 4px above is the desktop track's
+   rhythm, where a pointer does not need the margin. The track keeps its own 2px inset, so
+   the strip still reads as one container rather than loose chips. */
+@media (max-width: 767.98px) {
+  .kms { gap: 8px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .kms-tab { transition: none; }
 }

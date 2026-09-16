@@ -559,7 +559,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     await screen.findByText('Ayam Bakar')
     expect(
       screen.getByRole('link', { name: /see these in the café log/i }),
-    ).toHaveAttribute('href', '/cafe/log')
+    ).toHaveAttribute("href", "/cafe")
     expect(screen.queryAllByRole('link', { name: /see .* in the café log/i })).toHaveLength(1)
     expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
   })
@@ -719,7 +719,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByText(/this is the 14-day order horizon/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /open the café log/i })).toHaveAttribute('href', '/cafe/log')
+    expect(screen.getByRole('link', { name: /open the café log/i })).toHaveAttribute("href", "/cafe")
     // AC-024 still held: the explainer adds no capture affordance
     expect(screen.queryByRole('spinbutton')).toBeNull()
   })

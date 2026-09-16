@@ -17,7 +17,10 @@ test('rendered control heights resolve to the named design-system sizes', () => 
   assert.equal(classifyControlSize(44), 'touch-44')
   assert.equal(classifyControlSize(32), 'control-32')
   assert.equal(classifyControlSize(22), 'compact-22')
-  assert.equal(classifyControlSize(35), 'unresolved')
+  assert.equal(classifyControlSize(36), 'nav-36')
+  assert.equal(classifyControlSize(28), 'compact-28')
+  assert.equal(classifyControlSize(59), 'tabbar-60')
+  assert.equal(classifyControlSize(50), 'unresolved')
 })
 
 test('the control vocabulary names every approved shared primitive with authority', () => {
@@ -31,7 +34,44 @@ test('the control vocabulary names every approved shared primitive with authorit
     '.mk-iconbtn',
     '.picker__trigger',
     '.mk-select__field',
+    '.overdue-filter-btn--active',
+    '.overdue-filter-btn',
+    '.rail-item--dest',
+    '.rail-item--child',
+    '.bottom-tab',
+    '.top-bar .border-input.bg-secondary',
+    '.top-bar .tap-target-phone--icon',
+    '.dt-sort-button',
+    '.th-sort-btn',
+    '.collection-toolbar__choice-trigger',
+    '.rail-collapse-toggle',
+    '.collection-toolbar__view',
+    '.mobile-task-options-trigger, .collection-mobile-options-trigger',
+    '.inline-cell-trigger',
+    '.kms-tab',
+    '.dt-group-toggle, .dt-cards-group-toggle',
   ]) assert.ok(selectors.includes(selector), `missing vocabulary entry ${selector}`)
+  assert.ok(
+    selectors.indexOf('.overdue-filter-btn--active') < selectors.indexOf('.overdue-filter-btn'),
+    'the pressed attention pill must be matched before its resting form',
+  )
+  assert.ok(
+    selectors.indexOf('.overdue-filter-btn') < selectors.indexOf('.picker__trigger'),
+    'the tinted attention pill must be matched before the generic picker trigger',
+  )
+  assert.ok(
+    selectors.indexOf('th[aria-sort="ascending"] .th-sort-btn, th[aria-sort="descending"] .th-sort-btn')
+      < selectors.indexOf('.th-sort-btn'),
+    'the sorted column header must be matched before the generic one',
+  )
+  assert.ok(
+    selectors.indexOf('.rail-item--dest[aria-current="location"]') < selectors.indexOf('.rail-item--dest'),
+    'the current-location rail parent must be matched before the generic destination',
+  )
+  assert.ok(
+    selectors.indexOf('.top-bar .border-input.bg-secondary') < selectors.indexOf('.top-bar .tap-target-phone--icon'),
+    'the bordered search trigger must be matched before the transparent header doors',
+  )
   for (const entry of CONTROL_VARIANT_VOCABULARY) {
     assert.ok(entry.selector.trim())
     assert.ok(entry.component.trim())

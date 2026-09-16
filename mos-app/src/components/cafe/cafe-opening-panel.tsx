@@ -25,9 +25,14 @@ export interface CafeOpeningPanelProps {
   teamId: string
   /** The branch location this opening belongs to — canonical Team id stays internal. */
   teamName: string
+  /** DD-MVP-17: 'door' is the compact status row the Café capture root renders above the
+   *  capture form. Same information, same capability-gated actions, laid out as one row —
+   *  the standalone page's centered empty-state frame costs a phone's whole first screen
+   *  before the worker reaches the job the surface exists for. */
+  presentation?: 'page' | 'door'
 }
 
-export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPanelProps) {
+export function CafeOpeningPanel({ processId, teamId, teamName, presentation = 'page' }: CafeOpeningPanelProps) {
   const t = useT()
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
@@ -116,10 +121,30 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
     load() // refresh the roll-up + surface the newly-materialized Task
   }
 
-  if (state === 'loading') return <LoadingShell count={2} />
+  const door = presentation === 'door'
+
+  if (state === 'loading') return <LoadingShell count={door ? 1 : 2} />
   if (state === 'error') return <ErrorState message={t('tasks.error.load')} onRetry={load} />
 
   if (!started) {
+    if (door) {
+      return (
+        <div className="cafe-opening-panel cafe-opening-panel--door">
+          {startError ? <ErrorState message={t('processes.due.startError')} onRetry={() => { void handleStart() }} /> : null}
+          <div className="cafe-opening-door-row">
+            <p className="cafe-opening-team">{t('cafe.opening.teamCaption', { team: teamName })}</p>
+            <p className="cafe-opening-status">
+              {t(canStart ? 'cafe.opening.notStartedLead' : 'cafe.opening.notStartedMember')}
+            </p>
+            {canStart && (
+              <Button variant="primary" disabled={starting} onClick={() => { void handleStart() }}>
+                {t('cafe.opening.start')}
+              </Button>
+            )}
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="cafe-opening-panel">
         {/* Name the bound branch location in every state. The canonical Team id is the server
@@ -153,6 +178,41 @@ export function CafeOpeningPanel({ processId, teamId, teamName }: CafeOpeningPan
 
   // started === true implies rollup is non-null (getTodayOpeningForTeam's contract).
   if (!rollup || !runId) return null
+
+  const rollupSummary = t(
+    rollup.pending_unresolved === 0 || canStart
+      ? 'processes.rollup.summary'
+      : 'processes.rollup.summaryUnassigned',
+    { done: rollup.done, total: rollup.total, overdue: rollup.overdue, pending: rollup.pending_unresolved },
+  )
+
+  if (door) {
+    return (
+      <div className="cafe-opening-panel cafe-opening-panel--door cafe-opening-panel--started">
+        <div className="cafe-opening-door-row">
+          <p className="cafe-opening-team">{t('cafe.opening.teamCaption', { team: teamName })}</p>
+          <p className="cafe-opening-status">{rollup.caption}</p>
+          <p className="cafe-opening-rollup tabular-nums">{rollupSummary}</p>
+          <Link to={`/work/tasks?occurrence=${runId}`} className="btn btn-outline">
+            {t('cafe.opening.viewTasks')}
+          </Link>
+        </div>
+        {canStart && rollup.pending_unresolved > 0 && (
+          <div className="cafe-opening-pending">
+            {pendingLoading && <LoadingShell count={1} />}
+            {!pendingLoading && pending.map((p) => (
+              <PendingResolution
+                key={p.id}
+                pending={p}
+                people={people}
+                onResolved={() => handlePendingResolved(p.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="cafe-opening-panel cafe-opening-panel--started">

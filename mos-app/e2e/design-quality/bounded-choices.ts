@@ -214,10 +214,40 @@ export const CONTROL_VARIANT_VOCABULARY: readonly ControlVariantEntry[] = [
   { selector: '.btn.btn-destructive', component: 'button', variant: 'destructive', authority: 'DESIGN.md §5 Buttons; components/ui/Button.css' },
   { selector: '.btn-touch', component: 'button', variant: 'touch', authority: 'DESIGN.md §5 Buttons phone action; components/ui/Button.css' },
   { selector: '.mk-iconbtn', component: 'icon-button', variant: 'icon', authority: 'DESIGN.md §5 Buttons; components/ui/IconButton.css' },
+  // The Tasks attention pill is a Picker trigger with its own tinted resting fill and border, so
+  // it leads the generic trigger entry; the neutral toolbar pickers keep matching that entry.
+  { selector: '.overdue-filter-btn--active', component: 'bounded-choice', variant: 'attention-filter-active', authority: 'DESIGN.md § DB-view toolbar controls amendment A1 attention pill, pressed; components/tasks/TasksWorkspace.css' },
+  { selector: '.overdue-filter-btn', component: 'bounded-choice', variant: 'attention-filter', authority: 'DESIGN.md § DB-view toolbar controls amendment A1 attention pill; components/tasks/TasksWorkspace.css' },
   { selector: '.picker__trigger', component: 'bounded-choice', variant: 'picker', authority: 'DD-MVP-2 designed bounded choice; components/ui/Picker.css' },
   { selector: '.mk-select__field', component: 'bounded-choice', variant: 'select', authority: 'DD-MVP-2 designed bounded choice; components/ui/Select.css' },
   { selector: '.mk-chip--clickable', component: 'chip', variant: 'clickable', authority: 'components/ui/Chip.css clickable chip contract' },
   { selector: '.pill', component: 'pill', variant: 'pill', authority: 'components/ui/Pill.css shared pill contract' },
+  // Shell and collection chrome. Appended, never interleaved: `find` takes the first match, so
+  // appending leaves every entry above unchanged. Within this block the narrower selector leads.
+  { selector: '.rail-item--dest[aria-current="location"]', component: 'nav-item', variant: 'rail-destination-location', authority: 'Rule 5 rail current-location parent; shell/rail-nav.css — a parent that owns the active child is a LOCATION and carries its own treatment' },
+  { selector: '.rail-item--dest', component: 'nav-item', variant: 'rail-destination', authority: 'DESIGN.md §Navigation Rail "Nav item: 36px tall"; shell/rail-nav.css rung 2' },
+  { selector: '.rail-item--child', component: 'nav-item', variant: 'rail-child', authority: 'DD-WAY-33 rail type ladder rung 3 (quieter size, weight and colour); shell/rail-nav.css' },
+  { selector: '.bottom-tab', component: 'nav-item', variant: 'bottom-tab', authority: 'phone bottom-tab bar, --tabbar-h: 60px (src/index.css); shell/bottom-tab-bar.css' },
+  { selector: '.top-bar .border-input.bg-secondary', component: 'search-trigger', variant: 'top-bar-search', authority: 'shell/top-bar.tsx command-menu trigger; bordered secondary resting fill, unlike the header doors' },
+  { selector: '.top-bar .tap-target-phone--icon', component: 'icon-button', variant: 'top-bar-door', authority: 'shell/top-bar.css header doors; transparent resting fill' },
+  { selector: '.dt-sort-button', component: 'table-sort', variant: 'column-header', authority: 'components/dashboard/data-table.css sortable column header' },
+  { selector: 'th[aria-sort="ascending"] .th-sort-btn, th[aria-sort="descending"] .th-sort-btn', component: 'table-sort', variant: 'column-header-tasks-sorted', authority: 'components/tasks/TasksWorkspace.css sorted column header; the active sort carries its own foreground' },
+  { selector: '.th-sort-btn', component: 'table-sort', variant: 'column-header-tasks', authority: 'components/tasks/TasksWorkspace.css sortable column header; inherits the Tasks header overline treatment' },
+  { selector: '.collection-toolbar__choice-trigger', component: 'bounded-choice', variant: 'filter-chip', authority: 'components/record-collection/collection-toolbar.css filter trigger' },
+  { selector: '.collection-toolbar__view--active', component: 'chip', variant: 'saved-view-active', authority: 'components/record-collection/collection-toolbar.css active saved view; own background and colour' },
+  // Resolves at 26px through the size vocabulary's own ±2 tolerance, the same way a 34px
+  // control resolves to control-32. An earlier comment here refused to name this chip because
+  // no named step covered 26px — that was true before the 28px step existed, and naming the
+  // step is what changed it. The chip's own 26px is still off DESIGN.md's 32px control rule
+  // and is recorded as a finding (#864); this entry does not bless the height.
+  { selector: '.collection-toolbar__view', component: 'chip', variant: 'saved-view', authority: 'components/record-collection/collection-toolbar.css saved-view chip' },
+  // The phone collection disclosure — one job, two class names, because Tasks and the shared
+  // collection each named their own. Same variant: same 44px trigger opening the same panel.
+  { selector: '.mobile-task-options-trigger, .collection-mobile-options-trigger', component: 'disclosure', variant: 'collection-options', authority: 'the phone View & filters door over the collection toolbar' },
+  { selector: '.inline-cell-trigger', component: 'button', variant: 'inline-cell-edit', authority: 'components/tasks/TasksWorkspace.css inline edit door inside a decision cell' },
+  { selector: '.rail-collapse-toggle', component: 'icon-button', variant: 'rail-collapse', authority: 'src/index.css --rail-toggle-size: 28px square, chosen to clear the icon-button footprint at a fine pointer without out-shouting a 36px nav item; 44px under a coarse pointer' },
+  { selector: '.kms-tab', component: 'tab', variant: 'stream-tab', authority: 'components/kitchen/movement-seg.css production-stream segment; the Cafe capture destination strip' },
+  { selector: '.dt-group-toggle, .dt-cards-group-toggle', component: 'disclosure', variant: 'group-toggle', authority: 'components/dashboard/data-table.css collapsible group header' },
 ]
 
 /** Capture bounded-choice identities before any state or lifecycle interaction can scroll. */
@@ -483,10 +513,17 @@ export function validateBoundedChoiceResolution(
 
 /** Resolve rendered heights to the named control sizes in the approved design system. */
 export function classifyControlSize(height: number): string {
+  // Order is precedence: the tolerance bands overlap, and `find` takes the first hit.
   const named = [
     [44, 'touch-44'],
     [32, 'control-32'],
     [22, 'compact-22'],
+    [36, 'nav-36'],
+    [60, 'tabbar-60'],
+    // Named by its value like the three above, not by one consumer: the rail's collapse
+    // toggle documents 28px as deliberate, and the collection's saved-view chip sits at 26px
+    // inside the same tolerance. A step the design system had already chosen twice.
+    [28, 'compact-28'],
   ] as const
   return named.find(([pixels]) => Math.abs(height - pixels) <= 2)?.[1] ?? 'unresolved'
 }
@@ -742,6 +779,13 @@ export async function exerciseBoundedChoices(
     state: 'default',
   },
   capturedBoundedChoiceIdentities?: readonly BoundedChoiceIdentity[],
+  /** Restores the captured cell state after a drive committed a value change. The
+   * lifecycle's ArrowDown+Enter selects the highlighted option; on real pages that
+   * commits a filter or form value that can legitimately unmount LATER captured
+   * identities (run 861b0004: the tasks attention pill and the Café Log category
+   * picker both disappeared this way), turning inherited interactions into false
+   * "missing" resolution failures. */
+  restoreCell?: () => Promise<void>,
 ): Promise<ControlConsistencyRow[]> {
   const identities = capturedBoundedChoiceIdentities ?? await captureBoundedChoicePopulation(page)
   const rows: ControlConsistencyRow[] = []
@@ -995,6 +1039,11 @@ export async function exerciseBoundedChoices(
     await page.keyboard.press('Enter')
     const enterSelected = await trigger.getAttribute('aria-expanded') !== 'true'
     const focusReturnedAfterEnter = await trigger.evaluate((element) => document.activeElement === element)
+    // Whether Enter committed a value the captured state did not have — used after the row
+    // is recorded to restore the cell (the drive's own value change can unmount later
+    // captured controls and turn inherited interactions into false "missing" rows).
+    const committedChangedValue = enterSelected
+      && (selectedOptionResolution.id === '' || selectedOptionResolution.id !== enterActiveAfter.id)
 
     const colors = await trigger.evaluate((element) => {
       const style = getComputedStyle(element)
@@ -1057,6 +1106,30 @@ export async function exerciseBoundedChoices(
         closedContrastRows,
       }),
     })
+    if (committedChangedValue && restoreCell) {
+      // Prefer restoring in place: re-open the popup and re-select the captured option.
+      // A reload resets component state too — an open phone disclosure panel closes and
+      // every identity captured inside it goes "missing" — and races the data re-fetch.
+      let restored = false
+      if (selectedOptionResolution.id !== '') {
+        await trigger.click()
+        const restorePopup = await resolveAssociatedPopup(page, trigger)
+        if (restorePopup.popup && restorePopup.reason === null) {
+          const original = restorePopup.popup.locator(idAttributeSelector(selectedOptionResolution.id))
+          if ((await original.count()) === 1) {
+            await original.click()
+            restored = true
+          } else {
+            await page.keyboard.press('Escape')
+          }
+        }
+      }
+      if (!restored) await restoreCell()
+      // The restored value re-arms the captured view asynchronously (a refetch re-renders
+      // data-driven controls like count pills); let the network settle before the next
+      // identity resolves against the page.
+      await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {})
+    }
     } catch (error) {
       rows.push(resolutionFailureRow(cellId, target, {
         matchCount: target.id ? 1 : 0,
@@ -1068,6 +1141,39 @@ export async function exerciseBoundedChoices(
     }
   }
   return rows
+}
+
+/**
+ * Reach the control with real keyboard focus modality. The product's focus contract is the
+ * global `:focus-visible` ring (DESIGN.md); a bare `element.focus()` inherits the pointer
+ * modality left by the earlier hover/active drivers, suppresses that ring, and makes the
+ * collector sample elevation shadows or report "unobserved" instead of the real keyboard
+ * indicator. Parking a temporary origin directly before the control and pressing Tab —
+ * the same seam the broad contrast lane uses — reproduces the keyboard journey.
+ */
+async function focusThroughKeyboard(page: Page, control: ReturnType<Page['locator']>): Promise<void> {
+  const parked = await control.evaluate((element) => {
+    document.getElementById('design-audit-focus-origin')?.remove()
+    if (!(element instanceof HTMLElement)) return false
+    const origin = document.createElement('span')
+    origin.id = 'design-audit-focus-origin'
+    origin.tabIndex = 0
+    origin.setAttribute('aria-hidden', 'true')
+    element.parentNode?.insertBefore(origin, element)
+    origin.focus()
+    return document.activeElement === origin
+  })
+  if (!parked) {
+    await control.focus()
+    return
+  }
+  try {
+    await page.keyboard.press('Tab')
+  } finally {
+    await page.evaluate(() => document.getElementById('design-audit-focus-origin')?.remove())
+  }
+  const reached = await control.evaluate((element) => document.activeElement === element)
+  if (!reached) await control.focus()
 }
 
 export async function exerciseControlStateColors(
@@ -1117,7 +1223,7 @@ export async function exerciseControlStateColors(
       : ['default', 'hover', 'focus', 'active', ...(identity.error ? ['error'] : []), ...(identity.selected ? ['selected'] : []), ...(identity.open ? ['open'] : [])]
     for (const state of states) {
       if (state === 'hover') await control.hover()
-      else if (state === 'focus') await control.focus()
+      else if (state === 'focus') await focusThroughKeyboard(page, control)
       else if (state === 'active') {
         await control.hover()
         await page.mouse.down()

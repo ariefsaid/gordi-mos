@@ -66,7 +66,7 @@ const mockListNotifications = vi.mocked(listNotifications)
 
 vi.mock('../lib/db/home-attention-data', () => ({
   loadFailedChecksForViewer: vi.fn(),
-  CAFE_LOG_ROUTE: '/cafe/log',
+  CAFE_LOG_ROUTE: "/cafe",
 }))
 import { loadFailedChecksForViewer, CAFE_LOG_ROUTE } from '@/lib/db/home-attention-data'
 const mockLoadFailedChecks = vi.mocked(loadFailedChecksForViewer)
@@ -377,7 +377,7 @@ describe('AC-H02: a member sees a usable brief and live Signals column', () => {
     expect(within(cafe).getByRole('link', { name: /Café Gordi HQ.*2\/3.*View opening/i }))
       .toHaveAttribute('href', '/cafe')
     expect(within(cafe).getByRole('link', { name: /Log production/i }))
-      .toHaveAttribute('href', '/cafe/log')
+      .toHaveAttribute("href", "/cafe")
     expect(within(brief).queryByText('Failed checks')).toBeNull()
     expect(within(brief).queryByRole('region', { name: /^Objectives/ })).toBeNull()
     const assigned = within(brief).getByText('Restock oat milk')

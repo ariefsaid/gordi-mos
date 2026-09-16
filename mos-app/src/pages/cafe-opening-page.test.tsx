@@ -1,8 +1,7 @@
+import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
@@ -27,6 +26,17 @@ vi.mock('@/lib/db/processes', () => ({
   resolvePendingTask: vi.fn(),
 }))
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
+// DD-MVP-17: the capture surface is the root's body. This suite owns the location/door
+// behavior, so the log surface itself is stubbed — its own data and behavior have their
+// own suite (kitchen-log-page.test.tsx).
+vi.mock('./kitchen-log-page', () => ({
+  KitchenLogPage: ({ leading }: { leading?: React.ReactNode }) => (
+    <div data-testid="cafe-capture-root">
+      {leading}
+      <div data-testid="cafe-capture-surface" />
+    </div>
+  ),
+}))
 
 import {
   getCafeOpeningProcessId,
@@ -40,7 +50,7 @@ import { listActiveBranches } from '@/lib/db/branches'
 import { canStartProcessForTeam } from '@/lib/db/processes'
 import { getPeople } from '@/lib/db/directory'
 import { rememberCafeOpeningTeam } from '@/lib/cafe-opening-location'
-import { CafeOpeningPage } from './cafe-opening-page'
+import { CafeRootPage } from './cafe-opening-page'
 
 const mockGetCafeOpeningProcessId = vi.mocked(getCafeOpeningProcessId)
 const mockGetTodayOpeningForTeam = vi.mocked(getTodayOpeningForTeam)
@@ -104,7 +114,7 @@ function renderPage(accessRoles: string[] = ['ops_lead'], personId = VIEWER_ID) 
     <AuthContext.Provider value={authState(accessRoles, personId)}>
       <I18nProvider>
         <MemoryRouter initialEntries={['/cafe']}>
-          <CafeOpeningPage />
+          <CafeRootPage />
         </MemoryRouter>
       </I18nProvider>
     </AuthContext.Provider>,
@@ -204,7 +214,7 @@ describe('Café Opening context', () => {
       <AuthContext.Provider value={authState(['ops_lead'], 'person-b')}>
         <I18nProvider>
           <MemoryRouter initialEntries={['/cafe']}>
-            <CafeOpeningPage />
+            <CafeRootPage />
           </MemoryRouter>
         </I18nProvider>
       </AuthContext.Provider>,
@@ -295,37 +305,43 @@ describe('Café Opening context', () => {
     expect(screen.queryByText("Couldn't load today's café opening. Try again.")).not.toBeInTheDocument()
   })
 
-  it('keeps the existing role-gated capture doors', async () => {
+  it('DD-MVP-17: the capture surface mounts with the Opening door row — no navigation menu', async () => {
     mapResolver()
     mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
 
     renderPage()
 
-    await screen.findByRole('link', { name: /log/i })
-    expect(screen.getByRole('link', { name: /plan/i })).toHaveAttribute('href', '/cafe/plan')
-    expect(screen.getByRole('link', { name: /stock/i })).toHaveAttribute('href', '/cafe/stock')
-    expect(screen.getByRole('link', { name: /review/i })).toHaveAttribute('href', '/cafe/review')
-    expect(screen.getByRole('link', { name: /pushes/i })).toHaveAttribute('href', '/cafe/pushes')
+    await screen.findByTestId('cafe-capture-root')
+    expect(screen.getByTestId('cafe-opening-location')).toHaveTextContent('Radiant')
+    expect(screen.getByTestId('cafe-capture-surface')).toBeInTheDocument()
+    // The large Log/Plan/Stock landing menu is retired: destinations live in the shell.
+    expect(screen.queryByRole('link', { name: /plan/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /stock/i })).not.toBeInTheDocument()
   })
 
-  it('does not show lead-only doors to a member', async () => {
+  it('DD-MVP-17: the capture surface brings the page frame — the root adds no second head', async () => {
+    mapResolver()
+    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
+
+    const { container } = renderPage()
+
+    await screen.findByTestId('cafe-capture-root')
+    // The capture surface owns the Workspace frame once the location resolves. Mounting the
+    // root's own frame around it nested two frames and put two h1s on one page; with the log
+    // surface stubbed, the root must contribute no page head of its own.
+    expect(container.querySelectorAll('h1')).toHaveLength(0)
+    expect(container.querySelectorAll('[data-page-family]')).toHaveLength(0)
+  })
+
+  it('DD-MVP-17: no lead-only doors remain to gate a member — the root is role-neutral for capture', async () => {
     mapResolver()
     mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
 
     renderPage(['member'])
 
-    await screen.findByRole('link', { name: /log/i })
+    await screen.findByTestId('cafe-capture-root')
+    expect(screen.getByTestId('cafe-capture-surface')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /review/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /pushes/i })).not.toBeInTheDocument()
-  })
-})
-
-describe('Café Opening responsive capture links', () => {
-  it('stacks full-width capture links at ≤390px', () => {
-    const css = readFileSync(resolve(process.cwd(), 'src/pages/cafe-opening-page.css'), 'utf8')
-    expect(css).toMatch(/@media\s*\(max-width:\s*390px\)/)
-    const mediaBlock = css.slice(css.indexOf('@media (max-width: 390px)'))
-    expect(mediaBlock).toMatch(/\.cafe-capture-link\s*\{[^}]*width:\s*100%/)
-    expect(mediaBlock).toMatch(/\.cafe-capture-link\s*\{[^}]*min-height:\s*44px/)
   })
 })

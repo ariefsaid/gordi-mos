@@ -487,7 +487,6 @@ export const messages = {
     'nav.admin.people': 'People',
     'nav.cafe': 'Café',
     'nav.cafe.log': 'Log',
-    'nav.cafe.opening': 'Opening',
     'nav.cafe.plan': 'Plan',
     'nav.cafe.pushes': 'Pushes',
     'nav.cafe.review': 'Review',
@@ -2014,7 +2013,6 @@ export const messages = {
     // #755 (AC-024): Log names the production record; Pushes names its JOB — sending approved
     // logs — which 'Antrean' (queue) never did.
     'nav.cafe.log': 'Catatan',
-    'nav.cafe.opening': 'Pembukaan',
     'nav.cafe.plan': 'Rencana',
     'nav.cafe.pushes': 'Kirim Log',
     'nav.cafe.review': 'Tinjauan',

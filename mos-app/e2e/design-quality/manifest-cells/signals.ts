@@ -11,7 +11,19 @@ export const SIGNAL_CELL_INPUTS = [
   }],
   ['signals-compose-phone-en-light', {
     area: 'signals', journey: 'signals-compose', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'composer', status: 'covered', primary: true,
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'composer', status: 'untested',
+    note: 'Contract written and verified, held out of the change gate: driving this state for the first time surfaces real defects on a face that has never been measured, and a regression-only gate cannot tell new coverage from new breakage. Covering it belongs with the fixes for what it finds.', primary: true,
+    // Share Signal has no phone head door (the head action is desktop-only): the shell's `+`
+    // Action Launcher owns it there.
+    stateContract: {
+      setup: [
+        { action: 'click', selector: '.mobile-action-launcher' },
+        { action: 'click', selector: '#a-signal' },
+      ],
+      assertion: { selector: '[data-testid="signal-composer"] textarea' },
+      // The composer's other face — no eligible Team — renders an EmptyState and no body field.
+      negativeAssertion: { selector: '[data-testid="signal-composer"] [data-testid="empty-state"]' },
+    },
   }],
   ['signals-compose-desktop-id-dark', {
     area: 'signals', journey: 'signals-compose', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
@@ -37,7 +49,12 @@ export const SIGNAL_CELL_INPUTS = [
   }],
   ['signals-record-desktop', {
     area: 'signals', journey: 'signals-record', route: '/mos/work/signals', fixture: 'BAR_SUPERVISOR',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'record-panel', status: 'covered',
+    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'record-panel', status: 'untested',
+    note: 'The record opener is a status-modifier class; this fixture is not guaranteed a signal in that status, so the driver waits out the timeout on a row that never renders.',
+    // Untested, deliberately: the opener class exists on this route but `--open` is a status
+    // modifier, and this cell's fixture is not guaranteed a signal in that status. The driver
+    // waited the full timeout for a row that never rendered. Needs a fixture-independent door,
+    // or a fixture that guarantees one open signal.
   }],
   ['signals-retract-phone', {
     area: 'signals', journey: 'signals-record', route: '/mos/work/signals', fixture: 'BAR_MEMBER',

@@ -101,4 +101,10 @@
     height: auto;
     min-height: 44px;
   }
+  /* Adjacent segments are separate targets once the pointer is a thumb: the track's 4px
+     pointer rhythm opens to the 8px touch floor at the same width the 44px floor applies. */
+  .cut-toggle,
+  .window-selector-seg {
+    gap: 8px;
+  }
 }
