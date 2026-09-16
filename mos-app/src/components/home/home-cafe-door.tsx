@@ -41,7 +41,7 @@ export function HomeCafeDoor({ state = 'ready', data = null, onRetry }: HomeCafe
             </span>
             <span className="home-cafe-door-action">{t('home.cafeDoor.viewOpening')}</span>
           </Link>
-          <Link to="/cafe/log" className="home-cafe-door-log-link tap-floor">
+          <Link to="/cafe" className="home-cafe-door-log-link tap-floor">
             {t('home.cafeDoor.logProduction')}
           </Link>
         </div>

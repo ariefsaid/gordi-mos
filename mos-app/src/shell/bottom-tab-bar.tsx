@@ -30,8 +30,9 @@ const INBOX: PrimaryTab = { id: 'inbox', labelKey: 'dest.inbox', href: '/inbox',
 
 // v4 shell rebuild (Task 6): the + Action Launcher yields the thumb zone on capture surfaces —
 // Café's phone-optimized log/plan/stock/review screens — where the surface's own control is the
-// primary action. Hidden there, and ONLY there; unchanged everywhere else (still bottom-right).
-const CAPTURE_SURFACE_PATHS = ['/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review']
+// primary action. DD-MVP-17: the module ROOT (/cafe) is now the capture surface itself, so it
+// leads the list and /cafe/log is its redirect alias. Hidden there, and ONLY there.
+const CAPTURE_SURFACE_PATHS = ['/cafe', '/cafe/plan', '/cafe/stock', '/cafe/review']
 
 function isCaptureSurface(pathname: string): boolean {
   return CAPTURE_SURFACE_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))

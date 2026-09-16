@@ -1,10 +1,12 @@
-// CafeOpeningPage — /cafe — the Café Module home (Step 7 / cafe-retrofit.spec.md §4, B7,
-// RATIFY-7D). Opening is branch-wide: the person's effective profile location is resolved to the
-// canonical Opening Team internally, while the page names the branch and offers a deliberate
-// location switch when more than one eligible branch is available. Production stream context
-// (branch + activity) belongs to Log/Plan/Stock and is intentionally absent from this page.
+// CafeRootPage — /cafe — the Café module root (DD-MVP-17). The assigned worker lands
+// directly on Today's production capture surface; Opening is a compact status/door row
+// rendered as the capture form's leading slot, and Log/Plan/Stock are never a landing
+// menu. The location discipline is unchanged (DD-MVP-11): the person's effective profile
+// location resolves to the canonical Opening Team, a deliberate session choice outranks
+// it, and a genuinely ambiguous profile gets the actionable location overview BEFORE any
+// capture surface mounts. /cafe/log aliases this root by redirect.
+import type React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -23,7 +25,8 @@ import {
 import { listActiveBranches } from '@/lib/db/branches'
 import { rememberCafeOpeningTeam, rememberedCafeOpeningTeamId } from '@/lib/cafe-opening-location'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
-import { canPushCafe, canReviewCafe } from '@/lib/kitchen-gates'
+import { canPushCafe } from '@/lib/kitchen-gates'
+import { KitchenLogPage } from './kitchen-log-page'
 import './cafe-opening-page.css'
 
 type FetchState = 'loading' | 'ready' | 'choice' | 'error' | 'no-process' | 'no-team'
@@ -41,18 +44,6 @@ interface BranchTeam {
   status?: OpeningStatus
 }
 
-// Capture doors every café viewer reaches (Log/Plan/Stock — read/capture for all roles).
-const CAPTURE_LINKS = [
-  { to: '/cafe/log', key: 'nav.cafe.log' as const },
-  { to: '/cafe/plan', key: 'nav.cafe.plan' as const },
-  { to: '/cafe/stock', key: 'nav.cafe.stock' as const },
-]
-
-// JQ-1: Review admits stream supervisors; Pushes remains ops_lead/admin. Keep the links
-// separate so the opening door mirrors each route's own gate and never offers supervisors a
-// dead Pushes link.
-const REVIEW_LINK = { to: '/cafe/review', key: 'nav.cafe.review' as const }
-const PUSH_LINK = { to: '/cafe/pushes', key: 'nav.cafe.pushes' as const }
 const EMPTY_ACCESS_ROLES: string[] = []
 
 function LocationChoices({
@@ -104,23 +95,20 @@ function LocationChoices({
  * remains mounted; remounting here prevents one person's branch/panel from appearing for the
  * next person even for the render before the new location read starts.
  */
-export function CafeOpeningPage() {
+export function CafeRootPage() {
   const auth = useAuth()
   const viewerKey = auth.status === 'authenticated'
     ? `${auth.viewer.person.id}:${auth.viewer.accessRoles.join(',')}`
     : auth.status
-  return <CafeOpeningPageBody key={viewerKey} />
+  return <CafeRootPageBody key={viewerKey} />
 }
 
-function CafeOpeningPageBody() {
+function CafeRootPageBody() {
   const t = useT()
   useDocumentTitle(t('common.docTitle', { page: t('doc.cafeOps') }))
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
-  const captureLinks = canReviewCafe(accessRoles)
-    ? [...CAPTURE_LINKS, REVIEW_LINK, ...(canPushCafe(accessRoles) ? [PUSH_LINK] : [])]
-    : CAPTURE_LINKS
 
   const [state, setState] = useState<FetchState>('loading')
   const [processId, setProcessId] = useState<string | null>(null)
@@ -308,40 +296,72 @@ function CafeOpeningPageBody() {
         <LocationChoices choices={teamChoices} onChoose={selectLocation} />
       )}
       {state === 'ready' && processId && team && (
-        <>
-          <section className="cafe-opening-location" aria-label={t('cafe.opening.locationLabel')}>
-            <div className="cafe-opening-location__copy">
-              <span className="cafe-opening-location__label">{t('cafe.opening.locationLabel')}</span>
-              <strong data-testid="cafe-opening-location">{team.branchName}</strong>
-            </div>
-            {alternateLocations.length > 0 && (
-              <Button
-                variant="ghost"
-                className="cafe-opening-location__change"
-                ref={changeLocationTrigger}
-                aria-expanded={changingLocation}
-                aria-controls="cafe-opening-location-switcher"
-                onClick={() => setChangingLocation(open => !open)}
-              >
-                {t('cafe.opening.changeLocation')}
-              </Button>
-            )}
-          </section>
-          {changingLocation && (
-            <div id="cafe-opening-location-switcher">
-              <LocationChoices choices={alternateLocations} onChoose={selectLocation} />
-            </div>
-          )}
-          <CafeOpeningPanel key={team.id} processId={processId} teamId={team.id} teamName={team.branchName} />
-          <nav aria-label={t('nav.cafe')} className="cafe-capture-links">
-            {captureLinks.map((link) => (
-              <Link key={link.to} to={link.to} className="btn btn-outline cafe-capture-link">
-                {t(link.key)}
-              </Link>
-            ))}
-          </nav>
-        </>
+        <CafeCaptureRoot
+          key={team.id}
+          processId={processId}
+          team={team}
+          alternateLocations={alternateLocations}
+          changingLocation={changingLocation}
+          changeLocationTrigger={changeLocationTrigger}
+          setChangingLocation={setChangingLocation}
+          onChoose={selectLocation}
+        />
       )}
     </PageFamilyFrame>
   )
+}
+
+/**
+ * DD-MVP-17: the ready face of the root. The capture surface IS the page; the Opening
+ * door row (location + status + Start door) rides as its leading slot and the navigation
+ * menu of large Log/Plan/Stock buttons is gone — those destinations stay in the
+ * capability-filtered shell rail (#781). The capture form's own frame owns the page title.
+ */
+function CafeCaptureRoot({
+  processId,
+  team,
+  alternateLocations,
+  changingLocation,
+  changeLocationTrigger,
+  setChangingLocation,
+  onChoose,
+}: {
+  processId: string
+  team: BranchTeam
+  alternateLocations: BranchTeam[]
+  changingLocation: boolean
+  changeLocationTrigger: React.RefObject<HTMLButtonElement | null>
+  setChangingLocation: (open: boolean) => void
+  onChoose: (choice: BranchTeam) => void
+}) {
+  const t = useT()
+  const door = (
+    <section className="cafe-opening-door" aria-label={t('cafe.opening.locationLabel')}>
+      <div className="cafe-opening-location" aria-label={t('cafe.opening.locationLabel')}>
+        <div className="cafe-opening-location__copy">
+          <span className="cafe-opening-location__label">{t('cafe.opening.locationLabel')}</span>
+          <strong data-testid="cafe-opening-location">{team.branchName}</strong>
+        </div>
+        {alternateLocations.length > 0 && (
+          <Button
+            variant="ghost"
+            className="cafe-opening-location__change"
+            ref={changeLocationTrigger}
+            aria-expanded={changingLocation}
+            aria-controls="cafe-opening-location-switcher"
+            onClick={() => setChangingLocation(!changingLocation)}
+          >
+            {t('cafe.opening.changeLocation')}
+          </Button>
+        )}
+      </div>
+      {changingLocation && (
+        <div id="cafe-opening-location-switcher">
+          <LocationChoices choices={alternateLocations} onChoose={onChoose} />
+        </div>
+      )}
+      <CafeOpeningPanel processId={processId} teamId={team.id} teamName={team.branchName} />
+    </section>
+  )
+  return <KitchenLogPage leading={door} />
 }

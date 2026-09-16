@@ -18,11 +18,11 @@ export const CAFE_CELL_INPUTS = [
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-log-default-desktop', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-log-default-phone', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-review-default-phone', {
@@ -77,15 +77,15 @@ export const CAFE_CELL_INPUTS = [
     viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'receiving-only', status: 'covered', primary: true,
   }],
   ['cafe-log-producing-compact', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'producing', status: 'covered', primary: true,
   }],
   ['cafe-log-loading-phone', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'loading', status: 'covered', primary: true,
   }],
   ['cafe-log-success-desktop', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'success', status: 'covered', primary: true,
   }],
   ['cafe-review-authorized-desktop', {

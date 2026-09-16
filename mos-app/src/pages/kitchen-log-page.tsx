@@ -35,6 +35,7 @@ import {
 // Plan/Stock/Review open on the same books, and every switch carries across (issue 456).
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
+import type { ReactNode } from 'react'
 import type {
   ActualsMap,
   CaptureFormItem,
@@ -144,16 +145,18 @@ type PageStatus =
   | { kind: 'submitting' }
   | { kind: 'success'; count: number }
 
-export function KitchenLogPage() {
+export function KitchenLogPage({ leading }: { leading?: ReactNode } = {}) {
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : 'anonymous'
 
   // Catalog, rows, and staged capture lines belong to one person. A route remains mounted
   // through an auth replacement, so a key makes that replacement atomic at render time.
-  return <KitchenLogPageForViewer key={viewerId} />
+  return <KitchenLogPageForViewer key={viewerId} leading={leading} />
 }
 
-function KitchenLogPageForViewer() {
+/** DD-MVP-17: leading slot — content (the Opening door row) the module root renders
+ *  above the capture form when this surface IS the Café root. */
+function KitchenLogPageForViewer({ leading }: { leading?: ReactNode } = {}) {
   const auth = useAuth()
   const t = useT()
   // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
@@ -956,6 +959,7 @@ function KitchenLogPageForViewer() {
             stay/discard when leaving the route with unsaved entries. */}
         <RouteLeaveGuard when={stagedCount > 0} message={t('kitchen.log.leave.confirm')} />
         <OfflineBanner show={!isOnline} />
+        {leading}
 
         {/* R4 / FR-018: one aggregate line, derived from submitted actuals. It remains visible
             when the day is at zero so the plan/actual vocabulary is stable, but staged typing

@@ -17,6 +17,9 @@ const TSCONFIG = join(SRC, '..', 'tsconfig.app.json')
 const FRAME_PAGES_WITHOUT_A_ROUTE = new Set<string>([
   // Routed as `SignalsArchivePage`/`SignalRecordPage`, both of which ARE registered above; the
   // file is named by those entries under its own path.
+  // DD-MVP-17: /cafe/log no longer routes to this page — it redirects to /cafe, where
+  // `CafeRootPage` (registered above) composes kitchen-log-page as the capture body.
+  'pages/kitchen-log-page.tsx',
 ])
 
 /**

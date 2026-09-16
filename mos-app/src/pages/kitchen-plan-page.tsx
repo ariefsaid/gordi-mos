@@ -287,7 +287,7 @@ function PlanEditor() {
       label: g.cat ? kitchenCategoryLabel(t, g.cat) : g.cat,
       rows: g.rows,
       headerActions: isDesktop ? (
-        <Link to="/cafe/log" className="kp-group-link">
+        <Link to="/cafe" className="kp-group-link">
           {t('kitchen.plan.group.log')}
         </Link>
       ) : undefined,
@@ -659,7 +659,7 @@ function PesananView() {
         <p className="kp-readonly-note">
           {t('kitchen.plan.pesanan.readOnlyNote', { days: PESANAN_HORIZON_DAYS })}
         </p>
-        <Link to="/cafe/log" className="btn btn-outline kp-readonly-cta">
+        <Link to="/cafe" className="btn btn-outline kp-readonly-cta">
           {t('kitchen.plan.pesanan.readOnlyCta')}
         </Link>
       </div>

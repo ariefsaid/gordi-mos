@@ -298,7 +298,7 @@ const emptyNamedLists: ManifestLists = {
     {
       selector: '.kl-footer-actions',
       authority: 'DESIGN.md phone target spacing; Café Log exposes adjacent Discard and Submit actions',
-      routes: ['/mos/cafe/log'],
+      routes: ['/mos/cafe'],
       viewports: ['phone-390x844'],
     },
   ],

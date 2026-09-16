@@ -91,13 +91,17 @@ function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parent
   const to = d.primaryPath ?? d.links[0].path
   const label = t(d.labelKey)
   const badgeLabel = badge !== undefined && badge > 0 && badgeLabelKey ? t(badgeLabelKey, { count: badge }) : undefined
-  const accessibleName = badgeLabel ? `${label}, ${badgeLabel}` : undefined
+  const accessibleName = badgeLabel ? `${label}, ${badgeLabel}` : label
   return (
     <NavLink
       to={to}
       end={to === '/'}
       onClick={onNavigate}
-      aria-label={accessibleName}
+      // Compact regime: the link renders icon-only (the label is exposed by the CSS tooltip
+      // and this aria-label). Naming the link HERE — instead of keeping a hidden label span
+      // in the subtree — also keeps the hidden text out of the link's scroll area, which a
+      // text-truncation census reads as clipped content (run 861b0004, 16 compact rows).
+      aria-label={compact || badgeLabel ? accessibleName : undefined}
       // Rule 5: exactly one aria-current="page" in the rail. A parent that renders its own
       // children is a LOCATION, never the page — the active child carries "page". Work sets this
       // explicitly in its own branch; a module with children needs the same, or at /cafe/log both
@@ -114,7 +118,7 @@ function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parent
           <span>
             <d.Icon />
           </span>
-          <span className={compact ? 'sr-only' : undefined}>{label}</span>
+          {!compact && <span>{label}</span>}
           {showChevron && <Chevron className="rail-module-chevron" />}
           <RailCountBadge count={badge} label={badgeLabel} compact={compact} />
         </>
@@ -175,13 +179,13 @@ function WorkChild({ section, onNavigate, badge, badgeLabelKey, compact = false,
   // the LINK is the accessible name once present (subtree text alternatives are then ignored),
   // built by joining the SAME already-localized label + rail.badge.* sentence already computed
   // above — no new i18n keys, just a natural-reading combination of existing strings.
-  const accessibleName = badgeLabel ? `${label}, ${badgeLabel}` : undefined
+  const accessibleName = badgeLabel ? `${label}, ${badgeLabel}` : label
   return (
     <NavLink
       to={section.path}
       end={end}
       onClick={onNavigate}
-      aria-label={accessibleName}
+      aria-label={compact || badgeLabel ? accessibleName : undefined}
       data-label={compact ? label : undefined}
       className={({ isActive }) => itemBase(isActive, compact, 'child')}
     >
@@ -202,7 +206,7 @@ function WorkChild({ section, onNavigate, badge, badgeLabelKey, compact = false,
               <section.Icon />
             </span>
           )}
-          <span className={compact ? 'sr-only' : undefined}>{label}</span>
+          {!compact && <span>{label}</span>}
           <RailCountBadge count={badge} label={badgeLabel} compact={compact} />
         </>
       )}
@@ -275,13 +279,14 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
                     to={d.primaryPath ?? d.links[0].path}
                     aria-current={workActive ? 'location' : undefined}
                     onClick={onNavigate}
+                    aria-label={compact ? workLabel : undefined}
                     data-label={compact ? workLabel : undefined}
                     className={itemBase(workActive, compact)}
                   >
                     <span>
                       <d.Icon />
                     </span>
-                    <span className={compact ? 'sr-only' : undefined}>{workLabel}</span>
+                    {!compact && <span>{workLabel}</span>}
                   </Link>
                   {/* Always-expanded children in the ONE declared order (destinations.tsx) and
                       nothing else: DD-WAY-33 (#439) deleted the sub-section eyebrows, so this is
