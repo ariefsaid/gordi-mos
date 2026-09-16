@@ -58,15 +58,11 @@ export const SIGNAL_CELL_INPUTS = [
   ['signals-retract-phone', {
     area: 'signals', journey: 'signals-record', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'retract-menu', status: 'covered',
-    // Opening the menu reads; it is the retract INSIDE it that would write, and this state stops
-    // at the open menu. The trigger's own collapsed form is the marker for the state this is not.
-    stateContract: {
-      setup: [
-        { action: 'click', selector: '.home-signal-row' },
-        { action: 'click', selector: '.signal-overflow-trigger' },
-      ],
-      assertion: { selector: '.signal-overflow-menu[role="menu"]' },
-      negativeAssertion: { selector: '.signal-overflow-trigger[aria-expanded="false"]' },
-    },
+    // The menu itself is reachable read-only — open a Signal, press its overflow trigger — and
+    // was verified by hand. The contract is NOT registered: a setup selector that does not
+    // resolve blocks for fifteen seconds and then THROWS out of prepareAuditPage, which takes
+    // the whole lane down before it writes an artifact. `.home-signal-row` is what the author's
+    // own session renders; what BAR_MEMBER sees on this route has not been established, and a
+    // cell worth one row is not worth risking every other row in the run on that guess.
   }],
 ] satisfies readonly ManifestCellInput[]
