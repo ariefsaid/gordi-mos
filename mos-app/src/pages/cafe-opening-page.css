@@ -1,9 +1,9 @@
-/* Café Opening is a narrow action surface: identify the branch, choose it only when needed, start
-   today's opening, or jump to a capture screen. Keep these regions on one readable column instead
-   of stretching short actions across the workspace frame. */
+/* Café Opening is a narrow action surface: identify the branch and choose it only when needed.
+   Keep these regions on one readable column instead of stretching short actions across the
+   workspace frame. The capture-links row they used to sit beside retired with DD-MVP-17 — the
+   root IS the capture surface, and its destinations live in the rail and the phone tab strip. */
 .cafe-opening-location,
-.cafe-location-choice,
-.cafe-capture-links {
+.cafe-location-choice {
   max-width: 560px;
 }
 
@@ -93,16 +93,6 @@
   text-align: end;
 }
 
-/* Secondary Café destinations share the button hierarchy and stack to full-width tap targets
-   on narrow phones. This file owns their layout; Button.css owns their interaction states. */
-.cafe-capture-links {
-  display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px;
-  max-width: 560px;
-}
-.cafe-capture-link {
-  flex: 1 1 140px; justify-content: center;
-}
-
 @media (max-width: 390px) {
   .cafe-opening-location {
     align-items: flex-start;
@@ -119,16 +109,5 @@
   }
   .cafe-location-choice__status {
     text-align: start;
-  }
-  .cafe-capture-links {
-    flex-direction: column;
-  }
-  .cafe-capture-link {
-    /* Reset the row's `flex: 1 1 140px`: once the container is a column the 140px
-       flex-basis governs the MAIN (vertical) axis and balloons each link to ~140px
-       tall (census DO-3, cafe F1). Content-height + the 44px tap floor instead. */
-    flex: 0 0 auto;
-    width: 100%;
-    min-height: 44px;
   }
 }

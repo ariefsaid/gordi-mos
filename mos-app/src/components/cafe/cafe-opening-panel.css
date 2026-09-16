@@ -54,3 +54,33 @@
   min-height: 0;
   padding: 20px 4px 4px;
 }
+
+/* DD-MVP-17 door presentation — the Café capture root carries this panel as a status ROW
+   above the capture form, not as a page body. The page variant's centered empty-state frame
+   costs ~240px on desktop and a whole first screen on a phone before the worker reaches the
+   job the surface exists for, so the door lays the same parts out on one wrapping line and
+   drops the decorative glyph. Actions and gating are unchanged — only the arrangement is. */
+.cafe-opening-panel--door {
+  max-width: none;
+  gap: 8px;
+}
+.cafe-opening-door-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+/* The status sentence is the row's own copy, never a heading: the capture form owns the
+   page's heading ladder and a second h2 here competed with it. */
+.cafe-opening-status {
+  font-size: var(--font-size-body); color: var(--foreground); margin: 0;
+}
+/* Push the row's action to the trailing edge so the label/status pair reads as one unit.
+   Only while the row actually IS a row: below the phone breakpoint it wraps, and an auto
+   inline-start margin then strands the action against the right edge under its own label. */
+@media (min-width: 768px) {
+  .cafe-opening-door-row > .btn,
+  .cafe-opening-door-row > button {
+    margin-inline-start: auto;
+  }
+}

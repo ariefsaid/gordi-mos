@@ -275,6 +275,24 @@ function CafeRootPageBody() {
     ? teamChoices.filter(candidate => candidate.id !== team.id)
     : []
 
+  // DD-MVP-17: once the location resolves, the capture surface IS the page and brings its
+  // own Workspace frame — mounting this one too would nest two frames and put two h1s on
+  // one page. Every state BEFORE that still needs a frame of its own to live in.
+  if (state === 'ready' && processId && team) {
+    return (
+      <CafeCaptureRoot
+        key={team.id}
+        processId={processId}
+        team={team}
+        alternateLocations={alternateLocations}
+        changingLocation={changingLocation}
+        changeLocationTrigger={changeLocationTrigger}
+        setChangingLocation={setChangingLocation}
+        onChoose={selectLocation}
+      />
+    )
+  }
+
   return (
     // V3 Workspace family (Issue 11): the shared frame owns the h1 + job sentence;
     // "today" rides in the head meta slot as before.
@@ -294,18 +312,6 @@ function CafeRootPageBody() {
       )}
       {state === 'choice' && (
         <LocationChoices choices={teamChoices} onChoose={selectLocation} />
-      )}
-      {state === 'ready' && processId && team && (
-        <CafeCaptureRoot
-          key={team.id}
-          processId={processId}
-          team={team}
-          alternateLocations={alternateLocations}
-          changingLocation={changingLocation}
-          changeLocationTrigger={changeLocationTrigger}
-          setChangingLocation={setChangingLocation}
-          onChoose={selectLocation}
-        />
       )}
     </PageFamilyFrame>
   )
@@ -360,7 +366,7 @@ function CafeCaptureRoot({
           <LocationChoices choices={alternateLocations} onChoose={onChoose} />
         </div>
       )}
-      <CafeOpeningPanel processId={processId} teamId={team.id} teamName={team.branchName} />
+      <CafeOpeningPanel processId={processId} teamId={team.id} teamName={team.branchName} presentation="door" />
     </section>
   )
   return <KitchenLogPage leading={door} />

@@ -2,8 +2,6 @@ import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
@@ -321,6 +319,20 @@ describe('Café Opening context', () => {
     expect(screen.queryByRole('link', { name: /stock/i })).not.toBeInTheDocument()
   })
 
+  it('DD-MVP-17: the capture surface brings the page frame — the root adds no second head', async () => {
+    mapResolver()
+    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
+
+    const { container } = renderPage()
+
+    await screen.findByTestId('cafe-capture-root')
+    // The capture surface owns the Workspace frame once the location resolves. Mounting the
+    // root's own frame around it nested two frames and put two h1s on one page; with the log
+    // surface stubbed, the root must contribute no page head of its own.
+    expect(container.querySelectorAll('h1')).toHaveLength(0)
+    expect(container.querySelectorAll('[data-page-family]')).toHaveLength(0)
+  })
+
   it('DD-MVP-17: no lead-only doors remain to gate a member — the root is role-neutral for capture', async () => {
     mapResolver()
     mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
@@ -331,15 +343,5 @@ describe('Café Opening context', () => {
     expect(screen.getByTestId('cafe-capture-surface')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /review/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /pushes/i })).not.toBeInTheDocument()
-  })
-})
-
-describe('Café Opening responsive capture links', () => {
-  it('stacks full-width capture links at ≤390px', () => {
-    const css = readFileSync(resolve(process.cwd(), 'src/pages/cafe-opening-page.css'), 'utf8')
-    expect(css).toMatch(/@media\s*\(max-width:\s*390px\)/)
-    const mediaBlock = css.slice(css.indexOf('@media (max-width: 390px)'))
-    expect(mediaBlock).toMatch(/\.cafe-capture-link\s*\{[^}]*width:\s*100%/)
-    expect(mediaBlock).toMatch(/\.cafe-capture-link\s*\{[^}]*min-height:\s*44px/)
   })
 })

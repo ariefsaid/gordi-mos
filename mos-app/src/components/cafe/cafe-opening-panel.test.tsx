@@ -340,3 +340,66 @@ describe('issue 457: the Café root team caption says what it scopes', () => {
     expect(messages.id['cafe.opening.teamCaption']).not.toBe(messages.en['cafe.opening.teamCaption'])
   })
 })
+
+// ── DD-MVP-17: the door presentation the Café capture root mounts ───────────
+// The panel's page body is a centred empty-state frame with its own h2. Carried verbatim
+// into the root it cost ~240px on desktop and a phone's whole first screen before the
+// worker reached the capture form — so the door drops the frame and the heading while
+// keeping every gated action. These assert the door's JOB: same actions, no page furniture.
+describe('DD-MVP-17 — door presentation', () => {
+  function renderDoor(teamName = 'Radiant') {
+    return render(
+      <I18nProvider>
+        <MemoryRouter>
+          <CafeOpeningPanel
+            processId={PROCESS_ID} teamId={TEAM_ID} teamName={teamName} presentation="door"
+          />
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+  }
+
+  it('keeps the capable viewer’s Start action, without the page body’s empty-state frame or heading', async () => {
+    setAuthAs(['ops_lead'])
+    mockCanStartProcessForTeam.mockResolvedValue(true)
+    mockGetTodayOpeningForTeam.mockResolvedValue(NOT_STARTED)
+
+    const { container } = renderDoor()
+
+    expect(await screen.findByRole('button', { name: "Start today's opening" })).toBeInTheDocument()
+    expect(screen.getByText(/not started yet/i)).toBeInTheDocument()
+    expect(container.querySelector('[data-testid="empty-state"]')).toBeNull()
+    expect(container.querySelectorAll('h1, h2, h3')).toHaveLength(0)
+  })
+
+  it('still states the status for a viewer who cannot start, and offers no Start control', async () => {
+    setAuthAs(['member'])
+    mockCanStartProcessForTeam.mockResolvedValue(false)
+    mockGetTodayOpeningForTeam.mockResolvedValue(NOT_STARTED)
+
+    const { container } = renderDoor()
+
+    expect(await screen.findByText(/no one has started/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: "Start today's opening" })).toBeNull()
+    expect(container.querySelector('[data-testid="empty-state"]')).toBeNull()
+  })
+
+  it('carries the started roll-up and the tasks link as a row, still without a heading', async () => {
+    setAuthAs(['ops_lead'])
+    mockCanStartProcessForTeam.mockResolvedValue(true)
+    mockGetTodayOpeningForTeam.mockResolvedValue({
+      started: true, runId: RUN_ID,
+      rollup: {
+        caption: 'Café Opening · 16 Sep 2026', done: 1, total: 3,
+        overdue: 0, pending_unresolved: 0, completion_pct: 33,
+      },
+    })
+
+    const { container } = renderDoor()
+
+    expect(await screen.findByText('Café Opening · 16 Sep 2026')).toBeInTheDocument()
+    const link = screen.getByRole('link', { name: /view opening tasks/i })
+    expect(link).toHaveAttribute('href', `/work/tasks?occurrence=${RUN_ID}`)
+    expect(container.querySelectorAll('h1, h2, h3')).toHaveLength(0)
+  })
+})

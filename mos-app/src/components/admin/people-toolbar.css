@@ -85,7 +85,7 @@
     min-width: 0;
     /* Census R2 DO-3 (admin-people P1): in this column context the base `flex: 1 1 180px`
        WIDTH-basis governs HEIGHT — the search field ballooned to ~180px tall. Reset the
-       basis; keep the 44px coarse floor. (Cafe's twin `.cafe-capture-link` is the cafe
+       basis; keep the 44px coarse floor. (Cafe's twin `.cafe-capture-link` retired with DD-MVP-17; this lane is the
        lane's fix — same root cause.) */
     flex: 0 0 auto;
     min-height: 44px;
