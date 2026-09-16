@@ -34,28 +34,20 @@ MANDATORY_TOOLS = {"node", "npm", "python3", "uv", "supabase", "docker", "gh", "
 # handoff, design-baseline/design-audit, quantitative design, Café Books, and
 # numeric detached review snapshots. A user branch outside `codex/`/`feat/`, or a
 # worktree outside `.claude/worktrees/` with one of these names, stays unrelated.
-PROJECT_BRANCH_PATTERN = re.compile(
-    r"^(?:codex|feat)/(?:"
-    r"mvp(?:[-/].+)?|"
-    r"design-baseline(?:[-/].+)?|"
-    r"design-audit(?:[-/].+)?|"
-    r"handoff(?:[-/].+)?|"
-    r"cafe-books(?:[-/].+)?|"
-    r"ui-quantitative(?:[-/].+)?|"
-    r"review-[0-9]+(?:-(?:base|quality|security|spec|design|[0-9a-f]{8,40}))?"
-    r")$"
+PROJECT_LANE_PREFIXES = (
+    "mvp",
+    "design-baseline",
+    "design-audit",
+    "handoff",
+    "cafe-books",
+    "ui-quantitative",
 )
-PROJECT_WORKTREE_PATTERN = re.compile(
-    r"^(?:"
-    r"mvp(?:[-/].+)?|"
-    r"design-baseline(?:[-/].+)?|"
-    r"design-audit(?:[-/].+)?|"
-    r"handoff(?:[-/].+)?|"
-    r"cafe-books(?:[-/].+)?|"
-    r"ui-quantitative(?:[-/].+)?|"
-    r"review-[0-9]+(?:-(?:base|quality|security|spec|design|[0-9a-f]{8,40}))?"
-    r")$"
+PROJECT_LANE_FRAGMENT = "|".join(
+    rf"{re.escape(prefix)}(?:[-/].+)?" for prefix in PROJECT_LANE_PREFIXES
 )
+PROJECT_REVIEW_FRAGMENT = r"review-[0-9]+(?:-(?:base|quality|security|spec|design|[0-9a-f]{8,40}))?"
+PROJECT_BRANCH_PATTERN = re.compile(rf"^(?:codex|feat)/(?:{PROJECT_LANE_FRAGMENT}|{PROJECT_REVIEW_FRAGMENT})$")
+PROJECT_WORKTREE_PATTERN = re.compile(rf"^(?:{PROJECT_LANE_FRAGMENT}|{PROJECT_REVIEW_FRAGMENT})$")
 
 
 def deterministic_failure(_exc_type: type[BaseException], _exc: BaseException, _tb: Any) -> None:
@@ -67,6 +59,11 @@ def deterministic_failure(_exc_type: type[BaseException], _exc: BaseException, _
         "originDevSha": None,
         "requiredFiles": [],
         "activeWork": [],
+        "inventory": {
+            "status": "unverified",
+            "branches": {"status": "unverified", "count": None},
+            "worktrees": {"status": "unverified", "count": None},
+        },
         "privateRoots": {
             "docs": {"source": "unverified", "status": "unverified"},
             "skills": {"source": "unverified", "status": "unverified"},
@@ -110,6 +107,13 @@ def git(args: list[str], cwd: pathlib.Path) -> str | None:
 
 def git_success(args: list[str], cwd: pathlib.Path) -> bool:
     return command(["git", "--no-optional-locks", *args], cwd).returncode == 0
+
+
+def inventory_command(args: list[str], cwd: pathlib.Path) -> tuple[str, str | None]:
+    result = command(["git", "--no-optional-locks", *args], cwd)
+    if result.returncode == 0:
+        return "verified", result.stdout
+    return ("timeout" if result.stderr == "TimeoutExpired" else "failed"), None
 
 
 def worktree_clean_status(worktree: pathlib.Path | None) -> str:
@@ -173,6 +177,8 @@ def next_action_for(blocker: str) -> str:
         "required-private-file-digest-mismatch": "Reconcile the first changed private handoff file and refresh its digest.",
         "active-mvp-work-remains": "Finish or record a verified disposition for the discovered MVP work.",
         "mvp-work-unrecorded": "Record a verified disposition for each discovered MVP branch or worktree.",
+        "inventory-unverified": "Restore read-only Git branch/worktree inventory and rerun the preflight.",
+        "detached-review-retained": "Remove retained detached review worktrees before handoff readiness.",
         "mvp-disposition-unverified": "Repair the first unverified MVP work disposition.",
         "mvp-worktree-dirty": "Clean or preserve the changes in the first dirty retained MVP worktree.",
         "required-tool-missing": "Install the first missing required handoff tool.",
@@ -321,19 +327,31 @@ for pattern in pattern_spec:
     except re.error:
         add_blocker(blockers, "checkpoint-invalid")
 
+branch_inventory_status, branch_lines = inventory_command(
+    ["for-each-ref", "--format=%(refname:short)%00%(objectname)", "refs/heads"], primary
+)
+worktree_inventory_status, worktree_text = inventory_command(["worktree", "list", "--porcelain"], primary)
+inventory = {
+    "status": "verified" if branch_inventory_status == "verified" and worktree_inventory_status == "verified" else "unverified",
+    "branches": {"status": branch_inventory_status, "count": None},
+    "worktrees": {"status": worktree_inventory_status, "count": None},
+}
+if inventory["status"] != "verified":
+    add_blocker(blockers, "inventory-unverified")
+
 branch_inventory: dict[str, str] = {}
-branch_lines = git(["for-each-ref", "--format=%(refname:short)%00%(objectname)", "refs/heads"], primary)
-for line in (branch_lines or "").splitlines():
-    parts = line.split("\0", 1)
-    if len(parts) == 2 and parts[0] and re.fullmatch(r"[0-9a-f]{40}", parts[1]):
-        branch_inventory[parts[0]] = parts[1]
+if branch_inventory_status == "verified":
+    for line in branch_lines.splitlines():
+        parts = line.split("\0", 1)
+        if len(parts) == 2 and parts[0] and re.fullmatch(r"[0-9a-f]{40}", parts[1]):
+            branch_inventory[parts[0]] = parts[1]
 
 worktree_inventory: dict[str, pathlib.Path] = {}
 worktree_head_inventory: dict[str, str] = {}
 detached_worktree_inventory: list[tuple[pathlib.Path, str]] = []
-worktree_text = git(["worktree", "list", "--porcelain"], primary)
 worktree_record: dict[str, str] = {}
-for line in [*(worktree_text or "").splitlines(), ""]:
+worktree_lines = [*worktree_text.splitlines(), ""] if worktree_inventory_status == "verified" else []
+for line in worktree_lines:
     if not line:
         worktree_path = worktree_record.get("worktree")
         worktree_head = worktree_record.get("HEAD")
@@ -362,6 +380,13 @@ for line in [*(worktree_text or "").splitlines(), ""]:
     elif key == "detached":
         worktree_record[key] = ""
 
+inventory["branches"]["count"] = len(branch_inventory) if branch_inventory_status == "verified" else None
+inventory["worktrees"]["count"] = (
+    len(worktree_inventory) + len(detached_worktree_inventory)
+    if worktree_inventory_status == "verified"
+    else None
+)
+
 def owned_branch(name: str) -> bool:
     return any(pattern.fullmatch(name) for pattern in compiled_patterns) or PROJECT_BRANCH_PATTERN.fullmatch(name) is not None
 
@@ -384,10 +409,10 @@ def owned_worktree(worktree: pathlib.Path) -> bool:
     )
 
 
+# Attached worktrees inherit ownership from their branch. A reserved path alone
+# is evidence only for detached generated reviews, which must be removed before
+# readiness because no manifest branch disposition can resolve them safely.
 discovered_owned = {name: sha for name, sha in branch_inventory.items() if owned_branch(name)}
-for branch_name, actual_worktree in worktree_inventory.items():
-    if owned_worktree(actual_worktree):
-        discovered_owned.setdefault(branch_name, branch_inventory.get(branch_name) or worktree_head_inventory.get(branch_name))
 item_spec = mvp_spec.get("items")
 if not isinstance(item_spec, list):
     add_blocker(blockers, "checkpoint-invalid")
@@ -501,6 +526,7 @@ for actual_worktree, head_sha in sorted(detached_worktree_inventory, key=lambda 
             "branch": None,
             "expectedSha": head_sha,
             "disposition": "unrecorded",
+            "requiredResolution": "remove-before-ready",
             "worktreePath": worktree_value,
             "inventorySource": "detached-worktree",
             "refStatus": "not-applicable",
@@ -508,6 +534,7 @@ for actual_worktree, head_sha in sorted(detached_worktree_inventory, key=lambda 
             "worktreeCleanStatus": worktree_clean_status(actual_worktree),
         }
     )
+    add_blocker(blockers, "detached-review-retained")
     add_blocker(blockers, "mvp-work-unrecorded")
 
 toolchain_spec = manifest.get("toolchain", {})
@@ -697,6 +724,7 @@ output = {
     "originDevSha": origin_dev_sha,
     "requiredFiles": required_files,
     "activeWork": active_work,
+    "inventory": inventory,
     "privateRoots": private_roots,
     "toolchain": toolchain,
     "database": database,
