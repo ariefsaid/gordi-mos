@@ -307,6 +307,30 @@ export async function collectVisibleContent(
     }
 
     const viewportArea = Math.max(1, window.innerWidth * window.innerHeight)
+    // What a band COVERS is what it paints, and a scroller clips its own content. A sticky
+    // block inside the record drawer that has scrolled up out of that drawer still reports a
+    // bounding rect at its off-screen position — y of -131 with a height of 243 — which spans
+    // the top bar and reported three header controls as fully covered by a block nobody can
+    // see. Clip a band to every scrolling ancestor before asking what it covers.
+    const paintedRect = (element: HTMLElement): DOMRect => {
+      let box = element.getBoundingClientRect()
+      let ancestor = element.parentElement
+      while (ancestor && ancestor !== document.body) {
+        const style = getComputedStyle(ancestor)
+        const clips = [style.overflow, style.overflowX, style.overflowY]
+          .some((value) => value === 'hidden' || value === 'clip' || value === 'auto' || value === 'scroll')
+        if (clips && style.position !== 'fixed') {
+          const bounds = ancestor.getBoundingClientRect()
+          const left = Math.max(box.left, bounds.left)
+          const top = Math.max(box.top, bounds.top)
+          const right = Math.min(box.right, bounds.right)
+          const bottom = Math.min(box.bottom, bounds.bottom)
+          box = new DOMRect(left, top, Math.max(0, right - left), Math.max(0, bottom - top))
+        }
+        ancestor = ancestor.parentElement
+      }
+      return box
+    }
     const persistentBands = Array.from(document.querySelectorAll<HTMLElement>('body *')).filter((element) => {
       if (!visible(element)) return false
       const position = getComputedStyle(element).position
@@ -315,7 +339,8 @@ export async function collectVisibleContent(
       // that covers most of the viewport is a MODE, not a band: an open composer or record
       // overlay is meant to cover the page behind it, and counting it here reported every
       // control on the covered page as unreachable content.
-      const rect = element.getBoundingClientRect()
+      const rect = paintedRect(element)
+      if (rect.width <= 0 || rect.height <= 0) return false
       const covered = (Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0))
         * (Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0))
       return covered / viewportArea < 0.8
@@ -348,7 +373,8 @@ export async function collectVisibleContent(
       let occludingRect: DOMRect | null = null
       for (const band of persistentBands) {
         if (band === target || band.contains(target) || target.contains(band)) continue
-        const bandRect = band.getBoundingClientRect()
+        const bandRect = paintedRect(band)
+        if (bandRect.width <= 0 || bandRect.height <= 0) continue
         const width = Math.max(0, Math.min(targetRect.right, bandRect.right) - Math.max(targetRect.left, bandRect.left))
         const height = Math.max(0, Math.min(targetRect.bottom, bandRect.bottom) - Math.max(targetRect.top, bandRect.top))
         const area = Math.max(1, targetRect.width * targetRect.height)
@@ -367,11 +393,11 @@ export async function collectVisibleContent(
         }
       }
       const topInset = persistentBands.reduce((value, band) => {
-        const rect = band.getBoundingClientRect()
+        const rect = paintedRect(band)
         return rect.top <= 1 ? Math.max(value, rect.bottom) : value
       }, 0)
       const bottomInset = persistentBands.reduce((value, band) => {
-        const rect = band.getBoundingClientRect()
+        const rect = paintedRect(band)
         return rect.bottom >= window.innerHeight - 1 ? Math.max(value, window.innerHeight - rect.top) : value
       }, 0)
       const fullyReachable = targetRect.height <= window.innerHeight - topInset - bottomInset

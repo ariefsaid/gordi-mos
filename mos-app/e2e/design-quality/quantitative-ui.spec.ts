@@ -101,6 +101,37 @@ test('occlusion judges reachability, not whichever row a band happens to sit ove
   expect(occlusionRow(behindOverlay, 2).passed, occlusionRow(behindOverlay, 2).measured).toBe(true)
   expect(occlusionRow(behindOverlay, 5).passed, occlusionRow(behindOverlay, 5).measured).toBe(true)
 
+  // ── A band clipped by its own scroller covers nothing ─────────────────────
+  // A sticky block inside a side panel that has scrolled up out of that panel still reports a
+  // bounding rect at its off-screen position, which spanned the top bar and reported three
+  // header controls as fully covered by a block nobody can see.
+  await page.setContent(`
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      .topbar { position: fixed; top: 0; left: 0; right: 0; height: 48px; background: rgb(250,250,250); }
+      .topbar p { margin: 12px; }
+      .panel { position: absolute; top: 200px; left: 0; width: 400px; height: 300px; overflow: auto; }
+      .panel .inner { height: 1200px; }
+      .panel .chrome { position: sticky; height: 240px; background: rgb(235,233,229); }
+    </style>
+    <div class="topbar"><p>Header control</p></div>
+    <main>
+      <div class="panel" id="panel"><div class="inner"><div class="chrome">Panel chrome</div></div></div>
+    </main>
+  `)
+  // Scroll the panel so its sticky chrome sits above the panel, where only its untrimmed
+  // rect — not a single painted pixel — reaches the header.
+  // 331 puts the chrome's untrimmed rect at y -131 with a height of 240, so it spans the
+  // header control at y 12 exactly as the record drawer's chrome did.
+  await page.locator('#panel').evaluate((element) => { element.scrollTop = 331 })
+  const clippedBand = await collectVisibleContent(page, context, 'planted-clipped-band', [])
+  const headerRow = clippedBand.find((row) => row.kind === 'viewport-occlusion' && row.selector.endsWith('p:nth-of-type(1)'))
+  expect(headerRow, JSON.stringify(clippedBand.map((row) => row.selector))).toBeDefined()
+  expect(headerRow!.passed, headerRow!.measured).toBe(true)
+  // Not vacuously: the untrimmed rect really does span this control, so the ratio has to be
+  // zero because the band was clipped, not because the two boxes never met.
+  expect(JSON.parse(headerRow!.measured).intersectionRatio, headerRow!.measured).toBe(0)
+
   // ── Top edge: a sticky header, which the bottom-only measurement could not see ──
   const headerPage = (headPull: string) => `
     <style>
