@@ -238,6 +238,10 @@ export const CONTROL_VARIANT_VOCABULARY: readonly ControlVariantEntry[] = [
   { selector: '.collection-toolbar__view', component: 'chip', variant: 'saved-view', authority: 'components/record-collection/collection-toolbar.css saved-view chip' },
   { selector: '.view-tabs__tab--active', component: 'tab', variant: 'view-tab-active', authority: 'the collection presentation switcher, active face; own background and colour' },
   { selector: '.view-tabs__tab', component: 'tab', variant: 'view-tab', authority: 'the collection presentation switcher (Table / Feed)' },
+  // The phone collection disclosure — one job, two class names, because Tasks and the shared
+  // collection each named their own. Same variant: same 44px trigger opening the same panel.
+  { selector: '.mobile-task-options-trigger, .collection-mobile-options-trigger', component: 'disclosure', variant: 'collection-options', authority: 'the phone View & filters door over the collection toolbar' },
+  { selector: '.inline-cell-trigger', component: 'button', variant: 'inline-cell-edit', authority: 'components/tasks/TasksWorkspace.css inline edit door inside a decision cell' },
   { selector: '.rail-collapse-toggle', component: 'icon-button', variant: 'rail-collapse', authority: 'src/index.css --rail-toggle-size: 28px square, chosen to clear the icon-button footprint at a fine pointer without out-shouting a 36px nav item; 44px under a coarse pointer' },
   { selector: '.kms-tab', component: 'tab', variant: 'stream-tab', authority: 'components/kitchen/movement-seg.css production-stream segment; the Cafe capture destination strip' },
   { selector: '.dt-group-toggle, .dt-cards-group-toggle', component: 'disclosure', variant: 'group-toggle', authority: 'components/dashboard/data-table.css collapsible group header' },

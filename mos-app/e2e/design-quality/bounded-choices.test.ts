@@ -47,6 +47,8 @@ test('the control vocabulary names every approved shared primitive with authorit
     '.rail-collapse-toggle',
     '.collection-toolbar__view',
     '.view-tabs__tab',
+    '.mobile-task-options-trigger, .collection-mobile-options-trigger',
+    '.inline-cell-trigger',
     '.kms-tab',
     '.dt-group-toggle, .dt-cards-group-toggle',
   ]) assert.ok(selectors.includes(selector), `missing vocabulary entry ${selector}`)
