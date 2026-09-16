@@ -288,12 +288,15 @@
 .split:not(.nodrawer) .tasks-table td:nth-child(1) { width: 200px; } /* Title */
 .split:not(.nodrawer) .tasks-table th:nth-child(2),
 .split:not(.nodrawer) .tasks-table td:nth-child(2) { width: 108px; } /* Status */
+/* A person column holds a first name; Due holds the longest ordinary string in the row.
+   At 104px Due could not fit `Wed 16 Sept` and clipped it to `Wed 16 Se…` — a date that
+   reads as a different day. The two name columns had the slack; Due takes it. */
 .split:not(.nodrawer) .tasks-table th:nth-child(3),
-.split:not(.nodrawer) .tasks-table td:nth-child(3) { width: 128px; } /* PIC */
+.split:not(.nodrawer) .tasks-table td:nth-child(3) { width: 112px; } /* PIC */
 .split:not(.nodrawer) .tasks-table th:nth-child(4),
-.split:not(.nodrawer) .tasks-table td:nth-child(4) { width: 120px; } /* Supervisor */
+.split:not(.nodrawer) .tasks-table td:nth-child(4) { width: 104px; } /* Supervisor */
 .split:not(.nodrawer) .tasks-table th:nth-child(5),
-.split:not(.nodrawer) .tasks-table td:nth-child(5) { width: 104px; } /* Due */
+.split:not(.nodrawer) .tasks-table td:nth-child(5) { width: 128px; } /* Due */
 /* Due + pencil floors are sized by CLASS, not column position, in every state (split or
    rest): the optional Business Unit column shifts every later column's nth-child index, so
    an nth-child-based floor lands on the wrong column once BU is on — measured on dev at

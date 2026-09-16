@@ -579,3 +579,34 @@
   .collection-toolbar__save-field { flex: 1 1 100%; }
   .collection-toolbar__save-field input { min-height: 44px; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   The toolbar sizes to the space it HAS, not to the viewport.
+
+   Every band above is a media query, so a 1440px window told the toolbar it had
+   desktop room while a record drawer had already taken two fifths of it. The
+   fields kept their budgeted share of a width they no longer had and contracted
+   onto their own text: `Any status` rendered as `An…`, `Anyone` as `Anyo…`.
+
+   Below its own comfortable width the row wraps instead of squeezing. Nothing is
+   hidden and nothing scrolls sideways — the two-row grammar simply becomes three,
+   and every value reads whole. Restores each field to the compact-desktop budget,
+   which the squeeze had been eating into.
+   ════════════════════════════════════════════════════════════════════════════ */
+.tasks-collection-toolbar { container-type: inline-size; }
+
+/* 820px is what the row's own budget needs: the five fields at their compact-desktop widths,
+   search, the two ghost actions and the attention pill come to about 815. Above it the two-row
+   grammar holds; below it, wrapping is the only way every value stays whole. */
+@container (max-width: 820px) {
+  .tasks-collection-toolbar .collection-toolbar__options { flex-wrap: wrap; row-gap: 6px; }
+  .tasks-collection-toolbar [data-filter-id='group'],
+  .tasks-collection-toolbar [data-filter-id='group'] .collection-toolbar__select { flex-basis: 120px; width: 120px; }
+  .tasks-collection-toolbar [data-filter-id='business-unit'],
+  .tasks-collection-toolbar [data-filter-id='business-unit'] .collection-toolbar__select { flex-basis: 90px; width: 90px; }
+  .tasks-collection-toolbar [data-filter-id='status'] { flex-basis: 112px; width: 112px; }
+  .tasks-collection-toolbar [data-filter-id='person'],
+  .tasks-collection-toolbar [data-filter-id='person'] .collection-toolbar__select { flex-basis: 96px; width: 96px; }
+  .tasks-collection-toolbar [data-filter-id='sort'],
+  .tasks-collection-toolbar [data-filter-id='sort'] .collection-toolbar__select { flex-basis: 120px; width: 120px; }
+}
