@@ -160,6 +160,10 @@
 }
 
 .inline-cell-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* DD-MVP-4: an overdue due label must show its full value in place. When
+   "Overdue · <date>" exceeds the fixed due track, wrap between the state and
+   the date instead of clipping mid-value (run 861b0004: 157px in a 152px cell). */
+.inline-cell-trigger--stacked { white-space: normal; text-overflow: clip; line-height: 1.25; padding-block: 2px; }
 .inline-status-editor {
   display: inline-flex;
   height: var(--control-height);

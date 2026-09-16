@@ -30,6 +30,52 @@ import {
 
 test.describe.configure({ mode: 'serial' })
 
+test('occlusion is measured at the scrolled state so scrollable-clear content is not a false failure', async ({ page }) => {
+  // A sticky action band is the designed pattern: rows pass under it while scrolling, and
+  // the reserve below the list lets the FINAL row scroll clear. Measuring at the initial
+  // scroll position flagged every below-fold row of every sticky-band surface (run
+  // 861b0004: eight Café Log rows, all fully scrollable clear). The collector must measure
+  // the contract's worst case — each container fully scrolled — and keep failing a final
+  // row that a broken layout still pins under the band.
+  const context = {
+    route: '/planted',
+    journey: 'planted',
+    fixture: 'planted',
+    viewport: 'desktop-1440x900',
+    theme: 'light',
+    language: 'en',
+    state: 'default',
+  }
+  const plantedPage = (bandPull: string, reserve: string) => `
+    <style>
+      body { margin: 0; background: rgb(255,255,255); color: rgb(20,20,20); }
+      .row { height: 120px; margin: 0; }
+      .band { position: sticky; bottom: 0; height: 56px; background: rgb(230, 228, 224); margin-top: ${bandPull}; }
+      main::after { content: ''; display: block; height: ${reserve}; }
+    </style>
+    <main>
+      ${Array.from({ length: 10 }, (_, i) => `<p class="row">Row ${i + 1}</p>`).join('')}
+      <p class="row final-row">Final row</p>
+      <div class="band">Sticky action band</div>
+    </main>
+  `
+
+  // cssPath selectors carry only positional segments; the final row is main > p(11).
+  await page.setContent(plantedPage('0px', '160px'))
+  const reserved = await collectVisibleContent(page, context, 'planted-reserved', [])
+  const reservedFinal = reserved.find((row) => row.kind === 'viewport-occlusion' && row.selector.endsWith('p:nth-of-type(11)'))!
+  expect(reservedFinal, JSON.stringify(reserved.map((row) => row.selector))).toBeDefined()
+  expect(reservedFinal.passed, reservedFinal.measured).toBe(true)
+
+  // A band pulled up over the final row keeps covering it even fully scrolled: a real defect.
+  await page.setContent(plantedPage('-88px', '160px'))
+  const uncovered = await collectVisibleContent(page, context, 'planted-uncovered', [])
+  const brokenFinal = uncovered.find((row) => row.kind === 'viewport-occlusion' && row.selector.endsWith('p:nth-of-type(11)'))!
+  expect(brokenFinal, JSON.stringify(uncovered.map((row) => row.selector))).toBeDefined()
+  expect(brokenFinal.passed, brokenFinal.measured).toBe(false)
+  expect(JSON.parse(brokenFinal.measured).centerCovered).toBe(true)
+})
+
 async function exerciseFullValuePaths(page: import('@playwright/test').Page, cell: import('./manifest').ManifestCell): Promise<string[]> {
   const exercised: string[] = []
   const paths = DESIGN_QUALITY_MANIFEST.lists.fullValuePaths.filter((entry) =>

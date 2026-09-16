@@ -297,6 +297,22 @@ export async function collectVisibleContent(
       const position = getComputedStyle(element).position
       return position === 'fixed' || position === 'sticky'
     })
+    // The occlusion contract is about content that CANNOT clear a persistent band, not
+    // content that merely passes under one while scrolling there (sticky footers are the
+    // designed pattern — the band exists so the action stays reachable while rows slide
+    // beneath it). The worst case for that contract is each scroll container fully
+    // scrolled: the final content row must then sit above the band. Measure at that
+    // settled state; an at-rest measurement instead flagged every below-fold row of every
+    // sticky-band surface (run 861b0004: eight Café Log rows, all fully scrollable clear).
+    for (const scroller of new Set([
+      document.scrollingElement,
+      ...Array.from(document.querySelectorAll<HTMLElement>('body *')).filter((element) => {
+        const style = getComputedStyle(element)
+        return (style.overflowY === 'auto' || style.overflowY === 'scroll') && element.scrollHeight > element.clientHeight + 1
+      }),
+    ])) {
+      if (scroller) scroller.scrollTop = scroller.scrollHeight
+    }
     const occlusionTargets = Array.from(new Set([
       ...textTargets,
       ...Array.from(document.querySelectorAll<HTMLElement>(actionable)).filter(visible),
