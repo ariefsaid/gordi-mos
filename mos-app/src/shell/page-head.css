@@ -180,6 +180,15 @@
   }
 }
 
+/* A flex item's row break is decided by its hypothetical size — flex-basis clamped by max-width.
+   So `flex: 0 0 100%` plus a measure cap never breaks its row: the sentence packed beside the
+   title, the leftover space became `.ch-action`'s auto margin, and the ONE primary button on the
+   surface came to rest mid-row with prose to its right. A content head lays the sentence on its
+   own row and caps nothing; the prose head keeps the measure, where no flex row is at stake. */
+.page-head--v3.content-header .page-head-job {
+  max-width: none;
+}
+
 /* The job sentence is a desktop affordance. On a phone the reader has just tapped the thing
    they were looking for, the title names it again, and the sentence pushes the first row of
    actual content past a third of the viewport — on Signals the first signal began at y=307 of
