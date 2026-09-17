@@ -7,9 +7,9 @@ scope; `DESIGN.md` is the intended style and interaction authority, amended by c
 direction and delegated Director Decisions in `docs/decisions.md` (DD-MVP). `REDESIGN.md` supersedes historical
 page-composition constraints only where it records current owner decisions; it does not authorize
 unrelated palette or token drift, or certify the current implementation. Retired interaction
-prescriptions must not override the current DD-MVP acceptance criteria. The active MVP acceptance
-work is scoped by `docs/plans/2026-09-14-mvp-acceptance.md` and DD-MVP to Tasks, Café WIP
-production and Signals without changing the approved Home composition.
+prescriptions must not override the current DD-MVP acceptance criteria. Current MVP UI work covers
+Tasks, Café WIP production and Signals without changing the approved Home composition; follow the
+UI execution route below.
 `docs/plans/2026-09-14-mvp-recovery.md` is the historical one-hour checkpoint; its time fences
 and pending statements do not govern this continuation. Use bounded isolated
 workers, integrate running surfaces, and review the result against actual user outcomes. Preserve
@@ -39,6 +39,15 @@ Updates + per-Activity ops + reference data + money follow-ups. Ships at
 `https://ops.gordi.id/mos`.
 
 **Usability and speed beat model completeness.**
+
+## UI review and improvement tasks
+
+For a bounded UI/UX/IA/IxD request, use `docs/takeover/mvp-ui-continuation.md` as the execution
+entrypoint. Inspect and critique the running interface before implementation; quantitative checks
+support the visual review. That route owns scope, skill selection, review order and stopping rules.
+The factory loop below governs ticket delivery and publication, not a prerequisite to opening or
+showing a local preview. Explicit owner deadlines stop workers and verification as well as edits;
+report the actual build and remaining limitations at the deadline.
 
 ## Workflow — you run as Director; `/drive` runs the loop
 
@@ -164,7 +173,8 @@ retain red-first for bug fixes, uncertain logic and protected interaction-contra
 Automatic UI guards and changed-surface browser checks run per change. Deep rendered judgment
 covers touched and connected surfaces at a signed milestone boundary, or when the ticket's
 contract explicitly requires it; ordinary tickets do not repeat the whole-product assessment.
-The pixel layer belongs to an independent image-capable reviewer: `fe_reviewer` qualifies only
+Initial visual critique runs before fixes and is independent of detector findings; final rendered
+confirmation follows fixes. The pixel layer belongs to an independent image-capable reviewer: `fe_reviewer` qualifies only
 after a real image-transport and candidate-binding probe succeeds, otherwise use a separate
 Director/Codex image-capable lane. DOM/a11y evidence alone cannot pass pixels; provider failure
 leaves review incomplete. See `docs/quality-model.md` for the two-speed design contract.
