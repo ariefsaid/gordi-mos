@@ -118,6 +118,11 @@ export function resolveCafeStream(
     ? options.find(s => streamKey(s.branch.id, s.activity) === key) ?? null
     : null
   const resolved = fromSession ?? inCatalog(ownDefault)
-  rememberStream(resolved, viewerId)
+  // Write back into the SAME slot this resolution was read from. Unscoped, it landed in the
+  // location-agnostic slot every branch reads, which is the collision this scoping exists to end.
+  // A caller with no location passes none and keeps the legacy slot: there is no location for the
+  // value to be wrong about, and inventing one from the resolved stream would strand it in a slot
+  // no later read looks in.
+  rememberStream(resolved, viewerId, branchId)
   return resolved
 }

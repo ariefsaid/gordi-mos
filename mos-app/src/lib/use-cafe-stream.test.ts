@@ -14,6 +14,7 @@ import { listActiveBranches } from '@/lib/db/branches'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { listStreamPairs } from '@/lib/db/kitchen-logs'
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
+import { resetCafeLocations } from '@/lib/cafe-opening-location'
 import { useCafeStream } from './use-cafe-stream'
 
 /**
@@ -37,6 +38,7 @@ const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const, produces: tr
 beforeEach(() => {
   vi.clearAllMocks()
   rememberStream(null)
+  resetCafeLocations()
   vi.mocked(listActiveBranches).mockResolvedValue(BRANCHES)
   vi.mocked(listStreamPairs).mockResolvedValue(PAIRS)
   vi.mocked(fetchDefaultStream).mockResolvedValue(RADIANT_BAR)
@@ -77,13 +79,17 @@ describe('useCafeStream — the shared Café bootstrap', () => {
   // a hung fetch: kitchen-stock-page.test.tsx and kitchen-log-page.test.tsx both do it.
 
 
-  it('setStream records the choice for the whole module, not just this surface', () => {
+  it('setStream records the choice for the whole module at that location', () => {
     const { result } = renderHook(() => useCafeStream())
 
     act(() => result.current.setStream(RADIANT_BAR))
 
     expect(result.current.stream).toEqual(RADIANT_BAR)
-    // The next Café surface reads this, which is the whole point of the module-scoped choice.
-    expect(rememberedStreamKey()).toBe(`${BRANCH_RAD.id}|bar`)
+    // The next Café surface AT THE SAME LOCATION reads this — still the point of the module-scoped
+    // choice (#440). OD-CAFE-1 narrows the scope to the location, so the slot is keyed by branch:
+    // a stream belongs to one branch's books, and another branch must not inherit it.
+    expect(rememberedStreamKey(null, BRANCH_RAD.id)).toBe(`${BRANCH_RAD.id}|bar`)
+    // ...and the unscoped slot every branch would read is NOT what was written.
+    expect(rememberedStreamKey()).toBeNull()
   })
 })

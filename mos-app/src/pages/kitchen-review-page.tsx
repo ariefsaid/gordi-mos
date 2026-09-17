@@ -1002,7 +1002,11 @@ function KitchenReviewPageForViewer() {
           allStreams={streamFilter === ALL_STREAMS}
           onChange={next => {
             setStreamFilter(streamKey(next.branch.id, next.activity))
-            rememberStream(next, viewerId) // the whole Café module follows this choice (#440)
+            // Review is the one deliberately cross-stream surface (OD-WAY-48), so it does NOT
+            // claim a location. It still records against the chosen stream's OWN branch rather
+            // than the location-agnostic slot, so a look at another branch's queue here cannot
+            // decide which books Log opens on.
+            rememberStream(next, viewerId, next.branch.id)
           }}
           onAllStreams={() => setStreamFilter(ALL_STREAMS)}
         />

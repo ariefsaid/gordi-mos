@@ -29,7 +29,7 @@ import { useAuth } from '@/auth/use-auth'
 import { resolveCafeStream, rememberStream } from '@/lib/cafe-stream'
 import { listStreamPairs, streamCatalogFrom } from '@/lib/db/kitchen-logs'
 import { listActiveBranches } from '@/lib/db/branches'
-import { activeCafeLocation } from '@/lib/cafe-opening-location'
+import { activeCafeLocation, rememberCafeLocation } from '@/lib/cafe-opening-location'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 import type { BranchOption, ProductionStream } from '@/lib/db/kitchen-logs.types'
 
@@ -48,6 +48,12 @@ export interface CafeStreamCatalog {
   locationOptions: ProductionStream[]
   /** The stream this surface should open on; null = ask (FR-002). */
   stream: ProductionStream | null
+  /**
+   * The branch `locationOptions` was narrowed to — the explicit location, else the one the
+   * person's own stream names. Null only when neither exists. A switch is remembered against it,
+   * so a choice never lands in another location's slot.
+   */
+  branchId?: string | null
 }
 
 export interface CafeStreamState extends CafeStreamCatalog {
@@ -70,38 +76,54 @@ export function useCafeStream(): CafeStreamState {
     options: [],
     locationOptions: [],
     stream: null,
+    branchId: null,
   })
 
   // An auth switch can leave a Café route mounted. Drop the previous person's catalog before the
   // new viewer's bootstrap completes, so a stale branch/activity label cannot sit beside their
   // loading state or be mistaken for the new person's context.
   useEffect(() => {
-    setCatalog({ branches: [], options: [], locationOptions: [], stream: null })
+    setCatalog({ branches: [], options: [], locationOptions: [], stream: null, branchId: null })
   }, [viewerId])
 
   const resolve = useCallback(async (): Promise<CafeStreamCatalog> => {
     const [branches, pairs] = await Promise.all([listActiveBranches(), listStreamPairs()])
     const options = streamCatalogFrom(pairs, branches)
-    const locationOptions = activeBranchId
-      ? options.filter(option => option.branch.id === activeBranchId)
+    // fetchDefaultStream needs the branch catalog, so it runs after the parallel pair.
+    const ownDefault = await fetchDefaultStream(branches)
+    // Where the viewer is working. An explicit choice from the Café root wins; with none — a fresh
+    // tab opened straight onto Plan or Stock, which have no location chooser of their own — the
+    // person's OWN stream names the branch, which is the profile-derived location the ruling asks
+    // for. Only when neither exists is the catalog left whole, and then there is no location to be
+    // wrong about: nothing has claimed one.
+    const effectiveBranchId = activeBranchId ?? ownDefault?.branch.id ?? null
+    const locationOptions = effectiveBranchId
+      ? options.filter(option => option.branch.id === effectiveBranchId)
       : options
     // Resolved against the LOCATION's catalog, so a remembered stream from elsewhere simply is not
     // found and falls through to the person's own stream, then to null — the same safe ladder a
     // stale pair already took, with no special case for "wrong branch".
-    // fetchDefaultStream needs the branch catalog, so it runs after the parallel pair.
-    const stream = resolveCafeStream(
-      locationOptions, await fetchDefaultStream(branches), viewerId, activeBranchId,
-    )
-    return { branches, options, locationOptions, stream }
+    const stream = resolveCafeStream(locationOptions, ownDefault, viewerId, effectiveBranchId)
+    return { branches, options, locationOptions, stream, branchId: effectiveBranchId }
   }, [activeBranchId, viewerId])
 
   const adopt = useCallback((next: CafeStreamCatalog) => setCatalog(next), [])
 
   const setStream = useCallback((next: ProductionStream) => {
     setCatalog(prev => ({ ...prev, stream: next }))
+    // A person who opens Plan or Stock first — no Café root, no chosen location, and no own stream
+    // to derive one from — is offered the whole catalog because nothing has claimed a location yet.
+    // Their first deliberate choice IS that claim: it names the branch they are working at, so
+    // every later surface is bounded to it and none of them can quietly file into another's books.
+    // The Café root still overrides this when it resolves its own location, and a stream left over
+    // from a different branch is then stale and cleared, which is the safe direction.
+    const branchId = catalog.branchId ?? activeBranchId ?? next.branch.id
+    if (viewerId && !activeBranchId && !catalog.branchId) {
+      rememberCafeLocation(viewerId, { branchId: next.branch.id, branchName: next.branch.name })
+    }
     // Every Café surface AT THIS LOCATION follows the choice (#440), and no other location does.
-    rememberStream(next, viewerId, activeBranchId)
-  }, [activeBranchId, viewerId])
+    rememberStream(next, viewerId, branchId)
+  }, [activeBranchId, catalog.branchId, viewerId])
 
   return { ...catalog, resolve, adopt, setStream }
 }

@@ -56,6 +56,7 @@ import { listActiveBranches } from '@/lib/db/branches'
 
 import { KitchenPlanPage } from './kitchen-plan-page'
 import { rememberStream } from '@/lib/cafe-stream'
+import { resetCafeLocations } from '@/lib/cafe-opening-location'
 import type { WipItemOption, PlanCell, PesananRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -78,6 +79,7 @@ const STREAM_PAIRS = BRANCHES.flatMap(b => [
 ])
 const OWN_STREAM = { branch: BRANCHES[0], activity: 'kitchen' as const, produces: true }
 const RADIANT_KITCHEN = { branch: BRANCHES[1], activity: 'kitchen' as const, produces: false }
+const OWN_STREAM_BAR = { branch: BRANCHES[0], activity: 'bar' as const, produces: true }
 const RADIANT_BAR = { branch: BRANCHES[1], activity: 'bar' as const, produces: true }
 /** The head picker's option value for a stream — what a switch fires. */
 function chooseStream(optionName: string) {
@@ -123,6 +125,7 @@ beforeEach(() => {
   // #440: the Café stream is remembered module-wide in sessionStorage — clear it so one test's
   // switch never seeds the next test's default.
   rememberStream(null)
+  resetCafeLocations()
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockItems.mockResolvedValue(ITEMS)
   mockBranches.mockResolvedValue(BRANCHES)
@@ -187,9 +190,23 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
   it('switching the stream in the head re-reads THAT stream\'s plan', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    chooseStream('Radiant · Bar')
+    // Within the location: OD-CAFE-1 bounds the picker to the branch the viewer is working at, so
+    // the switch that exercises "re-read THAT stream" is the other ACTIVITY at the same branch.
+    // A cross-branch switch is no longer offered here at all — that is the bounded-picker test.
+    chooseStream('Rumah Rames · Bar')
     await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
-    expect(mockPlans.mock.calls[1][1]).toEqual(RADIANT_BAR)
+    expect(mockPlans.mock.calls[1][1]).toEqual(OWN_STREAM_BAR)
+  })
+
+  it('offers only the streams of the branch the viewer is working at', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+    const offered = screen.getAllByRole('option').map(o => o.textContent?.trim() ?? '')
+
+    // A plan row is keyed on (org, date, item, branch, activity): it belongs to ONE branch's books.
+    expect(offered.some(label => label.includes('Rumah Rames'))).toBe(true)
+    expect(offered.some(label => label.includes('Radiant'))).toBe(false)
   })
 
   it('account switch: a delayed previous viewer plan cannot replace the next viewer\'s plan', async () => {

@@ -72,6 +72,7 @@ import { listStreamCompleteness, confirmStreamComplete } from '@/lib/db/stream-c
 
 import { KitchenReviewPage } from './kitchen-review-page'
 import { rememberStream } from '@/lib/cafe-stream'
+import { resetCafeLocations } from '@/lib/cafe-opening-location'
 import type { ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -142,6 +143,7 @@ beforeEach(() => {
   // outranks the FR-041 role default — so clear it per test, or one test's switch decides the
   // next test's opening filter.
   rememberStream(null)
+  resetCafeLocations()
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockList.mockResolvedValue([])
   mockPlan.mockResolvedValue({})

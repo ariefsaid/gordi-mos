@@ -120,6 +120,11 @@ function CafeRootPageBody() {
   const [changingLocation, setChangingLocation] = useState(false)
   // A location the person asked for, waiting on the discard confirm. Null = nothing pending.
   const [pendingLocation, setPendingLocation] = useState<BranchTeam | null>(null)
+  // A confirmed switch rebuilds the capture subtree, so the control that was focused is gone by
+  // the time it lands. Without this, confirming dropped focus to <body> and a keyboard user had to
+  // Tab from the top of the document — right after a destructive action, which is where you least
+  // want to lose your place.
+  const focusAfterSwitch = useRef(false)
   const changeLocationTrigger = useRef<HTMLButtonElement | null>(null)
   const loadGeneration = useRef(0)
 
@@ -136,6 +141,7 @@ function CafeRootPageBody() {
     // ConfirmDialog hands closing back to its caller after a successful confirm, so the pending
     // choice has to be released here or the dialog stays up over the location it just switched to.
     setPendingLocation(null)
+    focusAfterSwitch.current = true
     setState('ready')
   }, [viewerId])
 
@@ -155,6 +161,15 @@ function CafeRootPageBody() {
     }
     applyLocation(choice)
   }, [applyLocation, viewerId])
+
+  // The new location's own "Change location" populates the ref as it mounts, so this runs after
+  // the rebuilt subtree exists. Focus returns to the control that began the interaction, which is
+  // the contract every other door on this surface already keeps.
+  useEffect(() => {
+    if (!focusAfterSwitch.current || !team) return
+    focusAfterSwitch.current = false
+    changeLocationTrigger.current?.focus()
+  }, [team])
 
   const load = useCallback(() => {
     if (!viewerId) return

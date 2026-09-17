@@ -44,6 +44,7 @@ import { fetchDefaultStream } from '@/lib/db/default-stream'
 
 import { KitchenStockPage } from './kitchen-stock-page'
 import { rememberStream } from '@/lib/cafe-stream'
+import { resetCafeLocations } from '@/lib/cafe-opening-location'
 import { branchDisplayName } from '@/lib/kitchen-action-label'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
 
@@ -110,6 +111,7 @@ beforeEach(() => {
   // #440: the Café stream is remembered for the whole module, in sessionStorage — so a test
   // that switches streams would otherwise seed the NEXT test's default. Clear it per test.
   rememberStream(null)
+  resetCafeLocations()
   mockUseAuth.mockReturnValue(viewer(['member']))
   mockBranches.mockResolvedValue([BRANCH_GHQ, BRANCH_RAD, BRANCH_RR])
   mockStreamPairs.mockResolvedValue(STREAM_PAIRS)
@@ -202,6 +204,12 @@ describe('KitchenStockPage — states', () => {
 })
 
 describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shared.default_stream(), switchable)', () => {
+  // OD-CAFE-1 bounds the picker to the branch the viewer is working at, and with no explicit
+  // location that branch comes from their own stream. These cases are about switching BETWEEN
+  // streams, so the viewer's own stream is at Radiant — the branch whose two streams they move
+  // between. Cross-branch switching is no longer offered anywhere and has its own test.
+  beforeEach(() => { mockDefaultStream.mockResolvedValue(RADIANT_BAR) })
+
   it('reads stock for the shared.default_stream() stream, not a hardcoded one', async () => {
     mockDefaultStream.mockResolvedValue(RADIANT_BAR)
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
@@ -240,8 +248,10 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
   it('issue 440: a stream chosen elsewhere in Café wins over the viewer\'s own default', async () => {
     // The person switched to Radiant · Bar on Log; Stock must open on the same books rather
     // than snapping back to their own stream and showing a different branch's numbers.
-  rememberStream(RADIANT_BAR, 'p-1')
-    mockDefaultStream.mockResolvedValue(CENTRAL_KITCHEN)
+    // OD-CAFE-1: "elsewhere in Café" means elsewhere AT THE SAME LOCATION, so the choice is
+    // remembered against that branch — a slot another branch cannot read.
+    rememberStream(RADIANT_BAR, 'p-1', BRANCH_RAD.id)
+    mockDefaultStream.mockResolvedValue(RADIANT_BAR)
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
     await waitFor(() => expect(mockFetchStock).toHaveBeenCalled())
