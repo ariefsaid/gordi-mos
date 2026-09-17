@@ -116,3 +116,13 @@
   .signal-composer-send { width: 100%; }
   .signal-composer-send .btn { flex: 1; min-height: 44px; }
 }
+
+/* A required choice that has not been made, marked the same way the Café capture surface marks
+   its stream. Share Signal is disabled until this is set, and the trigger gave no sign it was
+   the reason — the same defect, on the other surface, so it gets the same answer rather than a
+   second grammar. Where there is only one team the composer states it instead of asking, so
+   this never fires for someone with nothing to choose. */
+.signal-composer-team-choice .picker__trigger[aria-required='true'][data-full-value=''] {
+  border-color: var(--warning-foreground);
+  box-shadow: 0 0 0 1px var(--warning-foreground);
+}

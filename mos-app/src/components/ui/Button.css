@@ -24,6 +24,22 @@
   filter: saturate(0.35);
 }
 
+/* A disabled PRIMARY stops being the primary. Fading the blue to 50% and desaturating it
+   leaves a lavender block that still carries every cue of the main action — it reads as the
+   thing to press, and the press does nothing. A disabled action should look unavailable, not
+   dimmed: neutral surface, muted label, ordinary boundary. It carries a pseudo-class over the
+   variant's single class, so it outranks the resting `.btn-primary` wherever either sits. */
+.btn-primary:disabled,
+.btn-primary[aria-disabled="true"] {
+  opacity: 1;
+  filter: none;
+  background-color: var(--secondary);
+  background-image: none;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+  box-shadow: none;
+}
+
 /* Primary — the one action blue, sheen + faint brand shadow at rest (OD-P3-12) */
 .btn-primary {
   background-color: var(--primary);

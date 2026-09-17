@@ -552,6 +552,20 @@
   .tasks-work-queue .task-card .task-card-draft .task-card-create-control .picker__trigger { width: 100%; }
   .task-card-meta-pair { max-width: 100%; min-width: 0; }
   .task-card-meta-pair:last-child { grid-column: 1 / -1; }
+  /* The due pair is the last one, and its label is the one word the value already says: the
+     date renders as "Overdue · Tue 8 Sept" or "Thu 17 Sept", which is a due date on sight.
+     PIC and Supervisor keep their labels — two names side by side need telling apart. The
+     word stays in the accessibility tree; it just stops taking room on a phone. */
+  .task-card-meta-pair:last-child dt {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   .task-card-meta dd {
     min-width: 0;
     overflow: hidden;
