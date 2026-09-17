@@ -74,7 +74,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function validateMockupStatus(
   payload: unknown,
-  allowMockupGaps: boolean,
 ): { ok: boolean; reason?: string } {
   if (!isRecord(payload) || !Array.isArray(payload.comparisons) || payload.comparisons.length === 0) {
     return { ok: false, reason: 'status.json must contain at least one comparison' }
@@ -84,15 +83,23 @@ export function validateMockupStatus(
     return { ok: false, reason: 'status.json must declare complete/count/digest lane metadata' }
   }
   const comparisons = payload.comparisons
-  const measured = comparisons.every((comparison) => isRecord(comparison)
-    && (comparison.status === 'pass' || comparison.status === 'fail')
-    && typeof comparison.score === 'number'
-    && typeof comparison.build === 'string'
-    && comparison.build.length > 0
-    && Array.isArray(comparison.missingRegions)
-    && Array.isArray(comparison.contradictedRegions))
+  const measured = comparisons.every((comparison) => {
+    if (!isRecord(comparison)
+      || !Array.isArray(comparison.missingRegions)
+      || !Array.isArray(comparison.contradictedRegions)) return false
+    if (comparison.status === 'blocked') {
+      return comparison.score === null
+        && typeof comparison.build === 'string'
+        && typeof comparison.reason === 'string'
+        && comparison.reason.trim().length > 0
+    }
+    return (comparison.status === 'pass' || comparison.status === 'fail')
+      && typeof comparison.score === 'number'
+      && typeof comparison.build === 'string'
+      && comparison.build.length > 0
+  })
   if (!measured) {
-    return { ok: false, reason: 'every comparison must be completed; blocked or unmeasured comparisons are invalid' }
+    return { ok: false, reason: 'every comparison must carry measured pass/fail evidence or an explicit blocked diagnostic' }
   }
   const passEntriesMeetContract = comparisons.every((comparison) => !isRecord(comparison)
     || comparison.status !== 'pass'
@@ -102,6 +109,20 @@ export function validateMockupStatus(
   if (!passEntriesMeetContract) {
     return { ok: false, reason: 'every pass comparison must meet the 0.75 score and region contract' }
   }
+  if (payload.status === 'diagnostic') {
+    const blocked = comparisons.filter((comparison) => isRecord(comparison) && comparison.status === 'blocked')
+    const diagnosticStatus = payload.diagnosticStatus
+    if (diagnosticStatus !== 'complete' && diagnosticStatus !== 'incomplete') {
+      return { ok: false, reason: 'diagnostic mockup status must declare diagnosticStatus complete or incomplete' }
+    }
+    if (diagnosticStatus === 'complete' && blocked.length > 0) {
+      return { ok: false, reason: 'complete diagnostic mockup status cannot contain blocked comparisons' }
+    }
+    if (diagnosticStatus === 'incomplete' && blocked.length === 0) {
+      return { ok: false, reason: 'incomplete diagnostic mockup status must contain a blocked comparison' }
+    }
+    return { ok: true }
+  }
   if (payload.status === 'pass') {
     return comparisons.every((comparison) => isRecord(comparison)
       && comparison.status === 'pass'
@@ -110,13 +131,6 @@ export function validateMockupStatus(
       && (comparison.contradictedRegions as unknown[]).length === 0)
       ? { ok: true }
       : { ok: false, reason: 'pass status requires every comparison to meet the 0.75 score and region contract' }
-  }
-  if (allowMockupGaps && (payload.status === 'assessed-with-gaps' || payload.status === 'fail')) {
-    const failures = comparisons.filter((comparison) => isRecord(comparison) && comparison.status === 'fail')
-    if (failures.length > 0 && failures.every((comparison) => (comparison.score as number) < 0.75)) {
-      return { ok: true }
-    }
-    return { ok: false, reason: 'assessed-with-gaps requires at least one completed comparison below the 0.75 threshold' }
   }
   return { ok: false, reason: 'status.json does not report an allowed completed status' }
 }
@@ -660,7 +674,6 @@ function meaningfulGateLog(text: string): { ok: boolean; reason?: string } {
 export async function validateArtifactSet(
   outputDir: string,
   expected: ReportRunMetadata,
-  options: { allowMockupGaps?: boolean } = {},
 ): Promise<ArtifactValidation> {
   assertMetadata(expected)
   const root = path.resolve(outputDir)
@@ -703,7 +716,7 @@ export async function validateArtifactSet(
               const actual = metadataFromJson(payload)
               if (!actual) addUnique(invalid, artifact)
               else if (!metadataMatches(actual, expected)) addUnique(stale, artifact)
-              const mockupStatus = validateMockupStatus(payload, options.allowMockupGaps === true)
+              const mockupStatus = validateMockupStatus(payload)
               if (!mockupStatus.ok) {
                 addUnique(invalid, artifact)
                 errors.push(`${artifact}: ${mockupStatus.reason}`)

@@ -20,6 +20,7 @@ import {
   validateBaselineBinding,
   type AutomaticFailure,
   type AutomaticFailureBaselineProducerOptions,
+  type AutomaticFailureIdentity,
 } from './change-gate.ts'
 import { isTextTruncated } from './measurements.ts'
 
@@ -151,7 +152,10 @@ type FollowupFixture = {
   sessionId: string
 }
 
-async function createBaselineOnlyFollowup(extraPath = ''): Promise<FollowupFixture> {
+async function createBaselineOnlyFollowup(
+  extraPath = '',
+  extraTrustedFailure?: AutomaticFailureIdentity,
+): Promise<FollowupFixture> {
   const repo = await mkdtemp(path.join(os.tmpdir(), 'mos-change-gate-followup-repo-'))
   git(repo, 'init', '-q')
   git(repo, 'config', 'user.email', 'test@example.invalid')
@@ -164,6 +168,12 @@ async function createBaselineOnlyFollowup(extraPath = ''): Promise<FollowupFixtu
   git(repo, 'commit', '-qm', 'product')
   const productSha = git(repo, 'rev-parse', 'HEAD')
 
+  const trustedFailures: AutomaticFailureIdentity[] = [
+    { ruleId: 'content.text-truncation', cellId: 'tasks-default-desktop', selector: 'main h1', state: 'default' },
+    { ruleId: 'state.coverage', cellId: 'tasks-empty-phone', selector: '__state__', state: 'default' },
+    { ruleId: 'mockup.fidelity', cellId: 'tasks-default-desktop', selector: '/docs/tasks.png', state: 'default' },
+  ]
+  if (extraTrustedFailure) trustedFailures.push(extraTrustedFailure)
   const trustedBytes = canonicalSnapshotWithDigest(baselineSnapshot({
     source: {
       productSha,
@@ -171,10 +181,7 @@ async function createBaselineOnlyFollowup(extraPath = ''): Promise<FollowupFixtu
       sessionId: 'a1b2c3d4',
       manifestDigest: createHash('sha256').update('manifest\n').digest('hex'),
     },
-    failures: [
-      { ruleId: 'content.text-truncation', cellId: 'tasks-default-desktop', selector: 'main h1', state: 'default' },
-      { ruleId: 'state.coverage', cellId: 'tasks-empty-phone', selector: '__state__', state: 'default' },
-    ],
+    failures: trustedFailures,
     untestedCellIds: ['tasks-empty-phone'],
   }) as Record<string, unknown>)
   const trustedPath = path.join(repo, AUTOMATIC_FAILURE_BASELINE_PATH)
@@ -228,8 +235,9 @@ async function createBaselineOnlyFollowup(extraPath = ''): Promise<FollowupFixtu
     'anti-slop-summary.json': { cells: 1, count: 1 },
     'axe-summary.json': { scans: 1, count: 1 },
     'mockup-diff/status.json': {
-      status: 'pass',
-      comparisons: [{ cellId: cell.id, status: 'pass', score: 1, build: 'x', missingRegions: [], contradictedRegions: [] }],
+      status: 'diagnostic',
+      diagnosticStatus: 'complete',
+      comparisons: [{ cellId: cell.id, status: 'fail', score: 0.5, build: 'x', missingRegions: [], contradictedRegions: ['toolbar'] }],
       count: 1,
     },
   }
@@ -450,12 +458,14 @@ test('operator producer is deterministic and rejects missing or incomplete lanes
   assert.equal(first.snapshot?.source.productSha, sourceProductSha)
   assert.equal(first.snapshot?.source.harnessSha, candidateSha)
   assert.deepEqual(first.snapshot?.untestedCellIds, ['z'])
+  assert.equal(first.snapshot?.failures.some((failure) => failure.ruleId === 'mockup.fidelity'), false)
 
   const originalVisible = await readFile(path.join(evidenceDir, 'visible-content.csv'), 'utf8')
   await writeFile(path.join(evidenceDir, 'visible-content.csv'), originalVisible.replace('a,true', 'a,false'))
   const changed = await createAutomaticFailureBaseline({ ...options, previousSnapshot: first.snapshot })
   assert.equal(changed.ok, true, changed.errors.join('; '))
   assert.notEqual(changed.bytes, first.bytes)
+  assert.equal(changed.snapshot?.failures.some((failure) => failure.ruleId === 'design-quality.automatic'), true)
   await writeFile(path.join(evidenceDir, 'visible-content.csv'), originalVisible)
 
   for (const name of Object.keys(laneValues)) {
@@ -512,6 +522,39 @@ test('H0 evidence is accepted by the sole H1 baseline-only follow-up', async () 
   })
   assert.equal(result.ok, true, result.errors.join('\n'))
   assert.equal(result.mergeBaseSha, fixture.baseSha)
+})
+
+test('baseline-only retirement is scoped to unknown historical fidelity identities', async () => {
+  const historical = await createBaselineOnlyFollowup('', {
+    ruleId: 'mockup.fidelity',
+    cellId: 'legacy-cell-not-in-manifest',
+    selector: '/docs/legacy.png',
+    state: 'default',
+  })
+  const historicalResult = await revalidateChangeGateSnapshot({
+    repoRoot: historical.repo,
+    evidenceDir: historical.evidenceDir,
+    candidateSha: historical.candidateSha,
+    sessionId: historical.sessionId,
+    verificationBase: 'origin/dev',
+  })
+  assert.equal(historicalResult.ok, true, historicalResult.errors.join('\n'))
+
+  const automatic = await createBaselineOnlyFollowup('', {
+    ruleId: 'geometry.horizontal-fit',
+    cellId: 'legacy-cell-not-in-manifest',
+    selector: 'main',
+    state: 'default',
+  })
+  const automaticResult = await revalidateChangeGateSnapshot({
+    repoRoot: automatic.repo,
+    evidenceDir: automatic.evidenceDir,
+    candidateSha: automatic.candidateSha,
+    sessionId: automatic.sessionId,
+    verificationBase: 'origin/dev',
+  })
+  assert.equal(automaticResult.ok, false)
+  assert.match(automaticResult.errors.join('\n'), /drops .*inherited automatic failure/i)
 })
 
 test('baseline-only follow-up rejects any additional product or harness path change', async () => {

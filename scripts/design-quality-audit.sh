@@ -16,6 +16,10 @@ usage: scripts/design-quality-audit.sh <scope.md> --base-url <localhost-url>
        [--config <sssf.config.yaml>] [--adw-id <8-hex-id>]
        [--mode mvp-assessment|change-gate]
        [--mockup-authority <docs/*.json>] [--check-only]
+
+mode defaults to mvp-assessment (full milestone evidence); change-gate compares
+automatic failures with the exact merge-base snapshot. Historical mockup
+comparisons remain diagnostic in both modes.
 EOF
 }
 

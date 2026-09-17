@@ -59,7 +59,6 @@ const evidenceCandidateSha = baselineOnlyFollowUp ? sessionCandidateSha : expect
 const validation = await validateArtifactSet(
   evidenceDir,
   { candidateSha: evidenceCandidateSha, sessionId },
-  { allowMockupGaps: requireFinalChangeGate || requireBrowserChangeGate },
 )
 const declared = new Set(await Promise.all(
   (Array.isArray(session.quantitativeArtifacts) ? session.quantitativeArtifacts : []).map(async (entry) => {

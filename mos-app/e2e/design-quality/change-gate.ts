@@ -694,28 +694,12 @@ function collectFailures(contents: Map<string, string>): AutomaticFailure[] {
     }
   }
 
-  const mockupStatus = contents.get('mockup-diff/status.json')
-  if (mockupStatus) {
-    try {
-      const payload = record(JSON.parse(mockupStatus))
-      if (Array.isArray(payload?.comparisons)) {
-        payload.comparisons.forEach((value) => {
-          const comparison = record(value)
-          if (!comparison || text(comparison.status) === 'pass') return
-          addFailure(failures, {
-            ruleId: 'mockup.fidelity',
-            cellId: text(comparison.cellId),
-            selector: text(comparison.mockup, '__mockup__'),
-            state: 'default',
-            message: text(comparison.reason, 'mockup fidelity comparison failed'),
-            measured: comparison,
-          })
-        })
-      }
-    } catch {
-      // validateArtifactFiles reports malformed JSON.
-    }
-  }
+  // Mockup comparisons are historical design lineage. Their complete,
+  // candidate-bound result stays in mockup-diff/status.json for diagnosis,
+  // while measurable accessibility/geometry/content failures above remain
+  // automatic change-gate identities. A historical mismatch cannot become a
+  // new blocker merely because this candidate was compared with an older
+  // composition.
 
   return uniqueFailures(failures)
 }
@@ -989,7 +973,11 @@ function snapshotCensusContains(
   const candidateFailures = new Set(candidate.failures.map((failure) => JSON.stringify(failure)))
   const candidateUntested = new Set(candidate.untestedCellIds)
   return {
-    missingFailures: trusted.failures.filter((failure) => !candidateFailures.has(JSON.stringify(failure))),
+    // Historical mockup identities may still exist in an older trusted
+    // snapshot. They are diagnostic evidence, so dropping them while moving
+    // to the non-blocking lane is an intentional census change.
+    missingFailures: trusted.failures.filter((failure) => failure.ruleId !== 'mockup.fidelity'
+      && !candidateFailures.has(JSON.stringify(failure))),
     missingUntestedCellIds: trusted.untestedCellIds.filter((cellId) => !candidateUntested.has(cellId)),
   }
 }

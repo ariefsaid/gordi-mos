@@ -69,6 +69,13 @@ else
   bad "fixture receipt binding secret lifecycle is incomplete"
 fi
 
+if bash scripts/design-quality-audit.sh --help 2>&1 \
+  | grep -Fq 'comparisons remain diagnostic in both modes.'; then
+  ok "design-audit help distinguishes milestone mode from the diagnostic historical lane"
+else
+  bad "design-audit help does not describe historical comparison scope"
+fi
+
 if node --experimental-strip-types --input-type=module - <<'NODE'
 import { REQUIRED_ARTIFACTS } from './mos-app/e2e/design-quality/report.ts'
 if (!REQUIRED_ARTIFACTS.includes('visible-content.csv')) process.exit(1)
@@ -113,6 +120,7 @@ if node --experimental-strip-types --test \
   mos-app/e2e/design-quality/bounded-choices.test.ts \
   mos-app/e2e/design-quality/audit-route.test.ts \
   mos-app/e2e/design-quality/mockup-authority.test.ts \
+  mos-app/e2e/design-quality/report.test.ts \
   mos-app/e2e/design-quality/change-gate.test.ts \
   >/tmp/mos-design-quality-manifest-test.log 2>&1; then
   ok "manifest/report/authority/mutation unit tests pass"
