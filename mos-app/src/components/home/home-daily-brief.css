@@ -50,7 +50,13 @@
   .home-brief-aside {
     position: sticky;
     top: 16px;
-    max-height: calc(100vh - 32px);
+    /* `<main>` is the scroll container, not the viewport — it starts below the fixed header, so a
+       viewport-relative cap makes the rail TALLER than the scrollport that holds it and pushes its
+       own end past the fold. The rail then shows an inner scrollbar that reaches its end while the
+       last item is still off-screen, needing a second outer scroll to see: two scrollbars, and the
+       inner one lying about the end. Subtract the header the scrollport already sits below, plus
+       this rule's own top and bottom breathing room. */
+    max-height: calc(100dvh - var(--header-h) - 32px);
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-gutter: stable;

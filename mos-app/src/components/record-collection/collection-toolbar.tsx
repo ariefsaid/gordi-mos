@@ -223,6 +223,20 @@ export function CollectionToolbar<
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // An anchored panel that only closes from its own trigger is a panel that stays open while the
+  // reader works around it: it overlays the table's own column controls, and a click that lands on
+  // one is swallowed by the panel instead. Any pointer landing outside closes it, which is what a
+  // reader means by clicking away.
+  useEffect(() => {
+    if (!desktopOptionsOpen) return
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Element | null
+      if (!target?.closest?.('.collection-toolbar__desktop-door')) setDesktopOptionsOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    return () => document.removeEventListener('pointerdown', onPointerDown, true)
+  }, [desktopOptionsOpen])
+
   const saving = savedViews?.operation === 'saving'
   const canSave = Boolean(viewName.trim()) && !saving
   // Desktop shows secondary controls inline; phones render this row inside the host's single

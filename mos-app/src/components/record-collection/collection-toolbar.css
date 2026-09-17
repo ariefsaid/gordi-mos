@@ -747,3 +747,28 @@
   border-radius: var(--radius-sm);
   padding-inline: 10px;
 }
+
+/* ── One-band priority: the view axis outranks the search field ──────────────────────────────
+   With the options behind a door, the band holds views + search + trigger. Flex was shrinking the
+   chip strip first, so from about 1000px down the strip fell to ~130px while search kept 320: the
+   ACTIVE chip scrolled out of its own overflow with no affordance, and the reader saw only "All".
+   That inverts the whole point of exposing the views. Search yields first and keeps a usable
+   floor; the strip gives up width only once search is at its own minimum. */
+/* The strip is its own scroll region with min-width 0, so flex shrank it before anything else and
+   its overflow silently swallowed the chips. It keeps its content width here and search, which
+   degrades gracefully, absorbs the squeeze instead. */
+.collection-toolbar__row:has(.collection-toolbar__desktop-door) .collection-toolbar__views {
+  flex: 0 0 auto;
+}
+
+.collection-toolbar__row:has(.collection-toolbar__desktop-door) .collection-toolbar__query {
+  flex: 1 1 140px;
+  min-width: 120px;
+  max-width: 340px;
+}
+
+.collection-toolbar__row:has(.collection-toolbar__desktop-door) .collection-toolbar__search {
+  flex: 1 1 auto;
+  min-width: 120px;
+  max-width: none;
+}

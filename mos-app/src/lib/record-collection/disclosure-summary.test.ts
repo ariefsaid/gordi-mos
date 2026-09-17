@@ -37,3 +37,30 @@ describe('collectionDisclosureSummary', () => {
     expect(run(query as FakeQuery, hasNonDefaultView)).toEqual(expected)
   })
 })
+
+describe('a filter that repeats the view it belongs to', () => {
+  it('names the view once, not twice', () => {
+    const result = collectionDisclosureSummary({
+      query: { view: 'overdue', overdueOnly: true },
+      neutralQuery: { view: 'all', overdueOnly: false },
+      excludedKeys: ['view'],
+      base: 'Overdue',
+      hasNonDefaultView: false,
+      filterLabel: () => 'Overdue',
+    })
+    expect(result.summary).toBe('Overdue')
+    expect(result.hasActiveFilters).toBe(true)
+  })
+
+  it('still appends a filter that says something the view does not', () => {
+    const result = collectionDisclosureSummary({
+      query: { view: 'overdue', overdueOnly: true },
+      neutralQuery: { view: 'all', overdueOnly: false },
+      excludedKeys: ['view'],
+      base: 'Overdue',
+      hasNonDefaultView: false,
+      filterLabel: () => 'Blocked',
+    })
+    expect(result.summary).toBe('Overdue · Blocked')
+  })
+})
