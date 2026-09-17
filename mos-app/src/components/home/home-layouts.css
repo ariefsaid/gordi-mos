@@ -131,6 +131,7 @@
 }
 
 @container home (max-width: 620px) {
+  .home-layout { gap: 8px; }
   .home-tabs {
     flex-wrap: wrap;
     overflow-x: visible;

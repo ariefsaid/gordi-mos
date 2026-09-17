@@ -45,4 +45,16 @@ describe('GUARD DO-16: home layout census pins', () => {
     const body = ruleBody(stripped('src/components/signals/signal-feed-section.css'), '.signal-feed-section ')
     expect(body).toMatch(/margin-top:\s*var\(--ds-spacing-6,\s*24px\)/)
   })
+
+  it('keeps the phone Signal action row inside Home’s usable scrollport with a compact section seam', () => {
+    const css = stripped('src/components/home/home-daily-brief.css')
+    const phoneIdx = css.search(/@media\s*\(max-width:\s*767\.98px\)/)
+    expect(phoneIdx).toBeGreaterThanOrEqual(0)
+    expect(ruleBody(css, '.home-brief-feed ', phoneIdx)).toMatch(/padding-top:\s*4px/)
+    expect(ruleBody(css, '.home-brief-aside .signal-feed-section ', phoneIdx)).toMatch(/margin-top:\s*0/)
+
+    const layouts = stripped('src/components/home/home-layouts.css')
+    const compactIdx = layouts.search(/@container\s+home\s*\(max-width:\s*620px\)/)
+    expect(ruleBody(layouts, '.home-layout ', compactIdx)).toMatch(/gap:\s*8px/)
+  })
 })

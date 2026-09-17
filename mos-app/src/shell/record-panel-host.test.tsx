@@ -53,7 +53,7 @@ describe('RecordPanelHost — dual modal regime (FR-1)', () => {
     // .drawer-split rule) so an inline picker popover inside the record stays over the feed.
     expect(aside).toHaveClass('drawer-split')
     const hostCss = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
-    expect(hostCss).toMatch(/\.drawer-split\s*\{[^}]*isolation:\s*isolate/)
+    expect(hostCss).toMatch(/\.drawer-split:not\(\.drawer-shell-split\)\s*\{[^}]*isolation:\s*isolate/)
     expect(document.querySelector('.drawer-scrim')).toBeNull()
     expect(document.querySelector('.drawer-modal-root')).toBeNull()
   })

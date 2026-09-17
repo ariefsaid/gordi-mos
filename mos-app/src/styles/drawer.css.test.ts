@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const drawerCss = readFileSync(resolve(process.cwd(), 'src/styles/drawer.css'), 'utf8')
+const recordPanelCss = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
 
 /** Return the declaration block body for the first rule whose selector line contains `selector`. */
 function ruleBody(css: string, selector: string): string {
@@ -35,6 +36,11 @@ describe('TB-1: shell overlay panels leave the top-bar chrome reachable', () => 
     const body = ruleBody(drawerCss, '.drawer.overlay-companion-host--standalone {')
     expect(body).toMatch(/top:\s*var\(--header-h\)/)
     expect(body).not.toMatch(/(?<!-)top:\s*0\b/)
+  })
+
+  it('the in-flow split stacking context cannot override shell-panel fixed positioning', () => {
+    expect(recordPanelCss).toMatch(/\.drawer-split:not\(\.drawer-shell-split\)\s*\{[^}]*position:\s*relative/)
+    expect(recordPanelCss).not.toMatch(/(^|\n)\.drawer-split\s*\{[^}]*position:\s*relative/)
   })
 })
 

@@ -35,6 +35,20 @@
   padding-top: 14px;
 }
 
+@media (max-width: 767.98px) {
+  /* The phone shell gives content an exact scrollport above its bottom navigation. Home's base
+     16px feed padding plus the feed's 24px desktop group seam put the 44px Signal action row
+     across that boundary on the initial screen. Keep the same divider and grouping, but tighten
+     the duplicated seam so the whole action row remains usable above the tab bar. */
+  .home-brief-feed {
+    padding-top: 4px;
+  }
+
+  .home-brief-aside .signal-feed-section {
+    margin-top: 0;
+  }
+}
+
 /* ── The digest rail keeps its own scroll ────────────────────────────────────────────────────
    Home's two columns answer different questions and legitimately hold different amounts: the work
    column is a short list with a door to Tasks, while the rail is a six-deep Signal digest whose

@@ -47,7 +47,7 @@
  * the panel the menu clears the record viewer's own ladder (tabs z 1, pinned status z 2). The
  * modal regime nests the panel in the fixed .drawer-modal-root and the shell overlay in the fixed
  * .drawer-shell-split — both already contexts — so this rule only changes the in-flow case. */
-.drawer-split { position: relative; isolation: isolate; }
+.drawer-split:not(.drawer-shell-split) { position: relative; isolation: isolate; }
 
 /* #708: this query carried no width guard, so ANY environment reporting a fine pointer — a
  * resized desktop window, a non-touch mobile emulation — fired it at phone width too, tightening
