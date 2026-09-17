@@ -117,3 +117,30 @@
     align-self: flex-start;
   }
 }
+
+/* On a phone the door's location identity is three stacked lines — the word "Location", the
+   branch name under it, and "Change location" under that — before the opening status and its
+   action, and before the capture list below all of it. For a viewer with more than one branch
+   that put the first item to log at y=576 of 844: two thirds of the screen spent saying where
+   you are, to someone who is standing there.
+
+   It is one fact and one way to change it, so it reads as one line: label and branch inline,
+   the switch at the trailing edge. Nothing is removed and the switch keeps its own target. */
+@media (max-width: 767.98px) {
+  .cafe-opening-door .cafe-opening-location {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+  .cafe-opening-door .cafe-opening-location__copy {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+  }
+  .cafe-opening-door .cafe-opening-location__change {
+    width: auto;
+    margin-inline-start: auto;
+  }
+}
