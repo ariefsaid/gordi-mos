@@ -179,3 +179,23 @@
     flex: none;
   }
 }
+
+/* The job sentence is a desktop affordance. On a phone the reader has just tapped the thing
+   they were looking for, the title names it again, and the sentence pushes the first row of
+   actual content past a third of the viewport — on Signals the first signal began at y=307 of
+   844. The analogous collection surfaces already disagree about this: Tasks shows its counts
+   here while Signals explains itself, and divergence between analogous surfaces is a defect.
+   The sentence keeps its place at every width the rail is visible, and stays in the
+   accessibility tree so the surface still describes itself to a screen reader. */
+@media (max-width: 767.98px) {
+  .page-head--v3.content-header .page-head-job {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
