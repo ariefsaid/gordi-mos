@@ -60,7 +60,7 @@
 /* OD-REDESIGN-91 #20: the WIB timezone hint sits beside the "Occurred at" label — quiet, micro. */
 .signal-composer-field-hint {
   margin-left: 6px; font-size: var(--font-size-micro); font-weight: 600;
-  letter-spacing: 0.04em; color: var(--text-light);
+  letter-spacing: 0.04em; color: var(--muted-foreground);
 }
 .signal-composer-datetime input {
   display: block; width: 100%; height: 32px; padding: 0 10px; box-sizing: border-box;

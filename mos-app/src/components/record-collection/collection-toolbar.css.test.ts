@@ -27,6 +27,15 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
     )
   })
 
+  it('keeps every desktop saved-view chip on the 32px control step', () => {
+    expect(css).toMatch(
+      /\.collection-toolbar__view\s*\{[^}]*min-height:\s*32px;/s,
+    )
+    expect(css).toMatch(
+      /\.collection-toolbar__saved-error \.btn\s*\{[^}]*min-height:\s*32px;/s,
+    )
+  })
+
   it('keeps the Tasks attention trigger content-sized in the desktop row', () => {
     expect(css).toMatch(
       /@media\s*\(min-width:\s*1024px\)[\s\S]*?\.tasks-collection-toolbar \.tasks-attention-picker\s*\{[^}]*flex:\s*0 0 auto;[^}]*min-width:\s*max-content;/s,

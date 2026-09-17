@@ -55,7 +55,7 @@
      shrink squashed the last chip ("Follow-up…") at 390 instead of letting the strip's
      overflow-x:auto scroll (Block 2(a)). Chips keep intrinsic width; the STRIP scrolls. */
   flex: none;
-  min-height: 26px;
+  min-height: 32px;
   padding: 0 10px;
   border: 0;
   border-radius: calc(var(--radius-sm) - 2px);
@@ -125,7 +125,7 @@
   font-size: var(--font-size-mono);
 }
 .collection-toolbar__saved-error .error-state-text { white-space: nowrap; }
-.collection-toolbar__saved-error .btn { min-height: 26px; padding: 0 6px; }
+.collection-toolbar__saved-error .btn { min-height: 32px; padding: 0 6px; }
 
 .collection-toolbar__query {
   display: flex;
