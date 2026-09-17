@@ -2111,7 +2111,9 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
       .not.toHaveTextContent('Rumah Rames')
     const reason = screen.getByText(/belongs to another location/i)
     expect(reason).toBeInTheDocument()
-    // The message names where you ARE, so the empty picker reads as a boundary, not a lost setting.
+    // It names BOTH: the stale stream (which the cleared picker no longer shows anywhere) and
+    // where you are, so the empty picker reads as a boundary rather than a lost setting.
+    expect(reason).toHaveTextContent('Rumah Rames')
     expect(reason).toHaveTextContent('Gordi HQ')
     expect(screen.getByRole('button', { name: /^submit$/i })).toBeDisabled()
   })

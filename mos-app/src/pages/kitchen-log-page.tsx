@@ -1080,7 +1080,12 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
             {canCapture && streamMissing && (
               <span className="kl-submit-reason" role="status" aria-live="polite">
                 {streamOutsideLocation
-                  ? t('kitchen.log.stream.otherLocation', { location: activeBranchName ?? '' })
+                  ? t('kitchen.log.stream.otherLocation', {
+                    // Name the stale stream: once the picker clears, "that stream" points at
+                    // nothing on screen.
+                    stream: streamLabel(t, resolvedStream),
+                    location: activeBranchName ?? '',
+                  })
                   : t('kitchen.log.stream.missing')}
               </span>
             )}
