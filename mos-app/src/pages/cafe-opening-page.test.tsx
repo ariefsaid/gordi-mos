@@ -1,9 +1,10 @@
 import type React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { cafeDraftCount, clearCafeDraftCount, setCafeDraftCount } from '@/lib/cafe-capture-draft'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { DueProcessRun } from '@/lib/db/processes.types'
@@ -343,5 +344,104 @@ describe('Café Opening context', () => {
     expect(screen.getByTestId('cafe-capture-surface')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /review/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /pushes/i })).not.toBeInTheDocument()
+  })
+})
+
+// ── Dirty-draft protection on a location switch ──────────────────────────────────────────────
+// Switching location discards whatever the capture form is holding — a typed number belongs to
+// the stream it was typed against. That is right, and it was silent: a person mid-count lost the
+// work to a button that said nothing.
+describe('changing location with a capture draft in progress', () => {
+  beforeEach(() => { clearCafeDraftCount() })
+  afterEach(() => { clearCafeDraftCount() })
+
+  function twoLocations() {
+    mapResolver()
+    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD, true)])
+    mockListStartableCafeTeams.mockResolvedValue([dueTeam(TEAM_RAD), dueTeam(TEAM_RR)])
+  }
+
+  it('switches straight through when nothing is staged', async () => {
+    twoLocations()
+    setCafeDraftCount(0)
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByTestId('cafe-opening-location')
+    await user.click(screen.getByRole('button', { name: 'Change location' }))
+    await user.click(screen.getByRole('button', { name: /Open location Rumah Rames/ }))
+
+    // No confirm for a switch that costs nothing.
+    expect(screen.queryByRole('heading', { name: /discard what you have typed/i })).toBeNull()
+    expect(await screen.findByTestId('cafe-opening-location')).toHaveTextContent('Rumah Rames')
+  })
+
+  it('explains what would be lost, naming both locations', async () => {
+    twoLocations()
+    setCafeDraftCount(3)
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByTestId('cafe-opening-location')
+    await user.click(screen.getByRole('button', { name: 'Change location' }))
+    await user.click(screen.getByRole('button', { name: /Open location Rumah Rames/ }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(/discard what you have typed/i)).toBeInTheDocument()
+    expect(dialog).toHaveTextContent('3')
+    expect(dialog).toHaveTextContent('Radiant')      // where the quantities were counted
+    expect(dialog).toHaveTextContent('Rumah Rames')  // where the switch would go
+  })
+
+  it('cancel keeps the current location and never reaches the switch', async () => {
+    twoLocations()
+    setCafeDraftCount(3)
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByTestId('cafe-opening-location')
+    await user.click(screen.getByRole('button', { name: 'Change location' }))
+    await user.click(screen.getByRole('button', { name: /Open location Rumah Rames/ }))
+    await user.click(await screen.findByRole('button', { name: /^cancel$/i }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByTestId('cafe-opening-location')).toHaveTextContent('Radiant')
+    // The remembered location is untouched, so a reload returns to where the draft belongs.
+    expect(sessionStorage.getItem(`mos.cafe.opening.location.${VIEWER_ID}`)).not.toBe('opening-rr')
+    // Focus lands on the stable door back to the same choice, not on <body>.
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Change location' }))
+  })
+
+  it('Escape cancels the same way as the Cancel button', async () => {
+    twoLocations()
+    setCafeDraftCount(2)
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByTestId('cafe-opening-location')
+    await user.click(screen.getByRole('button', { name: 'Change location' }))
+    await user.click(screen.getByRole('button', { name: /Open location Rumah Rames/ }))
+    await screen.findByRole('dialog')
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByTestId('cafe-opening-location')).toHaveTextContent('Radiant')
+  })
+
+  it('confirm switches location and releases the draft', async () => {
+    twoLocations()
+    setCafeDraftCount(3)
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByTestId('cafe-opening-location')
+    await user.click(screen.getByRole('button', { name: 'Change location' }))
+    await user.click(screen.getByRole('button', { name: /Open location Rumah Rames/ }))
+    await user.click(await screen.findByRole('button', { name: /discard and switch/i }))
+
+    expect(await screen.findByTestId('cafe-opening-location')).toHaveTextContent('Rumah Rames')
+    // The dialog closes: ConfirmDialog hands closing back to its caller after a confirm.
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(cafeDraftCount()).toBe(0)
   })
 })

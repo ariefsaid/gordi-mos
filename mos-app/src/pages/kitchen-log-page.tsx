@@ -34,6 +34,7 @@ import {
 // #440: the stream is the MODULE's selection, not this page's — useCafeStream records it so
 // Plan/Stock/Review open on the same books, and every switch carries across (issue 456).
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { clearCafeDraftCount, setCafeDraftCount } from '@/lib/cafe-capture-draft'
 import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
 import type { ReactNode } from 'react'
 import type {
@@ -376,6 +377,15 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
     if (auth.status !== 'authenticated') return
     loadData()
   }, [auth.status, loadData, retryKey])
+
+  // The module root owns the location switch and cannot see these quantities. Publish how many are
+  // staged so it can warn before discarding them, and retract it on unmount so a dead form never
+  // makes the root warn about work that no longer exists. Above every early return: this is a hook.
+  const draftCount = Object.values(lines).filter(line => line.qty_porsi > 0).length
+  useEffect(() => {
+    setCafeDraftCount(draftCount)
+    return () => { clearCafeDraftCount() }
+  }, [draftCount])
 
   // Rebuild plan_qty / stock / gate state per line when the movement or the loaded
   // stream-scoped plan/stock change.

@@ -24,6 +24,8 @@ import {
 } from '@/lib/db/cafe-opening'
 import { listActiveBranches } from '@/lib/db/branches'
 import { rememberCafeOpeningTeam, rememberedCafeOpeningTeamId } from '@/lib/cafe-opening-location'
+import { cafeDraftCount, clearCafeDraftCount } from '@/lib/cafe-capture-draft'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
 import { canPushCafe } from '@/lib/kitchen-gates'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
@@ -116,16 +118,40 @@ function CafeRootPageBody() {
   const [team, setTeam] = useState<BranchTeam | null>(null)
   const [teamChoices, setTeamChoices] = useState<BranchTeam[]>([])
   const [changingLocation, setChangingLocation] = useState(false)
+  // A location the person asked for, waiting on the discard confirm. Null = nothing pending.
+  const [pendingLocation, setPendingLocation] = useState<BranchTeam | null>(null)
   const changeLocationTrigger = useRef<HTMLButtonElement | null>(null)
   const loadGeneration = useRef(0)
 
-  const selectLocation = useCallback((choice: BranchTeam) => {
+  // The switch itself, once nothing is at stake.
+  const applyLocation = useCallback((choice: BranchTeam) => {
     if (!viewerId) return
+    clearCafeDraftCount()
     rememberCafeOpeningTeam(viewerId, choice.id)
     setTeam(choice)
     setChangingLocation(false)
+    // ConfirmDialog hands closing back to its caller after a successful confirm, so the pending
+    // choice has to be released here or the dialog stays up over the location it just switched to.
+    setPendingLocation(null)
     setState('ready')
   }, [viewerId])
+
+  // Switching location discards whatever the capture form is holding — a typed number belongs to
+  // the stream it was typed against. That is right, and it was silent: someone mid-count lost the
+  // work to a button that said nothing. Held behind a confirm while quantities are staged, and
+  // free when they are not, so the common switch costs no extra click.
+  const selectLocation = useCallback((choice: BranchTeam) => {
+    if (!viewerId) return
+    if (cafeDraftCount() > 0) {
+      // Close the chooser as the confirm opens. Left open behind a modal it becomes a second
+      // Escape owner: Escape closed the chooser and moved focus to its trigger while the dialog
+      // stayed on screen, so the one key that should dismiss the modal did everything except that.
+      setChangingLocation(false)
+      setPendingLocation(choice)
+      return
+    }
+    applyLocation(choice)
+  }, [applyLocation, viewerId])
 
   const load = useCallback(() => {
     if (!viewerId) return
@@ -281,16 +307,44 @@ function CafeRootPageBody() {
   // one page. Every state BEFORE that still needs a frame of its own to live in.
   if (state === 'ready' && processId && team) {
     return (
-      <CafeCaptureRoot
-        key={team.id}
-        processId={processId}
-        team={team}
-        alternateLocations={alternateLocations}
-        changingLocation={changingLocation}
-        changeLocationTrigger={changeLocationTrigger}
-        setChangingLocation={setChangingLocation}
-        onChoose={selectLocation}
-      />
+      <>
+        <CafeCaptureRoot
+          key={team.id}
+          processId={processId}
+          team={team}
+          alternateLocations={alternateLocations}
+          changingLocation={changingLocation}
+          changeLocationTrigger={changeLocationTrigger}
+          setChangingLocation={setChangingLocation}
+          onChoose={selectLocation}
+        />
+        {/* Only while something is staged — `selectLocation` switches straight through otherwise.
+            Cancel leaves location, stream and draft exactly as they were: it never reaches
+            `applyLocation`, and the capture form is not re-keyed, so nothing is rebuilt. */}
+        {pendingLocation !== null && (
+          <ConfirmDialog
+            open
+            title={t('cafe.opening.switch.confirmTitle')}
+            body={t('cafe.opening.switch.confirmBody', {
+              count: cafeDraftCount(),
+              qty: t(cafeDraftCount() === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
+              from: team.branchName,
+              to: pendingLocation.branchName,
+            })}
+            confirmLabel={t('cafe.opening.switch.confirm')}
+            cancelLabel={t('common.cancel')}
+            tone="destructive"
+            onConfirm={async () => { applyLocation(pendingLocation) }}
+            onCancel={() => {
+              setPendingLocation(null)
+              // The button that opened this lived in the chooser, which closed as the dialog
+              // opened, so the shell's invoker is detached and focus would fall to <body>.
+              // "Change location" is the stable door back to the same choice.
+              changeLocationTrigger.current?.focus()
+            }}
+          />
+        )}
+      </>
     )
   }
 
