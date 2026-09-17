@@ -389,3 +389,36 @@
 @media (max-width: 390px) {
   .kl-scope { width: 100%; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   The capture list on a phone (scoped to this form — `.dt-card` is shared).
+
+   Thirty-two items, each in its own bordered, rounded, filled box, is thirty-two
+   frames drawn around one number. The framing repeats; the content barely differs.
+   A continuous list with hairline separators says the same thing with one line per
+   item instead of four edges, and the quantity field stays the only lit surface in
+   the row — which is what a thumb is aiming at.
+
+   The sticky footer also sat ON the last row rather than after it: the footer is
+   position: sticky inside this scroller, so the list needs its own bottom reserve
+   or the final item is permanently half-hidden behind the Submit bar.
+   ════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 767.98px) {
+  .kl-form .dt-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .kl-form .dt-cards .dt-card {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    border-bottom: 1px solid var(--border-light, var(--border));
+    padding-inline: 4px;
+  }
+  .kl-form .dt-cards .dt-card:last-child { border-bottom: 0; }
+  /* Reserve belongs at the end of the LIST, not after the footer. The footer is the form's
+     last child, so padding on the form lands beyond it and reserves nothing: the final item
+     could never be scrolled out from under the Submit bar. */
+  .kl-form .dt-cards { padding-bottom: 104px; }
+}
