@@ -58,6 +58,7 @@ import {
   type DataTableGroup,
 } from '@/components/dashboard/data-table'
 import { usePlanSummary } from '@/lib/kitchen-plan-kpis'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 import './kitchen-plan-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the other Café pages.
@@ -413,7 +414,7 @@ function PlanEditor() {
         />
       }
       meta={
-        <span className="kp-date tabular">{logDate}</span>
+        <span className="kp-date tabular">{formatWeekdayDayMonth(logDate)}</span>
       }
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : streamNonProducing ? 'read-only' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
     >

@@ -43,6 +43,7 @@ import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { CafeStreamBar, ALL_STREAMS } from '@/components/kitchen/cafe-stream-bar'
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
 import { useReviewSummary } from '@/lib/kitchen-review-kpis'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 import './kitchen-review-page.css'
 
 function wibToday(): string {
@@ -1006,7 +1007,7 @@ function KitchenReviewPageForViewer() {
           onAllStreams={() => setStreamFilter(ALL_STREAMS)}
         />
       }
-      meta={<span className="kr-date tabular">{logDate}</span>}
+      meta={<span className="kr-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : submittedCount === 0 ? 'empty' : 'default'}
     >
       {/* #422 / DD-WAY-40: Review is an ACT surface, so its figures render as the DESIGN.md

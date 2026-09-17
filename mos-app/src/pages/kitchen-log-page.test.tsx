@@ -399,10 +399,14 @@ describe('Populated state — WIP items loaded', () => {
 
   it('shows plan qty for each item', async () => {
     await renderPage()
-    await waitFor(() => {
-      // plan_qty 20 for Ayam Bakar
-      expect(screen.getAllByText(/20/).length).toBeGreaterThan(0)
-    })
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    // The plan belongs to ITS OWN row: a bare /20/ over the whole document passed for months
+    // on the head's `2026-09-17`, and would have passed with no plan column at all.
+    // The plan reaches the person as the quantity field's placeholder — type over it and you
+    // have logged the plan. A bare /20/ over the whole document passed for months on the head's
+    // `2026-09-17` and would have passed with the plan missing entirely.
+    expect(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }))
+      .toHaveAttribute('placeholder', '20')
   })
 
   it('shows pinned Submit button', async () => {
@@ -1076,8 +1080,9 @@ describe('I3: shared PageHead variant="content"', () => {
     // ONE accessible heading carrying the page title (RI-IA-1)
     const h1 = within(head).getByRole('heading', { level: 1 })
     expect(h1).toHaveTextContent('Café · Log')
-    // the log date rides in the meta slot (today, WIB) — a YYYY-MM-DD string
-    expect(within(head).getByText(/^\d{4}-\d{2}-\d{2}$/)).toBeInTheDocument()
+    // the log date rides in the meta slot (today, WIB), in the weekday-day-month form every
+    // other head uses — never the raw ISO string the state is stored as
+    expect(within(head).getByText(/^\w{3} \d{1,2} \w{3,5}$/)).toBeInTheDocument()
     // the bespoke hand-rolled header is gone
     expect(document.querySelector('.kl-head')).toBeNull()
   })
@@ -1153,8 +1158,8 @@ describe('R4 / FR-018: Log summary line', () => {
     const summary = document.querySelector('.msr') as HTMLElement
     expect(summary).not.toBeNull()
     expect(summary.textContent).toMatch(/Plan\s*32/)
-    expect(summary.textContent).toMatch(/made\s*19/)
-    expect(summary.textContent).toMatch(/off-plan\s*7/)
+    expect(summary.textContent).toMatch(/Made\s*19/)
+    expect(summary.textContent).toMatch(/Off-plan\s*7/)
     expect(summary.textContent).not.toMatch(/on plan/i)
     expect(document.querySelector('.kks')).toBeNull()
     expect(screen.queryByRole('button', { name: /^help$/i })).toBeNull()
@@ -1169,7 +1174,7 @@ describe('R4 / FR-018: Log summary line', () => {
     const qty = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     fireEvent.change(qty, { target: { value: '5' } })
     expect(summary.textContent).toBe(atRest)
-    expect(summary.textContent).toMatch(/made\s*0/)
+    expect(summary.textContent).toMatch(/Made\s*0/)
   })
 
   it('renders a zero-plan summary rather than a second empty-state sentence', async () => {

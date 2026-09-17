@@ -68,6 +68,7 @@ import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { DataTable, type DataTableColumn, type DataTableGroup } from '@/components/dashboard/data-table'
 import { kitchenStatus } from '@/lib/kitchen-status'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
@@ -612,7 +613,7 @@ function KitchenLogPageForViewer({ leading }: { leading?: ReactNode } = {}) {
   // and a head that goes silent about its stream is the #440 defect itself.
   if (status.kind === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="loading" meta={<span className="kl-date tabular">{logDate}</span>}>
+      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="loading" meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
           <LoadingShell count={3} />
@@ -624,7 +625,7 @@ function KitchenLogPageForViewer({ leading }: { leading?: ReactNode } = {}) {
   // ── Error state — never a bare Retry loop when offline (#2, RI-2) ────────────
   if (status.kind === 'error') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="error" meta={<span className="kl-date tabular">{logDate}</span>}>
+      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="error" meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}>
         <div className="kl-page kl-error kl-block">
           <OfflineBanner show={!isOnline} />
           <p className="kl-error-msg" role="alert">
@@ -646,7 +647,7 @@ function KitchenLogPageForViewer({ leading }: { leading?: ReactNode } = {}) {
   // ── Empty state (no WIP items) — no KPI strip (nothing to derive, plan §7) ────
   if (wipItems.length === 0) {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state={streamNonProducing ? 'read-only' : 'empty'} meta={<span className="kl-date tabular">{logDate}</span>}>
+      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state={streamNonProducing ? 'read-only' : 'empty'} meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
           {streamNonProducing && receivingOnlyNotice}
@@ -951,7 +952,7 @@ function KitchenLogPageForViewer({ leading }: { leading?: ReactNode } = {}) {
          a row lands in decides what the row MEANS, so it outranks the static job sentence the
          shared head would otherwise carry (PageHead renders one or the other). */
       statusRow={streamPicker}
-      meta={<span className="kl-date tabular">{logDate}</span>}
+      meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
       state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : streamNonProducing ? 'read-only' : submitError ? 'validation' : 'default'}
     >
       <div className="kl-page">
