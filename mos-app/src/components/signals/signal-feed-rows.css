@@ -251,3 +251,21 @@
   .home-signal-row { flex-direction: column; gap: 6px; }
   .home-signal-tail { align-self: flex-start; }
 }
+
+/* Each meta item carries its own leading separator, which is right: the mark belongs to the
+   fact it introduces and travels with it when the row wraps. On a phone the run wraps often,
+   and a wrapped item then OPENS its line with "·" — which stops reading as a separator and
+   starts reading as a bullet, on most rows of the feed.
+
+   The trailing item takes its own line there and drops the mark. It is the one fact of a
+   different kind anyway — a taxonomy tag rather than provenance — so it reads as itself
+   rather than as the tail of the author-and-time run. The separator is aria-hidden either
+   way, so nothing is lost to a screen reader. */
+@media (max-width: 767.98px) {
+  .home-signal-meta-item:last-child {
+    flex-basis: 100%;
+  }
+  .home-signal-meta-item:last-child > .home-signal-sep {
+    display: none;
+  }
+}
