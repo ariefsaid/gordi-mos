@@ -14,7 +14,7 @@
   }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .page-frame--v3 {
     /* v4 chrome-reduction pass (shared-chrome fix): top gutter 16→12 (DESIGN.md geometry
        scale) — horizontal/bottom untouched (bottom keeps its tab-bar clearance + the

@@ -122,7 +122,14 @@
    the reason — the same defect, on the other surface, so it gets the same answer rather than a
    second grammar. Where there is only one team the composer states it instead of asking, so
    this never fires for someone with nothing to choose. */
-.signal-composer-team-choice .picker__trigger[aria-required='true'][data-full-value=''] {
+/* Keyed off the placeholder span the Picker renders while nothing is chosen. `data-full-value`
+   is NOT empty in that state — it carries the placeholder text — so a `[data-full-value='']`
+   selector matched nothing and the cue never appeared. */
+.signal-composer-team-choice .picker__trigger[aria-required='true']:has(.picker__placeholder) {
   border-color: var(--warning-foreground);
   box-shadow: 0 0 0 1px var(--warning-foreground);
+}
+.signal-composer-team-choice:has(.picker__trigger[aria-required='true'] .picker__placeholder)
+  .picker__label {
+  color: var(--warning-foreground);
 }

@@ -229,7 +229,7 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
   it('AC-760: phone saved-view choices wrap visibly and keep the 44px choice floor', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/pages/signals-archive-page.css'), 'utf8')
     expect(css).toMatch(
-      /@media\s*\(max-width:\s*767px\)[\s\S]*?\.signals-archive-toolbar \.collection-toolbar__views\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap[^}]*overflow-x:\s*visible[^}]*overflow-y:\s*visible/,
+      /@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.signals-archive-toolbar \.collection-toolbar__views\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap[^}]*overflow-x:\s*visible[^}]*overflow-y:\s*visible/,
     )
     expect(css).toMatch(
       /\.signals-archive-toolbar \.collection-toolbar__view\s*\{[^}]*min-height:\s*44px/,

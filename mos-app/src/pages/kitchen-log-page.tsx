@@ -527,7 +527,7 @@ function KitchenLogPageForViewer({ leading }: { leading?: ReactNode } = {}) {
     }
 
     if (!buId) {
-      setSubmitError('Cannot determine the Café business unit. Please contact an admin.')
+      setSubmitError(t('kitchen.log.error.noBusinessUnit'))
       return
     }
 

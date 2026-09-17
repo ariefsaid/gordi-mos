@@ -170,7 +170,7 @@
    drawers) still render as a full-height page-covering sheet instead of a half-width
    column with the page bleeding through beside it (design-review step-4 IMPORTANT-4).
    `.drawer`'s own solid --card background already makes the sheet opaque. */
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .drawer-modal.drawer-sheet {
     top: 0; right: 0; bottom: 0; left: 0; width: auto; border-left: 0;
   }

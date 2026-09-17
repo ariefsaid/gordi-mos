@@ -55,7 +55,7 @@
 .hlp-badge { padding: 2px 8px; border-radius: var(--radius-pill); background: var(--secondary); color: var(--muted-foreground); font-size: var(--font-size-label); font-weight: 500; }
 .hlp-desc { display: block; margin-top: 4px; color: var(--muted-foreground); font-size: var(--font-size-label); }
 
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .hlp-opts { grid-template-columns: minmax(0, 1fr); }
   .hlp-card { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 4px 12px; align-content: center; }
   .hlp-thumb { grid-row: span 2; align-self: center; aspect-ratio: 4 / 3; padding: 5px; }

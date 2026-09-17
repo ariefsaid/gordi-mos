@@ -124,7 +124,7 @@
    headers, drill links, and testids — ballooning scope): each table sits in a
    .bp-table-scroll wrapper that scrolls horizontally on phone; the page body
    never scrolls sideways. */
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .bp-table-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;

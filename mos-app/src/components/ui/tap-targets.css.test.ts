@@ -35,19 +35,31 @@ const signalFeedRowsTsx = readFileSync(resolve(process.cwd(), 'src/components/si
 const recordViewerCss = readFileSync(resolve(process.cwd(), 'src/components/records/record-viewer.css'), 'utf8')
 const recordPageChromeCss = readFileSync(resolve(process.cwd(), 'src/shell/record-page-chrome.css'), 'utf8')
 
+// EVERY block for the query, joined — a stylesheet may open the same breakpoint more than once,
+// and reading only the first one silently misses rules that are in force.
 function mediaBody(css: string, query: string): string {
-  const idx = css.indexOf(query)
-  expect(idx, `expected to find ${query}`).toBeGreaterThanOrEqual(0)
-  const open = css.indexOf('{', idx)
-  let depth = 0
-  for (let i = open; i < css.length; i += 1) {
-    if (css[i] === '{') depth += 1
-    if (css[i] === '}') {
-      depth -= 1
-      if (depth === 0) return css.slice(open + 1, i)
+  const bodies: string[] = []
+  let from = 0
+  for (;;) {
+    const idx = css.indexOf(query, from)
+    if (idx < 0) break
+    const open = css.indexOf('{', idx)
+    let depth = 0
+    for (let i = open; i < css.length; i += 1) {
+      if (css[i] === '{') depth += 1
+      if (css[i] === '}') {
+        depth -= 1
+        if (depth === 0) {
+          bodies.push(css.slice(open + 1, i))
+          from = i + 1
+          break
+        }
+      }
+      if (i === css.length - 1) throw new Error(`unterminated media query: ${query}`)
     }
   }
-  throw new Error(`unterminated media query: ${query}`)
+  expect(bodies.length, `expected to find ${query}`).toBeGreaterThan(0)
+  return bodies.join('\n')
 }
 
 describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
@@ -153,7 +165,7 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
   })
 
   it('ticket 711: raises the collection-toolbar search FIELD itself (not just its wrapping box) to 44px on phone', () => {
-    const body = mediaBody(collectionToolbarCss, '@media (max-width: 767px)')
+    const body = mediaBody(collectionToolbarCss, '@media (max-width: 767.98px)')
     expect(body).toMatch(/\.collection-toolbar__search\s*\{[^}]*min-height:\s*44px/)
     expect(body).toMatch(/\.collection-toolbar__search input[^}]*min-height:\s*44px/)
   })

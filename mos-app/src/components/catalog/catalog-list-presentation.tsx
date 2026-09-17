@@ -176,7 +176,7 @@ function ownerCellValue(
   const displayName = fullName ?? directoryName(id, names, t)
   return fullName ? <PersonCell fullName={fullName} /> : (
     <span className="catalog-collection__cell-value catalog-collection__cell-value--muted" aria-hidden="true">
-      {displayName === t('catalog.notSet') ? '–' : displayName}
+      {displayName === t('catalog.notSet') ? t('catalog.owner.unassigned') : displayName}
     </span>
   )
 }
@@ -234,11 +234,10 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
           const relationLabel = relation?.name ?? t('catalog.notSet')
           const progressLabel = rowProgressText(row, progress, t)
           const activityLabel = latestActivity(context, row, t)
-          const ownerLabel = directoryName(
-            context.relationsKind === 'objective' ? row.accountablePersonId : row.accountablePersonId,
-            context.peopleById,
-            t,
-          )
+          // One word for one fact: what a reader sees in the cell is what a screen reader hears.
+          const ownerLabel = row.accountablePersonId
+            ? directoryName(row.accountablePersonId, context.peopleById, t)
+            : t('catalog.owner.unassigned')
           const businessUnitLabel = directoryName(row.businessUnitId, context.businessUnitsById, t)
           const cadenceDue = dueValue(row, t)
           const cadenceDueLabel = cadenceDue.label

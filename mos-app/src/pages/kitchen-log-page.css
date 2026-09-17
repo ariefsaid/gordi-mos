@@ -174,7 +174,7 @@
   margin-bottom: 12px;
   scroll-margin-bottom: 12px;
 }
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .kl-form .dt-cards {
     margin-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
   }
@@ -250,7 +250,7 @@
 .kl-touch { min-height: 44px; }
 
 /* ── Phone (<768px): stack the footer (tally above, actions below), safe-area spacing ── */
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .kl-footer {
     flex-direction: column;
     align-items: stretch;

@@ -518,7 +518,7 @@ describe('Issue 245 / FR-928: Signals stays live, concise and honest', () => {
     mockListSignals.mockReturnValue(new Promise((resolve) => { resolveSignals = resolve }))
     mockListTasks.mockResolvedValue([])
     await renderHome(memberViewer)
-    expect(await screen.findByText('0 left')).toBeInTheDocument()
+    expect(await screen.findByText('0 open')).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).toBeInTheDocument()
 
     await act(async () => {
@@ -642,7 +642,7 @@ describe('AC-040 / AC-052: Home identity is day-aware and does not add a mention
     expect(head.querySelector('.home-head-date')).not.toBeNull()
     expect(head.querySelector('.home-head-date')?.textContent).toBeTruthy()
     expect(within(head).getByText('Managing Director')).toBeInTheDocument()
-    expect(within(head).getByText('0 left')).toBeInTheDocument()
+    expect(within(head).getByText('0 open')).toBeInTheDocument()
     expect(head).toHaveClass('home-day-header', 'content-header--compact')
     expect(within(head).queryByRole('button')).toBeNull()
     expect(within(head).queryByRole('link')).toBeNull()

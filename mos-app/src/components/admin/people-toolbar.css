@@ -74,7 +74,7 @@
 
 /* ── Mobile reflow (<768px) ────────────────────────────────────────────────── */
 /* Below md: seg wraps to full width below the search; touch floor 44px */
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .people-toolbar {
     flex-direction: column;
     align-items: stretch;

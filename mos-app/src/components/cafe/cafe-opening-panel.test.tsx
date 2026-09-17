@@ -107,7 +107,7 @@ describe('AC-712 — capable viewer, opening not started', () => {
     const startButton = await screen.findByRole('button', { name: "Start today's opening" })
     expect(screen.getByRole('heading', {
       level: 2,
-      name: "Not started yet — start today's opening.",
+      name: "Not started yet.",
     })).toBeInTheDocument()
     // Never a bare "Start"/"Create" (Rule 7) — the accessible name is the full verb+object phrase.
     expect(startButton.textContent?.trim().toLowerCase()).not.toBe('start')

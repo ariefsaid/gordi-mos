@@ -537,7 +537,7 @@
   .collection-mobile-options-chevron { transition: none; }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .collection-toolbar__choice-trigger { min-height: 44px; }
   .collection-toolbar { align-items: stretch; }
   .collection-toolbar__primary { align-items: stretch; flex-wrap: wrap; padding: 8px; }

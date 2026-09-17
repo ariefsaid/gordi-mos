@@ -449,6 +449,6 @@ describe('RecordPanelHost — phone regime a11y (NFR-003 / AC-022)', () => {
     expect(body).not.toMatch(/width:\s*\d+px/)
     // The band sheet also collapses to full-bleed below 768px rather than leaving a half-width
     // column with the page bleeding through beside it.
-    expect(css).toMatch(/@media \(max-width: 767px\)\s*\{\s*\.drawer-modal\.drawer-sheet\s*\{[^}]*width:\s*auto/s)
+    expect(css).toMatch(/@media \(max-width: 767\.98px\)\s*\{\s*\.drawer-modal\.drawer-sheet\s*\{[^}]*width:\s*auto/s)
   })
 })

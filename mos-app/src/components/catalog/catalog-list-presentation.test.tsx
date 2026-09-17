@@ -82,9 +82,13 @@ describe('CatalogListPresentation owner-cell grammar', () => {
     ])
 
     const row = screen.getByRole('link', { name: 'Unassigned project' })
-    const owner = within(row).getByRole('cell', { name: 'Owner: Not set' })
-    expect(owner).toHaveAttribute('title', 'Not set')
-    expect(owner).toHaveTextContent('–')
+    const owner = within(row).getByRole('cell', { name: 'Owner: Unassigned' })
+    // One word for one fact: the eye and the screen reader get the SAME word, and it names the
+    // gap rather than dashing it. A bare '–' read as "nothing applies here" on records whose
+    // whole point is who is accountable.
+    expect(owner).toHaveAttribute('title', 'Unassigned')
+    expect(owner).toHaveTextContent('Unassigned')
+    expect(owner).not.toHaveTextContent('–')
     expect(owner.querySelector('.ownav')).toBeNull()
     expect(within(row).queryByText('Not set')).toBeNull()
   })

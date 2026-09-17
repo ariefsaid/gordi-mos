@@ -426,7 +426,8 @@
 
 /* ── Loading skeleton ── */
 .sk-cell { height: var(--row-min-h); padding: 0 12px; border-bottom: 1px solid var(--row-divider); vertical-align: middle; }
-.sk { background: var(--secondary); border-radius: var(--radius-xs); height: 12px; display: inline-block; animation: sk-pulse 1.4s ease-in-out infinite; }
+/* The ONE `.sk`. Block so stacked bars stack; 12px is the default a caller can override inline. */
+.sk { background: var(--secondary); border-radius: var(--radius-xs); height: 12px; display: block; animation: sk-pulse 1.4s ease-in-out infinite; }
 .sk.pill { height: 22px; width: 84px; border-radius: var(--radius-pill); display: block; }
 .sk.av { height: 26px; width: 26px; border-radius: var(--radius-pill); display: block; }
 /* Cohesion-debt 2026-07-19, item #3: `@keyframes sk-pulse` moved to index.css (shared). */
@@ -823,3 +824,14 @@ tr.grp td { padding: 0; }
   height: 100%; width: 100%;
 }
 .th-sort-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--radius-xs); } /* item #6: dense sticky-header cell — inset ring */
+
+/* Every card in the phone queue carried two people with two avatars — the PIC, and a Supervisor
+   who is the same person on most rows. Scanning a task list is scanning for who is DOING it; the
+   supervisor is a fact about the task, not a face to recognise mid-scroll. The name and its label
+   stay, so nothing is lost and the record keeps the full cell; only the second avatar goes, which
+   halves the circles on the screen. A card being filled in keeps its picker untouched. */
+@media (max-width: 767.98px) {
+  .task-card-meta-pair--supervisor .owner > .ownav {
+    display: none;
+  }
+}

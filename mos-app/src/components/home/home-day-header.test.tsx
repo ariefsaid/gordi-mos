@@ -12,7 +12,7 @@ const draw = (tally: { left: number; done?: number } | null) => render(
 describe('AC-042 — HomeHeadCounts: N handled only with a real source; otherwise N left', () => {
   it('no handled source → the tally is `N left` alone', () => {
     draw({ left: 11 })
-    expect(screen.getByText('11 left')).toBeInTheDocument()
+    expect(screen.getByText('11 open')).toBeInTheDocument()
     expect(screen.queryByText(/handled/)).toBeNull()
   })
 

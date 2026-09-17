@@ -93,7 +93,7 @@ describe('BudgetPage — phone table reflow (r5 F-7)', () => {
     }
     // Structural pin (jsdom computes no overflow layout — the stylesheet is the oracle).
     const css = readFileSync(resolve(process.cwd(), 'src/pages/budget-page.css'), 'utf8')
-    const phone = css.split('@media (max-width: 767px)')[1] ?? ''
+    const phone = css.split('@media (max-width: 767.98px)')[1] ?? ''
     expect(phone).toMatch(/\.bp-table-scroll\s*\{[^}]*overflow-x:\s*auto/)
   })
 })

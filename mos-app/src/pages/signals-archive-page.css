@@ -12,7 +12,7 @@
 /* On a phone the saved-view axis must expose every choice at once. The selected class and button
    semantics remain owned by CollectionToolbar; this route-level rule only changes the strip from
    a clipped scroll row to a wrapping, visible group. */
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .signals-archive-toolbar .collection-toolbar__views {
     display: flex;
     flex-wrap: wrap;

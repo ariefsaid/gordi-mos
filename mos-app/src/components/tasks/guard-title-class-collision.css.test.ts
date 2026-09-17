@@ -33,3 +33,29 @@ describe('the task title collision is settled by specificity, not by import orde
     ).toMatch(/\.collection-grammar-title\.task-name\s*\{[^}]*font-size:\s*var\(--font-size-body-lg\)/)
   })
 })
+
+// Same hazard, one class: `.sk` was declared in BOTH TaskSurface.css and TasksWorkspace.css at
+// identical specificity, with different `height` and `display`. The two live in different built
+// chunks, so the winner depended on whether the lazily-loaded Tasks route had been fetched — and
+// tasks-table-body renders a `.sk` with no inline height, which collapses to 0px under the copy
+// that set none. An invisible loading skeleton, decided by load order.
+describe('the loading skeleton has exactly one owner', () => {
+  const files = [
+    'src/components/tasks/TasksWorkspace.css',
+    'src/components/tasks/TaskSurface.css',
+    'src/components/tasks/TaskQueue.css',
+  ]
+
+  it('only one stylesheet declares the bare `.sk` rule', () => {
+    const declaring = files.filter((f) => /(^|\})\s*\.sk\s*\{/m.test(read(f)))
+    expect(
+      declaring,
+      'a second bare `.sk` hands the skeleton’s height back to stylesheet import order',
+    ).toEqual(['src/components/tasks/TasksWorkspace.css'])
+  })
+
+  it('that one rule carries a height, so a caller that sets none still renders', () => {
+    expect(read('src/components/tasks/TasksWorkspace.css'))
+      .toMatch(/(^|\})\s*\.sk\s*\{[^}]*height:\s*12px/m)
+  })
+})

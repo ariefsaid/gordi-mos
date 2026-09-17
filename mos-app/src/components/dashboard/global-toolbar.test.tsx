@@ -123,7 +123,7 @@ describe('GlobalToolbar (AC-011)', () => {
     // two rows two rows. The old design put every pill on ONE nowrap row behind `overflow-x:
     // auto` + a mask fade; that IS the clipping this AC forbids, so its absence is asserted too.
     const css = readFileSync(resolve(process.cwd(), 'src/components/dashboard/global-toolbar.css'), 'utf8')
-    const phone = css.split('@media (max-width: 767px)')[1] ?? ''
+    const phone = css.split('@media (max-width: 767.98px)')[1] ?? ''
     expect(phone).not.toBe('')
     expect(phone).toMatch(/\.global-toolbar-rail\s*\{[^}]*flex-wrap:\s*wrap/)
     expect(phone).toMatch(/\.global-toolbar-group\s*\{[^}]*flex:\s*1 0 100%/)

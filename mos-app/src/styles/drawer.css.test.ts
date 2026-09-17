@@ -94,7 +94,7 @@ describe('the record sheet keeps its floor (#190)', () => {
 
   it('the phone rule still wins below 768px — the floor never applies where it would overflow', () => {
     expect(drawerCss).toMatch(
-      /@media \(max-width: 767px\)\s*\{\s*\.drawer-modal\.drawer-sheet\s*\{[^}]*width:\s*auto/s,
+      /@media \(max-width: 767\.98px\)\s*\{\s*\.drawer-modal\.drawer-sheet\s*\{[^}]*width:\s*auto/s,
     )
   })
 })
