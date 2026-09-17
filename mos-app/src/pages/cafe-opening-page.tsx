@@ -23,7 +23,7 @@ import {
   wibToday,
 } from '@/lib/db/cafe-opening'
 import { listActiveBranches } from '@/lib/db/branches'
-import { rememberCafeOpeningTeam, rememberedCafeOpeningTeamId } from '@/lib/cafe-opening-location'
+import { rememberCafeLocation, rememberCafeOpeningTeam, rememberedCafeOpeningTeamId } from '@/lib/cafe-opening-location'
 import { cafeDraftCount, clearCafeDraftCount } from '@/lib/cafe-capture-draft'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
@@ -128,6 +128,9 @@ function CafeRootPageBody() {
     if (!viewerId) return
     clearCafeDraftCount()
     rememberCafeOpeningTeam(viewerId, choice.id)
+    // Plan and Stock never pass through this root, so the branch behind the choice is recorded
+    // here for them: it is what bounds their own stream picker.
+    rememberCafeLocation(viewerId, { branchId: choice.branchId, branchName: choice.branchName })
     setTeam(choice)
     setChangingLocation(false)
     // ConfirmDialog hands closing back to its caller after a successful confirm, so the pending
@@ -247,6 +250,12 @@ function CafeRootPageBody() {
 
         if (defaultLocation) {
           setTeam(defaultLocation)
+          // Not only a deliberate switch: the location a session OPENS on bounds Plan and Stock
+          // too, and they never come through here to learn it.
+          rememberCafeLocation(viewerId, {
+            branchId: defaultLocation.branchId,
+            branchName: defaultLocation.branchName,
+          })
           setTeamChoices(eligible)
           setState('ready')
           return

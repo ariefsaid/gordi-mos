@@ -83,3 +83,43 @@ describe('cafe-stream — the module remembers ONE stream', () => {
     expect(resolveCafeStream(CATALOG, RR_KITCHEN, 'person-b')).toEqual(RR_KITCHEN)
   })
 })
+
+// ── OD-CAFE-1: the memory is scoped by LOCATION as well as identity ──────────────────────────
+// A stream belongs to one branch's books, so "the stream I am working in" is only meaningful
+// beside where I am working. One shared slot let a choice made on Stock at one branch be read by
+// Log at another, which then had to reject it and blame the reader for a choice made elsewhere.
+describe('a remembered stream belongs to the location it was chosen at', () => {
+  const VIEWER = 'person-1'
+
+  it('does not leak a choice made at one branch into another branch', () => {
+    rememberStream(RAD_BAR, VIEWER, RAD.id)
+
+    expect(rememberedStreamKey(VIEWER, RAD.id)).toBe(`${RAD.id}|bar`)
+    // Standing at Rumah Rames, that choice is simply not this location's business.
+    expect(rememberedStreamKey(VIEWER, RR.id)).toBeNull()
+  })
+
+  it('still gives every surface AT THE SAME location one stream (#440 intact)', () => {
+    rememberStream(RAD_BAR, VIEWER, RAD.id)
+    // Plan, mounting later at the same location with the same catalog, follows the choice.
+    expect(resolveCafeStream([RAD_BAR], null, VIEWER, RAD.id)).toEqual(RAD_BAR)
+  })
+
+  it('falls through to the person’s own stream rather than a foreign one', () => {
+    rememberStream(RAD_BAR, VIEWER, RAD.id)
+    // At Rumah Rames the catalog is this location's only, so the Radiant memory cannot resolve.
+    const atRumahRames = resolveCafeStream([RR_KITCHEN], RR_KITCHEN, VIEWER, RR.id)
+    expect(atRumahRames).toEqual(RR_KITCHEN)
+  })
+
+  it('resolves to null rather than guessing when the location has no stream for this person', () => {
+    rememberStream(RAD_BAR, VIEWER, RAD.id)
+    // No own-stream at this location either: ask, never substitute another branch's books.
+    expect(resolveCafeStream([RR_KITCHEN], RAD_BAR, VIEWER, RR.id)).toBeNull()
+  })
+
+  it('keeps identity scoping on top of location scoping', () => {
+    rememberStream(RAD_BAR, VIEWER, RAD.id)
+    expect(rememberedStreamKey('person-2', RAD.id)).toBeNull()
+  })
+})

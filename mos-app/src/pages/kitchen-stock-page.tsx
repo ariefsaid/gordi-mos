@@ -85,7 +85,9 @@ function KitchenStockPageForViewer() {
   // The module's stream + the enumerable stream catalog it is chosen from (FR-005),
   // through the ONE bootstrap every Café surface shares (issue 456).
   const cafeStream = useCafeStream()
-  const { options: streamOptions, stream } = cafeStream
+  // OD-CAFE-1: stock is keyed on (org, date, item, branch, activity) — a balance belongs to one
+  // branch's books — so the picker offers this location's streams only.
+  const { options: streamOptions, locationOptions, stream } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [rows, setRows] = useState<KitchenStockRow[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
@@ -231,7 +233,7 @@ function KitchenStockPageForViewer() {
   // makes rapid switching safe to allow.
   const streamHead = (
     <CafeStreamBar
-      options={streamOptions}
+      options={locationOptions}
       stream={stream}
       onChange={next => { void applyStream(next) }}
     />

@@ -25,22 +25,29 @@ const STORAGE_KEY = 'mos.cafe.stream'
 // authenticated surface resolves and writes its stream in an identity-scoped slot.
 const rememberedByViewer = new Map<string | null, string | null>()
 
-function storageKey(viewerId?: string | null): string {
-  return viewerId ? `${STORAGE_KEY}.${viewerId}` : STORAGE_KEY
+// OD-CAFE-1: the slot is scoped by LOCATION as well as identity. A stream belongs to one
+// branch's books, so "the stream I am working in" is only meaningful beside where I am working.
+// One shared slot meant a choice made on Stock at one branch was read by Log at another, which
+// then had to reject it and blame the reader for a choice they made on a different page. Scoping
+// by location removes the collision at its source while keeping #440's point intact: every
+// surface AT THE SAME LOCATION still follows one choice.
+function storageKey(viewerId?: string | null, branchId?: string | null): string {
+  const identity = viewerId ? `${STORAGE_KEY}.${viewerId}` : STORAGE_KEY
+  return branchId ? `${identity}.${branchId}` : identity
 }
 
-function readStored(viewerId?: string | null): string | null {
+function readStored(viewerId?: string | null, branchId?: string | null): string | null {
   try {
-    return window.sessionStorage.getItem(storageKey(viewerId))
+    return window.sessionStorage.getItem(storageKey(viewerId, branchId))
   } catch {
     return null // private mode / storage disabled — the module still works, just per-page
   }
 }
 
 /** The remembered stream's key, or null when nothing has been chosen in this session. */
-export function rememberedStreamKey(viewerId?: string | null): string | null {
-  const cacheKey = viewerId ?? null
-  if (!rememberedByViewer.has(cacheKey)) rememberedByViewer.set(cacheKey, readStored(viewerId))
+export function rememberedStreamKey(viewerId?: string | null, branchId?: string | null): string | null {
+  const cacheKey = `${viewerId ?? ''}|${branchId ?? ''}`
+  if (!rememberedByViewer.has(cacheKey)) rememberedByViewer.set(cacheKey, readStored(viewerId, branchId))
   return rememberedByViewer.get(cacheKey) ?? null
 }
 
@@ -49,7 +56,7 @@ export function rememberedStreamKey(viewerId?: string | null): string | null {
  * AND on the bootstrap that resolves a default, so the first surface a person opens teaches
  * the rest of the module which books they are in.
  */
-export function rememberStream(stream: ProductionStream | null, viewerId?: string | null): void {
+export function rememberStream(stream: ProductionStream | null, viewerId?: string | null, branchId?: string | null): void {
   // Preserve the original no-argument reset contract used by the Café test harness and any
   // logout/cleanup caller: clearing without an identity clears every Café stream slot, while an
   // explicit viewer id remains scoped to that identity.
@@ -68,10 +75,10 @@ export function rememberStream(stream: ProductionStream | null, viewerId?: strin
     return
   }
   const remembered = stream ? streamKey(stream.branch.id, stream.activity) : null
-  rememberedByViewer.set(viewerId ?? null, remembered)
+  rememberedByViewer.set(`${viewerId ?? ''}|${branchId ?? ''}`, remembered)
   try {
-    if (remembered) window.sessionStorage.setItem(storageKey(viewerId), remembered)
-    else window.sessionStorage.removeItem(storageKey(viewerId))
+    if (remembered) window.sessionStorage.setItem(storageKey(viewerId, branchId), remembered)
+    else window.sessionStorage.removeItem(storageKey(viewerId, branchId))
   } catch {
     // storage unavailable — the in-memory value still serves this page load
   }
@@ -97,6 +104,7 @@ export function resolveCafeStream(
   options: readonly ProductionStream[],
   ownDefault: ProductionStream | null,
   viewerId?: string | null,
+  branchId?: string | null,
 ): ProductionStream | null {
   const inCatalog = (candidate: ProductionStream | null) =>
     candidate
@@ -105,7 +113,7 @@ export function resolveCafeStream(
         ) ?? null
       : null
 
-  const key = rememberedStreamKey(viewerId)
+  const key = rememberedStreamKey(viewerId, branchId)
   const fromSession = key
     ? options.find(s => streamKey(s.branch.id, s.activity) === key) ?? null
     : null
