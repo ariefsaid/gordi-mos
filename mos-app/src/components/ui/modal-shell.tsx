@@ -62,6 +62,7 @@ export function ModalShell({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented) return
       if (event.key === 'Escape') {
+        if (event.target instanceof Element && event.target.closest('[data-escape-layer="nested"]')) return
         if (!closeOnEscape) return
         event.preventDefault()
         // A modal owns Escape while it is open. Without this the key kept travelling to whatever

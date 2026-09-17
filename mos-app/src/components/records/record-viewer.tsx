@@ -174,7 +174,19 @@ function RecordOverflowMenu({
         <span aria-hidden="true">⋯</span>
       </button>
       {open && (
-        <div ref={menuRef} className="record-viewer__overflow-menu" role="menu" aria-label={t('record.moreActions')}>
+        <div
+          ref={menuRef}
+          className="record-viewer__overflow-menu"
+          role="menu"
+          aria-label={t('record.moreActions')}
+          data-escape-layer="nested"
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return
+            event.preventDefault()
+            event.stopPropagation()
+            setOpen(false)
+          }}
+        >
           {onOpenPage && (
             <button type="button" role="menuitem" onClick={() => { setOpen(false); onOpenPage() }}>
               {t('record.openFullPage')}

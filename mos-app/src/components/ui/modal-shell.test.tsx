@@ -3,8 +3,37 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { ModalShell } from './modal-shell'
+import { Picker } from './picker'
 
 describe('ModalShell — one centered interaction contract', () => {
+  it('dismisses a nested Picker before closing the modal', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    render(
+      <ModalShell open onClose={onClose} ariaLabel="Share Signal">
+        <Picker
+          label="Owning Team"
+          value=""
+          options={[
+            { value: 'team-a', label: 'Gordi HQ Kitchen' },
+            { value: 'team-b', label: 'Radiant Kitchen' },
+          ]}
+          onChange={vi.fn()}
+        />
+      </ModalShell>,
+    )
+
+    await user.click(screen.getByRole('combobox', { name: 'Owning Team' }))
+    expect(screen.getByRole('listbox', { name: 'Owning Team' })).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('listbox', { name: 'Owning Team' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Share Signal' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Owning Team' })).toHaveFocus()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('owns dialog semantics and does not render a closed modal', () => {
     const { rerender } = render(
       <ModalShell open={false} onClose={vi.fn()} ariaLabel="Assign owner">

@@ -147,6 +147,7 @@ export function RecordPanelHost({
     if (!panel) return
     const onEsc: EventListener = (e) => {
       if ((e as KeyboardEvent).key === 'Escape') {
+        if (e.target instanceof Element && e.target.closest('[data-escape-layer="nested"]')) return
         e.preventDefault()
         if (escapeCapture) e.stopImmediatePropagation()
         onClose('escape')
