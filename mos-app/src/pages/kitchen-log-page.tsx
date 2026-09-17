@@ -146,18 +146,29 @@ type PageStatus =
   | { kind: 'submitting' }
   | { kind: 'success'; count: number }
 
-export function KitchenLogPage({ leading }: { leading?: ReactNode } = {}) {
+export function KitchenLogPage({ leading, activeBranchId, activeBranchName }: {
+  leading?: ReactNode
+  /**
+   * OD-CAFE-1: the location this capture belongs to, from the module root's own location
+   * context. Production capture is location-bound — the picker offers this branch's streams and
+   * nothing else, and a remembered stream from another branch is stale rather than usable.
+   * Absent (a single-location org, or a surface with no location context) leaves the catalog whole.
+   */
+  activeBranchId?: string
+  /** The active location's user-facing name, for the boundary message. */
+  activeBranchName?: string
+} = {}) {
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : 'anonymous'
 
   // Catalog, rows, and staged capture lines belong to one person. A route remains mounted
   // through an auth replacement, so a key makes that replacement atomic at render time.
-  return <KitchenLogPageForViewer key={viewerId} leading={leading} />
+  return <KitchenLogPageForViewer key={viewerId} leading={leading} activeBranchId={activeBranchId} activeBranchName={activeBranchName} />
 }
 
 /** DD-MVP-17: leading slot — content (the Opening door row) the module root renders
  *  above the capture form when this surface IS the Café root. */
-function KitchenLogPageForViewer({ leading }: { leading?: ReactNode } = {}) {
+function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: { leading?: ReactNode; activeBranchId?: string; activeBranchName?: string } = {}) {
   const auth = useAuth()
   const t = useT()
   // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
@@ -178,7 +189,27 @@ function KitchenLogPageForViewer({ leading }: { leading?: ReactNode } = {}) {
   // `.activity` are NOT NULL (AC-007). `streamOptions` is the enumerable stream catalog (FR-005):
   // the live stream Teams, so the roastery — a branch with no stream — can never appear.
   const cafeStream = useCafeStream()
-  const { branches, options: streamOptions, stream } = cafeStream
+  const { branches, options: streamOptions, stream: resolvedStream } = cafeStream
+  // OD-CAFE-1 — production capture is location-bound.
+  //
+  // The picker offered every stream in the org while the page said which location you were at, so
+  // production done at one branch could be filed against another branch's books with nothing
+  // asking whether that was meant. The choice is now bounded by the active location, and switching
+  // location is the deliberate act that changes it.
+  //
+  // `streamOptions` stays WHOLE for everything else. The transfer movements are derived from it —
+  // a transfer's destination is by definition another branch — so filtering the catalog itself
+  // would delete the cross-location workflow instead of bounding the production choice.
+  const locationStreams = useMemo(
+    () => (activeBranchId ? streamOptions.filter((option) => option.branch.id === activeBranchId) : streamOptions),
+    [activeBranchId, streamOptions],
+  )
+  // A remembered stream from another location is stale, not a default. Clearing it puts the page
+  // in the same "choose a stream" state as a person with no default at all — nothing is captured
+  // against a branch the viewer did not pick, and nothing is silently substituted for them.
+  const streamOutsideLocation = Boolean(activeBranchId) && resolvedStream !== null
+    && resolvedStream.branch.id !== activeBranchId
+  const stream = streamOutsideLocation ? null : resolvedStream
   // #744: the presentation of the RLS write gate — rows stay visible, capture controls close,
   // one line says why. Same selector the policies arm: affiliated, or ops_lead/admin.
   const canCapture = auth.status === 'authenticated' && canCaptureCafe({
@@ -427,7 +458,7 @@ function KitchenLogPageForViewer({ leading }: { leading?: ReactNode } = {}) {
   // stream in one spot instead of guessing on two thirds of the module.
   const streamPicker = (
     <CafeStreamBar
-      options={streamOptions}
+      options={locationStreams}
       stream={stream}
       onChange={next => { void applyStream(next) }}
       disabled={status.kind === 'submitting'}
@@ -1048,7 +1079,9 @@ function KitchenLogPageForViewer({ leading }: { leading?: ReactNode } = {}) {
                 a screen's width to spare. */}
             {canCapture && streamMissing && (
               <span className="kl-submit-reason" role="status" aria-live="polite">
-                {t('kitchen.log.stream.missing')}
+                {streamOutsideLocation
+                  ? t('kitchen.log.stream.otherLocation', { location: activeBranchName ?? '' })
+                  : t('kitchen.log.stream.missing')}
               </span>
             )}
             {canCapture && streamNonProducing && (

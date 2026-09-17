@@ -370,5 +370,6 @@ function CafeCaptureRoot({
       <CafeOpeningPanel processId={processId} teamId={team.id} teamName={team.branchName} presentation="door" />
     </section>
   )
-  return <KitchenLogPage leading={door} />
+  // OD-CAFE-1: the location this root has chosen bounds the capture surface's stream choice.
+  return <KitchenLogPage leading={door} activeBranchId={team.branchId} activeBranchName={team.branchName} />
 }

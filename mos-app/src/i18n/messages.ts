@@ -643,6 +643,9 @@ export const messages = {
     'kitchen.log.group.planned': 'Planned today',
     'kitchen.log.summary.aria': 'Plan versus made summary',
     'kitchen.log.summary.plan': 'Plan',
+    // A remembered stream that belongs to a different branch: say which branch you are at, so
+    // the empty picker reads as a boundary rather than a lost setting.
+    'kitchen.log.stream.otherLocation': 'That stream belongs to another location. Choose a ${location} stream to log here.',
     'kitchen.log.summary.made': 'Made',
     'kitchen.log.summary.offPlan': 'Off-plan',
     'kitchen.log.summary.onPlan': 'on plan',
@@ -2179,6 +2182,7 @@ export const messages = {
     'kitchen.log.group.planned': 'Direncanakan hari ini',
     'kitchen.log.summary.aria': 'Ringkasan rencana versus dibuat',
     'kitchen.log.summary.plan': 'Rencana',
+    'kitchen.log.stream.otherLocation': 'Stream itu milik lokasi lain. Pilih stream ${location} untuk mencatat di sini.',
     'kitchen.log.summary.made': 'Dibuat',
     'kitchen.log.summary.offPlan': 'Di luar rencana',
     'kitchen.log.summary.onPlan': 'sesuai rencana',

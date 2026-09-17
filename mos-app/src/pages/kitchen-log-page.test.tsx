@@ -185,14 +185,18 @@ const STOCK_MAP = {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-async function renderPage(auth: AuthState = VIEWER_MEMBER, initialPath = '/mos/kitchen/log') {
+async function renderPage(
+  auth: AuthState = VIEWER_MEMBER,
+  initialPath = '/mos/kitchen/log',
+  location?: { activeBranchId: string; activeBranchName: string },
+) {
   mockUseAuth.mockReturnValue(auth)
   let utils!: ReturnType<typeof render>
   await act(async () => {
     utils = render(
       <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
-          <Route path="/mos/kitchen/log" element={<KitchenLogPage />} />
+          <Route path="/mos/kitchen/log" element={<KitchenLogPage {...location} />} />
           <Route path="/mos/kitchen/log/success" element={<div>Submitted</div>} />
         </Routes>
       </MemoryRouter>,
@@ -2073,5 +2077,74 @@ describe('DD-7: the summary band never reports typed-but-unsaved quantities as l
   it('DD-7: desktop — the same invariant holds on the wide band', async () => {
     setDesktopMatchMedia(true)
     await bandNeverClaimsLoggedProduction()
+  })
+})
+
+// ── OD-CAFE-1: production capture is location-bound ──────────────────────────────────────────
+// The picker offered every stream in the org while the page named the location you were at, so
+// production done at one branch could be filed against another branch's books with nothing asking
+// whether that was meant. These assert the boundary, and that the transfer workflow — whose whole
+// job IS crossing branches — is not collateral damage.
+describe('OD-CAFE-1 — the production picker is bounded by the active location', () => {
+  const HQ = { activeBranchId: BRANCH_GORDI_HQ.id, activeBranchName: BRANCH_GORDI_HQ.name }
+
+  it('offers only the active location’s streams, not every branch’s', async () => {
+    await renderPage(VIEWER_MEMBER, '/mos/kitchen/log', HQ)
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+    const offered = (await screen.findAllByRole('option')).map(o => o.textContent?.trim() ?? '')
+
+    expect(offered.some(label => label.includes('Gordi HQ'))).toBe(true)
+    // Every other branch in the catalog is absent — this is the defect, stated as an assertion.
+    expect(offered.some(label => label.includes('Radiant'))).toBe(false)
+    expect(offered.some(label => label.includes('Rumah Rames'))).toBe(false)
+  })
+
+  it('treats a remembered stream from another location as stale, and says which location this is', async () => {
+    // The person's own default stream is Rumah Rames; they are standing at Gordi HQ.
+    await renderPage(VIEWER_MEMBER, '/mos/kitchen/log', HQ)
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Not silently re-pointed at an HQ stream, and not left pointing at Rumah Rames either.
+    expect(screen.getByRole('combobox', { name: /production stream/i }))
+      .not.toHaveTextContent('Rumah Rames')
+    const reason = screen.getByText(/belongs to another location/i)
+    expect(reason).toBeInTheDocument()
+    // The message names where you ARE, so the empty picker reads as a boundary, not a lost setting.
+    expect(reason).toHaveTextContent('Gordi HQ')
+    expect(screen.getByRole('button', { name: /^submit$/i })).toBeDisabled()
+  })
+
+  it('keeps the person’s own default when they are standing at its location', async () => {
+    await renderPage(VIEWER_MEMBER, '/mos/kitchen/log', {
+      activeBranchId: BRANCH_RUMAH_RAMES.id, activeBranchName: BRANCH_RUMAH_RAMES.name,
+    })
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(screen.getByRole('combobox', { name: /production stream/i }))
+      .toHaveTextContent('Rumah Rames')
+    expect(screen.queryByText(/belongs to another location/i)).toBeNull()
+  })
+
+  it('leaves the transfer workflow crossing branches — the catalog is bounded for the PICKER only', async () => {
+    await renderPage(VIEWER_MEMBER, '/mos/kitchen/log', {
+      activeBranchId: BRANCH_RUMAH_RAMES.id, activeBranchName: BRANCH_RUMAH_RAMES.name,
+    })
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Destinations are other branches by definition; filtering the catalog itself would have
+    // deleted them along with the wrong-books risk.
+    expect(screen.getByRole('tab', { name: /transfer to radiant/i })).toBeInTheDocument()
+  })
+
+  it('leaves the catalog whole when there is no location context', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+    const offered = (await screen.findAllByRole('option')).map(o => o.textContent?.trim() ?? '')
+    expect(offered.some(label => label.includes('Gordi HQ'))).toBe(true)
+    expect(offered.some(label => label.includes('Radiant'))).toBe(true)
   })
 })
