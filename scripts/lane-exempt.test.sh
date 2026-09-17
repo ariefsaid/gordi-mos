@@ -42,6 +42,8 @@ check "build lane without issue number refused" 1 no no - diagnosis "broken thin
 check "build lane without reason refused" 1 no no 42 money-auth
 check "build lane posts in-flight marker AND writes marker" 0 yes yes 42 money-auth "RLS adversarial"
 check "owner-burst is a build lane (issue + reason + post)" 0 yes yes 42 owner-burst "owner-directed window"
+check "owner UI requires scope" 1 no no - owner-ui
+check "owner UI records bounded delegation locally" 0 yes no - owner-ui "Owner authorized Tasks toolbar review"
 export GH_POST_RC=1
 check "build lane where post fails leaves NO marker" 1 no yes 42 diagnosis "flaky seed"
 unset GH_POST_RC

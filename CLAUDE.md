@@ -8,7 +8,8 @@ direction and delegated Director Decisions in `docs/decisions.md` (DD-MVP). `RED
 page-composition constraints only where it records current owner decisions; it does not authorize
 unrelated palette or token drift, or certify the current implementation. Retired interaction
 prescriptions must not override the current DD-MVP acceptance criteria. Current MVP UI work covers
-Tasks, Café WIP production and Signals without changing the approved Home composition; follow the
+Tasks, Café WIP production and Signals by default; explicit current owner scope can include Home
+and other surfaces and supersede older composition constraints. Follow the
 UI execution route below.
 `docs/plans/2026-09-14-mvp-recovery.md` is the historical one-hour checkpoint; its time fences
 and pending statements do not govern this continuation. Use bounded isolated
@@ -61,7 +62,9 @@ independent review → PR → auto-merge to dev → next. Its machinery binds ou
    task at max reasoning) is a first-class Director lane: isolate it, name it in the ticket's
    in-flight marker, and keep the same brief, verification, independent review, public-write, and
    security gates. A Claude subagent dispatch additionally needs a logged lane —
-   `scripts/lane-exempt.sh` (hook denies otherwise; Explore/Plan free).
+   `scripts/lane-exempt.sh` (hook denies otherwise; Explore/Plan free). For explicitly authorized
+   bounded UI delegation, `bash scripts/lane-exempt.sh - owner-ui "<authorized scope>"` records
+   one dispatch locally; publication still uses the gates below.
 3. Review: three independent lens verdicts. One reviewer who did not build the candidate may
    cover all three; separate contexts are needed only when the selected route requires them for
    independence or calibration. Never your own read.

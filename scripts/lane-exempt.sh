@@ -10,6 +10,7 @@
 #   owner-burst                                        in-flight marker is posted to it (audit trail);
 #                                                      owner-burst = the owner has directed Claude
 #                                                      builders for a bounded window (OD-WAY-99)
+#   owner-ui                                          one dispatch for explicitly owner-authorized UI work; local record
 #   research | review                                  read/verify lanes — local marker only
 #
 # Marker: <git-dir>/lane-exempt, honored by the hook for 8 hours.
@@ -24,7 +25,10 @@ reason="${*:-}"
 case "$cat" in
   money-auth|diagnosis|fog|factory-self-edit|owner-burst) build_lane=1 ;;
   research|review) build_lane=0 ;;
-  *) die "unknown category '$cat' (money-auth|diagnosis|fog|factory-self-edit|owner-burst|research|review)" ;;
+  owner-ui)
+    [ -n "$reason" ] || die "owner-ui needs the authorized task scope and delegation reason"
+    build_lane=0 ;;
+  *) die "unknown category '$cat' (money-auth|diagnosis|fog|factory-self-edit|owner-burst|owner-ui|research|review)" ;;
 esac
 
 gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
@@ -40,4 +44,4 @@ if [ "$build_lane" = 1 ]; then
 fi
 
 printf '%s %s %s %s\n' "$(date +%s)" "$cat" "$issue" "$reason" > "$gitdir/lane-exempt"
-echo "✓ lane exemption logged: $cat ($issue) — valid 8h"
+echo "✓ lane exemption logged: $cat ($issue) — expires in 8h; build/owner-ui lanes consumed on dispatch"
