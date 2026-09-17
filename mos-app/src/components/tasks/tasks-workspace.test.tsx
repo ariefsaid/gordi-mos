@@ -502,7 +502,7 @@ function chooseFilterOption(trigger: HTMLElement, label: string) {
 }
 
 function ensureFiltersOpen() {
-  const trigger = screen.queryByRole('button', { name: /^view & filters$/i })
+  const trigger = screen.queryByRole('button', { name: /^view & filters/i })
   if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
   return screen.getByRole('group', { name: /view & filters/i })
 }
@@ -532,7 +532,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     renderTable()
     await waitFor(() => screen.getByText('Phone toolbar item'))
 
-    const trigger = screen.getByRole('button', { name: /^view & filters$/i })
+    const trigger = screen.getByRole('button', { name: /^view & filters/i })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByTestId('record-collection-toolbar')).toBeNull()
 
@@ -552,7 +552,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     renderTable()
     await waitFor(() => screen.getByText('First mobile work item'))
 
-    const options = screen.getByRole('button', { name: /^view & filters$/i })
+    const options = screen.getByRole('button', { name: /^view & filters/i })
     expect(options).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('combobox', { name: /group/i })).toBeNull()
     expect(screen.getByTestId('task-card')).toContainElement(screen.getByText('First mobile work item'))
@@ -564,7 +564,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
 
     renderTable()
     await waitFor(() => screen.getByText('Cue task'))
-    const trigger = screen.getByRole('button', { name: /^view & filters$/i })
+    const trigger = screen.getByRole('button', { name: /^view & filters/i })
     expect(trigger).toHaveAccessibleName('View & filters')
 
     fireEvent.click(trigger)
@@ -587,7 +587,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
       expect(screen.queryByRole('combobox', { name })).toBeNull()
     }
     expect(screen.queryByRole('combobox', { name: /^status$/i })).toBeNull()
-    const options = screen.getByRole('button', { name: /^view & filters$/i })
+    const options = screen.getByRole('button', { name: /^view & filters/i })
     expect(options).toHaveAttribute('aria-expanded', 'false')
     expect(options).toHaveAttribute('aria-controls', 'mobile-task-options-panel')
 
@@ -610,7 +610,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     renderTable({}, managerState)
     await waitFor(() => screen.getByText('Manager mobile work item'))
 
-    const options = screen.getByRole('button', { name: /^view & filters$/i })
+    const options = screen.getByRole('button', { name: /^view & filters/i })
     expect(options).toHaveAttribute('aria-expanded', 'false')
     // Collapsed: the dense toolbar's filter comboboxes are out of the DOM; the first card leads.
     expect(screen.queryByRole('combobox', { name: /group/i })).toBeNull()
@@ -629,7 +629,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
 
     expect(screen.queryByRole('combobox', { name: /tasks need attention/i })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /^view & filters$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^view & filters/i }))
     const attention = openAttentionMenu()
     expect(attention.overdue).toBeInTheDocument()
 
@@ -722,7 +722,7 @@ describe('TasksWorkspace — V3 Workspace frame (Issue 3)', () => {
     // announced Loading tasks status mounted; a bare skeleton is not an acceptable first paint.
     expect(screen.getByRole('heading', { level: 1, name: /^tasks$/i })).toBeInTheDocument()
     expect(screen.getByText('Find and update the work in this view.')).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: /view & filters/i })).toBeInTheDocument()
+    expect(ensureFiltersOpen()).toBeInTheDocument()
     expect(screen.getByRole('status', { name: 'Loading tasks' })).toBeInTheDocument()
   })
 })
@@ -760,10 +760,10 @@ describe('V3 collection grammar — shared filter controls', () => {
     renderTable()
     await waitFor(() => screen.getByText('A task'))
     ensureFiltersOpen()
-    expect(screen.getByRole('group', { name: /view & filters/i })).toBeInTheDocument()
+    expect(ensureFiltersOpen()).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /group/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
-    expect(within(screen.getByRole('group', { name: /view & filters/i })).getByRole('button', { name: /^status$/i })).toBeInTheDocument()
+    expect(within(ensureFiltersOpen()).getByRole('button', { name: /^status$/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /person/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /sort/i })).toBeInTheDocument()
   })
@@ -1328,7 +1328,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       mockListTasks.mockResolvedValue([makeTask({ title: 'Phone escape work' })])
       renderTable()
       await waitFor(() => screen.getByText('Phone escape work'))
-      const options = screen.getByRole('button', { name: /^view & filters$/i })
+      const options = screen.getByRole('button', { name: /^view & filters/i })
       fireEvent.click(options)
       expect(options).toHaveAttribute('aria-expanded', 'true')
       fireEvent.keyDown(options, { key: 'Escape' })
@@ -1341,13 +1341,13 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       mockListTasks.mockResolvedValue([makeTask({ title: 'Phone save isolation' })])
       renderTable()
       await waitFor(() => screen.getByText('Phone save isolation'))
-      fireEvent.click(screen.getByRole('button', { name: /^view & filters$/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^view & filters/i }))
       fireEvent.click(screen.getByRole('button', { name: /save view/i }))
       const input = screen.getByRole('textbox', { name: /view name/i })
       input.focus()
       fireEvent.keyDown(input, { key: 'Escape' })
       expect(screen.queryByRole('textbox', { name: /view name/i })).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /^view & filters$/i })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByRole('button', { name: /^view & filters/i })).toHaveAttribute('aria-expanded', 'true')
       expect(screen.getByRole('button', { name: /save view/i })).toHaveFocus()
     })
   })

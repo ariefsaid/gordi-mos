@@ -234,6 +234,13 @@ export function TasksToolbar({
   return (
     <CollectionToolbar
       className="tasks-collection-toolbar"
+      // Tasks' saved views ARE its common journeys — All, My work, Team work, Overdue answer the
+      // questions people actually arrive with. They stay exposed; the configuration long tail
+      // (group, unit, status, assignee, sort, fields, save) moves behind the door that already
+      // carries this surface's filter state on a phone. Two bands become one.
+      collapseOptionsOnDesktop
+      optionsActive={activeQuery.hasActiveFilters}
+      optionsSummary={activeQuery.summary}
       presentation={{
         // Card is the phone rendering of Table, so Tasks has one live desktop presentation and no
         // dead Table/Card segment in the exposed row.

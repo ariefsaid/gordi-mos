@@ -34,3 +34,25 @@
   border-top: 1px solid var(--border);
   padding-top: 14px;
 }
+
+/* ── The digest rail keeps its own scroll ────────────────────────────────────────────────────
+   Home's two columns answer different questions and legitimately hold different amounts: the work
+   column is a short list with a door to Tasks, while the rail is a six-deep Signal digest whose
+   rows show their full text (both deliberate — a Signal's words ARE its content, and the narrow
+   rail stacks its tail so the title is never starved). Left alone the taller column set the page
+   height, so the work column ended a third of the way down and the reader faced ~850px of empty
+   canvas beside a rail they had to scroll the whole page to finish.
+
+   The rail scrolls itself instead. Both columns now occupy one screen, the work column's door sits
+   where the eye already is, and nothing is hidden — the same six rows, reachable in place. Only
+   where the two-column grid actually exists; the phone stacks and keeps one page scroll. */
+@media (min-width: 768px) {
+  .home-brief-aside {
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+}

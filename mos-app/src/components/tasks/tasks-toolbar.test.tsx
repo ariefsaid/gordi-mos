@@ -42,6 +42,14 @@ function renderToolbar(props: TasksToolbarProps = makeProps()) {
   return render(<I18nProvider><TasksToolbar {...props} /></I18nProvider>)
 }
 
+// The desktop long tail lives behind the surface's own door. "Reachable" is the contract these
+// tests assert, so they open it the way a reader would rather than reaching past it.
+function openFilters() {
+  const trigger = screen.queryByRole('button', { name: /^view & filters/i })
+  if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+  return trigger
+}
+
 beforeEach(() => {
   matchMedia(true)
   localStorage.clear()
@@ -69,7 +77,12 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
     expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
   })
 
-  it('exposes the e7 desktop two-row grammar without a Filters door', () => {
+  // Superseded by owner direction: the exposed two-row desktop prescription was explicitly opened
+  // for revision after a rendered review measured row 1 spending a whole band on a chip strip that
+  // used 361px of 1129px. This guards the grammar that replaced it — ONE band, with the long tail
+  // behind a door — at the same behavioural level: every control stays reachable, and the views
+  // that carry this surface's common journeys stay exposed.
+  it('puts the desktop long tail behind one door and keeps the view axis exposed', () => {
     const savedViews = {
       label: 'Saved views', selectedId: null, operation: 'idle' as const, error: null,
       items: [{ id: 'view-1', name: 'My queue' }], onApply: vi.fn(), onSave: vi.fn(),
@@ -77,10 +90,15 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
     renderToolbar(makeProps({ savedViews }))
 
     expect(screen.getByTestId('record-collection-toolbar')).toBeInTheDocument()
-    expect(screen.getAllByTestId('collection-toolbar-row')).toHaveLength(2)
+    // ONE band, not two.
+    expect(screen.getAllByTestId('collection-toolbar-row')).toHaveLength(1)
+    // The view axis and search stay exposed — they are the surface's navigation.
     expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'My queue' })).toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
+    // The rest is reachable through the door, never dropped.
+    expect(screen.queryByRole('combobox', { name: /^group$/i })).toBeNull()
+    openFilters()
     expect(screen.getByRole('combobox', { name: /group/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /group/i })).toHaveTextContent('Group: None')
@@ -98,6 +116,7 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
 
   it('keeps the attention trigger id when its count and label rerender', () => {
     const result = renderToolbar(makeProps({ attentionCounts: { overdue: 2, blocked: 1, total: 3 } }))
+    openFilters()
     expect(screen.getByRole('combobox', { name: /attention/i })).toHaveAttribute('id', 'tasks-filter-attention')
 
     result.rerender(
@@ -113,6 +132,7 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
   it('keeps group, domain, status, person, sort, fields, and attention controls independently reachable', () => {
     const props = makeProps()
     renderToolbar(props)
+    openFilters()
 
     fireEvent.click(screen.getByRole('combobox', { name: /^group$/i }))
     fireEvent.click(screen.getByRole('option', { name: 'PIC' }))
@@ -155,6 +175,7 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
       buOptions: [{ id: 'bu-1', name: businessUnit }],
       personOptions: [{ id: 'person-1', full_name: person }],
     }))
+    openFilters()
 
     const businessUnitTrigger = screen.getByRole('combobox', { name: /business unit/i })
     const personTrigger = screen.getByRole('combobox', { name: /person/i })
@@ -173,6 +194,7 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
       activeQuery: { summary: 'My work · Person', hasActiveFilters: true },
       onClearFilters,
     }))
+    openFilters()
 
     fireEvent.click(screen.getByRole('button', { name: /clear filters/i }))
     expect(onClearFilters).toHaveBeenCalledTimes(1)
@@ -225,6 +247,7 @@ describe('TasksToolbar — saved view persistence states', () => {
       onLoad: vi.fn(), onApply: vi.fn(), onSave,
     }
     renderToolbar(makeProps({ savedViews }))
+    openFilters()
 
     fireEvent.click(screen.getByRole('button', { name: /^save view$/i }))
     const input = screen.getByRole('textbox', { name: /view name/i })
@@ -249,6 +272,7 @@ describe('TasksToolbar — saved view persistence states', () => {
         onLoad: vi.fn(), onApply: vi.fn(), onSave,
       },
     }))
+    openFilters()
 
     fireEvent.click(screen.getByRole('button', { name: /^save view$/i }))
     fireEvent.change(screen.getByRole('textbox', { name: /view name/i }), { target: { value: 'My queue' } })

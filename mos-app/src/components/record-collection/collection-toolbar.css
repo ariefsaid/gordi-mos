@@ -666,3 +666,84 @@
     white-space: nowrap;
   }
 }
+
+/* ── The desktop options door ────────────────────────────────────────────────────────────────
+   Opt-in (collapseOptionsOnDesktop). The trigger is an ordinary toolbar control, not a banner:
+   same 32px height and hairline as the pickers it replaces, so the band reads as one row of
+   controls rather than a control row plus a heading. */
+.collection-toolbar__desktop-door {
+  position: relative;
+  flex: none;
+}
+
+.collection-toolbar__desktop-door-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding-inline: 10px;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: var(--font-size-control);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.collection-toolbar__desktop-door-trigger:hover { border-color: var(--ring); }
+
+.collection-toolbar__desktop-door-trigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The current view's name rides the trigger so the door never hides WHICH rows you are looking at. */
+.collection-toolbar__desktop-door-summary {
+  color: var(--muted-foreground);
+  font-weight: 400;
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collection-toolbar__desktop-door-chevron { transition: transform 120ms ease-out; }
+.collection-toolbar__desktop-door-chevron--open { transform: rotate(180deg); }
+
+/* Anchored to the trigger's trailing edge: the panel belongs to the button, and a full-width
+   sheet would just be the second band again under a different name. */
+.collection-toolbar__desktop-door-panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  inset-inline-end: 0;
+  min-width: 320px;
+  max-width: min(680px, 90vw);
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  box-shadow: var(--shadow-popover);
+}
+
+.collection-toolbar__desktop-door-panel .collection-toolbar__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collection-toolbar__desktop-door-chevron { transition: none; }
+}
+
+/* Inside the panel, Fields and Save view sit among bordered selects. A borderless ghost among
+   bordered siblings reads as a label, not a control, so they take the same hairline here. This is
+   placement-specific: in the exposed band they sit among text and the ghost weight is correct. */
+.collection-toolbar__desktop-door-panel .collection-toolbar__fields > .btn,
+.collection-toolbar__desktop-door-panel .collection-toolbar__save-zone > .btn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding-inline: 10px;
+}

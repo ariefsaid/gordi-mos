@@ -7,6 +7,7 @@ import type { CollectionViewOperationStatus } from '@/lib/record-collection/type
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useT } from '@/i18n/use-t'
 import { viewOptionsTraversal } from '@/shell/view-options-keyboard'
+import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import './collection-toolbar.css'
 
 export interface CollectionToolbarOption<T extends string = string> {
@@ -152,6 +153,21 @@ export interface CollectionToolbarProps<
   /** Work/catalog surfaces already name the view axis in their page head; omit the generic
    * "View" micro-label so the compact toolbar does not repeat a noun with no added meaning. */
   hideViewsLabel?: boolean
+  /**
+   * Desktop composition. Off (the default) keeps the historic two-band anatomy: the view axis on
+   * its own row, every option exposed on a second row below it.
+   *
+   * On, the options move behind the same labelled door the phone already uses, and search joins
+   * the view axis on ONE row. Row 1 was spending a full band on a chip strip that used a third of
+   * its width, while row 2 packed nine controls edge to edge — a configuration wall in front of
+   * the work. The saved views ARE the common journeys on this surface, so they stay exposed and
+   * the long tail goes behind a door that carries its own active-filter cue.
+   */
+  collapseOptionsOnDesktop?: boolean
+  /** Door trigger cue: some filter is set, so the door is hiding state the reader should know about. */
+  optionsActive?: boolean
+  /** Decorative summary beside the door trigger (aria-hidden), e.g. "Any status · Anyone". */
+  optionsSummary?: string
 }
 
 /**
@@ -185,6 +201,9 @@ export function CollectionToolbar<
   reserved = false,
   hideSearchRow = false,
   hideViewsLabel = false,
+  collapseOptionsOnDesktop = false,
+  optionsActive = false,
+  optionsSummary,
 }: CollectionToolbarProps<TPresentation, TView>) {
   const t = useT()
   const isDesktop = useIsDesktop()
@@ -194,6 +213,7 @@ export function CollectionToolbar<
   // One popover filter open at a time — opening one closes the other (same row discipline as the
   // save-view zone; Fields keeps its own state so the two doors stay independent as today).
   const [openPopoverId, setOpenPopoverId] = useState<string | null>(null)
+  const [desktopOptionsOpen, setDesktopOptionsOpen] = useState(false)
   const saveTriggerRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
@@ -208,6 +228,10 @@ export function CollectionToolbar<
   // Desktop shows secondary controls inline; phones render this row inside the host's single
   // View & filters row. Reserved views with no rows keep the controls withheld (DO-6).
   const hasViewOptions = !reserved && (Boolean(search) || filters.length > 0 || Boolean(savedViews) || Boolean(toggles) || Boolean(fields))
+  // The desktop door. Off, nothing below changes. On, the options row becomes the door's panel and
+  // search rides the view axis, so the surface opens on ONE band instead of two.
+  const desktopDoor = isDesktop && collapseOptionsOnDesktop && hasViewOptions
+  const searchInViewRow = desktopDoor && !hideSearchRow && Boolean(search)
 
   function closeSaveView() {
     setSaveOpen(false)
@@ -228,6 +252,183 @@ export function CollectionToolbar<
     if (result === null) return
     setViewName('')
     closeSaveView()
+  }
+
+  // The options group itself, so the classic second band and the desktop door's panel render
+  // the SAME controls in the same order — one grammar, two placements.
+  function renderViewOptions() {
+    return (
+      <div
+        className="collection-toolbar__options"
+        role="group"
+        aria-label={t('common.viewAndFilters')}
+        // Desktop owns traversal for its always-visible row. Phone traversal and Escape belong
+        // to the host's outer ViewOptionsDisclosure.
+        onKeyDown={isDesktop ? viewOptionsTraversal : undefined}
+      >
+        {/* searchInViewRow has already placed it on the view axis; rendering it here too gave
+            the surface two search boxes for one query. */}
+        {!hideSearchRow && !searchInViewRow && search ? <CollectionToolbarSearchField search={search} /> : null}
+        {filters.map((filter) => (
+          'popover' in filter ? (
+            <div
+              key={filter.id}
+              className={`collection-toolbar__option-field${filter.tinted ? ' collection-toolbar__option-field--group' : ''}`}
+              data-filter-id={filter.id}
+            >
+              {!isDesktop ? <span>{filter.label}</span> : null}
+              {/* Filter choices stay in the anchored popover until the user opens them. */}
+              <div className="collection-toolbar__select collection-toolbar__choice">
+                <button
+                  type="button"
+                  className="collection-toolbar__choice-trigger"
+                  aria-label={filter.label}
+                  aria-haspopup="true"
+                  aria-expanded={openPopoverId === filter.id}
+                  title={filter.display}
+                  data-full-value={filter.display}
+                  onClick={() => setOpenPopoverId(openPopoverId === filter.id ? null : filter.id)}
+                >
+                  <span className="collection-toolbar__choice-copy">
+                    {isDesktop ? <span className="collection-toolbar__choice-label" aria-hidden="true">{filter.label}</span> : null}
+                    <span
+                      className="collection-toolbar__choice-value"
+                      title={filter.display}
+                      data-full-value={filter.display}
+                    >
+                      {filter.display}
+                    </span>
+                  </span>
+                  <span className="collection-toolbar__choice-chevron" aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </span>
+                </button>
+                {openPopoverId === filter.id ? (
+                  <div role="group" aria-label={filter.label} className="collection-toolbar__fields-menu">
+                    {filter.popover.choices.map((choice) => (
+                      <label key={choice.key} className="collection-toolbar__toggle">
+                        <input
+                          type="checkbox"
+                          checked={choice.checked}
+                          onChange={(event) => choice.onChange(event.target.checked)}
+                        />
+                        <span>{choice.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <div
+              key={filter.id}
+              className={`collection-toolbar__option-field${filter.tinted ? ' collection-toolbar__option-field--group' : ''}`}
+              data-filter-id={filter.id}
+            >
+              {!isDesktop ? <span>{filter.label}</span> : null}
+              <Picker
+                id={`collection-filter-${filter.id}`}
+                label={filter.label}
+                hideLabel
+                value={filter.value}
+                onChange={filter.onChange}
+                options={filter.options}
+                triggerPrefix={filter.triggerPrefix}
+                fullWidth
+                className="collection-toolbar__select"
+                triggerClassName="collection-toolbar__picker-trigger"
+              />
+            </div>
+          )
+        ))}
+        {fields ? (
+          <div className="collection-toolbar__fields">
+            <Button variant="ghost" aria-label={fields.label} title={fields.label} aria-expanded={fieldsOpen} onClick={() => setFieldsOpen((open) => !open)}>
+              <svg className="collection-toolbar__action-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M4 6h16M7 12h10M10 18h4" />
+              </svg>
+              <span className="collection-toolbar__action-label">{fields.label}</span>
+            </Button>
+            {fieldsOpen ? (
+              <div role="group" aria-label={fields.label} className="collection-toolbar__fields-menu">
+                {fields.options.map((field) => (
+                  <label key={field.value} className="collection-toolbar__toggle">
+                    <input
+                      type="checkbox"
+                      checked={fields.visible.includes(field.value)}
+                      disabled={field.required}
+                      onChange={(event) => fields.onToggle(field.value, event.target.checked)}
+                    />
+                    <span>{field.label}</span>
+                  </label>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {savedViews ? (
+          // AC-007 (#743): the Save view door is an ANCHORED POPOVER (audit C20/I3) — it must
+          // never grow the toolbar a row, so the trigger and the popover share one relative
+          // zone and the popover lays out over the row below it.
+          <div className="collection-toolbar__save-zone">
+            <Button
+              variant="ghost"
+              ref={saveTriggerRef}
+              aria-label={t('common.saveView')}
+              title={t('common.saveView')}
+              aria-expanded={saveOpen}
+              onClick={() => {
+                if (saveOpen) closeSaveView()
+                else setSaveOpen(true)
+              }}
+              onKeyDown={(event) => {
+                // The save popover owns Escape: it closes and refocuses its trigger without
+                // bubbling into the options row's own keyboard handling.
+                if (!saveOpen || event.key !== 'Escape') return
+                event.preventDefault()
+                event.stopPropagation()
+                closeSaveView()
+              }}
+            >
+              <svg className="collection-toolbar__action-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z" />
+              </svg>
+              <span className="collection-toolbar__action-label collection-toolbar__save-view-label">{t('common.saveView')}</span>
+              <span className="collection-toolbar__action-label collection-toolbar__save-compact-label">{t('common.save')}</span>
+            </Button>
+            {saveOpen ? (
+              <div className="collection-toolbar__save" role="group" aria-label={t('common.saveCurrentView')}>
+                <label className="collection-toolbar__save-field">
+                  <span>{t('common.viewName')}</span>
+                  <input
+                    autoFocus
+                    value={viewName}
+                    onChange={(event) => setViewName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        closeSaveView()
+                      }
+                      if (event.key === 'Enter') void saveView()
+                    }}
+                  />
+                </label>
+                <div className="collection-toolbar__save-actions">
+                  <Button variant="outline" disabled={!canSave} onClick={() => void saveView()}>
+                    {saving ? t('common.saving') : t('common.save')}
+                  </Button>
+                  <Button variant="ghost" onClick={closeSaveView}>{t('common.cancel')}</Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {toggles}
+      </div>
+    )
   }
 
   return (
@@ -311,6 +512,28 @@ export function CollectionToolbar<
             </div>
           )}
 
+          {/* With the desktop door on, search and the door trigger join the view axis: the band
+              carries "which rows" (views) and "narrow them" (search + door) on one line. */}
+          {searchInViewRow && search ? <CollectionToolbarSearchField search={search} /> : null}
+          {desktopDoor ? (
+            <ViewOptionsDisclosure
+              open={desktopOptionsOpen}
+              onToggle={() => setDesktopOptionsOpen((open) => !open)}
+              onClose={() => setDesktopOptionsOpen(false)}
+              label={t('common.viewAndFilters')}
+              summary={optionsSummary}
+              hasActiveFilters={optionsActive}
+              panelId="collection-desktop-options-panel"
+              className="collection-toolbar__desktop-door"
+              triggerClassName="collection-toolbar__desktop-door-trigger"
+              summaryClassName="collection-toolbar__desktop-door-summary"
+              chevronClassName="collection-toolbar__desktop-door-chevron"
+              panelClassName="collection-toolbar__desktop-door-panel"
+            >
+              {renderViewOptions()}
+            </ViewOptionsDisclosure>
+          ) : null}
+
           {/* Layout-independent primary action (D-D2): rides row 1 in every presentation, so the
               collection's ONE compose door never blinks with the Table/Feed switch. */}
           {primaryAction ? (
@@ -319,177 +542,11 @@ export function CollectionToolbar<
         </div>
       </div>
 
-      {/* Row 2: search, domain controls, ghost actions, and the single attention slot. */}
-      {hasViewOptions ? (
+      {/* Row 2: the same options, in the historic exposed band. Suppressed when the desktop door
+          owns them — they are rendered inside its panel instead, never in both places. */}
+      {hasViewOptions && !desktopDoor ? (
         <div className="collection-toolbar__row" data-testid="collection-toolbar-row">
-          <div
-            className="collection-toolbar__options"
-            role="group"
-            aria-label={t('common.viewAndFilters')}
-            // Desktop owns traversal for its always-visible row. Phone traversal and Escape belong
-            // to the host's outer ViewOptionsDisclosure.
-            onKeyDown={isDesktop ? viewOptionsTraversal : undefined}
-          >
-            {!hideSearchRow && search ? <CollectionToolbarSearchField search={search} /> : null}
-            {filters.map((filter) => (
-              'popover' in filter ? (
-                <div
-                  key={filter.id}
-                  className={`collection-toolbar__option-field${filter.tinted ? ' collection-toolbar__option-field--group' : ''}`}
-                  data-filter-id={filter.id}
-                >
-                  {!isDesktop ? <span>{filter.label}</span> : null}
-                  {/* Filter choices stay in the anchored popover until the user opens them. */}
-                  <div className="collection-toolbar__select collection-toolbar__choice">
-                    <button
-                      type="button"
-                      className="collection-toolbar__choice-trigger"
-                      aria-label={filter.label}
-                      aria-haspopup="true"
-                      aria-expanded={openPopoverId === filter.id}
-                      title={filter.display}
-                      data-full-value={filter.display}
-                      onClick={() => setOpenPopoverId(openPopoverId === filter.id ? null : filter.id)}
-                    >
-                      <span className="collection-toolbar__choice-copy">
-                        {isDesktop ? <span className="collection-toolbar__choice-label" aria-hidden="true">{filter.label}</span> : null}
-                        <span
-                          className="collection-toolbar__choice-value"
-                          title={filter.display}
-                          data-full-value={filter.display}
-                        >
-                          {filter.display}
-                        </span>
-                      </span>
-                      <span className="collection-toolbar__choice-chevron" aria-hidden="true">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </span>
-                    </button>
-                    {openPopoverId === filter.id ? (
-                      <div role="group" aria-label={filter.label} className="collection-toolbar__fields-menu">
-                        {filter.popover.choices.map((choice) => (
-                          <label key={choice.key} className="collection-toolbar__toggle">
-                            <input
-                              type="checkbox"
-                              checked={choice.checked}
-                              onChange={(event) => choice.onChange(event.target.checked)}
-                            />
-                            <span>{choice.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              ) : (
-                <div
-                  key={filter.id}
-                  className={`collection-toolbar__option-field${filter.tinted ? ' collection-toolbar__option-field--group' : ''}`}
-                  data-filter-id={filter.id}
-                >
-                  {!isDesktop ? <span>{filter.label}</span> : null}
-                  <Picker
-                    id={`collection-filter-${filter.id}`}
-                    label={filter.label}
-                    hideLabel
-                    value={filter.value}
-                    onChange={filter.onChange}
-                    options={filter.options}
-                    triggerPrefix={filter.triggerPrefix}
-                    fullWidth
-                    className="collection-toolbar__select"
-                    triggerClassName="collection-toolbar__picker-trigger"
-                  />
-                </div>
-              )
-            ))}
-            {fields ? (
-              <div className="collection-toolbar__fields">
-                <Button variant="ghost" aria-label={fields.label} title={fields.label} aria-expanded={fieldsOpen} onClick={() => setFieldsOpen((open) => !open)}>
-                  <svg className="collection-toolbar__action-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                    <path d="M4 6h16M7 12h10M10 18h4" />
-                  </svg>
-                  <span className="collection-toolbar__action-label">{fields.label}</span>
-                </Button>
-                {fieldsOpen ? (
-                  <div role="group" aria-label={fields.label} className="collection-toolbar__fields-menu">
-                    {fields.options.map((field) => (
-                      <label key={field.value} className="collection-toolbar__toggle">
-                        <input
-                          type="checkbox"
-                          checked={fields.visible.includes(field.value)}
-                          disabled={field.required}
-                          onChange={(event) => fields.onToggle(field.value, event.target.checked)}
-                        />
-                        <span>{field.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            {savedViews ? (
-              // AC-007 (#743): the Save view door is an ANCHORED POPOVER (audit C20/I3) — it must
-              // never grow the toolbar a row, so the trigger and the popover share one relative
-              // zone and the popover lays out over the row below it.
-              <div className="collection-toolbar__save-zone">
-                <Button
-                  variant="ghost"
-                  ref={saveTriggerRef}
-                  aria-label={t('common.saveView')}
-                  title={t('common.saveView')}
-                  aria-expanded={saveOpen}
-                  onClick={() => {
-                    if (saveOpen) closeSaveView()
-                    else setSaveOpen(true)
-                  }}
-                  onKeyDown={(event) => {
-                    // The save popover owns Escape: it closes and refocuses its trigger without
-                    // bubbling into the options row's own keyboard handling.
-                    if (!saveOpen || event.key !== 'Escape') return
-                    event.preventDefault()
-                    event.stopPropagation()
-                    closeSaveView()
-                  }}
-                >
-                  <svg className="collection-toolbar__action-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                    <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z" />
-                  </svg>
-                  <span className="collection-toolbar__action-label collection-toolbar__save-view-label">{t('common.saveView')}</span>
-                  <span className="collection-toolbar__action-label collection-toolbar__save-compact-label">{t('common.save')}</span>
-                </Button>
-                {saveOpen ? (
-                  <div className="collection-toolbar__save" role="group" aria-label={t('common.saveCurrentView')}>
-                    <label className="collection-toolbar__save-field">
-                      <span>{t('common.viewName')}</span>
-                      <input
-                        autoFocus
-                        value={viewName}
-                        onChange={(event) => setViewName(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Escape') {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            closeSaveView()
-                          }
-                          if (event.key === 'Enter') void saveView()
-                        }}
-                      />
-                    </label>
-                    <div className="collection-toolbar__save-actions">
-                      <Button variant="outline" disabled={!canSave} onClick={() => void saveView()}>
-                        {saving ? t('common.saving') : t('common.save')}
-                      </Button>
-                      <Button variant="ghost" onClick={closeSaveView}>{t('common.cancel')}</Button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            {toggles}
-          </div>
+          {renderViewOptions()}
         </div>
       ) : null}
     </div>

@@ -291,8 +291,9 @@ describe('AC-067 — Tasks table (live surface) states (loading, error, empty)',
     // Error state keeps the same usable desktop collection controls beside the result message.
     expect(screen.getByRole('group', { name: /task views/i })).toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: /view & filters/i })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
+    // The options now live behind the surface's own door at every width; "usable" means REACHABLE,
+    // so open it and assert the controls, rather than asserting a group that is meant to be closed.
+    expect(within(openFilters()).getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
   })
 })
 
