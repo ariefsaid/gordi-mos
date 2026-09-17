@@ -26,6 +26,7 @@ import { listActiveBranches } from '@/lib/db/branches'
 import { rememberCafeOpeningTeam, rememberedCafeOpeningTeamId } from '@/lib/cafe-opening-location'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
 import { canPushCafe } from '@/lib/kitchen-gates'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { KitchenLogPage } from './kitchen-log-page'
 import './cafe-opening-page.css'
 
@@ -299,7 +300,7 @@ function CafeRootPageBody() {
     <PageFamilyFrame
       family="workspace"
       title={t('nav.cafe')}
-      meta={wibToday()}
+      meta={formatWeekdayDayMonth(wibToday())}
       state={frameState}
     >
       {state === 'loading' && <LoadingShell count={2} />}

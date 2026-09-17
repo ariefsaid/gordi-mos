@@ -20,6 +20,7 @@ import {
   auditEnabled,
   auditRun,
   captureCell,
+  compareAutomaticFailuresForLane,
   observeManifestCellState,
   prepareAuditPage,
   writeAutomaticLaneSummary,
