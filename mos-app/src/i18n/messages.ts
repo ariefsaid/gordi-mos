@@ -630,7 +630,10 @@ export const messages = {
     'kitchen.log.footer.pendingReview': 'pending review on Submit',
     'kitchen.log.footer.unit.one': '${count} portion',
     'kitchen.log.footer.unit.other': '${count} portions',
-    'kitchen.log.group.offplan': 'Off-plan',
+    // NOT the summary's "Off-plan", which counts portions made against no plan. This groups
+    // ITEMS that today's plan does not mention. Two meanings 145px apart on one screen, both
+    // spelled the same, is a number nobody can reconcile.
+    'kitchen.log.group.offplan': 'Not on today\u2019s plan',
     'kitchen.log.group.offplan.hint': 'log as produced',
     'kitchen.log.missing.cta': 'An item you make is missing? Report it',
     'kitchen.log.missing.label': 'Item name',
@@ -1016,7 +1019,9 @@ export const messages = {
     'tasks.loading': "Loading tasks",
     'tasks.markComplete': "Mark complete",
     'tasks.meta.openCount': "${count} open",
-    'tasks.meta.totalCount': "${count} total",
+    // Counted over the records IN VIEW, so it cannot say "total": a filter that matches nothing
+    // reported "0 total" on a workspace holding thirteen tasks. The noun was wrong, not the number.
+    'tasks.meta.totalCount': "${count} in view",
     'tasks.new': "+ Create task",
     'tasks.notFound.copy': "This task doesn't exist or you don't have access.",
     'tasks.notFound.title': "Task not found",
@@ -2164,7 +2169,7 @@ export const messages = {
     'kitchen.log.footer.pendingReview': 'menunggu tinjauan setelah dikirim',
     'kitchen.log.footer.unit.one': '${count} porsi',
     'kitchen.log.footer.unit.other': '${count} porsi',
-    'kitchen.log.group.offplan': 'Di luar rencana',
+    'kitchen.log.group.offplan': 'Tidak ada di rencana hari ini',
     'kitchen.log.group.offplan.hint': 'catat sebagai diproduksi',
     'kitchen.log.missing.cta': 'Ada item yang tidak muncul? Laporkan',
     'kitchen.log.missing.label': 'Nama item',
@@ -2537,7 +2542,7 @@ export const messages = {
     'tasks.loading': "Memuat tugas",
     'tasks.markComplete': "Tandai selesai",
     'tasks.meta.openCount': "${count} terbuka",
-    'tasks.meta.totalCount': "${count} total",
+    'tasks.meta.totalCount': "${count} ditampilkan",
     'tasks.new': "+ Buat tugas",
     'tasks.notFound.copy': "Tugas ini tidak ada atau Anda tidak memiliki akses.",
     'tasks.notFound.title': "Tugas tidak ditemukan",

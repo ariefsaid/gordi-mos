@@ -1197,7 +1197,7 @@ describe('OD-K-5: Planned/Off-plan group split (desktop)', () => {
     // both non-empty group headers render with the right counts (2 planned, 1 off-plan).
     const plannedHead = screen.getByRole('button', { name: /collapse planned today/i }).closest('tr')!
     expect(within(plannedHead).getByText('2')).toBeInTheDocument()
-    const offplanHead = screen.getByRole('button', { name: /expand off-plan/i }).closest('tr')!
+    const offplanHead = screen.getByRole('button', { name: /expand not on today/i }).closest('tr')!
     expect(within(offplanHead).getByText('1')).toBeInTheDocument()
     expect(screen.queryByText('Sambal Matah')).toBeNull()
   })
@@ -1210,7 +1210,7 @@ describe('OD-K-5: Planned/Off-plan group split (desktop)', () => {
     await waitFor(() => screen.getByText('Sambal Matah'))
 
     expect(screen.queryByRole('button', { name: /collapse planned today/i })).toBeNull()
-    expect(screen.getByRole('button', { name: /collapse off-plan/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /collapse not on today/i })).toBeInTheDocument()
     expect(screen.getByText('Sambal Matah')).toBeInTheDocument()
   })
 })

@@ -1815,8 +1815,8 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
   })
 })
 
-// ── OD-REDESIGN-91 #17: the head meta reads "N open · M total" (counts are OPEN) ──
-describe('#17 — Tasks head meta is "N open · M total" (open excludes Done)', () => {
+// ── OD-REDESIGN-91 #17: the head meta reads "N open · M in view" (counts are OPEN) ──
+describe('#17 — Tasks head meta is "N open · M in view" (open excludes Done)', () => {
   it('#17: a Done task lowers the open count but not the total', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Open one', status: 'Open' }),
@@ -1829,7 +1829,7 @@ describe('#17 — Tasks head meta is "N open · M total" (open excludes Done)', 
     await waitFor(() => expect(screen.getByText('Resolved')).toBeInTheDocument())
     // Blocked still counts as open (not Done); only the Done task is excluded from open.
     await waitFor(() =>
-      expect(screen.getByTestId('tasks-count-line').textContent?.trim()).toBe('2 open · 3 total'),
+      expect(screen.getByTestId('tasks-count-line').textContent?.trim()).toBe('2 open · 3 in view'),
     )
   })
 })
