@@ -5,6 +5,7 @@ import { ViewTabs } from '@/components/ui/view-tabs'
 import { ErrorState } from '@/components/ui/state-kit'
 import type { CollectionViewOperationStatus } from '@/lib/record-collection/types'
 import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useIsNarrow } from '@/shell/use-is-narrow'
 import { useT } from '@/i18n/use-t'
 import { viewOptionsTraversal } from '@/shell/view-options-keyboard'
 import './collection-toolbar.css'
@@ -78,6 +79,11 @@ export interface CollectionToolbarFields {
  * this is for the one caller that needs the two halves split.
  */
 export function CollectionToolbarSearchField({ search }: { search: CollectionToolbarSearch }) {
+  // The long placeholder explains what the field matches on — useful where there is room for
+  // the sentence, and cut mid-word where there is not. A phone gets the field's own short name,
+  // which is already authored and translated; the long form stays the accessible name, so the
+  // explanation is still there for anyone who asks for it.
+  const isNarrow = useIsNarrow()
   return (
     <div className="collection-toolbar__query">
       <label className="collection-toolbar__search tap-floor">
@@ -88,7 +94,7 @@ export function CollectionToolbarSearchField({ search }: { search: CollectionToo
         <input
           type="search"
           aria-label={search.label}
-          placeholder={search.placeholder}
+          placeholder={isNarrow ? search.label : search.placeholder}
           value={search.value}
           onChange={(event) => search.onChange(event.target.value)}
         />

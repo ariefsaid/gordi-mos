@@ -622,3 +622,47 @@
     .tasks-collection-toolbar [data-filter-id='sort'] .collection-toolbar__select { flex-basis: 120px; width: 120px; }
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Phone: the search field and the filter door share a row.
+
+   Stacked, they cost 105px of an 844px screen before a single record — on Signals
+   the first signal began at y=293. They are two halves of one question ("which of
+   these do I want?") and they are adjacent siblings, so they read as one band: the
+   field takes the width, the door keeps its own 44px target at the end.
+
+   The door's summary goes with it: it repeated the scope line directly beneath —
+   "All" above "All · Signals" — and the width it took is width the field needed.
+   One statement of the active view, and a field wide enough to read its own prompt
+   (the field switches to its short authored name at this width, in the component).
+   ════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 767.98px) {
+  .record-collection:has(> .collection-toolbar__query + .collection-mobile-options) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 8px;
+  }
+  .record-collection > .collection-toolbar__query { grid-column: 1; }
+  .record-collection > .collection-mobile-options {
+    grid-column: 2;
+    border-bottom: 0;
+    background: transparent;
+  }
+  .record-collection > .collection-mobile-options-panel,
+  .record-collection > .record-collection-results { grid-column: 1 / -1; }
+  .record-collection > .collection-mobile-options .collection-mobile-options-trigger {
+    width: auto;
+    padding-inline: 12px;
+  }
+  .record-collection > .collection-mobile-options .collection-mobile-options-summary {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
