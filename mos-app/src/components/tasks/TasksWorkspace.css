@@ -467,7 +467,23 @@
 }
 .task-card-link { display: block; padding: 12px 16px; text-decoration: none; color: inherit; min-height: 44px; }
 .task-card-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } /* item #6: normalized to +2 (card has gap room) */
-.task-card-head { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
+/* The status pill holds the trailing edge; the title owns the rest of the row and wraps
+   inside its own column. As wrap-siblings the pill flowed after the last word, so it sat
+   beside a short title and dropped onto a line of its own after a long one — the same card
+   anatomy read as two different layouts down a single list. */
+.task-card-head { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 2px; }
+.task-card-head > .task-name,
+.task-card-head > .task-title-input { flex: 1 1 auto; min-width: 0; }
+/* Wrapping inside its own column, not ellipsised. Giving the title a bounded column made the
+   collection's one-line ellipsis bite, which trades a wrapped title for a clipped one — the
+   identity is the thing a reader is scanning for and it stays whole. */
+.task-card-head > .task-name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+}
+.task-card-head > .status-pill { flex: none; }
 /* Fix-5: mobile card dl — label:value pairs visible per mockup (not sr-only hiding).
    Each .task-card-meta-pair group is inline-flex so "Label value" stays on one line
    within the wrapping flex container; gap between pairs for scanability. */

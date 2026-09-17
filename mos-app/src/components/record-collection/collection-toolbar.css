@@ -317,9 +317,13 @@
   .tasks-collection-toolbar .collection-toolbar__picker-trigger { gap: 3px; padding-inline: 3px; }
   .tasks-collection-toolbar .collection-toolbar__search { gap: 0; padding-inline: 4px; }
   .tasks-collection-toolbar .collection-toolbar__search > svg { display: none; }
+  /* Enough inline padding to read as two controls. At zero the labels met edge to edge and
+     "Fields" and "Save view" scanned as one broken label, "Fields Save" — two separate actions
+     that looked like one mistake. The row wraps below its own budget now, so the width this
+     costs is width the row has. */
   .tasks-collection-toolbar .collection-toolbar__fields > .btn,
   .tasks-collection-toolbar .collection-toolbar__save-zone > .btn {
-    padding-inline: 0;
+    padding-inline: 8px;
     gap: 0;
   }
   .tasks-collection-toolbar .collection-toolbar__action-icon { display: none; }

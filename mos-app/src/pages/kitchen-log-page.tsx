@@ -1040,24 +1040,27 @@ function KitchenLogPageForViewer({ leading }: { leading?: ReactNode } = {}) {
                 <span className="kl-tally-sub">{t('kitchen.log.footer.pendingReview')}</span>
               </div>
             )}
+            {/* The reason Submit is dead is a SENTENCE, and it gets a line of its own. Nested in
+                the action cluster it was a `flex: none` column beside the buttons, so on a phone
+                "Choose a production stream before submitting." wrapped into three cramped lines
+                against the thing it was explaining — and on a 1440px screen it did the same with
+                a screen's width to spare. */}
+            {canCapture && streamMissing && (
+              <span className="kl-submit-reason" role="status" aria-live="polite">
+                {t('kitchen.log.stream.missing')}
+              </span>
+            )}
+            {canCapture && streamNonProducing && (
+              <span className="kl-submit-reason" role="status" aria-live="polite">
+                {t('kitchen.log.stream.nonProducing')}
+              </span>
+            )}
+            {noteUnresolved && !hasBlockingError && !streamMissing && !streamNonProducing && (
+              <span className="kl-submit-reason" role="status" aria-live="polite">
+                {t('kitchen.log.footer.noteRequired')}
+              </span>
+            )}
             <div className="kl-footer-actions">
-              {/* F3 inline blocker reason — visible near the button so the user knows
-                  why Submit is disabled without having to attempt a click (Fix 3). */}
-              {canCapture && streamMissing && (
-                <span className="kl-submit-reason" role="status" aria-live="polite">
-                  {t('kitchen.log.stream.missing')}
-                </span>
-              )}
-              {canCapture && streamNonProducing && (
-                <span className="kl-submit-reason" role="status" aria-live="polite">
-                  {t('kitchen.log.stream.nonProducing')}
-                </span>
-              )}
-              {noteUnresolved && !hasBlockingError && !streamMissing && !streamNonProducing && (
-                <span className="kl-submit-reason" role="status" aria-live="polite">
-                  {t('kitchen.log.footer.noteRequired')}
-                </span>
-              )}
               <button
                 type="button"
                 className="btn btn-outline"

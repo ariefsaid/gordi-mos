@@ -136,6 +136,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 8px;
   gap: 12px;
   padding: 12px 0;
   background: var(--card);
@@ -201,6 +203,9 @@
   align-items: center;
   gap: 8px;
   flex: none;
+  /* Holds the trailing edge even when the tally is absent and this is the only thing left on
+     the row — `space-between` alone would walk it back to the left. */
+  margin-left: auto;
 }
 
 /* The ONE blue (One-Blue Rule) — Submit + its focus ring only */
@@ -210,10 +215,13 @@
    required variance note is still empty.  Uses muted text so it reads as a
    hint, not an error (the error itself lives on the row's note field). */
 .kl-submit-reason {
+  /* Its own full-width line, reading left-to-right like the sentence it is, above the tally
+     and the actions rather than squeezed between them. */
+  flex: 1 0 100%;
+  order: -1;
   font-size: var(--font-size-label);
   color: var(--muted-foreground);
-  align-self: center;
-  text-align: right;
+  text-align: left;
 }
 
 /* ── Error / unauth blocks — viewport-safe + touch floors ── */
