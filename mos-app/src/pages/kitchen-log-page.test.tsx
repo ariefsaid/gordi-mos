@@ -209,6 +209,7 @@ async function renderPage(
 import { KitchenLogPage } from './kitchen-log-page'
 import { rememberStream } from '@/lib/cafe-stream'
 import { resetCafeLocations } from '@/lib/cafe-opening-location'
+import { cafeDraftCount } from '@/lib/cafe-capture-draft'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -2150,5 +2151,47 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
     const offered = (await screen.findAllByRole('option')).map(o => o.textContent?.trim() ?? '')
     expect(offered.some(label => label.includes('Gordi HQ'))).toBe(true)
     expect(offered.some(label => label.includes('Radiant'))).toBe(true)
+  })
+})
+
+// The capture form's half of the dirty-draft contract. The Café root asks before a location
+// switch throws away a count in progress, and it can only ask because THIS form publishes what
+// it is holding. The root's half is covered in cafe-opening-page.test.tsx, but those tests stub
+// this form out and seed the count by hand — so deleting the publishing effect below left them
+// all green. This owns the half that makes the feature work.
+describe('the capture form publishes what it is holding', () => {
+  it('a typed quantity reaches the module the Café root reads before it discards a draft', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(cafeDraftCount()).toBe(0)
+
+    await act(async () => {
+      fireEvent.change(
+        screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }),
+        { target: { value: '3' } },
+      )
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(cafeDraftCount()).toBe(1))
+  })
+
+  it('stops holding a count once the form goes away', async () => {
+    const utils = await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    await act(async () => {
+      fireEvent.change(
+        screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }),
+        { target: { value: '2' } },
+      )
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(cafeDraftCount()).toBe(1))
+
+    // A count that outlived its form would make the root warn about work that no longer exists.
+    await act(async () => { utils.unmount() })
+    expect(cafeDraftCount()).toBe(0)
   })
 })

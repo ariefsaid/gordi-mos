@@ -42,6 +42,7 @@ import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 // #440: the ONE Café stream statement/picker, and the module-wide selection it writes to.
 import { CafeStreamBar, ALL_STREAMS } from '@/components/kitchen/cafe-stream-bar'
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
+import { activeCafeLocation } from '@/lib/cafe-opening-location'
 import { useReviewSummary } from '@/lib/kitchen-review-kpis'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import './kitchen-review-page.css'
@@ -470,7 +471,12 @@ function KitchenReviewPageForViewer() {
       // stream Team) opens cross-stream too — sight is org-wide, decisions are not.
       // #440: a stream CHOSEN elsewhere in Café this session outranks both — it is an
       // explicit act, where the role defaults are only a guess about what you meant.
-      const chosenKey = rememberedStreamKey(viewerId)
+      // That choice is kept per location, so it is read under the location the person is
+      // working at. Review still claims no location of its own (OD-WAY-48); it reads the one
+      // already set. With no active location there is no choice to honour, and the role
+      // defaults stand — never the location-agnostic slot, which nothing writes.
+      const activeBranchId = activeCafeLocation(viewerId)?.branchId ?? null
+      const chosenKey = activeBranchId ? rememberedStreamKey(viewerId, activeBranchId) : null
       const chosen = chosenKey && catalog.some(s => streamKey(s.branch.id, s.activity) === chosenKey)
         ? chosenKey
         : null

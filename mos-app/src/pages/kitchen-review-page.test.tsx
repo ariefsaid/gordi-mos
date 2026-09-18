@@ -72,6 +72,7 @@ import { listStreamCompleteness, confirmStreamComplete } from '@/lib/db/stream-c
 
 import { KitchenReviewPage } from './kitchen-review-page'
 import { rememberStream } from '@/lib/cafe-stream'
+import { rememberCafeLocation } from '@/lib/cafe-opening-location'
 import { resetCafeLocations } from '@/lib/cafe-opening-location'
 import type { ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 
@@ -623,7 +624,11 @@ describe('KitchenReviewPage — the stream reads in the page head (#440)', () =>
   it('issue 440: a stream chosen elsewhere in Café opens the queue on it, over the role default', async () => {
     // An ops_lead who was just looking at Radiant · Bar on Log lands on that queue, not on
     // the cross-stream default — an explicit choice outranks a guess about what they meant.
-    rememberStream({ branch: BRANCHES[1], activity: 'bar' }, 'p-lead')
+    // Seeded the way production stores it: a choice belongs to the location it was made at, so
+    // it is written and read under that branch. Seeding the location-agnostic slot instead would
+    // pass while the surface reads a slot nothing writes.
+    rememberCafeLocation('p-lead', { branchId: BRANCHES[1].id, branchName: BRANCHES[1].name })
+    rememberStream({ branch: BRANCHES[1], activity: 'bar' }, 'p-lead', BRANCHES[1].id)
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Es Kopi')

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { ModalShell } from '@/components/ui/modal-shell'
 import type { TeamOption } from '@/lib/db/signals.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 
@@ -368,6 +369,33 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     await waitFor(() => expect(screen.queryByRole('listbox', { name: /mention/i })).toBeNull())
     expect(body).toHaveValue('Heads up @Pe') // draft intact
     expect(hostEscape).not.toHaveBeenCalled() // isolation — the host never saw it
+  })
+
+  // The test above hosts the composer in a plain <div>, which listens where React listens. The
+  // real host is a ModalShell, and it owns Escape from the CAPTURE phase — it decides before any
+  // component handler runs. So a div-hosted pass proves nothing about the surface people use:
+  // this pins the same contract against the real owner.
+  it('Escape dismisses the mention popover inside a real modal host, without closing the modal', async () => {
+    const onClose = vi.fn()
+    render(
+      <I18nProvider>
+        <ModalShell open onClose={onClose} ariaLabel="Share a Signal">
+          <SignalComposer authorId={AUTHOR_ID} authorName="Author One" canTag canMentionBu />
+        </ModalShell>
+      </I18nProvider>,
+    )
+    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'Heads up @Pe')
+    expect(await screen.findByRole('listbox', { name: /mention/i })).toBeInTheDocument()
+
+    await userEvent.type(body, '{Escape}')
+
+    await waitFor(() => expect(screen.queryByRole('listbox', { name: /mention/i })).toBeNull())
+    expect(body).toHaveValue('Heads up @Pe')
+    // The key belonged to the popover. Closing the composer here would also raise its discard
+    // confirm, because a mention token means the draft is dirty.
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('disables the BU group without signal.mention_bu, and enables it when the viewer holds it', async () => {
