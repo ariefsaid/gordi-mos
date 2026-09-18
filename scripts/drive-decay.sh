@@ -6,7 +6,7 @@
 # Sections (tab-separated, header per section):
 #   DEAD-CLAIM  — open, assigned, no update in <stale-days>: the assignee claim is likely a dead
 #                 session; drive-next skips assigned tickets, so these are invisible until cleared.
-#   AGING-TRIAGE — needs-triage older than <triage-days>: /feedback filed it, nothing revisits it.
+#   AGING-TRIAGE — needs-triage older than <triage-days>: deliberately preserved, nothing revisits it.
 #   PR-PARKED   — ready-for-agent tickets the picker is skipping because an open PR mentions
 #                 them (DD-WAY-45's over-parking counterweight: a stale forgotten PR that parks
 #                 ready work indefinitely surfaces HERE, not silently).
