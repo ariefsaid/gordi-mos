@@ -91,7 +91,7 @@ const TEAM_ID = 'team-hq'
 const BU_ID = 'bu-retail'
 
 const baseSignal = {
-  id: SIGNAL_ID, author_id: 'person-dewi', owning_team_id: TEAM_ID,
+  id: SIGNAL_ID, author_id: 'person-dewi', owning_team_id: TEAM_ID, audience: 'org' as const,
   occurred_at: '2026-07-16T02:00:00Z', body: 'The freezer alarm went off',
   attention: 'Needs attention' as const, category: null, source: 'human' as const,
   retracted_at: null, retract_reason: null, edited_at: null,
@@ -260,9 +260,11 @@ describe('SignalRecordHost — retract and repost (P-22/OD-45, AC-412)', () => {
     await waitFor(() => expect(screen.getByText(/this signal was retracted/i, { selector: '.signal-tombstone p' })).toBeInTheDocument())
     await userEvent.click(screen.getByRole('button', { name: /^repost$/i }))
     expect(mockOpenComposer).toHaveBeenCalledWith(expect.objectContaining({
-      body: baseSignal.body, owningTeamId: TEAM_ID,
+      body: baseSignal.body, occurredAt: baseSignal.occurred_at,
       mentions: [{ kind: 'person', targetId: 'person-peer', label: 'Peer Person' }],
     }))
+    // A repost is an All Teams Signal — no owning Team is carried into the prefilled draft.
+    expect(mockOpenComposer).not.toHaveBeenCalledWith(expect.objectContaining({ owningTeamId: TEAM_ID }))
   })
 
   it('refreshes the collection after retracting', async () => {

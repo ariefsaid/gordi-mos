@@ -11,10 +11,10 @@ import type { TeamContextCandidate, TeamContextResolution, TeamMembershipRow } f
 /**
  * Keep only memberships whose effective-dated window is open on `today`.
  *
- * This is the correction the plan calls out: the current `listAuthorTeams` query filters on
+ * This is the correction the plan calls out: a naive membership query filters on
  * `effective_to IS NULL` only, which both (a) admits not-yet-started memberships and (b) is not the
- * date rule the DB RLS uses. The real rule (mirrors mos.can_post_signal_for_team and the process
- * helpers) is `effective_from <= today AND (effective_to IS NULL OR effective_to >= today)`.
+ * date rule the DB RLS uses. The real rule (mirrors the signal/process guards) is
+ * `effective_from <= today AND (effective_to IS NULL OR effective_to >= today)`.
  *
  * @param today ISO `YYYY-MM-DD`. ISO dates sort lexicographically, so string compare is a date compare.
  */

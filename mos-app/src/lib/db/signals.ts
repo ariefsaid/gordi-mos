@@ -127,7 +127,6 @@ export async function getSignal(id: string): Promise<SignalDetail> {
 export async function createSignal(input: CreateSignalInput): Promise<string> {
   const { data, error } = await mos().rpc('create_signal_with_mentions', {
     p_body: input.body,
-    p_owning_team_id: input.owningTeamId,
     p_occurred_at: input.occurredAt,
     p_attention: input.attention ?? 'FYI',
     p_mentions: input.mentions.map((m) => ({ kind: m.kind, targetId: m.targetId })),
@@ -199,40 +198,6 @@ export async function linkSignalTask(signalId: string, taskId: string): Promise<
 
 type TeamJoinRow = { id: string; name: string; business_unit_id: string; site_id: string | null }
 
-/** Teams where a Signal posted by the current author is both postable and readable back. The
- * database owns both gates; this RPC returns ready-to-render options in one call. */
-export async function listReadableAuthorTeams(authorId: string): Promise<TeamOption[]> {
-  const { data, error } = await mos().rpc('teams_author_can_read_back', { p_author_id: authorId })
-  if (error) throw new Error(`listReadableAuthorTeams failed — ${error.message}`)
-  return (data ?? []) as TeamOption[]
-}
-
-/** The author's active membership Teams (owning-Team select options), primary first. Not a full
- * effective-dated evaluation — approximates "active" as `effective_to is null` for the picker's
- * convenience; RLS (`mos.can_post_signal_for_team`) is the write-time authority. */
-export async function listAuthorTeams(personId: string): Promise<TeamOption[]> {
-  const { data: memberships, error: mErr } = await shared()
-    .from('team_memberships')
-    .select('team_id,is_primary')
-    .eq('person_id', personId)
-    .is('effective_to', null)
-  if (mErr) throw new Error(`listAuthorTeams failed — ${mErr.message}`)
-
-  const rows = (memberships ?? []) as { team_id: string; is_primary: boolean }[]
-  if (rows.length === 0) return []
-
-  const { data: teams, error: tErr } = await shared()
-    .from('teams')
-    .select('id,name,business_unit_id,site_id')
-    .in('id', rows.map((r) => r.team_id))
-  if (tErr) throw new Error(`listAuthorTeams teams failed — ${tErr.message}`)
-
-  const primaryById = new Map(rows.map((r) => [r.team_id, r.is_primary]))
-  return ((teams ?? []) as TeamJoinRow[])
-    .map((team) => ({ ...team, is_primary: primaryById.get(team.id) ?? false }))
-    .sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
-}
-
 /** All active (non-archived) Teams — the `@Team` mention picker intentionally reaches outsiders. */
 export async function listAllTeams(): Promise<TeamOption[]> {
   const { data, error } = await shared()
@@ -244,9 +209,10 @@ export async function listAllTeams(): Promise<TeamOption[]> {
   return ((data ?? []) as TeamJoinRow[]).map((team) => ({ ...team, is_primary: false }))
 }
 
-/** Resolve a Team's derived Site (the composer's read-only location pill, D37). Central/site-less
- * Teams resolve to null — no second query is issued. */
-export async function getTeamSite(teamId: string): Promise<SiteOption | null> {
+/** Resolve a Team's derived Site — retired with the composer Team machinery. Central/site-less
+ * Teams resolve to null. Kept for the signal record's site fact on historical team rows. */
+export async function getTeamSite(teamId: string | null): Promise<SiteOption | null> {
+  if (!teamId) return null
   const { data: team, error: tErr } = await shared()
     .from('teams').select('site_id').eq('id', teamId).maybeSingle()
   if (tErr) throw new Error(`getTeamSite failed — ${tErr.message}`)

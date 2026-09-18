@@ -15,7 +15,7 @@ vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => desktopState.valu
 
 function row(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
-    id: 'signal-1', author_id: 'p-author-a', owning_team_id: 'team-hq',
+    id: 'signal-1', author_id: 'p-author-a', owning_team_id: 'team-hq', audience: 'org',
     occurred_at: '2026-07-16T02:00:00Z', body: 'The freezer alarm went off',
     attention: 'Needs attention', category: null, source: 'human',
     retracted_at: null, retract_reason: null, edited_at: null,

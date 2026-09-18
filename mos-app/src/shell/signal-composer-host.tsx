@@ -20,7 +20,6 @@ import './signal-composer-host.css'
 
 export interface SignalComposerPrefill {
   body: string
-  owningTeamId: string
   occurredAt: string
   attention: 'FYI' | 'Needs attention' | 'Urgent'
   mentions: StagedMention[]

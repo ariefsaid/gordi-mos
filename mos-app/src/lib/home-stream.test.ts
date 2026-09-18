@@ -126,7 +126,7 @@ describe('openTaskCount', () => {
 describe('signalStreamItems (OD-84.1 / Luna P0-1 — attention-worthy Signals lead the stream)', () => {
   function sig(over: Partial<SignalRow> = {}): SignalRow {
     return {
-      id: 's', author_id: 'a1', owning_team_id: 'tm1', occurred_at: '2026-07-16T02:00:00Z',
+      id: 's', author_id: 'a1', owning_team_id: 'tm1', audience: 'org', occurred_at: '2026-07-16T02:00:00Z',
       body: 'A signal body', attention: 'FYI', category: null, source: 'human',
       retracted_at: null, retract_reason: null, edited_at: null, created_at: '2026-07-16T02:00:00Z',
       ...over,

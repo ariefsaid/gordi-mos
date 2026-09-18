@@ -10,10 +10,7 @@ import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 vi.mock('@/lib/db/signals', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/signals')>('@/lib/db/signals')
   return {
-    listReadableAuthorTeams: vi.fn(),
-    listAuthorTeams: vi.fn(),
     listAllTeams: vi.fn(),
-    getTeamSite: vi.fn(),
     createSignal: vi.fn(),
     dedupeRecipients: actual.dedupeRecipients, // real (pure) implementation — the point under test
   }
@@ -23,14 +20,11 @@ vi.mock('@/lib/db/directory', () => ({
   getPeople: vi.fn(),
 }))
 
-import { listReadableAuthorTeams, listAuthorTeams, listAllTeams, getTeamSite, createSignal } from '@/lib/db/signals'
+import { listAllTeams, createSignal } from '@/lib/db/signals'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { SignalComposer } from './signal-composer'
 
-const mockListReadableAuthorTeams = vi.mocked(listReadableAuthorTeams)
-const mockListAuthorTeams = vi.mocked(listAuthorTeams)
 const mockListAllTeams = vi.mocked(listAllTeams)
-const mockGetTeamSite = vi.mocked(getTeamSite)
 const mockCreateSignal = vi.mocked(createSignal)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
@@ -41,14 +35,10 @@ const TEAMS: TeamOption[] = [
   { id: 'team-hq', name: 'HQ Operations', business_unit_id: 'bu-retail', site_id: 'site-hq', is_primary: true },
   { id: 'team-radiant', name: 'Radiant Operations', business_unit_id: 'bu-retail', site_id: 'site-radiant', is_primary: false },
 ]
-// OD-REDESIGN-91 #19: a single eligible Team auto-picks, so the default author is on ONE team —
-// the common journey. The multi-team must-pick journey has its own describe block below.
-const SOLE_TEAM: TeamOption[] = [TEAMS[0]]
 const BUS: BusinessUnitOption[] = [{ id: 'bu-retail', name: 'Retail Ops' }]
 const PEOPLE: PersonOption[] = [{ id: AUTHOR_ID, full_name: 'Author One' }, { id: 'person-peer', full_name: 'Peer Person' }]
 
-/** The mention popover's option role collides with the native <select> team options that share
- * the same team name — scope the query to the popover listbox. */
+/** The mention popover's option role — scoped to the popover listbox. */
 async function findMentionOption(name: RegExp) {
   const listbox = await screen.findByRole('listbox', { name: /mention/i })
   return within(listbox).findByRole('option', { name })
@@ -66,10 +56,7 @@ function renderComposer(props: Partial<React.ComponentProps<typeof SignalCompose
 
 beforeEach(() => {
   vi.resetAllMocks()
-  mockListReadableAuthorTeams.mockResolvedValue(SOLE_TEAM)
-  mockListAuthorTeams.mockResolvedValue(SOLE_TEAM)
   mockListAllTeams.mockResolvedValue(TEAMS)
-  mockGetTeamSite.mockResolvedValue(null)
   mockGetBusinessUnits.mockResolvedValue(BUS)
   mockGetPeople.mockResolvedValue(PEOPLE)
   mockCreateSignal.mockResolvedValue('signal-new')
@@ -79,7 +66,7 @@ describe('SignalComposer — repost prefill', () => {
   it('submits staged mention rows carried by a reposted draft', async () => {
     renderComposer({
       prefill: {
-        body: 'The freezer alarm went off @Peer Person', owningTeamId: 'team-hq',
+        body: 'The freezer alarm went off @Peer Person',
         occurredAt: '2026-07-16T02:00:00Z', attention: 'Needs attention',
         mentions: [{ kind: 'person', targetId: 'person-peer', label: 'Peer Person' }],
       },
@@ -90,99 +77,41 @@ describe('SignalComposer — repost prefill', () => {
       mentions: [{ kind: 'person', targetId: 'person-peer', label: 'Peer Person' }],
     })))
   })
-
-  it('clears an owning Team prefill that is no longer eligible and keeps Share disabled', async () => {
-    mockListReadableAuthorTeams.mockResolvedValue(TEAMS)
-    renderComposer({
-      prefill: {
-        body: 'The freezer alarm went off', owningTeamId: 'team-retired',
-        occurredAt: '2026-07-16T02:00:00Z', attention: 'FYI', mentions: [],
-      },
-    })
-
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
-    const shareButton = await screen.findByRole('button', { name: /share signal/i })
-    expect(shareButton).toBeDisabled()
-    await userEvent.click(shareButton)
-    expect(mockCreateSignal).not.toHaveBeenCalled()
-  })
 })
 
-// SIG-2 — an empty eligible-Team list gets an honest empty state, not a dead composer.
-describe('SignalComposer — no-team empty state (SIG-2)', () => {
-  it('renders an empty state explaining why, instead of an empty select + forever-disabled submit', async () => {
-    mockListReadableAuthorTeams.mockResolvedValue([])
+describe('SignalComposer — capture-minimal fields (AC-420)', () => {
+  it('paints the capture fields and enables Share Signal with only body typed — no Team required', async () => {
     renderComposer()
-
-    // The empty state resolves once the (empty) team load settles.
-    expect(await screen.findByText('No team to post to')).toBeInTheDocument()
-    expect(screen.getByText('Ask an admin to check the available teams and your posting access.')).toBeInTheDocument()
-    expect(screen.queryByText(/team you belong to|not a member/i)).not.toBeInTheDocument()
-
-    // No dead controls: no owning-Team select, no disabled Share Signal button.
-    expect(screen.queryByRole('combobox', { name: /team/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /share signal/i })).not.toBeInTheDocument()
-  })
-
-  it('keeps the draft and retries a failed directory load instead of claiming no Team membership', async () => {
-    mockListReadableAuthorTeams.mockRejectedValueOnce(new Error('Network unavailable'))
-    renderComposer()
-    const body = screen.getByRole('textbox', { name: /what happened/i })
-    await userEvent.type(body, 'Keep this observation')
-    const retry = await screen.findByRole('button', { name: /^Try again$/ })
-    expect(screen.queryByText('No team to post to')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /share signal/i })).toBeDisabled()
-    await userEvent.click(retry)
-    await waitFor(() => expect(screen.getByRole('button', { name: /share signal/i })).toBeEnabled())
-    expect(body).toHaveValue('Keep this observation')
-    await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
-    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledWith(expect.objectContaining({ body: 'Keep this observation' })))
-  })
-
-  it('does not flash the empty state before the team load resolves', () => {
-    let resolveTeams: (t: TeamOption[]) => void = () => {}
-    mockListReadableAuthorTeams.mockReturnValue(new Promise<TeamOption[]>((r) => { resolveTeams = r }))
-    renderComposer()
-    // Still loading → the form (its Share Signal button) is present, the empty state is not.
-    expect(screen.queryByText('No team to post to')).not.toBeInTheDocument()
-    resolveTeams([])
-  })
-})
-
-describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
-  it('paints exactly the four capture fields and enables Share Signal with only body typed', async () => {
-    renderComposer()
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalledWith(AUTHOR_ID))
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
 
     // 1. Content
     const body = screen.getByRole('textbox', { name: /what happened/i })
     // 2. Occurrence time — a contextual pill backed by the native picker.
     const occurred = screen.getByLabelText(/occurred/i)
     // 3. Author (read-only line, not a form control)
-    expect(screen.getByText(/Author One/)).toBeInTheDocument()
-    expect(screen.getByText(/Owning Team: HQ Operations/i)).toBeInTheDocument()
     expect(screen.getByText(/posted by/i)).toBeInTheDocument()
+    expect(screen.getByText(/Author One/)).toBeInTheDocument()
 
-    // Category is post-capture enrichment; attention is an optional capture control.
-    expect(screen.queryByRole('combobox', { name: /categor/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /categor/i })).not.toBeInTheDocument()
+    // No owning-Team machinery anywhere: a new Signal is All Teams with no Team target.
+    expect(screen.queryByRole('combobox', { name: /owning team|tim pemilik/i })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('signal-site-pill')).not.toBeInTheDocument()
+
     expect(screen.getByRole('button', { name: /attention.*FYI|FYI.*attention/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /attention.*FYI|FYI.*attention/i })).toHaveAttribute('id', 'signals-compose-attention')
 
     const shareButton = screen.getByRole('button', { name: /share signal/i })
-    expect(shareButton).toBeDisabled()
+    expect(shareButton).toBeDisabled() // no body yet
 
     await userEvent.type(body, 'The freezer alarm went off')
-    expect(shareButton).toBeEnabled()
-    expect(screen.queryByRole('combobox', { name: /team/i })).not.toBeInTheDocument() // one eligible Team is implicit
+    expect(shareButton).toBeEnabled() // an All Teams Signal needs only a body (AC-7)
     expect((occurred as HTMLInputElement).value.length).toBeGreaterThan(0)
 
     expect(screen.getByText(/Category is added after posting/i)).toBeInTheDocument()
   })
 
-  it('posts via createSignal with the typed body and selected Team when Share Signal is pressed', async () => {
+  it('posts via createSignal with the typed body and no owning Team when Share is pressed', async () => {
     renderComposer()
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
 
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, 'The freezer alarm went off')
@@ -191,14 +120,14 @@ describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
     await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(1))
     const call = mockCreateSignal.mock.calls[0][0]
     expect(call.body).toBe('The freezer alarm went off')
-    expect(call.owningTeamId).toBe('team-hq')
+    expect(call).not.toHaveProperty('owningTeamId')
     expect(call.mentions).toEqual([])
     expect(call.attention).toBe('FYI')
   })
 
   it('posts Urgent when the optional attention control is raised', async () => {
     renderComposer()
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
     await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), 'Gas leak')
     await userEvent.click(screen.getByRole('button', { name: /attention.*FYI|FYI.*attention/i }))
     await userEvent.click(screen.getByRole('option', { name: /urgent/i }))
@@ -209,84 +138,32 @@ describe('SignalComposer — capture-minimal four fields (AC-420)', () => {
   })
 })
 
-describe('SignalComposer — owning-team must-pick (OD-REDESIGN-91 #19 / F4)', () => {
-  it('with more than one eligible Team, pre-selects nothing and keeps Share disabled until a Team is picked', async () => {
-    mockListReadableAuthorTeams.mockResolvedValue(TEAMS) // author on two teams → must pick
+describe('SignalComposer — directory-load error retry', () => {
+  it('shows the directory error but never blocks capture; retry reloads the mention rosters', async () => {
+    mockGetPeople.mockRejectedValueOnce(new Error('Network unavailable'))
     renderComposer()
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
-
-    const teamPicker = await screen.findByRole('combobox', { name: /team/i })
-    expect(teamPicker).toHaveTextContent('Choose a team…') // no pre-pick, no arbitrary first
-    expect(teamPicker).toHaveAttribute('id', 'signals-compose-team')
-
     const body = screen.getByRole('textbox', { name: /what happened/i })
-    await userEvent.type(body, 'The freezer alarm went off')
-    const shareButton = screen.getByRole('button', { name: /share signal/i })
-    expect(shareButton).toBeDisabled() // body typed, but no owning Team chosen → still blocked
-
-    await userEvent.click(teamPicker)
-    await userEvent.click(screen.getByRole('option', { name: 'Radiant Operations' }))
-    expect(shareButton).toBeEnabled()
-    await userEvent.click(shareButton)
-    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(1))
-    expect(mockCreateSignal.mock.calls[0][0].owningTeamId).toBe('team-radiant')
-  })
-
-  it('with a single eligible Team, auto-picks it (no needless pick)', async () => {
-    mockListReadableAuthorTeams.mockResolvedValue(SOLE_TEAM)
-    renderComposer()
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
-
-    expect(screen.queryByRole('combobox', { name: /team/i })).not.toBeInTheDocument()
-    expect(screen.getByText(/Owning Team: HQ Operations/i)).toBeInTheDocument()
-
-    const body = screen.getByRole('textbox', { name: /what happened/i })
-    await userEvent.type(body, 'The freezer alarm went off')
+    await userEvent.type(body, 'Keep this observation')
+    const retry = await screen.findByRole('button', { name: /^Try again$/ })
+    // An All Teams Signal needs only a body — a failed mention-directory load must not block Share
+    // (Rule 8: capture never blocks on enrichment data).
     expect(screen.getByRole('button', { name: /share signal/i })).toBeEnabled()
-  })
 
-  it('reports dirty state from a typed draft and clears it after a successful share', async () => {
-    const onDirtyChange = vi.fn()
-    renderComposer({ onDirtyChange })
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
-    await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), 'Gas leak')
-    expect(onDirtyChange).toHaveBeenLastCalledWith(true)
+    // Retry reloads the directory; the error banner is gone and the draft survives.
+    await userEvent.click(retry)
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('button', { name: /^Try again$/ })).not.toBeInTheDocument()
+    expect(body).toHaveValue('Keep this observation')
+
     await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
-    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false))
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledWith(expect.objectContaining({ body: 'Keep this observation' })))
   })
 })
 
-describe('SignalComposer — read-back-only Team options (#715)', () => {
-  it('keeps a single owning Team implicit while keeping create_for_team mentions wide', async () => {
-    mockListReadableAuthorTeams.mockResolvedValue(SOLE_TEAM)
-    mockListAllTeams.mockResolvedValue(TEAMS)
-    renderComposer({ canCreateForTeam: true })
-    await waitFor(() => {
-      expect(mockListReadableAuthorTeams).toHaveBeenCalledWith(AUTHOR_ID)
-      expect(mockListAllTeams).toHaveBeenCalled()
-    })
-
-    expect(screen.queryByRole('combobox', { name: /team/i })).not.toBeInTheDocument()
-    expect(screen.getByText(/Owning Team: HQ Operations/i)).toBeInTheDocument()
-
-    await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), '@')
-    expect(await findMentionOption(/Radiant Operations/)).toBeInTheDocument()
-  })
-
-  it('allows active non-membership Teams in mentions when runtime tagging is granted', async () => {
-    renderComposer({ canCreateForTeam: false, canTag: true })
-    await waitFor(() => expect(mockListAllTeams).toHaveBeenCalled())
-
-    await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), '@')
-    const listbox = await screen.findByRole('listbox', { name: /mention/i })
-    expect(within(listbox).getByRole('option', { name: /Radiant Operations/ })).toBeInTheDocument()
-  })
-})
-
-describe('SignalComposer — Shift+Enter send + WIB hint (OD-REDESIGN-91 #10 / #20)', () => {
+describe('SignalComposer — Shift+Enter send (OD-REDESIGN-91 #10)', () => {
   it('#10: Shift+Enter posts the Signal; plain Enter is a newline (not a post)', async () => {
-    renderComposer() // single team auto-picks, so only the body is needed
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    renderComposer()
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, 'The freezer alarm went off')
 
@@ -300,7 +177,7 @@ describe('SignalComposer — Shift+Enter send + WIB hint (OD-REDESIGN-91 #10 / #
 
   it('#20: keeps the native datetime picker and shows a WIB hint beside it', async () => {
     renderComposer()
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
     expect(screen.getByLabelText(/occurred/i)).toHaveAttribute('type', 'datetime-local')
     expect(screen.getByText('WIB')).toBeInTheDocument()
   })
@@ -308,22 +185,19 @@ describe('SignalComposer — Shift+Enter send + WIB hint (OD-REDESIGN-91 #10 / #
 
 describe('SignalComposer — safe retry after a failed post (CQ IMPORTANT-1)', () => {
   it('keeps the typed body and re-enables Share Signal when the post fails, then a retry succeeds', async () => {
-    // The post is now one atomic RPC: a failure commits nothing, so retrying cannot double-post.
     mockCreateSignal.mockRejectedValueOnce(new Error('fan-out exceeds cap of 50 recipients'))
     renderComposer()
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
 
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, 'The freezer alarm went off')
     const shareButton = screen.getByRole('button', { name: /share signal/i })
     await userEvent.click(shareButton)
 
-    // The error surfaces, the body is preserved, and Share is enabled again (retry is safe).
     expect(await screen.findByRole('alert')).toHaveTextContent(/fan-out exceeds cap/i)
     expect(body).toHaveValue('The freezer alarm went off')
     expect(shareButton).toBeEnabled()
 
-    // Retry — the second attempt resolves; createSignal is called exactly twice (no duplicate first post).
     mockCreateSignal.mockResolvedValueOnce('signal-new')
     await userEvent.click(shareButton)
     await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(2))
@@ -332,9 +206,9 @@ describe('SignalComposer — safe retry after a failed post (CQ IMPORTANT-1)', (
 })
 
 describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
-  it('opens a grouped Person/Team/BU popover on "@" with a type badge per option', async () => {
+  it('opens a grouped Person/Team/BU popover on "@"', async () => {
     renderComposer()
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
 
     await userEvent.type(body, 'Heads up @Pe')
@@ -343,14 +217,10 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     expect(popover).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Peer Person/i })).toBeInTheDocument()
     expect(screen.getAllByText('person')[0]).toBeInTheDocument() // type badge
-
-    // Team and BU groups render even without a matching prefix filter on this query
     expect(screen.getByText('Person')).toBeInTheDocument()
   })
 
-  // D-B2 (I5 / OD-83.1): Escape while the mention popover is open dismisses the PICKER only and is
-  // consumed — it must not bubble to the composer's ModalShell host and close it, losing the draft.
-  it('Escape dismisses the mention popover, preserves the draft, and does not bubble to the host', async () => {
+  it('Escape dismisses the mention popover, preserves the draft, and does not bubble to the host (div host)', async () => {
     const hostEscape = vi.fn()
     render(
       <I18nProvider>
@@ -359,7 +229,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
         </div>
       </I18nProvider>,
     )
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, 'Heads up @Pe')
     expect(await screen.findByRole('listbox', { name: /mention/i })).toBeInTheDocument()
@@ -367,14 +237,10 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     await userEvent.type(body, '{Escape}')
 
     await waitFor(() => expect(screen.queryByRole('listbox', { name: /mention/i })).toBeNull())
-    expect(body).toHaveValue('Heads up @Pe') // draft intact
-    expect(hostEscape).not.toHaveBeenCalled() // isolation — the host never saw it
+    expect(body).toHaveValue('Heads up @Pe')
+    expect(hostEscape).not.toHaveBeenCalled()
   })
 
-  // The test above hosts the composer in a plain <div>, which listens where React listens. The
-  // real host is a ModalShell, and it owns Escape from the CAPTURE phase — it decides before any
-  // component handler runs. So a div-hosted pass proves nothing about the surface people use:
-  // this pins the same contract against the real owner.
   it('Escape dismisses the mention popover inside a real modal host, without closing the modal', async () => {
     const onClose = vi.fn()
     render(
@@ -384,7 +250,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
         </ModalShell>
       </I18nProvider>,
     )
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, 'Heads up @Pe')
     expect(await screen.findByRole('listbox', { name: /mention/i })).toBeInTheDocument()
@@ -393,38 +259,32 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
 
     await waitFor(() => expect(screen.queryByRole('listbox', { name: /mention/i })).toBeNull())
     expect(body).toHaveValue('Heads up @Pe')
-    // The key belonged to the popover. Closing the composer here would also raise its discard
-    // confirm, because a mention token means the draft is dirty.
     expect(onClose).not.toHaveBeenCalled()
   })
 
   it('disables the BU group without signal.mention_bu, and enables it when the viewer holds it', async () => {
     const { unmount } = renderComposer({ canMentionBu: false })
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, '@')
 
     const buOption = await screen.findByRole('option', { name: /Retail Ops/i })
     expect(buOption).toBeDisabled()
-    // DO-17 F4: the disabled @BU row states WHY it can't be picked, not a silent dead control.
     expect(buOption).toHaveAttribute('title', expect.stringMatching(/permission to mention a Business Unit/i))
     unmount()
 
     renderComposer({ canMentionBu: true })
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalledTimes(2))
     const body2 = screen.getAllByRole('textbox', { name: /what happened/i })[0]
     await userEvent.type(body2, '@')
     const enabledBuOption = await screen.findByRole('option', { name: /Retail Ops/i })
     expect(enabledBuOption).toBeEnabled()
   })
 
-  // DO-17 F3: while a post is in flight the primary button shows an explicit loading affordance
-  // (a "Sharing…" label + aria-busy), not merely a disabled control.
   it('DO-17 F3: shows a loading affordance on the Share button while the post is in flight', async () => {
     let resolvePost: (id: string) => void = () => {}
     mockCreateSignal.mockReturnValue(new Promise<string>((r) => { resolvePost = r }))
     renderComposer()
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, 'The freezer alarm went off')
     await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
@@ -436,7 +296,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
 
   it('selecting a mention option inserts an @Name chip in the body and stages the mention', async () => {
     renderComposer()
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, 'Heads up @Pe')
 
@@ -451,68 +311,36 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
   })
 })
 
-describe('SignalComposer — visibility + dedup fan-out preview (AC-422)', () => {
-  it('shows "Visible to <Team>" with the deduplicated notify count for overlapping mentions', async () => {
+describe('SignalComposer — All Teams visibility + dedup fan-out preview (AC-422)', () => {
+  it('shows "All teams · notify N people" with the deduplicated count for overlapping mentions', async () => {
     renderComposer({ teamMembers: { 'team-hq': ['person-peer', 'person-other'] } })
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
 
-    // Stage a @Team mention (2 members) AND an overlapping @Person mention (person-peer, already
-    // a team-hq member) — the notify count must NOT double-count person-peer.
+    // Stage a @Team mention (2 members) AND an overlapping @Person mention (person-peer) — the
+    // count must NOT double-count person-peer.
     await userEvent.type(body, 'Heads up @HQ')
     await userEvent.click(await findMentionOption(/HQ Operations/i))
     await userEvent.type(body, ' cc @Pe')
     await userEvent.click(await findMentionOption(/Peer Person/i))
 
     // SR-1 (owner ruling): the dedup count carries its noun — "notify N people", never a naked N.
-    expect(screen.getByText('Visible to HQ Operations · notify 2 people')).toBeInTheDocument()
+    expect(screen.getByText('All teams · notify 2 people')).toBeInTheDocument()
   })
 
-  it('shows "Visible to <Team>" with no notify suffix when no mentions are staged', async () => {
+  it('shows "Visible to all teams" with no notify suffix when no mentions are staged', async () => {
     renderComposer()
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
-    expect(await screen.findByText('Visible to HQ Operations')).toBeInTheDocument()
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
+    expect(await screen.findByText('Visible to all teams')).toBeInTheDocument()
   })
 
-  it('shows a cross-Team destination preview "Post to <Team> · <attention> · notify N" when the author changes the owning Team', async () => {
-    mockListReadableAuthorTeams.mockResolvedValue(TEAMS)
+  it('inflects the notify noun to the singular for one recipient', async () => {
     renderComposer({ teamMembers: { 'team-radiant': ['person-peer'] } })
-    await waitFor(() => expect(mockListReadableAuthorTeams).toHaveBeenCalled())
-
-    const teamPicker = await screen.findByRole('combobox', { name: /team/i })
-    await userEvent.click(teamPicker)
-    await userEvent.click(screen.getByRole('option', { name: 'Radiant Operations' }))
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
     await userEvent.type(body, '@Pe')
     await userEvent.click(await findMentionOption(/Peer Person/i))
 
-    // SR-1: singular count inflects the noun — "notify 1 person".
-    expect(screen.getByText('Post to Radiant Operations · FYI · notify 1 person')).toBeInTheDocument()
-  })
-})
-
-describe('SignalComposer — derived Site pill, no @Site (AC-423)', () => {
-  it('renders a read-only Site pill derived from the owning Team, and Site is absent from the @ picker', async () => {
-    mockGetTeamSite.mockResolvedValue({ id: 'site-hq', name: 'Gordi HQ' })
-    renderComposer()
-    await waitFor(() => expect(mockGetTeamSite).toHaveBeenCalledWith('team-hq'))
-
-    const pill = await screen.findByTestId('signal-site-pill')
-    expect(pill).toHaveTextContent('Gordi HQ')
-    // The pill is not an interactive control — location, not a mention target (D37).
-    expect(pill.tagName).not.toBe('BUTTON')
-    expect(pill.tagName).not.toBe('A')
-
-    const body = screen.getByRole('textbox', { name: /what happened/i })
-    await userEvent.type(body, '@')
-    const popover = await screen.findByRole('listbox', { name: /mention/i })
-    expect(within(popover).queryByText(/site/i)).not.toBeInTheDocument()
-  })
-
-  it('renders no Site pill for a central/site-less Team', async () => {
-    mockGetTeamSite.mockResolvedValue(null)
-    renderComposer()
-    await waitFor(() => expect(mockGetTeamSite).toHaveBeenCalledWith('team-hq'))
-    expect(screen.queryByTestId('signal-site-pill')).not.toBeInTheDocument()
+    expect(screen.getByText('All teams · notify 1 person')).toBeInTheDocument()
   })
 })

@@ -490,7 +490,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
 
   function openRepost() {
     openComposer({
-      body: signal.body, owningTeamId: signal.owning_team_id, occurredAt: signal.occurred_at,
+      body: signal.body, occurredAt: signal.occurred_at,
       attention: signal.attention, mentions: staged,
     })
   }

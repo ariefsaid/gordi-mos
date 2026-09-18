@@ -11,7 +11,7 @@ vi.mock('../supabase', () => {
 import {
   listReadableSignals, searchSignalsByBody, getSignal, createSignal, correctSignal, retractSignal,
   acknowledgeSignal, linkSignalTask,
-  listReadableAuthorTeams, listAuthorTeams, listAllTeams, getTeamSite, dedupeRecipients, orderSignalsForFeed,
+  listAllTeams, getTeamSite, dedupeRecipients, orderSignalsForFeed,
   listSignalRevisions, loadMentionRosters, summarizeLinkedTasks, getSignalPostAuthority, canRetractSignal,
 } from './signals'
 import { supabase } from '@/lib/supabase'
@@ -88,7 +88,7 @@ const AUTHOR_ID = '00000000-0000-0000-0000-00000000d001'
 const TEAM_ID = '00000000-0000-0000-0000-00000000t001'
 
 const sampleSignal: SignalRow = {
-  id: SIGNAL_ID, author_id: AUTHOR_ID, owning_team_id: TEAM_ID,
+  id: SIGNAL_ID, author_id: AUTHOR_ID, owning_team_id: TEAM_ID, audience: 'org',
   occurred_at: '2026-07-16T02:00:00Z', body: 'Freezer alarm went off',
   attention: 'Needs attention', category: null, source: 'human',
   retracted_at: null, retract_reason: null, edited_at: null,
@@ -206,7 +206,6 @@ describe('createSignal', () => {
 
     const id = await createSignal({
       body: 'Freezer alarm went off @Peer',
-      owningTeamId: TEAM_ID,
       occurredAt: '2026-07-16T02:00:00Z',
       mentions: [{ kind: 'person', targetId: 'person-peer', label: 'Peer' }],
     })
@@ -219,7 +218,6 @@ describe('createSignal', () => {
       {
         p_body: 'Freezer alarm went off @Peer',
         p_attention: 'FYI',
-        p_owning_team_id: TEAM_ID,
         p_occurred_at: '2026-07-16T02:00:00Z',
         p_mentions: [{ kind: 'person', targetId: 'person-peer' }],
       },
@@ -230,17 +228,17 @@ describe('createSignal', () => {
     const rec = freshRec()
     mockSupabase({ 'rpc.create_signal_with_mentions': [{ data: SIGNAL_ID, error: null }] }, rec)
 
-    await createSignal({ body: 'No mentions here', owningTeamId: TEAM_ID, occurredAt: '2026-07-16T02:00:00Z', mentions: [] })
+    await createSignal({ body: 'No mentions here', occurredAt: '2026-07-16T02:00:00Z', mentions: [] })
     expect(rec.rpcs).toEqual([[
       'create_signal_with_mentions',
-      { p_body: 'No mentions here', p_owning_team_id: TEAM_ID, p_occurred_at: '2026-07-16T02:00:00Z', p_attention: 'FYI', p_mentions: [] },
+      { p_body: 'No mentions here', p_occurred_at: '2026-07-16T02:00:00Z', p_attention: 'FYI', p_mentions: [] },
     ]])
   })
 
   it('throws on an RPC error (nothing committed — the composer may safely retry)', async () => {
     const rec = freshRec()
     mockSupabase({ 'rpc.create_signal_with_mentions': [{ data: null, error: { message: 'insert failed' } }] }, rec)
-    await expect(createSignal({ body: 'X', owningTeamId: TEAM_ID, occurredAt: '2026-07-16T02:00:00Z', mentions: [] }))
+    await expect(createSignal({ body: 'X', occurredAt: '2026-07-16T02:00:00Z', mentions: [] }))
       .rejects.toThrow(/insert failed/)
   })
 
@@ -251,7 +249,7 @@ describe('createSignal', () => {
     }, rec)
 
     await expect(createSignal({
-      body: 'X', owningTeamId: TEAM_ID, occurredAt: '2026-07-16T02:00:00Z',
+      body: 'X', occurredAt: '2026-07-16T02:00:00Z',
       mentions: [{ kind: 'team', targetId: 'team-x', label: 'Team X' }],
     })).rejects.toThrow(/fan-out exceeds cap/)
   })
@@ -368,73 +366,6 @@ describe('linkSignalTask', () => {
 
     await expect(linkSignalTask(SIGNAL_ID, TASK_ID)).resolves.toBeUndefined()
     expect(rec.inserts).toEqual([{ signal_id: SIGNAL_ID, task_id: TASK_ID }])
-  })
-})
-
-// ── composer option loaders (B6) ──────────────────────────────────────────────
-describe('listReadableAuthorTeams', () => {
-  it('calls the destination RPC with the author id and returns its rows', async () => {
-    const rec = freshRec()
-    const rows = [{ id: 'team-a', name: 'OwnTeam', business_unit_id: 'bu-1', site_id: null, is_primary: true }]
-    mockSupabase({ 'rpc.teams_author_can_read_back': [{ data: rows, error: null }] }, rec)
-
-    await expect(listReadableAuthorTeams(AUTHOR_ID)).resolves.toEqual(rows)
-    expect(rec.rpcs).toEqual([['teams_author_can_read_back', { p_author_id: AUTHOR_ID }]])
-  })
-
-  it('throws on an RPC error', async () => {
-    const rec = freshRec()
-    mockSupabase({ 'rpc.teams_author_can_read_back': [{ data: null, error: { message: 'boom' } }] }, rec)
-    await expect(listReadableAuthorTeams(AUTHOR_ID)).rejects.toThrow(/boom/)
-  })
-
-  it('returns [] when the RPC data is null', async () => {
-    const rec = freshRec()
-    mockSupabase({ 'rpc.teams_author_can_read_back': [{ data: null, error: null }] }, rec)
-    await expect(listReadableAuthorTeams(AUTHOR_ID)).resolves.toEqual([])
-  })
-})
-
-describe('listAuthorTeams', () => {
-  it('reads active team_memberships for the person, joins client-side to teams, primary first', async () => {
-    const rec = freshRec()
-    mockSupabase({
-      'shared.team_memberships': [{
-        data: [
-          { team_id: 'team-b', is_primary: false },
-          { team_id: 'team-a', is_primary: true },
-        ], error: null,
-      }],
-      'shared.teams': [{
-        data: [
-          { id: 'team-a', name: 'OwnTeam', business_unit_id: 'bu-1', site_id: 'site-1' },
-          { id: 'team-b', name: 'SiblingTeam', business_unit_id: 'bu-1', site_id: null },
-        ], error: null,
-      }],
-    }, rec)
-
-    const teams = await listAuthorTeams(AUTHOR_ID)
-    expect(teams).toEqual([
-      { id: 'team-a', name: 'OwnTeam', business_unit_id: 'bu-1', site_id: 'site-1', is_primary: true },
-      { id: 'team-b', name: 'SiblingTeam', business_unit_id: 'bu-1', site_id: null, is_primary: false },
-    ])
-    expect(rec.eqs).toContainEqual(['person_id', AUTHOR_ID])
-    expect(rec.eqs).toContainEqual(['effective_to', null])
-    expect(rec.eqs.filter(([c]) => c === 'org_id')).toHaveLength(0)
-  })
-
-  it('returns [] without querying teams when the person has no active memberships', async () => {
-    const rec = freshRec()
-    mockSupabase({ 'shared.team_memberships': [{ data: [], error: null }] }, rec)
-    const teams = await listAuthorTeams(AUTHOR_ID)
-    expect(teams).toEqual([])
-    expect(rec.fromTables).not.toContain('shared.teams')
-  })
-
-  it('throws on a non-null PostgREST error', async () => {
-    const rec = freshRec()
-    mockSupabase({ 'shared.team_memberships': [{ data: null, error: { message: 'boom' } }] }, rec)
-    await expect(listAuthorTeams(AUTHOR_ID)).rejects.toThrow(/boom/)
   })
 })
 

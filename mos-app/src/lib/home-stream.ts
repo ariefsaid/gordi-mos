@@ -190,7 +190,7 @@ export function signalStreamItems(
     })
     .map((s) => {
       const authorName = names.authors.get(s.author_id)
-      const teamName = names.teams.get(s.owning_team_id)
+      const teamName = s.owning_team_id ? names.teams.get(s.owning_team_id) : undefined
       return {
         id: s.id,
         title: firstLine(s.body),

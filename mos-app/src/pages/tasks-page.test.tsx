@@ -27,9 +27,7 @@ vi.mock('../lib/db/directory', () => ({
 vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
 // Design fix wave item 1a: the due-runs membership-scoping loader (reused from signals.ts).
-vi.mock('../lib/db/signals', () => ({
-  listAuthorTeams: vi.fn(),
-}))
+vi.mock('../lib/db/signals', () => ({}))
 // Step 6 (Track C wiring, C1/C2): mocked at the DAL boundary, never a live DB.
 vi.mock('../lib/db/processes', () => ({
   canStartProcessForTeam: vi.fn(),
@@ -46,7 +44,6 @@ import { listTasks, getTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, listRoleNames } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
-import { listAuthorTeams } from '@/lib/db/signals'
 import { canStartProcessForTeam, listDueRuns, listRunRollups, listPendingTasks, resolvePendingTask, listTaskDefs } from '@/lib/db/processes'
 // Re-homed from the deleted TasksPage host onto the LIVE table surface (TasksWorkspace).
 // The host was a thin <PageFrame><TasksWorkspace/></PageFrame> wrapper, so every table
@@ -57,7 +54,6 @@ const mockListTasks = vi.mocked(listTasks)
 const mockGetTask = vi.mocked(getTask)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
-const mockListAuthorTeams = vi.mocked(listAuthorTeams)
 const mockListDueRuns = vi.mocked(listDueRuns)
 const mockCanStartProcessForTeam = vi.mocked(canStartProcessForTeam)
 const mockListRunRollups = vi.mocked(listRunRollups)
@@ -252,7 +248,6 @@ beforeEach(() => {
   // Design fix wave item 1a: zero memberships (the default fixture has none seeded) keeps every
   // due row — the "pure admin/capability grant" branch of the scoping rule. Tests that need
   // membership SCOPING set this explicitly.
-  mockListAuthorTeams.mockResolvedValue([])
 })
 
 // ── T-030: AC-067 — loading / error / empty states ─────────────────────────
@@ -1022,7 +1017,6 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
 
     await waitFor(() => screen.getByRole('link', { name: /\+ create task/i }))
     expect(mockListDueRuns).not.toHaveBeenCalled()
-    expect(mockListAuthorTeams).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: /due to start/i })).not.toBeInTheDocument()
   })
 

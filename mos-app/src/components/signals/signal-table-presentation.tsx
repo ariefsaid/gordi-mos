@@ -95,7 +95,7 @@ export function SignalTablePresentation({
     {
       key: 'team',
       header: t('signals.table.team'),
-      render: (signal) => context.teamNamesById.get(signal.owning_team_id) ?? '',
+      render: (signal) => signal.owning_team_id ? (context.teamNamesById.get(signal.owning_team_id) ?? '') : '',
     },
     {
       key: 'attention',

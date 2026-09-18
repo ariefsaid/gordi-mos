@@ -32,7 +32,7 @@ function row(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
     id: 'signal-1', author_id: 'person-author-a', owning_team_id: 'team-hq',
     occurred_at: '2026-07-16T02:00:00Z', body: 'The freezer alarm went off',
-    attention: 'FYI', category: null, source: 'human',
+    attention: 'FYI', category: null, audience: 'org',source: 'human',
     retracted_at: null, retract_reason: null, edited_at: null,
     created_at: '2026-07-16T02:00:00Z',
     ...overrides,
