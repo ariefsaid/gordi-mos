@@ -224,6 +224,10 @@ revoke execute on function mos.can_retract_signal(uuid) from public, anon, authe
 grant execute on function mos.can_retract_signal(uuid) to authenticated;
 
 -- ── Post RPC (AC-3/AC-5): drop the Team parameter, always write org audience ───────────────────
+-- The Team-taking overload (text, uuid, timestamptz, jsonb, text) is retired with the team
+-- audience. Signatures differ, so create-or-replace cannot retire an overload — it must be dropped
+-- explicitly, leaving only the 4-arg All-Teams form.
+drop function if exists mos.create_signal_with_mentions(text, uuid, timestamptz, jsonb, text);
 create or replace function mos.create_signal_with_mentions(
   p_body text,
   p_occurred_at timestamptz,

@@ -2,7 +2,7 @@
 -- Team, its immutability, and the org-wide signal.tag authority rollout.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(9);
+select plan(11);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_signal_tree();
@@ -25,6 +25,12 @@ select throws_ok($$
   values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d1',
           'team', null, now(), 'Team row without a Team')
 $$, '23514', null, 'a team-audience row cannot omit its owning Team (coupling CHECK)');
+
+-- ── Post RPC: the Team-taking overload is gone; only the All-Teams form remains ────────────
+select hasnt_function('mos', 'create_signal_with_mentions', ARRAY['text','uuid','timestamptz','jsonb','text'],
+  'the retired Team-taking RPC overload is dropped, not merely hidden by an overload');
+select has_function('mos', 'create_signal_with_mentions', ARRAY['text','timestamptz','jsonb','text'],
+  'the All-Teams RPC signature is the only post path exposed');
 
 -- ── owner/team columns: owning_team_id nullable for org rows; audience always present ────────
 select is((select is_nullable from information_schema.columns
