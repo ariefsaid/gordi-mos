@@ -217,7 +217,7 @@ export function signalMatchesText(
 ): boolean {
   if (!term) return true
   const author = names.authorNamesById.get(signal.author_id) ?? ''
-  const team = names.teamNamesById.get(signal.owning_team_id) ?? ''
+  const team = signal.owning_team_id ? (names.teamNamesById.get(signal.owning_team_id) ?? '') : ''
   return `${signal.body} ${author} ${team}`.toLowerCase().includes(term)
 }
 
@@ -275,7 +275,7 @@ function groupSignals(
   for (const signal of rows) {
     const key =
       query.groupBy === 'team'
-        ? signal.owning_team_id
+        ? signal.owning_team_id ?? ''
         : query.groupBy === 'attention'
           ? signal.attention
           : signal.category ?? ''

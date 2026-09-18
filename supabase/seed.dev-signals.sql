@@ -57,27 +57,27 @@ begin
   );
 
   insert into mos.signals
-    (id, org_id, author_id, owning_team_id, occurred_at, body, attention, category)
+    (id, org_id, author_id, audience, occurred_at, body, attention, category)
   values
-    (sig1, v_org, p_dewi, t_hq, now() - interval '30 minutes',
+    (sig1, v_org, p_dewi, 'org', now() - interval '30 minutes',
        'Grinder 2 at HQ bar is throwing inconsistent doses — pulled it for a burr check. @Cahya heads up for the morning rush.',
        'Urgent', 'Equipment/facility'),
-    (sig2, v_org, p_cahya, t_radiant, now() - interval '3 hours',
+    (sig2, v_org, p_cahya, 'org', now() - interval '3 hours',
        'Oat milk delivery short by 6 cartons this week; vendor says catch-up ships Thursday.',
        'Needs attention', 'Supply/vendor'),
-    (sig3, v_org, p_krishna, t_roastery, now() - interval '1 day',
+    (sig3, v_org, p_krishna, 'org', now() - interval '1 day',
        'Brazil single-origin roast came out a touch light — adjusting the profile for the next batch.',
        'FYI', 'Quality'),
-    (sig4, v_org, p_dewi, t_hq, now() - interval '2 days',
+    (sig4, v_org, p_dewi, 'org', now() - interval '2 days',
        'Front-of-house floor felt calm and well-staffed through the lunch peak today. Nice work team.',
        'FYI', null),
-    (sig5, v_org, p_cahya, t_radiant, now() - interval '5 hours',
+    (sig5, v_org, p_cahya, 'org', now() - interval '5 hours',
        'Regular wholesale customer asked about a standing weekly bean order — worth a follow-up.',
        'Needs attention', 'Customer'),
-    (sig6, v_org, p_krishna, t_roastery, now() - interval '4 days',
+    (sig6, v_org, p_krishna, 'org', now() - interval '4 days',
        'Duplicate of the freezer-alarm report above — filed twice by mistake.',
        'FYI', null),
-    (sig7, v_org, p_dewi, t_hq, now() - interval '6 hours',
+    (sig7, v_org, p_dewi, 'org', now() - interval '6 hours',
        'HQ bar espresso volumes are down about 10% this week versus last week.',
        'Needs attention', 'Quality');
 

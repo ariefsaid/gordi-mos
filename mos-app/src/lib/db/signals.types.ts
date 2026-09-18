@@ -11,7 +11,8 @@ export type SignalCategory = typeof SIGNAL_CATEGORIES[number]
 export type MentionKind = 'person' | 'team' | 'bu'
 
 export interface SignalRow {
-  id: string; author_id: string; owning_team_id: string; occurred_at: string; body: string
+  id: string; author_id: string; owning_team_id: string | null; occurred_at: string; body: string
+  audience: 'org' | 'team'
   attention: Attention; category: SignalCategory | null; source: 'human' | 'shared_record' | 'rule'
   retracted_at: string | null; retract_reason: string | null; edited_at: string | null; created_at: string
   retracted_by?: string | null; retracted_by_name?: string | null
@@ -19,4 +20,4 @@ export interface SignalRow {
 export interface StagedMention { kind: MentionKind; targetId: string; label: string }
 export interface TeamOption { id: string; name: string; business_unit_id: string; site_id: string | null; is_primary: boolean }
 export interface SiteOption { id: string; name: string }
-export interface CreateSignalInput { body: string; owningTeamId: string; occurredAt: string; attention?: Attention; mentions: StagedMention[] }
+export interface CreateSignalInput { body: string; occurredAt: string; attention?: Attention; mentions: StagedMention[] }

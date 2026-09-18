@@ -135,7 +135,7 @@ export function SignalFeedRows({
               )
             }
             const authorName = authorNamesById[signal.author_id] ?? t('signals.card.unknownAuthor')
-            const teamName = teamNamesById[signal.owning_team_id] ?? ''
+            const teamName = signal.owning_team_id ? (teamNamesById[signal.owning_team_id] ?? '') : ''
             const categoryLabel = signal.category ? signalCategoryLabel(t, signal.category) : null
             // F3 (OD-REDESIGN-91 #18): the archive row-fill is URGENT ONLY — the amber fill + 2px
             // rule is the "act now" top tier. Needs attention keeps its amber pill on a calm row.

@@ -382,7 +382,9 @@ export function SignalFacts({
   const t = useT()
   const rows: { label: string; value: ReactNode }[] = [
     { label: t('signals.record.reportedBy'), value: authorName },
-    { label: t('signals.record.owningTeam'), value: teamName },
+    // The Team fact exists only on retired team-audience rows — an All Teams Signal has no owning
+    // Team (ticket 867), so no Team chip is rendered.
+    ...(teamName ? [{ label: t('signals.record.owningTeam'), value: teamName }] : []),
     ...(businessUnitName ? [{ label: t('signals.record.businessUnit'), value: businessUnitName }] : []),
     ...(siteName ? [{ label: t('signals.record.site'), value: siteName }] : []),
   ]

@@ -88,7 +88,7 @@ vi.mock('../shell/signal-composer-host', () => ({
 
 function signalRow(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
-    id: 's-1', author_id: 'author-1', owning_team_id: 'team-1',
+    id: 's-1', author_id: 'author-1', owning_team_id: 'team-1', audience: 'team',
     occurred_at: '2026-08-05T02:00:00Z',
     body: 'Grinder is jamming on the second hopper',
     attention: 'FYI', category: 'Equipment/facility', source: 'human',

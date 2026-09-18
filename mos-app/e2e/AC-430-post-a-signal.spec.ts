@@ -18,22 +18,19 @@ for (const locale of ['en', 'id'] as const) {
     const body = `AC-430 observation ${locale} ${Date.now()}`
     const authorEmail = 'bulan.dev@example.test'
     const recipientEmail = 'fitri.dev@example.test'
-    // Prove the seeded actor is active and unrelated to the destination.
+    // Prove the seeded actors are active same-org members (the All Teams audience needs no Team).
     const [fixture] = await localSqlRead<{ eligible: boolean }>(`
-      select (author.org_id = recipient.org_id and author.org_id = team.org_id
-        and author.archived_at is null and recipient.archived_at is null and team.archived_at is null
-        and not exists (select 1 from shared.team_memberships m
-          where m.person_id = author.id and m.team_id = team.id
-            and m.effective_from <= current_date and (m.effective_to is null or m.effective_to >= current_date))) as eligible
-      from shared.people author, shared.people recipient, shared.teams team
-      where author.email = '${authorEmail}' and recipient.email = '${recipientEmail}' and team.name = 'Finance Team'
+      select (author.org_id = recipient.org_id
+        and author.archived_at is null and recipient.archived_at is null) as eligible
+      from shared.people author, shared.people recipient
+      where author.email = '${authorEmail}' and recipient.email = '${recipientEmail}'
     `)
     expect(fixture?.eligible).toBe(true)
     await page.addInitScript((value) => localStorage.setItem('mos.locale', value), locale)
     await loginAs(page, authorEmail, DEMO_PASSWORD)
     await page.goto('work/signals')
     let failDirectory = true
-    await page.route('**/rest/v1/rpc/teams_author_can_read_back', async (route) => {
+    await page.route('**/rest/v1/people*', async (route) => {
       if (failDirectory) {
         await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ message: 'Directory unavailable' }) })
       } else await route.continue()
@@ -48,9 +45,6 @@ for (const locale of ['en', 'id'] as const) {
     failDirectory = false
     await composer.getByRole('button', { name: t['common.retry'], exact: true }).click()
     await expect(content).toHaveValue(body)
-    const teamPicker = composer.getByRole('combobox', { name: t['signals.composer.teamLabel'], exact: true })
-    await teamPicker.click()
-    await page.getByRole('listbox').last().getByRole('option', { name: 'Finance Team', exact: true }).click()
     await content.pressSequentially(' @Fitri')
     await composer.getByRole('option', { name: /Fitri Finance/ }).click()
     await expect(content).toBeFocused()
@@ -123,7 +117,6 @@ for (const locale of ['en', 'id'] as const) {
     await page.screenshot({ path: testInfo.outputPath(`${locale}-tombstone.png`) })
     await page.getByRole('button', { name: t['signals.record.repost'], exact: true }).click()
     await expect(content).toHaveValue(new RegExp(body))
-    await expect(composer.getByRole('combobox', { name: t['signals.composer.teamLabel'], exact: true })).toContainText('Finance Team')
     await content.fill(`${body} corrected`)
     await composer.getByRole('button', { name: t['signals.action.share'], exact: true }).click()
     await expect(composer).not.toBeVisible()

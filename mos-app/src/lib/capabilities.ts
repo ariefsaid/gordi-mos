@@ -4,8 +4,9 @@
 //
 // The seed now lives in the squashed baseline, `supabase/migrations/20260805000006_mos_access_control.sql`
 // (the old 20260708000001 chain was discarded by Stage 1). The signal.* rows below are copied from
-// that file, role for role — grep `signal.create_for_team` there and the three blocks line up. This
-// map is a MIRROR, so it is only ever as true as the last person who checked it; the boundary is
+// that file, role for role — grep `signal.create_for_team` there and the three blocks line up (the
+// retired composer Team gate was removed from the seed by ticket 867, and this mirror excludes it).
+// This map is a MIRROR, so it is only ever as true as the last person who checked it; the boundary is
 // RLS and `shared.can()` (ADR-0020 D4 / FR-333 / NFR-004), and a wrong entry here costs an affordance,
 // never an authorization.
 //
@@ -20,13 +21,13 @@
 export const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
   admin: [
     'objective.manage', 'workline.manage', 'followup.confirm',
-    'signal.create_for_team', 'signal.mention_bu', 'signal.retract',
+    'signal.mention_bu', 'signal.retract',
     'process.start', 'process.adopt',
   ],
   finance: ['followup.confirm', 'signal.mention_bu', 'signal.retract'],
   ops_lead: [
     'objective.manage', 'workline.manage',
-    'signal.create_for_team', 'signal.mention_bu', 'signal.retract', 'process.start',
+    'signal.mention_bu', 'signal.retract', 'process.start',
   ],
   // process.start (ADR-0051 D8 / OD-REDESIGN-71(iii), supabase/migrations/20260805000006):
   // the person who runs the floor starts the day. Safe client-side because

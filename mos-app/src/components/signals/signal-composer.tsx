@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
-import { Picker } from '@/components/ui/picker'
-import { EmptyState, ErrorState } from '@/components/ui/state-kit'
+import { ErrorState } from '@/components/ui/state-kit'
 import {
-  listReadableAuthorTeams, listAllTeams, getTeamSite, createSignal, dedupeRecipients, type MemberLookup,
+  listAllTeams, createSignal, dedupeRecipients, type MemberLookup,
 } from '@/lib/db/signals'
-import type { TeamOption, SiteOption, StagedMention, MentionKind, Attention } from '@/lib/db/signals.types'
+import type { TeamOption, StagedMention, MentionKind, Attention } from '@/lib/db/signals.types'
 import type { SignalComposerPrefill } from '@/shell/signal-composer-host'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { currentMentionToken, type MentionCandidate } from '@/lib/comments/mentions'
@@ -14,22 +13,17 @@ import { SignalMentionPicker, type SignalMentionPickerHandle } from './signal-me
 import { SignalAttentionPicker } from './signal-attention-picker'
 import './signal-composer.css'
 
-// FB-style Signal composer (PORT convergence `sigComposer` — Rule 11). Capture-minimal (Rule 8 /
-// OD-42 / D28): exactly four capture fields at initial paint — content, owning Team, occurrence
-// time, and the implicit read-only author line. Every enrichment (the `@` mention picker, the
-// visibility/fan-out preview line, and the derived Site pill) never blocks Share Signal.
-
+// All Teams Signal composer. Every Signal is org-wide with no owning Team, so capture is minimal
+// (Rule 8 / OD-42 / D28): content, occurrence time, and the implicit read-only author line at the
+// first paint. Enrichment (the `@` mention picker and the notify-N preview) never blocks Share.
 export interface SignalComposerProps {
   authorId: string
   authorName: string
-  /** Legacy alias for the runtime signal.tag decision. The Owning Team select always uses the
-   * database's post-and-read-back list. Defaults to false (fail-closed). */
-  canCreateForTeam?: boolean
+  /** Effective runtime signal.tag authority; also unlocks org-wide Person/Team/BU tagging. */
+  canTag?: boolean
   /** Legacy-compatible @BU picker gate. The shell supplies the effective signal.tag decision;
    * defaults to false (fail-closed). */
   canMentionBu?: boolean
-  /** Effective runtime signal.tag authority. Also unlocks org-wide Person/Team tagging. */
-  canTag?: boolean
   /** Team/BU id → member person ids, for the fan-out preview count (AC-422). Supplied by the
    * caller from a directory cache — the composer never queries a full org roster on its own. */
   teamMembers?: MemberLookup
@@ -46,19 +40,14 @@ function toDatetimeLocalValue(date: Date): string {
 }
 
 export function SignalComposer({
-  authorId, authorName, canCreateForTeam = false, canMentionBu = false, canTag,
+  authorId, authorName, canTag, canMentionBu = false,
   teamMembers = {}, buMembers = {}, onShared, prefill,
   onDirtyChange, textareaRef: externalTextareaRef,
 }: SignalComposerProps) {
   const t = useT()
-  const [teams, setTeams] = useState<TeamOption[]>([])
   const [mentionTeams, setMentionTeams] = useState<TeamOption[]>([])
-  const [teamsLoaded, setTeamsLoaded] = useState(false)
   const [directoryError, setDirectoryError] = useState(false)
   const [directoryAttempt, setDirectoryAttempt] = useState(0)
-  const [teamId, setTeamId] = useState(prefill?.owningTeamId ?? '')
-  const [primaryTeamId, setPrimaryTeamId] = useState('')
-  const [site, setSite] = useState<SiteOption | null>(null)
   const [people, setPeople] = useState<MentionCandidate[]>([])
   const [businessUnits, setBusinessUnits] = useState<MentionCandidate[]>([])
   const [body, setBody] = useState(prefill?.body ?? '')
@@ -80,71 +69,42 @@ export function SignalComposer({
 
   useEffect(() => {
     let cancelled = false
-    setTeamsLoaded(false)
     setDirectoryError(false)
-    // The owning Team select uses the database's post/read gate. Mention reach is a separate
-    // runtime signal.tag decision; never fall back to the viewer's membership list because every
-    // org member may tag any active Person or Team when that authority is granted.
-    const teamsLoad = listReadableAuthorTeams(authorId)
-    const tagAuthority = canTag ?? canCreateForTeam
+    // All Teams rows need no owning-Team options. Mention reach is a separate runtime signal.tag
+    // decision; never fall back to the viewer's membership list because every org member may tag
+    // any active Person or Team when that authority is granted.
+    const tagAuthority = canTag ?? false
     const mentionTeamsLoad = tagAuthority ? listAllTeams() : Promise.resolve([] as TeamOption[])
     const peopleLoad = tagAuthority ? getPeople() : Promise.resolve([])
     // Keep the BU roster loaded even when the picker is disabled so the UI can explain the
     // effective signal.tag boundary with a disabled option rather than hiding the group.
     const businessUnitsLoad = getBusinessUnits()
-    Promise.all([teamsLoad, mentionTeamsLoad, peopleLoad, businessUnitsLoad]).then(([
-      teamOptions, mentionTeamOptions, peopleOptions, buOptions,
+    Promise.all([mentionTeamsLoad, peopleLoad, businessUnitsLoad]).then(([
+      mentionTeamOptions, peopleOptions, buOptions,
     ]) => {
       if (cancelled) return
-      setTeams(teamOptions)
       setMentionTeams(mentionTeamOptions)
-      const primary = teamOptions.find((o) => o.is_primary) ?? teamOptions[0]
-      // primaryTeamId always tracks the author's home Team (drives the cross-Team destination
-      // preview), independent of what is *selected*.
-      if (primary) setPrimaryTeamId(primary.id)
-      // OD-REDESIGN-91 #19 (F4): a single eligible Team auto-picks; with more than one the poster
-      // MUST pick the owning Team — no pre-select, no arbitrary first (Share stays disabled until
-      // a Team is chosen).
-      if (prefill?.owningTeamId && teamOptions.some((team) => team.id === prefill.owningTeamId)) setTeamId(prefill.owningTeamId)
-      else if (teamOptions.length === 1) setTeamId(teamOptions[0].id)
-      else setTeamId('')
       setPeople(tagAuthority ? peopleOptions.filter((p) => p.id !== authorId).map((p) => ({ id: p.id, label: p.full_name })) : [])
       setBusinessUnits(buOptions.map((bu) => ({ id: bu.id, label: bu.name })))
     }).catch(() => { if (!cancelled) setDirectoryError(true) })
-      .finally(() => { if (!cancelled) setTeamsLoaded(true) })
     return () => { cancelled = true }
-  }, [authorId, canCreateForTeam, canMentionBu, canTag, prefill, directoryAttempt])
-
-  // The Site pill is derived from the owning Team — never a mention target (D37). Re-resolved
-  // whenever the selected Team changes (including the cross-Team destination switch, B10).
-  useEffect(() => {
-    if (!teamId) { setSite(null); return }
-    let cancelled = false
-    getTeamSite(teamId)
-      .then((resolved) => { if (!cancelled) setSite(resolved) })
-      .catch(() => { if (!cancelled) setSite(null) })
-    return () => { cancelled = true }
-  }, [teamId])
+  }, [authorId, canTag, canMentionBu, prefill, directoryAttempt])
 
   const teamCandidates: MentionCandidate[] = mentionTeams.map((team) => ({ id: team.id, label: team.name }))
-  const selectedTeam = teams.find((team) => team.id === teamId) ?? null
-  const isCrossTeam = !!primaryTeamId && teamId !== primaryTeamId
   const notifyCount = dedupeRecipients(mentions, teamMembers, buMembers)
   // SR-1 (owner ruling — "notify N people"): the count carries its noun. English inflects
   // person/people by count; Indonesian "orang" is invariant (both keys resolve to it). The caller
   // resolves the noun in the active locale and threads it as ${noun}.
   const notifyNoun = t(notifyCount === 1 ? 'signals.notify.person' : 'signals.notify.people')
-  const shieldLine = !selectedTeam ? '' : isCrossTeam
-    ? t('signals.composer.postTo', { team: selectedTeam.name, attention, count: notifyCount, noun: notifyNoun })
-    : notifyCount > 0
-      ? t('signals.composer.visibleToNotify', { team: selectedTeam.name, count: notifyCount, noun: notifyNoun })
-      : t('signals.composer.visibleTo', { team: selectedTeam.name })
+  const shieldLine = notifyCount > 0
+    ? t('signals.composer.shareAllNotify', { count: notifyCount, noun: notifyNoun })
+    : t('signals.composer.shareAll')
 
   function handleBodyChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const value = e.target.value
     setBody(value)
     onDirtyChange?.(Boolean(value.trim()))
-    const token = ((canTag ?? canCreateForTeam) || canMentionBu)
+    const token = ((canTag ?? false) || canMentionBu)
       ? currentMentionToken(value, e.target.selectionStart ?? value.length)
       : null
     setMentionToken(token)
@@ -166,12 +126,12 @@ export function SignalComposer({
 
   async function submit() {
     const trimmedBody = body.trim()
-    if (!trimmedBody || !selectedTeam || posting) return
+    if (!trimmedBody || posting) return
     setPosting(true)
     setError(null)
     try {
       const occurredIso = new Date(occurredAt).toISOString()
-      const id = await createSignal({ body: trimmedBody, owningTeamId: selectedTeam.id, occurredAt: occurredIso, attention, mentions })
+      const id = await createSignal({ body: trimmedBody, occurredAt: occurredIso, attention, mentions })
       setBody('')
       setMentions([])
       setMentionToken(null)
@@ -185,20 +145,6 @@ export function SignalComposer({
     } finally {
       setPosting(false)
     }
-  }
-
-  // Empty eligible-Team results are distinct from a failed directory read.
-  if (teamsLoaded && !directoryError && teams.length === 0) {
-    return (
-      <div className="signal-composer" data-testid="signal-composer">
-        <EmptyState
-          variant="blank"
-          title={t('signals.composer.noTeams.title')}
-          copy={t('signals.composer.noTeams.copy')}
-          note={t('signals.composer.noTeams.note')}
-        />
-      </div>
-    )
   }
 
   return (
@@ -221,8 +167,6 @@ export function SignalComposer({
           // handler runs; the marker is what tells it to stand down. It is keyed to the open
           // token because the marker must NOT outlive the popover — with no suggestion list on
           // screen, Escape is the host's again.
-          // The listbox keeps focus on the textarea (a combobox does), so the marker belongs
-          // here, on the element the key actually reaches.
           data-escape-layer={mentionToken ? 'nested' : undefined}
           onKeyDown={(e) => {
             // GAP-8 combobox idiom: while the popover is open, forward ArrowUp/Down/Home/End/Enter/
@@ -259,11 +203,6 @@ export function SignalComposer({
       </div>
 
       <div className="signal-composer-context" aria-label={t('signals.composer.contextLabel')}>
-        {site && (
-          <span className="signal-composer-context-pill signal-composer-pill" data-testid="signal-site-pill" title={t('signals.composer.siteHint')}>
-            <span aria-hidden="true">⌖</span>{site.name}
-          </span>
-        )}
         <SignalAttentionPicker id="signals-compose-attention" value={attention} onChange={(next) => { setAttention(next); onDirtyChange?.(true) }} />
         <label className="signal-composer-context-pill signal-composer-occurred-pill">
           <span aria-hidden="true">◷</span>
@@ -278,28 +217,7 @@ export function SignalComposer({
         </label>
       </div>
 
-      {teams.length > 1 ? (
-        <div className="signal-composer-team-choice">
-          <Picker
-            id="signals-compose-team"
-            label={t('signals.composer.teamLabel')}
-            value={teamId}
-            options={teams.map((team) => ({ value: team.id, label: team.name }))}
-            placeholder={t('signals.composer.teamPlaceholder')}
-            required
-            fullWidth
-            onChange={(next) => { setTeamId(next); onDirtyChange?.(true) }}
-          />
-        </div>
-      ) : selectedTeam ? (
-        <p className="signal-composer-identity">
-          <span>{t('signals.composer.owningTeamImplicit', { team: selectedTeam.name })}</span>
-          <span aria-hidden="true"> · </span>
-          <span>{t('signals.composer.author', { name: authorName })}</span>
-        </p>
-      ) : null}
-
-      {teams.length > 1 && <p className="signal-composer-author">{t('signals.composer.author', { name: authorName })}</p>}
+      <p className="signal-composer-author">{t('signals.composer.author', { name: authorName })}</p>
 
       {shieldLine && <p className="signal-composer-vis">{shieldLine}</p>}
 
@@ -312,7 +230,7 @@ export function SignalComposer({
           <span className="signal-composer-send-hint">{t('signals.composer.sendHint')}</span>
           <Button
             variant="primary"
-            disabled={!body.trim() || !selectedTeam || posting}
+            disabled={!body.trim() || posting}
             aria-busy={posting}
             onClick={() => { void submit() }}
           >

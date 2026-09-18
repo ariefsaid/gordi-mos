@@ -39,7 +39,8 @@ _Avoid_: department, division; operating area (that's an **Activity**)
 
 **Team**:
 A concrete group of people within one Business Unit. A person may belong to several Teams.
-Teams organize day-to-day ownership and let people direct a Signal to the people who can act on it.
+Teams organize day-to-day ownership; a Signal that matters to a specific group is directed to its
+people through the `@` mention picker (mention-only notifications).
 
 **Team lead**:
 An active Team member explicitly designated to lead that Team by an administrator. The designation
@@ -271,11 +272,13 @@ _Avoid_: watcher, CC, stakeholder
 ## Cadence
 
 **Signal**:
-A short update about a condition, event or request, posted by a person and associated with a
-**Team** — body + when it occurred +
+A short update about a condition, event or request, posted by a person with an **All Teams**
+audience — body + when it occurred +
 an **attention level** (**FYI · Needs attention · Urgent**) + optional category, with mentions
-(person / team / BU). Any organization member can post and tag people or Teams across the organization
-to draw their attention to something that needs action. No owner, RACI, or Status; a Signal can spawn a
+(person / team / BU). Every active org member reads every Signal (passive — never a notification);
+notifications are mention-only, so attention is drawn by tagging people, Teams, or BUs with `@`.
+The Team audience is a retired historical state: old Team-scoped rows keep their read grants, but new
+Signals are always All Teams with no owning Team. No owner, RACI, or Status; a Signal can spawn a
 follow-up **Task** that carries its context. Retracted, never deleted (a retracted Signal is a
 tombstone). Surfaces: the `/work/signals` archive, the Signal record page, and the global composer.
 _Avoid_: Task status (a Signal has no work lifecycle), notification (the delivery of an update),

@@ -15,7 +15,6 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 update mention_ids
    set signal_id = mos.create_signal_with_mentions(
      'Member BU mention',
-     '00000000-0000-0000-0000-000000005b01',
      now(),
      jsonb_build_array(jsonb_build_object(
        'kind', 'bu',
@@ -50,7 +49,6 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select throws_ok($$
   select mos.create_signal_with_mentions(
     'Denied BU mention',
-    '00000000-0000-0000-0000-000000005b01',
     now(),
     jsonb_build_array(jsonb_build_object(
        'kind', 'bu',

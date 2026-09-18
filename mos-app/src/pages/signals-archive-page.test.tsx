@@ -79,7 +79,7 @@ const mockCreateCollectionView = vi.mocked(createCollectionView)
 
 function row(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
-    id: 'signal-1', author_id: 'person-author-a', owning_team_id: 'team-hq',
+    id: 'signal-1', author_id: 'person-author-a', owning_team_id: 'team-hq', audience: 'team',
     occurred_at: '2026-07-16T02:00:00Z', body: 'The freezer alarm went off',
     attention: 'Needs attention', category: null, source: 'human',
     retracted_at: null, retract_reason: null, edited_at: null,
@@ -1056,5 +1056,26 @@ describe('issue #770 — AC-031: the archive renders one language at a time (ID)
     expect(within(tableBody).getByText('Perlu perhatian')).toBeInTheDocument()
     expect(within(tableBody).getByText('Mendesak')).toBeInTheDocument()
     expect(within(tableBody).getByText('FYI')).toBeInTheDocument()
+  })
+})
+
+describe('signals Team filter — historical team rows vs All Teams (AC-8)', () => {
+  it('the Team filter still matches historical team rows while All Teams rows (no Team) stay neutral', async () => {
+    localStorage.setItem('mos.locale', 'en')
+    mockListReadableSignals.mockResolvedValue([
+      // An All Teams Signal has no owning Team, so it belongs to no Team bucket; a historical
+      // team-audience Signal keeps its owning Team.
+      row({ id: 's-org', body: 'All teams observation', audience: 'org', owning_team_id: null }),
+      row({ id: 's-hist', body: 'Retired team note', audience: 'team', owning_team_id: 'team-radiant' }),
+    ])
+    renderPage('/work/signals?layout=table')
+    await waitFor(() => expect(screen.getByText('All teams observation')).toBeInTheDocument())
+    expect(screen.getByText('Retired team note')).toBeInTheDocument()
+
+    // Filtering by a Team keeps the historical team row and excludes the org-wide (Team-less) row.
+    await userEvent.click(screen.getByRole('combobox', { name: 'Team' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'Radiant Operations' }))
+    expect(screen.getByText('Retired team note')).toBeInTheDocument()
+    expect(screen.queryByText('All teams observation')).not.toBeInTheDocument()
   })
 })

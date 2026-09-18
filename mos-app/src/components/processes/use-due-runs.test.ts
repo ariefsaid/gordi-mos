@@ -6,8 +6,6 @@ import type { DueProcessRun, SpawnResult } from '@/lib/db/processes.types'
 vi.mock('@/lib/db/processes', () => ({ listDueRuns: vi.fn(), startRun: vi.fn() }))
 import { listDueRuns, startRun } from '@/lib/db/processes'
 
-vi.mock('@/lib/db/signals', () => ({ listAuthorTeams: vi.fn() }))
-import { listAuthorTeams } from '@/lib/db/signals'
 
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -16,7 +14,6 @@ import { useDueRuns } from './use-due-runs'
 
 const mockListDueRuns = vi.mocked(listDueRuns)
 const mockStartRun = vi.mocked(startRun)
-const mockListAuthorTeams = vi.mocked(listAuthorTeams)
 const mockUseAuth = vi.mocked(useAuth)
 
 const VIEWER_ID = '40000000-0000-0000-0000-000000000001'
@@ -48,7 +45,6 @@ function dueRow(overrides: Partial<DueProcessRun> = {}): DueProcessRun {
 beforeEach(() => {
   vi.clearAllMocks()
   mockListDueRuns.mockResolvedValue([])
-  mockListAuthorTeams.mockResolvedValue([])
 })
 
 describe('useDueRuns (design fix wave item 1)', () => {
@@ -120,7 +116,6 @@ describe('useDueRuns (design fix wave item 1)', () => {
     mockListDueRuns.mockResolvedValue([])
     renderHook(() => useDueRuns())
     await waitFor(() => expect(mockListDueRuns).toHaveBeenCalled())
-    expect(mockListAuthorTeams).not.toHaveBeenCalled()
   })
 
   it('handleStart calls startRun, fires onStarted, and refetches the due list', async () => {
