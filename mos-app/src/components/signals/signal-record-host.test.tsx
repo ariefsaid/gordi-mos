@@ -91,7 +91,7 @@ const TEAM_ID = 'team-hq'
 const BU_ID = 'bu-retail'
 
 const baseSignal = {
-  id: SIGNAL_ID, author_id: 'person-dewi', owning_team_id: TEAM_ID, audience: 'org' as const,
+  id: SIGNAL_ID, author_id: 'person-dewi', owning_team_id: TEAM_ID, audience: 'team' as const,
   occurred_at: '2026-07-16T02:00:00Z', body: 'The freezer alarm went off',
   attention: 'Needs attention' as const, category: null, source: 'human' as const,
   retracted_at: null, retract_reason: null, edited_at: null,

@@ -45,11 +45,11 @@ declare
   v_team_org   uuid;
   v_author_org uuid;
 begin
-  -- SAME-ORG REFERENCES, checked on INSERT as well as UPDATE — which is why this trigger is no
-  -- longer UPDATE-only. owning_team_id (historical rows only) and author_id are existence-only FKs
-  -- into org-scoped tables. The INSERT policy pins the row's own org_id and pins author_id to the
-  -- session person. Compared against new.org_id, the idiom the sibling guards use, so the rule
-  -- states the row's own internal consistency and holds identically on the seed and service paths.
+  -- SAME-ORG REFERENCES, checked on INSERT as well as UPDATE (the trigger fires on both). The
+  -- INSERT half pins owning_team_id (historical rows only) and author_id to the row's own org via
+  -- existence-only FKs; the UPDATE half (further down) guards the immutable columns. Compared
+  -- against new.org_id, the idiom the sibling guards use, so the rule states the row's own
+  -- internal consistency and holds identically on the seed and service paths.
   if new.owning_team_id is not null then
     select t.org_id into v_team_org from shared.teams t where t.id = new.owning_team_id;
     if v_team_org is distinct from new.org_id then

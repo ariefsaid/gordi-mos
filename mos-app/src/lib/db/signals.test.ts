@@ -88,7 +88,7 @@ const AUTHOR_ID = '00000000-0000-0000-0000-00000000d001'
 const TEAM_ID = '00000000-0000-0000-0000-00000000t001'
 
 const sampleSignal: SignalRow = {
-  id: SIGNAL_ID, author_id: AUTHOR_ID, owning_team_id: TEAM_ID, audience: 'org',
+  id: SIGNAL_ID, author_id: AUTHOR_ID, owning_team_id: TEAM_ID, audience: 'team',
   occurred_at: '2026-07-16T02:00:00Z', body: 'Freezer alarm went off',
   attention: 'Needs attention', category: null, source: 'human',
   retracted_at: null, retract_reason: null, edited_at: null,

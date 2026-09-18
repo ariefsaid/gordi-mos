@@ -184,6 +184,25 @@ describe('SignalComposer — Shift+Enter send (OD-REDESIGN-91 #10)', () => {
 })
 
 describe('SignalComposer — safe retry after a failed post (CQ IMPORTANT-1)', () => {
+  it('maps a blocked-posting error to the permission message and resets the in-flight state', async () => {
+    // A policy/RLS-shaped denial (42501) surfaces the human permission message, never raw Postgres
+    // internals (SECURITY-LOW-1 / D11 sanitization at the composer seam).
+    mockCreateSignal.mockRejectedValueOnce(new Error('new row violates row-level security policy'))
+    renderComposer()
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
+
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'The freezer alarm went off')
+    await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/permission to share this Signal/i)
+    expect(screen.queryByText(/row-level security/i)).not.toBeInTheDocument()
+    // Posting reset: the Sharing in-flight state cleared and Share is enabled again for a retry.
+    expect(screen.queryByRole('button', { name: /sharing/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /share signal/i })).toBeEnabled()
+    expect(body).toHaveValue('The freezer alarm went off')
+  })
+
   it('keeps the typed body and re-enables Share Signal when the post fails, then a retry succeeds', async () => {
     mockCreateSignal.mockRejectedValueOnce(new Error('fan-out exceeds cap of 50 recipients'))
     renderComposer()

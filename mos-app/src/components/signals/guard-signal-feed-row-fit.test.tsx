@@ -54,7 +54,7 @@ function ruleBody(pattern: RegExp): string {
 
 function signal(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
-    id: 'signal-1', author_id: 'p-dewi', owning_team_id: 'team-hq', audience: 'org',
+    id: 'signal-1', author_id: 'p-dewi', owning_team_id: 'team-hq', audience: 'team',
     occurred_at: '2026-07-23T15:57:00Z',
     body: 'Grinder 2 at HQ bar is throwing coarse and needs a burr replacement before open',
     attention: 'Urgent', category: null, source: 'human',

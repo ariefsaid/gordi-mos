@@ -22,7 +22,7 @@ const LONG_BODY =
 
 function makeSignal(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
-    id: 'signal-1', author_id: 'p-author', owning_team_id: 't-1', audience: 'org', occurred_at: '2026-07-20T08:00:00Z',
+    id: 'signal-1', author_id: 'p-author', owning_team_id: 't-1', audience: 'team', occurred_at: '2026-07-20T08:00:00Z',
     body: LONG_BODY, attention: 'Needs attention', category: 'Quality', source: 'human',
     retracted_at: null, retract_reason: null, edited_at: '2026-07-20T09:00:00Z',
     created_at: '2026-07-20T08:05:00Z', ...overrides,

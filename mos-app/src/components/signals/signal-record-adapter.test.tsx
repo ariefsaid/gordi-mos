@@ -10,7 +10,7 @@ import { wrapSignalRecord, firstLine } from './signal-record-adapter'
 
 function makeSignal(overrides: Partial<SignalRow> = {}): SignalRow {
   return {
-    id: 'signal-1', author_id: 'p-author', owning_team_id: 't-1', audience: 'org', occurred_at: '2026-07-20T08:00:00Z',
+    id: 'signal-1', author_id: 'p-author', owning_team_id: 't-1', audience: 'team', occurred_at: '2026-07-20T08:00:00Z',
     body: 'Oat milk ran out during the morning rush.', attention: 'Needs attention',
     category: 'Inventory/availability', source: 'human', retracted_at: null, retract_reason: null,
     edited_at: null, created_at: '2026-07-20T08:05:00Z',
