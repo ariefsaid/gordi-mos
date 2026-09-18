@@ -709,7 +709,7 @@
   white-space: nowrap;
 }
 
-.collection-toolbar__desktop-door-chevron { transition: transform 120ms ease-out; }
+.collection-toolbar__desktop-door-chevron { transition: transform var(--dur-med) ease; }
 .collection-toolbar__desktop-door-chevron--open { transform: rotate(180deg); }
 
 /* Anchored to the trigger's trailing edge: the panel belongs to the button, and a full-width
