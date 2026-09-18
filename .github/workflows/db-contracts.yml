@@ -1,27 +1,23 @@
-name: geometry
+name: db-contracts
 
 # ─── WHY THIS LANE EXISTS ──────────────────────────────────────────────────────────────────
-# The rendered-geometry guards (mos-app/e2e/guards.geometry.spec.ts) are the only checks in the
-# repo that measure a REAL box — split-view parity, the 44×44 phone tap floor, the 8px separation
-# between adjacent targets, the café search's usable measure. Before this lane existed they ran
-# ONLY in integration.yml's `db` job, which is gated `github.event_name == 'push' || base_ref ==
-# 'main'`. So on a PR → dev — where nearly all work lands — they never executed. #403 shipped an
-# auth tap floor whose whole claim was "guarded by rendered geometry" and the guard could not run
-# in the lane the merge went through. Same failure guards.yml already names: "a guard whose test
-# never runs is a control everyone believes is running."
+# The database contracts a dev PR must not break: RLS and role behaviour (pgTAP), the rule that a
+# SECURITY DEFINER function revokes PUBLIC execute, and the proof that a migrated database matches
+# a freshly built one (#393). One Supabase boot serves all three (#565).
 #
-# ⚠️ NOT YET A REQUIRED CHECK. `dev`'s only required status check is `verify`. Until an admin adds
-# `geometry` to dev's branch protection this reports but does not block. The structural twin that
-# DOES gate — mos-app/src/components/ui/tap-targets.css.test.ts, in `verify` — asserts both axes
-# of the 44px floor against the CSS source, so the floor is never resting on this lane alone.
+# NO BROWSER RUNS HERE. A dev PR gets `verify` (unit, types, lint) plus these database contracts;
+# anything that renders a page is a PR → main gate, in integration.yml, which runs the whole
+# Playwright suite — rendered-geometry guards included. That seam is the sibling project's: its
+# `pgtap` job is `base_ref == 'dev'` and its `integration` job is `base_ref == 'main'`, and no
+# dev PR installs a browser. This lane had drifted across it, paying a Chromium install and a
+# browser run on every dev PR for guards that main gates anyway (owner ruling).
 #
-# ─── #565: ALSO THE DEV-PR pgTAP + APPLIED-PATH LANE ───────────────────────────────────────
-# This job used to boot Supabase for the geometry guards ALONE, while integration.yml's `pgtap`
-# job separately booted Supabase for pgTAP + the applied-path check (#393) — both on the same
-# dev PR, in parallel, each paying the ~84s boot + (this job's) npm ci + Playwright install. That
-# `pgtap` job is gone; its two checks (`supabase test db`, `scripts/applied-path-check.sh`) now
-# run here, after the same boot, before the rendered-geometry guards. One boot, one lint, both
-# check groups — see the scope step below for exactly which changes make this run.
+# What that trade costs, stated plainly: a composition regression now reaches dev unmeasured and
+# is caught at the release boundary instead. The 44px floor does not rest on the browser either
+# way — mos-app/src/components/ui/tap-targets.css.test.ts asserts both axes against the CSS
+# source inside `verify`, which IS required.
+#
+# ⚠️ NOT A REQUIRED CHECK. `dev` requires `verify` and `guard-self-tests` only.
 
 on:
   # Deliberately NOT path-filtered, for the same reason verify.yml is not: a check skipped by a
@@ -35,13 +31,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: geometry-${{ github.workflow }}-${{ github.ref }}
+  group: db-contracts-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  geometry:
+  db-contracts:
     runs-on: ubuntu-latest
-    timeout-minutes: 30 # this job runs pgTAP + the applied-path check in addition to the geometry guards
+    timeout-minutes: 20 # Supabase boot + pgTAP + the applied-path check; no browser
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -62,7 +58,7 @@ jobs:
       # runs at least everywhere either old job did (no regression), and additionally on any
       # non-inert app change that isn't supabase/e2e-shaped (e.g. plain mos-app/src/** UI code) —
       # widening where pgTAP/applied-path run, never narrowing where either used to run.
-      - name: Scope — can this change move a rendered pixel, or does it feed pgTAP/applied-path?
+      - name: Scope — does this change feed pgTAP or the applied-path check?
         id: scope
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -94,9 +90,8 @@ jobs:
               echo "### geometry: DB checks skipped"
               echo ""
               echo "Every changed path is inert (prose/config that cannot move a rendered pixel or"
-              echo "affect the schema), so pgTAP, the applied-path check, and the geometry guards"
-              echo "were **not run**. A green check here means *nothing renderable or DB-relevant"
-              echo "changed* — not that the DB or geometry is green."
+              echo "affect the schema), so pgTAP and the applied-path check were **not run**. A"
+              echo "green check here means *nothing DB-relevant changed* — not that the DB is green."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -137,64 +132,6 @@ jobs:
         with:
           name: geometry-applied-path
           path: artifacts/applied-path/
-          retention-days: 7
-
-      - name: Export Supabase env to GITHUB_ENV
-        if: steps.scope.outputs.render == 'true'
-        run: |
-          supabase status -o env | grep -E '^(ANON_KEY|SERVICE_ROLE_KEY|API_URL)=' | tr -d '"' >> "$GITHUB_ENV"
-          grep -q '^SERVICE_ROLE_KEY=eyJ' "$GITHUB_ENV"
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        if: steps.scope.outputs.render == 'true'
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: mos-app/package-lock.json
-
-      - name: Install app dependencies
-        if: steps.scope.outputs.render == 'true'
-        working-directory: mos-app
-        run: npm ci
-
-      - name: Cache Playwright browsers
-        if: steps.scope.outputs.render == 'true'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('mos-app/package-lock.json') }}
-
-      - name: Install Playwright browsers
-        if: steps.scope.outputs.render == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
-        working-directory: mos-app
-        run: npx playwright install --with-deps chromium
-
-      - name: Install Playwright system deps (cache hit)
-        if: steps.scope.outputs.render == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
-        working-directory: mos-app
-        run: npx playwright install-deps chromium
-
-      - name: Rendered-geometry guards
-        if: steps.scope.outputs.render == 'true'
-        working-directory: mos-app
-        env:
-          VITE_SUPABASE_URL: http://127.0.0.1:44321
-          VITE_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SERVICE_ROLE_KEY }}
-          VITE_SHOW_PLAN_BUDGET: 'true'
-        # auth-recovery.spec.ts is here for ONE reason: the set-password card is reachable only
-        # through its mailpit round-trip, so the fifth auth surface's tap floor is asserted inside
-        # AC-005 rather than in a second copy of that journey. Adding it costs one already-written
-        # test on an already-booted stack.
-        run: npx playwright test e2e/guards.geometry.spec.ts e2e/auth-recovery.spec.ts
-
-      - name: Upload Playwright report on failure
-        if: failure() && steps.scope.outputs.render == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: geometry-playwright-report
-          path: mos-app/playwright-report/
           retention-days: 7
 
       - name: Stop stack

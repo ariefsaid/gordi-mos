@@ -1141,7 +1141,7 @@ echo "── U. the fingerprint SQL's parens balance and it is not empty (#472)"
 # own header says so on purpose — so this does NOT parse or execute the SQL: strip `--` comments
 # and '…' string content, then require the parens balance and the file is non-empty. That catches
 # truncation and gross corruption, never a syntax error the parens don't reveal (an unbalanced
-# CASE/END, a missing comma). Real execution coverage lives in the integration/geometry lanes,
+# CASE/END, a missing comma). Real execution coverage lives in the integration/db-contracts lanes,
 # which boot Postgres and run this file for real.
 #
 # The stripper is calibrated to THIS file's dialect, not general SQL: applied-path-fingerprint.sql
