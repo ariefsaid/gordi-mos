@@ -104,10 +104,9 @@ const ProjectsProcessesPage = lazyPage(() =>
 )
 const InboxPage = lazyPage(() => import('./pages/inbox-page').then((m) => ({ default: m.InboxPage })))
 
-const CafeOpeningPage = lazyPage(() =>
-  import('./pages/cafe-opening-page').then((m) => ({ default: m.CafeOpeningPage })),
+const CafeRootPage = lazyPage(() =>
+  import('./pages/cafe-opening-page').then((m) => ({ default: m.CafeRootPage })),
 )
-const KitchenLogPage = lazyPage(() => import('./pages/kitchen-log-page').then((m) => ({ default: m.KitchenLogPage })))
 const KitchenPlanPage = lazyPage(() => import('./pages/kitchen-plan-page').then((m) => ({ default: m.KitchenPlanPage })))
 const KitchenReviewPage = lazyPage(() =>
   import('./pages/kitchen-review-page').then((m) => ({ default: m.KitchenReviewPage })),
@@ -404,20 +403,25 @@ const routeTable: RouteObject[] = [
           { path: ROUTE_PATHS.inbox, element: withSuspense(<InboxPage />), handle: pageHandle('workspace') },
 
           // ── Café (Kitchen re-homed) ─────────────────────────────────────────────────────
-          // /cafe is v4's opening surface ("Start today's opening", RATIFY-7D): the Café Module
-          // home hosts CafeOpeningPanel, then links out to the working screens (#196, PORT-023).
+          // DD-MVP-17: /cafe is the assigned worker's Today production capture surface.
+          // Opening is a compact door row inside it; Plan/Stock stay shell destinations;
+          // /cafe/log aliases the root by redirect — nobody lands on a Log/Plan/Stock menu.
           {
             path: ROUTE_PATHS.cafe,
-            element: withSuspense(<CafeOpeningPage />),
+            element: withSuspense(<CafeRootPage />),
             handle: pageHandle('workspace'),
           },
-          { path: ROUTE_PATHS.cafeLog, element: withSuspense(<KitchenLogPage />), handle: pageHandle('workspace') },
+          {
+            path: ROUTE_PATHS.cafeLog,
+            element: <RouteRedirect to="/cafe" />,
+            handle: redirectHandle('/cafe'),
+          },
           { path: ROUTE_PATHS.cafePlan, element: withSuspense(<KitchenPlanPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeStock, element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
-          // Names /cafe/log, not /cafe: /cafe is now the opening surface itself (see above),
-          // and a redirect that lands on a redirect is two hops.
-          { path: 'kitchen', element: <RouteRedirect to="/cafe/log" />, handle: redirectHandle('/cafe/log') },
-          { path: 'kitchen/log', element: <RouteRedirect to="/cafe/log" />, handle: redirectHandle('/cafe/log') },
+          // The root IS the capture surface now, so the retired kitchen paths land on /cafe
+          // directly — a redirect that lands on a redirect is two hops.
+          { path: 'kitchen', element: <RouteRedirect to="/cafe" />, handle: redirectHandle('/cafe') },
+          { path: 'kitchen/log', element: <RouteRedirect to="/cafe" />, handle: redirectHandle('/cafe') },
           { path: 'kitchen/plan', element: <RouteRedirect to="/cafe/plan" />, handle: redirectHandle('/cafe/plan') },
           {
             path: 'kitchen/stock',

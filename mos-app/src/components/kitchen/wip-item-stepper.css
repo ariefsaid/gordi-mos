@@ -108,7 +108,7 @@
    width instead of a sliver pinned under the qty box; the qty control itself stays on
    the right (thumb side) via the row's end justification, so the resting layout is
    unchanged. */
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .kls-card.kls-dense {
     width: auto;
     flex: 1 1 auto;

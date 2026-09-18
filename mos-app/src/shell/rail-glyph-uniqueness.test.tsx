@@ -148,7 +148,7 @@ function wrap(children: React.ReactNode) {
   return (
     <ThemeProvider>
       <I18nProvider>
-        <MemoryRouter initialEntries={['/cafe/log']}>{children}</MemoryRouter>
+        <MemoryRouter initialEntries={['/cafe/plan']}>{children}</MemoryRouter>
       </I18nProvider>
     </ThemeProvider>
   )
@@ -287,7 +287,7 @@ describe('phone drawer glyphs (issue 457 part 1, the More drawer)', () => {
     // alongside all five children. If a promoted module ever crept back into the fixture this
     // would go red rather than quietly shrinking the sweep.
     expect(hrefs).toEqual(
-      expect.arrayContaining(['/cafe', '/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes']),
+      expect.arrayContaining(['/cafe', '/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes']),
     )
     // Same ship-gate vacuity check the rail carries: without it, "unique" would be a claim about
     // today's visible drawer rather than the one switch day produces.
@@ -308,7 +308,7 @@ describe('phone drawer glyphs (issue 457 part 1, the More drawer)', () => {
     expect(cup, 'the Café module row is missing from the drawer').toBeTruthy()
     const children = links.filter((l) => l.href.startsWith('/cafe/'))
     expect(children.map((c) => c.href).sort()).toEqual(
-      ['/cafe/log', '/cafe/plan', '/cafe/pushes', '/cafe/review', '/cafe/stock'],
+      ['/cafe/plan', '/cafe/pushes', '/cafe/review', '/cafe/stock'],
     )
     for (const child of children) {
       expect(child.glyph, `${child.href} draws the Café cup`).not.toBe(cup)

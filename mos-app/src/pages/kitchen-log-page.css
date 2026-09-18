@@ -136,6 +136,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 8px;
   gap: 12px;
   padding: 12px 0;
   background: var(--card);
@@ -172,7 +174,7 @@
   margin-bottom: 12px;
   scroll-margin-bottom: 12px;
 }
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .kl-form .dt-cards {
     margin-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
   }
@@ -201,6 +203,9 @@
   align-items: center;
   gap: 8px;
   flex: none;
+  /* Holds the trailing edge even when the tally is absent and this is the only thing left on
+     the row — `space-between` alone would walk it back to the left. */
+  margin-left: auto;
 }
 
 /* The ONE blue (One-Blue Rule) — Submit + its focus ring only */
@@ -210,10 +215,13 @@
    required variance note is still empty.  Uses muted text so it reads as a
    hint, not an error (the error itself lives on the row's note field). */
 .kl-submit-reason {
+  /* Its own full-width line, reading left-to-right like the sentence it is, above the tally
+     and the actions rather than squeezed between them. */
+  flex: 1 0 100%;
+  order: -1;
   font-size: var(--font-size-label);
   color: var(--muted-foreground);
-  align-self: center;
-  text-align: right;
+  text-align: left;
 }
 
 /* ── Error / unauth blocks — viewport-safe + touch floors ── */
@@ -242,7 +250,7 @@
 .kl-touch { min-height: 44px; }
 
 /* ── Phone (<768px): stack the footer (tally above, actions below), safe-area spacing ── */
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .kl-footer {
     flex-direction: column;
     align-items: stretch;
@@ -380,4 +388,37 @@
 }
 @media (max-width: 390px) {
   .kl-scope { width: 100%; }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   The capture list on a phone (scoped to this form — `.dt-card` is shared).
+
+   Thirty-two items, each in its own bordered, rounded, filled box, is thirty-two
+   frames drawn around one number. The framing repeats; the content barely differs.
+   A continuous list with hairline separators says the same thing with one line per
+   item instead of four edges, and the quantity field stays the only lit surface in
+   the row — which is what a thumb is aiming at.
+
+   The sticky footer also sat ON the last row rather than after it: the footer is
+   position: sticky inside this scroller, so the list needs its own bottom reserve
+   or the final item is permanently half-hidden behind the Submit bar.
+   ════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 767.98px) {
+  .kl-form .dt-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .kl-form .dt-cards .dt-card {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    border-bottom: 1px solid var(--border-light, var(--border));
+    padding-inline: 4px;
+  }
+  .kl-form .dt-cards .dt-card:last-child { border-bottom: 0; }
+  /* Reserve belongs at the end of the LIST, not after the footer. The footer is the form's
+     last child, so padding on the form lands beyond it and reserves nothing: the final item
+     could never be scrolled out from under the Submit bar. */
+  .kl-form .dt-cards { padding-bottom: 104px; }
 }

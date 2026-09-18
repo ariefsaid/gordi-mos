@@ -118,8 +118,8 @@ export function RecordCollectionSurface<
       <div className="record-collection" data-collection-status="permission">
         <EmptyState
           variant="blank"
-          title="You don’t have access to this collection"
-          copy="Ask an admin if you think you should be able to see it."
+          title={t('collection.forbidden.title')}
+          copy={t('collection.forbidden.copy')}
         />
       </div>
     )
@@ -213,7 +213,7 @@ export function RecordCollectionSurface<
         {header}
         {readOnly && (
           <p className="record-collection-readonly" role="status">
-            You can view this collection but not edit it.
+            {t('collection.readOnly')}
           </p>
         )}
         {showSelectionBar && (

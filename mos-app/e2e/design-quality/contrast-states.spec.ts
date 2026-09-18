@@ -9,6 +9,7 @@ import {
   type ContrastRow,
   type InteractionState,
 } from './measurements'
+import { type AutomaticFailure } from './change-gate.ts'
 import {
   assertAuditEnvironment,
   assertAuditServer,
@@ -16,7 +17,10 @@ import {
   auditRun,
   captureCell,
   cellsFor,
+  compareAutomaticFailuresForLane,
+  observeManifestCellState,
   prepareAuditPage,
+  writeAutomaticLaneSummary,
 } from './runtime'
 
 test.describe.configure({ mode: 'serial' })
@@ -60,6 +64,20 @@ async function firstKeyboardActionable(page: Parameters<typeof collectContrast>[
     if (reachable) return candidate
   }
   return null
+}
+
+async function waitForContrastCellSettled(
+  page: Parameters<typeof collectContrast>[0],
+  cell: (typeof DESIGN_QUALITY_MANIFEST)['cells'][number],
+): Promise<void> {
+  // The route's query and permission requests run after DOMContentLoaded. Let those requests
+  // settle before choosing the first interaction target; otherwise a permission-controlled
+  // action can be selected and removed while its generated diagnostic path is being measured.
+  await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {})
+  // Keep the manifest assertion as the readiness seam for this cell. If it cannot be observed,
+  // continue into setup so a real missing target still follows the collector's existing
+  // unobserved-row behavior instead of being silently omitted here.
+  await observeManifestCellState(page, cell)
 }
 
 async function setupState(page: Parameters<typeof collectContrast>[0], state: InteractionState): Promise<StateSetup> {
@@ -114,6 +132,79 @@ test('focus setup skips a disabled first action and reaches the next keyboard ta
   await expect(page.getByRole('button', { name: 'Continue' })).toBeFocused()
 })
 
+test('icon-only controls are measured on their glyph under the foreground boundary fallback', async ({ page }) => {
+  // DD-MVP-19: a borderless control may carry its affordance in the glyph. The boundary
+  // collector must observe that glyph instead of reporting "unobserved", and it must still
+  // fail a glyph that misses the 3:1 control floor — both arms of the fallback are pinned.
+  await page.setContent(`
+    <main>
+      <button id="ok-icon" aria-label="Inbox" style="border: none; background: transparent; color: rgb(20, 20, 20); display: inline-flex; padding: 8px;">
+        <svg width="16" height="16" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="14" fill="currentColor"/></svg>
+      </button>
+      <button id="weak-icon" aria-label="Archive" style="border: none; background: transparent; color: rgb(222, 220, 214); display: inline-flex; padding: 8px;">
+        <svg width="16" height="16" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="14" fill="currentColor"/></svg>
+      </button>
+    </main>
+  `)
+
+  const context = {
+    route: '/planted',
+    journey: 'planted',
+    fixture: 'planted',
+    viewport: 'desktop-1440x900',
+    theme: 'light',
+    language: 'en',
+    state: 'default',
+  }
+  const rows = await collectContrast(page, context, 'default', 'button#ok-icon, button#weak-icon', { measure: 'boundary', allowForegroundBoundary: true })
+  expect(rows).toHaveLength(2)
+  // Both rows carry the combined input selector; document order puts #ok-icon first.
+  const [ok, weak] = rows
+  expect(ok.observed, JSON.stringify(ok)).toBe(true)
+  expect(ok.passes, JSON.stringify(ok)).toBe(true)
+  expect(ok.selector, JSON.stringify(ok)).toContain('foreground')
+  expect(weak.observed, JSON.stringify(weak)).toBe(true)
+  expect(weak.passes, JSON.stringify(weak)).toBe(false)
+  expect(weak.ratio ?? 0).toBeLessThan(3)
+})
+
+test('contrast setup waits for a populated cell before sampling a transient permission action', async ({ page }) => {
+  await page.setContent(`
+    <main>
+      <h1>Signals</h1>
+      <span id="transient-share"><button type="button" style="color: rgb(20, 20, 20); background: white">Share Signal</button></span>
+      <button id="stable-action" type="button" style="color: rgb(20, 20, 20); background: white">Continue</button>
+      <div data-testid="signal-feed"></div>
+    </main>
+    <script>
+      setTimeout(() => {
+        document.querySelector('[data-testid="signal-feed"]').innerHTML = '<div data-signal-id="settled">Signal</div>'
+        document.querySelector('#transient-share').remove()
+      }, 30)
+    </script>
+  `)
+
+  const cell = DESIGN_QUALITY_MANIFEST.cells.find((entry) => entry.id === 'signals-feed-compact')!
+  await waitForContrastCellSettled(page, cell)
+
+  const setup = await setupState(page, 'hover')
+  expect(setup.applicable).toBe(true)
+  expect(await page.locator(setup.selector).getAttribute('id')).toBe('stable-action')
+
+  const rows = await collectContrast(page, {
+    route: cell.route,
+    journey: cell.journey,
+    fixture: cell.fixture,
+    viewport: cell.viewport,
+    theme: cell.theme,
+    language: cell.language,
+    state: cell.state,
+  }, 'hover', setup.selector, { measure: setup.measure })
+  expect(rows).toHaveLength(1)
+  expect(rows[0]?.observed).toBe(true)
+  expect(rows[0]?.passes).toBe(true)
+})
+
 test('contrast state entry point records browser-computed ratios for each interaction state', async ({ page }) => {
   test.skip(!auditEnabled(), 'set DESIGN_QUALITY_RUN=1 through scripts/design-quality-audit.sh')
   assertAuditEnvironment()
@@ -125,6 +216,7 @@ test('contrast state entry point records browser-computed ratios for each intera
   const applicability: Array<{ route: string; state: string; applicable: boolean; evidence: string }> = []
   for (const cell of cellsFor(DESIGN_QUALITY_MANIFEST).filter(isManifestCellRunnable)) {
     await prepareAuditPage(page, run, cell)
+    await waitForContrastCellSettled(page, cell)
     const context = {
       route: cell.route,
       journey: cell.journey,
@@ -150,17 +242,37 @@ test('contrast state entry point records browser-computed ratios for each intera
     screenshots.push(await captureCell(page, run, cell, 'contrast'))
   }
   await run.writer.writeCsv('contrast.csv', rows as unknown as Record<string, unknown>[])
-  await run.writer.writeJson('contrast-summary.json', {
+  const allFailures: AutomaticFailure[] = rows
+    .filter((row) => !row.passes || !row.observed)
+    .map((row) => ({
+      ruleId: row.kind === 'boundary' ? 'contrast.boundary' : 'contrast.text',
+      cellId: `${row.route}|${row.journey}|${row.fixture}|${row.viewport}|${row.theme}|${row.language}`,
+      selector: row.selector,
+      state: row.state,
+      message: `${row.kind} contrast is below its threshold`,
+      measured: row,
+    }))
+  const comparison = await compareAutomaticFailuresForLane(run, allFailures)
+  await writeAutomaticLaneSummary(run, 'contrast-summary.json', {
     states: INTERACTION_STATES,
     rows: rows.length,
     applicableStates: applicability.filter((entry) => entry.applicable).length,
     notApplicableStates: applicability.filter((entry) => !entry.applicable).length,
-    failures: rows.filter((row) => !row.passes || !row.observed).map((row) => ({ state: row.state, selector: row.selector, kind: row.kind, ratio: row.ratio, threshold: row.threshold })),
+    failures: comparison.failures,
+    allFailures: comparison.allFailures,
+    inheritedFailures: comparison.inheritedFailures,
+    newFailures: comparison.newFailures,
+    failureCounts: {
+      all: comparison.allFailures.length,
+      inherited: comparison.inheritedFailures.length,
+      new: comparison.newFailures.length,
+    },
+    automaticChecksPassed: comparison.automaticChecksPassed,
     applicability,
     screenshots,
-  })
+  }, rows.length)
   expect(rows.length).toBeGreaterThan(0)
-  expect(rows.filter((row) => !row.passes || !row.observed), 'contrast or applicable interaction-state checks failed').toEqual([])
+  expect(comparison.failures, 'contrast or applicable interaction-state checks failed').toEqual([])
   expect(contrastThreshold('text', false)).toBe(4.5)
   expect(contrastThreshold('text', true)).toBe(3)
   expect(contrastThreshold('boundary')).toBe(3)

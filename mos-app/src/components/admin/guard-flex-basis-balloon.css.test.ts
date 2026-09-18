@@ -22,7 +22,7 @@ const css = readFileSync(
 
 /** The body of the phone reflow media block (brace-balanced slice). */
 function phoneMediaBlock(): string {
-  const idx = css.search(/@media\s*\(max-width:\s*767px\)/)
+  const idx = css.search(/@media\s*\(max-width:\s*767\.98px\)/)
   expect(idx, 'people-toolbar.css must keep its <768px reflow block').toBeGreaterThanOrEqual(0)
   const open = css.indexOf('{', idx)
   let depth = 1

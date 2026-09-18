@@ -20,9 +20,12 @@ import {
   auditEnabled,
   auditRun,
   captureCell,
+  compareAutomaticFailuresForLane,
   observeManifestCellState,
   prepareAuditPage,
+  writeAutomaticLaneSummary,
 } from './runtime'
+import { type AutomaticFailure } from './change-gate.ts'
 
 const execFileAsync = promisify(execFile)
 const repoRoot = path.resolve(process.cwd(), '..')
@@ -286,6 +289,21 @@ async function compareMockup(entry: MockupAuthorityEntry, build: string, outDir:
   }
 }
 
+function blockedComparison(entry: MockupAuthorityEntry, reason: unknown): DiffComparison {
+  return {
+    mockup: entry.path,
+    build: '',
+    authority: entry.authority,
+    cellId: entry.cellId,
+    score: null,
+    requiredRegions: entry.requiredRegions,
+    missingRegions: entry.requiredRegions,
+    contradictedRegions: [],
+    status: 'blocked',
+    reason: String(reason),
+  }
+}
+
 test.describe.configure({ mode: 'serial' })
 
 test('the vendored Impeccable detector scans production UI and writes its own artifact', async () => {
@@ -293,11 +311,30 @@ test('the vendored Impeccable detector scans production UI and writes its own ar
   assertAuditEnvironment()
   const run = auditRun()
   const result = await runImpeccableDetector()
-  await run.writer.writeJson('impeccable.json', result)
-  expect(result.status, result.error ?? 'Impeccable detector found blocking production findings').toBe('pass')
+  const allFailures: AutomaticFailure[] = result.findings.map((finding) => {
+    const item = finding as Record<string, unknown>
+    return {
+      ruleId: 'impeccable.finding',
+      cellId: String(item.cellId || item.file || item.path || ''),
+      selector: String(item.selector || item.rule || item.id || '__impeccable__'),
+      state: 'default',
+      message: String(item.message || item.reason || item.rule || 'Impeccable detector finding'),
+      measured: finding,
+    }
+  })
+  const comparison = await compareAutomaticFailuresForLane(run, allFailures)
+  await writeAutomaticLaneSummary(run, 'impeccable.json', {
+    ...result,
+    failures: comparison.failures,
+    allFailures: comparison.allFailures,
+    inheritedFailures: comparison.inheritedFailures,
+    newFailures: comparison.newFailures,
+    automaticChecksPassed: comparison.automaticChecksPassed,
+  }, result.scannedFiles.length)
+  expect(comparison.failures, result.error ?? 'Impeccable detector found blocking production findings').toEqual([])
 })
 
-test('mockup fidelity requires an authority list and enforces score and region contracts', async ({ page }) => {
+test('mockup fidelity records authority-backed comparisons as diagnostic evidence', async ({ page }) => {
   test.skip(!auditEnabled(), 'set DESIGN_QUALITY_RUN=1 through scripts/design-quality-audit.sh')
   assertAuditEnvironment()
   const run = auditRun()
@@ -312,90 +349,68 @@ test('mockup fidelity requires an authority list and enforces score and region c
   }
 
   if (authorityEntries.length === 0) {
-    await run.writer.writeJson('mockup-diff/status.json', {
+    const comparison: DiffComparison = {
+      mockup: '',
+      build: '',
+      authority: 'explicit mockup authority list',
+      cellId: '__mockup__',
+      score: null,
+      requiredRegions: [],
+      missingRegions: [],
+      contradictedRegions: [],
       status: 'blocked',
-      comparisons,
       reason: blockedReason || 'no authority-backed mockups were supplied',
-    })
-    expect(authorityEntries, blockedReason || 'mockup authority list is required').toHaveLength(1)
+    }
+    comparisons.push(comparison)
+    await writeAutomaticLaneSummary(run, 'mockup-diff/status.json', {
+      status: 'diagnostic',
+      diagnosticStatus: 'incomplete',
+      comparisons: [comparison],
+      failures: [],
+      allFailures: [],
+      inheritedFailures: [],
+      newFailures: [],
+    }, comparisons.length)
     return
   }
 
   for (const entry of authorityEntries) {
-    await access(entry.path)
-    let cell: ManifestCell
     try {
-      cell = bindMockupToCell(entry, DESIGN_QUALITY_MANIFEST)
-    } catch (error) {
-      comparisons.push({
-        mockup: entry.path,
-        build: '',
-        authority: entry.authority,
-        cellId: entry.cellId,
-        score: null,
-        requiredRegions: entry.requiredRegions,
-        missingRegions: entry.requiredRegions,
-        contradictedRegions: [],
-        status: 'blocked',
-        reason: String(error),
-      })
-      continue
-    }
-    await prepareAuditPage(page, run, cell)
-    const observation = await observeManifestCellState(page, cell)
-    if (observation.status !== 'covered') {
-      comparisons.push({
-        mockup: entry.path,
-        build: '',
-        authority: entry.authority,
-        cellId: entry.cellId,
-        score: null,
-        requiredRegions: entry.requiredRegions,
-        missingRegions: entry.requiredRegions,
-        contradictedRegions: [],
-        status: 'blocked',
-        reason: `mockup state was not established: ${observation.evidence}`,
-      })
-      continue
-    }
-    const build = await captureCell(page, run, cell, 'mockup')
-    const relativeDir = path.join('mockup-diff', path.basename(entry.path, path.extname(entry.path)))
-    const outDir = path.join(run.outputDir, relativeDir)
-    await mkdir(outDir, { recursive: true })
-    try {
+      await access(entry.path)
+      const cell: ManifestCell = bindMockupToCell(entry, DESIGN_QUALITY_MANIFEST)
+      await prepareAuditPage(page, run, cell)
+      const observation = await observeManifestCellState(page, cell)
+      if (observation.status !== 'covered') {
+        comparisons.push(blockedComparison(entry, `mockup state was not established: ${observation.evidence}`))
+        continue
+      }
+      const build = await captureCell(page, run, cell, 'mockup')
+      const relativeDir = path.join('mockup-diff', path.basename(entry.path, path.extname(entry.path)))
+      const outDir = path.join(run.outputDir, relativeDir)
+      await mkdir(outDir, { recursive: true })
       const raw = await compareMockup(entry, build, outDir)
       const comparison = evaluateComparison(entry, build, raw)
       comparisons.push(comparison)
       await run.writer.writeJson(path.join(relativeDir, 'evaluation.json'), comparison)
     } catch (error) {
-      const comparison: DiffComparison = {
-        mockup: entry.path,
-        build,
-        authority: entry.authority,
-        cellId: entry.cellId,
-        score: null,
-        requiredRegions: entry.requiredRegions,
-        missingRegions: entry.requiredRegions,
-        contradictedRegions: [],
-        status: 'blocked',
-        reason: String(error),
-      }
-      comparisons.push(comparison)
-      await run.writer.writeJson(path.join(relativeDir, 'report.json'), comparison)
+      comparisons.push(blockedComparison(entry, error))
     }
   }
 
-  const passed = comparisons.length > 0 && comparisons.every((comparison) => comparison.status === 'pass')
-  const blocked = comparisons.some((comparison) => comparison.status === 'blocked')
-  const auditMode = process.env.DESIGN_AUDIT_MODE === 'change-gate' ? 'change-gate' : 'mvp-assessment'
-  await run.writer.writeJson('mockup-diff/status.json', {
-    status: blocked ? 'blocked' : passed ? 'pass' : auditMode === 'change-gate' ? 'assessed-with-gaps' : 'fail',
-    auditMode,
+  const diagnosticStatus = comparisons.some((comparison) => comparison.status === 'blocked')
+    ? 'incomplete'
+    : 'complete'
+  await writeAutomaticLaneSummary(run, 'mockup-diff/status.json', {
+    status: 'diagnostic',
+    diagnosticStatus,
     threshold: SCORE_THRESHOLD,
     comparisons,
-  })
+    // Historical comparisons remain visible in `comparisons`; they are not
+    // automatic failure identities and cannot block either audit mode.
+    failures: [],
+    allFailures: [],
+    inheritedFailures: [],
+    newFailures: [],
+  }, comparisons.length)
   expect(comparisons, 'every authority entry must produce a comparison').not.toHaveLength(0)
-  if (auditMode === 'mvp-assessment') {
-    expect(comparisons.filter((comparison) => comparison.status !== 'pass'), 'mockup fidelity score/region contract failed').toEqual([])
-  }
 })

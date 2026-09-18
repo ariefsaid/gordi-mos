@@ -121,6 +121,23 @@ describe('signalCollectionDescriptor — the one Signal loader/projector (FR-V3-
     expect(projected.visibleRecords.map((signal) => signal.id)).toEqual(['mine'])
   })
 
+  // AC-024 (#770): "I posted" is the viewer's OWN archive — a retracted own Signal is still the
+  // viewer's post, so it renders (its tombstone), exactly like the Retracted view shows it.
+  it('AC-024: I posted shows exactly the viewer\'s own Signals, retracted included', () => {
+    const parsed = signalCollectionDescriptor.query.parse(new URLSearchParams('view=i-posted'), 'feed')
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) return
+    const records = [
+      row({ id: 'mine-live', author_id: 'p-me' }),
+      row({ id: 'mine-retracted', author_id: 'p-me', retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'Wrong team' }),
+      row({ id: 'theirs-live', author_id: 'p-author-b' }),
+      row({ id: 'theirs-retracted', author_id: 'p-author-b', retracted_at: '2026-07-16T05:00:00Z' }),
+    ]
+    const projected = signalCollectionDescriptor.project(data(records), parsed.query, 'feed')
+    expect(projected.visibleRecords.map((signal) => signal.id).sort())
+      .toEqual(['mine-live', 'mine-retracted'])
+  })
+
   it('AC-V3-005: Feed projects attention-weighted recency; Table sorts newest occurred-at first', () => {
     const rows = [
       row({ id: 'fyi-new', attention: 'FYI', occurred_at: '2026-07-16T10:00:00Z' }),

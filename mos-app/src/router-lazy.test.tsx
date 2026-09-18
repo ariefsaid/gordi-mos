@@ -33,12 +33,11 @@ import { ObjectiveRecordPage } from './pages/objective-record-page'
 import { WorkLineRecordPage } from './pages/work-line-record-page'
 import { ProjectsProcessesPage } from './pages/projects-processes-page'
 import { InboxPage } from './pages/inbox-page'
-import { KitchenLogPage } from './pages/kitchen-log-page'
 import { KitchenPlanPage } from './pages/kitchen-plan-page'
 import { KitchenStockPage } from './pages/kitchen-stock-page'
 import { KitchenReviewPage } from './pages/kitchen-review-page'
 import { KitchenPushesPage } from './pages/kitchen-pushes-page'
-import { CafeOpeningPage } from './pages/cafe-opening-page'
+import { CafeRootPage } from './pages/cafe-opening-page'
 import { DashboardPage } from './pages/dashboard-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
@@ -152,8 +151,9 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/inbox', InboxPage, 'dev'],
   // /cafe has no dev counterpart — it is v4's own opening surface (#196, PORT-023), never a
   // dev-carried or stub component, so it gets a provenance of its own rather than a false 'dev'.
-  ['/cafe', CafeOpeningPage, 'v4'],
-  ['/cafe/log', KitchenLogPage, 'dev'],
+  ['/cafe', CafeRootPage, 'v4'],
+  // DD-MVP-17: /cafe/log no longer mounts its own page — it redirects to the capture root
+  // at /cafe (which carries the log surface itself), so it leaves this page ledger.
   ['/cafe/plan', KitchenPlanPage, 'dev'],
   ['/cafe/stock', KitchenStockPage, 'dev'],
   ['/cafe/review', KitchenReviewPage, 'dev'],

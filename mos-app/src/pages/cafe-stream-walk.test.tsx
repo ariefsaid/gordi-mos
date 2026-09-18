@@ -47,6 +47,8 @@ import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { KitchenStockPage } from './kitchen-stock-page'
 import { KitchenPlanPage } from './kitchen-plan-page'
 import { rememberStream } from '@/lib/cafe-stream'
+import { resetCafeLocations } from '@/lib/cafe-opening-location'
+import { rememberCafeLocation } from '@/lib/cafe-opening-location'
 
 const BRANCH_RR = { id: 'b-rr', code: 'rumah_rames', name: 'Rumah Rames' }
 const BRANCH_RAD = { id: 'b-rad', code: 'radiant', name: 'Radiant' }
@@ -57,6 +59,10 @@ const STREAM_PAIRS = BRANCHES.flatMap(b => [
 ])
 const OWN_STREAM = { branch: BRANCH_RR, activity: 'kitchen' as const, produces: true }
 const RADIANT_BAR = { branch: BRANCH_RAD, activity: 'bar' as const, produces: true }
+// OD-CAFE-1: the walk between surfaces happens WITHIN a location, so the stream a person switches
+// to is the other activity at the branch they are working at. Crossing branches is no longer an
+// option any Café picker offers — a stream belongs to one branch's books.
+const OWN_STREAM_BAR = { branch: BRANCH_RR, activity: 'bar' as const, produces: true }
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
@@ -80,6 +86,8 @@ function viewer(accessRoles: string[]): AuthState {
 beforeEach(() => {
   vi.clearAllMocks()
   rememberStream(null)
+  resetCafeLocations()
+  rememberCafeLocation('p-1', null)
   vi.mocked(useAuth).mockReturnValue(viewer(['ops_lead']))
   vi.mocked(listActiveBranches).mockResolvedValue(BRANCHES)
   vi.mocked(listStreamPairs).mockResolvedValue(STREAM_PAIRS)
@@ -97,16 +105,16 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
     expect(vi.mocked(fetchKitchenStock).mock.calls[0][1]).toEqual(OWN_STREAM)
 
     fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
-    fireEvent.click(screen.getByRole('option', { name: 'Radiant · Bar' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Rumah Rames · Bar' }))
     await waitFor(() => expect(fetchKitchenStock).toHaveBeenCalledTimes(2))
     stock.unmount() // …and walks to Plan
 
     render(<KitchenPlanPage />, { wrapper })
     await waitFor(() => expect(listKitchenPlans).toHaveBeenCalled())
-    expect(vi.mocked(listKitchenPlans).mock.calls[0][1]).toEqual(RADIANT_BAR)
+    expect(vi.mocked(listKitchenPlans).mock.calls[0][1]).toEqual(OWN_STREAM_BAR)
     // …and Plan SAYS so, rather than showing another stream's numbers under no name at all.
     const picker = await screen.findByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveTextContent('Radiant · Bar')
+    expect(picker).toHaveTextContent('Rumah Rames · Bar')
   })
 
   it('with nothing chosen, every surface opens on the person\'s OWN stream', async () => {
@@ -123,7 +131,10 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
   it('the member pesanan horizon follows the same stream, not the catalog\'s first branch', async () => {
     // AC-024's read-only face. It used to resolve `defaultStreamFrom` — the catalog default —
     // so a Radiant barista read Gordi HQ's plan and had nothing on screen to tell them.
-    rememberStream(RADIANT_BAR, 'p-1')
+    // Remembered AT Radiant — OD-CAFE-1 keys the slot by location, and a member standing at
+    // Radiant is exactly who this read-only face is for.
+    rememberStream(RADIANT_BAR, 'p-1', BRANCH_RAD.id)
+    rememberCafeLocation('p-1', { branchId: BRANCH_RAD.id, branchName: BRANCH_RAD.name })
     vi.mocked(useAuth).mockReturnValue(viewer(['member']))
     render(<KitchenPlanPage />, { wrapper })
     await waitFor(() => expect(listPesanan).toHaveBeenCalled())

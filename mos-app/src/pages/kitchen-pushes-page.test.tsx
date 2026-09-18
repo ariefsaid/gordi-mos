@@ -220,7 +220,7 @@ describe('KitchenPushesPage — role gate (AC-007)', () => {
     // Link must resolve via the SPA router (basename applied) — not a full-reload raw anchor
     // Café's canonical Log route (#196 rename) — not the retired /kitchen/log, which
     // only still resolves via a redirect hop.
-    expect(backLink).toHaveAttribute('href', '/mos/cafe/log')
+    expect(backLink).toHaveAttribute('href', '/mos/cafe')
   })
 })
 

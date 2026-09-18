@@ -700,6 +700,12 @@ Inside the grouped DataTable, each group is introduced by a full-width `<tr>` re
 ### DB-view toolbar controls (OD-P3-6)
 **Collection toolbar (desktop ≥1024, OD-WAY-89).** Exactly two rows. Row 1: saved-view chips (system views first, user views after) and, only when the collection has two or more live presentations at this width, the presentation segment at the right. Row 2: search (compact, one name used as placeholder and label), `Group` dropdown (navy/6 tint + `Group:` prefix when active), the domain filter dropdowns, `Sort` dropdown, then `Fields` and `Save view` as ghost text, then **one** count pill for attention (outline, status-coloured count text). Four control classes only: chip · dropdown · ghost text · count pill. No checkbox, no toggle, no second pill, no third row; a state that needs more rows is a saved view or a filter option. Phone keeps the single "View & filters" door (OD-REDESIGN-84).
 
+The Signals archive uses the two-row collection toolbar. Row 1: `All · Needs attention ·
+Retracted · I posted` then user views, the `Table | Feed` segment at the right. Row 2: search ·
+`Team ▾` · `Category ▾` (· `Group ▾` · `Sort ▾` when Table is live) · `Save view` as ghost text. No
+switch: a retracted Signal is reached through the `Retracted` view. Phone keeps the search field
+outside the single "View & filters" door; the door never carries the surface primary.
+
 ### Tabs / Segmented Controls
 - **Inline segmented (`seg`):** 32px track on `secondary` (3px inset padding), options fill the track height (measures 26px, not the previously-stated 28px — corrected by live measurement, extract 2026-07-28), "on" = white `background` pill + `foreground` + 600 + `0 1px 2px` lift. Label size is the `mono` token's 13px *number* reused for sizing only — the face stays DM Sans (`font-family: inherit`), never the SF Mono typeface; this is an established v3 pattern (a token's numeric value borrowed for a non-typographic use), not a new exception.
   **Intended canonical implementation:** `src/styles/segmented-track.css` (extract, 2026-07-28 — found duplicated pixel-for-pixel in `dashboard/cut-toggle.css` and the then-live `home/home-order-toggle.css`). The rule is "every consumer imports it rather than re-authoring the pixels."
@@ -962,6 +968,11 @@ one viewport) with an honest `N today` count where that link sat, and the list i
 with a `See N more →` door at its foot carrying any active filter through. An unbounded ambient feed
 is the wall of text again, rotated 90°. The `/work/signals` archive Feed **is** the collection and is
 never capped.
+
+The row carries no controls: its whole surface opens the record, and `Create task`, `Add category`,
+`Acknowledge` live on the record alone. The meta line is plain text — author · Team · occurred
+(`dd Mon HH:MM`) · category when set — never bordered chips, and never a visibility sentence. Home
+and the archive render the same component; a difference between them is a defect.
 
 The feed's toolbar is a search field plus a **`+ Signal` button in the shared `.btn-outline`
 secondary variant**. It is deliberately *not* the action blue: this is a door in an **ambient** tail,

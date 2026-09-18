@@ -63,6 +63,19 @@ function renderRows(rows: CatalogRow[], contextOverrides: Partial<CatalogCollect
 }
 
 describe('CatalogListPresentation owner-cell grammar', () => {
+  it('keeps lifecycle and the row action beside identity, with all lower-priority facts grouped', () => {
+    renderRows([
+      { id: 'work-0', name: 'Quarterly launch', archived_at: null, type: 'project', accountablePersonId: 'person-1' },
+    ])
+
+    const row = screen.getByRole('link', { name: 'Quarterly launch' })
+    expect(row.querySelector('.catalog-collection__identity')).toHaveTextContent('Quarterly launch')
+    expect(row.querySelector('.catalog-collection__row-state')).toHaveTextContent('Active')
+    expect(row.querySelector('.catalog-collection__primary-action')).toHaveTextContent('View')
+    expect(row.querySelector('.catalog-collection__metadata')).not.toBeNull()
+    expect(row.querySelector('.catalog-collection__metadata')?.children).toHaveLength(5)
+  })
+
   it('uses shared initials + first name while retaining full owner identity for assistive tech and title', () => {
     renderRows([
       { id: 'work-1', name: 'Assigned project', archived_at: null, type: 'project', accountablePersonId: 'person-1' },
@@ -82,9 +95,13 @@ describe('CatalogListPresentation owner-cell grammar', () => {
     ])
 
     const row = screen.getByRole('link', { name: 'Unassigned project' })
-    const owner = within(row).getByRole('cell', { name: 'Owner: Not set' })
-    expect(owner).toHaveAttribute('title', 'Not set')
-    expect(owner).toHaveTextContent('–')
+    const owner = within(row).getByRole('cell', { name: 'Owner: Unassigned' })
+    // One word for one fact: the eye and the screen reader get the SAME word, and it names the
+    // gap rather than dashing it. A bare '–' read as "nothing applies here" on records whose
+    // whole point is who is accountable.
+    expect(owner).toHaveAttribute('title', 'Unassigned')
+    expect(owner).toHaveTextContent('Unassigned')
+    expect(owner).not.toHaveTextContent('–')
     expect(owner.querySelector('.ownav')).toBeNull()
     expect(within(row).queryByText('Not set')).toBeNull()
   })

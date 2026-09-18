@@ -216,6 +216,14 @@ export function SignalComposer({
           // listbox; role=combobox marks the input as the driver).
           role={mentionToken ? 'combobox' : undefined}
           aria-expanded={mentionToken ? true : undefined}
+          // While the popover is open Escape belongs to it, not to whatever modal hosts the
+          // composer. A modal owns Escape from the capture phase, so it decides before this
+          // handler runs; the marker is what tells it to stand down. It is keyed to the open
+          // token because the marker must NOT outlive the popover — with no suggestion list on
+          // screen, Escape is the host's again.
+          // The listbox keeps focus on the textarea (a combobox does), so the marker belongs
+          // here, on the element the key actually reaches.
+          data-escape-layer={mentionToken ? 'nested' : undefined}
           onKeyDown={(e) => {
             // GAP-8 combobox idiom: while the popover is open, forward ArrowUp/Down/Home/End/Enter/
             // Escape to the shared listbox contract. Escape is consumed here regardless (D-B2
@@ -256,7 +264,7 @@ export function SignalComposer({
             <span aria-hidden="true">⌖</span>{site.name}
           </span>
         )}
-        <SignalAttentionPicker value={attention} onChange={(next) => { setAttention(next); onDirtyChange?.(true) }} />
+        <SignalAttentionPicker id="signals-compose-attention" value={attention} onChange={(next) => { setAttention(next); onDirtyChange?.(true) }} />
         <label className="signal-composer-context-pill signal-composer-occurred-pill">
           <span aria-hidden="true">◷</span>
           <span>{t('signals.composer.occurredNow')}</span>
@@ -273,6 +281,7 @@ export function SignalComposer({
       {teams.length > 1 ? (
         <div className="signal-composer-team-choice">
           <Picker
+            id="signals-compose-team"
             label={t('signals.composer.teamLabel')}
             value={teamId}
             options={teams.map((team) => ({ value: team.id, label: team.name }))}

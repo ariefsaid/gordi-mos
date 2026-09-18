@@ -24,14 +24,17 @@
 .picker__trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .picker__trigger > svg { flex: none; color: var(--muted-foreground); }
 .picker__trigger:hover:not(:disabled) { border-color: color-mix(in srgb, var(--muted-foreground) 50%, var(--input)); }
+/* Focus/open emphasis = the DESIGN.md global focus grammar (2px solid ring). A translucent
+   halo fails the DD-MVP-15 control-boundary floor: 45% primary composites to ~1.9:1 on the
+   light surfaces, under the 3:1 every visible focus indicator must clear in both themes. */
 .picker__trigger:focus-visible,
-.picker__trigger[aria-expanded='true'] { border-color: var(--primary); outline: 2px solid color-mix(in srgb, var(--primary) 45%, transparent); outline-offset: 1px; }
+.picker__trigger[aria-expanded='true'] { border-color: var(--primary); outline: 2px solid var(--ring); outline-offset: 1px; }
 .picker__placeholder { color: var(--muted-foreground); }
 .picker--full { width: 100%; }
 .picker--full .picker__trigger { width: 100%; }
 .picker--error .picker__trigger { border-color: var(--destructive); }
 .picker--error .picker__trigger:focus-visible,
-.picker--error .picker__trigger[aria-expanded='true'] { outline-color: color-mix(in srgb, var(--destructive) 45%, transparent); }
+.picker--error .picker__trigger[aria-expanded='true'] { outline-color: var(--destructive); }
 .picker--disabled .picker__trigger { background: var(--secondary); cursor: not-allowed; opacity: .72; }
 .picker__menu {
   position: fixed;

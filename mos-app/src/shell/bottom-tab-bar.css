@@ -25,6 +25,10 @@
   list-style: none;
   margin: 0;
   padding: 0;
+  /* Phone touch-separation floor: adjacent primary tabs are separate actionable controls,
+     so their hit targets need >=8px between them (the same floor the launcher gutter meets).
+     Five tabs at 390px still leaves every tab well above the 44px target width. */
+  gap: 8px;
 }
 
 .bottom-tab-list > li {

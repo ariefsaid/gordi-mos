@@ -42,7 +42,11 @@ fi
 
 
 echo "==> gstack (cherry-picked; project-scoped — we do NOT run gstack's global ./setup)"
-git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git "$TMP/gstack"
+GSTACK_PIN="a6b3a57512ca6d5c6aa5b68f74f736195021f96e"
+git init -q "$TMP/gstack"
+git -C "$TMP/gstack" remote add origin https://github.com/garrytan/gstack.git
+git -C "$TMP/gstack" fetch -q --depth 1 origin "$GSTACK_PIN"
+git -C "$TMP/gstack" checkout -q FETCH_HEAD
 for s in careful freeze guard cso design-review design-consultation; do
   rm -rf "${DEST:?}/$s"
   cp -R "$TMP/gstack/$s" "$DEST/$s"
@@ -52,7 +56,11 @@ done
 echo "==> jeffallan/claude-skills (spec-miner only)"
 # feature-forge RETIRED 2026-07-31: its EARS/AC discipline folded into the upgraded `to-spec`
 # override; the interview half is already covered by grill-with-docs (loop step 1 intake).
-git clone --depth 1 --filter=blob:none --sparse https://github.com/jeffallan/claude-skills.git "$TMP/jeff"
+JEFF_PIN="882ef55e377dbf9a4dbe496bb41ac6ccd0e555cf"
+git init -q "$TMP/jeff"
+git -C "$TMP/jeff" remote add origin https://github.com/jeffallan/claude-skills.git
+git -C "$TMP/jeff" fetch -q --depth 1 origin "$JEFF_PIN"
+git -C "$TMP/jeff" checkout -q FETCH_HEAD
 git -C "$TMP/jeff" sparse-checkout set skills/spec-miner
 for s in spec-miner; do
   rm -rf "${DEST:?}/$s"
@@ -103,7 +111,11 @@ rm -rf "${DEST:?}/taste"
 cp -R "$TMP/taste/skills/taste-skill-v1" "$DEST/taste"
 
 echo "==> ui-ux-pro-max (nextlevelbuilder) — CORE skills only (skip Gemini generative sub-skills)"
-git clone --depth 1 https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git "$TMP/uupm"
+UUPM_PIN="15de38fb70bc80ae9276fa7703b48ae861a672e6"
+git init -q "$TMP/uupm"
+git -C "$TMP/uupm" remote add origin https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git
+git -C "$TMP/uupm" fetch -q --depth 1 origin "$UUPM_PIN"
+git -C "$TMP/uupm" checkout -q FETCH_HEAD
 # Upstream restructured: payload moved from .claude/skills/<s> to src/<s>, and the skill dir uses
 # RELATIVE SYMLINKS (data -> ../../../src/...) that dangle when copied verbatim — cp -RL
 # dereferences them so the vendored copy is self-contained. Old path kept as fallback.
@@ -123,7 +135,11 @@ echo "==> mattpocock/skills — full engineering + productivity sets"
 # `agents/openai.yaml` interface config; the ONLY executable is
 # diagnosing-bugs/scripts/hitl-loop.template.sh (a benign interactive template — no net/eval/telemetry).
 # Re-vet on re-vendor. We vendor ONLY engineering/ + productivity/ (skip deprecated/in-progress/personal/misc).
-git clone --depth 1 --filter=blob:none --sparse https://github.com/mattpocock/skills.git "$TMP/mps"
+MPS_PIN="959a8e9f1edc3adbe2f7e3054bb6fbefa6696260"
+git init -q "$TMP/mps"
+git -C "$TMP/mps" remote add origin https://github.com/mattpocock/skills.git
+git -C "$TMP/mps" fetch -q --depth 1 origin "$MPS_PIN"
+git -C "$TMP/mps" checkout -q FETCH_HEAD
 git -C "$TMP/mps" sparse-checkout set skills/engineering skills/productivity
 for cat in engineering productivity; do
   for d in "$TMP/mps/skills/$cat"/*/; do          # */ matches dirs only → category README.md skipped
@@ -134,7 +150,7 @@ for cat in engineering productivity; do
 done
 
 echo "==> disler/super-simple-software-factory — sssf orchestrator skill + adws/ factory skeleton (#334)"
-# PINNED, unlike every other stanza: the factory skeleton is stamped into the TRACKED tree (adws/),
+# The factory skeleton is stamped into the TRACKED tree (adws/),
 # so an upstream bump must be a deliberate act — raise SSSF_PIN, re-run, review `git diff adws/`,
 # update adws/PORT-MANIFEST.md. scripts/vendor-sssf.test.sh proves the stamped tree is byte-identical
 # to upstream at this pin except the manifest-listed MOS files.

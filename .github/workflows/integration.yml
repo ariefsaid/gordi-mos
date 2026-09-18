@@ -3,7 +3,7 @@ name: integration
 on:
   push:
     branches: [main]
-  # integration is PR→main ONLY (PMO convention: dev/feature PRs run just `verify` + `geometry`;
+  # integration is PR→main ONLY (PMO convention: dev/feature PRs run just `verify` + `db-contracts`;
   # the heavy full-stack gate belongs to the dev→main promotion PR + the post-merge push-to-main
   # smoke). On main-targeted PRs the job still runs ONLY when something it validates changes — DB/
   # migrations/RLS, the e2e journeys, or this workflow's deps. Pushes to main always run it
@@ -21,7 +21,7 @@ on:
       # simply did not trigger on it.
       - 'scripts/applied-path-check.sh'
       - 'scripts/lib/applied-path-fingerprint.sql'
-      # Both lanes run this lint (here + geometry.yml #565) — an edit to the lint itself must
+      # Both lanes run this lint (here + db-contracts.yml #565) — an edit to the lint itself must
       # re-run the lane that validates it (#645).
       - 'scripts/lint-security-definer.sh'
       - 'scripts/lib/sql-blank.sh'
@@ -29,9 +29,10 @@ on:
       # (kept out of the PR paths filter so a workflow-only PR doesn't boot the full stack).
 
 # ─── CI TIERING ─────────────────────────────────────────────────────────────────────────────
-# PR → dev    `verify` + `geometry` — ONE Supabase boot: pgTAP + applied-path + rendered-geometry
-#             guards, no Playwright e2e suite. Fast lane, lives in geometry.yml (#565).
-# PR → main   `verify` + `db`       — Supabase + pgTAP + Playwright e2e. Authoritative gate.
+# PR → dev    `verify` + `db-contracts` — ONE Supabase boot: pgTAP + applied-path. No browser.
+# PR → main   `verify` + `db`           — Supabase + pgTAP + the whole Playwright suite, the
+#             rendered-geometry guards among it. Authoritative gate, and the only tier that
+#             renders a page.
 # push main   `verify` + `db`       — post-merge smoke.
 #
 # HISTORY. Until now gordi had no DB test on dev PRs at all: `integration` was PR→main only, so
@@ -40,9 +41,9 @@ on:
 # sit undetected on `dev` for days. A `pgtap` job here (branches: [main, dev]) was the fix, then
 # geometry.yml grew its OWN dev-PR Supabase boot for the rendered-geometry guards (#403) — the two
 # booted Supabase, npm-ci'd and ran in parallel on the same PR. #565 merged the `pgtap` job into
-# geometry.yml's job (still named `geometry`, still one dev-PR check) so a dev PR boots the stack
-# once and runs both check groups. `db` here is untouched: it is the PR→main / push-main lane and
-# was never part of the duplication.
+# it so a dev PR boots the stack once. The browser then came back out of that lane: a dev PR now
+# installs no Chromium, and the guards ride this job, which already runs every spec. `db` here is
+# untouched: it is the PR→main / push-main lane and was never part of the duplication.
 
 # Public repo: fork PRs run this workflow. Nothing here needs to write, so the token gets
 # read-only. Actions are pinned to commit SHAs (tags are mutable — a hijacked v4 would run here).
@@ -58,9 +59,9 @@ concurrency:
 
 jobs:
   # ── AUTHORITATIVE GATE: PR → main, and the post-merge smoke on main. ──────────────────────
-  # The dev-PR fast lane (formerly the `pgtap` job here) now lives in geometry.yml's `geometry`
-  # job (#565) — merged with the rendered-geometry guards so a dev PR boots Supabase once
-  # instead of twice. This job is unaffected: it was never part of that duplication.
+  # The dev-PR fast lane (formerly the `pgtap` job here) now lives in db-contracts.yml (#565),
+  # which boots Supabase once and runs no browser. This job is unaffected, and it is where the
+  # rendered-geometry guards are gated: `npx playwright test` below runs every spec.
   db:
     # Gated on base_ref rather than the trigger's branch list, so this job's condition alone
     # decides whether the expensive browser tier runs — it cannot accidentally start on a
@@ -91,8 +92,8 @@ jobs:
         run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
 
       # Logic lives in scripts/lint-security-definer.sh (#565) — this used to be inline here AND
-      # in the `pgtap` job that has since moved to geometry.yml, an acknowledged sync burden. One
-      # file, called from both dev-PR (geometry.yml) and main-PR (here) lanes.
+      # in the `pgtap` job that has since moved to db-contracts.yml, an acknowledged sync burden.
+      # One file, called from both dev-PR (db-contracts.yml) and main-PR (here) lanes.
       - name: Lint — every SECURITY DEFINER migration must revoke PUBLIC execute
         run: bash scripts/lint-security-definer.sh
 

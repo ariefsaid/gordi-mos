@@ -83,7 +83,7 @@
   border: 0;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .chart-frame {
     padding: 16px;
   }

@@ -427,3 +427,32 @@
    `.sk` / `.skeleton-bar` rules reference it (reduced-motion opt-outs stay local).
    ════════════════════════════════════════════════════════════════════════════ */
 @keyframes sk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+/* ── Browser surfaces ───────────────────────────────────────────────────────
+   Text selection ships with a browser default that belongs to no design system,
+   and it is one of the few surfaces a reader touches on every screen: dragging
+   across a Task title, a stream name, a Signal. It takes the same accent tint the
+   rail's current destination uses, and the reading colour that tint already
+   carries — one blue, one pairing, both already proven for contrast here.
+   ─────────────────────────────────────────────────────────────────────────── */
+::selection {
+  background: var(--ds-color-blue3);
+  color: var(--text-on-accent-tint);
+}
+
+/* The caret is the other surface a typist watches continuously, and it shipped as the body
+   text colour — the same ink as the characters, so the insertion point had nothing to
+   distinguish it. It takes the accent that already marks focus here. */
+input,
+textarea,
+[contenteditable] {
+  caret-color: var(--ds-color-blue);
+}
+
+/* An underline set at `auto` sits on the baseline and runs through every descender: a record
+   relation reading "Daily IG Content" is fine and "Bagian Produksi Gudang" is struck through
+   its own g's. Drop it clear of them and let it break around what it still meets. */
+:where(a) {
+  text-underline-offset: 0.18em;
+  text-decoration-skip-ink: auto;
+}

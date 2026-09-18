@@ -11,8 +11,8 @@ vi.mock('@/lib/use-cafe-stream', () => {
   const branch = { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' }
   const stream: ProductionStream = { branch, activity: 'kitchen' }
   const state = {
-    branches: [branch], options: [stream], stream,
-    resolve: vi.fn().mockResolvedValue({ branches: [branch], options: [stream], stream }),
+    branches: [branch], options: [stream], locationOptions: [stream], stream,
+    resolve: vi.fn().mockResolvedValue({ branches: [branch], options: [stream], locationOptions: [stream], stream }),
     adopt: vi.fn(), setStream: vi.fn(),
   }
   return { useCafeStream: () => state }

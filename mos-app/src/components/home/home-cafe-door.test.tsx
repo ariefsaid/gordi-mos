@@ -34,14 +34,14 @@ describe('Home Café door', () => {
     expect(screen.getByRole('link', { name: /Café Gordi HQ.*2\/3.*View opening/i }))
       .toHaveAttribute('href', '/cafe')
     const logLink = screen.getByRole('link', { name: /Log production/i })
-    expect(logLink).toHaveAttribute('href', '/cafe/log')
+    expect(logLink).toHaveAttribute("href", "/cafe")
     expect(logLink).toHaveClass('tap-floor')
   })
 
   it('keeps a not-started opening actionable without inventing a count', () => {
     renderDoor({ data: { ...data, opening: { started: false, runId: null, rollup: null } } })
     expect(screen.getByRole('link', { name: /not started.*View opening/i })).toHaveAttribute('href', '/cafe')
-    expect(screen.getByRole('link', { name: /Log production/i })).toHaveAttribute('href', '/cafe/log')
+    expect(screen.getByRole('link', { name: /Log production/i })).toHaveAttribute("href", "/cafe")
     expect(screen.queryByText(/0\//)).toBeNull()
   })
 

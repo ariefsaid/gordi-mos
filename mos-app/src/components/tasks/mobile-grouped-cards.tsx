@@ -271,7 +271,7 @@ function TaskCard({ task, now, buName, rName, supervisorName, recordSearch = '',
               {lockMessage && <span className="task-card-pic-lock">{lockMessage}</span>}
             </dd>
           </div>
-          <div className="task-card-meta-pair">
+          <div className="task-card-meta-pair task-card-meta-pair--supervisor">
             <dt>{t('tasks.supervisor')}</dt>
             <dd>
               {isNew && onEditSupervisor ? (

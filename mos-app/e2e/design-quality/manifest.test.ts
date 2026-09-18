@@ -49,6 +49,52 @@ import { resetAuditScroll } from './scroll.ts'
 
 const testBindingSecret = 'fixture-binding-secret-for-manifest-tests'
 
+test('a full-value reveal may not point at a page-level container', () => {
+  // The driver proves a reveal by finding the expected string inside it, and textContent does not
+  // know about clipping — so any ancestor of the clipped element already contains it. A reveal of
+  // `main` or `body` would exempt every truncation on the page while looking exercised. The driver
+  // cannot tell the difference; this is the only thing that can.
+  for (const reveal of ['main', 'body', '[role="main"]', '#root']) {
+    const result = validateManifest({
+      ...DESIGN_QUALITY_MANIFEST,
+      lists: {
+        ...DESIGN_QUALITY_MANIFEST.lists,
+        fullValuePaths: [{
+          selector: '.some-clipped-value',
+          authority: 'test',
+          reveal: { action: 'click' as const, selector: reveal },
+        }],
+      },
+    })
+    assert.equal(result.ok, false, `a reveal into ${reveal} must be refused`)
+    assert.ok(
+      result.errors.some((error) => error.includes('page-level container')),
+      `a reveal into ${reveal} must say why: ${result.errors.join(' | ')}`,
+    )
+  }
+
+  // The hole an independent review found: exempting anything that merely CONTAINED a class or
+  // attribute meant `main .composer` named a page-level root and walked straight through the
+  // guard built to stop exactly that. A reveal must carry the entry's own leading scope.
+  for (const reveal of ['main .composer', 'body p.value', '[role="main"] .toolbar', '.some-other-field .menu']) {
+    const result = validateManifest({
+      ...DESIGN_QUALITY_MANIFEST,
+      lists: {
+        ...DESIGN_QUALITY_MANIFEST.lists,
+        fullValuePaths: [{
+          selector: "[data-filter-id='status'] .collection-toolbar__choice-value",
+          authority: 'test',
+          reveal: { action: 'click' as const, selector: reveal },
+        }],
+      },
+    })
+    assert.equal(result.ok, false, `a reveal of ${reveal} escapes the entry's own scope and must be refused`)
+  }
+
+  // And the real entry, which reveals into its own field's popover, must still be accepted.
+  assert.ok(validateManifest(DESIGN_QUALITY_MANIFEST).ok, 'the shipped manifest stays valid')
+})
+
 test('the design manifest covers every required dimension and declares complete rules', () => {
   const result = validateManifest(DESIGN_QUALITY_MANIFEST)
 
@@ -352,6 +398,35 @@ test('control-consistency evidence covers every runnable cell with an exact cont
   const valid = meaningfulCsv('control-consistency.csv', validText, DESIGN_QUALITY_MANIFEST)
   assert.equal(valid.ok, true, valid.reason)
 
+  const resolutionFailureRows = rows.map((row) => row.kind === 'bounded-choice'
+    ? {
+        ...row,
+        selector: 'body > main > button:nth-of-type(1)',
+        observed: false,
+        passed: false,
+        measured: JSON.stringify({
+          lifecycleApplicable: true,
+          resolutionFailure: {
+            identity: 'body > main > button:nth-of-type(1)',
+            id: '',
+            role: 'combobox',
+            marker: 'role=combobox',
+            label: 'Status',
+            diagnosticSelector: 'body > main > button:nth-of-type(1)',
+            matchCount: 0,
+            roleMatched: false,
+            markerMatched: false,
+            reason: 'keyless',
+            passed: false,
+          },
+        }),
+      }
+    : row)
+  const resolutionFailureTarget = await writer.writeCsv('control-consistency.csv', resolutionFailureRows)
+  const resolutionFailure = meaningfulCsv('control-consistency.csv', await readFile(resolutionFailureTarget, 'utf8'), DESIGN_QUALITY_MANIFEST)
+  assert.equal(resolutionFailure.ok, true, resolutionFailure.reason)
+  assert.equal(resolutionFailureRows.find((row) => row.kind === 'bounded-choice')?.passed, false)
+
   const missingCell = DESIGN_QUALITY_MANIFEST.cells.find(isManifestCellRunnable)!.id
   const missingText = validText.split('\n').filter((line) => !line.includes(missingCell)).join('\n')
   const invalid = meaningfulCsv('control-consistency.csv', missingText, DESIGN_QUALITY_MANIFEST)
@@ -419,47 +494,57 @@ test('CSV evidence accepts product copy containing pending or placeholder', () =
   assert.deepEqual(meaningfulCsv('copy-census.csv', csv), { ok: true })
 })
 
-test('change-gate mockup gaps accept measured mismatches but reject blocked comparisons', () => {
+test('historical mockup diagnostics preserve measured mismatches and explicit incompleteness', () => {
+  const laneMetadata = { complete: true, count: 1, digest: '0'.repeat(64) }
   assert.equal(validateMockupStatus({
-    status: 'assessed-with-gaps',
+    status: 'diagnostic',
+    diagnosticStatus: 'complete',
     comparisons: [{ status: 'fail', score: 0.7, build: '/tmp/render.png', missingRegions: [], contradictedRegions: [] }],
-  }, true).ok, true)
+    ...laneMetadata,
+  }).ok, true)
 
   const blocked = validateMockupStatus({
-    status: 'assessed-with-gaps',
-    comparisons: [{ status: 'blocked', score: null, build: '', missingRegions: [], contradictedRegions: [] }],
-  }, true)
-  assert.equal(blocked.ok, false)
-  assert.match(blocked.reason ?? '', /blocked|completed/i)
+    status: 'diagnostic',
+    diagnosticStatus: 'incomplete',
+    comparisons: [{ status: 'blocked', score: null, build: '', reason: 'image unavailable', missingRegions: [], contradictedRegions: [] }],
+    ...laneMetadata,
+  })
+  assert.equal(blocked.ok, true, blocked.reason)
 
   const allPass = validateMockupStatus({
-    status: 'assessed-with-gaps',
+    status: 'diagnostic',
+    diagnosticStatus: 'complete',
     comparisons: [{ status: 'pass', score: 0.92, build: '/tmp/render.png', missingRegions: [], contradictedRegions: [] }],
-  }, true)
-  assert.equal(allPass.ok, false)
-  assert.match(allPass.reason ?? '', /below the 0\.75 threshold/i)
+    ...laneMetadata,
+  })
+  assert.equal(allPass.ok, true, allPass.reason)
 
   const regionOnlyFailure = validateMockupStatus({
-    status: 'assessed-with-gaps',
+    status: 'diagnostic',
+    diagnosticStatus: 'complete',
     comparisons: [{ status: 'fail', score: 0.92, build: '/tmp/render.png', missingRegions: ['toolbar'], contradictedRegions: [] }],
-  }, true)
-  assert.equal(regionOnlyFailure.ok, false)
-  assert.match(regionOnlyFailure.reason ?? '', /below the 0\.75 threshold/i)
+    ...laneMetadata,
+  })
+  assert.equal(regionOnlyFailure.ok, true, regionOnlyFailure.reason)
 
   const mixedFalsePass = validateMockupStatus({
-    status: 'assessed-with-gaps',
+    status: 'diagnostic',
+    diagnosticStatus: 'complete',
     comparisons: [
       { status: 'fail', score: 0.7, build: '/tmp/render-a.png', missingRegions: [], contradictedRegions: [] },
       { status: 'pass', score: 0.1, build: '/tmp/render-b.png', missingRegions: [], contradictedRegions: [] },
     ],
-  }, true)
+    ...laneMetadata,
+    count: 2,
+  })
   assert.equal(mixedFalsePass.ok, false)
   assert.match(mixedFalsePass.reason ?? '', /every pass comparison must meet the 0\.75 score and region contract/i)
 
   const falsePass = validateMockupStatus({
     status: 'pass',
     comparisons: [{ status: 'pass', score: 0.7, build: '/tmp/render.png', missingRegions: [], contradictedRegions: [] }],
-  }, false)
+    ...laneMetadata,
+  })
   assert.equal(falsePass.ok, false)
   assert.match(falsePass.reason ?? '', /0\.75 score and region contract/i)
 })

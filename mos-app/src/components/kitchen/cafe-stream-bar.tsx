@@ -57,10 +57,15 @@ export function CafeStreamBar({
   const value = allStreams ? ALL_STREAMS : stream ? streamKey(stream.branch.id, stream.activity) : ''
 
   return (
-    <div className="cafe-stream" data-testid="cafe-stream">
+    // `unset` is not decoration. On the capture surfaces nothing can be submitted until a
+    // stream is chosen, and the quiet treatment made the one control that gates the whole page
+    // the smallest thing on it — the form rendered in full, Submit sat dead, and the reason was
+    // a line in the footer. An unmade required choice says so where the eye starts.
+    <div className="cafe-stream" data-testid="cafe-stream" data-stream-unset={onChange && value === '' ? 'true' : undefined}>
       <span className="cafe-stream__label">{t('cafe.stream.label')}</span>
       {onChange ? (
         <Select
+          id="cafe-stream"
           className="cafe-stream__select"
           aria-label={t('kitchen.log.stream.pickerAria')}
           value={value}

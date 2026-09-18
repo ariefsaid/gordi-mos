@@ -270,7 +270,7 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
           <button
             type="button"
             aria-label={t('topBar.search')}
-            className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm border border-border bg-secondary text-muted-foreground hover:border-muted-foreground/50 flex-none"
+            className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm border border-input bg-secondary text-muted-foreground hover:border-foreground/70 flex-none"
             style={{ width: 32, height: 32 }}
             onClick={onOpenSearch}
           >
@@ -280,7 +280,7 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
           <button
             type="button"
             aria-label={t('topBar.search')}
-            className="flex items-center gap-2 rounded-sm border border-border bg-secondary px-2 text-muted-foreground hover:border-muted-foreground/50 cursor-text"
+            className="flex items-center gap-2 rounded-sm border border-input bg-secondary px-2 text-muted-foreground hover:border-foreground/70 cursor-text"
             style={{ height: 34, width: 200 }}
             onClick={onOpenSearch}
           >

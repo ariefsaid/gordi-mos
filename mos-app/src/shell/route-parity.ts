@@ -61,7 +61,8 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'workObjectives', path: absolutePath(ROUTE_PATHS.workObjectives), kind: 'visible-root' },
   { id: 'inbox', path: absolutePath(ROUTE_PATHS.inbox), kind: 'visible-root' },
   { id: 'cafe', path: absolutePath(ROUTE_PATHS.cafe), kind: 'visible-root' },
-  { id: 'cafeLog', path: absolutePath(ROUTE_PATHS.cafeLog), kind: 'child' },
+  // cafeLog retired from the page catalog (DD-MVP-17): /cafe/log redirects to the capture
+  // root at /cafe, which carries the surface itself.
   { id: 'cafePlan', path: absolutePath(ROUTE_PATHS.cafePlan), kind: 'child' },
   { id: 'cafeStock', path: absolutePath(ROUTE_PATHS.cafeStock), kind: 'child' },
   { id: 'cafeReview', path: absolutePath(ROUTE_PATHS.cafeReview), kind: 'child' },

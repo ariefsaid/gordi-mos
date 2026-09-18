@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 
 import { collectContrast, contrastRatio, parseCssColor, type PageAuditContext } from './measurements.ts'
 
@@ -46,6 +46,83 @@ export type ControlConsistencyRow = {
   measured: string
 }
 
+/**
+ * A bounded choice's semantic identity is the caller-owned id on its visible
+ * trigger. The generated path and label are snapshots for diagnostics only.
+ */
+export type BoundedChoiceIdentity = {
+  id: string
+  role: string
+  label: string
+  marker: BoundedChoiceMarker
+  diagnosticSelector: string
+  valid: boolean
+  invalidReason?: BoundedChoiceInvalidReason
+}
+
+type BoundedChoiceMarker = 'role=combobox' | 'aria-haspopup=listbox' | 'picker-trigger' | 'select-field'
+type BoundedChoiceInvalidReason = 'keyless' | 'invalid-id' | 'duplicate'
+
+export type BoundedChoiceLifecyclePopulationResult = {
+  expectedCount: number
+  lifecycleCount: number
+  missingIdentities: string[]
+  duplicateIdentities: string[]
+  extraIdentities: string[]
+  failedIdentities: string[]
+  keylessIdentities: string[]
+  invalidIdentities: string[]
+  passed: boolean
+}
+
+export type BoundedChoiceResolutionResult = {
+  id: string
+  matchCount: number
+  roleMatched: boolean
+  markerMatched: boolean
+  reason: BoundedChoiceResolutionFailureReason | null
+  passed: boolean
+}
+
+export type BoundedChoiceResolutionFailureReason =
+  | 'keyless'
+  | 'invalid-id'
+  | 'missing'
+  | 'ambiguous'
+  | 'duplicate'
+  | 'role-mismatched'
+  | 'action-failed'
+  | 'popup-unassociated'
+  | 'popup-missing'
+  | 'popup-ambiguous'
+  | 'popup-role-mismatched'
+  | 'popup-not-open'
+  | 'outside-dismissal-failed'
+  | 'active-option-missing'
+  | 'active-option-ambiguous'
+  | 'active-option-role-mismatched'
+  | 'selected-option-missing'
+  | 'selected-option-ambiguous'
+  | 'selected-option-id-missing'
+
+export type BoundedChoiceResolutionFailureMeasurement = {
+  lifecycleApplicable: true
+  resolutionFailure: {
+    identity: string
+    id: string
+    role: string
+    marker: BoundedChoiceMarker
+    label: string
+    diagnosticSelector: string
+    matchCount: number
+    roleMatched: boolean
+    markerMatched: boolean
+    reason: BoundedChoiceResolutionFailureReason
+    passed: false
+    error?: string
+  }
+}
+
 export type NativeSelectException = {
   selector: string
   authority: string
@@ -61,8 +138,73 @@ type RenderedControl = ClassifiedControlMetrics & {
   invalid: boolean
   expanded: boolean
   selected: boolean
+  elementHasListboxPopup: boolean
   matchedSelector: string
   authority: string
+}
+
+/**
+ * Compare lifecycle rows with the semantic identity set captured before any
+ * control is exercised. The set is intentionally supplied by the caller so
+ * scrolling or focus changes cannot silently change the denominator midway
+ * through a cell.
+ */
+export function validateBoundedChoiceLifecyclePopulation(
+  capturedIdentities: readonly BoundedChoiceIdentity[],
+  lifecycleRows: readonly ControlConsistencyRow[],
+): BoundedChoiceLifecyclePopulationResult {
+  const expectedIdentities = capturedIdentities.map(identity => identity.id)
+
+  const lifecycleIdentities = lifecycleRows
+    .filter((row) => row.kind === 'bounded-choice')
+    .map((row) => row.selector)
+  const expectedCounts = countIdentities(expectedIdentities)
+  const lifecycleCounts = countIdentities(lifecycleIdentities)
+  const missingIdentities = [...expectedCounts.entries()]
+    .filter(([identity, count]) => (lifecycleCounts.get(identity) ?? 0) < count)
+    .map(([identity]) => identity || '<missing-id>')
+  const duplicateIdentities = [...new Set([
+    ...[...expectedCounts.entries()].filter(([identity, count]) => Boolean(identity) && count > 1).map(([identity]) => identity),
+    ...[...lifecycleCounts.entries()].filter(([identity, count]) => Boolean(identity) && count > 1).map(([identity]) => identity),
+  ])]
+  const expectedSet = new Set(expectedIdentities)
+  const extraIdentities = [...new Set(lifecycleIdentities)]
+    .filter((identity) => !expectedSet.has(identity))
+    .map((identity) => identity || '<missing-id>')
+  const failedIdentities = [...new Set(lifecycleRows
+    .filter((row) => row.kind === 'bounded-choice' && !row.passed)
+    .map((row) => row.selector || '<missing-id>'))]
+  const keylessIdentities = capturedIdentities
+    .filter((identity) => !identity.id)
+    .map((identity) => identity.diagnosticSelector || '<missing-id>')
+  const invalidIdentities = [...new Set(capturedIdentities
+    .filter((identity) => !identity.valid)
+    .map(identity => identity.invalidReason === 'invalid-id'
+      ? identity.diagnosticSelector || '<missing-id>'
+      : identity.id || identity.diagnosticSelector || '<missing-id>'))]
+  return {
+    expectedCount: capturedIdentities.length,
+    lifecycleCount: lifecycleIdentities.length,
+    missingIdentities,
+    duplicateIdentities,
+    extraIdentities,
+    failedIdentities,
+    keylessIdentities,
+    invalidIdentities,
+    passed: missingIdentities.length === 0
+      && duplicateIdentities.length === 0
+      && extraIdentities.length === 0
+      && failedIdentities.length === 0
+      && keylessIdentities.length === 0
+      && invalidIdentities.length === 0
+      && lifecycleIdentities.length === capturedIdentities.length,
+  }
+}
+
+function countIdentities(identities: readonly string[]): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const identity of identities) counts.set(identity, (counts.get(identity) ?? 0) + 1)
+  return counts
 }
 
 export const CONTROL_VARIANT_VOCABULARY: readonly ControlVariantEntry[] = [
@@ -72,18 +214,316 @@ export const CONTROL_VARIANT_VOCABULARY: readonly ControlVariantEntry[] = [
   { selector: '.btn.btn-destructive', component: 'button', variant: 'destructive', authority: 'DESIGN.md §5 Buttons; components/ui/Button.css' },
   { selector: '.btn-touch', component: 'button', variant: 'touch', authority: 'DESIGN.md §5 Buttons phone action; components/ui/Button.css' },
   { selector: '.mk-iconbtn', component: 'icon-button', variant: 'icon', authority: 'DESIGN.md §5 Buttons; components/ui/IconButton.css' },
+  // The Tasks attention pill is a Picker trigger with its own tinted resting fill and border, so
+  // it leads the generic trigger entry; the neutral toolbar pickers keep matching that entry.
+  { selector: '.overdue-filter-btn--active', component: 'bounded-choice', variant: 'attention-filter-active', authority: 'DESIGN.md § DB-view toolbar controls amendment A1 attention pill, pressed; components/tasks/TasksWorkspace.css' },
+  { selector: '.overdue-filter-btn', component: 'bounded-choice', variant: 'attention-filter', authority: 'DESIGN.md § DB-view toolbar controls amendment A1 attention pill; components/tasks/TasksWorkspace.css' },
   { selector: '.picker__trigger', component: 'bounded-choice', variant: 'picker', authority: 'DD-MVP-2 designed bounded choice; components/ui/Picker.css' },
   { selector: '.mk-select__field', component: 'bounded-choice', variant: 'select', authority: 'DD-MVP-2 designed bounded choice; components/ui/Select.css' },
   { selector: '.mk-chip--clickable', component: 'chip', variant: 'clickable', authority: 'components/ui/Chip.css clickable chip contract' },
   { selector: '.pill', component: 'pill', variant: 'pill', authority: 'components/ui/Pill.css shared pill contract' },
+  // Shell and collection chrome. Appended, never interleaved: `find` takes the first match, so
+  // appending leaves every entry above unchanged. Within this block the narrower selector leads.
+  { selector: '.rail-item--dest[aria-current="location"]', component: 'nav-item', variant: 'rail-destination-location', authority: 'Rule 5 rail current-location parent; shell/rail-nav.css — a parent that owns the active child is a LOCATION and carries its own treatment' },
+  { selector: '.rail-item--dest', component: 'nav-item', variant: 'rail-destination', authority: 'DESIGN.md §Navigation Rail "Nav item: 36px tall"; shell/rail-nav.css rung 2' },
+  { selector: '.rail-item--child', component: 'nav-item', variant: 'rail-child', authority: 'DD-WAY-33 rail type ladder rung 3 (quieter size, weight and colour); shell/rail-nav.css' },
+  { selector: '.bottom-tab', component: 'nav-item', variant: 'bottom-tab', authority: 'phone bottom-tab bar, --tabbar-h: 60px (src/index.css); shell/bottom-tab-bar.css' },
+  { selector: '.top-bar .border-input.bg-secondary', component: 'search-trigger', variant: 'top-bar-search', authority: 'shell/top-bar.tsx command-menu trigger; bordered secondary resting fill, unlike the header doors' },
+  { selector: '.top-bar .tap-target-phone--icon', component: 'icon-button', variant: 'top-bar-door', authority: 'shell/top-bar.css header doors; transparent resting fill' },
+  { selector: '.dt-sort-button', component: 'table-sort', variant: 'column-header', authority: 'components/dashboard/data-table.css sortable column header' },
+  { selector: 'th[aria-sort="ascending"] .th-sort-btn, th[aria-sort="descending"] .th-sort-btn', component: 'table-sort', variant: 'column-header-tasks-sorted', authority: 'components/tasks/TasksWorkspace.css sorted column header; the active sort carries its own foreground' },
+  { selector: '.th-sort-btn', component: 'table-sort', variant: 'column-header-tasks', authority: 'components/tasks/TasksWorkspace.css sortable column header; inherits the Tasks header overline treatment' },
+  { selector: '.collection-toolbar__choice-trigger', component: 'bounded-choice', variant: 'filter-chip', authority: 'components/record-collection/collection-toolbar.css filter trigger' },
+  { selector: '.collection-toolbar__view--active', component: 'chip', variant: 'saved-view-active', authority: 'components/record-collection/collection-toolbar.css active saved view; own background and colour' },
+  // Resolves at 26px through the size vocabulary's own ±2 tolerance, the same way a 34px
+  // control resolves to control-32. An earlier comment here refused to name this chip because
+  // no named step covered 26px — that was true before the 28px step existed, and naming the
+  // step is what changed it. The chip's own 26px is still off DESIGN.md's 32px control rule
+  // and is recorded as a finding (#864); this entry does not bless the height.
+  { selector: '.collection-toolbar__view', component: 'chip', variant: 'saved-view', authority: 'components/record-collection/collection-toolbar.css saved-view chip' },
+  // The phone collection disclosure — one job, two class names, because Tasks and the shared
+  // collection each named their own. Same variant: same 44px trigger opening the same panel.
+  { selector: '.mobile-task-options-trigger, .collection-mobile-options-trigger', component: 'disclosure', variant: 'collection-options', authority: 'the phone View & filters door over the collection toolbar' },
+  { selector: '.inline-cell-trigger', component: 'button', variant: 'inline-cell-edit', authority: 'components/tasks/TasksWorkspace.css inline edit door inside a decision cell' },
+  { selector: '.rail-collapse-toggle', component: 'icon-button', variant: 'rail-collapse', authority: 'src/index.css --rail-toggle-size: 28px square, chosen to clear the icon-button footprint at a fine pointer without out-shouting a 36px nav item; 44px under a coarse pointer' },
+  { selector: '.kms-tab', component: 'tab', variant: 'stream-tab', authority: 'components/kitchen/movement-seg.css production-stream segment; the Cafe capture destination strip' },
+  { selector: '.dt-group-toggle, .dt-cards-group-toggle', component: 'disclosure', variant: 'group-toggle', authority: 'components/dashboard/data-table.css collapsible group header' },
 ]
+
+/** Capture bounded-choice identities before any state or lifecycle interaction can scroll. */
+export async function captureBoundedChoicePopulation(page: Page): Promise<BoundedChoiceIdentity[]> {
+  const identities = await page.evaluate(({ vocabulary }) => {
+    const visible = (element: HTMLElement) => {
+      const style = getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none'
+        && style.visibility !== 'hidden'
+        && style.opacity !== '0'
+        && rect.width > 2
+        && rect.height > 2
+        && rect.right > 0
+        && rect.bottom > 0
+        && rect.left < window.innerWidth
+        && rect.top < window.innerHeight
+    }
+    const elementPath = (element: HTMLElement): string => {
+      const segments: string[] = []
+      let current: HTMLElement | null = element
+      while (current && current !== document.body) {
+        let ordinal = 1
+        let sibling = current.previousElementSibling
+        while (sibling) {
+          if (sibling.tagName === current.tagName) ordinal += 1
+          sibling = sibling.previousElementSibling
+        }
+        segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${ordinal})`)
+        current = current.parentElement
+      }
+      return ['body', ...segments].join(' > ')
+    }
+    const accessibleName = (element: HTMLElement): string => {
+      const labelledBy = element.getAttribute('aria-labelledby')
+        ?.split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
+        .filter(Boolean)
+        .join(' ')
+      const associatedLabel = element.id
+        ? Array.from(document.querySelectorAll<HTMLLabelElement>('label')).find((label) => label.htmlFor === element.id)?.textContent?.trim()
+        : ''
+      const parentLabel = element.closest('label')?.textContent?.trim()
+      const raw = element.getAttribute('aria-label')?.trim()
+        || labelledBy
+        || associatedLabel
+        || parentLabel
+        || element.innerText?.trim()
+        || element.textContent?.trim()
+        || ''
+      return raw.replace(/\s+/g, ' ')
+    }
+    const actionable = 'button, a[href], [role="button"], [role="link"], [role="combobox"], .mk-chip--clickable'
+    const captures = Array.from(document.querySelectorAll<HTMLElement>(actionable))
+      .filter(visible)
+      .filter((element) => {
+        const match = vocabulary.find((entry) => element.matches(entry.selector))
+        return element.getAttribute('role') === 'combobox'
+          || (element.tagName.toLowerCase() === 'button' && element.getAttribute('aria-haspopup') === 'listbox')
+          || match?.selector === '.picker__trigger'
+          || match?.selector === '.mk-select__field'
+      })
+      .map((element) => {
+        const role = element.getAttribute('role') || element.tagName.toLowerCase()
+        const marker: BoundedChoiceMarker = element.getAttribute('role') === 'combobox'
+          ? 'role=combobox'
+          : element.tagName.toLowerCase() === 'button' && element.getAttribute('aria-haspopup') === 'listbox'
+            ? 'aria-haspopup=listbox'
+            : element.classList.contains('picker__trigger')
+              ? 'picker-trigger'
+              : 'select-field'
+        return {
+          id: element.id.trim(),
+          role,
+          label: accessibleName(element),
+          marker,
+          diagnosticSelector: elementPath(element),
+        }
+      })
+    const idCounts = new Map<string, number>()
+    for (const capture of captures) idCounts.set(capture.id, (idCounts.get(capture.id) ?? 0) + 1)
+    return captures.map((capture) => {
+      const duplicate = Boolean(capture.id) && (idCounts.get(capture.id) ?? 0) > 1
+      const invalidReason: BoundedChoiceInvalidReason | undefined = !capture.id
+        ? 'keyless'
+        : !/^[a-z0-9][a-z0-9-]*$/.test(capture.id)
+          ? 'invalid-id'
+          : duplicate ? 'duplicate' : undefined
+      return {
+        ...capture,
+        valid: invalidReason === undefined,
+        ...(invalidReason ? { invalidReason } : {}),
+      }
+    })
+  }, { vocabulary: CONTROL_VARIANT_VOCABULARY }) as BoundedChoiceIdentity[]
+  return identities
+}
+
+function currentElementPath(locator: Locator): Promise<string> {
+  return locator.evaluate((element) => {
+    const segments: string[] = []
+    let current: HTMLElement | null = element as HTMLElement
+    while (current && current !== document.body) {
+      let ordinal = 1
+      let sibling = current.previousElementSibling
+      while (sibling) {
+        if (sibling.tagName === current.tagName) ordinal += 1
+        sibling = sibling.previousElementSibling
+      }
+      segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${ordinal})`)
+      current = current.parentElement
+    }
+    return ['body', ...segments].join(' > ')
+  })
+}
+
+function idAttributeSelector(id: string): string {
+  return `[id=${JSON.stringify(id)}]`
+}
+
+function boundedChoiceDiagnosticIdentity(target: BoundedChoiceIdentity, diagnosticSelector = target.diagnosticSelector): string {
+  return target.id && target.invalidReason !== 'invalid-id'
+    ? target.id
+    : diagnosticSelector || '<missing-id>'
+}
+
+function resolutionFailureRow(
+  cellId: string,
+  target: BoundedChoiceIdentity,
+  failure: Pick<BoundedChoiceResolutionResult, 'matchCount' | 'roleMatched' | 'markerMatched'> & {
+    reason: BoundedChoiceResolutionFailureReason
+    error?: string
+  },
+  diagnosticSelector = target.diagnosticSelector,
+): ControlConsistencyRow {
+  const identity = boundedChoiceDiagnosticIdentity(target, diagnosticSelector)
+  const measured: BoundedChoiceResolutionFailureMeasurement = {
+    lifecycleApplicable: true,
+    resolutionFailure: {
+      identity,
+      id: target.id,
+      role: target.role,
+      marker: target.marker,
+      label: target.label,
+      diagnosticSelector: diagnosticSelector || '<missing-id>',
+      ...failure,
+      passed: false,
+    },
+  }
+  return {
+    cellId,
+    kind: 'bounded-choice',
+    selector: identity,
+    component: 'bounded-choice',
+    variant: 'unknown',
+    size: 'unresolved',
+    state: 'lifecycle',
+    authority: 'DD-MVP-2 designed bounded choice; issue #856 lifecycle contract',
+    observed: false,
+    passed: false,
+    measured: JSON.stringify(measured),
+  }
+}
+
+type PopupResolution = {
+  popup: Locator | null
+  matchCount: number
+  roleMatched: boolean
+  visible: boolean
+  reason: BoundedChoiceResolutionFailureReason | null
+}
+
+async function resolveAssociatedPopup(page: Page, trigger: Locator): Promise<PopupResolution> {
+  const controlsId = (await trigger.getAttribute('aria-controls'))?.trim() ?? ''
+  if (!controlsId) return { popup: null, matchCount: 0, roleMatched: false, visible: false, reason: 'popup-unassociated' }
+
+  const popup = page.locator(idAttributeSelector(controlsId))
+  const matchCount = await popup.count()
+  if (matchCount === 0) return { popup, matchCount, roleMatched: false, visible: false, reason: 'popup-missing' }
+  if (matchCount !== 1) return { popup, matchCount, roleMatched: false, visible: false, reason: 'popup-ambiguous' }
+
+  const visible = await popup.isVisible().catch(() => false)
+  if (!visible) return { popup, matchCount, roleMatched: false, visible, reason: 'popup-not-open' }
+  const role = await popup.getAttribute('role').catch(() => null)
+  if (role !== 'listbox' && role !== 'menu') {
+    return { popup, matchCount, roleMatched: false, visible, reason: 'popup-role-mismatched' }
+  }
+  return { popup, matchCount, roleMatched: true, visible, reason: null }
+}
+
+type ActiveOptionResolution = {
+  id: string
+  matchCount: number
+  roleMatched: boolean
+  reason: BoundedChoiceResolutionFailureReason | null
+}
+
+async function resolveActiveOption(
+  page: Page,
+  trigger: Locator,
+  popup: Locator,
+): Promise<ActiveOptionResolution> {
+  const triggerActive = (await trigger.getAttribute('aria-activedescendant').catch(() => null))?.trim() ?? ''
+  const popupActive = (await popup.getAttribute('aria-activedescendant').catch(() => null))?.trim() ?? ''
+  const activeIds = [...new Set([triggerActive, popupActive].filter(Boolean))]
+  if (activeIds.length === 0) return { id: '', matchCount: 0, roleMatched: false, reason: 'active-option-missing' }
+  if (activeIds.length !== 1) return { id: '', matchCount: activeIds.length, roleMatched: false, reason: 'active-option-ambiguous' }
+
+  const id = activeIds[0]!
+  const activeOption = popup.locator(idAttributeSelector(id))
+  const matchCount = await activeOption.count()
+  if (matchCount === 0) return { id, matchCount, roleMatched: false, reason: 'active-option-missing' }
+  if (matchCount !== 1) return { id, matchCount, roleMatched: false, reason: 'active-option-ambiguous' }
+  const globalMatchCount = await page.locator(idAttributeSelector(id)).count()
+  if (globalMatchCount !== 1) return { id, matchCount: globalMatchCount, roleMatched: false, reason: 'active-option-ambiguous' }
+  const roleMatched = await activeOption.getAttribute('role') === 'option'
+  return { id, matchCount, roleMatched, reason: roleMatched ? null : 'active-option-role-mismatched' }
+}
+
+type SelectedOptionResolution = {
+  id: string
+  selector: string
+  matchCount: number
+  reason: BoundedChoiceResolutionFailureReason | null
+}
+
+async function resolveSelectedOption(page: Page, popup: Locator): Promise<SelectedOptionResolution> {
+  const selected = popup.locator('[role="option"][aria-selected="true"], [role="option"][aria-checked="true"]')
+  const matchCount = await selected.count()
+  if (matchCount === 0) return { id: '', selector: '', matchCount, reason: 'selected-option-missing' }
+  if (matchCount !== 1) return { id: '', selector: '', matchCount, reason: 'selected-option-ambiguous' }
+  const id = (await selected.getAttribute('id'))?.trim() ?? ''
+  if (!id) return { id: '', selector: '', matchCount, reason: 'selected-option-id-missing' }
+  const selector = idAttributeSelector(id)
+  const globalMatchCount = await page.locator(selector).count()
+  if (globalMatchCount !== 1) return { id, selector, matchCount: globalMatchCount, reason: 'selected-option-ambiguous' }
+  return { id, selector, matchCount, reason: null }
+}
+
+/** Require exactly one current trigger with its captured role and bounded-choice marker. */
+export function validateBoundedChoiceResolution(
+  target: BoundedChoiceIdentity,
+  matchCount: number,
+  roleMatched: boolean,
+  markerMatched: boolean,
+): BoundedChoiceResolutionResult {
+  let reason: BoundedChoiceResolutionResult['reason'] = null
+  if (!target.id) reason = 'keyless'
+  else if (target.invalidReason === 'invalid-id' || (!target.valid && target.invalidReason !== 'duplicate')) reason = 'invalid-id'
+  else if (matchCount === 0) reason = 'missing'
+  else if (matchCount !== 1) reason = 'ambiguous'
+  else if (target.invalidReason === 'duplicate') reason = 'duplicate'
+  else if (!roleMatched || !markerMatched) reason = 'role-mismatched'
+  return {
+    id: target.id,
+    matchCount,
+    roleMatched,
+    markerMatched,
+    reason,
+    passed: reason === null,
+  }
+}
 
 /** Resolve rendered heights to the named control sizes in the approved design system. */
 export function classifyControlSize(height: number): string {
+  // Order is precedence: the tolerance bands overlap, and `find` takes the first hit.
   const named = [
     [44, 'touch-44'],
     [32, 'control-32'],
     [22, 'compact-22'],
+    [36, 'nav-36'],
+    [60, 'tabbar-60'],
+    // Named by its value like the three above, not by one consumer: the rail's collapse
+    // toggle documents 28px as deliberate, and the collection's saved-view chip sits at 26px
+    // inside the same tolerance. A step the design system had already chosen twice.
+    [28, 'compact-28'],
   ] as const
   return named.find(([pixels]) => Math.abs(height - pixels) <= 2)?.[1] ?? 'unresolved'
 }
@@ -139,7 +579,9 @@ export async function collectControlConsistency(
   _context: PageAuditContext,
   cellId: string,
   nativeSelectExceptions: readonly NativeSelectException[] = [],
+  capturedBoundedChoiceIdentities?: readonly BoundedChoiceIdentity[],
 ): Promise<ControlConsistencyRow[]> {
+  const capturedIdentities = capturedBoundedChoiceIdentities ?? await captureBoundedChoicePopulation(page)
   const rendered = await page.evaluate(({ vocabulary, exceptionSelectors }) => {
     type CssColor = { rgb: [number, number, number]; alpha: number }
     const colorCanvas = document.createElement('canvas')
@@ -228,6 +670,7 @@ export async function collectControlConsistency(
         invalid,
         expanded,
         selected,
+        elementHasListboxPopup: element.getAttribute('aria-haspopup') === 'listbox',
         state: disabled ? 'disabled' : invalid ? 'error' : expanded ? 'open' : selected ? 'selected' : 'default',
         size: '',
         matchedSelector: match?.selector ?? '',
@@ -239,24 +682,20 @@ export async function collectControlConsistency(
         selector: elementPath(element),
         exceptionSelector: exceptionSelectors.find((selector) => element.matches(selector)) ?? '',
       }))
-    const boundedChoices = controls.filter((control) => control.role === 'combobox'
-      || control.matchedSelector === '.picker__trigger'
-      || control.matchedSelector === '.mk-select__field')
-    return { controls, nativeSelects, boundedChoiceSelectors: boundedChoices.map((control) => control.selector) }
+    return { controls, nativeSelects }
   }, {
     vocabulary: CONTROL_VARIANT_VOCABULARY,
     exceptionSelectors: nativeSelectExceptions.map((entry) => entry.selector),
   }) as {
     controls: RenderedControl[]
     nativeSelects: { selector: string; exceptionSelector: string }[]
-    boundedChoiceSelectors: string[]
   }
 
   for (const control of rendered.controls) control.size = classifyControlSize(control.height)
   const groupSummaries = summarizeControlGroups(rendered.controls)
   const groupByKey = new Map(groupSummaries.map((group) => [group.group, group]))
   const populationSize = rendered.controls.length
-  const boundedChoicePopulation = rendered.boundedChoiceSelectors.length
+  const boundedChoicePopulation = capturedIdentities.length
   const nativeSelectPopulation = rendered.nativeSelects.length
   const rows: ControlConsistencyRow[] = [{
     cellId,
@@ -339,31 +778,52 @@ export async function exerciseBoundedChoices(
     language: 'en',
     state: 'default',
   },
+  capturedBoundedChoiceIdentities?: readonly BoundedChoiceIdentity[],
+  /** Restores the captured cell state after a drive committed a value change. The
+   * lifecycle's ArrowDown+Enter selects the highlighted option; on real pages that
+   * commits a filter or form value that can legitimately unmount LATER captured
+   * identities (run 861b0004: the tasks attention pill and the Café Log category
+   * picker both disappeared this way), turning inherited interactions into false
+   * "missing" resolution failures. */
+  restoreCell?: () => Promise<void>,
 ): Promise<ControlConsistencyRow[]> {
-  const triggers = page.locator('[role="combobox"], button[aria-haspopup="listbox"]').filter({ visible: true })
+  const identities = capturedBoundedChoiceIdentities ?? await captureBoundedChoicePopulation(page)
   const rows: ControlConsistencyRow[] = []
-  for (let index = 0; index < await triggers.count(); index += 1) {
-    const trigger = triggers.nth(index)
-    const intersectsViewport = await trigger.evaluate((element) => {
-      const rect = element.getBoundingClientRect()
-      return rect.right > 0 && rect.bottom > 0 && rect.left < window.innerWidth && rect.top < window.innerHeight
-    })
-    if (!intersectsViewport) continue
-    const selector = await trigger.evaluate((element) => {
-      const segments: string[] = []
-      let current: HTMLElement | null = element as HTMLElement
-      while (current && current !== document.body) {
-        let ordinal = 1
-        let sibling = current.previousElementSibling
-        while (sibling) {
-          if (sibling.tagName === current.tagName) ordinal += 1
-          sibling = sibling.previousElementSibling
-        }
-        segments.unshift(`${current.tagName.toLowerCase()}:nth-of-type(${ordinal})`)
-        current = current.parentElement
-      }
-      return ['body', ...segments].join(' > ')
-    })
+  for (const target of identities) {
+    try {
+    const selector = target.id
+    const trigger = target.id && /^[a-z0-9][a-z0-9-]*$/.test(target.id)
+      ? page.locator(`#${target.id}`)
+      : null
+    const candidateCount = trigger ? await trigger.count() : 0
+    const markerState = trigger && candidateCount === 1
+      ? await trigger.evaluate((element, expected) => {
+          const role = element.getAttribute('role') || element.tagName.toLowerCase()
+          const markerMatched = expected.marker === 'role=combobox'
+            ? element.getAttribute('role') === 'combobox'
+            : expected.marker === 'aria-haspopup=listbox'
+              ? element.getAttribute('aria-haspopup') === 'listbox'
+              : expected.marker === 'picker-trigger'
+                ? element.classList.contains('picker__trigger')
+                : element.classList.contains('mk-select__field')
+          return { roleMatched: role === expected.role, markerMatched }
+        }, target)
+      : { roleMatched: false, markerMatched: false }
+    const resolution = validateBoundedChoiceResolution(target, candidateCount, markerState.roleMatched, markerState.markerMatched)
+    if (!resolution.passed || !trigger) {
+      rows.push(resolutionFailureRow(cellId, target, {
+        matchCount: resolution.matchCount,
+        roleMatched: resolution.roleMatched,
+        markerMatched: resolution.markerMatched,
+        reason: resolution.reason ?? 'action-failed',
+      }))
+      continue
+    }
+    const measurementSelector = `#${selector}`
+    const diagnosticSelector = async (): Promise<string> => currentElementPath(trigger).catch(() => target.diagnosticSelector || '<missing-id>')
+    // A locator action may scroll the page. Scroll each already-captured target
+    // into view deliberately; never rebuild the population after that happens.
+    await trigger.scrollIntoViewIfNeeded()
     const initial = await trigger.evaluate((element) => ({
       closed: element.getAttribute('aria-expanded') !== 'true',
       component: element.classList.contains('picker__trigger') || element.classList.contains('mk-select__field')
@@ -379,7 +839,7 @@ export async function exerciseBoundedChoices(
         const style = getComputedStyle(element)
         return { foreground: style.color, background: style.backgroundColor }
       })
-      const disabledContrastRows = await collectContrast(page, context, 'disabled', selector, { measure: 'text' })
+      const disabledContrastRows = await collectContrast(page, context, 'disabled', measurementSelector, { measure: 'text' })
       const textContrast = minimumObservedRatio(disabledContrastRows, 'text')
       rows.push({
         cellId,
@@ -394,6 +854,8 @@ export async function exerciseBoundedChoices(
         passed: initial.closed && textContrast >= 3,
         measured: JSON.stringify({
           lifecycleApplicable: false,
+          diagnosticSelector: await diagnosticSelector(),
+          label: target.label,
           disabled: true,
           closed: initial.closed,
           foreground: colors.foreground,
@@ -406,29 +868,57 @@ export async function exerciseBoundedChoices(
     }
     await trigger.focus()
     await trigger.click()
-    const controlsId = await trigger.getAttribute('aria-controls')
-    const popup = controlsId
-      ? page.locator(`[id="${controlsId.replaceAll('"', '\\"')}"]`)
-      : page.locator('[role="listbox"], [role="menu"]').filter({ visible: true }).last()
-    const opened = await trigger.getAttribute('aria-expanded') === 'true' && await popup.isVisible().catch(() => false)
-    const popupEvidence = opened
-      ? await popup.evaluate((element) => {
-          const rect = element.getBoundingClientRect()
-          const activeId = element.getAttribute('aria-activedescendant')
-          const active = activeId ? document.getElementById(activeId) : element.querySelector<HTMLElement>('[aria-selected="true"], [role="option"]')
-          const selected = element.querySelector<HTMLElement>('[role="option"][aria-selected="true"], [role="option"][aria-checked="true"]')
-          const activeRect = active?.getBoundingClientRect()
-          return {
-            popupContained: rect.left >= -1 && rect.top >= -1 && rect.right <= window.innerWidth + 1 && rect.bottom <= window.innerHeight + 1,
-            activeReachable: Boolean(activeRect && activeRect.bottom >= rect.top - 1 && activeRect.top <= rect.bottom + 1),
-            selectedEvidence: Boolean(selected),
-            selectedSelector: selected?.id ? `#${CSS.escape(selected.id)}` : '',
-            popup: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
-          }
-        })
-      : { popupContained: false, activeReachable: false, selectedEvidence: false, selectedSelector: '', popup: null }
+    const popupResolution = await resolveAssociatedPopup(page, trigger)
+    const opened = await trigger.getAttribute('aria-expanded') === 'true'
+    if (!popupResolution.popup || popupResolution.reason !== null || !opened) {
+      rows.push(resolutionFailureRow(cellId, target, {
+        matchCount: popupResolution.matchCount,
+        roleMatched: markerState.roleMatched,
+        markerMatched: markerState.markerMatched,
+        reason: popupResolution.reason ?? 'popup-not-open',
+      }, await diagnosticSelector()))
+      continue
+    }
+    const popup = popupResolution.popup
+    const activeBeforeResolution = await resolveActiveOption(page, trigger, popup)
+    if (activeBeforeResolution.reason !== null) {
+      rows.push(resolutionFailureRow(cellId, target, {
+        matchCount: activeBeforeResolution.matchCount,
+        roleMatched: markerState.roleMatched,
+        markerMatched: markerState.markerMatched,
+        reason: activeBeforeResolution.reason,
+      }, await diagnosticSelector()))
+      continue
+    }
+    const selectedOptionResolution = await resolveSelectedOption(page, popup)
+    if (selectedOptionResolution.reason !== null) {
+      rows.push(resolutionFailureRow(cellId, target, {
+        matchCount: selectedOptionResolution.matchCount,
+        roleMatched: markerState.roleMatched,
+        markerMatched: markerState.markerMatched,
+        reason: selectedOptionResolution.reason,
+      }, await diagnosticSelector()))
+      continue
+    }
+    const popupEvidence = await popup.evaluate((element, ids) => {
+      const rect = element.getBoundingClientRect()
+      const active = document.getElementById(ids.activeId)
+      const selected = document.getElementById(ids.selectedId)
+      const activeRect = active?.getBoundingClientRect()
+      return {
+        popupContained: rect.left >= -1 && rect.top >= -1 && rect.right <= window.innerWidth + 1 && rect.bottom <= window.innerHeight + 1,
+        activeReachable: Boolean(active && element.contains(active) && activeRect && activeRect.bottom >= rect.top - 1 && activeRect.top <= rect.bottom + 1),
+        selectedEvidence: Boolean(selected && element.contains(selected)),
+        selectedSelector: ids.selectedSelector,
+        popup: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+      }
+    }, {
+      activeId: activeBeforeResolution.id,
+      selectedId: selectedOptionResolution.id,
+      selectedSelector: selectedOptionResolution.selector,
+    })
     const openContrastRows = opened
-      ? await collectContrast(page, context, 'open', selector, { measure: 'both' })
+      ? await collectContrast(page, context, 'open', measurementSelector, { measure: 'both' })
       : []
     const selectedContrastRows = opened && popupEvidence.selectedSelector
       ? await collectContrast(page, context, 'selected', popupEvidence.selectedSelector, { measure: 'text' })
@@ -437,36 +927,49 @@ export async function exerciseBoundedChoices(
     const openBoundaryContrast = minimumObservedRatio(openContrastRows, 'boundary')
     const selectedTextContrast = minimumObservedRatio(selectedContrastRows, 'text')
 
-    const activeOptionId = async (): Promise<string> => {
-      const popupActive = await popup.getAttribute('aria-activedescendant').catch(() => null)
-      if (popupActive) return popupActive
-      const triggerActive = await trigger.getAttribute('aria-activedescendant')
-      if (triggerActive) return triggerActive
-      return (await popup.locator('[role="option"]:focus, [role="option"][data-active="true"]').first().getAttribute('id').catch(() => null)) ?? ''
-    }
-    const activeBeforeArrow = await activeOptionId()
+    const activeBeforeArrow = activeBeforeResolution.id
     await page.keyboard.press('ArrowDown')
-    const activeAfterArrow = await activeOptionId()
+    const activeAfterArrowResolution = await resolveActiveOption(page, trigger, popup)
+    if (activeAfterArrowResolution.reason !== null) {
+      rows.push(resolutionFailureRow(cellId, target, {
+        matchCount: activeAfterArrowResolution.matchCount,
+        roleMatched: markerState.roleMatched,
+        markerMatched: markerState.markerMatched,
+        reason: activeAfterArrowResolution.reason,
+      }, await diagnosticSelector()))
+      continue
+    }
+    const activeAfterArrow = activeAfterArrowResolution.id
     const arrowKey = Boolean(activeAfterArrow && activeAfterArrow !== activeBeforeArrow)
-    const typeaheadTarget = opened
-      ? await popup.locator('[role="option"]:not([aria-disabled="true"])').evaluateAll((options, activeId) => {
-          const activeIndex = options.findIndex((option) => option.id === activeId)
-          const keys = [...new Set(options.map((option) => option.textContent?.trim().slice(0, 1).toLocaleLowerCase() ?? '').filter(Boolean))]
-          for (const key of keys) {
-            for (let offset = 1; offset <= options.length; offset += 1) {
-              const start = activeIndex < 0 ? -1 : activeIndex
-              const target = options[(start + offset) % options.length]
-              if (target?.textContent?.trim().toLocaleLowerCase().startsWith(key)) {
-                if (target.id !== activeId) return { key, targetId: target.id }
-                break
-              }
-            }
+    const typeaheadTarget = await popup.locator('[role="option"]:not([aria-disabled="true"])').evaluateAll((options, activeId) => {
+      const activeIndex = options.findIndex((option) => option.id === activeId)
+      const keys = [...new Set(options.map((option) => option.textContent?.trim().slice(0, 1).toLocaleLowerCase() ?? '').filter(Boolean))]
+      for (const key of keys) {
+        for (let offset = 1; offset <= options.length; offset += 1) {
+          const start = activeIndex < 0 ? -1 : activeIndex
+          const target = options[(start + offset) % options.length]
+          if (target?.id && target.textContent?.trim().toLocaleLowerCase().startsWith(key)) {
+            if (target.id !== activeId) return { key, targetId: target.id }
+            break
           }
-          return { key: '', targetId: '' }
-        }, activeAfterArrow)
-      : { key: '', targetId: '' }
+        }
+      }
+      return { key: '', targetId: '' }
+    }, activeAfterArrow)
     if (typeaheadTarget.key) await page.keyboard.press(typeaheadTarget.key)
-    const activeAfterTypeahead = await activeOptionId()
+    const activeAfterTypeaheadResolution = typeaheadTarget.key
+      ? await resolveActiveOption(page, trigger, popup)
+      : activeAfterArrowResolution
+    if (activeAfterTypeaheadResolution.reason !== null) {
+      rows.push(resolutionFailureRow(cellId, target, {
+        matchCount: activeAfterTypeaheadResolution.matchCount,
+        roleMatched: markerState.roleMatched,
+        markerMatched: markerState.markerMatched,
+        reason: activeAfterTypeaheadResolution.reason,
+      }, await diagnosticSelector()))
+      continue
+    }
+    const activeAfterTypeahead = activeAfterTypeaheadResolution.id
     const typeahead = Boolean(typeaheadTarget.key && typeaheadTarget.targetId && activeAfterTypeahead === typeaheadTarget.targetId)
 
     await page.keyboard.press('Escape')
@@ -476,23 +979,77 @@ export async function exerciseBoundedChoices(
 
     await trigger.focus()
     await trigger.click()
+    const outsidePopupResolution = await resolveAssociatedPopup(page, trigger)
+    const outsideOpened = await trigger.getAttribute('aria-expanded') === 'true'
+    if (!outsidePopupResolution.popup || outsidePopupResolution.reason !== null || !outsideOpened) {
+      rows.push(resolutionFailureRow(cellId, target, {
+        matchCount: outsidePopupResolution.matchCount,
+        roleMatched: markerState.roleMatched,
+        markerMatched: markerState.markerMatched,
+        reason: outsidePopupResolution.reason ?? 'popup-not-open',
+      }, await diagnosticSelector()))
+      continue
+    }
     await page.mouse.click(1, 1)
     const outsideDismissed = await trigger.getAttribute('aria-expanded') !== 'true'
-    if (!outsideDismissed) await page.keyboard.press('Escape')
+    if (!outsideDismissed) {
+      rows.push(resolutionFailureRow(cellId, target, {
+        matchCount: outsidePopupResolution.matchCount,
+        roleMatched: markerState.roleMatched,
+        markerMatched: markerState.markerMatched,
+        reason: 'outside-dismissal-failed',
+      }, await diagnosticSelector()))
+      continue
+    }
 
     await trigger.focus()
     await trigger.click()
+    const enterPopupResolution = await resolveAssociatedPopup(page, trigger)
+    const enterOpened = await trigger.getAttribute('aria-expanded') === 'true'
+    if (!enterPopupResolution.popup || enterPopupResolution.reason !== null || !enterOpened) {
+      rows.push(resolutionFailureRow(cellId, target, {
+        matchCount: enterPopupResolution.matchCount,
+        roleMatched: markerState.roleMatched,
+        markerMatched: markerState.markerMatched,
+        reason: enterPopupResolution.reason ?? 'popup-not-open',
+      }, await diagnosticSelector()))
+      continue
+    }
+    const enterActiveBefore = await resolveActiveOption(page, trigger, enterPopupResolution.popup)
+    if (enterActiveBefore.reason !== null) {
+      rows.push(resolutionFailureRow(cellId, target, {
+        matchCount: enterActiveBefore.matchCount,
+        roleMatched: markerState.roleMatched,
+        markerMatched: markerState.markerMatched,
+        reason: enterActiveBefore.reason,
+      }, await diagnosticSelector()))
+      continue
+    }
     await page.keyboard.press('ArrowDown')
+    const enterActiveAfter = await resolveActiveOption(page, trigger, enterPopupResolution.popup)
+    if (enterActiveAfter.reason !== null) {
+      rows.push(resolutionFailureRow(cellId, target, {
+        matchCount: enterActiveAfter.matchCount,
+        roleMatched: markerState.roleMatched,
+        markerMatched: markerState.markerMatched,
+        reason: enterActiveAfter.reason,
+      }, await diagnosticSelector()))
+      continue
+    }
     await page.keyboard.press('Enter')
     const enterSelected = await trigger.getAttribute('aria-expanded') !== 'true'
     const focusReturnedAfterEnter = await trigger.evaluate((element) => document.activeElement === element)
-    if (!enterSelected) await page.keyboard.press('Escape')
+    // Whether Enter committed a value the captured state did not have — used after the row
+    // is recorded to restore the cell (the drive's own value change can unmount later
+    // captured controls and turn inherited interactions into false "missing" rows).
+    const committedChangedValue = enterSelected
+      && (selectedOptionResolution.id === '' || selectedOptionResolution.id !== enterActiveAfter.id)
 
     const colors = await trigger.evaluate((element) => {
       const style = getComputedStyle(element)
       return { foreground: style.color, background: style.backgroundColor }
     })
-    const closedContrastRows = await collectContrast(page, context, 'selected', selector, { measure: 'text' })
+    const closedContrastRows = await collectContrast(page, context, 'selected', measurementSelector, { measure: 'text' })
     const textContrast = minimumObservedRatio(closedContrastRows, 'text')
     const passed = initial.closed
       && opened
@@ -523,6 +1080,8 @@ export async function exerciseBoundedChoices(
       passed,
       measured: JSON.stringify({
         lifecycleApplicable: true,
+        diagnosticSelector: await diagnosticSelector(),
+        label: target.label,
         closed: initial.closed,
         opened,
         arrowKey,
@@ -547,8 +1106,74 @@ export async function exerciseBoundedChoices(
         closedContrastRows,
       }),
     })
+    if (committedChangedValue && restoreCell) {
+      // Prefer restoring in place: re-open the popup and re-select the captured option.
+      // A reload resets component state too — an open phone disclosure panel closes and
+      // every identity captured inside it goes "missing" — and races the data re-fetch.
+      let restored = false
+      if (selectedOptionResolution.id !== '') {
+        await trigger.click()
+        const restorePopup = await resolveAssociatedPopup(page, trigger)
+        if (restorePopup.popup && restorePopup.reason === null) {
+          const original = restorePopup.popup.locator(idAttributeSelector(selectedOptionResolution.id))
+          if ((await original.count()) === 1) {
+            await original.click()
+            restored = true
+          } else {
+            await page.keyboard.press('Escape')
+          }
+        }
+      }
+      if (!restored) await restoreCell()
+      // The restored value re-arms the captured view asynchronously (a refetch re-renders
+      // data-driven controls like count pills); let the network settle before the next
+      // identity resolves against the page.
+      await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {})
+    }
+    } catch (error) {
+      rows.push(resolutionFailureRow(cellId, target, {
+        matchCount: target.id ? 1 : 0,
+        roleMatched: Boolean(target.id),
+        markerMatched: Boolean(target.id),
+        reason: 'action-failed',
+        error: error instanceof Error ? error.message : String(error),
+      }, target.diagnosticSelector))
+    }
   }
   return rows
+}
+
+/**
+ * Reach the control with real keyboard focus modality. The product's focus contract is the
+ * global `:focus-visible` ring (DESIGN.md); a bare `element.focus()` inherits the pointer
+ * modality left by the earlier hover/active drivers, suppresses that ring, and makes the
+ * collector sample elevation shadows or report "unobserved" instead of the real keyboard
+ * indicator. Parking a temporary origin directly before the control and pressing Tab —
+ * the same seam the broad contrast lane uses — reproduces the keyboard journey.
+ */
+async function focusThroughKeyboard(page: Page, control: ReturnType<Page['locator']>): Promise<void> {
+  const parked = await control.evaluate((element) => {
+    document.getElementById('design-audit-focus-origin')?.remove()
+    if (!(element instanceof HTMLElement)) return false
+    const origin = document.createElement('span')
+    origin.id = 'design-audit-focus-origin'
+    origin.tabIndex = 0
+    origin.setAttribute('aria-hidden', 'true')
+    element.parentNode?.insertBefore(origin, element)
+    origin.focus()
+    return document.activeElement === origin
+  })
+  if (!parked) {
+    await control.focus()
+    return
+  }
+  try {
+    await page.keyboard.press('Tab')
+  } finally {
+    await page.evaluate(() => document.getElementById('design-audit-focus-origin')?.remove())
+  }
+  const reached = await control.evaluate((element) => document.activeElement === element)
+  if (!reached) await control.focus()
 }
 
 export async function exerciseControlStateColors(
@@ -598,7 +1223,7 @@ export async function exerciseControlStateColors(
       : ['default', 'hover', 'focus', 'active', ...(identity.error ? ['error'] : []), ...(identity.selected ? ['selected'] : []), ...(identity.open ? ['open'] : [])]
     for (const state of states) {
       if (state === 'hover') await control.hover()
-      else if (state === 'focus') await control.focus()
+      else if (state === 'focus') await focusThroughKeyboard(page, control)
       else if (state === 'active') {
         await control.hover()
         await page.mouse.down()

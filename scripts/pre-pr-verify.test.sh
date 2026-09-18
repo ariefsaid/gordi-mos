@@ -30,6 +30,7 @@ git -C "$tmp/repo" update-ref refs/remotes/origin/dev "$HEAD"
 
 printf '#!/bin/sh\nexit 0\n' > "$tmp/bin/npm"; chmod +x "$tmp/bin/npm"
 run() { (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" bash scripts/pre-pr-verify.sh) >/dev/null 2>&1; }
+run_with_env() { (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" env "$@" bash scripts/pre-pr-verify.sh) >/dev/null 2>&1; }
 
 echo dirty > "$tmp/repo/f"
 if run; then bad "dirty worktree must refuse"; else ok "dirty worktree refuses"; fi
@@ -230,6 +231,91 @@ scope_case "docs/scripts-only diff skips the npm lane" "scripts/some-guard.sh" n
 scope_case "mos-app diff runs the npm lane" "mos-app/vite.config.ts" yes
 scope_case "supabase diff runs the npm lane" "supabase/migrations/x.sql" yes
 scope_case "UNRECOGNIZED path runs the lane (allowlist polarity, rename-out class)" "shared/mod.ts" yes
+
+# Ordinary production UI changes still run Impeccable and the normal app battery, but do not
+# require the full exact-commit evidence directory. An explicit audit mode is tested separately
+# below so this case cannot pass merely because the validator was never reached.
+rm -f "$tmp/npm-calls" "$STAMP"
+cat > "$tmp/repo/mos-app/src/ui-pass.css" <<'CSS'
+.ui-pass { display: block; }
+CSS
+G add mos-app/src/ui-pass.css; G commit -qm "ordinary UI gate case"
+unset DESIGN_AUDIT_MODE DESIGN_AUDIT_EVIDENCE_DIR
+if run; then ok "ordinary UI change passes without exact audit evidence"; else bad "ordinary UI change must not require exact audit evidence"; fi
+[ -s "$tmp/npm-calls" ] && ok "ordinary UI change still runs the normal npm lane" || bad "ordinary UI change skipped the normal npm lane"
+[ "$(cat "$STAMP" 2>/dev/null)" = "$(G rev-parse HEAD)" ] && ok "ordinary UI change stamps exact HEAD" || bad "ordinary UI change did not stamp exact HEAD"
+
+# A caller selecting an unsupported mode must fail closed before it can stamp a commit.
+rm -f "$tmp/npm-calls" "$STAMP"
+printf '%s' "$(G rev-parse HEAD)" > "$STAMP"
+if run_with_env DESIGN_AUDIT_MODE=unexpected; then bad "unknown design audit mode must refuse"; else ok "unknown design audit mode refuses"; fi
+[ ! -f "$STAMP" ] && ok "unknown design audit mode removes stale stamp" || bad "unknown design audit mode left a stale stamp"
+
+# Explicit change-gate mode remains strict: missing evidence refuses before npm. This is the
+# negative intent path that protects the exact-commit validator from becoming advisory.
+rm -f "$tmp/npm-calls" "$STAMP"
+if run_with_env DESIGN_AUDIT_MODE=change-gate; then bad "explicit change-gate without evidence must refuse"; else ok "explicit change-gate without evidence refuses"; fi
+[ ! -f "$STAMP" ] && ok "missing explicit audit evidence writes no stamp" || bad "missing explicit audit evidence stamped HEAD"
+[ ! -s "$tmp/npm-calls" ] && ok "missing explicit audit evidence stops before npm" || bad "npm ran before missing audit evidence refused"
+
+# With explicit evidence, the validator must be called with its strict flag while the normal app
+# lane still runs. Stub node only for this focused command; later Impeccable refusal cases use the
+# real node binary again.
+audit_evidence="$tmp/audit-evidence"
+mkdir -p "$audit_evidence"
+node_log="$tmp/node-argv.log"
+cat > "$tmp/bin/node" <<STUB
+#!/bin/sh
+printf '%s\n' "\$*" >> "$node_log"
+exit 0
+STUB
+chmod +x "$tmp/bin/node"
+rm -f "$tmp/npm-calls" "$STAMP" "$node_log"
+if (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" DESIGN_AUDIT_MODE=change-gate DESIGN_AUDIT_EVIDENCE_DIR="$audit_evidence" bash scripts/pre-pr-verify.sh) >/dev/null 2>&1; then
+  ok "explicit change-gate with evidence reaches the strict validator"
+else
+  bad "explicit change-gate with evidence must reach the validator and normal lane"
+fi
+grep -F -- '--require-change-gate' "$node_log" >/dev/null 2>&1 && ok "explicit audit passes strict validator flag" || bad "explicit audit omitted strict validator flag"
+[ -s "$tmp/npm-calls" ] && ok "explicit audit still runs the normal npm lane" || bad "explicit audit skipped the normal npm lane"
+[ "$(cat "$STAMP" 2>/dev/null)" = "$(G rev-parse HEAD)" ] && ok "explicit audit stamps exact HEAD" || bad "explicit audit did not stamp exact HEAD"
+
+# The explicit gate must also validate a requested audit when the current diff has no material UI
+# path; otherwise a caller could select change-gate and have the request silently skipped by scope.
+G update-ref refs/remotes/origin/dev "$(G rev-parse HEAD)"
+mkdir -p "$tmp/repo/docs"
+echo audit-mode-only > "$tmp/repo/docs/audit-mode-only.md"
+G add docs/audit-mode-only.md; G commit -qm "audit mode no-ui case"
+rm -f "$tmp/npm-calls" "$STAMP" "$node_log"
+if (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" DESIGN_AUDIT_MODE=change-gate DESIGN_AUDIT_EVIDENCE_DIR="$audit_evidence" bash scripts/pre-pr-verify.sh) >/dev/null 2>&1; then
+  ok "explicit change-gate validates with no material UI diff"
+else
+  bad "explicit change-gate was skipped for a no-UI diff"
+fi
+grep -F -- '--require-change-gate' "$node_log" >/dev/null 2>&1 && ok "no-UI explicit audit still passes strict validator flag" || bad "no-UI explicit audit skipped strict validator"
+[ "$(cat "$STAMP" 2>/dev/null)" = "$(G rev-parse HEAD)" ] && ok "no-UI explicit audit stamps exact HEAD" || bad "no-UI explicit audit did not stamp exact HEAD"
+
+# A failing validator must propagate through the gate and remove any prior stamp. This keeps the
+# strict explicit lane fail-closed even when the validator itself rejects the evidence.
+cat > "$tmp/bin/node" <<STUB
+#!/bin/sh
+case "\$*" in
+  *validate-design-evidence*) exit 7 ;;
+  *) exit 0 ;;
+esac
+STUB
+chmod +x "$tmp/bin/node"
+printf '%s' "$(G rev-parse HEAD)" > "$STAMP"
+rm -f "$tmp/npm-calls"
+if (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" DESIGN_AUDIT_MODE=change-gate DESIGN_AUDIT_EVIDENCE_DIR="$audit_evidence" bash scripts/pre-pr-verify.sh) >/dev/null 2>&1; then
+  bad "validator failure must refuse"
+else
+  ok "validator failure refuses"
+fi
+[ ! -f "$STAMP" ] && ok "validator failure removes stale stamp" || bad "validator failure left a stale stamp"
+[ ! -s "$tmp/npm-calls" ] && ok "validator failure stops before npm" || bad "npm ran after validator failure"
+rm -f "$tmp/bin/node"
+
 # The SIGPIPE regression: a >64KB path list with ONE unlisted path must still run the lane —
 # grep -q early-exit killed the producer and read the match as absent (flash round 4, 5/5 repro).
 rm -f "$tmp/npm-calls" "$STAMP"

@@ -34,3 +34,15 @@
   .cafe-stream { width: 100%; }
   .cafe-stream__select { flex: 1 1 100%; min-width: 0; }
 }
+
+/* An unmade required choice. Nothing submits until this is set, so while it is empty the bar
+   carries the weight of the gate it is: the label stops being muted and the control takes the
+   attention boundary instead of the ordinary input hairline. It returns to one quiet line the
+   moment a stream is chosen — this is state, not a louder default. */
+.cafe-stream[data-stream-unset='true'] .cafe-stream__label {
+  color: var(--warning-foreground);
+}
+.cafe-stream[data-stream-unset='true'] .cafe-stream__select {
+  border-color: var(--warning-foreground);
+  box-shadow: 0 0 0 1px var(--warning-foreground);
+}

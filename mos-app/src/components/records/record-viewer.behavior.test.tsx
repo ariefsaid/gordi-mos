@@ -73,6 +73,7 @@ function renderInHost(opts: {
   onClose?: (via?: 'explicit-close' | 'escape') => void
   onDirtyChange?: (dirty: boolean) => void
   onCommitField?: (key: string, value: RecordValue) => Promise<void>
+  onOpenPage?: () => void
 } = {}) {
   forceSplitWidth()
   const onClose = opts.onClose ?? vi.fn()
@@ -86,6 +87,7 @@ function renderInHost(opts: {
           mode="panel"
           onDirtyChange={onDirtyChange}
           onCommitField={onCommitField}
+          onOpenPage={opts.onOpenPage}
         />
       </RecordPanelHost>
     </I18nProvider>,
@@ -94,6 +96,21 @@ function renderInHost(opts: {
 }
 
 describe('RecordViewer interaction boundary', () => {
+  it('OverflowEscapeContract: Escape dismisses More actions before the record host', () => {
+    const onClose = vi.fn()
+    renderInHost({ onClose, onOpenPage: vi.fn() })
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    const menu = screen.getByRole('menu', { name: 'More actions' })
+    expect(menu).toBeInTheDocument()
+
+    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'Open full page' }), { key: 'Escape' })
+
+    expect(screen.queryByRole('menu', { name: 'More actions' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'More actions' })).toHaveFocus()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   // FieldEscapeContract — the owning proof that field-Escape isolation holds through the
   // LIVE RecordPanelHost native listener (OD-REDESIGN-83.1 / NFR-V3-001). The host attaches
   // its Escape listener via native addEventListener on the panel, which fires in the bubble

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { TASK_COLLECTION_NEUTRAL_QUERY } from './task-collection-adapter'
 import { TasksToolbar } from './tasks-toolbar'
@@ -42,13 +42,47 @@ function renderToolbar(props: TasksToolbarProps = makeProps()) {
   return render(<I18nProvider><TasksToolbar {...props} /></I18nProvider>)
 }
 
+// The desktop long tail lives behind the surface's own door. "Reachable" is the contract these
+// tests assert, so they open it the way a reader would rather than reaching past it.
+function openFilters() {
+  const trigger = screen.queryByRole('button', { name: /^view & filters/i })
+  if (trigger?.getAttribute('aria-expanded') === 'false') fireEvent.click(trigger)
+  return trigger
+}
+
 beforeEach(() => {
   matchMedia(true)
   localStorage.clear()
 })
 
 describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
-  it('exposes the e7 desktop two-row grammar without a Filters door', () => {
+  // #749 AC-011 (W-G step 2): the system view set reads All · My work · Team work · Overdue,
+  // and the viewer's own saved views follow them in that same strip.
+  it('AC-011: the chip row reads All · My work · Team work · Overdue, then the viewer\'s saved views', () => {
+    const savedViews = {
+      label: 'Saved views', selectedId: null, operation: 'idle' as const, error: null,
+      items: [{ id: 'view-1', name: 'My queue' }], onApply: vi.fn(), onSave: vi.fn(),
+    }
+    renderToolbar(makeProps({ savedViews }))
+    const strip = screen.getByRole('group', { name: 'Task views' })
+    const chips = within(strip).getAllByRole('button').map((chip) => chip.textContent)
+    expect(chips).toEqual(['All', 'My work', 'Team work', 'Overdue', 'My queue'])
+  })
+
+  // #749: both locales carry the new chip label (EN "Team work").
+  it('AC-011: the ID locale carries the Team work chip as "Pekerjaan tim"', () => {
+    localStorage.setItem('mos.locale', 'id')
+    renderToolbar()
+    expect(screen.getByRole('button', { name: 'Pekerjaan tim' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
+  })
+
+  // Superseded by owner direction: the exposed two-row desktop prescription was explicitly opened
+  // for revision after a rendered review measured row 1 spending a whole band on a chip strip that
+  // used 361px of 1129px. This guards the grammar that replaced it — ONE band, with the long tail
+  // behind a door — at the same behavioural level: every control stays reachable, and the views
+  // that carry this surface's common journeys stay exposed.
+  it('puts the desktop long tail behind one door and keeps the view axis exposed', () => {
     const savedViews = {
       label: 'Saved views', selectedId: null, operation: 'idle' as const, error: null,
       items: [{ id: 'view-1', name: 'My queue' }], onApply: vi.fn(), onSave: vi.fn(),
@@ -56,10 +90,15 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
     renderToolbar(makeProps({ savedViews }))
 
     expect(screen.getByTestId('record-collection-toolbar')).toBeInTheDocument()
-    expect(screen.getAllByTestId('collection-toolbar-row')).toHaveLength(2)
+    // ONE band, not two.
+    expect(screen.getAllByTestId('collection-toolbar-row')).toHaveLength(1)
+    // The view axis and search stay exposed — they are the surface's navigation.
     expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'My queue' })).toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
+    // The rest is reachable through the door, never dropped.
+    expect(screen.queryByRole('combobox', { name: /^group$/i })).toBeNull()
+    openFilters()
     expect(screen.getByRole('combobox', { name: /group/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: /group/i })).toHaveTextContent('Group: None')
@@ -70,14 +109,30 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
     expect(screen.getByRole('combobox', { name: /sort/i })).toHaveTextContent('Due soonest')
     expect(screen.getByRole('button', { name: /^fields$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^save view$/i })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /attention/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /attention/i })).toHaveAttribute('id', 'tasks-filter-attention')
     expect(screen.getByRole('combobox', { name: /attention/i })).toHaveTextContent('3 need attention')
     expect(screen.queryByRole('button', { name: /^filters$/i })).not.toBeInTheDocument()
+  })
+
+  it('keeps the attention trigger id when its count and label rerender', () => {
+    const result = renderToolbar(makeProps({ attentionCounts: { overdue: 2, blocked: 1, total: 3 } }))
+    openFilters()
+    expect(screen.getByRole('combobox', { name: /attention/i })).toHaveAttribute('id', 'tasks-filter-attention')
+
+    result.rerender(
+      <I18nProvider>
+        <TasksToolbar {...makeProps({ attentionCounts: { overdue: 1, blocked: 0, total: 1 } })} />
+      </I18nProvider>,
+    )
+
+    expect(screen.getByRole('combobox', { name: /attention/i })).toHaveAttribute('id', 'tasks-filter-attention')
+    expect(screen.getByRole('combobox', { name: /attention/i })).toHaveTextContent('1 need attention')
   })
 
   it('keeps group, domain, status, person, sort, fields, and attention controls independently reachable', () => {
     const props = makeProps()
     renderToolbar(props)
+    openFilters()
 
     fireEvent.click(screen.getByRole('combobox', { name: /^group$/i }))
     fireEvent.click(screen.getByRole('option', { name: 'PIC' }))
@@ -120,6 +175,7 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
       buOptions: [{ id: 'bu-1', name: businessUnit }],
       personOptions: [{ id: 'person-1', full_name: person }],
     }))
+    openFilters()
 
     const businessUnitTrigger = screen.getByRole('combobox', { name: /business unit/i })
     const personTrigger = screen.getByRole('combobox', { name: /person/i })
@@ -138,6 +194,7 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
       activeQuery: { summary: 'My work · Person', hasActiveFilters: true },
       onClearFilters,
     }))
+    openFilters()
 
     fireEvent.click(screen.getByRole('button', { name: /clear filters/i }))
     expect(onClearFilters).toHaveBeenCalledTimes(1)
@@ -156,7 +213,9 @@ describe('TasksToolbar — saved view persistence states', () => {
 
     await waitFor(() => expect(onLoad).toHaveBeenCalledTimes(1))
     expect(screen.getByRole('alert')).toHaveTextContent('Saved views are unavailable. Try again.')
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    // Named for the read it re-issues: the saved-view retry and the collection retry can be on
+    // screen together, and both were called "Try again" with nothing telling them apart.
+    fireEvent.click(screen.getByRole('button', { name: /retry saved views/i }))
     await waitFor(() => expect(onLoad).toHaveBeenCalledTimes(2))
   })
 
@@ -176,7 +235,7 @@ describe('TasksToolbar — saved view persistence states', () => {
       </I18nProvider>,
     )
     expect(screen.getByRole('alert')).toHaveTextContent('Saved views are unavailable. Try again.')
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    fireEvent.click(screen.getByRole('button', { name: /retry saved views/i }))
     await waitFor(() => expect(onApply).toHaveBeenCalledTimes(2))
   })
 
@@ -188,6 +247,7 @@ describe('TasksToolbar — saved view persistence states', () => {
       onLoad: vi.fn(), onApply: vi.fn(), onSave,
     }
     renderToolbar(makeProps({ savedViews }))
+    openFilters()
 
     fireEvent.click(screen.getByRole('button', { name: /^save view$/i }))
     const input = screen.getByRole('textbox', { name: /view name/i })
@@ -196,7 +256,7 @@ describe('TasksToolbar — saved view persistence states', () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
     expect(screen.getByDisplayValue('My queue')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    fireEvent.click(screen.getByRole('button', { name: /retry saved views/i }))
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2))
     succeed = true
     fireEvent.click(screen.getByRole('button', { name: /^save$/i }))
@@ -212,6 +272,7 @@ describe('TasksToolbar — saved view persistence states', () => {
         onLoad: vi.fn(), onApply: vi.fn(), onSave,
       },
     }))
+    openFilters()
 
     fireEvent.click(screen.getByRole('button', { name: /^save view$/i }))
     fireEvent.change(screen.getByRole('textbox', { name: /view name/i }), { target: { value: 'My queue' } })
@@ -220,7 +281,7 @@ describe('TasksToolbar — saved view persistence states', () => {
     fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
     expect(screen.queryByRole('textbox', { name: /view name/i })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    fireEvent.click(screen.getByRole('button', { name: /retry saved views/i }))
     await waitFor(() => expect(onSave).toHaveBeenNthCalledWith(2, 'My queue'))
   })
 })

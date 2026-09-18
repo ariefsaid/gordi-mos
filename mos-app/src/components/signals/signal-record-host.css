@@ -63,7 +63,7 @@
 .signal-record-link-form .picker { width: 100%; }
 .signal-record-link-form .mk-textinput { width: 100%; }
 
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .signal-record-action-controls { width: 100%; }
   .signal-record-action-controls > .btn-primary { flex: 1 1 auto; }
 }

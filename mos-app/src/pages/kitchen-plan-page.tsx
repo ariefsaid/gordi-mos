@@ -58,6 +58,7 @@ import {
   type DataTableGroup,
 } from '@/components/dashboard/data-table'
 import { usePlanSummary } from '@/lib/kitchen-plan-kpis'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 import './kitchen-plan-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the other Café pages.
@@ -120,7 +121,10 @@ function PlanEditor() {
   // catalog comes with it: the MOVEMENT control derives its destinations from the producing
   // stream catalog, which is a different question from which stream this plan belongs to.
   const cafeStream = useCafeStream()
-  const { branches, options: streamOptions, stream } = cafeStream
+  // OD-CAFE-1: plans are keyed on (org, date, item, branch, activity) — a plan row belongs to one
+  // branch's books — so the picker offers this location's streams only. `streamOptions` stays whole
+  // for the movement/destination derivation below.
+  const { branches, options: streamOptions, locationOptions, stream } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const streamMissing = stream === null
   const streamCanProduce = streamProduces(stream, streamOptions)
@@ -287,7 +291,7 @@ function PlanEditor() {
       label: g.cat ? kitchenCategoryLabel(t, g.cat) : g.cat,
       rows: g.rows,
       headerActions: isDesktop ? (
-        <Link to="/cafe/log" className="kp-group-link">
+        <Link to="/cafe" className="kp-group-link">
           {t('kitchen.plan.group.log')}
         </Link>
       ) : undefined,
@@ -407,13 +411,13 @@ function PlanEditor() {
          other): which books a planned quantity lands in is what the number means. */
       statusRow={
         <CafeStreamBar
-          options={streamOptions}
+          options={locationOptions}
           stream={stream}
           onChange={next => { void applyStream(next) }}
         />
       }
       meta={
-        <span className="kp-date tabular">{logDate}</span>
+        <span className="kp-date tabular">{formatWeekdayDayMonth(logDate)}</span>
       }
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : streamNonProducing ? 'read-only' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
     >
@@ -471,6 +475,7 @@ function PlanEditor() {
             search={search}
             onSearchChange={setSearch}
             categories={isDesktop ? categories : undefined}
+            categoryId="cafe-plan-category"
             categoryLabel={value => kitchenCategoryLabel(t, value)}
             category={isDesktop ? category : undefined}
             onCategoryChange={isDesktop ? setCategory : undefined}
@@ -520,7 +525,10 @@ function PesananView() {
   const [from] = useState(wibToday) // horizon start = today WIB
   const [rows, setRows] = useState<PesananRow[]>([])
   const cafeStream = useCafeStream()
-  const { branches, options: streamOptions, stream } = cafeStream
+  // OD-CAFE-1: plans are keyed on (org, date, item, branch, activity) — a plan row belongs to one
+  // branch's books — so the picker offers this location's streams only. `streamOptions` stays whole
+  // for the movement/destination derivation below.
+  const { branches, options: streamOptions, locationOptions, stream } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
@@ -627,7 +635,7 @@ function PesananView() {
       title={pageTitle}
       statusRow={
         <CafeStreamBar
-          options={streamOptions}
+          options={locationOptions}
           stream={stream}
           onChange={next => { void applyStream(next) }}
         />
@@ -658,7 +666,7 @@ function PesananView() {
         <p className="kp-readonly-note">
           {t('kitchen.plan.pesanan.readOnlyNote', { days: PESANAN_HORIZON_DAYS })}
         </p>
-        <Link to="/cafe/log" className="btn btn-outline kp-readonly-cta">
+        <Link to="/cafe" className="btn btn-outline kp-readonly-cta">
           {t('kitchen.plan.pesanan.readOnlyCta')}
         </Link>
       </div>
@@ -694,6 +702,7 @@ function PesananView() {
             search={search}
             onSearchChange={setSearch}
             categories={isDesktop ? categories : undefined}
+            categoryId="cafe-plan-category"
             categoryLabel={value => kitchenCategoryLabel(t, value)}
             category={isDesktop ? category : undefined}
             onCategoryChange={isDesktop ? setCategory : undefined}

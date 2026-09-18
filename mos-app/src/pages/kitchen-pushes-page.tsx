@@ -344,7 +344,7 @@ export function KitchenPushesPage() {
         <div className="kpu-block kpu-forbidden" role="region" aria-label={t('kitchen.pushes.restrictedAria')}>
           <p className="kpu-forbidden-title">{t('kitchen.pushes.leadsOnly')}</p>
           <p className="kpu-forbidden-msg">{t('kitchen.pushes.leadsOnlyMsg')}</p>
-          <Link to="/cafe/log" className="btn btn-outline">{t('kitchen.review.backToLog')}</Link>
+          <Link to="/cafe" className="btn btn-outline">{t('kitchen.review.backToLog')}</Link>
         </div>
       </PageFamilyFrame>
     )

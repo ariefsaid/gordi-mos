@@ -182,11 +182,19 @@ export function TasksWorkspace({
   const currentSearch = location.search
   const initialQuery = useMemo(() => {
     const legacy = queryFromLegacySavedView(savedView)
-    if (legacy) return legacy
+    // The savedView prop is a compatibility bridge for URL-less embedders. Any URL state belongs
+    // to the collection query and must win; otherwise occurrence/record links lose their scope.
+    if (legacy && location.search === '') return legacy
     // An explicit URL view is authoritative. Only seed the role-aware default when the user has
-    // not supplied one, so Overdue/Team/My work links survive reload exactly as written.
-    if (new URLSearchParams(location.search).has('view')) return undefined
-    return { ...TASK_COLLECTION_NEUTRAL_QUERY, view: defaultTaskView(auth, accessRoles) }
+    // not supplied one, so Overdue/Team/My work links survive reload exactly as written. Parse the
+    // rest of the URL into this initial query: q, record and create must not silently force All.
+    const params = new URLSearchParams(location.search)
+    if (params.has('view')) return undefined
+    const parsed = taskCollectionDescriptor.query.parse(params, taskCollectionDescriptor.defaultPresentation)
+    return {
+      ...(parsed.query ?? TASK_COLLECTION_NEUTRAL_QUERY),
+      view: defaultTaskView(auth, accessRoles),
+    }
   }, [accessRoles, auth, location.search, savedView])
   const [draftTask, setDraftTask] = useState<TaskListRow | null>(null)
   const [draftLinkError, setDraftLinkError] = useState(false)
@@ -746,7 +754,12 @@ export function TasksWorkspace({
   // launcher location app-wide) — hide the header button at phone width to kill the duplicate door.
   // DO-17: the FAB renders whenever the rail is collapsed (<920), so the gate is !isNarrow — the
   // 768–919 band must never show both doors.
-  const showNewTask = !drawerOpen && state.status === 'ready' && !isNarrow
+  // A record is open in either of two ways — the `drawerOpen` prop, or an overlay session this
+  // surface owns. The split class and the collection runtime already read both; this door read
+  // only the prop, so opening a row from the table left the create door standing beside the
+  // record's own primary action, two solid blues competing across one page.
+  const recordOpen = drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks'
+  const showNewTask = !recordOpen && state.status === 'ready' && !isNarrow
   const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
   const emptyTitle = query.includeArchived
     ? t('tasks.empty.archivedTitle')
@@ -802,7 +815,7 @@ export function TasksWorkspace({
     selectedId: host.session?.frames.at(-1)?.entry.owner === 'tasks'
       ? host.session.frames.at(-1)?.entry.key.replace(/^task:/, '') ?? selectedId
       : selectedId,
-    drawerOpen: drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks',
+    drawerOpen: recordOpen,
     splitLayout,
     isDesktop,
     recordSearch: currentSearch,
@@ -840,7 +853,7 @@ export function TasksWorkspace({
       return teamId !== null && teamId !== undefined && processStartTeamIds.has(teamId)
     },
   }), [
-    currentSearch, drawerOpen, draftTask, host.session, isDesktop, onAddTask,
+    currentSearch, recordOpen, draftTask, host.session, isDesktop, onAddTask,
     params,
     onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onValidateNewTask, onNewTask, onOpenTask, onClearFilters, onSort,
     processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, draftValidationError, onRetryDraftLink, viewerTeams,
@@ -893,7 +906,7 @@ export function TasksWorkspace({
       }
     >
       {announcement && <span role="status" aria-live="polite" className="sr-only">{announcement}</span>}
-      <div className={`split${(drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks') ? '' : ' nodrawer'}`}>
+      <div className={`split${recordOpen ? '' : ' nodrawer'}`}>
         <section className={`assembly record-collection-view tasks-collection-surface record-collection-view--${controller.state.presentation}${drawerOpen && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
           <TaskCollectionRuntimeProvider value={runtime}>
             <RecordCollectionSurface

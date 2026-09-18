@@ -32,12 +32,14 @@ vi.mock('@/lib/db/user-views-collection', () => ({
 // "Share a Signal" row opens the shared composer host — stub it so this page test needs no shell.
 const desktopState = vi.hoisted(() => ({ value: true }))
 vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => desktopState.value }))
-const { composerOpen, composerPostCount } = vi.hoisted(() => ({
+const { composerOpen, composerPostCount, composerCanPost } = vi.hoisted(() => ({
   composerOpen: vi.fn(),
   composerPostCount: { value: 0 },
+  // Undefined = the shell did not report a post denial (the common case: the viewer can post).
+  composerCanPost: { value: undefined as boolean | undefined },
 }))
 vi.mock('@/shell/signal-composer-host', () => ({
-  useSignalComposer: () => ({ open: composerOpen, postCount: composerPostCount.value }),
+  useSignalComposer: () => ({ open: composerOpen, postCount: composerPostCount.value, canPost: composerCanPost.value }),
 }))
 
 // The ?record=<id> record is SignalRecordHost's own job (signal-record-host.test.tsx covers its
@@ -175,6 +177,7 @@ function LocationProbe() {
 beforeEach(() => {
   vi.resetAllMocks()
   composerPostCount.value = 0
+  composerCanPost.value = undefined
   desktopState.value = true
   mockListReadableSignals.mockResolvedValue([
     row({ id: 'signal-1', body: 'The freezer alarm went off' }),
@@ -226,25 +229,29 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
   it('AC-760: phone saved-view choices wrap visibly and keep the 44px choice floor', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/pages/signals-archive-page.css'), 'utf8')
     expect(css).toMatch(
-      /@media\s*\(max-width:\s*767px\)[\s\S]*?\.signals-archive-toolbar \.collection-toolbar__views\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap[^}]*overflow-x:\s*visible[^}]*overflow-y:\s*visible/,
+      /@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.signals-archive-toolbar \.collection-toolbar__views\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap[^}]*overflow-x:\s*visible[^}]*overflow-y:\s*visible/,
     )
     expect(css).toMatch(
       /\.signals-archive-toolbar \.collection-toolbar__view\s*\{[^}]*min-height:\s*44px/,
     )
   })
 
-  it('D-D2 / Rule 7: the toolbar hosts ONE layout-independent Share Signal door (present in Feed AND Table; no in-feed row)', async () => {
+  it('D-D2 / Rule 7 + AC-021: the page HEAD hosts the ONE Share Signal primary (present in Feed AND Table; no in-feed row, none in the toolbar)', async () => {
     renderPage()
     await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
 
-    // Feed (default): the toolbar Share door is present — and there is NO second in-feed "Share a
-    // Signal" row (that row is Home-ambient-only now).
+    // Feed (default): the head carries the one primary — and there is NO second in-feed "Share a
+    // Signal" row (that row is Home-ambient-only now), and the toolbar carries no primary of its
+    // own (#770 AC-021: the head holds the only .btn-primary).
     expect(screen.getByRole('tab', { name: 'Feed' })).toHaveAttribute('aria-selected', 'true')
     const shareInFeed = screen.getByRole('button', { name: 'Share Signal' })
     expect(shareInFeed).toBeInTheDocument()
+    expect(shareInFeed.className).toContain('btn-primary')
+    expect(shareInFeed.closest('main')).not.toBeNull()
     expect(screen.queryByRole('button', { name: /share a signal/i })).not.toBeInTheDocument()
+    expect(document.querySelector('[data-testid="record-collection-toolbar"] .btn-primary')).toBeNull()
 
-    // Switching to Table must NOT make the compose door blink out — it rides row 1, layout-independent.
+    // Switching to Table must NOT make the compose door blink out — it rides the head, layout-independent.
     await userEvent.click(screen.getByRole('tab', { name: 'Table' }))
     await waitFor(() => expect(screen.getByRole('tab', { name: 'Table' })).toHaveAttribute('aria-selected', 'true'))
     const shareInTable = screen.getByRole('button', { name: 'Share Signal' })
@@ -507,6 +514,16 @@ describe('SignalsArchivePage — URL-query search + canonical links (AC-427)', (
     await userEvent.click(screen.getByRole('button', { name: 'All' }))
     await waitFor(() => expect(screen.queryByText(/this signal was retracted/i)).not.toBeInTheDocument())
   })
+
+  it('clearing a filtered legacy URL also clears its retired retracted flag', async () => {
+    mockListReadableSignals.mockResolvedValue([
+      row({ id: 'signal-3', retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'Duplicate' }),
+    ])
+    renderPage('/work/signals?retracted=1&q=does-not-match')
+    await userEvent.click(await screen.findByRole('button', { name: /clear filters/i }))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/work/signals'))
+    expect(screen.queryByText(/this signal was retracted/i)).not.toBeInTheDocument()
+  })
 })
 
 // #610: a custom Signals saved view named itself only in tasks-workspace.tsx (via
@@ -552,7 +569,7 @@ describe('Signals saved-view recovery', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Saved views are unavailable. Try again.')
 
     fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    fireEvent.click(screen.getByRole('button', { name: /retry saved views/i }))
     await waitFor(() => expect(mockCreateCollectionView).toHaveBeenCalledTimes(2))
     expect(mockCreateCollectionView.mock.calls[1]?.[0]).toMatchObject({ name: 'Signal watch' })
   })
@@ -777,5 +794,267 @@ describe('issue 711 — the plain (unfiltered) empty state speaks its own voice,
     const empty = await screen.findByTestId('empty-state')
     expect(within(empty).queryByText(/match/i)).toBeNull()
     expect(within(empty).getByText(/no signals yet/i)).toBeInTheDocument()
+  })
+})
+
+// ── Issue #770 — the archive toolbar + rows acceptance contract (AC-021…AC-031) ────────────────
+// Seven seeded rows are the AC-025/AC-029 fixture; the census-style control count below uses the
+// same actionable grammar the quantitative audit's control census freezes (button / a[href] /
+// role=button / role=link / role=combobox — the frozen denominator of issue #856).
+
+function sevenRows(): SignalRow[] {
+  const bodies = [
+    'Card reader dropped the connection during the afternoon rush again',
+    'Pastry case ran empty an hour before close',
+    'Espresso machine repaired',
+    'New vendor for oat milk confirmed',
+    'Grinder 2 needs a burr replacement',
+    'Cold brew kegs arrive Thursday',
+    'Freezer alarm went off',
+  ]
+  return bodies.map((body, index) => row({
+    id: `signal-${index + 1}`,
+    body,
+    attention: index === 0 ? 'Urgent' : index === 1 ? 'Needs attention' : 'FYI',
+    occurred_at: `2026-07-1${index}T02:00:00Z`,
+    retracted_at: null,
+  }))
+}
+
+/** The frozen actionable-control grammar (issue #856 census denominator). */
+function censusControls(): HTMLElement[] {
+  const main = document.querySelector('main')
+  expect(main).not.toBeNull()
+  return Array.from(main!.querySelectorAll<HTMLElement>(
+    'button, a[href], [role="button"], [role="link"], [role="combobox"], .mk-chip--clickable',
+  )).filter((element) => {
+    const style = window.getComputedStyle(element)
+    return style.display !== 'none' && style.visibility !== 'hidden'
+  })
+}
+
+describe('issue #770 — the two-row Signals archive toolbar (AC-021/022/023)', () => {
+  it('AC-021: 1440 Feed renders two toolbar rows — views+segment, then search·Team·Category·Save view — with ≤16 census controls and the head holding the only .btn-primary', async () => {
+    // Six rows, the issue's own at-rest fixture ("Signals 6 · 6 items in your scope"): 10
+    // toolbar/head controls + 6 row activation targets = exactly the 16-control budget.
+    mockListReadableSignals.mockResolvedValue(sevenRows().slice(0, 6))
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Pastry case ran empty an hour before close')).toBeInTheDocument())
+
+    // Two rows in the one toolbar.
+    const toolbar = screen.getByTestId('record-collection-toolbar')
+    expect(toolbar.querySelectorAll('[data-testid="collection-toolbar-row"]')).toHaveLength(2)
+
+    // Row 1: the four view chips lead, the Table|Feed segment trails at the right.
+    const row1 = toolbar.querySelectorAll('[data-testid="collection-toolbar-row"]')[0]!
+    const chipNames = Array.from(row1.querySelectorAll('.collection-toolbar__view')).map((chip) => chip.textContent)
+    expect(chipNames).toEqual(['All', 'Needs attention', 'Retracted', 'I posted'])
+    const tabs = within(row1 as HTMLElement).getAllByRole('tab')
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Table', 'Feed'])
+
+    // Row 2: search · Team · Category · Save view (Group/Sort stay Table-only).
+    const row2 = toolbar.querySelectorAll('[data-testid="collection-toolbar-row"]')[1]!
+    expect(within(row2 as HTMLElement).getByRole('searchbox')).toBeInTheDocument()
+    const comboNames = within(row2 as HTMLElement).getAllByRole('combobox').map((combo) => combo.getAttribute('aria-label'))
+    expect(comboNames).toEqual(['Team', 'Category'])
+    expect(within(row2 as HTMLElement).getByRole('button', { name: 'Save view' })).toBeInTheDocument()
+
+    // ≤16 interactive controls in <main> at rest (7 feed rows included, census grammar).
+    const controls = censusControls()
+    expect(controls.length).toBeLessThanOrEqual(16)
+
+    // No switch and no checkbox anywhere in the collection.
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(toolbar.querySelector('input[type="checkbox"]')).toBeNull()
+
+    // The head holds the ONLY .btn-primary.
+    const primaries = Array.from(document.querySelectorAll('main .btn-primary'))
+    expect(primaries).toHaveLength(1)
+    expect(primaries[0]!.textContent).toBe('Share Signal')
+    expect(primaries[0]!.closest('.content-header')).not.toBeNull()
+  })
+
+  it('AC-022: Table adds Group·Sort; Group = Team carries the navy tint and reads "Group: Team", distinct from the Team filter', async () => {
+    renderPage('/work/signals?layout=table')
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    const toolbar = screen.getByTestId('record-collection-toolbar')
+
+    // Group defaults to none: no tint, and the trigger carries the "Group:" prefix.
+    const group = screen.getByRole('combobox', { name: 'Group' })
+    expect(group).toHaveTextContent('Group: No grouping')
+    expect(group.closest('.collection-toolbar__option-field')).not.toHaveClass('collection-toolbar__option-field--group')
+
+    // Choosing Team tints the control and reads "Group: Team" ( Kelompok: Tim in ID — AC-031's walk).
+    await userEvent.click(group)
+    await userEvent.click(await screen.findByRole('option', { name: 'Team' }))
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Group' })).toHaveTextContent('Group: Team'))
+    expect(screen.getByRole('combobox', { name: 'Group' }).closest('.collection-toolbar__option-field'))
+      .toHaveClass('collection-toolbar__option-field--group')
+
+    // Distinct from the Team FILTER (a separate control with its own label).
+    expect(screen.getByRole('combobox', { name: 'Team' })).toBeInTheDocument()
+    expect(toolbar.querySelectorAll('[data-filter-id="group"]')).toHaveLength(1)
+    expect(toolbar.querySelectorAll('[data-filter-id="team"]')).toHaveLength(1)
+  })
+
+  it('AC-023: no "Show retracted" control exists at any width; the Retracted view lists tombstone rows', async () => {
+    mockListReadableSignals.mockResolvedValue([
+      ...sevenRows(),
+      row({ id: 'signal-dead', body: 'The retracted one', retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'Misposted' }),
+    ])
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Pastry case ran empty an hour before close')).toBeInTheDocument())
+    expect(screen.queryByText(/show retracted/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Retracted' }))
+    await waitFor(() => expect(document.querySelector('[data-signal-id="signal-dead"]')).not.toBeNull())
+    expect(screen.getAllByText(/This Signal was retracted/i).length).toBeGreaterThan(0)
+  })
+})
+
+describe('issue #770 — archive rows and table grammar (AC-025/027)', () => {
+  it('AC-025: seven Feed rows carry zero buttons, one activation target each, plain-text meta, no "Visible to", no bordered chips', async () => {
+    mockListReadableSignals.mockResolvedValue(sevenRows())
+    renderPage()
+    await waitFor(() => expect(screen.getAllByTestId('signal-feed').length).toBeGreaterThan(0))
+
+    const rows = Array.from(document.querySelectorAll('[data-testid="signal-feed"] .home-signal-row'))
+    expect(rows).toHaveLength(7)
+    for (const rowElement of rows) {
+      expect(rowElement.getAttribute('role')).toBe('button')
+      expect(rowElement.querySelectorAll('button, a')).toHaveLength(0)
+      expect(rowElement.querySelector('.home-signal-location-chip')).toBeNull()
+      expect(rowElement.querySelector('.home-signal-time-chip')).toBeNull()
+      expect(rowElement.textContent).not.toContain('Visible to')
+    }
+
+    // Meta = author · Team · dd Mon HH:MM (category when set), plain text — each separator bound
+    // into one non-breaking group with the fact it introduces (the AC-025 wrap contract).
+    const meta = document.querySelector('[data-testid="signal-feed"] .home-signal-meta')!
+    expect(meta.textContent).toContain('Author One')
+    expect(meta.textContent).toContain('HQ Operations')
+    const timeFact = Array.from(meta.querySelectorAll('.home-signal-meta-fact'))
+      .find((fact) => /^\d{2} [A-Za-z]{3} \d{2}:\d{2}$/.test(fact.textContent?.trim() ?? ''))
+    expect(timeFact, 'meta carries a dd Mon HH:MM fact').toBeTruthy()
+    expect(timeFact!.closest('.home-signal-meta-item')!.textContent).toMatch(/^·\d{2} [A-Za-z]{3} \d{2}:\d{2}$/)
+
+    // One activation target per row: clicking opens the record in the shared host.
+    await userEvent.click(rows[0]!)
+    await waitFor(() => expect(document.querySelector('[data-testid="signal-record-host-stub"]')).not.toBeNull())
+  })
+
+  it('AC-027: Table column order is Message · Team · Attention · Occurred', async () => {
+    renderPage('/work/signals?layout=table')
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    const headers = Array.from(document.querySelectorAll('thead th')).map((th) => th.textContent?.trim())
+    expect(headers).toEqual(['Message', 'Team', 'Attention', 'Occurred'])
+  })
+})
+
+describe('issue #770 — Save view, phone door, and empty states (AC-028/029/030)', () => {
+  it('AC-028: Save view is an anchored popover — the toolbar keeps two rows, and Escape returns focus to the trigger', async () => {
+    renderPage()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    const toolbar = screen.getByTestId('record-collection-toolbar')
+    expect(toolbar.querySelectorAll('[data-testid="collection-toolbar-row"]')).toHaveLength(2)
+
+    const save = screen.getByRole('button', { name: 'Save view' })
+    await userEvent.click(save)
+    const field = await screen.findByLabelText('View name')
+    expect(field).toHaveFocus()
+    expect(toolbar.querySelectorAll('[data-testid="collection-toolbar-row"]')).toHaveLength(2)
+
+    await userEvent.type(field, 'Cafe week')
+    fireEvent.keyDown(field, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByLabelText('View name')).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Save view' })).toHaveFocus()
+  })
+
+  it('AC-029: 390 — search sits outside the door; the door holds views·Team·Category·Save view without Share Signal or a switch; rows have no buttons; ≤9 census controls with seven rows', async () => {
+    desktopState.value = false
+    mockListReadableSignals.mockResolvedValue(sevenRows())
+    renderPage()
+    await waitFor(() => expect(screen.getAllByTestId('signal-feed').length).toBeGreaterThan(0))
+
+    // Search is OUTSIDE the door and reachable without opening it.
+    const search = screen.getByRole('searchbox', { name: 'Search Signals' })
+    expect(search.closest('.collection-mobile-options-panel')).toBeNull()
+
+    // ≤9 census controls in <main> with seven rows (the door is closed: its contents are unmounted).
+    expect(censusControls().length).toBeLessThanOrEqual(9)
+    expect(document.querySelectorAll('[data-testid="signal-feed"] .home-signal-row')).toHaveLength(7)
+    for (const rowElement of Array.from(document.querySelectorAll('[data-testid="signal-feed"] .home-signal-row'))) {
+      expect(rowElement.querySelectorAll('button, a')).toHaveLength(0)
+    }
+    // The 44px coarse-pointer row floor rides the SHARED row token (--row-min-h = 52px in
+    // index.css) — no second literal, and every variant clears the floor by construction.
+    const css = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-feed-rows.css'), 'utf8')
+    expect(css).toMatch(/\.home-signal-row \{[^}]*min-height:\s*var\(--row-min-h/)
+    const indexCss = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
+    const rowMinH = Number(/--row-min-h:\s*(\d+)px/.exec(indexCss)?.[1])
+    expect(rowMinH).toBeGreaterThanOrEqual(44)
+
+    // The door holds view chips · Team · Category · Save view — no Share Signal, no switch, no segment.
+    await userEvent.click(screen.getByRole('button', { name: /view & filters/i }))
+    const door = document.querySelector('.collection-mobile-options-panel') as HTMLElement
+    expect(door).not.toBeNull()
+    const doorTexts = Array.from(door.querySelectorAll('button, [role="combobox"]')).map((control) => control.getAttribute('aria-label') ?? control.textContent)
+    expect(doorTexts).toEqual(expect.arrayContaining(['All', 'Needs attention', 'Retracted', 'I posted', 'Team', 'Category', 'Save view']))
+    expect(within(door).queryByRole('button', { name: 'Share Signal' })).not.toBeInTheDocument()
+    expect(within(door).queryByRole('switch')).not.toBeInTheDocument()
+    expect(within(door).queryByRole('tab')).not.toBeInTheDocument()
+  })
+
+  it('AC-030: a viewer who cannot post reads true-empty "No Signals yet." with no door; a poster also gets "Share the first one"', async () => {
+    mockListReadableSignals.mockResolvedValue([])
+    composerCanPost.value = false
+    const { unmount } = renderPage()
+    const empty = await screen.findByTestId('empty-state')
+    expect(within(empty).getByText('No Signals yet.')).toBeInTheDocument()
+    expect(within(empty).queryByRole('button')).not.toBeInTheDocument()
+    unmount()
+
+    composerCanPost.value = true
+    renderPage()
+    const emptyWithDoor = await screen.findByTestId('empty-state')
+    expect(within(emptyWithDoor).getByText('No Signals yet.')).toBeInTheDocument()
+    expect(within(emptyWithDoor).getByRole('button', { name: 'Share the first one' })).toBeInTheDocument()
+  })
+})
+
+describe('issue #770 — AC-031: the archive renders one language at a time (ID)', () => {
+  it('renders the eight category families, the attention words and the Team placeholder in Indonesian; "FYI" stays', async () => {
+    localStorage.setItem('mos.locale', 'id')
+    mockListReadableSignals.mockResolvedValue([
+      row({ id: 's-fyi', body: 'FYI body', attention: 'FYI', category: 'Supply/vendor' }),
+      row({ id: 's-needs', body: 'Needs body', attention: 'Needs attention', category: 'Quality' }),
+      row({ id: 's-urgent', body: 'Urgent body', attention: 'Urgent', category: null }),
+    ])
+    renderPage('/work/signals?layout=table')
+    await waitFor(() => expect(screen.getByText('FYI body')).toBeInTheDocument())
+
+    // View chips in Indonesian.
+    const chips = Array.from(document.querySelectorAll('.collection-toolbar__view')).map((chip) => chip.textContent)
+    expect(chips).toEqual(expect.arrayContaining(['Semua', 'Perlu perhatian', 'Ditarik', 'Saya posting']))
+
+    // Team filter: Indonesian label + Indonesian placeholder ("Any team" → "Semua tim").
+    await userEvent.click(screen.getByRole('combobox', { name: 'Tim' }))
+    expect(await screen.findByRole('option', { name: 'Semua tim' })).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+
+    // Category filter: all eight families in Indonesian.
+    await userEvent.click(screen.getByRole('combobox', { name: 'Kategori' }))
+    for (const family of ['Pasokan/pemasok', 'Peralatan/fasilitas', 'Inventaris/ketersediaan', 'Kualitas', 'Pelanggan', 'Orang', 'Proses', 'Lainnya']) {
+      expect(await screen.findByRole('option', { name: family })).toBeInTheDocument()
+    }
+    await userEvent.keyboard('{Escape}')
+
+    // Attention words render in Indonesian; FYI stays the borrowed initialism. (The view chip
+    // "Perlu perhatian" coexists with the row pill — assert within the table body.)
+    const tableBody = document.querySelector('tbody')!
+    expect(within(tableBody).getByText('Perlu perhatian')).toBeInTheDocument()
+    expect(within(tableBody).getByText('Mendesak')).toBeInTheDocument()
+    expect(within(tableBody).getByText('FYI')).toBeInTheDocument()
   })
 })

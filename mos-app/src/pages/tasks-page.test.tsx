@@ -291,8 +291,9 @@ describe('AC-067 — Tasks table (live surface) states (loading, error, empty)',
     // Error state keeps the same usable desktop collection controls beside the result message.
     expect(screen.getByRole('group', { name: /task views/i })).toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: /view & filters/i })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
+    // The options now live behind the surface's own door at every width; "usable" means REACHABLE,
+    // so open it and assert the controls, rather than asserting a group that is meant to be closed.
+    expect(within(openFilters()).getByRole('combobox', { name: /business unit/i })).toBeInTheDocument()
   })
 })
 
@@ -794,9 +795,9 @@ describe('Fix M2 — task count suppressed in error state', () => {
     renderPage()
     await waitFor(() => screen.getByText('Default task'))
     // Goal-oracle: the loaded count is visible. OD-REDESIGN-91 #17 makes the head meta
-    // explicitly distinguish open work from the total set: "N open · M total".
+    // explicitly distinguish open work from what the current view holds: "N open · M in view".
     const countLine = document.querySelector('[data-testid="tasks-count-line"]')
-    expect(countLine?.textContent).toContain('2 open · 2 total')
+    expect(countLine?.textContent).toContain('2 open · 2 in view')
   })
 })
 
@@ -1237,7 +1238,13 @@ describe('R5 task failure and filter boundaries', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load tasks")
     expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
     mockListTasks.mockResolvedValue([makeTask({ title: 'Recovered task' })])
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    // Scoped to the results region, the way DR-2b below already scopes to its banner. The
+    // toolbar's saved-view read is a separate failure with its own retry, and when it also
+    // fails the page carries two "Try again" buttons — correctly, one per failure. An
+    // unscoped query then matched both and this test failed intermittently on the ambiguity,
+    // not on the retry. The assertion is unchanged: this retry must bring back real rows.
+    const results = document.querySelector('.record-collection-results') as HTMLElement
+    fireEvent.click(within(results).getByRole('button', { name: /try again/i }))
     expect(await screen.findByText('Recovered task')).toBeInTheDocument()
     expect(screen.queryByText("Couldn't load tasks")).toBeNull()
   })

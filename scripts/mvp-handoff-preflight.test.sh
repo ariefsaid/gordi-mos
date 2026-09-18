@@ -36,6 +36,8 @@ PY
 write_tool_shims() {
   local bin="$1"
   local apply_tool
+  local real_git
+  real_git="$(command -v git)"
   mkdir -p "$bin"
   for tool in node npm uv supabase docker pi; do
     apply_tool="$bin/$tool"
@@ -51,6 +53,25 @@ fi
 printf '%s\n' '{"number":855,"state":"OPEN","url":"https://example.invalid/issues/855"}'
 GH
   chmod +x "$bin/gh"
+  cat > "$bin/git" <<GIT
+#!/usr/bin/env bash
+case "\$*" in
+  *"for-each-ref --format="*)
+    case "\${FAKE_GIT_INVENTORY_MODE:-}" in
+      branches-fail) exit 1 ;;
+      branches-timeout) sleep 16 ;;
+    esac
+    ;;
+  *"worktree list --porcelain"*)
+    case "\${FAKE_GIT_INVENTORY_MODE:-}" in
+      worktrees-fail) exit 1 ;;
+      worktrees-timeout) sleep 16 ;;
+    esac
+    ;;
+esac
+exec "$real_git" "\$@"
+GIT
+  chmod +x "$bin/git"
 }
 
 write_checkpoint() {
@@ -156,6 +177,12 @@ create_owned_worktree() {
     untracked) printf 'unfinished\n' > "$repo/$relative/untracked-product-file" ;;
     *) bad "unknown worktree dirt fixture: $dirt" ;;
   esac
+}
+
+create_detached_worktree() {
+  local repo="$1"
+  local relative="$2"
+  git -C "$repo" worktree add --detach "$repo/$relative" HEAD >/dev/null 2>&1
 }
 
 malform_checkpoint() {
@@ -300,8 +327,89 @@ expect_blocked "$repo" active-work active-mvp-work-remains
 
 repo="$(new_fixture omitted-active-work)"
 create_owned_worktree "$repo" mvp-owned/omitted .claude/worktrees/omitted
-expect_blocked "$repo" omitted-active-work active-mvp-work-remains
+expect_blocked "$repo" omitted-active-work mvp-work-unrecorded
 json_assert "$RUN_JSON" "value['activeWork'][0]['disposition'] == 'unrecorded'" || bad "omitted MVP work is reported as unrecorded"
+
+repo="$(new_fixture branch-only-owned-ref)"
+git -C "$repo" branch codex/mvp-ref-only
+expect_blocked "$repo" branch-only-owned-ref mvp-work-unrecorded
+if json_assert "$RUN_JSON" "value['activeWork'][0]['worktreeStatus'] == 'missing' and value['activeWork'][0]['inventorySource'] == 'local-ref'"; then
+  ok "branch-only owned refs are reported without a worktree"
+else
+  bad "branch-only owned refs are reported without a worktree"
+fi
+
+for lane in mvp design-baseline design-audit handoff cafe-books ui-quantitative; do
+  repo="$(new_fixture "unrecorded-$lane")"
+  branch="codex/${lane}-unrecorded"
+  create_owned_worktree "$repo" "$branch" ".claude/worktrees/${lane}-unrecorded" clean
+  write_checkpoint "$repo" "$(git -C "$repo" rev-parse HEAD)"
+  expect_blocked "$repo" "unrecorded-$lane" mvp-work-unrecorded
+  if json_assert "$RUN_JSON" "value['activeWork'][0]['branch'] == '$branch' and value['activeWork'][0]['inventorySource'] == 'local-ref'"; then
+    ok "$lane ownership prefix is explicit in inventory evidence"
+  else
+    bad "$lane ownership prefix is explicit in inventory evidence"
+  fi
+done
+
+repo="$(new_fixture unrecorded-owned-worktree-path)"
+git -C "$repo" branch user/owned-worktree
+git -C "$repo" worktree add "$repo/.claude/worktrees/mvp-path-only" user/owned-worktree >/dev/null 2>&1
+run_preflight "$repo" unrecorded-owned-worktree-path
+if [ "$RUN_RC" -eq 0 ] && json_assert "$RUN_JSON" "value['ready'] is True and value['activeWork'] == []"; then
+  ok "ordinary user branch under a reserved path stays clear"
+else
+  bad "ordinary user branch under a reserved path stays clear"
+fi
+
+repo="$(new_fixture unrecorded-detached-review)"
+create_detached_worktree "$repo" .claude/worktrees/review-123-spec
+expect_blocked "$repo" unrecorded-detached-review detached-review-retained
+if json_assert "$RUN_JSON" "value['nextAction'] == 'Remove retained detached review worktrees before handoff readiness.' and value['activeWork'][0]['requiredResolution'] == 'remove-before-ready' and 'mvp-work-unrecorded' in value['blockers'] and value['activeWork'][0]['disposition'] == 'unrecorded' and value['activeWork'][0]['inventorySource'] == 'detached-worktree' and value['activeWork'][0]['worktreePath'] == '.claude/worktrees/review-123-spec'"; then
+  ok "detached review ownership is explicit in inventory evidence"
+else
+  bad "detached review ownership is explicit in inventory evidence"
+fi
+git -C "$repo" worktree remove "$repo/.claude/worktrees/review-123-spec" >/dev/null 2>&1
+run_preflight "$repo" detached-review-removed
+if [ "$RUN_RC" -eq 0 ] && json_assert "$RUN_JSON" "value['ready'] is True and value['activeWork'] == []"; then
+  ok "removing a retained detached review reaches ready"
+else
+  bad "removing a retained detached review reaches ready"
+fi
+
+repo="$(new_fixture unrelated-inventory-controls)"
+git -C "$repo" branch user/mvp-unrelated
+git -C "$repo" worktree add "$repo/.claude/worktrees/user-owned" user/mvp-unrelated >/dev/null 2>&1
+git -C "$repo" branch codex/feature-unrelated
+git -C "$repo" worktree add "$repo/.claude/worktrees/scratch" codex/feature-unrelated >/dev/null 2>&1
+git -C "$repo" branch feat/feature-unrelated
+git -C "$repo" worktree add "$repo/.claude/worktrees/feat-owned" feat/feature-unrelated >/dev/null 2>&1
+git -C "$repo" branch codex/mvp_user_owned
+git -C "$repo" branch feat/design-audit_user_owned
+create_detached_worktree "$repo" .claude/worktrees/review-user-experiment
+run_preflight "$repo" unrelated-inventory-controls
+if [ "$RUN_RC" -eq 0 ] && json_assert "$RUN_JSON" "value['ready'] is True and value['blockers'] == []"; then
+  ok "unrelated branches and worktrees do not trigger MVP ownership"
+else
+  bad "unrelated branches and worktrees do not trigger MVP ownership"
+fi
+
+for inventory_mode in branches-fail branches-timeout worktrees-fail worktrees-timeout; do
+  repo="$(new_fixture "inventory-$inventory_mode")"
+  expect_blocked "$repo" "inventory-$inventory_mode" inventory-unverified "FAKE_GIT_INVENTORY_MODE=$inventory_mode"
+  if json_assert "$RUN_JSON" "value['nextAction'] == 'Restore read-only Git branch/worktree inventory and rerun the preflight.'" &&
+     case "$inventory_mode" in
+       branches-fail) json_assert "$RUN_JSON" "value['inventory']['status'] == 'unverified' and value['inventory']['branches']['status'] == 'failed'" ;;
+       branches-timeout) json_assert "$RUN_JSON" "value['inventory']['status'] == 'unverified' and value['inventory']['branches']['status'] == 'timeout'" ;;
+       worktrees-fail) json_assert "$RUN_JSON" "value['inventory']['status'] == 'unverified' and value['inventory']['worktrees']['status'] == 'failed'" ;;
+       worktrees-timeout) json_assert "$RUN_JSON" "value['inventory']['status'] == 'unverified' and value['inventory']['worktrees']['status'] == 'timeout'" ;;
+     esac; then
+    ok "$inventory_mode emits explicit inventory evidence"
+  else
+    bad "$inventory_mode emits explicit inventory evidence"
+  fi
+done
 
 repo="$(new_fixture unverified-disposition)"
 create_owned_worktree "$repo" mvp-owned/merged .claude/worktrees/merged clean
@@ -376,6 +484,7 @@ run_preflight "$repo" ready \
 if [ "$RUN_RC" -eq 0 ] &&
    json_assert "$RUN_JSON" "value['ready'] is True and value['blockers'] == [] and value['nextAction'] == 'Begin MVP remediation takeover.'" &&
    json_assert "$RUN_JSON" "value['schemaVersion'] == 2 and value['tracker']['status'] == 'verified' and value['provider'] == {'staticStatus': 'qualified', 'liveStatus': 'qualified', 'liveProbeTimestamp': '2026-09-16T00:00:00Z'}" &&
+   json_assert "$RUN_JSON" "value['inventory']['status'] == 'verified' and value['inventory']['branches']['status'] == 'verified' and value['inventory']['worktrees']['status'] == 'verified'" &&
    json_assert "$RUN_JSON" "value['checkpoint']['assessment']['baseline']['status'] == 'completed-red' and value['checkpoint']['assessment']['final']['status'] == 'pending' and value['checkpoint']['remediation']['status'] == 'in-progress'" &&
    json_assert "$RUN_JSON" "value['privateRoots']['docs']['source'] == 'override' and value['privateRoots']['skills']['source'] == 'override'" &&
    ! grep -q 'never-print-this-value\|private-docs\|private-skills' "$RUN_JSON" "$RUN_ERR" &&

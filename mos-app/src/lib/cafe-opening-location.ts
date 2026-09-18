@@ -37,3 +37,73 @@ export function rememberCafeOpeningTeam(personId: string, teamId: string | null)
     // Private mode / disabled storage: the in-memory value still serves this page session.
   }
 }
+
+// ── The active location's BRANCH, for surfaces that never see the Opening Team ───────────────
+// The Café root resolves a location to an Opening Team and remembers its id. Plan and Stock are
+// sibling routes that never go through that root, so the team id alone tells them nothing: what
+// they need to bound their own stream choice is the branch behind it. The root knows both at the
+// moment of the choice, so it records both rather than making every other surface re-resolve one
+// from the other.
+
+const BRANCH_KEY = 'mos.cafe.opening.branch'
+
+export interface CafeActiveLocation {
+  branchId: string
+  branchName: string
+}
+
+const branchByPerson = new Map<string, CafeActiveLocation | null>()
+
+function branchStorageKey(personId: string): string {
+  return `${BRANCH_KEY}.${personId}`
+}
+
+function readStoredBranch(personId: string): CafeActiveLocation | null {
+  try {
+    const raw = window.sessionStorage.getItem(branchStorageKey(personId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<CafeActiveLocation>
+    return parsed.branchId ? { branchId: parsed.branchId, branchName: parsed.branchName ?? '' } : null
+  } catch {
+    return null
+  }
+}
+
+/** The branch the viewer is currently working at, or null when no location has been chosen. */
+export function activeCafeLocation(personId: string | null | undefined): CafeActiveLocation | null {
+  if (!personId) return null
+  if (!branchByPerson.has(personId)) branchByPerson.set(personId, readStoredBranch(personId))
+  return branchByPerson.get(personId) ?? null
+}
+
+/** Record the branch behind a deliberate location choice, beside its Opening Team. */
+export function rememberCafeLocation(personId: string, location: CafeActiveLocation | null): void {
+  if (!personId) return
+  branchByPerson.set(personId, location)
+  try {
+    if (location) window.sessionStorage.setItem(branchStorageKey(personId), JSON.stringify(location))
+    else window.sessionStorage.removeItem(branchStorageKey(personId))
+  } catch {
+    // Private mode / disabled storage: the in-memory value still serves this page session.
+  }
+}
+
+/**
+ * Drop every remembered location, for both caches. Mirrors `rememberStream(null)`: a test that
+ * switches location would otherwise seed the next test's bounds, and the in-memory map survives a
+ * `sessionStorage.clear()` on its own.
+ */
+export function resetCafeLocations(): void {
+  branchByPerson.clear()
+  rememberedByPerson.clear()
+  try {
+    for (let i = window.sessionStorage.length - 1; i >= 0; i -= 1) {
+      const key = window.sessionStorage.key(i)
+      if (key?.startsWith(`${BRANCH_KEY}.`) || key?.startsWith(`${STORAGE_KEY}.`)) {
+        window.sessionStorage.removeItem(key)
+      }
+    }
+  } catch {
+    // storage unavailable — the in-memory caches are already clear
+  }
+}

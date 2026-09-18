@@ -341,7 +341,9 @@ describe('SignalRecordHost — Add category wiring (correctSignal, FR-410)', () 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
 
     mockGetSignal.mockResolvedValueOnce({ signal: { ...baseSignal, attention: 'Urgent', edited_at: '2026-07-16T05:00:00Z' }, mentions: [], acknowledgements: [], tasks: [] })
-    await userEvent.click(screen.getByRole('button', { name: /edit attention/i }))
+    const trigger = screen.getByRole('button', { name: /edit attention/i })
+    expect(trigger).toHaveAttribute('id', 'signals-record-attention')
+    await userEvent.click(trigger)
     await userEvent.click(screen.getByRole('option', { name: /urgent/i }))
 
     expect(mockCorrectSignal).toHaveBeenCalledWith(SIGNAL_ID, { attention: 'Urgent' })

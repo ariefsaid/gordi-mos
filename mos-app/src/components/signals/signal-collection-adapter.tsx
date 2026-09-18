@@ -200,10 +200,12 @@ export interface SignalRenderGroup {
 
 const ATTENTION_WEIGHT: Readonly<Record<Attention, number>> = { Urgent: 3, 'Needs attention': 2, FYI: 1 }
 
-/** A retracted Signal is a tombstone hidden by default — visible only when the typed query asks. */
+/** A retracted Signal is a tombstone hidden by default — visible only when the typed query asks:
+ *  the `Retracted` view (AC-023) or the viewer's own `I posted` archive, where a retracted own post
+ *  is still the viewer's post and renders as its tombstone (AC-024, FR-019). */
 function isRetractedVisible(signal: SignalRow, query: SignalCollectionQuery): boolean {
   if (!signal.retracted_at) return true
-  return query.showRetracted || query.view === 'retracted'
+  return query.showRetracted || query.view === 'retracted' || query.view === 'i-posted'
 }
 
 /** The ONE definition of "does this Signal match this text" — body + author + owning Team.

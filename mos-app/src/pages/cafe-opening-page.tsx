@@ -1,10 +1,12 @@
-// CafeOpeningPage — /cafe — the Café Module home (Step 7 / cafe-retrofit.spec.md §4, B7,
-// RATIFY-7D). Opening is branch-wide: the person's effective profile location is resolved to the
-// canonical Opening Team internally, while the page names the branch and offers a deliberate
-// location switch when more than one eligible branch is available. Production stream context
-// (branch + activity) belongs to Log/Plan/Stock and is intentionally absent from this page.
+// CafeRootPage — /cafe — the Café module root (DD-MVP-17). The assigned worker lands
+// directly on Today's production capture surface; Opening is a compact status/door row
+// rendered as the capture form's leading slot, and Log/Plan/Stock are never a landing
+// menu. The location discipline is unchanged (DD-MVP-11): the person's effective profile
+// location resolves to the canonical Opening Team, a deliberate session choice outranks
+// it, and a genuinely ambiguous profile gets the actionable location overview BEFORE any
+// capture surface mounts. /cafe/log aliases this root by redirect.
+import type React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -21,9 +23,13 @@ import {
   wibToday,
 } from '@/lib/db/cafe-opening'
 import { listActiveBranches } from '@/lib/db/branches'
-import { rememberCafeOpeningTeam, rememberedCafeOpeningTeamId } from '@/lib/cafe-opening-location'
+import { rememberCafeLocation, rememberCafeOpeningTeam, rememberedCafeOpeningTeamId } from '@/lib/cafe-opening-location'
+import { cafeDraftCount, clearCafeDraftCount } from '@/lib/cafe-capture-draft'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
-import { canPushCafe, canReviewCafe } from '@/lib/kitchen-gates'
+import { canPushCafe } from '@/lib/kitchen-gates'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { KitchenLogPage } from './kitchen-log-page'
 import './cafe-opening-page.css'
 
 type FetchState = 'loading' | 'ready' | 'choice' | 'error' | 'no-process' | 'no-team'
@@ -41,18 +47,6 @@ interface BranchTeam {
   status?: OpeningStatus
 }
 
-// Capture doors every café viewer reaches (Log/Plan/Stock — read/capture for all roles).
-const CAPTURE_LINKS = [
-  { to: '/cafe/log', key: 'nav.cafe.log' as const },
-  { to: '/cafe/plan', key: 'nav.cafe.plan' as const },
-  { to: '/cafe/stock', key: 'nav.cafe.stock' as const },
-]
-
-// JQ-1: Review admits stream supervisors; Pushes remains ops_lead/admin. Keep the links
-// separate so the opening door mirrors each route's own gate and never offers supervisors a
-// dead Pushes link.
-const REVIEW_LINK = { to: '/cafe/review', key: 'nav.cafe.review' as const }
-const PUSH_LINK = { to: '/cafe/pushes', key: 'nav.cafe.pushes' as const }
 const EMPTY_ACCESS_ROLES: string[] = []
 
 function LocationChoices({
@@ -104,39 +98,78 @@ function LocationChoices({
  * remains mounted; remounting here prevents one person's branch/panel from appearing for the
  * next person even for the render before the new location read starts.
  */
-export function CafeOpeningPage() {
+export function CafeRootPage() {
   const auth = useAuth()
   const viewerKey = auth.status === 'authenticated'
     ? `${auth.viewer.person.id}:${auth.viewer.accessRoles.join(',')}`
     : auth.status
-  return <CafeOpeningPageBody key={viewerKey} />
+  return <CafeRootPageBody key={viewerKey} />
 }
 
-function CafeOpeningPageBody() {
+function CafeRootPageBody() {
   const t = useT()
   useDocumentTitle(t('common.docTitle', { page: t('doc.cafeOps') }))
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
-  const captureLinks = canReviewCafe(accessRoles)
-    ? [...CAPTURE_LINKS, REVIEW_LINK, ...(canPushCafe(accessRoles) ? [PUSH_LINK] : [])]
-    : CAPTURE_LINKS
 
   const [state, setState] = useState<FetchState>('loading')
   const [processId, setProcessId] = useState<string | null>(null)
   const [team, setTeam] = useState<BranchTeam | null>(null)
   const [teamChoices, setTeamChoices] = useState<BranchTeam[]>([])
   const [changingLocation, setChangingLocation] = useState(false)
+  // A location the person asked for, waiting on the discard confirm. Null = nothing pending.
+  const [pendingLocation, setPendingLocation] = useState<BranchTeam | null>(null)
+  // A confirmed switch rebuilds the capture subtree, so the control that was focused is gone by
+  // the time it lands. Without this, confirming dropped focus to <body> and a keyboard user had to
+  // Tab from the top of the document — right after a destructive action, which is where you least
+  // want to lose your place.
+  const focusAfterSwitch = useRef(false)
   const changeLocationTrigger = useRef<HTMLButtonElement | null>(null)
   const loadGeneration = useRef(0)
 
-  const selectLocation = useCallback((choice: BranchTeam) => {
+  // The switch itself, once nothing is at stake.
+  const applyLocation = useCallback((choice: BranchTeam) => {
     if (!viewerId) return
+    clearCafeDraftCount()
     rememberCafeOpeningTeam(viewerId, choice.id)
+    // Plan and Stock never pass through this root, so the branch behind the choice is recorded
+    // here for them: it is what bounds their own stream picker.
+    rememberCafeLocation(viewerId, { branchId: choice.branchId, branchName: choice.branchName })
     setTeam(choice)
     setChangingLocation(false)
+    // ConfirmDialog hands closing back to its caller after a successful confirm, so the pending
+    // choice has to be released here or the dialog stays up over the location it just switched to.
+    setPendingLocation(null)
+    focusAfterSwitch.current = true
     setState('ready')
   }, [viewerId])
+
+  // Switching location discards whatever the capture form is holding — a typed number belongs to
+  // the stream it was typed against. That is right, and it was silent: someone mid-count lost the
+  // work to a button that said nothing. Held behind a confirm while quantities are staged, and
+  // free when they are not, so the common switch costs no extra click.
+  const selectLocation = useCallback((choice: BranchTeam) => {
+    if (!viewerId) return
+    if (cafeDraftCount() > 0) {
+      // Close the chooser as the confirm opens. Left open behind a modal it becomes a second
+      // Escape owner: Escape closed the chooser and moved focus to its trigger while the dialog
+      // stayed on screen, so the one key that should dismiss the modal did everything except that.
+      setChangingLocation(false)
+      setPendingLocation(choice)
+      return
+    }
+    applyLocation(choice)
+  }, [applyLocation, viewerId])
+
+  // The new location's own "Change location" populates the ref as it mounts, so this runs after
+  // the rebuilt subtree exists. Focus returns to the control that began the interaction, which is
+  // the contract every other door on this surface already keeps.
+  useEffect(() => {
+    if (!focusAfterSwitch.current || !team) return
+    focusAfterSwitch.current = false
+    changeLocationTrigger.current?.focus()
+  }, [team])
 
   const load = useCallback(() => {
     if (!viewerId) return
@@ -232,6 +265,12 @@ function CafeOpeningPageBody() {
 
         if (defaultLocation) {
           setTeam(defaultLocation)
+          // Not only a deliberate switch: the location a session OPENS on bounds Plan and Stock
+          // too, and they never come through here to learn it.
+          rememberCafeLocation(viewerId, {
+            branchId: defaultLocation.branchId,
+            branchName: defaultLocation.branchName,
+          })
           setTeamChoices(eligible)
           setState('ready')
           return
@@ -287,13 +326,59 @@ function CafeOpeningPageBody() {
     ? teamChoices.filter(candidate => candidate.id !== team.id)
     : []
 
+  // DD-MVP-17: once the location resolves, the capture surface IS the page and brings its
+  // own Workspace frame — mounting this one too would nest two frames and put two h1s on
+  // one page. Every state BEFORE that still needs a frame of its own to live in.
+  if (state === 'ready' && processId && team) {
+    return (
+      <>
+        <CafeCaptureRoot
+          key={team.id}
+          processId={processId}
+          team={team}
+          alternateLocations={alternateLocations}
+          changingLocation={changingLocation}
+          changeLocationTrigger={changeLocationTrigger}
+          setChangingLocation={setChangingLocation}
+          onChoose={selectLocation}
+        />
+        {/* Only while something is staged — `selectLocation` switches straight through otherwise.
+            Cancel leaves location, stream and draft exactly as they were: it never reaches
+            `applyLocation`, and the capture form is not re-keyed, so nothing is rebuilt. */}
+        {pendingLocation !== null && (
+          <ConfirmDialog
+            open
+            title={t('cafe.opening.switch.confirmTitle')}
+            body={t('cafe.opening.switch.confirmBody', {
+              count: cafeDraftCount(),
+              qty: t(cafeDraftCount() === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
+              from: team.branchName,
+              to: pendingLocation.branchName,
+            })}
+            confirmLabel={t('cafe.opening.switch.confirm')}
+            cancelLabel={t('common.cancel')}
+            tone="destructive"
+            onConfirm={async () => { applyLocation(pendingLocation) }}
+            onCancel={() => {
+              setPendingLocation(null)
+              // The button that opened this lived in the chooser, which closed as the dialog
+              // opened, so the shell's invoker is detached and focus would fall to <body>.
+              // "Change location" is the stable door back to the same choice.
+              changeLocationTrigger.current?.focus()
+            }}
+          />
+        )}
+      </>
+    )
+  }
+
   return (
     // V3 Workspace family (Issue 11): the shared frame owns the h1 + job sentence;
     // "today" rides in the head meta slot as before.
     <PageFamilyFrame
       family="workspace"
       title={t('nav.cafe')}
-      meta={wibToday()}
+      meta={formatWeekdayDayMonth(wibToday())}
       state={frameState}
     >
       {state === 'loading' && <LoadingShell count={2} />}
@@ -307,41 +392,62 @@ function CafeOpeningPageBody() {
       {state === 'choice' && (
         <LocationChoices choices={teamChoices} onChoose={selectLocation} />
       )}
-      {state === 'ready' && processId && team && (
-        <>
-          <section className="cafe-opening-location" aria-label={t('cafe.opening.locationLabel')}>
-            <div className="cafe-opening-location__copy">
-              <span className="cafe-opening-location__label">{t('cafe.opening.locationLabel')}</span>
-              <strong data-testid="cafe-opening-location">{team.branchName}</strong>
-            </div>
-            {alternateLocations.length > 0 && (
-              <Button
-                variant="ghost"
-                className="cafe-opening-location__change"
-                ref={changeLocationTrigger}
-                aria-expanded={changingLocation}
-                aria-controls="cafe-opening-location-switcher"
-                onClick={() => setChangingLocation(open => !open)}
-              >
-                {t('cafe.opening.changeLocation')}
-              </Button>
-            )}
-          </section>
-          {changingLocation && (
-            <div id="cafe-opening-location-switcher">
-              <LocationChoices choices={alternateLocations} onChoose={selectLocation} />
-            </div>
-          )}
-          <CafeOpeningPanel key={team.id} processId={processId} teamId={team.id} teamName={team.branchName} />
-          <nav aria-label={t('nav.cafe')} className="cafe-capture-links">
-            {captureLinks.map((link) => (
-              <Link key={link.to} to={link.to} className="btn btn-outline cafe-capture-link">
-                {t(link.key)}
-              </Link>
-            ))}
-          </nav>
-        </>
-      )}
     </PageFamilyFrame>
   )
+}
+
+/**
+ * DD-MVP-17: the ready face of the root. The capture surface IS the page; the Opening
+ * door row (location + status + Start door) rides as its leading slot and the navigation
+ * menu of large Log/Plan/Stock buttons is gone — those destinations stay in the
+ * capability-filtered shell rail (#781). The capture form's own frame owns the page title.
+ */
+function CafeCaptureRoot({
+  processId,
+  team,
+  alternateLocations,
+  changingLocation,
+  changeLocationTrigger,
+  setChangingLocation,
+  onChoose,
+}: {
+  processId: string
+  team: BranchTeam
+  alternateLocations: BranchTeam[]
+  changingLocation: boolean
+  changeLocationTrigger: React.RefObject<HTMLButtonElement | null>
+  setChangingLocation: (open: boolean) => void
+  onChoose: (choice: BranchTeam) => void
+}) {
+  const t = useT()
+  const door = (
+    <section className="cafe-opening-door" aria-label={t('cafe.opening.locationLabel')}>
+      <div className="cafe-opening-location" aria-label={t('cafe.opening.locationLabel')}>
+        <div className="cafe-opening-location__copy">
+          <span className="cafe-opening-location__label">{t('cafe.opening.locationLabel')}</span>
+          <strong data-testid="cafe-opening-location">{team.branchName}</strong>
+        </div>
+        {alternateLocations.length > 0 && (
+          <Button
+            variant="ghost"
+            className="cafe-opening-location__change"
+            ref={changeLocationTrigger}
+            aria-expanded={changingLocation}
+            aria-controls="cafe-opening-location-switcher"
+            onClick={() => setChangingLocation(!changingLocation)}
+          >
+            {t('cafe.opening.changeLocation')}
+          </Button>
+        )}
+      </div>
+      {changingLocation && (
+        <div id="cafe-opening-location-switcher">
+          <LocationChoices choices={alternateLocations} onChoose={onChoose} />
+        </div>
+      )}
+      <CafeOpeningPanel processId={processId} teamId={team.id} teamName={team.branchName} presentation="door" />
+    </section>
+  )
+  // OD-CAFE-1: the location this root has chosen bounds the capture surface's stream choice.
+  return <KitchenLogPage leading={door} activeBranchId={team.branchId} activeBranchName={team.branchName} />
 }

@@ -394,7 +394,14 @@ function matchesTaskFilters(
   if (query.view === 'my-work' && viewerId && r.picId !== viewerId && r.supervisorId !== viewerId) return false
   if (query.view === 'team-work') {
     const viewerTeamIds = new Set(viewerTeams.map((team) => team.id))
-    if (r.teamId === null || !viewerTeamIds.has(r.teamId)) return false
+    if (r.teamId !== null && viewerTeamIds.has(r.teamId)) {
+      // Canonical Team ownership.
+    } else if (r.teamId === null && r.businessUnitId !== null && viewerTeams.some((team) => team.businessUnitId === r.businessUnitId)) {
+      // Legacy null-Team rows ride in on a viewer team's Business unit (FR-011) until the
+      // Team backfill lands; the rail count carries the same shape so the badge stays honest.
+    } else {
+      return false
+    }
   }
   if (query.view === 'my-pic' && viewerId && r.picId !== viewerId) return false
   if (query.view === 'my-supervisor' && viewerId && r.supervisorId !== viewerId) return false

@@ -262,6 +262,6 @@ describe('issue 444 ship gate — the route and the nav close from the same swit
 
   it('…and still resolves an ungated path — the resolver is not simply broken', () => {
     expect(sectionForPath('/work/tasks')?.path).toBe('/work/tasks')
-    expect(sectionForPath('/cafe/log')?.path).toBe('/cafe/log')
+    expect(sectionForPath('/cafe')?.path).toBe('/cafe')
   })
 })

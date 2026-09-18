@@ -10,6 +10,8 @@
 # never a CI check); the audit-register coverage gate is tracked separately (#295).
 # Ledger contract: the EXIT trap appends after the gate has decided; the stamp is written only on green.
 # It never alters the verification exit status, and ledger append failures never fail that result.
+# Explicit exact-commit evidence: DESIGN_AUDIT_MODE=change-gate DESIGN_AUDIT_EVIDENCE_DIR=<dir>
+# bash scripts/pre-pr-verify.sh. Unset DESIGN_AUDIT_MODE for ordinary checks.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -29,6 +31,25 @@ record_ledger() {
       _ "$started_at" "$duration" "$mode" "$head" "$ledger_dir/verify-ledger.log"; } 2>/dev/null || :
 }
 trap record_ledger EXIT
+
+# Ordinary UI work keeps the changed-source detector and the normal app battery. The expensive
+# exact-commit evidence validator is an explicit change-gate lane so a stale shell export cannot
+# silently turn a bounded UI fix into a whole-matrix run.
+audit_mode="${DESIGN_AUDIT_MODE:-ordinary}"
+case "$audit_mode" in
+  ordinary|change-gate) ;;
+  *)
+    rm -f "$gitdir/pre-pr-verify-ok"
+    echo "✗ unknown DESIGN_AUDIT_MODE '$audit_mode' — unset it for ordinary checks or use change-gate" >&2
+    exit 1
+    ;;
+esac
+if [ "$audit_mode" = ordinary ] && [ -n "${DESIGN_AUDIT_EVIDENCE_DIR:-}" ]; then
+  rm -f "$gitdir/pre-pr-verify-ok"
+  echo "✗ DESIGN_AUDIT_EVIDENCE_DIR requires DESIGN_AUDIT_MODE=change-gate" >&2
+  exit 1
+fi
+rm -f "$gitdir/pre-pr-verify-ok"
 echo "── pre-pr-verify @ ${head:0:8} ($(git rev-parse --abbrev-ref HEAD))"
 
 if [ -n "$(git status --porcelain)" ]; then
@@ -62,22 +83,15 @@ if printf '%s\n' "$design_audit_paths" | grep -Eq '^(adws/adw_design_audit\.py|m
   bash scripts/design-quality-audit.test.sh
 fi
 
-# A production UI change requires a completed handoff at this exact HEAD.
-# Tests, stories, and fixtures do not trigger the live-render gate.
-material_ui_paths=""
-if [ -n "$base" ]; then
-  material_ui_paths="$(git diff --name-only "$base"...HEAD -- mos-app/src mos-app/public \
-    | grep -E '\.(css|html|js|jsx|ts|tsx|svg|png|jpe?g|webp|woff2?)$' \
-    | grep -vE '(\.test\.|\.spec\.|\.stories\.|/__tests__/|/fixtures/)' || true)"
-fi
-if [ -n "$material_ui_paths" ]; then
+# An explicit change-gate request validates the exact-commit evidence independently of the path
+# diff. Ordinary UI changes do not enter this live-render lane.
+if [ "$audit_mode" = change-gate ]; then
   if [ -z "${DESIGN_AUDIT_EVIDENCE_DIR:-}" ]; then
-    echo "✗ production UI changes require DESIGN_AUDIT_EVIDENCE_DIR at the exact HEAD" >&2
+    echo "✗ DESIGN_AUDIT_MODE=change-gate requires DESIGN_AUDIT_EVIDENCE_DIR at the exact HEAD" >&2
     exit 1
-  else
-    node --experimental-strip-types scripts/validate-design-evidence.mjs \
-      "$DESIGN_AUDIT_EVIDENCE_DIR" "$head" --require-change-gate
   fi
+  node --experimental-strip-types scripts/validate-design-evidence.mjs \
+    "$DESIGN_AUDIT_EVIDENCE_DIR" "$head" --require-change-gate
 fi
 if [ -n "$base" ]; then
   changed=$(git diff --numstat "$base"...HEAD -- ':!*package-lock.json' | awk '{s+=$1+$2} END{print s+0}')

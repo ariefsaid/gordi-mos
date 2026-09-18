@@ -47,5 +47,34 @@ echo "const x:number=1" > "$tmp/repo/mos-app/src/f.ts"
 git -C "$tmp/repo" add mos-app/src/f.ts
 check "missing node_modules skips lint instead of blocking" 0
 
+# The vitest lane ran nothing for months: `vitest related a.ts b.ts` reads everything
+# after the first file as a FILENAME FILTER, matches no test file, and exits 0. The lane
+# is too heavy to run for real here, so this pins the INVOCATION SHAPE instead — a stub
+# `npx` records argv and the assertion refuses the silently-empty form.
+stub="$tmp/stub"; mkdir -p "$stub"
+cat > "$stub/npx" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$NPX_ARGV_LOG"
+exit 0
+STUB
+chmod +x "$stub/npx"
+
+mkdir -p "$tmp/repo/mos-app/node_modules" "$tmp/repo/mos-app/src"
+echo "export const a = 1" > "$tmp/repo/mos-app/src/one.ts"
+echo "export const b = 2" > "$tmp/repo/mos-app/src/two.ts"
+git -C "$tmp/repo" add mos-app/src/one.ts mos-app/src/two.ts
+export NPX_ARGV_LOG="$tmp/npx-argv.log"
+: > "$NPX_ARGV_LOG"
+(cd "$tmp/repo" && PATH="$stub:$PATH" bash "$HOOK") >/dev/null 2>&1
+vitest_argv="$(grep '^vitest' "$NPX_ARGV_LOG" || true)"
+if [ -z "$vitest_argv" ]; then
+  fail=$((fail+1)); printf '  FAIL  two staged sources invoke vitest — nothing was invoked\n'
+elif [[ "$vitest_argv" == *"related"* ]]; then
+  fail=$((fail+1)); printf '  FAIL  vitest lane uses the no-op multi-file `related` form: %s\n' "$vitest_argv"
+else
+  pass=$((pass+1)); printf '  ok    two staged sources invoke a vitest form that runs tests\n'
+fi
+git -C "$tmp/repo" reset -q
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

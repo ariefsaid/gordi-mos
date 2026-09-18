@@ -25,10 +25,9 @@ describe('T5: SECTIONS — workspace fallback registry', () => {
 describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
   // Step 7 (cafe-retrofit.spec.md, RATIFY-7D): /cafe now hosts the "Start today's opening" home
   // (Opening) ahead of the re-homed kitchen screens (Log · Plan · Stock · Review · Pushes).
-  it('exports Opening + the 5 café sections in canonical order', () => {
+  it('exports the capture root + 4 café sections in canonical order (DD-MVP-17: /cafe/log retired)', () => {
     expect(CAFE_SECTIONS.map((s) => s.path)).toEqual([
       '/cafe',
-      '/cafe/log',
       '/cafe/plan',
       '/cafe/stock',
       '/cafe/review',
@@ -55,8 +54,8 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
     expect(sectionForPath('/cafe/plan/anything')!.path).toBe('/cafe/plan')
   })
 
-  it('RATIFY-7D: sectionForPath resolves the exact /cafe path to Opening (not a sub-route)', () => {
-    expect(sectionForPath('/cafe')!.label).toBe('Opening')
+  it('DD-MVP-17: sectionForPath resolves the exact /cafe path to the capture root (Log)', () => {
+    expect(sectionForPath('/cafe')!.label).toBe('Log')
   })
 })
 
@@ -77,7 +76,7 @@ describe('T5: new destination sections resolve', () => {
   it('sectionForPath resolves a sub-route by prefix', () => {
     // Was `/money/detail` → `/money`; Money is ship-gated (#444) and resolves to nothing now, so
     // the PREFIX behaviour itself is proven on a path that is still live.
-    expect(sectionForPath('/cafe/log/anything')!.path).toBe('/cafe/log')
+    expect(sectionForPath('/cafe/plan/anything')!.path).toBe('/cafe/plan')
   })
 
   // #444 — the gate closes resolution, not just rendering. The router forwards a gated path home,
@@ -106,10 +105,10 @@ describe('T5: sectionForPath — fallbacks', () => {
 
 describe('the Café children carry marks of their own (#457)', () => {
   // Several rungs, one picture: each Café tab gets its own mark so compact rail and phone drawer entries remain identifiable.
-  it('the six children use six distinct components', () => {
+  it('the five children use five distinct components (DD-MVP-17: Opening merged into the root)', () => {
     const icons = CAFE_SECTIONS.map((s) => s.Icon)
-    expect(icons).toHaveLength(6)
-    expect(new Set(icons).size).toBe(6)
+    expect(icons).toHaveLength(5)
+    expect(new Set(icons).size).toBe(5)
   })
 
   it('none of them is a mark another destination already draws', () => {

@@ -42,7 +42,9 @@ import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 // #440: the ONE Café stream statement/picker, and the module-wide selection it writes to.
 import { CafeStreamBar, ALL_STREAMS } from '@/components/kitchen/cafe-stream-bar'
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
+import { activeCafeLocation } from '@/lib/cafe-opening-location'
 import { useReviewSummary } from '@/lib/kitchen-review-kpis'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 import './kitchen-review-page.css'
 
 function wibToday(): string {
@@ -469,7 +471,12 @@ function KitchenReviewPageForViewer() {
       // stream Team) opens cross-stream too — sight is org-wide, decisions are not.
       // #440: a stream CHOSEN elsewhere in Café this session outranks both — it is an
       // explicit act, where the role defaults are only a guess about what you meant.
-      const chosenKey = rememberedStreamKey(viewerId)
+      // That choice is kept per location, so it is read under the location the person is
+      // working at. Review still claims no location of its own (OD-WAY-48); it reads the one
+      // already set. With no active location there is no choice to honour, and the role
+      // defaults stand — never the location-agnostic slot, which nothing writes.
+      const activeBranchId = activeCafeLocation(viewerId)?.branchId ?? null
+      const chosenKey = activeBranchId ? rememberedStreamKey(viewerId, activeBranchId) : null
       const chosen = chosenKey && catalog.some(s => streamKey(s.branch.id, s.activity) === chosenKey)
         ? chosenKey
         : null
@@ -931,7 +938,7 @@ function KitchenReviewPageForViewer() {
         <div className="kr-block kr-forbidden" role="region" aria-label={t('kitchen.review.restrictedAria')}>
           <p className="kr-forbidden-title">{t('kitchen.review.leadsOnly')}</p>
           <p className="kr-forbidden-msg">{t('kitchen.review.leadsOnlyMsg')}</p>
-          <Link to="/cafe/log" className="btn btn-outline">{t('kitchen.review.backToLog')}</Link>
+          <Link to="/cafe" className="btn btn-outline">{t('kitchen.review.backToLog')}</Link>
         </div>
       </PageFamilyFrame>
     )
@@ -1001,12 +1008,16 @@ function KitchenReviewPageForViewer() {
           allStreams={streamFilter === ALL_STREAMS}
           onChange={next => {
             setStreamFilter(streamKey(next.branch.id, next.activity))
-            rememberStream(next, viewerId) // the whole Café module follows this choice (#440)
+            // Review is the one deliberately cross-stream surface (OD-WAY-48), so it does NOT
+            // claim a location. It still records against the chosen stream's OWN branch rather
+            // than the location-agnostic slot, so a look at another branch's queue here cannot
+            // decide which books Log opens on.
+            rememberStream(next, viewerId, next.branch.id)
           }}
           onAllStreams={() => setStreamFilter(ALL_STREAMS)}
         />
       }
-      meta={<span className="kr-date tabular">{logDate}</span>}
+      meta={<span className="kr-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : submittedCount === 0 ? 'empty' : 'default'}
     >
       {/* #422 / DD-WAY-40: Review is an ACT surface, so its figures render as the DESIGN.md

@@ -62,8 +62,14 @@ export function ModalShell({
     function handleKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented) return
       if (event.key === 'Escape') {
+        if (event.target instanceof Element && event.target.closest('[data-escape-layer="nested"]')) return
         if (!closeOnEscape) return
         event.preventDefault()
+        // A modal owns Escape while it is open. Without this the key kept travelling to whatever
+        // sat underneath: on the Café capture form the inline-edit primitive treats Escape as
+        // discard-and-restore, so dismissing a dialog ALSO threw away the quantity behind it.
+        // `preventDefault` alone does not help — that primitive does not consult defaultPrevented.
+        event.stopPropagation()
         onCloseRef.current()
         return
       }
@@ -89,8 +95,10 @@ export function ModalShell({
       }
     }
 
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
+    // Capture phase: React delegates its own listeners to the app root, which is INSIDE document,
+    // so a bubble-phase listener here runs AFTER every component handler and cannot stop them.
+    document.addEventListener('keydown', handleKeyDown, true)
+    return () => document.removeEventListener('keydown', handleKeyDown, true)
   }, [closeOnEscape, open])
 
   useEffect(() => {

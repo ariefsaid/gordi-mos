@@ -299,6 +299,7 @@ export function Picker({
           ref={setMenuRef}
           id={menuId}
           aria-label={label}
+          data-escape-layer="nested"
           className={['picker__menu', menuClassName].filter(Boolean).join(' ')}
           style={position}
           onKeyDown={handleMenuKeyDown}

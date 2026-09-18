@@ -32,6 +32,18 @@ describe('catalog row layout stays readable at phone width', () => {
     expect(split).toMatch(/\.record-split \.catalog-collection__cell--relation,[\s\S]*?\.record-split \.catalog-collection__cell--cadence,[\s\S]*?\.record-split \.catalog-collection__cell--activity\s*\{[\s\S]*?display:\s*none/)
   })
 
+  it('stacks every lower-priority fact into one labelled metadata band at intermediate width', () => {
+    const tabletStart = css.indexOf('@media (min-width: 768px) and (max-width: 1099.98px)')
+    expect(tabletStart, 'expected an explicit intermediate-width catalog regime').toBeGreaterThanOrEqual(0)
+    const tablet = css.slice(tabletStart, css.indexOf('@media (max-width: 767.98px)', tabletStart))
+
+    expect(tablet).toMatch(/\.catalog-collection__header\s*\{[\s\S]*?display:\s*none/)
+    expect(tablet).toMatch(/\.catalog-collection__row-link\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)\s+auto\s+auto/)
+    expect(tablet).toMatch(/\.catalog-collection__metadata\s*\{[\s\S]*?grid-column:\s*1\s*\/\s*-1[\s\S]*?display:\s*grid/)
+    expect(tablet).toMatch(/\.catalog-collection__cell-label\s*\{[\s\S]*?display:\s*block/)
+    expect(tablet).not.toMatch(/\.catalog-collection__cell--(?:relation|owner|cadence|progress|activity)[^{]*\{[^}]*display:\s*none/)
+  })
+
   it('keeps the row activation a plain link with no action-cluster CSS contract', () => {
     expect(css).not.toContain('catalog-collection__actions')
     expect(css).not.toContain('catalog-collection__disclosure')

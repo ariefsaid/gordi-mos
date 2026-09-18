@@ -47,7 +47,7 @@
    so the composition reads as one surface. The drawer's <aside> is the single card frame; its inner
    .dw-surface fills and scrolls (dropping the nested card border/shadow it carried inside the aside).
    Scoped to the decision-column split threshold because below it the drawer is not a column. */
-@media (min-width: 1370px) {
+@media (min-width: 1362px) {
   .split:not(.nodrawer) { align-items: stretch; }
   .split .drawer {
     display: flex;
@@ -160,6 +160,20 @@
 }
 
 .inline-cell-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* DD-MVP-4: an overdue due label must show its full value in place. When
+   "Overdue · <date>" exceeds the fixed due track, wrap between the state and
+   the date instead of clipping mid-value (run 861b0004: 157px in a 152px cell). */
+.inline-cell-trigger--stacked { white-space: normal; text-overflow: clip; line-height: 1.25; padding-block: 2px; }
+/* Same ruling for the status value. The vocabulary is closed and its longest member is
+   the Indonesian "Sedang berjalan", which overruns the status track and was clipped
+   mid-word; the English "In Progress" clips at the compact width too. The decision
+   tracks are fixed, so the value wraps in place rather than the column moving. */
+.td-status .inline-cell-trigger { white-space: normal; text-overflow: clip; line-height: 1.25; }
+.td-status .inline-status-editor { height: auto; min-height: var(--control-height); max-height: none; }
+/* The pill's own box has to grow with the wrap, or the second line paints outside its
+   background and the trigger clips it — which is what the value looked like in Indonesian
+   even though the census measured it as fitting. */
+.td-status .status-pill { white-space: normal; height: auto; }
 .inline-status-editor {
   display: inline-flex;
   height: var(--control-height);
@@ -274,12 +288,15 @@
 .split:not(.nodrawer) .tasks-table td:nth-child(1) { width: 200px; } /* Title */
 .split:not(.nodrawer) .tasks-table th:nth-child(2),
 .split:not(.nodrawer) .tasks-table td:nth-child(2) { width: 108px; } /* Status */
+/* A person column holds a first name; Due holds the longest ordinary string in the row.
+   At 104px Due could not fit `Wed 16 Sept` and clipped it to `Wed 16 Se…` — a date that
+   reads as a different day. The two name columns had the slack; Due takes it. */
 .split:not(.nodrawer) .tasks-table th:nth-child(3),
-.split:not(.nodrawer) .tasks-table td:nth-child(3) { width: 128px; } /* PIC */
+.split:not(.nodrawer) .tasks-table td:nth-child(3) { width: 112px; } /* PIC */
 .split:not(.nodrawer) .tasks-table th:nth-child(4),
-.split:not(.nodrawer) .tasks-table td:nth-child(4) { width: 120px; } /* Supervisor */
+.split:not(.nodrawer) .tasks-table td:nth-child(4) { width: 104px; } /* Supervisor */
 .split:not(.nodrawer) .tasks-table th:nth-child(5),
-.split:not(.nodrawer) .tasks-table td:nth-child(5) { width: 104px; } /* Due */
+.split:not(.nodrawer) .tasks-table td:nth-child(5) { width: 128px; } /* Due */
 /* Due + pencil floors are sized by CLASS, not column position, in every state (split or
    rest): the optional Business Unit column shifts every later column's nth-child index, so
    an nth-child-based floor lands on the wrong column once BU is on — measured on dev at
@@ -409,7 +426,8 @@
 
 /* ── Loading skeleton ── */
 .sk-cell { height: var(--row-min-h); padding: 0 12px; border-bottom: 1px solid var(--row-divider); vertical-align: middle; }
-.sk { background: var(--secondary); border-radius: var(--radius-xs); height: 12px; display: inline-block; animation: sk-pulse 1.4s ease-in-out infinite; }
+/* The ONE `.sk`. Block so stacked bars stack; 12px is the default a caller can override inline. */
+.sk { background: var(--secondary); border-radius: var(--radius-xs); height: 12px; display: block; animation: sk-pulse 1.4s ease-in-out infinite; }
 .sk.pill { height: 22px; width: 84px; border-radius: var(--radius-pill); display: block; }
 .sk.av { height: 26px; width: 26px; border-radius: var(--radius-pill); display: block; }
 /* Cohesion-debt 2026-07-19, item #3: `@keyframes sk-pulse` moved to index.css (shared). */
@@ -450,7 +468,23 @@
 }
 .task-card-link { display: block; padding: 12px 16px; text-decoration: none; color: inherit; min-height: 44px; }
 .task-card-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } /* item #6: normalized to +2 (card has gap room) */
-.task-card-head { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
+/* The status pill holds the trailing edge; the title owns the rest of the row and wraps
+   inside its own column. As wrap-siblings the pill flowed after the last word, so it sat
+   beside a short title and dropped onto a line of its own after a long one — the same card
+   anatomy read as two different layouts down a single list. */
+.task-card-head { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 2px; }
+.task-card-head > .task-name,
+.task-card-head > .task-title-input { flex: 1 1 auto; min-width: 0; }
+/* Wrapping inside its own column, not ellipsised. Giving the title a bounded column made the
+   collection's one-line ellipsis bite, which trades a wrapped title for a clipped one — the
+   identity is the thing a reader is scanning for and it stays whole. */
+.task-card-head > .task-name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+}
+.task-card-head > .status-pill { flex: none; }
 /* Fix-5: mobile card dl — label:value pairs visible per mockup (not sr-only hiding).
    Each .task-card-meta-pair group is inline-flex so "Label value" stays on one line
    within the wrapping flex container; gap between pairs for scanability. */
@@ -499,8 +533,40 @@
      last wins — and the tighter phone gap this rule exists to set was being silently overridden. */
   .task-card-meta,
   .task-card-meta.collection-grammar-card-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; gap: 4px 12px; }
+  /* In a read-only card these cells hold text, and 4px between two lines is right. In the
+     DRAFT card they hold 44px pickers, so the same 4px put two tap targets half the phone
+     floor apart — Team above, PIC beside Supervisor below. Only the draft row opens up.
+     Selectors carry four and five classes deliberately: the competing queue rules carry three
+     and four and come later in source order, so matching their count would lose the tie-break. */
+  .tasks-work-queue .task-card .task-card-draft .task-card-meta,
+  .tasks-work-queue .task-card .task-card-draft .task-card-meta.collection-grammar-card-details {
+    row-gap: 8px;
+    margin-top: 8px;
+    /* One column, not two. A read-only cell holds a short value beside its label and two fit
+       across a phone; a draft cell holds a 44px picker whose placeholder is a sentence, and
+       half a phone left "Select supervisor…" needing 120px in an 89px box. */
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tasks-work-queue .task-card .task-card-draft .task-card-meta-pair { width: 100%; }
+  .tasks-work-queue .task-card .task-card-draft .task-card-create-control { flex: 1 1 auto; min-width: 0; }
+  .tasks-work-queue .task-card .task-card-draft .task-card-create-control .picker,
+  .tasks-work-queue .task-card .task-card-draft .task-card-create-control .picker__trigger { width: 100%; }
   .task-card-meta-pair { max-width: 100%; min-width: 0; }
   .task-card-meta-pair:last-child { grid-column: 1 / -1; }
+  /* The due pair is the last one, and its label is the one word the value already says: the
+     date renders as "Overdue · Tue 8 Sept" or "Thu 17 Sept", which is a due date on sight.
+     PIC and Supervisor keep their labels — two names side by side need telling apart. The
+     word stays in the accessibility tree; it just stops taking room on a phone. */
+  .task-card-meta-pair:last-child dt {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   .task-card-meta dd {
     min-width: 0;
     overflow: hidden;
@@ -524,7 +590,14 @@
   display: inline-flex; align-items: center; gap: 6px;
   box-sizing: border-box;
   height: 32px; padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--status-lost-text) 40%, transparent);
+  /* Mixed toward the card surface, not toward `transparent`, and at 70%. At 40% over
+     transparent the boundary composited to 2.5:1 in light while the four neutral toolbar
+     pickers beside it sat at 3.2:1 — and mixing with `transparent` inverts between themes,
+     so whatever percentage satisfies one theme starves the other. Against the surface the
+     result is deterministic in both. A visible control boundary clears 3:1 (DD-MVP-19),
+     and this one is visible: the attention chip is the control in the toolbar a reader is
+     meant to find first. */
+  border: 1px solid color-mix(in srgb, var(--status-lost-text) 70%, var(--card));
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--status-lost-text) 8%, transparent);
   font: inherit;
@@ -546,7 +619,9 @@
    Same hue family, deepened, so pressed reads as "this filter is on" at a glance. */
 .overdue-filter-btn--active {
   background: color-mix(in srgb, var(--status-lost-text) 18%, transparent);
-  border-color: color-mix(in srgb, var(--status-lost-text) 70%, transparent);
+  /* Same surface-mixed construction as the resting boundary above, one step stronger so
+     the pressed state still reads as the stronger of the two. */
+  border-color: color-mix(in srgb, var(--status-lost-text) 85%, var(--card));
   color: var(--status-lost-text);
 }
 .overdue-filter-btn--active:hover {
@@ -749,3 +824,14 @@ tr.grp td { padding: 0; }
   height: 100%; width: 100%;
 }
 .th-sort-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--radius-xs); } /* item #6: dense sticky-header cell — inset ring */
+
+/* Every card in the phone queue carried two people with two avatars — the PIC, and a Supervisor
+   who is the same person on most rows. Scanning a task list is scanning for who is DOING it; the
+   supervisor is a fact about the task, not a face to recognise mid-scroll. The name and its label
+   stay, so nothing is lost and the record keeps the full cell; only the second avatar goes, which
+   halves the circles on the screen. A card being filled in keeps its picker untouched. */
+@media (max-width: 767.98px) {
+  .task-card-meta-pair--supervisor .owner > .ownav {
+    display: none;
+  }
+}

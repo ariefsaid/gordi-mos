@@ -201,6 +201,40 @@ export type VisibleContentRow = PageAuditContext & {
   measured: string
 }
 
+export type TextTruncationMeasure = {
+  scrollWidth: number
+  clientWidth: number
+  scrollHeight: number
+  clientHeight: number
+  overflow?: string
+  overflowX?: string
+  overflowY?: string
+  lineClamp: string
+  textOverflow: string
+}
+
+/**
+ * CSS `text-overflow: ellipsis` is an authoring hint, not evidence that text
+ * is clipped.  A fitting element can still carry that style, so require a
+ * measurable overflow before treating ellipsis as truncation.
+ */
+export function isTextTruncated(measure: TextTruncationMeasure): boolean {
+  const overflowClips = ['hidden', 'clip'].includes(measure.overflow || '')
+    || ['hidden', 'clip'].includes(measure.overflowX || '')
+    || ['hidden', 'clip'].includes(measure.overflowY || '')
+  const lineClamp = measure.lineClamp || 'none'
+  const horizontallyClipped = measure.scrollWidth > measure.clientWidth + 1
+  // Same rule the live collector applies: a declared clamp that clamps nothing has truncated
+  // nothing. These two drifted apart once the collector was corrected, and a self-test encoding
+  // the older semantics is a trap for whoever next tries to make them agree.
+  const clampOverruns = lineClamp !== 'none' && lineClamp !== '0'
+    && measure.scrollHeight > measure.clientHeight + 1
+  return horizontallyClipped
+    || (overflowClips && measure.scrollHeight > measure.clientHeight + 1)
+    || clampOverruns
+    || (measure.textOverflow === 'ellipsis' && horizontallyClipped)
+}
+
 /** Measure visible text, persistent-band overlap, and the complete phone control population. */
 export async function collectVisibleContent(
   page: Page,
@@ -232,7 +266,14 @@ export async function collectVisibleContent(
       }
       return ['body', ...segments].join(' > ')
     }
-    const textTargets = Array.from(document.querySelectorAll<HTMLElement>(textSelector))
+    // While a modal is open the page behind it is inert: the reader cannot reach it, and it is
+    // covered on purpose. Measuring it reported a heading on the Signals archive as occluded by
+    // a sticky band INSIDE the composer sitting over it — a true statement about two layers
+    // nobody is looking at together. The open modal is the surface under measurement.
+    const openModals = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')).filter(visible)
+    const measuredRoot: ParentNode = openModals
+      .findLast((element) => !openModals.some((other) => other !== element && element.contains(other))) ?? document
+    const textTargets = Array.from(measuredRoot.querySelectorAll<HTMLElement>(textSelector))
       .filter((element) => visible(element) && /[\p{L}\p{N}]/u.test(element.innerText?.trim() || ''))
     for (const element of textTargets) {
       const style = getComputedStyle(element)
@@ -240,10 +281,16 @@ export async function collectVisibleContent(
         || ['hidden', 'clip'].includes(style.overflowX)
         || ['hidden', 'clip'].includes(style.overflowY)
       const lineClamp = style.getPropertyValue('-webkit-line-clamp') || 'none'
+      // A clamp that is not clamping has truncated nothing. Treating the DECLARATION as
+      // truncation failed every Task title in the drawer-narrowed table — thirteen rows whose
+      // scrollWidth equalled their clientWidth and whose two lines fit in two lines — and the
+      // clamp is there on purpose, so titles wrap instead of being ellipsised onto one line.
+      // Content that really does overrun its clamp still overflows its box, which is measurable.
+      const clampOverruns = lineClamp !== 'none' && lineClamp !== '0'
+        && element.scrollHeight > element.clientHeight + 1
       const truncated = element.scrollWidth > element.clientWidth + 1
         || (overflowClips && element.scrollHeight > element.clientHeight + 1)
-        || (lineClamp !== 'none' && lineClamp !== '0')
-        || style.textOverflow === 'ellipsis'
+        || clampOverruns
       const fullValuePathExercised = exercisedSelectors.some((selector) => {
         try { return element.matches(selector) } catch { return false }
       })
@@ -264,38 +311,113 @@ export async function collectVisibleContent(
       })
     }
 
+    const viewportArea = Math.max(1, window.innerWidth * window.innerHeight)
+    // What a band COVERS is what it paints, and a scroller clips its own content. A sticky
+    // block inside the record drawer that has scrolled up out of that drawer still reports a
+    // bounding rect at its off-screen position — y of -131 with a height of 243 — which spans
+    // the top bar and reported three header controls as fully covered by a block nobody can
+    // see. Clip a band to every scrolling ancestor before asking what it covers.
+    const paintedRect = (element: HTMLElement): DOMRect => {
+      let box = element.getBoundingClientRect()
+      let ancestor = element.parentElement
+      while (ancestor && ancestor !== document.body) {
+        const style = getComputedStyle(ancestor)
+        const clips = [style.overflow, style.overflowX, style.overflowY]
+          .some((value) => value === 'hidden' || value === 'clip' || value === 'auto' || value === 'scroll')
+        if (clips && style.position !== 'fixed') {
+          const bounds = ancestor.getBoundingClientRect()
+          const left = Math.max(box.left, bounds.left)
+          const top = Math.max(box.top, bounds.top)
+          const right = Math.min(box.right, bounds.right)
+          const bottom = Math.min(box.bottom, bounds.bottom)
+          box = new DOMRect(left, top, Math.max(0, right - left), Math.max(0, bottom - top))
+        }
+        ancestor = ancestor.parentElement
+      }
+      return box
+    }
     const persistentBands = Array.from(document.querySelectorAll<HTMLElement>('body *')).filter((element) => {
       if (!visible(element)) return false
       const position = getComputedStyle(element).position
-      return position === 'fixed' || position === 'sticky'
+      if (position !== 'fixed' && position !== 'sticky') return false
+      // A band is chrome pinned to an edge — a header, a footer, a sticky table head. A layer
+      // that covers most of the viewport is a MODE, not a band: an open composer or record
+      // overlay is meant to cover the page behind it, and counting it here reported every
+      // control on the covered page as unreachable content.
+      const rect = paintedRect(element)
+      if (rect.width <= 0 || rect.height <= 0) return false
+      const covered = (Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0))
+        * (Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0))
+      return covered / viewportArea < 0.8
+    })
+    // The layers the filter above just rejected. A mode is not a band, but the content under it
+    // is not clear either — reporting it as reachable is a pass the reader could never collect.
+    // Content under a mode is not measured at all; the same cell without the mode measures it.
+    const modeLayers = Array.from(document.querySelectorAll<HTMLElement>('body *')).filter((element) => {
+      if (!visible(element)) return false
+      const position = getComputedStyle(element).position
+      if (position !== 'fixed' && position !== 'sticky') return false
+      const rect = paintedRect(element)
+      if (rect.width <= 0 || rect.height <= 0) return false
+      const covered = (Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0))
+        * (Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0))
+      return covered / viewportArea >= 0.8
     })
     const occlusionTargets = Array.from(new Set([
       ...textTargets,
-      ...Array.from(document.querySelectorAll<HTMLElement>(actionable)).filter(visible),
+      ...Array.from(measuredRoot.querySelectorAll<HTMLElement>(actionable)).filter(visible),
     ]))
+    // The contract is reachability: content fails only when it CANNOT be brought clear of a
+    // persistent band, not when it happens to sit under one at some scroll offset. Sticky
+    // headers and footers are the designed pattern — rows slide beneath them on the way past.
+    //
+    // No single scroll position can decide that. Measuring at rest failed every below-fold row
+    // of every sticky-footer surface. Measuring at the bottom just moves the arbitrariness:
+    // whichever row lands behind the sticky table header there fails while the rows after it
+    // pass, which is how row 22 of 33 came to be the one Café Log failure. So ask the question
+    // directly — scroll each target to the middle of its scroller and see whether it is still
+    // covered. Content with nowhere clear to go (a first row under a header with no top
+    // reserve, a last row under a footer with no bottom reserve) cannot be centred and still
+    // fails, which is the case the rule exists for.
     for (const target of occlusionTargets) {
+      // Under a mode layer and not part of it: say nothing rather than say "clear".
+      if (modeLayers.some((layer) => layer !== target && !layer.contains(target) && !target.contains(layer))) continue
+      target.scrollIntoView({ block: 'center', inline: 'nearest' })
       const targetRect = target.getBoundingClientRect()
       let intersectionRatio = 0
       let centerCovered = false
+      // Which band did it, not just that one did: without this a failing row names the covered
+      // element and leaves the cover anonymous, and the only way to find it is to re-drive the
+      // state by hand and guess.
+      let occludedBy: string | null = null
+      let occludingRect: DOMRect | null = null
       for (const band of persistentBands) {
         if (band === target || band.contains(target) || target.contains(band)) continue
-        const bandRect = band.getBoundingClientRect()
+        const bandRect = paintedRect(band)
+        if (bandRect.width <= 0 || bandRect.height <= 0) continue
         const width = Math.max(0, Math.min(targetRect.right, bandRect.right) - Math.max(targetRect.left, bandRect.left))
         const height = Math.max(0, Math.min(targetRect.bottom, bandRect.bottom) - Math.max(targetRect.top, bandRect.top))
         const area = Math.max(1, targetRect.width * targetRect.height)
-        intersectionRatio = Math.max(intersectionRatio, (width * height) / area)
+        const ratio = (width * height) / area
+        if (ratio > intersectionRatio) {
+          intersectionRatio = ratio
+          occludedBy = cssPath(band)
+          occludingRect = bandRect
+        }
         const centerX = targetRect.left + targetRect.width / 2
         const centerY = targetRect.top + targetRect.height / 2
         if (centerX >= bandRect.left && centerX <= bandRect.right && centerY >= bandRect.top && centerY <= bandRect.bottom) {
           centerCovered = true
+          occludedBy ??= cssPath(band)
+          occludingRect ??= bandRect
         }
       }
       const topInset = persistentBands.reduce((value, band) => {
-        const rect = band.getBoundingClientRect()
+        const rect = paintedRect(band)
         return rect.top <= 1 ? Math.max(value, rect.bottom) : value
       }, 0)
       const bottomInset = persistentBands.reduce((value, band) => {
-        const rect = band.getBoundingClientRect()
+        const rect = paintedRect(band)
         return rect.bottom >= window.innerHeight - 1 ? Math.max(value, window.innerHeight - rect.top) : value
       }, 0)
       const fullyReachable = targetRect.height <= window.innerHeight - topInset - bottomInset
@@ -310,13 +432,28 @@ export async function collectVisibleContent(
           intersectionRatio,
           centerCovered,
           fullyReachable,
+          occludedBy,
+          targetRect: { x: Math.round(targetRect.x), y: Math.round(targetRect.y), width: Math.round(targetRect.width), height: Math.round(targetRect.height) },
+          bandRect: occludingRect && { x: Math.round(occludingRect.x), y: Math.round(occludingRect.y), width: Math.round(occludingRect.width), height: Math.round(occludingRect.height) },
           persistentBandCount: persistentBands.length,
+          measuredAt: 'scrolled-into-centre',
         }),
       })
     }
+    // Leave the page where the other rules expect it rather than wherever the last target
+    // happened to land.
+    for (const scroller of new Set<Element>([
+      ...(document.scrollingElement ? [document.scrollingElement] : []),
+      ...Array.from(document.querySelectorAll<HTMLElement>('body *')).filter((element) => {
+        const style = getComputedStyle(element)
+        return (style.overflowY === 'auto' || style.overflowY === 'scroll') && element.scrollHeight > element.clientHeight + 1
+      }),
+    ])) {
+      scroller.scrollTop = 0
+    }
 
     if (pageContext.viewport === 'phone-390x844') {
-      const controls = Array.from(document.querySelectorAll<HTMLElement>(actionable)).filter(visible)
+      const controls = Array.from(measuredRoot.querySelectorAll<HTMLElement>(actionable)).filter(visible)
       if (controls.length === 0) {
         rows.push({
           ...pageContext,
@@ -328,17 +465,51 @@ export async function collectVisibleContent(
           measured: JSON.stringify({ width: 0, height: 0, nearestDistance: null, populationSize: 0 }),
         })
       }
+      // A checkbox painted at 16px inside a <label> is hit anywhere on that label, so the
+      // label is the target a thumb actually has. Same rule, same scope and same substitution
+      // as the control census uses (see `labelledTarget` in collectControlCensus below) —
+      // deliberately NOT a union of the two rects, which for a stacked label above a field
+      // would span the gap between them and report a target no thumb can press.
+      const targetArea = (element: HTMLElement): DOMRect => {
+        const own = element.getBoundingClientRect()
+        if (!element.matches('input[type="checkbox"], input[type="radio"]')) return own
+        const label = element.closest<HTMLElement>('label')
+          ?? (element.id ? document.querySelector<HTMLElement>(`label[for="${CSS.escape(element.id)}"]`) : null)
+        if (!label || !visible(label)) return own
+        const box = label.getBoundingClientRect()
+        return box.width > 0 && box.height > 0 ? box : own
+      }
       for (const target of controls) {
-        const rect = target.getBoundingClientRect()
+        const rect = targetArea(target)
         const container = target.closest('form, nav, [role="group"], [role="toolbar"], [role="menu"], [role="listbox"], main, aside, [role="dialog"]')
           || document.body
         const neighbours = controls.filter((candidate) => candidate !== target
           && (candidate.closest('form, nav, [role="group"], [role="toolbar"], [role="menu"], [role="listbox"], main, aside, [role="dialog"]')
             || document.body) === container)
+        // A control that scrolls UNDER a sticky bar is not a neighbour of it — their boxes
+        // overlap because one layer is above the other, and a pair reported 0px apart that
+        // way is not two targets a thumb can confuse. Adjacent targets sit beside each
+        // other and never intersect. Same-layer overlap is left alone: that is a real
+        // defect, and this only excuses a pair split across a sticky or fixed layer.
+        const stickyLayer = (element: HTMLElement): boolean => {
+          for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+            const position = getComputedStyle(node).position
+            if (position === 'fixed' || position === 'sticky') return true
+          }
+          return false
+        }
+        const targetSticky = stickyLayer(target)
         let nearestDistance: number | null = null
         let nearestSelector = ''
         for (const neighbour of neighbours) {
-          const other = neighbour.getBoundingClientRect()
+          const other = targetArea(neighbour)
+          const intersects = other.left < rect.right && other.right > rect.left
+            && other.top < rect.bottom && other.bottom > rect.top
+          if (intersects && stickyLayer(neighbour) !== targetSticky) continue
+          // A control inside the same activating label is the same target, not a neighbour
+          // 0px away from itself.
+          if (other.left === rect.left && other.top === rect.top
+            && other.width === rect.width && other.height === rect.height) continue
           const dx = Math.max(rect.left - other.right, other.left - rect.right, 0)
           const dy = Math.max(rect.top - other.bottom, other.top - rect.bottom, 0)
           const distance = Math.hypot(dx, dy)
@@ -412,12 +583,18 @@ export type FocusRow = PageAuditContext & {
   outlineColor: string
   boxShadow: string
   hasIndicator: boolean
+  /** Only meaningful while a modal is open: this stop is outside it. */
+  escaped?: boolean
 }
 
 export type FocusTraversal = {
   rows: FocusRow[]
   expectedStops: number
   cycleDetected: boolean
+  /** Set when a modal is open; the traversal population is scoped to it. */
+  modalSelector: string | null
+  /** Stops a modal let Tab escape to. Non-empty means the trap leaks. */
+  escapedStops: string[]
 }
 
 export type TypographyRow = PageAuditContext & {
@@ -586,7 +763,28 @@ export async function collectFocusStops(page: Page, context: PageAuditContext) {
 
 /** Walk the real keyboard order and record the indicator on every reachable stop. */
 export async function collectFocusTraversal(page: Page, context: PageAuditContext): Promise<FocusTraversal> {
-  const stopCounts = await page.locator(FOCUSABLE_SELECTOR).evaluateAll((elements) => {
+  // A modal traps Tab inside itself and makes the page behind it inert — that is the pattern
+  // working, not failing. Counting the whole document against it reported the Signals composer
+  // as reaching 4 of 16 stops and called its closing cycle a repeated stop. The population is
+  // the modal; leaking OUT of it is what the rule below now catches instead.
+  const modalSelector = await page.evaluate(() => {
+    const open = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]'))
+      .filter((element) => {
+        const style = getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      })
+    // Innermost wins: a dialog opened from a dialog owns the keyboard.
+    const target = open.findLast((element) => !open.some((other) => other !== element && element.contains(other)))
+    if (!target) return null
+    target.setAttribute('data-design-audit-modal', '')
+    return '[data-design-audit-modal]'
+  })
+  // Scope by the role itself, not only by the marker: if the dialog re-rendered between the two
+  // evaluations the marker would be gone, expectedStops would be 0, and every keyboard rule for
+  // the cell would be skipped with no failure row to show for it.
+  const modalScope = modalSelector ? '[role="dialog"][aria-modal="true"][data-design-audit-modal]' : null
+  const stopCounts = await page.locator(modalScope ? `${modalScope} :is(${FOCUSABLE_SELECTOR})` : FOCUSABLE_SELECTOR).evaluateAll((elements) => {
     const measurable = (element: HTMLElement): boolean => {
       const style = getComputedStyle(element)
       const rect = element.getBoundingClientRect()
@@ -601,26 +799,46 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
     }
   })
   const expectedStops = stopCounts.expected
-  if (expectedStops === 0) return { rows: [], expectedStops, cycleDetected: false }
+  if (expectedStops === 0 && modalSelector) {
+    // A modal with no reachable stop is a finding, not a quiet skip.
+    const stillMarked = await page.locator(modalSelector).count()
+    if (stillMarked === 0) throw new Error('the open modal lost its audit marker before its keyboard population was counted')
+  }
+  if (expectedStops === 0) return { rows: [], expectedStops, cycleDetected: false, modalSelector, escapedStops: [] }
+  // Only the EXPECTED population is scoped to the modal. The walk itself has to be able to step
+  // outside it, or a trap that leaks would simply run out of iterations and read as contained.
+  const walkLimit = modalSelector
+    ? await page.locator(FOCUSABLE_SELECTOR).count()
+    : stopCounts.total
 
-  await page.evaluate(() => {
+  await page.evaluate((modal: string | null) => {
     document.getElementById('design-audit-focus-origin')?.remove()
     const origin = document.createElement('span')
     origin.id = 'design-audit-focus-origin'
     origin.tabIndex = -1
     origin.setAttribute('aria-hidden', 'true')
-    document.body.prepend(origin)
+    // Start inside the modal, or the first Tab measures the trap's entry rather than its order.
+    const host = modal ? document.querySelector(modal) : null
+    if (host) host.prepend(origin)
+    else document.body.prepend(origin)
     origin.focus()
-  })
+  }, modalSelector)
 
   const rows: FocusRow[] = []
   const seen = new Set<string>()
+  const escapedStops: string[] = []
+  let previousSelector: string | null = null
   let cycleDetected = false
   try {
-    for (let order = 0; order < stopCounts.total + 1; order += 1) {
+    // A press that stays on the same composite control has not advanced the order, so it does
+    // not spend the budget; the outer guard still bounds the walk.
+    let advanced = 0
+    for (let order = 0; order < (walkLimit + 1) * 8 && advanced <= walkLimit; order += 1) {
       await page.keyboard.press('Tab')
-      const focused = await page.evaluate(() => {
+      const focused = await page.evaluate((modal: string | null) => {
         const element = document.activeElement
+        const host = modal ? document.querySelector(modal) : null
+        const escaped = Boolean(host) && element instanceof Node && !host!.contains(element)
         if (!(element instanceof HTMLElement) || element === document.body) return null
         const segments: string[] = []
         let current: HTMLElement | null = element
@@ -657,13 +875,29 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
           outlineColor: style.outlineColor,
           boxShadow: style.boxShadow,
           measurable,
+          escaped,
           hasIndicator: indicatorStyles.some((candidate) =>
             (Number.parseFloat(candidate.outlineWidth) || 0) >= 2
             || (candidate.boxShadow !== 'none' && candidate.boxShadow.trim() !== '')),
         }
-      })
-      if (!focused) break
+      }, modalSelector)
+      if (!focused) {
+        // Nothing focused. With no modal that is the end of the order; with one open it means
+        // the trap let go, so record it and keep walking to see where Tab lands next.
+        if (!modalSelector) break
+        if (!escapedStops.includes('body')) escapedStops.push('body')
+        continue
+      }
       if (!focused.measurable) continue
+      if (focused.escaped && !escapedStops.includes(focused.selector)) escapedStops.push(focused.selector)
+      // A composite native control owns several Tab presses without handing focus on: a
+      // `datetime-local` holds it across month, day, year, hour and minute. The walk read the
+      // second press as the order repeating a stop and stopped there, one control short of the
+      // end — the Signals composer's team picker was never reached, and the composer was failed
+      // for a defect it does not have. Staying on the same element is not a repeat.
+      if (focused.selector === previousSelector) continue
+      previousSelector = focused.selector
+      advanced += 1
       if (seen.has(focused.selector)) {
         cycleDetected = rows.length < expectedStops
         break
@@ -672,9 +906,12 @@ export async function collectFocusTraversal(page: Page, context: PageAuditContex
       rows.push({ ...context, ...focused })
     }
   } finally {
-    await page.evaluate(() => document.getElementById('design-audit-focus-origin')?.remove())
+    await page.evaluate((modal: string | null) => {
+      document.getElementById('design-audit-focus-origin')?.remove()
+      if (modal) document.querySelector(modal)?.removeAttribute('data-design-audit-modal')
+    }, modalSelector)
   }
-  return { rows, expectedStops, cycleDetected }
+  return { rows, expectedStops, cycleDetected, modalSelector, escapedStops }
 }
 
 /** Collect the type values that are enforceable from the rendered CSS, by design role. */
@@ -1045,7 +1282,14 @@ export async function collectContrast(
         }
         const graphicFallback = collectionOptions.allowForegroundBoundary
           && foreground
-          && (element.matches('svg, svg *, img, [role="img"], [data-meaningful-graphic]'))
+          && (element.matches('svg, svg *, img, [role="img"], [data-meaningful-graphic]')
+            // DD-MVP-19 allows borderless controls to carry their affordance in the glyph:
+            // an actionable element whose visible content is only a graphic (icon button)
+            // is measured on that glyph's color. Without this arm the collector reports
+            // "unobserved" for every shared borderless icon button even when its glyph
+            // clears 3:1, which misclassifies a design-contract affordance as a failure.
+            || (element.matches('button, a[href], [role="button"], [role="link"], [role="combobox"], [role="menuitem"], [role="tab"]')
+              && element.querySelector(':scope > svg, :scope > img, :scope svg')))
         if (boundaries.length === 0 && graphicFallback && foreground) boundaries.push({ source: 'foreground', color: foreground, adjacent: background })
         if (boundaries.length === 0) {
           rows.push(emptyRow('boundary'))

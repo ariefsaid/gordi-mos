@@ -664,6 +664,7 @@ function fieldSectionSlot(section: RecordMetadataSection): RecordContentSlot {
         onCommitField={ctx.onCommitField}
         onDirtyChange={ctx.onDirtyChange}
         fieldCommitsFrozen={ctx.fieldCommitsFrozen}
+        headingLevel={ctx.headingLevel}
         excludeKeys={section.id === 'content' ? ['status'] : []}
       />
     ),

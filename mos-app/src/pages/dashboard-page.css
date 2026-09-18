@@ -129,7 +129,7 @@
 /* Desktop/tablet 3-up is the base rule above — no separate 768–1279 override needed now. */
 
 /* Mobile (<768px): phone-first. 2-up KPI tiles, sticky toolbar rail, padding shrinks. */
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .dash-pane {
     padding: 10px 14px 16px;
   }
@@ -146,7 +146,7 @@
   padding: 0 24px;
   margin-top: 4px;
 }
-@media (max-width: 767px) {
+@media (max-width: 767.98px) {
   .dash-queue-entry {
     padding: 0 14px;
   }

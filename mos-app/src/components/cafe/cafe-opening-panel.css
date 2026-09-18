@@ -54,3 +54,105 @@
   min-height: 0;
   padding: 20px 4px 4px;
 }
+
+/* DD-MVP-17 door presentation — the Café capture root carries this panel as a status ROW
+   above the capture form, not as a page body. The page variant's centered empty-state frame
+   costs ~240px on desktop and a whole first screen on a phone before the worker reaches the
+   job the surface exists for, so the door lays the same parts out on one wrapping line and
+   drops the decorative glyph. Actions and gating are unchanged — only the arrangement is. */
+.cafe-opening-panel--door {
+  max-width: none;
+  gap: 8px;
+}
+/* The door needs a surface of its own or it reads as page body: three stacked lines with no
+   boundary, sitting between the page head and the capture form and belonging to neither. A
+   quiet filled row with a border says "status about this location" without competing with
+   the form below it. */
+.cafe-opening-door {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--secondary);
+}
+/* Both halves of the door share the door's measure. The location block carries a 560px cap
+   for the standalone page, and inside the door that put the location and the action on
+   different measures — "Change location" stranded mid-width with the Start action far to
+   its right, in what is meant to read as one row. */
+.cafe-opening-door .cafe-opening-location {
+  max-width: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.cafe-opening-door-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+/* The status sentence is the row's own copy, never a heading: the capture form owns the
+   page's heading ladder and a second h2 here competed with it. */
+.cafe-opening-status {
+  font-size: var(--font-size-body); color: var(--foreground); margin: 0;
+}
+/* Push the row's action to the trailing edge so the label/status pair reads as one unit.
+   Only while the row actually IS a row: below the phone breakpoint it wraps, and an auto
+   inline-start margin then strands the action against the right edge under its own label. */
+@media (min-width: 768px) {
+  .cafe-opening-door-row > .btn,
+  .cafe-opening-door-row > button {
+    margin-inline-start: auto;
+  }
+}
+
+/* On a phone the location block stacks, and the page rule stretches this ghost button to
+   full width — which centres its label and strands it on its own line while every other
+   element in the door is left-aligned. Inside the door it stays a normal inline control. */
+@media (max-width: 390px) {
+  .cafe-opening-door .cafe-opening-location__change {
+    width: auto;
+    align-self: flex-start;
+  }
+}
+
+/* On a phone the door's location identity is three stacked lines — the word "Location", the
+   branch name under it, and "Change location" under that — before the opening status and its
+   action, and before the capture list below all of it. For a viewer with more than one branch
+   that put the first item to log at y=576 of 844: two thirds of the screen spent saying where
+   you are, to someone who is standing there.
+
+   It is one fact and one way to change it, so it reads as one line: label and branch inline,
+   the switch at the trailing edge. Nothing is removed and the switch keeps its own target. */
+@media (max-width: 767.98px) {
+  .cafe-opening-door .cafe-opening-location {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+  .cafe-opening-door .cafe-opening-location__copy {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+  }
+  .cafe-opening-door .cafe-opening-location__change {
+    width: auto;
+    margin-inline-start: auto;
+  }
+}
+
+/* The door names the branch twice: the location line says "Location · Gordi HQ" and the caption
+   under it says "Opening · Gordi HQ". On a phone that second naming costs a whole row at the top
+   of the capture screen, above the list the person came here to fill in. Where the location line
+   is present the caption is dropped and the status sits beside its own button on one row; where
+   it is absent (a single-location org renders no location line) the caption is the only thing
+   naming the branch and stays. */
+@media (max-width: 767.98px) {
+  .cafe-opening-door:has(.cafe-opening-location) .cafe-opening-team {
+    display: none;
+  }
+}

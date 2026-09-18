@@ -110,15 +110,6 @@
 .home-layout .home-signal-body { font-size: var(--font-size-body-lg); font-weight: 400; line-height: 1.6; }
 .home-layout .home-signal-row { flex-direction: column; gap: 8px; padding: 16px 4px; }
 .home-layout .home-signal-main { width: 100%; gap: 8px; }
-.home-layout .home-signal-location-chip,
-.home-layout .home-signal-time-chip {
-  min-height: 0;
-  border: 0;
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
-  white-space: normal;
-}
 .home-layout .home-signal-meta-item { overflow: visible; white-space: normal; }
 .home-layout .home-signal-attention--needs-attention,
 .home-layout .home-signal-attention--fyi {
@@ -140,6 +131,7 @@
 }
 
 @container home (max-width: 620px) {
+  .home-layout { gap: 8px; }
   .home-tabs {
     flex-wrap: wrap;
     overflow-x: visible;

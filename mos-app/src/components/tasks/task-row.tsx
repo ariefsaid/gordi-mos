@@ -603,7 +603,7 @@ export function TaskRow({
               onChange={(event) => dueInline.setDraft(event.target.value)} onKeyDown={(event) => { dueInline.onKeyDown(event); if (event.key === 'Escape') setDueEditing(false) }} onBlur={() => { dueInline.onBlur(); setDueEditing(false) }} />
             <InlineCommitFeedback {...dueInline} />
           </span>
-        ) : <button type="button" className="inline-cell-trigger" aria-label="Edit task due date" onClick={(event) => { event.stopPropagation(); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText}
+        ) : <button type="button" className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label="Edit task due date" onClick={(event) => { event.stopPropagation(); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText}
 
       </td>
     </tr>

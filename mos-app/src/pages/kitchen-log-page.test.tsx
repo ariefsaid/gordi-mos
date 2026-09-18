@@ -185,14 +185,18 @@ const STOCK_MAP = {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-async function renderPage(auth: AuthState = VIEWER_MEMBER, initialPath = '/mos/kitchen/log') {
+async function renderPage(
+  auth: AuthState = VIEWER_MEMBER,
+  initialPath = '/mos/kitchen/log',
+  location?: { activeBranchId: string; activeBranchName: string },
+) {
   mockUseAuth.mockReturnValue(auth)
   let utils!: ReturnType<typeof render>
   await act(async () => {
     utils = render(
       <MemoryRouter initialEntries={[initialPath]}>
         <Routes>
-          <Route path="/mos/kitchen/log" element={<KitchenLogPage />} />
+          <Route path="/mos/kitchen/log" element={<KitchenLogPage {...location} />} />
           <Route path="/mos/kitchen/log/success" element={<div>Submitted</div>} />
         </Routes>
       </MemoryRouter>,
@@ -204,12 +208,15 @@ async function renderPage(auth: AuthState = VIEWER_MEMBER, initialPath = '/mos/k
 
 import { KitchenLogPage } from './kitchen-log-page'
 import { rememberStream } from '@/lib/cafe-stream'
+import { resetCafeLocations } from '@/lib/cafe-opening-location'
+import { cafeDraftCount } from '@/lib/cafe-capture-draft'
 
 beforeEach(() => {
   vi.clearAllMocks()
   // #440: the Café stream is remembered for the whole module (sessionStorage), so a test that
   // switches streams would otherwise seed the NEXT test's opening stream. Clear it per test.
   rememberStream(null)
+  resetCafeLocations()
   mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS)
   mockListActiveBranches.mockResolvedValue(BRANCHES)
   mockListStreamPairs.mockResolvedValue(STREAM_PAIRS)
@@ -399,10 +406,14 @@ describe('Populated state — WIP items loaded', () => {
 
   it('shows plan qty for each item', async () => {
     await renderPage()
-    await waitFor(() => {
-      // plan_qty 20 for Ayam Bakar
-      expect(screen.getAllByText(/20/).length).toBeGreaterThan(0)
-    })
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    // The plan belongs to ITS OWN row: a bare /20/ over the whole document passed for months
+    // on the head's `2026-09-17`, and would have passed with no plan column at all.
+    // The plan reaches the person as the quantity field's placeholder — type over it and you
+    // have logged the plan. A bare /20/ over the whole document passed for months on the head's
+    // `2026-09-17` and would have passed with the plan missing entirely.
+    expect(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }))
+      .toHaveAttribute('placeholder', '20')
   })
 
   it('shows pinned Submit button', async () => {
@@ -1076,8 +1087,9 @@ describe('I3: shared PageHead variant="content"', () => {
     // ONE accessible heading carrying the page title (RI-IA-1)
     const h1 = within(head).getByRole('heading', { level: 1 })
     expect(h1).toHaveTextContent('Café · Log')
-    // the log date rides in the meta slot (today, WIB) — a YYYY-MM-DD string
-    expect(within(head).getByText(/^\d{4}-\d{2}-\d{2}$/)).toBeInTheDocument()
+    // the log date rides in the meta slot (today, WIB), in the weekday-day-month form every
+    // other head uses — never the raw ISO string the state is stored as
+    expect(within(head).getByText(/^\w{3} \d{1,2} \w{3,5}$/)).toBeInTheDocument()
     // the bespoke hand-rolled header is gone
     expect(document.querySelector('.kl-head')).toBeNull()
   })
@@ -1153,8 +1165,8 @@ describe('R4 / FR-018: Log summary line', () => {
     const summary = document.querySelector('.msr') as HTMLElement
     expect(summary).not.toBeNull()
     expect(summary.textContent).toMatch(/Plan\s*32/)
-    expect(summary.textContent).toMatch(/made\s*19/)
-    expect(summary.textContent).toMatch(/off-plan\s*7/)
+    expect(summary.textContent).toMatch(/Made\s*19/)
+    expect(summary.textContent).toMatch(/Off-plan\s*7/)
     expect(summary.textContent).not.toMatch(/on plan/i)
     expect(document.querySelector('.kks')).toBeNull()
     expect(screen.queryByRole('button', { name: /^help$/i })).toBeNull()
@@ -1169,7 +1181,7 @@ describe('R4 / FR-018: Log summary line', () => {
     const qty = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     fireEvent.change(qty, { target: { value: '5' } })
     expect(summary.textContent).toBe(atRest)
-    expect(summary.textContent).toMatch(/made\s*0/)
+    expect(summary.textContent).toMatch(/Made\s*0/)
   })
 
   it('renders a zero-plan summary rather than a second empty-state sentence', async () => {
@@ -1192,7 +1204,7 @@ describe('OD-K-5: Planned/Off-plan group split (desktop)', () => {
     // both non-empty group headers render with the right counts (2 planned, 1 off-plan).
     const plannedHead = screen.getByRole('button', { name: /collapse planned today/i }).closest('tr')!
     expect(within(plannedHead).getByText('2')).toBeInTheDocument()
-    const offplanHead = screen.getByRole('button', { name: /expand off-plan/i }).closest('tr')!
+    const offplanHead = screen.getByRole('button', { name: /expand not on today/i }).closest('tr')!
     expect(within(offplanHead).getByText('1')).toBeInTheDocument()
     expect(screen.queryByText('Sambal Matah')).toBeNull()
   })
@@ -1205,7 +1217,7 @@ describe('OD-K-5: Planned/Off-plan group split (desktop)', () => {
     await waitFor(() => screen.getByText('Sambal Matah'))
 
     expect(screen.queryByRole('button', { name: /collapse planned today/i })).toBeNull()
-    expect(screen.getByRole('button', { name: /collapse off-plan/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /collapse not on today/i })).toBeInTheDocument()
     expect(screen.getByText('Sambal Matah')).toBeInTheDocument()
   })
 })
@@ -2068,5 +2080,118 @@ describe('DD-7: the summary band never reports typed-but-unsaved quantities as l
   it('DD-7: desktop — the same invariant holds on the wide band', async () => {
     setDesktopMatchMedia(true)
     await bandNeverClaimsLoggedProduction()
+  })
+})
+
+// ── OD-CAFE-1: production capture is location-bound ──────────────────────────────────────────
+// The picker offered every stream in the org while the page named the location you were at, so
+// production done at one branch could be filed against another branch's books with nothing asking
+// whether that was meant. These assert the boundary, and that the transfer workflow — whose whole
+// job IS crossing branches — is not collateral damage.
+describe('OD-CAFE-1 — the production picker is bounded by the active location', () => {
+  const HQ = { activeBranchId: BRANCH_GORDI_HQ.id, activeBranchName: BRANCH_GORDI_HQ.name }
+
+  it('offers only the active location’s streams, not every branch’s', async () => {
+    await renderPage(VIEWER_MEMBER, '/mos/kitchen/log', HQ)
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+    const offered = (await screen.findAllByRole('option')).map(o => o.textContent?.trim() ?? '')
+
+    expect(offered.some(label => label.includes('Gordi HQ'))).toBe(true)
+    // Every other branch in the catalog is absent — this is the defect, stated as an assertion.
+    expect(offered.some(label => label.includes('Radiant'))).toBe(false)
+    expect(offered.some(label => label.includes('Rumah Rames'))).toBe(false)
+  })
+
+  it('treats a remembered stream from another location as stale, and says which location this is', async () => {
+    // The person's own default stream is Rumah Rames; they are standing at Gordi HQ.
+    await renderPage(VIEWER_MEMBER, '/mos/kitchen/log', HQ)
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Not silently re-pointed at an HQ stream, and not left pointing at Rumah Rames either.
+    expect(screen.getByRole('combobox', { name: /production stream/i }))
+      .not.toHaveTextContent('Rumah Rames')
+    const reason = screen.getByText(/belongs to another location/i)
+    expect(reason).toBeInTheDocument()
+    // It names BOTH: the stale stream (which the cleared picker no longer shows anywhere) and
+    // where you are, so the empty picker reads as a boundary rather than a lost setting.
+    expect(reason).toHaveTextContent('Rumah Rames')
+    expect(reason).toHaveTextContent('Gordi HQ')
+    expect(screen.getByRole('button', { name: /^submit$/i })).toBeDisabled()
+  })
+
+  it('keeps the person’s own default when they are standing at its location', async () => {
+    await renderPage(VIEWER_MEMBER, '/mos/kitchen/log', {
+      activeBranchId: BRANCH_RUMAH_RAMES.id, activeBranchName: BRANCH_RUMAH_RAMES.name,
+    })
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(screen.getByRole('combobox', { name: /production stream/i }))
+      .toHaveTextContent('Rumah Rames')
+    expect(screen.queryByText(/belongs to another location/i)).toBeNull()
+  })
+
+  it('leaves the transfer workflow crossing branches — the catalog is bounded for the PICKER only', async () => {
+    await renderPage(VIEWER_MEMBER, '/mos/kitchen/log', {
+      activeBranchId: BRANCH_RUMAH_RAMES.id, activeBranchName: BRANCH_RUMAH_RAMES.name,
+    })
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    // Destinations are other branches by definition; filtering the catalog itself would have
+    // deleted them along with the wrong-books risk.
+    expect(screen.getByRole('tab', { name: /transfer to radiant/i })).toBeInTheDocument()
+  })
+
+  it('leaves the catalog whole when there is no location context', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+    const offered = (await screen.findAllByRole('option')).map(o => o.textContent?.trim() ?? '')
+    expect(offered.some(label => label.includes('Gordi HQ'))).toBe(true)
+    expect(offered.some(label => label.includes('Radiant'))).toBe(true)
+  })
+})
+
+// The capture form's half of the dirty-draft contract. The Café root asks before a location
+// switch throws away a count in progress, and it can only ask because THIS form publishes what
+// it is holding. The root's half is covered in cafe-opening-page.test.tsx, but those tests stub
+// this form out and seed the count by hand — so deleting the publishing effect below left them
+// all green. This owns the half that makes the feature work.
+describe('the capture form publishes what it is holding', () => {
+  it('a typed quantity reaches the module the Café root reads before it discards a draft', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(cafeDraftCount()).toBe(0)
+
+    await act(async () => {
+      fireEvent.change(
+        screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }),
+        { target: { value: '3' } },
+      )
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(cafeDraftCount()).toBe(1))
+  })
+
+  it('stops holding a count once the form goes away', async () => {
+    const utils = await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    await act(async () => {
+      fireEvent.change(
+        screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }),
+        { target: { value: '2' } },
+      )
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(cafeDraftCount()).toBe(1))
+
+    // A count that outlived its form would make the root warn about work that no longer exists.
+    await act(async () => { utils.unmount() })
+    expect(cafeDraftCount()).toBe(0)
   })
 })

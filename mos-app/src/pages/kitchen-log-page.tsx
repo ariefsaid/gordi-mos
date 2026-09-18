@@ -34,7 +34,9 @@ import {
 // #440: the stream is the MODULE's selection, not this page's — useCafeStream records it so
 // Plan/Stock/Review open on the same books, and every switch carries across (issue 456).
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { clearCafeDraftCount, setCafeDraftCount } from '@/lib/cafe-capture-draft'
 import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
+import type { ReactNode } from 'react'
 import type {
   ActualsMap,
   CaptureFormItem,
@@ -67,6 +69,7 @@ import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { DataTable, type DataTableColumn, type DataTableGroup } from '@/components/dashboard/data-table'
 import { kitchenStatus } from '@/lib/kitchen-status'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
@@ -144,16 +147,29 @@ type PageStatus =
   | { kind: 'submitting' }
   | { kind: 'success'; count: number }
 
-export function KitchenLogPage() {
+export function KitchenLogPage({ leading, activeBranchId, activeBranchName }: {
+  leading?: ReactNode
+  /**
+   * OD-CAFE-1: the location this capture belongs to, from the module root's own location
+   * context. Production capture is location-bound — the picker offers this branch's streams and
+   * nothing else, and a remembered stream from another branch is stale rather than usable.
+   * Absent (a single-location org, or a surface with no location context) leaves the catalog whole.
+   */
+  activeBranchId?: string
+  /** The active location's user-facing name, for the boundary message. */
+  activeBranchName?: string
+} = {}) {
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : 'anonymous'
 
   // Catalog, rows, and staged capture lines belong to one person. A route remains mounted
   // through an auth replacement, so a key makes that replacement atomic at render time.
-  return <KitchenLogPageForViewer key={viewerId} />
+  return <KitchenLogPageForViewer key={viewerId} leading={leading} activeBranchId={activeBranchId} activeBranchName={activeBranchName} />
 }
 
-function KitchenLogPageForViewer() {
+/** DD-MVP-17: leading slot — content (the Opening door row) the module root renders
+ *  above the capture form when this surface IS the Café root. */
+function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: { leading?: ReactNode; activeBranchId?: string; activeBranchName?: string } = {}) {
   const auth = useAuth()
   const t = useT()
   // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
@@ -174,7 +190,27 @@ function KitchenLogPageForViewer() {
   // `.activity` are NOT NULL (AC-007). `streamOptions` is the enumerable stream catalog (FR-005):
   // the live stream Teams, so the roastery — a branch with no stream — can never appear.
   const cafeStream = useCafeStream()
-  const { branches, options: streamOptions, stream } = cafeStream
+  const { branches, options: streamOptions, stream: resolvedStream } = cafeStream
+  // OD-CAFE-1 — production capture is location-bound.
+  //
+  // The picker offered every stream in the org while the page said which location you were at, so
+  // production done at one branch could be filed against another branch's books with nothing
+  // asking whether that was meant. The choice is now bounded by the active location, and switching
+  // location is the deliberate act that changes it.
+  //
+  // `streamOptions` stays WHOLE for everything else. The transfer movements are derived from it —
+  // a transfer's destination is by definition another branch — so filtering the catalog itself
+  // would delete the cross-location workflow instead of bounding the production choice.
+  const locationStreams = useMemo(
+    () => (activeBranchId ? streamOptions.filter((option) => option.branch.id === activeBranchId) : streamOptions),
+    [activeBranchId, streamOptions],
+  )
+  // A remembered stream from another location is stale, not a default. Clearing it puts the page
+  // in the same "choose a stream" state as a person with no default at all — nothing is captured
+  // against a branch the viewer did not pick, and nothing is silently substituted for them.
+  const streamOutsideLocation = Boolean(activeBranchId) && resolvedStream !== null
+    && resolvedStream.branch.id !== activeBranchId
+  const stream = streamOutsideLocation ? null : resolvedStream
   // #744: the presentation of the RLS write gate — rows stay visible, capture controls close,
   // one line says why. Same selector the policies arm: affiliated, or ops_lead/admin.
   const canCapture = auth.status === 'authenticated' && canCaptureCafe({
@@ -342,6 +378,15 @@ function KitchenLogPageForViewer() {
     loadData()
   }, [auth.status, loadData, retryKey])
 
+  // The module root owns the location switch and cannot see these quantities. Publish how many are
+  // staged so it can warn before discarding them, and retract it on unmount so a dead form never
+  // makes the root warn about work that no longer exists. Above every early return: this is a hook.
+  const draftCount = Object.values(lines).filter(line => line.qty_porsi > 0).length
+  useEffect(() => {
+    setCafeDraftCount(draftCount)
+    return () => { clearCafeDraftCount() }
+  }, [draftCount])
+
   // Rebuild plan_qty / stock / gate state per line when the movement or the loaded
   // stream-scoped plan/stock change.
   useEffect(() => {
@@ -423,7 +468,7 @@ function KitchenLogPageForViewer() {
   // stream in one spot instead of guessing on two thirds of the module.
   const streamPicker = (
     <CafeStreamBar
-      options={streamOptions}
+      options={locationStreams}
       stream={stream}
       onChange={next => { void applyStream(next) }}
       disabled={status.kind === 'submitting'}
@@ -523,7 +568,7 @@ function KitchenLogPageForViewer() {
     }
 
     if (!buId) {
-      setSubmitError('Cannot determine the Café business unit. Please contact an admin.')
+      setSubmitError(t('kitchen.log.error.noBusinessUnit'))
       return
     }
 
@@ -609,7 +654,7 @@ function KitchenLogPageForViewer() {
   // and a head that goes silent about its stream is the #440 defect itself.
   if (status.kind === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="loading" meta={<span className="kl-date tabular">{logDate}</span>}>
+      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="loading" meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
           <LoadingShell count={3} />
@@ -621,7 +666,7 @@ function KitchenLogPageForViewer() {
   // ── Error state — never a bare Retry loop when offline (#2, RI-2) ────────────
   if (status.kind === 'error') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="error" meta={<span className="kl-date tabular">{logDate}</span>}>
+      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="error" meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}>
         <div className="kl-page kl-error kl-block">
           <OfflineBanner show={!isOnline} />
           <p className="kl-error-msg" role="alert">
@@ -643,7 +688,7 @@ function KitchenLogPageForViewer() {
   // ── Empty state (no WIP items) — no KPI strip (nothing to derive, plan §7) ────
   if (wipItems.length === 0) {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state={streamNonProducing ? 'read-only' : 'empty'} meta={<span className="kl-date tabular">{logDate}</span>}>
+      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state={streamNonProducing ? 'read-only' : 'empty'} meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
           {streamNonProducing && receivingOnlyNotice}
@@ -905,6 +950,7 @@ function KitchenLogPageForViewer() {
       search={search}
       onSearchChange={setSearch}
       categories={isDesktop ? categories : undefined}
+      categoryId="cafe-log-category"
       categoryLabel={value => kitchenCategoryLabel(t, value)}
       category={isDesktop ? category : undefined}
       onCategoryChange={isDesktop ? setCategory : undefined}
@@ -947,7 +993,7 @@ function KitchenLogPageForViewer() {
          a row lands in decides what the row MEANS, so it outranks the static job sentence the
          shared head would otherwise carry (PageHead renders one or the other). */
       statusRow={streamPicker}
-      meta={<span className="kl-date tabular">{logDate}</span>}
+      meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
       state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : streamNonProducing ? 'read-only' : submitError ? 'validation' : 'default'}
     >
       <div className="kl-page">
@@ -955,6 +1001,7 @@ function KitchenLogPageForViewer() {
             stay/discard when leaving the route with unsaved entries. */}
         <RouteLeaveGuard when={stagedCount > 0} message={t('kitchen.log.leave.confirm')} />
         <OfflineBanner show={!isOnline} />
+        {leading}
 
         {/* R4 / FR-018: one aggregate line, derived from submitted actuals. It remains visible
             when the day is at zero so the plan/actual vocabulary is stable, but staged typing
@@ -1035,24 +1082,34 @@ function KitchenLogPageForViewer() {
                 <span className="kl-tally-sub">{t('kitchen.log.footer.pendingReview')}</span>
               </div>
             )}
+            {/* The reason Submit is dead is a SENTENCE, and it gets a line of its own. Nested in
+                the action cluster it was a `flex: none` column beside the buttons, so on a phone
+                "Choose a production stream before submitting." wrapped into three cramped lines
+                against the thing it was explaining — and on a 1440px screen it did the same with
+                a screen's width to spare. */}
+            {canCapture && streamMissing && (
+              <span className="kl-submit-reason" role="status" aria-live="polite">
+                {streamOutsideLocation
+                  ? t('kitchen.log.stream.otherLocation', {
+                    // Name the stale stream: once the picker clears, "that stream" points at
+                    // nothing on screen.
+                    stream: streamLabel(t, resolvedStream),
+                    location: activeBranchName ?? '',
+                  })
+                  : t('kitchen.log.stream.missing')}
+              </span>
+            )}
+            {canCapture && streamNonProducing && (
+              <span className="kl-submit-reason" role="status" aria-live="polite">
+                {t('kitchen.log.stream.nonProducing')}
+              </span>
+            )}
+            {noteUnresolved && !hasBlockingError && !streamMissing && !streamNonProducing && (
+              <span className="kl-submit-reason" role="status" aria-live="polite">
+                {t('kitchen.log.footer.noteRequired')}
+              </span>
+            )}
             <div className="kl-footer-actions">
-              {/* F3 inline blocker reason — visible near the button so the user knows
-                  why Submit is disabled without having to attempt a click (Fix 3). */}
-              {canCapture && streamMissing && (
-                <span className="kl-submit-reason" role="status" aria-live="polite">
-                  {t('kitchen.log.stream.missing')}
-                </span>
-              )}
-              {canCapture && streamNonProducing && (
-                <span className="kl-submit-reason" role="status" aria-live="polite">
-                  {t('kitchen.log.stream.nonProducing')}
-                </span>
-              )}
-              {noteUnresolved && !hasBlockingError && !streamMissing && !streamNonProducing && (
-                <span className="kl-submit-reason" role="status" aria-live="polite">
-                  {t('kitchen.log.footer.noteRequired')}
-                </span>
-              )}
               <button
                 type="button"
                 className="btn btn-outline"

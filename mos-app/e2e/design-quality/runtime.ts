@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -29,6 +30,15 @@ import {
 import { ReportWriter } from './report'
 import type { DesignQualityManifest, ManifestCell } from './manifest'
 import { resetAuditScroll } from './scroll'
+import {
+  classifyFailureSet,
+  digestAutomaticFailureLane,
+  AUTOMATIC_FAILURE_BASELINE_PATH,
+  loadTrustedAutomaticFailureBaseline,
+  type AutomaticFailureBaseline,
+  type AutomaticFailure,
+  type FailureComparison,
+} from './change-gate.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = path.dirname(__filename)
@@ -49,6 +59,9 @@ export type AuditRun = {
   candidateSha: string
   sessionId: string
   writer: ReportWriter
+  verificationBase?: string
+  mergeBaseSha?: string
+  baselineSnapshot?: AutomaticFailureBaseline
 }
 
 type FixtureRunState = {
@@ -59,6 +72,7 @@ type FixtureRunState = {
 }
 
 const fixtureRuns = new Map<string, FixtureRunState>()
+const baselineRuns = new Map<string, Promise<AutomaticFailureBaseline>>()
 
 export type StateObservation = {
   status: 'covered' | 'untested'
@@ -73,6 +87,15 @@ export function isAuditCellRunnable(cell: ManifestCell): boolean {
 
 function env(name: string): string {
   return process.env[name]?.trim() ?? ''
+}
+
+function exactSnapshotBlobDigest(mergeBaseSha: string): string {
+  const blob = execFileSync('git', ['show', `${mergeBaseSha}:${AUTOMATIC_FAILURE_BASELINE_PATH}`], {
+    cwd: repoRoot,
+    encoding: 'buffer',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  }) as Buffer
+  return createHash('sha256').update(blob).digest('hex')
 }
 
 function auditEnv(): Record<string, string> {
@@ -200,7 +223,116 @@ export function auditRun(): AuditRun {
   if (!baseURL || !outputDir || !candidateSha || !sessionId) {
     throw new Error('design audit requires DESIGN_AUDIT_BASE_URL, OUTPUT_DIR, CANDIDATE_SHA, and SESSION_ID')
   }
-  return { baseURL, outputDir, candidateSha, sessionId, writer: new ReportWriter({ outputDir, candidateSha, sessionId }) }
+  const forbiddenBaselineEnv = Object.keys(process.env).filter((name) => name.startsWith('DESIGN_AUDIT_BASELINE_'))
+  if (forbiddenBaselineEnv.length > 0) {
+    throw new Error(`change-gate baseline directory/session inputs are rejected: ${forbiddenBaselineEnv.join(', ')}`)
+  }
+  const verificationBase = env('DESIGN_AUDIT_VERIFICATION_BASE')
+    || `origin/${env('MOS_PR_BASE') || 'dev'}`
+  const mergeBaseSha = env('DESIGN_AUDIT_MERGE_BASE_SHA')
+  return {
+    baseURL,
+    outputDir,
+    candidateSha,
+    sessionId,
+    writer: new ReportWriter({ outputDir, candidateSha, sessionId }),
+    verificationBase: verificationBase || undefined,
+    mergeBaseSha: mergeBaseSha || undefined,
+  }
+}
+
+/** Compare the complete candidate census against the exact-base evidence. */
+export async function compareAutomaticFailures(
+  run: AuditRun,
+  candidateFailures: AutomaticFailure[],
+): Promise<FailureComparison> {
+  if (env('DESIGN_AUDIT_MODE') !== 'change-gate') return classifyFailureSet(candidateFailures, [])
+  const expectedSha = run.candidateSha
+  const verificationBase = run.verificationBase || `origin/${env('MOS_PR_BASE') || 'dev'}`
+  const key = `${repoRoot}:${expectedSha}:${verificationBase}:${run.sessionId}`
+  let pending = baselineRuns.get(key)
+  if (!pending) {
+    pending = loadTrustedAutomaticFailureBaseline({ repoRoot, candidateSha: expectedSha, verificationBase }).then((result) => {
+      if (!result.ok || !result.snapshot) {
+        throw new Error(`change-gate exact merge-base snapshot is invalid:\n${result.errors.join('\n')}`)
+      }
+      run.mergeBaseSha = result.mergeBaseSha
+      run.baselineSnapshot = result.snapshot
+      return result.snapshot
+    })
+    baselineRuns.set(key, pending)
+  }
+  const snapshot = await pending
+  const baselineFailures: AutomaticFailure[] = snapshot.failures.map((identity) => ({
+    ...identity,
+    message: 'automatic failure recorded in exact merge-base snapshot',
+  }))
+  const untested = new Set(snapshot.untestedCellIds)
+  // The compact snapshot stores untested IDs without a state field. Match the
+  // candidate's actual state when classifying those coverage records, so an
+  // inherited non-default cell does not become a false regression.
+  for (const failure of candidateFailures) {
+    if (failure.ruleId === 'state.coverage' && untested.has(failure.cellId)) {
+      baselineFailures.push({
+        ...failure,
+        message: 'manifest cell was untested in the exact merge-base snapshot',
+      })
+    }
+  }
+  return classifyFailureSet(candidateFailures, baselineFailures)
+}
+
+/**
+ * Lane-facing comparison seam. A malformed or missing exact-base snapshot is
+ * itself a blocking failure, but the lane still writes its complete summary
+ * before the caller performs its deliberate assertion.
+ */
+export async function compareAutomaticFailuresForLane(
+  run: AuditRun,
+  candidateFailures: AutomaticFailure[],
+): Promise<FailureComparison> {
+  try {
+    return await compareAutomaticFailures(run, candidateFailures)
+  } catch (error) {
+    const baselineFailure: AutomaticFailure = {
+      ruleId: 'change-gate.baseline',
+      cellId: '__baseline__',
+      selector: '__exact-merge-base-snapshot__',
+      state: 'default',
+      message: String(error),
+    }
+    const allFailures = [...candidateFailures, baselineFailure]
+    return {
+      allFailures,
+      inheritedFailures: [],
+      newFailures: allFailures,
+      failures: allFailures,
+      automaticChecksPassed: false,
+    }
+  }
+}
+
+export function auditMode(): 'mvp-assessment' | 'change-gate' {
+  return env('DESIGN_AUDIT_MODE') === 'change-gate' ? 'change-gate' : 'mvp-assessment'
+}
+
+/** Write the common completion/count/digest envelope for an automatic lane. */
+export async function writeAutomaticLaneSummary(
+  run: AuditRun,
+  artifact: string,
+  payload: Record<string, unknown>,
+  count: number,
+): Promise<string> {
+  const measured = {
+    ...payload,
+    auditMode: auditMode(),
+    complete: true,
+    count,
+  }
+  return run.writer.writeJson(artifact, {
+    ...measured,
+    digest: digestAutomaticFailureLane(measured),
+  })
 }
 
 export function auditEnabled(): boolean {
@@ -216,6 +348,40 @@ export function assertAuditEnvironment(): void {
   const currentSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).trim()
   if (currentSha !== run.candidateSha) {
     throw new Error(`candidate SHA changed during audit: expected ${run.candidateSha}, found ${currentSha}`)
+  }
+  const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: repoRoot, encoding: 'utf8' }).trim()
+  if (status) throw new Error('working tree changed during audit; evidence must be bound to one committed candidate')
+  let session: Record<string, unknown>
+  try {
+    session = JSON.parse(readFileSync(path.join(run.outputDir, 'session.json'), 'utf8')) as Record<string, unknown>
+  } catch {
+    throw new Error('audit session metadata is missing or invalid')
+  }
+  if (session.candidateSha !== run.candidateSha || session.sessionId !== run.sessionId) {
+    throw new Error('audit session metadata changed during the run')
+  }
+  if (env('DESIGN_AUDIT_MODE') === 'change-gate') {
+    const verificationBase = run.verificationBase || `origin/${env('MOS_PR_BASE') || 'dev'}`
+    const resolvedMergeBase = execFileSync('git', ['merge-base', run.candidateSha, verificationBase], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    }).trim()
+    if (!/^[0-9a-f]{40}$/.test(resolvedMergeBase)) throw new Error('exact merge base is not a full lowercase SHA')
+    if (session.verificationBase !== verificationBase || session.mergeBaseSha !== resolvedMergeBase) {
+      throw new Error('audit session merge-base binding changed during the run')
+    }
+    if (typeof session.snapshotBlobDigest !== 'string' || !/^[0-9a-f]{64}$/.test(session.snapshotBlobDigest)) {
+      throw new Error('audit session snapshot blob digest is missing or invalid')
+    }
+    let actualSnapshotBlobDigest = ''
+    try {
+      actualSnapshotBlobDigest = exactSnapshotBlobDigest(resolvedMergeBase)
+    } catch {
+      throw new Error('exact merge-base snapshot blob is missing or unreadable')
+    }
+    if (session.snapshotBlobDigest !== actualSnapshotBlobDigest) {
+      throw new Error('audit session snapshot blob digest changed during the run')
+    }
   }
 }
 
@@ -238,8 +404,17 @@ export async function assertAuditServer(baseURL: string): Promise<void> {
   const parsed = localBaseUrl(baseURL)
   const run = auditEnabled() ? auditRun() : null
   if (run) {
-    const currentSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).trim()
-    if (currentSha !== run.candidateSha) throw new Error('candidate SHA changed before browser measurement')
+    assertAuditEnvironment()
+    if (process.env.DESIGN_AUDIT_MODE === 'change-gate') {
+      const trusted = await loadTrustedAutomaticFailureBaseline({
+        repoRoot,
+        candidateSha: run.candidateSha,
+        verificationBase: run.verificationBase || `origin/${env('MOS_PR_BASE') || 'dev'}`,
+      })
+      if (!trusted.ok || !trusted.snapshot) throw new Error(`change-gate exact merge-base snapshot is invalid:\n${trusted.errors.join('\n')}`)
+      run.mergeBaseSha = trusted.mergeBaseSha
+      run.baselineSnapshot = trusted.snapshot
+    }
   }
   let actual: string | null = null
   try {
@@ -279,53 +454,72 @@ export async function loginAuditFixture(
   authenticatedFixture.set(page, fixtureName)
 }
 
-export async function prepareAuditPage(page: Page, run: AuditRun, cell: ManifestCell): Promise<void> {
+export async function prepareAuditPage(page: Page, run: AuditRun, cell: ManifestCell): Promise<{ setupFailure?: string }> {
   const viewport = VIEWPORT_SIZES[cell.viewport]
   if (!viewport) throw new Error(`unknown audit viewport ${cell.viewport}`)
   await page.setViewportSize(viewport)
+  // Everything from here on depends on THIS cell: its fixture's identity, its route, its own
+  // setup actions. A cell that cannot be signed in as, or cannot reach its state, is one
+  // untested cell — not a lost run. `ensureAuditFixtures` stays outside, because a failure to
+  // provision at all is a run-level fault and must not be laundered into 55 quiet untested
+  // cells. Declaring a contract for a fixture nobody provisioned took a whole run down once.
   const state = await ensureAuditFixtures(run)
-  assertAuditFixtureWritePolicy({
-    fixture: cell.fixture,
-    sessionId: run.sessionId,
-    candidateSha: run.candidateSha,
-    bindingSecret: state.bindingSecret,
-    receipt: state.receipt,
-    writes: cell.stateContract?.writes === true,
-  })
-  await loginAuditFixture(page, cell.fixture, run.sessionId, state.identities.get(cell.fixture))
-  await page.evaluate(({ theme, language }) => {
-    // Providers read their persisted state during the first render. Seed both values while the
-    // authenticated page is still mounted so each matrix cell exercises the real provider path.
-    window.localStorage.setItem('mos.locale', language === 'id' ? 'id' : 'en')
-    window.localStorage.setItem('mos-theme', theme === 'dark' ? 'dark' : 'light')
-  }, { theme: cell.theme, language: cell.language })
-  await page.goto(cell.route, { waitUntil: 'domcontentloaded' })
-  assertAuditRoute(page.url(), cell.route)
-  await page.locator('main').waitFor({ state: 'visible', timeout: 10_000 })
-  await page.locator('main h1').first().waitFor({ state: 'visible', timeout: 10_000 })
-  const expectedLanguage = cell.language === 'id' ? 'id' : 'en'
-  const expectedTheme = cell.theme === 'dark' ? 'dark' : 'light'
-  await page.waitForFunction(
-    ({ language, theme }) => document.documentElement.lang === language
-      && document.documentElement.classList.contains('dark') === (theme === 'dark'),
-    { language: expectedLanguage, theme: expectedTheme },
-  )
-  const actualPreferences = await page.evaluate(() => ({
-    language: document.documentElement.lang,
-    theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
-  }))
-  if (actualPreferences.language !== expectedLanguage || actualPreferences.theme !== expectedTheme) {
-    throw new Error(
-      `audit providers did not apply ${expectedTheme}/${expectedLanguage}; `
-      + `observed ${actualPreferences.theme}/${actualPreferences.language}`,
+  try {
+    assertAuditFixtureWritePolicy({
+      fixture: cell.fixture,
+      sessionId: run.sessionId,
+      candidateSha: run.candidateSha,
+      bindingSecret: state.bindingSecret,
+      receipt: state.receipt,
+      writes: cell.stateContract?.writes === true,
+    })
+    await loginAuditFixture(page, cell.fixture, run.sessionId, state.identities.get(cell.fixture))
+    await page.evaluate(({ theme, language }) => {
+      // Providers read their persisted state during the first render. Seed both values while the
+      // authenticated page is still mounted so each matrix cell exercises the real provider path.
+      window.localStorage.setItem('mos.locale', language === 'id' ? 'id' : 'en')
+      window.localStorage.setItem('mos-theme', theme === 'dark' ? 'dark' : 'light')
+    }, { theme: cell.theme, language: cell.language })
+    await page.goto(cell.route, { waitUntil: 'domcontentloaded' })
+    assertAuditRoute(page.url(), cell.route)
+    await page.locator('main').waitFor({ state: 'visible', timeout: 10_000 })
+    await page.locator('main h1').first().waitFor({ state: 'visible', timeout: 10_000 })
+    const expectedLanguage = cell.language === 'id' ? 'id' : 'en'
+    const expectedTheme = cell.theme === 'dark' ? 'dark' : 'light'
+    await page.waitForFunction(
+      ({ language, theme }) => document.documentElement.lang === language
+        && document.documentElement.classList.contains('dark') === (theme === 'dark'),
+      { language: expectedLanguage, theme: expectedTheme },
     )
+    const actualPreferences = await page.evaluate(() => ({
+      language: document.documentElement.lang,
+      theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+    }))
+    if (actualPreferences.language !== expectedLanguage || actualPreferences.theme !== expectedTheme) {
+      throw new Error(
+        `audit providers did not apply ${expectedTheme}/${expectedLanguage}; `
+        + `observed ${actualPreferences.theme}/${actualPreferences.language}`,
+      )
+    }
+    // A setup selector that does not resolve blocks for the action timeout and then throws. The
+    // spec runs serial, so that used to end the whole lane before it wrote a single artifact: one
+    // wrong selector cost an entire assessment run, which came back as empty stubs. A cell that
+    // cannot reach its own state is one untested cell, not a lost run — the failure is carried on
+    // the cell, where observeManifestCellState reports it, and every other cell still measures.
+    for (const action of cell.stateContract?.setup ?? []) {
+      const target = page.locator(action.selector).filter({ visible: true }).first()
+      try {
+        if (action.action === 'click') await target.click()
+        else if (action.action === 'fill') await target.fill(action.value ?? '')
+        else await target.press(action.value ?? '')
+      } catch (error) {
+        return { setupFailure: `${action.action} ${action.selector}: ${(error as Error).message.split('\n')[0]}` }
+      }
+    }
+  } catch (error) {
+    return { setupFailure: (error as Error).message.split('\n')[0] }
   }
-  for (const action of cell.stateContract?.setup ?? []) {
-    const target = page.locator(action.selector).filter({ visible: true }).first()
-    if (action.action === 'click') await target.click()
-    else if (action.action === 'fill') await target.fill(action.value ?? '')
-    else await target.press(action.value ?? '')
-  }
+  return {}
 }
 
 /**
@@ -334,7 +528,10 @@ export async function prepareAuditPage(page: Page, run: AuditRun, cell: Manifest
  * A prose description, URL, screenshot, or incidental copy cannot make a state
  * runnable or observed.
  */
-export async function observeManifestCellState(page: Page, cell: ManifestCell): Promise<StateObservation> {
+export async function observeManifestCellState(page: Page, cell: ManifestCell, setupFailure?: string): Promise<StateObservation> {
+  // The cell could not reach its own state. Say which action failed rather than reporting the
+  // assertion that was never given a chance to match.
+  if (setupFailure) return { status: 'untested', evidence: `state setup did not run: ${setupFailure}` }
   if (!isAuditCellRunnable(cell)) {
     return {
       status: 'untested',
@@ -363,9 +560,29 @@ export async function observeManifestCellState(page: Page, cell: ManifestCell): 
   const negativeCount = negative
     ? await matchingCount(negative.selector, negative)
     : 0
+  if (count > 0 && negativeCount === 0) await settleAnimations(page)
   return count > 0 && negativeCount === 0
     ? { status: 'covered', evidence: `${count} visible assertion target(s): ${assertion.selector}; default marker absent` }
     : { status: 'untested', evidence: `state assertion did not match: ${assertion.selector}` }
+}
+
+/**
+ * Wait out entry transitions before anything is measured or captured.
+ *
+ * A surface that animates in is at its FROM keyframe the moment its assertion target becomes
+ * visible. The Signals composer enters with `translateY(4px)` and a fade, so it measured 4px
+ * past the bottom of the viewport and photographed half-transparent — a geometry failure and a
+ * ghosted screenshot, both of a surface that fits and is opaque a sixth of a second later.
+ */
+export async function settleAnimations(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const running = document.getAnimations().filter((animation) => animation.playState === 'running')
+    // An animation that never ends (a spinner) would hang the run, so give the batch a ceiling.
+    await Promise.race([
+      Promise.allSettled(running.map((animation) => animation.finished)),
+      new Promise((resolve) => setTimeout(resolve, 1_000)),
+    ])
+  })
 }
 
 /** Drive a real interaction state before collecting contrast, or report it absent. */
@@ -397,6 +614,7 @@ export async function captureCell(page: Page, run: AuditRun, cell: ManifestCell,
   const screenshotDir = path.join(run.outputDir, 'screenshots')
   const screenshotPath = path.join(screenshotDir, screenshotName(cell, lane))
   await page.evaluate(resetAuditScroll)
+  await settleAnimations(page)
   await page.screenshot({ path: screenshotPath, fullPage: false })
   return screenshotPath
 }

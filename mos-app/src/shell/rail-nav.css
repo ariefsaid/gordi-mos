@@ -96,7 +96,15 @@
 
 .rail-tooltip-target::after {
   content: attr(data-label);
+  /* `display: none` until shown, not `opacity: 0`. A hidden-but-laid-out box that
+     overflows the link's padding box still counts toward its scrollWidth, and the
+     truncation census reads scrollWidth over clientWidth as clipped content: every
+     compact rail row reported 112px of content inside a 55px link, for a tooltip that
+     is not content at all and no text that was ever cut. Out of layout, the link
+     measures its icon. The fade went with it — a tooltip that must not exist in layout
+     cannot transition into it. */
   position: absolute;
+  display: none;
   left: 100%;
   top: 50%;
   transform: translateY(-50%);
@@ -110,17 +118,13 @@
   font-weight: 500;
   white-space: nowrap;
   box-shadow: 0 4px 12px color-mix(in srgb, var(--ds-font-color-primary) 14%, transparent);
-  opacity: 0;
-  visibility: hidden;
   pointer-events: none;
   z-index: var(--z-popover);
-  transition: opacity var(--dur-fast) ease;
 }
 
 .rail-tooltip-target:hover::after,
 .rail-tooltip-target:focus-visible::after {
-  opacity: 1;
-  visibility: visible;
+  display: block;
 }
 
 /* Compact count badge — a small pill pinned to the icon's corner (no room beside a hidden

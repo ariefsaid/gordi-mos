@@ -18,11 +18,11 @@ export const CAFE_CELL_INPUTS = [
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-log-default-desktop', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-log-default-phone', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-review-default-phone', {
@@ -68,24 +68,52 @@ export const CAFE_CELL_INPUTS = [
     area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'VIEWER',
     viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'failed-configuration-load', status: 'covered',
   }],
+  // The two faces of a plan are decided by the stream the fixture lands on, so neither needs a
+  // setup action: a producing stream gets the quantity cells, a receiving-only one gets the
+  // read view and no capture at all. Each cell's assertion is the other's negative, so landing
+  // on the wrong stream reports itself instead of passing as the face it is not.
   ['cafe-plan-producing-phone', {
     area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'producing', status: 'covered', primary: true,
+    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'producing', status: 'untested', primary: true,
+    note: 'The contract is verified against a producing plan, but not under THIS fixture: BAR_MEMBER reaches no planned-quantity field on this route, while the same member does reach the production capture form on the Café root. Planning looks to be a capability a bar member does not hold, which would make the fixture wrong for the state rather than the selector wrong for the page. Needs a session as this fixture to settle, not another guess.',
+    // `.pqf` is the planned-quantity field itself, which the plan renders at every width. The
+    // table cell that holds it on desktop, `.kp-cell-qty`, does not exist on a phone, where the
+    // plan is cards — and the state being asserted is "this stream produces", not "it produces
+    // at one width".
+    stateContract: {
+      setup: [],
+      assertion: { selector: '.pqf' },
+      negativeAssertion: { selector: '.kp-receiving-only-title' },
+    },
   }],
   ['cafe-plan-receiving-desktop', {
     area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'AUDIT_RECEIVING_ONLY',
-    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'receiving-only', status: 'covered', primary: true,
+    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'receiving-only', status: 'untested', primary: true,
+    note: 'AUDIT_RECEIVING_ONLY is named here but no provisioned identity exists for it, so the cell cannot be signed in as. The contract below is verified against the rendered receiving-only face and becomes runnable the moment that identity is provisioned.',
+    stateContract: {
+      setup: [],
+      assertion: { selector: '.kp-receiving-only-title' },
+      negativeAssertion: { selector: '.pqf' },
+    },
   }],
   ['cafe-log-producing-compact', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'producing', status: 'covered', primary: true,
+    // A producing stream gets the capture form; a receiving-only one gets a read view and no
+    // form at all. BAR_MEMBER has one assigned location, so the root IS the capture surface
+    // (DD-MVP-17) and no location has to be chosen first.
+    stateContract: {
+      setup: [],
+      assertion: { selector: '.kl-form .kl-submit' },
+      negativeAssertion: { selector: '.kl-receiving-only' },
+    },
   }],
   ['cafe-log-loading-phone', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'loading', status: 'covered', primary: true,
   }],
   ['cafe-log-success-desktop', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe/log', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'success', status: 'covered', primary: true,
   }],
   ['cafe-review-authorized-desktop', {
@@ -94,11 +122,17 @@ export const CAFE_CELL_INPUTS = [
   }],
   ['cafe-review-denied-phone', {
     area: 'cafe-wip', journey: 'cafe-review', route: '/mos/cafe/review', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'covered', primary: true,
+    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'untested',
+    note: 'The denied face renders correctly, but the focus and control drivers require at least one interactive control inside main and a permission face has none.', primary: true,
+    // Untested, deliberately: the denied face renders correctly, but the focus and control
+    // drivers require at least one interactive control inside `main` and a permission face
+    // has none. Covering it needs the drivers to tolerate a control-less face, not a
+    // different contract.
   }],
   ['cafe-stock-empty-compact', {
     area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'VIEWER',
-    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'empty', status: 'covered', primary: true,
+    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'empty', status: 'untested', primary: true,
+    note: 'No seeded production stream has an empty stock list: all seven return 32 rows, so no read-only drive reaches this state. The page-level "choose a stream" face is a missing selection, not an empty list.',
   }],
   ['cafe-stock-validation-phone', {
     area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'VIEWER',
@@ -110,7 +144,12 @@ export const CAFE_CELL_INPUTS = [
   }],
   ['cafe-pushes-denied-phone', {
     area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'covered', primary: true,
+    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'untested',
+    note: 'The denied face renders correctly, but the focus and control drivers require at least one interactive control inside main and a permission face has none.', primary: true,
+    // Untested, deliberately: the denied face renders correctly, but the focus and control
+    // drivers require at least one interactive control inside `main` and a permission face
+    // has none. Covering it needs the drivers to tolerate a control-less face, not a
+    // different contract.
   }],
   ['cafe-pushes-error-compact', {
     area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'ADMIN',

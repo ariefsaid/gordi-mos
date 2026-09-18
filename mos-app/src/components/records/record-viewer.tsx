@@ -174,7 +174,19 @@ function RecordOverflowMenu({
         <span aria-hidden="true">⋯</span>
       </button>
       {open && (
-        <div ref={menuRef} className="record-viewer__overflow-menu" role="menu" aria-label={t('record.moreActions')}>
+        <div
+          ref={menuRef}
+          className="record-viewer__overflow-menu"
+          role="menu"
+          aria-label={t('record.moreActions')}
+          data-escape-layer="nested"
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return
+            event.preventDefault()
+            event.stopPropagation()
+            setOpen(false)
+          }}
+        >
           {onOpenPage && (
             <button type="button" role="menuitem" onClick={() => { setOpen(false); onOpenPage() }}>
               {t('record.openFullPage')}
@@ -207,17 +219,23 @@ export function RecordFieldList({
   onDirtyChange,
   fieldCommitsFrozen = false,
   excludeKeys = [],
+  headingLevel = 2,
 }: {
   section: RecordMetadataSection
   onCommitField?: (key: string, value: RecordValue) => Promise<void>
   onDirtyChange?: (dirty: boolean) => void
   fieldCommitsFrozen?: boolean
   excludeKeys?: readonly string[]
+  /** The viewer's own title rung. A section sits one rung under it, so a record on its own
+   *  page reads h1 → h2 and one in an overlay reads h2 → h3, with no level skipped either
+   *  way. */
+  headingLevel?: 1 | 2
 }): ReactNode {
   const commit = onCommitField ?? noopCommit
+  const SectionHeading = headingLevel === 1 ? 'h2' : 'h3'
   return (
     <>
-      <h3 className="record-viewer__section-title">{section.label}</h3>
+      <SectionHeading className="record-viewer__section-title">{section.label}</SectionHeading>
       <div className="record-viewer__fields">
         {section.fields.filter((field) => !excludeKeys.includes(field.key)).map((field) => (
           <RecordField
@@ -310,6 +328,7 @@ export function RecordViewer({
         onCommitField={onCommitField ?? (async () => noopCommit())}
         onOpenPage={onOpenPage}
         fieldCommitsFrozen={fieldCommitsFrozen}
+        headingLevel={headingLevel}
       />
     )
   })()
@@ -333,6 +352,7 @@ export function RecordViewer({
                   onDirtyChange={onDirtyChange}
                   commitsFrozen={fieldCommitsFrozen}
                   heading={field.key === 'title'}
+                  headingLevel={headingLevel}
                 />
               ))}
             </div>
@@ -438,6 +458,7 @@ function RecordBody({
   onCommitField,
   onOpenPage,
   fieldCommitsFrozen,
+  headingLevel = 2,
 }: {
   adapter: RecordViewerAdapter
   mode: RecordViewerMode
@@ -447,7 +468,10 @@ function RecordBody({
   onCommitField: (key: string, value: RecordValue) => Promise<void>
   onOpenPage?: () => void
   fieldCommitsFrozen?: boolean
+  /** The viewer's title rung; every section sits one under it. */
+  headingLevel?: 1 | 2
 }): ReactNode {
+  const SectionHeading = headingLevel === 1 ? 'h2' : 'h3'
   const t = useT()
   const { locale } = useI18n()
   const readOnly = adapter.permission.readOnly
@@ -476,6 +500,7 @@ function RecordBody({
             onCommitField={onCommitField}
             onDirtyChange={onDirtyChange}
             fieldCommitsFrozen={fieldCommitsFrozen}
+            headingLevel={headingLevel}
           />
         </section>
       ))}
@@ -512,13 +537,13 @@ function RecordBody({
           data-content-slot={slot.id}
           aria-label={slot.label}
         >
-          {slot.render({ mode, readOnly, onCommitField, onDirtyChange, fieldCommitsFrozen })}
+          {slot.render({ mode, readOnly, onCommitField, onDirtyChange, fieldCommitsFrozen, headingLevel })}
         </section>
       ))}
 
       {(activeTab === undefined || activeTab === 'activity') && adapter.activity.length > 0 && (
         <section className="record-viewer__section" data-viewer-region="activity" aria-label="Activity">
-          <h3 className="record-viewer__section-title">{t('tasks.feed.activity')}</h3>
+          <SectionHeading className="record-viewer__section-title">{t('tasks.feed.activity')}</SectionHeading>
           <ul className="record-viewer__activity">
             {adapter.activity.map((item) => (
               <li key={item.id} className="record-viewer__activity-item">

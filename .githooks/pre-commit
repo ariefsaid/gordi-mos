@@ -56,14 +56,18 @@ else
     fi
   fi
 
-  # ── 4. Vitest, scoped to tests related to the staged source files ───────────────
-  SRC_FILES="$(echo "$STAGED" | grep -E '^mos-app/src/.*\.(ts|tsx)$' | sed 's|^mos-app/||' || true)"
+  # ── 4. Vitest, scoped to tests related to the changed source files ──────────────
+  # `vitest related <file>` takes ONE file: any further positional is a FILENAME FILTER,
+  # so `related a.ts b.ts` intersects a.ts's test set with the name "b.ts", finds nothing,
+  # and exits 0 — the gate ran no tests at all. `--related=a,b` is not accepted either.
+  # `--changed HEAD` is the one form that takes the whole set in a single invocation; it
+  # spans working-tree edits too, which is a superset of what is staged.
+  SRC_FILES="$(echo "$STAGED" | grep -E '^mos-app/src/.*\.(ts|tsx)$' || true)"
   if [ -n "$SRC_FILES" ]; then
-    # shellcheck disable=SC2086
-    if (cd mos-app && npx vitest related --run $SRC_FILES); then
-      ok "vitest: related tests pass"
+    if (cd mos-app && npx vitest --run --changed HEAD); then
+      ok "vitest: tests for changed sources pass"
     else
-      note "related tests FAIL — a task is not done until they pass"
+      note "tests for changed sources FAIL — a task is not done until they pass"
     fi
   fi
 fi

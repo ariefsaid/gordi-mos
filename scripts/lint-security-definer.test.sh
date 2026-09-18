@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Self-test for scripts/lint-security-definer.sh (#565). That script moved under scripts/,
 # which guards.yml's `NOT_INERT` allowlist treats as shipping no pixels — so a dev PR that
-# neuters the lint (e.g. drops the revoke check) would sail through the geometry lane with
+# neuters the lint (e.g. drops the revoke check) would sail through the db-contracts lane with
 # nothing exercising it. This proves the lint can still fail, over disposable fixture
 # migrations rather than the real supabase/migrations tree.
 #
