@@ -1,6 +1,6 @@
 -- Historical Team-audience Signals (ticket 874): the author and an effective retraction authority
 -- read the row through real RLS, the authority's retraction UPDATE lands, both keep the tombstone
--- after Team archival, and the tombstone's audience is frozen.
+-- after Team archival, and the tombstone's mentions are frozen.
 --
 -- The row lives on a Team in Unit-2 (visibility rank 2). Author d1 and ops lead d3 hold Unit-1 roles
 -- and no membership there, so none of the Team-rooted read rules reaches it for either of them.
