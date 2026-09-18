@@ -4,7 +4,7 @@
 //        in-place was retired by GAP-2 (OD-REDESIGN-91 #7); see the test for the rewrite rationale.
 //   J3 (AC-108): inline create → the saved row remains in the collection after reload.
 // Requires the live stack (supabase up on 44321) + the global-setup seed.
-// Runs at the default desktop viewport (1440px; ≥1370px → live non-modal split).
+// Runs at the default desktop viewport (1440px; ≥1362px → live non-modal split).
 
 import { type Page } from '@playwright/test'
 import { test, expect } from './fixtures/task-browser'

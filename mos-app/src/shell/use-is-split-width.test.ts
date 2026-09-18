@@ -34,7 +34,7 @@ describe('useIsSplitWidth (decision-column split threshold)', () => {
       return Number(match![1])
     })
     const parsedFloorTotal = floors.reduce((sum, floor) => sum + floor, 0)
-    expect(parsedFloorTotal).toBe(660)
+    expect(parsedFloorTotal).toBe(652)
     expect(parsedFloorTotal).toBe(TASKS_SPLIT_FLOOR_TOTAL)
     expect(TASKS_SPLIT_MIN_WIDTH).toBe(
       TASKS_RAIL_WIDTH + (TASKS_FRAME_GUTTER_PX * 2) + TASKS_DRAWER_MAX_WIDTH +

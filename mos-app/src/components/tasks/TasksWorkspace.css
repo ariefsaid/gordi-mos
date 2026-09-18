@@ -47,7 +47,7 @@
    so the composition reads as one surface. The drawer's <aside> is the single card frame; its inner
    .dw-surface fills and scrolls (dropping the nested card border/shadow it carried inside the aside).
    Scoped to the decision-column split threshold because below it the drawer is not a column. */
-@media (min-width: 1370px) {
+@media (min-width: 1362px) {
   .split:not(.nodrawer) { align-items: stretch; }
   .split .drawer {
     display: flex;
