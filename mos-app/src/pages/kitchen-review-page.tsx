@@ -960,6 +960,10 @@ function KitchenReviewPageForViewer() {
           <div className="kr-complete kr-complete-foot" role="group" aria-label={t('kitchen.review.completeness.aria')}>
             {canConfirmSelected ? (
               <>
+                {/* Residual E3(b): while unconfirmed the visible label states the action the
+                    checkbox performs ("Confirm the item list is complete"), not just the bare
+                    status ("not confirmed complete yet") — same checkbox, same authority, same
+                    behaviour, now labelled as something to DO rather than read. */}
                 <label className="kr-complete-check">
                   <input
                     type="checkbox"
@@ -968,7 +972,9 @@ function KitchenReviewPageForViewer() {
                     aria-label={confirmed ? stateText : t('kitchen.review.completeness.confirm')}
                     onChange={() => { void handleConfirmComplete() }}
                   />
-                  <span className={`kr-complete-state${confirmed ? ' kr-complete-yes' : ''}`}>{stateText}</span>
+                  <span className={`kr-complete-state${confirmed ? ' kr-complete-yes' : ''}`}>
+                    {confirmed ? stateText : t('kitchen.review.completeness.confirm')}
+                  </span>
                 </label>
                 {confirmed && (
                   <button

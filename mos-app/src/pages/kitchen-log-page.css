@@ -308,12 +308,16 @@
    touch (independent critique D1). Kept as one row, buttons sized to content (not
    width:100%), so the resting bar is a single ~52px strip; the reason/note-missing pointer
    line (`.kl-submit-reason`, `order:-1`) still gets its own line ABOVE this row only when it
-   is actually blocking — the reserve above accounts for that worst case. */
+   is actually blocking — the reserve above accounts for that worst case.
+   `flex-wrap` MUST stay `wrap`: `.kl-submit-reason`'s `flex-basis: 100%` only starts a new
+   line when the container is allowed to wrap. `nowrap` here (residual E1) kept every child on
+   one line, so the 100%-basis reason text crowded the tally and the Discard/Submit buttons off
+   the visible row instead of pushing them to a line below it. */
 @media (max-width: 767.98px) {
   .kl-footer {
     flex-direction: row;
     align-items: center;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px));
     /* see the base rule: cancel `.page-frame--v3`'s phone bottom reserve so the bar sits on

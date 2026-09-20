@@ -79,7 +79,6 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'kitchen.log.col.item', // Item — same word in both locales (OD-WAY-85)
   'kitchen.plan.col.item', // Item — same word in both locales (OD-WAY-85)
   'kitchen.stock.col.item', // Item — same word in both locales (OD-WAY-85)
-  'kitchen.stock.card.erp', // ERP — acronym is shared in Indonesian
   'kitchen.plan.pesanan.col.item', // Item — same word in both locales (OD-WAY-85)
   'kitchen.log.footer.item.one', // ${count} item — same word in both locales (OD-WAY-85)
   'kitchen.pushes.tally.push.one', // push — shared borrowed vocabulary
