@@ -7,7 +7,9 @@ import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { useSearchParams } from 'react-router-dom'
 import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useIsNarrow } from '@/shell/use-is-narrow'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { Button } from '@/components/ui/button'
 import { getBusinessUnits, type BusinessUnitOption } from '@/lib/db/directory'
@@ -36,6 +38,8 @@ import '@/components/catalog/catalog-collection.css'
 export function ObjectivesPage() {
   const t = useT()
   const isDesktop = useIsDesktop()
+  const isNarrow = useIsNarrow()
+  const [searchParams, setSearchParams] = useSearchParams()
   useDocumentTitle(t('common.docTitle', { page: t('nav.work.objectives') }))
   const controller = useRecordCollection({
     descriptor: objectivesCollectionDescriptor,
@@ -74,6 +78,19 @@ export function ObjectivesPage() {
     setAddError('')
     setDraftOpen(true)
   }
+  // `?create=1` is the global + menu's way in. It opens the draft once the viewer's create
+  // authority has loaded, and leaves the URL without the intent so a reload does not reopen it.
+  const createIntent = searchParams.get('create') === '1'
+  useEffect(() => {
+    if (!createIntent || !canManage) return
+    openDraft()
+    const next = new URLSearchParams(searchParams)
+    next.delete('create')
+    setSearchParams(next, { replace: true })
+    // openDraft reads only state setters and the authority already listed here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createIntent, canManage])
+
   const cancelDraft = () => {
     if (adding) return
     setDraftOpen(false)
@@ -256,7 +273,7 @@ export function ObjectivesPage() {
       family="management"
       title={t('nav.work.objectives')}
       jobSentence={t('job.objectives')}
-      action={canManage ? <Button ref={createButtonRef} variant="primary" onClick={openDraft}>{t('catalog.objectives.add')}</Button> : undefined}
+      action={canManage && !isNarrow ? <Button ref={createButtonRef} variant="primary" onClick={openDraft}>{t('catalog.objectives.add')}</Button> : undefined}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
       <CatalogCollectionActionsProvider actions={actions}>
