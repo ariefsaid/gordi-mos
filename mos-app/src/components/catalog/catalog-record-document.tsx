@@ -379,7 +379,8 @@ export function CatalogRecordDocument({
       displayValue: row.name,
       editable: canManage && row.archived_at === null,
       required: true,
-      readOnlyReason: canManage ? undefined : t('catalog.record.readOnly'),
+      // The read-only reason renders once, at the top of Details (RecordViewer), never stamped
+      // onto this or any other field.
     }
     const fields: RecordFieldSpec[] = kind === 'objective'
       ? [
@@ -401,7 +402,7 @@ export function CatalogRecordDocument({
           { key: 'businessUnit', label: t('catalog.record.businessUnit'), control: 'relation', value: row.businessUnitId ?? null, displayValue: directoryName(row.businessUnitId, businessUnitsById, t), editable: false },
           { key: 'accountable', label: t('catalog.record.accountable'), control: 'person', value: row.accountablePersonId ?? null, displayValue: directoryName(row.accountablePersonId, allPeopleById, t), editable: false },
           { key: 'responsible', label: t('catalog.record.responsible'), control: 'person', value: row.responsiblePersonId ?? null, displayValue: directoryName(row.responsiblePersonId, allPeopleById, t), editable: false },
-          ...(row.type === 'process' ? [{ key: 'owningTeam', label: t('catalog.record.owningTeam'), control: 'text' as const, value: null, displayValue: t('catalog.record.teamPerOccurrence'), editable: false } satisfies RecordFieldSpec, { key: 'cadence', label: t('catalog.record.cadence'), control: 'select' as const, value: process?.cadence?.cadence_kind ?? null, displayValue: process?.cadence ? cadenceLabel(process.cadence.cadence_kind, t) : t('catalog.notSet'), editable: false } satisfies RecordFieldSpec] : []),
+          ...(row.type === 'process' ? [{ key: 'owningTeam', label: t('catalog.record.owningTeam'), control: 'text' as const, value: null, displayValue: t('catalog.record.teamPerOccurrence'), editable: false } satisfies RecordFieldSpec, { key: 'cadence', label: t('catalog.record.cadence'), control: 'text' as const, value: process?.cadence?.cadence_kind ?? null, displayValue: process?.cadence ? cadenceLabel(process.cadence.cadence_kind, t) : t('catalog.notSet'), editable: false } satisfies RecordFieldSpec] : []),
         ]
 
     for (const field of fields) {
@@ -453,6 +454,7 @@ export function CatalogRecordDocument({
       tabs,
       metadata: [{ id: 'facts', label: t('catalog.record.details'), fields }],
       relations,
+      relationsLabel: kind === 'objective' && relations.length > 0 ? t('nav.work.projects') : undefined,
       contentSlots: [
         ...(row.type === 'project' ? [{ id: 'tasks', label: t('catalog.record.tabs.tasks'), render: () => taskSlot(relationTasks, kind, id, onOpenRelated, onCreateTask, t) }] : []),
         ...(row.type === 'process' ? [{

@@ -274,6 +274,14 @@ it.each(['panel', 'page'] as const)('keeps the org-readable Work record availabl
   expect(await screen.findByRole('heading', { name: 'Menu launch' })).toBeInTheDocument()
   expect(loadCatalogRecordData).toHaveBeenCalledWith('work-line', 'wl-1', 'p1')
   expect(screen.queryByRole('button', { name: 'Edit Name' })).toBeNull()
+  // Read-only appears ONCE, at the top of Details, in plain language — never per field and never
+  // duplicated in the footer, in EITHER mode (panel or full page — read-only never depends on it).
+  const notes = document.querySelectorAll('.record-viewer__permission-note')
+  expect(notes).toHaveLength(1)
+  expect(notes[0]).toHaveTextContent('You can view this, but not edit it.')
+  expect(document.body.textContent).not.toContain('catalog changes')
+  // The keyboard-hint footnote is gone; Enter/Esc still work, they are just not narrated.
+  expect(document.querySelector('.record-viewer__edit-hint')).toBeNull()
 })
 
 it('keeps Objectives readable by members through the shared record renderer', async () => {

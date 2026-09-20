@@ -82,7 +82,7 @@ describe('CatalogListPresentation owner-cell grammar', () => {
     ])
 
     const row = screen.getByRole('link', { name: 'Assigned project' })
-    const owner = within(row).getByRole('cell', { name: 'Owner: Raka Utama' })
+    const owner = within(row).getByRole('cell', { name: 'Accountable: Raka Utama' })
     expect(owner).toHaveAttribute('title', 'Raka Utama')
     expect(owner.querySelector('.ownav')).toHaveTextContent('RU')
     expect(owner.querySelector('.own-name')).toHaveTextContent('Raka')
@@ -95,15 +95,15 @@ describe('CatalogListPresentation owner-cell grammar', () => {
     ])
 
     const row = screen.getByRole('link', { name: 'Unassigned project' })
-    const owner = within(row).getByRole('cell', { name: 'Owner: Unassigned' })
+    const owner = within(row).getByRole('cell', { name: 'Accountable: Not set' })
     // One word for one fact: the eye and the screen reader get the SAME word, and it names the
-    // gap rather than dashing it. A bare '–' read as "nothing applies here" on records whose
-    // whole point is who is accountable.
-    expect(owner).toHaveAttribute('title', 'Unassigned')
-    expect(owner).toHaveTextContent('Unassigned')
+    // gap rather than dashing it — the same word the record's own Accountable field uses for the
+    // same gap (defect 7: one ownership vocabulary, not "Owner"/"Unassigned" here and
+    // "Accountable"/"Not set" there).
+    expect(owner).toHaveAttribute('title', 'Not set')
+    expect(owner).toHaveTextContent('Not set')
     expect(owner).not.toHaveTextContent('–')
     expect(owner.querySelector('.ownav')).toBeNull()
-    expect(within(row).queryByText('Not set')).toBeNull()
   })
 
   it('renders a real relation named Not set instead of treating its name as missing data', () => {

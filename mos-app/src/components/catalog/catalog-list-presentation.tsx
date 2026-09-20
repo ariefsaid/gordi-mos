@@ -4,9 +4,6 @@
 // collection stays scannable: one primary identity, a few facts, and one activation target. The
 // same DOM reflows from a dense desktop table into a phone card without inventing a second IA.
 import { Link } from 'react-router-dom'
-import { TextInput } from '@/components/ui/text-input'
-import { Picker } from '@/components/ui/picker'
-import { Button } from '@/components/ui/button'
 import { Tag } from '@/components/ui/tag'
 import { PersonCell } from '@/components/tasks/pic-cell'
 import { useT } from '@/i18n/use-t'
@@ -20,8 +17,6 @@ import type {
   CatalogRenderGroup,
   CatalogRow,
 } from './catalog-collection-adapter'
-import { useCatalogCollectionActions } from './catalog-collection-actions'
-import type { CatalogCreateDraft } from './catalog-collection-actions'
 import '@/components/collection-grammar.css'
 import './catalog-collection.css'
 
@@ -37,80 +32,6 @@ function recordPath(row: CatalogRow): string {
   return row.type ? `/work/projects/${row.id}` : `/work/objectives/${row.id}`
 }
 
-function DraftRow({ draft }: { draft: CatalogCreateDraft }) {
-  const t = useT()
-  const label = draft.kind === 'objective' ? t('catalog.objectives.add') : t('catalog.projects.add')
-  return (
-    <div className="catalog-collection__draft-row">
-      <form
-        className="catalog-collection__draft"
-        aria-label={label}
-        onKeyDown={(event) => {
-          if (event.key !== 'Escape') return
-          event.preventDefault()
-          if (!draft.adding) draft.onCancel()
-        }}
-        onSubmit={(event) => {
-          event.preventDefault()
-          draft.onSubmit()
-        }}
-      >
-        <TextInput
-          label={t('catalog.nameLabel')}
-          value={draft.name}
-          onChange={(event) => draft.onNameChange(event.target.value)}
-          error={Boolean(draft.error)}
-          autoFocus
-          fullWidth
-          disabled={draft.adding}
-          placeholder={t('catalog.namePlaceholder')}
-        />
-        {draft.kind === 'work-line' && draft.type && draft.onTypeChange ? (
-          <Picker
-            label={t('catalog.filter.type')}
-            value={draft.type}
-            options={[
-              { value: 'project', label: t('catalog.tag.project') },
-              { value: 'process', label: t('catalog.tag.process') },
-            ]}
-            onChange={(value) => draft.onTypeChange?.(value as 'project' | 'process')}
-            disabled={draft.adding}
-          />
-        ) : null}
-        {draft.kind === 'work-line' && draft.objectiveOptions && draft.onObjectiveChange ? (
-          <Picker
-            label={t('catalog.record.objective')}
-            value={draft.objectiveId ?? ''}
-            placeholder={t('catalog.notSet')}
-            options={[{ value: '', label: t('catalog.notSet') }, ...draft.objectiveOptions]}
-            onChange={(value) => draft.onObjectiveChange?.(value || null)}
-            disabled={draft.adding}
-          />
-        ) : null}
-        {draft.businessUnitOptions && draft.onBusinessUnitChange ? (
-          <Picker
-            label={t('catalog.record.businessUnit')}
-            value={draft.businessUnitId ?? ''}
-            placeholder={draft.businessUnitRequired ? undefined : t('catalog.notSet')}
-            options={draft.businessUnitRequired ? draft.businessUnitOptions : [{ value: '', label: t('catalog.notSet') }, ...draft.businessUnitOptions]}
-            onChange={(value) => draft.onBusinessUnitChange?.(value || null)}
-            required={draft.businessUnitRequired}
-            disabled={draft.adding}
-          />
-        ) : null}
-        <span className="catalog-collection__draft-actions">
-          <Button type="submit" variant="primary" disabled={draft.adding} aria-busy={draft.adding}>
-            {draft.adding ? t(draft.kind === 'objective' ? 'catalog.objectives.adding' : 'catalog.projects.adding') : t('common.save')}
-          </Button>
-          <Button type="button" variant="ghost" disabled={draft.adding} onClick={draft.onCancel}>
-            {t('common.cancel')}
-          </Button>
-        </span>
-        {draft.error ? <p className="catalog-collection__error" role="alert">{draft.error}</p> : null}
-      </form>
-    </div>
-  )
-}
 
 function progressText(
   done: number,
@@ -176,7 +97,7 @@ function ownerCellValue(
   const displayName = fullName ?? directoryName(id, names, t)
   return fullName ? <PersonCell fullName={fullName} /> : (
     <span className="catalog-collection__cell-value catalog-collection__cell-value--muted" aria-hidden="true">
-      {displayName === t('catalog.notSet') ? t('catalog.owner.unassigned') : displayName}
+      {displayName}
     </span>
   )
 }
@@ -207,9 +128,7 @@ function primaryRelation(context: CatalogCollectionContext, row: CatalogRow) {
 
 export function CatalogListPresentation({ query, projection, context, onOpenRecord }: CatalogListProps) {
   const t = useT()
-  const actions = useCatalogCollectionActions()
   const viewLabel = t(query.view === 'archived' ? 'catalog.view.archived' : query.view === 'all' ? 'catalog.view.all' : 'catalog.view.active')
-  const draft = actions.createDraft?.open ? actions.createDraft : null
 
   return (
     <div
@@ -220,12 +139,11 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
       <div className="catalog-collection__header" role="row">
         <span role="columnheader">{t('catalog.column.name')}</span>
         <span role="columnheader">{context.relationsKind === 'objective' ? t('catalog.column.businessUnit') : t('catalog.column.objective')}</span>
-        <span role="columnheader">{t('catalog.column.owner')}</span>
+        <span role="columnheader">{t('catalog.column.accountable')}</span>
         <span role="columnheader">{context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}</span>
         <span role="columnheader">{t('catalog.column.progress')}</span>
         <span role="columnheader">{t('catalog.column.activity')}</span>
       </div>
-      {draft ? <DraftRow draft={draft} /> : null}
       <ul className="catalog-collection__list" aria-label={viewLabel}>
         {projection.visibleRecords.map((row) => {
           const rowArchived = row.archived_at !== null
@@ -234,10 +152,9 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
           const relationLabel = relation?.name ?? t('catalog.notSet')
           const progressLabel = rowProgressText(row, progress, t)
           const activityLabel = latestActivity(context, row, t)
-          // One word for one fact: what a reader sees in the cell is what a screen reader hears.
-          const ownerLabel = row.accountablePersonId
-            ? directoryName(row.accountablePersonId, context.peopleById, t)
-            : t('catalog.owner.unassigned')
+          // One word for one fact: what a reader sees in the cell is what a screen reader hears,
+          // and the same word the Accountable field on the record itself uses for the same gap.
+          const ownerLabel = directoryName(row.accountablePersonId, context.peopleById, t)
           const businessUnitLabel = directoryName(row.businessUnitId, context.businessUnitsById, t)
           const cadenceDue = dueValue(row, t)
           const cadenceDueLabel = cadenceDue.label
@@ -270,9 +187,9 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
                 <span className="catalog-collection__identity" role="cell">
                   <span className="catalog-collection__name">{row.name}</span>
                   {typeTag}
-                </span>
-                <span className="catalog-collection__row-state">
-                  {t(rowArchived ? 'catalog.view.archived' : 'catalog.view.active')}
+                  <span className="catalog-collection__row-state">
+                    {t(rowArchived ? 'catalog.view.archived' : 'catalog.view.active')}
+                  </span>
                 </span>
                 <span className="catalog-collection__primary-action" aria-hidden="true">
                   {t('common.view')}
@@ -294,10 +211,10 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
                   <div
                     className="catalog-collection__cell catalog-collection__cell--owner"
                     role="cell"
-                    aria-label={`${t('catalog.column.owner')}: ${ownerLabel}`}
+                    aria-label={`${t('catalog.column.accountable')}: ${ownerLabel}`}
                     title={ownerLabel}
                   >
-                    <span className="catalog-collection__cell-label">{t('catalog.column.owner')}</span>
+                    <span className="catalog-collection__cell-label">{t('catalog.column.accountable')}</span>
                     {ownerCellValue(row.accountablePersonId, context.peopleById, t)}
                   </div>
                   <span

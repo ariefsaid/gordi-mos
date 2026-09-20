@@ -484,7 +484,10 @@ function RecordBody({
   // A Signal's Facts are all read-only even on a non-retracted (permission.readOnly=false) record,
   // so gating on !readOnly alone showed the hint on a record with nothing to edit. Gate on the
   // presence of a genuinely editable field — Task (editable fields) still shows it, Signal never does.
-  const hasEditableField = adapter.metadata.some((section) => section.fields.some((f) => f.editable))
+  // Projects & Processes and Objectives show one read-only note at the top of Details, never
+  // repeated per field or again in the footer (other domains keep their single copy in the
+  // footer below — this only moves the placement for the catalog kinds).
+  const isCatalogKind = adapter.kind === 'work-line' || adapter.kind === 'objective'
   const visibleSlots = activeTab === undefined
     ? adapter.contentSlots
     : activeTab === 'details'
@@ -493,6 +496,9 @@ function RecordBody({
 
   return (
     <>
+      {(activeTab === undefined || activeTab === 'details') && isCatalogKind && readOnly && adapter.permission.reason && (
+        <p className="record-viewer__permission-note" role="note">{adapter.permission.reason}</p>
+      )}
       {(activeTab === undefined || activeTab === 'details') && adapter.metadata.map((section) => (
         <section key={section.id} className="record-viewer__section" data-viewer-region="metadata" aria-label={section.label}>
           <RecordFieldList
@@ -506,7 +512,8 @@ function RecordBody({
       ))}
 
       {(activeTab === undefined || activeTab === 'details') && adapter.relations.length > 0 && (
-        <section className="record-viewer__section" data-viewer-region="relations" aria-label="Related records">
+        <section className="record-viewer__section" data-viewer-region="relations" aria-label={adapter.relationsLabel ?? 'Related records'}>
+          {adapter.relationsLabel && <SectionHeading className="record-viewer__section-title">{adapter.relationsLabel}</SectionHeading>}
           <ul className="record-viewer__relations">
             {adapter.relations.map((rel) => (
               <li key={rel.id}>
@@ -572,7 +579,7 @@ function RecordBody({
 
       {activeTab !== undefined && activeTab !== 'details' ? null : <footer className="record-viewer__section" data-viewer-region="actions">
         {adapter.footerContent}
-        {readOnly && adapter.permission.reason && (
+        {!isCatalogKind && readOnly && adapter.permission.reason && (
           <p className="record-viewer__permission-note" role="note">
             {adapter.permission.reason}
           </p>
@@ -581,11 +588,6 @@ function RecordBody({
           <div className="record-viewer__actions">
             {footerActions.map((action) => <RecordActionButton key={action.id} action={action} />)}
           </div>
-        )}
-        {/* Quiet inline-edit hint (E7 table-footnote parity) — only when the record is editable,
-            adapted to our fields' value-first grammar (activate the value, Enter saves, Esc discards). */}
-        {!readOnly && hasEditableField && (
-          <p className="record-viewer__edit-hint">{t('record.editHint')}</p>
         )}
       </footer>}
     </>
