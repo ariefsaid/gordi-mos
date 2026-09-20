@@ -1517,7 +1517,7 @@ describe("AC-002 / FR-001: the capture surface opens on the person's own stream 
 })
 
 describe('FR-002: no stream-linked primary Team → an explicit stream choice is required before capture', () => {
-  it('renders the "choose stream" guidance placeholder in place of the list, fetches no stream-scoped data, and blocks Submit with the reason', async () => {
+  it('renders the "choose stream" guidance placeholder in place of the list, fetches no stream-scoped data, and offers no Submit', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     await renderPage()
     await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
@@ -1532,9 +1532,10 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     expect(mockFetchPlanMap).not.toHaveBeenCalled()
     expect(mockFetchStockMap).not.toHaveBeenCalled()
     expect(mockFetchActualsMap).not.toHaveBeenCalled()
-    // Submit is disabled up front and the reason is named beside it.
-    expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /^submit/i })[0]).toBeDisabled()
+    // Nothing can be staged without a stream, so the action bar is absent: the placeholder is the
+    // one message, and there is no Submit to press.
+    expect(screen.queryByText(/choose a production stream before submitting/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: /^submit/i })).toBeNull()
     // ui-855 defect #1: nothing that LOOKS like an editable quantity field is rendered until a
     // stream makes it one — not merely disabled, absent. Dish names are absent too (no list).
     expect(screen.queryByRole('spinbutton')).toBeNull()

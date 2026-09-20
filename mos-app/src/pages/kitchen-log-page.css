@@ -330,7 +330,19 @@
   .kl-tally-num, .kl-tally-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .kl-footer-actions { justify-content: flex-end; }
   .kl-submit { width: auto; min-height: 44px; }
-  .kl-submit-reason, .kl-note-pointer { flex-basis: 100%; }
+  .kl-submit-reason { flex-basis: 100%; }
+  /* One row on phone: the secondary tally line is dropped, and while a note is missing the
+     pointer takes the tally's place — it is the one thing the user can act on. */
+  .kl-tally-sub { display: none; }
+  .kl-note-pointer { flex-basis: auto; order: 0; min-height: 44px; }
+  .kl-footer:has(.kl-note-pointer) .kl-tally { display: none; }
+}
+
+/* Focus scrolling keeps the focused field clear of the sticky bar instead of parking it
+   underneath: the scrollport's optimal viewing region ends above the bar. */
+.page-frame--v3:has(.kl-form) { scroll-padding-bottom: 120px; }
+@media (max-width: 767.98px) {
+  .page-frame--v3:has(.kl-form) { scroll-padding-bottom: calc(140px + var(--tabbar-h, 60px)); }
 }
 
 /* ── Row status (v4) ───────────────────────────────────────────────────────────

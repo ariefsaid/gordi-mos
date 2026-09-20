@@ -1131,6 +1131,10 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
           {/* Sticky action footer — ONE branch; tally + Discard + Submit. #744 review: when
               capture is closed the tally and the stream hint describe a submit path the viewer
               cannot take — the reason line is the ONE message (rows stay visible, nothing else). */}
+          {/* With no stream chosen the placeholder above is the whole message and nothing can be
+              staged, so there is no bar to show. A stale stream from another location keeps the
+              bar: its reason line names that stream, which the placeholder does not. */}
+          {!(noStreamChosen && !streamOutsideLocation) && (
           <div className="kl-footer">
             {!canCapture && (
               <p className="kl-submit-reason" role="status">{t('kitchen.log.readOnlyReason')}</p>
@@ -1205,6 +1209,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
               />
             </div>
           </div>
+          )}
 
           {/* Destructive confirm — DESIGN.md Overlays: "one centered blocking dialog",
               replacing window.confirm. Only the staged quantities are at stake; search
