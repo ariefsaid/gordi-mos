@@ -49,6 +49,10 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'kitchen.pushes.env.gkid', // GKID — environment name
   'kitchen.pushes.env.goo', // GOO — environment name
   'kitchen.unit.porsi', // porsi — already Indonesian
+  // The footer states the unit in the SAME word ("porsi") the rows themselves use, in both
+  // locales — one domain term, not an English translation of it.
+  'kitchen.log.footer.unit.one',
+  'kitchen.log.footer.unit.other',
   'followUps.record.title', // Follow-up — product term
   'tasks.checklistTitle', // Checklist
   'tasks.feed.checklist', // Checklist
@@ -75,7 +79,6 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'kitchen.log.col.item', // Item — same word in both locales (OD-WAY-85)
   'kitchen.plan.col.item', // Item — same word in both locales (OD-WAY-85)
   'kitchen.stock.col.item', // Item — same word in both locales (OD-WAY-85)
-  'kitchen.stock.card.erp', // ERP — acronym is shared in Indonesian
   'kitchen.plan.pesanan.col.item', // Item — same word in both locales (OD-WAY-85)
   'kitchen.log.footer.item.one', // ${count} item — same word in both locales (OD-WAY-85)
   'kitchen.pushes.tally.push.one', // push — shared borrowed vocabulary

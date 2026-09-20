@@ -77,13 +77,28 @@
   display: contents;
 }
 
-.catalog-collection__row-state,
 .catalog-collection__primary-action {
   display: none;
 }
 
+/* The Active/Archived state travels WITH the record's identity so it survives every width and
+   every panel-open reflow — a decision-critical fact must not depend on viewport — as a quiet
+   badge beside the name, never a 7th table column to keep track of. */
+.catalog-collection__row-state {
+  display: inline-flex;
+  flex: none;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-secondary);
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .catalog-collection__identity {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
 }
@@ -132,7 +147,6 @@
 
 .catalog-collection__cell-value--muted,
 .catalog-collection__cell-note,
-.catalog-collection__error,
 .catalog-record-document__muted {
   color: var(--muted-foreground);
 }
@@ -141,29 +155,10 @@
   font-size: var(--font-size-label);
 }
 
-.catalog-collection__draft-row {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--row-divider);
-  background: color-mix(in srgb, var(--surface-secondary) 54%, transparent);
-}
-
-.catalog-collection__draft {
-  display: grid;
-  grid-template-columns: minmax(220px, 2fr) minmax(150px, 1fr) auto;
-  align-items: end;
-  gap: 10px 16px;
-}
-
-.catalog-collection__draft-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.catalog-collection__draft .catalog-collection__error {
-  grid-column: 1 / -1;
-  margin: 0;
-  font-size: var(--font-size-label);
+/* The create form is its own card, positioned above the collection card — never inside the
+   table's header row (see CatalogCreateForm). */
+.catalog-create-panel {
+  margin-bottom: 12px;
 }
 
 .catalog-record-document__muted {
@@ -189,25 +184,10 @@
     grid-row: 1;
   }
 
-  .catalog-collection__row-state,
   .catalog-collection__primary-action {
     display: inline-flex;
     align-items: center;
     white-space: nowrap;
-  }
-
-  .catalog-collection__row-state {
-    grid-column: 2;
-    grid-row: 1;
-    padding: 3px 7px;
-    border-radius: var(--radius-sm);
-    background: var(--surface-secondary);
-    color: var(--muted-foreground);
-    font-size: var(--font-size-label);
-    font-weight: 600;
-  }
-
-  .catalog-collection__primary-action {
     grid-column: 3;
     grid-row: 1;
     color: var(--primary);
@@ -304,17 +284,6 @@
   .catalog-collection__cell-value {
     white-space: nowrap;
   }
-
-  .catalog-collection__draft {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-
-  .catalog-collection__draft-actions {
-    justify-content: flex-start;
-  }
 }
 
 /* A record panel keeps this collection in a narrower desktop track. Preserve the row's primary
@@ -338,10 +307,13 @@
   .record-split .catalog-collection__cell--activity {
     display: none;
   }
-}
 
-@media (pointer: coarse) {
-  .catalog-collection__draft .btn {
-    min-height: 44px;
+  /* The narrower track means less room for the name — wrap it onto a second line rather than
+     truncating it, since Name is one of the three facts this track deliberately keeps. */
+  .record-split .catalog-collection__name {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
   }
 }

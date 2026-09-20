@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { SignalAttentionPicker } from './signal-attention-picker'
@@ -44,6 +44,34 @@ describe('SignalAttentionPicker', () => {
     expect(screen.queryByRole('listbox', { name: /attention/i })).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
     expect(onChange).not.toHaveBeenCalledWith('host')
+  })
+
+  it('is portaled to <body>, positioned fixed, and flips above the trigger when it would not fit below the viewport', async () => {
+    renderPicker()
+    const user = userEvent.setup()
+    const trigger = screen.getByRole('button', { name: /attention.*FYI/i })
+    await user.click(trigger)
+    const listbox = screen.getByRole('listbox', { name: /attention/i })
+    expect(listbox.parentElement).toBe(document.body)
+    expect(listbox.style.position).toBe('fixed')
+    expect(listbox.style.bottom).toBe('auto')
+
+    // Trigger sits low in a short viewport; the menu (171px, matching the live geometry
+    // signal-attention-placement.test.ts pins) cannot fit below it.
+    vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({
+      top: 710.8, bottom: 754.8, left: 16, right: 100, width: 84, height: 44, x: 16, y: 710.8, toJSON: () => ({}),
+    })
+    vi.spyOn(listbox, 'getBoundingClientRect').mockReturnValue({
+      top: 0, bottom: 171, left: 0, right: 220, width: 220, height: 171, x: 0, y: 0, toJSON: () => ({}),
+    })
+    Object.defineProperty(window, 'innerHeight', { value: 844, configurable: true })
+    act(() => { window.dispatchEvent(new Event('resize')) })
+
+    await waitFor(() => {
+      const flipped = screen.getByRole('listbox', { name: /attention/i })
+      expect(flipped.style.top).toBe('auto')
+      expect(parseFloat(flipped.style.bottom)).toBeCloseTo(137.2, 1)
+    })
   })
 
   it('re-seats the active option when the controlled attention changes', async () => {

@@ -18,6 +18,25 @@
   box-sizing: border-box;
 }
 
+/* ── Compact context header (defects #2/#3) ─────────────────────────────────────
+   Docks the Opening door (`leading`) and the Plan/Made/Off-plan summary into ONE card so
+   the summary reads as that header's own figures rather than an unbounded line floating
+   between two other things. `.cafe-opening-door` (cafe-opening-page.css) keeps its own
+   border/background; this only removes its bottom corners and continues the same edges
+   downward for the summary strip, so the seam between them reads as one shape. */
+.kl-context { display: flex; flex-direction: column; margin-bottom: 16px; }
+.kl-context .cafe-opening-door {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.kl-context-summary {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: var(--secondary);
+}
+
 /* ── log date chip in the PageHead meta slot ── */
 .kl-date {
   font-size: var(--font-size-mono);
@@ -132,6 +151,10 @@
    no resting shadow). The list container below carries matching bottom padding
    (`.kl-form .dt-table`/`.dt-cards`) so the sticky footer never permanently covers the last
    dish row (Task 1 §"add matching bottom padding"). */
+/* `background` alone is a shorthand — the `background-color` longhand below repeats the same
+   solid colour so a CSS-source test can pin it directly; a shorthand can be silently reset to
+   transparent by a later rule that only touches one of its longhands, and that mismatch is
+   exactly the regression this guards against. */
 .kl-footer {
   display: flex;
   align-items: center;
@@ -141,16 +164,15 @@
   gap: 12px;
   padding: 12px 0;
   background: var(--card);
+  background-color: var(--card);
   border-top: 1px solid var(--border);
   position: sticky;
   /* NOT `bottom: 0`. A sticky box's constraint rect is the scrollport's CONTENT box, and
      `.page-frame--v3` (page-families.css) — the scrolling ancestor — carries bottom padding
      (48px desktop / 40px tablet / 16px + --tabbar-h on phone). `bottom: 0` therefore parked
      this bar that far ABOVE the scrollport's real bottom edge, and dish rows scrolled through
-     the strip BELOW it: the bar read as tearing across the middle of the list. Measured
-     2026-07-28 before the fix: footer bottom 812 vs scrollport bottom 860 at 1280x860, and
-     676 vs 752 at 375x812 — exactly the frame's padding in both cases. Cancelling the reserve
-     lands the bar flush on the scrollport edge (which already sits above the phone tab bar —
+     the strip BELOW it: the bar read as tearing across the middle of the list. Cancelling the
+     reserve lands the bar flush on the scrollport edge (which already sits above the phone tab bar —
      that is its own grid row in app-shell.tsx, not an overlay). Values mirror
      page-families.css's padding ladder; keep the two in step. */
   bottom: -48px;
@@ -166,9 +188,11 @@
 
 /* Reserve room below the list so the sticky footer never permanently overlaps the final
    dish row — the user can always scroll the last row clear of the pinned footer. Sized
-   generously to the footer's tallest rendered state (phone: stacked tally+actions + the
-   inline F3 blocker reason + safe-area inset) rather than pixel-matched, so small copy/
-   font changes in the footer can't silently reopen the overlap. */
+   generously to the footer's tallest rendered state (the compact row PLUS the optional
+   `.kl-submit-reason`/note-missing pointer line above it, + safe-area inset on phone)
+   rather than pixel-matched, so small copy/font changes in the footer can't silently reopen
+   the overlap: a gap here would let a real row (and, at 390, the note textarea itself) render
+   partly behind the bar. */
 .kl-form .dt-table,
 .kl-form .dt-cards {
   margin-bottom: 12px;
@@ -176,13 +200,23 @@
 }
 @media (max-width: 767.98px) {
   .kl-form .dt-cards {
-    margin-bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+    margin-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
 }
 @media (min-width: 768px) {
   .kl-form .dt-table {
-    margin-bottom: 88px;
+    margin-bottom: 104px;
   }
+}
+
+/* A table cell's default vertical-align middle re-centres the WHOLE cell block as its content
+   grows (the note reveals BELOW the qty), so the qty visually climbs toward the top of the row
+   while a neighbouring single-line cell stays centred at its own shorter height — two different
+   vertical rhythms in one row. Top-aligning every cell in THIS table keeps the qty's position
+   fixed regardless of what reveals under it, and keeps every cell starting from the same edge.
+   Scoped to this page's own table only. */
+@media (min-width: 768px) {
+  .kl-form .dt-table td { vertical-align: top; }
 }
 .kl-tally {
   display: flex;
@@ -224,6 +258,21 @@
   text-align: left;
 }
 
+/* The note-missing footer pointer is a real control, not a status line — reset the button
+   chrome so it reads as the same quiet inline text `.kl-submit-reason` uses, with an underline
+   as its only "this is clickable" cue (an outline still shows on keyboard focus via the
+   app-wide `*:focus-visible` rule; nothing here suppresses it). */
+.kl-note-pointer {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 /* ── Error / unauth blocks — viewport-safe + touch floors ── */
 .kl-error,
 .kl-unauth {
@@ -249,22 +298,45 @@
 /* Fix #7: 44px touch floor on every interactive control on the small states. */
 .kl-touch { min-height: 44px; }
 
-/* ── Phone (<768px): stack the footer (tally above, actions below), safe-area spacing ── */
+/* ── Phone (<768px): ONE compact row — totals left, Discard + Submit right ──
+   Buttons are sized to content (not width:100%), so the resting bar is a single ~52px strip;
+   the reason/note-missing pointer line (`.kl-submit-reason`, `order:-1`) still gets its own
+   line ABOVE this row only when it is actually blocking — the reserve above accounts for that
+   worst case, tall enough to cover the row and the note field it should never touch.
+   `flex-wrap` MUST stay `wrap`: `.kl-submit-reason`'s `flex-basis: 100%` only starts a new
+   line when the container is allowed to wrap — `nowrap` would keep every child on one line, so
+   the 100%-basis reason text would crowd the tally and the Discard/Submit buttons off the
+   visible row instead of pushing them to a line below it. */
 @media (max-width: 767.98px) {
   .kl-footer {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
-    padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px));
+    padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px));
     /* see the base rule: cancel `.page-frame--v3`'s phone bottom reserve so the bar sits on
        the scrollport edge instead of floating a tab-bar's height above it with rows showing
        through underneath. */
     bottom: calc(-1 * (16px + var(--tabbar-h, 60px)));
     margin-bottom: calc(-1 * (16px + var(--tabbar-h, 60px)));
   }
-  .kl-tally { flex-direction: row; gap: 6px; }
-  .kl-footer-actions { justify-content: stretch; }
-  .kl-submit { width: 100%; min-height: 48px; } /* the one big-touch control exception */
+  .kl-tally { flex-direction: row; gap: 6px; min-width: 0; overflow: hidden; }
+  .kl-tally-num, .kl-tally-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kl-footer-actions { justify-content: flex-end; }
+  .kl-submit { width: auto; min-height: 44px; }
+  .kl-submit-reason { flex-basis: 100%; }
+  /* One row on phone: the secondary tally line is dropped, and while a note is missing the
+     pointer takes the tally's place — it is the one thing the user can act on. */
+  .kl-tally-sub { display: none; }
+  .kl-note-pointer { flex-basis: auto; order: 0; min-height: 44px; }
+  .kl-footer:has(.kl-note-pointer) .kl-tally { display: none; }
+}
+
+/* Focus scrolling keeps the focused field clear of the sticky bar instead of parking it
+   underneath: the scrollport's optimal viewing region ends above the bar. */
+.page-frame--v3:has(.kl-form) { scroll-padding-bottom: 120px; }
+@media (max-width: 767.98px) {
+  .page-frame--v3:has(.kl-form) { scroll-padding-bottom: calc(140px + var(--tabbar-h, 60px)); }
 }
 
 /* ── Row status (v4) ───────────────────────────────────────────────────────────
@@ -296,6 +368,10 @@
   justify-content: space-between;
   gap: 12px;
   min-width: 0;
+  /* Lets the stepper's `.kls-has-note` (wip-item-stepper.css, flex-basis: 100%) wrap onto its
+     own full-width line once a note reveals, instead of sharing the row with the dish name at
+     a fraction of its width. */
+  flex-wrap: wrap;
 }
 .kl-card-identity {
   display: flex;
@@ -421,4 +497,13 @@
      last child, so padding on the form lands beyond it and reserves nothing: the final item
      could never be scrolled out from under the Submit bar. */
   .kl-form .dt-cards { padding-bottom: 104px; }
+}
+
+/* The table header pins to the scrollport's real top edge. The scrolling page frame carries top
+   padding, and a sticky box is constrained to the content box, so `top: 0` would leave a strip
+   above the header where rows stay visible. The offsets mirror the frame's padding ladder
+   (shell/page-families.css). */
+.kl-form .dt-table thead th { top: -24px; }
+@media (min-width: 768px) and (max-width: 1279px) {
+  .kl-form .dt-table thead th { top: -20px; }
 }

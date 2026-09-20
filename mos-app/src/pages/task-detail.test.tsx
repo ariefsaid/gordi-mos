@@ -558,10 +558,10 @@ describe('RIC-2 — not-found state renders styled panel', () => {
     await waitFor(() => {
       expect(screen.getByText(/task not found/i)).toBeTruthy()
     })
-    // not-found-panel class must be present
-    expect(document.querySelector('.not-found-panel')).toBeTruthy()
-    // not-found-title class must be present
-    expect(document.querySelector('.not-found-title')).toBeTruthy()
+    // Not-found renders through the shared EmptyState primitive — the same inset-carrying
+    // markup the panel's error/empty bodies and Signals share — not a bespoke panel.
+    expect(document.querySelector('.empty-state')).toBeTruthy()
+    expect(document.querySelector('.empty-title')).toBeTruthy()
     // btn-outline (shared button hierarchy, IXD-4) styled back link must be present
     expect(document.querySelector('.btn-outline')).toBeTruthy()
     // The back link must point to /tasks

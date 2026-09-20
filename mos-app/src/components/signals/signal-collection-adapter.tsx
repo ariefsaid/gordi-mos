@@ -475,11 +475,15 @@ export const signalCollectionDescriptor: RecordCollectionDescriptor<
       getPeople(),
       listAllTeams(),
     ])
+    // Every Signal is All Teams (no owning Team at capture) — a Team can only appear on a
+    // historical team-audience row. Scope the map to Teams that actually own a loaded Signal, so
+    // the filter UI (signals-archive-page.tsx) can render it only when something can match it.
+    const teamIdsInUse = new Set(signals.map((s) => s.owning_team_id).filter((id): id is string => Boolean(id)))
     return {
       records: signals,
       context: {
         authorNamesById: new Map(people.map((person) => [person.id, person.full_name])),
-        teamNamesById: new Map(teams.map((team) => [team.id, team.name])),
+        teamNamesById: new Map(teams.filter((team) => teamIdsInUse.has(team.id)).map((team) => [team.id, team.name])),
         businessUnitIdsByTeamId: new Map(teams.map((team) => [team.id, team.business_unit_id])),
         siteNamesByTeamId: new Map(),
         viewerId,

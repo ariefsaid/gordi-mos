@@ -451,20 +451,28 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
           style={position}
           tabIndex={-1}
         >
-          {options.map((option, index) => (
-            <div
-              {...getOptionProps(index)}
-              key={`${option.value}-${index}`}
-              aria-selected={option.value === selectedValue}
-              aria-disabled={option.disabled || undefined}
-              className="mk-select__option"
-              onPointerMove={() => { if (!option.disabled) setActiveIndex(index) }}
-              onClick={(event) => { event.stopPropagation(); selectIndex(index) }}
-            >
-              <span>{option.label}</span>
-              {option.value === selectedValue && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>}
-            </div>
-          ))}
+          {options.map((option, index) => {
+            // A disabled empty-value option is the placeholder prompt (the pattern every
+            // caller uses to hold "no choice yet" — e.g. cafe-stream-bar's "Choose stream…").
+            // It is not a choosable value, so the open list omits it entirely rather than
+            // showing it as a checked, selectable row; the closed trigger still reads its
+            // label via `selectedLabel` below, which is unaffected by this list filter.
+            if (option.disabled && option.value === '') return null
+            return (
+              <div
+                {...getOptionProps(index)}
+                key={`${option.value}-${index}`}
+                aria-selected={option.value === selectedValue}
+                aria-disabled={option.disabled || undefined}
+                className="mk-select__option"
+                onPointerMove={() => { if (!option.disabled) setActiveIndex(index) }}
+                onClick={(event) => { event.stopPropagation(); selectIndex(index) }}
+              >
+                <span>{option.label}</span>
+                {option.value === selectedValue && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>}
+              </div>
+            )
+          })}
         </div>,
         document.body,
       )}

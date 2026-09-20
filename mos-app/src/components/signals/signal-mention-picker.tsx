@@ -98,7 +98,7 @@ export const SignalMentionPicker = forwardRef<SignalMentionPickerHandle, SignalM
                 onMouseDown={(e) => e.preventDefault()} // keep the textarea focused/selection intact
                 onClick={() => onSelect(kind, option)}
               >
-                <span className={`type-badge type-badge--${kind}`} aria-hidden="true">{kind}</span>
+                {/* The group header already names the kind (PERSON/TEAM/BU) — no per-row repeat. */}
                 <span className="nm">{option.label}</span>
               </button>
             )

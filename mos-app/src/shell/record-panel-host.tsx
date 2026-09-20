@@ -194,7 +194,10 @@ export function RecordPanelHost({
       <span className="record-panel-title">{title}</span>
       <span className="record-panel-spacer" />
       {actions}
-      {onOpenPage && (
+      {/* A full-screen panel already fills the viewport it would "open" into — the
+          escalation has nowhere to go, so it renders only where a bigger page exists
+          to open (split aside / non-fullscreen sheet). Close still ends the record there. */}
+      {onOpenPage && !isFullScreen && (
         <button
           type="button"
           className="record-panel-btn record-panel-btn--labelled"

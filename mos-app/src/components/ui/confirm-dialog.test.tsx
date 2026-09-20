@@ -130,3 +130,40 @@ describe('ConfirmDialog busy reset (always-mounted caller style)', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })
+
+// On a destructive confirm, the loudest button on screen must not be the one that discards
+// unsaved work — Discard stays the only solid red, but Cancel matches it in weight instead of
+// reading as a quiet outline next to it.
+describe('ConfirmDialog — button emphasis by tone', () => {
+  it('destructive tone: Cancel is a solid primary button, matching the destructive fill in weight', () => {
+    render(
+      <ConfirmDialog
+        open
+        title="Discard this Signal?"
+        body="Your draft will be lost if you leave this composer."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        tone="destructive"
+        onConfirm={vi.fn().mockResolvedValue(undefined)}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Keep editing' })).toHaveClass('btn-primary')
+    expect(screen.getByRole('button', { name: 'Discard' })).toHaveClass('btn-destructive')
+  })
+
+  it('non-destructive tone: Cancel keeps the ordinary outline weight beside the one primary action', () => {
+    render(
+      <ConfirmDialog
+        open
+        title="Reset password?"
+        body="This sends a new sign-in link."
+        confirmLabel="Reset password"
+        onConfirm={vi.fn().mockResolvedValue(undefined)}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveClass('btn-outline')
+    expect(screen.getByRole('button', { name: 'Reset password' })).toHaveClass('btn-primary')
+  })
+})

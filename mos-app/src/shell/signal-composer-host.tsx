@@ -133,6 +133,7 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
           closeOnEscape={!discardOpen}
           surface="centered"
           phoneMode="fullscreen"
+          initialFocusRef={composerTextareaRef}
         >
           <div className="signal-composer-host-panel">
             <div className="signal-composer-host-head">

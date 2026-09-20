@@ -692,6 +692,16 @@ describe('#41: keyboard hints hide on touch (coarse pointer)', () => {
     expect(container.querySelector('.cm-foot')).toBeNull()
     expect(container.querySelectorAll('.cm-foot-key')).toHaveLength(0)
   })
+
+  // `useIsCoarsePointer` only tests `(pointer: coarse)` — a device that reports a fine
+  // pointer but no hover (`(hover: none)`) sails past that JS check, so the CSS rule is the
+  // independent second guard the JS branch above cannot cover.
+  it('the stylesheet hides the footer hints under (hover: none), (pointer: coarse) independently of the JS check', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/components/command/command-menu.css'), 'utf8')
+    const block = css.split('@media (hover: none), (pointer: coarse) {')[1]?.split('}\n}')[0] ?? ''
+    expect(block).toMatch(/\.cm-foot,/)
+    expect(block).toMatch(/display:\s*none;/)
+  })
 })
 
 // ── AC-K05: activating a record navigates to /work/tasks/:id ─────────────────

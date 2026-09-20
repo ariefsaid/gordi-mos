@@ -36,7 +36,7 @@ import { Picker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
 import { DateField } from '@/components/ui/date-field'
 import { Button } from '@/components/ui/button'
-import { LoadingShell } from '@/components/ui/state-kit'
+import { LoadingShell, EmptyState } from '@/components/ui/state-kit'
 
 type DirectoryTeamOption = {
   id: string
@@ -682,17 +682,28 @@ function ViewSurface({
   if (loading) return <DetailSkeleton />
 
   if (notFound || !localTask) {
+    // The shared EmptyState primitive, not a bespoke `.not-found-panel`: it already carries
+    // the SAME horizontal inset as the panel header (CardHead.css `.error-state`/`.empty-state`:
+    // 16px 20px, the family `.card-head` uses), so a fix to that inset applies here too — and
+    // in the one place Signals' panel bodies read it from.
+    // `autoFocus` lands screen-reader/keyboard focus on THIS heading once it mounts — the record
+    // panel's own generic open-focus effect runs before the record fetch resolves (nothing to
+    // focus yet) and would otherwise leave focus stranded on unrelated chrome (an icon-only
+    // header button) once this body appears a tick later.
     return (
-      <div className="not-found-panel">
-        {/* R-T-3: when a shell PageFamilyFrame owns the page h1 (focused-record page,
-            identityHeadingLevel=2), the not-found title nests as an h2 so there is no
-            double-h1; the default full-width host keeps it an h1. */}
-        {identityHeadingLevel === 2
-          ? <h2 className="not-found-title">{t('tasks.notFound.title')}</h2>
-          : <h1 className="not-found-title">{t('tasks.notFound.title')}</h1>}
-        <p className="not-found-copy">{t('tasks.notFound.copy')}</p>
+      <EmptyState
+        variant="blank"
+        nested
+        autoFocus
+        // R-T-3: when a shell PageFamilyFrame owns the page h1 (focused-record page,
+        // identityHeadingLevel=2), the not-found title nests as an h2 so there is no double-h1;
+        // the default full-width host keeps it an h1.
+        headingLevel={identityHeadingLevel === 2 ? 2 : 1}
+        title={t('tasks.notFound.title')}
+        copy={t('tasks.notFound.copy')}
+      >
         <Link to={{ pathname: '/work/tasks', search: location.search }} className="btn btn-outline">{t('tasks.all')}</Link>
-      </div>
+      </EmptyState>
     )
   }
 

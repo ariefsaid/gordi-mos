@@ -84,6 +84,19 @@ const textSpec: RecordFieldSpec = {
 }
 
 describe('RecordField', () => {
+  // Required-ness is a fact about SUBMITTING a value, not about looking at one — a required
+  // field that already has a value has nothing missing to flag when it is just being viewed.
+  // The marker returns once the row becomes the actual edit control.
+  it('shows no required marker on the value-first VIEW row, but shows it once the field is activated for editing', () => {
+    renderField({ ...textSpec, required: true })
+
+    const label = screen.getByText('Title', { selector: '.record-field__label' })
+    expect(label.textContent).not.toContain('*')
+
+    activate('Title')
+    expect(screen.getByText('Title', { selector: '.record-field__label' }).textContent).toContain('*')
+  })
+
   it('keeps the semantic title heading around its keyboard-edit button', async () => {
     const user = userEvent.setup()
     renderField(textSpec, { heading: true })

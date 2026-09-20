@@ -88,9 +88,8 @@ describe('SignalComposer — capture-minimal fields (AC-420)', () => {
     const body = screen.getByRole('textbox', { name: /what happened/i })
     // 2. Occurrence time — a contextual pill backed by the native picker.
     const occurred = screen.getByLabelText(/occurred/i)
-    // 3. Author (read-only line, not a form control)
-    expect(screen.getByText(/posted by/i)).toBeInTheDocument()
-    expect(screen.getByText(/Author One/)).toBeInTheDocument()
+    // 3. Author — one metadata line with the audience, read-only (not a form control).
+    expect(screen.getByText('All teams · Author One')).toBeInTheDocument()
 
     // No owning-Team machinery anywhere: a new Signal is All Teams with no Team target.
     expect(screen.queryByRole('combobox', { name: /owning team|tim pemilik/i })).not.toBeInTheDocument()
@@ -106,7 +105,9 @@ describe('SignalComposer — capture-minimal fields (AC-420)', () => {
     expect(shareButton).toBeEnabled() // an All Teams Signal needs only a body (AC-7)
     expect((occurred as HTMLInputElement).value.length).toBeGreaterThan(0)
 
-    expect(screen.getByText(/Category is added after posting/i)).toBeInTheDocument()
+    // There is no category decision for the author to make at capture, so there is no caption
+    // about one.
+    expect(screen.queryByText(/category is added after posting/i)).not.toBeInTheDocument()
   })
 
   it('posts via createSignal with the typed body and no owning Team when Share is pressed', async () => {
@@ -235,7 +236,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     const popover = await screen.findByRole('listbox', { name: /mention/i })
     expect(popover).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Peer Person/i })).toBeInTheDocument()
-    expect(screen.getAllByText('person')[0]).toBeInTheDocument() // type badge
+    // The group header is the ONE label for the kind — no duplicate per-row badge.
     expect(screen.getByText('Person')).toBeInTheDocument()
   })
 
@@ -279,6 +280,56 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     await waitFor(() => expect(screen.queryByRole('listbox', { name: /mention/i })).toBeNull())
     expect(body).toHaveValue('Heads up @Pe')
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  // The attention picker's own listbox is a nested popover over a host that also owns Escape —
+  // the same shape as the mention popover above. Escape must close only the menu, never reach
+  // the modal host.
+  it('Escape with the attention menu open closes ONLY the menu, returns focus to its trigger, and never reaches the modal host', async () => {
+    const onClose = vi.fn()
+    render(
+      <I18nProvider>
+        <ModalShell open onClose={onClose} ariaLabel="Share a Signal">
+          <SignalComposer authorId={AUTHOR_ID} authorName="Author One" canTag canMentionBu />
+        </ModalShell>
+      </I18nProvider>,
+    )
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'The freezer alarm went off')
+    const trigger = screen.getByRole('button', { name: /attention.*FYI|FYI.*attention/i })
+    await userEvent.click(trigger)
+    expect(screen.getByRole('listbox', { name: /attention/i })).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+
+    expect(screen.queryByRole('listbox', { name: /attention/i })).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+    expect(body).toHaveValue('The freezer alarm went off')
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  // The dialog scrolls its own content in an overflow: auto surface. A menu rendered as part of
+  // that content (even absolutely positioned) can grow the surface's scrollable area and, once
+  // focused, drag its scroll position to follow — hiding the dialog's own header. The menu must
+  // sit entirely outside the dialog's DOM subtree.
+  it('opening the attention menu never becomes part of the dialog surface, and never changes its scroll position', async () => {
+    render(
+      <I18nProvider>
+        <ModalShell open onClose={vi.fn()} ariaLabel="Share a Signal">
+          <SignalComposer authorId={AUTHOR_ID} authorName="Author One" canTag canMentionBu />
+        </ModalShell>
+      </I18nProvider>,
+    )
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
+    const dialog = screen.getByRole('dialog', { name: /share a signal/i })
+    dialog.scrollTop = 0
+    const trigger = screen.getByRole('button', { name: /attention.*FYI|FYI.*attention/i })
+    await userEvent.click(trigger)
+
+    const listbox = screen.getByRole('listbox', { name: /attention/i })
+    expect(dialog.contains(listbox)).toBe(false)
+    expect(dialog.scrollTop).toBe(0)
   })
 
   it('disables the BU group without signal.mention_bu, and enables it when the viewer holds it', async () => {
@@ -331,7 +382,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
 })
 
 describe('SignalComposer — All Teams visibility + dedup fan-out preview (AC-422)', () => {
-  it('shows "All teams · notify N people" with the deduplicated count for overlapping mentions', async () => {
+  it('shows "All teams · notifies N people · <author>" with the deduplicated count for overlapping mentions', async () => {
     renderComposer({ teamMembers: { 'team-hq': ['person-peer', 'person-other'] } })
     await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
     const body = screen.getByRole('textbox', { name: /what happened/i })
@@ -343,14 +394,18 @@ describe('SignalComposer — All Teams visibility + dedup fan-out preview (AC-42
     await userEvent.type(body, ' cc @Pe')
     await userEvent.click(await findMentionOption(/Peer Person/i))
 
-    // SR-1 (owner ruling): the dedup count carries its noun — "notify N people", never a naked N.
-    expect(screen.getByText('All teams · notify 2 people')).toBeInTheDocument()
+    // SR-1 (owner ruling): the dedup count carries its noun — "notifies N people", never a naked
+    // N. One metadata line — audience, notify count, then author.
+    expect(screen.getByText('All teams · notifies 2 people · Author One')).toBeInTheDocument()
   })
 
-  it('shows "Visible to all teams" with no notify suffix when no mentions are staged', async () => {
+  // The audience phrase is STABLE — always "All teams" — with the notify segment appended, never
+  // swapped in as a different phrase, so typing a mention can't change the wording the reader
+  // already read.
+  it('shows "All teams · <author>" with no notify suffix when no mentions are staged', async () => {
     renderComposer()
     await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
-    expect(await screen.findByText('Visible to all teams')).toBeInTheDocument()
+    expect(await screen.findByText('All teams · Author One')).toBeInTheDocument()
   })
 
   it('inflects the notify noun to the singular for one recipient', async () => {
@@ -360,6 +415,6 @@ describe('SignalComposer — All Teams visibility + dedup fan-out preview (AC-42
     await userEvent.type(body, '@Pe')
     await userEvent.click(await findMentionOption(/Peer Person/i))
 
-    expect(screen.getByText('All teams · notify 1 person')).toBeInTheDocument()
+    expect(screen.getByText('All teams · notifies 1 person · Author One')).toBeInTheDocument()
   })
 })

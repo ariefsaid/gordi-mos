@@ -311,14 +311,19 @@ export function SignalsArchivePage() {
         // attention-worthy Signal (Urgent + Needs attention); grouping-by-attention and
         // sort-by-Urgent below cover the remaining slices without re-duplicating the chip.
         // Row-2 order per the #770 After state: search · Team · Category (· Group · Sort) · Save view.
-        {
+        // Renders only when the loaded collection has a historical team-audience row to match
+        // (the adapter scopes teamNamesById to Teams present on loaded rows). A saved view that
+        // stored a teamId keeps filtering correctly either way — the collection applies
+        // query.teamId directly against each row (signal-collection-adapter.tsx) regardless of
+        // whether this control is shown; hiding it only removes a choice that could never match.
+        ...(context && context.teamNamesById.size > 0 ? [{
           id: 'team', label: t('signals.archive.filterTeam'), value: query.teamId ?? '',
           options: [
             { value: '', label: t('signals.archive.filterAnyTeam') },
-            ...Array.from(context?.teamNamesById ?? new Map()).map(([value, label]) => ({ value, label })),
+            ...Array.from(context.teamNamesById).map(([value, label]) => ({ value, label })),
           ],
-          onChange: (teamId) => setQuery({ teamId: teamId || null }),
-        },
+          onChange: (teamId: string) => setQuery({ teamId: teamId || null }),
+        }] : []),
         {
           id: 'category', label: t('signals.archive.filterCategory'), value: query.category ?? '',
           options: [

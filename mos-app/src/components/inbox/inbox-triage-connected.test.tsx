@@ -114,23 +114,46 @@ beforeEach(() => {
 // to start with the same word (e.g. a "Unread one" row vs the "Unread · n" tab).
 const filterGroup = () => within(screen.getByRole('group', { name: /filter/i }))
 
+// The record panel's "Open full page" escalation only renders when the panel is NOT already
+// full-screen. jsdom's default matchMedia (every other case in this suite relies on it) reports
+// every query unmatched, i.e. phone/full-screen, so the two cases below that exercise the
+// escalation opt into desktop width for their own body and restore the default afterwards.
+function withDesktopWidth<T>(run: () => T): T {
+  const original = window.matchMedia
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: (query: string) => ({
+      matches: true, media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+    }),
+  })
+  try {
+    return run()
+  } finally {
+    Object.defineProperty(window, 'matchMedia', { configurable: true, writable: true, value: original })
+  }
+}
+
 describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008 / J06)', () => {
   it('opening a safe target marks it read (only) and mounts the shared actionable record host (JQ-4: never a zero-action summary)', () => {
-    const markRead = vi.fn()
-    mockUse.mockReturnValue(hook({ notifications: [notif()], markRead }))
-    renderConnected()
+    withDesktopWidth(() => {
+      const markRead = vi.fn()
+      mockUse.mockReturnValue(hook({ notifications: [notif()], markRead }))
+      renderConnected()
 
-    fireEvent.click(screen.getByRole('button', { name: /Budget review/ }))
+      fireEvent.click(screen.getByRole('button', { name: /Budget review/ }))
 
-    // Read is stamped; the shared canonical record host opens IN the Inbox panel — the same host
-    // every other door mounts, so the triager can act on the record here (D-A4), plus the one
-    // host-owned Open-full-page escalation.
-    expect(markRead).toHaveBeenCalledWith('n1')
-    expect(screen.getByTestId('task-record-host')).toHaveAttribute('data-task-id', 't1')
-    expect(screen.getByRole('button', { name: /open full page/i })).toBeInTheDocument()
-    expect(document.querySelector('[data-overlay-host][data-overlay-owner="inbox"]')).toBeTruthy()
-    // One physical overlay host — never a second panel.
-    expect(document.querySelectorAll('[data-overlay-host]').length).toBe(1)
+      // Read is stamped; the shared canonical record host opens IN the Inbox panel — the same
+      // host every other door mounts, so the triager can act on the record here, plus the one
+      // host-owned Open-full-page escalation (desktop width — not full-screen).
+      expect(markRead).toHaveBeenCalledWith('n1')
+      expect(screen.getByTestId('task-record-host')).toHaveAttribute('data-task-id', 't1')
+      expect(screen.getByRole('button', { name: /open full page/i })).toBeInTheDocument()
+      expect(document.querySelector('[data-overlay-host][data-overlay-owner="inbox"]')).toBeTruthy()
+      // One physical overlay host — never a second panel.
+      expect(document.querySelectorAll('[data-overlay-host]').length).toBe(1)
+    })
   })
 
   it('keeps a row busy while Mark handled is in flight and ignores a duplicate action', async () => {
@@ -216,15 +239,17 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
   })
 
   it('the host "Open full page" door navigates to the canonical page and closes the overlay', () => {
-    mockUse.mockReturnValue(hook({ notifications: [notif()] }))
-    renderConnected()
+    withDesktopWidth(() => {
+      mockUse.mockReturnValue(hook({ notifications: [notif()] }))
+      renderConnected()
 
-    fireEvent.click(screen.getByRole('button', { name: /Budget review/ }))
-    fireEvent.click(screen.getByRole('button', { name: /open full page/i }))
+      fireEvent.click(screen.getByRole('button', { name: /Budget review/ }))
+      fireEvent.click(screen.getByRole('button', { name: /open full page/i }))
 
-    expect(screen.getByTestId('loc')).toHaveTextContent('/work/tasks/t1')
-    // The overlay is closed after promotion — no stacked panel behind the page.
-    expect(document.querySelectorAll('[data-overlay-host]').length).toBe(0)
+      expect(screen.getByTestId('loc')).toHaveTextContent('/work/tasks/t1')
+      // The overlay is closed after promotion — no stacked panel behind the page.
+      expect(document.querySelectorAll('[data-overlay-host]').length).toBe(0)
+    })
   })
 
   // D-A3 (fix work-order item 5): the /inbox page opens the record in ROUTE mode, so browser Back

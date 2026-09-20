@@ -98,6 +98,13 @@
 .cafe-opening-status {
   font-size: var(--font-size-body); color: var(--foreground); margin: 0;
 }
+/* The causal line ("Today's plan loads once the opening starts.") is context, not the row's
+   own status fact — muted so it reads as a footnote beside the status sentence, not a second
+   status claiming the same rank. */
+.cafe-opening-status--muted {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
 /* Push the row's action to the trailing edge so the label/status pair reads as one unit.
    Only while the row actually IS a row: below the phone breakpoint it wraps, and an auto
    inline-start margin then strands the action against the right edge under its own label. */
@@ -145,14 +152,12 @@
   }
 }
 
-/* The door names the branch twice: the location line says "Location · Gordi HQ" and the caption
-   under it says "Opening · Gordi HQ". On a phone that second naming costs a whole row at the top
-   of the capture screen, above the list the person came here to fill in. Where the location line
-   is present the caption is dropped and the status sits beside its own button on one row; where
-   it is absent (a single-location org renders no location line) the caption is the only thing
-   naming the branch and stays. */
-@media (max-width: 767.98px) {
-  .cafe-opening-door:has(.cafe-opening-location) .cafe-opening-team {
-    display: none;
-  }
+/* The door would otherwise name the branch twice: the location line says "Location · Gordi HQ"
+   and the caption under it says "Opening · Gordi HQ" — that repeats the same fact at every width,
+   and on a phone also costs a whole row above the list the person came here to fill in. Where the
+   location line is present the caption is dropped and the status sits beside its own button on
+   one row; where it is absent (a single-location org renders no location line) the caption is the
+   only thing naming the branch and stays. */
+.cafe-opening-door:has(.cafe-opening-location) .cafe-opening-team {
+  display: none;
 }

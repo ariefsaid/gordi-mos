@@ -147,6 +147,22 @@ async function loadObjectiveWorkLines(db: SchemaClient, objectiveId: string): Pr
   return asRows<RelatedWorkLine>(data)
 }
 
+// An Objective's work is linked two ways: a Project/Process can point at the Objective directly, or
+// the Objective's Tasks can sit under a Project/Process. The collection list counts both, so the
+// record loads both — work lines named only by the Objective's Tasks are fetched by id.
+async function loadTaskWorkLines(
+  db: SchemaClient,
+  tasks: readonly RelatedTask[],
+  known: readonly RelatedWorkLine[],
+): Promise<RelatedWorkLine[]> {
+  const knownIds = new Set(known.map((workLine) => workLine.id))
+  const missing = unique(tasks.map((task) => task.work_line_id)).filter((id) => !knownIds.has(id))
+  if (missing.length === 0) return []
+  const { data, error } = await db.from('work_lines').select(WORK_LINE_COLUMNS).in('id', missing).order('name')
+  if (error) throw new Error(`loadCatalogRecordData task work lines failed — ${error.message}`)
+  return asRows<RelatedWorkLine>(data)
+}
+
 async function loadObjectiveTasks(
   db: SchemaClient,
   objectiveId: string,
@@ -349,10 +365,12 @@ export async function loadCatalogRecordData(
     ? loadDefinitionTeamBindings(db, id)
     : Promise.resolve([] as DefinitionTeamBinding[])
   const relatedPromise = kind === 'objective'
-    ? loadObjectiveWorkLines(db, id).then(async (workLines) => ({
-      workLines,
-      tasks: await loadObjectiveTasks(db, id, workLines.map((workLine) => workLine.id)),
-    }))
+    ? loadObjectiveWorkLines(db, id).then(async (direct) => {
+      const tasks = await loadObjectiveTasks(db, id, direct.map((workLine) => workLine.id))
+      const viaTasks = await loadTaskWorkLines(db, tasks, direct)
+      const workLines = [...direct, ...viaTasks].sort((a, b) => a.name.localeCompare(b.name))
+      return { workLines, tasks }
+    })
     : loadWorkLineTasks(db, id).then((tasks) => ({ workLines: [] as RelatedWorkLine[], tasks }))
 
   const [parent, process, definitionTeamBindings, related] = await Promise.all([

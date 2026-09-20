@@ -85,8 +85,9 @@ describe('MobileGroupedCards', () => {
     const input = screen.getByRole('textbox', { name: /title/i })
     fireEvent.change(input, { target: { value: 'New task' } })
     fireEvent.keyDown(input, { key: 'Enter' })
+    // role=alert IS the announcement (no separate live-region echo needed) — the failed save
+    // keeps every entered value and offers Retry, never silently discarding the draft.
     expect(await screen.findByRole('alert')).toHaveTextContent(/couldn't save|try again/i)
-    expect(await screen.findByRole('status')).toHaveTextContent(/revert|couldn/i)
     expect(screen.getByRole('textbox', { name: /title/i })).toHaveValue('New task')
     expect(onDiscardNewTask).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: /retry/i }))
@@ -109,7 +110,6 @@ describe('MobileGroupedCards', () => {
           onEditPic={async (_taskId, personId) => setDraft((current) => ({ ...current, responsible_person_id: personId }))}
           onEditTeam={async (_taskId, teamId) => setDraft((current) => ({ ...current, team_id: teamId, business_unit_id: 'bu-1' }))}
           onEditSupervisor={async (_taskId, personId) => setDraft((current) => ({ ...current, accountable_person_id: personId }))}
-          onValidateNewTask={vi.fn()}
           personOptions={[{ id: 'person-1', full_name: 'Arief Said' }]}
           supervisorOptions={[{ id: 'person-2', full_name: 'Dewi Santoso' }]}
           teamOptions={[{ id: 'team-1', name: 'Café team', businessUnitId: 'bu-1' }]}
@@ -134,7 +134,9 @@ describe('MobileGroupedCards', () => {
     await waitFor(() => expect(onEditTitle).toHaveBeenCalledWith('draft-mobile', 'Ship the café launch'))
   })
 
-  it('renders draft controls outside the record link and exposes visible Save/Cancel actions', () => {
+  // The draft card renders the shared TaskCreateForm — its primary action reads "Create task"
+  // (reused i18n key), not a bare "Save".
+  it('renders the shared TaskCreateForm outside the record link with visible primary/Cancel actions', () => {
     renderCards({
       groups: [{
         key: '__flat__', label: 'Tasks', rows: [makeTask({ id: 'draft-markup', title: '', team_id: 'team-1' })],
@@ -152,8 +154,11 @@ describe('MobileGroupedCards', () => {
     const card = screen.getByTestId('task-card')
     expect(card.querySelector('a')).toBeNull()
     expect(screen.getByRole('textbox', { name: /title/i }).closest('a')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Create task' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+    // The SAME TaskCreateForm the desktop colSpan row renders (task-row.test.tsx) — one
+    // component, single column here, never a bespoke phone-only draft implementation.
+    expect(card.querySelector('.tcf')).toBeTruthy()
   })
 
   it('opens an ordinary card on plain click but preserves modified-click navigation', () => {

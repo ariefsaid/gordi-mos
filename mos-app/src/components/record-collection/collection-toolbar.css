@@ -138,8 +138,13 @@
   padding: 8px 12px;
   background: color-mix(in srgb, var(--secondary) 28%, var(--card));
 }
-/* Popover filters own their trigger styling independently of native Select consumers. */
-.collection-toolbar__choice { position: relative; }
+/* Popover filters own their trigger styling independently of native Select consumers.
+   `.collection-toolbar__select`'s 180px cap (below) is a Select-box budget, not a fit for a
+   popover trigger's "label value" copy ("Current status Active …" needs more) — a Tasks filter
+   that genuinely needs that narrower budget re-asserts its own width via a more specific
+   `[data-filter-id=…] .collection-toolbar__select` rule, so exempting the base class here does
+   not reopen that intentional ellipsis-with-title contraction. */
+.collection-toolbar__choice { position: relative; max-width: none; }
 .collection-toolbar__choice-trigger {
   display: flex;
   align-items: center;
@@ -173,10 +178,9 @@
   font-size: var(--font-size-label);
   white-space: nowrap;
 }
+/* The value reads whole — the trigger sizes to it (above) instead of clipping it. */
 .collection-toolbar__choice-value {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .collection-toolbar__choice-chevron { display: flex; flex: none; }
@@ -219,6 +223,16 @@
 
 .collection-toolbar__select { max-width: 180px; }
 .collection-toolbar__select .picker__trigger { min-height: 32px; }
+/* Below the 1024px band tuned further down, Tasks' desktop-door row (view chip strip + search +
+   "View & filters" trigger) has no per-control budget, so this row wraps to two lines rather than
+   squeezing search to an unreadable sliver — the same "search yields, never clips" priority the
+   1024px band states below, just realised as a wrap rather than a shrink where there isn't
+   enough width for either. */
+@media (max-width: 1023.98px) {
+  .tasks-collection-toolbar .collection-toolbar__primary { flex-wrap: wrap; row-gap: 8px; }
+  .tasks-collection-toolbar .collection-toolbar__query { flex: 1 1 220px; min-width: 200px; max-width: none; }
+  .tasks-collection-toolbar .collection-toolbar__search { flex: 1 1 200px; min-width: 160px; max-width: none; }
+}
 /* Tasks' desktop grammar is exactly two toolbar rows from 1024px upward. Row 2 stays on one
    line; its dropdown boxes may contract and ellipsize while their full values remain available
    through the trigger title. */
@@ -315,8 +329,10 @@
   .tasks-collection-toolbar [data-filter-id='sort'],
   .tasks-collection-toolbar [data-filter-id='sort'] .collection-toolbar__select { flex-basis: 112px; width: 112px; }
   .tasks-collection-toolbar .collection-toolbar__picker-trigger { gap: 3px; padding-inline: 3px; }
-  .tasks-collection-toolbar .collection-toolbar__search { gap: 0; padding-inline: 4px; }
-  .tasks-collection-toolbar .collection-toolbar__search > svg { display: none; }
+  /* One search-field anatomy across collections — Signals/Projects/Objectives keep their icon
+     at this same width, so Tasks does too. Tight padding buys the row's space back without
+     hiding the icon every sibling search field has. */
+  .tasks-collection-toolbar .collection-toolbar__search { gap: 4px; padding-inline: 6px; }
   /* Enough inline padding to read as two controls. At zero the labels met edge to edge and
      "Fields" and "Save view" scanned as one broken label, "Fields Save" — two separate actions
      that looked like one mistake. The row wraps below its own budget now, so the width this
@@ -771,4 +787,15 @@
   flex: 1 1 auto;
   min-width: 120px;
   max-width: none;
+}
+
+/* Tablet band: the search field keeps a usable width. The saved views take the first line and
+   the search + "View & filters" wrap onto a second one rather than squeezing the placeholder. */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .collection-toolbar.tasks-collection-toolbar .collection-toolbar__query {
+    flex: 1 1 260px;
+    min-width: 240px;
+    max-width: none;
+  }
+  .collection-toolbar.tasks-collection-toolbar .collection-toolbar__search { min-width: 200px; }
 }

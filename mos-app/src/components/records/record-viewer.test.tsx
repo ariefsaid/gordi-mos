@@ -212,30 +212,15 @@ describe('RecordViewer', () => {
     expect(await screen.findByText('Saved')).toBeInTheDocument()
   })
 
-  // E7 table-footnote parity — the quiet inline-edit hint, adapted to our fields' value-first
-  // grammar. Present only when the record is editable (a read-only record has nothing to activate).
-  it('shows the quiet inline-edit hint on an editable record', () => {
+  // No permanent "Select a field's value to edit it. Enter saves · Esc discards." footnote:
+  // Esc has two meanings (it also closes the panel elsewhere on the same surface), so it is not
+  // narrated in prose. Enter-saves/Esc-discards still work.
+  it('never renders the retired inline-edit hint, editable or not, any domain', () => {
     renderViewer(taskAdapter())
-    expect(
-      screen.getByText("Select a field's value to edit it. Enter saves · Esc discards."),
-    ).toBeInTheDocument()
-  })
-
-  it('omits the inline-edit hint on a read-only record', () => {
+    expect(document.querySelector('.record-viewer__edit-hint')).toBeNull()
     renderViewer(taskAdapter({ permission: { readOnly: true, reason: 'Archived', allowedActionIds: [] } }))
-    expect(
-      screen.queryByText("Select a field's value to edit it. Enter saves · Esc discards."),
-    ).toBeNull()
-  })
-
-  // SR-6: a Signal is permission.readOnly=false (not retracted) yet ALL its Facts are
-  // editable:false — there is genuinely nothing to activate. The hint must gate on the presence
-  // of an editable field, not on !readOnly, or it promises an edit affordance that does not exist.
-  it('SR-6: omits the inline-edit hint when no field is editable even though the record is not read-only', () => {
+    expect(document.querySelector('.record-viewer__edit-hint')).toBeNull()
     renderViewer(signalAdapter())
-    expect(signalAdapter().permission.readOnly).toBe(false)
-    expect(
-      screen.queryByText("Select a field's value to edit it. Enter saves · Esc discards."),
-    ).toBeNull()
+    expect(document.querySelector('.record-viewer__edit-hint')).toBeNull()
   })
 })

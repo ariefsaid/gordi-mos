@@ -559,7 +559,9 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     expect(screen.queryByRole('button', { name: /^help$/i })).toBeNull()
   })
 
-  it('R7: the desktop category header carries one Log link, not per-row links', async () => {
+  // ONE Log link for the whole screen, at every width, beside the toolbar rather than
+  // duplicated per group header.
+  it('R7: the desktop face carries exactly one Log link for the screen, not per-group links', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       configurable: true,
@@ -581,10 +583,13 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
   })
 
-  it('R7: the phone category header carries no Log link', async () => {
+  it('R7: the phone face keeps the same single Log link (it no longer vanishes at that width)', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    expect(screen.queryByRole('link', { name: /see .* in the café log/i })).toBeNull()
+    expect(
+      screen.getByRole('link', { name: /see .* in the café log/i }),
+    ).toHaveAttribute('href', '/cafe')
+    expect(screen.queryAllByRole('link', { name: /see .* in the café log/i })).toHaveLength(1)
     expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
   })
 

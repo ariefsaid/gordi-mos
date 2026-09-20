@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import { focusableWithin } from '@/lib/focusable'
 import './modal-shell.css'
 
@@ -15,6 +15,11 @@ export type ModalShellProps = {
   surface?: 'centered' | 'sheet'
   phoneMode?: 'centered' | 'fullscreen'
   className?: string
+  /** Focus this element on open instead of the first focusable descendant. The ref is read at the
+   * moment the dialog opens, so it works even when the dialog's own mount is gated behind an
+   * async condition the caller doesn't control (e.g. an authority check) — the caller only needs
+   * the target to already be in the DOM by the time `open` becomes true. */
+  initialFocusRef?: RefObject<HTMLElement | null>
 }
 
 /**
@@ -35,6 +40,7 @@ export function ModalShell({
   surface = 'centered',
   phoneMode = 'centered',
   className,
+  initialFocusRef,
 }: ModalShellProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const invokerRef = useRef<HTMLElement | null>(null)
@@ -45,7 +51,10 @@ export function ModalShell({
     if (!open) return
     invokerRef.current = document.activeElement as HTMLElement | null
     const dialog = dialogRef.current
-    if (dialog) {
+    const preferred = initialFocusRef?.current
+    if (preferred) {
+      preferred.focus()
+    } else if (dialog) {
       const [first] = focusableWithin(dialog)
       ;(first ?? dialog).focus()
     }
@@ -54,7 +63,7 @@ export function ModalShell({
       invokerRef.current?.focus?.()
       invokerRef.current = null
     }
-  }, [open])
+  }, [open, initialFocusRef])
 
   useEffect(() => {
     if (!open) return

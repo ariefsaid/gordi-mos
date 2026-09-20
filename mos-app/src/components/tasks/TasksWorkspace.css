@@ -46,8 +46,10 @@
    drawer becomes a flex column that FILLS that height and OWNS its overflow via an internal scroll —
    so the composition reads as one surface. The drawer's <aside> is the single card frame; its inner
    .dw-surface fills and scrolls (dropping the nested card border/shadow it carried inside the aside).
-   Scoped to the decision-column split threshold because below it the drawer is not a column. */
-@media (min-width: 1362px) {
+   Scoped to the decision-column split threshold because below it the drawer is not a column.
+   The threshold tracks TASKS_SPLIT_MIN_WIDTH (use-is-split-width.ts) — keep this literal equal
+   to that constant by hand (guard-r1-split-parity.css.test.ts pins it). */
+@media (min-width: 1306px) {
   .split:not(.nodrawer) { align-items: stretch; }
   .split .drawer {
     display: flex;
@@ -164,16 +166,11 @@
    "Overdue · <date>" exceeds the fixed due track, wrap between the state and
    the date instead of clipping mid-value (run 861b0004: 157px in a 152px cell). */
 .inline-cell-trigger--stacked { white-space: normal; text-overflow: clip; line-height: 1.25; padding-block: 2px; }
-/* Same ruling for the status value. The vocabulary is closed and its longest member is
-   the Indonesian "Sedang berjalan", which overruns the status track and was clipped
-   mid-word; the English "In Progress" clips at the compact width too. The decision
-   tracks are fixed, so the value wraps in place rather than the column moving. */
-.td-status .inline-cell-trigger { white-space: normal; text-overflow: clip; line-height: 1.25; }
-.td-status .inline-status-editor { height: auto; min-height: var(--control-height); max-height: none; }
-/* The pill's own box has to grow with the wrap, or the second line paints outside its
-   background and the trigger clips it — which is what the value looked like in Indonesian
-   even though the census measured it as fitting. */
-.td-status .status-pill { white-space: normal; height: auto; }
+/* The status vocabulary never wraps or clips — the pill's own white-space:nowrap (Tag.css) is
+   the rule everywhere. The status TRACK is given a fixed width wide enough for the longest
+   member in either locale ("Sedang berjalan"); the TITLE column is the one that gives when the
+   table narrows (see the width rules below and in the split/nth-child block above) — never
+   the pill. */
 .inline-status-editor {
   display: inline-flex;
   height: var(--control-height);
@@ -225,38 +222,9 @@
   margin-top: 3px;
 }
 
-/* Inline create keeps the title editor as the entry point, then exposes the ownership decisions
-   beside it. Team's BU line is read-only: selecting a real Team derives the value rather than
-   letting the draft invent a BU. */
-.task-create-inline-fields {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-  min-width: 0;
-}
-.task-create-inline-fields .picker { min-width: 130px; max-width: 180px; }
-.task-create-inline-fields .picker__trigger,
-.task-create-picker .picker__trigger {
-  min-height: 30px;
-  height: 30px;
-  padding: 3px 6px;
-  font-size: var(--font-size-label);
-  background: var(--background);
-}
-.task-create-derived-bu {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.task-create-picker { max-width: 100%; }
-.task-create-picker .picker { min-width: 0; max-width: 100%; }
-.task-create-picker .picker__trigger { max-width: 160px; }
-.task-create-actions { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
-.task-create-actions .btn { min-height: 30px; height: 30px; padding: 3px 8px; font-size: var(--font-size-label); }
+/* The isNew draft does not bend the row into a form: the shared create form owns its own
+   tokens (task-create-form.css `.tcf-*`) rather than styling inline Team/PIC/Supervisor
+   pickers + Save/Cancel here. */
 .task-row-save-error { display: block; }
 
 /* ── Table ── */
@@ -270,7 +238,11 @@
 .tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 0; }
 /* The Task identity column absorbs remaining space so it cannot collapse at the normal shell. */
 .tasks-table th:nth-child(1), .tasks-table td:nth-child(1) { width: auto; }   /* Task */
-.tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 12%; }    /* Status */
+/* Status keeps a %-share wide enough to fit the longest closed-vocabulary word in either locale
+   ("Sedang berjalan") without wrapping at ordinary widths. Still a bounded %-share, not a fixed
+   px — RI-3 (cascade-fixes) requires columns 2..5 to stay %, summing under 70%, so the auto
+   Task column can never be starved to 0px; this stays at 60. */
+.tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 16%; }    /* Status */
 .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 15%; }    /* PIC / Ownership */
 .tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { width: 15%; }    /* Supervisor */
 .tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 14%; }    /* Due */
@@ -279,15 +251,17 @@
    Supervisor stays in the record drawer/full page; Due must never clip ("Overdue · Mon 13 Jul"). */
 @media (max-width: 1099.98px) {
   .tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { display: none; }
-  .tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 13%; }
+  .tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 17%; }
   .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 16%; }
   .tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 21%; }
 }
-/* Split floors keep each decision column measurable. */
+/* Split floors keep each decision column measurable. Title is `auto` here too (not a fixed
+   200px) so it — never the status pill — is what gives when the record panel narrows the
+   table. */
 .split:not(.nodrawer) .tasks-table th:nth-child(1),
-.split:not(.nodrawer) .tasks-table td:nth-child(1) { width: 200px; } /* Title */
+.split:not(.nodrawer) .tasks-table td:nth-child(1) { width: auto; min-width: 120px; } /* Title */
 .split:not(.nodrawer) .tasks-table th:nth-child(2),
-.split:not(.nodrawer) .tasks-table td:nth-child(2) { width: 108px; } /* Status */
+.split:not(.nodrawer) .tasks-table td:nth-child(2) { width: 132px; } /* Status */
 /* A person column holds a first name; Due holds the longest ordinary string in the row.
    At 104px Due could not fit `Wed 16 Sept` and clipped it to `Wed 16 Se…` — a date that
    reads as a different day. The two name columns had the slack; Due takes it. */
@@ -343,6 +317,11 @@
 .task-row { cursor: pointer; height: var(--row-min-h); }
 .task-row:last-child td { border-bottom: none; }
 .task-row:hover td { background: color-mix(in srgb, var(--surface-secondary) 60%, transparent); }
+/* The create draft is a FORM row, not an openable record row — no pointer cursor, no hover
+   fill, no fixed row height (the form's real height, incl. field errors). */
+.task-row--create { cursor: default; height: auto; }
+.task-row--create:hover td { background: transparent; }
+.td-create { padding: 0; }
 .task-row.row-selected td { background: var(--secondary); } /* CONV: neutral-grey selected/open row — de-blued (owner pref + One-Blue Rule) */
 /* AC-109 keyboard cursor: a plain primary 2px inset rule (no new --kbd-cursor token,
    design-plan §6.2). box-shadow inset keeps the row height stable (no layout shift). */
@@ -497,24 +476,8 @@
   font-weight: 500;
 }
 .task-card-meta dd { display: inline; margin: 0; font-size: var(--font-size-label); }
-/* #742 AC-060: the draft card's PIC-lock sentence ("Only you can be PIC — a supervisor names
-   others"), shown only when the viewer has no downline. A block below the name, not inline with
-   it — it is an explanation, not another value in the "Label value" pair. */
-.task-card-pic-lock { display: block; font-size: var(--font-size-label); color: var(--muted-foreground); }
-.task-card-create-fields { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: 6px; }
-.task-card-create-control { display: inline-flex; min-width: 0; max-width: 100%; }
-.task-card-create-control .picker { min-width: 120px; max-width: 100%; }
-.task-card-create-control .picker__trigger {
-  min-height: 36px; height: 36px; max-width: 160px;
-  padding: 5px 8px; font-size: var(--font-size-label);
-}
-.task-card-derived-bu {
-  min-width: 0; overflow: hidden; color: var(--muted-foreground);
-  font-size: var(--font-size-label); text-overflow: ellipsis; white-space: nowrap;
-}
-.task-card-create-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.task-card-create-actions .btn { min-width: 82px; }
-.task-card-create-error { margin-top: 6px; }
+/* The draft card renders the shared TaskCreateForm (task-create-form.css `.tcf-*`), not a
+   dl-based create-fields/derived-bu/actions/PIC-lock layout of its own. */
 
 /* ── Below the split fallback threshold (PR-D owns the full responsive regime):
    stack the panes so PR-B never crushes the table. PR-C/PR-D refine modal/overlay. */
@@ -526,31 +489,12 @@
 
 /* Two bounded columns keep PIC and Supervisor together; due spans the row below. */
 @media (max-width: 599.98px) {
-  .task-card-create-control .picker__trigger { min-height: 44px; height: 44px; }
   /* Combined selector for the same reason as `.collection-grammar-title.task-name` above: this
      <dl> also carries `.collection-grammar-card-details`, whose `gap: 6px 12px` is a single-class
      rule with no media query. A media query adds no specificity, so whichever stylesheet imports
      last wins — and the tighter phone gap this rule exists to set was being silently overridden. */
   .task-card-meta,
   .task-card-meta.collection-grammar-card-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; gap: 4px 12px; }
-  /* In a read-only card these cells hold text, and 4px between two lines is right. In the
-     DRAFT card they hold 44px pickers, so the same 4px put two tap targets half the phone
-     floor apart — Team above, PIC beside Supervisor below. Only the draft row opens up.
-     Selectors carry four and five classes deliberately: the competing queue rules carry three
-     and four and come later in source order, so matching their count would lose the tie-break. */
-  .tasks-work-queue .task-card .task-card-draft .task-card-meta,
-  .tasks-work-queue .task-card .task-card-draft .task-card-meta.collection-grammar-card-details {
-    row-gap: 8px;
-    margin-top: 8px;
-    /* One column, not two. A read-only cell holds a short value beside its label and two fit
-       across a phone; a draft cell holds a 44px picker whose placeholder is a sentence, and
-       half a phone left "Select supervisor…" needing 120px in an 89px box. */
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .tasks-work-queue .task-card .task-card-draft .task-card-meta-pair { width: 100%; }
-  .tasks-work-queue .task-card .task-card-draft .task-card-create-control { flex: 1 1 auto; min-width: 0; }
-  .tasks-work-queue .task-card .task-card-draft .task-card-create-control .picker,
-  .tasks-work-queue .task-card .task-card-draft .task-card-create-control .picker__trigger { width: 100%; }
   .task-card-meta-pair { max-width: 100%; min-width: 0; }
   .task-card-meta-pair:last-child { grid-column: 1 / -1; }
   /* The due pair is the last one, and its label is the one word the value already says: the
@@ -772,7 +716,7 @@ tr.grp td { padding: 0; }
    the split nth-child floors that mis-land once optional columns shift every position. */
 .tasks-table--extended { min-width: 1244px; }
 .tasks-table--extended th.th-task, .tasks-table--extended td.td-main { width: 160px; }
-.tasks-table--extended th.th-status, .tasks-table--extended td.td-status { width: 108px; }
+.tasks-table--extended th.th-status, .tasks-table--extended td.td-status { width: 132px; }
 .tasks-table--extended th.th-owner, .tasks-table--extended td.td-owner { width: 128px; }
 .tasks-table--extended th.th-supervisor, .tasks-table--extended td.td-supervisor { width: 120px; }
 .tasks-table--extended th.th-due, .tasks-table--extended td.td-due { width: 176px; }
@@ -780,7 +724,7 @@ tr.grp td { padding: 0; }
 .tasks-table--extended th.th-workline, .tasks-table--extended td.td-workline { width: 144px; }
 .tasks-table--extended th.th-objective, .tasks-table--extended td.td-objective { width: 112px; }
 .tasks-table--extended th.th-activity, .tasks-table--extended td.td-activity { width: 128px; }
-.split:not(.nodrawer) .tasks-table--extended th.th-status, .split:not(.nodrawer) .tasks-table--extended td.td-status { width: 108px; }
+.split:not(.nodrawer) .tasks-table--extended th.th-status, .split:not(.nodrawer) .tasks-table--extended td.td-status { width: 132px; }
 .split:not(.nodrawer) .tasks-table--extended th.th-owner, .split:not(.nodrawer) .tasks-table--extended td.td-owner { width: 128px; }
 .split:not(.nodrawer) .tasks-table--extended th.th-supervisor, .split:not(.nodrawer) .tasks-table--extended td.td-supervisor { width: 120px; }
 .split:not(.nodrawer) .tasks-table--extended th.th-due, .split:not(.nodrawer) .tasks-table--extended td.td-due { width: 104px; }
@@ -834,4 +778,13 @@ tr.grp td { padding: 0; }
   .task-card-meta-pair--supervisor .owner > .ownav {
     display: none;
   }
+}
+
+/* A status pill is never cut: the trigger that wraps it does not ellipsize, and below the wide
+   desktop band the status column takes a share that fits the longest label at the narrowest
+   table (21% of 720px). It stays a percentage like every other secondary column, so the auto
+   Task column is always left a remainder. */
+.tasks-table td.td-status .inline-cell-trigger { overflow: visible; text-overflow: clip; }
+@media (max-width: 1099.98px) {
+  .tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 21%; }
 }

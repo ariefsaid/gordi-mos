@@ -266,15 +266,17 @@ describe('D3e — Tasks create is an inline title row', () => {
     })
   })
 
-  it('Escape discards the inline row without writing', async () => {
+  it('Escape discards the inline row without writing, and returns focus to the opener', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
     renderTable()
     await waitFor(() => expect(screen.getByText('Existing task')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: '+ Create task' }))
+    const opener = screen.getByRole('button', { name: '+ Create task' })
+    fireEvent.click(opener)
     const titleInput = await screen.findByRole('textbox', { name: /title/i })
     fireEvent.keyDown(titleInput, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('textbox', { name: /title/i })).toBeNull())
     expect(mockCreateTask).not.toHaveBeenCalled()
+    await waitFor(() => expect(opener).toHaveFocus())
   })
 
   it('keeps an ambiguous Team and empty Supervisor honest until the user chooses both', async () => {
@@ -657,7 +659,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     stubMatchMedia(false, false)
     renderTable()
     await waitFor(() => screen.getByText('Only work item'))
-    expect(screen.queryByRole('link', { name: '+ Create task' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '+ Create task' })).toBeNull()
   })
 
   // DO-17 (census-sweep R2 tasks FINDING2): the shell's Action Launcher FAB exists whenever the
@@ -668,7 +670,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     stubMatchMedia(false, true, true) // not split, ≥768, but rail collapsed (<920)
     renderTable()
     await waitFor(() => screen.getByText('Only work item'))
-    expect(screen.queryByRole('link', { name: '+ Create task' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '+ Create task' })).toBeNull()
   })
 
   it('AC-I-TASK: Indonesian locale translates the member disclosure and typed filter grammar', async () => {
@@ -1228,6 +1230,29 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       )
     })
 
+    // Starting creation from ANY entry clears ?record= first, so a draft and an open record
+    // panel are never on screen together. `n` is the entry that most directly exercises this —
+    // the collection keyboard layer deliberately does not gate it on `overlayActive` (see
+    // use-collection-keyboard.ts), so it is reachable with a record open.
+    it('starting creation (keyboard n) while a record is open closes the panel and clears ?record=', async () => {
+      const task = makeTask({ id: 'task-open', title: 'Open task' })
+      mockListTasks.mockResolvedValue([task])
+      mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+      const { getLocation } = renderAt(['/work/tasks?record=task-open'])
+      await waitFor(() =>
+        expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy(),
+      )
+      await waitFor(() => expect(getLocation()?.search).toContain('record=task-open'))
+
+      fireEvent.keyDown(window, { key: 'n' })
+
+      await waitFor(() => expect(screen.getByRole('textbox', { name: /title/i })).toBeInTheDocument())
+      expect(getLocation()?.search ?? '').not.toContain('record=')
+      await waitFor(() =>
+        expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeNull(),
+      )
+    })
+
     it('Browser Back from an in-app-opened drawer returns to the collection and clears ?record=', async () => {
       const task = makeTask({ id: 'task-clear', title: 'Clearable task' })
       mockListTasks.mockResolvedValue([task])
@@ -1350,6 +1375,38 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       expect(screen.getByRole('button', { name: /^view & filters/i })).toHaveAttribute('aria-expanded', 'true')
       expect(screen.getByRole('button', { name: /save view/i })).toHaveFocus()
     })
+  })
+
+  it('starting creation over a dirty record asks first: Cancel keeps the record and opens no draft, Discard opens it', async () => {
+    const task = makeTask({ id: 'task-dirty-create', title: 'Dirty before create' })
+    mockListTasks.mockResolvedValue([task])
+    mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+    renderTable()
+
+    await waitFor(() => screen.getByText('Dirty before create'))
+    fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Due' }))
+    const due = screen.getByLabelText('Due') as HTMLInputElement
+    mockUpdateTaskFields.mockRejectedValue(new Error('offline'))
+    fireEvent.change(due, { target: { value: '2026-08-01' } })
+    fireEvent.keyDown(due, { key: 'Enter' })
+    await screen.findByRole('alert')
+
+    // The shortcut is ignored while a field has focus, so leave the field first. Two presses
+    // while the close is pending still ask once and open at most one draft.
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    fireEvent.keyDown(window, { key: 'n' })
+    fireEvent.keyDown(window, { key: 'n' })
+    expect(await screen.findByRole('dialog')).toHaveTextContent(/discard unsaved changes/i)
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy()
+    expect(screen.queryByRole('textbox', { name: /^title/i })).toBeNull()
+
+    fireEvent.keyDown(window, { key: 'n' })
+    fireEvent.click(await screen.findByRole('button', { name: /discard changes/i }))
+    await waitFor(() => expect(screen.getAllByRole('textbox', { name: /^title/i })).toHaveLength(1))
+    expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeNull()
   })
 
   it('AC-V3-008: a dirty task overlay asks before Close, keeps the record on Cancel, and leaves on Discard', async () => {

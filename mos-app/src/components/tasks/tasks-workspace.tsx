@@ -3,8 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import type { To } from 'react-router-dom'
-import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsNarrow } from '@/shell/use-is-narrow'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
 import { collectionDisclosureSummary } from '@/lib/record-collection/disclosure-summary'
@@ -172,9 +172,6 @@ export function TasksWorkspace({
   const { buildEntry: buildRelatedEntry } = useCatalogRecordEntryFactory({ owner: 'tasks' })
   const auth = useAuth()
   const isDesktop = useIsDesktop()
-  // DO-17 (census-sweep R2 tasks FINDING2): the global Action Launcher FAB exists whenever the
-  // rail is collapsed (<920, useIsNarrow) — so the header create door hides on isNarrow, not
-  // !isDesktop (<768), or the 768–919 band shows BOTH doors.
   const isNarrow = useIsNarrow()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const viewerOrgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : null
@@ -198,7 +195,6 @@ export function TasksWorkspace({
   }, [accessRoles, auth, location.search, savedView])
   const [draftTask, setDraftTask] = useState<TaskListRow | null>(null)
   const [draftLinkError, setDraftLinkError] = useState(false)
-  const [draftValidationError, setDraftValidationError] = useState('')
   // `null` means the viewer Team directory is still loading; [] is an honest no-eligible-Team
   // result and must never be replaced with a BU/first-row guess.
   const [viewerTeams, setViewerTeams] = useState<readonly TeamOption[] | null>(null)
@@ -495,7 +491,6 @@ export function TasksWorkspace({
       setDraftTask((current) => current?.id === taskId
         ? { ...current, responsible_person_id: personId }
         : current)
-      setDraftValidationError('')
       return
     }
     if (!viewerId) throw new Error('inline PIC edit requires an authenticated viewer')
@@ -515,38 +510,20 @@ export function TasksWorkspace({
           business_unit_id: selected?.businessUnitId ?? '',
         }
       : current)
-    setDraftValidationError('')
   }, [draftTask?.id, viewerTeams])
   const onEditSupervisor = useCallback(async (taskId: string, personId: string) => {
     if (draftTask?.id !== taskId) return
     setDraftTask((current) => current?.id === taskId
       ? { ...current, accountable_person_id: personId }
       : current)
-    setDraftValidationError('')
   }, [draftTask?.id])
-  const onValidateNewTask = useCallback((taskId: string) => {
-    if (draftTask?.id !== taskId) return
-    if (!draftTask.team_id || !draftTask.business_unit_id) {
-      setDraftValidationError(t('tasks.create.teamRequired'))
-      return
-    }
-    if (!draftTask.accountable_person_id) {
-      setDraftValidationError(t('tasks.create.supervisorRequired'))
-    }
-  }, [draftTask, t])
   const onEditTitle = useCallback(async (taskId: string, title: string) => {
     if (draftTask?.id === taskId) {
       if (!viewerId) throw new Error('inline task creation requires an authenticated viewer')
       draftTitleRef.current = title
-      if (!draftTask.team_id || !draftTask.business_unit_id) {
-        setDraftValidationError(t('tasks.create.teamRequired'))
-        return
-      }
-      if (!draftTask.accountable_person_id) {
-        setDraftValidationError(t('tasks.create.supervisorRequired'))
-        return
-      }
-      setDraftValidationError('')
+      // TaskCreateForm already gates its onCreate call on title + Team/BU + Supervisor all
+      // being present, so this is a defensive no-op, never a user-visible path.
+      if (!draftTask.team_id || !draftTask.business_unit_id || !draftTask.accountable_person_id) return
       const existingTaskId = createdDraftTaskRef.current
       const createdTaskId = existingTaskId ?? await createTask({
         title,
@@ -597,7 +574,6 @@ export function TasksWorkspace({
     createdDraftTaskRef.current = null
     draftTitleRef.current = ''
     setDraftLinkError(false)
-    setDraftValidationError('')
     setDraftTask(null)
   }, [t])
   useEffect(() => {
@@ -612,8 +588,15 @@ export function TasksWorkspace({
     }
     if (drawerOpen) navigate({ pathname: '/work/tasks', search: currentSearch })
   }, [currentSearch, drawerOpen, host, navigate])
-  const onNewTask = useCallback((prefillParam = '') => {
+  // Opens the draft. It never looks at the record panel: callers decide whether one has to close
+  // first, so a continuation after a close cannot find a stale "panel still open" and ask again.
+  const beginNewTask = useCallback((prefillParam = '') => {
     if (!dataContext || draftTask) return
+    if (params.get('record')) {
+      const next = new URLSearchParams(params)
+      next.delete('record')
+      setParams(next, { replace: true })
+    }
     if (viewerTeams === null) {
       // Keep direct button/group-header creates queued while the real Team directory resolves.
       // The URL-create effect will also retry through this same path; no synthetic BU is shown.
@@ -622,7 +605,6 @@ export function TasksWorkspace({
       return
     }
     setDraftLinkError(false)
-    setDraftValidationError('')
     setAnnouncement('')
     createdDraftTaskRef.current = null
     draftTitleRef.current = ''
@@ -679,7 +661,26 @@ export function TasksWorkspace({
       created_at: now, updated_at: now, process_run_id: null, generated_from_task_def_id: null,
     })
     draftSourceSignalRef.current = sourceSignal ?? draftSourceSignalRef.current
-  }, [dataContext, draftTask, params, query.businessUnitId, query.picId, query.status, query.supervisorId, viewerId, viewerTeams])
+  }, [dataContext, draftTask, params, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
+  // Every create entry — page button, global actions menu, command menu, keyboard shortcut, group
+  // "Add" — comes through here, so a draft and an open record are never on screen together. A
+  // dirty record may refuse to close; the draft opens only on a committed close, and only once
+  // per close however many times the entry fires while it is pending.
+  const beginNewTaskRef = useRef(beginNewTask)
+  useEffect(() => { beginNewTaskRef.current = beginNewTask }, [beginNewTask])
+  const closingForCreateRef = useRef(false)
+  const onNewTask = useCallback((prefillParam = '') => {
+    if (!host.session?.frames.some((frame) => frame.entry.owner === 'tasks')) {
+      beginNewTask(prefillParam)
+      return
+    }
+    if (closingForCreateRef.current) return
+    closingForCreateRef.current = true
+    void host.close().then((result) => {
+      closingForCreateRef.current = false
+      if (result.status === 'committed') beginNewTaskRef.current(prefillParam)
+    })
+  }, [beginNewTask, host])
   const onAddTask = useCallback((prefillParam: string) => onNewTask(prefillParam), [onNewTask])
   useEffect(() => {
     if ((!createIntentRef.current && params.get('create') !== '1') || !dataContext) return
@@ -749,11 +750,9 @@ export function TasksWorkspace({
       })()
   // Census R2 DO-6's reserved placeholder state is gone with the AR Follow-ups view (#743):
   // every view now renders the live collection body.
-  // Block 2(d) (Luna 390 audit): the header "+ Create task" is the DESKTOP create door; on phone
-  // the single create door is the global + Action Launcher FAB (DESIGN.md No-FAB Rule / one
-  // launcher location app-wide) — hide the header button at phone width to kill the duplicate door.
-  // DO-17: the FAB renders whenever the rail is collapsed (<920), so the gate is !isNarrow — the
-  // 768–919 band must never show both doors.
+  // One create door per width. The global + launcher renders whenever the rail is collapsed
+  // (below 920px), so the labelled header button yields to it there; above that the header
+  // button is the door.
   // A record is open in either of two ways — the `drawerOpen` prop, or an overlay session this
   // surface owns. The split class and the collection runtime already read both; this door read
   // only the prop, so opening a row from the table left the create door standing beside the
@@ -827,12 +826,10 @@ export function TasksWorkspace({
     onEditPic,
     onEditTeam,
     onEditSupervisor,
-    onValidateNewTask,
     teamOptions: viewerTeams ?? [],
     draftTask,
     onDiscardNewTask,
     draftLinkError,
-    draftValidationError,
     onRetryDraftLink,
     onCloseDrawer,
     onNewTask,
@@ -855,8 +852,8 @@ export function TasksWorkspace({
   }), [
     currentSearch, recordOpen, draftTask, host.session, isDesktop, onAddTask,
     params,
-    onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onValidateNewTask, onNewTask, onOpenTask, onClearFilters, onSort,
-    processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, draftValidationError, onRetryDraftLink, viewerTeams,
+    onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onNewTask, onOpenTask, onClearFilters, onSort,
+    processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink, viewerTeams,
   ])
 
   const controls = !isDesktop ? (

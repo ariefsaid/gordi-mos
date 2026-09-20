@@ -158,13 +158,13 @@ describe('AC-013/020 (T13): ContextRow — region + job sentence + scope', () =>
     // region-3 page head owns the sentence, so ContextRow must NOT emit a duplicate copy.
     markMigrated('/work/signals')
     renderCtx('/work/signals')
-    expect(screen.queryByText('Search and revisit the Signals your Teams have shared.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Search and revisit the Signals shared across the org.')).not.toBeInTheDocument()
   })
 
   it('R-OWNER-1: suppresses the Signals job sentence at the migrated record route /work/signals/:id', () => {
     markMigrated('/work/signals/:signalId')
     renderCtx('/work/signals/sig-1')
-    expect(screen.queryByText('Search and revisit the Signals your Teams have shared.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Search and revisit the Signals shared across the org.')).not.toBeInTheDocument()
   })
 
   it('R-OWNER-1: suppresses the Tasks job sentence at the migrated /work/tasks route (region 3 owns it)', () => {

@@ -7,7 +7,13 @@
    (the action blue) — matches the kitchen table hover convention.
    ════════════════════════════════════════════════════════════════════════════ */
 
-.dt-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-control); }
+/* `border-collapse: separate` (not `collapse`) on purpose: a sticky `<th>`'s background
+   paints behind a collapsed border in the same layer as the row beneath it, so once the
+   header sticks, the scrolling row shows through at the header's edge — rows read as sliced
+   mid-glyph instead of hidden under an opaque bar. Separate borders keep each cell's own
+   background box intact under `position: sticky`. `border-spacing: 0` keeps every row's own
+   1px `border-bottom` (below) the only visible divider, matching the collapsed look exactly. */
+.dt-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--font-size-control); }
 
 .dt-caption {
   /* visually hidden but announced — the accessible table name lives on aria-label

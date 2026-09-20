@@ -168,6 +168,9 @@ export interface RecordViewerAdapter {
   tabs?: readonly RecordViewerTab[]
   metadata: readonly RecordMetadataSection[]
   relations: readonly RecordRelation[]
+  /** Visible heading for the relations list (e.g. "Projects & Processes"). Omitted when a domain
+   * has nothing to show under `relations` (they always pass an empty array in that case). */
+  relationsLabel?: string
   contentSlots: readonly RecordContentSlot[]
   activity: readonly RecordActivityItem[]
   actions: readonly RecordAction[]

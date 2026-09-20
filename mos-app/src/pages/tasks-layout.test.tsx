@@ -505,7 +505,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     fireEvent.mouseUp(title)
     fireEvent.click(title)
     await waitFor(() => expect(currentPath).toContain('record=task-1'))
-    expect(screen.queryByLabelText('Edit task title')).toBeNull()
+    expect(screen.queryByLabelText('Title')).toBeNull()
     first.unmount()
 
     // 1300 — below the split threshold: the same click opens the standalone record page.
@@ -519,7 +519,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     fireEvent.mouseUp(pageTitle)
     fireEvent.click(pageTitle)
     await waitFor(() => expect(pagePath).toBe('/work/tasks/task-1'))
-    expect(screen.queryByLabelText('Edit task title')).toBeNull()
+    expect(screen.queryByLabelText('Title')).toBeNull()
   })
 
   // AC-023 (ticket #750): /work/tasks/new is a RETIRED door — one redirect hop back to the
@@ -531,7 +531,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
     renderAtWithLocation('/work/tasks/new', () => {})
     // The draft row is the NEW task row: an editor input, focused, replacing the title cell.
-    const titleInput = await screen.findByLabelText('Edit task title')
+    const titleInput = await screen.findByLabelText('Title')
     await waitFor(() => expect(titleInput).toHaveFocus())
     // No create drawer mounts — the draft row is the create surface.
     expect(screen.queryByRole('complementary', { name: /create task/i })).toBeNull()
@@ -549,7 +549,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     renderAt('/work/tasks')
     const create = await screen.findByRole('link', { name: /\+ create task/i })
     fireEvent.click(create)
-    const titleInput = await screen.findByLabelText('Edit task title')
+    const titleInput = await screen.findByLabelText('Title')
     await waitFor(() => expect(titleInput).toHaveFocus())
   })
 
@@ -581,7 +581,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockCreateTask.mockResolvedValue('task-new')
     renderAt('/work/tasks?create=1')
     // The draft row mounts with its editor focused.
-    const titleInput = await screen.findByLabelText('Edit task title')
+    const titleInput = await screen.findByLabelText('Title')
     // Initially the table is empty. The count reads inside the ONE muted meta sentence
     // ("N open · M in view") — the content-header count pill was removed.
     await waitFor(() => {

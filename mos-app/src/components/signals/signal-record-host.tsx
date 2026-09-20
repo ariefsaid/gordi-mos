@@ -376,7 +376,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
 
   // Reflect the resolved record name to a page host (breadcrumb / Ask-Deputy seed).
   useEffect(() => {
-    if (detail) onTitleResolved?.(detail.signal.retracted_at ? t('signals.retracted') : firstLine(detail.signal.body))
+    if (detail) onTitleResolved?.(detail.signal.retracted_at ? t('signals.record.retractedTitle') : firstLine(detail.signal.body))
   }, [detail, onTitleResolved, t])
 
   if (state === 'loading') {
@@ -767,7 +767,10 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
           retractedAtLabel: retracted && signal.retracted_at ? formatWibDateTime(signal.retracted_at) : null,
           // DO-13/I18N-2: the identity type-kicker localizes with the rest of the record chrome.
           typeLabel: t('signals.record.title'),
-          tombstoneLabel: t('signals.retracted'),
+          // The heading carries a distinct noun-phrase title; the message-region tombstone
+          // sentence (tested standalone in signal-record.test.tsx) owns the declarative copy, so
+          // the record never prints the same sentence twice.
+          tombstoneLabel: t('signals.record.retractedTitle'),
         })}
         mode={mode}
         canonicalHref={canonicalHref}

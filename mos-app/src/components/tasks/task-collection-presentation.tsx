@@ -57,14 +57,11 @@ export interface TaskCollectionRuntime {
   onEditTeam: (taskId: string, teamId: string) => Promise<void>
   /** Draft-only Supervisor choice; unlike PIC this is never inferred from the viewer. */
   onEditSupervisor: (taskId: string, personId: string) => Promise<void>
-  /** Validate the draft without committing it when Enter is pressed too early. */
-  onValidateNewTask: (taskId: string) => void
   /** Effective viewer Teams offered by the inline create row. */
   teamOptions: readonly TaskTeamOption[]
   draftTask: TaskListRow | null
   onDiscardNewTask: () => void
   draftLinkError: boolean
-  draftValidationError: string
   onRetryDraftLink: () => void
   onCloseDrawer: () => void
   onNewTask: (prefillParam?: string) => void
@@ -118,12 +115,10 @@ const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
   onEditPic: async () => {},
   onEditTeam: async () => {},
   onEditSupervisor: async () => {},
-  onValidateNewTask: () => {},
   teamOptions: [],
   draftTask: null,
   onDiscardNewTask: () => {},
   draftLinkError: false,
-  draftValidationError: '',
   onRetryDraftLink: () => {},
   onCloseDrawer: () => {},
   onNewTask: () => {},
@@ -508,7 +503,6 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         teamOptions={isNew ? runtime.teamOptions : []}
         onEditTeam={isNew ? runtime.onEditTeam : undefined}
         onEditSupervisor={isNew ? runtime.onEditSupervisor : undefined}
-        onValidateNewTask={isNew ? runtime.onValidateNewTask : undefined}
         showBusinessUnit={query.visibleFields.includes('businessUnit')}
         // AC-006 (#743): every field the Fields chooser offers renders a real column when checked.
         // The names resolve through the same catalogs the group headers use (id → display name).
@@ -520,13 +514,14 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         isNew={isNew}
         onDiscardNewTask={runtime.onDiscardNewTask}
         createError={isNew && runtime.draftLinkError}
-        createValidationError={isNew ? runtime.draftValidationError : ''}
         onRetryCreate={runtime.onRetryDraftLink}
         supervisorName={personMap.get(task.accountable_person_id) ?? ''}
         recordSearch={runtime.recordSearch}
         provenanceRoleName={task.generated_from_task_def_id
           ? context.provenanceByTaskDefId.get(task.generated_from_task_def_id)
           : undefined}
+        columnSpan={taskTableColumnSpan(query.visibleFields)}
+        viewerHasNoDownline={(context.downlinePersonIds?.length ?? 0) === 0}
       />
     )
   }
@@ -599,11 +594,9 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         onEditPic={runtime.onEditPic}
         onEditTeam={runtime.onEditTeam}
         onEditSupervisor={runtime.onEditSupervisor}
-        onValidateNewTask={runtime.onValidateNewTask}
         personOptions={picOptions(context.viewerId ?? '', context.people, context.downlinePersonIds ?? [])}
         supervisorOptions={context.people}
         teamOptions={runtime.teamOptions}
-        draftValidationError={runtime.draftValidationError}
         draftTaskId={runtime.draftTask?.id}
         onDiscardNewTask={runtime.onDiscardNewTask}
         viewerHasNoDownline={(context.downlinePersonIds?.length ?? 0) === 0}

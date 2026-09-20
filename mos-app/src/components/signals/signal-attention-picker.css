@@ -1,12 +1,28 @@
 .signal-attention-picker { position: relative; display: inline-flex; flex-direction: column; gap: 6px; }
 .signal-attention-picker-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* The trigger IS the tone pill — sized/radiused to match the neighbouring occurred-at chip
+   (.signal-composer-context-pill: 32px min-height, 0 10px padding, radius-pill). */
 .signal-attention-picker-trigger {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 8px;
-  border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--background);
-  color: var(--foreground); font: inherit; font-size: var(--font-size-label); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px;
+  border: 1px solid transparent; border-radius: var(--radius-pill);
+  font: inherit; font-size: var(--font-size-label); font-weight: 600; white-space: nowrap; cursor: pointer;
 }
-.signal-attention-picker-trigger:hover { background: var(--surface-tertiary); }
 .signal-attention-picker-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.signal-attention-picker-trigger--urgent,
+.signal-attention-picker-trigger--needs-attention {
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning-foreground);
+}
+.signal-attention-picker-trigger--urgent::before {
+  content: ""; flex: none; width: 6px; height: 6px; margin-right: -2px;
+  border-radius: var(--radius-pill); background: var(--warning);
+}
+/* FYI's --secondary tint sits almost flush with the card background; the border keeps it
+   readable as a pill instead of blending into the surface behind it. */
+.signal-attention-picker-trigger--fyi {
+  background: var(--secondary); color: var(--muted-foreground); border-color: var(--border);
+}
+.signal-attention-picker-chevron { flex: none; opacity: 0.7; }
 .signal-attention-picker .signal-attention {
   display: inline-flex; align-items: center; flex: none; height: 22px; margin-left: 0;
   padding: 0 9px; border-radius: var(--radius-pill); font-size: var(--font-size-label);
@@ -21,13 +37,19 @@
   content: ""; flex: none; width: 6px; height: 6px; margin-right: 5px;
   border-radius: var(--radius-pill); background: var(--warning);
 }
+/* Same border-for-contrast treatment as the trigger, scoped to this picker's own option rows —
+   the app-wide `.signal-attention--fyi` (feed rows, table, record header) is untouched. */
 .signal-attention-picker .signal-attention--fyi {
   background: var(--secondary);
   color: var(--muted-foreground);
+  border: 1px solid var(--border);
 }
-.signal-attention-picker-chevron { color: var(--muted-foreground); font-size: var(--font-size-control); line-height: 1; }
+/* Portaled to <body> and positioned in viewport pixels via inline style (signal-attention-picker.tsx)
+   — fixed, not absolute, so it never becomes part of the dialog's own scrollable content and
+   focusing it cannot drag the dialog's scroll position. It opens from inside a modal, so it stacks
+   above --z-modal, on the same layer as the shared picker menu (picker.css). */
 .signal-attention-picker-options {
-  position: absolute; z-index: var(--z-popover, 30); top: calc(100% + 6px); left: 0; min-width: 220px;
+  position: fixed; z-index: 100; min-width: 220px;
   display: flex; flex-direction: column; gap: 2px; padding: 6px;
   border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card);
   box-shadow: var(--shadow-overlay);
@@ -41,7 +63,8 @@
 .signal-attention-picker-option[aria-selected='true'],
 .signal-attention-picker-option[data-active='true'] { background: var(--secondary); font-weight: 600; }
 .signal-attention-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.signal-attention-picker-meaning { color: var(--muted-foreground); font-size: var(--font-size-micro); font-weight: 400; white-space: nowrap; }
+.signal-attention-picker-meaning { flex: 1; color: var(--muted-foreground); font-size: var(--font-size-micro); font-weight: 400; white-space: nowrap; }
+.signal-attention-picker-check { flex: none; color: var(--foreground); }
 
 /* #708: the pill's height already met the 44px phone floor; its content-driven width (43.2px /
    42.2px measured) did not. Scoped to phone so the desktop 1440 render (already ≥44 by content)

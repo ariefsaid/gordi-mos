@@ -1,14 +1,12 @@
-// AA guard — #578: the mention picker's active row painted a solid `--accent` fill over both the
-// type badge (person/team/bu) and the name, sinking the badge to invisible and the name text to
-// low contrast. jsdom can't compute var() chains, so this asserts at the CSS-SOURCE level that
-// the active row uses the accent-SUBTLE wash token (the same one the sibling category picker's
-// own selected state already uses — signal-card.css `.signal-category-option[aria-selected]`),
-// never the solid `--accent` fill.
+// AA guard — #578: the mention picker's active row painted a solid `--accent` fill over the row
+// name, sinking it to low contrast. jsdom can't compute var() chains, so this asserts at the
+// CSS-SOURCE level that the active row uses the accent-SUBTLE wash token (the same one the
+// sibling category picker's own selected state already uses — signal-card.css
+// `.signal-category-option[aria-selected]`), never the solid `--accent` fill.
 //
-// The person-badge-specific stacked-wash contrast failure this uncovered (two --accent-subtle
-// layers compounding to 3.99:1, below AA) is pinned as real numbers in
-// src/styles/tokens/contrast.test.ts, not here — this file can only compare CSS source text, it
-// cannot compute a contrast ratio.
+// The per-row `.type-badge` is retired (it duplicated the group header's PERSON/TEAM/BU label) —
+// the guard below (same pattern as signal-css-coverage.test.ts's retired-class check) keeps it
+// genuinely absent, so a badge reintroduced without its own contrast work would still be caught.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -44,24 +42,7 @@ describe('mention-row.is-active — legible badge + name (WCAG-AA)', () => {
     expect(css).toMatch(/\.mention-row\.is-active:hover/)
   })
 
-  it('[forward guard] every type-badge variant still declares its own background somewhere', () => {
-    for (const selector of ['.type-badge--person', '.type-badge--team', '.type-badge--bu']) {
-      expect(css).toMatch(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{[^}]*background:`))
-    }
+  it('the retired .type-badge family is genuinely absent, not merely unstyled', () => {
+    expect(css).not.toMatch(/\.type-badge/)
   })
-
-  it('the active-row person badge gets an opaque override; team/bu do not (#578)', () => {
-    expect(css).toMatch(/\.mention-row\.is-active\s+\.type-badge--person\s*\{/)
-    expect(css).not.toMatch(/\.mention-row\.is-active\s+\.type-badge--team/)
-    expect(css).not.toMatch(/\.mention-row\.is-active\s+\.type-badge--bu/)
-  })
-
-  it('the active-row person badge override uses the opaque theme-invariant chip pair (#578)', () => {
-    const overrideIdx = css.indexOf('.mention-row.is-active .type-badge--person')
-    expect(overrideIdx).toBeGreaterThanOrEqual(0)
-    const overrideBody = ruleBody(css.slice(overrideIdx), '.mention-row.is-active .type-badge--person')
-    expect(overrideBody).toMatch(/background:\s*var\(--ds-color-blue\)/)
-    expect(overrideBody).toMatch(/color:\s*var\(--ds-font-color-inverted\)/)
-  })
-
 })

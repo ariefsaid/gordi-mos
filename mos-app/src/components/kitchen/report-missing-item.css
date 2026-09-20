@@ -1,7 +1,10 @@
 /* ReportMissingItem — the DD-WAY-29 exit route (FR-012, AC-013). Quiet by design:
    a ghost-button line under the item list, expanding to one field + one action. */
 .kl-missing {
-  margin: 8px 0 0;
+  /* The dead space above this line is mostly the sticky footer's own clearance reserve on the
+     list above (kitchen-log-page.css) — this report line sits in that reserve, so it hugs the
+     list's last row rather than adding a second gap of its own. */
+  margin: 0;
   padding: 4px 0;
 }
 .kl-missing-cta {

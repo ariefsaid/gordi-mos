@@ -136,8 +136,18 @@ export function CafeOpeningPanel({ processId, teamId, teamName, presentation = '
             <p className="cafe-opening-status">
               {t(canStart ? 'cafe.opening.notStartedLead' : 'cafe.opening.notStartedMember')}
             </p>
+            {/* The capture form below reads Plan 0 until the opening starts; say the reason
+                once, here, beside the action that resolves it. */}
+            <p className="cafe-opening-status cafe-opening-status--muted">
+              {t('cafe.opening.planLoadsAfterStart')}
+            </p>
             {canStart && (
-              <Button variant="primary" disabled={starting} onClick={() => { void handleStart() }}>
+              // Submit is the capture form's job below this door — one primary per view. The
+              // opening checklist is a quiet secondary door here, never a second blue action
+              // competing with it. Outline, not ghost: ghost has no border/fill, so on phone it
+              // renders as unstyled text indented by the button's own padding, indistinguishable
+              // from body copy.
+              <Button variant="outline" disabled={starting} onClick={() => { void handleStart() }}>
                 {t('cafe.opening.start')}
               </Button>
             )}

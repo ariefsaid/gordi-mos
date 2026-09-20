@@ -96,9 +96,12 @@ export function SignalComposer({
   // person/people by count; Indonesian "orang" is invariant (both keys resolve to it). The caller
   // resolves the noun in the active locale and threads it as ${noun}.
   const notifyNoun = t(notifyCount === 1 ? 'signals.notify.person' : 'signals.notify.people')
-  const shieldLine = notifyCount > 0
-    ? t('signals.composer.shareAllNotify', { count: notifyCount, noun: notifyNoun })
-    : t('signals.composer.shareAll')
+  // ONE metadata line — audience, then notify count, then author — with a STABLE "All teams"
+  // prefix. Typing an @mention only APPENDS the notify segment; it never swaps the audience
+  // phrase out from under the reader.
+  const metaLine = notifyCount > 0
+    ? t('signals.composer.shareAllNotify', { count: notifyCount, noun: notifyNoun, name: authorName })
+    : t('signals.composer.shareAll', { name: authorName })
 
   function handleBodyChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const value = e.target.value
@@ -217,16 +220,14 @@ export function SignalComposer({
         </label>
       </div>
 
-      <p className="signal-composer-author">{t('signals.composer.author', { name: authorName })}</p>
-
-      {shieldLine && <p className="signal-composer-vis">{shieldLine}</p>}
+      <p className="signal-composer-vis">{metaLine}</p>
 
       {error && <p role="alert">{error}</p>}
 
       <div className="signal-composer-foot">
-        <span className="muted-2">{t('signals.composer.categoryHelp')}</span>
         <div className="signal-composer-send">
-          {/* OD-REDESIGN-91 #10: quiet Shift+Enter hint by the Send button; hidden on touch. */}
+          {/* OD-REDESIGN-91 #10: quiet Shift+Enter hint by the Send button; hidden without a
+              real keyboard (touch, or a pointer with no hover). */}
           <span className="signal-composer-send-hint">{t('signals.composer.sendHint')}</span>
           <Button
             variant="primary"

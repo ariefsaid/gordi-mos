@@ -295,10 +295,9 @@
 .comment-composer__input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; border-color: var(--ring); }
 .comment-composer__actions { display: flex; justify-content: flex-end; }
 
-/* ── Not found ── */
-.not-found-panel { padding: 48px 0; }
-.not-found-title { font-size: var(--font-size-page-title); font-weight: 600; margin-bottom: 8px; color: var(--foreground); } /* typeset: was 22px/700 off-ramp; this panel's page title */
-.not-found-copy { font-size: var(--font-size-body-lg); color: var(--muted-foreground); margin-bottom: 16px; } /* typeset: was 16px off-ramp; matches sibling .empty-substate at body-lg */
+/* Not-found renders through the shared EmptyState primitive (components/ui/state-kit.tsx +
+   CardHead.css) — no bespoke `.not-found-*` panel/title/copy rules to drift out of sync with
+   the record panel's own horizontal inset. */
 
 /* ── Loading skeleton ── */
 /* `.sk` itself lives in TasksWorkspace.css and is NOT redeclared here. Two single-class rules on

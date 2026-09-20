@@ -157,17 +157,20 @@ describe('Projects & Processes collection-first contract', () => {
     expect(within(pending).getByTestId('catalog-progress')).toHaveTextContent('1 awaiting assignment')
   })
 
-  it('uses the head Create door and renders a focused draft row inside the collection', async () => {
+  it('uses the head Create door and renders a form ABOVE the table, never inside it', async () => {
     renderPage()
     await screen.findByText('Menu launch')
     expect(screen.getByTestId('page-head').querySelector('.ch-action')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Create project or process' }))
     const form = await screen.findByRole('form', { name: 'Create project or process' })
+    // Defect 1: the create form is its own block, not a row wedged under the table's column
+    // headers — it must not be a descendant of the collection's role=table.
+    expect(form.closest('[role="table"]')).toBeNull()
     expect(screen.getByRole('textbox', { name: 'Name' })).toHaveFocus()
     fireEvent.change(within(form).getByRole('textbox', { name: 'Name' }), { target: { value: 'Weekly stock opname' } })
     fireEvent.click(within(form).getByRole('combobox', { name: 'Type' }))
     fireEvent.click(screen.getByRole('option', { name: 'Process' }))
-    fireEvent.click(within(form).getByRole('button', { name: 'Save' }))
+    fireEvent.click(within(form).getByRole('button', { name: 'Create process' }))
     await waitFor(() => expect(createWorkLine).toHaveBeenCalledWith('Weekly stock opname', 'process'))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Create project or process' })).toHaveFocus())
   })

@@ -118,11 +118,9 @@ export type TasksTableBodyProps = {
   onEditPic?: (taskId: string, personId: string) => Promise<void>
   onEditTeam?: (taskId: string, teamId: string) => Promise<void>
   onEditSupervisor?: (taskId: string, personId: string) => Promise<void>
-  onValidateNewTask?: (taskId: string) => void
   personOptions?: readonly { id: string; full_name: string }[]
   supervisorOptions?: readonly { id: string; full_name: string }[]
   teamOptions?: readonly TaskTeamOption[]
-  draftValidationError?: string
   draftTaskId?: string | null
   onDiscardNewTask?: () => void
   /** #742 AC-060 — threaded through to MobileGroupedCards' draft-card PIC lock sentence. */
@@ -141,8 +139,8 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
     openAddTask, setOverdueOnly,
     workLineMap, objectiveMap, workloadSummary, createHref, onAssignPending, provenanceByTaskDefId,
-    onEditTitle, onEditPic, onEditTeam, onEditSupervisor, onValidateNewTask,
-    personOptions, supervisorOptions, teamOptions, draftValidationError,
+    onEditTitle, onEditPic, onEditTeam, onEditSupervisor,
+    personOptions, supervisorOptions, teamOptions,
     draftTaskId, onDiscardNewTask, viewerHasNoDownline,
   } = props
 
@@ -213,11 +211,9 @@ export function TasksTableBody(props: TasksTableBodyProps) {
         onEditPic={onEditPic}
         onEditTeam={onEditTeam}
         onEditSupervisor={onEditSupervisor}
-        onValidateNewTask={onValidateNewTask}
         personOptions={personOptions}
         supervisorOptions={supervisorOptions}
         teamOptions={teamOptions}
-        createValidationError={draftValidationError}
         draftTaskId={draftTaskId}
         onDiscardNewTask={onDiscardNewTask}
         viewerHasNoDownline={viewerHasNoDownline}
