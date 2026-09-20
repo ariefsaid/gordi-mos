@@ -140,6 +140,10 @@
   line-height: 1.2;
 }
 
+/* Independent critique D11: ONE destination for the whole screen (was once per group,
+   desktop-only). Sits between the toolbar and the list, at every width. */
+.kp-log-link-row { margin: 0 0 8px; }
+
 /* ── FR-030: one low-competition drill per desktop category group. Item names
    stay text so the capture list reads as a plan, not a wall of links. ── */
 .kp-group-link {

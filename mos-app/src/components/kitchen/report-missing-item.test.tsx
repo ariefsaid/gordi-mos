@@ -20,8 +20,10 @@ beforeEach(() => vi.clearAllMocks())
 describe('ReportMissingItem (AC-013)', () => {
   it('AC-013: offers a visible route to report a missing item at rest', () => {
     render(<ReportMissingItem businessUnitId={BU_ID} />)
+    // ui-855 independent critique D12: "Missing an item? Report it" — a direct label, not a
+    // question the reader has to parse ("An item you make is missing? Report it").
     expect(
-      screen.getByRole('button', { name: /missing\? report it/i }),
+      screen.getByRole('button', { name: /missing an item\? report it/i }),
     ).toBeInTheDocument()
   })
 

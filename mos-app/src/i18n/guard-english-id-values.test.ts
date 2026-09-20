@@ -49,6 +49,10 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'kitchen.pushes.env.gkid', // GKID — environment name
   'kitchen.pushes.env.goo', // GOO — environment name
   'kitchen.unit.porsi', // porsi — already Indonesian
+  // ui-855 independent critique D6: the footer states the unit in the SAME word ("porsi") the
+  // rows themselves use, in both locales — one domain term, not an English translation of it.
+  'kitchen.log.footer.unit.one',
+  'kitchen.log.footer.unit.other',
   'followUps.record.title', // Follow-up — product term
   'tasks.checklistTitle', // Checklist
   'tasks.feed.checklist', // Checklist

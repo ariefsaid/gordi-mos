@@ -99,6 +99,12 @@
     height: 32px;
     font-size: var(--font-size-control);
   }
+  /* Defect #4: `width: max-content` keeps the RESTING row compact (no wider than qty+unit),
+     but a max-content box also caps how wide its full-width children (`.kls-note`) can grow —
+     the note was measuring against the row's own tight content width, not the cell's, landing
+     at ~240px regardless of column width. Once the note is showing, the card needs the cell's
+     actual width so the note can span it. */
+  .kls-card.kls-dense.kls-has-note { width: 100%; }
 }
 
 /* ── Phone capture card (<768px) ──────────────────────────────────────────────
@@ -115,6 +121,12 @@
     min-width: 0;
   }
   .kls-card.kls-dense .kls-row { justify-content: flex-end; }
+  /* Defect #4/outcome: "full width in the phone card". At rest the stepper shares the head
+     row with the item name (`.kl-card-head`, kitchen-log-page.css); once a note is showing it
+     claims the full row width on its own line instead (that file's `.kl-card-head` gets
+     `flex-wrap: wrap` so this basis actually wraps), so the note is never squeezed into
+     whatever fraction of the row the name column left it. */
+  .kls-card.kls-dense.kls-has-note { flex-basis: 100%; }
 }
 
 /* ── plan · stok · tersedia context meta ── */
