@@ -285,18 +285,16 @@ function PlanEditor() {
   )
   const categories = ['All', ...Array.from(new Set(items.map(i => i.category ?? '').filter(Boolean)))
     .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b)))]
+  // Independent critique D11: this used to repeat once PER GROUP (desktop only, so it also
+  // vanished entirely on phone) — one destination for the whole screen, stated once, at
+  // every width, is rendered beside the toolbar below instead.
   const planGroups: DataTableGroup<WipItemOption>[] = useMemo(
     () => groupByCategory(visible).map(g => ({
       key: g.cat ?? '__uncategorised__',
       label: g.cat ? kitchenCategoryLabel(t, g.cat) : g.cat,
       rows: g.rows,
-      headerActions: isDesktop ? (
-        <Link to="/cafe" className="kp-group-link">
-          {t('kitchen.plan.group.log')}
-        </Link>
-      ) : undefined,
     })),
-    [isDesktop, visible, t],
+    [visible, t],
   )
 
   const planItemColumn: DataTableColumn<WipItemOption> = {
@@ -500,6 +498,13 @@ function PlanEditor() {
               />
             </div>}
           </KitchenToolbar>
+          {/* Independent critique D11: ONE navigational affordance for the screen, present at
+              every width — replaces the per-group, desktop-only repeat above. */}
+          <p className="kp-log-link-row">
+            <Link to="/cafe" className="kp-group-link">
+              {t('kitchen.plan.group.log')}
+            </Link>
+          </p>
           <DataTable
             columns={streamNonProducing ? receivingPlanColumns : planColumns}
             rows={visible}

@@ -443,6 +443,9 @@ describe('Populated state — WIP items loaded', () => {
     expect(rule).toMatch(/position:\s*sticky/)
     expect(rule).toMatch(/bottom:\s*0/)
     expect(rule).toMatch(/background:\s*var\(--card\)/)
+    // Independent critique D1: the shorthand alone was not enough evidence of an opaque
+    // surface — pin the `background-color` longhand too (see the rule's own comment).
+    expect(rule).toMatch(/background-color:\s*var\(--card\)/)
     expect(rule).toMatch(/border-top:\s*1px solid var\(--border\)/)
     // Soft-Elevation Rule: a flat utility surface never carries a resting shadow.
     expect(rule).not.toMatch(/box-shadow/)
@@ -451,8 +454,12 @@ describe('Populated state — WIP items loaded', () => {
   it('B3b: the list container reserves bottom room so the sticky footer cannot permanently cover the final row', async () => {
     const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-log-page.css'), 'utf8')
     expect(css).toMatch(/\.kl-form \.dt-table,\s*\n\.kl-form \.dt-cards \{/)
-    expect(css).toMatch(/margin-bottom:\s*88px/)
-    expect(css).toMatch(/margin-bottom:\s*calc\(140px \+ env\(safe-area-inset-bottom/)
+    // Independent critique D1: the reserve is sized to the footer's tallest rendered state
+    // (the compact row PLUS an optional blocked-reason line) at EVERY width the bar is sticky,
+    // not only on phone — the old 88px/140px pair let a real row (and, at 390, the note field
+    // itself) render partly behind the bar once a reason line appeared.
+    expect(css).toMatch(/margin-bottom:\s*104px/)
+    expect(css).toMatch(/margin-bottom:\s*calc\(96px \+ env\(safe-area-inset-bottom/)
   })
 })
 
@@ -668,16 +675,22 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
   it('with capture open, the same missing-stream state shows the hint but no misleading tally', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     await renderPage() // affiliated
-    await waitFor(() => screen.getByText('Ayam Bakar'))
+    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
 
-    expect(screen.getByText(/choose a production stream/i)).toBeInTheDocument()
+    // Two things now say "choose a production stream" (the top guidance and the footer's
+    // own reason) — both present is fine, but there must be no stale/misleading tally.
+    expect(screen.getAllByText(/choose a production stream/i).length).toBeGreaterThan(0)
     expect(screen.queryByText(/pending review/i)).not.toBeInTheDocument()
   })
 })
 
 // ── F3b: disabled Submit shows an inline reason message (Fix 3) ──────────────
-describe('F3b: disabled Submit shows reason message when variance note is missing', () => {
-  it('shows "Note required to submit" near the Submit button when a note is required and missing', async () => {
+// ui-855 café review, defect #4/outcome #3: the footer no longer restates the field's own
+// "Note required — off plan" cue verbatim — it names a COUNT and is itself a control that jumps
+// to + focuses the first unresolved note (required outcome: "a short pointer … that scrolls/
+// focuses the first missing note when activated").
+describe('F3b: disabled Submit shows a note-missing pointer when a variance note is missing', () => {
+  it('shows "1 note missing" as a button near Submit, which focuses the note field', async () => {
     // No plans → every staged item is off-target (needs a variance note)
     mockFetchPlanMap.mockResolvedValue({})
     await renderPage()
@@ -691,12 +704,16 @@ describe('F3b: disabled Submit shows reason message when variance note is missin
     const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
     expect(submit).toBeDisabled()
 
-    // FIX 3: a visible inline reason message must appear near the Submit button
-    // so the blocker is visible without clicking (not enabled-until-bounced).
-    expect(screen.getByText(/note required to submit/i)).toBeInTheDocument()
+    // FIX 3 (ui-855: now a button, not a passive status line): the count is named and it is
+    // itself the destination back to the field the count is about.
+    const pointer = screen.getByRole('button', { name: /1 note missing/i })
+    expect(pointer).toBeInTheDocument()
+    fireEvent.click(pointer)
+    const note = await screen.findByRole('textbox', { name: /note for ayam bakar/i })
+    expect(note).toHaveFocus()
   })
 
-  it('reason message disappears when the required note is filled', async () => {
+  it('the pointer disappears when the required note is filled', async () => {
     mockFetchPlanMap.mockResolvedValue({})
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
@@ -704,17 +721,17 @@ describe('F3b: disabled Submit shows reason message when variance note is missin
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     fireEvent.change(qtyInput, { target: { value: '1' } })
 
-    // Reason message shows while note is empty
-    expect(screen.getByText(/note required to submit/i)).toBeInTheDocument()
+    // Pointer shows while the note is empty
+    expect(screen.getByRole('button', { name: /note missing/i })).toBeInTheDocument()
 
     // Fill the required note (the field is reachable as soon as the live gate appears).
     fireEvent.blur(qtyInput)
     const note = await screen.findByRole('textbox', { name: /note for ayam bakar/i })
     fireEvent.change(note, { target: { value: 'extra batch today' } })
 
-    // Once the note is filled, Submit re-enables and the reason message disappears
+    // Once the note is filled, Submit re-enables and the pointer disappears
     await waitFor(() => {
-      expect(screen.queryByText(/note required to submit/i)).toBeNull()
+      expect(screen.queryByRole('button', { name: /note missing/i })).toBeNull()
     })
   })
 })
@@ -1310,7 +1327,9 @@ describe('OD-K-5: sticky-footer tally', () => {
     fireEvent.change(ayamInput, { target: { value: '20' } })
 
     expect(screen.getByText(/1 item/i)).toBeInTheDocument()
-    expect(screen.getByText(/20 portions/i)).toBeInTheDocument()
+    // ui-855 independent critique D6: the footer states the unit in the SAME word the rows
+    // themselves use ("porsi") rather than an English translation of it ("portions").
+    expect(screen.getByText(/20 porsi/i)).toBeInTheDocument()
   })
 })
 
@@ -1498,10 +1517,10 @@ describe("AC-002 / FR-001: the capture surface opens on the person's own stream 
 })
 
 describe('FR-002: no stream-linked primary Team → an explicit stream choice is required before capture', () => {
-  it('renders the "choose stream" placeholder, fetches no stream-scoped data, and blocks Submit with the reason', async () => {
+  it('renders the "choose stream" guidance placeholder in place of the list, fetches no stream-scoped data, and blocks Submit with the reason', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     await renderPage()
-    await waitFor(() => screen.getByText('Ayam Bakar'))
+    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
 
     const picker = screen.getByRole('combobox', { name: /production stream/i })
     expect(picker).toHaveTextContent(/choose stream/i)
@@ -1514,17 +1533,22 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     // Submit is disabled up front and the reason is named beside it.
     expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /^submit/i })[0]).toBeDisabled()
-    // The explicit choice is the next write step; do not let a quantity be staged against no
-    // stream while the picker is still waiting for a selection.
-    expect(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toBeDisabled()
+    // ui-855 defect #1: nothing that LOOKS like an editable quantity field is rendered until a
+    // stream makes it one — not merely disabled, absent. Dish names are absent too (no list).
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
     expect(screen.queryByRole('tablist')).toBeNull()
+
+    // The placeholder's own CTA is a second way to the same control (repeats it in the state).
+    fireEvent.click(screen.getByRole('button', { name: /choose stream/i }))
+    expect(picker).toHaveFocus()
   })
 
   it('choosing a stream from the picker loads it and capture proceeds against the chosen pair', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
     await renderPage()
-    await waitFor(() => screen.getByText('Ayam Bakar'))
+    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
 
     await chooseStream('Radiant · Bar')
     await waitFor(() => screen.getByText('Nasi Goreng'))
@@ -1781,7 +1805,7 @@ describe('AC-007: destinations cover both movement classes from both activity su
   it('AC-007: with no resolved stream (FR-002) nothing is intra-branch yet, so no option is qualified', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     await renderPage()
-    await waitFor(() => screen.getByText('Ayam Bakar'))
+    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
 
     expect(screen.queryByRole('tab')).toBeNull()
     expect(screen.queryByRole('tablist')).toBeNull()
@@ -1898,7 +1922,11 @@ describe('issue 586: a movement switch with staged entries goes through the unsa
     // (which would pass just as happily on a footer showing some OTHER stale count).
     const transferInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     expect((transferInput as HTMLInputElement).value).toBe('')
-    expect(document.querySelector('.kl-tally-num')?.textContent).toBe('0 items · 0 portions')
+    // ui-855 independent critique D12: the tally renders only while something is staged, so
+    // the positive read of "the switch actually cleared it" is that the tally is gone —
+    // stronger than the old "reads 0 items · 0 portions" (which would just as happily pass on
+    // a footer that silently kept re-rendering a stale zero next to a live Submit).
+    expect(document.querySelector('.kl-tally-num')).toBeNull()
   })
 
   it('cancelling the switch keeps the staged qty AND the original tab selected', async () => {
@@ -2093,7 +2121,9 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
 
   it('offers only the active location’s streams, not every branch’s', async () => {
     await renderPage(VIEWER_MEMBER, '/mos/kitchen/log', HQ)
-    await waitFor(() => screen.getByText('Ayam Bakar'))
+    // The remembered default (Rumah Rames) is outside HQ, so this opens on the no-stream
+    // guidance state (OD-CAFE-1 + ui-855 defect #1) — the picker itself is still reachable.
+    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
 
     fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
     const offered = (await screen.findAllByRole('option')).map(o => o.textContent?.trim() ?? '')
@@ -2107,7 +2137,7 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
   it('treats a remembered stream from another location as stale, and says which location this is', async () => {
     // The person's own default stream is Rumah Rames; they are standing at Gordi HQ.
     await renderPage(VIEWER_MEMBER, '/mos/kitchen/log', HQ)
-    await waitFor(() => screen.getByText('Ayam Bakar'))
+    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
 
     // Not silently re-pointed at an HQ stream, and not left pointing at Rumah Rames either.
     expect(screen.getByRole('combobox', { name: /production stream/i }))

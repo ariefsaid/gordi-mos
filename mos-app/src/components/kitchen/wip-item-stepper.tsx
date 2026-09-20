@@ -121,7 +121,7 @@ export function WipItemStepper({
   }
 
   return (
-    <div className={`kls-card${dense ? ' kls-dense' : ''}${invalid ? ' kls-invalid' : ''}`}>
+    <div className={`kls-card${dense ? ' kls-dense' : ''}${invalid ? ' kls-invalid' : ''}${showNote ? ' kls-has-note' : ''}`}>
       {/* Row: name + typed quantity.
           v4 (owner-corrected 2026-07-27): the −/+ stepper is GONE. Production is not logged
           incrementally — the team types the amount they produced, "mostly 10-20+", so a stepper

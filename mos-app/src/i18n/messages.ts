@@ -544,7 +544,9 @@ export const messages = {
     'commandMenu.footer.close': 'close',
     // ── Café capture (#196 — the v4 port of the Café opening + production log) ──────────────
     'cafe.opening.chooseLocation': 'Choose a location',
-    'cafe.opening.locationChoiceHelp': 'Choose the branch whose opening you want to view.',
+    // Independent critique D10: this list is reused by staff switching WHERE they log, not
+    // only by someone browsing another branch's opening — "view" was untrue for the first job.
+    'cafe.opening.locationChoiceHelp': 'Choose the location to work from.',
     'cafe.opening.openLocation': 'Open location',
     'cafe.opening.locationLabel': 'Location',
     'cafe.opening.changeLocation': 'Change location',
@@ -560,6 +562,9 @@ export const messages = {
     // The button beside it already says "Start today's opening"; the sentence says the state.
     'cafe.opening.notStartedLead': 'Not started yet.',
     'cafe.opening.notStartedMember': 'Not started yet — no one has started today’s opening.',
+    // Independent critique D5: the log's plan reads 0 for the same reason on this same screen —
+    // say the reason once, beside the door action that resolves it.
+    'cafe.opening.planLoadsAfterStart': "Today's plan loads once the opening starts.",
     'cafe.opening.start': "Start today's opening",
     // issue 457: the panel is TEAM-scoped, and its caption sat directly under the head's
     // "Choose stream…" where a stream name is expected — a bare team name there reads as
@@ -629,16 +634,21 @@ export const messages = {
     'kitchen.log.empty.copy': 'Ask an ops lead to add items.',
     'kitchen.log.footer.item.one': '${count} item',
     'kitchen.log.footer.item.other': '${count} items',
-    'kitchen.log.footer.noteRequired': 'Note required to submit',
-    'kitchen.log.footer.pendingReview': 'pending review on Submit',
-    'kitchen.log.footer.unit.one': '${count} portion',
-    'kitchen.log.footer.unit.other': '${count} portions',
+    'kitchen.log.footer.noteMissing.one': '${count} note missing',
+    'kitchen.log.footer.noteMissing.other': '${count} notes missing',
+    'kitchen.log.footer.reviewNext': 'Goes to your supervisor for review',
+    // Independent critique D6: rows say "porsi" (the item unit's own master-data name,
+    // WipItemStepper's `kitchen.unit.porsi` fallback) — the summary used to translate the SAME
+    // unit to "portion(s)", so one screen spoke both words for one thing. "Porsi" is the
+    // domain term the live kitchen app and this catalog's own row label already use.
+    'kitchen.log.footer.unit.one': '${count} porsi',
+    'kitchen.log.footer.unit.other': '${count} porsi',
     // NOT the summary's "Off-plan", which counts portions made against no plan. This groups
     // ITEMS that today's plan does not mention. Two meanings 145px apart on one screen, both
     // spelled the same, is a number nobody can reconcile.
     'kitchen.log.group.offplan': 'Not on today\u2019s plan',
     'kitchen.log.group.offplan.hint': 'log as produced',
-    'kitchen.log.missing.cta': 'An item you make is missing? Report it',
+    'kitchen.log.missing.cta': 'Missing an item? Report it',
     'kitchen.log.missing.label': 'Item name',
     'kitchen.log.missing.submit': 'Send report',
     'kitchen.log.missing.success': 'Reported — it will reach your reviewer via the Daily Log.',
@@ -669,6 +679,8 @@ export const messages = {
     'kitchen.log.unit.changeAria': 'Change unit for ${item}',
     'kitchen.log.unit.selectAria': 'Unit for ${item}',
     'kitchen.log.stream.choose': 'Choose stream…',
+    'kitchen.log.stream.chooseTitle': 'Choose a production stream to start logging',
+    'kitchen.log.stream.chooseCta': 'Choose stream',
     'kitchen.log.stream.missing': 'Choose a production stream before submitting.',
     'kitchen.log.stream.nonProducing': 'This stream receives production; production capture is unavailable here.',
     'kitchen.log.stream.pickerAria': 'Production stream',
@@ -805,6 +817,7 @@ export const messages = {
     'kitchen.qty.producedAria': 'Quantity produced for ${item}',
     'kitchen.status.logged': 'Logged',
     'kitchen.status.notLogged': 'Not logged',
+    'kitchen.status.staged': 'Not submitted',
     'kitchen.status.onPlan': 'On plan',
     'kitchen.status.over': 'Over +${count}',
     'kitchen.status.under': 'Under −${count}',
@@ -2083,7 +2096,7 @@ export const messages = {
     'commandMenu.footer.close': 'tutup',
     // ── Café capture (#196) ─────────────────────────────────────────────────────────────────
     'cafe.opening.chooseLocation': 'Pilih lokasi',
-    'cafe.opening.locationChoiceHelp': 'Pilih cabang yang pembukaannya ingin Anda lihat.',
+    'cafe.opening.locationChoiceHelp': 'Pilih lokasi tempat Anda bekerja.',
     'cafe.opening.openLocation': 'Buka lokasi',
     'cafe.opening.locationLabel': 'Lokasi',
     'cafe.opening.changeLocation': 'Ganti lokasi',
@@ -2098,6 +2111,7 @@ export const messages = {
     'cafe.opening.loadError': 'Tidak dapat memuat pembukaan kafe hari ini. Coba lagi.',
     'cafe.opening.notStartedLead': 'Belum dimulai.',
     'cafe.opening.notStartedMember': 'Belum dimulai — belum ada yang memulai pembukaan hari ini.',
+    'cafe.opening.planLoadsAfterStart': 'Rencana hari ini dimuat setelah pembukaan dimulai.',
     'cafe.opening.start': 'Mulai pembukaan hari ini',
     'cafe.opening.teamCaption': 'Pembukaan · ${team}',
     'cafe.opening.viewTasks': 'Lihat tugas pembukaan',
@@ -2170,13 +2184,14 @@ export const messages = {
     'kitchen.log.empty.copy': 'Minta ops lead menambahkan item.',
     'kitchen.log.footer.item.one': '${count} item',
     'kitchen.log.footer.item.other': '${count} item',
-    'kitchen.log.footer.noteRequired': 'Catatan wajib diisi sebelum kirim',
-    'kitchen.log.footer.pendingReview': 'menunggu tinjauan setelah dikirim',
+    'kitchen.log.footer.noteMissing.one': '${count} catatan kurang',
+    'kitchen.log.footer.noteMissing.other': '${count} catatan kurang',
+    'kitchen.log.footer.reviewNext': 'Diteruskan ke supervisor Anda untuk ditinjau',
     'kitchen.log.footer.unit.one': '${count} porsi',
     'kitchen.log.footer.unit.other': '${count} porsi',
     'kitchen.log.group.offplan': 'Tidak ada di rencana hari ini',
     'kitchen.log.group.offplan.hint': 'catat sebagai diproduksi',
-    'kitchen.log.missing.cta': 'Ada item yang tidak muncul? Laporkan',
+    'kitchen.log.missing.cta': 'Item tidak muncul? Laporkan',
     'kitchen.log.missing.label': 'Nama item',
     'kitchen.log.missing.submit': 'Kirim laporan',
     'kitchen.log.missing.success': 'Terlapor — akan sampai ke peninjau lewat Daily Log.',
@@ -2205,6 +2220,8 @@ export const messages = {
     'kitchen.log.unit.changeAria': 'Ganti satuan untuk ${item}',
     'kitchen.log.unit.selectAria': 'Satuan untuk ${item}',
     'kitchen.log.stream.choose': 'Pilih Tim…',
+    'kitchen.log.stream.chooseTitle': 'Pilih Tim produksi untuk mulai mencatat',
+    'kitchen.log.stream.chooseCta': 'Pilih Tim',
     'kitchen.log.stream.missing': 'Pilih Tim produksi sebelum mengirim.',
     'kitchen.log.stream.nonProducing': 'Tim ini menerima produksi; pencatatan produksi tidak tersedia di sini.',
     'kitchen.log.stream.pickerAria': 'Tim produksi',
@@ -2328,6 +2345,7 @@ export const messages = {
     'kitchen.qty.producedAria': 'Jumlah yang diproduksi untuk ${item}',
     'kitchen.status.logged': 'Tercatat',
     'kitchen.status.notLogged': 'Belum dicatat',
+    'kitchen.status.staged': 'Belum dikirim',
     'kitchen.status.onPlan': 'Sesuai rencana',
     'kitchen.status.over': 'Lebih +${count}',
     'kitchen.status.under': 'Kurang −${count}',
