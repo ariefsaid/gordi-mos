@@ -20,12 +20,13 @@ function navigationSection(): string {
 
 const A1 =
   '**Access boundary state.** A route the viewer is admitted to reach but not authorised to use ' +
-  'renders, inside the shell frame, the page head with its title, the context-row sentence ' +
-  '`Access required`, and one quiet dashed panel: `<Area> is outside your access` · one sentence ' +
-  'stating that an admin changes access in Admin Settings · one outline `Back to Home`. It never ' +
-  'redirects silently and never names data the viewer may not see. Navigation is unchanged: ' +
-  'rendered links still equal admitted routes (OD-WAY-51); the boundary is what a typed or ' +
-  'shared URL meets.'
+  'renders, inside the shell frame, the page head with its title and one quiet dashed panel: a ' +
+  'padlock glyph · `<Area> is outside your access` · one sentence telling the viewer to ask ' +
+  'their lead or an admin · one outline link back — to the owning destination when only a link ' +
+  'inside an admitted destination was denied, otherwise `Back to Home`. The denial is stated ' +
+  'once: the page head carries no sentence of its own. It never redirects silently and never ' +
+  'names data the viewer may not see. Navigation is unchanged: rendered links still equal ' +
+  'admitted routes (OD-WAY-51); the boundary is what a typed or shared URL meets.'
 
 const A6 =
   'Foot section (border-top) holds Admin Settings (admin only) and the identity chip; the ' +

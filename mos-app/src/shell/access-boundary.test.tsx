@@ -10,6 +10,21 @@
  * Money panel; the Money case in this file is the forward, asserted against the real table.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Route admission is REAL by default. One test overrides it to simulate the registry drifting —
+// a destination whose landing route stops admitting a viewer its child link still reaches.
+const admission = vi.hoisted(() => ({
+  override: null as null | ((path: string, accessRoles: string[]) => boolean),
+}))
+vi.mock('./destinations', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./destinations')>()
+  return {
+    ...actual,
+    viewerAdmittedToRoute: (path: string, accessRoles: string[]) =>
+      admission.override ? admission.override(path, accessRoles) : actual.viewerAdmittedToRoute(path, accessRoles),
+  }
+})
+
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { render, screen, cleanup, within } from '@testing-library/react'
@@ -98,16 +113,16 @@ describe('access boundary', () => {
       expect(screen.queryByTestId('landing')).not.toBeInTheDocument()
     })
 
-    it('renders the page head titled for the area, with the Access required sentence', () => {
+    it('renders the page head titled for the area, and states the denial only in the panel', () => {
       const head = screen.getByTestId('page-head')
       expect(within(head).getByRole('heading', { level: 1 })).toHaveTextContent('Café')
-      expect(within(head).getByText('Access required')).toBeInTheDocument()
+      expect(within(head).queryByText(/access/i)).toBeNull()
     })
 
-    it('renders one quiet dashed panel: the area sentence, the admin sentence, one outline Back', () => {
+    it('renders one quiet dashed panel: the area sentence, who to ask, one outline Back', () => {
       expect(within(panel()).getByRole('heading', { level: 2 }))
         .toHaveTextContent('Café is outside your access')
-      expect(within(panel()).getByText('An admin changes access in Admin Settings.'))
+      expect(within(panel()).getByText('Ask your lead or an admin to give you access.'))
         .toBeInTheDocument()
       const back = within(panel()).getByRole('link', { name: 'Back to Home' })
       expect(back).toHaveClass('btn', 'btn-outline')
@@ -125,7 +140,7 @@ describe('access boundary', () => {
       // The whole rendered text is the area label plus the two fixed sentences. Any figure,
       // record title or count leaking through the guard would show up as an extra digit here.
       expect(panel().textContent).toBe(
-        '—Café is outside your accessAn admin changes access in Admin Settings.Back to Home',
+        'Café is outside your accessAsk your lead or an admin to give you access.Back to Home',
       )
     })
   })
@@ -146,6 +161,35 @@ describe('access boundary', () => {
     renderAt('/cafe/review', <RequireAccessRole anyOf={CAFE_REVIEW_ROLES} scope="link" />)
     expect(screen.getByRole('heading', { level: 2 }))
       .toHaveTextContent('Review is outside your access')
+    // Only a link inside Café was denied and this viewer is admitted to Café itself, so the way
+    // back is Café — somewhere they can work — not Home.
+    const back = within(panel()).getByRole('link', { name: 'Back to Café' })
+    expect(back).toHaveAttribute('href', '/cafe')
+    expect(within(panel()).queryByRole('link', { name: 'Back to Home' })).toBeNull()
+  })
+
+  // The way back never names or links a destination the viewer is not admitted to, and never
+  // points at the denied page itself — in both cases it falls back to Home.
+  it('a link-scope denial inside a destination the viewer is NOT admitted to goes Home', () => {
+    // No live route reaches this today (every gated destination is either ship-gated or a utility
+    // area), so the drift is simulated: Café's landing route stops admitting this viewer.
+    admission.override = (path) => path !== '/cafe'
+    try {
+      setViewer(['member'])
+      renderAt('/cafe/review', <RequireAccessRole anyOf={CAFE_REVIEW_ROLES} scope="link" />)
+      expect(within(panel()).getByRole('link', { name: 'Back to Home' })).toHaveAttribute('href', '/')
+      expect(within(panel()).queryByRole('link', { name: 'Back to Café' })).toBeNull()
+    } finally {
+      admission.override = null
+    }
+  })
+
+  it('a link-scope denial ON the destination\'s own landing route goes Home, not back to itself', () => {
+    setViewer(['member'])
+    renderAt('/work/tasks', <RequireAccessRole anyOf={['supervisor']} scope="link" />)
+    const links = within(panel()).getAllByRole('link')
+    expect(links).toHaveLength(1)
+    expect(links[0]).toHaveAttribute('href', '/')
   })
 
   // ── AC-021 ────────────────────────────────────────────────────────────────────────────────
