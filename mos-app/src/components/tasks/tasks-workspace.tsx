@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import type { To } from 'react-router-dom'
+import { useIsNarrow } from '@/shell/use-is-narrow'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
@@ -171,6 +172,7 @@ export function TasksWorkspace({
   const { buildEntry: buildRelatedEntry } = useCatalogRecordEntryFactory({ owner: 'tasks' })
   const auth = useAuth()
   const isDesktop = useIsDesktop()
+  const isNarrow = useIsNarrow()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const viewerOrgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
@@ -586,13 +588,20 @@ export function TasksWorkspace({
     }
     if (drawerOpen) navigate({ pathname: '/work/tasks', search: currentSearch })
   }, [currentSearch, drawerOpen, host, navigate])
+  const onNewTaskRef = useRef<(prefillParam?: string) => void>(() => {})
   const onNewTask = useCallback((prefillParam = '') => {
     if (!dataContext || draftTask) return
     // Starting creation from ANY entry — page button, global actions menu, command menu,
     // keyboard shortcut, group "Add" — clears the record panel first, so a draft and an open
     // record are never on screen together. Every entry funnels through this one function, so
     // one guard here covers all of them.
-    if (host.session?.frames.some((frame) => frame.entry.owner === 'tasks')) void host.close()
+    if (host.session?.frames.some((frame) => frame.entry.owner === 'tasks')) {
+      // A dirty record may refuse to close; the draft opens only once the panel is really gone.
+      void host.close().then((result) => {
+        if (result.status === 'committed') onNewTaskRef.current(prefillParam)
+      })
+      return
+    }
     if (params.get('record')) {
       const next = new URLSearchParams(params)
       next.delete('record')
@@ -663,6 +672,7 @@ export function TasksWorkspace({
     })
     draftSourceSignalRef.current = sourceSignal ?? draftSourceSignalRef.current
   }, [dataContext, draftTask, host, params, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
+  useEffect(() => { onNewTaskRef.current = onNewTask }, [onNewTask])
   const onAddTask = useCallback((prefillParam: string) => onNewTask(prefillParam), [onNewTask])
   useEffect(() => {
     if ((!createIntentRef.current && params.get('create') !== '1') || !dataContext) return
@@ -732,18 +742,15 @@ export function TasksWorkspace({
       })()
   // Census R2 DO-6's reserved placeholder state is gone with the AR Follow-ups view (#743):
   // every view now renders the live collection body.
-  // The header "+ Create task" is the DESKTOP create door; on genuine phone width the single
-  // create door is the global + Action Launcher FAB (DESIGN.md No-FAB Rule / one launcher
-  // location app-wide). The gate is `isDesktop` (≥768px) — the same threshold Signals' "Share
-  // Signal" header primary uses — not the 920px rail-collapse `isNarrow`, so the labelled header
-  // button stays visible at 768 and above instead of yielding to the launcher a whole tablet
-  // band early.
+  // One create door per width. The global + launcher renders whenever the rail is collapsed
+  // (below 920px), so the labelled header button yields to it there; above that the header
+  // button is the door.
   // A record is open in either of two ways — the `drawerOpen` prop, or an overlay session this
   // surface owns. The split class and the collection runtime already read both; this door read
   // only the prop, so opening a row from the table left the create door standing beside the
   // record's own primary action, two solid blues competing across one page.
   const recordOpen = drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks'
-  const showNewTask = !recordOpen && state.status === 'ready' && isDesktop
+  const showNewTask = !recordOpen && state.status === 'ready' && !isNarrow
   const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
   const emptyTitle = query.includeArchived
     ? t('tasks.empty.archivedTitle')

@@ -659,7 +659,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     stubMatchMedia(false, false)
     renderTable()
     await waitFor(() => screen.getByText('Only work item'))
-    expect(screen.queryByRole('link', { name: '+ Create task' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '+ Create task' })).toBeNull()
   })
 
   // DO-17 (census-sweep R2 tasks FINDING2): the shell's Action Launcher FAB exists whenever the
@@ -670,7 +670,7 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     stubMatchMedia(false, true, true) // not split, ≥768, but rail collapsed (<920)
     renderTable()
     await waitFor(() => screen.getByText('Only work item'))
-    expect(screen.queryByRole('link', { name: '+ Create task' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '+ Create task' })).toBeNull()
   })
 
   it('AC-I-TASK: Indonesian locale translates the member disclosure and typed filter grammar', async () => {

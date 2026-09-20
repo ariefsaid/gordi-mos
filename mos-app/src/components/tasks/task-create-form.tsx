@@ -27,7 +27,7 @@ export type TaskCreateFormProps = {
   onCreate: (title: string) => Promise<void>
   /** Escape / Cancel — discards the whole draft. */
   onCancel: () => void
-  /** A distinct after-create failure (e.g. the Signal-link follow-up, #874) — the task row/card
+  /** A distinct after-create failure (e.g. linking the new Task to a Signal) — the task row/card
    * already exists; only the follow-up step failed. Rendered separately from an ordinary
    * create failure, which this form tracks itself. */
   linkError?: boolean
