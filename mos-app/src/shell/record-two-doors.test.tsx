@@ -237,16 +237,35 @@ describe('AC-027 — one record, two doors', () => {
   })
 
   it('B→A: "Open full page" promotes the panel to the canonical page and unmounts the panel', async () => {
-    const { router } = harness([COLLECTION])
-    await userEvent.click(screen.getByRole('button', { name: `Open ${RECORD_ID}` }))
-    await waitFor(() => expect(panelHosts()).toHaveLength(1))
+    // F3: the escalation only renders where the panel is NOT already full-screen (it "opens"
+    // into a bigger page that has to exist beside it) — this case exercises that promotion
+    // mechanic itself, so it runs at a width where the panel renders as the non-fullscreen
+    // split/sheet regime. jsdom's default matchMedia (this suite's other cases rely on it)
+    // reports every query unmatched, i.e. phone/full-screen, so this one test opts into
+    // desktop width and restores the default afterwards.
+    const original = window.matchMedia
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: (query: string) => ({
+        matches: true, media: query, onchange: null,
+        addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+      }),
+    })
+    try {
+      const { router } = harness([COLLECTION])
+      await userEvent.click(screen.getByRole('button', { name: `Open ${RECORD_ID}` }))
+      await waitFor(() => expect(panelHosts()).toHaveLength(1))
 
-    await userEvent.click(screen.getByRole('button', { name: /open full page/i }))
+      await userEvent.click(screen.getByRole('button', { name: /open full page/i }))
 
-    await waitFor(() => expect(router.state.location.pathname).toBe(`/work/signals/${RECORD_ID}`))
-    expect(panelHosts()).toHaveLength(0)
-    expect(screen.queryByTestId(PANEL_TESTID)).toBeNull()
-    expect(await screen.findByTestId(PAGE_TESTID)).toBeInTheDocument()
+      await waitFor(() => expect(router.state.location.pathname).toBe(`/work/signals/${RECORD_ID}`))
+      expect(panelHosts()).toHaveLength(0)
+      expect(screen.queryByTestId(PANEL_TESTID)).toBeNull()
+      expect(await screen.findByTestId(PAGE_TESTID)).toBeInTheDocument()
+    } finally {
+      Object.defineProperty(window, 'matchMedia', { configurable: true, writable: true, value: original })
+    }
   })
 
   it('the panel closes back to the collection with the record dropped from the URL', async () => {

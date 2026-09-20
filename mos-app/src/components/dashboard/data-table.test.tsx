@@ -538,6 +538,17 @@ describe('DataTable — #359 stylesheet pins', () => {
     expect(block).toContain('background: var(--card)')
   })
 
+  // F1: `border-collapse: collapse` on a table with a sticky `<th>` lets the row that scrolls
+  // to the header's edge paint through the header's own background, so a row reads as sliced
+  // mid-glyph instead of hidden. `separate` + zero spacing keeps the sticky cell's background
+  // opaque over the content scrolling underneath, at the same visual row-divider rhythm.
+  it('uses separate border layout (not collapse) so the sticky header stays opaque over scrolling rows', () => {
+    const block = css.split('.dt-table {')[1]?.split('}')[0] ?? ''
+    expect(block).toContain('border-collapse: separate')
+    expect(block).toContain('border-spacing: 0')
+    expect(block).not.toContain('border-collapse: collapse')
+  })
+
   it('the phone group-toggle reaches the 44px floor via the ::before overlay (24 + 2×10)', () => {
     const block = css.split('.dt-cards-group-toggle::before {')[1]?.split('}')[0] ?? ''
     expect(block).toContain('position: absolute')

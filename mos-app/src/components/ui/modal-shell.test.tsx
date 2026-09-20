@@ -169,4 +169,27 @@ describe('ModalShell — one centered interaction contract', () => {
     expect(dialog).toHaveAttribute('data-surface', 'sheet')
     expect(dialog).toHaveAttribute('data-phone-mode', 'fullscreen')
   })
+
+  // F9: a confirm opened OVER another modal (e.g. the Signal composer's discard confirm) must
+  // dim that modal with its own scrim, not just sit on the page-level one. Each ModalShell
+  // instance renders its own fixed, full-viewport `.modal-shell__scrim`; nested here, the
+  // confirm's copy mounts strictly after the composer's in document order, so it paints over
+  // the composer with no ancestor between them (position: fixed, no transform) to confine it.
+  it('a nested ModalShell (a confirm over another dialog) renders its own scrim above the outer one', () => {
+    render(
+      <ModalShell open onClose={vi.fn()} ariaLabel="Share Signal">
+        <p>Composer content</p>
+        <ModalShell open onClose={vi.fn()} ariaLabel="Discard this Signal?">
+          <p>Your draft will be lost if you leave this composer.</p>
+        </ModalShell>
+      </ModalShell>,
+    )
+    const scrims = screen.getAllByTestId('modal-shell-scrim')
+    expect(scrims).toHaveLength(2)
+    // DOM order: the confirm's scrim is a descendant of the composer's, so with equal z-index
+    // and no ancestor transform, it paints last — on top.
+    expect(scrims[0].contains(scrims[1])).toBe(true)
+    expect(screen.getByRole('dialog', { name: 'Share Signal' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Discard this Signal?' })).toBeInTheDocument()
+  })
 })

@@ -21,6 +21,18 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
     )
   })
 
+  // F5: a popover filter trigger (Projects & Processes' "Current status", etc.) is not a
+  // fixed-budget row control like Tasks' filters — it reads its value in full and wraps the
+  // toolbar if it must, rather than ellipsizing it away for no reason.
+  it('F5: the base choice trigger sizes to its value instead of clipping it', () => {
+    // The trigger still fills its own wrapper (`width: 100%`, unchanged — the wrapper is
+    // what must not be capped) — this pins the WRAPPER's cap being lifted, not the trigger.
+    expect(css).toMatch(/\.collection-toolbar__choice\s*\{[^}]*max-width:\s*none;/s)
+    const valueBlock = css.split('.collection-toolbar__choice-value {')[1]?.split('}')[0] ?? ''
+    expect(valueBlock).not.toMatch(/text-overflow:\s*ellipsis/)
+    expect(valueBlock).not.toMatch(/overflow:\s*hidden/)
+  })
+
   it('gives inactive view controls a quiet visible hover state', () => {
     expect(css).toMatch(
       /\.collection-toolbar__view:not\(\.collection-toolbar__view--active\):hover\s*\{[^}]*background:\s*var\(--surface-tertiary\);[^}]*color:\s*var\(--foreground\);/s,
@@ -88,6 +100,13 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
     expect(css).toMatch(
       /\.collection-toolbar__choice-trigger\s*\{[^}]*box-sizing:\s*border-box;[^}]*width:\s*100%;/s,
     )
+  })
+
+  // F8: one search-field anatomy across collections — Tasks used to drop its search icon at
+  // compact desktop (1024–1440px) while Signals/Projects/Objectives kept theirs.
+  it('F8: keeps the Tasks search icon visible at compact desktop, matching every other collection', () => {
+    const compact = css.slice(css.indexOf('@media (min-width: 1024px) and (max-width: 1440px)'))
+    expect(compact).not.toMatch(/\.tasks-collection-toolbar \.collection-toolbar__search > svg\s*\{[^}]*display:\s*none/s)
   })
 
   it('keeps compact action text visible and removes the duplicate Status label at compact desktop', () => {

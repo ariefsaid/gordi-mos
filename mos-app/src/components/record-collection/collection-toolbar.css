@@ -138,8 +138,13 @@
   padding: 8px 12px;
   background: color-mix(in srgb, var(--secondary) 28%, var(--card));
 }
-/* Popover filters own their trigger styling independently of native Select consumers. */
-.collection-toolbar__choice { position: relative; }
+/* Popover filters own their trigger styling independently of native Select consumers.
+   F5: `.collection-toolbar__select`'s 180px cap (below) is a Select-box budget, not a fit for a
+   popover trigger's "label value" copy ("Current status Active …" needs more) — a Tasks filter
+   that genuinely needs that narrower budget re-asserts its own width via a more specific
+   `[data-filter-id=…] .collection-toolbar__select` rule, so exempting the base class here does
+   not reopen that intentional ellipsis-with-title contraction. */
+.collection-toolbar__choice { position: relative; max-width: none; }
 .collection-toolbar__choice-trigger {
   display: flex;
   align-items: center;
@@ -173,10 +178,9 @@
   font-size: var(--font-size-label);
   white-space: nowrap;
 }
+/* F5: the value reads whole — the trigger sizes to it (above) instead of clipping it. */
 .collection-toolbar__choice-value {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .collection-toolbar__choice-chevron { display: flex; flex: none; }
@@ -325,8 +329,10 @@
   .tasks-collection-toolbar [data-filter-id='sort'],
   .tasks-collection-toolbar [data-filter-id='sort'] .collection-toolbar__select { flex-basis: 112px; width: 112px; }
   .tasks-collection-toolbar .collection-toolbar__picker-trigger { gap: 3px; padding-inline: 3px; }
-  .tasks-collection-toolbar .collection-toolbar__search { gap: 0; padding-inline: 4px; }
-  .tasks-collection-toolbar .collection-toolbar__search > svg { display: none; }
+  /* F8: one search-field anatomy across collections — Signals/Projects/Objectives keep their
+     icon at this same width, so Tasks dropped it and read as a different control. Tight
+     padding buys the row's space back without hiding the icon every sibling search field has. */
+  .tasks-collection-toolbar .collection-toolbar__search { gap: 4px; padding-inline: 6px; }
   /* Enough inline padding to read as two controls. At zero the labels met edge to edge and
      "Fields" and "Save view" scanned as one broken label, "Fields Save" — two separate actions
      that looked like one mistake. The row wraps below its own budget now, so the width this
