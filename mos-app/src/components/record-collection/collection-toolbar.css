@@ -219,6 +219,16 @@
 
 .collection-toolbar__select { max-width: 180px; }
 .collection-toolbar__select .picker__trigger { min-height: 32px; }
+/* ui-855 addendum A2: below the 1024px band tuned further down, Tasks' desktop-door row (view
+   chip strip + search + "View & filters" trigger) has no per-control budget yet, so search was
+   squeezed to an unreadable sliver ("Search tas") at 768–1023. Let this one row wrap to two
+   lines instead — the same "search yields, never clips" priority the 1024px band states below,
+   just realised as a wrap rather than a shrink where there isn't enough width for either. */
+@media (max-width: 1023.98px) {
+  .tasks-collection-toolbar .collection-toolbar__primary { flex-wrap: wrap; row-gap: 8px; }
+  .tasks-collection-toolbar .collection-toolbar__query { flex: 1 1 220px; min-width: 200px; max-width: none; }
+  .tasks-collection-toolbar .collection-toolbar__search { flex: 1 1 200px; min-width: 160px; max-width: none; }
+}
 /* Tasks' desktop grammar is exactly two toolbar rows from 1024px upward. Row 2 stays on one
    line; its dropdown boxes may contract and ellipsize while their full values remain available
    through the trigger title. */

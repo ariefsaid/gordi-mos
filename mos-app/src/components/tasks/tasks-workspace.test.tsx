@@ -266,15 +266,17 @@ describe('D3e — Tasks create is an inline title row', () => {
     })
   })
 
-  it('Escape discards the inline row without writing', async () => {
+  it('Escape discards the inline row without writing, and returns focus to the opener', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
     renderTable()
     await waitFor(() => expect(screen.getByText('Existing task')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: '+ Create task' }))
+    const opener = screen.getByRole('button', { name: '+ Create task' })
+    fireEvent.click(opener)
     const titleInput = await screen.findByRole('textbox', { name: /title/i })
     fireEvent.keyDown(titleInput, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('textbox', { name: /title/i })).toBeNull())
     expect(mockCreateTask).not.toHaveBeenCalled()
+    await waitFor(() => expect(opener).toHaveFocus())
   })
 
   it('keeps an ambiguous Team and empty Supervisor honest until the user chooses both', async () => {
@@ -1225,6 +1227,29 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
         expect(
           document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]'),
         ).toBeTruthy(),
+      )
+    })
+
+    // ui-855 Brief A (required outcome): starting creation from ANY entry clears ?record= first,
+    // so a draft and an open record panel are never on screen together. `n` is the entry that
+    // most directly exercises this — the collection keyboard layer deliberately does not gate it
+    // on `overlayActive` (see use-collection-keyboard.ts), so it is reachable with a record open.
+    it('starting creation (keyboard n) while a record is open closes the panel and clears ?record=', async () => {
+      const task = makeTask({ id: 'task-open', title: 'Open task' })
+      mockListTasks.mockResolvedValue([task])
+      mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+      const { getLocation } = renderAt(['/work/tasks?record=task-open'])
+      await waitFor(() =>
+        expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy(),
+      )
+      await waitFor(() => expect(getLocation()?.search).toContain('record=task-open'))
+
+      fireEvent.keyDown(window, { key: 'n' })
+
+      await waitFor(() => expect(screen.getByRole('textbox', { name: /title/i })).toBeInTheDocument())
+      expect(getLocation()?.search ?? '').not.toContain('record=')
+      await waitFor(() =>
+        expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeNull(),
       )
     })
 

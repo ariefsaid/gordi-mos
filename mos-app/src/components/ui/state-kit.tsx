@@ -5,7 +5,7 @@
 // Used across the data panes (Tasks, Ops, weekly). The lightweight inline "Retry"
 // link in the My Week 56–64px density strips stays inline (their height can't fit
 // the full block) — those strips do NOT use this kit.
-import { useId, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import { Button } from './button'
@@ -84,9 +84,20 @@ export interface EmptyStateProps {
   suggestions?: EmptyStateSuggestion[]
   /**
    * Heading level for the title. Defaults to 2 because route-level empty states sit directly
-   * under the page h1. Nested record sections can pass their own deeper level.
+   * under the page h1. Nested record sections can pass their own deeper level; a standalone
+   * full-page host (no PageFamilyFrame h1 above it) passes 1.
    */
-  headingLevel?: 2 | 3 | 4 | 5 | 6
+  headingLevel?: 1 | 2 | 3 | 4 | 5 | 6
+  /**
+   * Move focus to this state's own heading (tabIndex -1) once it mounts. Opt-in — plain mounts
+   * (a filtered list's "no results", a route's steady-state empty) must never steal focus from
+   * whatever the viewer was just doing. Reserved for a record panel's not-found/error/empty body,
+   * where NOTHING else in the panel is guaranteed to exist yet and the host's own generic
+   * open-focus effect can land on stale chrome if this content resolves after an async load
+   * (ui-855 addendum A5) — landing on the heading announces the state to screen readers
+   * immediately instead of leaving focus on an unrelated control.
+   */
+  autoFocus?: boolean
   /**
    * Drop the `region` landmark + its labelling when this EmptyState sits inside an already-labelled
    * landmark. Ported from v4's `state-kit.tsx`.
@@ -125,11 +136,20 @@ export function EmptyState({
   suggestions,
   headingLevel = 2,
   nested = false,
+  autoFocus = false,
   children,
   className,
 }: EmptyStateProps) {
   const titleId = useId()
   const Heading = `h${headingLevel}` as const
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    if (autoFocus) headingRef.current?.focus()
+    // Mount-only: this component instance appearing IS the "content settled" signal (e.g. a
+    // record panel's loading skeleton swapping for this not-found body) — never re-steal focus
+    // on a later re-render of the same instance.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div
@@ -144,7 +164,7 @@ export function EmptyState({
           <span className="empty-state-glyph">{icon ?? defaultEmptyGlyph(variant)}</span>
         </div>
         <div className="empty-state-body">
-          <Heading id={titleId} className="empty-title">{title}</Heading>
+          <Heading id={titleId} ref={headingRef} tabIndex={autoFocus ? -1 : undefined} className="empty-title">{title}</Heading>
           {copy && <p className="empty-copy">{copy}</p>}
           {note && <p className="empty-note">{note}</p>}
         </div>

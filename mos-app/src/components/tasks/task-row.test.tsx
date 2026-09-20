@@ -497,73 +497,60 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
   })
 })
 
-describe('TaskRow — draft title stays put until ownership is complete', () => {
-  it('does not create or lose the title when Team/Supervisor focus changes before Enter', () => {
-    const onEditTitle = vi.fn().mockResolvedValue(undefined)
-    const onValidateNewTask = vi.fn()
+// ui-855 Brief A: the isNew draft no longer bends TaskRow's own columns into a form — it
+// delegates to the shared TaskCreateForm (task-create-form.test.tsx owns the field-level
+// validation/focus/retry behaviour). These tests cover only TaskRow's side of that delegation.
+describe('TaskRow — isNew delegates to the shared TaskCreateForm', () => {
+  it('renders ONE full-width colSpan row (never a bent per-column layout) and forwards columnSpan', () => {
     renderRow({
-      task: makeTask({
-        id: 'new-task-1',
-        title: '',
-        team_id: null,
-        business_unit_id: '',
-        accountable_person_id: '',
-      }),
+      task: makeTask({ id: 'new-task-1', title: '', team_id: null, business_unit_id: '', accountable_person_id: '' }),
       isNew: true,
-      onEditTitle,
-      onEditPic: vi.fn().mockResolvedValue(undefined),
+      columnSpan: 5,
+      onEditTitle: vi.fn().mockResolvedValue(undefined),
       onEditTeam: vi.fn().mockResolvedValue(undefined),
+      onEditPic: vi.fn().mockResolvedValue(undefined),
       onEditSupervisor: vi.fn().mockResolvedValue(undefined),
-      onValidateNewTask,
-      teamOptions: [{ id: 'team-1', name: 'Café team', businessUnitId: 'bu-1' }],
-      supervisorOptions: [{ id: 'person-2', full_name: 'Dewi Santoso' }],
     })
-
-    const title = screen.getByRole('textbox', { name: 'Edit task title' })
-    fireEvent.change(title, { target: { value: 'Ship the café launch' } })
-    fireEvent.blur(title)
-    expect(screen.getByRole('textbox', { name: 'Edit task title' })).toHaveValue('Ship the café launch')
-    expect(onEditTitle).not.toHaveBeenCalled()
-    expect(onValidateNewTask).not.toHaveBeenCalled()
-
-    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Edit task title' }), { key: 'Enter' })
-    expect(onEditTitle).not.toHaveBeenCalled()
-    expect(onValidateNewTask).toHaveBeenCalledWith('new-task-1')
-    expect(screen.getByRole('textbox', { name: 'Edit task title' })).toHaveValue('Ship the café launch')
+    const row = document.querySelector('tr.task-row--create') as HTMLTableRowElement
+    expect(row).toBeTruthy()
+    const cell = row.querySelector('td.td-create') as HTMLTableCellElement
+    expect(cell.colSpan).toBe(5)
+    // The form itself, not a table-column grammar, owns the fields.
+    expect(screen.getByRole('form', { name: /create task/i })).toBeInTheDocument()
+    // The SAME TaskCreateForm the phone card path renders (mobile-grouped-cards.test.tsx) —
+    // never a second, drifting desktop-only draft implementation.
+    expect(cell.querySelector('.tcf')).toBeTruthy()
   })
 
-  it('keeps the draft editor open after a failed create and retries the same title', async () => {
-    const onEditTitle = vi.fn()
-      .mockRejectedValueOnce(new Error('create failed'))
-      .mockResolvedValueOnce(undefined)
+  it('Escape on the title discards the draft via onDiscardNewTask', () => {
     const onDiscardNewTask = vi.fn()
     renderRow({
-      task: makeTask({ id: 'new-task-2', title: '', team_id: 'team-1', accountable_person_id: 'p-1' }),
+      task: makeTask({ id: 'new-task-2', title: '' }),
       isNew: true,
-      onEditTitle,
       onDiscardNewTask,
+      onEditTitle: vi.fn().mockResolvedValue(undefined),
       onEditTeam: vi.fn().mockResolvedValue(undefined),
+      onEditPic: vi.fn().mockResolvedValue(undefined),
       onEditSupervisor: vi.fn().mockResolvedValue(undefined),
-      teamOptions: [{ id: 'team-1', name: 'Café team', businessUnitId: 'bu-1' }],
-      supervisorOptions: [{ id: 'p-1', full_name: 'Rina Lestari' }],
-      businessUnitName: 'Kitchen',
     })
+    fireEvent.keyDown(screen.getByLabelText('Title'), { key: 'Escape' })
+    expect(onDiscardNewTask).toHaveBeenCalledTimes(1)
+  })
 
-    const title = screen.getByRole('textbox', { name: 'Edit task title' })
-    fireEvent.change(title, { target: { value: 'Retry this task' } })
-    fireEvent.keyDown(title, { key: 'Enter' })
-    const retry = await screen.findByRole('button', { name: /retry/i })
-    expect(screen.getByRole('textbox', { name: 'Edit task title' })).toHaveValue('Retry this task')
-    expect(screen.getByRole('combobox', { name: 'Team' })).toHaveTextContent('Café team')
-    expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Rina Lestari')
-    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
-    expect(onDiscardNewTask).not.toHaveBeenCalled()
-
-    fireEvent.click(retry)
-    await waitFor(() => expect(onEditTitle).toHaveBeenCalledTimes(2))
-    expect(screen.queryByRole('button', { name: /retry/i })).toBeNull()
-    expect(screen.getByRole('textbox', { name: 'Edit task title' })).toHaveValue('Retry this task')
+  it('a create-link failure (linkError) shows Retry and calls onRetryCreate', () => {
+    const onRetryCreate = vi.fn()
+    renderRow({
+      task: makeTask({ id: 'new-task-3', title: 'Ship the café launch' }),
+      isNew: true,
+      createError: true,
+      onRetryCreate,
+      onEditTitle: vi.fn().mockResolvedValue(undefined),
+      onEditTeam: vi.fn().mockResolvedValue(undefined),
+      onEditPic: vi.fn().mockResolvedValue(undefined),
+      onEditSupervisor: vi.fn().mockResolvedValue(undefined),
+    })
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+    expect(onRetryCreate).toHaveBeenCalledTimes(1)
   })
 })
 
