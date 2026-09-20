@@ -216,3 +216,9 @@
 @media (min-width: 768px) {
   .kls-dense .kls-unit-change { min-height: 32px; }
 }
+
+/* Phone card: the running "logged N" reads with the quantity it totals, so it sits under the
+   quantity field at the card's right edge instead of floating mid-card. */
+@media (max-width: 767.98px) {
+  .kls-meta { justify-content: flex-end; }
+}

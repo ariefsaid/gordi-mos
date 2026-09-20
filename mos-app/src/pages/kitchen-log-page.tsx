@@ -626,7 +626,8 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
       setStatus({ kind: 'success', count: staged.length })
       setLines(buildLines(wipItems, planMap, stockMap, movement))
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : t('common.unexpectedError'))
+      console.error('Café log submit failed', err)
+      setSubmitError(t('kitchen.log.error.submitFailed'))
       setStatus({ kind: 'ready' })
     }
   }
@@ -1054,15 +1055,11 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
           )
         )}
 
-        {submitError && (
+        {/* With no action bar on screen (no stream chosen) a submit-path message has nowhere else
+            to go, so it shows here; otherwise the bar carries it. */}
+        {submitError && noStreamChosen && !streamOutsideLocation && (
           <div role="alert" className="kl-banner kl-banner-error kl-block">
             {submitError}
-          </div>
-        )}
-
-        {status.kind === 'success' && (
-          <div role="status" aria-live="polite" className="kl-banner kl-banner-success kl-block">
-            {t(status.count === 1 ? 'kitchen.log.success.one' : 'kitchen.log.success.other', { count: status.count })}
           </div>
         )}
 
@@ -1133,6 +1130,16 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
               bar: its reason line names that stream, which the placeholder does not. */}
           {!(noStreamChosen && !streamOutsideLocation) && (
           <div className="kl-footer">
+            {/* The result of Submit appears in the pinned bar, next to the button that caused it:
+                the list is long, and a message at the top of the page is off screen on a phone. */}
+            {submitError && (
+              <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{submitError}</p>
+            )}
+            {status.kind === 'success' && (
+              <p role="status" aria-live="polite" className="kl-submit-outcome kl-submit-outcome--success">
+                {t(status.count === 1 ? 'kitchen.log.success.one' : 'kitchen.log.success.other', { count: status.count })}
+              </p>
+            )}
             {!canCapture && (
               <p className="kl-submit-reason" role="status">{t('kitchen.log.readOnlyReason')}</p>
             )}
