@@ -173,14 +173,14 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     [canShareSignal, openPanel, onShareSignal, t],
   )
 
-  // On a catalog collection the page's own create action leads the list, for viewers who may
+  // On a catalog collection route (not its record pages) the page's own create action leads the list, for viewers who may
   // create there. Below the rail-collapse width this entry is that page's one create door — the
   // page hides its header button there, as Tasks does.
   const pageCreateAction = useMemo<CommandItem | null>(() => {
-    if (pathname.startsWith('/work/objectives') && canCreateForScope('objective', scopes)) {
+    if (pathname === '/work/objectives' && canCreateForScope('objective', scopes)) {
       return { id: 'a-objective', label: t('catalog.objectives.add'), Icon: WorkIcon, kind: 'action', to: '/work/objectives?create=1' }
     }
-    if (pathname.startsWith('/work/projects') && canCreateForScope('work-line', scopes)) {
+    if (pathname === '/work/projects' && canCreateForScope('work-line', scopes)) {
       return { id: 'a-work-line', label: t('catalog.projects.add'), Icon: WorkIcon, kind: 'action', to: '/work/projects?create=1' }
     }
     return null

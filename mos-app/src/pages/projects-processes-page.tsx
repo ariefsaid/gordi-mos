@@ -92,7 +92,8 @@ export function ProjectsProcessesPage() {
     const next = new URLSearchParams(searchParams)
     next.delete('create')
     setSearchParams(next, { replace: true })
-    // openDraft reads only state setters and the authority already listed here.
+    // openDraft also reads the allowed Business Unit ids, which arrive in the same authority load
+    // that turns canManage true — so the closure this effect captures is never stale.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [createIntent, canManage])
 

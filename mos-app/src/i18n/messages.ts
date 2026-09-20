@@ -1168,7 +1168,7 @@ export const messages = {
     'collection.forbidden.title': 'You don’t have access to this collection',
     'collection.forbidden.copy': 'Ask an admin if you think you should be able to see it.',
     'collection.readOnly': 'You can view this collection but not edit it.',
-    'kitchen.log.error.submitFailed': "Couldn't submit. Your entries are still here — check the connection and try again.",
+    'kitchen.log.error.submitFailed': 'Couldn’t submit. Your entries are still here — check the connection and try again.',
     'kitchen.log.error.noBusinessUnit': 'Couldn’t work out which Café business unit this belongs to. Ask an admin.',
     'catalog.notAvailable': 'Not available',
     'catalog.column.name': 'Name',

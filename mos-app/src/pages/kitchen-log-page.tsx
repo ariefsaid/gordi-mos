@@ -71,6 +71,7 @@ import { DataTable, type DataTableColumn, type DataTableGroup } from '@/componen
 import { kitchenStatus } from '@/lib/kitchen-status'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
+import { reportError } from '@/lib/telemetry'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
 import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
@@ -626,7 +627,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
       setStatus({ kind: 'success', count: staged.length })
       setLines(buildLines(wipItems, planMap, stockMap, movement))
     } catch (err) {
-      console.error('Café log submit failed', err)
+      reportError(err, { source: 'kitchen-log.submit' })
       setSubmitError(t('kitchen.log.error.submitFailed'))
       setStatus({ kind: 'ready' })
     }

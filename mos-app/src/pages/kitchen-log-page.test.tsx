@@ -1008,7 +1008,7 @@ describe('Submit error state', () => {
     // The failure is told in plain words, in the pinned action bar beside Submit, and the entry
     // survives so the same Submit can be pressed again.
     const alert = screen.getByRole('alert')
-    expect(alert).toHaveTextContent(/couldn't submit\. your entries are still here/i)
+    expect(alert).toHaveTextContent(/couldn.t submit\. your entries are still here/i)
     expect(alert).not.toHaveTextContent(/server error/i)
     expect(alert.closest('.kl-footer')).not.toBeNull()
     expect(nasiInput).toHaveValue(12)
