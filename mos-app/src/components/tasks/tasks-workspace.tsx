@@ -588,20 +588,10 @@ export function TasksWorkspace({
     }
     if (drawerOpen) navigate({ pathname: '/work/tasks', search: currentSearch })
   }, [currentSearch, drawerOpen, host, navigate])
-  const onNewTaskRef = useRef<(prefillParam?: string) => void>(() => {})
-  const onNewTask = useCallback((prefillParam = '') => {
+  // Opens the draft. It never looks at the record panel: callers decide whether one has to close
+  // first, so a continuation after a close cannot find a stale "panel still open" and ask again.
+  const beginNewTask = useCallback((prefillParam = '') => {
     if (!dataContext || draftTask) return
-    // Starting creation from ANY entry — page button, global actions menu, command menu,
-    // keyboard shortcut, group "Add" — clears the record panel first, so a draft and an open
-    // record are never on screen together. Every entry funnels through this one function, so
-    // one guard here covers all of them.
-    if (host.session?.frames.some((frame) => frame.entry.owner === 'tasks')) {
-      // A dirty record may refuse to close; the draft opens only once the panel is really gone.
-      void host.close().then((result) => {
-        if (result.status === 'committed') onNewTaskRef.current(prefillParam)
-      })
-      return
-    }
     if (params.get('record')) {
       const next = new URLSearchParams(params)
       next.delete('record')
@@ -671,8 +661,26 @@ export function TasksWorkspace({
       created_at: now, updated_at: now, process_run_id: null, generated_from_task_def_id: null,
     })
     draftSourceSignalRef.current = sourceSignal ?? draftSourceSignalRef.current
-  }, [dataContext, draftTask, host, params, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
-  useEffect(() => { onNewTaskRef.current = onNewTask }, [onNewTask])
+  }, [dataContext, draftTask, params, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
+  // Every create entry — page button, global actions menu, command menu, keyboard shortcut, group
+  // "Add" — comes through here, so a draft and an open record are never on screen together. A
+  // dirty record may refuse to close; the draft opens only on a committed close, and only once
+  // per close however many times the entry fires while it is pending.
+  const beginNewTaskRef = useRef(beginNewTask)
+  useEffect(() => { beginNewTaskRef.current = beginNewTask }, [beginNewTask])
+  const closingForCreateRef = useRef(false)
+  const onNewTask = useCallback((prefillParam = '') => {
+    if (!host.session?.frames.some((frame) => frame.entry.owner === 'tasks')) {
+      beginNewTask(prefillParam)
+      return
+    }
+    if (closingForCreateRef.current) return
+    closingForCreateRef.current = true
+    void host.close().then((result) => {
+      closingForCreateRef.current = false
+      if (result.status === 'committed') beginNewTaskRef.current(prefillParam)
+    })
+  }, [beginNewTask, host])
   const onAddTask = useCallback((prefillParam: string) => onNewTask(prefillParam), [onNewTask])
   useEffect(() => {
     if ((!createIntentRef.current && params.get('create') !== '1') || !dataContext) return

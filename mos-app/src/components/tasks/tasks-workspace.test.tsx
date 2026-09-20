@@ -1377,6 +1377,38 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     })
   })
 
+  it('starting creation over a dirty record asks first: Cancel keeps the record and opens no draft, Discard opens it', async () => {
+    const task = makeTask({ id: 'task-dirty-create', title: 'Dirty before create' })
+    mockListTasks.mockResolvedValue([task])
+    mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+    renderTable()
+
+    await waitFor(() => screen.getByText('Dirty before create'))
+    fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Due' }))
+    const due = screen.getByLabelText('Due') as HTMLInputElement
+    mockUpdateTaskFields.mockRejectedValue(new Error('offline'))
+    fireEvent.change(due, { target: { value: '2026-08-01' } })
+    fireEvent.keyDown(due, { key: 'Enter' })
+    await screen.findByRole('alert')
+
+    // The shortcut is ignored while a field has focus, so leave the field first. Two presses
+    // while the close is pending still ask once and open at most one draft.
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    fireEvent.keyDown(window, { key: 'n' })
+    fireEvent.keyDown(window, { key: 'n' })
+    expect(await screen.findByRole('dialog')).toHaveTextContent(/discard unsaved changes/i)
+    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy()
+    expect(screen.queryByRole('textbox', { name: /^title/i })).toBeNull()
+
+    fireEvent.keyDown(window, { key: 'n' })
+    fireEvent.click(await screen.findByRole('button', { name: /discard changes/i }))
+    await waitFor(() => expect(screen.getAllByRole('textbox', { name: /^title/i })).toHaveLength(1))
+    expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeNull()
+  })
+
   it('AC-V3-008: a dirty task overlay asks before Close, keeps the record on Cancel, and leaves on Discard', async () => {
     const task = makeTask({ id: 'task-dirty', title: 'Dirty task' })
     mockListTasks.mockResolvedValue([task])
