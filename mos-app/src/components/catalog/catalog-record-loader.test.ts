@@ -124,6 +124,29 @@ describe('loadCatalogRecordData query boundaries', () => {
     ]))
   })
 
+  it('lists a Project that reaches the Objective only through the Objective\'s Tasks', async () => {
+    const queries: QueryRecord[] = []
+    const viaTask = { ...workLine, id: 'wl-2', name: 'Brand refresh', objective_id: null }
+    schemaMock
+      .mockReturnValueOnce(makeSchema('mos', {
+        'mos.work_lines': [
+          { data: [], error: null },
+          { data: [viaTask], error: null },
+        ],
+        'mos.tasks': { data: [task({ id: 'task-2', objective_id: 'obj-1', work_line_id: 'wl-2' })], error: null },
+      }, queries))
+      .mockReturnValueOnce(makeSchema('shared', {}, queries))
+
+    const result = await loadCatalogRecordData('objective', 'obj-1')
+
+    expect(queries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ schema: 'mos', table: 'work_lines', filters: [['in', 'id', ['wl-2']]] }),
+    ]))
+    expect(result?.context.relationsById.get('obj-1')?.groups).toEqual([
+      expect.objectContaining({ id: 'wl-2', name: 'Brand refresh', total: 1, done: 1 }),
+    ])
+  })
+
   it('loads a Process WorkLine and its definition-level Teams, never occurrence ownership', async () => {
     const queries: QueryRecord[] = []
     vi.mocked(readWorkLine).mockResolvedValue({ ...workLine, type: 'process' })
