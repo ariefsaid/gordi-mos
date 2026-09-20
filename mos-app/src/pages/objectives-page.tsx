@@ -28,6 +28,7 @@ import {
   type CatalogCollectionActions,
   type CatalogCreateDraft,
 } from '@/components/catalog/catalog-collection-actions'
+import { CatalogCreateForm } from '@/components/catalog/catalog-create-form'
 import { useCatalogRecordOverlay } from '@/components/catalog/use-catalog-record-overlay'
 import { allowedBusinessUnitIds, canCreateForScope, useWorkWriteAuthority } from '@/components/catalog/use-work-write-authority'
 import '@/components/catalog/catalog-collection.css'
@@ -124,6 +125,21 @@ export function ObjectivesPage() {
     return () => { live = false }
   }, [businessUnitOptions.length, draftOpen, objectiveBuIds])
 
+  const draft: CatalogCreateDraft = {
+    kind: 'objective',
+    open: draftOpen,
+    name: newName,
+    businessUnitId: newBusinessUnitId,
+    businessUnitOptions: businessUnitOptions.map((unit) => ({ value: unit.id, label: unit.name })),
+    businessUnitRequired,
+    adding,
+    error: addError,
+    onNameChange: (name: string) => { setNewName(name); if (addError) setAddError('') },
+    onBusinessUnitChange: (id) => { setNewBusinessUnitId(id); if (addError) setAddError('') },
+    onSubmit: () => { void handleDraftSubmit() },
+    onCancel: cancelDraft,
+  }
+
   const actions: CatalogCollectionActions = {
     canManage,
     rename: async (id, name) => {
@@ -153,22 +169,7 @@ export function ObjectivesPage() {
         throw error
       }
     },
-    ...(canManage ? {
-      createDraft: {
-        kind: 'objective',
-        open: draftOpen,
-        name: newName,
-        businessUnitId: newBusinessUnitId,
-        businessUnitOptions: businessUnitOptions.map((unit) => ({ value: unit.id, label: unit.name })),
-        businessUnitRequired,
-        adding,
-        error: addError,
-        onNameChange: (name: string) => { setNewName(name); if (addError) setAddError('') },
-        onBusinessUnitChange: (id) => { setNewBusinessUnitId(id); if (addError) setAddError('') },
-        onSubmit: () => { void handleDraftSubmit() },
-        onCancel: cancelDraft,
-      } satisfies CatalogCreateDraft,
-    } : {}),
+    ...(canManage ? { createDraft: draft } : {}),
   }
 
   const viewLabel = query.coverage === 'has-tasks'
@@ -259,6 +260,11 @@ export function ObjectivesPage() {
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
       <CatalogCollectionActionsProvider actions={actions}>
+        {draftOpen && (
+          <div className="record-collection-view catalog-create-panel">
+            <CatalogCreateForm draft={draft} />
+          </div>
+        )}
         <div className={overlay.splitOpen ? 'record-split' : undefined}>
           <div className="record-collection-view record-collection-view--list">
             <RecordCollectionSurface

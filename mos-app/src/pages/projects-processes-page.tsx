@@ -29,6 +29,7 @@ import {
   type CatalogCollectionActions,
   type CatalogCreateDraft,
 } from '@/components/catalog/catalog-collection-actions'
+import { CatalogCreateForm } from '@/components/catalog/catalog-create-form'
 import { useCatalogRecordOverlay } from '@/components/catalog/use-catalog-record-overlay'
 import { getBusinessUnits, type BusinessUnitOption } from '@/lib/db/directory'
 import { allowedBusinessUnitIds, canCreateForScope, useWorkWriteAuthority } from '@/components/catalog/use-work-write-authority'
@@ -130,6 +131,25 @@ export function ProjectsProcessesPage() {
     return () => { live = false }
   }, [businessUnitOptions.length, draftOpen, worklineBuIds])
 
+  const draft: CatalogCreateDraft = {
+    kind: 'work-line',
+    open: draftOpen,
+    name: newName,
+    type: newType,
+    objectiveId: newObjectiveId,
+    objectiveOptions: controller.state.data?.context.objectiveOptions ?? [],
+    businessUnitId: newBusinessUnitId,
+    businessUnitOptions: businessUnitOptions.map((unit) => ({ value: unit.id, label: unit.name })),
+    businessUnitRequired,
+    adding,
+    error: addError,
+    onNameChange: (name) => { setNewName(name); if (addError) setAddError('') },
+    onTypeChange: setNewType,
+    onObjectiveChange: (id) => { setNewObjectiveId(id); if (addError) setAddError('') },
+    onSubmit: () => { void handleDraftSubmit() },
+    onCancel: cancelDraft,
+  }
+
   const actions: CatalogCollectionActions = {
     canManage,
     rename: async (id, name) => {
@@ -159,24 +179,7 @@ export function ProjectsProcessesPage() {
         throw error
       }
     },
-    createDraft: {
-      kind: 'work-line',
-      open: draftOpen,
-      name: newName,
-      type: newType,
-      objectiveId: newObjectiveId,
-      objectiveOptions: controller.state.data?.context.objectiveOptions ?? [],
-      businessUnitId: newBusinessUnitId,
-      businessUnitOptions: businessUnitOptions.map((unit) => ({ value: unit.id, label: unit.name })),
-      businessUnitRequired,
-      adding,
-      error: addError,
-      onNameChange: (name) => { setNewName(name); if (addError) setAddError('') },
-      onTypeChange: setNewType,
-      onObjectiveChange: (id) => { setNewObjectiveId(id); if (addError) setAddError('') },
-      onSubmit: () => { void handleDraftSubmit() },
-      onCancel: cancelDraft,
-    } satisfies CatalogCreateDraft,
+    createDraft: draft,
   }
 
   const viewLabel = query.type === 'project'
@@ -267,6 +270,11 @@ export function ProjectsProcessesPage() {
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
       <CatalogCollectionActionsProvider actions={actions}>
+        {draftOpen && (
+          <div className="record-collection-view catalog-create-panel">
+            <CatalogCreateForm draft={draft} />
+          </div>
+        )}
         <div className={overlay.splitOpen ? 'record-split' : undefined}>
           <div className="record-collection-view record-collection-view--list">
             <RecordCollectionSurface

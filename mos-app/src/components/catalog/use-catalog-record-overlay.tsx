@@ -5,7 +5,7 @@ import { useIsWideOverlayWidth } from '@/shell/use-is-wide-overlay-width'
 import { OverlayHostSlot, useOptionalOverlayHost, type OverlayEntry } from '@/shell/overlay-host'
 import type { OverlayOwner } from '@/shell/overlay-navigation'
 import { TaskOverlayContent } from '@/components/tasks/task-drawer'
-import type { CatalogRow } from './catalog-collection-adapter'
+import type { CatalogRow, CatalogType } from './catalog-collection-adapter'
 import { CatalogRecordDocument, type CatalogRecordKind, type CatalogRelatedKind } from './catalog-record-document'
 
 export type CatalogRecordOverlayOwner = Extract<OverlayOwner, 'tasks' | 'work' | 'signals'>
@@ -31,10 +31,16 @@ export function useCatalogRecordEntryFactory({
   owner,
   onCollectionChanged,
   onOpenPage,
+  resolveType,
 }: {
   owner: CatalogRecordOverlayOwner
   onCollectionChanged?: () => void
   onOpenPage?: (to: To) => void
+  /** Looks up a work-line's Project/Process type by id, when the caller already has it (e.g. from
+   * the row that was clicked), so the panel chrome can name the real type instead of the generic
+   * "Project / Process" placeholder. Returns undefined when the type isn't known yet (a deep link
+   * that hasn't loaded the row) — the chrome falls back to the placeholder in that case only. */
+  resolveType?: (id: string) => CatalogType | undefined
 }): CatalogRecordEntryFactory {
   const t = useT()
   const host = useOptionalOverlayHost()
@@ -50,12 +56,22 @@ export function useCatalogRecordEntryFactory({
           pathname: kind === 'objective' ? `/work/objectives/${id}` : `/work/projects/${id}`,
           search,
         }
+    const workLineType = kind === 'work-line' ? resolveType?.(id) : undefined
+    const chromeLabel = kind === 'task'
+      ? t('tasks.detail.title')
+      : kind === 'objective'
+        ? t('catalog.record.objective')
+        : workLineType === 'process'
+          ? t('catalog.tag.process')
+          : workLineType === 'project'
+            ? t('catalog.tag.project')
+            : t('catalog.record.projectProcess')
     const entry: OverlayEntry = {
       key: `${kind}:${id}`,
       owner,
       tenant: 'record',
-      label: kind === 'task' ? t('tasks.detail.title') : t(kind === 'objective' ? 'catalog.record.objective' : 'catalog.record.projectProcess'),
-      title: kind === 'task' ? t('tasks.detail.title') : t(kind === 'objective' ? 'catalog.record.objective' : 'catalog.record.projectProcess'),
+      label: chromeLabel,
+      title: chromeLabel,
       pageTo,
       content: null,
     }
@@ -96,7 +112,7 @@ export function useCatalogRecordEntryFactory({
       />
     )
     return entry
-  }, [host, onCollectionChanged, onOpenPage, owner, t])
+  }, [host, onCollectionChanged, onOpenPage, owner, resolveType, t])
 
   return { buildEntry }
 }
@@ -129,6 +145,11 @@ export function useCatalogRecordOverlay({
   const recordInvoker = useRef<string | null>(null)
   const restoreRecordFocus = useRef(false)
   const suppressNextOpen = useRef(false)
+  // Captured from the clicked row (which already carries its Project/Process type) so the panel
+  // chrome can name the real type on first paint, without a second fetch. A cold deep link that
+  // hasn't rendered a row yet falls back to the generic placeholder in buildEntry.
+  const typeById = useRef(new Map<string, CatalogType>())
+  const resolveType = useCallback((id: string) => typeById.current.get(id), [])
 
   const searchWithoutRecord = useCallback(() => {
     const next = new URLSearchParams(params)
@@ -150,9 +171,11 @@ export function useCatalogRecordOverlay({
     owner: WORK_OWNER,
     onOpenPage: promotePage,
     onCollectionChanged,
+    resolveType,
   })
 
   const onOpenRecord = useCallback((record: CatalogRow) => {
+    if (record.type) typeById.current.set(record.id, record.type)
     recordInvoker.current = record.id
     const next = new URLSearchParams(params)
     next.set('record', record.id)

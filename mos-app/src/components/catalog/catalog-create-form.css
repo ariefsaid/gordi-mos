@@ -1,0 +1,56 @@
+/* CatalogCreateForm — ONE create form for Projects & Processes and Objectives, identical anatomy
+   on desktop and phone (label above control, error under its control, footer row). Mirrors
+   TaskCreateForm's grammar (task-create-form.css) so every collection's create flow reads as one
+   system. Tokens only — see DESIGN.md / index.css. */
+.ccf {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 16px;
+}
+.ccf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.ccf-label {
+  font-size: var(--font-size-label);
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.ccf-required {
+  color: var(--status-lost-text);
+}
+.ccf-error {
+  margin: 0;
+  font-size: var(--font-size-label);
+  color: var(--field-error-text);
+}
+/* Secondary decisions (Type · Objective · Business Unit): a row on a wide track, one column on a
+   narrow one — no separate phone-only markup to drift out of sync. */
+.ccf-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+@media (max-width: 767.98px) {
+  .ccf-row { grid-template-columns: 1fr; }
+}
+.ccf-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+@media (max-width: 767.98px) {
+  .ccf .picker__trigger,
+  .ccf .mk-textinput__field {
+    min-height: 44px;
+    font-size: var(--font-size-touch-input);
+  }
+  .ccf-foot .btn { min-height: 44px; }
+}
