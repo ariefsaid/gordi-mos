@@ -144,8 +144,10 @@ export function CafeOpeningPanel({ processId, teamId, teamName, presentation = '
             {canStart && (
               // ui-855 café review defect #2: Submit is the capture form's job below this door
               // — one primary per view. The opening checklist is a quiet secondary door here,
-              // never a second blue action competing with it.
-              <Button variant="ghost" disabled={starting} onClick={() => { void handleStart() }}>
+              // never a second blue action competing with it. Outline, not ghost (residual E4):
+              // ghost has no border/fill, so on phone it rendered as unstyled text indented by
+              // the button's own padding, indistinguishable from body copy.
+              <Button variant="outline" disabled={starting} onClick={() => { void handleStart() }}>
                 {t('cafe.opening.start')}
               </Button>
             )}

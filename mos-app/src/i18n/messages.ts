@@ -375,7 +375,7 @@ export const messages = {
     'kitchen.stock.col.item': 'Item',
     'kitchen.stock.col.stok': 'Stock',
     'kitchen.stock.col.tersedia': 'Available',
-    'kitchen.stock.card.erp': 'ERP',
+    'kitchen.stock.card.erp': 'System stock',
     'kitchen.category.chicken': 'Chicken',
     'kitchen.category.snackSweet': 'Snack/Sweet',
     'kitchen.category.riceStaple': 'Rice/Staple',
@@ -822,7 +822,7 @@ export const messages = {
     'kitchen.status.over': 'Over +${count}',
     'kitchen.status.under': 'Under −${count}',
     'kitchen.stock.caption': 'Stock — ${stream} — system quantity, ERP inventory and available per item for ${date}',
-    'kitchen.stock.col.erp': 'ERP inventory',
+    'kitchen.stock.col.erp': 'System stock',
     'kitchen.stock.empty.copy': 'No approved activity for ${stream} on ${date} yet.',
     'kitchen.stock.empty.title': 'No stock to show',
     'kitchen.stock.erpPending': 'ERP inventory not connected yet — comparison column pending',
@@ -1970,7 +1970,7 @@ export const messages = {
     'kitchen.stock.col.item': 'Item',
     'kitchen.stock.col.stok': 'Stok',
     'kitchen.stock.col.tersedia': 'Tersedia',
-    'kitchen.stock.card.erp': 'ERP',
+    'kitchen.stock.card.erp': 'Stok sistem',
     // Weekly update placeholder (audit D7 fix)
     // ---- v4 shell chrome (#188) ----
     // Every string the ported app-shell chrome renders: destination + nav labels for the v4
@@ -2348,7 +2348,7 @@ export const messages = {
     'kitchen.status.over': 'Lebih +${count}',
     'kitchen.status.under': 'Kurang −${count}',
     'kitchen.stock.caption': 'Stok — ${stream} — jumlah sistem, inventori ERP dan tersedia per item untuk ${date}',
-    'kitchen.stock.col.erp': 'Inventori ERP',
+    'kitchen.stock.col.erp': 'Stok sistem',
     'kitchen.stock.empty.copy': 'Belum ada aktivitas disetujui untuk ${stream} pada ${date}.',
     'kitchen.stock.empty.title': 'Tidak ada stok untuk ditampilkan',
     'kitchen.stock.erpPending': 'Inventori ERP belum terhubung — kolom perbandingan menyusul',

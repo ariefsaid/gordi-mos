@@ -173,6 +173,14 @@
    at a user who already answered it. Mirrors the aria-invalid the textarea already sets. */
 .kls-note[aria-invalid='false'] { border-color: var(--border); }
 
+/* Exactly one treatment at a time (residual E2). Invalid alone: the red border above. Focused
+   alone: the app-wide accent `*:focus-visible` ring (index.css). Both at once — an empty
+   required note, focused — the ring switches to the destructive colour instead of stacking a
+   blue outline outside the red border, which read as two nested rings. */
+.kls-note[aria-invalid='true']:focus-visible {
+  outline-color: var(--destructive);
+}
+
 /* Unit label beside the typed quantity ("porsi"). Quiet — it names the unit, it is not data. */
 .kls-unit {
   flex: 0 0 auto;
