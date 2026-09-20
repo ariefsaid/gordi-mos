@@ -170,10 +170,14 @@ export function ConfirmDialog({
         )}
 
         <div className="flex items-center justify-end gap-2">
-          {/* Native button with CSS class so we can attach a ref for auto-focus */}
+          {/* F9: on a destructive confirm, the safe default reads as loud as the destructive
+              action (solid fill, not an outline) — Discard stays the only RED fill, but
+              "Keep editing" is no longer the visually quieter of the two choices. A
+              non-destructive confirm's Cancel keeps the ordinary outline weight; its Confirm
+              is already the one blue primary action, so Cancel does not need to compete. */}
           <button
             type="button"
-            className="btn btn-outline"
+            className={`btn ${tone === 'destructive' ? 'btn-primary' : 'btn-outline'}`}
             onClick={onCancel}
             disabled={busy}
           >

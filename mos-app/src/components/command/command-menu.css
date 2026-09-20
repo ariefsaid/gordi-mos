@@ -182,6 +182,17 @@
 }
 .cm-foot-key { font-family: var(--ds-code-font-family); }
 
+/* F7: `useIsCoarsePointer` already unmounts this copy for `(pointer: coarse)` — this CSS rule
+   is the second, independent hiding path for a touch device that reports a fine pointer but no
+   hover (`(hover: none)`), which the JS check alone does not cover. No un-pressable "esc" chip
+   or "↑↓ navigate · ↵ open · esc close" line on a screen with no keyboard. */
+@media (hover: none), (pointer: coarse) {
+  .cm-foot,
+  .cm-input .cm-foot-key {
+    display: none;
+  }
+}
+
 /* SYS-2 phone tap-target floor: the command rows are the primary touch surface of the ⌘K
    palette on phone; their 36px height is below the 44px touch minimum. min-height (not height)
    raises the floor on phone without disturbing the desktop rhythm. Covers the record-search

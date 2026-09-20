@@ -221,6 +221,15 @@ describe('AC-S02/S03: Brand column token + breadcrumb min-w-0', () => {
     expect(topBarCss).toMatch(/@media\s*\(max-width:\s*919\.98px\)[\s\S]*\.top-bar \.tap-target-phone--icon\s*\{[\s\S]*min-width:\s*44px[\s\S]*min-height:\s*44px/)
   })
 
+  // F6: below rail-collapse the breadcrumb IS the page title (no ancestor crumbs to fall back
+  // to), so a one-line ellipsis there can cut the one word that names the screen. Two lines
+  // read the whole title instead of clipping it.
+  it('F6: below rail-collapse, the breadcrumb leaf wraps to two lines instead of one-line ellipsis', () => {
+    const body = topBarCss.split('@media (max-width: 919.98px) {')[1] ?? ''
+    expect(body).toMatch(/\.top-bar__breadcrumb-leaf\.truncate\s*\{[^}]*-webkit-line-clamp:\s*2/s)
+    expect(body).toMatch(/\.top-bar__breadcrumb-leaf\.truncate\s*\{[^}]*white-space:\s*normal/s)
+  })
+
   it('AC-S02: brand column references --rail-w token and has border-r', () => {
     const { container } = renderTopBar()
     const brandCol = container.querySelector('[style*="--rail-w"]') as HTMLElement | null

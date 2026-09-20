@@ -195,6 +195,26 @@ describe('Select (primitive)', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  it('keeps a disabled placeholder option out of the open list while the closed trigger still shows its text', async () => {
+    const user = userEvent.setup()
+    render(
+      <Select aria-label="Choose stream" value="">
+        <option value="" disabled>Choose stream…</option>
+        <option value="a">Gordi HQ · Kitchen</option>
+        <option value="b">Gordi HQ · Bar</option>
+      </Select>,
+    )
+    const trigger = screen.getByRole('combobox', { name: 'Choose stream' })
+    expect(trigger).toHaveTextContent('Choose stream…')
+
+    await user.click(trigger)
+    const listbox = screen.getByRole('listbox', { name: 'Choose stream' })
+    expect(within(listbox).queryByText('Choose stream…')).not.toBeInTheDocument()
+    expect(within(listbox).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Gordi HQ · Kitchen', 'Gordi HQ · Bar',
+    ])
+  })
+
   it('associates labels, forwards error/description semantics, and keeps the shared shell classes', () => {
     render(
       <Select

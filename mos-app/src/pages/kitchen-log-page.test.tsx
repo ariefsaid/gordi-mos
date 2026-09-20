@@ -1525,7 +1525,9 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     const picker = screen.getByRole('combobox', { name: /production stream/i })
     expect(picker).toHaveTextContent(/choose stream/i)
     fireEvent.click(picker)
-    expect(screen.getByRole('option', { name: /choose stream/i })).toHaveAttribute('aria-disabled', 'true')
+    // F2 (shared Select): the placeholder prompt is not a choosable option, so the open list
+    // omits it entirely — the closed trigger above is what still reads "Choose stream…".
+    expect(screen.queryByRole('option', { name: /choose stream/i })).not.toBeInTheDocument()
     // No stream → nothing to scope the plan/stock/actuals reads to (never a guess).
     expect(mockFetchPlanMap).not.toHaveBeenCalled()
     expect(mockFetchStockMap).not.toHaveBeenCalled()
