@@ -447,7 +447,7 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     const table = screen.getByRole('table')
     const headers = within(table).getAllByRole('columnheader').map(h => h.textContent ?? '')
     const stokIdx = headers.findIndex(h => /^stock$/i.test(h.trim()))
-    // Residual E3(a): the header is user language ("System stock"), never the "ERP" jargon.
+    // The header is user language ("System stock"), never the "ERP" jargon.
     const erpIdx = headers.findIndex(h => /^system stock$/i.test(h.trim()))
     expect(stokIdx).toBeGreaterThan(-1)
     expect(erpIdx).toBe(stokIdx + 1) // beside, not merely present
@@ -471,7 +471,7 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     const table = screen.getByRole('table')
     expect(table).toBeInTheDocument()
     // Column headers name the two cuts (stock = usable, available = available). Exact match on
-    // "Stock" — "System stock" (the ERP comparison column, residual E3(a)) also contains the word.
+    // "Stock" — "System stock" (the ERP comparison column) also contains the word.
     expect(within(table).getByRole('columnheader', { name: /^stock$/i })).toBeInTheDocument()
     expect(within(table).getByRole('columnheader', { name: /available/i })).toBeInTheDocument()
 
@@ -499,8 +499,8 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     const card = screen.getByText('Ayam Bakar').closest('.ks-card') as HTMLElement
     expect(card).not.toBeNull()
     expect(card.textContent).toMatch(/Stock\s*12/i)
-    // Residual E3(a): the label shows once, in user language ("System stock"), with a plain
-    // "—" placeholder — never the "ERP" jargon.
+    // The label shows once, in user language ("System stock"), with a plain "—" placeholder —
+    // never the "ERP" jargon.
     expect(card.textContent).toMatch(/System stock\s*—/i)
     expect(card.textContent).toMatch(/Available\s*8/i)
     expect(card.querySelector('dl')).toBeNull()

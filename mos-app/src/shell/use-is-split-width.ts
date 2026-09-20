@@ -5,10 +5,10 @@ export const TASKS_FRAME_GUTTER_PX = 32
 export const TASKS_DRAWER_MAX_WIDTH = 400
 export const TASKS_SPLIT_GAP_PX = 12
 export const TASKS_TABLE_BORDER_PX = 2 // the .assembly card's 1px left + 1px right border (a width budget)
-// ui-855 (defect 7): Title's floor dropped 200→120 (it is `width: auto` in split mode now — the
-// column that gives when the table narrows, never the status pill) and Status rose 108→132 (wide
-// enough for the longest closed-vocabulary word, "Sedang berjalan", so it never wraps). New
-// total: 120 + 132 + 112 + 104 + 128 = 596.
+// Title's floor is 120 (it is `width: auto` in split mode — the column that gives when the
+// table narrows, never the status pill); Status's floor is 132, wide enough for the longest
+// closed-vocabulary word, "Sedang berjalan", so it never wraps.
+// Total: 120 + 132 + 112 + 104 + 128 = 596.
 export const TASKS_SPLIT_FLOOR_TOTAL = 596 // the five .split decision-column floors authored in TasksWorkspace.css
 
 // Keep this arithmetic beside the media query: it is the viewport width at which the rail,

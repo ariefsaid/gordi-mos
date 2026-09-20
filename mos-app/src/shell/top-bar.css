@@ -31,11 +31,11 @@
     min-height: 44px;
   }
 
-  /* F6: below rail-collapse the header IS the page title (breadcrumb.tsx renders the leaf
-     alone, no ancestors) — there is no shorter fallback to fall back to, so a one-line
-     ellipsis on the leaf cuts the one word that says what screen this is ("Projects &
-     Process…"). Two lines read the full title instead; the utility's own `truncate`
-     (single-line ellipsis) still applies at every wider width. */
+  /* Below rail-collapse the header IS the page title (breadcrumb.tsx renders the leaf alone,
+     no ancestors) — there is no shorter fallback to fall back to, so a one-line ellipsis on
+     the leaf would cut the one word that says what screen this is ("Projects & Process…").
+     Two lines read the full title instead; the utility's own `truncate` (single-line ellipsis)
+     still applies at every wider width. */
   .top-bar__breadcrumb-leaf.truncate {
     display: -webkit-box;
     -webkit-box-orient: vertical;

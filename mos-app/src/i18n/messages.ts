@@ -544,8 +544,8 @@ export const messages = {
     'commandMenu.footer.close': 'close',
     // ── Café capture (#196 — the v4 port of the Café opening + production log) ──────────────
     'cafe.opening.chooseLocation': 'Choose a location',
-    // Independent critique D10: this list is reused by staff switching WHERE they log, not
-    // only by someone browsing another branch's opening — "view" was untrue for the first job.
+    // This list is reused by staff switching WHERE they log, not only by someone browsing
+    // another branch's opening, so the copy says "choose" rather than "view".
     'cafe.opening.locationChoiceHelp': 'Choose the location to work from.',
     'cafe.opening.openLocation': 'Open location',
     'cafe.opening.locationLabel': 'Location',
@@ -562,8 +562,8 @@ export const messages = {
     // The button beside it already says "Start today's opening"; the sentence says the state.
     'cafe.opening.notStartedLead': 'Not started yet.',
     'cafe.opening.notStartedMember': 'Not started yet — no one has started today’s opening.',
-    // Independent critique D5: the log's plan reads 0 for the same reason on this same screen —
-    // say the reason once, beside the door action that resolves it.
+    // The log's plan reads 0 for the same reason on this same screen — say the reason once,
+    // beside the door action that resolves it.
     'cafe.opening.planLoadsAfterStart': "Today's plan loads once the opening starts.",
     'cafe.opening.start': "Start today's opening",
     // issue 457: the panel is TEAM-scoped, and its caption sat directly under the head's
@@ -637,10 +637,10 @@ export const messages = {
     'kitchen.log.footer.noteMissing.one': '${count} note missing',
     'kitchen.log.footer.noteMissing.other': '${count} notes missing',
     'kitchen.log.footer.reviewNext': 'Goes to your supervisor for review',
-    // Independent critique D6: rows say "porsi" (the item unit's own master-data name,
-    // WipItemStepper's `kitchen.unit.porsi` fallback) — the summary used to translate the SAME
-    // unit to "portion(s)", so one screen spoke both words for one thing. "Porsi" is the
-    // domain term the live kitchen app and this catalog's own row label already use.
+    // Rows say "porsi" (the item unit's own master-data name, WipItemStepper's
+    // `kitchen.unit.porsi` fallback), so the summary uses the SAME word rather than translating
+    // it to "portion(s)" — one screen, one word for one thing. "Porsi" is the domain term the
+    // live kitchen app and this catalog's own row label already use.
     'kitchen.log.footer.unit.one': '${count} porsi',
     'kitchen.log.footer.unit.other': '${count} porsi',
     // NOT the summary's "Off-plan", which counts portions made against no plan. This groups

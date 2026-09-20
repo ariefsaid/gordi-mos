@@ -10,9 +10,9 @@
 // The `row-selected` class stays semantically "the open drawer row" (isSelected),
 // unchanged from pre-PR-2.
 //
-// ui-855 Brief A: the isNew draft no longer bends this row's columns into a form — it renders
-// TaskCreateForm (task-create-form.tsx) inside a single full-width colSpan row, the SAME
-// component the phone card path renders (mobile-grouped-cards.tsx TaskCard).
+// The isNew draft does not bend this row's columns into a form: it renders TaskCreateForm
+// (task-create-form.tsx) inside a single full-width colSpan row, the SAME component the phone
+// card path renders (mobile-grouped-cards.tsx TaskCard).
 import type { Ref } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import '@/components/collection-grammar.css'
@@ -95,7 +95,7 @@ export type TaskRowProps = {
   createError?: boolean
   onRetryCreate?: () => void
   /** Total <td>/<th> count the table currently renders — the isNew row spans all of them
-   * (ui-855 Brief A: the create form occupies the full table width, never a bent column layout). */
+   * (the create form occupies the full table width, never a bent column layout). */
   columnSpan?: number
   /** #742 AC-060: the viewer has nobody reporting to them, so the draft's PIC is fixed to self. */
   viewerHasNoDownline?: boolean
@@ -298,8 +298,8 @@ export function TaskRow({
     beginEdit()
   }
 
-  // ui-855 Brief A: the draft is ONE full-width create form, not a bent row. It occupies every
-  // column the table currently renders (columnSpan) so it never inherits a column's narrow width.
+  // The draft is ONE full-width create form, not a bent row. It occupies every column the
+  // table currently renders (columnSpan) so it never inherits a column's narrow width.
   if (isNew) {
     return (
       <tr className="task-row task-row--create">

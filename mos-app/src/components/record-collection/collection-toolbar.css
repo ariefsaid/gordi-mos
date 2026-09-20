@@ -139,7 +139,7 @@
   background: color-mix(in srgb, var(--secondary) 28%, var(--card));
 }
 /* Popover filters own their trigger styling independently of native Select consumers.
-   F5: `.collection-toolbar__select`'s 180px cap (below) is a Select-box budget, not a fit for a
+   `.collection-toolbar__select`'s 180px cap (below) is a Select-box budget, not a fit for a
    popover trigger's "label value" copy ("Current status Active …" needs more) — a Tasks filter
    that genuinely needs that narrower budget re-asserts its own width via a more specific
    `[data-filter-id=…] .collection-toolbar__select` rule, so exempting the base class here does
@@ -178,7 +178,7 @@
   font-size: var(--font-size-label);
   white-space: nowrap;
 }
-/* F5: the value reads whole — the trigger sizes to it (above) instead of clipping it. */
+/* The value reads whole — the trigger sizes to it (above) instead of clipping it. */
 .collection-toolbar__choice-value {
   min-width: 0;
   white-space: nowrap;
@@ -223,11 +223,11 @@
 
 .collection-toolbar__select { max-width: 180px; }
 .collection-toolbar__select .picker__trigger { min-height: 32px; }
-/* ui-855 addendum A2: below the 1024px band tuned further down, Tasks' desktop-door row (view
-   chip strip + search + "View & filters" trigger) has no per-control budget yet, so search was
-   squeezed to an unreadable sliver ("Search tas") at 768–1023. Let this one row wrap to two
-   lines instead — the same "search yields, never clips" priority the 1024px band states below,
-   just realised as a wrap rather than a shrink where there isn't enough width for either. */
+/* Below the 1024px band tuned further down, Tasks' desktop-door row (view chip strip + search +
+   "View & filters" trigger) has no per-control budget, so this row wraps to two lines rather than
+   squeezing search to an unreadable sliver — the same "search yields, never clips" priority the
+   1024px band states below, just realised as a wrap rather than a shrink where there isn't
+   enough width for either. */
 @media (max-width: 1023.98px) {
   .tasks-collection-toolbar .collection-toolbar__primary { flex-wrap: wrap; row-gap: 8px; }
   .tasks-collection-toolbar .collection-toolbar__query { flex: 1 1 220px; min-width: 200px; max-width: none; }
@@ -329,9 +329,9 @@
   .tasks-collection-toolbar [data-filter-id='sort'],
   .tasks-collection-toolbar [data-filter-id='sort'] .collection-toolbar__select { flex-basis: 112px; width: 112px; }
   .tasks-collection-toolbar .collection-toolbar__picker-trigger { gap: 3px; padding-inline: 3px; }
-  /* F8: one search-field anatomy across collections — Signals/Projects/Objectives keep their
-     icon at this same width, so Tasks dropped it and read as a different control. Tight
-     padding buys the row's space back without hiding the icon every sibling search field has. */
+  /* One search-field anatomy across collections — Signals/Projects/Objectives keep their icon
+     at this same width, so Tasks does too. Tight padding buys the row's space back without
+     hiding the icon every sibling search field has. */
   .tasks-collection-toolbar .collection-toolbar__search { gap: 4px; padding-inline: 6px; }
   /* Enough inline padding to read as two controls. At zero the labels met edge to edge and
      "Fields" and "Save view" scanned as one broken label, "Fields Save" — two separate actions

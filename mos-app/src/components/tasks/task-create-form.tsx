@@ -1,8 +1,7 @@
-// TaskCreateForm — the ONE task-creation form (ui-855 Brief A). Replaces the bent table-row /
-// phone-card draft markup: a real form, read top-to-bottom (Title → Team/PIC/Supervisor → derived
-// Business unit → footer actions), rendered IDENTICALLY by the desktop table (inside a full-width
-// colSpan row, task-row.tsx) and the phone card (mobile-grouped-cards.tsx). One component, one
-// validation contract, one a11y contract — never two bespoke drafts drifting apart again.
+// TaskCreateForm — the ONE task-creation form: a real form, read top-to-bottom (Title →
+// Team/PIC/Supervisor → derived Business unit → footer actions), rendered IDENTICALLY by the
+// desktop table (inside a full-width colSpan row, task-row.tsx) and the phone card
+// (mobile-grouped-cards.tsx). One component, one validation contract, one a11y contract.
 import { useEffect, useId, useRef, useState } from 'react'
 import { Picker } from '@/components/ui/picker'
 import { picLockMessage } from './task-permissions'

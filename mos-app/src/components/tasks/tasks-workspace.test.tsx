@@ -1230,10 +1230,10 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       )
     })
 
-    // ui-855 Brief A (required outcome): starting creation from ANY entry clears ?record= first,
-    // so a draft and an open record panel are never on screen together. `n` is the entry that
-    // most directly exercises this — the collection keyboard layer deliberately does not gate it
-    // on `overlayActive` (see use-collection-keyboard.ts), so it is reachable with a record open.
+    // Starting creation from ANY entry clears ?record= first, so a draft and an open record
+    // panel are never on screen together. `n` is the entry that most directly exercises this —
+    // the collection keyboard layer deliberately does not gate it on `overlayActive` (see
+    // use-collection-keyboard.ts), so it is reachable with a record open.
     it('starting creation (keyboard n) while a record is open closes the panel and clears ?record=', async () => {
       const task = makeTask({ id: 'task-open', title: 'Open task' })
       mockListTasks.mockResolvedValue([task])

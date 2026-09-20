@@ -93,9 +93,9 @@ export interface EmptyStateProps {
    * (a filtered list's "no results", a route's steady-state empty) must never steal focus from
    * whatever the viewer was just doing. Reserved for a record panel's not-found/error/empty body,
    * where NOTHING else in the panel is guaranteed to exist yet and the host's own generic
-   * open-focus effect can land on stale chrome if this content resolves after an async load
-   * (ui-855 addendum A5) — landing on the heading announces the state to screen readers
-   * immediately instead of leaving focus on an unrelated control.
+   * open-focus effect can land on stale chrome if this content resolves after an async load —
+   * landing on the heading announces the state to screen readers immediately instead of
+   * leaving focus on an unrelated control.
    */
   autoFocus?: boolean
   /**

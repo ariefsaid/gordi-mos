@@ -1,4 +1,4 @@
-// TaskCreateForm — ui-855 Brief A. The ONE task-creation form: Title (full width, visible
+// TaskCreateForm — the ONE task-creation form: Title (full width, visible
 // label) → Team/PIC/Supervisor (each with a visible label; Team + Supervisor required) →
 // derived Business unit → footer (Create task / Cancel). Field-level validation only —
 // TaskRow (desktop, colSpan row) and MobileGroupedCards' TaskCard (phone, single column) both

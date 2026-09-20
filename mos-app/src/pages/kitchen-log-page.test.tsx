@@ -443,8 +443,8 @@ describe('Populated state — WIP items loaded', () => {
     expect(rule).toMatch(/position:\s*sticky/)
     expect(rule).toMatch(/bottom:\s*0/)
     expect(rule).toMatch(/background:\s*var\(--card\)/)
-    // Independent critique D1: the shorthand alone was not enough evidence of an opaque
-    // surface — pin the `background-color` longhand too (see the rule's own comment).
+    // The shorthand alone is not enough evidence of an opaque surface — pin the
+    // `background-color` longhand too (see the rule's own comment).
     expect(rule).toMatch(/background-color:\s*var\(--card\)/)
     expect(rule).toMatch(/border-top:\s*1px solid var\(--border\)/)
     // Soft-Elevation Rule: a flat utility surface never carries a resting shadow.
@@ -454,10 +454,10 @@ describe('Populated state — WIP items loaded', () => {
   it('B3b: the list container reserves bottom room so the sticky footer cannot permanently cover the final row', async () => {
     const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-log-page.css'), 'utf8')
     expect(css).toMatch(/\.kl-form \.dt-table,\s*\n\.kl-form \.dt-cards \{/)
-    // Independent critique D1: the reserve is sized to the footer's tallest rendered state
-    // (the compact row PLUS an optional blocked-reason line) at EVERY width the bar is sticky,
-    // not only on phone — the old 88px/140px pair let a real row (and, at 390, the note field
-    // itself) render partly behind the bar once a reason line appeared.
+    // The reserve is sized to the footer's tallest rendered state (the compact row PLUS an
+    // optional blocked-reason line) at EVERY width the bar is sticky, not only on phone, so a
+    // real row (and, at 390, the note field itself) never renders partly behind the bar once a
+    // reason line appears.
     expect(css).toMatch(/margin-bottom:\s*104px/)
     expect(css).toMatch(/margin-bottom:\s*calc\(96px \+ env\(safe-area-inset-bottom/)
   })
@@ -684,11 +684,9 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
   })
 })
 
-// ── F3b: disabled Submit shows an inline reason message (Fix 3) ──────────────
-// ui-855 café review, defect #4/outcome #3: the footer no longer restates the field's own
-// "Note required — off plan" cue verbatim — it names a COUNT and is itself a control that jumps
-// to + focuses the first unresolved note (required outcome: "a short pointer … that scrolls/
-// focuses the first missing note when activated").
+// ── F3b: disabled Submit shows an inline reason message ──────────────
+// The footer does not restate the field's own "Note required — off plan" cue verbatim — it
+// names a COUNT and is itself a control that jumps to and focuses the first unresolved note.
 describe('F3b: disabled Submit shows a note-missing pointer when a variance note is missing', () => {
   it('shows "1 note missing" as a button near Submit, which focuses the note field', async () => {
     // No plans → every staged item is off-target (needs a variance note)
@@ -704,8 +702,8 @@ describe('F3b: disabled Submit shows a note-missing pointer when a variance note
     const submit = screen.getAllByRole('button', { name: /^submit/i })[0]
     expect(submit).toBeDisabled()
 
-    // FIX 3 (ui-855: now a button, not a passive status line): the count is named and it is
-    // itself the destination back to the field the count is about.
+    // A button, not a passive status line: the count is named and it is itself the destination
+    // back to the field the count is about.
     const pointer = screen.getByRole('button', { name: /1 note missing/i })
     expect(pointer).toBeInTheDocument()
     fireEvent.click(pointer)
@@ -1327,8 +1325,8 @@ describe('OD-K-5: sticky-footer tally', () => {
     fireEvent.change(ayamInput, { target: { value: '20' } })
 
     expect(screen.getByText(/1 item/i)).toBeInTheDocument()
-    // ui-855 independent critique D6: the footer states the unit in the SAME word the rows
-    // themselves use ("porsi") rather than an English translation of it ("portions").
+    // The footer states the unit in the SAME word the rows themselves use ("porsi") rather
+    // than an English translation of it ("portions").
     expect(screen.getByText(/20 porsi/i)).toBeInTheDocument()
   })
 })
@@ -1525,7 +1523,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     const picker = screen.getByRole('combobox', { name: /production stream/i })
     expect(picker).toHaveTextContent(/choose stream/i)
     fireEvent.click(picker)
-    // F2 (shared Select): the placeholder prompt is not a choosable option, so the open list
+    // Shared Select: the placeholder prompt is not a choosable option, so the open list
     // omits it entirely — the closed trigger above is what still reads "Choose stream…".
     expect(screen.queryByRole('option', { name: /choose stream/i })).not.toBeInTheDocument()
     // No stream → nothing to scope the plan/stock/actuals reads to (never a guess).
@@ -1536,8 +1534,8 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     // one message, and there is no Submit to press.
     expect(screen.queryByText(/choose a production stream before submitting/i)).toBeNull()
     expect(screen.queryByRole('button', { name: /^submit/i })).toBeNull()
-    // ui-855 defect #1: nothing that LOOKS like an editable quantity field is rendered until a
-    // stream makes it one — not merely disabled, absent. Dish names are absent too (no list).
+    // Nothing that LOOKS like an editable quantity field is rendered until a stream makes it
+    // one — not merely disabled, absent. Dish names are absent too (no list).
     expect(screen.queryByRole('spinbutton')).toBeNull()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
     expect(screen.queryByRole('tablist')).toBeNull()
@@ -1925,10 +1923,10 @@ describe('issue 586: a movement switch with staged entries goes through the unsa
     // (which would pass just as happily on a footer showing some OTHER stale count).
     const transferInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     expect((transferInput as HTMLInputElement).value).toBe('')
-    // ui-855 independent critique D12: the tally renders only while something is staged, so
-    // the positive read of "the switch actually cleared it" is that the tally is gone —
-    // stronger than the old "reads 0 items · 0 portions" (which would just as happily pass on
-    // a footer that silently kept re-rendering a stale zero next to a live Submit).
+    // The tally renders only while something is staged, so the positive read of "the switch
+    // actually cleared it" is that the tally is gone — never a "0 items · 0 portions" render
+    // that could just as happily pass on a footer silently re-rendering a stale zero next to a
+    // live Submit.
     expect(document.querySelector('.kl-tally-num')).toBeNull()
   })
 
@@ -2125,7 +2123,7 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
   it('offers only the active location’s streams, not every branch’s', async () => {
     await renderPage(VIEWER_MEMBER, '/mos/kitchen/log', HQ)
     // The remembered default (Rumah Rames) is outside HQ, so this opens on the no-stream
-    // guidance state (OD-CAFE-1 + ui-855 defect #1) — the picker itself is still reachable.
+    // guidance state (OD-CAFE-1) — the picker itself is still reachable.
     await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
 
     fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))

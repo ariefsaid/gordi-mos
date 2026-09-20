@@ -282,10 +282,10 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
         data-status={status}
         data-empty={isEmptyValue(spec) ? 'true' : 'false'}
       >
-        {/* IC-57: the required marker belongs to the ACT of submitting a value, not to viewing
-            one — this row shows an already-saved value, so nothing here is missing or about to
-            be rejected. The same field gets its "*" back the moment it becomes the edit-mode
-            row below, which is where a required value can actually be entered. */}
+        {/* The required marker belongs to the ACT of submitting a value, not to viewing one —
+            this row shows an already-saved value, so nothing here is missing or about to be
+            rejected. The same field gets its "*" back the moment it becomes the edit-mode row
+            below, which is where a required value can actually be entered. */}
         <span className="record-field__label" id={labelId}>
           {spec.label}
         </span>

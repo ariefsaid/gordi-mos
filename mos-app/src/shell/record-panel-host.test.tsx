@@ -176,8 +176,8 @@ describe('RecordPanelHost — optional chrome (FR-1: title zone · Open full pag
     expect(screen.queryByRole('button', { name: /open full page/i })).toBeNull()
   })
 
-  // F3: the escalation "opens" the record into a bigger page — dead weight once the panel
-  // already fills the whole viewport (mobile full-screen). Close remains the way out either way.
+  // The escalation "opens" the record into a bigger page — dead weight once the panel already
+  // fills the whole viewport (mobile full-screen). Close remains the way out either way.
   it('full-screen (mobile): no "Open full page" — the panel already fills the viewport — but Close remains', () => {
     stubWidths({ split: false, band: false, desktop: false })
     renderHost({ title: 'Signal', onOpenPage: vi.fn() })
@@ -434,7 +434,7 @@ describe('RecordPanelHost — phone regime a11y (NFR-003 / AC-022)', () => {
     const controls = Array.from(
       document.querySelectorAll<HTMLElement>('.record-panel-chrome button'),
     )
-    // F3: full-screen (phone) hides Open full page — the panel already fills the viewport.
+    // Full-screen (phone) hides Open full page — the panel already fills the viewport.
     expect(controls.length).toBe(2) // Back · Close
     for (const control of controls) {
       expect(control.getAttribute('aria-label')?.trim()).toBeTruthy()

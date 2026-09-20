@@ -151,10 +151,10 @@
    no resting shadow). The list container below carries matching bottom padding
    (`.kl-form .dt-table`/`.dt-cards`) so the sticky footer never permanently covers the last
    dish row (Task 1 §"add matching bottom padding"). */
-/* D1 (independent critique): `background` alone is a shorthand — the `background-color`
-   longhand below repeats the same solid colour so a CSS-source test can pin it directly; a
-   shorthand can be silently reset to transparent by a later rule that only touches one of its
-   longhands, and that mismatch is exactly the regression this guards against. */
+/* `background` alone is a shorthand — the `background-color` longhand below repeats the same
+   solid colour so a CSS-source test can pin it directly; a shorthand can be silently reset to
+   transparent by a later rule that only touches one of its longhands, and that mismatch is
+   exactly the regression this guards against. */
 .kl-footer {
   display: flex;
   align-items: center;
@@ -171,10 +171,8 @@
      `.page-frame--v3` (page-families.css) — the scrolling ancestor — carries bottom padding
      (48px desktop / 40px tablet / 16px + --tabbar-h on phone). `bottom: 0` therefore parked
      this bar that far ABOVE the scrollport's real bottom edge, and dish rows scrolled through
-     the strip BELOW it: the bar read as tearing across the middle of the list. Measured
-     2026-07-28 before the fix: footer bottom 812 vs scrollport bottom 860 at 1280x860, and
-     676 vs 752 at 375x812 — exactly the frame's padding in both cases. Cancelling the reserve
-     lands the bar flush on the scrollport edge (which already sits above the phone tab bar —
+     the strip BELOW it: the bar read as tearing across the middle of the list. Cancelling the
+     reserve lands the bar flush on the scrollport edge (which already sits above the phone tab bar —
      that is its own grid row in app-shell.tsx, not an overlay). Values mirror
      page-families.css's padding ladder; keep the two in step. */
   bottom: -48px;
@@ -193,9 +191,8 @@
    generously to the footer's tallest rendered state (the compact row PLUS the optional
    `.kl-submit-reason`/note-missing pointer line above it, + safe-area inset on phone)
    rather than pixel-matched, so small copy/font changes in the footer can't silently reopen
-   the overlap. Independent critique D1: the prior reserve was sized to the OLD stacked
-   three-line phone footer and to a footer with no reason line on tablet/desktop — either
-   gap let a real row (and, at 390, the note textarea itself) render partly behind the bar. */
+   the overlap: a gap here would let a real row (and, at 390, the note textarea itself) render
+   partly behind the bar. */
 .kl-form .dt-table,
 .kl-form .dt-cards {
   margin-bottom: 12px;
@@ -212,12 +209,12 @@
   }
 }
 
-/* Defect #4 — desktop row anatomy: a table cell's default vertical-align middle re-centres
-   the WHOLE cell block as its content grows (the note reveals BELOW the qty), so the qty
-   visually climbs toward the top of the row while a neighbouring single-line cell stays
-   centred at its own shorter height — two different vertical rhythms in one row. Top-aligning
-   every cell in THIS table keeps the qty's position fixed regardless of what reveals under it,
-   and keeps every cell starting from the same edge. Scoped to this page's own table only. */
+/* A table cell's default vertical-align middle re-centres the WHOLE cell block as its content
+   grows (the note reveals BELOW the qty), so the qty visually climbs toward the top of the row
+   while a neighbouring single-line cell stays centred at its own shorter height — two different
+   vertical rhythms in one row. Top-aligning every cell in THIS table keeps the qty's position
+   fixed regardless of what reveals under it, and keeps every cell starting from the same edge.
+   Scoped to this page's own table only. */
 @media (min-width: 768px) {
   .kl-form .dt-table td { vertical-align: top; }
 }
@@ -261,10 +258,10 @@
   text-align: left;
 }
 
-/* The note-missing footer pointer (defect #4/outcome #3) is a real control now, not a status
-   line — reset the button chrome so it still reads as the same quiet inline text `.kl-submit-
-   reason` was, with an underline as its only "this is clickable" cue (an outline still shows
-   on keyboard focus via the app-wide `*:focus-visible` rule; nothing here suppresses it). */
+/* The note-missing footer pointer is a real control, not a status line — reset the button
+   chrome so it reads as the same quiet inline text `.kl-submit-reason` uses, with an underline
+   as its only "this is clickable" cue (an outline still shows on keyboard focus via the
+   app-wide `*:focus-visible` rule; nothing here suppresses it). */
 .kl-note-pointer {
   background: none;
   border: none;
@@ -302,17 +299,14 @@
 .kl-touch { min-height: 44px; }
 
 /* ── Phone (<768px): ONE compact row — totals left, Discard + Submit right ──
-   Required outcome (ui-855 café review, defect #7): the bar used to stack tally-above-actions
-   as its own two lines PLUS the reason line, ~23% of a 390×844 viewport (three text lines +
-   two full-width buttons) — tall enough to cover the row and the note field it should never
-   touch (independent critique D1). Kept as one row, buttons sized to content (not
-   width:100%), so the resting bar is a single ~52px strip; the reason/note-missing pointer
-   line (`.kl-submit-reason`, `order:-1`) still gets its own line ABOVE this row only when it
-   is actually blocking — the reserve above accounts for that worst case.
+   Buttons are sized to content (not width:100%), so the resting bar is a single ~52px strip;
+   the reason/note-missing pointer line (`.kl-submit-reason`, `order:-1`) still gets its own
+   line ABOVE this row only when it is actually blocking — the reserve above accounts for that
+   worst case, tall enough to cover the row and the note field it should never touch.
    `flex-wrap` MUST stay `wrap`: `.kl-submit-reason`'s `flex-basis: 100%` only starts a new
-   line when the container is allowed to wrap. `nowrap` here (residual E1) kept every child on
-   one line, so the 100%-basis reason text crowded the tally and the Discard/Submit buttons off
-   the visible row instead of pushing them to a line below it. */
+   line when the container is allowed to wrap — `nowrap` would keep every child on one line, so
+   the 100%-basis reason text would crowd the tally and the Discard/Submit buttons off the
+   visible row instead of pushing them to a line below it. */
 @media (max-width: 767.98px) {
   .kl-footer {
     flex-direction: row;
@@ -374,9 +368,9 @@
   justify-content: space-between;
   gap: 12px;
   min-width: 0;
-  /* Defect #4: lets the stepper's `.kls-has-note` (wip-item-stepper.css, flex-basis: 100%)
-     wrap onto its own full-width line once a note reveals, instead of sharing the row with
-     the dish name at a fraction of its width. */
+  /* Lets the stepper's `.kls-has-note` (wip-item-stepper.css, flex-basis: 100%) wrap onto its
+     own full-width line once a note reveals, instead of sharing the row with the dish name at
+     a fraction of its width. */
   flex-wrap: wrap;
 }
 .kl-card-identity {

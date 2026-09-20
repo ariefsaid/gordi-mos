@@ -34,9 +34,9 @@ describe('useIsSplitWidth (decision-column split threshold)', () => {
       return Number(match![1])
     })
     const parsedFloorTotal = floors.reduce((sum, floor) => sum + floor, 0)
-    // ui-855 (defect 7): Title's authored split floor is its `min-width` (120, `width` itself is
-    // `auto` — it is the column that gives, never the status pill); Status rose 108→132 so the
-    // longest closed-vocabulary word never wraps. 120 + 132 + 112 + 104 + 128 = 596.
+    // Title's authored split floor is its `min-width` (120, `width` itself is `auto` — it is
+    // the column that gives, never the status pill); Status is wide enough that the longest
+    // closed-vocabulary word never wraps. 120 + 132 + 112 + 104 + 128 = 596.
     expect(parsedFloorTotal).toBe(596)
     expect(parsedFloorTotal).toBe(TASKS_SPLIT_FLOOR_TOTAL)
     expect(TASKS_SPLIT_MIN_WIDTH).toBe(

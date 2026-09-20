@@ -519,8 +519,8 @@ export function TasksWorkspace({
     if (draftTask?.id === taskId) {
       if (!viewerId) throw new Error('inline task creation requires an authenticated viewer')
       draftTitleRef.current = title
-      // TaskCreateForm (ui-855 Brief A) already gates its onCreate call on title + Team/BU +
-      // Supervisor all being present, so this is a defensive no-op, never a user-visible path.
+      // TaskCreateForm already gates its onCreate call on title + Team/BU + Supervisor all
+      // being present, so this is a defensive no-op, never a user-visible path.
       if (!draftTask.team_id || !draftTask.business_unit_id || !draftTask.accountable_person_id) return
       const existingTaskId = createdDraftTaskRef.current
       const createdTaskId = existingTaskId ?? await createTask({
@@ -588,10 +588,10 @@ export function TasksWorkspace({
   }, [currentSearch, drawerOpen, host, navigate])
   const onNewTask = useCallback((prefillParam = '') => {
     if (!dataContext || draftTask) return
-    // ui-855 Brief A (required outcome): starting creation from ANY entry — page button, global
-    // actions menu, command menu, keyboard shortcut, group "Add" — clears the record panel first,
-    // so a draft and an open record are never on screen together. Every entry funnels through
-    // this one function, so one guard here covers all of them.
+    // Starting creation from ANY entry — page button, global actions menu, command menu,
+    // keyboard shortcut, group "Add" — clears the record panel first, so a draft and an open
+    // record are never on screen together. Every entry funnels through this one function, so
+    // one guard here covers all of them.
     if (host.session?.frames.some((frame) => frame.entry.owner === 'tasks')) void host.close()
     if (params.get('record')) {
       const next = new URLSearchParams(params)
@@ -732,12 +732,12 @@ export function TasksWorkspace({
       })()
   // Census R2 DO-6's reserved placeholder state is gone with the AR Follow-ups view (#743):
   // every view now renders the live collection body.
-  // Block 2(d) (Luna 390 audit) + ui-855 addendum A3: the header "+ Create task" is the DESKTOP
-  // create door; on genuine phone width the single create door is the global + Action Launcher
-  // FAB (DESIGN.md No-FAB Rule / one launcher location app-wide). The gate is `isDesktop`
-  // (≥768px) — the same threshold Signals' "Share Signal" header primary uses — not the 920px
-  // rail-collapse `isNarrow`, so the labelled header button stays visible at 768 and above instead
-  // of yielding to the launcher a whole tablet band early.
+  // The header "+ Create task" is the DESKTOP create door; on genuine phone width the single
+  // create door is the global + Action Launcher FAB (DESIGN.md No-FAB Rule / one launcher
+  // location app-wide). The gate is `isDesktop` (≥768px) — the same threshold Signals' "Share
+  // Signal" header primary uses — not the 920px rail-collapse `isNarrow`, so the labelled header
+  // button stays visible at 768 and above instead of yielding to the launcher a whole tablet
+  // band early.
   // A record is open in either of two ways — the `drawerOpen` prop, or an overlay session this
   // surface owns. The split class and the collection runtime already read both; this door read
   // only the prop, so opening a row from the table left the create door standing beside the

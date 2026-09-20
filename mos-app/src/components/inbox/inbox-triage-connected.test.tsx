@@ -114,7 +114,7 @@ beforeEach(() => {
 // to start with the same word (e.g. a "Unread one" row vs the "Unread · n" tab).
 const filterGroup = () => within(screen.getByRole('group', { name: /filter/i }))
 
-// F3: the record panel's "Open full page" escalation only renders when the panel is NOT already
+// The record panel's "Open full page" escalation only renders when the panel is NOT already
 // full-screen. jsdom's default matchMedia (every other case in this suite relies on it) reports
 // every query unmatched, i.e. phone/full-screen, so the two cases below that exercise the
 // escalation opt into desktop width for their own body and restore the default afterwards.
@@ -145,8 +145,8 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
       fireEvent.click(screen.getByRole('button', { name: /Budget review/ }))
 
       // Read is stamped; the shared canonical record host opens IN the Inbox panel — the same
-      // host every other door mounts, so the triager can act on the record here (D-A4), plus
-      // the one host-owned Open-full-page escalation (desktop width — not full-screen).
+      // host every other door mounts, so the triager can act on the record here, plus the one
+      // host-owned Open-full-page escalation (desktop width — not full-screen).
       expect(markRead).toHaveBeenCalledWith('n1')
       expect(screen.getByTestId('task-record-host')).toHaveAttribute('data-task-id', 't1')
       expect(screen.getByRole('button', { name: /open full page/i })).toBeInTheDocument()

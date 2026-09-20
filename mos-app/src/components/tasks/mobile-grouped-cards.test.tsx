@@ -134,8 +134,8 @@ describe('MobileGroupedCards', () => {
     await waitFor(() => expect(onEditTitle).toHaveBeenCalledWith('draft-mobile', 'Ship the café launch'))
   })
 
-  // ui-855 Brief A: the draft card renders the shared TaskCreateForm — its primary action reads
-  // "Create task" (reused i18n key), not the bare "Save" the old bent card markup used.
+  // The draft card renders the shared TaskCreateForm — its primary action reads "Create task"
+  // (reused i18n key), not a bare "Save".
   it('renders the shared TaskCreateForm outside the record link with visible primary/Cancel actions', () => {
     renderCards({
       groups: [{

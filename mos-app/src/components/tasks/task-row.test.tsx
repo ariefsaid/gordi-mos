@@ -497,9 +497,9 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
   })
 })
 
-// ui-855 Brief A: the isNew draft no longer bends TaskRow's own columns into a form — it
-// delegates to the shared TaskCreateForm (task-create-form.test.tsx owns the field-level
-// validation/focus/retry behaviour). These tests cover only TaskRow's side of that delegation.
+// The isNew draft delegates to the shared TaskCreateForm rather than bending TaskRow's own
+// columns into a form (task-create-form.test.tsx owns the field-level validation/focus/retry
+// behaviour). These tests cover only TaskRow's side of that delegation.
 describe('TaskRow — isNew delegates to the shared TaskCreateForm', () => {
   it('renders ONE full-width colSpan row (never a bent per-column layout) and forwards columnSpan', () => {
     renderRow({

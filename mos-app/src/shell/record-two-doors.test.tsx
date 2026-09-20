@@ -237,7 +237,7 @@ describe('AC-027 — one record, two doors', () => {
   })
 
   it('B→A: "Open full page" promotes the panel to the canonical page and unmounts the panel', async () => {
-    // F3: the escalation only renders where the panel is NOT already full-screen (it "opens"
+    // The escalation only renders where the panel is NOT already full-screen (it "opens"
     // into a bigger page that has to exist beside it) — this case exercises that promotion
     // mechanic itself, so it runs at a width where the panel renders as the non-fullscreen
     // split/sheet regime. jsdom's default matchMedia (this suite's other cases rely on it)

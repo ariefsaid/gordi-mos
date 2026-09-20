@@ -559,9 +559,8 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     expect(screen.queryByRole('button', { name: /^help$/i })).toBeNull()
   })
 
-  // Independent critique D11: the Log link used to repeat once PER category group and only on
-  // desktop (so it vanished entirely on phone) — now ONE link for the whole screen, at every
-  // width, beside the toolbar rather than duplicated per group header.
+  // ONE Log link for the whole screen, at every width, beside the toolbar rather than
+  // duplicated per group header.
   it('R7: the desktop face carries exactly one Log link for the screen, not per-group links', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,

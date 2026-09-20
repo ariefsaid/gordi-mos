@@ -558,8 +558,8 @@ describe('RIC-2 — not-found state renders styled panel', () => {
     await waitFor(() => {
       expect(screen.getByText(/task not found/i)).toBeTruthy()
     })
-    // ui-855 (defect 8): not-found renders through the shared EmptyState primitive — the same
-    // inset-carrying markup the panel's error/empty bodies and Signals share — not a bespoke panel.
+    // Not-found renders through the shared EmptyState primitive — the same inset-carrying
+    // markup the panel's error/empty bodies and Signals share — not a bespoke panel.
     expect(document.querySelector('.empty-state')).toBeTruthy()
     expect(document.querySelector('.empty-title')).toBeTruthy()
     // btn-outline (shared button hierarchy, IXD-4) styled back link must be present

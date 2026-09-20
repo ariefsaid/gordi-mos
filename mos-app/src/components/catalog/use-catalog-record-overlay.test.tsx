@@ -1,5 +1,5 @@
 // The shared record-panel chrome names the record kind — never the generic "Project / Process"
-// placeholder when the real type is already known (ui-855 addendum C4/defect 4).
+// placeholder when the real type is already known.
 import { describe, it, expect } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'

@@ -368,8 +368,8 @@ describe('DD-MVP-17 — door presentation', () => {
 
     const startButton = await screen.findByRole('button', { name: "Start today's opening" })
     expect(startButton).toBeInTheDocument()
-    // ui-855 café review defect #2: the capture form's Submit is this view's ONE primary —
-    // the opening door's own action must never carry the same blue weight.
+    // The capture form's Submit is this view's ONE primary — the opening door's own action
+    // must never carry the same blue weight.
     expect(startButton.className).not.toMatch(/btn-primary/)
     expect(screen.getByText(/not started yet/i)).toBeInTheDocument()
     expect(container.querySelector('[data-testid="empty-state"]')).toBeNull()

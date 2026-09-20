@@ -39,13 +39,11 @@
    carries the weight of the gate it is: the label stops being muted and the control takes the
    attention boundary instead of the ordinary input hairline. It returns to one quiet line the
    moment a stream is chosen — this is state, not a louder default.
-   Independent critique D4: `className` on the shared `<Select>` lands on its OUTER wrapper
-   (`.mk-select`), not the visible bordered trigger — `.cafe-stream__select` here IS that
-   wrapper. `border-color` on an element with no `border-style` renders nothing, so only the
-   1px box-shadow ring was ever visible, and it read as a plain neutral ring next to the
-   trigger's own default border rather than a consistent amber signal at every width. Targeting
-   the trigger itself (`.mk-select__field`, Select's own stable visible class) makes the amber
-   treatment the field's ACTUAL border, uniformly, everywhere it renders. */
+   `className` on the shared `<Select>` lands on its OUTER wrapper (`.mk-select`), not the
+   visible bordered trigger — `.cafe-stream__select` here IS that wrapper, and `border-color`
+   on an element with no `border-style` renders nothing. Targeting the trigger itself
+   (`.mk-select__field`, Select's own stable visible class) makes the amber treatment the
+   field's ACTUAL border, uniformly, everywhere it renders. */
 .cafe-stream[data-stream-unset='true'] .cafe-stream__label {
   color: var(--warning-foreground);
 }

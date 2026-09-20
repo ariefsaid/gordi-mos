@@ -84,10 +84,10 @@ const textSpec: RecordFieldSpec = {
 }
 
 describe('RecordField', () => {
-  // IC-57 / F4: required-ness is a fact about SUBMITTING a value, not about looking at one — a
-  // required field that already has a value has nothing missing to flag when it is just being
-  // viewed. The marker returns once the row becomes the actual edit control.
-  it('IC-57: shows no required marker on the value-first VIEW row, but shows it once the field is activated for editing', () => {
+  // Required-ness is a fact about SUBMITTING a value, not about looking at one — a required
+  // field that already has a value has nothing missing to flag when it is just being viewed.
+  // The marker returns once the row becomes the actual edit control.
+  it('shows no required marker on the value-first VIEW row, but shows it once the field is activated for editing', () => {
     renderField({ ...textSpec, required: true })
 
     const label = screen.getByText('Title', { selector: '.record-field__label' })

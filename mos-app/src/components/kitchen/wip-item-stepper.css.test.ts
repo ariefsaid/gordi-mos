@@ -1,6 +1,6 @@
-// #855 residual E2 — the required variance note shows exactly one ring at a time: red border
-// when invalid, the standard accent ring when focused, and the destructive-coloured ring (not
-// a second, differently-coloured one) when both apply.
+// The required variance note shows exactly one ring at a time: red border when invalid, the
+// standard accent ring when focused, and the destructive-coloured ring (not a second,
+// differently-coloured one) when both apply.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'

@@ -82,8 +82,8 @@
 }
 
 /* The Active/Archived state travels WITH the record's identity so it survives every width and
-   every panel-open reflow (C5/IC-37: a decision-critical fact must not depend on viewport) —
-   a quiet badge beside the name, never a 7th table column to keep track of. */
+   every panel-open reflow — a decision-critical fact must not depend on viewport — as a quiet
+   badge beside the name, never a 7th table column to keep track of. */
 .catalog-collection__row-state {
   display: inline-flex;
   flex: none;

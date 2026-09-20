@@ -1,5 +1,5 @@
-/* TaskCreateForm (ui-855 Brief A) — ONE create form, desktop (full-width colSpan row) and phone
-   (single column, inside a card) alike. Tokens only — see DESIGN.md / index.css. */
+/* TaskCreateForm — ONE create form, desktop (full-width colSpan row) and phone (single column,
+   inside a card) alike. Tokens only — see DESIGN.md / index.css. */
 .tcf {
   display: flex;
   flex-direction: column;

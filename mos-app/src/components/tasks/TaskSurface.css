@@ -295,9 +295,9 @@
 .comment-composer__input:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; border-color: var(--ring); }
 .comment-composer__actions { display: flex; justify-content: flex-end; }
 
-/* ui-855 (defect 8): not-found now renders through the shared EmptyState primitive
-   (components/ui/state-kit.tsx + CardHead.css) — no bespoke `.not-found-*` panel/title/copy
-   rules to drift out of sync with the record panel's own horizontal inset. */
+/* Not-found renders through the shared EmptyState primitive (components/ui/state-kit.tsx +
+   CardHead.css) — no bespoke `.not-found-*` panel/title/copy rules to drift out of sync with
+   the record panel's own horizontal inset. */
 
 /* ── Loading skeleton ── */
 /* `.sk` itself lives in TasksWorkspace.css and is NOT redeclared here. Two single-class rules on

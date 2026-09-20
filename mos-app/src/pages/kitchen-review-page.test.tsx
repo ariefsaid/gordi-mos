@@ -785,8 +785,8 @@ describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', 
     await screen.findByText('Nasi Goreng')
 
     const group = screen.getByRole('group', { name: /item list completeness for this stream/i })
-    // Residual E3(b): the visible label states the action ("Confirm the item list is
-    // complete"), not the bare status — same checkbox, same authority, same behaviour.
+    // The visible label states the action ("Confirm the item list is complete"), not the bare
+    // status — same checkbox, same authority, same behaviour.
     expect(group).toHaveTextContent(/confirm the item list is complete/i)
     const checkbox = screen.getByRole('checkbox', { name: /confirm the item list is complete/i })
     expect(checkbox).toBeEnabled()

@@ -59,7 +59,7 @@ describe('EmptyState', () => {
     expect(screen.getAllByRole('button', { name: /refresh/i })).toHaveLength(1)
   })
 
-  it('ui-855 A5: autoFocus lands focus on the heading (tabIndex -1), not on any nearby control', () => {
+  it('autoFocus lands focus on the heading (tabIndex -1), not on any nearby control', () => {
     render(
       <EmptyState variant="blank" autoFocus title="Task not found" copy="This task doesn't exist.">
         <button type="button">All tasks</button>

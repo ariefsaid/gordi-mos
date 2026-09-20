@@ -212,9 +212,9 @@ describe('RecordViewer', () => {
     expect(await screen.findByText('Saved')).toBeInTheDocument()
   })
 
-  // The permanent "Select a field's value to edit it. Enter saves · Esc discards." footnote is
-  // gone (ui-855 defect 6: one key, two meanings — Esc also closes the panel elsewhere on the
-  // same surface). Enter-saves/Esc-discards still work; they are just not narrated in prose.
+  // No permanent "Select a field's value to edit it. Enter saves · Esc discards." footnote:
+  // Esc has two meanings (it also closes the panel elsewhere on the same surface), so it is not
+  // narrated in prose. Enter-saves/Esc-discards still work.
   it('never renders the retired inline-edit hint, editable or not, any domain', () => {
     renderViewer(taskAdapter())
     expect(document.querySelector('.record-viewer__edit-hint')).toBeNull()

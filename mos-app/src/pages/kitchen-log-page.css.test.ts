@@ -1,7 +1,7 @@
-// #855 residual E1 — the sticky action footer must clear the phone bottom-tab bar using the
-// shell's own token (`--tabbar-h`, index.css), never a magic number, and must stay wrappable so
-// the blocking reason line cannot crowd Discard/Submit off the visible row (the actual defect:
-// `flex-wrap: nowrap` fought `.kl-submit-reason`'s `flex-basis: 100%`).
+// The sticky action footer must clear the phone bottom-tab bar using the shell's own token
+// (`--tabbar-h`, index.css), never a magic number, and must stay wrappable so the blocking
+// reason line cannot crowd Discard/Submit off the visible row: `.kl-submit-reason`'s
+// `flex-basis: 100%` only starts a new line when the container allows wrapping.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'

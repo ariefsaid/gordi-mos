@@ -182,10 +182,10 @@
 }
 .cm-foot-key { font-family: var(--ds-code-font-family); }
 
-/* F7: `useIsCoarsePointer` already unmounts this copy for `(pointer: coarse)` — this CSS rule
-   is the second, independent hiding path for a touch device that reports a fine pointer but no
-   hover (`(hover: none)`), which the JS check alone does not cover. No un-pressable "esc" chip
-   or "↑↓ navigate · ↵ open · esc close" line on a screen with no keyboard. */
+/* `useIsCoarsePointer` already unmounts this copy for `(pointer: coarse)`; this CSS rule is the
+   second, independent hiding path for a touch device that reports a fine pointer but no hover
+   (`(hover: none)`), which the JS check alone does not cover. No un-pressable "esc" chip or
+   "↑↓ navigate · ↵ open · esc close" line on a screen with no keyboard. */
 @media (hover: none), (pointer: coarse) {
   .cm-foot,
   .cm-input .cm-foot-key {

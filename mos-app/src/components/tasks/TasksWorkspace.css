@@ -47,10 +47,8 @@
    so the composition reads as one surface. The drawer's <aside> is the single card frame; its inner
    .dw-surface fills and scrolls (dropping the nested card border/shadow it carried inside the aside).
    Scoped to the decision-column split threshold because below it the drawer is not a column.
-   ui-855 (defect 7): the threshold tracks TASKS_SPLIT_MIN_WIDTH (use-is-split-width.ts), which
-   moved 1362→1306 when the split floors below were re-budgeted (Title 200→auto/120 min,
-   Status 108→132 so it never wraps) — keep this literal equal to that constant by hand
-   (guard-r1-split-parity.css.test.ts pins it). */
+   The threshold tracks TASKS_SPLIT_MIN_WIDTH (use-is-split-width.ts) — keep this literal equal
+   to that constant by hand (guard-r1-split-parity.css.test.ts pins it). */
 @media (min-width: 1306px) {
   .split:not(.nodrawer) { align-items: stretch; }
   .split .drawer {
@@ -168,14 +166,11 @@
    "Overdue · <date>" exceeds the fixed due track, wrap between the state and
    the date instead of clipping mid-value (run 861b0004: 157px in a 152px cell). */
 .inline-cell-trigger--stacked { white-space: normal; text-overflow: clip; line-height: 1.25; padding-block: 2px; }
-/* ui-855 review (defect 7 / addendum A2): the status vocabulary never wraps or clips — the
-   pill's own white-space:nowrap (Tag.css) is the rule everywhere. The status TRACK is given a
-   fixed width wide enough for the longest member in either locale ("Sedang berjalan"); the
-   TITLE column is the one that gives when the table narrows (see the width rules below and in
-   the split/nth-child block above) — never the pill.
-   was: `.td-status .status-pill { white-space: normal; height: auto; }` +
-   `.td-status .inline-cell-trigger { white-space: normal; ... }`, which let the status track
-   shrink freely and wrap "In Progress" to "In / Progress" once the record panel opened. */
+/* The status vocabulary never wraps or clips — the pill's own white-space:nowrap (Tag.css) is
+   the rule everywhere. The status TRACK is given a fixed width wide enough for the longest
+   member in either locale ("Sedang berjalan"); the TITLE column is the one that gives when the
+   table narrows (see the width rules below and in the split/nth-child block above) — never
+   the pill. */
 .inline-status-editor {
   display: inline-flex;
   height: var(--control-height);
@@ -227,9 +222,9 @@
   margin-top: 3px;
 }
 
-/* ui-855 Brief A: the isNew draft no longer bends the row into a form — the `.task-create-*`
-   rules that styled its inline Team/PIC/Supervisor pickers + Save/Cancel row are retired with
-   it. The shared form now owns its own tokens (task-create-form.css `.tcf-*`). */
+/* The isNew draft does not bend the row into a form: the shared create form owns its own
+   tokens (task-create-form.css `.tcf-*`) rather than styling inline Team/PIC/Supervisor
+   pickers + Save/Cancel here. */
 .task-row-save-error { display: block; }
 
 /* ── Table ── */
@@ -243,11 +238,10 @@
 .tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 0; }
 /* The Task identity column absorbs remaining space so it cannot collapse at the normal shell. */
 .tasks-table th:nth-child(1), .tasks-table td:nth-child(1) { width: auto; }   /* Task */
-/* ui-855 (defect 7 / addendum A2): status keeps a wider %-share than before (12→16) so its
-   track fits the longest closed-vocabulary word in either locale ("Sedang berjalan") without
-   wrapping at ordinary widths. Still a bounded %-share, not a fixed px — RI-3 (cascade-fixes)
-   requires columns 2..5 to stay %, summing under 70%, so the auto Task column can never be
-   starved to 0px; this stays at 60. */
+/* Status keeps a %-share wide enough to fit the longest closed-vocabulary word in either locale
+   ("Sedang berjalan") without wrapping at ordinary widths. Still a bounded %-share, not a fixed
+   px — RI-3 (cascade-fixes) requires columns 2..5 to stay %, summing under 70%, so the auto
+   Task column can never be starved to 0px; this stays at 60. */
 .tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 16%; }    /* Status */
 .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 15%; }    /* PIC / Ownership */
 .tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { width: 15%; }    /* Supervisor */
@@ -263,7 +257,7 @@
 }
 /* Split floors keep each decision column measurable. Title is `auto` here too (not a fixed
    200px) so it — never the status pill — is what gives when the record panel narrows the
-   table (ui-855 defect 7). */
+   table. */
 .split:not(.nodrawer) .tasks-table th:nth-child(1),
 .split:not(.nodrawer) .tasks-table td:nth-child(1) { width: auto; min-width: 120px; } /* Title */
 .split:not(.nodrawer) .tasks-table th:nth-child(2),
@@ -323,8 +317,8 @@
 .task-row { cursor: pointer; height: var(--row-min-h); }
 .task-row:last-child td { border-bottom: none; }
 .task-row:hover td { background: color-mix(in srgb, var(--surface-secondary) 60%, transparent); }
-/* ui-855 Brief A: the create draft is a FORM row, not an openable record row — no pointer
-   cursor, no hover fill, no fixed row height (the form's real height, incl. field errors). */
+/* The create draft is a FORM row, not an openable record row — no pointer cursor, no hover
+   fill, no fixed row height (the form's real height, incl. field errors). */
 .task-row--create { cursor: default; height: auto; }
 .task-row--create:hover td { background: transparent; }
 .td-create { padding: 0; }
@@ -482,9 +476,8 @@
   font-weight: 500;
 }
 .task-card-meta dd { display: inline; margin: 0; font-size: var(--font-size-label); }
-/* ui-855 Brief A: the draft card renders the shared TaskCreateForm now (task-create-form.css
-   `.tcf-*`), not this dl's own create-fields/derived-bu/actions/PIC-lock rules — retired with
-   the bent draft markup they styled. */
+/* The draft card renders the shared TaskCreateForm (task-create-form.css `.tcf-*`), not a
+   dl-based create-fields/derived-bu/actions/PIC-lock layout of its own. */
 
 /* ── Below the split fallback threshold (PR-D owns the full responsive regime):
    stack the panes so PR-B never crushes the table. PR-C/PR-D refine modal/overlay. */

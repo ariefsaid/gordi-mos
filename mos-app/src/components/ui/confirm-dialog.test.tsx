@@ -131,10 +131,10 @@ describe('ConfirmDialog busy reset (always-mounted caller style)', () => {
   })
 })
 
-// F9: on a destructive confirm, the loudest button on screen must not be the one that discards
+// On a destructive confirm, the loudest button on screen must not be the one that discards
 // unsaved work — Discard stays the only solid red, but Cancel matches it in weight instead of
 // reading as a quiet outline next to it.
-describe('ConfirmDialog — button emphasis by tone (F9)', () => {
+describe('ConfirmDialog — button emphasis by tone', () => {
   it('destructive tone: Cancel is a solid primary button, matching the destructive fill in weight', () => {
     render(
       <ConfirmDialog

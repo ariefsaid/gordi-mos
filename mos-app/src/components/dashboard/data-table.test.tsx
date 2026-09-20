@@ -538,7 +538,7 @@ describe('DataTable — #359 stylesheet pins', () => {
     expect(block).toContain('background: var(--card)')
   })
 
-  // F1: `border-collapse: collapse` on a table with a sticky `<th>` lets the row that scrolls
+  // `border-collapse: collapse` on a table with a sticky `<th>` lets the row that scrolls
   // to the header's edge paint through the header's own background, so a row reads as sliced
   // mid-glyph instead of hidden. `separate` + zero spacing keeps the sticky cell's background
   // opaque over the content scrolling underneath, at the same visual row-divider rhythm.

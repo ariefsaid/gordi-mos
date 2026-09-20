@@ -170,7 +170,7 @@ describe('ModalShell — one centered interaction contract', () => {
     expect(dialog).toHaveAttribute('data-phone-mode', 'fullscreen')
   })
 
-  // F9: a confirm opened OVER another modal (e.g. the Signal composer's discard confirm) must
+  // A confirm opened OVER another modal (e.g. the Signal composer's discard confirm) must
   // dim that modal with its own scrim, not just sit on the page-level one. Each ModalShell
   // instance renders its own fixed, full-viewport `.modal-shell__scrim`; nested here, the
   // confirm's copy mounts strictly after the composer's in document order, so it paints over

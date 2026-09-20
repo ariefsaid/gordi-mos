@@ -129,12 +129,11 @@ function gateLine(line: KitchenLogLine, movement: KitchenMovement): KitchenLogLi
 // slice's touch list) returns a hardcoded-English label alongside its `tone`. The tone
 // mapping stays authoritative (untouched); this mirrors ONLY the label branching so the
 // row status pill — the exact microcopy a floor worker reads at the moment they save —
-// reads in the active locale. Duplicated (not imported) because the source file is out
-// of scope for this pass; the branching is a straight copy of kitchenStatus's own.
+// reads in the active locale. Duplicated (not imported) because the source file is out of
+// scope here; the branching is a straight copy of kitchenStatus's own.
 // `submitted` distinguishes a persisted actual (the receiving-only reader, and Review) from a
 // typed-but-unsaved staged line: both can be "off-plan and > 0", but only the former has been
-// written. Without this the off-plan branch below called a staged, unsubmitted quantity "Logged"
-// — the exact status-tells-the-truth defect the ui-855 café review named.
+// written — a staged, unsubmitted quantity must never read as "Logged".
 function statusLabel(t: Translate, made: number, plan: number, submitted: boolean): string {
   if (plan <= 0) {
     if (made <= 0) return t('kitchen.status.notLogged')
@@ -734,16 +733,15 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   )
   const noteUnresolved = missingNoteLines.length > 0
 
-  // Defect #1 (ui-855 café review): before a stream is chosen, nothing can be submitted and no
-  // plan/stock/actuals were fetched for the list below to mean anything — rendering 32 quantity
-  // inputs that look editable but are not is worse than an empty list. Gated on `canCapture`
-  // (an unaffiliated/non-lead viewer's block is the OWN read-only state, unrelated to the stream
-  // choice) and `!streamNonProducing` (that state has its own receiving-only notice).
+  // Before a stream is chosen, nothing can be submitted and no plan/stock/actuals are fetched
+  // for the list below to mean anything — rendering quantity inputs that look editable but are
+  // not is worse than an empty list. Gated on `canCapture` (an unaffiliated/non-lead viewer's
+  // block is the OWN read-only state, unrelated to the stream choice) and `!streamNonProducing`
+  // (that state has its own receiving-only notice).
   const noStreamChosen = canCapture && streamMissing && !streamNonProducing
 
   // Scrolls to and focuses the first blocked item's note field — the footer's pointer names a
-  // count, this makes it also a destination (required outcome: "a short pointer … that scrolls/
-  // focuses the first missing note when activated").
+  // count and is itself the destination that scrolls to and focuses the first missing note.
   function focusFirstMissingNote() {
     const first = missingNoteLines[0]
     if (!first) return
@@ -1028,12 +1026,11 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
             stay/discard when leaving the route with unsaved entries. */}
         <RouteLeaveGuard when={stagedCount > 0} message={t('kitchen.log.leave.confirm')} />
         <OfflineBanner show={!isOnline} />
-        {/* Defect #2/#3 (ui-855 café review): the Location/opening door and the Plan/Made/
-            Off-plan figures used to be two disconnected pieces — a bordered card, then a line
-            with no container of its own floating beneath it. Docked into one compact context
-            header so the summary reads as that header's own figures, never an orphan. Falls
-            back to the plain band (unchanged) when there is no leading door to dock onto —
-            most callers of this page render no `leading` at all. */}
+        {/* The Location/opening door and the Plan/Made/Off-plan figures dock into one compact
+            context header so the summary reads as that header's own figures, never an orphan
+            line floating with no container of its own. Falls back to the plain band (unchanged)
+            when there is no leading door to dock onto — most callers of this page render no
+            `leading` at all. */}
         {leading ? (
           <div className="kl-context">
             {leading}
@@ -1096,11 +1093,11 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
               written in, and that second one has to be readable from every Café screen, not
               only from the ones with a toolbar. */}
           {noStreamChosen ? (
-            // Defect #1: no dish list, no filters over a list that isn't there, and nothing
-            // that LOOKS like an editable quantity field until a stream makes it one — one
-            // guidance state where the list would render, with the Stream control (page head)
-            // named as the next action. A person who inherits exactly one stream never sees
-            // this: `stream` resolves before this render is reached (unchanged).
+            // No dish list, no filters over a list that isn't there, and nothing that LOOKS
+            // like an editable quantity field until a stream makes it one — one guidance state
+            // where the list would render, with the Stream control (page head) named as the
+            // next action. A person who inherits exactly one stream never sees this: `stream`
+            // resolves before this render is reached.
             <EmptyState variant="next-step" title={t('kitchen.log.stream.chooseTitle')}>
               <button
                 type="button"
@@ -1139,10 +1136,9 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
             {!canCapture && (
               <p className="kl-submit-reason" role="status">{t('kitchen.log.readOnlyReason')}</p>
             )}
-            {/* Independent critique D12: "0 items · 0 porsi" rendered next to a disabled Submit
-                before anything was typed — noise beside a control that already says nothing is
-                staged. The tally is a claim about staged work; with none staged there is
-                nothing to state. */}
+            {/* The tally is a claim about staged work; with none staged there is nothing to
+                state, so it does not render "0 items · 0 porsi" noise beside a disabled Submit
+                that already says nothing is staged. */}
             {!captureClosed && stagedCount > 0 && (
               <div className="kl-tally">
                 <span className="kl-tally-num tabular">
@@ -1175,8 +1171,8 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
                 {t('kitchen.log.stream.nonProducing')}
               </span>
             )}
-            {/* Defect #4/outcome #3: a count, not a restatement of the field's own cue — and a
-                destination: it scrolls to and focuses the first line still missing its note. */}
+            {/* A count, not a restatement of the field's own cue — and a destination: it
+                scrolls to and focuses the first line still missing its note. */}
             {noteUnresolved && !hasBlockingError && !streamMissing && !streamNonProducing && (
               <button
                 type="button"

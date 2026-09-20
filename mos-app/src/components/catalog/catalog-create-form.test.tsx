@@ -1,6 +1,6 @@
-// The ONE create form for Projects & Processes and Objectives (ui-855 defects 1-3, addendum C2):
-// visible labels + a required marker on Name, per-field validation under its own control, and a
-// primary button labelled by the actual action, not a generic "Save".
+// The ONE create form for Projects & Processes and Objectives: visible labels + a required
+// marker on Name, per-field validation under its own control, and a primary button labelled by
+// the actual action, not a generic "Save".
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'

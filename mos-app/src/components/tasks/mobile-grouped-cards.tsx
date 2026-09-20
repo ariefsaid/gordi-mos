@@ -134,8 +134,8 @@ function TaskCard({
     ? (taskOverdue ? t('tasks.overdueDate', { date: formatDate(task.due_date, locale) }) : formatDate(task.due_date, locale))
     : '—'
 
-  // ui-855 Brief A: the draft renders the SAME TaskCreateForm the desktop table renders — one
-  // component, single column, no bespoke phone-only draft markup.
+  // The draft renders the SAME TaskCreateForm the desktop table renders — one component,
+  // single column, no bespoke phone-only draft markup.
   if (isNew) {
     return (
       <article data-testid="task-card" className="task-card collection-grammar-card">

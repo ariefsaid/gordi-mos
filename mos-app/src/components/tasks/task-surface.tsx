@@ -682,10 +682,10 @@ function ViewSurface({
   if (loading) return <DetailSkeleton />
 
   if (notFound || !localTask) {
-    // ui-855 (defect 8 / addendum A5): the shared EmptyState primitive, not a bespoke
-    // `.not-found-panel` — it already carries the SAME horizontal inset as the panel header
-    // (CardHead.css `.error-state`/`.empty-state`: 16px 20px, the family `.card-head` uses), so
-    // fixing the inset here is fixing it in the one place Signals' panel bodies read it from too.
+    // The shared EmptyState primitive, not a bespoke `.not-found-panel`: it already carries
+    // the SAME horizontal inset as the panel header (CardHead.css `.error-state`/`.empty-state`:
+    // 16px 20px, the family `.card-head` uses), so a fix to that inset applies here too — and
+    // in the one place Signals' panel bodies read it from.
     // `autoFocus` lands screen-reader/keyboard focus on THIS heading once it mounts — the record
     // panel's own generic open-focus effect runs before the record fetch resolves (nothing to
     // focus yet) and would otherwise leave focus stranded on unrelated chrome (an icon-only
