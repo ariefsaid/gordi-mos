@@ -46,9 +46,10 @@
 }
 /* Portaled to <body> and positioned in viewport pixels via inline style (signal-attention-picker.tsx)
    — fixed, not absolute, so it never becomes part of the dialog's own scrollable content and
-   focusing it cannot drag the dialog's scroll position. */
+   focusing it cannot drag the dialog's scroll position. It opens from inside a modal, so it stacks
+   above --z-modal, on the same layer as the shared picker menu (picker.css). */
 .signal-attention-picker-options {
-  position: fixed; z-index: var(--z-popover, 30); min-width: 220px;
+  position: fixed; z-index: 100; min-width: 220px;
   display: flex; flex-direction: column; gap: 2px; padding: 6px;
   border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card);
   box-shadow: var(--shadow-overlay);
