@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { searchTasksByTitle } from '@/lib/db/tasks'
 import { searchSignalsByBody } from '@/lib/db/signals'
 import { searchFollowUpsByCounterparty } from '@/lib/db/follow-ups'
@@ -8,6 +8,7 @@ import { SHOW_ASSISTANT, SHOW_FOLLOWUPS } from '@/config/features'
 import { useAuth } from '@/auth/use-auth'
 import { canViewRevenue } from '@/lib/capabilities'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
+import { canCreateForScope, useWorkWriteAuthority } from '@/components/catalog/use-work-write-authority'
 import { isShipGated } from '@/lib/ship-gate'
 import { DESTINATIONS, viewerAdmittedToRoute } from '@/shell/destinations'
 import { visibleSections, type Section } from '@/shell/sections'
@@ -115,7 +116,9 @@ const RECORD_KIND_CONFIG: Record<RecordKind, { Icon: React.ComponentType; to: ((
 // centered dialogs.
 export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = true, mode = 'search' }: CommandMenuProps): React.JSX.Element | null {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const auth = useAuth()
+  const { scopes } = useWorkWriteAuthority()
   const t = useT()
   const { openPanel } = useAgentRuntime()
   // AC-032 (#748 delta): search-only vs GO TO/ACT is a WIDTH decision — the same `useIsNarrow()`
@@ -170,11 +173,28 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     [canShareSignal, openPanel, onShareSignal, t],
   )
 
+  // On a catalog collection route (not its record pages) the page's own create action leads the list, for viewers who may
+  // create there. Below the rail-collapse width this entry is that page's one create door — the
+  // page hides its header button there, as Tasks does.
+  const pageCreateAction = useMemo<CommandItem | null>(() => {
+    if (pathname === '/work/objectives' && canCreateForScope('objective', scopes)) {
+      return { id: 'a-objective', label: t('catalog.objectives.add'), Icon: WorkIcon, kind: 'action', to: '/work/objectives?create=1' }
+    }
+    if (pathname === '/work/projects' && canCreateForScope('work-line', scopes)) {
+      return { id: 'a-work-line', label: t('catalog.projects.add'), Icon: WorkIcon, kind: 'action', to: '/work/projects?create=1' }
+    }
+    return null
+  }, [pathname, scopes, t])
+
   const launcherActions = useMemo(
-    () => cafeCaptureAdmitted
-      ? [...actionItems, { id: 'a-cafe-log', label: t('commandMenu.action.logCafe'), Icon: CafeIcon, kind: 'action' as const, to: CAFE_LOG_ROUTE }]
-      : actionItems,
-    [actionItems, cafeCaptureAdmitted, t],
+    () => [
+      ...(pageCreateAction ? [pageCreateAction] : []),
+      ...actionItems,
+      ...(cafeCaptureAdmitted
+        ? [{ id: 'a-cafe-log', label: t('commandMenu.action.logCafe'), Icon: CafeIcon, kind: 'action' as const, to: CAFE_LOG_ROUTE }]
+        : []),
+    ],
+    [actionItems, cafeCaptureAdmitted, pageCreateAction, t],
   )
 
   const rootNavigateItems = useMemo<CommandItem[]>(() => [

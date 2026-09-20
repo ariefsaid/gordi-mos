@@ -507,3 +507,23 @@
 @media (min-width: 768px) and (max-width: 1279px) {
   .kl-form .dt-table thead th { top: -20px; }
 }
+
+/* Submit's result line: a full-width first line of the pinned bar, in the banner colours. */
+.kl-submit-outcome {
+  order: -2;
+  flex-basis: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-control);
+}
+.kl-submit-outcome--error {
+  background: color-mix(in srgb, var(--destructive) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
+  color: var(--status-lost-text);
+}
+.kl-submit-outcome--success {
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
+  color: var(--status-won-text);
+}

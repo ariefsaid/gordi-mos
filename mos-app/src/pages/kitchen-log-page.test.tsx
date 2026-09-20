@@ -1005,6 +1005,27 @@ describe('Submit error state', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument()
     })
+    // The failure is told in plain words, in the pinned action bar beside Submit, and the entry
+    // survives so the same Submit can be pressed again.
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent(/couldn.t submit\. your entries are still here/i)
+    expect(alert).not.toHaveTextContent(/server error/i)
+    expect(alert.closest('.kl-footer')).not.toBeNull()
+    expect(nasiInput).toHaveValue(12)
+    expect(screen.getByRole('button', { name: /^submit/i })).toBeEnabled()
+  })
+
+  it('confirms a successful submit in the pinned action bar', async () => {
+    mockInsertKitchenLogBatch.mockResolvedValue(['log-ok'])
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }), { target: { value: '12' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /submit/i }))
+      await Promise.resolve()
+    })
+    const done = await screen.findByText(/submitted/i)
+    expect(done.closest('.kl-footer')).not.toBeNull()
   })
 })
 

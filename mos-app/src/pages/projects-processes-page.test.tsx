@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -298,4 +298,32 @@ it('R5: archived records hidden by search remain filtered-empty and clearable', 
   expect(await screen.findByRole('heading', { name: 'Nothing matches your filters' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument()
   expect(screen.queryByText('Nothing archived yet')).toBeNull()
+})
+
+describe('one create entry per width', () => {
+  const original = window.matchMedia
+  const railCollapsed = (collapsed: boolean) => {
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('919.98') ? collapsed : false,
+      media: query, onchange: null,
+      addEventListener: () => {}, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    })) as typeof window.matchMedia
+  }
+  afterEach(() => { window.matchMedia = original })
+
+  it('keeps the header create button while the rail is expanded', async () => {
+    railCollapsed(false)
+    renderPage()
+    expect(await screen.findByRole('button', { name: 'Create project or process' })).toBeInTheDocument()
+  })
+
+  it('hides the header create button while the rail is collapsed, and opens the form from the global create intent', async () => {
+    railCollapsed(true)
+    renderPage('/?create=1')
+    const form = await screen.findByRole('form', { name: 'Create project or process' })
+    // The form's own submit may share the label; no button of that name sits outside the form.
+    const outside = screen.queryAllByRole('button', { name: 'Create project or process' }).filter((button) => !form.contains(button))
+    expect(outside).toHaveLength(0)
+  })
 })
