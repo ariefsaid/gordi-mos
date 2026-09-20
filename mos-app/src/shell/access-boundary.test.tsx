@@ -98,16 +98,16 @@ describe('access boundary', () => {
       expect(screen.queryByTestId('landing')).not.toBeInTheDocument()
     })
 
-    it('renders the page head titled for the area, with the Access required sentence', () => {
+    it('renders the page head titled for the area, and states the denial only in the panel', () => {
       const head = screen.getByTestId('page-head')
       expect(within(head).getByRole('heading', { level: 1 })).toHaveTextContent('Café')
-      expect(within(head).getByText('Access required')).toBeInTheDocument()
+      expect(within(head).queryByText(/access/i)).toBeNull()
     })
 
-    it('renders one quiet dashed panel: the area sentence, the admin sentence, one outline Back', () => {
+    it('renders one quiet dashed panel: the area sentence, who to ask, one outline Back', () => {
       expect(within(panel()).getByRole('heading', { level: 2 }))
         .toHaveTextContent('Café is outside your access')
-      expect(within(panel()).getByText('An admin changes access in Admin Settings.'))
+      expect(within(panel()).getByText('Ask your lead or an admin to give you access.'))
         .toBeInTheDocument()
       const back = within(panel()).getByRole('link', { name: 'Back to Home' })
       expect(back).toHaveClass('btn', 'btn-outline')
@@ -125,7 +125,7 @@ describe('access boundary', () => {
       // The whole rendered text is the area label plus the two fixed sentences. Any figure,
       // record title or count leaking through the guard would show up as an extra digit here.
       expect(panel().textContent).toBe(
-        '—Café is outside your accessAn admin changes access in Admin Settings.Back to Home',
+        'Café is outside your accessAsk your lead or an admin to give you access.Back to Home',
       )
     })
   })
@@ -146,6 +146,11 @@ describe('access boundary', () => {
     renderAt('/cafe/review', <RequireAccessRole anyOf={CAFE_REVIEW_ROLES} scope="link" />)
     expect(screen.getByRole('heading', { level: 2 }))
       .toHaveTextContent('Review is outside your access')
+    // Only a link inside Café was denied and this viewer is admitted to Café itself, so the way
+    // back is Café — somewhere they can work — not Home.
+    const back = within(panel()).getByRole('link', { name: 'Back to Café' })
+    expect(back).toHaveAttribute('href', '/cafe')
+    expect(within(panel()).queryByRole('link', { name: 'Back to Home' })).toBeNull()
   })
 
   // ── AC-021 ────────────────────────────────────────────────────────────────────────────────
