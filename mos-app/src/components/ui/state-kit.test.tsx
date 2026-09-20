@@ -59,6 +59,26 @@ describe('EmptyState', () => {
     expect(screen.getAllByRole('button', { name: /refresh/i })).toHaveLength(1)
   })
 
+  it('ui-855 A5: autoFocus lands focus on the heading (tabIndex -1), not on any nearby control', () => {
+    render(
+      <EmptyState variant="blank" autoFocus title="Task not found" copy="This task doesn't exist.">
+        <button type="button">All tasks</button>
+      </EmptyState>,
+    )
+
+    const heading = screen.getByRole('heading', { name: 'Task not found' })
+    expect(heading).toHaveFocus()
+    expect(heading).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('without autoFocus, the heading is not in the tab order and does not steal focus', () => {
+    render(<EmptyState variant="blank" title="No results" copy="Try another filter." />)
+
+    const heading = screen.getByRole('heading', { name: 'No results' })
+    expect(heading).not.toHaveFocus()
+    expect(heading).not.toHaveAttribute('tabindex')
+  })
+
   it('renders the blank archetype — empty BY DESIGN, so neither ✓ nor ↻', () => {
     render(<EmptyState variant="blank" title="Not in this slice yet" copy="Roastery lands later." />)
 

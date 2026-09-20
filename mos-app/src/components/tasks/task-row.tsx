@@ -9,6 +9,10 @@
 //
 // The `row-selected` class stays semantically "the open drawer row" (isSelected),
 // unchanged from pre-PR-2.
+//
+// ui-855 Brief A: the isNew draft no longer bends this row's columns into a form — it renders
+// TaskCreateForm (task-create-form.tsx) inside a single full-width colSpan row, the SAME
+// component the phone card path renders (mobile-grouped-cards.tsx TaskCard).
 import type { Ref } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import '@/components/collection-grammar.css'
@@ -23,6 +27,7 @@ import { PicCell, PersonCell } from './pic-cell'
 import { formatDate, formatAge } from './task-formatters'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
+import { TaskCreateForm } from './task-create-form'
 
 export type TaskTeamOption = {
   id: string
@@ -76,8 +81,6 @@ export type TaskRowProps = {
   onEditTeam?: (taskId: string, teamId: string) => Promise<void>
   /** Draft-only independent Supervisor control. */
   onEditSupervisor?: (taskId: string, personId: string) => Promise<void>
-  /** Draft-only required-field validation; does not persist or replace the title draft. */
-  onValidateNewTask?: (taskId: string) => void
   teamOptions?: readonly TaskTeamOption[]
   showBusinessUnit?: boolean
   /** AC-006 (#743): each Fields-chooser column renders a real cell when checked. The names are
@@ -90,8 +93,12 @@ export type TaskRowProps = {
   isNew?: boolean
   onDiscardNewTask?: () => void
   createError?: boolean
-  createValidationError?: string
   onRetryCreate?: () => void
+  /** Total <td>/<th> count the table currently renders — the isNew row spans all of them
+   * (ui-855 Brief A: the create form occupies the full table width, never a bent column layout). */
+  columnSpan?: number
+  /** #742 AC-060: the viewer has nobody reporting to them, so the draft's PIC is fixed to self. */
+  viewerHasNoDownline?: boolean
 }
 
 function InlineCommitFeedback({ error, retry, liveMessage }: { error: boolean; retry: () => void; liveMessage: string }) {
@@ -110,9 +117,10 @@ export function TaskRow({
   ownerName, onOpen,
   supervisorName = '', businessUnitName = '', recordSearch = '', provenanceRoleName,
   onEditTitle, onEditStatus, onEditDue, onEditPic, personOptions = [], showBusinessUnit = false,
-  supervisorOptions = [], onEditTeam, onEditSupervisor, onValidateNewTask, teamOptions = [],
+  supervisorOptions = [], onEditTeam, onEditSupervisor, teamOptions = [],
   showWorkline = false, workLineName = '', showObjective = false, objectiveName = '',
-  showActivity = false, isNew = false, onDiscardNewTask, createError = false, createValidationError = '', onRetryCreate,
+  showActivity = false, isNew = false, onDiscardNewTask, createError = false, onRetryCreate,
+  columnSpan, viewerHasNoDownline = false,
 }: TaskRowProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -143,10 +151,8 @@ export function TaskRow({
   // announces the revert. Rendering `draft` (not task.title) is what makes the optimistic edit
   // survive the async round-trip without the row needing its own copy of the collection cache.
   const canEdit = Boolean(onEditTitle)
-  const [editing, setEditing] = useState(isNew)
+  const [editing, setEditing] = useState(false)
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const newCommitStarted = useRef(false)
-  const newAttemptRef = useRef('')
   // I2 (#379): the row's opener link is the row's focus home — focused on row-click so the
   // shared panel's close returns focus to the invoking element.
   const titleLinkRef = useRef<HTMLAnchorElement | null>(null)
@@ -156,28 +162,7 @@ export function TaskRow({
     rollbackMessage: t('tasks.feedback.rollback'),
   })
   const { draft, setDraft, pending, error: saveError, retry, commit, cancel, liveMessage } = inline
-  const activeDraft = isNew && saveError && newAttemptRef.current ? newAttemptRef.current : draft
-  const displayTitle = activeDraft
-  const teamPickerOptions = teamOptions.length > 0
-    ? [
-        { value: '', label: t('tasks.create.teamPlaceholder') },
-        ...teamOptions.map((team) => ({ value: team.id, label: team.name })),
-      ]
-    : [{ value: '', label: t('tasks.field.teamUnassigned') }]
-  const supervisorPickerOptions = [
-    { value: '', label: t('tasks.create.supervisorPlaceholder') },
-    ...(task.accountable_person_id && !supervisorOptions.some((person) => person.id === task.accountable_person_id)
-      ? [{ value: task.accountable_person_id, label: supervisorName || task.accountable_person_id }]
-      : []),
-    ...supervisorOptions
-      .map((person) => ({ value: person.id, label: person.full_name })),
-  ]
-  const picPickerOptions = [
-    ...(personOptions.some((person) => person.id === task.responsible_person_id)
-      ? []
-      : [{ value: task.responsible_person_id, label: ownerName }]),
-    ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
-  ]
+  const displayTitle = draft
 
   const [statusEditing, setStatusEditing] = useState(false)
   const statusInline = useInlineCommit<TaskListRow['status']>({
@@ -217,51 +202,19 @@ export function TaskRow({
   })
 
   useEffect(() => {
-    if (createError) newCommitStarted.current = false
-  }, [createError])
-  useEffect(() => {
-    if (!isNew || !saveError) return
-    // useInlineCommit restores its saved value on rejection. A synthetic create row has no saved
-    // title yet, so put the attempted title back, keep the editor open, and let Retry re-send it.
-    newCommitStarted.current = false
-    if (newAttemptRef.current) setDraft(newAttemptRef.current)
-    setEditing(true)
-  }, [isNew, saveError, setDraft])
-
-  useEffect(() => {
     if (editing) {
       const el = inputRef.current
       el?.focus()
-      if (!isNew) el?.select()
+      el?.select()
     }
-  }, [editing, isNew])
+  }, [editing])
 
   const beginEdit = () => { if (canEdit && !editing) setEditing(true) }
-  const discardNewTask = () => {
-    newAttemptRef.current = ''
-    newCommitStarted.current = false
-    onDiscardNewTask?.()
-  }
   // Enter/blur COMMIT the trimmed draft; an empty or unchanged draft is a no-op restore (never a
   // blank title). Escape DISCARDS. Exiting edit mode is owned here (useInlineCommit is mode-less).
   const finishEdit = () => {
-    const next = activeDraft.trim()
+    const next = draft.trim()
     if (pending) return
-    if (isNew) {
-      if (newCommitStarted.current) return
-      if (!next) { discardNewTask(); return }
-      // Ownership controls are part of the same inline draft. An incomplete Enter keeps the
-      // user's title in place and lets the row explain what is missing; only a ready draft enters
-      // the async create path. In particular, blur/Tab must never trigger this branch.
-      if (!task.team_id || !task.business_unit_id || !task.accountable_person_id) {
-        onValidateNewTask?.(task.id)
-        return
-      }
-      newCommitStarted.current = true
-      newAttemptRef.current = next
-      commit(next)
-      return
-    }
     if (!next || next === task.title) { cancel(); setEditing(false); return }
     commit(next)
     setEditing(false)
@@ -282,8 +235,7 @@ export function TaskRow({
       // window listener cleanly here.
       e.preventDefault()
       e.stopPropagation()
-      if (isNew) discardNewTask()
-      else cancel()
+      cancel()
       setEditing(false)
     }
     // Tab is left to native focus movement; onBlur commits the draft as it leaves.
@@ -346,6 +298,34 @@ export function TaskRow({
     beginEdit()
   }
 
+  // ui-855 Brief A: the draft is ONE full-width create form, not a bent row. It occupies every
+  // column the table currently renders (columnSpan) so it never inherits a column's narrow width.
+  if (isNew) {
+    return (
+      <tr className="task-row task-row--create">
+        <td className="td-create" colSpan={columnSpan ?? 5}>
+          <TaskCreateForm
+            task={task}
+            businessUnitName={businessUnitName}
+            teamOptions={teamOptions}
+            personOptions={personOptions}
+            supervisorOptions={supervisorOptions}
+            ownerName={ownerName}
+            supervisorName={supervisorName}
+            onEditTeam={onEditTeam ?? (async () => {})}
+            onEditPic={onEditPic ?? (async () => {})}
+            onEditSupervisor={onEditSupervisor ?? (async () => {})}
+            onCreate={(title) => (onEditTitle ? onEditTitle(task.id, title) : Promise.resolve())}
+            onCancel={() => onDiscardNewTask?.()}
+            linkError={createError}
+            onRetryLink={onRetryCreate}
+            viewerHasNoDownline={viewerHasNoDownline}
+          />
+        </td>
+      </tr>
+    )
+  }
+
   return (
     <tr
       ref={isCursor ? cursorRowRef : undefined}
@@ -376,48 +356,18 @@ export function TaskRow({
             <input
               ref={inputRef}
               className="task-title-input collection-grammar-title tap-floor"
-              value={activeDraft}
+              value={draft}
               disabled={pending}
               aria-busy={pending || undefined}
               aria-label={t('tasks.inlineEdit.aria')}
               aria-describedby={titleEditKeyhintId}
-              onChange={(e) => {
-                if (isNew && saveError) newAttemptRef.current = e.target.value
-                setDraft(e.target.value)
-              }}
+              onChange={(e) => setDraft(e.target.value)}
               onKeyDown={onInputKeyDown}
-              // New rows are drafts, not autosave fields. Moving focus to Team/PIC/Supervisor (or
-              // simply tabbing through the row) must retain the title; Enter is the explicit save.
-              onBlur={isNew ? undefined : finishEdit}
+              onBlur={finishEdit}
             />
-            {isNew && onEditTeam && (
-              <span className="task-create-inline-fields" onClick={(event) => event.stopPropagation()}>
-                <Picker
-                  id={`task-create-team-${task.id}`}
-                  label={t('tasks.team')}
-                  hideLabel
-                  value={task.team_id ?? ''}
-                  options={teamPickerOptions}
-                  placeholder={t('tasks.create.teamPlaceholder')}
-                  disabled={pending || teamOptions.length === 0}
-                  required
-                  triggerClassName="inline-picker-trigger"
-                  onChange={(value) => { void onEditTeam(task.id, value) }}
-                />
-                <span className="task-create-derived-bu" data-testid="task-create-derived-bu">
-                  {t('tasks.filter.businessUnit')}: {businessUnitName || '—'}
-                </span>
-              </span>
-            )}
             <span id={titleEditKeyhintId} className="task-title-edit-keyhint">{t('tasks.inlineEdit.activeHint')}</span>
             {businessUnitName && (
               <span className="collection-grammar-meta task-row-meta">{businessUnitName}</span>
-            )}
-            {isNew && (
-              <span className="task-create-actions" onClick={(event) => event.stopPropagation()}>
-                <button type="button" className="btn btn-primary" disabled={pending} onClick={finishEdit}>{t('common.save')}</button>
-                <button type="button" className="btn btn-ghost" disabled={pending} onClick={discardNewTask}>{t('common.cancel')}</button>
-              </span>
             )}
           </div>
         ) : (
@@ -467,17 +417,6 @@ export function TaskRow({
         {/* OD-REDESIGN-22 (D-C1): a failed rename surfaces a VISIBLE error + Retry — not a sr-only
             rollback the sighted user never sees. Retry re-sends the preserved attempt. The sr-only
             live region still announces the revert for AT. */}
-        {createError && (
-          <span role="alert" className="task-row-save-error">
-            {t('tasks.create.linkFailed')}
-            <button type="button" className="task-row-retry" onClick={(e) => { e.stopPropagation(); onRetryCreate?.() }}>
-              {t('record.field.retry')}
-            </button>
-          </span>
-        )}
-        {createValidationError && (
-          <span role="alert" className="task-row-save-error">{createValidationError}</span>
-        )}
         {saveError && (
           <span role="alert" className="task-row-save-error">
             {t('record.field.saveError')}
@@ -524,20 +463,7 @@ export function TaskRow({
         ) : <button type="button" className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setStatusEditing(true) }}><StatusPill status={statusInline.draft} /></button>) : <StatusPill status={task.status} />}
       </td>
       <td className="td-cell td-owner">
-        {isNew && onEditPic ? (
-          <span className="inline-editor-control task-create-picker" onClick={(event) => event.stopPropagation()}>
-            <Picker
-              hideLabel
-              label={t('tasks.pic')}
-              value={task.responsible_person_id}
-              options={picPickerOptions}
-              disabled={pending}
-              busy={pending}
-              triggerClassName="inline-picker-trigger"
-              onChange={(value) => { void onEditPic(task.id, value) }}
-            />
-          </span>
-        ) : onEditPic ? (picEditing ? (
+        {onEditPic ? (picEditing ? (
           <span className="inline-editor-control" onClick={(event) => event.stopPropagation()}>
             <Picker
               autoFocus
@@ -571,21 +497,7 @@ export function TaskRow({
       <td className="td-cell td-supervisor">
         {/* A2 person cell: one grammar for both person columns (AC-021) — the avatar + first
             name, never the full-name text (that lives in the record and in pickers). */}
-        {isNew && onEditSupervisor ? (
-          <span className="inline-editor-control task-create-picker" onClick={(event) => event.stopPropagation()}>
-            <Picker
-              hideLabel
-              label={t('tasks.supervisor')}
-              value={task.accountable_person_id}
-              options={supervisorPickerOptions}
-              disabled={pending}
-              busy={pending}
-              required
-              triggerClassName="inline-picker-trigger"
-              onChange={(value) => { void onEditSupervisor(task.id, value) }}
-            />
-          </span>
-        ) : supervisorName ? <PersonCell fullName={supervisorName} /> : <span className="td-empty">—</span>}
+        {supervisorName ? <PersonCell fullName={supervisorName} /> : <span className="td-empty">—</span>}
       </td>
       {showBusinessUnit ? <td className="td-cell td-business-unit">{businessUnitName || <span className="td-empty">—</span>}</td> : null}
       {showWorkline ? <td className="td-cell td-workline">{workLineName || <span className="td-empty">—</span>}</td> : null}
