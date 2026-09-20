@@ -1,10 +1,8 @@
-// Pure placement decision for the attention menu (#768 round 5). The menu renders INLINE — the
-// same mechanism as the neighbouring .signal-occurred-popover: position:absolute inside the
-// pill's own wrapper — so it stacks inside whatever surface hosts the picker (the composer
-// dialog, inside its focus trap, and the record panel alike). No portal, no fixed coordinates,
-// no app z-tier: the only geometry JS decides is the vertical flip, because the pill row sits
-// low in both host surfaces and a downward menu ran off-screen at 390 (round-4 defect: menu
-// bottom 929.9 in an 844 viewport).
+// Pure placement decision for the attention menu. The menu is fixed-positioned in viewport pixels
+// and portaled to <body> (signal-attention-picker.tsx), so these two functions decide only which
+// side of the trigger it opens on and whether it pulls in from the trigger's left edge — the
+// caller supplies the trigger rect, the menu's measured size, and the available viewport (or a
+// clipping ancestor's) bounds.
 export const POPOVER_GAP_PX = 4
 export const VIEWPORT_MARGIN_PX = 8
 

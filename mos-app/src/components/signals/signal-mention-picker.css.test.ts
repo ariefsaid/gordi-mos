@@ -4,11 +4,9 @@
 // sibling category picker's own selected state already uses — signal-card.css
 // `.signal-category-option[aria-selected]`), never the solid `--accent` fill.
 //
-// #855 addendum B3 removed the per-row `.type-badge` (it duplicated the group header's PERSON/
-// TEAM/BU label) — the badge-specific contrast-override assertions this file used to carry went
-// with it; the "family is genuinely absent" guard below replaces them (same pattern as
-// signal-css-coverage.test.ts's retired-class check), so a badge reintroduced without its own
-// contrast work would still be caught.
+// The per-row `.type-badge` is retired (it duplicated the group header's PERSON/TEAM/BU label) —
+// the guard below (same pattern as signal-css-coverage.test.ts's retired-class check) keeps it
+// genuinely absent, so a badge reintroduced without its own contrast work would still be caught.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -44,7 +42,7 @@ describe('mention-row.is-active — legible badge + name (WCAG-AA)', () => {
     expect(css).toMatch(/\.mention-row\.is-active:hover/)
   })
 
-  it('[#855 B3] the retired .type-badge family is genuinely absent, not merely unstyled', () => {
+  it('the retired .type-badge family is genuinely absent, not merely unstyled', () => {
     expect(css).not.toMatch(/\.type-badge/)
   })
 })

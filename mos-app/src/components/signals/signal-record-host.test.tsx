@@ -245,8 +245,7 @@ describe('SignalRecordHost — retract and repost (P-22/OD-45, AC-412)', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /more signal actions/i }))
     await userEvent.click(screen.getByRole('menuitem', { name: /^retract$/i }))
-    // #855 defect #11: the dialog's accessible name comes from its own heading (aria-labelledby),
-    // not from a bare "dialog" role with no name.
+    // The dialog's accessible name comes from its own heading.
     const dialog = screen.getByRole('dialog', { name: /retract this signal/i })
     expect(within(dialog).getByRole('textbox', { name: /reason/i })).toBeRequired()
     expect(within(dialog).getByRole('button', { name: /retract/i })).toBeDisabled()
@@ -259,8 +258,8 @@ describe('SignalRecordHost — retract and repost (P-22/OD-45, AC-412)', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: /retract/i }))
 
     expect(mockRetractSignal).toHaveBeenCalledWith(SIGNAL_ID, 'Wrong provenance')
-    // #855 defect #11: the record heading takes a distinct noun-phrase title — the declarative
-    // "This Signal was retracted." sentence now prints exactly once, in the tombstone body.
+    // The record heading takes a distinct noun-phrase title — the declarative "This Signal was
+    // retracted." sentence prints exactly once, in the tombstone body.
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Retracted Signal' })).toBeInTheDocument())
     expect(screen.queryByRole('heading', { name: /this signal was retracted/i })).not.toBeInTheDocument()
     await waitFor(() => expect(screen.getByText(/this signal was retracted/i, { selector: '.signal-tombstone p' })).toBeInTheDocument())

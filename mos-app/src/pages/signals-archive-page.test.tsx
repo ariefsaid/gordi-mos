@@ -1079,9 +1079,7 @@ describe('signals Team filter — historical team rows vs All Teams (AC-8)', () 
     expect(screen.queryByText('All teams observation')).not.toBeInTheDocument()
   })
 
-  // #855 defect #10: the Team filter used to list EVERY org Team regardless of what was loaded —
-  // every choice on current (all-org-wide) data returned the empty state. It must be absent, not
-  // a disabled stub, when nothing on the page could ever match it.
+  // The Team filter is absent, not a disabled stub, when nothing on the page could ever match it.
   it('is absent (no disabled stub) when no loaded Signal has an owning Team', async () => {
     mockListReadableSignals.mockResolvedValue([
       row({ id: 's-org-1', body: 'All teams observation', audience: 'org', owning_team_id: null }),

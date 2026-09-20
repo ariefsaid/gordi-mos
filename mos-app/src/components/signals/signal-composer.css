@@ -78,22 +78,21 @@
   font-size: var(--font-size-label); width: fit-content;
 }
 
-/* #855 required outcome: ONE metadata line (audience → notify → author) directly under the
-   chips — the old two-paragraph "Posted by …" + "Visible to …" pair is gone. */
+/* One metadata line (audience → notify → author) directly under the chips. */
 .signal-composer-vis {
   margin: 0; font-size: var(--font-size-label); color: var(--muted-foreground);
 }
 
-/* #855: only the primary action (+ its Shift+Enter hint) lives here now — right-aligned on
-   desktop; the phone override below makes the primary full-width instead. */
+/* Only the primary action (+ its Shift+Enter hint) lives here — right-aligned on desktop; the
+   phone override below makes the primary full-width instead. */
 .signal-composer-foot {
   display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 12px;
   border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 
-/* OD-REDESIGN-91 #10: Send button + its quiet Shift+Enter hint. #5/#855: hidden without a real
-   keyboard — a coarse (touch) pointer, or ANY pointer with no hover (some phones report hover:
-   none on a fine/stylus pointer too), never just "pointer: coarse" alone. */
+/* OD-REDESIGN-91 #10: Send button + its quiet Shift+Enter hint. Hidden without a real keyboard —
+   a coarse (touch) pointer, or ANY pointer with no hover (some phones report hover: none on a
+   fine/stylus pointer too), never just "pointer: coarse" alone. */
 .signal-composer-send { display: flex; align-items: center; gap: 8px; }
 .signal-composer-send-hint {
   font-size: var(--font-size-micro); color: var(--muted-foreground); white-space: nowrap;
@@ -104,24 +103,26 @@
 
 /* SYS-2 phone tap-target floor: the datetime-local control is 32px tall (no styled-kit
    primitive backs it, so it never inherited the DO-15(a) field floor). Raise it to the 44px
-   touch minimum on phone. #7/#29: textarea + datetime both step up to the 16px touch-input rung —
-   below it, mobile Safari zooms the viewport on focus. */
+   touch minimum on phone. The textarea and datetime input both step up to the 16px touch-input
+   rung — below it, mobile Safari zooms the viewport on focus. */
 @media (max-width: 767.98px) {
   .signal-composer-mention-anchor textarea { font-size: var(--font-size-touch-input); }
   .signal-composer-datetime input { min-height: 44px; font-size: var(--font-size-touch-input); }
   .signal-composer {
-    min-height: 100%; padding: 16px 16px 96px;
-    /* B4 (addendum): the sheet is its own scroll container, so a footer with nothing to stick to
-       (short content, no overflow) still lands at the true bottom via margin-top: auto below,
-       and a footer with too much content above it (overflow) gets a real scrollport to stick in —
-       either way it can no longer float mid-sheet over an empty lower half. */
+    min-height: 100%; padding: 16px;
+    /* The sheet is its own scroll container: short content still lands the footer at the true
+       bottom via margin-top: auto below, and content taller than the viewport gets a real
+       scrollport for the footer to stick in. */
     overflow-y: auto;
   }
   .signal-composer-context { align-items: stretch; }
   .signal-composer-context > * { min-height: 44px; }
   .signal-composer-foot {
     position: sticky; bottom: 0; z-index: 2;
-    margin-top: auto; margin-inline: -16px; margin-bottom: -96px;
+    /* margin-top: auto claims all leftover flex space so the footer sits at the true bottom
+       instead of right after the content; the negative inline/bottom margins bleed it past the
+       container's own 16px padding so ITS OWN padding (below) is the only space under the bar. */
+    margin: auto -16px -16px;
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
     background: color-mix(in srgb, var(--card) 94%, transparent);
     backdrop-filter: blur(8px);

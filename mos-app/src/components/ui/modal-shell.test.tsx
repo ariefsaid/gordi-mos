@@ -1,11 +1,16 @@
-import { useState } from 'react'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useEffect, useRef, useState } from 'react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ModalShell } from './modal-shell'
 import { Picker } from './picker'
 
 describe('ModalShell — one centered interaction contract', () => {
+  // Restores real timers unconditionally, regardless of whether the fake-timers test below threw
+  // — a leaked fake-timer stub outlives its own test and hangs every unrelated timer-driven test
+  // that shares this worker afterward.
+  afterEach(() => { vi.useRealTimers() })
+
   it('dismisses a nested Picker before closing the modal', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
@@ -97,6 +102,51 @@ describe('ModalShell — one centered interaction contract', () => {
     )
     fireEvent.click(screen.getByTestId('modal-shell-scrim'))
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('focuses an explicit initialFocusRef target instead of the first focusable descendant', async () => {
+    function Fixture() {
+      const textareaRef = useRef<HTMLTextAreaElement>(null)
+      return (
+        <ModalShell open onClose={vi.fn()} ariaLabel="Share a Signal" initialFocusRef={textareaRef}>
+          <button type="button">Close</button>
+          <textarea ref={textareaRef} aria-label="What happened?" />
+        </ModalShell>
+      )
+    }
+    render(<Fixture />)
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'What happened?' })).toHaveFocus())
+    expect(screen.getByRole('button', { name: 'Close' })).not.toHaveFocus()
+  })
+
+  // The target for initialFocusRef is not always mounted on the same render that flips `open`
+  // true — a caller can gate the dialog's own mount behind an async condition (an authority
+  // check, a data fetch) it does not control. The ref only needs to be populated by the time the
+  // dialog actually appears; ModalShell reads it fresh on that render, not on `open`'s first edge.
+  it('honors initialFocusRef even when the dialog mounts on a later, timer-gated render', async () => {
+    vi.useFakeTimers()
+    function DelayedFixture() {
+      const [ready, setReady] = useState(false)
+      const textareaRef = useRef<HTMLTextAreaElement>(null)
+      useEffect(() => {
+        const id = setTimeout(() => setReady(true), 50)
+        return () => clearTimeout(id)
+      }, [])
+      if (!ready) return null
+      return (
+        <ModalShell open onClose={vi.fn()} ariaLabel="Share a Signal" initialFocusRef={textareaRef}>
+          <button type="button">Close</button>
+          <textarea ref={textareaRef} aria-label="What happened?" />
+        </ModalShell>
+      )
+    }
+    render(<DelayedFixture />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await act(async () => { vi.advanceTimersByTime(60) })
+
+    expect(screen.getByRole('textbox', { name: 'What happened?' })).toHaveFocus()
+    vi.useRealTimers()
   })
 
   it('exposes the shared surface and phone-mode grammar', () => {
