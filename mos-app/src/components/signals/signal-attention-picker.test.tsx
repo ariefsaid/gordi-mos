@@ -46,18 +46,17 @@ describe('SignalAttentionPicker', () => {
     expect(onChange).not.toHaveBeenCalledWith('host')
   })
 
-  // #855 addendum B1: the menu used to render only "below, left-aligned" with no room check —
-  // at 768 it hung off the dialog's bottom edge onto the scrim, and at 390 it grew down over the
-  // primary Share Signal button. Wiring signal-attention-placement's flip decision fixes it.
-  it('flips the menu above the trigger when it would not fit below the viewport (B1)', async () => {
+  it('is portaled to <body>, positioned fixed, and flips above the trigger when it would not fit below the viewport', async () => {
     renderPicker()
     const user = userEvent.setup()
     const trigger = screen.getByRole('button', { name: /attention.*FYI/i })
     await user.click(trigger)
     const listbox = screen.getByRole('listbox', { name: /attention/i })
-    expect(listbox).not.toHaveClass('signal-attention-picker-options--up')
+    expect(listbox.parentElement).toBe(document.body)
+    expect(listbox.style.position).toBe('fixed')
+    expect(listbox.style.bottom).toBe('auto')
 
-    // Trigger sits low in a short viewport; the menu (171px, matching the live #768 geometry
+    // Trigger sits low in a short viewport; the menu (171px, matching the live geometry
     // signal-attention-placement.test.ts pins) cannot fit below it.
     vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({
       top: 710.8, bottom: 754.8, left: 16, right: 100, width: 84, height: 44, x: 16, y: 710.8, toJSON: () => ({}),
@@ -68,7 +67,11 @@ describe('SignalAttentionPicker', () => {
     Object.defineProperty(window, 'innerHeight', { value: 844, configurable: true })
     act(() => { window.dispatchEvent(new Event('resize')) })
 
-    await waitFor(() => expect(screen.getByRole('listbox', { name: /attention/i })).toHaveClass('signal-attention-picker-options--up'))
+    await waitFor(() => {
+      const flipped = screen.getByRole('listbox', { name: /attention/i })
+      expect(flipped.style.top).toBe('auto')
+      expect(parseFloat(flipped.style.bottom)).toBeCloseTo(137.2, 1)
+    })
   })
 
   it('re-seats the active option when the controlled attention changes', async () => {

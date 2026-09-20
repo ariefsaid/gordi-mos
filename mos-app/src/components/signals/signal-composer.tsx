@@ -96,10 +96,9 @@ export function SignalComposer({
   // person/people by count; Indonesian "orang" is invariant (both keys resolve to it). The caller
   // resolves the noun in the active locale and threads it as ${noun}.
   const notifyNoun = t(notifyCount === 1 ? 'signals.notify.person' : 'signals.notify.people')
-  // #855 (required outcome + addendum B2): ONE metadata line — audience, then notify count, then
-  // author — with a STABLE "All teams" prefix. Typing an @mention only APPENDS the notify segment;
-  // it never swaps the audience phrase out from under the reader (the "Visible to all teams" →
-  // "All teams · notify…" flicker the addendum caught).
+  // ONE metadata line — audience, then notify count, then author — with a STABLE "All teams"
+  // prefix. Typing an @mention only APPENDS the notify segment; it never swaps the audience
+  // phrase out from under the reader.
   const metaLine = notifyCount > 0
     ? t('signals.composer.shareAllNotify', { count: notifyCount, noun: notifyNoun, name: authorName })
     : t('signals.composer.shareAll', { name: authorName })
@@ -228,7 +227,7 @@ export function SignalComposer({
       <div className="signal-composer-foot">
         <div className="signal-composer-send">
           {/* OD-REDESIGN-91 #10: quiet Shift+Enter hint by the Send button; hidden without a
-              real keyboard (touch, or a pointer with no hover — #5/#855). */}
+              real keyboard (touch, or a pointer with no hover). */}
           <span className="signal-composer-send-hint">{t('signals.composer.sendHint')}</span>
           <Button
             variant="primary"

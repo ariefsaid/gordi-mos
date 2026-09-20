@@ -1262,9 +1262,9 @@ export const messages = {
     'signals.composer.discard': 'Discard',
     'signals.composer.stay': 'Keep editing',
     'signals.composer.sendHint': 'Shift+Enter to send',
-    // #855 addendum B2: ONE stable audience phrase ("All teams") always — the notify segment is
-    // appended, never swapped in as a replacement phrase, so typing an @mention can't change the
-    // audience wording itself. The author name rides on the end of the same single metadata line.
+    // ONE stable audience phrase ("All teams") always — the notify segment is appended, never
+    // swapped in as a replacement phrase, so typing an @mention can't change the audience wording
+    // itself. The author name rides on the end of the same single metadata line.
     'signals.composer.shareAll': 'All teams · ${name}',
     'signals.composer.shareAllNotify': 'All teams · notifies ${count} ${noun} · ${name}',
     'signals.composer.visibleTo': 'Visible to ${team}',

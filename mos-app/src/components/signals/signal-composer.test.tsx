@@ -105,8 +105,8 @@ describe('SignalComposer — capture-minimal fields (AC-420)', () => {
     expect(shareButton).toBeEnabled() // an All Teams Signal needs only a body (AC-7)
     expect((occurred as HTMLInputElement).value.length).toBeGreaterThan(0)
 
-    // #855 defect #4: the implementation-facing "Category is added after posting" copy is gone —
-    // there was no decision for the author to make, so there is nothing to caption.
+    // There is no category decision for the author to make at capture, so there is no caption
+    // about one.
     expect(screen.queryByText(/category is added after posting/i)).not.toBeInTheDocument()
   })
 
@@ -236,7 +236,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     const popover = await screen.findByRole('listbox', { name: /mention/i })
     expect(popover).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Peer Person/i })).toBeInTheDocument()
-    // #855 addendum B3: the group header is the ONE label for the kind — no duplicate per-row badge.
+    // The group header is the ONE label for the kind — no duplicate per-row badge.
     expect(screen.getByText('Person')).toBeInTheDocument()
   })
 
@@ -282,10 +282,9 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  // #855 defect #1 (LAYERING BUG): the attention picker's own listbox is the same "nested popover
-  // over a host with Escape ownership" shape as the mention popover above — Escape must close ONLY
-  // the menu, never reach the composer's host (which, for a dirty draft, would have opened the
-  // discard confirmation on top of a menu that never actually closed).
+  // The attention picker's own listbox is a nested popover over a host that also owns Escape —
+  // the same shape as the mention popover above. Escape must close only the menu, never reach
+  // the modal host.
   it('Escape with the attention menu open closes ONLY the menu, returns focus to its trigger, and never reaches the modal host', async () => {
     const onClose = vi.fn()
     render(
@@ -308,6 +307,29 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     expect(trigger).toHaveFocus()
     expect(body).toHaveValue('The freezer alarm went off')
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  // The dialog scrolls its own content in an overflow: auto surface. A menu rendered as part of
+  // that content (even absolutely positioned) can grow the surface's scrollable area and, once
+  // focused, drag its scroll position to follow — hiding the dialog's own header. The menu must
+  // sit entirely outside the dialog's DOM subtree.
+  it('opening the attention menu never becomes part of the dialog surface, and never changes its scroll position', async () => {
+    render(
+      <I18nProvider>
+        <ModalShell open onClose={vi.fn()} ariaLabel="Share a Signal">
+          <SignalComposer authorId={AUTHOR_ID} authorName="Author One" canTag canMentionBu />
+        </ModalShell>
+      </I18nProvider>,
+    )
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
+    const dialog = screen.getByRole('dialog', { name: /share a signal/i })
+    dialog.scrollTop = 0
+    const trigger = screen.getByRole('button', { name: /attention.*FYI|FYI.*attention/i })
+    await userEvent.click(trigger)
+
+    const listbox = screen.getByRole('listbox', { name: /attention/i })
+    expect(dialog.contains(listbox)).toBe(false)
+    expect(dialog.scrollTop).toBe(0)
   })
 
   it('disables the BU group without signal.mention_bu, and enables it when the viewer holds it', async () => {
@@ -373,13 +395,13 @@ describe('SignalComposer — All Teams visibility + dedup fan-out preview (AC-42
     await userEvent.click(await findMentionOption(/Peer Person/i))
 
     // SR-1 (owner ruling): the dedup count carries its noun — "notifies N people", never a naked
-    // N. #855 required outcome: ONE metadata line — audience, notify count, then author.
+    // N. One metadata line — audience, notify count, then author.
     expect(screen.getByText('All teams · notifies 2 people · Author One')).toBeInTheDocument()
   })
 
-  // #855 addendum B2: the audience phrase is STABLE — always "All teams" — with the notify
-  // segment appended, never swapped in as a different phrase, so typing a mention can't change
-  // the wording the reader already read.
+  // The audience phrase is STABLE — always "All teams" — with the notify segment appended, never
+  // swapped in as a different phrase, so typing a mention can't change the wording the reader
+  // already read.
   it('shows "All teams · <author>" with no notify suffix when no mentions are staged', async () => {
     renderComposer()
     await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())

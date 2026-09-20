@@ -102,8 +102,6 @@ describe('SignalComposerHost — one command, many entry points (C1, AC-428 back
     expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
   })
 
-  // #855 defect #6: the job is typing — ModalShell's own autofocus lands on the ✕ close button
-  // (first focusable in the panel's DOM order), so the host must move focus into the textarea.
   it('focuses the textarea on open, not the close button', async () => {
     renderHost(authedViewer)
     await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))

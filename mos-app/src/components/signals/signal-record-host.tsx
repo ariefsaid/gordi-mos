@@ -767,10 +767,9 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
           retractedAtLabel: retracted && signal.retracted_at ? formatWibDateTime(signal.retracted_at) : null,
           // DO-13/I18N-2: the identity type-kicker localizes with the rest of the record chrome.
           typeLabel: t('signals.record.title'),
-          // #855 defect #11: the record's heading and the message-region tombstone both used to
-          // read the literal sentence "This Signal was retracted." — a real screen-reader/visual
-          // duplicate. The heading now carries a distinct noun-phrase title; the tombstone
-          // sentence (tested standalone in signal-record.test.tsx) still owns the declarative copy.
+          // The heading carries a distinct noun-phrase title; the message-region tombstone
+          // sentence (tested standalone in signal-record.test.tsx) owns the declarative copy, so
+          // the record never prints the same sentence twice.
           tombstoneLabel: t('signals.record.retractedTitle'),
         })}
         mode={mode}
