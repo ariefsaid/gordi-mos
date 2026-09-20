@@ -498,3 +498,12 @@
      could never be scrolled out from under the Submit bar. */
   .kl-form .dt-cards { padding-bottom: 104px; }
 }
+
+/* The table header pins to the scrollport's real top edge. The scrolling page frame carries top
+   padding, and a sticky box is constrained to the content box, so `top: 0` would leave a strip
+   above the header where rows stay visible. The offsets mirror the frame's padding ladder
+   (shell/page-families.css). */
+.kl-form .dt-table thead th { top: -24px; }
+@media (min-width: 768px) and (max-width: 1279px) {
+  .kl-form .dt-table thead th { top: -20px; }
+}

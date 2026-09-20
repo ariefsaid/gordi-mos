@@ -788,3 +788,14 @@
   min-width: 120px;
   max-width: none;
 }
+
+/* Tablet band: the search field keeps a usable width. The saved views take the first line and
+   the search + "View & filters" wrap onto a second one rather than squeezing the placeholder. */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .collection-toolbar.tasks-collection-toolbar .collection-toolbar__query {
+    flex: 1 1 260px;
+    min-width: 240px;
+    max-width: none;
+  }
+  .collection-toolbar.tasks-collection-toolbar .collection-toolbar__search { min-width: 200px; }
+}

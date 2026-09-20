@@ -779,3 +779,10 @@ tr.grp td { padding: 0; }
     display: none;
   }
 }
+
+/* A status pill is never cut: the trigger that wraps it does not ellipsize, and below the wide
+   desktop band the status column is sized to the longest label instead of a share of the row. */
+.tasks-table td.td-status .inline-cell-trigger { overflow: visible; text-overflow: clip; }
+@media (max-width: 1099.98px) {
+  .tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 148px; }
+}
