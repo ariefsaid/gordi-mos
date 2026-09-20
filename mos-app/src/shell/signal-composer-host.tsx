@@ -112,6 +112,15 @@ export function SignalComposerHost({ children }: { children: ReactNode }) {
   // load them once per open (small at Gordi's ~30-person scale; loadMentionRosters mirrors
   // getPeople()'s whole-org-read pattern). A failed load degrades to an under-count preview rather
   // than blocking capture (Rule 8 — capture never blocks on enrichment data).
+  // #855 defect #6: the job is typing. ModalShell autofocuses the dialog's first focusable
+  // element on open, which is the ✕ close button (it sits before the textarea in the panel's
+  // markup) — this effect runs AFTER that one (SignalComposerHost is ModalShell's PARENT, and
+  // passive effects commit child-before-parent), so it wins and moves focus to the textarea.
+  useEffect(() => {
+    if (!isOpen) return
+    composerTextareaRef.current?.focus()
+  }, [isOpen])
+
   useEffect(() => {
     if (!isOpen) return
     let cancelled = false

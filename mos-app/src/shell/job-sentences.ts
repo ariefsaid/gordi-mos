@@ -22,7 +22,9 @@ export const jobSentences = {
   work: 'Find and do the work I own or my Team owns.',
   // The Tasks collection can be All, My work, Team work, or Overdue; keep its head neutral.
   tasks: 'Find and update the work in this view.',
-  signals: 'Search and revisit the Signals your Teams have shared.',
+  // #855 defect #9: every Signal is All Teams now (no owning Team at capture, ticket 867) —
+  // mirrors the i18n `job.signals` wording.
+  signals: 'Search and revisit the Signals shared across the org.',
   projects: 'Govern the Processes and Projects that generate the work.',
   objectives: 'Track the Objectives the org committed to.',
   money: 'Trust the financial figures and act on money exceptions.',

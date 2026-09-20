@@ -32,6 +32,13 @@ const SIGNAL_ATTENTION_CLASSES = [
   'signal-attention',
   ...ATTENTION_VALUES.map((a) => `signal-attention--${attentionSlug(a)}`),
 ]
+// signal-attention-picker.tsx: `signal-attention-picker-trigger--${attentionSlug(...)}` +
+// the B1 placement modifiers, both template-literal (dynamic — invisible to staticClassTokens).
+const SIGNAL_ATTENTION_TRIGGER_CLASSES = [
+  ...ATTENTION_VALUES.map((a) => `signal-attention-picker-trigger--${attentionSlug(a)}`),
+  'signal-attention-picker-options--up',
+  'signal-attention-picker-options--pull-in',
+]
 // signal-table-presentation.tsx: `signal-table-attention signal-table-attention--${slug}` + row states.
 const SIGNAL_TABLE_CLASSES = [
   'signal-table-attention',
@@ -51,7 +58,7 @@ const SUITES: Suite[] = [
   {
     component: 'src/components/signals/signal-attention-picker.tsx',
     css: ['src/components/signals/signal-attention-picker.css'],
-    extraClasses: SIGNAL_ATTENTION_CLASSES,
+    extraClasses: [...SIGNAL_ATTENTION_CLASSES, ...SIGNAL_ATTENTION_TRIGGER_CLASSES],
   },
   { component: 'src/components/signals/signal-mention-picker.tsx', css: ['src/components/signals/signal-mention-picker.css'] },
   { component: 'src/components/signals/signal-category-picker.tsx', css: ['src/components/signals/signal-card.css'] },

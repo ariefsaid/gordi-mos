@@ -709,7 +709,7 @@ describe('SignalRecordPage — canonical full page (AC-RPH-3)', () => {
     // hideHead suppresses the shared PageHead entirely: the archive LIST job sentence must NOT
     // appear on a single record (SR-3), and there is no frame-level "Signal" heading duplicating
     // the record's own identity header (SR-8 — the record host owns the sole "Signal" chrome).
-    expect(screen.queryByText('Search and revisit the Signals your Teams have shared.')).toBeNull()
+    expect(screen.queryByText('Search and revisit the Signals shared across the org.')).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Signal' })).toBeNull()
   })
 })
@@ -1077,5 +1077,32 @@ describe('signals Team filter — historical team rows vs All Teams (AC-8)', () 
     await userEvent.click(await screen.findByRole('option', { name: 'Radiant Operations' }))
     expect(screen.getByText('Retired team note')).toBeInTheDocument()
     expect(screen.queryByText('All teams observation')).not.toBeInTheDocument()
+  })
+
+  // #855 defect #10: the Team filter used to list EVERY org Team regardless of what was loaded —
+  // every choice on current (all-org-wide) data returned the empty state. It must be absent, not
+  // a disabled stub, when nothing on the page could ever match it.
+  it('is absent (no disabled stub) when no loaded Signal has an owning Team', async () => {
+    mockListReadableSignals.mockResolvedValue([
+      row({ id: 's-org-1', body: 'All teams observation', audience: 'org', owning_team_id: null }),
+      row({ id: 's-org-2', body: 'Another org-wide note', audience: 'org', owning_team_id: null }),
+    ])
+    renderPage('/work/signals?layout=table')
+    await waitFor(() => expect(screen.getByText('All teams observation')).toBeInTheDocument())
+
+    expect(screen.queryByRole('combobox', { name: 'Team' })).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Category' })).toBeInTheDocument()
+  })
+
+  it('lists only the Teams present on loaded rows, not every org Team', async () => {
+    mockListReadableSignals.mockResolvedValue([
+      row({ id: 's-hist', body: 'Retired team note', audience: 'team', owning_team_id: 'team-radiant' }),
+    ])
+    renderPage('/work/signals?layout=table')
+    await waitFor(() => expect(screen.getByText('Retired team note')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Team' }))
+    expect(await screen.findByRole('option', { name: 'Radiant Operations' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'HQ Operations' })).not.toBeInTheDocument()
   })
 })
