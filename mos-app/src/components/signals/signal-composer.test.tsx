@@ -15,6 +15,7 @@ vi.mock('@/lib/db/signals', async () => {
     dedupeRecipients: actual.dedupeRecipients, // real (pure) implementation — the point under test
   }
 })
+vi.mock('@/lib/db/signal-photos', () => ({ MAX_SIGNAL_PHOTOS: 4, uploadSignalPhotos: vi.fn() }))
 vi.mock('@/lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
@@ -22,10 +23,12 @@ vi.mock('@/lib/db/directory', () => ({
 
 import { listAllTeams, createSignal } from '@/lib/db/signals'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { uploadSignalPhotos } from '@/lib/db/signal-photos'
 import { SignalComposer } from './signal-composer'
 
 const mockListAllTeams = vi.mocked(listAllTeams)
 const mockCreateSignal = vi.mocked(createSignal)
+const mockUploadSignalPhotos = vi.mocked(uploadSignalPhotos)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
 const mockGetPeople = vi.mocked(getPeople)
 
@@ -60,6 +63,7 @@ beforeEach(() => {
   mockGetBusinessUnits.mockResolvedValue(BUS)
   mockGetPeople.mockResolvedValue(PEOPLE)
   mockCreateSignal.mockResolvedValue('signal-new')
+  mockUploadSignalPhotos.mockResolvedValue([])
 })
 
 describe('SignalComposer — repost prefill', () => {
@@ -418,3 +422,52 @@ describe('SignalComposer — All Teams visibility + dedup fan-out preview (AC-42
     expect(screen.getByText('All teams · notifies 1 person · Author One')).toBeInTheDocument()
   })
 })
+
+describe('SignalComposer — photos (ticket 680)', () => {
+  const photo = (name: string) => new File(['x'], name, { type: 'image/jpeg' })
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => 'blob:preview')
+    URL.revokeObjectURL = vi.fn()
+  })
+
+  it('stages chosen photos as removable previews, capped at four', async () => {
+    renderComposer()
+    await userEvent.upload(screen.getByLabelText(/add photo/i), ['a', 'b', 'c', 'd', 'e'].map((n) => photo(`${n}.jpg`)))
+
+    expect(screen.getAllByRole('img', { name: /photo \d of 4/i })).toHaveLength(4)
+    expect(screen.getByLabelText(/add photo/i)).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: /remove photo 1/i }))
+    expect(screen.getAllByRole('img', { name: /photo \d of 3/i })).toHaveLength(3)
+  })
+
+  it('posts the Signal, then uploads its photos to it', async () => {
+    const onShared = vi.fn()
+    renderComposer({ onShared })
+    const files = [photo('a.jpg'), photo('b.jpg')]
+    await userEvent.upload(screen.getByLabelText(/add photo/i), files)
+    await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), 'Door seal is loose')
+    await userEvent.click(screen.getByRole('button', { name: /^share signal$/i }))
+
+    await waitFor(() => expect(mockUploadSignalPhotos).toHaveBeenCalledWith('signal-new', files))
+    expect(onShared).toHaveBeenCalledWith('signal-new')
+  })
+
+  it('keeps the posted Signal and offers a photo retry when an upload fails', async () => {
+    const onShared = vi.fn()
+    const failed = photo('b.jpg')
+    mockUploadSignalPhotos.mockResolvedValueOnce([failed]).mockResolvedValueOnce([])
+    renderComposer({ onShared })
+    await userEvent.upload(screen.getByLabelText(/add photo/i), [photo('a.jpg'), failed])
+    await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), 'Door seal is loose')
+    await userEvent.click(screen.getByRole('button', { name: /^share signal$/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/signal was shared.*1 photo did not upload/i)
+    expect(onShared).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: /retry photo/i }))
+
+    await waitFor(() => expect(onShared).toHaveBeenCalledWith('signal-new'))
+    expect(mockCreateSignal).toHaveBeenCalledTimes(1)
+    expect(mockUploadSignalPhotos).toHaveBeenLastCalledWith('signal-new', [failed])
+  })
+})
+

@@ -8,6 +8,8 @@ import { attentionSlug, type SignalRow } from '@/lib/db/signals.types'
 import { signalMatchesText } from './signal-collection-adapter'
 import { attentionLabel } from './signal-attention-label'
 import { signalCategoryLabel } from './signal-labels'
+import { SignalPhotoStrip } from './signal-photos'
+import { useSignalPhotos } from './use-signal-photos'
 import './signal-feed-rows.css'
 
 // SignalFeedRows — the ONE Signal row anatomy (owner redirect 2026-07-22: Signals render as ROWS in
@@ -68,6 +70,7 @@ export function SignalFeedRows({
   const filteredEmpty = ordered.length === 0 && query.trim() !== ''
   const capped = variant === 'ambient' ? ordered.slice(0, AMBIENT_CAP) : ordered
   const hidden = ordered.length - capped.length
+  const photosBySignal = useSignalPhotos(capped.filter((signal) => !signal.retracted_at).map((signal) => signal.id))
   // The remainder is a real DOOR, not a bare fact: it carries any active filter through as the
   // collection's own `q` key, so the rows it names are actually where it says they are.
   const moreHref = query.trim() === ''
@@ -168,6 +171,7 @@ export function SignalFeedRows({
                   <span className="home-signal-body">
                     <span className="home-signal-body-text">{signal.body}</span>
                   </span>
+                  <SignalPhotoStrip photos={photosBySignal[signal.id]} />
                   {/* Meta subline: author · Team · time · category-when-set — PLAIN TEXT in BOTH
                       variants (P1, #770: never bordered chips, never a visibility sentence; Home
                       and the archive render the same component and a difference between them is a

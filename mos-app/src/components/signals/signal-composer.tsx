@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/state-kit'
@@ -8,6 +8,7 @@ import {
 import type { TeamOption, StagedMention, MentionKind, Attention } from '@/lib/db/signals.types'
 import type { SignalComposerPrefill } from '@/shell/signal-composer-host'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { MAX_SIGNAL_PHOTOS, uploadSignalPhotos } from '@/lib/db/signal-photos'
 import { currentMentionToken, type MentionCandidate } from '@/lib/comments/mentions'
 import { SignalMentionPicker, type SignalMentionPickerHandle } from './signal-mention-picker'
 import { SignalAttentionPicker } from './signal-attention-picker'
@@ -57,6 +58,12 @@ export function SignalComposer({
   const [mentionToken, setMentionToken] = useState<{ query: string; start: number } | null>(null)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [photos, setPhotos] = useState<File[]>([])
+  // Set once the Signal is posted but some photos did not upload: Share becomes a photo retry
+  // against this id, so a second press never posts the Signal twice.
+  const [sharedId, setSharedId] = useState<string | null>(null)
+  const previews = useMemo(() => photos.map((file) => URL.createObjectURL(file)), [photos])
+  useEffect(() => () => { previews.forEach((url) => URL.revokeObjectURL(url)) }, [previews])
   const internalTextareaRef = useRef<HTMLTextAreaElement>(null)
   const textareaRef = externalTextareaRef ?? internalTextareaRef
   // GAP-8 (OD-91 #13): the mention popover is a combobox — the textarea keeps focus and forwards its
@@ -127,17 +134,35 @@ export function SignalComposer({
     textareaRef.current?.focus()
   }
 
+  function addPhotos(e: React.ChangeEvent<HTMLInputElement>) {
+    const chosen = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    if (chosen.length === 0) return
+    setPhotos((prev) => [...prev, ...chosen].slice(0, MAX_SIGNAL_PHOTOS))
+    onDirtyChange?.(true)
+  }
+
   async function submit() {
     const trimmedBody = body.trim()
-    if (!trimmedBody || posting) return
+    if ((!trimmedBody && !sharedId) || posting) return
     setPosting(true)
     setError(null)
     try {
-      const occurredIso = new Date(occurredAt).toISOString()
-      const id = await createSignal({ body: trimmedBody, occurredAt: occurredIso, attention, mentions })
+      const id = sharedId ?? await createSignal({
+        body: trimmedBody, occurredAt: new Date(occurredAt).toISOString(), attention, mentions,
+      })
+      const failed = await uploadSignalPhotos(id, photos).catch(() => photos)
+      if (failed.length > 0) {
+        setSharedId(id)
+        setPhotos(failed)
+        setError(t('signals.composer.photoError', { count: failed.length }))
+        return
+      }
       setBody('')
       setMentions([])
       setMentionToken(null)
+      setPhotos([])
+      setSharedId(null)
       onDirtyChange?.(false)
       onShared?.(id)
     } catch (err) {
@@ -190,6 +215,7 @@ export function SignalComposer({
             }
           }}
           rows={3}
+          readOnly={!!sharedId}
         />
         {mentionToken && (
           <SignalMentionPicker
@@ -205,6 +231,25 @@ export function SignalComposer({
         )}
       </div>
 
+      {photos.length > 0 && (
+        <ul className="signal-composer-photos" aria-label={t('signals.composer.photosLabel')}>
+          {photos.map((file, i) => (
+            <li key={previews[i]}>
+              <img src={previews[i]} alt={t('signals.composer.photoAlt', { n: i + 1, total: photos.length })} />
+              {!sharedId && (
+                <button
+                  type="button"
+                  aria-label={t('signals.composer.removePhoto', { n: i + 1 })}
+                  onClick={() => setPhotos((prev) => prev.filter((p) => p !== file))}
+                >
+                  <span aria-hidden="true">×</span>
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
       <div className="signal-composer-context" aria-label={t('signals.composer.contextLabel')}>
         <SignalAttentionPicker id="signals-compose-attention" value={attention} onChange={(next) => { setAttention(next); onDirtyChange?.(true) }} />
         <label className="signal-composer-context-pill signal-composer-occurred-pill">
@@ -216,6 +261,21 @@ export function SignalComposer({
             aria-label={t('signals.composer.occurredLabel')}
             value={occurredAt}
             onChange={(e) => { setOccurredAt(e.target.value); onDirtyChange?.(true) }}
+          />
+        </label>
+        {/* A plain file input: on a phone the OS offers Camera or Photo Library itself. */}
+        <label className="signal-composer-context-pill signal-composer-photo-pill" data-disabled={photos.length >= MAX_SIGNAL_PHOTOS || !!sharedId || undefined}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" />
+          </svg>
+          <span>{photos.length > 0 ? t('signals.composer.photoCount', { count: photos.length, max: MAX_SIGNAL_PHOTOS }) : t('signals.composer.addPhoto')}</span>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            aria-label={t('signals.composer.addPhoto')}
+            disabled={photos.length >= MAX_SIGNAL_PHOTOS || !!sharedId}
+            onChange={addPhotos}
           />
         </label>
       </div>
@@ -231,12 +291,12 @@ export function SignalComposer({
           <span className="signal-composer-send-hint">{t('signals.composer.sendHint')}</span>
           <Button
             variant="primary"
-            disabled={!body.trim() || posting}
+            disabled={(!body.trim() && !sharedId) || posting}
             aria-busy={posting}
             onClick={() => { void submit() }}
           >
             {/* DO-17 F3: an explicit in-flight affordance (label + aria-busy), not just a disabled button. */}
-            {posting ? t('signals.action.sharing') : t('signals.action.share')}
+            {posting ? t('signals.action.sharing') : sharedId ? t('signals.composer.retryPhotos') : t('signals.action.share')}
           </Button>
         </div>
       </div>

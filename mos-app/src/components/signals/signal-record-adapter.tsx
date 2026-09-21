@@ -82,6 +82,7 @@ export function wrapSignalRecord(input: WrapSignalRecordInput): RecordViewerAdap
     label: 'Message',
     render: () => (
       <SignalMessage
+        signalId={signal.id}
         // Live identity owns the first line; retracted identity must retain the original line in
         // the tombstone, so only the live branch receives the continuation here.
         body={retracted ? signal.body : remainingBody(signal.body)}
