@@ -39,10 +39,29 @@
 .signal-composer-occurred-pill { cursor: pointer; }
 /* `inset: 0` lands inside the pill's own border, so the input measured 42px against a pill
    that is 44. Pressing the border presses the pill either way; the control now covers it. */
-.signal-composer-occurred-pill input {
+.signal-composer-occurred-pill input,
+.signal-composer-photo-pill input {
   position: absolute; inset: -1px; width: calc(100% + 2px); height: calc(100% + 2px);
   opacity: 0; cursor: pointer;
 }
+.signal-composer-photo-pill { cursor: pointer; }
+.signal-composer-photo-pill[data-disabled] { opacity: 0.5; cursor: default; }
+.signal-composer-photo-pill:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; }
+.signal-composer-photos { display: flex; gap: 8px; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
+.signal-composer-photos li { position: relative; width: 72px; height: 72px; }
+.signal-composer-photos img {
+  width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md); border: 1px solid var(--border);
+}
+/* A 44px press area around a 24px badge. */
+.signal-composer-photos button {
+  position: absolute; top: -10px; right: -10px; width: 44px; height: 44px; padding: 0;
+  display: grid; place-items: center; border: 0; background: none; cursor: pointer;
+}
+.signal-composer-photos button span {
+  display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--foreground); color: var(--background); font-size: var(--font-size-body-lg); line-height: 1;
+}
+.signal-composer-photos li[data-failed] img { border: 2px solid var(--destructive); opacity: 0.6; }
 .signal-composer-team-choice { width: min(100%, 420px); }
 .signal-composer-team-choice .picker { width: 100%; }
 .signal-composer-identity {

@@ -8,6 +8,7 @@ import { attentionSlug, type Attention, type MentionKind, type SignalCategory } 
 import { attentionLabel } from './signal-attention-label'
 import { SignalCategoryPicker } from './signal-category-picker'
 import { SignalAttentionPicker } from './signal-attention-picker'
+import { SignalRecordPhotos } from './signal-photos'
 import './signal-card.css'
 import './signal-record.css'
 
@@ -58,9 +59,10 @@ export interface LinkedTaskView {
 // in the tombstone for a retracted Signal). The attention level + occurred time ride WITH it
 // (LAW-2), never hoisted to a downstream facts block.
 export function SignalMessage({
-  body, attention, occurredLabel, retracted, retractReason, retractedBy, retractedAtLabel,
+  signalId, body, attention, occurredLabel, retracted, retractReason, retractedBy, retractedAtLabel,
   canEditAttention, onAttentionChange, onRepost, actionControls,
 }: {
+  signalId?: string
   body: string
   attention: Attention
   occurredLabel: string
@@ -103,6 +105,7 @@ export function SignalMessage({
         <span className="signal-message-occurred">{t('signals.record.occurredAt', { when: occurredLabel })}</span>
       </div>
       {displayBody ? <p className="signal-message-body">{displayBody}</p> : null}
+      {signalId ? <SignalRecordPhotos signalId={signalId} /> : null}
     </div>
   )
 }

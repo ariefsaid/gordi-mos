@@ -116,3 +116,10 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
     }),
   })
 }
+
+// Any rendered feed or Signal record reads its photos. Default that read to "none" so a test that is
+// not about photos makes no storage call; a test that is overrides this mock.
+vi.mock('@/lib/db/signal-photos', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db/signal-photos')>()),
+  listSignalPhotos: vi.fn(async () => []),
+}))
