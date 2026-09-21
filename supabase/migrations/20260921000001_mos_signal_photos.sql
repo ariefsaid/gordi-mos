@@ -6,7 +6,9 @@ begin;
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('signal-photos', 'signal-photos', false, 5242880,
         array['image/jpeg', 'image/png', 'image/webp'])
-on conflict (id) do nothing;
+on conflict (id) do update
+  set public = excluded.public, file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
 
 -- The Signal an object path belongs to, or null when the path is not
 -- <current org>/<uuid>/<uuid>.<jpg|png|webp>. Text comparison only: a malformed path never reaches
@@ -45,17 +47,25 @@ $$;
 
 -- Add: the author, to their own live Signal, inside the capture window, up to four. Evidence is
 -- attached at capture and never edited: there is no update or delete grant.
+-- VOLATILE with a per-Signal lock: concurrent uploads queue, and each count reads a fresh snapshot,
+-- so two racing fourth photos cannot both pass. The count is the true total only because the
+-- owner bypasses row security on storage.objects (pinned in the tests).
 create or replace function mos.can_add_signal_photo(p_name text)
 returns boolean
-language sql
-stable
+language plpgsql
+volatile
 security definer
 set search_path = ''
 as $$
-  select exists (
+declare
+  v_signal_id uuid := mos._signal_photo_signal_id(p_name);
+begin
+  if v_signal_id is null then return false; end if;
+  perform pg_advisory_xact_lock(hashtextextended('mos.signal_photos:' || v_signal_id::text, 0));
+  return exists (
     select 1
       from mos.signals s
-     where s.id = mos._signal_photo_signal_id(p_name)
+     where s.id = v_signal_id
        and s.author_id = shared.current_person_id()
        and s.retracted_at is null
        and s.created_at > now() - interval '15 minutes'
@@ -63,7 +73,8 @@ as $$
               from storage.objects o
              where o.bucket_id = 'signal-photos'
                and o.name like shared.current_org_id()::text || '/' || s.id::text || '/%') < 4
-  )
+  );
+end
 $$;
 
 revoke execute on function mos._signal_photo_signal_id(text) from public, anon, authenticated;
@@ -78,10 +89,12 @@ create policy signal_photos_insert on storage.objects for insert to authenticate
   with check (bucket_id = 'signal-photos' and mos.can_add_signal_photo(name));
 
 -- The feed reads many Signals' photos in one query. security_invoker: the policy above decides.
+-- The shape check keeps one stray object name from failing the cast for every reader.
 create view mos.signal_photos with (security_invoker = true) as
   select split_part(o.name, '/', 2)::uuid as signal_id, o.name as path, o.created_at
     from storage.objects o
-   where o.bucket_id = 'signal-photos';
+   where o.bucket_id = 'signal-photos'
+     and o.name ~ '^[0-9a-f-]{36}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[^/]+$';
 grant select on mos.signal_photos to authenticated;
 
 commit;

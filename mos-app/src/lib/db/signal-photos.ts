@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 const BUCKET = 'signal-photos'
 export const MAX_SIGNAL_PHOTOS = 4
 const MAX_EDGE = 1600
+// A link minted before a retraction keeps working until it expires. It reaches only people who could
+// already see the photo, and a shorter life breaks lazy-loaded photos in a feed left open.
 const SIGNED_URL_SECONDS = 3600
 
 export interface SignalPhoto {

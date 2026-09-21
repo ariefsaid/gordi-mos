@@ -3,7 +3,7 @@
 -- Signal and by nobody once it is retracted; nothing is edited or removed.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(21);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
@@ -24,6 +24,14 @@ insert into mos.signals (id, org_id, author_id, audience, owning_team_id, occurr
 \set live :org/00000000-0000-0000-0000-000000006801
 \set late :org/00000000-0000-0000-0000-000000006802
 \set team :org/00000000-0000-0000-0000-000000006804
+
+select is((select row(public, file_size_limit, allowed_mime_types)::text from storage.buckets where id = 'signal-photos'),
+  row(false, 5242880, array['image/jpeg','image/png','image/webp'])::text,
+  'the bucket is private, capped at 5 MB, and takes images only');
+select is((select count(*)::int from pg_proc p join pg_roles r on r.oid = p.proowner
+            where p.pronamespace = 'mos'::regnamespace and p.proname like '%signal_photo%'
+              and p.prosecdef and r.rolbypassrls), 3,
+  'the three photo gates are definer functions whose owner bypasses row security — the cap counts every photo');
 
 -- ── the author ────────────────────────────────────────────────────────────────────────────────
 set local role authenticated;
@@ -83,8 +91,19 @@ update mos.signals set retracted_at = now(), retract_reason = 'Wrong photo'
  where id = '00000000-0000-0000-0000-000000006801';
 select is((select count(*)::int from mos.signal_photos where signal_id = '00000000-0000-0000-0000-000000006801'), 0,
   'a retracted Signal shows no photo, even to its author');
+select throws_ok(format($$insert into storage.objects (bucket_id, name) values ('signal-photos', %L)$$,
+  :'late' || '/../00000000-0000-0000-0000-000000006801/00000000-0000-0000-0000-0000000000f7.jpg'), '42501', null,
+  'a traversal path is refused');
+update mos.signals set retracted_at = now(), retract_reason = 'Wrong photo'
+ where id = '00000000-0000-0000-0000-000000006804';
+select throws_ok(format($$insert into storage.objects (bucket_id, name) values ('signal-photos', %L)$$,
+  :'team' || '/00000000-0000-0000-0000-0000000000f7.jpg'), '42501', null,
+  'no photo is added to a retracted Signal, though it has room and is inside its window');
 
 set local role anon;
+select throws_ok($$insert into storage.objects (bucket_id, name) values ('signal-photos',
+  '00000000-0000-0000-0000-0000000000a1/00000000-0000-0000-0000-000000006802/00000000-0000-0000-0000-0000000000f1.jpg')$$,
+  '42501', null, 'anon cannot add an object');
 select throws_ok($$select count(*) from mos.signal_photos$$, '42501', null, 'anon has no access to the feed view');
 
 select * from finish();

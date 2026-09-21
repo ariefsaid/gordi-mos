@@ -5,6 +5,7 @@ const createSignedUrls = vi.fn()
 const tables: Record<string, unknown> = {}
 let encoded: string[] = []
 
+vi.unmock('@/lib/db/signal-photos') // the shared setup stubs the read; this file tests the real one
 vi.mock('@/lib/supabase', () => ({
   supabase: {
     schema: () => ({ from: (table: string) => tables[table] }),

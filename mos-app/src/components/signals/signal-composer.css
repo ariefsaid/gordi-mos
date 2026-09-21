@@ -58,9 +58,10 @@
   display: grid; place-items: center; border: 0; background: none; cursor: pointer;
 }
 .signal-composer-photos button span {
-  display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
-  background: var(--foreground); color: var(--background); font-size: 16px; line-height: 1;
+  display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--foreground); color: var(--background); font-size: var(--font-size-body-lg); line-height: 1;
 }
+.signal-composer-photos li[data-failed] img { border: 2px solid var(--destructive); opacity: 0.6; }
 .signal-composer-team-choice { width: min(100%, 420px); }
 .signal-composer-team-choice .picker { width: 100%; }
 .signal-composer-identity {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/state-kit'
@@ -58,12 +58,14 @@ export function SignalComposer({
   const [mentionToken, setMentionToken] = useState<{ query: string; start: number } | null>(null)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [photos, setPhotos] = useState<File[]>([])
+  // Each staged photo owns its preview URL: minted when chosen, revoked when dropped or on unmount.
+  const [photos, setPhotos] = useState<Array<{ file: File; url: string }>>([])
+  const photosRef = useRef(photos)
+  photosRef.current = photos
+  useEffect(() => () => { photosRef.current.forEach((p) => URL.revokeObjectURL(p.url)) }, [])
   // Set once the Signal is posted but some photos did not upload: Share becomes a photo retry
   // against this id, so a second press never posts the Signal twice.
   const [sharedId, setSharedId] = useState<string | null>(null)
-  const previews = useMemo(() => photos.map((file) => URL.createObjectURL(file)), [photos])
-  useEffect(() => () => { previews.forEach((url) => URL.revokeObjectURL(url)) }, [previews])
   const internalTextareaRef = useRef<HTMLTextAreaElement>(null)
   const textareaRef = externalTextareaRef ?? internalTextareaRef
   // GAP-8 (OD-91 #13): the mention popover is a combobox — the textarea keeps focus and forwards its
@@ -134,11 +136,21 @@ export function SignalComposer({
     textareaRef.current?.focus()
   }
 
+  function keepPhotos(keep: (photo: { file: File; url: string }) => boolean) {
+    setPhotos((prev) => {
+      prev.filter((p) => !keep(p)).forEach((p) => URL.revokeObjectURL(p.url))
+      return prev.filter(keep)
+    })
+  }
+
   function addPhotos(e: React.ChangeEvent<HTMLInputElement>) {
     const chosen = Array.from(e.target.files ?? [])
     e.target.value = ''
     if (chosen.length === 0) return
-    setPhotos((prev) => [...prev, ...chosen].slice(0, MAX_SIGNAL_PHOTOS))
+    setPhotos((prev) => [
+      ...prev,
+      ...chosen.slice(0, MAX_SIGNAL_PHOTOS - prev.length).map((file) => ({ file, url: URL.createObjectURL(file) })),
+    ])
     onDirtyChange?.(true)
   }
 
@@ -151,17 +163,19 @@ export function SignalComposer({
       const id = sharedId ?? await createSignal({
         body: trimmedBody, occurredAt: new Date(occurredAt).toISOString(), attention, mentions,
       })
-      const failed = await uploadSignalPhotos(id, photos).catch(() => photos)
+      const files = photos.map((p) => p.file)
+      const failed = await uploadSignalPhotos(id, files).catch(() => files)
+      keepPhotos((p) => failed.includes(p.file))
       if (failed.length > 0) {
         setSharedId(id)
-        setPhotos(failed)
-        setError(t('signals.composer.photoError', { count: failed.length }))
+        setError(t('signals.composer.photoError', {
+          count: failed.length, noun: t(failed.length === 1 ? 'signals.composer.photoNoun' : 'signals.composer.photosNoun'),
+        }))
         return
       }
       setBody('')
       setMentions([])
       setMentionToken(null)
-      setPhotos([])
       setSharedId(null)
       onDirtyChange?.(false)
       onShared?.(id)
@@ -233,18 +247,17 @@ export function SignalComposer({
 
       {photos.length > 0 && (
         <ul className="signal-composer-photos" aria-label={t('signals.composer.photosLabel')}>
-          {photos.map((file, i) => (
-            <li key={previews[i]}>
-              <img src={previews[i]} alt={t('signals.composer.photoAlt', { n: i + 1, total: photos.length })} />
-              {!sharedId && (
-                <button
-                  type="button"
-                  aria-label={t('signals.composer.removePhoto', { n: i + 1 })}
-                  onClick={() => setPhotos((prev) => prev.filter((p) => p !== file))}
-                >
-                  <span aria-hidden="true">×</span>
-                </button>
-              )}
+          {photos.map((photo, i) => (
+            // In the retry state every photo still listed is one that did not upload.
+            <li key={photo.url} data-failed={sharedId ? true : undefined}>
+              <img src={photo.url} alt={t(sharedId ? 'signals.composer.photoFailedAlt' : 'signals.composer.photoAlt', { n: i + 1, total: photos.length })} />
+              <button
+                type="button"
+                aria-label={t('signals.composer.removePhoto', { n: i + 1 })}
+                onClick={() => keepPhotos((p) => p !== photo)}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
             </li>
           ))}
         </ul>
@@ -271,7 +284,7 @@ export function SignalComposer({
           <span>{photos.length > 0 ? t('signals.composer.photoCount', { count: photos.length, max: MAX_SIGNAL_PHOTOS }) : t('signals.composer.addPhoto')}</span>
           <input
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             multiple
             aria-label={t('signals.composer.addPhoto')}
             disabled={photos.length >= MAX_SIGNAL_PHOTOS || !!sharedId}
@@ -288,7 +301,7 @@ export function SignalComposer({
         <div className="signal-composer-send">
           {/* OD-REDESIGN-91 #10: quiet Shift+Enter hint by the Send button; hidden without a
               real keyboard (touch, or a pointer with no hover). */}
-          <span className="signal-composer-send-hint">{t('signals.composer.sendHint')}</span>
+          {!sharedId && <span className="signal-composer-send-hint">{t('signals.composer.sendHint')}</span>}
           <Button
             variant="primary"
             disabled={(!body.trim() && !sharedId) || posting}
@@ -296,7 +309,7 @@ export function SignalComposer({
             onClick={() => { void submit() }}
           >
             {/* DO-17 F3: an explicit in-flight affordance (label + aria-busy), not just a disabled button. */}
-            {posting ? t('signals.action.sharing') : sharedId ? t('signals.composer.retryPhotos') : t('signals.action.share')}
+            {posting ? t('signals.action.sharing') : sharedId ? t(photos.length > 0 ? 'signals.composer.retryPhotos' : 'signals.composer.finish') : t('signals.action.share')}
           </Button>
         </div>
       </div>

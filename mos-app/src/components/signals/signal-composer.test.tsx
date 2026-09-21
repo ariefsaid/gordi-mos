@@ -461,13 +461,30 @@ describe('SignalComposer — photos (ticket 680)', () => {
     await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), 'Door seal is loose')
     await userEvent.click(screen.getByRole('button', { name: /^share signal$/i }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/signal was shared.*1 photo did not upload/i)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/signal was shared, but 1 photo did not upload/i)
     expect(onShared).not.toHaveBeenCalled()
     await userEvent.click(screen.getByRole('button', { name: /retry photo/i }))
 
     await waitFor(() => expect(onShared).toHaveBeenCalledWith('signal-new'))
     expect(mockCreateSignal).toHaveBeenCalledTimes(1)
     expect(mockUploadSignalPhotos).toHaveBeenLastCalledWith('signal-new', [failed])
+  })
+
+  it('marks a failed photo, lets it be dropped, and finishes without another upload', async () => {
+    const onShared = vi.fn()
+    const staged = photo('a.jpg')
+    mockUploadSignalPhotos.mockResolvedValueOnce([staged])
+    renderComposer({ onShared })
+    await userEvent.upload(screen.getByLabelText(/add photo/i), [staged])
+    await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), 'Door seal is loose')
+    await userEvent.click(screen.getByRole('button', { name: /^share signal$/i }))
+
+    expect(await screen.findByRole('img', { name: /did not upload/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /remove photo 1/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^done$/i }))
+
+    await waitFor(() => expect(onShared).toHaveBeenCalledWith('signal-new'))
+    expect(mockCreateSignal).toHaveBeenCalledTimes(1)
   })
 })
 
