@@ -416,6 +416,19 @@ describe('SignalRecordHost — Create follow-up Task (canonical Task composer, P
     expect(screen.getByTestId('location')).not.toHaveTextContent('/work/tasks')
   })
 
+  it('opens the Task composer from an All Teams Signal, which has no owning Team', async () => {
+    mockGetSignal.mockResolvedValue({
+      signal: { ...baseSignal, owning_team_id: null, audience: 'org' as const },
+      mentions: [], acknowledgements: [], tasks: [],
+    })
+    renderHost()
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: /create task/i }))
+
+    expect(await screen.findByRole('textbox', { name: /^title$/i })).toHaveValue('The freezer alarm went off')
+  })
+
   it('keeps a dirty draft guarded after Stay is chosen in the discard confirmation', async () => {
     renderHost()
     await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())

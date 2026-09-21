@@ -100,7 +100,7 @@ function SignalTaskCreateFrame({
   signalTitle, businessUnitId, responsiblePersonId, session, onCreated, onLeave,
 }: {
   signalTitle: string
-  businessUnitId: string
+  businessUnitId?: string
   responsiblePersonId: string
   session: TaskDraftSession
   onCreated: (taskId: string) => boolean | Promise<boolean>
@@ -567,7 +567,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
   }
 
   function openTaskComposer() {
-    if (!viewerId || !team) return
+    if (!viewerId) return
     const signalTitle = firstLine(signal.body)
     if (!host?.session) {
       setLocalTaskSession(createTaskDraftSession())
@@ -585,7 +585,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
       content: (
         <SignalTaskCreateFrame
           signalTitle={signalTitle}
-          businessUnitId={team.business_unit_id}
+          businessUnitId={team?.business_unit_id}
           responsiblePersonId={viewerId}
           session={session}
           onCreated={finishTaskCreate}
@@ -638,8 +638,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
       <Button
         variant="primary"
         onClick={openTaskComposer}
-        disabled={!viewerId || !team}
-        aria-busy={!team}
+        disabled={!viewerId}
       >
         {t('signals.record.createFollowUpTask')}
       </Button>
@@ -790,7 +789,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
         >
           <SignalTaskCreateFrame
             signalTitle={firstLine(signal.body)}
-            businessUnitId={team?.business_unit_id ?? ''}
+            businessUnitId={team?.business_unit_id}
             responsiblePersonId={viewerId ?? ''}
             session={localTaskSession}
             onCreated={finishTaskCreate}
