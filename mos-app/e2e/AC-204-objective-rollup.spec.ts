@@ -88,6 +88,12 @@ test.describe('AC-204: Objective roll-up and drill', () => {
   // one place a reader would look for it — on the Tasks collection grouped by Objective
   // (task-collection-presentation.tsx rollup.group.unlinked), which test 4 below also exercises.
   test('a Task on a parentless Project/Process is not dropped — it shows under the (Unlinked) branch', async ({ page }) => {
+    // tr.grp/tr.task-row below are the desktop table's DOM (tasks-table-body.tsx); below the
+    // 768px table→card-list breakpoint (use-is-desktop.ts:7, DESIGN.md §Navigation OD-W4-4) the
+    // product renders mobile-grouped-cards.tsx instead, which never has tr elements at all — the
+    // suite's beforeEach sets a 390px phone viewport for every AC-204 test, so this assertion needs
+    // its own desktop width to reach the DOM shape it actually reads.
+    await page.setViewportSize({ width: 1280, height: 900 })
     await page.goto('work/tasks?view=all&group=objective')
     await expect(page.getByRole('heading', { name: 'Tasks', level: 1 })).toBeVisible()
     // The orphan sits INSIDE an (Unlinked) branch: the nearest group header above its row names

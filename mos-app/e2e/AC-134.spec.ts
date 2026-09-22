@@ -220,7 +220,14 @@ test(
   // Grouping by status moves the row to its destination group when the inline status changes;
   // retain the title so the post-commit oracle re-finds the same record after that move.
   const openedTitle = await firstRow.getByRole('link').innerText()
-  await firstRow.click()
+  // Click the title link itself, not the row's own bounding-box center: task-row.tsx's Status/
+  // PIC/Due cells are each an `inline-cell-trigger` button that stopPropagation()s to start inline
+  // editing (task-row.tsx:463/491/518) rather than bubbling to the <tr> row-opener. A row spans
+  // all 5 columns, so `firstRow.click()` lands wherever Playwright's center point happens to fall
+  // — reliably NOT the Task column at this viewport — and silently starts (or no-ops into) an
+  // inline editor instead of opening the record. tasks-split-view.spec.ts's own row-open journeys
+  // click the title text directly for the same reason.
+  await firstRow.getByRole('link').click()
 
   // DO-18 / tasks-workspace.tsx:214-217: in-app row open uses the collection ?record= entry.
   await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/, { timeout: 10_000 })

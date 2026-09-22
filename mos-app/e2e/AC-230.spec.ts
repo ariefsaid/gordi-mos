@@ -187,14 +187,36 @@ test(
   await expect(processGrp).toBeVisible({ timeout: 10_000 })
   await expect(projectGrp).toBeVisible({ timeout: 10_000 })
 
-  // (ii) Each group shows gcount=1 (exactly the seeded task is in each group).
-  //      Proves the task landed in the correct group, not misplaced elsewhere.
-  await expect(processGrp.locator('.gcount')).toHaveText('1')
-  await expect(projectGrp.locator('.gcount')).toHaveText('1')
+  // (ii) The seeded task sits under its OWN work-line header, and only there — proves it landed
+  //      in the correct group, not misplaced or dropped. seed.dev-tasks.sql:120-122 also links
+  //      other Cahya-responsible dev demo tasks ("Update espresso recipe cards", "Replace grinder
+  //      burrs (Cafe 2)") to the same "Daily IG Content" work-line, so the group's real total is
+  //      incidental fixture noise, not part of this contract — never hard-code it.
+  const processRow = page.locator('tr.task-row').filter({ hasText: T_PROCESS_TITLE })
+  await expect(processRow).toHaveCount(1)
+  await expect(processRow).toBeVisible()
+  await expect(processRow.locator('xpath=preceding-sibling::tr[contains(@class, "grp")][1]'))
+    .toContainText(WL_PROCESS_NAME)
+  const projectRow = page.locator('tr.task-row').filter({ hasText: T_PROJECT_TITLE })
+  await expect(projectRow).toHaveCount(1)
+  await expect(projectRow).toBeVisible()
+  await expect(projectRow.locator('xpath=preceding-sibling::tr[contains(@class, "grp")][1]'))
+    .toContainText(WL_PROJECT_NAME)
 
-  // (iii) Task titles are visible → groups are expanded and leaf rows render.
-  await expect(page.getByText(T_PROCESS_TITLE)).toBeVisible()
-  await expect(page.getByText(T_PROJECT_TITLE)).toBeVisible()
+  // The displayed .gcount is cross-checked against the group's OWN rendered member rows (DOM
+  // siblings between this header and the next), never a hard-coded seed total — proves the count
+  // and the visible rows agree, whatever the incidental real total is.
+  const memberRowCount = async (header: import('@playwright/test').Locator) => header.evaluate((headerEl) => {
+    let n = 0
+    let el = headerEl.nextElementSibling
+    while (el && !el.classList.contains('grp')) {
+      if (el.classList.contains('task-row')) n += 1
+      el = el.nextElementSibling
+    }
+    return n
+  })
+  await expect(processGrp.locator('.gcount')).toHaveText(String(await memberRowCount(processGrp)))
+  await expect(projectGrp.locator('.gcount')).toHaveText(String(await memberRowCount(projectGrp)))
 
   // ── Oracle (b): group headers show the work-line type label text ──────────────
   // FR-233 / WCAG 1.4.1: WorkLineTypeTag always renders text (not color-only).

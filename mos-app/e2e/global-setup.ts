@@ -331,13 +331,17 @@ export default async function globalSetup() {
       id, org_id, title, business_unit_id, status,
       responsible_person_id, accountable_person_id,
       consulted_person_ids, informed_person_ids,
-      description, due_date, objective_id, work_line_id, created_by
+      description, due_date, objective_id, work_line_id, created_by, completed_at
     ) VALUES (
       '${task.id}', '${a.orgId}', '${task.title}', '${a.businessUnitId}', '${status}',
       '${personId}', '${personId}', '{}', '{}',
       'Seeded for the AC-204 Objective roll-up journey.', NULL,
       ${objectiveId ? `'${objectiveId}'` : 'NULL'}, ${workLineId ? `'${workLineId}'` : 'NULL'},
-      '${personId}'
+      '${personId}', ${/* mos._guard_tasks() (#752) only derives completed_at from the status
+      transition for current_user='authenticated' — a service-role seed insert is exempt and must
+      supply it itself, or a directly-inserted Done row never counts as within the "My work"/
+      "Team work" live window (task-collection-adapter.ts isDoneWithinLiveWindow) and silently
+      vanishes from those views. */ status === 'Done' ? 'now()' : 'NULL'}
     );`
 
   await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
