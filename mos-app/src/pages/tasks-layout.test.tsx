@@ -442,6 +442,29 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     })
   })
 
+  it('Issue 901: the regrouped header recounts overdue from live status — a late Done row reopened joins the Open subtotal', async () => {
+    const late = { id: 'task-1', title: 'Late one', due_date: '2020-01-01', completed_at: '2026-06-11T10:00:00Z' }
+    mockListTasks.mockResolvedValue([makeTask({ ...late, status: 'Done' })])
+    mockGetTask
+      .mockResolvedValueOnce({ task: makeTask({ ...late, status: 'Done' }), checklist: [], events: [] })
+      .mockResolvedValueOnce({ task: makeTask({ ...late, status: 'Open' }), checklist: [], events: [] })
+    mockUpdateTaskStatus.mockResolvedValue()
+    renderAt('/work/tasks/task-1?group=status&view=all')
+    await waitFor(() => expect(document.querySelector('tr.task-row.row-selected')).toBeTruthy())
+    const header = (label: string) => Array.from(document.querySelectorAll('tr.grp')).find((g) => g.textContent?.includes(label))
+    expect(header('Done')).toBeTruthy()
+    expect(header('Done')!.querySelector('.gsub')).toBeNull()
+    const drawer = screen.getByRole('complementary', { name: /task detail/i })
+    fireEvent.click(within(drawer as HTMLElement).getByRole('button', { name: /edit status/i }))
+    fireEvent.click(within(drawer as HTMLElement).getByRole('combobox', { name: 'Status' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Open' }))
+    await waitFor(() => {
+      expect(header('Done')).toBeFalsy()
+      // The Open bucket did not exist in the projection: its subtotal can only come from a recount.
+      expect(header('Open')?.querySelector('.gsub')?.textContent).toContain('1 overdue')
+    })
+  })
+
   it('AC-113: with the drawer open the Activity column is dropped; Task + Status remain; aria-sort intact', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
