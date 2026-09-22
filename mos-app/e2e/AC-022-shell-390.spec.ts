@@ -101,8 +101,11 @@ test.describe('AC-022: the shell at 390px', () => {
   test('a retired deep link with ?record= lands on its replacement in one hop, query intact', async ({ page }) => {
     await loginAs(page, ADMIN.email, ADMIN.password)
 
+    // DD-MVP-17 (router.tsx): the Café root, not /cafe/log, is the capture surface now — the
+    // retired kitchen/log path lands ONE hop on /cafe (/cafe/log itself aliases the root by the
+    // same redirect), query string intact.
     await page.goto('kitchen/log?record=abc&view=today')
-    await expect(page).toHaveURL(/\/cafe\/log\?/, { timeout: 10_000 })
+    await expect(page).toHaveURL(/\/cafe\?/, { timeout: 10_000 })
     expect(new URL(page.url()).search).toBe('?record=abc&view=today')
 
     // Back does not re-enter the retired path: the redirect replaced its history entry, so the

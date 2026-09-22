@@ -72,3 +72,68 @@ export async function createTaskViaUI(
     .toBe(true)
   return `/work/tasks/${href.match(/[0-9a-f-]{36}/)![0]}`
 }
+
+/**
+ * #870 shape (collection-toolbar.tsx commits 3b71da46/e59120eb): the Task view chips (All / My
+ * work / Team work / Overdue, plus any saved views) live in a role="group" named "Task views"
+ * (tasks.toolbar.viewNavigation) — `<button aria-pressed>`, never a tablist/tab. One shared truth
+ * so a toolbar shape change is fixed in one place instead of in every spec that clicks a view.
+ */
+export function taskViewsGroup(page: Page) {
+  return page.getByRole('group', { name: 'Task views' })
+}
+
+/**
+ * The "View & filters" disclosure trigger (ViewOptionsDisclosure, common.viewAndFilters) that
+ * hides Group/Business unit/Status/Person/Sort/Fields/Save view behind one door — on desktop
+ * (collapseOptionsOnDesktop, #870) and on phone alike. Its accessible name grows an active-filter
+ * summary suffix ("View & filters, All") once a filter is set, so callers must match by PREFIX,
+ * never `exact: true` — an exact match silently stops finding it the moment a filter is applied.
+ */
+export function viewFiltersDoor(page: Page) {
+  return page.getByRole('button', { name: /^view & filters/i })
+}
+
+/** Open the "View & filters" door if it is not already open (idempotent). */
+export async function openViewFilters(page: Page) {
+  const door = viewFiltersDoor(page)
+  if ((await door.getAttribute('aria-expanded')) === 'true') return
+  await door.click()
+  await expect(door).toHaveAttribute('aria-expanded', 'true')
+}
+
+/**
+ * Click a Task view chip by its visible label ('All', 'My work', 'Team work', 'Overdue', or a
+ * saved-view name) and wait for it to report pressed. Self-managing: on phone the chips are
+ * nested inside the "View & filters" door (#870) and this opens it first; on desktop the chips
+ * already ride the exposed view-axis row, so nothing is opened. Either way it leaves the door
+ * exactly as it found it — a door left open as a side effect of selecting a view has been seen to
+ * intercept later interactions (e.g. the record-collection-toolbar's own group-scoped keydown
+ * handler stealing a page-level keyboard shortcut) — so a caller that ALSO needs the door open
+ * for Group/Status/etc. should call `openViewFilters` itself, after this returns.
+ */
+export async function selectTaskView(page: Page, label: string) {
+  const group = taskViewsGroup(page)
+  const door = viewFiltersDoor(page)
+  // The door button is mounted at every width (desktop's own row 1, or phone's outer copy of the
+  // same disclosure) — wait for IT to settle first, so a not-yet-loaded toolbar right after
+  // navigation can't be misread as "no door, must be phone". `group.or(door)` looked equivalent
+  // but isn't: on desktop BOTH exist at once, and `.or()` matches the union, so `toBeVisible()`
+  // on it throws a strict-mode violation instead of picking either — proven by a real run, not
+  // assumed.
+  await expect(door).toBeVisible()
+  // Two independent signals, not one: a caller may have already opened the door itself (its
+  // aria-expanded says so, regardless of width), and on desktop the chips are visible without the
+  // door ever opening. Only open (and later close) it when NEITHER already holds.
+  const doorAlreadyOpen = (await door.getAttribute('aria-expanded')) === 'true'
+  const groupAlreadyVisible = await group.isVisible()
+  const openedDoor = !doorAlreadyOpen && !groupAlreadyVisible
+  if (openedDoor) await openViewFilters(page)
+  const chip = group.getByRole('button', { name: label, exact: true })
+  await chip.click()
+  await expect(chip).toHaveAttribute('aria-pressed', 'true')
+  if (openedDoor) {
+    await door.click()
+    await expect(door).toHaveAttribute('aria-expanded', 'false')
+  }
+}

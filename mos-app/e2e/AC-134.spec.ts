@@ -15,6 +15,7 @@ import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
 import { chooseSelectOption } from './helpers/select'
 import { MANAGER } from './fixtures/users'
+import { openViewFilters } from './helpers/tasks'
 
 // ── Supabase direct-SQL helper (mirrors global-setup.ts pattern) ──────────────
 function loadEnvFile(filePath: string): Record<string, string> {
@@ -165,7 +166,8 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole('button', { name: 'All', exact: true }).click()
   // Group by Status. The workspace now defaults to a flat list (OD-P5-1: group-by is an explicit
   // toolbar toggle, default None); this AC's journey is the grouped-Status view, so select it.
-  // Desktop secondary controls are inline in the View & filters options row.
+  // #870: Group now lives behind the desktop "View & filters" door too — open it first.
+  await openViewFilters(page)
   await chooseSelectOption(page, page.getByRole('combobox', { name: 'Group', exact: true }), 'Status')
   // Wait for at least one group header to appear (TanStack row model, one render cycle).
   await page.waitForSelector('tr.grp', { timeout: 10_000 })
@@ -254,6 +256,9 @@ test(
   await expect(reopenedRow.locator('.td-status').getByText('Open')).toBeVisible({ timeout: 8_000 })
 
   // ─── Step 4: regroup by Owner → Owner group headers appear for all persons ─────────────
+  // Opening the row above was a click outside the door (collection-toolbar.tsx's own outside-
+  // pointerdown handler), which closed it — reopen before reaching Group again.
+  await openViewFilters(page)
   await chooseSelectOption(page, page.getByRole('combobox', { name: 'Group', exact: true }), 'PIC')
 
   // All 6 seeded persons must have group headers (OD-P3-6: empty groups always shown).

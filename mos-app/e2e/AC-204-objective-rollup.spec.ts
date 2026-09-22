@@ -28,53 +28,75 @@ test.describe('AC-204: Objective roll-up and drill', () => {
     await loginAs(page, ADMIN.email, ADMIN.password)
   })
 
-  test('an Objective record carries its count roll-up and drills to both branches', async ({ page }) => {
+  // "Show relations" (the expand-panel trigger + catalog-relations panel) was retired on
+  // purpose: the roll-up count and the one real child now render INLINE on the catalog row
+  // itself (catalog-list-presentation.tsx), and drilling is the record page's own doing —
+  // work_lines.objective_id renders as a real "Projects & Processes" relations section on an
+  // Objective's canonical page (catalog-record-document.tsx / record-viewer.tsx), and the
+  // "Objective" detail field on a Project/Process's page links back up the same way. Confirmed
+  // live (2026-09-22): a hard load of /work/objectives/:id navigates by REAL <Link> (no
+  // in-app-panel host on the standalone page), so `toHaveURL` after a click is a true assertion,
+  // not a same-page panel swap.
+  test('an Objective record carries its count roll-up and drills down to its Projects & Processes and their Tasks', async ({ page }) => {
     await page.goto(`work/objectives?q=${encodeURIComponent(AC204.objective.name)}`)
     await expect(page.getByRole('heading', { name: 'Objectives', level: 1 })).toBeVisible()
 
     const row = page.locator('.catalog-collection__row', { hasText: AC204.objective.name })
     await expect(row).toHaveCount(1)
 
-    // Count roll-up only — no target, no percentage, no measure (OD-WAY-32).
+    // Count roll-up only — no target, no percentage, no measure (OD-WAY-32) — and the one real
+    // child's name and count, both inline on the row now.
     const { done, total } = AC204.counts.all
     await expect(row.getByTestId('catalog-progress')).toHaveText(`${done} / ${total} done`)
     await expect(row).not.toContainText('%')
+    await expect(row).toContainText('Projects & Processes: 1')
+    await expect(row).toContainText(AC204.launch.name)
 
-    await row.getByRole('button', { name: `Show relations for ${AC204.objective.name}` }).click()
-    const panel = page.getByTestId('catalog-relations')
+    // Level 2 — the Objective's own canonical page lists a real door to the child record.
+    await page.goto(`work/objectives/${AC204.objective.id}`)
+    await expect(page.getByRole('heading', { name: AC204.objective.name, exact: true })).toBeVisible()
+    const relations = page.getByRole('region', { name: 'Projects & Processes', exact: true })
+    const child = relations.getByRole('link', { name: AC204.launch.name })
+    await expect(child).toHaveAttribute('href', href(`/work/projects/${AC204.launch.id}`))
+    await child.click()
+    await expect(page).toHaveURL(new RegExp(`/work/projects/${AC204.launch.id}$`))
+    await expect(page.getByRole('heading', { name: AC204.launch.name, exact: true })).toBeVisible()
 
-    // Level 2, the real child, its own count, and a real door to the Projects & Processes record.
-    const child = panel.getByRole('link', { name: AC204.launch.name })
-    await expect(child).toHaveAttribute('href', href(`/work/projects?q=${encodeURIComponent(AC204.launch.name)}`))
-    await expect(panel.locator('li').filter({ hasText: AC204.launch.name }).first()).toContainText('1 / 3 done')
-
-    // The synthetic branch renders rather than hiding the Objective's own Task.
-    await expect(panel).toContainText('No Project/Process')
-
-    // Level 3: each Task is a real record door. Follow one — the drill has to actually arrive.
-    await panel.getByRole('link', { name: AC204.tasks.launchOpen.title }).click()
+    // Level 3: the child's own Tasks tab lists a real Task record door. Follow one — the drill
+    // has to actually arrive.
+    await page.getByRole('tab', { name: 'Tasks', exact: true }).click()
+    await page.getByRole('link', { name: AC204.tasks.launchOpen.title }).click()
     await expect(page).toHaveURL(new RegExp(`/work/tasks/${AC204.tasks.launchOpen.id}`))
   })
 
   test('a Project/Process record drills UP to its parent Objective', async ({ page }) => {
-    await page.goto(`work/projects?q=${encodeURIComponent(AC204.launch.name)}`)
-    const row = page.locator('.catalog-collection__row', { hasText: AC204.launch.name })
-    await row.getByRole('button', { name: `Show relations for ${AC204.launch.name}` }).click()
+    await page.goto(`work/projects/${AC204.launch.id}`)
+    await expect(page.getByRole('heading', { name: AC204.launch.name, exact: true })).toBeVisible()
 
-    const panel = page.getByTestId('catalog-relations')
-    await expect(panel.getByRole('link', { name: AC204.objective.name }))
-      .toHaveAttribute('href', href(`/work/objectives?q=${encodeURIComponent(AC204.objective.name)}`))
-    await expect(panel).toContainText('1 / 3 done')
+    // The "Objective" detail field is the up-drill: a real door, back to the same record.
+    const objectiveField = page.getByRole('link', { name: AC204.objective.name, exact: true })
+    await expect(objectiveField).toHaveAttribute('href', href(`/work/objectives/${AC204.objective.id}`))
+    await objectiveField.click()
+    await expect(page).toHaveURL(new RegExp(`/work/objectives/${AC204.objective.id}$`))
+    await expect(page.getByRole('heading', { name: AC204.objective.name, exact: true })).toBeVisible()
   })
 
-  test('a parentless Project/Process shows the (Unlinked) branch, not an empty row', async ({ page }) => {
-    await page.goto(`work/projects?q=${encodeURIComponent(AC204.loose.name)}`)
-    const row = page.locator('.catalog-collection__row', { hasText: AC204.loose.name })
-    await row.getByRole('button', { name: `Show relations for ${AC204.loose.name}` }).click()
-
-    const panel = page.getByTestId('catalog-relations')
-    await expect(panel).toContainText('(Unlinked)')
-    await expect(panel.getByRole('link', { name: AC204.tasks.orphanLine.title })).toBeVisible()
+  // (Unlinked) → LOOSE: AC204.loose is a real Process with no objective_id, so its own task
+  // (orphanLine) carries no objective hint. The retired "Show relations" panel used to prove
+  // this task wasn't dropped by showing it under a (Unlinked) branch INSIDE the Process's own
+  // relations panel; that panel is gone, but the same grouping still exists — and is still the
+  // one place a reader would look for it — on the Tasks collection grouped by Objective
+  // (task-collection-presentation.tsx rollup.group.unlinked), which test 4 below also exercises.
+  test('a Task on a parentless Project/Process is not dropped — it shows under the (Unlinked) branch', async ({ page }) => {
+    await page.goto('work/tasks?view=all&group=objective')
+    await expect(page.getByRole('heading', { name: 'Tasks', level: 1 })).toBeVisible()
+    // The orphan sits INSIDE an (Unlinked) branch: the nearest group header above its row names
+    // (Unlinked), not an Objective. Grouping by Objective renders one header per (Objective,
+    // work line) branch, so several headers say (Unlinked); the orphan's own is what matters.
+    const orphanRow = page.locator('tr.task-row').filter({ hasText: AC204.tasks.orphanLine.title })
+    await expect(orphanRow).toHaveCount(1)
+    const ownHeader = orphanRow.locator('xpath=preceding-sibling::tr[contains(@class, "grp")][1]')
+    await expect(ownHeader).toContainText('(Unlinked)')
   })
 
   test('Mine, grouped by Objective, shows both synthetic branches and no one else\'s work', async ({ page }) => {
@@ -86,9 +108,10 @@ test.describe('AC-204: Objective roll-up and drill', () => {
     await expect(page.getByText('No Project/Process').first()).toBeVisible()
     await expect(page.getByText('(Unlinked)').first()).toBeVisible()
 
-    // The Objective hint above a branch title is a real door back up to level 1.
+    // The Objective hint above a branch title is a real door back up to level 1 — the record's
+    // own canonical id now (catalog-record-document.tsx relatedPath), not a name search.
     await expect(page.getByRole('link', { name: AC204.objective.name }).first())
-      .toHaveAttribute('href', href(`/work/objectives?q=${encodeURIComponent(AC204.objective.name)}`))
+      .toHaveAttribute('href', href(`/work/objectives/${AC204.objective.id}`))
 
     // Every one of ADMIN's three seeded tasks is here…
     for (const owned of [AC204.tasks.launchDone, AC204.tasks.launchOpen, AC204.tasks.directOnObj]) {

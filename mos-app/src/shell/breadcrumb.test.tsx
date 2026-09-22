@@ -110,6 +110,18 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
     expect(crumbText()).toBe('Personal Profile')
   })
 
+  it('desktop: the leaf owns /profile, which has no rail row (OD-WAY-77), while Admin and Work leaves do not', () => {
+    // Rule 5: exactly one element carries aria-current. Admin pins to the rail foot and Work is a
+    // rail row, so the rail owns them; Personal Profile lives in the identity menu, so its leaf
+    // is the only thing on screen that can say where the viewer is.
+    renderBC('/profile')
+    expect(screen.getByText('Personal Profile')).toHaveAttribute('aria-current', 'page')
+    renderBC('/admin/people')
+    expect(screen.getByText('People')).not.toHaveAttribute('aria-current')
+    renderBC('/work/tasks')
+    expect(screen.getAllByText('Tasks').at(-1)).not.toHaveAttribute('aria-current')
+  })
+
   it('uses the · separator (not ›)', () => {
     const { container } = renderBC('/work/tasks')
     expect(container.textContent).toContain('·')

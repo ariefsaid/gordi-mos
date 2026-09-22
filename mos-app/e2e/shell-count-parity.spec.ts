@@ -5,6 +5,7 @@ import { localSql } from './helpers/local-sql'
 import { notificationCleanupSql } from './fixtures/cleanup'
 import { ADMIN, BAR_MEMBER, MANAGER, RECOVERY_VIEWER, VIEWER } from './fixtures/users'
 import { TASKS } from './fixtures/tasks'
+import { taskViewsGroup } from './helpers/tasks'
 
 for (const [name, actor, view] of [
   ['ordinary member', RECOVERY_VIEWER, 'My work'],
@@ -17,8 +18,10 @@ for (const [name, actor, view] of [
     expect((await countRead).ok()).toBe(true)
     const link = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: /^Tasks(,|$)/ })
     await link.click()
-    await expect(page.getByRole('tab', { name: view, exact: true })).toHaveAttribute('aria-selected', 'true')
-    await expect(page.getByText(/^\d+ open · \d+ total$/)).toBeVisible()
+    await expect(taskViewsGroup(page).getByRole('button', { name: view, exact: true })).toHaveAttribute('aria-pressed', 'true')
+    // tasks.meta.totalCount reads "N in view" (messages.ts:1040-1041): a filtered view holding
+    // zero of a larger workspace must never say "0 total", so the noun is scoped to the view.
+    await expect(page.getByText(/^\d+ open · \d+ in view$/)).toBeVisible()
     await expect(page.getByRole('status', { name: 'Loading tasks' })).toHaveCount(0)
     // Read the actual rendered default queue, including virtual rows as they enter view.
     const open = new Set<string>()
@@ -37,7 +40,12 @@ for (const [name, actor, view] of [
         expect(step, 'bounded traversal reaches the queue end').toBeLessThan(99)
       }
     }
-    await expect(page.getByText(new RegExp(`^${open.size} open · \\d+ total$`))).toBeVisible()
+    // The traversed total settles a tick after the last virtualized row commits — poll the
+    // meta line's own text rather than assume it is already in sync (R1's timing gap).
+    await expect.poll(
+      () => page.getByTestId('tasks-count-line').textContent(),
+      { message: 'count line settles to the traversed open total' },
+    ).toMatch(new RegExp(`^${open.size} open · \\d+ in view$`))
     await expect(link).toHaveAccessibleName(open.size ? `Tasks, ${open.size} open tasks` : 'Tasks')
     await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Signals', exact: true })).not.toHaveAttribute('aria-label')
     await info.attach('default-count', { body: JSON.stringify({ name, view, open: open.size, recordUrls: [...open] }, null, 2), contentType: 'application/json' })

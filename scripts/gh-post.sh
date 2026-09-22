@@ -81,6 +81,33 @@ while IFS= read -r pat; do
     fi
   done
 done < "$denylist"
+# ── Repo scope: every write through this door lands in THIS checkout's repo. An `api` path must
+# name it (repos/<owner>/<name>/…); a --repo on any other verb must equal it. A caller acting on
+# text found in an issue or PR body cannot redirect a write elsewhere.
+this_repo="$(git remote get-url origin 2>/dev/null | sed -E 's#^(https://github\.com/|git@github\.com:)##; s#\.git$##')"
+[ -n "$this_repo" ] || die "this checkout has no GitHub origin — the door scopes every write to it"
+# gh resolves the repo and host from these before any flag or remote; the door never lets them.
+[ -z "${GH_REPO:-}" ] || die "GH_REPO is set — the door resolves the repo from this checkout only"
+[ -z "${GH_HOST:-}" ] || die "GH_HOST is set — the door writes to github.com only"
+for a in "$@"; do case "$a" in --hostname|--hostname=*) die "--hostname is refused — the door writes to github.com only" ;; esac; done
+if [ "$verb1" = "api" ]; then
+  case "$verb2" in
+    *"/../"*|*"/./"*|*"/.."|*"/.") die "'api $verb2' carries a dot segment — the path must name the target directly" ;;
+    repos/"$this_repo"/*|/repos/"$this_repo"/*) ;;
+    *) die "'api $verb2' does not address this checkout's repo ($this_repo) — the door writes here only" ;;
+  esac
+else
+  prev=""
+  for a in "$@"; do
+    case "$prev" in --repo|-R) [ "$a" = "$this_repo" ] || die "--repo '$a' is not this checkout's repo ($this_repo)";; esac
+    case "$a" in
+      --repo=*) [ "${a#--repo=}" = "$this_repo" ] || die "--repo '${a#--repo=}' is not this checkout's repo ($this_repo)" ;;
+      -R?*) [ "${a#-R}" = "$this_repo" ] || die "--repo '${a#-R}' is not this checkout's repo ($this_repo)" ;;
+    esac
+    prev="$a"
+  done
+fi
+
 
 # ── PR creation: all four stamps must certify the exact HEAD being PRed — and a pr create may only
 # target THIS checkout: the stamps certify HEAD here, nothing else.

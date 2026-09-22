@@ -4,6 +4,7 @@ import { DEMO_PASSWORD } from '../src/pages/demo-personas'
 import { readFileSync } from 'node:fs'
 import { localSql } from './helpers/local-sql'
 import { taskCleanupSql } from './fixtures/cleanup'
+import { taskViewsGroup } from './helpers/tasks'
 
 // Fixed Home fixture IDs are reserved by this suite; refuse a collision before mutation.
 const HOME_IDS = ['e9000000-0000-0000-0000-000000000001', 'e9000000-0000-0000-0000-000000000002']
@@ -182,10 +183,10 @@ for (const persona of personas) {
     await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
     await loginAs(page, persona.email, DEMO_PASSWORD)
     await page.goto('work/tasks')
-    await expect(page.getByRole('tab', { name: persona.taskView, exact: true })).toHaveAttribute('aria-selected', 'true')
-    await page.getByRole('tab', { name: 'Overdue', exact: true }).click()
+    await expect(taskViewsGroup(page).getByRole('button', { name: persona.taskView, exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await taskViewsGroup(page).getByRole('button', { name: 'Overdue', exact: true }).click()
     await page.reload()
-    await expect(page.getByRole('tab', { name: 'Overdue', exact: true })).toHaveAttribute('aria-selected', 'true')
+    await expect(taskViewsGroup(page).getByRole('button', { name: 'Overdue', exact: true })).toHaveAttribute('aria-pressed', 'true')
   })
 }
 

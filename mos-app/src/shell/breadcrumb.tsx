@@ -41,13 +41,15 @@ export function Breadcrumb() {
     const tabIds = new Set(['home', 'work', 'inbox', ...(promoted ? [promoted.id] : [])])
     leafCarriesCurrent = !tabIds.has(destination.id)
   } else {
-    // Desktop: the rail renders every live workspace/utility destination plus the viewer's
-    // affiliated modules (OD-REDESIGN-68) — the only gap is a modules-zone route the viewer
-    // has no rail entry for (e.g. an admin visiting /cafe directly).
+    // Desktop: the rail renders every live workspace destination, Admin at its foot, and the
+    // viewer's affiliated modules (OD-REDESIGN-68). Two gaps: a modules-zone route the viewer
+    // has no rail entry for (an admin visiting /cafe directly), and Personal Profile, which
+    // lives in the identity menu rather than the rail (OD-WAY-77).
     leafCarriesCurrent =
-      destination.zone === 'modules' &&
-      viewer != null &&
-      !allModules(viewer.accessRoles).some((m) => m.id === destination.id)
+      destination.id === 'profile' ||
+      (destination.zone === 'modules' &&
+        viewer != null &&
+        !allModules(viewer.accessRoles).some((m) => m.id === destination.id))
   }
 
   // A denied deep link is named ONCE, by the panel, and the trail says the same word: the crumb

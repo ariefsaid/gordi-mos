@@ -18,14 +18,14 @@ function routePath(id: RouteParityId): string {
 
 const CROSS_SECTION_RETURNS = [
   { name: 'Home → Signals → Home', route: routePath('workSignals') },
-  { name: 'Home → Café → Home', route: routePath('cafeLog') },
+  { name: 'Home → Café → Home', route: routePath('cafe') },
   { name: 'Home → Inbox → Home', route: routePath('inbox') },
 ] as const
 
 const LEGACY_REDIRECTS = [
   { oldPath: 'tasks', canonical: /\/work\/tasks$/ },
   { oldPath: 'updates', canonical: /\/work\/signals\?layout=feed$/ },
-  { oldPath: 'kitchen', canonical: /\/cafe\/log$/ },
+  { oldPath: 'kitchen', canonical: /\/cafe$/ },
 ] as const
 
 function normalizeHref(href: string): string {

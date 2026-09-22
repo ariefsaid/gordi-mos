@@ -30,8 +30,14 @@ for (const locale of ['en', 'id'] as const) {
     await loginAs(page, authorEmail, DEMO_PASSWORD)
     await page.goto('work/signals')
     let failDirectory = true
+    // viewer.ts resolveViewer() ALSO reads `/rest/v1/people` (select=*&user_id=eq.<uuid>) to
+    // resolve auth status — a broad match here fails that read too whenever it happens to
+    // refire while this route is armed, and viewer.ts fails closed on any error (person: null),
+    // dropping the signed-in author onto the orphan screen instead of the composer this test is
+    // driving. getPeople/searchPeopleByName (the directory read this route means to fake-fail)
+    // never queries by `user_id=`, so that's the safe way to tell the two apart.
     await page.route('**/rest/v1/people*', async (route) => {
-      if (failDirectory) {
+      if (failDirectory && !route.request().url().includes('user_id=')) {
         await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ message: 'Directory unavailable' }) })
       } else await route.continue()
     })
@@ -58,7 +64,9 @@ for (const locale of ['en', 'id'] as const) {
     const feedRow = page.locator('main [data-signal-id][role="button"]').filter({ hasText: body })
     await feedRow.click()
     await expect(page.getByRole('heading', { name: new RegExp(body) })).toBeVisible()
-    await page.getByRole('button', { name: t['record.openFullPage'], exact: true }).click()
+    // signal-record.tsx: "Open full page" rides the "•••" overflow menu now, not a direct button.
+    await page.getByRole('button', { name: t['signals.record.moreActions'], exact: true }).click()
+    await page.getByRole('menuitem', { name: t['record.openFullPage'], exact: true }).click()
     await expect(page).toHaveURL(/\/work\/signals\/[0-9a-f-]{36}/)
     const signalUrl = page.url()
     await expect(page.getByRole('heading', { name: new RegExp(body) })).toBeVisible()
@@ -122,7 +130,8 @@ for (const locale of ['en', 'id'] as const) {
     await expect(composer).not.toBeVisible()
     await page.goto('work/signals')
     await page.locator('main [data-signal-id][role="button"]').filter({ hasText: `${body} corrected` }).click()
-    await page.getByRole('button', { name: t['record.openFullPage'], exact: true }).click()
+    await page.getByRole('button', { name: t['signals.record.moreActions'], exact: true }).click()
+    await page.getByRole('menuitem', { name: t['record.openFullPage'], exact: true }).click()
     expect(page.url()).not.toBe(signalUrl)
     await expect(page.getByRole('heading', { name: `${body} corrected`, exact: true })).toBeVisible()
   })

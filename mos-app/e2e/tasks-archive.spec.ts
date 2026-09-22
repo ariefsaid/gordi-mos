@@ -16,6 +16,7 @@ import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
 import { MANAGER, VIEWER } from './fixtures/users'
 import { TASKS } from './fixtures/tasks'
+import { openViewFilters, selectTaskView } from './helpers/tasks'
 
 test('OD-WAY-94: the PIC may complete but cannot archive, even when also Supervisor', async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
@@ -54,19 +55,24 @@ test('AC-091: archive task from detail → leaves default list → reappears und
 
   // ── 4. Assert: task is NOT in the default list ──────────────────────────────
   // Broaden scope while retaining the default exclusion of archived tasks.
-  await page.getByRole('tab', { name: 'All', exact: true }).click()
+  await selectTaskView(page, 'All')
   // Wait a moment for the list to load
   await page.waitForTimeout(1_000)
   await expect(page.getByText(taskTitle)).not.toBeVisible()
 
   // ── 5. Include archived — task reappears ──────────────────────────────
-  await page.getByRole('button', { name: /^Filters/ }).click()
+  // #743 ruling: "Include archived" now rides the Status popover (additive to the chosen
+  // status), reached through the "View & filters" door — there is no separate "Filters"/"Close
+  // filters" pair any more.
+  await openViewFilters(page)
+  // Scoped to the toolbar — the grouped table has its own "Status" column sort button sharing
+  // this accessible name.
+  await page.getByTestId('record-collection-toolbar').getByRole('button', { name: 'Status', exact: true }).click()
   const archivedToggle = page.getByRole('checkbox', { name: 'Include archived', exact: true })
   await archivedToggle.check()
 
   // The archived task should now be visible
   await expect(page.getByText(taskTitle)).toBeVisible({ timeout: 10_000 })
-  await page.getByRole('button', { name: 'Close filters', exact: true }).click()
 
   // ── 6. Assert: row still exists (no hard delete) ────────────────────────────
   // Click through to the detail — an IN-APP click stays in the split drawer (unlike step 2's hard
@@ -87,6 +93,6 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   await drawer.getByRole('menuitem', { name: /unarchive/i }).click()
   await expect(drawer.getByText(/this task is archived/i)).toHaveCount(0)
   await page.goto('work/tasks')
-  await page.getByRole('tab', { name: 'All', exact: true }).click()
+  await selectTaskView(page, 'All')
   await expect(page.getByText(taskTitle)).toBeVisible({ timeout: 10_000 })
 })

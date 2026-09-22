@@ -56,7 +56,9 @@ test.describe('bounded visual and interaction acceptance', () => {
       await assertNoPageOverflow(page)
       await capture(`home-signal-panel-${width}`, page)
 
-      await panel.getByRole('button', { name: 'Open full page', exact: true }).click()
+      // signal-record.tsx: "Open full page" rides the "•••" overflow menu now, not a direct button.
+      await panel.getByRole('button', { name: 'More Signal actions', exact: true }).click()
+      await panel.getByRole('menuitem', { name: 'Open full page', exact: true }).click()
       await expect(page).toHaveURL(new RegExp(`/work/signals/${activeSignalId}$`))
       await expect(page.getByRole('link', { name: 'Back to Home', exact: true })).toBeVisible()
       await expect(page.getByRole('heading', { name: LONG_SIGNAL, exact: true })).toBeVisible()
@@ -105,14 +107,21 @@ test.describe('bounded visual and interaction acceptance', () => {
       await page.goto('work/tasks')
       await expect(page.getByRole('heading', { name: 'Tasks', exact: true })).toBeVisible()
       await expect(page.getByText(TASKS.VIEWER_ACCOUNTABLE.title, { exact: true }).first()).toBeVisible()
-      const mobileDoor = page.getByRole('button', { name: 'View & filters', exact: true })
+      // #870: collapseOptionsOnDesktop is unconditional for Tasks, so the "View & filters" door
+      // now exists at every width — phone nests the WHOLE toolbar inside its own outer copy of
+      // the same disclosure (so the toolbar testid is absent until it opens), while desktop's row
+      // 1 (view chips + search + the door trigger) is always mounted and only row 2's options
+      // (Group, Business unit, Status, Person, Sort, Fields, Save view) sit behind the door.
+      const door = page.getByRole('button', { name: /^view & filters/i })
       if (width < 768) {
-        await expect(mobileDoor).toBeVisible()
+        await expect(door).toBeVisible()
         await expect(page.getByTestId('record-collection-toolbar')).toHaveCount(0)
-        await mobileDoor.click()
       } else {
-        await expect(mobileDoor).toHaveCount(0)
+        await expect(page.getByTestId('record-collection-toolbar')).toBeVisible()
       }
+      await expect(door).toHaveAttribute('aria-expanded', 'false')
+      await door.click()
+      await expect(door).toHaveAttribute('aria-expanded', 'true')
       const toolbar = page.getByTestId('record-collection-toolbar')
       await expect(toolbar).toBeVisible()
       await expect(toolbar.getByRole('group', { name: 'View & filters', exact: true })).toBeVisible()
@@ -155,8 +164,12 @@ test.describe('bounded visual and interaction acceptance', () => {
           height: element.getBoundingClientRect().height,
         }))
         expect(optionsGeometry.scrollWidth).toBeLessThanOrEqual(optionsGeometry.clientWidth + 1)
-        expect(optionsGeometry.height, 'desktop toolbar row 2 must remain one visual line').toBeLessThanOrEqual(60)
-        const searchFit = await filters.getByRole('searchbox', { name: 'Search tasks', exact: true }).evaluate((element) => {
+        // #870 (guards.geometry.spec.ts, commit 40c2f3ef): the retired two-row toolbar's "row 2
+        // stays one visual line" guard is deleted — the door panel wraps now, by ruling, not bug.
+        // The search field rides the view-axis row beside the door on desktop (searchInViewRow,
+        // collection-toolbar.tsx), not inside the options group — scoped to the whole toolbar,
+        // same as this file's own Indonesian-locale case below (line ~286).
+        const searchFit = await toolbar.getByRole('searchbox', { name: 'Search tasks', exact: true }).evaluate((element) => {
           const input = element as HTMLInputElement
           const canvas = document.createElement('canvas')
           const context = canvas.getContext('2d')
@@ -193,11 +206,10 @@ test.describe('bounded visual and interaction acceptance', () => {
           expect(rect.left, `${rect.name} control must stay inside its toolbar slot`).toBeGreaterThanOrEqual(rect.containerLeft - 1)
           expect(rect.right, `${rect.name} control must stay inside its toolbar slot: ${JSON.stringify(rect)}`).toBeLessThanOrEqual(rect.containerRight + 1)
         }
-        for (let index = 1; index < controlRects.length; index += 1) {
-          expect(controlRects[index - 1].right).toBeLessThanOrEqual(controlRects[index].left + 1)
-        }
-        const centers = controlRects.map((rect) => rect.centerY)
-        expect(Math.max(...centers) - Math.min(...centers), 'desktop toolbar row 2 must share one center').toBeLessThanOrEqual(2)
+        // #870 (guards.geometry.spec.ts GUARD-PRIMARY, commit 40c2f3ef): the retired two-row
+        // toolbar's strict left-to-right order and shared-centre-line guards are deleted — the
+        // door panel wraps now, by ruling. Layout-independence is what survives: every control
+        // stays inside the toolbar slot and shows its own text (asserted above/below).
       }
       await capture(`tasks-filters-${width}`, page)
 
@@ -236,6 +248,10 @@ test.describe('bounded visual and interaction acceptance', () => {
       await loginAs(page, MANAGER.email, MANAGER.password)
       await page.goto('work/tasks')
       await expect(page.getByText(TASKS.VIEWER_ACCOUNTABLE.title, { exact: true }).first()).toBeVisible()
+      // #870: the options group is behind the "View & filters"/"Tampilan & filter" door at every
+      // width now — open it before reaching Group/Status/etc.
+      await page.getByRole('button', { name: /^tampilan & filter/i }).click()
+      const toolbar = page.getByTestId('record-collection-toolbar')
       const filters = page.getByRole('group', { name: 'Tampilan & filter', exact: true })
       const expectedValues = [
         { name: 'Kelompok', value: 'Kelompok: Tidak' },
@@ -258,7 +274,10 @@ test.describe('bounded visual and interaction acceptance', () => {
         scrollWidth: element.scrollWidth,
       }))
       expect(toolbarFit.scrollWidth, 'the complete toolbar row must fit its own visible container').toBeLessThanOrEqual(toolbarFit.clientWidth)
-      const controlHeights = await filters.locator([
+      // The search field rides the view-axis row beside the door on desktop (searchInViewRow,
+      // collection-toolbar.tsx), not inside the options group, so this census is scoped to the
+      // whole toolbar rather than to `filters`.
+      const controlHeights = await toolbar.locator([
         '.collection-toolbar__search',
         '.picker__trigger',
         '.collection-toolbar__choice-trigger',
@@ -269,7 +288,7 @@ test.describe('bounded visual and interaction acceptance', () => {
       for (const height of controlHeights) {
         expect(height, 'desktop toolbar controls must share the 32px height token').toBeCloseTo(32, 1)
       }
-      const searchFit = await filters.getByRole('searchbox', { name: 'Cari tugas', exact: true }).evaluate((element) => {
+      const searchFit = await toolbar.getByRole('searchbox', { name: 'Cari tugas', exact: true }).evaluate((element) => {
         const input = element as HTMLInputElement
         const canvas = document.createElement('canvas')
         const context = canvas.getContext('2d')
@@ -280,7 +299,11 @@ test.describe('bounded visual and interaction acceptance', () => {
       expect(searchFit, 'Cari tugas placeholder must remain fully visible').toBe(true)
       await expect(filters.getByRole('button', { name: 'Kolom', exact: true })).toContainText('Kolom')
       await expect(filters.getByRole('button', { name: 'Simpan tampilan', exact: true })).toContainText('Simpan')
-      await expect(filters.getByRole('combobox', { name: /memerlukan perhatian/i })).toContainText('3 perlu perhatian')
+      // The count is the live org-wide overdue+blocked total (tasks-workspace.tsx stats,
+      // recomputed off real records), not a fixture this file owns — a fixed literal here pins
+      // whatever the shared dev DB held on some past run. The goal this test owns is the
+      // localized grammar and fit, so it asserts the live shape instead of a frozen number.
+      await expect(filters.getByRole('combobox', { name: /memerlukan perhatian/i })).toHaveText(/^\d+ perlu perhatian$/)
 
       const group = filters.getByRole('combobox', { name: 'Kelompok', exact: true })
       await group.click()
@@ -305,9 +328,8 @@ test.describe('bounded visual and interaction acceptance', () => {
         await page.goto('work/tasks')
         await expect(page.getByRole('heading', { name: locale === 'id' ? 'Tugas' : 'Tasks', exact: true })).toBeVisible()
         const doorName = locale === 'id' ? 'Tampilan & filter' : 'View & filters'
-        const mobileDoor = page.getByRole('button', { name: doorName, exact: true })
-        if (width < 768) await mobileDoor.click()
-        else await expect(mobileDoor).toHaveCount(0)
+        // #870: the door exists at every width now — open it before reaching Group.
+        await page.getByRole('button', { name: doorName, exact: true }).click()
         const toolbar = page.getByTestId('record-collection-toolbar')
         await expect(toolbar).toBeVisible()
         const filters = toolbar.getByRole('group', { name: doorName, exact: true })

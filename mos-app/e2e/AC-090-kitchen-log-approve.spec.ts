@@ -16,9 +16,9 @@ import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
-import { chooseSelectOption } from './helpers/select'
 import { VIEWER, MANAGER } from './fixtures/users'
 import { assertLocalFixtureDatabase } from './fixtures/cleanup'
+import { ensureStream } from './helpers/cafe-stream'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
@@ -192,12 +192,15 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
     // plan=50 => qty=50 is exactly on-plan => no variance note required (FR-022)
     await loginAs(page, VIEWER.email, VIEWER.password)
     await page.goto('cafe/log')
-    await page.waitForURL(/\/cafe\/log$/, { timeout: 15_000 })
+    // DD-MVP-17: /cafe/log aliases the Café root — the Today capture surface itself.
+    await page.waitForURL(/\/cafe$/, { timeout: 15_000 })
 
-    // VIEWER has no stream default, so this is the real explicit choice required by FR-001/002.
+    // VIEWER (Cahya, Cafe Ops Lead) has no single resolvable team — DD-MVP-11 asks her for a
+    // location first (cafe-opening-page.tsx LocationChoices), then FR-001/002's real explicit
+    // stream choice. ensureStream takes both steps, defaulting to Rumah Rames · Kitchen.
+    await ensureStream(page)
     const streamPicker = page.getByRole('combobox', { name: /production stream/i })
-    await expect(streamPicker).toBeVisible({ timeout: 10_000 })
-    await chooseSelectOption(page, streamPicker, STREAM_LABEL)
+    await expect(streamPicker).toContainText(STREAM_LABEL)
 
     await expect(
       page.getByRole('table', { name: /café production log/i }),

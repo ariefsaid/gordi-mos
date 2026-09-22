@@ -33,6 +33,8 @@ test.describe('shell aria-current', () => {
   test('AC-007: desktop routes render exactly one aria-current="page"', async ({ page }) => {
     for (const path of desktopRoutes) {
       await page.goto(path)
+      // Rule 5 on desktop: Personal Profile has no rail row (OD-WAY-77), so its breadcrumb leaf
+      // is the one element that carries the location.
       await expect.poll(() => pageCurrentCount(page)).toBe(1)
     }
   })
@@ -48,10 +50,14 @@ test.describe('shell aria-current', () => {
         { path: 'work/tasks', label: 'Work' },
         { path: 'inbox', label: 'Inbox' },
       ]
+      // Scoped to the bottom-tab bar (nav "Primary"): the top-bar bell/breadcrumb also renders an
+      // "Inbox" link (top-bar.tsx), so an unscoped getByRole('link', {name:'Inbox'}) is a strict-
+      // mode violation with two matches — only the Primary nav's own tab is this assertion's target.
+      const primaryNav = page.getByRole('navigation', { name: 'Primary' })
       for (const routeCase of primaryCases) {
         await page.goto(routeCase.path)
         await expect.poll(() => pageCurrentCount(page)).toBe(1)
-        await expect(page.getByRole('link', { name: routeCase.label, exact: true })).toHaveAttribute('aria-current', 'page')
+        await expect(primaryNav.getByRole('link', { name: routeCase.label, exact: true })).toHaveAttribute('aria-current', 'page')
       }
 
       // breadcrumb.tsx Rule 5 (I7) / bottom-tab-bar.tsx (v4 shell rebuild, Task 3): "More is a

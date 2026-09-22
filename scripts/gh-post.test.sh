@@ -19,6 +19,7 @@ export PATH="$tmp/bin:$PATH"
 
 g() { git -C "$1" -c user.email=t@t -c user.name=t "${@:2}"; }
 git init -q "$tmp/repo"
+git -C "$tmp/repo" remote add origin https://github.com/x/y.git
 g "$tmp/repo" commit -qm init --allow-empty
 mkdir -p "$tmp/repo/docs"
 cat > "$tmp/repo/docs/gh-denylist.txt" <<'EOF'
@@ -26,6 +27,15 @@ cat > "$tmp/repo/docs/gh-denylist.txt" <<'EOF'
 secretword
 missing (auth|rls)
 EOF
+
+envcheck() { # $1 name · $2 VAR=value · $3 expected rc · $4 expect-gh-called · args…
+  local name="$1" kv="$2" want="$3" ghwant="$4"; shift 4
+  rm -f "$tmp/gh-calls"
+  (cd "$tmp/repo" && env "$kv" bash "$SCRIPT" "$@") >/dev/null 2>&1; local rc=$?
+  local ghgot=no; [ -s "$tmp/gh-calls" ] && ghgot=yes
+  if [ "$rc" -eq "$want" ] && [ "$ghgot" = "$ghwant" ]; then pass=$((pass+1)); printf '  ok    %s\n' "$name"
+  else fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s), gh-called=%s (want %s)\n' "$name" "$rc" "$want" "$ghgot" "$ghwant"; fi
+}
 
 check() { # $1 name · $2 expected rc · $3 expect-gh-called yes/no · args…
   local name="$1" want="$2" ghwant="$3"; shift 3
@@ -46,6 +56,15 @@ echo "clean file body" > "$tmp/repo/body.md"
 check "clean --body-file passes" 0 yes issue comment 5 --body-file "$tmp/repo/body.md"
 
 check "gh api -F field values scanned" 1 no api repos/x/y/issues -F body="has secretword inside"
+check "api path naming another repo refused, gh untouched" 1 no api repos/other/elsewhere/issues -f title=x
+check "api path naming this repo passes" 0 yes api repos/x/y/issues -f title=x
+check "api path with no repo (e.g. /user) refused" 1 no api user
+check "--repo naming another repo refused on issue verbs" 1 no issue comment 5 --repo other/elsewhere --body "fine"
+check "--repo naming this repo passes on issue verbs" 0 yes issue comment 5 --repo x/y --body "fine"
+check "api path with dot segments refused" 1 no api repos/x/y/issues/../../other/repo/issues -f title=x
+check "api --hostname refused" 1 no api --hostname evil.example repos/x/y/issues -f title=x
+envcheck "GH_REPO in the environment is refused" GH_REPO=other/elsewhere 1 no issue comment 5 --body "fine"
+envcheck "GH_HOST in the environment is refused" GH_HOST=evil.example 1 no issue comment 5 --body "fine"
 
 check "stdin body-file ('-') refused — unscannable" 1 no issue comment 5 --body-file -
 echo "contains secretword" > "$tmp/repo/eq.md"

@@ -33,7 +33,6 @@ export type RouteParityId =
   | 'workObjectives'
   | 'inbox'
   | 'cafe'
-  | 'cafeLog'
   | 'cafePlan'
   | 'cafeStock'
   | 'cafeReview'

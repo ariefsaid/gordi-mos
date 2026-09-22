@@ -55,7 +55,15 @@ test('R6: Admin matrix and designated Team lead survive reload and govern own/cr
       await member.goto(`work/${collection}?${query}`)
       await expect(member.getByRole('heading', { name: 'Nothing archived yet', exact: true })).toBeVisible()
       await expect(member.getByRole('button', { name: 'Clear filters', exact: true })).toHaveCount(0)
-      if (collection !== 'tasks') await expect(member.getByRole('button', { name: 'Current status', exact: true })).toHaveText('Archived')
+      // collection-toolbar.tsx (#743): the trigger's accessible name is the filter LABEL
+      // ("Current status"), and it now also renders that label as visible (aria-hidden) text
+      // beside the value, so the button's whole textContent is "Current statusArchived only" —
+      // the current selection is the separate `.collection-toolbar__choice-value` child.
+      if (collection !== 'tasks') {
+        await expect(
+          member.getByRole('button', { name: 'Current status', exact: true }).locator('.collection-toolbar__choice-value'),
+        ).toHaveText('Archived only')
+      }
       await member.screenshot({ path: testInfo.outputPath(`${collection}-archived-empty.png`), fullPage: true })
     }
     await settings.goto('admin/access')

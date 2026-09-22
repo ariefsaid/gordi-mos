@@ -35,6 +35,7 @@ import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
 import { chooseSelectOption } from './helpers/select'
 import { MANAGER } from './fixtures/users'
+import { openViewFilters } from './helpers/tasks'
 
 // ── Supabase direct-SQL helper (mirrors global-setup.ts / AC-134 pattern) ────
 function loadEnvFile(filePath: string): Record<string, string> {
@@ -160,7 +161,8 @@ test(
   await page.getByRole('button', { name: 'All', exact: true }).click()
 
   // ── 4. Set Group = "Work-line" ───────────────────────────────────────────────
-  // Desktop Group and Person controls render inline in the options row.
+  // #870: Group/Person now live behind the desktop "View & filters" door.
+  await openViewFilters(page)
   await chooseSelectOption(page, page.getByRole('combobox', { name: 'Group', exact: true }), 'Project/Process')
 
   // ── 5. Set Person = Cahya ────────────────────────────────────────────────────

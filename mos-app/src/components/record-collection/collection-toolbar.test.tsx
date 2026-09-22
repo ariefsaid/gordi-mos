@@ -482,6 +482,23 @@ describe('CollectionToolbar — desktop keyboard and nested save behavior', () =
     /></I18nProvider>)
   }
 
+  it('choosing an option from a picker inside the View & filters door applies it and keeps the door open', async () => {
+    stubDesktop()
+    const onChange = vi.fn()
+    render(<I18nProvider><CollectionToolbar
+      collapseOptionsOnDesktop
+      presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
+      views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+      filters={[{ id: 'team', label: 'Team', value: '', options: [{ value: '', label: 'All teams' }, { value: 'ops', label: 'Operations' }], onChange }]}
+    /></I18nProvider>)
+    await userEvent.click(screen.getByRole('button', { name: /^view & filters/i }))
+    await userEvent.click(screen.getByRole('combobox', { name: 'Team' }))
+    // The listbox is portaled to <body>: a pointer on its option is NOT a click away from the door.
+    await userEvent.click(screen.getByRole('option', { name: 'Operations' }))
+    expect(onChange).toHaveBeenCalledWith('ops')
+    expect(screen.getByRole('group', { name: /^view & filters$/i })).toBeInTheDocument()
+  })
+
   it('keeps Picker keyboard interaction local and preserves toolbar traversal', async () => {
     stubDesktop(); renderToolbar()
     const picker = screen.getByRole('combobox', { name: 'Team' })

@@ -6,12 +6,15 @@
 import { type Page } from '@playwright/test'
 import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
-import { createTaskViaUI } from './helpers/tasks'
+import { createTaskViaUI, selectTaskView } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
 import { TASKS } from './fixtures/tasks'
 
+// selectTaskView is self-managing (#870): it opens the phone "View & filters" door only when the
+// chips are nested inside it, and closes it again — a door left open was seen to intercept the
+// page-level 'n'/'j' keyboard shortcuts this file's AC-109 exercises.
 async function selectAllView(page: Page) {
-  await page.getByRole('tab', { name: 'All', exact: true }).click()
+  await selectTaskView(page, 'All')
 }
 
 test('AC-102 (J4): deep-link to /work/tasks/:id renders the standalone canonical record page (OD-63)', async ({ page }) => {
@@ -101,5 +104,7 @@ test('AC-109 (J6): keyboard — j j Enter opens the 2nd row; Esc closes; n opens
   await page.getByRole('heading', { name: 'Tasks', exact: true }).click()
   await page.keyboard.press('n')
   await expect(page).toHaveURL(/\/work\/tasks$/)
-  await expect(page.getByRole('textbox', { name: 'Edit task title', exact: true })).toBeVisible()
+  // task-create-form.tsx: the ONE create form's Title field — "Edit task title" was the retired
+  // TaskDrawer inline-rename control's name; the create draft's own Title field is just "Title".
+  await expect(page.getByRole('textbox', { name: 'Title', exact: true })).toBeVisible()
 })

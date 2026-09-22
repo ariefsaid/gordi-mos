@@ -21,6 +21,7 @@ import { test, expect } from '@playwright/test'
 import { VIEWER, MANAGER, BAR_MEMBER } from './fixtures/users'
 import { loginAs } from './helpers/login'
 import { isShipGated } from './helpers/ship-gate'
+import { selectTaskView, taskViewsGroup } from './helpers/tasks'
 
 test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // --- Pre-login: static HTML title is present on the login page ---
@@ -47,13 +48,13 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   await expect(page).toHaveURL(/\/work\/tasks$/, { timeout: 5_000 })
   await expect(page).toHaveTitle('Tasks — Gordi MOS')
   // The current Tasks collection exposes its ownership/presentation choices as the named
-  // "Task views" tablist. It is present even when the collection is empty, proving the real Tasks
-  // surface rendered rather than only the route.
-  await expect(page.getByRole('tablist', { name: 'Task views' })).toBeVisible()
-  await page.getByRole('tab', { name: 'My work', exact: true }).click()
+  // "Task views" group of pressed-state chips (#870). It is present even when the collection is
+  // empty, proving the real Tasks surface rendered rather than only the route.
+  await expect(taskViewsGroup(page)).toBeVisible()
+  await selectTaskView(page, 'My work')
   await expect(page).toHaveURL(/\/work\/tasks\?view=my-work$/)
   await page.reload()
-  await expect(page.getByRole('tab', { name: 'My work', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await expect(taskViewsGroup(page).getByRole('button', { name: 'My work', exact: true })).toHaveAttribute('aria-pressed', 'true')
 
   // --- Work -> Objectives ---
   // Was a rail click through to /work/objectives. issue 444 ship-gates that surface, so there is
@@ -87,7 +88,7 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // --- A retired bookmark still works, in one hop, with its query intact (FR-015/FR-016) ---
   await page.goto('tasks?view=mine')
   await expect(page).toHaveURL(/\/work\/tasks\?view=mine$/, { timeout: 5_000 })
-  await expect(page.getByRole('tablist', { name: 'Task views' })).toBeVisible()
+  await expect(taskViewsGroup(page)).toBeVisible()
 })
 
 // The management brief replaces the weekly-update team module. VIEWER is an Ops Lead;

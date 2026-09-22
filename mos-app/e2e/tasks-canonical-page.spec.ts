@@ -5,14 +5,14 @@
 
 import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
-import { createTaskViaUI } from './helpers/tasks'
+import { createTaskViaUI, selectTaskView } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
 
 test.beforeEach(async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
   await page.goto('work/tasks')
   await page.waitForURL(/\/work\/tasks$/)
-  await page.getByRole('tab', { name: 'All', exact: true }).click()
+  await selectTaskView(page, 'All')
 })
 
 test('OD-63-1: direct URL / new-tab / refresh opens the full canonical page (not the table shell)', async ({ page }, testInfo) => {
@@ -48,7 +48,7 @@ test('OD-63-2: an in-list click opens the split drawer (table stays mounted)', a
   // Return to the list and open the row by a normal in-list click (in-app SPA nav).
   await page.goto('work/tasks')
   await page.waitForURL(/\/work\/tasks$/)
-  await page.getByRole('tab', { name: 'All', exact: true }).click()
+  await selectTaskView(page, 'All')
   const taskLink = page.locator('a[href*="/work/tasks/"]').filter({ hasText: title }).first()
   await expect(taskLink).toBeVisible({ timeout: 10_000 })
   await taskLink.click()
@@ -76,7 +76,7 @@ test('OD-62: no RACI grammar is visible on any Task surface', async ({ page }) =
   const detailUrl = await createTaskViaUI(page, title)
   await page.goto('work/tasks')
   await page.waitForURL(/\/work\/tasks$/)
-  await page.getByRole('tab', { name: 'All', exact: true }).click()
+  await selectTaskView(page, 'All')
   const taskLink = page.locator('a[href*="/work/tasks/"]').filter({ hasText: title }).first()
   await expect(taskLink).toBeVisible({ timeout: 10_000 })
   await taskLink.click()

@@ -5,7 +5,7 @@
 
 import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
-import { createTaskViaUI } from './helpers/tasks'
+import { createTaskViaUI, selectTaskView } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
 
 test('AC-090: create a task → it appears in the list → open detail → change status → persists', async ({ page }) => {
@@ -16,8 +16,7 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
 
-  const allView = page.getByRole('tab', { name: 'All', exact: true })
-  await allView.click()
+  await selectTaskView(page, 'All')
 
   // ── 3. Create a new task ────────────────────────────────────────────────────
   const taskTitle = `AC-090 Task ${Date.now()}`
@@ -31,7 +30,7 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await page.waitForURL(/\/tasks$/)
 
   // Switch to "All" again to see the newly created task
-  await allView.click()
+  await selectTaskView(page, 'All')
   await expect(page.getByText(taskTitle)).toBeVisible({ timeout: 10_000 })
 
   // ── 5. Open the task detail (drawer beside the table, ADR-0007) ─────────────
@@ -65,7 +64,7 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   // ── 9. Assert: returning to the list shows "In Progress" on the row ─────────
   await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
-  await allView.click()
+  await selectTaskView(page, 'All')
   const taskRow = page.locator('tr', { hasText: taskTitle }).or(
     page.locator('[data-testid="task-card"]', { hasText: taskTitle }),
   )

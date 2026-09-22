@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
-import { createTaskViaUI } from './helpers/tasks'
+import { createTaskViaUI, openViewFilters, selectTaskView, taskViewsGroup, viewFiltersDoor } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
 
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
@@ -13,21 +13,36 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       const title = `Redesign journey ${viewport.width} ${Date.now()}`
       await createTaskViaUI(page, title)
 
+      // #870: the desktop door and the phone door share one name/shape — opening it first is a
+      // harmless no-op on desktop (the search field already rides the view-axis row regardless of
+      // the door's state) and is required on phone (the whole toolbar, search included, is nested
+      // inside this same disclosure there).
+      const filters = viewFiltersDoor(page)
+      await expect(filters).toHaveAttribute('aria-expanded', 'false')
+      await openViewFilters(page)
       const search = page.getByRole('searchbox', { name: 'Search tasks' })
       await search.fill(title)
       const task = page.locator('a[href*="/work/tasks/"]').filter({ hasText: title }).first()
       await expect(task).toBeVisible()
-      const filters = page.getByRole('button', { name: /^Filters/ })
-      await expect(filters).toHaveAttribute('aria-expanded', 'false')
-      await filters.click()
-      await page.getByRole('combobox', { name: 'Status', exact: true }).click()
-      await page.getByRole('listbox', { name: 'Status', exact: true })
-        .getByRole('option', { name: 'Done', exact: true }).click()
+      // Status is a checkbox popover behind the door now (#743 ruling), not a single-select
+      // combobox: open its trigger, then check "Done". Scoped to the toolbar — the grouped
+      // table also has its own "Status" column sort button with the same accessible name.
+      const toolbar = page.getByTestId('record-collection-toolbar')
+      const statusTrigger = toolbar.getByRole('button', { name: 'Status', exact: true })
+      await statusTrigger.click()
+      await page.getByRole('checkbox', { name: 'Done', exact: true }).check()
       await expect(task).toHaveCount(0)
+      // Close the popover first — its open panel overlaps "Clear filters" and swallows the click.
+      await statusTrigger.click()
       await page.getByRole('button', { name: /clear filters|reset filters/i }).first().click()
       await search.fill(title)
       await expect(task).toBeVisible()
       if (await filters.getAttribute('aria-expanded') === 'true') {
+        // The door's Escape contract is scoped to its own trigger/panel subtree (#870); focus
+        // moved to the search field above (outside that subtree, searchInViewRow), so Escape
+        // there would not reach it. Return focus to the door itself first — the same control a
+        // keyboard user closing the door would already be on.
+        await filters.focus()
         await page.keyboard.press('Escape')
         await expect(filters).toBeFocused()
       }
@@ -60,11 +75,10 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
 
       // Reload the collection to verify persistence beyond optimistic record state.
       await page.goto('work/tasks')
-      await page.getByRole('tab', { name: 'All', exact: true }).click()
-      await filters.click()
-      await page.getByRole('combobox', { name: 'Status', exact: true }).click()
-      await page.getByRole('listbox', { name: 'Status', exact: true })
-        .getByRole('option', { name: 'Done', exact: true }).click()
+      await openViewFilters(page)
+      await selectTaskView(page, 'All')
+      await statusTrigger.click()
+      await page.getByRole('checkbox', { name: 'Done', exact: true }).check()
       await search.fill(title)
       await expect(task).toBeVisible()
       await page.reload()
@@ -94,7 +108,10 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await personal.getByRole('link', { name: /\d+ shown · \d+ open/i }).click()
       await expect(page).toHaveURL(/\/work\/tasks\?view=my-work$/)
       await expect(page.getByRole('heading', { name: 'Tasks', exact: true })).toBeVisible()
-      await expect(page.getByRole('tab', { name: 'My work', exact: true })).toHaveAttribute('aria-selected', 'true')
+      // On phone the whole toolbar (view chips included) is nested inside the "View & filters"
+      // door; opening it is a no-op on desktop, where the chips already ride the exposed row.
+      await openViewFilters(page)
+      await expect(taskViewsGroup(page).getByRole('button', { name: 'My work', exact: true })).toHaveAttribute('aria-pressed', 'true')
       await page.goBack()
       await expect(page.getByRole('tablist', { name: 'Home regions' })).toBeVisible()
       expect(await page.locator('.home-frame').evaluate((frame) => frame.scrollWidth <= frame.clientWidth)).toBe(true)

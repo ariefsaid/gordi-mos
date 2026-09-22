@@ -94,7 +94,9 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
     const trace = page.getByRole('row', { name: 'E2E Trace Objective', exact: true })
     await expect(trace).toBeVisible({ timeout: 10_000 })
     await expect(trace).toContainText('E2E Trace Work Line')
-    await expect(trace).toContainText('1 linked')
+    // catalog.childCount (i18n/messages.ts): "N linked" is retired for the naked-numbers-guard
+    // shape "Projects & Processes: N".
+    await expect(trace).toContainText('Projects & Processes: 1')
     await expect(trace).toContainText('0 / 2 done')
     await trace.getByRole('link', { name: 'E2E Trace Objective', exact: true }).click()
     const objective = page.getByRole('region', { name: 'E2E Trace Objective', exact: true })

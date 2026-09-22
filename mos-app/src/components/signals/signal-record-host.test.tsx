@@ -1,8 +1,9 @@
 import { StrictMode } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { OverlayHostProvider, OverlayHostSlot, useOverlayHost, type OverlayHostApi } from '@/shell/overlay-host'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 
@@ -116,7 +117,7 @@ function authedViewer(personId = VIEWER_ID): Extract<AuthState, { status: 'authe
 
 function LocationProbe() {
   const location = useLocation()
-  return <output data-testid="location">{location.pathname}{location.search}</output>
+  return <output data-testid="location" data-from={(location.state as { from?: string } | null)?.from ?? ''}>{location.pathname}{location.search}</output>
 }
 
 function renderHost(props: Partial<React.ComponentProps<typeof SignalRecordHost>> = {}) {
@@ -400,6 +401,57 @@ describe('SignalRecordHost — comment thread reuse (postComment/listComments, R
       actorId: VIEWER_ID, actorName: 'Author One', locale: 'en',
     }))
     await waitFor(() => expect(screen.getByText('On it')).toBeInTheDocument())
+  })
+})
+
+describe('SignalRecordHost — Open full page keeps the way back', () => {
+  it('inside the overlay host, Open full page forwards the entry\'s page state (Home → Signal → full page → Back to Home)', async () => {
+    let api: OverlayHostApi | null = null
+    function Home() { api = useOverlayHost(); return <><h1>Home</h1><OverlayHostSlot owner="signals" floating /></> }
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <OverlayHostProvider>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/work/signals/:id" element={<h1>Full page</h1>} />
+            </Routes>
+            <LocationProbe />
+          </OverlayHostProvider>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    // Exactly the entry Home's feed pushes: the record panel with pageState {from:'home'}.
+    await act(async () => {
+      await api!.openRoot({
+        key: 'signal:signal-1', owner: 'signals', tenant: 'record', label: 'Signal', title: 'Signal',
+        pageTo: '/work/signals/signal-1', pageState: { from: 'home' },
+        content: <SignalRecordHost signalId={SIGNAL_ID} mode="panel" />,
+      }, 'route')
+    })
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: 'More Signal actions' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Open full page' }))
+
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/work/signals/signal-1'))
+    expect(screen.getByTestId('location')).toHaveAttribute('data-from', 'home')
+  })
+
+  it('carries the from-Home state so the full page offers Back to Home (AC-021 pattern)', async () => {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/', state: { from: 'home' } }]}>
+        <I18nProvider>
+          <SignalRecordHost signalId={SIGNAL_ID} mode="panel" />
+          <LocationProbe />
+        </I18nProvider>
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: 'More Signal actions' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Open full page' }))
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/signals/signal-1')
+    expect(screen.getByTestId('location')).toHaveAttribute('data-from', 'home')
   })
 })
 
