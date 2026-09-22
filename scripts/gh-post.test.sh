@@ -19,6 +19,7 @@ export PATH="$tmp/bin:$PATH"
 
 g() { git -C "$1" -c user.email=t@t -c user.name=t "${@:2}"; }
 git init -q "$tmp/repo"
+git -C "$tmp/repo" remote add origin https://github.com/x/y.git
 g "$tmp/repo" commit -qm init --allow-empty
 mkdir -p "$tmp/repo/docs"
 cat > "$tmp/repo/docs/gh-denylist.txt" <<'EOF'
@@ -46,6 +47,11 @@ echo "clean file body" > "$tmp/repo/body.md"
 check "clean --body-file passes" 0 yes issue comment 5 --body-file "$tmp/repo/body.md"
 
 check "gh api -F field values scanned" 1 no api repos/x/y/issues -F body="has secretword inside"
+check "api path naming another repo refused, gh untouched" 1 no api repos/other/elsewhere/issues -f title=x
+check "api path naming this repo passes" 0 yes api repos/x/y/issues -f title=x
+check "api path with no repo (e.g. /user) refused" 1 no api user
+check "--repo naming another repo refused on issue verbs" 1 no issue comment 5 --repo other/elsewhere --body "fine"
+check "--repo naming this repo passes on issue verbs" 0 yes issue comment 5 --repo x/y --body "fine"
 
 check "stdin body-file ('-') refused — unscannable" 1 no issue comment 5 --body-file -
 echo "contains secretword" > "$tmp/repo/eq.md"
