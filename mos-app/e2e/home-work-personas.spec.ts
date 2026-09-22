@@ -68,7 +68,8 @@ for (const width of [390, 1440]) {
     await loginAs(page, 'dewi.dev@example.test', DEMO_PASSWORD)
     await page.goto('work/tasks?create=1')
     const title = `[e2e] Inline task ${width}`
-    const draft = page.getByRole('textbox', { name: 'Edit task title', exact: true })
+    // The draft is the one create form, on every width (the bent inline row is gone).
+    const draft = page.getByRole('form', { name: 'Create task form' }).getByRole('textbox', { name: 'Title', exact: true })
     await draft.fill(title)
     await page.getByRole('combobox', { name: 'Team', exact: true }).click()
     await page.getByRole('listbox', { name: 'Team', exact: true }).getByRole('option', { name: 'HQ Operations', exact: true }).click()
