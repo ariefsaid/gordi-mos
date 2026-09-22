@@ -41,6 +41,12 @@ test('keyboard filtering keeps the task queue in place and restores focus', asyn
   await expect(door).toBeFocused()
   await expect(door).toHaveAttribute('aria-expanded', 'false')
 
+  // The filter COMMITTED: the URL carries it, and every row left in the queue is Open.
+  await expect(page).toHaveURL(/[?&]status=open(&|$)/)
+  const statusCells = table.locator('tr.task-row .status-pill')
+  await expect(statusCells.first()).toBeVisible()
+  for (const text of await statusCells.allInnerTexts()) expect(text.trim()).toMatch(/^Open$/i)
+
   // The goal: the queue is the SAME element, filtered in place, never remounted or replaced by a
   // drawer/page.
   await expect(table).toHaveAttribute('data-e2e-kept', 'yes')

@@ -86,8 +86,13 @@ done < "$denylist"
 # text found in an issue or PR body cannot redirect a write elsewhere.
 this_repo="$(git remote get-url origin 2>/dev/null | sed -E 's#^(https://github\.com/|git@github\.com:)##; s#\.git$##')"
 [ -n "$this_repo" ] || die "this checkout has no GitHub origin — the door scopes every write to it"
+# gh resolves the repo and host from these before any flag or remote; the door never lets them.
+[ -z "${GH_REPO:-}" ] || die "GH_REPO is set — the door resolves the repo from this checkout only"
+[ -z "${GH_HOST:-}" ] || die "GH_HOST is set — the door writes to github.com only"
+for a in "$@"; do case "$a" in --hostname|--hostname=*) die "--hostname is refused — the door writes to github.com only" ;; esac; done
 if [ "$verb1" = "api" ]; then
   case "$verb2" in
+    *"/../"*|*"/./"*|*"/.."|*"/.") die "'api $verb2' carries a dot segment — the path must name the target directly" ;;
     repos/"$this_repo"/*|/repos/"$this_repo"/*) ;;
     *) die "'api $verb2' does not address this checkout's repo ($this_repo) — the door writes here only" ;;
   esac

@@ -90,8 +90,13 @@ test.describe('AC-204: Objective roll-up and drill', () => {
   test('a Task on a parentless Project/Process is not dropped — it shows under the (Unlinked) branch', async ({ page }) => {
     await page.goto('work/tasks?view=all&group=objective')
     await expect(page.getByRole('heading', { name: 'Tasks', level: 1 })).toBeVisible()
-    await expect(page.getByText('(Unlinked)').first()).toBeVisible()
-    await expect(page.getByText(AC204.tasks.orphanLine.title)).toBeVisible()
+    // The orphan sits INSIDE an (Unlinked) branch: the nearest group header above its row names
+    // (Unlinked), not an Objective. Grouping by Objective renders one header per (Objective,
+    // work line) branch, so several headers say (Unlinked); the orphan's own is what matters.
+    const orphanRow = page.locator('tr.task-row').filter({ hasText: AC204.tasks.orphanLine.title })
+    await expect(orphanRow).toHaveCount(1)
+    const ownHeader = orphanRow.locator('xpath=preceding-sibling::tr[contains(@class, "grp")][1]')
+    await expect(ownHeader).toContainText('(Unlinked)')
   })
 
   test('Mine, grouped by Objective, shows both synthetic branches and no one else\'s work', async ({ page }) => {

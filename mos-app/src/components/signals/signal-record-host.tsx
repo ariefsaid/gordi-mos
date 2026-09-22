@@ -650,7 +650,13 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
         onCopyLink={() => {
           if (typeof navigator !== 'undefined' && navigator.clipboard) void navigator.clipboard.writeText(new URL(canonicalHref, window.location.origin).href)
         }}
-        onOpenFullPage={mode === 'panel' ? () => navigate(`/work/signals/${signal.id}`, { state: location.state }) : undefined}
+        onOpenFullPage={mode === 'panel' ? () => {
+          // Inside the overlay host the entry carries where the panel came from (Home sets
+          // pageState {from:'home'}); a route-mounted panel carries it on the location instead.
+          const entry = host?.session?.frames.at(-1)?.entry
+          if (host && entry) void host.openPage(`/work/signals/${signal.id}`, entry.pageState)
+          else navigate(`/work/signals/${signal.id}`, { state: location.state })
+        } : undefined}
       />
     </div>
   ) : null
