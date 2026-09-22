@@ -7,6 +7,7 @@ import { useIsNarrow } from '@/shell/use-is-narrow'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
+import { writeCollectionQuery } from '@/lib/record-collection/query-state'
 import { collectionDisclosureSummary } from '@/lib/record-collection/disclosure-summary'
 import { useSetCollectionLeaf } from '@/shell/breadcrumb-title'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
@@ -714,8 +715,10 @@ export function TasksWorkspace({
       'create', 'createTitle', 'createBu', 'createPic', 'createTeam', 'createSupervisor', 'sourceSignal',
       'work_line', 'work_line_id', 'workLineId', 'objective', 'objective_id', 'objectiveId',
     ]) next.delete(key)
-    setParams(next, { replace: true })
-  }, [dataContext, draftTask, onNewTask, params, setParams, viewerTeams])
+    // Written in the engine's canonical form: the engine's own URL sync races this write, and each
+    // lands from its own render's snapshot, so the two must agree or the last one wins.
+    setParams(writeCollectionQuery(taskCollectionDescriptor.query, query, next), { replace: true })
+  }, [dataContext, draftTask, onNewTask, params, query, setParams, viewerTeams])
   // The query schema owns URL cleanup, including constraints reset to neutral.
   const onClearFilters = useCallback(() => {
     const nextView = query.view === 'overdue' ? 'all' : query.view
