@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useHref, useNavigate } from 'react-router-dom'
+import { useHref, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useSignalComposer } from '@/shell/signal-composer-host'
 import { useT } from '@/i18n/use-t'
@@ -202,6 +202,8 @@ function SignalTaskCreateFrame({
 export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, onReload }: SignalRecordHostProps) {
   const t = useT()
   const navigate = useNavigate()
+  // The full page offers Back to Home only when the panel was reached from Home (AC-021 #755).
+  const location = useLocation()
   const canonicalHref = useHref(`/work/signals/${signalId}`)
   const auth = useAuth()
   const host = useOptionalOverlayHost()
@@ -648,7 +650,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
         onCopyLink={() => {
           if (typeof navigator !== 'undefined' && navigator.clipboard) void navigator.clipboard.writeText(new URL(canonicalHref, window.location.origin).href)
         }}
-        onOpenFullPage={mode === 'panel' ? () => navigate(`/work/signals/${signal.id}`) : undefined}
+        onOpenFullPage={mode === 'panel' ? () => navigate(`/work/signals/${signal.id}`, { state: location.state }) : undefined}
       />
     </div>
   ) : null

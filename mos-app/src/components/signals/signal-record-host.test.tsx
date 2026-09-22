@@ -116,7 +116,7 @@ function authedViewer(personId = VIEWER_ID): Extract<AuthState, { status: 'authe
 
 function LocationProbe() {
   const location = useLocation()
-  return <output data-testid="location">{location.pathname}{location.search}</output>
+  return <output data-testid="location" data-from={(location.state as { from?: string } | null)?.from ?? ''}>{location.pathname}{location.search}</output>
 }
 
 function renderHost(props: Partial<React.ComponentProps<typeof SignalRecordHost>> = {}) {
@@ -400,6 +400,25 @@ describe('SignalRecordHost — comment thread reuse (postComment/listComments, R
       actorId: VIEWER_ID, actorName: 'Author One', locale: 'en',
     }))
     await waitFor(() => expect(screen.getByText('On it')).toBeInTheDocument())
+  })
+})
+
+describe('SignalRecordHost — Open full page keeps the way back', () => {
+  it('carries the from-Home state so the full page offers Back to Home (AC-021 pattern)', async () => {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/', state: { from: 'home' } }]}>
+        <I18nProvider>
+          <SignalRecordHost signalId={SIGNAL_ID} mode="panel" />
+          <LocationProbe />
+        </I18nProvider>
+      </MemoryRouter>,
+    )
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: 'More Signal actions' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Open full page' }))
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/signals/signal-1')
+    expect(screen.getByTestId('location')).toHaveAttribute('data-from', 'home')
   })
 })
 
