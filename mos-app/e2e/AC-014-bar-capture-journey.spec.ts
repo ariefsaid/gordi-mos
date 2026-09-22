@@ -32,6 +32,7 @@ import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
 import { BAR_MEMBER, BAR_SUPERVISOR, BAR_STREAM } from './fixtures/users'
+import { ensureStream } from './helpers/cafe-stream'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
@@ -179,17 +180,27 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     await page.setViewportSize({ width: 380, height: 780 })
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
     await page.goto('cafe/log')
-    await page.waitForURL(/\/cafe\/log$/, { timeout: 15_000 })
+    // DD-MVP-17: /cafe/log aliases the Café root — the Today capture surface itself.
+    await page.waitForURL(/\/cafe$/, { timeout: 15_000 })
+
+    // DD-MVP-11: production capture is location-bound, and location precedes stream. BAR_MEMBER
+    // has exactly ONE resolvable stream team (Rumah Rames bar), so the location resolves without
+    // asking (cafe-opening-page.tsx primary.length===1) and this call is a no-op past that check
+    // — it exists so the journey still holds for any persona whose location genuinely IS
+    // ambiguous. If BAR_MEMBER ever needed the choice, that would itself be the finding.
+    await ensureStream(page)
 
     // FR-001 — the surface OPENS on their own stream. Resolved from the live primary Team
     // membership, through the real RPC: nothing in the URL or the click path said "Rumah Rames".
-    // FR-005 — and the picker enumerates SEVEN streams, the whole catalog, switchable (FR-003):
-    // the default is a default, not a wall (OD-WAY-49/31). Seven since OD-WAY-79 added Cikal bar.
+    // FR-005 — and the picker enumerates every stream AT THE RESOLVED LOCATION, switchable
+    // (FR-003): the default is a default, not a wall (OD-WAY-49/31). OD-CAFE-1 bound the picker
+    // to the active location (previously the whole seven-stream org catalog, OD-WAY-79) — Rumah
+    // Rames carries exactly two, {kitchen, bar} (supabase/seed.sql shared.seed_stream_teams()).
     const streamPicker = page.getByRole('combobox', { name: /Production stream/i })
     await expect(streamPicker).toBeVisible({ timeout: 15_000 })
     await streamPicker.click()
     const streamListbox = page.getByRole('listbox', { name: /Production stream/i })
-    await expect(streamListbox.getByRole('option')).toHaveCount(7)
+    await expect(streamListbox.getByRole('option')).toHaveCount(2)
     const selectedStreamOption = streamListbox.getByRole('option', { name: /Rumah Rames · Bar/i })
     await expect(selectedStreamOption).toHaveAttribute('aria-selected', 'true')
     await selectedStreamOption.click()

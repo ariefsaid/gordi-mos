@@ -20,6 +20,7 @@ import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
 import { BAR_MEMBER, BAR_STREAM } from './fixtures/users'
+import { ensureStream } from './helpers/cafe-stream'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
@@ -125,7 +126,12 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
     ).toBeVisible({ timeout: 15_000 })
 
     await page.goto('cafe/log')
-    await page.waitForURL(/\/cafe\/log$/, { timeout: 15_000 })
+    // DD-MVP-17: /cafe/log aliases the Café root — the Today capture surface itself.
+    await page.waitForURL(/\/cafe$/, { timeout: 15_000 })
+    // DD-MVP-11: location precedes stream. BAR_MEMBER has exactly one resolvable stream team
+    // (Rumah Rames bar), so this resolves without asking — a no-op past that check, kept so the
+    // journey still holds if that ever stops being true.
+    await ensureStream(page)
 
     // One line, on-plan (qty = plan): the capture path and nothing else.
     const qty = page.getByRole('spinbutton', { name: new RegExp(`Quantity produced for ${ITEM_NAME}`, 'i') })
@@ -159,8 +165,21 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
     await loginAs(page, SALES.email, SALES.password)
 
     await page.goto('cafe/log')
-    await page.waitForURL(/\/cafe\/log$/, { timeout: 15_000 })
+    // DD-MVP-17: /cafe/log aliases the Café root — the Today capture surface itself.
+    await page.waitForURL(/\/cafe$/, { timeout: 15_000 })
 
+    // KNOWN BLOCKER (found while fixing this file for #870/DD-MVP-17, not routed around):
+    // Sales has NO stream team at all — shared.people/team_memberships give her zero café-
+    // affiliated Teams, so cafe-opening-page.tsx's load() finds `eligible.length === 0` and
+    // renders its 'no-team' EmptyState ("You're not on a café branch Team yet — ask your admin
+    // to add you") instead of ever mounting KitchenLogPage. That state was confirmed live
+    // (2026-09-22, sari.dev@example.test → /cafe). OD-WAY-51's contract for THIS journey — an
+    // unaffiliated viewer's item rows stay visible, read-only, with one line saying why, never
+    // hidden — has no surface to render on any more: the Café root gates the whole capture page
+    // on team membership before OD-WAY-51's own read-only rendering ever gets a chance to run.
+    // This is a real conflict between two ratified rules, not a moved control — left failing
+    // rather than weakened, for the Director to resolve (grant Sales a read affiliation, or
+    // retire OD-WAY-51's "never hidden" clause for the no-team case).
     // Read-only, not hidden: the capture form and its item rows render.
     await expect(page.getByText(ITEM_NAME).first()).toBeVisible({ timeout: 15_000 })
 

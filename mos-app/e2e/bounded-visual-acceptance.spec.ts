@@ -105,14 +105,21 @@ test.describe('bounded visual and interaction acceptance', () => {
       await page.goto('work/tasks')
       await expect(page.getByRole('heading', { name: 'Tasks', exact: true })).toBeVisible()
       await expect(page.getByText(TASKS.VIEWER_ACCOUNTABLE.title, { exact: true }).first()).toBeVisible()
-      const mobileDoor = page.getByRole('button', { name: 'View & filters', exact: true })
+      // #870: collapseOptionsOnDesktop is unconditional for Tasks, so the "View & filters" door
+      // now exists at every width — phone nests the WHOLE toolbar inside its own outer copy of
+      // the same disclosure (so the toolbar testid is absent until it opens), while desktop's row
+      // 1 (view chips + search + the door trigger) is always mounted and only row 2's options
+      // (Group, Business unit, Status, Person, Sort, Fields, Save view) sit behind the door.
+      const door = page.getByRole('button', { name: /^view & filters/i })
       if (width < 768) {
-        await expect(mobileDoor).toBeVisible()
+        await expect(door).toBeVisible()
         await expect(page.getByTestId('record-collection-toolbar')).toHaveCount(0)
-        await mobileDoor.click()
       } else {
-        await expect(mobileDoor).toHaveCount(0)
+        await expect(page.getByTestId('record-collection-toolbar')).toBeVisible()
       }
+      await expect(door).toHaveAttribute('aria-expanded', 'false')
+      await door.click()
+      await expect(door).toHaveAttribute('aria-expanded', 'true')
       const toolbar = page.getByTestId('record-collection-toolbar')
       await expect(toolbar).toBeVisible()
       await expect(toolbar.getByRole('group', { name: 'View & filters', exact: true })).toBeVisible()
@@ -236,6 +243,10 @@ test.describe('bounded visual and interaction acceptance', () => {
       await loginAs(page, MANAGER.email, MANAGER.password)
       await page.goto('work/tasks')
       await expect(page.getByText(TASKS.VIEWER_ACCOUNTABLE.title, { exact: true }).first()).toBeVisible()
+      // #870: the options group is behind the "View & filters"/"Tampilan & filter" door at every
+      // width now — open it before reaching Group/Status/etc.
+      await page.getByRole('button', { name: /^tampilan & filter/i }).click()
+      const toolbar = page.getByTestId('record-collection-toolbar')
       const filters = page.getByRole('group', { name: 'Tampilan & filter', exact: true })
       const expectedValues = [
         { name: 'Kelompok', value: 'Kelompok: Tidak' },
@@ -258,7 +269,10 @@ test.describe('bounded visual and interaction acceptance', () => {
         scrollWidth: element.scrollWidth,
       }))
       expect(toolbarFit.scrollWidth, 'the complete toolbar row must fit its own visible container').toBeLessThanOrEqual(toolbarFit.clientWidth)
-      const controlHeights = await filters.locator([
+      // The search field rides the view-axis row beside the door on desktop (searchInViewRow,
+      // collection-toolbar.tsx), not inside the options group, so this census is scoped to the
+      // whole toolbar rather than to `filters`.
+      const controlHeights = await toolbar.locator([
         '.collection-toolbar__search',
         '.picker__trigger',
         '.collection-toolbar__choice-trigger',
@@ -269,7 +283,7 @@ test.describe('bounded visual and interaction acceptance', () => {
       for (const height of controlHeights) {
         expect(height, 'desktop toolbar controls must share the 32px height token').toBeCloseTo(32, 1)
       }
-      const searchFit = await filters.getByRole('searchbox', { name: 'Cari tugas', exact: true }).evaluate((element) => {
+      const searchFit = await toolbar.getByRole('searchbox', { name: 'Cari tugas', exact: true }).evaluate((element) => {
         const input = element as HTMLInputElement
         const canvas = document.createElement('canvas')
         const context = canvas.getContext('2d')
@@ -305,9 +319,8 @@ test.describe('bounded visual and interaction acceptance', () => {
         await page.goto('work/tasks')
         await expect(page.getByRole('heading', { name: locale === 'id' ? 'Tugas' : 'Tasks', exact: true })).toBeVisible()
         const doorName = locale === 'id' ? 'Tampilan & filter' : 'View & filters'
-        const mobileDoor = page.getByRole('button', { name: doorName, exact: true })
-        if (width < 768) await mobileDoor.click()
-        else await expect(mobileDoor).toHaveCount(0)
+        // #870: the door exists at every width now — open it before reaching Group.
+        await page.getByRole('button', { name: doorName, exact: true }).click()
         const toolbar = page.getByTestId('record-collection-toolbar')
         await expect(toolbar).toBeVisible()
         const filters = toolbar.getByRole('group', { name: doorName, exact: true })

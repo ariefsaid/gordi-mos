@@ -3,6 +3,11 @@ import { loginAs } from './helpers/login'
 import { ADMIN } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
 import { isShipGated } from './helpers/ship-gate'
+import { taskViewsGroup } from './helpers/tasks'
+
+// notFound.title (i18n/messages.ts): the not-found page's ONE heading now carries the message
+// itself ("Page not found" retired — see src/pages/not-found-page.tsx's docblock).
+const NOT_FOUND_HEADING = /^That page isn.t here$/
 
 const PLAN_BUDGET_ENABLED = process.env.VITE_SHOW_PLAN_BUDGET === 'true'
 
@@ -24,8 +29,10 @@ const redirectCases = [
   // /kitchen, however, maps to /cafe/log by the router's own redirect table (router.tsx
   // redirectHandle('/cafe/log') — the capture surface, not the home). Deep sub-routes below
   // keep their exact 1:1 mapping.
-  { oldPath: 'kitchen', finalPath: /\/cafe\/log$/, needsAdmin: false },
-  { oldPath: 'kitchen/log', finalPath: /\/cafe\/log$/, needsAdmin: false },
+  // DD-MVP-17: the Café root is the Today capture surface now, so the retired kitchen paths land
+  // there directly — /cafe/log itself aliases the root by the same redirect (router.tsx).
+  { oldPath: 'kitchen', finalPath: /\/cafe$/, needsAdmin: false },
+  { oldPath: 'kitchen/log', finalPath: /\/cafe$/, needsAdmin: false },
   { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, needsAdmin: false },
   { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, needsAdmin: false },
   { oldPath: 'kitchen/review', finalPath: /\/cafe\/review$/, needsAdmin: true },
@@ -78,7 +85,7 @@ test('AC-003 (DD-WAY-60): retired Daily Log URLs render in-shell not-found witho
   for (const path of ['ops', 'ops/new', 'ops/retired-id/edit']) {
     await page.goto(path)
     await expect(page).toHaveURL(new RegExp(`/mos/${path.replaceAll('/', '\\/')}$`))
-    await expect(page.getByRole('heading', { name: 'Page not found', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: NOT_FOUND_HEADING })).toBeVisible()
   }
 })
 
@@ -88,13 +95,13 @@ test('AC-004 (DD-WAY-36): /work/follow-ups renders not-found in one hop — no r
   await expect(page).toHaveURL(/\/work\/follow-ups$/)
   // AC-021: not-found renders INSIDE the shell — the real cross-stack proof of the guard's
   // fall-through assertion (unit layer owns the invariant; this owns the journey).
-  await expect(page.getByRole('heading', { name: 'Page not found', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: NOT_FOUND_HEADING })).toBeVisible()
 })
 
 test('AC-004: /tasks/:taskId redirects to /work/tasks/:taskId and renders the task surface', async ({ page }) => {
   await page.goto(`tasks/${TASKS.VIEWER_ACCOUNTABLE.id}`)
   await expect(page).toHaveURL(new RegExp(`/work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}$`))
-  await expect(page.getByRole('tablist', { name: 'Task views' })).toBeVisible()
+  await expect(taskViewsGroup(page)).toBeVisible()
   await expect(page.getByRole('heading', { name: TASKS.VIEWER_ACCOUNTABLE.title, exact: true })).toBeVisible()
 })
 
@@ -104,7 +111,8 @@ test('AC-005: /kitchen/* redirects to /cafe/* and renders the re-homed kitchen s
     // aria-label={caption}>`), which kitchen-log-page.tsx sets to `kitchen.log.caption` — "Café
     // production log …" (i18n/messages.ts). The Kitchen→Café rename that moved this route also
     // renamed the table's own name; "kitchen production log" no longer exists anywhere on the page.
-    { oldPath: 'kitchen/log', finalPath: /\/cafe\/log$/, surface: page.getByRole('table', { name: /café production log/i }) },
+    // DD-MVP-17: /cafe/log now aliases the Café root; the same production-log table renders there.
+    { oldPath: 'kitchen/log', finalPath: /\/cafe$/, surface: page.getByRole('table', { name: /café production log/i }) },
     { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, surface: page.getByRole('heading', { name: /café · (plan|pesanan)/i }) },
     { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, surface: page.getByRole('heading', { name: /café · stock/i }) },
     { oldPath: 'kitchen/review', finalPath: /\/cafe\/review$/, surface: page.getByRole('heading', { name: /café · review/i }) },
@@ -140,7 +148,7 @@ test('AC-025: /work/signals, /cafe, and /work/tasks?view=overdue resolve and are
   await page.goto('work/tasks?view=overdue')
   await expect(page).toHaveURL(/\/work\/tasks\?view=overdue$/)
   await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Tasks' })).toBeVisible()
-  await expect(page.getByRole('tablist', { name: 'Task views' })).toBeVisible()
+  await expect(taskViewsGroup(page)).toBeVisible()
 })
 
 

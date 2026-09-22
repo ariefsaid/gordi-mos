@@ -69,6 +69,11 @@ for (const actor of personas) {
     await expect(dialog.getByRole('group', { name: /GO TO|ACT/ })).toHaveCount(0)
     await expect(dialog.getByRole('option', { name: 'Create task', exact: true })).toHaveCount(0)
     await page.keyboard.press('Escape')
+    // DD-MVP-17 (bottom-tab-bar.tsx CAPTURE_SURFACE_PATHS): /cafe is itself the capture surface
+    // now, so the phone Action Launcher is deliberately hidden there — its own control is the
+    // primary action. This test is about the launcher's PERSONA-gated options, not about Café
+    // specifically, so it reaches the launcher from a non-capture surface instead.
+    await page.goto('')
     await page.getByRole('button', { name: 'Open actions' }).click()
     await expect(dialog.getByRole('option', { name: 'Create task', exact: true })).toBeVisible()
     await expect(dialog.getByRole('option', { name: 'Share Signal', exact: true })).toBeVisible()

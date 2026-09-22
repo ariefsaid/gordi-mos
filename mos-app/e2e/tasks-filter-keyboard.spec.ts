@@ -1,23 +1,48 @@
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { MANAGER } from './fixtures/users'
+import { openViewFilters, viewFiltersDoor } from './helpers/tasks'
 
+// #743 ruling retired Status as a single-select combobox (arrow-key listbox, one committed
+// value) in favour of a checkbox popover (additive: "Include archived" rides the same control).
+// That premise is gone, but the GOAL this test protects is not: keyboard-driven filtering must
+// keep the task queue mounted (never swap it for a drawer/page) and hand focus back to the
+// trigger it came from when the interaction closes. Re-expressed on the current control: open the
+// door and the Status popover with the keyboard, toggle "Open" with Space, close with Escape.
 test('keyboard filtering keeps the task queue in place and restores focus', async ({ page }) => {
   await loginAs(page, MANAGER.email, MANAGER.password)
   await page.goto('/mos/work/tasks')
-  await expect(page.getByRole('table', { name: 'Tasks' })).toBeVisible()
-  await page.getByRole('button', { name: 'Filters', exact: true }).click()
-  const status = page.getByRole('combobox', { name: 'Status', exact: true })
-  await status.focus()
+  const table = page.getByRole('table', { name: 'Tasks' })
+  await expect(table).toBeVisible()
+  // A marker outside React's own render: a remount lands on a FRESH DOM node and loses it, so its
+  // survival is a real (not assumed) proof the queue stayed the same element throughout.
+  await table.evaluate((el) => { el.dataset.e2eKept = 'yes' })
+
+  await openViewFilters(page)
+  const door = viewFiltersDoor(page)
+  // Scoped to the toolbar — the grouped table has its own "Status" column sort button sharing
+  // this accessible name.
+  const statusTrigger = page.getByTestId('record-collection-toolbar').getByRole('button', { name: 'Status', exact: true })
+  await statusTrigger.focus()
   await page.keyboard.press('Enter')
-  const list = page.getByRole('listbox', { name: 'Status', exact: true })
-  await expect(list).toBeFocused()
+  const openCheckbox = page.getByRole('checkbox', { name: 'Open', exact: true })
+  await expect(openCheckbox).toBeVisible()
   await expect(page.getByText('Task detail', { exact: true })).toHaveCount(0)
-  await page.keyboard.press('ArrowDown')
-  await page.keyboard.press('Enter')
-  await expect(list).toHaveCount(0)
-  await expect(status).toBeFocused()
-  await expect(status).toHaveText('Open')
-  await expect(page.getByRole('button', { name: 'Clear filters', exact: true })).toBeVisible()
+
+  await openCheckbox.focus()
+  await page.keyboard.press('Space')
+  await expect(openCheckbox).toBeChecked()
+
+  // Escape has no dedicated handler on the Status popover itself, so it bubbles to the "View &
+  // filters" door's own Escape contract (ViewOptionsDisclosure, #870): closes the whole door and
+  // returns focus to ITS trigger — confirmed live (2026-09-22), not assumed.
+  await page.keyboard.press('Escape')
+  await expect(openCheckbox).toHaveCount(0)
+  await expect(door).toBeFocused()
+  await expect(door).toHaveAttribute('aria-expanded', 'false')
+
+  // The goal: the queue is the SAME element, filtered in place, never remounted or replaced by a
+  // drawer/page.
+  await expect(table).toHaveAttribute('data-e2e-kept', 'yes')
   await expect(page.getByText('Task detail', { exact: true })).toHaveCount(0)
 })

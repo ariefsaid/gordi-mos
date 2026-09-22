@@ -5,6 +5,7 @@ import { localSql } from './helpers/local-sql'
 import { notificationCleanupSql } from './fixtures/cleanup'
 import { ADMIN, BAR_MEMBER, MANAGER, RECOVERY_VIEWER, VIEWER } from './fixtures/users'
 import { TASKS } from './fixtures/tasks'
+import { taskViewsGroup } from './helpers/tasks'
 
 for (const [name, actor, view] of [
   ['ordinary member', RECOVERY_VIEWER, 'My work'],
@@ -17,7 +18,7 @@ for (const [name, actor, view] of [
     expect((await countRead).ok()).toBe(true)
     const link = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: /^Tasks(,|$)/ })
     await link.click()
-    await expect(page.getByRole('tab', { name: view, exact: true })).toHaveAttribute('aria-selected', 'true')
+    await expect(taskViewsGroup(page).getByRole('button', { name: view, exact: true })).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByText(/^\d+ open · \d+ total$/)).toBeVisible()
     await expect(page.getByRole('status', { name: 'Loading tasks' })).toHaveCount(0)
     // Read the actual rendered default queue, including virtual rows as they enter view.
