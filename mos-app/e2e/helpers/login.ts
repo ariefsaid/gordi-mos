@@ -1,7 +1,36 @@
 // Reusable login helper for e2e tests.
+import { readFileSync } from 'fs'
 import type { Page } from '@playwright/test'
+import { expect } from '@playwright/test'
+import { storageStatePath } from './auth-state'
 
-export async function loginAs(page: Page, email: string, password: string) {
+interface SavedCookie {
+  name: string
+  value: string
+  domain: string
+  path: string
+  expires: number
+  httpOnly: boolean
+  secure: boolean
+  sameSite: 'Strict' | 'Lax' | 'None'
+}
+
+interface SavedStorageState {
+  cookies: SavedCookie[]
+  origins: Array<{ origin: string; localStorage: Array<{ name: string; value: string }> }>
+}
+
+function loadSavedState(email: string): SavedStorageState | null {
+  try {
+    return JSON.parse(readFileSync(storageStatePath(email), 'utf-8')) as SavedStorageState
+  } catch {
+    return null
+  }
+}
+
+/** Drives the real sign-in form. The fallback path when no saved session exists (or the app
+ *  rejected one), and the one journey (auth-password-login.spec.ts) that must always use it. */
+export async function loginViaForm(page: Page, email: string, password: string) {
   // A goto() to a URL the page is ALREADY on (e.g. a test that signed out mid-test — its
   // ProtectedRoute bounce SPA-navigates here with `state: {from: '<the route it was on>'}` —
   // then calls loginAs again on the same page) reloads the SAME history entry rather than
@@ -22,4 +51,34 @@ export async function loginAs(page: Page, email: string, password: string) {
   // Wait for navigation away from /login — authentication + redirect happens asynchronously.
   // This handles both authenticated (→ /) and orphan (→ / then orphan screen) flows.
   await page.waitForURL((url) => !url.pathname.endsWith('/login'), { timeout: 10_000 })
+}
+
+/** Loads the persona's saved session (helpers/auth-state.ts) and waits for the authenticated
+ *  shell's nav landmark, not merely the URL: a rejected session still lands on `/`. Falls back to
+ *  the form when no state was captured (ORPHAN, RECOVERY_VIEWER) or the session is rejected. */
+export async function loginAs(page: Page, email: string, password: string) {
+  const saved = loadSavedState(email)
+  if (!saved) {
+    console.warn(`[loginAs] no saved session for ${email} — signing in via the form`)
+    await loginViaForm(page, email, password)
+    return
+  }
+
+  const entries = saved.origins.flatMap((origin) => origin.localStorage)
+  if (entries.length > 0) {
+    await page.addInitScript((items) => {
+      for (const { name, value } of items) window.localStorage.setItem(name, value)
+    }, entries)
+  }
+  if (saved.cookies.length > 0) await page.context().addCookies(saved.cookies)
+  await page.goto('')
+
+  try {
+    await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible({ timeout: 8_000 })
+  } catch {
+    console.warn(`[loginAs] saved session for ${email} was rejected — falling back to the sign-in form`)
+    await loginViaForm(page, email, password)
+    // A sign-out elsewhere revoked the shared session; the fresh one serves the specs that follow.
+    await page.context().storageState({ path: storageStatePath(email) })
+  }
 }

@@ -33,3 +33,6 @@ storybook-static/
 # Local env (never committed)
 .env
 .env.e2e
+
+# Per-persona Playwright storage state (#903): live sessions captured by global-setup
+e2e/.auth/

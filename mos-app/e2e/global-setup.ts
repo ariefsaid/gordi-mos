@@ -19,15 +19,18 @@ import { DEMO_PASSWORD, DEMO_PERSONAS } from '../src/pages/demo-personas'
 // SELECT on shared.people. This endpoint is local-only — never available in production.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { chromium } from '@playwright/test'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { ORPHAN, RECOVERY_VIEWER, ADMIN, BAR_MEMBER, BAR_SUPERVISOR, BAR_STREAM } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
 import { assertFixtureSqlSafe, assertLocalFixtureDatabase, fixtureCleanupSql } from './fixtures/cleanup'
+import { captureStorageState } from './helpers/auth-state'
 import {
   MOS_DEV_PORT_ENV,
   assertDevServerOwnership,
+  devServerBaseUrl,
   devServerIdentityUrl,
   devServerPort,
   worktreeFingerprint,
@@ -285,6 +288,26 @@ export default async function globalSetup() {
     )
   }
   console.log('[global-setup] created + linked the AC-014 bar stream personas (member + supervisor)')
+
+  // ── 4. Storage state (#903) — sign each persona in once for loginAs to reuse (helpers/auth-state.ts).
+  // ORPHAN never reaches an authenticated shell and RECOVERY_VIEWER's password is rotated by its
+  // own spec, so both keep signing in through the form.
+  const baseUrl = devServerBaseUrl(appDir, process.env[MOS_DEV_PORT_ENV])
+  const statefulPersonas: Array<{ email: string; password: string }> = [
+    ...DEV_PERSONAS.map((email) => ({ email, password: DEV_PASSWORD })),
+    ADMIN,
+    BAR_MEMBER,
+    BAR_SUPERVISOR,
+  ]
+  const authBrowser = await chromium.launch()
+  try {
+    for (const persona of statefulPersonas) {
+      await captureStorageState(authBrowser, baseUrl, persona.email, persona.password)
+    }
+  } finally {
+    await authBrowser.close()
+  }
+  console.log(`[global-setup] captured storage state for ${statefulPersonas.length} personas`)
 
   // Refresh only the fixed fixtures. Ambient tasks, updates and operations logs remain intact.
   await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, fixtureCleanupSql)
