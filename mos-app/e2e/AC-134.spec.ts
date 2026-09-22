@@ -179,7 +179,7 @@ test.beforeEach(async ({ page }) => {
 
 test(
   'AC-134 (also exercises AC-117/123/125): grouped-Status workspace → open row → ' +
-  'inline status change → regroup by Owner → add task pre-filled',
+  'inline status change → regroup by Owner → inline draft pre-filled',
   async ({ page }) => {
 
   // ─── Step 1: grouped by Status (default) — group headers with counts + overdue subtotals ───
@@ -215,11 +215,10 @@ test(
   await expect(page.locator('tr.grp').filter({ hasText: 'Open' }).locator('.gsub')).not.toBeVisible()
 
   // ─── Step 2: open a row → drawer opens in place, URL is canonical /tasks/:id ────────────
-  const firstRow = page.locator('tr.task-row').first()
+  // THIS spec's IP1 row, by id: the fixture titles mirror the dev seed's, so "the first row" can
+  // be a seed task — which the status change below would then flip and never restore.
+  const firstRow = page.locator('tr.task-row', { has: page.locator(`a[href*="/work/tasks/${T.IP1}"]`) })
   await expect(firstRow).toBeVisible({ timeout: 8_000 })
-  // Grouping by status moves the row to its destination group when the inline status changes;
-  // retain the title so the post-commit oracle re-finds the same record after that move.
-  const openedTitle = await firstRow.getByRole('link').innerText()
   // Click the title link itself, not the row's own bounding-box center: task-row.tsx's Status/
   // PIC/Due cells are each an `inline-cell-trigger` button that stopPropagation()s to start inline
   // editing (task-row.tsx:463/491/518) rather than bubbling to the <tr> row-opener. A row spans
@@ -257,9 +256,11 @@ test(
   // URL stays canonical (no navigation happened).
   expect(page.url()).toBe(taskUrl)
 
-  // EXPECTED RED until #372 lands — row status desync (grouped table); the oracle is the fix's proof, never weaken it
+  // Was EXPECTED RED until #372 landed — that fix covered the ungrouped path only, leaving the
+  // grouped-table row stuck in its stale status group (#901). #901's fix reprojects the render
+  // groups from the live status override, so this assertion is now a live oracle, not a marker.
   // Same table row now shows "Open" — AC-117 optimistic sync without view transition.
-  const reopenedRow = page.locator('tr.task-row', { hasText: openedTitle }).first()
+  const reopenedRow = page.locator('tr.task-row', { has: page.locator(`a[href*="/work/tasks/${T.IP1}"]`) })
   await expect(reopenedRow.locator('.td-status').getByText('Open')).toBeVisible({ timeout: 8_000 })
 
   // ─── Step 4: regroup by Owner → Owner group headers appear for all persons ─────────────
@@ -276,8 +277,9 @@ test(
     ).toBeVisible({ timeout: 8_000 })
   }
 
-  // ─── Step 5: "+ Add task" in Rama Roastery's Owner group → /tasks/new?r=<P_RAMA> ────────
-  // AC-125 oracle: query param ?r=<personId> is present; create form pre-fills R.
+  // ─── Step 5: "+ Add task" in Rama Roastery's Owner group → inline draft, PIC pre-filled ───
+  // AC-125 oracle: the group's create affordance opens the inline draft row in place (the
+  // /tasks/new door is retired and redirects into this workspace) with the group's person as PIC.
   const ramaHeader = page.locator('tr.grp').filter({ hasText: 'Rama Roastery' })
   await expect(ramaHeader).toBeVisible()
 
@@ -285,13 +287,8 @@ test(
   await expect(addTaskBtn).toBeVisible()
   await addTaskBtn.click()
 
-  await page.waitForURL(/\/tasks\/new(\?|$)/, { timeout: 10_000 })
-  expect(page.url()).toContain(`r=${P_RAMA}`)
-
-  // OD-REDESIGN-3: the person field is PIC and is pre-filled from ?r=.
   const createForm = page.getByRole('form', { name: /create task form/i })
-  await expect(createForm).toBeVisible({ timeout: 8_000 })
-  const picSelect = createForm.getByLabel(/^pic$/i)
-  await expect(picSelect).toBeVisible({ timeout: 10_000 })
-  await expect(picSelect).toContainText('Rama Roastery')
+  await expect(createForm).toBeVisible({ timeout: 10_000 })
+  await expect(createForm.getByRole('combobox', { name: 'PIC', exact: true })).toContainText('Rama Roastery')
+  expect(new URL(page.url()).pathname).toMatch(/\/work\/tasks$/)
 })

@@ -412,6 +412,36 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     })
   })
 
+  it('Issue 901 (the #372 gap): in the GROUPED table an optimistic drawer status change moves the row into its new status group, no reload', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one', status: 'Open' })])
+    mockGetTask
+      .mockResolvedValueOnce({ task: makeTask({ id: 'task-1', title: 'Open one', status: 'Open' }), checklist: [], events: [] })
+      .mockResolvedValueOnce({ task: makeTask({ id: 'task-1', title: 'Open one', status: 'Blocked' }), checklist: [], events: [] })
+    mockUpdateTaskStatus.mockResolvedValue()
+    renderAt('/work/tasks/task-1?group=status')
+    await waitFor(() => expect(document.querySelector('tr.task-row.row-selected')).toBeTruthy())
+    const openHeader = () => Array.from(document.querySelectorAll('tr.grp')).find((g) => g.textContent?.includes('Open'))
+    const blockedHeader = () => Array.from(document.querySelectorAll('tr.grp')).find((g) => g.textContent?.includes('Blocked'))
+    expect(openHeader()).toBeTruthy()
+    expect(blockedHeader()).toBeFalsy()
+    const drawer = screen.getByRole('complementary', { name: /task detail/i })
+    fireEvent.click(within(drawer as HTMLElement).getByRole('button', { name: /edit status/i }))
+    const status = within(drawer as HTMLElement).getByRole('combobox', { name: 'Status' })
+    fireEvent.click(status)
+    fireEvent.click(screen.getByRole('option', { name: 'Blocked' }))
+    await waitFor(() => {
+      // The task's only row moved out of Open (now empty → dropped, #569) and into a
+      // freshly-materialized Blocked bucket — not just the row's own status cell.
+      expect(openHeader()).toBeFalsy()
+      const header = blockedHeader()
+      expect(header).toBeTruthy()
+      const selectedRow = document.querySelector('tr.task-row.row-selected')
+      expect(selectedRow).toBeTruthy()
+      expect(selectedRow!.querySelector('.mk-tag')?.textContent).toContain('Blocked')
+      expect(selectedRow!.compareDocumentPosition(header!) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+    })
+  })
+
   it('AC-113: with the drawer open the Activity column is dropped; Task + Status remain; aria-sort intact', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
