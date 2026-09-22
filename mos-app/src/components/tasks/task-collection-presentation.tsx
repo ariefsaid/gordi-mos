@@ -32,6 +32,8 @@ import type {
   CollectionProjection,
 } from '@/lib/record-collection/types'
 import { taskTableColumnSpan } from './task-collection-query'
+import { STATUS_ORDER } from './task-formatters'
+import { isOverdue } from '@/lib/due-status'
 import type {
   TaskCollectionContext,
   TaskCollectionQuery,
@@ -230,16 +232,47 @@ function localizedGroupLabel(
   if (query.groupBy === 'objective' && group.key.endsWith(`:${NO_WORK_LINE_KEY}`)) {
     return t('rollup.group.noWorkLine')
   }
-  if (query.groupBy === 'status') {
-    const labels: Record<TaskStatus, string> = {
-      Open: t('tasks.status.open'),
-      'In Progress': t('tasks.status.inProgress'),
-      Blocked: t('tasks.status.blocked'),
-      Done: t('tasks.status.done'),
-    }
-    return labels[group.key as TaskStatus] ?? group.label
-  }
+  if (query.groupBy === 'status') return statusGroupLabel(group.key as TaskStatus, t) ?? group.label
   return group.label
+}
+
+function statusGroupLabel(status: TaskStatus, t: ReturnType<typeof useT>): string {
+  const labels: Record<TaskStatus, string> = {
+    Open: t('tasks.status.open'),
+    'In Progress': t('tasks.status.inProgress'),
+    Blocked: t('tasks.status.blocked'),
+    Done: t('tasks.status.done'),
+  }
+  return labels[status]
+}
+
+/**
+ * #901 (the #372 gap): the projection buckets by the status loaded from the DB — an optimistic
+ * drawer edit only reaches `statusOverrides`, applied per-row by `rawTaskFor` above. For every
+ * other grouping that is enough (the row's cell just shows the new value), but `groupBy ===
+ * 'status'` renders the bucket itself as the status, so a moved row must actually move buckets.
+ * All 4 buckets are rebuilt from live (overridden) status rather than patching the projected
+ * ones, so a status with zero DB rows but a fresh override still gets a bucket to land in.
+ */
+function regroupByLiveStatus(
+  groups: readonly RenderGroup[],
+  now: Date,
+  t: ReturnType<typeof useT>,
+): RenderGroup[] {
+  const bucketByStatus = new Map<TaskStatus, RenderGroup>(
+    STATUS_ORDER.map((status) => [status, {
+      key: status, label: statusGroupLabel(status, t), rows: [], overdue: 0, prefillParam: '',
+    }]),
+  )
+  for (const group of groups) {
+    for (const row of group.rows) {
+      const bucket = bucketByStatus.get(row.status)
+      if (!bucket) continue
+      bucket.rows.push(row)
+      if (isOverdue(row, now)) bucket.overdue += 1
+    }
+  }
+  return STATUS_ORDER.map((status) => bucketByStatus.get(status)!).filter((group) => group.rows.length > 0)
 }
 
 function buildRenderGroups(
@@ -249,7 +282,7 @@ function buildRenderGroups(
   statusOverrides: ReadonlyMap<string, TaskStatus>,
   t: ReturnType<typeof useT>,
 ): RenderGroup[] {
-  return projection.groups.map((group) => ({
+  const groups = projection.groups.map((group) => ({
     key: group.key,
     label: localizedGroupLabel(group, query, t),
     rows: group.rows
@@ -266,6 +299,7 @@ function buildRenderGroups(
     },
     occurrenceRollup: group.occurrenceRollup,
   }))
+  return query.groupBy === 'status' && statusOverrides.size > 0 ? regroupByLiveStatus(groups, context.now, t) : groups
 }
 
 function buildFlatRows(
