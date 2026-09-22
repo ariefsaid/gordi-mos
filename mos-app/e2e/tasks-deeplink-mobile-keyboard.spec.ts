@@ -104,5 +104,7 @@ test('AC-109 (J6): keyboard — j j Enter opens the 2nd row; Esc closes; n opens
   await page.getByRole('heading', { name: 'Tasks', exact: true }).click()
   await page.keyboard.press('n')
   await expect(page).toHaveURL(/\/work\/tasks$/)
-  await expect(page.getByRole('textbox', { name: 'Edit task title', exact: true })).toBeVisible()
+  // task-create-form.tsx: the ONE create form's Title field — "Edit task title" was the retired
+  // TaskDrawer inline-rename control's name; the create draft's own Title field is just "Title".
+  await expect(page.getByRole('textbox', { name: 'Title', exact: true })).toBeVisible()
 })

@@ -56,7 +56,9 @@ test.describe('bounded visual and interaction acceptance', () => {
       await assertNoPageOverflow(page)
       await capture(`home-signal-panel-${width}`, page)
 
-      await panel.getByRole('button', { name: 'Open full page', exact: true }).click()
+      // signal-record.tsx: "Open full page" rides the "•••" overflow menu now, not a direct button.
+      await panel.getByRole('button', { name: 'More Signal actions', exact: true }).click()
+      await panel.getByRole('menuitem', { name: 'Open full page', exact: true }).click()
       await expect(page).toHaveURL(new RegExp(`/work/signals/${activeSignalId}$`))
       await expect(page.getByRole('link', { name: 'Back to Home', exact: true })).toBeVisible()
       await expect(page.getByRole('heading', { name: LONG_SIGNAL, exact: true })).toBeVisible()
@@ -162,8 +164,12 @@ test.describe('bounded visual and interaction acceptance', () => {
           height: element.getBoundingClientRect().height,
         }))
         expect(optionsGeometry.scrollWidth).toBeLessThanOrEqual(optionsGeometry.clientWidth + 1)
-        expect(optionsGeometry.height, 'desktop toolbar row 2 must remain one visual line').toBeLessThanOrEqual(60)
-        const searchFit = await filters.getByRole('searchbox', { name: 'Search tasks', exact: true }).evaluate((element) => {
+        // #870 (guards.geometry.spec.ts, commit 40c2f3ef): the retired two-row toolbar's "row 2
+        // stays one visual line" guard is deleted — the door panel wraps now, by ruling, not bug.
+        // The search field rides the view-axis row beside the door on desktop (searchInViewRow,
+        // collection-toolbar.tsx), not inside the options group — scoped to the whole toolbar,
+        // same as this file's own Indonesian-locale case below (line ~286).
+        const searchFit = await toolbar.getByRole('searchbox', { name: 'Search tasks', exact: true }).evaluate((element) => {
           const input = element as HTMLInputElement
           const canvas = document.createElement('canvas')
           const context = canvas.getContext('2d')
@@ -200,11 +206,10 @@ test.describe('bounded visual and interaction acceptance', () => {
           expect(rect.left, `${rect.name} control must stay inside its toolbar slot`).toBeGreaterThanOrEqual(rect.containerLeft - 1)
           expect(rect.right, `${rect.name} control must stay inside its toolbar slot: ${JSON.stringify(rect)}`).toBeLessThanOrEqual(rect.containerRight + 1)
         }
-        for (let index = 1; index < controlRects.length; index += 1) {
-          expect(controlRects[index - 1].right).toBeLessThanOrEqual(controlRects[index].left + 1)
-        }
-        const centers = controlRects.map((rect) => rect.centerY)
-        expect(Math.max(...centers) - Math.min(...centers), 'desktop toolbar row 2 must share one center').toBeLessThanOrEqual(2)
+        // #870 (guards.geometry.spec.ts GUARD-PRIMARY, commit 40c2f3ef): the retired two-row
+        // toolbar's strict left-to-right order and shared-centre-line guards are deleted — the
+        // door panel wraps now, by ruling. Layout-independence is what survives: every control
+        // stays inside the toolbar slot and shows its own text (asserted above/below).
       }
       await capture(`tasks-filters-${width}`, page)
 
@@ -294,7 +299,11 @@ test.describe('bounded visual and interaction acceptance', () => {
       expect(searchFit, 'Cari tugas placeholder must remain fully visible').toBe(true)
       await expect(filters.getByRole('button', { name: 'Kolom', exact: true })).toContainText('Kolom')
       await expect(filters.getByRole('button', { name: 'Simpan tampilan', exact: true })).toContainText('Simpan')
-      await expect(filters.getByRole('combobox', { name: /memerlukan perhatian/i })).toContainText('3 perlu perhatian')
+      // The count is the live org-wide overdue+blocked total (tasks-workspace.tsx stats,
+      // recomputed off real records), not a fixture this file owns — a fixed literal here pins
+      // whatever the shared dev DB held on some past run. The goal this test owns is the
+      // localized grammar and fit, so it asserts the live shape instead of a frozen number.
+      await expect(filters.getByRole('combobox', { name: /memerlukan perhatian/i })).toHaveText(/^\d+ perlu perhatian$/)
 
       const group = filters.getByRole('combobox', { name: 'Kelompok', exact: true })
       await group.click()

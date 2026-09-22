@@ -107,12 +107,13 @@ test('AC-004: /tasks/:taskId redirects to /work/tasks/:taskId and renders the ta
 
 test('AC-005: /kitchen/* redirects to /cafe/* and renders the re-homed kitchen surfaces', async ({ page }) => {
   const cases = [
-    // The table's accessible name is DataTable's `caption` prop (data-table.tsx: `<table
-    // aria-label={caption}>`), which kitchen-log-page.tsx sets to `kitchen.log.caption` — "Café
-    // production log …" (i18n/messages.ts). The Kitchen→Café rename that moved this route also
-    // renamed the table's own name; "kitchen production log" no longer exists anywhere on the page.
-    // DD-MVP-17: /cafe/log now aliases the Café root; the same production-log table renders there.
-    { oldPath: 'kitchen/log', finalPath: /\/cafe$/, surface: page.getByRole('table', { name: /café production log/i }) },
+    // DD-MVP-17: /cafe/log now aliases the Café root. That root's own content is opening-state
+    // gated (cafe-opening-page.tsx: choice → not-started opening panel → the production log
+    // table only once today's opening is STARTED) — a real precondition AC-014/AC-090/AC-720
+    // own, not this redirect-map walk. What this row is for is the ONE-HOP landing on a real
+    // rendered Café surface, so it reads the page-head heading every state renders, not the
+    // table that only one of them does.
+    { oldPath: 'kitchen/log', finalPath: /\/cafe$/, surface: page.getByTestId('page-head').getByRole('heading', { name: /^café/i }) },
     { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, surface: page.getByRole('heading', { name: /café · (plan|pesanan)/i }) },
     { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, surface: page.getByRole('heading', { name: /café · stock/i }) },
     { oldPath: 'kitchen/review', finalPath: /\/cafe\/review$/, surface: page.getByRole('heading', { name: /café · review/i }) },

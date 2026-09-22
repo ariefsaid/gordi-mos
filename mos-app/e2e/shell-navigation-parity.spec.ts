@@ -10,7 +10,10 @@ const personas = [
   { name: 'Finance', email: 'fitri.dev@example.test', password: VIEWER.password, cafe: false, capture: false, revenue: true, view: 'My work' },
   { name: 'Sales', email: 'sari.dev@example.test', password: VIEWER.password, cafe: false, capture: false, revenue: false, view: 'My work' },
   { name: 'director', ...MANAGER, cafe: false, capture: true, revenue: true, view: 'All' },
-  { name: 'admin', ...ADMIN, cafe: false, capture: true, revenue: true, view: 'All' },
+  // capabilities.ts REVENUE_VIEW_ROLES = finance/manager/supervisor (#797/OD-WAY-98 dropped admin
+  // from both money-read sets): admin is the users-and-settings role and reads no money of its
+  // own — the ADMIN fixture holds only `admin` (global-setup.ts), so it has no revenue view here.
+  { name: 'admin', ...ADMIN, cafe: false, capture: true, revenue: false, view: 'All' },
 ]
 
 for (const actor of personas) {

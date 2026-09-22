@@ -33,6 +33,14 @@ test.describe('shell aria-current', () => {
   test('AC-007: desktop routes render exactly one aria-current="page"', async ({ page }) => {
     for (const path of desktopRoutes) {
       await page.goto(path)
+      // KNOWN PRODUCT DEFECT (left red, not weakened): breadcrumb.tsx's own Rule 5 says "rail
+      // owns it; breadcrumb leaf when the viewer has no rail entry" — but the desktop
+      // leafCarriesCurrent formula only checks `destination.zone === 'modules'`. OD-WAY-77
+      // (docs/decisions.md) retired /profile's rail row (it now lives only in the footer
+      // UserChip menu) without updating that formula for the 'utility' zone, so Rule 5's own
+      // stated intent is unmet for this one route: nothing marks /profile current on desktop.
+      // Fix belongs in src/shell/breadcrumb.tsx's leafCarriesCurrent (desktop branch), out of
+      // scope for e2e/.
       await expect.poll(() => pageCurrentCount(page)).toBe(1)
     }
   })

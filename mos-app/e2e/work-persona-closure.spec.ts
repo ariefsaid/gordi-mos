@@ -168,7 +168,7 @@ test('joined persona and fixture evidence: graph, current/past occurrence, and d
 
     // The same current Work record is opened by a dedicated ordinary member. This actor has no
     // Team membership and no access-role grant in the inventory; the UI must not expose the
-    // owning-Team start/assignment control or a readable Signal record from another Team.
+    // owning-Team start/assignment control.
     await page.evaluate(() => localStorage.clear())
     await loginAs(page, RECOVERY_VIEWER.email, RECOVERY_VIEWER.password)
     await page.goto(`work/projects/${WORK_LINE_ID}`)
@@ -178,10 +178,18 @@ test('joined persona and fixture evidence: graph, current/past occurrence, and d
     await expect(page.getByRole('button', { name: /to assign/i })).toHaveCount(0)
     browserJourneys.push({ actor: 'Recovery Tester', authority: 'no Team membership; no access-role grant', record: runId, action: 'open same Process record', outcome: 'record frame visible but no current occurrence assignment control' })
 
+    // OD-WAY-102 (docs/decisions.md, owner 2026-09-18): "A Signal's audience is All Teams; a
+    // Team audience is a retired historical state." Every new Signal is audience='org',
+    // owning_team_id null, "readable by every active same-org member" — confirmed against this
+    // fixture directly (mos.signals: owning_team_id IS NULL, audience='org') and against the
+    // live seed, which no longer holds any Team-scoped row to exercise the old denial with.
+    // RECOVERY_VIEWER's Team-less/role-less authority no longer gates this read at all; the
+    // journey this step now owns is that an org member reads an org-wide Signal, not a denial.
+    // The org-BOUNDARY denial (a person outside the org entirely) is separate, unaffected
+    // coverage — AC-430-post-a-signal.spec.ts's "unrelated org targets" case.
     await page.goto(`work/signals/${SIGNAL_ID}`)
-    const signalUnavailable = page.getByRole('alert')
-    await expect(signalUnavailable).toContainText('That Signal no longer exists.')
-    browserJourneys.push({ actor: 'Recovery Tester', authority: 'no active Team membership; RLS read gate returns no row', record: SIGNAL_ID, action: 'direct-load seeded Signal', outcome: (await signalUnavailable.innerText()).trim() })
+    await expect(page.getByRole('button', { name: /more signal actions/i })).toBeVisible()
+    browserJourneys.push({ actor: 'Recovery Tester', authority: 'org member, no Team membership — OD-WAY-102 org-wide audience', record: SIGNAL_ID, action: 'direct-load seeded Signal', outcome: 'Signal record rendered (org-audience read has no Team gate)' })
 
     // Finance and Sales are real seeded members of non-stream Teams. Their Home journeys are
     // read-only admission checks against the same organization, not role-label inference.
