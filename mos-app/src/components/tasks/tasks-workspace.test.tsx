@@ -96,6 +96,17 @@ const managerState: AuthState = {
   ...authedState,
   viewer: { ...authedState.viewer, isManager: true },
 }
+// A non-apex role (reports_to_role_id set) with a report: getTaskDefaultView (task-default-view.ts)
+// seeds this persona's initial view as 'team-work', not 'all' — the state #900 needs to reproduce
+// the unrequested `?view=team-work` the engine writes for a role default nobody chose.
+const teamScopedRole: RolesRow = {
+  ...mockRole, id: 'role-team-lead', reports_to_role_id: 'role-parent',
+}
+const teamScopedState: AuthState = {
+  status: 'authenticated',
+  viewer: { person: VIEWER_PERSON, roles: [teamScopedRole], isManager: true, accessRoles: [], affiliated: [] },
+  signOut: async () => {},
+}
 
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   return {
@@ -320,6 +331,49 @@ describe('D3e — Tasks create is an inline title row', () => {
     expect(mockCreateTask.mock.calls[0][0]).toMatchObject({
       title: 'Project task', workLineId: 'wl-1', objectiveId: 'obj-1', teamId: 'team-1', businessUnitId: 'bu-1',
     })
+  })
+
+  // #900: a viewer whose role-aware default view (getTaskDefaultView) is NOT 'all' hits the SAME
+  // getPersonTeams directory read twice — once here for the draft form's own Team combobox, once
+  // inside task-collection-adapter's loadTaskCollection (gated on `view === 'team-work'`, used to
+  // scope the team-work filter). Both are deferred and released together; the draft must open once
+  // they settle.
+  it('opens ?create=1 for a team-scoped default view once both directory reads settle', async () => {
+    const teamsResolvers: Array<(teams: typeof VIEWER_TEAMS) => void> = []
+    vi.mocked(getPersonTeams).mockImplementation(() => new Promise((resolve) => { teamsResolvers.push(resolve) }))
+    mockListTasks.mockResolvedValue([])
+    renderTable({}, teamScopedState, ['/work/tasks?create=1'])
+    await waitFor(() => expect(teamsResolvers.length).toBeGreaterThanOrEqual(2))
+    await act(async () => {
+      for (const resolve of teamsResolvers) resolve(VIEWER_TEAMS)
+    })
+    const title = await screen.findByRole('textbox', { name: /title/i })
+    expect(title).toHaveFocus()
+  })
+
+  // #900 AC: the role default must never leak into the address bar as an unrequested filter — it
+  // shapes what's shown, not what the viewer is deemed to have asked for. A sign-in return target
+  // of /work/tasks (auth-password-login.spec.ts AC-011) must land on exactly that route.
+  it('a team-scoped default view never injects ?view= into a plain /work/tasks landing', async () => {
+    mockListTasks.mockResolvedValue([])
+    // renderAt hard-codes authedState; teamScopedState needs its own harness for this claim.
+    let current: ReturnType<typeof useLocation> | null = null
+    function Probe() { current = useLocation(); return null }
+    render(
+      <I18nProvider>
+        <AuthContext.Provider value={teamScopedState}>
+          <MemoryRouter initialEntries={['/work/tasks']}>
+            <OverlayHostProvider>
+              <Probe />
+              <TasksWorkspace />
+            </OverlayHostProvider>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
+    await waitFor(() => expect(current?.search ?? '').toBe(''))
+    expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')
   })
 })
 

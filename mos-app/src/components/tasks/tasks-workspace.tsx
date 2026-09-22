@@ -212,6 +212,15 @@ export function TasksWorkspace({
       ? new URLSearchParams(location.search)
       : null,
   )
+  // OD-WAY-94's role-aware default (defaultTaskView, above) seeds state.query.view for a viewer who
+  // never picked one. The generic collection engine (use-record-collection's synced-URL effect)
+  // cannot tell "defaulted" from "chosen" — it mirrors every non-neutral query field into the URL
+  // for shareability, so a bare landing settles at `?view=team-work` the viewer never asked for
+  // (#900): it corrupts a sign-in return target (AC-011 expects the bare route) and, worse, races
+  // the create-draft's own `?create=1` URL cleanup below — two effects independently patching the
+  // same address bar can each overwrite the other's delta. `false` here means "nothing explicit
+  // yet"; `handleViewChange`/`onClearFilters` (via setQuery) and the saved-view apply flip it true.
+  const viewChosenRef = useRef(new URLSearchParams(location.search).has('view'))
 
   useEffect(() => {
     let active = true
@@ -275,6 +284,7 @@ export function TasksWorkspace({
   }, [refreshKey])
 
   const setQuery = useCallback((patch: Partial<TaskCollectionQuery>) => {
+    if (patch.view !== undefined) viewChosenRef.current = true
     controller.setQuery({ ...controller.state.query, ...patch })
   }, [controller])
 
@@ -320,6 +330,14 @@ export function TasksWorkspace({
   // OverlayHost session (route marker) supplies the focus/Back/leave-guard. This mirrors the Signals
   // archive seam exactly (signals-archive-page.tsx).
   const [params, setParams] = useSearchParams()
+  // Strips a `view=` nobody chose (viewChosenRef). It reacts to `params` rather than writing at
+  // mount so it always sees the settled URL, never a snapshot from before the engine's own sync.
+  useEffect(() => {
+    if (viewChosenRef.current || !params.has('view')) return
+    const next = new URLSearchParams(params)
+    next.delete('view')
+    setParams(next, { replace: true })
+  }, [params, setParams])
   const createIntentRef = useRef(
     new URLSearchParams(location.search).get('create') === '1'
       || location.pathname === '/work/tasks/new',
@@ -804,7 +822,7 @@ export function TasksWorkspace({
         error: state.savedViews.error,
         items: state.savedViews.items.map((item) => ({ id: item.id, name: item.name })),
         onLoad: () => controller.loadSavedViews(),
-        onApply: async (id) => { await controller.applySavedView(id) },
+        onApply: async (id) => { viewChosenRef.current = true; await controller.applySavedView(id) },
         onSave: (name) => controller.saveCurrentView(name, 'private'),
       }}
     />
