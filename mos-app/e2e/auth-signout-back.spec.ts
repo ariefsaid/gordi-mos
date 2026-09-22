@@ -5,11 +5,12 @@
 
 import { test, expect } from '@playwright/test'
 import { VIEWER } from './fixtures/users'
-import { loginAs } from './helpers/login'
+// The form, deliberately: Back must pop inside the app document for the guard to be measured.
+import { loginViaForm } from './helpers/login'
 
 test('AC-002: sign-out and back-button guard', async ({ page }) => {
   // Sign in as VIEWER
-  await loginAs(page, VIEWER.email, VIEWER.password)
+  await loginViaForm(page, VIEWER.email, VIEWER.password)
 
   // Wait for home — the document title confirms successful auth (FR-013).
   // STALE (v4): Home's h1 is a time-dependent greeting ("Good afternoon/evening, <name>" — see

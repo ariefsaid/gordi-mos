@@ -30,7 +30,7 @@ function loadSavedState(email: string): SavedStorageState | null {
 
 /** Drives the real sign-in form. The fallback path when no saved session exists (or the app
  *  rejected one), and the one journey (auth-password-login.spec.ts) that must always use it. */
-async function loginViaForm(page: Page, email: string, password: string) {
+export async function loginViaForm(page: Page, email: string, password: string) {
   // A goto() to a URL the page is ALREADY on (e.g. a test that signed out mid-test — its
   // ProtectedRoute bounce SPA-navigates here with `state: {from: '<the route it was on>'}` —
   // then calls loginAs again on the same page) reloads the SAME history entry rather than
@@ -78,5 +78,7 @@ export async function loginAs(page: Page, email: string, password: string) {
   } catch {
     console.warn(`[loginAs] saved session for ${email} was rejected — falling back to the sign-in form`)
     await loginViaForm(page, email, password)
+    // A sign-out elsewhere revoked the shared session; the fresh one serves the specs that follow.
+    await page.context().storageState({ path: storageStatePath(email) })
   }
 }
