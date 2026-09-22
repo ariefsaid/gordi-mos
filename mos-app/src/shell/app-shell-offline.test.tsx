@@ -16,17 +16,24 @@ import { RouteErrorBoundary } from '@/components/RouteErrorBoundary'
 import { ProtectedRoute } from '@/auth/protected-route'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
-vi.mock('@/lib/db/directory', () => ({
-  getBusinessUnits: vi.fn().mockResolvedValue([]),
-  getPeople: vi.fn().mockResolvedValue([]),
-}))
-vi.mock('@/lib/db/notifications', () => ({
-  countUnread: vi.fn().mockResolvedValue(0),
-  listNotifications: vi.fn().mockResolvedValue([]),
-}))
+vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn() }))
+vi.mock('@/lib/db/notifications', () => ({ countUnread: vi.fn(), listNotifications: vi.fn() }))
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
+import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { countUnread, listNotifications } from '@/lib/db/notifications'
 const mockUseAuth = vi.mocked(useAuth)
+
+// The shell's header reads on mount (unread count, directory). `vi.restoreAllMocks()` in afterEach
+// strips a factory-time `mockResolvedValue`, so from the second test on those reads resolved
+// `undefined` and the bell's late state update raced the boundary's error commit — the flake (#871).
+// Arm them before every test instead.
+beforeEach(() => {
+  vi.mocked(countUnread).mockResolvedValue(0)
+  vi.mocked(listNotifications).mockResolvedValue([])
+  vi.mocked(getBusinessUnits).mockResolvedValue([])
+  vi.mocked(getPeople).mockResolvedValue([])
+})
 
 import { AppShell } from './app-shell'
 
@@ -81,7 +88,16 @@ function renderShell(page: React.ReactNode, { crashBoundary = false } = {}) {
   return render(crashBoundary ? <ErrorBoundary>{tree}</ErrorBoundary> : tree)
 }
 
-afterEach(() => {
+/** The shell settles once the header's mount-time reads have landed. A test that returns before then
+ *  leaves state updates in flight for the next test to trip over — the load-dependent flake (#871). */
+async function shellSettled() {
+  if (!document.querySelector('header')) return
+  await waitFor(() => expect(countUnread).toHaveBeenCalled())
+  await act(async () => { await Promise.resolve() })
+}
+
+afterEach(async () => {
+  await shellSettled()
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
   localStorage.clear()
   vi.restoreAllMocks()
@@ -291,7 +307,7 @@ describe('AC-025 — a rejected data read is an error inside the frame', () => {
 // AC-026
 // ─────────────────────────────────────────────────────────────────────────────
 describe('AC-026 — the header says offline exactly once, and only while offline', () => {
-  it('shows one muted line while the browser reports offline, and none when it returns', () => {
+  it('shows one muted line while the browser reports offline, and none when it returns', async () => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
     renderShell(<div>page</div>)
 
@@ -304,15 +320,17 @@ describe('AC-026 — the header says offline exactly once, and only while offlin
 
     setOnline(false)
     expect(screen.getAllByText('You’re offline')).toHaveLength(1)
+    await shellSettled()
   })
 
-  it('renders the Indonesian line under locale id', () => {
+  it('renders the Indonesian line under locale id', async () => {
     localStorage.setItem('mos.locale', 'id')
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
     renderShell(<div>page</div>)
 
     expect(screen.getByText('Anda sedang offline')).toBeInTheDocument()
     expect(screen.queryByText('You’re offline')).toBeNull()
+    await shellSettled()
   })
 })
 })

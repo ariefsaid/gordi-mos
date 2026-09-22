@@ -171,10 +171,54 @@ test.describe('desktop geometry guards', () => {
       expect(labels.length, `${state}: visible solid primaries ${JSON.stringify(labels)}`).toBeLessThanOrEqual(1)
     }
 
-    // Rest state: the one page CTA is the only filled primary.
-    await assertOnePagePrimary('rest state')
+    const assertNoPageScroll = async (state: string) => {
+      const pageScroll = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+      }))
+      expect(pageScroll.scrollWidth, `${state}: the document never scrolls sideways`).toBe(pageScroll.innerWidth)
+    }
 
-    const saveTrigger = page.getByRole('button', { name: /^save view$/i })
+    // Rest state: the one page CTA is the only filled primary, and the page band fits the viewport.
+    await assertOnePagePrimary('rest state')
+    await assertNoPageScroll('rest state')
+
+    // Desktop keeps the options (filters, Fields, Save view) behind the one "View & filters"
+    // door on the view axis (#870); every toolbar state below is reached through it.
+    const door = toolbar.getByRole('button', { name: /^view & filters/i })
+    await expect(door).toHaveAttribute('aria-expanded', 'false')
+    await door.click()
+    await expect(door).toHaveAttribute('aria-expanded', 'true')
+    await expect(toolbar.getByRole('group', { name: /^view & filters$/i })).toBeVisible()
+    await assertOnePagePrimary('View & filters door open')
+    // The opened door carries the whole option set: four view chips, the search plus five
+    // selects, and the two ghost actions (Fields, Save view). A filter dropped from the desktop
+    // panel reddens here, as it does on the phone panel in GUARD-TAP #667.
+    const census = await toolbar.evaluate((element) => ({
+      chips: element.querySelectorAll('.collection-toolbar__view').length,
+      dropdowns: element.querySelectorAll('.collection-toolbar__search, .collection-toolbar__select').length,
+      ghosts: element.querySelectorAll('.collection-toolbar__options .btn').length,
+    }))
+    expect(census, 'View & filters door open: option census').toEqual({ chips: 4, dropdowns: 6, ghosts: 2 })
+    // Layout-independent: every control sits inside the toolbar and contains its own text.
+    // (The retired two-row shape also pinned one shared centre line per row; the door panel wraps.)
+    const fit = await toolbar.evaluate((element) => {
+      const box = element.getBoundingClientRect()
+      return Array.from(element.querySelectorAll(
+        '.collection-toolbar__view, .collection-toolbar__search, .collection-toolbar__select, .collection-toolbar__options .btn',
+      )).map((control) => {
+        const rect = control.getBoundingClientRect()
+        return {
+          name: control.getAttribute('aria-label') ?? control.textContent?.trim().replace(/\s+/g, ' ') ?? '',
+          inside: rect.x >= box.x - 0.5 && rect.right <= box.right + 0.5,
+          overflows: control.scrollHeight > control.clientHeight + 1 || control.scrollWidth > control.clientWidth + 1,
+        }
+      })
+    })
+    expect(fit.filter((c) => !c.inside), 'door open: controls stay inside the toolbar').toEqual([])
+    expect(fit.filter((c) => c.overflows), 'door open: controls contain their text').toEqual([])
+
+    const saveTrigger = toolbar.getByRole('button', { name: /^save view$/i })
     await expect(saveTrigger).toBeVisible()
     await expect(saveTrigger).not.toHaveClass(/btn-primary/)
     await saveTrigger.click()
@@ -183,6 +227,19 @@ test.describe('desktop geometry guards', () => {
     // action. If both remain solid here, the product surface needs to hide or de-emphasize the
     // PageHead action while the save form is open; the rendered guard must stay strict.
     await assertOnePagePrimary('Save view form open')
+    await page.getByRole('group', { name: /save current view/i }).getByRole('button', { name: /^cancel$/i }).click()
+
+    // The Fields chooser is the last toolbar state, and the one that widens the table: with every
+    // optional column on, the Task column keeps its 160px floor and the page never scrolls sideways.
+    await expect(page.locator('tr.task-row').first()).toBeVisible()
+    await toolbar.getByRole('button', { name: /^fields$/i }).click()
+    for (const field of ['Business unit', 'Project/Process', 'Objective', 'Last activity']) {
+      await toolbar.getByRole('checkbox', { name: field, exact: true }).check()
+    }
+    await assertOnePagePrimary('Fields chooser open')
+    const taskWidth = await page.locator('tr.task-row td.td-main').first().evaluate((cell) => cell.getBoundingClientRect().width)
+    expect(taskWidth, 'Task keeps its 160px floor with every optional field on').toBeGreaterThanOrEqual(160)
+    await assertNoPageScroll('Fields chooser open')
   })
 
   test('GUARD-R3: the saved-view label keeps a measured ≥8px gap from the first chip', async ({ page }) => {
@@ -192,117 +249,6 @@ test.describe('desktop geometry guards', () => {
     const firstChip = await box(toolbar.locator('.collection-toolbar__view').first())
     const gap = firstChip.x - (label.x + label.width)
     expect(gap, 'saved-view label→content seam must be a real gap, not a fused blob').toBeGreaterThanOrEqual(8)
-  })
-})
-
-// ── Tasks toolbar geometry — OD-WAY-89 / DESIGN.md §7 ────────────────────────────────
-// Desktop owns exactly two exposed rows. Phones place this same toolbar behind one outer
-// View & filters door, so no desktop Filters door or stacked configuration panel is allowed.
-test.describe('tasks collection toolbar geometry', () => {
-  test('desktop exposes two one-line rows with the e7 control classes', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await loginAs(page, VIEWER.email, VIEWER.password)
-    await page.goto('work/tasks')
-    await page.waitForURL(/\/work\/tasks$/)
-
-    const toolbar = page.getByTestId('record-collection-toolbar')
-    await expect(toolbar).toBeVisible()
-    const rows = toolbar.locator('[data-testid="collection-toolbar-row"]')
-    await expect(rows).toHaveCount(2)
-    await expect(toolbar.getByRole('button', { name: 'All', exact: true })).toBeVisible()
-    await expect(toolbar.getByRole('searchbox', { name: /search tasks/i })).toBeVisible()
-    await expect(toolbar.getByRole('combobox', { name: /^group$/i })).toBeVisible()
-    await expect(toolbar.getByRole('combobox', { name: /business unit/i })).toBeVisible()
-    await expect(toolbar.getByRole('button', { name: /^status$/i })).toBeVisible()
-    await expect(toolbar.getByRole('combobox', { name: /^person$/i })).toBeVisible()
-    await expect(toolbar.getByRole('combobox', { name: /^sort$/i })).toBeVisible()
-    await expect(toolbar.getByRole('button', { name: /^fields$/i })).toBeVisible()
-    await expect(toolbar.getByRole('button', { name: /^save view$/i })).toBeVisible()
-    await expect(toolbar.getByRole('button', { name: /^filters$/i })).toHaveCount(0)
-
-    for (const row of await rows.all()) {
-      const geometry = await row.evaluate((element) => {
-        const rowRect = element.getBoundingClientRect()
-        const controls = element.querySelectorAll(
-          '.collection-toolbar__view, .collection-toolbar__search, .collection-toolbar__select, .collection-toolbar__fields > .btn, .collection-toolbar__save-zone > .btn, .overdue-filter-btn',
-        )
-        return {
-          row: { x: rowRect.x, right: rowRect.right },
-          controls: Array.from(controls).map((control) => {
-          const rect = control.getBoundingClientRect()
-          const parent = control.parentElement
-          return {
-            name: control.getAttribute('aria-label') ?? control.textContent?.trim().replace(/\s+/g, ' ') ?? control.className,
-            className: typeof control.className === 'string' ? control.className : '',
-            parentClassName: parent?.className ?? '',
-            parentFlex: parent ? getComputedStyle(parent).flex : '',
-            parentWidth: parent?.getBoundingClientRect().width ?? 0,
-            centerY: rect.top + rect.height / 2,
-            x: rect.x,
-            right: rect.right,
-            scrollHeight: control.scrollHeight,
-            clientHeight: control.clientHeight,
-            scrollWidth: control.scrollWidth,
-            clientWidth: control.clientWidth,
-          }
-          }),
-        }
-      })
-      expect(geometry.controls.length, 'every toolbar row control must be rendered').toBeGreaterThan(0)
-      const centers = geometry.controls.map(({ centerY }) => centerY)
-      expect(Math.max(...centers) - Math.min(...centers), 'each row must share one vertical center').toBeLessThanOrEqual(2)
-      expect(
-        geometry.controls.every(({ x, right }) => x >= geometry.row.x - 0.5 && right <= geometry.row.right + 0.5),
-        'toolbar controls must stay inside their row',
-      ).toBe(true)
-      const overflowingControls = geometry.controls.filter(({ scrollHeight, clientHeight, scrollWidth, clientWidth }) =>
-        scrollHeight > clientHeight + 1 || scrollWidth > clientWidth + 1,
-      )
-      expect(overflowingControls, `toolbar controls must contain their text; overflow: ${JSON.stringify(overflowingControls)}`).toEqual([])
-    }
-
-    const census = await toolbar.evaluate((element) => ({
-      chips: element.querySelectorAll('.collection-toolbar__view').length,
-      dropdowns: element.querySelectorAll('.collection-toolbar__search, .collection-toolbar__select').length,
-      ghosts: element.querySelectorAll('.collection-toolbar__options .btn').length,
-      pills: element.querySelectorAll('.overdue-filter-btn').length,
-      checkboxes: element.querySelectorAll('input[type="checkbox"]').length,
-    }))
-    expect(census.chips).toBe(4)
-    expect(census.dropdowns).toBe(6)
-    expect(census.ghosts).toBe(2)
-    expect(census.pills).toBeLessThanOrEqual(1)
-    expect(census.checkboxes).toBe(0)
-
-    const pageScroll = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      innerWidth: window.innerWidth,
-    }))
-    expect(pageScroll.scrollWidth).toBe(pageScroll.innerWidth)
-  })
-
-  test('desktop Fields chooser preserves optional columns and the Task width floor', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await loginAs(page, VIEWER.email, VIEWER.password)
-    await page.goto('work/tasks')
-    await page.waitForURL(/\/work\/tasks$/)
-    const toolbar = page.getByTestId('record-collection-toolbar')
-    await expect(toolbar).toBeVisible()
-    await expect(page.locator('tr.task-row').first()).toBeVisible()
-
-    await toolbar.getByRole('button', { name: /^fields$/i }).click()
-    for (const field of ['Business unit', 'Project/Process', 'Objective', 'Last activity']) {
-      await toolbar.getByRole('checkbox', { name: field, exact: true }).check()
-    }
-    await toolbar.getByRole('button', { name: /^fields$/i }).click()
-
-    const taskWidth = await page.locator('tr.task-row td.td-main').first().evaluate((cell) => cell.getBoundingClientRect().width)
-    expect(taskWidth, 'Task keeps its 160px floor with every optional field on').toBeGreaterThanOrEqual(160)
-    const pageScroll = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      innerWidth: window.innerWidth,
-    }))
-    expect(pageScroll.scrollWidth).toBe(pageScroll.innerWidth)
   })
 })
 
@@ -323,7 +269,7 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
     await loginAs(page, VIEWER.email, VIEWER.password)
   })
 
-  test('GUARD-730: phone record header stays ≤56px, truncates its leaf before controls, and keeps Back ≥44px at 390', async ({ page }) => {
+  test('GUARD-730: phone record header stays ≤56px, clamps its leaf before controls, and keeps Back ≥44px at 390', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('work/tasks')
     const title = `Guard 730 ${'x'.repeat(51)}`
@@ -339,7 +285,14 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
     const firstControl = await box(page.locator('[data-anatomy="header"] button').first())
     const back = await box(page.getByRole('link', { name: /back to/i }))
     expect(header.height, 'phone record header must stay one 56px row').toBeLessThanOrEqual(56)
-    expect(nav.height, 'phone breadcrumb must stay on one line').toBeLessThanOrEqual(24)
+    // #755 FR-020: below rail-collapse the header IS the page title, so the leaf clamps to TWO
+    // lines rather than one-line ellipsis (top-bar.css, pinned in top-bar.test.tsx). The measure
+    // is the leaf's own line box, so the clamp is judged in its real type size.
+    const lineHeight = await leafLocator.evaluate((element) => parseFloat(getComputedStyle(element).lineHeight))
+    expect(lineHeight).toBeGreaterThan(0)
+    expect(nav.height, 'phone breadcrumb must clamp at two lines').toBeLessThanOrEqual(2 * lineHeight + 1)
+    expect(nav.y, 'phone breadcrumb must stay inside the header').toBeGreaterThanOrEqual(header.y)
+    expect(nav.y + nav.height, 'phone breadcrumb must stay inside the header').toBeLessThanOrEqual(header.y + header.height)
     expect(leaf.x + leaf.width, 'breadcrumb leaf must end before the first header control').toBeLessThanOrEqual(firstControl.x - 8)
     expect(back.height, 'record Back must meet the phone tap floor').toBeGreaterThanOrEqual(44)
   })
@@ -398,7 +351,9 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
 
     const tasksToolbar = page.getByTestId('record-collection-toolbar')
     await expect(tasksToolbar).toBeVisible()
-    await expect(tasksToolbar.getByRole('button', { name: /try again/i })).toBeVisible()
+    // The saved-view read failure keeps its own retry; it names the read it re-issues so it
+    // is never confused with the collection's "Try again" (collection-toolbar.tsx).
+    await expect(tasksToolbar.getByRole('button', { name: /retry saved views/i })).toBeVisible()
     await assertTapFloor(page, '.collection-toolbar__saved-error .btn', 'Tasks saved-view Retry #667', { axes: 'both', noOverflow: true })
     await expect(tasksToolbar.locator('.collection-toolbar__view')).toHaveCount(4)
     await expect(tasksToolbar.getByRole('searchbox', { name: /search tasks/i })).toBeVisible()
@@ -437,13 +392,13 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
     await assertTapFloor(page, '.collection-toolbar__save input, .collection-toolbar__save .btn', 'Tasks save-view form #667', { axes: 'both', noOverflow: true })
     await cancelButton.click()
     await page.keyboard.press('Escape')
-    // #671 retired the create FORM: create is an inline draft row with its title focused, and at
-    // phone width the one create door is the actions FAB. The title field it focuses is the
-    // create surface's tap target now, so the floor is measured there.
+    // Create is the one inline create form (task-create-form.tsx) mounted as a draft row with its
+    // title focused, and at phone width the one create door is the actions FAB. The title field
+    // it focuses is the create surface's tap target, so the floor is measured there.
     await page.getByRole('button', { name: /open actions/i }).click()
     await page.getByRole('option', { name: 'Create task', exact: true }).click()
-    await expect(page.getByRole('textbox', { name: 'Edit task title' })).toBeVisible()
-    await assertTapFloor(page, '.task-title-input.tap-floor', 'Tasks create title #667', { axes: 'both', noOverflow: true })
+    await expect(page.getByRole('form', { name: 'Create task form' }).getByRole('textbox', { name: 'Title', exact: true })).toBeVisible()
+    await assertTapFloor(page, '.tcf-title.tap-floor', 'Tasks create title #667', { axes: 'both', noOverflow: true })
     await page.keyboard.press('Escape')
     const title = `Tap floor guard ${Date.now()}`
     await createTaskViaUI(page, title)
@@ -520,20 +475,31 @@ test.describe('auth-card tap-target guards (GUARD-TAP, #403)', () => {
 const SEARCH_FLOOR = 159.5 // 160px usable-measure floor, 0.5px sub-pixel tolerance (TAP_FLOOR idiom)
 
 async function assertSearchComposed(page: Page, surface: string, { categoryOptional = false } = {}) {
-  const search = await box(page.locator('.ktb-search'))
-  expect(search.width, `${surface}: the dish search keeps its usable measure (≥160px)`).toBeGreaterThanOrEqual(SEARCH_FLOOR)
   const categoryLocator = page.locator('.ktb-category')
-  if (categoryOptional && await categoryLocator.count() === 0) return
-  await expect(categoryLocator).toHaveCount(1)
-  const category = await box(categoryLocator)
+  const hasCategory = !(categoryOptional && await categoryLocator.count() === 0)
+  if (hasCategory) await expect(categoryLocator).toHaveCount(1)
+  // Both boxes are read in ONE frame: the band above the toolbar (opening status, banners)
+  // settles in after the toolbar mounts, and two sequential reads straddling that shift
+  // report a row offset that never existed on screen.
+  const { search, category } = await page.evaluate((withCategory) => {
+    const rect = (selector: string) => {
+      const element = document.querySelector(selector)
+      return element ? element.getBoundingClientRect().toJSON() as { x: number; y: number; width: number; height: number } : null
+    }
+    return { search: rect('.ktb-search'), category: withCategory ? rect('.ktb-category') : null }
+  }, hasCategory)
+  expect(search, `${surface}: expected a rendered box for .ktb-search`).not.toBeNull()
+  expect(search!.width, `${surface}: the dish search keeps its usable measure (≥160px)`).toBeGreaterThanOrEqual(SEARCH_FLOOR)
+  if (!hasCategory) return
+  expect(category, `${surface}: expected a rendered box for .ktb-category`).not.toBeNull()
   expect(
-    Math.abs((search.y + search.height / 2) - (category.y + category.height / 2)),
+    Math.abs((search!.y + search!.height / 2) - (category!.y + category!.height / 2)),
     `${surface}: search and category compose on ONE row`,
   ).toBeLessThanOrEqual(2)
   expect(
-    category.x,
+    category!.x,
     `${surface}: the category sits after the search, not orphaned`,
-  ).toBeGreaterThan(search.x + search.width - 1)
+  ).toBeGreaterThan(search!.x + search!.width - 1)
 }
 
 test.describe('café toolbar desktop geometry guards (GUARD-SEARCH, #378)', () => {

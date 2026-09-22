@@ -35,13 +35,16 @@ export async function createTaskViaUI(
     await emptyDoor.first().click()
   }
 
-  // The draft row mounts in edit mode with the title field focused — no form, no route change.
-  const titleField = page.getByRole('textbox', { name: 'Edit task title' })
+  // The draft row mounts as the one inline create form (task-create-form.tsx) with its title
+  // focused — no route change. Its submit button shares the head door's "Create task" name, so
+  // every control is scoped to the form.
+  const form = page.getByRole('form', { name: 'Create task form' })
+  const titleField = form.getByRole('textbox', { name: 'Title', exact: true })
   await expect(titleField).toBeVisible({ timeout: 10_000 })
   await titleField.fill(title)
   // Multiple eligible Teams intentionally leave ownership unset. Choose a real eligible Team
   // through the same picker as the user; never infer it from the displayed business unit.
-  const team = page.getByRole('combobox', { name: 'Team', exact: true })
+  const team = form.getByRole('combobox', { name: 'Team', exact: true })
   await expect(team).toBeVisible()
   if ((await team.innerText()).includes('Select team')) {
     await team.click()
@@ -50,12 +53,12 @@ export async function createTaskViaUI(
     await expect(team).not.toContainText('Select team')
   }
   // Supervisor is deliberately explicit in the current ownership contract.
-  const supervisor = page.getByRole('combobox', { name: 'Supervisor', exact: true })
+  const supervisor = form.getByRole('combobox', { name: 'Supervisor', exact: true })
   await expect(supervisor).toBeVisible({ timeout: 10_000 })
   await supervisor.click()
   await page.getByRole('listbox', { name: 'Supervisor', exact: true })
     .getByRole('option', { name: 'Cahya Cafe', exact: true }).click()
-  await titleField.press('Enter')
+  await form.getByRole('button', { name: 'Create task', exact: true }).click()
 
   // The committed task replaces the draft row: same title, but a real record id in its href
   // (the draft's own id is `new-task-<ts>`), on the table row and the phone card alike.
