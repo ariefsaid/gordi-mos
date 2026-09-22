@@ -193,12 +193,10 @@ test('joined persona and fixture evidence: graph, current/past occurrence, and d
 
     // Finance and Sales are real seeded members of non-stream Teams. Their Home journeys are
     // read-only admission checks against the same organization, not role-label inference.
-    await page.evaluate(() => localStorage.clear())
-    await loginAs(page, 'sari.dev@example.test', DEMO_PASSWORD)
-    await page.goto('cafe/log')
-    await expect(page.getByRole('status').filter({ hasText: /read Café records/i })).toBeVisible()
-    await expect(page.getByRole('button', { name: /^Submit/i }).first()).toBeDisabled()
-    browserJourneys.push({ actor: 'Sari Sales', authority: 'member of b2b_sales_team; no stream Team', action: 'open Café capture for seeded records', outcome: 'read-only; submit disabled' })
+    // What Sari (no Café team) sees at the Café root is an open owner decision (#894): two rulings
+    // disagree between a read-only log and the location gate. This step resumes with the decision;
+    // it is recorded, not asserted, so the closure ledger stays honest about the gap.
+    browserJourneys.push({ actor: 'Sari Sales', authority: 'member of b2b_sales_team; no stream Team', action: 'open Café capture for seeded records', outcome: 'NOT ASSERTED — owner decision #894 pending' })
 
     await page.evaluate(() => localStorage.clear())
     await loginAs(page, 'fitri.dev@example.test', DEMO_PASSWORD)
