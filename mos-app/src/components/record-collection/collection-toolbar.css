@@ -375,8 +375,9 @@
     flex-basis: 144px;
     width: 144px;
   }
-  html:lang(id) .tasks-collection-toolbar .collection-toolbar__query { flex-basis: 86px; min-width: 86px; }
-  html:lang(id) .tasks-collection-toolbar .collection-toolbar__search { min-width: 86px; }
+  /* The Indonesian placeholder needs ~71px of input net of the icon, gap and padding (~29px). */
+  html:lang(id) .tasks-collection-toolbar .collection-toolbar__query { flex-basis: 106px; min-width: 106px; }
+  html:lang(id) .tasks-collection-toolbar .collection-toolbar__search { min-width: 106px; }
   html:lang(id) .tasks-collection-toolbar .tasks-attention-picker .picker__trigger {
     gap: 2px;
     padding-inline: 1px;
