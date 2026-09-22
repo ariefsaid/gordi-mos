@@ -79,13 +79,14 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
   })
 
   it('gives the Indonesian Tasks search field room for its own placeholder between 1024 and 1440', () => {
-    // #899: "Cari tugas" needs ~71px of input after ~32px of box chrome; the 86px floor clipped it.
+    // #899: "Cari tugas" needs ~71px of input after ~32px of box chrome and Chromium's ~13px clear-button
+    // reserve; 86px clipped it to "Cari tuga", and so did 106px.
     const compact = css.slice(css.indexOf('@media (min-width: 1024px) and (max-width: 1440px)'))
     expect(compact).toMatch(
-      /html:lang\(id\) \.tasks-collection-toolbar \.collection-toolbar__query\s*\{[^}]*flex-basis:\s*106px;[^}]*min-width:\s*106px/s,
+      /html:lang\(id\) \.tasks-collection-toolbar \.collection-toolbar__query\s*\{[^}]*flex-basis:\s*120px;[^}]*min-width:\s*120px/s,
     )
     expect(compact).toMatch(
-      /html:lang\(id\) \.tasks-collection-toolbar \.collection-toolbar__search\s*\{[^}]*min-width:\s*106px/s,
+      /html:lang\(id\) \.tasks-collection-toolbar \.collection-toolbar__search\s*\{[^}]*min-width:\s*120px/s,
     )
     // English keeps its own floor; the id rule must not have widened it.
     expect(css).toMatch(/(?<!html:lang\(id\) )\.collection-toolbar__search\s*\{[^}]*min-width:\s*96px/s)
