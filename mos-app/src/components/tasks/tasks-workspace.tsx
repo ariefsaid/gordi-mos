@@ -330,10 +330,8 @@ export function TasksWorkspace({
   // OverlayHost session (route marker) supplies the focus/Back/leave-guard. This mirrors the Signals
   // archive seam exactly (signals-archive-page.tsx).
   const [params, setParams] = useSearchParams()
-  // Strip a `view=` the engine wrote for the seeded role default (see viewChosenRef above) the
-  // moment it lands in the URL, before it can collide with the create-draft's own cleanup below.
-  // Reacting to `params` (not writing eagerly at mount) means this always sees the settled URL,
-  // never a same-commit snapshot from before the engine's own sync effect ran.
+  // Strips a `view=` nobody chose (viewChosenRef). It reacts to `params` rather than writing at
+  // mount so it always sees the settled URL, never a snapshot from before the engine's own sync.
   useEffect(() => {
     if (viewChosenRef.current || !params.has('view')) return
     const next = new URLSearchParams(params)

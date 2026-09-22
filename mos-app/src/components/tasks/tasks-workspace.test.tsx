@@ -336,10 +336,9 @@ describe('D3e — Tasks create is an inline title row', () => {
   // #900: a viewer whose role-aware default view (getTaskDefaultView) is NOT 'all' hits the SAME
   // getPersonTeams directory read twice — once here for the draft form's own Team combobox, once
   // inside task-collection-adapter's loadTaskCollection (gated on `view === 'team-work'`, used to
-  // scope the team-work filter). Deferring both independently, in reverse-resolution order, pins
-  // that the create-effect's viewerTeams re-trigger (tasks-workspace.tsx ~685-700) still opens the
-  // draft regardless of which directory read lands first.
-  it('opens ?create=1 for a team-scoped default view once both directory reads settle, in either order', async () => {
+  // scope the team-work filter). Both are deferred and released together; the draft must open once
+  // they settle.
+  it('opens ?create=1 for a team-scoped default view once both directory reads settle', async () => {
     const teamsResolvers: Array<(teams: typeof VIEWER_TEAMS) => void> = []
     vi.mocked(getPersonTeams).mockImplementation(() => new Promise((resolve) => { teamsResolvers.push(resolve) }))
     mockListTasks.mockResolvedValue([])
