@@ -226,12 +226,13 @@ export function CollectionToolbar<
   // An anchored panel that only closes from its own trigger is a panel that stays open while the
   // reader works around it: it overlays the table's own column controls, and a click that lands on
   // one is swallowed by the panel instead. Any pointer landing outside closes it, which is what a
-  // reader means by clicking away.
+  // reader means by clicking away. A picker's listbox is portaled to <body>, so a pointer on one
+  // of its options is inside the door in every sense but the DOM's.
   useEffect(() => {
     if (!desktopOptionsOpen) return
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Element | null
-      if (!target?.closest?.('.collection-toolbar__desktop-door')) setDesktopOptionsOpen(false)
+      if (!target?.closest?.('.collection-toolbar__desktop-door, .picker__menu')) setDesktopOptionsOpen(false)
     }
     document.addEventListener('pointerdown', onPointerDown, true)
     return () => document.removeEventListener('pointerdown', onPointerDown, true)
