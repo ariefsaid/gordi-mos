@@ -64,12 +64,15 @@ export async function loginAs(page: Page, email: string, password: string) {
     return
   }
 
-  const entries = saved.origins.flatMap((origin) => origin.localStorage)
-  if (entries.length > 0) {
-    await page.addInitScript((items) => {
-      for (const { name, value } of items) window.localStorage.setItem(name, value)
-    }, entries)
-  }
+  // Only the session: the capture also recorded app preferences (locale, theme), and a spec's own
+  // init script setting those must win.
+  const entries = saved.origins.flatMap((origin) => origin.localStorage).filter(({ name }) => /^sb-.*-auth-token$/.test(name))
+  // Written on a same-origin document, not through an init script: an init script outlives this
+  // sign-in and would re-inject this persona over a later one on the same page.
+  await page.goto('login')
+  await page.evaluate((items) => {
+    for (const { name, value } of items) window.localStorage.setItem(name, value)
+  }, entries)
   if (saved.cookies.length > 0) await page.context().addCookies(saved.cookies)
   await page.goto('')
 

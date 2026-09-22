@@ -10,12 +10,29 @@
 // in this test does NOT affect VIEWER's credentials used by other e2e specs.
 
 import { test, expect } from '@playwright/test'
+import { createClient } from '@supabase/supabase-js'
+import { readFileSync } from 'node:fs'
 import { RECOVERY_VIEWER } from './fixtures/users'
 import { watchInbox, extractAuthLink } from './helpers/mailpit'
 import { assertTapFloor, AUTH_CONTROLS, TAP_GAP } from './helpers/tap-floor'
 
 // Rotate to a fresh password each run to avoid previous-run state collisions.
 const NEW_PASSWORD = `E2eRecovery${Date.now()}`
+
+// The rotation is this journey's proof; the fixture password goes back afterwards so the specs
+// that sign this persona in later (shell-*-parity's ordinary member) still can.
+test.afterAll(async () => {
+  const env = Object.fromEntries(readFileSync(new URL('../.env.e2e', import.meta.url), 'utf8').split('\n')
+    .filter((line) => line.includes('=') && !line.startsWith('#')).map((line) => line.split('=', 2).map((part) => part.trim())))
+  const url = env.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:44321'
+  if (!['127.0.0.1', 'localhost'].includes(new URL(url).hostname)) throw new Error('Password reset requires local Supabase')
+  const admin = createClient(url, env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } })
+  const { data } = await admin.auth.admin.listUsers({ perPage: 1000 })
+  const user = data.users.find((u) => u.email === RECOVERY_VIEWER.email)
+  if (!user) throw new Error('recovery persona missing after its own journey')
+  const { error } = await admin.auth.admin.updateUserById(user.id, { password: RECOVERY_VIEWER.password })
+  if (error) throw error
+})
 
 test('AC-005: password-recovery journey — link opens set-password form, rotation verified', async ({ page }) => {
   // This test performs a full email round-trip; allow extra time.
@@ -88,7 +105,7 @@ test('AC-005: password-recovery journey — link opens set-password form, rotati
   // Wait for login form to be fully interactive after sign-out
   await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible({ timeout: 5_000 })
   await page.getByLabel('Email').fill(RECOVERY_VIEWER.email)
-  await page.getByLabel('Password').fill(RECOVERY_VIEWER.password) // original e2e-password-123
+  await page.getByLabel('Password').fill(RECOVERY_VIEWER.password) // the original
   await page.getByRole('button', { name: /sign in/i }).click()
   await expect(page.getByRole('alert')).toBeVisible({ timeout: 5_000 })
   // Must remain on /login — no redirect to home

@@ -36,7 +36,8 @@ export const ORPHAN = {
 // the dev canon.
 export const RECOVERY_VIEWER = {
   email: 'e2e.recovery@example.test',
-  password: 'e2e-password-123',
+  // Meets the sign-up policy (lower, upper, digit): auth-recovery sets it back through the admin API.
+  password: 'E2e-password-123',
   personId: '4e000000-0000-0000-0000-000000000004', // dedicated e2e person (isolated from dev Sari)
   // Every dedicated e2e person's display name starts with "E2E " — that prefix is what
   // global-teardown deletes on, so the dev directory holds only the seed after a run.
