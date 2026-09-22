@@ -171,8 +171,17 @@ test.describe('desktop geometry guards', () => {
       expect(labels.length, `${state}: visible solid primaries ${JSON.stringify(labels)}`).toBeLessThanOrEqual(1)
     }
 
-    // Rest state: the one page CTA is the only filled primary.
+    const assertNoPageScroll = async (state: string) => {
+      const pageScroll = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+      }))
+      expect(pageScroll.scrollWidth, `${state}: the document never scrolls sideways`).toBe(pageScroll.innerWidth)
+    }
+
+    // Rest state: the one page CTA is the only filled primary, and the page band fits the viewport.
     await assertOnePagePrimary('rest state')
+    await assertNoPageScroll('rest state')
 
     // Desktop keeps the options (filters, Fields, Save view) behind the one "View & filters"
     // door on the view axis (#870); every toolbar state below is reached through it.
@@ -182,6 +191,32 @@ test.describe('desktop geometry guards', () => {
     await expect(door).toHaveAttribute('aria-expanded', 'true')
     await expect(toolbar.getByRole('group', { name: /^view & filters$/i })).toBeVisible()
     await assertOnePagePrimary('View & filters door open')
+    // The opened door carries the whole option set: four view chips, the search plus five
+    // selects, and the two ghost actions (Fields, Save view). A filter dropped from the desktop
+    // panel reddens here, as it does on the phone panel in GUARD-TAP #667.
+    const census = await toolbar.evaluate((element) => ({
+      chips: element.querySelectorAll('.collection-toolbar__view').length,
+      dropdowns: element.querySelectorAll('.collection-toolbar__search, .collection-toolbar__select').length,
+      ghosts: element.querySelectorAll('.collection-toolbar__options .btn').length,
+    }))
+    expect(census, 'View & filters door open: option census').toEqual({ chips: 4, dropdowns: 6, ghosts: 2 })
+    // Layout-independent: every control sits inside the toolbar and contains its own text.
+    // (The retired two-row shape also pinned one shared centre line per row; the door panel wraps.)
+    const fit = await toolbar.evaluate((element) => {
+      const box = element.getBoundingClientRect()
+      return Array.from(element.querySelectorAll(
+        '.collection-toolbar__view, .collection-toolbar__search, .collection-toolbar__select, .collection-toolbar__options .btn',
+      )).map((control) => {
+        const rect = control.getBoundingClientRect()
+        return {
+          name: control.getAttribute('aria-label') ?? control.textContent?.trim().replace(/\s+/g, ' ') ?? '',
+          inside: rect.x >= box.x - 0.5 && rect.right <= box.right + 0.5,
+          overflows: control.scrollHeight > control.clientHeight + 1 || control.scrollWidth > control.clientWidth + 1,
+        }
+      })
+    })
+    expect(fit.filter((c) => !c.inside), 'door open: controls stay inside the toolbar').toEqual([])
+    expect(fit.filter((c) => c.overflows), 'door open: controls contain their text').toEqual([])
 
     const saveTrigger = toolbar.getByRole('button', { name: /^save view$/i })
     await expect(saveTrigger).toBeVisible()
@@ -204,11 +239,7 @@ test.describe('desktop geometry guards', () => {
     await assertOnePagePrimary('Fields chooser open')
     const taskWidth = await page.locator('tr.task-row td.td-main').first().evaluate((cell) => cell.getBoundingClientRect().width)
     expect(taskWidth, 'Task keeps its 160px floor with every optional field on').toBeGreaterThanOrEqual(160)
-    const pageScroll = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      innerWidth: window.innerWidth,
-    }))
-    expect(pageScroll.scrollWidth).toBe(pageScroll.innerWidth)
+    await assertNoPageScroll('Fields chooser open')
   })
 
   test('GUARD-R3: the saved-view label keeps a measured ≥8px gap from the first chip', async ({ page }) => {
