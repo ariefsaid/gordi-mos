@@ -6,6 +6,10 @@ name: guard-self-tests
 # skipped by a path filter never reports, so the PR would block forever (verify.yml documents
 # the same trap). The whole suite is <1 min — cheaper than the deadlock. The old paths list
 # is kept below as documentation of what the suite guards, not as a trigger.
+# Public repo: nothing here needs to write, so the token gets read-only.
+permissions:
+  contents: read
+
 on:
   pull_request:
   workflow_dispatch:
