@@ -354,6 +354,15 @@ describe('D3e — Tasks create is an inline title row', () => {
   // #900 AC: the role default must never leak into the address bar as an unrequested filter — it
   // shapes what's shown, not what the viewer is deemed to have asked for. A sign-in return target
   // of /work/tasks (auth-password-login.spec.ts AC-011) must land on exactly that route.
+  it('the create-intent cleanup leaves the URL in the engine\'s canonical order, whatever the landing order was', async () => {
+    // Two writers patch the address bar in the same window (the engine's sync and this cleanup);
+    // the cleanup must write the canonical form so the last writer never de-canonicalises it.
+    mockListTasks.mockResolvedValue([])
+    const { getLocation } = renderAt([`/work/tasks?view=my-work&r=${VIEWER_ID}&create=1`])
+    await waitFor(() => expect(getLocation()?.search ?? '').not.toContain('create=1'))
+    expect(getLocation()?.search).toBe(`?r=${VIEWER_ID}&view=my-work`)
+  })
+
   it('a team-scoped default view never injects ?view= into a plain /work/tasks landing', async () => {
     mockListTasks.mockResolvedValue([])
     // renderAt hard-codes authedState; teamScopedState needs its own harness for this claim.
