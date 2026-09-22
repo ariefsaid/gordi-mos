@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
@@ -50,13 +50,14 @@ vi.mock('@/components/signals/signal-record-host', async () => {
   const { useEffect } = await import('react')
   return {
     SignalRecordHost: vi.fn(
-      ({ signalId, mode, onTitleResolved }: { signalId: string; mode?: string; onTitleResolved?: (title: string) => void }) => {
+      ({ signalId, mode, onTitleResolved, onPromote }: { signalId: string; mode?: string; onTitleResolved?: (title: string) => void; onPromote?: (to: string) => void }) => {
         // The real host resolves the record's title (its body's first line) one render after
         // mount — mirrored here so the canonical page's deputyDraft seam is exercised (#426).
         useEffect(() => { onTitleResolved?.('The freezer alarm went off') }, [onTitleResolved])
         return (
           <div data-testid="signal-record-host-stub" data-signal-id={signalId} data-mode={mode}>
             Signal record content
+            {onPromote ? <button type="button" onClick={() => onPromote(`/work/signals/${signalId}`)}>Record menu: Open full page</button> : null}
           </div>
         )
       },
@@ -598,7 +599,7 @@ describe('SignalsArchivePage — ?record=<id> mounts the Signal in the shared ho
     expect(panel).toContainElement(screen.getByTestId('signal-record-host-stub'))
     // Host chrome (title zone · Open full page · ✕ Close) — the one shared header grammar.
     expect(document.querySelector('.record-panel-chrome')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /open full page/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^open full page$/i })).toBeInTheDocument()
   })
 
   it('does not mount the record when no ?record= is present', async () => {
@@ -643,11 +644,23 @@ describe('SignalsArchivePage — ?record=<id> mounts the Signal in the shared ho
     await waitFor(() => expect(screen.queryByTestId('signal-record-host-stub')).not.toBeInTheDocument())
   })
 
+  it('the record\'s own ••• "Open full page" lands on the canonical page and stays there', async () => {
+    // The chrome button and the record's menu item both promote through the archive's own
+    // flagged path, so the archive's ?record= cleanup never overwrites the navigation.
+    renderPage('/work/signals?record=signal-1')
+    await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: 'Record menu: Open full page' }))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/work/signals/signal-1'))
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)) })
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/signals/signal-1')
+  })
+
   it('the host "Open full page" escalates to the canonical /work/signals/:id page', async () => {
     renderPage('/work/signals?record=signal-1')
     await waitFor(() => expect(screen.getByTestId('signal-record-host-stub')).toBeInTheDocument())
 
-    await userEvent.click(screen.getByRole('button', { name: /open full page/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^open full page$/i }))
     // The canonical page route is not registered in this page-only harness, so the archive
     // unmounts. The location probe remains outside Routes and proves the promotion target.
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/work/signals/signal-1'))

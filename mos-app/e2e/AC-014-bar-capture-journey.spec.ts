@@ -260,9 +260,13 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
 
     // FR-031 (#238) — the completeness confirmation is on this surface, and the stream's own lead
     // is offered it. It gates nothing: the approval below happens whether or not it is confirmed.
+    // A viewer who CAN confirm (their own stream) reads the actionable label, not the bare
+    // status — pinned by kitchen-review-page.test.tsx "an unconfirmed stream reads as a quiet
+    // foot checkbox" (FR-031); the bare "not confirmed complete yet" status is reserved for a
+    // viewer who cannot act on another stream's list.
     await expect(
       page.getByRole('group', { name: /item list completeness for this stream/i }),
-    ).toContainText(/not confirmed complete yet/i)
+    ).toContainText(/confirm the item list is complete/i)
     await expect(page.getByRole('checkbox', { name: /confirm the item list is complete/i })).toBeEnabled()
 
     const approve = page.getByRole('button', { name: new RegExp(`Approve ${ITEM_NAME}`, 'i') })

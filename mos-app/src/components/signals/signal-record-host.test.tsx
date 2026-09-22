@@ -405,6 +405,36 @@ describe('SignalRecordHost — comment thread reuse (postComment/listComments, R
 })
 
 describe('SignalRecordHost — Open full page keeps the way back', () => {
+  it('when the owning page supplies onPromote, the record\'s Open full page uses it instead of host.openPage (the archive marks the promotion first, #898)', async () => {
+    let api: OverlayHostApi | null = null
+    const onPromote = vi.fn()
+    function Page() { api = useOverlayHost(); return <><h1>Archive</h1><OverlayHostSlot owner="signals" floating /></> }
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/work/signals?record=signal-1']}>
+          <OverlayHostProvider>
+            <Routes><Route path="/work/signals" element={<Page />} /></Routes>
+            <LocationProbe />
+          </OverlayHostProvider>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    await act(async () => {
+      await api!.openRoot({
+        key: 'signal:signal-1', owner: 'signals', tenant: 'record', label: 'Signal', title: 'Signal',
+        pageTo: '/work/signals/signal-1', pageState: { from: 'home' },
+        content: <SignalRecordHost signalId={SIGNAL_ID} mode="panel" onPromote={onPromote} />,
+      }, 'route')
+    })
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: 'More Signal actions' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Open full page' }))
+
+    expect(onPromote).toHaveBeenCalledWith('/work/signals/signal-1', { from: 'home' })
+    // The host itself did not navigate: the owning page does, after marking the promotion.
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/signals?record=signal-1')
+  })
+
   it('inside the overlay host, Open full page forwards the entry\'s page state (Home → Signal → full page → Back to Home)', async () => {
     let api: OverlayHostApi | null = null
     function Home() { api = useOverlayHost(); return <><h1>Home</h1><OverlayHostSlot owner="signals" floating /></> }

@@ -77,6 +77,12 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
       await page.goto('work/tasks')
       await openViewFilters(page)
       await selectTaskView(page, 'All')
+      // helpers/tasks.ts selectTaskView leaves the door exactly as it found it — open here — but
+      // clicking the "All" chip still closes it as a side effect (collection-toolbar.tsx's own
+      // outside-pointerdown handler treats the chip as outside the door's subtree); its own
+      // doc comment says a caller that also needs Group/Status open after selecting a view must
+      // call openViewFilters again.
+      await openViewFilters(page)
       await statusTrigger.click()
       await page.getByRole('checkbox', { name: 'Done', exact: true }).check()
       await search.fill(title)
