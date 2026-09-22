@@ -158,7 +158,12 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
     // The line is back on the barista's log surface (the form row carries plan · item · activity).
     await expect(page.getByText(ITEM_NAME).first()).toBeVisible({ timeout: 15_000 })
 
-    // ── ACT 2 — Sales (unaffiliated) opens the same surface ──────────────────────────────────
+  })
+
+  // What Sales sees is an open owner decision (#894): two rulings disagree on whether a person
+  // with no Café team reads the log read-only or stops at the location gate. The barista journey
+  // above is the live contract; this one resumes when the decision lands.
+  test.fixme('Sales, with no Café team, sees the log read-only with no submit path (#894)', async ({ page }) => {
     // RedirectIfAuthed bounces /login while a session is live; clear localStorage to sign out.
     await page.evaluate(() => localStorage.clear())
     await page.waitForTimeout(500)
