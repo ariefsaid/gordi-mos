@@ -50,6 +50,9 @@ export interface SignalRecordHostProps {
   onTitleResolved?: (title: string) => void
   /** Refreshes the owning collection after a record mutation. */
   onReload?: () => void
+  /** The owning page's own promotion to the full page, when it must mark the promotion first
+   * (the archive suppresses its ?record= cleanup so the navigation is not overwritten). */
+  onPromote?: (to: string, state?: unknown) => void
 }
 
 type FetchState = 'loading' | 'ready' | 'error' | 'denied' | 'missing'
@@ -199,7 +202,7 @@ function SignalTaskCreateFrame({
   )
 }
 
-export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, onReload }: SignalRecordHostProps) {
+export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, onReload, onPromote }: SignalRecordHostProps) {
   const t = useT()
   const navigate = useNavigate()
   // The full page offers Back to Home only when the panel was reached from Home (AC-021 #755).
@@ -654,8 +657,10 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
           // Inside the overlay host the entry carries where the panel came from (Home sets
           // pageState {from:'home'}); a route-mounted panel carries it on the location instead.
           const entry = host?.session?.frames.at(-1)?.entry
-          if (host && entry) void host.openPage(`/work/signals/${signal.id}`, entry.pageState)
-          else navigate(`/work/signals/${signal.id}`, { state: location.state })
+          const to = `/work/signals/${signal.id}`
+          if (onPromote) onPromote(to, entry?.pageState ?? location.state)
+          else if (host && entry) void host.openPage(to, entry.pageState)
+          else navigate(to, { state: location.state })
         } : undefined}
       />
     </div>
