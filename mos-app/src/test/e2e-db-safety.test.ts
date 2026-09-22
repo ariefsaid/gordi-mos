@@ -34,8 +34,12 @@ vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ auth: { admin: 
 vi.mock('../lib/dev-server', () => ({
   MOS_DEV_PORT_ENV: 'MOS_DEV_PORT', devServerPort: () => 1,
   worktreeFingerprint: () => 'unit-test', devServerIdentityUrl: () => 'http://localhost:1/identity',
+  devServerBaseUrl: () => 'http://localhost:1/mos/',
   assertDevServerOwnership: () => {},
 }))
+// The persona sign-ins drive a real browser; this test owns the SQL, not the sessions.
+vi.mock('@playwright/test', () => ({ chromium: { launch: async () => ({ close: async () => {} }) } }))
+vi.mock('../../e2e/helpers/auth-state', () => ({ captureStorageState: async () => {} }))
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks() })
 
