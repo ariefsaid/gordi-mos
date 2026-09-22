@@ -8,11 +8,32 @@ import { expect } from '@playwright/test'
  * personas carry no default stream, so any guard that measures a Café surface's content
  * must first take the step a real person takes: pick a stream in the page head.
  *
+ * Production capture is bound to a location (DD-MVP-11): a person whose profile resolves
+ * to no single location is asked for one BEFORE any capture surface mounts
+ * (cafe-opening-page.tsx LocationChoices), so the journey is location first, stream second.
+ *
  * Idempotent — a persona (or a prior test in the same context) that already has a
- * stream sails through; sessionStorage carries the choice only within one context.
+ * location and a stream sails through; sessionStorage carries the choices only within
+ * one context.
  */
-export async function ensureStream(page: Page, streamLabel = /rumah rames.*kitchen/i): Promise<void> {
+export async function ensureStream(
+  page: Page,
+  streamLabel = /rumah rames.*kitchen/i,
+  locationLabel = /rumah rames/i,
+): Promise<void> {
   const picker = page.getByRole('combobox', { name: /production stream|tim produksi/i })
+  const locations = page.getByRole('button', { name: /^(open location|buka lokasi)\b/i })
+  // The surface resolves its location first: either the choice list is asked, or the
+  // capture surface (with its stream picker) mounts straight away.
+  await expect(picker.or(locations).first()).toBeVisible()
+  if (await locations.count() > 0) {
+    // The seed's plans and logs live at Rumah Rames (supabase/seed.sql), the same location
+    // the default stream below belongs to. Any other location renders an honest empty
+    // state instead of the content these guards measure.
+    const labels = await locations.allTextContents()
+    const idx = labels.findIndex((l) => locationLabel.test(l))
+    await locations.nth(idx >= 0 ? idx : 0).click()
+  }
   await expect(picker).toBeVisible()
   await expect(picker).toBeEnabled()
   // The stream picker is a designed trigger; its value is exposed by the visible label rather
