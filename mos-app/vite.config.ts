@@ -53,10 +53,23 @@ function mosDevIdentity(): Plugin {
   }
 }
 
+function sampleLoginBuildGuard(): Plugin {
+  return {
+    name: 'sample-login-build-guard',
+    configResolved(config) {
+      if (config.command !== 'build' || config.env.VITE_SAMPLE_ONE_CLICK_LOGIN !== 'true') return
+      const password = config.env.VITE_SAMPLE_LOGIN_PASSWORD ?? ''
+      if (password.length < 12 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+        throw new Error('VITE_SAMPLE_ONE_CLICK_LOGIN needs a staging sample password that meets the auth policy')
+      }
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   base: '/mos/',
-  plugins: [redirectToBase('/mos/'), mosDevIdentity(), react(), tailwindcss()],
+  plugins: [redirectToBase('/mos/'), mosDevIdentity(), sampleLoginBuildGuard(), react(), tailwindcss()],
   build: {
     rollupOptions: {
       output: {
