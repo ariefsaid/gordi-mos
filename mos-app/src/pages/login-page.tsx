@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
 import { safeReturnTarget } from '@/auth/return-target'
 import { DemoLogin } from './demo-login'
-import { DEMO_PASSWORD } from './demo-personas'
+import { demoLoginMode, isSampleSession } from './demo-personas'
 
 // Error-handling table strings (verbatim from spec)
 const ERR_CREDENTIAL = 'Invalid email or password.'
@@ -58,8 +58,9 @@ export function LoginPage() {
   const [error, setError] = useState('')
   const [emailError, setEmailError] = useState('')
   const [loading, setLoading] = useState<'sign-in' | 'magic' | 'reset' | null>(null)
-  // Dev-only one-click demo sign-in: which persona email is currently in flight.
+  // Which one-click persona is currently signing in.
   const [demoBusy, setDemoBusy] = useState<string | null>(null)
+  const demoMode = demoLoginMode(import.meta.env, window.location.hostname)
 
   // Check for expired-link URL param on mount (design-plan §3 expired-link notice)
   const [expiredLink, setExpiredLink] = useState(false)
@@ -81,18 +82,25 @@ export function LoginPage() {
 
   const isDisabled = loading !== null || demoBusy !== null
 
-  // Dev-only: one-click sign in as a seeded persona (no form interaction).
+  // One-click sign-in for a seeded local or staging sample persona.
   async function handleDemoSignIn(personaEmail: string) {
+    if (!demoMode || !demoMode.personas.some((persona) => persona.email === personaEmail)) return
     setError('')
     setEmailError('')
     setDemoBusy(personaEmail)
     try {
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: personaEmail,
-        password: DEMO_PASSWORD,
+        password: demoMode.password,
       })
       if (authError) {
         setError(mapAuthError(authError))
+      } else if (demoMode.kind === 'sample' && (
+        data.user?.email !== personaEmail ||
+        !isSampleSession(data.session?.access_token)
+      )) {
+        await supabase.auth.signOut()
+        setError('That account is not in Gordi Sample. Try another sample login.')
       }
     } catch {
       setError(ERR_NETWORK)
@@ -445,9 +453,16 @@ export function LoginPage() {
           )}
         </button>
 
-        {/* Dev-only one-click demo sign-in — NEVER rendered in a built/deployed site */}
-        {import.meta.env.DEV && (
-          <DemoLogin onPick={handleDemoSignIn} busyEmail={demoBusy} disabled={isDisabled} />
+        {/* Local dev personas, or the separate staging sample org when its build flag is enabled. */}
+        {demoMode && (
+          <DemoLogin
+            onPick={handleDemoSignIn}
+            busyEmail={demoBusy}
+            disabled={isDisabled}
+            personas={demoMode.personas}
+            showPassword={demoMode.kind === 'dev'}
+            title={demoMode.kind === 'sample' ? 'Gordi Sample' : 'Demo login'}
+          />
         )}
       </AuthCard>
     </AuthShell>

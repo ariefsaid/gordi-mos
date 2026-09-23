@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { DemoLogin } from './demo-login'
-import { DEMO_PASSWORD, DEMO_PERSONAS } from './demo-personas'
+import { DEMO_PASSWORD, DEMO_PERSONAS, SAMPLE_PERSONAS } from './demo-personas'
 
 describe('DemoLogin — dev-only one-click sign-in panel', () => {
   it('renders the DEMO LOGIN heading', () => {
@@ -14,6 +14,13 @@ describe('DemoLogin — dev-only one-click sign-in panel', () => {
   it('shows the shared dev password', () => {
     render(<DemoLogin onPick={vi.fn()} busyEmail={null} disabled={false} />)
     expect(screen.getByText(new RegExp(DEMO_PASSWORD.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))).toBeInTheDocument()
+  })
+
+  it('shows staging sample personas without printing their password', () => {
+    render(<DemoLogin onPick={vi.fn()} busyEmail={null} disabled={false} personas={SAMPLE_PERSONAS} showPassword={false} title="Gordi Sample" />)
+    expect(screen.getByText('Gordi Sample')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Director' })).toBeInTheDocument()
+    expect(screen.queryByText(/password:/i)).not.toBeInTheDocument()
   })
 
   it('renders one button per Gordi persona', () => {
