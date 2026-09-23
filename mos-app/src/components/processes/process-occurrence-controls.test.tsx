@@ -85,18 +85,18 @@ function auth(viewerId = VIEWER_ID, accessRoles = ['member']): AuthState {
   }
 }
 
-function controlsTree(workLineId = WORK_LINE_ID) {
+function controlsTree(workLineId = WORK_LINE_ID, setupIncomplete = false, canManageSetup = false) {
   return (
     <MemoryRouter>
       <I18nProvider>
-        <ProcessOccurrenceControls workLineId={workLineId} onViewTasks={vi.fn()} />
+        <ProcessOccurrenceControls workLineId={workLineId} setupIncomplete={setupIncomplete} canManageSetup={canManageSetup} onViewTasks={vi.fn()} />
       </I18nProvider>
     </MemoryRouter>
   )
 }
 
-function renderControls(workLineId = WORK_LINE_ID) {
-  return render(controlsTree(workLineId))
+function renderControls(workLineId = WORK_LINE_ID, setupIncomplete = false, canManageSetup = false) {
+  return render(controlsTree(workLineId, setupIncomplete, canManageSetup))
 }
 
 function deferred<T>() {
@@ -124,6 +124,23 @@ beforeEach(() => {
 })
 
 describe('ProcessOccurrenceControls', () => {
+  it('explains how to recover when no active steps are configured', async () => {
+    mockListOccurrences.mockResolvedValue([])
+    mockListStartable.mockResolvedValue([])
+    renderControls(WORK_LINE_ID, true)
+
+    expect(await screen.findByRole('note')).toHaveTextContent('Ask a Process manager to add and activate at least one step before starting a run.')
+    expect(screen.getByText('No occurrences have been started yet.')).toBeInTheDocument()
+  })
+
+  it('gives a manager a direct recovery path to the Steps tab', async () => {
+    mockListOccurrences.mockResolvedValue([])
+    mockListStartable.mockResolvedValue([])
+    renderControls(WORK_LINE_ID, true, true)
+
+    expect(await screen.findByRole('note')).toHaveTextContent('Open the Steps tab to add and activate at least one step before starting a run.')
+  })
+
   it('shows the owning Team, task/overdue/to-assign counts, View tasks, and member Start', async () => {
     renderControls()
 

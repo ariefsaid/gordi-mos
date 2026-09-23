@@ -188,10 +188,8 @@ test(
   await expect(projectGrp).toBeVisible({ timeout: 10_000 })
 
   // (ii) The seeded task sits under its OWN work-line header, and only there — proves it landed
-  //      in the correct group, not misplaced or dropped. seed.dev-tasks.sql:120-122 also links
-  //      other Cahya-responsible dev demo tasks ("Update espresso recipe cards", "Replace grinder
-  //      burrs (Cafe 2)") to the same "Daily IG Content" work-line, so the group's real total is
-  //      incidental fixture noise, not part of this contract — never hard-code it.
+  //      in the correct group, not misplaced or dropped. Other fixtures may add tasks to either
+  //      group, so the group's total is not part of this contract — never hard-code it.
   const processRow = page.locator('tr.task-row').filter({ hasText: T_PROCESS_TITLE })
   await expect(processRow).toHaveCount(1)
   await expect(processRow).toBeVisible()

@@ -1440,7 +1440,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     })
   })
 
-  it('starting creation over a dirty record asks first: Cancel keeps the record and opens no draft, Discard opens it', async () => {
+  it('starting creation over a dirty record asks first: Stay keeps the record and opens no draft, Discard opens it', async () => {
     const task = makeTask({ id: 'task-dirty-create', title: 'Dirty before create' })
     mockListTasks.mockResolvedValue([task])
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
@@ -1461,7 +1461,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     fireEvent.keyDown(window, { key: 'n' })
     fireEvent.keyDown(window, { key: 'n' })
     expect(await screen.findByRole('dialog')).toHaveTextContent(/discard unsaved changes/i)
-    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /stay on this page/i }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy()
     expect(screen.queryByRole('textbox', { name: /^title/i })).toBeNull()
@@ -1472,7 +1472,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeNull()
   })
 
-  it('AC-V3-008: a dirty task overlay asks before Close, keeps the record on Cancel, and leaves on Discard', async () => {
+  it('AC-V3-008: a dirty task overlay asks before Close, keeps the record on Stay, and leaves on Discard', async () => {
     const task = makeTask({ id: 'task-dirty', title: 'Dirty task' })
     mockListTasks.mockResolvedValue([task])
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
@@ -1492,7 +1492,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     expect(await screen.findByRole('dialog')).toHaveTextContent(/discard unsaved changes/i)
     expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /stay on this page/i }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy()
 
@@ -1602,11 +1602,11 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     fireEvent.keyDown(panel, { key: 'Escape' })
     expect(await screen.findByRole('dialog')).toHaveTextContent(/discard unsaved changes/i)
 
-    // Retain/Cancel: the dialog closes and the record stays open. The tenant dirty state
+    // Stay: the dialog closes and the record stays open. The tenant dirty state
     // remains — proven by the guard re-firing on the very next Escape below. The deny
     // resolves the host's in-flight leave request in a microtask, so flush it before the
     // next Escape or the host's coalescing swallows the second keystroke.
-    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /stay on this page/i }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy()
     await act(async () => {})
@@ -1665,7 +1665,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     // Retain: the dialog closes, ModalShell returns focus to the field (its own
     // invoker-refocus contract), and the draft is exactly what the user typed — never
     // committed by the stray blur, never rolled back to the saved baseline either.
-    fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /stay on this page/i }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByLabelText('Description')).toHaveValue(draftText)
     expect(mockUpdateTaskFields).not.toHaveBeenCalled()

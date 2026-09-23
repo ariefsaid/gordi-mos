@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react'
-import { MemoryRouter, Routes, Route, useLocation, type RouteObject } from 'react-router-dom'
+import { createMemoryRouter, MemoryRouter, Outlet, RouterProvider, Routes, Route, useLocation, type RouteObject } from 'react-router-dom'
 import { RouteRedirect } from '@/shell/route-redirect'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -44,7 +44,7 @@ import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/dire
 import * as directoryApi from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
-import { listComments } from '@/lib/comments/postComment'
+import { listComments, postComment } from '@/lib/comments/postComment'
 import { TasksLayout } from './tasks-layout'
 import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 import { TaskDrawer } from '@/components/tasks/task-drawer'
@@ -58,6 +58,7 @@ const mockGetTask = vi.mocked(getTask)
 const mockUpdateTaskStatus = vi.mocked(updateTaskStatus)
 const mockCreateTask = vi.mocked(createTask)
 const mockArchiveTask = vi.mocked(archiveTask)
+const mockPostComment = vi.mocked(postComment)
 const directoryMocks = directoryApi as unknown as {
   getPersonTeams: ReturnType<typeof vi.fn>
   getTeamsByIds: ReturnType<typeof vi.fn>
@@ -184,6 +185,7 @@ beforeEach(() => {
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
   vi.mocked(listComments).mockResolvedValue([])
+  mockPostComment.mockResolvedValue('comment-1')
 })
 
 // Reads the live router location so a test can assert the URL a navigate() call lands on —
@@ -282,6 +284,34 @@ function renderAtState(path: string, state: unknown, runtime: AgentRuntime | nul
           </OverlayHostProvider>
         </MemoryRouter>
       </AgentRuntimeProvider>
+    </AuthContext.Provider>,
+  )
+}
+
+function renderDataRouterAtState(path: string, state: unknown) {
+  const [pathname, query = ''] = path.split('?')
+  const router = createMemoryRouter([
+    {
+      element: <OverlayHostProvider><Outlet /></OverlayHostProvider>,
+      children: [
+        {
+          path: '/work/tasks',
+          element: <TasksLayout />,
+          children: [
+            { path: 'new', element: <RouteRedirect to="/work/tasks?create=1" /> },
+            { path: ':taskId', element: <TaskDrawer mode="view" /> },
+          ],
+        },
+        { path: '/work/objectives/:objectiveId', element: <div>Objective destination</div> },
+        { path: '/work/projects/:workLineId', element: <div>Project destination</div> },
+      ],
+    },
+  ], {
+    initialEntries: [{ pathname, search: query ? `?${query}` : '', state }],
+  })
+  return render(
+    <AuthContext.Provider value={authedState}>
+      <RouterProvider router={router} />
     </AuthContext.Provider>,
   )
 }
@@ -816,6 +846,98 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
 
 // ── OD-63: canonical page mode on direct open ────────────────────────────────
 describe('TasksLayout — OD-63 canonical page mode', () => {
+  it('keeps a panel comment draft on Stay and requires explicit Discard before the real page transition', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Draft survives promotion', objective_id: 'objective-1' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Draft survives promotion', objective_id: 'objective-1' }), checklist: [], events: [] })
+    vi.mocked(listObjectives).mockResolvedValue([{ id: 'objective-1', name: 'Annual Goal' }])
+    renderAt('/work/tasks/task-1')
+
+    await screen.findByRole('complementary', { name: /task detail/i })
+    const comment = await screen.findByRole('textbox', { name: /comment/i })
+    const openPageButton = screen.getByRole('button', { name: /open full page/i })
+    document.addEventListener('change', () => fireEvent.click(openPageButton), { once: true })
+    fireEvent.change(comment, { target: { value: 'Post after staying on this task' } })
+
+    const guard = await screen.findByRole('dialog')
+    expect(guard).toHaveTextContent(/discard unsaved changes/i)
+    fireEvent.click(within(guard).getByRole('button', { name: /stay on this page|cancel/i }))
+    expect(comment).toHaveValue('Post after staying on this task')
+    fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
+    await waitFor(() => expect(mockPostComment).toHaveBeenCalledWith(expect.objectContaining({
+      entityType: 'task', entityId: 'task-1', body: 'Post after staying on this task',
+    })))
+
+    const retainedComposer = screen.getByRole('textbox', { name: /comment/i })
+    fireEvent.change(retainedComposer, { target: { value: 'Keep me while opening the Objective' } })
+    fireEvent.click(screen.getByRole('link', { name: 'Annual Goal' }))
+    const relatedGuard = await screen.findByRole('dialog')
+    fireEvent.click(within(relatedGuard).getByRole('button', { name: /stay on this page/i }))
+    expect(retainedComposer).toHaveValue('Keep me while opening the Objective')
+    fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
+    await waitFor(() => expect(mockPostComment).toHaveBeenCalledWith(expect.objectContaining({
+      entityType: 'task', entityId: 'task-1', body: 'Keep me while opening the Objective',
+    })))
+
+    fireEvent.change(screen.getByRole('textbox', { name: /comment/i }), { target: { value: 'Discard only after asking me' } })
+    fireEvent.click(screen.getByRole('button', { name: /open full page/i }))
+    const discardGuard = await screen.findByRole('dialog')
+    fireEvent.click(within(discardGuard).getByRole('button', { name: /discard changes/i }))
+
+    await screen.findByRole('heading', { level: 1, name: 'Draft survives promotion' })
+    expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
+    expect(document.querySelector('.record-viewer--page')).toBeTruthy()
+  })
+
+  it('guards a standalone Task Objective link and retains its comment draft on Stay', async () => {
+    mockGetTask.mockResolvedValue({
+      task: makeTask({ id: 'task-1', title: 'Task with Objective', objective_id: 'objective-1' }),
+      checklist: [], events: [],
+    })
+    vi.mocked(listObjectives).mockResolvedValue([{ id: 'objective-1', name: 'Annual Goal' }])
+    renderDataRouterAtState('/work/tasks/task-1', { taskSurface: 'page' })
+
+    await screen.findByRole('heading', { level: 1, name: 'Task with Objective' })
+    const comment = await screen.findByRole('textbox', { name: /comment/i })
+    fireEvent.change(comment, { target: { value: 'Keep this while checking the objective' } })
+    fireEvent.click(await screen.findByRole('link', { name: 'Annual Goal' }))
+
+    const guard = await screen.findByRole('dialog')
+    fireEvent.click(within(guard).getByRole('button', { name: /stay on this page/i }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Task with Objective' })).toBeInTheDocument()
+    expect(comment).toHaveValue('Keep this while checking the objective')
+    fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
+    await waitFor(() => expect(mockPostComment).toHaveBeenCalledWith(expect.objectContaining({
+      entityType: 'task', entityId: 'task-1', body: 'Keep this while checking the objective',
+    })))
+  })
+
+  it('guards the same-path page-to-panel transition and only drops the draft after Discard', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Task collapse draft' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Task collapse draft' }), checklist: [], events: [] })
+    renderDataRouterAtState('/work/tasks/task-1', { taskSurface: 'page' })
+
+    await screen.findByRole('heading', { level: 1, name: 'Task collapse draft' })
+    const comment = await screen.findByRole('textbox', { name: /comment/i })
+    fireEvent.change(comment, { target: { value: 'Stay and post from the page' } })
+    fireEvent.click(screen.getByRole('button', { name: /back to split view/i }))
+
+    const guard = await screen.findByRole('dialog')
+    fireEvent.click(within(guard).getByRole('button', { name: /stay on this page/i }))
+    expect(screen.getByRole('heading', { level: 1, name: 'Task collapse draft' })).toBeInTheDocument()
+    expect(comment).toHaveValue('Stay and post from the page')
+    fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
+    await waitFor(() => expect(mockPostComment).toHaveBeenCalledWith(expect.objectContaining({
+      entityType: 'task', entityId: 'task-1', body: 'Stay and post from the page',
+    })))
+
+    fireEvent.change(screen.getByRole('textbox', { name: /comment/i }), { target: { value: 'Discard before changing presentation' } })
+    fireEvent.click(screen.getByRole('button', { name: /back to split view/i }))
+    const discardGuard = await screen.findByRole('dialog')
+    fireEvent.click(within(discardGuard).getByRole('button', { name: /discard changes/i }))
+    await screen.findByRole('complementary', { name: /task detail/i })
+    expect(document.querySelector('.record-viewer--panel')).toBeTruthy()
+  })
+
   it('OD-63: an "Open full page" escalation renders the record as a standalone full page — no table, no drawer', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Standalone page task' }), checklist: [], events: [] })
     renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
