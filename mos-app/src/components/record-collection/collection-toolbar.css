@@ -271,9 +271,10 @@
     width: 100px;
     max-width: none;
   }
+  /* Linux Chromium renders "Any status" / "Semua status" 1-2px wider than macOS; 116/132 fit both. */
   .tasks-collection-toolbar [data-filter-id='status'] {
-    flex: 0 1 108px;
-    width: 108px;
+    flex: 0 1 116px;
+    width: 116px;
     max-width: none;
   }
   .tasks-collection-toolbar [data-filter-id='status'] .collection-toolbar__select {
@@ -305,7 +306,7 @@
     flex-basis: 120px;
     width: 120px;
   }
-  html:lang(id) .tasks-collection-toolbar [data-filter-id='status'] { flex-basis: 124px; width: 124px; }
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='status'] { flex-basis: 132px; width: 132px; }
   html:lang(id) .tasks-collection-toolbar [data-filter-id='group'],
   html:lang(id) .tasks-collection-toolbar [data-filter-id='group'] .collection-toolbar__select {
     flex-basis: 156px;
@@ -323,7 +324,7 @@
   .tasks-collection-toolbar [data-filter-id='group'] .collection-toolbar__select { flex-basis: 120px; width: 120px; }
   .tasks-collection-toolbar [data-filter-id='business-unit'],
   .tasks-collection-toolbar [data-filter-id='business-unit'] .collection-toolbar__select { flex-basis: 90px; width: 90px; }
-  .tasks-collection-toolbar [data-filter-id='status'] { flex-basis: 108px; width: 108px; }
+  .tasks-collection-toolbar [data-filter-id='status'] { flex-basis: 116px; width: 116px; }
   .tasks-collection-toolbar [data-filter-id='person'],
   .tasks-collection-toolbar [data-filter-id='person'] .collection-toolbar__select { flex-basis: 82px; width: 82px; }
   .tasks-collection-toolbar [data-filter-id='sort'],
@@ -360,7 +361,7 @@
     flex-basis: 100px;
     width: 100px;
   }
-  html:lang(id) .tasks-collection-toolbar [data-filter-id='status'] { flex-basis: 124px; width: 124px; }
+  html:lang(id) .tasks-collection-toolbar [data-filter-id='status'] { flex-basis: 132px; width: 132px; }
   html:lang(id) .tasks-collection-toolbar [data-filter-id='sort'],
   html:lang(id) .tasks-collection-toolbar [data-filter-id='sort'] .collection-toolbar__select {
     flex-basis: 120px;

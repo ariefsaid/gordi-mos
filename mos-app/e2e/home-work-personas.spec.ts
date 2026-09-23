@@ -6,15 +6,13 @@ import { localSql } from './helpers/local-sql'
 import { taskCleanupSql } from './fixtures/cleanup'
 import { taskViewsGroup } from './helpers/tasks'
 
-// Fixed Home fixture IDs are reserved by this suite; refuse a collision before mutation.
+// The two Home tasks are seed.dev-home-work.sql's own rows (a fresh stack already has them); this
+// suite re-inserts them from that file so their due date is today, and removes them afterwards.
 const HOME_IDS = ['e9000000-0000-0000-0000-000000000001', 'e9000000-0000-0000-0000-000000000002']
 const ORG = '10000000-0000-0000-0000-000000000001'
-let ownsHome = false
 import { localSqlRead } from './helpers/local-sql-read'
 test.beforeAll(async () => {
-  const existing = await localSqlRead(`select id from mos.tasks where id in (${HOME_IDS.map(id => `'${id}'`).join(',')})`)
-  if (existing.length) throw new Error('Reserved Home fixture IDs already exist; preserve them')
-  ownsHome = true
+  await localSql(taskCleanupSql(HOME_IDS, ORG))
   const seed = readFileSync(new URL('../../supabase/seed.dev-home-work.sql', import.meta.url), 'utf8')
   await localSql(seed.slice(seed.indexOf('insert into mos.tasks')))
   const fixture = await localSqlRead<{id:string,due_today:boolean,assigned:boolean}>(`select id, due_date=(now() at time zone 'Asia/Jakarta')::date as due_today, responsible_person_id='40000000-0000-0000-0000-000000000007'::uuid as assigned from mos.tasks where id in (${HOME_IDS.map(id => `'${id}'`).join(',')})`)
@@ -23,7 +21,7 @@ test.beforeAll(async () => {
   console.log('Owned Barista due-today fixture', JSON.stringify(fixture))
 })
 test.afterAll(async () => {
-  if (ownsHome) await localSql(taskCleanupSql(HOME_IDS, ORG))
+  await localSql(taskCleanupSql(HOME_IDS, ORG))
 })
 
 const personas = [

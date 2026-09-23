@@ -100,7 +100,7 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
       /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='business-unit'\][\s\S]*?flex:\s*0 1 100px;[\s\S]*?max-width:\s*none;/s,
     )
     expect(css).toMatch(
-      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='status'\]\s*\{[^}]*flex:\s*0 1 108px;[^}]*max-width:\s*none;[^}]*\}[\s\S]*?\[data-filter-id='status'\] \.collection-toolbar__select\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s,
+      /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='status'\]\s*\{[^}]*flex:\s*0 1 116px;[^}]*max-width:\s*none;[^}]*\}[\s\S]*?\[data-filter-id='status'\] \.collection-toolbar__select\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0;/s,
     )
     expect(css).toMatch(
       /@media\s*\(min-width:\s*1024px\)[\s\S]*?\[data-filter-id='person'\][\s\S]*?flex:\s*0 1 100px;[\s\S]*?max-width:\s*none;/s,
