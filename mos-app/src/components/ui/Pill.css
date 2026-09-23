@@ -3,18 +3,24 @@
    source/progress pill in the app. Consumed by <Pill> (ui/Pill.tsx), the task
    StatusPill, the weekly-update StatePill, ProgressMarker, the Ops source badge,
    and the My Week strip pills.
-   Shell: height 22, padding 0 9px, 6px radius (rounded-rect), 8px leading dot,
-   12/600. Tint differs by tone only. All values resolve to DESIGN.md tokens.
+   Shell: height 22, padding 0 var(--pill-inline-pad) (9px), var(--radius-sm) (8px,
+   rounded-rect — RATIFIED OD-REDESIGN-91 #30/E1; DESIGN.md §Shapes now specs the
+   rounded-rect, the 999px capsule spec is retired for this shell), 8px leading dot,
+   var(--font-size-label)/600. Tint differs by tone only.
+   All values resolve to semantic tokens (v3 kit-normalize).
    ════════════════════════════════════════════════════════════════════════════ */
 .pill {
   display: inline-flex; align-items: center; gap: 6px;
-  height: 22px; padding: 0 9px; border-radius: 6px;
-  font-size: 12px; font-weight: 600; white-space: nowrap;
+  height: 22px; padding: 0 var(--pill-inline-pad); border-radius: var(--radius-sm);
+  font-size: var(--font-size-label); font-weight: 600; white-space: nowrap;
 }
 .pill .dot {
   /* VIS-6: 8px leading dot (WCAG 1.4.1 redundant cue — bumped from 6px). */
-  width: 8px; height: 8px; border-radius: 999px; flex: none;
+  width: 8px; height: 8px; border-radius: var(--radius-pill); flex: none;
 }
+/* Alignment affordance (kv/label columns): pull the pill flush so its TEXT sits at the
+   column x instead of being inset by --pill-inline-pad. Documented in index.css. */
+.pill--flush { margin-inline-start: calc(-1 * var(--pill-inline-pad)); }
 
 /* Neutral (default badge-status: secondary + muted-foreground) */
 .pill--neutral { background: var(--secondary); color: var(--muted-foreground); }

@@ -5,7 +5,9 @@
 // Used across the data panes (Tasks, Ops, weekly). The lightweight inline "Retry"
 // link in the My Week 56–64px density strips stays inline (their height can't fit
 // the full block) — those strips do NOT use this kit.
-import { useId, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { useT } from '@/i18n/use-t'
+import type { MessageKey } from '@/i18n/messages'
 import { Button } from './button'
 import './CardHead.css' // owns the error-state / empty-state / skeleton tokens
 
@@ -16,20 +18,56 @@ export interface ErrorStateProps {
   className?: string
 }
 
-export function ErrorState({ message, onRetry, retryLabel = 'Retry', className }: ErrorStateProps) {
+export function ErrorState({ message, onRetry, retryLabel, className }: ErrorStateProps) {
+  // #359: the default label comes from the catalog, not a literal 'Retry' — 25 of 31 call
+  // sites pass nothing, so the literal was the app's most widespread untranslated string.
+  const t = useT()
   return (
     <div role="alert" className={`error-state${className ? ` ${className}` : ''}`}>
       <span className="error-state-text">{message}</span>
       {onRetry && (
         <Button variant="outline" onClick={onRetry}>
-          {retryLabel}
+          {retryLabel ?? t('common.retry')}
         </Button>
       )}
     </div>
   )
 }
 
-export type EmptyStateVariant = 'quiet' | 'next-step' | 'awaiting'
+export interface NetworkErrorStateProps {
+  onRetry?: () => void
+  className?: string
+}
+
+/**
+ * The one "couldn't reach the server" state: `ErrorState` with the fixed sentence pair every
+ * offline surface says. See lib/network-error.ts. `network.retry` (Retry) rather than
+ * `common.retry` (Try again) — this control re-issues one read and its label names that.
+ */
+export function NetworkErrorState({ onRetry, className }: NetworkErrorStateProps) {
+  const t = useT()
+  return (
+    <ErrorState
+      className={className}
+      message={
+        <>
+          <b className="network-error-title">{t('network.error.title')}</b>{' '}
+          <span className="network-error-copy">{t('network.error.copy')}</span>
+        </>
+      }
+      onRetry={onRetry}
+      retryLabel={t('network.retry')}
+    />
+  )
+}
+
+export type EmptyStateVariant = 'quiet' | 'next-step' | 'awaiting' | 'blank'
+
+/** A pickable starter prompt (the Assistant's empty-state suggestions — v4 cohesion item #2). */
+export interface EmptyStateSuggestion {
+  label: string
+  onSelect: () => void
+}
 
 export interface EmptyStateProps {
   title: ReactNode
@@ -37,6 +75,39 @@ export interface EmptyStateProps {
   note?: ReactNode
   variant?: EmptyStateVariant
   icon?: ReactNode
+  /**
+   * Pickable starter prompts, rendered as a stacked button list below the copy. Ported from v4's
+   * `state-kit.tsx` with the Deputy chrome cutover — the one call site is the Assistant panel's
+   * empty state (one empty-state grammar app-wide; the `.empty-suggestion*` rules already shipped
+   * in CardHead.css waiting for this prop).
+   */
+  suggestions?: EmptyStateSuggestion[]
+  /**
+   * Heading level for the title. Defaults to 2 because route-level empty states sit directly
+   * under the page h1. Nested record sections can pass their own deeper level; a standalone
+   * full-page host (no PageFamilyFrame h1 above it) passes 1.
+   */
+  headingLevel?: 1 | 2 | 3 | 4 | 5 | 6
+  /**
+   * Move focus to this state's own heading (tabIndex -1) once it mounts. Opt-in — plain mounts
+   * (a filtered list's "no results", a route's steady-state empty) must never steal focus from
+   * whatever the viewer was just doing. Reserved for a record panel's not-found/error/empty body,
+   * where NOTHING else in the panel is guaranteed to exist yet and the host's own generic
+   * open-focus effect can land on stale chrome if this content resolves after an async load —
+   * landing on the heading announces the state to screen readers immediately instead of
+   * leaving focus on an unrelated control.
+   */
+  autoFocus?: boolean
+  /**
+   * Drop the `region` landmark + its labelling when this EmptyState sits inside an already-labelled
+   * landmark. Ported from v4's `state-kit.tsx`.
+   * Two independent call sites need it: #191 (Home) — region-rows.tsx's tabpanel/section around a
+   * region already carries its own accessible name, so an all-clear EmptyState inside it must not
+   * add a second, redundant region; #192 (Tasks) — RecordViewer's empty body is already inside the
+   * record panel/page's own labelled region. Default false keeps every existing call site's
+   * semantics.
+   */
+  nested?: boolean
   /** Actions row (CTAs). */
   children?: ReactNode
   className?: string
@@ -47,10 +118,12 @@ function defaultEmptyGlyph(variant: EmptyStateVariant) {
     case 'next-step':
       return '+'
     case 'awaiting':
-      return '↻'
+      return '↻' // a real data source exists and will fill this
+    case 'blank':
+      return '—' // empty BY DESIGN: no source, nothing pending — never ✓ (false success) nor ↻ (false pending)
     case 'quiet':
     default:
-      return '✓'
+      return '✓' // an EARNED all-clear ("you're all caught up") — not a generic empty
   }
 }
 
@@ -60,15 +133,28 @@ export function EmptyState({
   note,
   variant = 'quiet',
   icon,
+  suggestions,
+  headingLevel = 2,
+  nested = false,
+  autoFocus = false,
   children,
   className,
 }: EmptyStateProps) {
   const titleId = useId()
+  const Heading = `h${headingLevel}` as const
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    if (autoFocus) headingRef.current?.focus()
+    // Mount-only: this component instance appearing IS the "content settled" signal (e.g. a
+    // record panel's loading skeleton swapping for this not-found body) — never re-steal focus
+    // on a later re-render of the same instance.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div
-      role="region"
-      aria-labelledby={titleId}
+      role={nested ? undefined : 'region'}
+      aria-labelledby={nested ? undefined : titleId}
       data-testid="empty-state"
       data-empty-variant={variant}
       className={`empty-state empty-state--${variant}${className ? ` ${className}` : ''}`}
@@ -78,10 +164,24 @@ export function EmptyState({
           <span className="empty-state-glyph">{icon ?? defaultEmptyGlyph(variant)}</span>
         </div>
         <div className="empty-state-body">
-          <h3 id={titleId} className="empty-title">{title}</h3>
+          <Heading id={titleId} ref={headingRef} tabIndex={autoFocus ? -1 : undefined} className="empty-title">{title}</Heading>
           {copy && <p className="empty-copy">{copy}</p>}
           {note && <p className="empty-note">{note}</p>}
         </div>
+        {suggestions && suggestions.length > 0 && (
+          <div className="empty-suggestions">
+            {suggestions.map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                className="empty-suggestion"
+                onClick={s.onSelect}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        )}
         {children && <div className="empty-actions">{children}</div>}
       </div>
     </div>
@@ -106,6 +206,53 @@ export function SkeletonRows({ count = 3, className, row }: SkeletonRowsProps) {
           </div>
         ),
       )}
+    </div>
+  )
+}
+
+export interface LoadingShellProps {
+  /** Number of skeleton rows to render. */
+  count?: number
+  /** Override the status announcement (defaults to the shared `common.loading`). */
+  label?: string
+  /** Localized status key for a route-level fallback that is not yet mounted. */
+  labelKey?: MessageKey
+  /** Optional visible page identity for a route-level fallback (the status remains separate). */
+  title?: string
+  /** Localized title key for a route-level fallback. */
+  titleKey?: MessageKey
+  className?: string
+  /** Custom row renderer, forwarded to SkeletonRows for pane-specific shapes. */
+  row?: (i: number) => ReactNode
+}
+
+/**
+ * LoadingShell — THE one loading grammar. A single busy status region (`role=status` +
+ * `aria-busy` + one localized label) wrapping the shared SkeletonRows, so a route whose code is
+ * still in flight announces itself once, the same way, everywhere.
+ *
+ * It is the sanctioned Suspense fallback for every code-split route (router.tsx, NFR-012/AC-019).
+ * SkeletonRows alone is `aria-hidden`, so a bare skeleton fallback would leave a screen reader
+ * with silence while a chunk downloads.
+ */
+export function LoadingShell({ count = 3, label, labelKey, title, titleKey, className, row }: LoadingShellProps) {
+  const t = useT()
+  const status = (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={label ?? (labelKey ? t(labelKey) : t('common.loading'))}
+      className={`loading-shell${className ? ` ${className}` : ''}`}
+    >
+      <SkeletonRows count={count} row={row} />
+    </div>
+  )
+  const resolvedTitle = title ?? (titleKey ? t(titleKey) : undefined)
+  if (!resolvedTitle) return status
+  return (
+    <div className="loading-shell-page">
+      <h1 className="loading-shell-page__title">{resolvedTitle}</h1>
+      {status}
     </div>
   )
 }

@@ -9,15 +9,15 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { KitchenToolbar } from './kitchen-toolbar'
 
 describe('KitchenToolbar — search-mini', () => {
-  it('renders a searchbox with the default placeholder "Find a dish"', () => {
+  it('renders a searchbox with the default placeholder "Find an item"', () => {
     render(<KitchenToolbar search="" onSearchChange={() => {}} />)
     const input = screen.getByRole('searchbox')
-    expect(input).toHaveAttribute('placeholder', 'Find a dish')
+    expect(input).toHaveAttribute('placeholder', 'Find an item')
   })
 
   it('honours a custom searchPlaceholder', () => {
-    render(<KitchenToolbar search="" onSearchChange={() => {}} searchPlaceholder="Find a dish to plan" />)
-    expect(screen.getByRole('searchbox')).toHaveAttribute('placeholder', 'Find a dish to plan')
+    render(<KitchenToolbar search="" onSearchChange={() => {}} searchPlaceholder="Find an item to plan" />)
+    expect(screen.getByRole('searchbox')).toHaveAttribute('placeholder', 'Find an item to plan')
   })
 
   it('fires onSearchChange on type', () => {
@@ -41,14 +41,18 @@ describe('KitchenToolbar — category filter', () => {
         onSearchChange={() => {}}
         categories={['All', 'Chicken', 'Seafood']}
         category="All"
+        categoryId="cafe-log-category"
         onCategoryChange={() => {}}
       />,
     )
     const select = screen.getByRole('combobox', { name: /category/i })
     expect(select).toBeInTheDocument()
-    // options reflect the provided list
-    expect(screen.getByRole('option', { name: 'Chicken' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'Seafood' })).toBeInTheDocument()
+    expect(select).toHaveAttribute('id', 'cafe-log-category')
+    fireEvent.click(select)
+    // options reflect the provided list while the designed popup is open
+    const listbox = screen.getByRole('listbox', { name: /category/i })
+    expect(listbox).toContainElement(screen.getByRole('option', { name: 'Chicken' }))
+    expect(listbox).toContainElement(screen.getByRole('option', { name: 'Seafood' }))
   })
 
   it('fires onCategoryChange on selection', () => {
@@ -62,7 +66,8 @@ describe('KitchenToolbar — category filter', () => {
         onCategoryChange={onCategoryChange}
       />,
     )
-    fireEvent.change(screen.getByRole('combobox', { name: /category/i }), { target: { value: 'Chicken' } })
+    fireEvent.click(screen.getByRole('combobox', { name: /category/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'Chicken' }))
     expect(onCategoryChange).toHaveBeenCalledWith('Chicken')
   })
 
@@ -81,7 +86,34 @@ describe('KitchenToolbar — category filter', () => {
         onCategoryChange={() => {}}
       />,
     )
-    expect(screen.getByRole('combobox', { name: /category/i })).toHaveValue('Chicken')
+    expect(screen.getByRole('combobox', { name: /category/i })).toHaveTextContent('Chicken')
+  })
+
+  it('keeps the caller supplied category trigger id across option rerenders', () => {
+    const view = render(
+      <KitchenToolbar
+        search=""
+        onSearchChange={() => {}}
+        categories={['All', 'Chicken']}
+        category="All"
+        categoryId="cafe-log-category"
+        onCategoryChange={() => {}}
+      />,
+    )
+
+    view.rerender(
+      <KitchenToolbar
+        search=""
+        onSearchChange={() => {}}
+        categories={['All', 'Seafood']}
+        category="Seafood"
+        categoryId="cafe-log-category"
+        onCategoryChange={() => {}}
+      />,
+    )
+
+    expect(screen.getByRole('combobox', { name: /category/i })).toHaveAttribute('id', 'cafe-log-category')
+    expect(screen.getByRole('combobox', { name: /category/i })).toHaveTextContent('Seafood')
   })
 })
 

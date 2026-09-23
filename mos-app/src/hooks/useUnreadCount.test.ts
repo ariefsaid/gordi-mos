@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { renderHook, waitFor } from '@testing-library/react'
+import { renderHook, waitFor, act } from '@testing-library/react'
 import { useUnreadCount } from './useUnreadCount'
+import { announceUnreadCountChanged } from './unread-count-bus'
 
 const mockCount = vi.fn()
 vi.mock('@/lib/db/notifications', () => ({
@@ -39,5 +40,21 @@ describe('useUnreadCount (CQ#2 — Inbox badge path)', () => {
     mockCount.mockResolvedValue(7)
     await result.current.refresh()
     await waitFor(() => expect(result.current.unreadCount).toBe(7))
+  })
+
+  it('issue #582: re-fetches when another mounted consumer announces a mark-read/mark-handled, without a reload', async () => {
+    mockCount.mockResolvedValue(4)
+    const { result } = renderHook(() => useUnreadCount())
+    await waitFor(() => expect(result.current.unreadCount).toBe(4))
+
+    // Simulate useNotifications elsewhere in the shell marking a row read: it never calls this
+    // hook's `refresh` directly (it can't — three independent mounts, bell/rail/tab), it only
+    // announces on the shared bus. A badge that doesn't subscribe stays stuck at 4 forever.
+    mockCount.mockResolvedValue(3)
+    act(() => {
+      announceUnreadCountChanged()
+    })
+
+    await waitFor(() => expect(result.current.unreadCount).toBe(3))
   })
 })

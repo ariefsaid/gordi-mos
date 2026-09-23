@@ -1,6 +1,14 @@
 // plan-budget-logic.ts — pure selectors for the Plan budget/COGS + pricing pre-flight (ADR-0022).
 // No Supabase, no React — fully unit-testable. The pages compose these over the rows the DAL returns.
 //
+// Money, percent and date formatting are re-exported from the canonical format modules
+// (cohesion-debt 2026-07-19, item #1) — this file no longer owns an IDR/percent/date copy.
+import { formatIDR } from './format/money'
+import { formatDayMonthYear } from './format/date'
+import { formatPercent } from './format/percent'
+
+export { formatIDR }
+//
 // The model (binding — see docs/specs/plan-budget.spec.md):
 //  - Ingredient cost line = reference data; basis ESB last_hpp; consumers LINK by ingredient_esb_code,
 //    never copy (anchor A5). The unit cost is always RESOLVED by joining the linked cost line.
@@ -183,15 +191,11 @@ export function assessCostStatus(args: {
   return { stale, uncertified, fresh: !stale && !uncertified, reasons }
 }
 
-/** Format an IDR amount with thousands separators + the Rp prefix (no decimals — rupiah has no sen). */
-export function formatIDR(n: number): string {
-  return 'Rp ' + Math.round(n).toLocaleString('en-US')
-}
-
-/** Format a 0..1 fraction as a percentage string (e.g. 0.423 -> "42%"). */
+/** Format a 0..1 fraction as a percentage string (e.g. 0.423 -> "42%"). Integer
+ * precision is this surface's semantic; the separator/locale comes from the ONE
+ * canonical percent module (census g-money r5 F-2). */
 export function formatPct(frac: number | null): string {
-  if (frac === null) return '—'
-  return Math.round(frac * 100) + '%'
+  return formatPercent(frac, 0)
 }
 
 function round4(n: number): number {
@@ -199,7 +203,5 @@ function round4(n: number): number {
 }
 
 function shortDate(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  return formatDayMonthYear(iso)
 }

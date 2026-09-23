@@ -147,4 +147,20 @@ describe('AC-138: AppearanceControl — theme switcher radios', () => {
     // The group label text must be present
     expect(screen.getByText(/appearance/i)).toBeInTheDocument();
   });
+
+  it('keeps menu-item foreground and state styling on the popover token boundary', () => {
+    mockUseThemeContext.mockReturnValue({
+      theme: 'light',
+      resolvedTheme: 'light',
+      setTheme: vi.fn(),
+    });
+    render(<AppearanceControl />);
+    const light = screen.getByRole('menuitemradio', { name: /light/i });
+    const dark = screen.getByRole('menuitemradio', { name: /dark/i });
+
+    expect(light).toHaveClass('appearance-control-option');
+    expect(dark).toHaveClass('appearance-control-option');
+    expect(light).not.toHaveClass('text-foreground');
+    expect(light.closest('[data-appearance-control]')).toBeInTheDocument();
+  });
 });

@@ -22,7 +22,7 @@ export function UiGallery() {
     <div className={dark ? 'dark' : ''} style={{ minHeight: '100vh', background: 'var(--surface-primary)', color: 'var(--text-primary)', padding: 32, fontFamily: 'var(--font-sans)' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 600, margin: 0 }}>MOS Primitives Gallery</h1>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 15 }}>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 'var(--font-size-body-lg)' }}>
           <Toggle value={dark} onChange={setDark} aria-label="Dark mode" /> Dark
         </label>
       </header>

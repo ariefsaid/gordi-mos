@@ -23,20 +23,23 @@ export function DemoLogin({
       {/* Overline title — 11px/600, uppercase, muted (mirrors AuthShell overline) */}
       <p
         className="text-muted-foreground font-semibold uppercase tracking-[0.06em] text-center"
-        style={{ fontSize: 11 }}
+        style={{ fontSize: 'var(--font-size-overline)' }}
       >
         Demo login
       </p>
       <p
         className="text-muted-foreground text-center mt-1"
-        style={{ fontSize: 12 }}
+        style={{ fontSize: 'var(--font-size-label)' }}
       >
         password:{' '}
         <code className="font-mono text-foreground">{DEMO_PASSWORD}</code>
       </p>
 
       {/* Persona buttons — primary-text links, wrap on narrow widths */}
-      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+      {/* #403: gap-y-2 (8px), not gap-y-1 — the chips are 44px boxes on a phone and they wrap
+          onto two rows, so the wrap seam is an adjacent-target seam. DESIGN.md pairs the 44px
+          floor with "8px between adjacent targets". */}
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
         {DEMO_PERSONAS.map((p) => {
           const busy = busyEmail === p.email
           return (
@@ -48,8 +51,8 @@ export function DemoLogin({
               onClick={() => onPick(p.email)}
               className="text-primary font-medium hover:underline focus-visible:underline inline-flex items-center gap-1"
               style={{
-                fontSize: 15,
-                minHeight: 44, // ≥44px touch target (design-plan §4)
+                fontSize: 'var(--font-size-body-lg)',
+                // #403: the ≥44px touch floor is the shared auth.css seam's job, phone-only.
                 opacity: disabled && !busy ? 0.5 : 1,
                 cursor: disabled ? 'not-allowed' : undefined,
               }}

@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint'
 import { globalIgnores } from 'eslint/config'
 
 export default tseslint.config([
-  globalIgnores(['dist', 'playwright-report', 'test-results', 'coverage']),
+  globalIgnores(['dist', 'playwright-report', 'test-results', 'coverage', 'storybook-static']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -54,6 +54,14 @@ export default tseslint.config([
         'error',
         { restrictDefaultExports: { direct: true, named: true } },
       ],
+    },
+  },
+  {
+    // Storybook CSF requires a default meta export; this is the only src subtree exempted from
+    // the app's named-export rule.
+    files: ['src/stories/v3/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-exports': 'off',
     },
   },
 ])

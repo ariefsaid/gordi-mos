@@ -7,6 +7,7 @@ vi.mock('../lib/supabase', () => ({
   supabase: {
     auth: {
       updateUser: vi.fn(),
+      resetPasswordForEmail: vi.fn(),
     },
   },
 }))
@@ -33,6 +34,7 @@ import { RecoveryPage } from './recovery-page'
 import { supabase } from '@/lib/supabase'
 
 const mockUpdateUser = vi.mocked(supabase.auth.updateUser)
+const mockResetPassword = vi.mocked(supabase.auth.resetPasswordForEmail)
 
 describe('RecoveryPage', () => {
   beforeEach(() => {
@@ -196,5 +198,59 @@ describe('RecoveryPage', () => {
     expect(screen.getByRole('status')).toBeInTheDocument()
 
     resolve!({ data: { user: null }, error: null } as unknown as Awaited<ReturnType<typeof supabase.auth.updateUser>>)
+  })
+
+  // ── #799 ── AC-016: the expired dead end offers a way forward ───────────────────────────────
+
+  it('AC-016: the expired card offers Request a new link beside Back to sign in', () => {
+    mockAuthState = { status: 'unauthenticated' }
+    render(<RecoveryPage />)
+
+    expect(screen.getByRole('button', { name: 'Request a new link' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Back to sign in' })).toBeInTheDocument()
+  })
+
+  it('AC-016: requesting a new link sends it and shows the on-its-way result', async () => {
+    mockAuthState = { status: 'unauthenticated' }
+    mockResetPassword.mockResolvedValue({
+      data: {},
+      error: null,
+    } as Awaited<ReturnType<typeof supabase.auth.resetPasswordForEmail>>)
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
+    await user.click(screen.getByRole('button', { name: 'Request a new link' }))
+
+    await waitFor(() => {
+      expect(mockResetPassword).toHaveBeenCalledWith('user@example.test', {
+        redirectTo: `${window.location.origin}/mos/recovery`,
+      })
+    })
+    expect(
+      await screen.findByText('If an account exists for that address, a reset link is on its way.'),
+    ).toBeInTheDocument()
+    // The result state replaces the card body — the form is gone, the other way out stays.
+    expect(screen.queryByRole('button', { name: 'Request a new link' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Back to sign in' })).toBeInTheDocument()
+  })
+
+  it('AC-016: a refused re-send is indistinguishable from a successful one', async () => {
+    mockAuthState = { status: 'unauthenticated' }
+    mockResetPassword.mockResolvedValue({
+      data: null,
+      error: { message: 'rate limit', status: 429 },
+    } as unknown as Awaited<ReturnType<typeof supabase.auth.resetPasswordForEmail>>)
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
+    await user.click(screen.getByRole('button', { name: 'Request a new link' }))
+
+    expect(
+      await screen.findByText('If an account exists for that address, a reset link is on its way.'),
+    ).toBeInTheDocument()
   })
 })

@@ -1,10 +1,16 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from './use-auth'
+import { safeReturnTarget } from './return-target'
 
-// FR-011: when an authenticated user hits /login (or recovery), redirect to home.
-// Orphan users are also authenticated (they have a valid JWT) — redirect them to /
+// FR-011: when an authenticated user hits /login (or recovery), redirect them off the form.
+// Orphan users are also authenticated (they have a valid JWT) — redirect them too
 // so ProtectedRoute can show the OrphanScreen rather than leaving them on the login form.
 // Unauthenticated and loading → render the login/recovery route.
+//
+// Where they land is the remembered route ProtectedRoute parked in `location.state.from`, Home
+// when there is none. This guard fires the moment the auth status flips, which is why the
+// landing is decided here and nowhere else — a second navigate on the form it replaces would
+// only race it.
 //
 // PASSWORD_RECOVERY: while recovering, /recovery must render (not bounce), but all other
 // routes under this gate redirect to /recovery so the user sets a new password first.
@@ -22,7 +28,7 @@ export function RedirectIfAuthed() {
   }
 
   if (auth.status === 'authenticated' || auth.status === 'orphan') {
-    return <Navigate to="/" replace />
+    return <Navigate to={safeReturnTarget((location.state as { from?: unknown } | null)?.from)} replace />
   }
 
   return <Outlet />

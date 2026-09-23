@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { ChecklistCard } from './checklist-card'
 import type { ChecklistItemRow } from '@/lib/db/tasks.types'
 
@@ -21,6 +21,30 @@ describe('ChecklistCard', () => {
     fireEvent.change(input, { target: { value: 'Buy beans' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(onAdd).toHaveBeenCalledWith('Buy beans')
+  })
+
+  // OD-REDESIGN-22 (D-C1): a failed checklist write surfaces a VISIBLE error + Retry — not a
+  // sr-only-only rollback. The retry button re-runs the failed operation.
+  it('D-C1: renders a visible error + Retry when saveError is set, and Retry calls onRetry', () => {
+    const onRetry = vi.fn()
+    render(
+      <ChecklistCard items={items(['Buy beans'])} canEdit taskId="t" viewerId="v"
+        onAdd={() => {}} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}}
+        saveError={{ message: "Couldn't save — try again.", onRetry }} />,
+    )
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent(/couldn.t save/i)
+    fireEvent.click(within(alert).getByRole('button', { name: /retry/i }))
+    expect(onRetry).toHaveBeenCalledTimes(1)
+  })
+
+  it('D-C1: renders NO error banner when saveError is null', () => {
+    render(
+      <ChecklistCard items={items(['Buy beans'])} canEdit taskId="t" viewerId="v"
+        onAdd={() => {}} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}}
+        saveError={null} />,
+    )
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   // M7: the empty Checklist tab must show the "No steps yet." copy for EVERYONE

@@ -27,17 +27,19 @@ const OPTIONS: RevenueScopeOption[] = [
 const PERSON_NO_SCOPE: AdminPersonRow = {
   id: 'other-person-id',
   full_name: 'Budi Santoso',
-  email: 'budi@gordi.id',
+  email: 'budi@example.test',
   archived_at: null,
   login: 'active',
   access_roles: ['supervisor'],
   jabatan: [],
   revenue_scope: [],
+  teams: [],
 }
 
 const PERSON_WITH_SCOPE: AdminPersonRow = {
   ...PERSON_NO_SCOPE,
   revenue_scope: [{ channel: 'POS', branch_code: 'BGR' }],
+  teams: [],
 }
 
 beforeEach(() => {

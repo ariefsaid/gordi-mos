@@ -10,6 +10,8 @@ export interface TaskRow {
   org_id: string
   title: string
   business_unit_id: string
+  /** Canonical owning Team. Nullable during the legacy owner-ratification window. */
+  team_id?: string | null
   status: TaskStatus
   responsible_person_id: string
   accountable_person_id: string
@@ -22,8 +24,17 @@ export interface TaskRow {
   last_activity_at: string
   archived_at: string | null
   created_by: string
+  /** Set by the DB when a task enters Done; legacy Done rows may remain null. */
+  completed_at?: string | null
   created_at: string
   updated_at: string
+  // Step 6 (ADR-0051 D10, occurrence-as-tasks): occurrence provenance. Optional/nullable —
+  // ALL pre-Step-6 tasks and every hand-created task carry neither column (ad-hoc Tasks stay
+  // ad-hoc, FR-611). Populated only on a Task materialized by mos.spawn_process_run /
+  // mos.resolve_pending_task. Kept optional (not just nullable) so this row shape stays
+  // structurally satisfiable by any pre-existing TaskListRow literal without a cast.
+  process_run_id?: string | null
+  generated_from_task_def_id?: string | null
 }
 export interface ChecklistItemRow {
   id: string

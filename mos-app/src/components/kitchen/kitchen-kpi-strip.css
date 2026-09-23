@@ -28,18 +28,18 @@
   min-width: 0;
 }
 .kks-label {
-  font-size: 12.5px;
+  font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
 .kks-value {
   /* Plus Jakarta 23px/600 tabular — plan §8.1 KPI-tile signature */
-  font-size: 23px;
+  font-size: var(--font-size-kpi-value);
   font-weight: 600;
   color: var(--foreground);
   line-height: 1.1;
 }
 .kks-sub {
-  font-size: 11px;
+  font-size: var(--font-size-overline);
   color: var(--text-tertiary);
 }
 
@@ -55,7 +55,7 @@
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  font-size: 13px;
+  font-size: var(--font-size-control);
   color: var(--foreground);
 }
 .kks-phone-label {

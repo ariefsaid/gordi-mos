@@ -1,11 +1,13 @@
 import { useAuth } from './use-auth'
 import { AuthShell, AuthCard } from './auth-shell'
+import { useT } from '@/i18n/use-t'
 
 // FR-016: authenticated user with no linked people row sees this blocked screen.
 // The only action is sign-out — no nav, no directory read/write (OD-P1-10).
 // Design-plan §3 OrphanBlockedPage: AuthShell frame + warning tile + subheading + body + sign-out primary.
 export function OrphanScreen() {
   const auth = useAuth()
+  const t = useT()
   const signOut = auth.status === 'orphan' ? auth.signOut : undefined
 
   return (
@@ -20,7 +22,7 @@ export function OrphanScreen() {
             height: 40,
             backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
             color: 'var(--warning-foreground)',
-            fontSize: 20,
+            fontSize: 'var(--font-size-heading)',
           }}
           aria-hidden="true"
         >
@@ -30,7 +32,7 @@ export function OrphanScreen() {
         {/* Title — subheading (18px/600) */}
         <h1
           className="text-foreground font-semibold text-center mb-2"
-          style={{ fontSize: 20, lineHeight: 1.3 }}
+          style={{ fontSize: 'var(--font-size-heading)', lineHeight: 1.3 }}
         >
           Your account isn't set up yet
         </h1>
@@ -40,7 +42,7 @@ export function OrphanScreen() {
           className="text-muted-foreground text-center mb-6"
           style={{ fontSize: 16 }}
         >
-          We couldn't find your Gordi MOS profile. Contact Arief to get set up.
+          {t('auth.orphan.body')}
         </p>
 
         {/* Sign out — the ONE primary button on this screen (One Blue Rule) */}

@@ -11,15 +11,17 @@
 //   item 11: dead useAuth() removed; isDisabled simplified to isSubmitting
 //   item 13: heading uses .heading CSS class instead of fontSize: '20px'
 
-import { useState, useEffect, useId, useRef } from 'react'
+import { useState, useEffect, useId } from 'react'
+import { useT } from '@/i18n/use-t'
 import { TextInput } from '@/components/ui/text-input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Toggle } from '@/components/ui/toggle'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/state-kit'
+import { ModalShell } from '@/components/ui/modal-shell'
 import { PasswordReveal } from './password-reveal'
 import { synthesizeEmail, createPerson, createLogin } from '@/lib/db/admin-users'
-import { ASSIGNABLE_ROLES, ROLE_META } from '@/lib/db/admin-users.types'
+import { ASSIGNABLE_ROLES, localizedRoleMeta } from '@/lib/db/admin-users.types'
 
 export interface CreatePersonDialogProps {
   open: boolean
@@ -44,6 +46,7 @@ export function CreatePersonDialog({
   takenEmails,
   onShowToast,
 }: CreatePersonDialogProps) {
+  const t = useT()
   const [phase, setPhase] = useState<Phase>('form')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -61,62 +64,10 @@ export function CreatePersonDialog({
   const nameId = useId()
   const emailId = useId()
   const titleId = useId()
-  const containerRef = useRef<HTMLDivElement>(null)
-  const invokerRef = useRef<HTMLElement | null>(null)
 
   // Derived synthetic email
   const syntheticEmail =
     noEmail && fullName.trim() ? synthesizeEmail(fullName.trim(), takenEmails) : null
-
-  // Capture invoker + return focus on close
-  useEffect(() => {
-    if (open) {
-      invokerRef.current = document.activeElement as HTMLElement | null
-    } else {
-      invokerRef.current?.focus?.()
-    }
-  }, [open])
-
-  // Move focus into dialog on open; Tab trap + Esc on close (non-reveal phase only)
-  useEffect(() => {
-    if (!open || phase === 'reveal') return
-    const container = containerRef.current
-    if (!container) return
-
-    requestAnimationFrame(() => {
-      const first = container.querySelector<HTMLElement>(
-        'input:not([disabled]), button:not([disabled])',
-      )
-      first?.focus()
-    })
-
-    const FOCUSABLE =
-      'button:not([disabled]):not([aria-disabled="true"]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && phase !== 'submitting') {
-        e.preventDefault()
-        onClose()
-        return
-      }
-      if (e.key !== 'Tab') return
-      const focusable = Array.from(container!.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-        (el) => el.offsetParent !== null || el === document.activeElement,
-      )
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault()
-        last.focus()
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault()
-        first.focus()
-      }
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open, phase, onClose])
 
   // Reset form when dialog opens
   useEffect(() => {
@@ -153,36 +104,52 @@ export function CreatePersonDialog({
     setSubmitError('')
 
     if (!fullName.trim()) {
-      setNameError('Enter a name')
+      setNameError(t('admin.create.nameError'))
       return
     }
 
     const resolvedEmail = noEmail ? syntheticEmail : email.trim() || null
     setPhase('submitting')
 
+    let personId: string
     try {
-      const personId = await createPerson({
+      personId = await createPerson({
         full_name: fullName.trim(),
         email: resolvedEmail,
         access_roles: Array.from(selectedRoles),
       })
-
-      if (createLoginNow) {
-        const pw = await createLogin(personId)
-        // Swap to reveal — do NOT close or call onCreated yet
-        setRevealData({ password: pw, personName: fullName.trim(), email: resolvedEmail })
-        setPhase('reveal')
-      } else {
-        // No login — close + notify + toast
-        onCreated()
-        onShowToast?.(`${fullName.trim()} added.`)
-        onClose()
-      }
     } catch (err) {
+      // Nothing was written — the honest "couldn't create this person, try again" path.
       setPhase('form')
       setSubmitError(
-        err instanceof Error ? err.message : "Couldn't create this person. Try again.",
+        err instanceof Error ? err.message : t('admin.create.error'),
       )
+      return
+    }
+
+    if (!createLoginNow) {
+      // No login requested — close + notify + toast.
+      onCreated()
+      onShowToast?.(t('admin.create.addedToast', { name: fullName.trim() }))
+      onClose()
+      return
+    }
+
+    // JQ-3: login WAS requested. Deliver the credential handoff (PasswordReveal) on success, or a
+    // visible actionable message on failure — never let the login intent vanish behind a plain
+    // "added" success. The person already exists here, so re-submitting createPerson would
+    // duplicate them; on failure we therefore refresh the list (the new person surfaces with a
+    // "Create login" row action) and hand the admin an honest recovery instruction via the toast,
+    // then close — the row-menu Create login (with its own reveal) is the established retry path.
+    try {
+      const pw = await createLogin(personId)
+      // Swap to reveal — do NOT close or call onCreated yet (Done drops the password + closes).
+      setRevealData({ password: pw, personName: fullName.trim(), email: resolvedEmail })
+      setPhase('reveal')
+    } catch {
+      onCreated()
+      onShowToast?.(t('admin.create.loginFailedToast', { name: fullName.trim() }))
+      onClose()
     }
   }
 
@@ -196,48 +163,29 @@ export function CreatePersonDialog({
   const isReveal = phase === 'reveal'
 
   return (
-    // Overlay — standard confirm-overlay scrim
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'var(--scrim)' }}
-      // Backdrop click intentionally disabled during reveal (design-plan §4.4)
-      onClick={
-        isReveal
-          ? undefined
-          : (e) => {
-              if (e.target === e.currentTarget && !isSubmitting) onClose()
-            }
-      }
+    <ModalShell
+      open={open}
+      onClose={onClose}
+      role={isReveal ? 'alertdialog' : 'dialog'}
+      ariaLabelledBy={isReveal ? REVEAL_HEADING_ID : titleId}
+      ariaDescribedBy={isReveal ? REVEAL_WARNING_ID : undefined}
+      closeOnBackdrop={!isSubmitting && !isReveal}
+      closeOnEscape={!isSubmitting && !isReveal}
+      phoneMode="centered"
     >
-      <div
-        ref={containerRef}
-        role={isReveal ? 'alertdialog' : 'dialog'}
-        aria-modal="true"
-        aria-labelledby={isReveal ? REVEAL_HEADING_ID : titleId}
-        aria-describedby={isReveal ? REVEAL_WARNING_ID : undefined}
-        className="relative w-full max-w-md overflow-hidden rounded-lg"
-        style={{
-          background: 'var(--card)',
-          boxShadow: 'var(--shadow-overlay)',
-          border: '1px solid var(--input)',
-          borderRadius: 'var(--radius)',
-        }}
-        // Prevent bubbling to the backdrop
-        onClick={(e) => e.stopPropagation()}
-      >
-        {isReveal && revealData ? (
-          <div className="p-6">
-            <PasswordReveal
-              personName={revealData.personName}
-              password={revealData.password}
-              email={revealData.email}
-              context="create"
-              onDone={handleRevealDone}
-              headingId={REVEAL_HEADING_ID}
-              warningId={REVEAL_WARNING_ID}
-            />
-          </div>
-        ) : (
+      {isReveal && revealData ? (
+        <div className="p-6">
+          <PasswordReveal
+            personName={revealData.personName}
+            password={revealData.password}
+            email={revealData.email}
+            context="create"
+            onDone={handleRevealDone}
+            headingId={REVEAL_HEADING_ID}
+            warningId={REVEAL_WARNING_ID}
+          />
+        </div>
+      ) : (
           <form onSubmit={handleSubmit} noValidate>
             {/* Header — considered title + caption, hairline divider seams it to the body */}
             <div className="px-6 pt-6 pb-4">
@@ -246,10 +194,10 @@ export function CreatePersonDialog({
                 className="heading text-xl font-semibold"
                 style={{ color: 'var(--foreground)' }}
               >
-                Add person
+                {t('admin.create.title')}
               </h2>
               <p className="mt-1 text-sm" style={{ color: 'var(--muted-foreground)' }}>
-                Create a directory entry, and optionally a sign-in.
+                {t('admin.create.subtitle')}
               </p>
             </div>
             <div style={{ borderTop: '1px solid var(--border)' }} />
@@ -260,7 +208,7 @@ export function CreatePersonDialog({
               <div className="flex flex-col gap-1.5">
                 <TextInput
                   id={nameId}
-                  label="Full name"
+                  label={t('admin.create.fullName')}
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   error={!!nameError}
@@ -285,7 +233,7 @@ export function CreatePersonDialog({
               <div className="flex flex-col gap-2">
                 <TextInput
                   id={emailId}
-                  label="Email"
+                  label={t('admin.create.email')}
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -305,9 +253,9 @@ export function CreatePersonDialog({
                     checked={noEmail}
                     onChange={(v) => setNoEmail(v)}
                     disabled={isSubmitting}
-                    aria-label="No email — this person has no email"
+                    aria-label={t('admin.create.noEmailAria')}
                   />
-                  <span>This person has no email</span>
+                  <span>{t('admin.create.noEmail')}</span>
                 </label>
 
                 {/* Synthetic sign-in name preview — cleanly presented in a quiet fill panel */}
@@ -320,7 +268,7 @@ export function CreatePersonDialog({
                       className="text-xs font-medium"
                       style={{ color: 'var(--muted-foreground)' }}
                     >
-                      Sign-in name
+                      {t('admin.create.signInName')}
                     </div>
                     <code
                       className="mt-0.5 block text-sm"
@@ -338,7 +286,7 @@ export function CreatePersonDialog({
                   className="mb-1 text-sm font-medium"
                   style={{ color: 'var(--foreground)' }}
                 >
-                  Access roles
+                  {t('admin.people.col.access')}
                 </legend>
                 <div
                   className="overflow-hidden rounded-md"
@@ -348,7 +296,7 @@ export function CreatePersonDialog({
                     // At create-time the new person is never the actor — self-assign guard never
                     // fires here (design-plan §4.3: "default-safe pick: enabled"). item 11.
                     const isDisabled = isSubmitting
-                    const meta = ROLE_META[role] ?? { label: role, description: '' }
+                    const meta = localizedRoleMeta(role, t)
 
                     return (
                       <label
@@ -401,10 +349,10 @@ export function CreatePersonDialog({
                     value={createLoginNow}
                     onChange={(v) => setCreateLoginNow(v)}
                     disabled={isSubmitting}
-                    aria-label="Create a login now"
+                    aria-label={t('admin.create.createLoginNow')}
                   />
                   <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
-                    Create a login now
+                    {t('admin.create.createLoginNow')}
                   </span>
                 </label>
                 <p
@@ -414,15 +362,13 @@ export function CreatePersonDialog({
                     paddingLeft: 'calc(28px + 0.75rem)',
                   }}
                 >
-                  {createLoginNow
-                    ? 'A temporary password will be shown once after you create.'
-                    : 'Off: a directory entry only — you can add a sign-in later.'}
+                  {createLoginNow ? t('admin.create.loginHelpOn') : t('admin.create.loginHelpOff')}
                 </p>
               </div>
 
               {/* Form-level error */}
               {submitError && (
-                <ErrorState message="Couldn't create this person. Try again." />
+                <ErrorState message={t('admin.create.error')} />
               )}
             </div>
 
@@ -435,15 +381,14 @@ export function CreatePersonDialog({
                 onClick={onClose}
                 disabled={isSubmitting}
               >
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button type="submit" variant="primary" disabled={isSubmitting}>
-                {isSubmitting ? 'Creating…' : 'Create person'}
+                {isSubmitting ? t('admin.create.creating') : t('admin.create.submit')}
               </Button>
             </div>
-          </form>
-        )}
-      </div>
-    </div>
+        </form>
+      )}
+    </ModalShell>
   )
 }

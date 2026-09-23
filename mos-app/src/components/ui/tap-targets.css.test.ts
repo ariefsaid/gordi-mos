@@ -5,20 +5,61 @@ import { resolve } from 'node:path'
 const buttonCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Button.css'), 'utf8')
 const windowSelectorCss = readFileSync(resolve(process.cwd(), 'src/components/dashboard/window-selector.css'), 'utf8')
 const cutToggleCss = readFileSync(resolve(process.cwd(), 'src/components/dashboard/cut-toggle.css'), 'utf8')
+const textInputCss = readFileSync(resolve(process.cwd(), 'src/components/ui/TextInput.css'), 'utf8')
+const selectCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Select.css'), 'utf8')
+const dateFieldCss = readFileSync(resolve(process.cwd(), 'src/components/ui/DateField.css'), 'utf8')
+const taskSurfaceCss = readFileSync(resolve(process.cwd(), 'src/components/tasks/TaskSurface.css'), 'utf8')
+// SYS-2 (census DO-3): the phone-floor guard was a hard-coded selector list, so every SYS-2
+// instance lived in a file this scan never opened. These are the files that carried the sub-44px
+// touch targets the gen-1 census found — the scan now covers them so a regression re-fails here.
+const iconButtonCss = readFileSync(resolve(process.cwd(), 'src/components/ui/IconButton.css'), 'utf8')
+const commandMenuCss = readFileSync(resolve(process.cwd(), 'src/components/command/command-menu.css'), 'utf8')
+const signalComposerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-composer.css'), 'utf8')
+const mentionPickerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-mention-picker.css'), 'utf8')
+const helpTipCss = readFileSync(resolve(process.cwd(), 'src/components/ui/help-tip.css'), 'utf8')
+const helpTipTsx = readFileSync(resolve(process.cwd(), 'src/components/ui/help-tip.tsx'), 'utf8')
+// #708: the Signal composer's attention pills (43.2×44 / 42.2×44 measured) and the record panel's
+// Close / Ask Deputy buttons (32×32, `.record-panel-btn`) sat under the phone tap floor.
+const attentionPickerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-attention-picker.css'), 'utf8')
+const recordPanelHostCss = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
+const kitchenPlanCss = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-plan-page.css'), 'utf8')
+const kitchenPlanTsx = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-plan-page.tsx'), 'utf8')
+// #711: search-field floor is defined in collection-toolbar.css.
+const collectionToolbarCss = readFileSync(resolve(process.cwd(), 'src/components/record-collection/collection-toolbar.css'), 'utf8')
+const signalFeedRowsTsx = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-feed-rows.tsx'), 'utf8')
+// #718: same class as #702/#708 — a bare `@media (pointer: fine)` fires at ANY width once a
+// fine pointer is reported (a resized desktop window, a non-touch mobile emulation), reopening
+// the phone-floor hole the `and (min-width: 768px)` guard exists to close. #708 fixed this one
+// rule at a time (presence pins only); this asserts the ABSENCE class-wide so a later bare rule
+// can't slip back in the way TaskSurface.css's did.
+const recordViewerCss = readFileSync(resolve(process.cwd(), 'src/components/records/record-viewer.css'), 'utf8')
+const recordPageChromeCss = readFileSync(resolve(process.cwd(), 'src/shell/record-page-chrome.css'), 'utf8')
 
+// EVERY block for the query, joined — a stylesheet may open the same breakpoint more than once,
+// and reading only the first one silently misses rules that are in force.
 function mediaBody(css: string, query: string): string {
-  const idx = css.indexOf(query)
-  expect(idx, `expected to find ${query}`).toBeGreaterThanOrEqual(0)
-  const open = css.indexOf('{', idx)
-  let depth = 0
-  for (let i = open; i < css.length; i += 1) {
-    if (css[i] === '{') depth += 1
-    if (css[i] === '}') {
-      depth -= 1
-      if (depth === 0) return css.slice(open + 1, i)
+  const bodies: string[] = []
+  let from = 0
+  for (;;) {
+    const idx = css.indexOf(query, from)
+    if (idx < 0) break
+    const open = css.indexOf('{', idx)
+    let depth = 0
+    for (let i = open; i < css.length; i += 1) {
+      if (css[i] === '{') depth += 1
+      if (css[i] === '}') {
+        depth -= 1
+        if (depth === 0) {
+          bodies.push(css.slice(open + 1, i))
+          from = i + 1
+          break
+        }
+      }
+      if (i === css.length - 1) throw new Error(`unterminated media query: ${query}`)
     }
   }
-  throw new Error(`unterminated media query: ${query}`)
+  expect(bodies.length, `expected to find ${query}`).toBeGreaterThan(0)
+  return bodies.join('\n')
 }
 
 describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
@@ -29,6 +70,8 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(body).toMatch(/\[data-touch-target='true'\][\s\S]*min-height:\s*44px/)
     expect(body).toMatch(/\.tap-target-phone--icon[\s\S]*min-width:\s*44px/)
     expect(body).toMatch(/\.tap-target-phone--icon[\s\S]*min-height:\s*44px/)
+    expect(body).toMatch(/\.tap-floor[\s\S]*min-width:\s*44px/)
+    expect(body).toMatch(/\.tap-floor[\s\S]*min-height:\s*44px/)
   })
 
   it('raises the dashboard window selector track, tabs, and custom date controls to 44px on phone', () => {
@@ -44,5 +87,175 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     const body = mediaBody(cutToggleCss, '@media (max-width: 767.98px)')
     expect(body).toMatch(/\.cut-toggle[\s\S]*min-height:\s*44px/)
     expect(body).toMatch(/\.cut-toggle-tab[\s\S]*min-height:\s*44px/)
+  })
+
+  // DO-15(a) (census-sweep R2 task-create F3): the floor lives at the PRIMITIVE seam so every
+  // consumer (task-create form, record fields, future surfaces) inherits it — min-height beats
+  // the per-surface height overrides (e.g. the create form's 36px rhythm) only on phone.
+  it('DO-15(a): raises the shared field primitives (TextInput/Select/DateField) to 44px on phone', () => {
+    const textInputBody = mediaBody(textInputCss, '@media (max-width: 767.98px)')
+    expect(textInputBody).toMatch(/\.mk-textinput__box[\s\S]*min-height:\s*44px/)
+    expect(textInputBody).toMatch(/\.mk-textinput__field[^}]*min-height:\s*44px/)
+    const selectBody = mediaBody(selectCss, '@media (max-width: 767.98px)')
+    // The shared Select's bordered box owns the 44px outer target; its button is 42px inside
+    // the two 1px borders. Assert both halves so a future refactor cannot accidentally put the
+    // floor on a retired/native-only selector.
+    expect(selectBody).toMatch(/\.mk-select__box\s*\{[^}]*min-height:\s*44px/)
+    expect(selectBody).toMatch(/\.mk-select__field\s*\{[^}]*min-height:\s*44px/)
+    expect(mediaBody(dateFieldCss, '@media (max-width: 767.98px)'))
+      .toMatch(/\.mk-date__box[\s\S]*min-height:\s*44px/)
+  })
+
+  it("DO-15(a): raises the task-create form's non-primitive fields (textarea, loading field) to 44px on phone", () => {
+    const body = mediaBody(taskSurfaceCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.tc-textarea[\s\S]*min-height:\s*44px/)
+    expect(body).toMatch(/\.tc-loading-field[\s\S]*min-height:\s*44px/)
+  })
+
+  // ── SYS-2 (census DO-3): the surfaces the hard-coded list never scanned ──────────────────────
+  it('SYS-2: raises the icon-only button primitive (.mk-iconbtn — Signal-composer close et al.) to 44px on phone', () => {
+    const body = mediaBody(iconButtonCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.mk-iconbtn[\s\S]*min-width:\s*44px/)
+    expect(body).toMatch(/\.mk-iconbtn[\s\S]*min-height:\s*44px/)
+  })
+
+  it('SYS-2: raises the ⌘K command rows (.cm-item) to 44px on phone', () => {
+    const body = mediaBody(commandMenuCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.cm-item[\s\S]*min-height:\s*44px/)
+  })
+
+  it('SYS-2: keeps the Occurred datetime input at a 44px floor', () => {
+    const body = mediaBody(signalComposerCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.signal-composer-datetime input[^}]*min-height:\s*44px/)
+  })
+
+  it('SYS-2: raises the Signal mention rows (.mention-row) to 44px on phone', () => {
+    const body = mediaBody(mentionPickerCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.mention-row[\s\S]*min-height:\s*44px/)
+  })
+
+  it('ticket 667: keeps the help-tip anchor inline while its button owns a ≥44px pseudo hit box', () => {
+    expect(helpTipTsx).not.toMatch(/help-tip-anchor tap-floor/)
+    expect(helpTipCss).toMatch(/\.help-tip::before\s*\{[^}]*inset:\s*-16px/)
+  })
+
+  // #708: the trigger and menu choices share one phone-only floor declaration. Keep the assertion
+  // on the current picker selectors so a retired class cannot make this guard fail for no product gap.
+  it('issue 708: raises the Signal composer attention pills to a ≥44px width floor on phone', () => {
+    const body = mediaBody(attentionPickerCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.signal-attention-picker-trigger,\s*\.signal-attention-picker-option\s*\{[^}]*min-width:\s*44px/)
+    expect(attentionPickerCss.match(/min-width:\s*44px/g)).toHaveLength(1)
+  })
+
+  // #708: `.record-panel-btn` already rests at 44×44 (P1-2), but the `@media (pointer: fine)`
+  // tighten-down carried no width guard — ANY environment reporting a fine pointer (a resized
+  // desktop window, a non-touch mobile emulation) fired it at phone width too, which is exactly
+  // how Close/Ask Deputy measured 32×32 under 767px. The fix narrows the query itself so the
+  // 32px rule can only win at ≥768px; that is a stronger claim than "a bigger min-width exists
+  // somewhere", so assert the query condition text directly.
+  it('issue 708: the record-panel-btn fine-pointer tighten-down only fires at desktop width (≥768px)', () => {
+    expect(recordPanelHostCss).toMatch(/@media \(pointer: fine\) and \(min-width: 768px\)\s*\{\s*\.record-panel-btn\s*\{\s*width:\s*32px;\s*height:\s*32px;\s*\}/)
+    // Negative check: no OTHER bare `(pointer: fine)` block (unguarded by a min-width) remains
+    // for this file — a second unnarrowed block would silently reopen the same hole.
+    expect(recordPanelHostCss).not.toMatch(/@media \(pointer: fine\)\s*\{(?!\s*\})/)
+  })
+
+  it('issue 730: the record-page Back floor is declared by the winning phone component rule', () => {
+    expect(recordPageChromeCss).toMatch(/@media \(max-width: 767\.98px\)[\s\S]*\.record-page-back\s*\{[^}]*min-height:\s*44px/)
+  })
+
+  it('ticket 711: raises the collection-toolbar search FIELD itself (not just its wrapping box) to 44px on phone', () => {
+    const body = mediaBody(collectionToolbarCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.collection-toolbar__search\s*\{[^}]*min-height:\s*44px/)
+    expect(body).toMatch(/\.collection-toolbar__search input[^}]*min-height:\s*44px/)
+  })
+
+  it('ticket 732: keeps the Home feed See more disclosure on the shared phone tap floor', () => {
+    expect(signalFeedRowsTsx).toMatch(/className="signal-feed-link signal-feed-link--more tap-floor"/)
+  })
+
+  it('issue \u0023705: Plan item names stay plain on phone while the desktop group Log link owns a 44px target', () => {
+    expect(kitchenPlanTsx).not.toMatch(/kp-row-link/)
+    const body = mediaBody(kitchenPlanCss, '@media (min-width: 768px)')
+    expect(body).toMatch(/\.kp-group-link\s*\{[^}]*min-height:\s*44px/)
+  })
+
+  it('ticket 702: keeps the record edit affordance floor on phone for fine pointers', () => {
+    expect(recordViewerCss).toMatch(/@media \(pointer: fine\) and \(min-width: 768px\)[\s\S]*?\.record-field__edit\s*\{[^}]*?min-height:\s*32px/)
+  })
+
+  // #718: #708 only pinned the ONE rule it measured (record-panel-host.css), so a bare
+  // `(pointer: fine)` elsewhere — TaskSurface.css's `.dw-iconbtn`, the same shrink-at-phone-width
+  // bug — kept the census green. This scans every stylesheet the census reads: every occurrence
+  // of `(pointer: fine)` must be immediately followed by ` and (min-width: 768px)`, full stop,
+  // regardless of which selector the block guards.
+  it('issue 718: no stylesheet the census reads carries a bare @media (pointer: fine) block', () => {
+    const stylesheets: Array<[string, string]> = [
+      ['Button.css', buttonCss],
+      ['window-selector.css', windowSelectorCss],
+      ['cut-toggle.css', cutToggleCss],
+      ['TextInput.css', textInputCss],
+      ['Select.css', selectCss],
+      ['DateField.css', dateFieldCss],
+      ['TaskSurface.css', taskSurfaceCss],
+      ['IconButton.css', iconButtonCss],
+      ['command-menu.css', commandMenuCss],
+      ['signal-composer.css', signalComposerCss],
+      ['signal-mention-picker.css', mentionPickerCss],
+      ['help-tip.css', helpTipCss],
+      ['signal-attention-picker.css', attentionPickerCss],
+      ['record-panel-host.css', recordPanelHostCss],
+      ['record-viewer.css', recordViewerCss],
+    ]
+    const bareFinePointer = /\(pointer: fine\)(?!\s*and\s*\(min-width:\s*768px\))/g
+    for (const [name, css] of stylesheets) {
+      expect(css.match(bareFinePointer), `${name} has a bare @media (pointer: fine) block`).toBeNull()
+    }
+  })
+})
+
+// SYS-2 (census DO-3) — the inline/Tailwind touch surfaces the CSS-source scan structurally
+// cannot see: the phone More-drawer rows + the full-width UserChip + Sign-out carry the shared
+// `tap-target-phone` marker (whose 44px rule lives, and is asserted, in Button.css above). This
+// block closes the "lives in inline-styles the scan never sees" half of the census criticism by
+// asserting the MARKER is actually applied at each site.
+describe('B-i: phone tap-target markers are applied at the inline/Tailwind touch sites', () => {
+  const drawerTsx = readFileSync(resolve(process.cwd(), 'src/shell/mobile-drawer.tsx'), 'utf8')
+  const userChipTsx = readFileSync(resolve(process.cwd(), 'src/shell/user-chip.tsx'), 'utf8')
+
+  it('the More-drawer destination rows carry the tap-target-phone marker', () => {
+    // The nav-link className string in the drawer includes the marker.
+    expect(drawerTsx).toMatch(/tap-target-phone flex items-center gap-\[10px\]/)
+  })
+
+  it('the full-width UserChip (rail foot + phone drawer) carries the tap-target-phone marker', () => {
+    expect(userChipTsx).toMatch(/tap-target-phone flex w-full items-center/)
+  })
+
+  it('the UserChip Sign-out row carries the tap-target-phone marker', () => {
+    expect(userChipTsx).toMatch(/tap-target-phone w-full text-left/)
+  })
+
+  // ── #403 (port sweep): the auth cards — no primitives underneath, inline 32px heights ──────
+  // THIS IS THE ONLY LANE THAT GATES A PR→dev MERGE (`verify` is dev's sole required check), so
+  // it must carry BOTH axes of DESIGN.md's 44×44 phone floor, not just the height. The rendered
+  // twin — e2e/guards.geometry.spec.ts, run by .github/workflows/geometry.yml — measures the real
+  // box, but it is not a required check, so it cannot be the only thing standing behind the claim.
+  // Every pattern below is anchored with [^}]* rather than [\s\S]*: [\s\S]* spans the whole media
+  // body, so it proves only that the text appears SOMEWHERE after the selector, not that the
+  // declaration belongs to that rule. [^}]* cannot cross the closing brace of the block.
+  it('AC-017: auth-card phone floor (ticket 403): input/button/a ≥44×44 in shared CSS, <a> gets a box)', () => {
+    const authCss = readFileSync(resolve(process.cwd(), 'src/auth/auth.css'), 'utf8')
+    const body = mediaBody(authCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.auth-card :is\(input, button, a\)[^}]*min-height:\s*44px/)
+    // Both axes: the demo persona chips proved a control can be 44 tall and still only 37 wide.
+    expect(body).toMatch(/\.auth-card :is\(input, button, a\)[^}]*min-width:\s*44px/)
+    // min-height is ignored on inline boxes — the "Back to sign in" <a> needs a real box.
+    expect(body).toMatch(/\.auth-card a[^}]*display:\s*inline-flex/)
+  })
+
+  it('auth-card marker (ticket 403): the shared AuthCard carries the class every auth page renders through)', () => {
+    const shellTsx = readFileSync(resolve(process.cwd(), 'src/auth/auth-shell.tsx'), 'utf8')
+    expect(shellTsx).toMatch(/className="auth-card /)
   })
 })

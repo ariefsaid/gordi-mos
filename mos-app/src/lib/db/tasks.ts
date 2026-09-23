@@ -91,6 +91,8 @@ async function logEvent(
 export interface CreateTaskInput {
   title: string
   businessUnitId: string
+  /** Canonical owning Team; omitted only for a legacy/repair-state row. */
+  teamId?: string | null
   responsiblePersonId: string
   accountablePersonId: string
   createdBy: string
@@ -104,7 +106,7 @@ export interface CreateTaskInput {
 
 /** Insert a task (org_id stamped by DB), then its `created` event (FR-010/013/014). Returns the id. */
 export async function createTask(input: CreateTaskInput): Promise<string> {
-  const { data, error } = await mos().from('tasks').insert({
+  const taskInsert: Record<string, unknown> = {
     title: input.title,
     business_unit_id: input.businessUnitId,
     responsible_person_id: input.responsiblePersonId,
@@ -116,6 +118,13 @@ export async function createTask(input: CreateTaskInput): Promise<string> {
     informed_person_ids: input.informedPersonIds ?? [],
     objective_id: input.objectiveId ?? null,
     work_line_id: input.workLineId ?? null,
+  }
+  // Preserve the legacy repair-state payload when no Team has been selected. Sending an
+  // explicit null would be semantically equivalent in SQL, but omitting it keeps old callers
+  // and generated inserts stable while the owner-ratification migration is in flight.
+  if (input.teamId !== undefined) taskInsert.team_id = input.teamId
+  const { data, error } = await mos().from('tasks').insert({
+    ...taskInsert,
   }).select('id').single()
   if (error) throw new Error(`createTask failed — ${error.message}`)
   const id = (data as { id: string }).id
@@ -138,16 +147,19 @@ export async function updateTaskStatus(
 
 export type TaskFieldsPatch = Partial<Pick<
   TaskListRow, 'title' | 'description' | 'due_date' | 'business_unit_id'
+  | 'team_id'
   | 'responsible_person_id' | 'accountable_person_id'
   | 'objective_id' | 'work_line_id'
 >>
 
 /** Edit non-RACI/non-status fields, then log a `field_edited` event (FR-055). */
 export async function updateTaskFields(
-  id: string, patch: TaskFieldsPatch, actor: string,
+  id: string, patch: TaskFieldsPatch, actor: string, fromValue: string | null = null,
 ): Promise<void> {
   await updateTask(id, patch)
-  await logEvent(id, actor, 'field_edited')
+  const [field] = Object.keys(patch)
+  const toValue = field ? patch[field as keyof TaskFieldsPatch] : null
+  await logEvent(id, actor, 'field_edited', fromValue, toValue == null ? null : String(toValue))
 }
 
 export type TaskRaciPatch = Partial<Pick<
@@ -179,12 +191,16 @@ export interface TaskTitleRef {
  * NFR-006). Returns only the ids that are visible to the caller (org-readable set from RLS).
  * Never embeds cross-schema FKs — the ops data layer stays raw and name-resolution is here.
  */
-export async function getTaskTitlesByIds(ids: string[]): Promise<TaskTitleRef[]> {
+export async function getTaskTitlesByIds(
+  ids: string[], options: { includeArchived?: boolean } = {},
+): Promise<TaskTitleRef[]> {
   if (ids.length === 0) return []
-  const { data, error } = await mos()
+  let query = mos()
     .from('tasks')
     .select('id,title,status')
     .in('id', ids)
+  if (options.includeArchived === false) query = query.is('archived_at', null)
+  const { data, error } = await query
   if (error) throw new Error(`getTaskTitlesByIds failed — ${error.message}`)
   return (data ?? []) as unknown as TaskTitleRef[]
 }

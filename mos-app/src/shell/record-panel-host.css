@@ -1,0 +1,60 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   RecordPanelHost chrome — the ONE header bar every record tenant that asks for
+   host chrome renders (title zone · optional "Open full page" · ✕ Close). Values
+   are the SAME DESIGN.md tokens as the Task drawer's .dw-bar / .dw-iconbtn strip
+   (Rule 11 — reuse, no new visual language), so a Signal panel's chrome measures
+   identical to a Task's. The .drawer shell (width/border/shadow/scrim) lives in
+   styles/drawer.css, loaded globally.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.record-panel-chrome {
+  display: flex; align-items: center; gap: 6px; flex: none;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+}
+.record-panel-title { font-size: var(--font-size-label); color: var(--muted-foreground); min-width: 0; }
+.record-panel-spacer { flex: 1; }
+/* P1-2 (Luna-measured 32px): the coarse-pointer tighten-down pattern — the RESTING size defaults to
+ * the 44px touch floor everywhere (phone, tablet,
+ * any coarse/no-hover pointer), and only a genuine fine pointer (desktop mouse) tightens to the
+ * 32px control token. The previous rule was the inverse — 32px everywhere except one CSS-scoped
+ * mobile-sheet context (.drawer-modal.drawer-fullscreen), so any OTHER coarse-pointer host fell
+ * through to 32px unconditionally, which is the exact bug Luna measured.
+ * (#190: v4's version of this note cites `record-viewer.css` as where the pattern comes from. That
+ * file is not on this line — the record viewer is a later surface — so the reference is dropped
+ * rather than carried as a pointer into nothing.) */
+.record-panel-btn {
+  width: 44px; height: 44px; border-radius: var(--radius-sm); /* 8px — control, OD-P3-10 */
+  background: transparent; border: 1px solid transparent;
+  display: grid; place-items: center; cursor: pointer;
+  color: var(--muted-foreground);
+}
+.record-panel-btn:hover { background: var(--surface-tertiary); color: var(--foreground); }
+.record-panel-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+/* H3 (Luna floor): "Open full page" carries an explicit visible label (E7 grammar) — an icon-only
+   chrome control fails recognition on the panel's most consequential escalation. The labelled
+   variant grows to an auto-width pill; icon + text sit inline. */
+.record-panel-btn--labelled {
+  width: auto; min-width: 44px; gap: 6px; padding: 0 10px;
+  display: inline-flex; align-items: center;
+}
+.record-panel-btn__label { font-size: var(--font-size-label); font-weight: 500; white-space: nowrap; }
+
+/* #768 round 5: the split aside sits in-flow in the page's .record-split grid — no stacking
+ * context of its own — so an inline picker popover inside it (z-index 3, the
+ * .signal-occurred-popover mechanism) would race positioned feed content in the ROOT context.
+ * relative + isolate paints the whole panel as ONE atomic layer above the list beside it; inside
+ * the panel the menu clears the record viewer's own ladder (tabs z 1, pinned status z 2). The
+ * modal regime nests the panel in the fixed .drawer-modal-root and the shell overlay in the fixed
+ * .drawer-shell-split — both already contexts — so this rule only changes the in-flow case. */
+.drawer-split:not(.drawer-shell-split) { position: relative; isolation: isolate; }
+
+/* #708: this query carried no width guard, so ANY environment reporting a fine pointer — a
+ * resized desktop window, a non-touch mobile emulation — fired it at phone width too, tightening
+ * Close/Ask Deputy to 32×32 under the 44px floor. `and (min-width: 768px)` confines the tighten-
+ * down to genuine desktop; below that, `.record-panel-btn`'s base 44×44 rule is the only one that
+ * can match, so it always wins there — no specificity race needed. */
+@media (pointer: fine) and (min-width: 768px) {
+  .record-panel-btn { width: 32px; height: 32px; }
+  .record-panel-btn--labelled { width: auto; height: 32px; }
+}

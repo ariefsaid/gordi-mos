@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { transferableAbortController } from 'node:util'
 import { afterEach } from 'vitest'
 import { cleanup, configure } from '@testing-library/react'
 
@@ -25,6 +26,34 @@ configure({ asyncUtilTimeout: 10000 })
 afterEach(() => {
   cleanup()
 })
+
+// Node 26's global Request is backed by undici and checks its own AbortSignal brand. In jsdom,
+// React Router creates the signal from the DOM AbortController, which is a different realm even
+// when globalThis.AbortSignal === window.AbortSignal. Bridge it at the test fetch boundary so
+// router navigation and its cancellation semantics work without changing application code.
+const nativeRequest = globalThis.Request
+if (typeof nativeRequest === 'function' && typeof window !== 'undefined') {
+  class JsdomCompatibleRequest extends nativeRequest {
+    constructor(input: RequestInfo | URL, init?: RequestInit) {
+      const sourceSignal = init?.signal
+      if (!sourceSignal) {
+        super(input, init)
+        return
+      }
+
+      const bridgeController = transferableAbortController()
+      if (sourceSignal.aborted) bridgeController.abort()
+      else sourceSignal.addEventListener('abort', () => bridgeController.abort(), { once: true })
+      super(input, { ...init, signal: bridgeController.signal })
+    }
+  }
+
+  Object.defineProperty(globalThis, 'Request', {
+    value: JsdomCompatibleRequest,
+    configurable: true,
+    writable: true,
+  })
+}
 
 // Node 26+ no longer provides a global localStorage by default; jsdom does not
 // inject one either. Several hooks (useExpandPref, useTasksViewPref, useTheme)
@@ -87,3 +116,10 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
     }),
   })
 }
+
+// Any rendered feed or Signal record reads its photos. Default that read to "none" so a test that is
+// not about photos makes no storage call; a test that is overrides this mock.
+vi.mock('@/lib/db/signal-photos', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db/signal-photos')>()),
+  listSignalPhotos: vi.fn(async () => []),
+}))

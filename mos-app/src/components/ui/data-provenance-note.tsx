@@ -30,5 +30,12 @@ export function DataProvenanceNote(props: DataProvenanceNoteProps) {
     )
   }
 
-  return <span className="freshness-label">No snapshot yet · next sync {props.nextSyncLabel ?? '03:30 WIB'}</span>
+  // The sync time is a formatted value like the `as of` timestamp above, so it carries the same
+  // nowrap span — otherwise the label wraps between "03:30" and "WIB" and splits one value.
+  return (
+    <span className="freshness-label">
+      No snapshot yet · next sync{' '}
+      <span className="freshness-label-ts">{props.nextSyncLabel ?? '03:30 WIB'}</span>
+    </span>
+  )
 }

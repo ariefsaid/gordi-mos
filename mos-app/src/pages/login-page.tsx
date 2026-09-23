@@ -1,7 +1,8 @@
 import { useState, useId, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
+import { safeReturnTarget } from '@/auth/return-target'
 import { DemoLogin } from './demo-login'
 import { DEMO_PASSWORD } from './demo-personas'
 
@@ -41,7 +42,11 @@ function isValidEmail(value: string): boolean {
 }
 
 export function LoginPage() {
-  const navigate = useNavigate()
+  const location = useLocation()
+  // The route ProtectedRoute parked in router state, sanitised (see safeReturnTarget). This page
+  // never navigates on success: RedirectIfAuthed owns the landing the moment the auth status
+  // flips, and reads the same state. What is left here is the magic link's redirect target.
+  const returnTarget = safeReturnTarget((location.state as { from?: unknown } | null)?.from)
   const emailId = useId()
   const passwordId = useId()
   const errorId = useId()
@@ -88,8 +93,6 @@ export function LoginPage() {
       })
       if (authError) {
         setError(mapAuthError(authError))
-      } else {
-        navigate('/', { replace: true })
       }
     } catch {
       setError(ERR_NETWORK)
@@ -117,8 +120,6 @@ export function LoginPage() {
       const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
       if (authError) {
         setError(mapAuthError(authError))
-      } else {
-        navigate('/', { replace: true })
       }
     } catch {
       setError(ERR_NETWORK)
@@ -132,11 +133,22 @@ export function LoginPage() {
     if (!validateEmail()) return
     setLoading('magic')
     try {
-      await supabase.auth.signInWithOtp({
+      const { error: sendError } = await supabase.auth.signInWithOtp({
         email,
-        options: { shouldCreateUser: false },
+        // The link lands on the route they asked for, so a person who followed a deep link into
+        // MOS from their mail finishes where they started rather than on Home.
+        options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/mos${returnTarget}` },
       })
-      // Always show neutral confirmation (no enumeration — AC-006)
+      // ⚠ DO NOT branch the user-visible outcome on `sendError` (AC-006, and a review of #137
+      // caught exactly that). GoTrue answers 200 for an address it has never seen — it attempts
+      // no mail — so a send that FAILS is evidence the address EXISTS. Rendering a different
+      // message on failure therefore turns this form into an account-existence oracle for anyone
+      // who can read the screen. The outcome here is identical in all four cases (address known
+      // or not x mail sent or not); the confirmation copy is worded so it never asserts that mail
+      // was sent to THIS address, which is what made the old always-"check your inbox" a lie.
+      // The failure is still surfaced — to the console, where the network tab already shows it —
+      // never to the UI.
+      if (sendError) console.warn('[auth] magic-link send did not go through', sendError)
       setMode('magic-confirm')
     } catch {
       setError(ERR_NETWORK)
@@ -153,8 +165,10 @@ export function LoginPage() {
       // redirectTo ensures the recovery link lands on /recovery so the PASSWORD_RECOVERY
       // event is handled while the router is at the correct path (audit L1 fix).
       const redirectTo = `${window.location.origin}/mos/recovery`
-      await supabase.auth.resetPasswordForEmail(email, { redirectTo })
-      // Always show neutral confirmation (no enumeration — AC-006)
+      const { error: sendError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+      // Same reasoning as the magic-link path above: the outcome must not vary with `sendError`,
+      // because a failed send implies the address exists. Console only, never the UI.
+      if (sendError) console.warn('[auth] password-reset send did not go through', sendError)
       setMode('reset-confirm')
     } catch {
       setError(ERR_NETWORK)
@@ -167,8 +181,10 @@ export function LoginPage() {
   if (mode === 'magic-confirm' || mode === 'reset-confirm') {
     const isReset = mode === 'reset-confirm'
     const confirmText = isReset
-      ? 'Check your email to reset your password.'
-      : 'Check your email for a sign-in link.'
+      // Worded to be true in every case, which is what makes the neutral outcome honest rather
+      // than a lie: it never asserts that mail was sent to THIS address (#137 review).
+      ? 'If an account exists for that address, a reset link is on its way.'
+      : 'If an account exists for that address, a sign-in link is on its way.'
 
     return (
       <AuthShell>
@@ -193,8 +209,11 @@ export function LoginPage() {
                 {confirmText}
               </p>
               {email && (
-                <p className="text-muted-foreground mt-1" style={{ fontSize: 15 }}>
-                  Sent to {email}
+                /* Echoes the address the person typed so they can spot a typo — it must NOT say
+                   "Sent to", which asserts a delivery that may not have happened and would put
+                   the same lie one line below the hedged headline (#137 security re-check). */
+                <p className="text-muted-foreground mt-1" style={{ fontSize: 'var(--font-size-body-lg)' }}>
+                  For {email}
                 </p>
               )}
             </div>
@@ -228,7 +247,7 @@ export function LoginPage() {
             style={{
               backgroundColor: 'color-mix(in srgb, var(--warning) 18%, transparent)',
               color: 'var(--warning-foreground)',
-              fontSize: 15,
+              fontSize: 'var(--font-size-body-lg)',
             }}
             role="alert"
           >
@@ -240,7 +259,7 @@ export function LoginPage() {
         {/* Card title — subheading (18px/600) per design-plan §1 */}
         <h1
           className="text-foreground font-semibold"
-          style={{ fontSize: 20, lineHeight: 1.3, marginBottom: 4 }}
+          style={{ fontSize: 'var(--font-size-heading)', lineHeight: 1.3, marginBottom: 4 }}
         >
           Sign in
         </h1>
@@ -262,7 +281,7 @@ export function LoginPage() {
             style={{
               backgroundColor: 'color-mix(in srgb, var(--destructive) 8%, transparent)',
               color: 'var(--status-lost-text)',
-              fontSize: 15,
+              fontSize: 'var(--font-size-body-lg)',
             }}
           >
             {error}
@@ -275,7 +294,7 @@ export function LoginPage() {
             <label
               htmlFor={emailId}
               className="block text-foreground font-semibold mb-1"
-              style={{ fontSize: 12 }}
+              style={{ fontSize: 'var(--font-size-label)' }}
             >
               Email
             </label>
@@ -290,12 +309,13 @@ export function LoginPage() {
                 if (emailError) setEmailError('')
               }}
               disabled={isDisabled}
+              aria-required="true"
               aria-invalid={emailError ? 'true' : undefined}
               aria-describedby={emailError ? emailErrorId : (error ? errorId : undefined)}
               className="w-full bg-background text-foreground rounded-sm px-2.5 border"
               style={{
                 height: 32,
-                fontSize: 16,
+                fontSize: 'var(--font-size-touch-input)',
                 borderColor: emailError ? 'var(--destructive)' : 'var(--input)',
                 opacity: isDisabled ? 0.5 : 1,
                 cursor: isDisabled ? 'not-allowed' : undefined,
@@ -306,7 +326,7 @@ export function LoginPage() {
               <p
                 id={emailErrorId}
                 className="mt-1"
-                style={{ fontSize: 12, color: 'var(--status-lost-text)' }}
+                style={{ fontSize: 'var(--font-size-label)', color: 'var(--status-lost-text)' }}
               >
                 {emailError}
               </p>
@@ -319,7 +339,7 @@ export function LoginPage() {
             <label
               htmlFor={passwordId}
               className="block text-foreground font-semibold mb-1"
-              style={{ fontSize: 12 }}
+              style={{ fontSize: 'var(--font-size-label)' }}
             >
               Password
             </label>
@@ -333,23 +353,24 @@ export function LoginPage() {
               className="w-full bg-background text-foreground border border-input rounded-sm px-2.5"
               style={{
                 height: 32,
-                fontSize: 16,
+                fontSize: 'var(--font-size-touch-input)',
                 opacity: isDisabled ? 0.5 : 1,
                 cursor: isDisabled ? 'not-allowed' : undefined,
               }}
+              aria-required="true"
               aria-describedby={error ? errorId : undefined}
             />
             {/* fix-4: Forgot password link AFTER the password field (DOM order = tab order) */}
-            {/* fix-3: same min-height:44px touch-target treatment as magic-link */}
-            <div className="flex justify-end mt-1">
+            {/* #403: the 44px floor now comes from the shared auth.css seam (phone only), so no
+                inline min-height here. mt-2 (not mt-1) because the floor's other half is
+                SEPARATION — DESIGN.md pairs "44px" with "8px between adjacent targets", and a
+                mistap here costs the person everything they just typed into the password field. */}
+            <div className="flex justify-end mt-2">
               <button
                 type="button"
                 className="text-primary font-medium hover:underline focus-visible:underline"
                 style={{
-                  fontSize: 12,
-                  minHeight: 44,
-                  display: 'inline-flex',
-                  alignItems: 'center',
+                  fontSize: 'var(--font-size-label)',
                 }}
                 disabled={isDisabled}
                 onClick={handleForgotPassword}
@@ -396,7 +417,7 @@ export function LoginPage() {
         {/* "or" divider — single 1px border hairline (Single-Border Rule) */}
         <div className="my-5 flex items-center gap-3">
           <div className="flex-1 h-px bg-border" aria-hidden="true" />
-          <span className="text-muted-foreground" style={{ fontSize: 15 }}>or</span>
+          <span className="text-muted-foreground" style={{ fontSize: 'var(--font-size-body-lg)' }}>or</span>
           <div className="flex-1 h-px bg-border" aria-hidden="true" />
         </div>
 
@@ -407,7 +428,7 @@ export function LoginPage() {
           className="w-full flex items-center justify-center gap-2 text-primary font-medium hover:underline focus-visible:underline"
           style={{
             fontSize: 16,
-            minHeight: 44, // fix-3 / touch target ≥44px (design-plan §4)
+            // #403: the ≥44px touch floor is the shared auth.css seam's job, phone-only.
             opacity: (isDisabled && loading !== 'magic') ? 0.5 : 1,
             cursor: isDisabled ? 'not-allowed' : undefined,
           }}

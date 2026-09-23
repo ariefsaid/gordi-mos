@@ -1,36 +1,61 @@
-/* ════════════════════════════════════════════════════════════════════════════
-   HomePage — layout only (Task 4.4/§4.5). Two stacked KPI rows (finance row is
-   role-guarded and absent entirely for non-finance/admin viewers) reflowing
-   auto-fit 160px→1fr, a FreshnessLabel, then the MyWeekPanel below. Token-only
-   (DESIGN.md spacing scale) — mirrors sales-dashboard-page.css's KPI grid.
-   ════════════════════════════════════════════════════════════════════════════ */
-.home-kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-  margin-bottom: 12px;
+/* Home day header — ONE line at every width: greeting + day/role identity left, `N left` right;
+   at ≤390 the identity can wrap to a second line.
+   The head itself carries `home-day-header content-header--compact` (see home-page.tsx): the
+   compact mode owns the stepped-down greeting rung and keeps the shared phone stack from wrapping
+   the meta onto its own row between 391–767px. This file owns only the day header's own bits.
+   guard-home-day-header.css.test.ts pins the wrap. */
+
+/* The role chip — mockup `.hdr-role`: the overline rung, subordinate to the greeting it qualifies.
+   The shared `.ch-meta-line` nowrap is relaxed so a long role name wraps instead of overflowing. */
+.content-header .ch-meta .home-head-role {
+  white-space: normal;
+  font-size: var(--font-size-overline);
 }
 
-/* A single tile (e.g. supervisor's lone revenue KPI, or the "everyone" row when the
-   ops-log flag is off) would otherwise fill the whole 1fr track and stretch edge-to-
-   edge. Cap it to a normal tile width and left-align — the finance/manager 2-tile
-   row is untouched since this only matches when there is exactly one child. */
-.home-kpi-grid > .home-kpi-link:only-child {
-  max-width: 320px;
-  justify-self: start;
-}
-
-.home-kpi-grid + .freshness-label {
-  display: inline-block;
-  margin-bottom: 16px;
-}
-
-/* Link wrapper around each KPITile: no underline/color-bleed onto the tile's own
-   text colors (KPITile owns its own foreground/muted-foreground) — the anchor is
-   purely the drill-target hit area (no-bleed, mirrors .mini-name-chip). */
-.home-kpi-link {
-  display: block;
-  color: inherit;
-  text-decoration: none;
+.content-header .ch-meta .home-head-meta {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
   min-width: 0;
+}
+
+.content-header .ch-meta .home-head-date {
+  white-space: nowrap;
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+/* Home's page identity is the greeting plus the day, so it must hold the first visual rung of
+   the brief. This is scoped to Home's frame and overrides the shared compact head only here. */
+.content-header.home-day-header .ch-title {
+  font-size: var(--font-size-page-title);
+  line-height: 1.15;
+}
+
+/* `N left` — mockup `.hdr-counts`: caption rung, muted, tabular so it doesn't jitter as the day
+   moves, and nowrap so the figure never splits across the wrap the chip owns. */
+.home-head-counts {
+  font-size: var(--font-size-overline);
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+
+@media (max-width: 767.98px) {
+  .content-header.home-day-header .ch-title {
+    font-size: var(--font-size-page-title);
+  }
+}
+/* ≤390: the chip drops to line 2 (`.ch-meta` takes a full row), and the tally moves up beside the
+   greeting — order 0 puts `.ch-action` on the title's line, its own `margin-left: auto` pins it
+   to the right edge. Both override the compact phone rules by specificity (3 classes vs 2). */
+@media (max-width: 390px) {
+  .content-header.home-day-header .ch-action {
+    order: 0;
+  }
+
+  .content-header.home-day-header .ch-meta {
+    order: 1;
+    flex-basis: 100%;
+  }
 }

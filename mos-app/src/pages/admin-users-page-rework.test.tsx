@@ -19,6 +19,7 @@ vi.mock('@/lib/db/admin-users', () => ({
   listAdminPeople: vi.fn(),
   listRoles: vi.fn(),
   listRevenueScopeOptions: vi.fn(),
+  listTeams: vi.fn(),
   createPerson: vi.fn(),
   createLogin: vi.fn(),
   resetPassword: vi.fn(),
@@ -35,6 +36,7 @@ import {
   listAdminPeople,
   listRoles,
   listRevenueScopeOptions,
+  listTeams,
   resetPassword,
   setLoginEnabled,
   archivePerson,
@@ -48,6 +50,7 @@ const mockUseAuth = vi.mocked(useAuth)
 const mockListAdminPeople = vi.mocked(listAdminPeople)
 const mockListRoles = vi.mocked(listRoles)
 const mockListRevenueScopeOptions = vi.mocked(listRevenueScopeOptions)
+const mockListTeams = vi.mocked(listTeams)
 const mockResetPassword = vi.mocked(resetPassword)
 const mockSetLoginEnabled = vi.mocked(setLoginEnabled)
 const mockArchivePerson = vi.mocked(archivePerson)
@@ -61,7 +64,8 @@ const ADMIN_VIEWER: AuthState = {
       org_id: 'org-1',
       user_id: 'admin-user-id',
       full_name: 'Admin Gordi',
-      email: 'admin@gordi.id',
+      email: 'admin@example.test',
+      must_change_password: false,
       archived_at: null,
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
@@ -69,6 +73,7 @@ const ADMIN_VIEWER: AuthState = {
     roles: [],
     isManager: false,
     accessRoles: ['admin'],
+    affiliated: [],
   },
   signOut: vi.fn(),
 }
@@ -77,34 +82,37 @@ const TWO_PEOPLE: AdminPersonRow[] = [
   {
     id: 'admin-person-id',
     full_name: 'Admin Gordi',
-    email: 'admin@gordi.id',
+    email: 'admin@example.test',
     archived_at: null,
     login: 'active',
     access_roles: ['admin'],
     jabatan: [],
     revenue_scope: [],
+    teams: [],
   },
   {
     id: 'p-member',
     full_name: 'Budi Santoso',
-    email: 'budi@gordi.id',
+    email: 'budi@example.test',
     archived_at: null,
     login: 'active',
     access_roles: ['member'],
     jabatan: [],
     revenue_scope: [],
+    teams: [],
   },
 ]
 
 const ARCHIVED_PERSON: AdminPersonRow = {
   id: 'p-archived',
   full_name: 'Dewi Rahayu',
-  email: 'dewi@gordi.id',
+  email: 'dewi@example.test',
   archived_at: '2026-01-01T00:00:00Z',
   login: 'disabled',
   access_roles: [],
   jabatan: [],
   revenue_scope: [],
+  teams: [],
 }
 
 beforeEach(() => {
@@ -113,6 +121,7 @@ beforeEach(() => {
   vi.mocked(useIsDesktop).mockReturnValue(true) // desktop view
   mockListRoles.mockResolvedValue([])
   mockListRevenueScopeOptions.mockResolvedValue([])
+  mockListTeams.mockResolvedValue([])
 })
 
 function renderPage() {
@@ -126,7 +135,7 @@ function renderPage() {
 // ── Confirm gates (item 2) ─────────────────────────────────────────────────────
 
 describe('AdminUsersPage — confirm dialogs', () => {
-  it('reset-password opens a confirm dialog before firing the RPC', async () => {
+  it('AC-046: reset-password opens a confirm dialog before firing the RPC', async () => {
     const user = userEvent.setup()
     mockListAdminPeople.mockResolvedValue(TWO_PEOPLE)
     renderPage()
@@ -162,7 +171,7 @@ describe('AdminUsersPage — confirm dialogs', () => {
     await waitFor(() => expect(mockResetPassword).toHaveBeenCalledWith('p-member'))
   })
 
-  it('disable-login opens a confirm dialog before firing the RPC', async () => {
+  it('AC-046: disable-login opens a confirm dialog before firing the RPC', async () => {
     const user = userEvent.setup()
     mockListAdminPeople.mockResolvedValue(TWO_PEOPLE)
     renderPage()
@@ -176,7 +185,7 @@ describe('AdminUsersPage — confirm dialogs', () => {
     expect(mockSetLoginEnabled).not.toHaveBeenCalled()
   })
 
-  it('archive opens a confirm dialog before firing the RPC', async () => {
+  it('AC-046: archive opens a confirm dialog before firing the RPC', async () => {
     const user = userEvent.setup()
     mockListAdminPeople.mockResolvedValue(TWO_PEOPLE)
     renderPage()
@@ -248,7 +257,11 @@ describe('AdminUsersPage — confirm dialogs', () => {
 // ── Success toasts (item 6) ────────────────────────────────────────────────────
 
 describe('AdminUsersPage — success toasts', () => {
-  it('shows a success toast after enable-login succeeds', async () => {
+  // DELIBERATE goal change (GAP-7): item 6 said "success toasts after every action". The rule is
+  // now one success channel PER LOCUS — an in-place edit confirms where the viewer is already
+  // looking, and the floating toast is reserved for a change that lands somewhere else. So this
+  // assertion is inverted rather than dropped: it now proves the toast copy does NOT appear.
+  it('GAP-7: enable-login (an in-place edit) confirms with an inline "Saved" at the row, not a floating toast', async () => {
     const user = userEvent.setup()
     const disabledPerson: AdminPersonRow = { ...TWO_PEOPLE[1], login: 'disabled' }
     mockListAdminPeople.mockResolvedValue([TWO_PEOPLE[0], disabledPerson])
@@ -260,10 +273,10 @@ describe('AdminUsersPage — success toasts', () => {
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
     await user.click(screen.getByRole('menuitem', { name: /enable login/i }))
 
-    // Toast should appear
-    await screen.findByRole('status')
-    const toast = screen.getByRole('status')
-    expect(toast.textContent).toMatch(/budi santoso|login enabled/i)
+    // The inline "Saved" appears at the locus (the record grammar); no floating toast copy.
+    const saved = await screen.findByText(/^saved$/i)
+    expect(saved.closest('.people-row-saved')).toBeInTheDocument()
+    expect(screen.queryByText(/login enabled/i)).not.toBeInTheDocument()
   })
 
   it('shows a success toast after restore succeeds', async () => {
@@ -307,7 +320,7 @@ describe('AdminUsersPage — success toasts', () => {
 // ── aria-describedby on alertdialog reveal (item 7) ──────────────────────────
 
 describe('AdminUsersPage — password reveal a11y', () => {
-  it('the alertdialog element has aria-describedby pointing at the warning', async () => {
+  it('AC-046: the temp-password reveal alertdialog has aria-describedby pointing at the warning', async () => {
     const user = userEvent.setup()
     const disabledPerson: AdminPersonRow = { ...TWO_PEOPLE[1], login: 'none' }
     mockListAdminPeople.mockResolvedValue([TWO_PEOPLE[0], disabledPerson])
@@ -324,11 +337,18 @@ describe('AdminUsersPage — password reveal a11y', () => {
     await screen.findByText('TmpPw9999')
 
     const alertdialog = screen.getByRole('alertdialog')
+    expect(alertdialog).toHaveClass('modal-shell__surface')
+    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
     const describedById = alertdialog.getAttribute('aria-describedby')
     expect(describedById).toBeTruthy()
     const describedByEl = document.getElementById(describedById!)
     expect(describedByEl).not.toBeNull()
     expect(describedByEl!.textContent).toMatch(/copy this now/i)
+
+    // The password is shown exactly once, so a stray Escape must not be able to dismiss it —
+    // Done is the only exit (design-plan §4.4).
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
   })
 })
 

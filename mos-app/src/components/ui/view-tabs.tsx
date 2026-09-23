@@ -11,7 +11,8 @@
 // no-op) — the Table/Board/Calendar "soon" placeholders. `count` renders the small
 // tabular pill (the dashboard's "N rows"). The composition owns active-state + URL
 // persistence; this primitive just reports onChange.
-import type { ReactNode, KeyboardEvent } from 'react'
+import { useRef, type ReactNode, type KeyboardEvent } from 'react'
+import { useT } from '@/i18n/use-t'
 import './view-tabs.css'
 
 export interface ViewTab {
@@ -36,6 +37,8 @@ export interface ViewTabsProps {
 }
 
 export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel }: ViewTabsProps) {
+  const t = useT()
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
   // Keyboard nav roves across ENABLED tabs only — soon/disabled stubs are skipped.
   const enabledOrder = tabs
     .map((tab, index) => ({ tab, index }))
@@ -57,7 +60,13 @@ export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel }: ViewTa
     }
     if (nextPos !== null) {
       e.preventDefault()
-      onChange(tabs[enabledOrder[nextPos]].id)
+      const nextIndex = enabledOrder[nextPos]
+      onChange(tabs[nextIndex].id)
+      // The active tab owns tabindex=0 and every other tab is -1, so selection and DOM focus
+      // have to move together: without this the keyboard user is left focused on a tab that
+      // just became tabindex=-1, and the next Tab escapes the strip entirely. This is the
+      // roving-tabindex contract (DESIGN.md / interaction-contract I7), not a visual nicety.
+      tabRefs.current[nextIndex]?.focus()
     }
   }
 
@@ -75,13 +84,14 @@ export function ViewTabs({ tabs, active, onChange, trailing, ariaLabel }: ViewTa
           .join(' ')
         return (
           <button
+            ref={(element) => { tabRefs.current[index] = element }}
             key={tab.id}
             type="button"
             role="tab"
             aria-selected={isActive}
             aria-disabled={inert ? 'true' : undefined}
             disabled={inert}
-            title={tab.soon ? 'Coming soon' : undefined}
+            title={tab.soon ? t('common.comingSoon') : undefined}
             tabIndex={isActive ? 0 : -1}
             data-touch-target="true"
             className={className}

@@ -8,10 +8,10 @@ OS constellation (see `docs/decisions.md` OD-P0-9).
 ## Work
 
 **Task**:
-The unit of owned work and the **cascade-bridgeable unit** (layer 6) — always carries R and A people, a
-business unit, and a status. Its permanent cascade parent is a **Project/Process** (layer 4); the
-link is an additive nullable seam (ADR-0003/0014) so the cascade grows in without reshaping the task. A
-Task never routes *through* an Output — Output is an optional side-grouping, not a link in the chain.
+The unit of owned work and the **bottom of the cascade** — always carries R and A people, a business
+unit, and a status. Its cascade parent is a **Project/Process**; the link is an additive nullable seam
+(ADR-0003/0014). The cascade is **three levels**, so there is nothing below a Task and nothing between it
+and its Project/Process (`OD-WAY-32`).
 _Avoid_: action item, to-do, work item, ticket
 
 **Checklist item** (a.k.a. subtask):
@@ -37,20 +37,111 @@ canon — "Kitchen and Bar", "Cafe Ops – General" — is superseded: those are
 **Revenue streams**, not BUs. Seeded rows predate this and need re-mapping.)
 _Avoid_: department, division; operating area (that's an **Activity**)
 
+**Team**:
+A concrete group of people within one Business Unit. A person may belong to several Teams.
+Teams organize day-to-day ownership; a Signal that matters to a specific group is directed to its
+people through the `@` mention picker (mention-only notifications).
+
+**Team lead**:
+An active Team member explicitly designated to lead that Team by an administrator. The designation
+belongs to the Team; a reporting-manager position alone does not designate its holder as Team lead.
+
+**BU head**:
+A person holding a position at the top of a Business Unit's reporting line. Their BU authority
+applies to the unit they head.
+
 **Activity**:
 An **operating workstream within a BU** — kitchen, bar, ecommerce (inside Retail Ops); roasting
 (inside B2B Ops). The unit ops surfaces are organized around. A **Module** serves an Activity but
-usually covers only a slice of it (today's Kitchen module = plan/log/stock/review, one part of the
-kitchen Activity); Modules grow Features toward covering their Activity.
+usually covers only a slice of it (today's Café module = plan/log/stock/review for the kitchen
+Activity only); Modules grow Features toward covering their Activity. **The Café Module serves *two*
+Activities — kitchen and bar** (OD-WAY-26); today it ships only the kitchen half.
 _Avoid_: business unit (that's the owning team), app, module (that's the code)
+
+**Branch**:
+An **inventory-and-accounting context in the ERP** — *not* a physical place, and this distinction is
+load-bearing. Gordi has **one physical kitchen**; it produces for several branches, and which branch a
+production run belongs to decides whose raw materials are consumed and whose WIP is credited. The ERP
+models each branch as self-contained, **including branches whose kitchen work physically happens
+elsewhere** — so a WIP movement into such a branch has *no ERP counterpart*, because in its books
+nothing moved.
+
+Branch gets **one canonical catalog** in `shared` in the schema rebuild (OD-WAY-39), and every
+branch-bearing surface links to it. `reporting` rows keep the ERP's `branch_code` text **exactly as
+sent** and carry a *separate, nullable* link beside it — so a branch the ERP adds ingests fine, unlinked,
+and is mapped afterwards. Never constrain the reporting fact rows with a hard reference: that turns a new
+ERP branch into a failed nightly job.
+_Avoid_: location, outlet, store (all imply place — the place is a constant here); "the kitchen" as a
+branch synonym. **Site is a different term, not a forbidden synonym — see Site.**
+
+**Site**:
+A **physical place, used only as org structure** — a Team sits at one. `shared.sites` is a real, seeded,
+RLS-protected table and Signals depend on it; do not delete it (DD-WAY-17). It is **not** the branch
+catalog and its seed is not the branch list. Keep the planes apart: a **Site** is where people are, a
+**Branch** is whose books a movement lands in.
+_Avoid_: using Site to scope a production record — that axis is the **Production stream** below
+
+**Production stream**:
+The **(Branch, Activity) pair a production record belongs to** — e.g. `GHQ · kitchen`, `GHQ · bar`,
+`RRS · kitchen`. Three full Branches × two Activities, plus Cikal which takes bar only = **seven streams** (OD-WAY-79), of which two are captured today
+(OD-WAY-42). This is the axis the Café Module is scoped on (OD-WAY-26): it selects the item list,
+the ERP coordinates, and the default a capture surface opens on. **A Team _is_ a stream** — `GHQ ·
+kitchen` and `GHQ · bar` are different teams with different leads — so a person's primary team supplies
+the default (OD-WAY-49). It is a default, **not an access boundary**: they can switch to help another
+branch (OD-WAY-31). Review queues follow the same line, one per stream, with an ops-lead fallback so
+no stream stalls unapproved (OD-WAY-48).
+A stream is **named by its branch's canonical catalog name** wherever it is named as a stream; the
+`Bungur` alias names a transfer **destination** and the derived action label, never a stream.
+_Avoid_: location/site (see **Branch**); "action type" (today's `Production` / `Transfer to …` strings
+fold destination into action — a storage workaround, not the model; DD-WAY-13)
+
+**Café Opening context** (DD-MVP-11): Opening is branch-wide, unlike production's branch-and-Activity stream. The UI calls this the working location; it is the Branch, not a separate Site relationship. Effective primary membership supplies the normal default; an explicit valid per-person working-session choice can override it. The canonical Opening Team is resolved internally and is not a second selection the worker must make. Having multiple readable branches does not by itself invalidate an explicit primary default. These defaults do not change authorization.
+
+**Item** (Café production):
+The thing a **production stream makes** and the production noun across ALL Café streams — kitchen
+and bar alike (owner ruling `OD-WAY-85`, 2026-08-31). This is what `ops.wip_items` already stores;
+every Café surface (Log, Plan, Stock, Review) names it **Item** in both locales — English and
+Indonesian share the word.
+_Avoid_: dish, hidangan; "menu" as the surface noun on Café screens ("menu item" survives only in
+menu-costing/COGS contexts)
+
+**Unit** (of a WIP item):
+**Master data, not an input.** An item is made in one unit, shown fixed beside the quantity box;
+changing it costs a deliberate extra click (OD-WAY-46). The unit is not a MOS label — the ERP
+identifies a *product detail*, meaning **product ＋ unit**, and holds the conversions between an item's
+units. So an item's allowed units are **enumerable from the ERP, never invented in MOS**, and each one
+is a distinct ERP coordinate with its own recipe. This is the answer to *"what stops a wrong unit being
+entered"*: in the common case nothing is entered at all.
+_Avoid_: a free unit dropdown on the default path; treating unit as a display label
+
+> **Three traps in this area, all of which have already misled a session:**
+> 1. **A WIP → finished-goods step is not a MOS event.** The ERP's BOM consumes WIP at point of sale.
+>    Do not model it.
+> 2. **Raw material is never captured either** — it is derived from the ERP recipe (OD-WAY-45). A
+>    capture surface has **no raw-material input at all**. The check on real usage is inventory
+>    movement plus stocktake, which is why the **stock comparison screen is load-bearing**, not
+>    decoration: it is the only place a real-versus-recipe divergence can surface.
+> 3. **The incumbent kitchen app's stock tab reads "Stok HQ", where "HQ" means *the central
+>    kitchen*** — which books to a different branch than the one whose ERP code is `GHQ`. Porting that
+>    label as-is creates a permanent collision.
 
 **Revenue stream**:
 A **reporting lens for money** — Cafe Ops (kitchen + bar POS), Ecommerce, B2B. May map 1:1 to an
 Activity or span several; owned by the reporting plane, not the org chart.
 _Avoid_: activity / BU (when grouping revenue), channel (reserve for the POS/B2B source field)
 
-**Follow-up**:
-A work item for chasing an outstanding commitment — a **B2B AR invoice** or a retail **Pending bill**.
+**Follow-up** — ⚑ **dark, deferred, and being renamed. Read `OD-WAY-34` before touching it.**
+A **finance/accounting** record, **not** a work item and **not** part of Work (owner, 2026-08-04: *"this
+is not a work/task/process activity from a task management perspective, this is a finance accounting
+activity"*). Scope is the **retail Pending bill stream only** — the B2B AR stream is *not* a problem,
+because the ERP is used exactly as intended there. The job is **reconciliation, not chasing**: knowing
+which bills are open and which are closed, which today lives only in a hand-kept finance spreadsheet.
+Deferred until directly after the MVP; the shipped table stays dark and out of #155's rebuild
+(`DD-WAY-16`). The name itself is wrong — "Follow-up" names chasing — and should be replaced with a
+reconciliation noun when it is built.
+
+*The description below is the shipped model, retained because the evidence-gated settle survives whatever
+the table becomes.* Its chase states, its `b2b_ar` kind and its lane split do **not** survive.
 A task-family record (counterparty, amount, due) attached to the underlying money record; worked from
 a queue in **Work**, with comments/@mentions like any task. **Settlement lifecycle MOS owns:** open (aging)
 → **chased** (contact logged: when + who) → **promised** (promise-to-pay date) → **partial** (payment logged,
@@ -70,8 +161,12 @@ _Avoid_: reminder, chase (as nouns), collection (accounting jargon)
 **Pending bill**:
 A **retail** POS sale left unpaid at transaction time — mainly owners and regulars running a tab.
 Distinct from B2B AR (formal invoices). ESB records issuance and aggregate journal reductions only;
-invoice/tab-grain settlement truth is owned by MOS (today: sheets — to be ported).
-_Avoid_: AR (that's the B2B stream), tab (informal, UI copy ok), debt
+invoice/tab-grain settlement truth is owned by MOS (today: sheets — **porting deferred to directly after
+the MVP**, `OD-WAY-34`). ⚑ **This is the only AR stream MOS addresses.** The ERP is not malfunctioning: a
+sales invoice *is* created and correctly carried as owed, and the deferred-payment method is a deliberate
+local extension for owners and regulars. Only the **closure event at invoice grain** is missing, because
+settlement happens as a ledger entry.
+_Avoid_: AR (that's the B2B stream, which needs no MOS surface), tab (informal, UI copy ok), debt
 
 **Blocked**:
 A task that cannot proceed until something outside the R person's control resolves. Subsumes the
@@ -80,28 +175,46 @@ _Avoid_: waiting, on hold, stuck
 
 ## Cascade (Strategy-to-Execution Stack)
 
-The six-level spine the MOS grows into — **Strategy → Objective → Outcome → Project/Process → Output →
-Task** (vault calls layer 4 "Program/Process"; in-app the term is Project/Process). Each level has its
-own owner, timebox, and measure; lower levels *contribute* up, they don't copy down. The first slice
-builds three (Objective · Project/Process · Task); the rest are vocabulary that folds in additively
-(ADR-0014). Adopted because a 3-level model
-collapses the two cuts that make recurring work trackable — aspiration≠measurement (Objective≠Outcome)
-and work-system≠artifact (Program/Process≠Output).
+**Three levels: Objective → Project/Process → Task.** Each level has its own owner and timebox; lower
+levels *contribute* up, they don't copy down.
 
-**Objective** (layer 2):
-A yearly, measurable goal that work rolls up to — the "what we want this year." Carries A/R ownership and
-a lane; it is the grouping a person's work is read against. (Strategy, layer 1, folds in above later as
-the same self-similar shape, via a nullable parent.)
+**"Cascade" is vocabulary, never a surface.** It names the relation, and it must never appear as a route,
+a rail item, or a UI label — the requirement it stands for is **roll-up and drill-down from any level, on
+the records themselves**: an Objective shows its Projects/Processes, a Project/Process shows its Objective
+and its Tasks. Progress is a **count roll-up** of child status, two hops. There is no measure or target
+field, and no separate measurement layer.
+
+*Why three and not six.* The founding model had six — Strategy · Objective · Outcome · Program/Process ·
+Output · Task — and ADR-0014 kept the other three as vocabulary-that-folds-in-later. `OD-WAY-32` (owner,
+2026-08-04) **drops them**: *"to have 6 level is too much to implement, so we cut it down to 3 for this
+MOS app."* `OD-WAY-33` drops the measure layer with them, because a target is a field someone has to keep
+current, and that ceremony is what killed both earlier attempts at this system. Adding measures later is
+additive and cheap; the argument that a three-level model loses too much is superseded.
+
+**Objective** (the top of the cascade):
+A yearly goal that work rolls up to — the "what we want this year." Carries A/R ownership and a lane; it
+is the grouping a person's work is read against. Its **progress is derived** — a count roll-up of its
+Projects/Processes, which roll up their Tasks — so it carries **no measure, baseline, or target field**
+(`OD-WAY-33`). Nothing sits above it: Strategy is dropped, not deferred.
 _Avoid_: goal, mission, OKR (that's the measurement layers)
 
-**Outcome** (layer 3 — vocabulary now, table later):
-The KPI/KR target that *proves* an Objective is being met — the number, distinct from the aspiration.
-Deferred; folds in between Objective and the Project/Process layer additively.
-_Avoid_: metric (the measurement act), KR (one kind), result
+**Outcome** — ⚑ **DROPPED, not deferred** (`OD-WAY-32`/`OD-WAY-33`, 2026-08-04):
+Was the KPI/KR target layer between Objective and Project/Process. There is no measurement layer and no
+target field. Progress is a count roll-up. Should a measure ever be wanted it is additive nullable columns
+on the Objective, not a layer — verified: `mos.objectives` is a bare catalog and nothing materialises
+progress.
+_Avoid_: using "Outcome" as a cascade level at all; it is no longer part of the vocabulary.
 
-**Project / Process** (layer 4 — the work-system that moves a goal):
+**Project / Process** (the middle of the cascade — the work-system that moves a goal):
 One entity distinguished by **`type ∈ {project, process}`**; carries A/R ownership, a business unit, a
-lane, and a nullable Objective link. It is a Task's permanent cascade parent. **No umbrella term is
+lane, and a nullable Objective link. **That Objective link is `mos.work_lines.objective_id`** —
+shipped in the squashed baseline (`DD-WAY-15`, closed). It is nullable, because a Project/Process
+need not belong to an Objective. **It is the edge, and it wins**: where a Task carries its own
+`objective_id` as well, the Objective is resolved through the Task's Project/Process first and the
+Task's own field is only the fallback, so a stale Task field cannot pull work out from under the
+roll-up. A Task with no Project/Process still reaches its Objective directly.
+
+It is a Task's permanent cascade parent. **No umbrella term is
 locked** (owner 2026-06-23 — "use the Project/Process pair for now"; the earlier "Initiative" is dropped);
 refer to the pair, or to the specific type.
 _Avoid_: Initiative, workstream, work (umbrella terms — none locked); **work-line** in UI copy
@@ -121,11 +234,11 @@ content, daily fulfillment. The home for daily ongoing *assigned* work — NOT t
 a person is A/R on, never from Daily Log entries. A Process *uses* SOPs but is not one.
 _Avoid_: SWP (the wiki's term — say Process), routine, SOP (that's documentation), activity (reserved)
 
-**Output** (layer 5 — vocabulary now, table later):
-A discrete deliverable a Program/Process produces in a week/month — the unit of committed load ("2–5 per
-person per week; tasks are infinite, outputs are not"). Deferred; folds in as an optional grouping that
-*also* belongs to its Project/Process — never inserted between Task and Project/Process (ADR-0014).
-_Avoid_: deliverable, milestone (one kind), artifact
+**Output** — ⚑ **DROPPED, not deferred** (`OD-WAY-32`, 2026-08-04):
+Was a weekly/monthly deliverable grouping under a Project/Process, carrying the committed-load idea
+("2–5 per person per week; tasks are infinite, outputs are not"). Not built and not planned. The load
+idea survives as guidance, not as an entity.
+_Avoid_: using "Output" as a cascade level at all; it is no longer part of the vocabulary.
 
 **Lane**:
 *Why* a piece of work exists — **Run/BAU** (keep service steady, KPI-measured), **Optimize** (harden /
@@ -136,7 +249,7 @@ _Avoid_: category, stream, type (reserve `type` for Program|Process)
 ## Ownership (RACI)
 
 **Accountable / Responsible per layer**:
-The A/R split is not task-only — every cascade layer (Objective · Project/Process · Output · Task) carries an
+The A/R split is not task-only — every cascade level (Objective · Project/Process · Task) carries an
 Accountable and a Responsible owner (the wiki's per-layer ownership model; a cross-functional Outcome gets
 a single **DRI**). C/I stay task-level. A person's "load" is read from the layers they are A or R on — so
 RACI-on-a-task is one instance of a uniform ownership shape, not the product's headline.
@@ -158,7 +271,21 @@ _Avoid_: watcher, CC, stakeholder
 
 ## Cadence
 
-**Weekly Update**:
+**Signal**:
+A short update about a condition, event or request, posted by a person with an **All Teams**
+audience — body + when it occurred +
+an **attention level** (**FYI · Needs attention · Urgent**) + optional category, with mentions
+(person / team / BU). Every active org member reads every Signal (passive — never a notification);
+notifications are mention-only, so attention is drawn by tagging people, Teams, or BUs with `@`.
+The Team audience is a retired historical state: old Team-scoped rows keep their read grants, but new
+Signals are always All Teams with no owning Team. No owner, RACI, or Status; a Signal can spawn a
+follow-up **Task** that carries its context. Retracted, never deleted (a retracted Signal is a
+tombstone). Surfaces: the `/work/signals` archive, the Signal record page, and the global composer.
+_Avoid_: Task status (a Signal has no work lifecycle), notification (the delivery of an update),
+log entry (that's the Daily Log's unit). “Status update” is valid conversational language for a Signal.
+
+**Weekly Update** — ⚑ **surface fate OPEN, issue #281.** No route on `dev` (`/work/updates`
+redirects to the Signals archive); the concept below stands unchanged until the owner decides #281:
 A person-keyed recap of one person's week — a free-text summary plus a list of update lines. Keyed by
 (person, week). Everyone files one (incl. top-of-chain, who has no reviewer); a manager reads their
 reports' (upward-only — author + manager chain, OD-P1-3) and files their own upward. Person-keyed is a
@@ -234,38 +361,37 @@ _Avoid_: supervisor, lead (except inside role names like "Kitchen Lead")
 **Access role** (a.k.a. Permission):
 What a person may *do* in the app — the app-authorization layer, distinct from their org **Role**
 (position) and from **RACI** (R/A/C/I task ownership). A person may hold several at once; effective
-access is the union. First-slice set is **fixed** (a configurable role↔permission model is the deferred
-upgrade path): **admin** (the *system administrator* — user management + system config; the only role
-that sees the admin UI), **ops_lead** (review/approve operational logs + elevated surfaces), **finance**
-(review financial data/dashboards sourced from the ESB warehouse), **member** (default — own tasks, file
-own weekly update, log operational activity if rostered). **manager** is NOT an assigned access role — it
-is *derived* from the role chain (see **Manager**); effective access = assigned access role(s) ∪ derived
-manager. Granting **admin**/**finance** is admin-only and never self-assignable; the first admin is seeded.
+access is the union. The set is a **fixed vocabulary that grows by migration**, six values today:
+**admin** (the *system administrator* — user management + system config; the only role that sees the
+admin UI), **ops_lead** (review/approve operational logs + elevated surfaces), **finance** (review
+financial data/dashboards sourced from the ESB warehouse), **member** (default — own tasks, file own
+weekly update, log operational activity if rostered), **manager** (company-wide revenue + COGS/gross
+margin, view-only), **supervisor** (revenue only, within an explicitly granted channel/branch scope).
+Granting **admin** / **finance** / **manager** / **supervisor** is admin-only and never
+self-assignable; the first admin is seeded.
+
+Two senses of "manager" coexist and must not be conflated: the **stored** `manager` access role above,
+and the **derived** reporting-line manager (see **Manager**) which is walked from the role chain and is
+never assigned. Effective access = assigned access role(s) ∪ derived manager capability.
 _Avoid_: role (reserve for org position), permission group, RACI role
+
+**Jabatan** (UI: **Position**):
+The displayed org position a person holds — the same object as **Role**, named in the UI so it is
+never confused with **Access role** (UI: *Access level*). Jabatan says what someone *is*; access role
+says what they may *do*. Neither is ever labelled "Role" in the UI.
+_Avoid_: role (in UI copy), title, access level (that's the authorization axis)
 
 ## Surfaces
 
 **Home**:
-The hub surface at `/` every user lands on: a role-aware composition of KPI tiles with drill-downs
-plus the **My Week** panel — every tile drills, no dead-end numbers (ADR-0019 D2). What a user's Home
-shows follows their **persona/access**, composed as a **stacked union of the roles the person holds** —
-one scrollable surface, **widest-scope section first** (a BU-head-who-is-also-a-lead lands on their function
-cockpit with the **My Week** lead panel stacked below; a pure lead sees only My Week). **Not a toggle, not a
-separate login** — the same person's distinct jobs stack in one Home. _(Later, if the union gets too dense:
-separate **workspaces** or a **toggle with layered rails** — deferred v2, don't build until density forces
-it.)_ For the **owner-director / function-owner** it is a **financial +
-ops cockpit**: revenue · margins · a **money-position strip (AR · AP · unbilled · unearned)** · **ops KPIs**
-(the "state of ops" per Activity — specific metric set TBD, owner-decided) · the **cascade progress +
-updates** list. Money-position workflow scope: **AR is a worked queue now** (the Follow-up lifecycle);
-**AP / unbilled** are visibility + drill-to-read-only with their engagement workflows phased later;
-**unearned** stays visibility-only. A **member** sees their My Week + ops content dominant, no finance row.
-"Dashboard" is acceptable UI copy for its KPI area.
-_Avoid_: My Week (as the name of the surface — that's a panel on it)
+The person's daily operating brief: what needs their attention, their next actions, personal work
+and relevant Signals. Its content and order follow the person's work and authority. Each item leads
+to the work it describes. The current composition is defined by the active Home and Work brief.
+_Avoid_: My Week (as the name of the destination), a fixed dashboard layout as the definition of Home
 
 **My Week**:
-The personal panel on **Home**: R-or-A task table grouped by urgency + weekly-update strip + ops strip
-(+ team module for managers). Formerly the home surface itself; now a component of Home.
-_Avoid_: home surface, home page (it's a panel, not the destination)
+A historical name for personal work on Home. It does not require a separate panel or a particular
+layout in the current daily operating brief.
 
 **Inbox**:
 The **to-triage** destination: notifications, @mentions, approval requests. Routes the user to the
@@ -287,10 +413,14 @@ cross-cutting seams: the ESB-outbox `source_module` and a Daily Log entry's `ori
 emitting Module. Distinct from a **Feature** (finer capability *within* a Module) and from a
 **Business Unit** (the owning team) and from an **Activity** (the operating workstream a Module serves — a Module usually covers one slice of one Activity).
 **WIP-based activities share the ops-module spine:** **Kitchen and Bar are both WIP-producing** (they
-pre-produce), so both are served by the **Kitchen Module's** pattern — plan → log → stock → review. The
-eventual per-Activity scoping (a "WIP folder" so the kitchen team sees kitchen WIPs and the bar team bar
-WIPs) is **deliberately deferred** — you don't disrupt an incumbent team's established UX for model-purity;
-change it only as a considered UX decision, not incidentally.
+pre-produce), so both are served by the **Café Module's** pattern — plan → log → stock → review.
+~~The eventual per-Activity scoping is deliberately deferred.~~ **Superseded 2026-08-03 by OD-WAY-26 /
+OD-WAY-25:** per-**Production stream** scoping is now **in MVP scope**, because the bar streams are
+where the business is actually losing money — they reach the ERP by hand today, and the retyping step
+is the failure. The deferral's *reason* still binds, though, and is now the constraint on how it lands:
+**you do not disrupt an incumbent team's established UX for model-purity.** The two streams the
+incumbent app already serves keep their exact behaviour (OD-K-1 parity is behavioural), while the model
+underneath stops folding destination into action type.
 _Avoid_: app / mini-app (for anything inside MOS); feature (that's finer-grained, below)
 
 **Feature**:

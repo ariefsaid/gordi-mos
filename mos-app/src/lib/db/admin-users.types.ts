@@ -1,3 +1,5 @@
+import type { MessageKey } from '@/i18n/messages'
+
 // Admin user management types — plan §3.1.
 // LoginStatus: none (no user_id) | active | disabled (banned_until > now).
 // AdminPersonRow: the merged view the SPA list renders.
@@ -15,6 +17,9 @@ export interface AdminPersonRow {
   access_roles: string[] // non-revoked
   jabatan: { role_id: string; role_name: string }[]
   revenue_scope: RevenueScopeGrant[]
+  /** Live memberships, by the GATES' definition (`effective_to is null` OR `>= today` — it is an
+   *  inclusive last day). At most one is_primary; the partial unique index holds that. */
+  teams: TeamMembership[]
 }
 
 export interface CreatePersonInput {
@@ -48,6 +53,27 @@ export function roleDescription(slug: string): string {
   return ROLE_META[slug]?.description ?? ''
 }
 
+/**
+ * Locale-facing role label + description (#201, the Admin surfaces' i18n pass).
+ * Known slugs route through the `admin.role.*` catalog keys (both locales); unknown slugs
+ * keep the raw-slug fallback so nothing ever renders blank. Type-only i18n import — this
+ * stays a lib module at runtime.
+ *
+ * ROLE_META above is the slug REGISTRY (which roles exist); the catalog is the COPY. Both
+ * carry every slug in ASSIGNABLE_ROLES, and `admin-users.types.test.ts` asserts they agree,
+ * so adding a role to one without the other fails a test rather than rendering a bare slug.
+ */
+export function localizedRoleMeta(
+  slug: string,
+  t: (key: MessageKey, vars?: Record<string, string | number>) => string,
+): { label: string; description: string } {
+  if (!(slug in ROLE_META)) return { label: slug, description: '' }
+  return {
+    label: t(`admin.role.${slug}` as MessageKey),
+    description: t(`admin.role.${slug}.desc` as MessageKey),
+  }
+}
+
 // ── Jabatan (Position) ────────────────────────────────────────────────────────
 // A Jabatan/Position (shared.roles row) is distinct from an access role: it's an org-defined
 // title (e.g. "Barista") assigned via shared.person_roles, with no bearing on permissions.
@@ -73,4 +99,34 @@ export interface RevenueScopeOption {
 export interface RevenueScopeGrant {
   channel: string
   branch_code: string | null
+}
+
+// ── Teams (shared.team_memberships) ───────────────────────────────────────────
+// A Team is org structure — a group under one Business Unit. A Team that also carries
+// (branch, activity) IS a production stream (OD-WAY-49), and a person's live PRIMARY team is what
+// resolves their default capture stream (AC-001) — which is why "home team" is a real control here
+// and not decoration.
+//
+// Membership is also an AUTHORIZATION INPUT: mos.can_read_signal's R1 arm and the team post/start
+// gates read it. Only `admin` may write it (20260826000001) — the picker below is admin-only
+// because the whole /admin/people route is.
+
+/** A team a person can be put on, from listTeams(). */
+export interface TeamOption {
+  id: string
+  name: string
+  /** Set together on a production-stream team; both null on an ordinary org team. */
+  branch_name: string | null
+  activity: string | null
+}
+
+/** One of a person's LIVE team memberships. Labels come from TeamOption, so no name is carried. */
+export interface TeamMembership {
+  team_id: string
+  is_primary: boolean
+}
+
+/** True when this team is a (branch, activity) production stream rather than plain org structure. */
+export function isStreamTeam(team: TeamOption): boolean {
+  return team.branch_name !== null && team.activity !== null
 }

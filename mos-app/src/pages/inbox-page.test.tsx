@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { OverlayHostProvider } from '@/shell/overlay-host'
 import type { UseNotifications } from '@/hooks/useNotifications'
 import type { NotificationRow } from '@/lib/db/notifications'
 
@@ -31,6 +32,7 @@ function hookState(overrides: Partial<UseNotifications> = {}): UseNotifications 
     loading: false,
     error: null,
     markRead: vi.fn(),
+    markHandled: vi.fn(),
     refresh: vi.fn(),
     ...overrides,
   }
@@ -46,6 +48,18 @@ function renderPage() {
   )
 }
 
+function renderHostedPage() {
+  return render(
+    <I18nProvider>
+      <MemoryRouter>
+        <OverlayHostProvider>
+          <InboxPage />
+        </OverlayHostProvider>
+      </MemoryRouter>
+    </I18nProvider>,
+  )
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   mockUseNotifications.mockReturnValue(hookState())
@@ -56,7 +70,10 @@ describe('InboxPage — shared state kit', () => {
     mockUseNotifications.mockReturnValue(hookState({ loading: true }))
     const { container } = renderPage()
 
-    expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
+    // The connected triage body owns the loading grammar: a busy status region over the shared
+    // skeleton rows — never a bare empty/"caught up" surface while data is still in flight.
+    const status = screen.getByRole('status')
+    expect(status).toHaveAttribute('aria-busy', 'true')
     expect(container.querySelector('.skeleton-rows')).not.toBeNull()
     expect(screen.queryByText(/caught up/i)).not.toBeInTheDocument()
   })
@@ -66,8 +83,8 @@ describe('InboxPage — shared state kit', () => {
     mockUseNotifications.mockReturnValue(hookState({ error: 'load failed', refresh }))
     renderPage()
 
-    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
-    expect(screen.getByRole('alert')).toHaveTextContent(/couldn't load inbox/i)
+    expect(screen.getByText(/couldn't load inbox/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
     expect(refresh).toHaveBeenCalled()
   })
 
@@ -88,8 +105,10 @@ describe('InboxPage — shared state kit', () => {
     const emptyState = screen.getByTestId('empty-state')
     expect(emptyState).toHaveAttribute('data-empty-variant', 'quiet')
     expect(screen.getByText(/attention/i)).toBeInTheDocument()
+    // The quiet empty state itself carries no call-to-action (no push-to-act when caught up); the
+    // only controls on the surface are the persistent filter chips, never an empty-state CTA/link.
     expect(emptyState.querySelector('.empty-actions')).toBeNull()
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(within(emptyState).queryByRole('button')).toBeNull()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
@@ -100,5 +119,86 @@ describe('InboxPage — shared state kit', () => {
     expect(screen.getByRole('list', { name: /inbox/i })).toBeInTheDocument()
     expect(container.querySelector('.content-header')).not.toBeNull()
     expect(container.querySelector('main')?.style.backgroundImage).toBe('')
+  })
+
+  it('AC-051: two unread mentions share the Unread count and appear under All and Unread', () => {
+    const rows = [
+      notification({ id: 'mention-1', title: 'Mention one' }),
+      notification({ id: 'mention-2', title: 'Mention two' }),
+      notification({ id: 'handled-1', title: 'Handled item', read_at: '2026-07-07T01:00:00Z' }),
+    ]
+    mockUseNotifications.mockReturnValue(hookState({ notifications: rows, unreadCount: 2 }))
+    renderPage()
+
+    expect(screen.getByRole('button', { name: /Unread · 2/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Mention one.*unread/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Mention two.*unread/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Handled item/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Unread · 2/i }))
+    expect(screen.getByRole('button', { name: /Mention one.*unread/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Mention two.*unread/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Handled item/i })).toBeNull()
+  })
+
+  it('AC-V3-002: page-owned Inbox records mount through the inbox collection host slot', () => {
+    mockUseNotifications.mockReturnValue(hookState({ notifications: [notification()] }))
+    renderHostedPage()
+
+    fireEvent.click(screen.getByRole('button', { name: /Task assigned/ }))
+    expect(document.querySelector('[data-overlay-host][data-overlay-owner="inbox"]')).toBeTruthy()
+    expect(document.querySelector('.record-panel-chrome')).toBeTruthy()
+  })
+})
+
+// Census R2 DO-1 (F-INBOX-1): the `.record-split` grid reserves a 360px/44% right track the moment
+// it is applied, so it must exist only at >=1100px AND while a record is actually open — the same
+// gate Signals/Tasks use. At rest (or on phone/tablet) triage owns the full width: no resting dead
+// void, no ~80px crushed queue.
+describe('DO-1 — the triage list is never squashed by an empty record track', () => {
+  function stubMatchMedia(split: boolean) {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: (query: string) => ({
+        matches: query.includes('1100') ? split : false,
+        media: query, onchange: null,
+        addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+      }),
+    })
+  }
+
+  it('at rest (no record open) the page applies no .record-split track at any width', () => {
+    stubMatchMedia(true)
+    mockUseNotifications.mockReturnValue(hookState({ notifications: [notification()] }))
+    const { container } = renderHostedPage()
+    expect(container.querySelector('.record-split')).toBeNull()
+    // The dead companion class is gone too — it never had CSS.
+    expect(container.querySelector('.inbox-page-split')).toBeNull()
+  })
+
+  it('>=1100px with a record open: the split track appears so the record sits beside the list', () => {
+    stubMatchMedia(true)
+    mockUseNotifications.mockReturnValue(hookState({ notifications: [notification()] }))
+    const { container } = renderHostedPage()
+    fireEvent.click(screen.getByRole('button', { name: /Task assigned/ }))
+    expect(container.querySelector('.record-split')).not.toBeNull()
+  })
+
+  it('below 1100px a record open never squashes the list — the host owns a modal instead', () => {
+    stubMatchMedia(false)
+    mockUseNotifications.mockReturnValue(hookState({ notifications: [notification()] }))
+    const { container } = renderHostedPage()
+    fireEvent.click(screen.getByRole('button', { name: /Task assigned/ }))
+    expect(container.querySelector('.record-split')).toBeNull()
+  })
+})
+
+describe('InboxPage — focused title, no decorative help tip', () => {
+  it('does not add a help-tip control or meta row to the Inbox head', () => {
+    const { container } = renderPage()
+    const head = container.querySelector('[data-testid="page-head"]')!
+    expect(head).not.toHaveClass('content-header--meta-inline')
+    expect(head.querySelector('.ch-meta')).toBeNull()
+    expect(screen.queryByRole('button', { name: /help/i })).toBeNull()
   })
 })

@@ -10,17 +10,15 @@ const mockUseAuth = vi.mocked(useAuth)
 import { OrphanScreen } from './orphan-screen'
 
 describe('OrphanScreen', () => {
-  it('FR-016: orphan screen shows contact-Arief message', () => {
+  it('AC-014: orphan screen sends the person to a role, not a person', () => {
     const signOut = vi.fn()
     mockUseAuth.mockReturnValue({ status: 'orphan', signOut })
 
     render(<OrphanScreen />)
 
-    // The exact message from the spec Error-Handling table
     expect(screen.getByText(/Your account isn't set up yet/)).toBeInTheDocument()
-    // "contact Arief" appears in both the card body and foot line — check at least one
-    const arief = screen.getAllByText(/contact Arief/i)
-    expect(arief.length).toBeGreaterThanOrEqual(1)
+    // The card body and the shell footer both point at the admin role.
+    expect(screen.getAllByText(/Contact your admin/i).length).toBe(2)
   })
 
   it('FR-016: orphan screen — only interactive control is sign-out', () => {

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# commit-msg — the essay cap, and nothing else. Pure line count: a commit body over 20 lines is
+# an essay whatever it says (one session shipped ~3000 words against an 84-line diff). The
+# semantic guard that lived here (claim-check) was reverted for blocking true sentences; this cap
+# is machine-decidable only, which is what a hook may gate (CI decides, never judges).
+# Comments (#), the subject line, and git trailers don't count.
+# Self-test: scripts/commit-msg-cap.test.sh
+set -uo pipefail
+
+msgfile="$1"
+# Any `Token: value` line is exempt as a git trailer (Reviewed-by:, Fixes:, …) — an over-broad
+# exemption only under-counts, and a cap may under-count; it must never miscount honest trailers.
+n="$(sed -e '1d' -e '/^#/d' -e '/^[[:space:]]*$/d' \
+      -e '/^[A-Za-z][A-Za-z0-9-]*:[[:space:]]/d' \
+      "$msgfile" | wc -l | tr -d ' ')"
+if [ "$n" -gt 20 ]; then
+  printf '\033[31m✗ commit-msg: body is %s lines (max 20) — the diff is the essay. Rationale goes in docs/, once.\033[0m\n' "$n" >&2
+  exit 1
+fi
+exit 0

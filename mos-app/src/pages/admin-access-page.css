@@ -1,0 +1,19 @@
+/* Access settings use the shared management frame; this file only owns the page's field and
+   feedback seams. Layout tokens and responsive composition live with the admin settings nav. */
+.admin-access-panel > .error-state {
+  margin: 12px 16px;
+}
+
+.admin-access-panel > .admin-access-feedback--saved {
+  margin: 12px 16px 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--success) 32%, var(--border));
+  border-radius: var(--radius-sm);
+  color: var(--status-won-text);
+  background: color-mix(in srgb, var(--success) 9%, var(--card));
+  font-size: var(--font-size-body);
+}
+
+.admin-team-lead-row .error-state {
+  margin: 0;
+}

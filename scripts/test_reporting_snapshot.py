@@ -1,3 +1,6 @@
+from contextlib import contextmanager
+import sys
+import types
 import unittest
 
 from reporting_snapshot import (
@@ -10,6 +13,8 @@ from reporting_snapshot import (
     build_upsert_sql,
     normalize_margin_row,
     normalize_row,
+    run_margin_snapshot,
+    run_snapshot,
 )
 
 
@@ -244,6 +249,198 @@ class MarginSnapshotTests(unittest.TestCase):
         """AC-SN05: Given the default config, when source_contract_version for margin is unset,
         then it is pos_margin_interim.v1."""
         self.assertEqual(DEFAULT_MARGIN_SOURCE_CONTRACT_VERSION, "pos_margin_interim.v1")
+
+
+# ── observing a run without a database ────────────────────────────────────────────────────────
+#
+# AC-133e is a claim about what a RUN DOES — it declares its org before its first write — and the
+# only way to assert that is to run one and watch. These fakes record every statement the run
+# issues on each connection, so deleting the declaration from reporting_snapshot.py turns the
+# assertions below red instead of leaving them green against a constant that nothing executes.
+#
+# What is deliberately NOT faked: whether the database then honours the declaration. That is not
+# this layer's to assert and a fake would only ever agree with itself. The refusals — undeclared,
+# empty, unparseable, wrong org, on all four fed tables — are owned by
+# supabase/tests/reporting_07_writer_org_scope.sql against real policies and the real writer role.
+
+WAREHOUSE_DSN = "postgresql://warehouse/db"
+REPORTING_DSN = "postgresql://supabase/db"
+ORG_A = "00000000-0000-0000-0000-0000000000a1"
+ORG_B = "00000000-0000-0000-0000-0000000000b1"
+
+REVENUE_SOURCE_ROW = {
+    "revenue_date": "2026-08-03",
+    "channel": "POS",
+    "esb_code": "GKI",
+    "branch_code": "RRS",
+    "branch_name": "Rumah Rames",
+    "transactions": 11,
+    "clean_revenue": "1300000.00",
+}
+MARGIN_SOURCE_ROW = {
+    "margin_date": "2026-08-03",
+    "esb_code": "GKI",
+    "branch_code": "RRS",
+    "branch_name": "Rumah Rames",
+    "revenue": "1000000",
+    "cogs_interim_sm": "600000",
+    "cogs_budget_bom": "550000",
+    "bom_coverage_pct": "0.9",
+}
+
+
+class _RecordingCursor:
+    def __init__(self, connection):
+        self._connection = connection
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def execute(self, sql, params=None):
+        self._connection.calls.append(("execute", sql, params))
+
+    def executemany(self, sql, params_seq):
+        self._connection.calls.append(("executemany", sql, list(params_seq)))
+
+    def fetchall(self):
+        return list(self._connection.source_rows)
+
+
+class _RecordingConnection:
+    def __init__(self, dsn, source_rows):
+        self.dsn = dsn
+        self.source_rows = source_rows
+        self.calls = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def cursor(self, **_kwargs):
+        return _RecordingCursor(self)
+
+    def commit(self):
+        self.calls.append(("commit", None, None))
+
+
+@contextmanager
+def _observed_run(source_rows):
+    """Stand in for psycopg for the duration of a run, and hand back the connections it opened.
+
+    reporting_snapshot imports psycopg inside its run functions, so substituting the module in
+    sys.modules is enough — and it is restored afterwards, so a machine that really has psycopg
+    installed is left exactly as it was found.
+    """
+    connections = []
+
+    def connect(dsn, **_kwargs):
+        connection = _RecordingConnection(dsn, source_rows)
+        connections.append(connection)
+        return connection
+
+    psycopg_module = types.ModuleType("psycopg")
+    psycopg_module.connect = connect
+    rows_module = types.ModuleType("psycopg.rows")
+    rows_module.dict_row = object()
+    psycopg_module.rows = rows_module
+
+    saved = {name: sys.modules.get(name) for name in ("psycopg", "psycopg.rows")}
+    sys.modules["psycopg"] = psycopg_module
+    sys.modules["psycopg.rows"] = rows_module
+    try:
+        yield connections
+    finally:
+        for name, module in saved.items():
+            if module is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = module
+
+
+class OrgScopedRunTests(unittest.TestCase):
+    """AC-133e: the run declares its org before its first write, and writes only that org."""
+
+    def _reporting_calls(self, connections):
+        reporting = [c for c in connections if c.dsn == REPORTING_DSN]
+        self.assertEqual(len(reporting), 1, "expected exactly one reporting connection per run")
+        return reporting[0].calls
+
+    def _config(self, org_id):
+        return SnapshotConfig(
+            warehouse_db_url=WAREHOUSE_DSN,
+            supabase_reporting_db_url=REPORTING_DSN,
+            org_id=org_id,
+        )
+
+    def _run_revenue(self, org_id=ORG_A):
+        with _observed_run([dict(REVENUE_SOURCE_ROW)]) as connections:
+            run_snapshot(self._config(org_id))
+        return self._reporting_calls(connections)
+
+    def _run_margin(self, org_id=ORG_A):
+        with _observed_run([dict(MARGIN_SOURCE_ROW)]) as connections:
+            run_margin_snapshot(self._config(org_id), snapshot_as_of="2026-08-03T20:30:00+00:00")
+        return self._reporting_calls(connections)
+
+    def _assert_declares_then_writes(self, calls, org_id):
+        # The whole statement sequence, not just its first element: an exact match is what pins
+        # "declaration, then write, and no COMMIT between them" — the declaration is transaction
+        # scoped, so a commit slipped in here would discard it and the write would be refused.
+        self.assertEqual(
+            [kind for kind, _sql, _params in calls],
+            ["execute", "executemany", "commit"],
+            calls,
+        )
+
+        kind, sql, params = calls[0]
+        self.assertIn("set_config('app.reporting_org'", sql)
+        self.assertEqual(params, (org_id,), "the org rides as a bound parameter")
+        self.assertNotIn(org_id, sql, "the org is never interpolated into the statement text")
+        self.assertTrue(
+            sql.rstrip().endswith("true)"),
+            f"the declaration must be transaction scoped, so it cannot outlive the run on a "
+            f"pooled backend: {sql}",
+        )
+
+        # And the write it authorises is stamped with the same org it declared.
+        _kind, _write_sql, written_rows = calls[1]
+        self.assertTrue(written_rows, "the run wrote nothing, so it proved nothing")
+        self.assertEqual({row["org_id"] for row in written_rows}, {org_id})
+
+    def test_revenue_run_declares_its_org_in_the_transaction_that_writes(self):
+        """Given a revenue snapshot run, when it reaches its reporting connection, then the org
+        declaration is the first statement and shares a transaction with the upsert."""
+        self._assert_declares_then_writes(self._run_revenue(), ORG_A)
+
+    def test_margin_run_declares_its_org_in_the_transaction_that_writes(self):
+        """Given a margin snapshot run — the second connection a run opens — then it declares its
+        own org too, on its own transaction."""
+        self._assert_declares_then_writes(self._run_margin(), ORG_A)
+
+    def test_each_run_declares_and_writes_only_its_configured_org(self):
+        """AC-133e, two-org half: given two runs configured for different orgs, when each runs,
+        then it declares its own org and stamps only that org on what it writes — neither run
+        mentions the other's org anywhere on its reporting connection.
+
+        The database-side half of this clause — that a run which declares one org is refused when
+        it aims at another — needs real policies and lives in reporting_07_writer_org_scope.sql,
+        which plants a second org's row and asserts the refusal on all four fed tables.
+        """
+        for run, org, other in (
+            (self._run_revenue, ORG_A, ORG_B),
+            (self._run_revenue, ORG_B, ORG_A),
+            (self._run_margin, ORG_A, ORG_B),
+            (self._run_margin, ORG_B, ORG_A),
+        ):
+            with self.subTest(run=run.__name__, org=org):
+                calls = run(org)
+                self._assert_declares_then_writes(calls, org)
+                self.assertNotIn(other, repr(calls))
 
 
 class LocalSnapshotEnvTests(unittest.TestCase):

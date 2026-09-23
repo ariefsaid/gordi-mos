@@ -26,18 +26,20 @@ const ROLES: RoleOption[] = [
 const PERSON_NO_POSITION: AdminPersonRow = {
   id: 'other-person-id',
   full_name: 'Budi Santoso',
-  email: 'budi@gordi.id',
+  email: 'budi@example.test',
   archived_at: null,
   login: 'active',
   access_roles: ['member'],
   jabatan: [],
   revenue_scope: [],
+  teams: [],
 }
 
 const PERSON_WITH_POSITION: AdminPersonRow = {
   ...PERSON_NO_POSITION,
   jabatan: [{ role_id: 'r-barista', role_name: 'Barista' }],
   revenue_scope: [],
+  teams: [],
 }
 
 beforeEach(() => {

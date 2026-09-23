@@ -21,14 +21,61 @@ ris-dev production deployment is a later issue.
   person-without-auth, multi-role, `is_manager_of` dual-hat union chain, `org_id` spoof.
 
 ## Seed privacy (public repo — OD-P1-6)
-Real names/emails NEVER enter `seed.sql`. At deploy time, copy `seed.production.sql.example` to
-`seed.production.sql` (gitignored) and fill in real people + auth links; apply it manually against the
-deployed stack. The committed seed stays fictional.
+Real names/emails NEVER enter `seed.sql`, and never enter **this directory at all**. At deploy time,
+copy `seed.production.sql.example` to `docs/local-seeds/02-real-roster.sql` and fill in real people +
+auth links; apply it manually against the deployed stack. The committed seed stays fictional.
+
+The filled-in file lives outside `supabase/` on purpose. This directory is tracked, so anything under
+it is one `git add supabase` away from a public commit, whatever the filename. `docs/` is gitignored
+as a whole directory *and* is a nested repo with no remote, so `git add` cannot stage its contents at
+all. Prefer that boundary to any filename rule.
 
 ## Common commands (run from repo root)
 - `supabase start` — boot the local stack (Docker).
 - `supabase db reset` — drop, re-apply all migrations, re-run `seed.sql` (the reversibility contract).
 - `supabase test db` — run the pgTAP suite.
+
+## Writing a migration that is conditional on prior state (#393)
+
+`supabase db reset` starts from nothing. So the moment a migration says `drop constraint if
+exists`, `drop policy if exists`, `create … if not exists` or wraps a repair in `do $$ … $$`, it
+has **a branch CI structurally cannot reach** — the only environments that run it are staging and
+production. A green suite says nothing about that branch.
+
+`scripts/applied-path-check.sh` is what covers it. It builds **two** databases in the one local
+stack and compares them:
+
+| | how it is built |
+|---|---|
+| FRESH | `supabase db reset` on the working tree — exactly what CI runs |
+| APPLIED | `supabase db reset` on the `supabase/` tree at the **deployed** commit, seeded, then `supabase migration up` on the working tree — the real chain, applying exactly the versions that commit has not seen |
+
+and asserts the property that actually protects a deployment: **a migrated database is
+indistinguishable from a freshly reset one** — in CHECK / primary-key / unique / foreign-key
+constraints, RLS posture, policies, function signatures, and the contents of every
+migration-owned catalog table, across every business schema. `scripts/lib/applied-path-fingerprint.sql`
+derives all of that from the catalog, so a new schema, table or vocabulary row is covered the day
+it lands.
+
+```
+supabase start
+scripts/applied-path-check.sh                 # green/red
+scripts/applied-path-check.sh --prove         # ALSO break the conditional and require a red
+```
+
+Two things to know before you rely on it:
+
+- **`supabase/applied-path-baseline` names the deployed commit.** It is the one fact no script can
+  infer. Move it forward after a deploy, to the commit that was deployed. If nothing is pending
+  against it the check exits 2 and says so — it never passes on air.
+- **Do not build the "old" state by hand.** Re-adding the constraints a migration drops re-couples
+  what the migration decoupled, and the comparison ends up being a database against itself. The
+  baseline comes from git, and the check refuses to continue unless the pre-migration database is
+  demonstrably different from a fresh one.
+
+CI runs it on the `geometry` job's dev-PR fast lane and, with `--prove`, on the `db` job — the
+gate immediately before a staging deploy. The proof run publishes its green/red contrast to the
+job summary and keeps the fingerprints as a build artifact.
 
 ## Production email (Resend) — OD-P1-11
 
@@ -44,15 +91,8 @@ send real mail (magic links, invites, password resets) through **Resend** via SM
 | `GOTRUE_SMTP_ADMIN_EMAIL` | `admin@gordi.id` (the From address — owner's alias) |
 | `GOTRUE_SMTP_SENDER_NAME` | `Gordi Admin` |
 
-Status (2026-06-11): domain **verified** in Resend; API key stored in **1Password vault `AS`**.
-Secrets are fetched at deploy time via the host tool `op-get.sh <item> <vault> <field>`
-(`~/.local/bin/op-get.sh`; loads the service-account token itself — see PMO
-`docs/environments.md` for the pattern). Committed coordinates (NOT secret):
-`supabase/op.resend.env`. Never copy the key into a file in this repo.
+Supply mail credentials through the deployment secret configuration. Keep secret lookup coordinates and local environment files out of version control.
 
-**Smoke-tested 2026-06-11:** send-only key verified live — POST /emails as `Gordi Admin
-<admin@gordi.id>` to Resend's sandbox (`delivered@resend.dev`) returned 200 (id 79432513…). The
-key is restricted to sending (401 on /domains) — correct scope.
 Sanity check after deploy: trigger a password-reset from the prod login page and confirm delivery +
 that the link lands on `https://ops.gordi.id/mos/recovery` (proves the SMTP path specifically). Rate limits: Resend free tier (~3k/mo,
 100/day) is ~10× MOS's worst case.

@@ -1,0 +1,416 @@
+import { execFile, execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import { access, mkdir, readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { promisify } from 'node:util'
+
+import { test, expect } from '@playwright/test'
+
+import { DESIGN_QUALITY_MANIFEST, type ManifestCell } from './manifest'
+import { APPROVED_MVP_COMPARISONS } from './baseline-contract'
+import {
+  bindMockupToCell,
+  parseMockupAuthorityEntry,
+  resolvePrivateAuthorityPath,
+  type MockupAuthorityEntry,
+} from './mockup-authority'
+import {
+  assertAuditEnvironment,
+  assertAuditServer,
+  auditEnabled,
+  auditRun,
+  captureCell,
+  compareAutomaticFailuresForLane,
+  observeManifestCellState,
+  prepareAuditPage,
+  writeAutomaticLaneSummary,
+} from './runtime'
+import { type AutomaticFailure } from './change-gate.ts'
+
+const execFileAsync = promisify(execFile)
+const repoRoot = path.resolve(process.cwd(), '..')
+const gitCommonDir = execFileSync(
+  'git',
+  ['rev-parse', '--path-format=absolute', '--git-common-dir'],
+  { cwd: repoRoot, encoding: 'utf8' },
+).trim()
+const primaryWorkspaceRoot = path.resolve(path.dirname(gitCommonDir))
+const DETECTOR = path.join(repoRoot, 'scripts/impeccable-detect.mjs')
+const COMP_DIFF = path.join(primaryWorkspaceRoot, '.claude/skills/impeccable/scripts/impeccable')
+const SCORE_THRESHOLD = 0.75
+
+type DiffComparison = {
+  mockup: string
+  build: string
+  authority: string
+  cellId: string
+  score: number | null
+  requiredRegions: string[]
+  missingRegions: string[]
+  contradictedRegions: string[]
+  status: 'pass' | 'fail' | 'blocked'
+  reason?: string
+}
+
+function env(name: string): string {
+  return process.env[name]?.trim() ?? ''
+}
+
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function authorityEntry(value: unknown, inheritedAuthority = ''): MockupAuthorityEntry {
+  return parseMockupAuthorityEntry(value, primaryWorkspaceRoot, inheritedAuthority)
+}
+
+function payloadEntries(payload: unknown): { entries: unknown[]; authorityRows: boolean; inheritedAuthority: string } {
+  if (Array.isArray(payload)) return { entries: payload, authorityRows: false, inheritedAuthority: '' }
+  if (typeof payload !== 'object' || payload === null) return { entries: [], authorityRows: false, inheritedAuthority: '' }
+  const record = payload as Record<string, unknown>
+  const entries = Array.isArray(record.mockups)
+    ? record.mockups
+    : Array.isArray(record.entries)
+      ? record.entries
+      : Array.isArray(record.rows)
+        ? record.rows
+        : []
+  return {
+    entries,
+    authorityRows: Array.isArray(record.rows),
+    inheritedAuthority: asString(record.authority),
+  }
+}
+
+async function assertFrozenMockupPopulation(entries: readonly MockupAuthorityEntry[]): Promise<void> {
+  if (entries.length !== APPROVED_MVP_COMPARISONS.length) {
+    throw new Error(`mockup authority must contain exactly ${APPROVED_MVP_COMPARISONS.length} approved comparisons`)
+  }
+  for (const expected of APPROVED_MVP_COMPARISONS) {
+    const entry = entries.find((candidate) => candidate.cellId === expected.cellId
+      && candidate.viewport === expected.viewport)
+    if (!entry) throw new Error(`approved comparison is missing: ${expected.id}`)
+    if (path.basename(entry.path) !== expected.fileName) {
+      throw new Error(`${expected.id} uses an unapproved mockup file`)
+    }
+    if (JSON.stringify(entry.requiredRegions) !== JSON.stringify(expected.requiredRegions)) {
+      throw new Error(`${expected.id} changed its required-region set`)
+    }
+    const digest = createHash('sha256').update(await readFile(entry.path)).digest('hex')
+    if (digest !== expected.sha256) throw new Error(`${expected.id} mockup hash changed`)
+  }
+}
+
+/**
+ * Load only an explicit, authority-backed list. There is intentionally no
+ * directory discovery fallback: archived/private docs must never silently
+ * become a CI acceptance contract.
+ */
+export async function approvedMockups(): Promise<MockupAuthorityEntry[]> {
+  const authorityPath = env('DESIGN_AUDIT_MOCKUP_AUTHORITY')
+  const listPath = env('DESIGN_AUDIT_MOCKUP_LIST')
+  const configuredPaths = env('DESIGN_AUDIT_MOCKUPS')
+
+  if (authorityPath || listPath) {
+    const source = authorityPath || listPath
+    const sourcePath = resolvePrivateAuthorityPath(source, primaryWorkspaceRoot)
+    let payload: unknown
+    try {
+      payload = JSON.parse(await readFile(sourcePath, 'utf8'))
+    } catch (error) {
+      throw new Error(`mockup authority list could not be read: ${source} (${String(error)})`)
+    }
+    const parsed = payloadEntries(payload)
+    // The private authority inventory contains historical/reference rows as
+    // well as current approved rows. Only rows explicitly marked approved and
+    // valid for comp-diff enter this acceptance lane; the inventory itself is
+    // still required explicitly through the environment above.
+    const candidates = parsed.authorityRows
+      ? parsed.entries.filter((entry) => {
+        if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return false
+        const row = entry as Record<string, unknown>
+        return row.status === 'approved' && row.comp_diff_valid === true
+      })
+      : parsed.entries
+    const entries = candidates.map((entry) => authorityEntry(entry, parsed.inheritedAuthority))
+    if (entries.length === 0) throw new Error('mockup authority list contains no approved comp-diff image entries')
+    await assertFrozenMockupPopulation(entries)
+    return entries
+  }
+
+  if (configuredPaths) {
+    throw new Error(
+      'DESIGN_AUDIT_MOCKUPS is not accepted without explicit authority rows; use ' +
+      'DESIGN_AUDIT_MOCKUP_AUTHORITY with cellId and all manifest dimensions',
+    )
+  }
+
+  throw new Error(
+    'mockup fidelity requires an explicit authority-backed list via DESIGN_AUDIT_MOCKUP_AUTHORITY ' +
+    'or DESIGN_AUDIT_MOCKUP_LIST; directory discovery is disabled',
+  )
+}
+
+function productionUiFiles(): string[] {
+  const output = execFileSync('git', ['ls-files', 'mos-app/src'], { cwd: repoRoot, encoding: 'utf8' })
+  return output.split(/\r?\n/).filter((file) => {
+    if (!/\.(?:css|html|jsx|tsx|vue|svelte|astro)$/i.test(file)) return false
+    return !/(?:\.test\.|\.spec\.|\.stories\.|\/__tests__\/|\/fixtures\/)/i.test(file)
+  })
+}
+
+type DetectorResult = {
+  status: 'pass' | 'findings' | 'blocked'
+  findings: unknown[]
+  scannedFiles: string[]
+  error?: string
+}
+
+function parseJsonArray(text: string): unknown[] | null {
+  try {
+    const payload = JSON.parse(text)
+    return Array.isArray(payload) ? payload : null
+  } catch {
+    return null
+  }
+}
+
+async function runImpeccableDetector(): Promise<DetectorResult> {
+  const scannedFiles = productionUiFiles()
+  if (scannedFiles.length === 0) {
+    return { status: 'blocked', findings: [], scannedFiles, error: 'no production UI source files were found' }
+  }
+  try {
+    const result = await execFileAsync('node', [DETECTOR, '--json', '--no-advisory', ...scannedFiles], {
+      cwd: repoRoot,
+      maxBuffer: 16 * 1024 * 1024,
+    })
+    const findings = parseJsonArray(result.stdout)
+    if (!findings) return { status: 'blocked', findings: [], scannedFiles, error: 'detector did not emit a JSON findings array' }
+    return { status: findings.length === 0 ? 'pass' : 'findings', findings, scannedFiles }
+  } catch (error) {
+    const candidate = error as { stdout?: string; stderr?: string; message?: string }
+    const findings = parseJsonArray(candidate.stdout ?? '')
+    if (findings) {
+      return {
+        status: findings.length === 0 ? 'pass' : 'findings',
+        findings,
+        scannedFiles,
+        error: candidate.stderr?.trim() || candidate.message,
+      }
+    }
+    return { status: 'blocked', findings: [], scannedFiles, error: candidate.stderr?.trim() || candidate.message || String(error) }
+  }
+}
+
+function numberFrom(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
+  return null
+}
+
+function normalizeRegions(payload: unknown): Array<{ name: string; status: string }> {
+  if (!Array.isArray(payload)) return []
+  return payload.flatMap((entry) => {
+    if (typeof entry !== 'object' || entry === null) return []
+    const row = entry as Record<string, unknown>
+    const name = asString(row.name || row.id || row.region)
+    const status = asString(row.status || row.verdict || row.result).toLowerCase()
+    return name ? [{ name, status }] : []
+  })
+}
+
+function scoreFrom(payload: unknown): number | null {
+  if (typeof payload !== 'object' || payload === null) return null
+  const row = payload as Record<string, unknown>
+  const nestedOverall = typeof row.scores === 'object' && row.scores !== null
+    ? (row.scores as Record<string, unknown>).overall
+    : null
+  for (const candidate of [row.overallScore, row.overall_score, row.overall, nestedOverall, row.score, row.similarity, row.ssim]) {
+    const value = numberFrom(candidate)
+    if (value !== null) return value
+  }
+  return null
+}
+
+function evaluateComparison(
+  entry: MockupAuthorityEntry,
+  build: string,
+  payload: unknown,
+): DiffComparison {
+  const score = scoreFrom(payload)
+  const regions = normalizeRegions(typeof payload === 'object' && payload !== null
+    ? (payload as Record<string, unknown>).regions
+    : null)
+  const missingRegions = entry.requiredRegions.filter((required) => {
+    const region = regions.find((candidate) => candidate.name === required)
+    return !region || region.status === 'missing'
+  })
+  const contradictedRegions = entry.requiredRegions.filter((required) => {
+    const region = regions.find((candidate) => candidate.name === required)
+    return region?.status === 'contradicted' || region?.status === 'fail'
+  })
+  const passed = score !== null && score >= SCORE_THRESHOLD && missingRegions.length === 0 && contradictedRegions.length === 0
+  return {
+    mockup: entry.path,
+    build,
+    authority: entry.authority,
+    cellId: entry.cellId,
+    score,
+    requiredRegions: entry.requiredRegions,
+    missingRegions,
+    contradictedRegions,
+    status: passed ? 'pass' : 'fail',
+    reason: passed
+      ? undefined
+      : `overall score must be >=${SCORE_THRESHOLD} and required regions must be present and uncontradicted`,
+  }
+}
+
+async function compareMockup(entry: MockupAuthorityEntry, build: string, outDir: string): Promise<unknown> {
+  await access(COMP_DIFF)
+  try {
+    const result = await execFileAsync(COMP_DIFF, [
+      'comp-diff',
+      '--comp', entry.path,
+      '--build', build,
+      '--out-dir', outDir,
+      '--threshold', String(SCORE_THRESHOLD),
+      '--json',
+    ], { cwd: repoRoot, maxBuffer: 16 * 1024 * 1024 })
+    return JSON.parse(result.stdout)
+  } catch (error) {
+    const candidate = error as { stdout?: string; stderr?: string; message?: string }
+    try {
+      return JSON.parse(candidate.stdout ?? '')
+    } catch {
+      throw new Error(candidate.stderr?.trim() || candidate.message || String(error))
+    }
+  }
+}
+
+function blockedComparison(entry: MockupAuthorityEntry, reason: unknown): DiffComparison {
+  return {
+    mockup: entry.path,
+    build: '',
+    authority: entry.authority,
+    cellId: entry.cellId,
+    score: null,
+    requiredRegions: entry.requiredRegions,
+    missingRegions: entry.requiredRegions,
+    contradictedRegions: [],
+    status: 'blocked',
+    reason: String(reason),
+  }
+}
+
+test.describe.configure({ mode: 'serial' })
+
+test('the vendored Impeccable detector scans production UI and writes its own artifact', async () => {
+  test.skip(!auditEnabled(), 'set DESIGN_QUALITY_RUN=1 through scripts/design-quality-audit.sh')
+  assertAuditEnvironment()
+  const run = auditRun()
+  const result = await runImpeccableDetector()
+  const allFailures: AutomaticFailure[] = result.findings.map((finding) => {
+    const item = finding as Record<string, unknown>
+    return {
+      ruleId: 'impeccable.finding',
+      cellId: String(item.cellId || item.file || item.path || ''),
+      selector: String(item.selector || item.rule || item.id || '__impeccable__'),
+      state: 'default',
+      message: String(item.message || item.reason || item.rule || 'Impeccable detector finding'),
+      measured: finding,
+    }
+  })
+  const comparison = await compareAutomaticFailuresForLane(run, allFailures)
+  await writeAutomaticLaneSummary(run, 'impeccable.json', {
+    ...result,
+    failures: comparison.failures,
+    allFailures: comparison.allFailures,
+    inheritedFailures: comparison.inheritedFailures,
+    newFailures: comparison.newFailures,
+    automaticChecksPassed: comparison.automaticChecksPassed,
+  }, result.scannedFiles.length)
+  expect(comparison.failures, result.error ?? 'Impeccable detector found blocking production findings').toEqual([])
+})
+
+test('mockup fidelity records authority-backed comparisons as diagnostic evidence', async ({ page }) => {
+  test.skip(!auditEnabled(), 'set DESIGN_QUALITY_RUN=1 through scripts/design-quality-audit.sh')
+  assertAuditEnvironment()
+  const run = auditRun()
+  await assertAuditServer(run.baseURL)
+  const comparisons: DiffComparison[] = []
+  let authorityEntries: MockupAuthorityEntry[] = []
+  let blockedReason = ''
+  try {
+    authorityEntries = await approvedMockups()
+  } catch (error) {
+    blockedReason = String(error)
+  }
+
+  if (authorityEntries.length === 0) {
+    const comparison: DiffComparison = {
+      mockup: '',
+      build: '',
+      authority: 'explicit mockup authority list',
+      cellId: '__mockup__',
+      score: null,
+      requiredRegions: [],
+      missingRegions: [],
+      contradictedRegions: [],
+      status: 'blocked',
+      reason: blockedReason || 'no authority-backed mockups were supplied',
+    }
+    comparisons.push(comparison)
+    await writeAutomaticLaneSummary(run, 'mockup-diff/status.json', {
+      status: 'diagnostic',
+      diagnosticStatus: 'incomplete',
+      comparisons: [comparison],
+      failures: [],
+      allFailures: [],
+      inheritedFailures: [],
+      newFailures: [],
+    }, comparisons.length)
+    return
+  }
+
+  for (const entry of authorityEntries) {
+    try {
+      await access(entry.path)
+      const cell: ManifestCell = bindMockupToCell(entry, DESIGN_QUALITY_MANIFEST)
+      await prepareAuditPage(page, run, cell)
+      const observation = await observeManifestCellState(page, cell)
+      if (observation.status !== 'covered') {
+        comparisons.push(blockedComparison(entry, `mockup state was not established: ${observation.evidence}`))
+        continue
+      }
+      const build = await captureCell(page, run, cell, 'mockup')
+      const relativeDir = path.join('mockup-diff', path.basename(entry.path, path.extname(entry.path)))
+      const outDir = path.join(run.outputDir, relativeDir)
+      await mkdir(outDir, { recursive: true })
+      const raw = await compareMockup(entry, build, outDir)
+      const comparison = evaluateComparison(entry, build, raw)
+      comparisons.push(comparison)
+      await run.writer.writeJson(path.join(relativeDir, 'evaluation.json'), comparison)
+    } catch (error) {
+      comparisons.push(blockedComparison(entry, error))
+    }
+  }
+
+  const diagnosticStatus = comparisons.some((comparison) => comparison.status === 'blocked')
+    ? 'incomplete'
+    : 'complete'
+  await writeAutomaticLaneSummary(run, 'mockup-diff/status.json', {
+    status: 'diagnostic',
+    diagnosticStatus,
+    threshold: SCORE_THRESHOLD,
+    comparisons,
+    // Historical comparisons remain visible in `comparisons`; they are not
+    // automatic failure identities and cannot block either audit mode.
+    failures: [],
+    allFailures: [],
+    inheritedFailures: [],
+    newFailures: [],
+  }, comparisons.length)
+  expect(comparisons, 'every authority entry must produce a comparison').not.toHaveLength(0)
+})

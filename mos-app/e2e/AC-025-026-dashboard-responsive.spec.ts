@@ -27,6 +27,7 @@ import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { ADMIN } from './fixtures/users'
 import { loginAs } from './helpers/login'
+import { isShipGated } from './helpers/ship-gate'
 
 // Sample fixture rows — realistic Gordi data (GHQ/SKC POS branches + GRI Roastery B2B,
 // per docs/specs/dashboard.spec.md Resolved owner decisions + CONTEXT.md). Dates are
@@ -126,17 +127,24 @@ function boxesIntersect(
 }
 
 test.describe('AC-025: Dashboard — phone layout (390px)', () => {
+  // issue 444 — this journey's surface is ship-gated (outside the MVP payload), so every entry
+  // point forwards home and there is no door to walk through. Skipped on the gate itself, not
+  // deleted: the journey is still true of the built surface and comes back the moment /money
+  // leaves SHIP_GATED_PATHS.
+  test.skip(isShipGated('/money'), 'ship-gated surface (issue 444) — no route, no nav')
   test.use({ viewport: { width: 390, height: 844 } })
 
   test('AC-025: KPI values, global toolbar, tab switch, and detail cards are visible without horizontal scroll or overlap', async ({ page }) => {
     await mockDashboardReporting(page)
     await loginAs(page, ADMIN.email, ADMIN.password)
-    await page.goto('dashboard')
+    await page.goto('money')
 
     // Populated layout rendered (this label only exists in the ready state — doubles
     // as the data-loaded readiness wait; the empty state must NOT have triggered).
     await expect(page.getByText(/trailing 7-day revenue/i)).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+    // STALE→fixed: /money's PageFamilyFrame h1 renders t('dest.money') = "Money"
+    // (dashboard-page.tsx) — "Dashboard" never renders on this surface.
+    await expect(page.getByRole('heading', { level: 1, name: 'Money' })).toBeVisible()
 
     // No horizontal scroll: document scrollWidth must not exceed the viewport width
     // (a 1px rounding allowance keeps this from being flaky on sub-pixel layouts).
@@ -187,16 +195,20 @@ test.describe('AC-025: Dashboard — phone layout (390px)', () => {
 })
 
 test.describe('AC-026: Dashboard — desktop layout (≥1280px)', () => {
+  // Same ship gate as AC-025 above (issue 444): /money is outside the MVP payload.
+  test.skip(isShipGated('/money'), 'ship-gated surface (issue 444) — no route, no nav')
   test.use({ viewport: { width: 1280, height: 900 } })
 
   test('AC-026: KPI rows + chart + table are visible above/near the fold; numeric columns are tabular', async ({ page }) => {
     await mockDashboardReporting(page)
     await loginAs(page, ADMIN.email, ADMIN.password)
-    await page.goto('dashboard')
+    await page.goto('money')
 
     // Populated layout rendered.
     await expect(page.getByText(/trailing 7-day revenue/i)).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+    // STALE→fixed: /money's PageFamilyFrame h1 renders t('dest.money') = "Money"
+    // (dashboard-page.tsx) — "Dashboard" never renders on this surface.
+    await expect(page.getByRole('heading', { level: 1, name: 'Money' })).toBeVisible()
 
     // KPI rows: the revenue set (FR-006/007) + a gross-margin tile (FR-008) are
     // visible; the revenue grid holds ≥ its 5 tiles. (The old page had 4; the renamed

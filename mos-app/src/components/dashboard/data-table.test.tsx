@@ -1,7 +1,8 @@
 // DataTable tests — design-plan §2.3 (general sortable, reflowing table primitive).
 // Generalises kitchen-table.css (.kt-*) grammar with a formal sort + card-reflow prop-shape.
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, within, fireEvent } from '@testing-library/react'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { DataTable, type DataTableColumn, type DataTableGroup } from './data-table'
@@ -343,6 +344,25 @@ describe('DataTable — grouping (desktop)', () => {
     expect(screen.queryByText('SKC')).toBeNull()
   })
 
+  it('honors defaultCollapsedGroupKeys for the first render without taking away the toggle', () => {
+    render(
+      <DataTable
+        columns={COLUMNS}
+        rows={[]}
+        groups={GROUPS}
+        isDesktop
+        caption="Kitchen prep"
+        defaultCollapsedGroupKeys={new Set(['hot'])}
+      />,
+    )
+    expect(screen.queryByText('GHQ')).toBeNull()
+    expect(screen.getByText('SKC')).toBeInTheDocument()
+    const expand = screen.getByRole('button', { name: /expand hot kitchen/i })
+    expect(expand).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(expand)
+    expect(screen.getByText('GHQ')).toBeInTheDocument()
+  })
+
   it('composes a column render() with grouping — the rendered node shows inside a grouped row', () => {
     const cols: DataTableColumn<Row>[] = [
       ...COLUMNS.slice(0, 1),
@@ -442,5 +462,111 @@ describe('DataTable — grouping regression + glyph guard', () => {
     const src = readFileSync(resolve(SRC, 'components/dashboard/data-table.tsx'), 'utf8')
     expect(src).not.toMatch(/[▸▾▴]/)
     expect(src).toMatch(/from '@\/shell\/icons'/) // imports the ONE shared chevron
+  })
+})
+
+// #400: the kit's own strings — default empty label + group expand/collapse aria — go
+// through the catalog. Needs the provider wrapper (bare renders resolve the standalone
+// en default context).
+describe('DataTable — locale seam (#400)', () => {
+  beforeEach(() => localStorage.setItem('mos.locale', 'id'))
+  afterEach(() => localStorage.clear())
+
+  it('default empty label is Indonesian when the caller passes none', () => {
+    render(
+      <I18nProvider>
+        <DataTable columns={COLUMNS} rows={[]} isDesktop state="empty" caption="Tabel" />
+      </I18nProvider>,
+    )
+    expect(screen.getByText('Tidak ada baris untuk ditampilkan.')).toBeInTheDocument()
+    expect(screen.queryByText('No rows to show.')).toBeNull()
+  })
+
+  it('group toggle aria names are Indonesian (desktop + phone)', () => {
+    const { unmount } = render(
+      <I18nProvider>
+        <DataTable columns={COLUMNS} rows={[]} groups={GROUPS} isDesktop caption="Tabel" />
+      </I18nProvider>,
+    )
+    const collapse = screen.getByRole('button', { name: 'Tutup grup Hot Kitchen' })
+    fireEvent.click(collapse)
+    expect(screen.getByRole('button', { name: 'Buka grup Hot Kitchen' })).toBeInTheDocument()
+    unmount()
+
+    render(
+      <I18nProvider>
+        <DataTable columns={COLUMNS} rows={[]} groups={GROUPS} isDesktop={false} caption="Tabel" />
+      </I18nProvider>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Tutup grup Hot Kitchen' }))
+    expect(screen.getByRole('button', { name: 'Buka grup Hot Kitchen' })).toBeInTheDocument()
+  })
+
+  // Same reasoning as ChartFrame: the failure state is where English hurts most, and it
+  // is the last string in the kit still bypassing `common.loadFailed`.
+  it('the error state and its retry control render Indonesian', () => {
+    render(
+      <I18nProvider>
+        <DataTable
+          columns={COLUMNS}
+          rows={[]}
+          isDesktop
+          state="error"
+          caption="Tabel"
+          onRetry={() => {}}
+        />
+      </I18nProvider>,
+    )
+    expect(
+      screen.getByText('Gagal memuat tabel ini. Periksa koneksi Anda lalu coba lagi.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument()
+    expect(screen.queryByText(/couldn’t load|couldn't load|try again/i)).toBeNull()
+  })
+})
+
+// #359 — stylesheet pins (jsdom computes no layout; the CSS file is the oracle, the same
+// pattern as the kpi-tile span pin and the freshness-label css test).
+describe('DataTable — #359 stylesheet pins', () => {
+  const css = readFileSync(resolve(SRC, 'components/dashboard/data-table.css'), 'utf8')
+
+  it('header cells are sticky with card bg + the low z-index token (DESIGN.md "Data Table (signature)")', () => {
+    const block = css.split('.dt-table thead th {')[1]?.split('}')[0] ?? ''
+    expect(block).toContain('position: sticky')
+    expect(block).toContain('top: 0')
+    expect(block).toContain('z-index: var(--z-sticky)')
+    expect(block).toContain('background: var(--card)')
+  })
+
+  // `border-collapse: collapse` on a table with a sticky `<th>` lets the row that scrolls
+  // to the header's edge paint through the header's own background, so a row reads as sliced
+  // mid-glyph instead of hidden. `separate` + zero spacing keeps the sticky cell's background
+  // opaque over the content scrolling underneath, at the same visual row-divider rhythm.
+  it('uses separate border layout (not collapse) so the sticky header stays opaque over scrolling rows', () => {
+    const block = css.split('.dt-table {')[1]?.split('}')[0] ?? ''
+    expect(block).toContain('border-collapse: separate')
+    expect(block).toContain('border-spacing: 0')
+    expect(block).not.toContain('border-collapse: collapse')
+  })
+
+  it('the phone group-toggle reaches the 44px floor via the ::before overlay (24 + 2×10)', () => {
+    const block = css.split('.dt-cards-group-toggle::before {')[1]?.split('}')[0] ?? ''
+    expect(block).toContain('position: absolute')
+    expect(block).toContain('inset: -10px')
+    // the overlay only works if the toggle is its containing block
+    const toggle = css.split('.dt-cards-group-toggle {')[1]?.split('}')[0] ?? ''
+    expect(toggle).toContain('position: relative')
+  })
+
+  it('body rows read from the shared --row-* rhythm tokens, not raw literals', () => {
+    const block = css.split('.dt-table tbody td {')[1]?.split('}')[0] ?? ''
+    expect(block).toContain('height: var(--row-min-h)')
+    expect(block).toContain('padding: var(--row-pad-y) var(--row-pad-x)')
+    expect(block).toContain('var(--row-divider)')
+  })
+
+  it('chevron transitions use the --dur-fast token, never a raw 120ms', () => {
+    expect(css).not.toMatch(/120ms/)
+    expect(css).toContain('transition: transform var(--dur-fast) ease')
   })
 })

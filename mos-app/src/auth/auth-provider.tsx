@@ -50,6 +50,7 @@ export function AuthProvider({ children }: Props) {
           roles: result.roles,
           isManager: result.isManager,
           accessRoles: result.accessRoles,
+          affiliated: result.affiliated,
         },
         signOut: handleSignOut,
       })
@@ -83,6 +84,7 @@ export function AuthProvider({ children }: Props) {
             roles: result.roles,
             isManager: result.isManager,
             accessRoles: result.accessRoles,
+            affiliated: result.affiliated,
           },
           signOut: handleSignOut,
         })

@@ -23,6 +23,7 @@ interface Recorder {
   updates: unknown[]
   deletes: string[]
   orders: Array<[string, unknown]>
+  limits: number[]
 }
 
 function makeSchema(responses: Record<string, { data: unknown; error: unknown }[]>, rec: Recorder) {
@@ -45,6 +46,7 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
     builder.gte = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.lt = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.order = vi.fn((c: string, o: unknown) => { rec.orders.push([c, o]); return builder })
+    builder.limit = vi.fn((n: number) => { rec.limits.push(n); return builder })
     builder.single = vi.fn(() => Promise.resolve(result()))
     builder.maybeSingle = vi.fn(() => Promise.resolve(result()))
     builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result()).then(resolve)
@@ -54,7 +56,7 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
 }
 
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], eqs: [], inserts: [], updates: [], deletes: [], orders: [] }
+  return { fromTables: [], selects: [], eqs: [], inserts: [], updates: [], deletes: [], orders: [], limits: [] }
 }
 
 beforeEach(() => vi.clearAllMocks())

@@ -1,0 +1,255 @@
+# sssf.config.yaml — the factory's agent roster. One agent, one prompt, one purpose.
+# v1 runs the Pi coding agent only; coding_agent: claude_code arrives in v2.
+#
+# MOS roster ruling (owner 2026-08-20, OD-WAY-71; amends the builder half of OD-WAY-64):
+# planner zai/glm-5.3-flash · builder AND fe_builder bitdeer/deepseek-ai/DeepSeek-V4-Flash ·
+# reviewer zai/glm-5.3-flash · fe_reviewer zai/glm-5.3-flash (luna = fallback).
+#
+# The DEFAULT reviewer is zai/glm-5.3-flash; luna stays the fallback. Model registration is not
+# qualification: probe the actual selected route before relying on it. Pixel judgment belongs
+# to an independent image-capable reviewer. fe_reviewer owns it only after a real image-transport
+# and candidate-binding probe succeeds; otherwise use a separate Director/Codex image-capable
+# lane. DOM/a11y alone never passes pixels; provider failure leaves review incomplete.
+# Routing is also recorded in docs/agents/pi-delegation.md, per the two-places rule above.
+#
+# Three families now sit on the roster, so build and review are cross-family by CONSTRUCTION
+# rather than by the careful pairing OD-WAY-64 had to settle for. Escalation ladders by
+# availability and required capability live in docs/agents/pi-delegation.md; the one invariant
+# that survives every fall-through: A SLICE BUILT BY GLM MUST NOT THEN BE REVIEWED BY GLM, so a
+# dispatch that falls through to the GLM rung has to SAY SO in its report.
+# openrouter and fireworks are NOT valid substrates in this roster.
+#
+# ⚑ Two places, always: a substrate ruling lands in docs/agents/pi-delegation.md AND here —
+# one ruling applied twice, never a drift.
+#
+# ⚑ Every agent below pins `model:` EXPLICITLY. Never rely on defaults.model inheritance for a
+# roster slot — an unpinned agent silently rides a defaults edit, which is exactly how a
+# substrate ruling drifts.
+defaults:
+  coding_agent: pi
+  model: zai/glm-5.3-flash           # provider/id — a bare pattern is ambiguous across providers
+  thinking: medium                 # off | minimal | low | medium | high | xhigh | max
+  harness_engineering: []          # pi extensions loaded into the harness (-e)
+  # Roster-wide allowlist; any agent may override with its own list.
+  # NOTE: --tools filters extension and custom tools too, not just builtins. An agent
+  # whose harness_engineering extension registers a tool MUST name that tool in its own
+  # tools list — otherwise the extension loads and its tool is silently filtered out.
+  tools:
+    - read                         # read file contents
+    - bash                         # execute bash commands
+    - edit                         # find/replace edits
+    - write                        # create/overwrite files
+    - grep                         # search file contents  (pi default: OFF)
+    - find                         # find files by glob     (pi default: OFF)
+    - ls                           # list directories       (pi default: OFF)
+  # Off-limits to every agent that does not name them in its own `writes`.
+  # `tools` alone cannot protect these: bash runs `git checkout`, and write
+  # reaches any path. An agent must not be able to edit the machinery that
+  # decides whether its own work passed. Enforced in adw_modules/permissions.py.
+  #
+  # Boundary ruling (#357): protect the CONTROL SURFACES, not whole convention
+  # directories. Builder deliverables legitimately live in scripts/ (repo
+  # convention: guards ship a scripts/*.test.sh sibling), and a blanket
+  # scripts/ entry made the runner roll back a builder's own import script +
+  # self-test on the #349 findings run. General scripts/ is writable; only the
+  # named control surfaces below are not. .github/ stays whole on purpose:
+  # guards.yml registration rows remain Director-applied, never builder-edited.
+  #
+  # ALL scripts/*.test.sh are protected, not just the sssf ones: guards.yml
+  # executes every guard self-test, so an editable self-test is a fakeable
+  # guard-lane green. Consequence: a builder shipping a NEW guard+self-test
+  # pair (as #349 did) gets its self-test Director-applied along with the
+  # guards.yml row — acceptable, both are control-surface registrations.
+  #
+  # Verification-COMMAND definitions are builder-immutable too: the gate runs
+  # `npm run ...` in mos-app/, so package.json's scripts block IS the gate's
+  # argv, and the tool configs decide what those commands check. Consequence:
+  # a dependency addition touches package.json and becomes a Director-applied
+  # delta — accepted cost until the gate invokes pinned commands directly (the
+  # deeper fix; not built yet). The lockfile stays writable so builders can
+  # install deps; lockfile-substitution risk rides PR diff review.
+  #
+  # Glob semantics (permissions.py `_matches`): `*` stops at `/`, `**` crosses
+  # directories, a trailing `/` is a directory prefix, anything else is exact.
+  #
+  # `writes:` per agent says what it may change IN THE REPO. It never restricts
+  # the session runtime under data_dir — context_handoff/, envelopes, prompts,
+  # raw output. Every agent can always write its own report; `writes: []` means
+  # read-only with respect to the repo, not mute.
+  protected_files:
+    - adws/**                      # gate + runner + this roster + the chains: no agent edits its own grader
+    - agents/**                    # role contracts — injected verbatim, never self-edited
+    - .githooks/**                 # tracked git hooks
+    - .github/**                   # CI, kept whole — guards.yml rows stay Director-applied (#357)
+    - scripts/vendor-*             # vendor/stamp step + its conformance self-test
+    - scripts/with-*-lock.sh       # the gate's db/suite mutex wrappers
+    - scripts/lib/**               # flock core behind the wrappers
+    - scripts/pre-pr-verify.sh     # the local verify gate
+    - scripts/factory-preflight.py # barred-path pre-flight (#590) — no agent edits its own grader
+    - scripts/setup-hooks.sh       # tracked-hook installer
+    - scripts/audit-*.sh           # audit-register enforcement
+    - scripts/*.test.sh            # EVERY guard self-test — CI's guard lane runs these
+    - scripts/agent-git-shim/**    # the git shim agents are steered through
+    # gate-command definitions (exact names — the rest of mos-app/ stays free):
+    - mos-app/package.json         # npm scripts ARE the gate's commands; deps = Director-applied delta
+    - mos-app/vite.config.ts       # build + vitest definition
+    - mos-app/playwright.config.ts # e2e definition
+    - mos-app/tsconfig.json        # typecheck solution file
+    - mos-app/tsconfig.app.json
+    - mos-app/tsconfig.e2e.json
+    - mos-app/tsconfig.node.json
+    - mos-app/eslint.config.js     # lint definition (zero-warnings bar)
+    - mos-app/.stylelintrc.json    # lint:css definition — `npm run lint` chains it
+  data_dir: adws/adw_data          # runtime home: {data_dir}/sessions/{adw_id}/{agent_name}/
+
+observability:
+  db: adws/adw_data/sssf.db        # tracer writes here directly; the UI polls it
+  poll_ms: 500                     # visualizer live-poll cadence
+
+agents:
+  - name: planner
+    model: zai/glm-5.3-flash       # owner 2026-08-28: glm-5.3 → glm-5.3-flash everywhere (cheaper, multimodal)
+    thinking: high
+    color: "#a78bfa"                 # optional hex — the agent's lane color in the visualizer
+    purpose: Turn a request into a plan the builder can implement without asking questions.
+    contract: agents/eng-planner.md   # appended verbatim to the system prompt (agents.py); authored in #338
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/planner/system.md
+      user: adws/adw_data/prompt_engineering/planner/user.md
+    harness_engineering:
+      - adws/adw_data/harness_engineering/subagents.ts    # registers the four subagent_* tools below
+    # Read-only on the repo: the plan lives in the session dir + trace, never the
+    # public tree (docs-split rule — documentary artifacts stay out of this repo).
+    writes: []
+    tools:                         # full recon + write for plan.md; no edit — the planner never touches repo files
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - write
+      - subagent_create            # extension tools MUST be named here or they are filtered out
+      - subagent_continue
+      - subagent_list
+      - subagent_remove
+
+  - name: builder
+    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash  # OWNER RULING 2026-08-20 (OD-WAY-71, amends OD-WAY-64): DeepSeek-V4-Flash BUILDS. Escalation ladder deepseek -> luna -> glm lives in docs/agents/pi-delegation.md; a fall-through must be REPORTED, because a slice built by GLM must not then be reviewed by GLM. resolve_model splits at the FIRST '/', so the slashed model id survives.
+    color: "#22d3ee"
+    purpose: Implement the plan exactly; report every changed file in the envelope.
+    contract: agents/implementer.md
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/builder/system.md
+      user: adws/adw_data/prompt_engineering/builder/user.md
+    # No `writes` key: unrestricted, and the only agent kind that is. It still cannot
+    # touch defaults.protected_files — the builder does not get to edit its own grader.
+    tools:                         # the only agent that mutates the repo — everything on
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - edit
+      - write
+
+  - name: scout
+    model: zai/glm-5.3-flash        # OD-WAY-91: GLM side is glm-5.3 family only, flash the default — glm-4.7 retired
+    color: "#fbbf24"
+    purpose: Find and report where things live; change nothing.
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/scout/system.md
+      user: adws/adw_data/prompt_engineering/scout/user.md
+    harness_engineering:
+      - adws/adw_data/harness_engineering/subagents.ts    # registers the four subagent_* tools below
+    writes: []                     # read-only, and now actually read-only: its findings
+                                   # go to context_handoff/, which is runtime, not the repo
+    tools:                         # search-heavy recon; write only so scout_findings.md lands without a bash heredoc
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - write
+      - subagent_create            # extension tools MUST be named here or they are filtered out
+      - subagent_continue
+      - subagent_list
+      - subagent_remove
+
+  # No tester agent: running the suite is a known command, so it is a kind="code"
+  # phase over adw_modules/quality.py. See SKILL.md hard rule 8.
+
+  - name: reviewer
+    model: zai/glm-5.3-flash           # DEFAULT reviewer (owner 2026-08-28) — cross-family vs the DeepSeek builder; luna is the fallback rung and the reviewer whenever the build fell through to GLM. Ladder glm-5.3-flash -> luna; see docs/agents/pi-delegation.md.
+    thinking: high
+    color: "#fb7185"
+    purpose: Confirm that what was built is what was asked for; change nothing.
+    contract: agents/spec-reviewer.md
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/reviewer/system.md
+      user: adws/adw_data/prompt_engineering/reviewer/user.md
+    writes: []                     # a reviewer that cannot fix cannot quietly fix — the
+                                   # claim the tool list only implied, now enforced
+    tools:                         # full read surface; write only for review.md, no edit
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - write
+
+  - name: fe_builder
+    model: bitdeer/deepseek-ai/DeepSeek-V4-Flash  # OWNER RULING 2026-08-20 (OD-WAY-71): FE builds on DeepSeek too. fe_reviewer is GLM (2026-08-28), so build and review are different FAMILIES again, not merely different models. fe_builder is TEXT-ONLY - its self-check is the a11y tree via agent-browser; pixel judgment stays with fe_reviewer, which MUST remain a vision model.
+    color: "#34d399"
+    purpose: Implement one FE/UI slice strictly to DESIGN.md tokens; self-verify rendered states via agent-browser.
+    contract: agents/ui-implementer.md
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/fe_builder/system.md
+      user: adws/adw_data/prompt_engineering/builder/user.md   # same envelope/report contract as builder
+    # No `writes` key: like builder, unrestricted except protected_files.
+    tools:
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - edit
+      - write
+
+  - name: fe_reviewer
+    model: zai/glm-5.3-flash            # FE review; pixel authority requires the image/candidate probe above.
+    thinking: high
+    color: "#f472b6"
+    purpose: Audit the built UI rendered in a real browser against DESIGN.md + the plan; change nothing.
+    contract: agents/design-reviewer.md
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/fe_reviewer/system.md
+      user: adws/adw_data/prompt_engineering/reviewer/user.md   # same verdict/envelope contract as reviewer
+    writes: []                     # read-only on the repo; findings go back to fe_builder
+    tools:
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - write
+
+  - name: documenter
+    model: openai-codex/gpt-5.6-luna    # codex OAuth; pinned explicitly
+    color: "#e879f9"
+    purpose: Write up the change that was just made, from the diff; document only.
+    # MOS runs NO contract-less writer into a public repo: minimal contract
+    # (public-repo banner + docs-split rule), authored in #338.
+    contract: agents/documenter.md
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/documenter/system.md
+      user: adws/adw_data/prompt_engineering/documenter/user.md
+    # Read-only on the repo: the write-up is documentary, so it lives in the
+    # session dir + trace, never this public tree (docs-split rule).
+    writes: []
+    tools:                         # reads the diff and the code; the write-up lands in the session dir
+      - read
+      - grep
+      - find
+      - ls
+      - bash
+      - write

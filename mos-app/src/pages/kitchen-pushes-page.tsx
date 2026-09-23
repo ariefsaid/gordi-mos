@@ -9,52 +9,97 @@
 //   RLS is the authority; the UI gate is a courtesy (design-plan §0).
 // - READ-ONLY v1: no retry/resend/reset actions. Dead-letter manual retry is
 //   DEFERRED. The surface reads + shows status so the lead can escalate.
-// - Status badges via Tag (green=posted, neutral=pending/in_flight,
-//   amber=failed/dead_letter). target_env shown prominently (dry_run vs goo/gkid).
+// - Status badges via Tag, every state a person word from the i18n catalog — no raw
+//   database enum reaches the screen (#402). green=Posted, neutral=Queued/Sending,
+//   amber=Failed·retrying, RED=Failed·stopped (#402 / OD-WAY-74 #4: red tag, amber
+//   row — red on the whole row would read "this data is wrong"; the row is fine,
+//   its delivery failed). target_env shown prominently (Dry run vs GOO/GKID).
+// - Rows are READ severity-first (dead_letter > failed > healthy), newest within a tier
+//   (#402/#416): a stuck batch must never hide below healthy ones — and since a stuck
+//   batch is usually an OLD one, the rank happens in SQL, before the row window is cut.
+//   sortPushRows is only the presentation tie-break on top of that read.
 // - Dead-letter rows: warning/7% fill + 2px warning left rule (the owner-approved
 //   side-stripe exception, DESIGN.md "Ops Log tokens").
 // - All states: loading / empty / error+retry / forbidden / populated.
 
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
+import { useT } from '@/i18n/use-t'
 import { Tag } from '@/components/ui/tag'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import type { TagColor } from '@/components/ui/tag'
+import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
-import { listEsbPushes } from '@/lib/db/kitchen-pushes'
-import type { EsbPushRow, EsbPushStatus, EsbTargetEnv } from '@/lib/db/kitchen-pushes'
+import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
+import { listEsbPushes, sortPushRows } from '@/lib/db/kitchen-pushes'
+import type { EsbPushRow, EsbPushStatus, EsbTargetEnv, EsbEndpoint } from '@/lib/db/kitchen-pushes'
+import type { MessageKey } from '@/i18n/messages'
 import './kitchen-pushes-page.css'
 
 // ── Status tag configuration (Tinted-Status pattern — dot + text, never color-alone) ──
 
-type StatusTagConfig = { color: 'green' | 'gray' | 'amber' | 'red'; label: string }
+type StatusTagConfig = { color: TagColor; key: MessageKey; textVar?: string }
 
-function statusConfig(status: EsbPushStatus): StatusTagConfig {
-  switch (status) {
-    case 'posted':    return { color: 'green',  label: 'posted' }
-    case 'pending':   return { color: 'gray',   label: 'pending' }
-    case 'in_flight': return { color: 'gray',   label: 'in_flight' }
-    case 'failed':    return { color: 'amber',  label: 'failed' }
-    case 'dead_letter': return { color: 'amber', label: 'dead_letter' }
-  }
+/**
+ * HELD — the intra-branch arm, made visible (FR-050/052).
+ *
+ * `noop` is the endpoint an approved movement gets when its destination branch IS its origin
+ * branch: the movement is logged and approved, but the ERP already books that branch as
+ * holding the WIP, so there is no document for it and — per FR-053 — there never will be. The
+ * production master-data lookup found no per-activity locations, so no ERP counterpart exists
+ * to post to; the hold is the permanent model, not a queue that will drain later.
+ *
+ * Which is exactly why it needs its own word here. Read as a bare status, a held row says
+ * `pending` and keeps saying it, so the one thing a lead needs from this screen — is anything
+ * actually stuck? — is answered wrongly, and the more intra-branch movements the bar streams
+ * capture, the more convincing the wrong answer gets.
+ *
+ * A held row that genuinely failed keeps its failure: `failed`/`dead_letter` describe the
+ * dispatch attempt, and hiding one behind "held" would bury the only rows on this screen that
+ * do want a human.
+ */
+function isHeld(row: EsbPushRow): boolean {
+  return row.endpoint === 'noop' && row.status !== 'failed' && row.status !== 'dead_letter'
+}
+
+function pushTally(t: ReturnType<typeof useT>, count: number, queued: number): string {
+  const pushKey = `kitchen.pushes.tally.push.${count === 1 ? 'one' : 'other'}` as MessageKey
+  const queuedKey = `kitchen.pushes.tally.queued.${queued === 1 ? 'one' : 'other'}` as MessageKey
+  return `${t(pushKey, { count })} · ${t(queuedKey, { count: queued })}`
+}
+
+// #402: labels come from the catalog — never the database's word. dead_letter is the
+// RED tag on the AMBER row (OD-WAY-74 #4); its text uses the ratified AA-darkened red
+// (--status-lost-text — same fix as StatusPill 'Blocked'), not the kit's tag-text-red.
+const STATUS_TAG: Record<EsbPushStatus, StatusTagConfig> = {
+  posted:      { color: 'green', key: 'kitchen.pushes.status.posted' },
+  pending:     { color: 'gray',  key: 'kitchen.pushes.status.pending' },
+  in_flight:   { color: 'gray',  key: 'kitchen.pushes.status.inFlight' },
+  failed:      { color: 'amber', key: 'kitchen.pushes.status.failed' },
+  dead_letter: { color: 'red',   key: 'kitchen.pushes.status.deadLetter', textVar: 'var(--status-lost-text)' },
 }
 
 // ── target_env tag configuration ──
 // gkid = calm blue (live target — not an alarm, OQ-6 owner choice: calm blue chosen).
-// goo / dry_run = neutral gray.
+// goo / dry_run = neutral gray. Company codes render uppercased — how people write them.
+type EnvTagConfig = { color: 'blue' | 'gray'; key: MessageKey }
 
-type EnvTagConfig = { color: 'blue' | 'gray'; label: string }
+const ENV_TAG: Record<EsbTargetEnv, EnvTagConfig> = {
+  gkid:    { color: 'blue', key: 'kitchen.pushes.env.gkid' },
+  goo:     { color: 'gray', key: 'kitchen.pushes.env.goo' },
+  dry_run: { color: 'gray', key: 'kitchen.pushes.env.dryRun' },
+}
 
-function envConfig(env: EsbTargetEnv): EnvTagConfig {
-  switch (env) {
-    case 'gkid':    return { color: 'blue', label: 'gkid' }
-    case 'goo':     return { color: 'gray', label: 'goo' }
-    case 'dry_run': return { color: 'gray', label: 'dry_run' }
-  }
+// #402: endpoint is a person word too — 'assembly-actual' is not something a lead says.
+// noop → None for held AND failed noop rows: "held" belongs to the status column, and a
+// failed noop row must never be re-described as held (FR-052 ruling preserved).
+const ENDPOINT_LABEL: Record<EsbEndpoint, MessageKey> = {
+  'assembly-actual': 'kitchen.pushes.endpoint.assembly',
+  'simple-transfer': 'kitchen.pushes.endpoint.transfer',
+  'noop': 'kitchen.pushes.endpoint.noop',
 }
 
 // ── Time formatting (WIB-aware display, tabular digits) ──
@@ -88,77 +133,162 @@ function formatDate(iso: string | null): string {
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
-const pushColumns: DataTableColumn<EsbPushRow>[] = [
-  {
-    key: 'source_ref',
-    header: 'Batch',
-    cardLabel: '',
-    render: row => <span className="mono">{row.source_ref}</span>,
-  },
-  {
-    key: 'endpoint',
-    header: 'Endpoint',
-    render: row => <span className="kpu-cell-muted">{row.endpoint}</span>,
-  },
-  {
-    key: 'target_env',
-    header: 'Target',
-    render: row => {
-      const cfg = envConfig(row.target_env)
-      return <Tag color={cfg.color} weight="medium">{cfg.label}</Tag>
+function pushColumns(t: ReturnType<typeof useT>): DataTableColumn<EsbPushRow>[] {
+  return [
+    {
+      key: 'source_ref',
+      header: t('kitchen.pushes.col.batch'),
+      cardLabel: '',
+      // #402: the one string a lead pastes into a support conversation — mono, one
+      // line (scrolls if ever longer than the cell), select-all on one click.
+      render: row => <code className="kpu-ref mono">{row.source_ref}</code>,
     },
-  },
-  {
-    key: 'status',
-    header: 'Status',
-    render: row => {
-      const cfg = statusConfig(row.status)
-      return <Tag color={cfg.color} weight="medium">{cfg.label}</Tag>
+    {
+      key: 'endpoint',
+      header: t('kitchen.pushes.col.endpoint'),
+      render: row => <span className="kpu-cell-muted">{t(ENDPOINT_LABEL[row.endpoint])}</span>,
     },
-  },
-  { key: 'retry_count', header: 'Retries', numeric: true },
-  {
-    key: 'last_error',
-    header: 'Error',
-    render: row => {
-      const isDeadLetter = row.status === 'dead_letter'
-      const showError = row.status === 'failed' || isDeadLetter
-      if (!showError || !row.last_error) return <span className="kpu-dash">—</span>
-      return (
-        <>
-          <span className="kpu-cell-muted">{row.last_error}</span>
-          {isDeadLetter && (
-            <span className="kpu-escalate-hint" aria-label="Manual intervention required">
-              Escalate to platform
-            </span>
-          )}
-        </>
-      )
+    {
+      key: 'target_env',
+      header: t('kitchen.pushes.col.target'),
+      render: row => {
+        const cfg = ENV_TAG[row.target_env]
+        return <Tag color={cfg.color} weight="medium">{t(cfg.key)}</Tag>
+      },
     },
-  },
-  {
-    key: 'esb_doc_num',
-    header: 'ESB Doc',
-    render: row => row.esb_doc_num
-      ? <span className="mono">{row.esb_doc_num}</span>
-      : <span className="kpu-dash">—</span>,
-  },
-  {
-    key: 'created_at',
-    header: 'Created',
-    render: row => <span className="kpu-time tabular">{formatDate(row.created_at)}</span>,
-  },
-  {
-    key: 'posted_at',
-    header: 'Posted',
-    render: row => <span className="kpu-time tabular">{formatTime(row.posted_at)}</span>,
-  },
-]
+    {
+      key: 'status',
+      header: t('kitchen.pushes.col.status'),
+      render: row => {
+        // FR-052: held is its own word, in the same column as posted — the distinction is in
+        // the text, not the tint alone (WCAG 1.4.1, and the tints here already carry env).
+        if (isHeld(row)) {
+          return <Tag color="sand" weight="medium">{t('kitchen.pushes.status.held')}</Tag>
+        }
+        const cfg = STATUS_TAG[row.status]
+        return (
+          <Tag
+            color={cfg.color}
+            weight="medium"
+            style={cfg.textVar ? { color: cfg.textVar } : undefined}
+          >
+            {t(cfg.key)}
+          </Tag>
+        )
+      },
+    },
+    { key: 'retry_count', header: t('kitchen.pushes.col.retries'), numeric: true },
+    {
+      key: 'last_error',
+      header: t('kitchen.pushes.col.error'),
+      render: row => {
+        const isDeadLetter = row.status === 'dead_letter'
+        const showError = row.status === 'failed' || isDeadLetter
+        if (!showError || !row.last_error) return <span className="kpu-dash">—</span>
+        return (
+          <>
+            <span className="kpu-cell-muted">{row.last_error}</span>
+            {isDeadLetter && (
+              <span className="kpu-escalate-hint" aria-label={t('kitchen.pushes.escalateAria')}>
+                {t('kitchen.pushes.escalate')}
+              </span>
+            )}
+          </>
+        )
+      },
+    },
+    {
+      key: 'esb_doc_num',
+      header: t('kitchen.pushes.col.esbDoc'),
+      // A posted row's proof is its document number. A held row's is that it has none and is
+      // not waiting for one — an em dash would read as "not yet", which is the misreading
+      // FR-053 exists to close.
+      render: row => row.esb_doc_num
+        ? <code className="kpu-ref mono">{row.esb_doc_num}</code>
+        : isHeld(row)
+          ? <span className="kpu-cell-muted">{t('kitchen.pushes.noErpDoc')}</span>
+          : <span className="kpu-dash">—</span>,
+    },
+    {
+      key: 'created_at',
+      header: t('kitchen.pushes.col.created'),
+      // #416: date and clock are two unbreakable parts. The intermediate band gives this
+      // column ~96px, and a cell allowed to wrap freely breaks "2026-08-21" at its own
+      // hyphen — which reads as two numbers, not a date. The only break the cell has is
+      // the space between the parts.
+      render: row => {
+        const [date, time] = formatDate(row.created_at).split(' ')
+        return (
+          <span className="kpu-time tabular">
+            <span className="kpu-nb">{date}</span>
+            {time ? <> <span className="kpu-nb">{time}</span></> : null}
+          </span>
+        )
+      },
+    },
+    {
+      key: 'posted_at',
+      header: t('kitchen.pushes.col.posted'),
+      render: row => <span className="kpu-time tabular">{formatTime(row.posted_at)}</span>,
+    },
+  ]
+}
+
+// ── #422: the phone card ──────────────────────────────────────────────────────
+// The generic <dl> card stacked all ten columns as labelled rows (~10 lines) per
+// push — right for reading one record, wrong for running down a long outbox during
+// triage. Head line: batch ref + status; ONE muted meta line: env, endpoint,
+// retries, created/posted; the error + escalate block ONLY when the row carries one.
+function pushCardRenderer(t: ReturnType<typeof useT>) {
+  return function renderPushCard(row: EsbPushRow) {
+    const isDeadLetter = row.status === 'dead_letter'
+    const showError = (row.status === 'failed' || isDeadLetter) && row.last_error
+    const statusTag = isHeld(row)
+      ? <Tag color="sand" weight="medium">{t('kitchen.pushes.status.held')}</Tag>
+      : (() => {
+          const cfg = STATUS_TAG[row.status]
+          return (
+            <Tag color={cfg.color} weight="medium" style={cfg.textVar ? { color: cfg.textVar } : undefined}>
+              {t(cfg.key)}
+            </Tag>
+          )
+        })()
+    return (
+      <div className="kpu-card">
+        <div className="kpu-card-head">
+          <code className="kpu-ref mono">{row.source_ref}</code>
+          {statusTag}
+        </div>
+        <div className="kpu-card-meta">
+          <span>{t(ENV_TAG[row.target_env].key)}</span>
+          <span>{t(ENDPOINT_LABEL[row.endpoint])}</span>
+          {row.retry_count > 0 && <span className="tabular">{t('kitchen.pushes.col.retries')} {row.retry_count}</span>}
+          <span className="tabular">{formatDate(row.created_at)}</span>
+          {row.esb_doc_num && <code className="kpu-ref mono">{row.esb_doc_num}</code>}
+        </div>
+        {showError && (
+          <div className="kpu-card-error">
+            <span className="kpu-cell-muted">{row.last_error}</span>
+            {isDeadLetter && (
+              <span className="kpu-escalate-hint" aria-label={t('kitchen.pushes.escalateAria')}>
+                {t('kitchen.pushes.escalate')}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+}
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export function KitchenPushesPage() {
-  useDocumentTitle('Kitchen Pushes — Gordi MOS')
+  const t = useT()
+  // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
+  // the catalog's own docTitle convention (tasks-layout, signals-archive).
+  useDocumentTitle(t('common.docTitle', { page: `${t('nav.cafe.pushes')} · ${t('nav.cafe')}` }))
+  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.pushes')}`
   const auth = useAuth()
   const isDesktop = useIsDesktop()
 
@@ -174,7 +304,7 @@ export function KitchenPushesPage() {
     setLoad({ kind: 'loading' })
     try {
       const data = await listEsbPushes()
-      setRows(data)
+      setRows(sortPushRows(data))
       setLoad({ kind: 'ready' })
     } catch {
       setLoad({ kind: 'error' })
@@ -190,52 +320,69 @@ export function KitchenPushesPage() {
   // ── Auth loading ────────────────────────────────────────────────────────────
   if (auth.status === 'loading') {
     return (
-      <PageFrame>
-        <LoadingState />
-      </PageFrame>
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading">
+        <LoadingShell count={3} />
+      </PageFamilyFrame>
     )
   }
 
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFrame>
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
         <div className="kpu-block kpu-forbidden">
-          <p className="kpu-forbidden-msg">You need to sign in to view kitchen pushes.</p>
-          <Link to="/login" className="btn btn-primary">Sign in</Link>
+          <p className="kpu-forbidden-msg">{t('kitchen.pushes.signInMsg')}</p>
+          <Link to="/login" className="btn btn-primary">{t('common.signIn')}</Link>
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   // ── Forbidden (non-lead) — intent is clear, NOT an empty table ─────────────
   if (!allowed) {
     return (
-      <PageFrame>
-        <PageHead variant="content" title="Kitchen · Pushes" count={null} />
-        <div className="kpu-block kpu-forbidden" role="region" aria-label="Access restricted">
-          <p className="kpu-forbidden-title">Pushes is available to ops leads only.</p>
-          <p className="kpu-forbidden-msg">
-            The ESB outbox is visible to ops leads and admins.
-          </p>
-          <Link to="/kitchen/log" className="btn btn-outline">Back to Log</Link>
+      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
+        <div className="kpu-block kpu-forbidden" role="region" aria-label={t('kitchen.pushes.restrictedAria')}>
+          <p className="kpu-forbidden-title">{t('kitchen.pushes.leadsOnly')}</p>
+          <p className="kpu-forbidden-msg">{t('kitchen.pushes.leadsOnlyMsg')}</p>
+          <Link to="/cafe" className="btn btn-outline">{t('kitchen.review.backToLog')}</Link>
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
-  return (
-    <PageFrame variant="data">
-      <PageHead
-        variant="content"
-        title="Kitchen · Pushes"
-        count={load.kind === 'ready' ? rows.length : null}
-      />
+  // #422: the page head answers "what is stuck", not only "how many" — the counts a
+  // lead triages by, rendered only when non-zero so a healthy outbox head stays quiet.
+  const deadLetterCount = rows.filter(r => r.status === 'dead_letter').length
+  const failedCount = rows.filter(r => r.status === 'failed').length
+  const queuedCount = rows.filter(r => r.status === 'pending' && !isHeld(r)).length
+  const headMeta = (deadLetterCount > 0 || failedCount > 0)
+    ? (
+        <span className="kpu-meta-line">
+          {deadLetterCount > 0 && <span className="kpu-meta-dead">{t('kitchen.pushes.meta.deadLetter', { count: String(deadLetterCount) })}</span>}
+          {failedCount > 0 && <span className="kpu-meta-failed">{t('kitchen.pushes.meta.failed', { count: String(failedCount) })}</span>}
+        </span>
+      )
+    : undefined
 
-      {load.kind === 'loading' && <LoadingState />}
+  return (
+    <PageFamilyFrame
+      family="workspace"
+      title={pageTitle}
+      /* #440: the outbox is the ONE Café surface with no stream axis of its own. An
+         `integrations.esb_push` row carries a source module and a batch reference — no branch,
+         no activity — so this queue is org-wide by construction and a per-stream statement here
+         would be a lie about which rows are on screen. It states the scope it actually has, in
+         the same head slot and the same words as its siblings: All streams. If the outbox ever
+         carries the stream forward from the batch, this becomes a real picker. */
+      statusRow={<CafeStreamBar options={[]} stream={null} allStreams />}
+      meta={headMeta}
+      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
+    >
+      {load.kind === 'loading' && <LoadingShell count={3} />}
 
       {load.kind === 'error' && (
         <ErrorState
-          message="Couldn't load pushes — check your connection."
+          message={t('common.loadFailed', { what: t('common.what.pushes') })}
           onRetry={() => setRetryKey(k => k + 1)}
         />
       )}
@@ -243,39 +390,45 @@ export function KitchenPushesPage() {
       {load.kind === 'ready' && rows.length === 0 && (
         <EmptyState
           variant="awaiting"
-          title="No pushes yet"
-          copy="The ESB outbox is empty right now."
-          note="Pull again to check for new push activity."
+          title={t('kitchen.pushes.empty.title')}
+          copy={t('kitchen.pushes.empty.copy')}
+          note={t('kitchen.pushes.empty.note')}
         >
           <button
             type="button"
             className="btn btn-outline"
             onClick={() => setRetryKey(k => k + 1)}
           >
-            Refresh
+            {t('kitchen.review.refresh')}
           </button>
         </EmptyState>
       )}
 
+      {/* #416: the table adapts to the FRAME it is in, not to the viewport — available
+          content width is not monotonic in the viewport here (the rail is 0 / 72 / 232px
+          across 768→1280, DESIGN.md § Layout "The Container-Query Rule"), so a viewport
+          media query switches the column set at the wrong moments. This host is the
+          container the column rules query. */}
       {load.kind === 'ready' && rows.length > 0 && (
-        <DataTable
-          columns={pushColumns}
-          rows={rows}
-          isDesktop={isDesktop}
-          rowClassName={row => row.status === 'dead_letter' ? 'kpu-row-dead-letter' : undefined}
-          caption="Kitchen ESB push outbox"
-        />
+        <>
+          <p className="kpu-tally">
+            {pushTally(t, rows.length, queuedCount)}
+          </p>
+          <div className="kpu-cols-host">
+            <DataTable
+              columns={pushColumns(t)}
+              rows={rows}
+              isDesktop={isDesktop}
+              renderCard={pushCardRenderer(t)}
+              // #416: fixed-layout column widths — the table fits its frame instead of
+              // pushing Created/Posted off screen behind a page-wide scrollbar.
+              tableClassName="kpu-cols"
+              rowClassName={row => row.status === 'dead_letter' ? 'kpu-row-dead-letter' : undefined}
+              caption={t('kitchen.pushes.caption')}
+            />
+          </div>
+        </>
       )}
-    </PageFrame>
-  )
-}
-
-// ── Loading skeleton ──────────────────────────────────────────────────────────
-
-function LoadingState() {
-  return (
-    <div role="status" aria-label="Loading" aria-busy="true" className="kpu-block">
-      <SkeletonRows count={3} />
-    </div>
+    </PageFamilyFrame>
   )
 }

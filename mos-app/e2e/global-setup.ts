@@ -1,3 +1,4 @@
+import { DEMO_PASSWORD, DEMO_PERSONAS } from '../src/pages/demo-personas'
 // E2E global setup — PMO-aligned auth model (ADR-0002 D3 + 2026-06-21 dev/e2e isolation fix).
 //
 // OLD flakiness root cause: the previous setup created SEPARATE e2e auth users and then re-pointed
@@ -18,11 +19,22 @@
 // SELECT on shared.people. This endpoint is local-only — never available in production.
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { chromium } from '@playwright/test'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { ORPHAN, RECOVERY_VIEWER, ADMIN, MEMBER } from './fixtures/users'
-import { TASKS, CASCADE } from './fixtures/tasks'
+import { ORPHAN, RECOVERY_VIEWER, ADMIN, BAR_MEMBER, BAR_SUPERVISOR, BAR_STREAM } from './fixtures/users'
+import { AC204, TASKS } from './fixtures/tasks'
+import { assertFixtureSqlSafe, assertLocalFixtureDatabase, fixtureCleanupSql } from './fixtures/cleanup'
+import { captureStorageState } from './helpers/auth-state'
+import {
+  MOS_DEV_PORT_ENV,
+  assertDevServerOwnership,
+  devServerBaseUrl,
+  devServerIdentityUrl,
+  devServerPort,
+  worktreeFingerprint,
+} from '../src/lib/dev-server'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
@@ -30,15 +42,8 @@ const __dir = dirname(__filename)
 const ORG = '10000000-0000-0000-0000-000000000001'
 
 // The seeded dev personas e2e logs in as / heals. Mirrors supabase/seed.sql + DemoLogin.tsx.
-const DEV_PASSWORD = 'Passw0rd!dev'
-const DEV_PERSONAS = [
-  'dewi.dev@example.test',
-  'cahya.dev@example.test',
-  'krishna.dev@example.test',
-  'rama.dev@example.test',
-  'sari.dev@example.test',
-  'fitri.dev@example.test',
-]
+const DEV_PASSWORD = DEMO_PASSWORD
+const DEV_PERSONAS = DEMO_PERSONAS.map(({ email }) => email)
 
 function loadEnvFile(path: string): Record<string, string> {
   try {
@@ -58,7 +63,7 @@ function loadEnvFile(path: string): Record<string, string> {
 }
 
 // Load .env.e2e (preferred) then fall back to process.env
-const envFile = loadEnvFile(resolve(__dir, '../.env.e2e'))
+const envFile = loadEnvFile(process.env.AUDIT_FIXTURE_ENV_FILE ?? resolve(__dir, '../.env.e2e'))
 const SUPABASE_URL = envFile.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:44321'
 const SERVICE_ROLE_KEY = envFile.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
 
@@ -99,6 +104,7 @@ async function ensureUser(
  * writes since service_role lacks the grant on custom schemas. Local-only — not available in prod.
  */
 async function execSql(url: string, serviceKey: string, query: string): Promise<void> {
+  assertFixtureSqlSafe(query)
   const res = await fetch(`${url}/pg/query`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: serviceKey },
@@ -111,6 +117,39 @@ async function execSql(url: string, serviceKey: string, query: string): Promise<
 }
 
 export default async function globalSetup() {
+  assertLocalFixtureDatabase(SUPABASE_URL)
+  // #388: a pgTAP reset in a sibling worktree wipes the DB out from under a running e2e
+  // suite, and the failure masquerades as schema corruption. The shared lock is cooperative,
+  // so a naked run cannot be refused — but it can be made impossible to miss. CI has one
+  // runner and no contention, so it stays quiet.
+  if (!process.env.CI && !process.env.MOS_DB_LOCK_HELD) {
+    console.warn(
+      '\n[e2e] ⚠ RUNNING WITHOUT THE SHARED DB LOCK — a parallel pgTAP reset can wipe the DB\n' +
+      '[e2e] mid-run and the failure will NOT look like a lock problem. Results gathered this\n' +
+      '[e2e] way are not evidence (#388). Use: npm run e2e  (wraps scripts/with-db-lock.sh)\n',
+    )
+  }
+
+  // ── #419 ownership gate ──────────────────────────────────────────────────────
+  // Playwright's reuseExistingServer adopts ANY listener answering webServer.url —
+  // silently (it logs only under DEBUG=pw:webserver). The port is worktree-derived so
+  // a sibling tree cannot sit on it, but adoption must still be EARNED: the dev server
+  // publishes this worktree's fingerprint (vite plugin mos-dev-identity) and a listener
+  // that cannot present it — foreign process, or a stale server from before #419 —
+  // aborts the run HERE, before a single test can measure the wrong application.
+  const appDir = resolve(__dir, '..')
+  const devPort = devServerPort(appDir, process.env[MOS_DEV_PORT_ENV])
+  const expectedIdentity = worktreeFingerprint(appDir)
+  let actualIdentity: string | null = null
+  try {
+    const res = await fetch(devServerIdentityUrl(appDir, process.env[MOS_DEV_PORT_ENV]))
+    actualIdentity = res.ok ? (await res.text()).trim() : null
+  } catch {
+    actualIdentity = null
+  }
+  assertDevServerOwnership(expectedIdentity, actualIdentity, devPort)
+  console.log(`[global-setup] dev server verified as ${expectedIdentity} on localhost:${devPort}`)
+
   if (!SERVICE_ROLE_KEY) {
     throw new Error('[global-setup] SUPABASE_SERVICE_ROLE_KEY not set — ensure .env.e2e exists or stack is up')
   }
@@ -134,7 +173,9 @@ export default async function globalSetup() {
     SERVICE_ROLE_KEY,
     `UPDATE shared.people p SET user_id = u.id
        FROM auth.users u
-      WHERE u.email = p.email AND p.email LIKE '%.dev@example.test'`,
+      WHERE p.org_id = '${ORG}'
+        AND u.email = p.email
+        AND p.email IN (${DEV_PERSONAS.map((email) => `'${email}'`).join(', ')})`,
   )
   console.log('[global-setup] ensured + linked all *.dev personas (dev login self-healed)')
 
@@ -156,7 +197,7 @@ export default async function globalSetup() {
     SERVICE_ROLE_KEY,
     `INSERT INTO shared.people (id, org_id, full_name, email)
      VALUES ('${RECOVERY_VIEWER.personId}', '${ORG}', '${RECOVERY_VIEWER.displayName}', '${RECOVERY_VIEWER.email}')
-     ON CONFLICT (id) DO NOTHING`,
+     ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name`,
   )
   await deleteUserByEmail(adminClient, RECOVERY_VIEWER.email)
   const { data: recoveryData, error: recoveryErr } = await adminClient.auth.admin.createUser({
@@ -180,7 +221,7 @@ export default async function globalSetup() {
     SERVICE_ROLE_KEY,
     `INSERT INTO shared.people (id, org_id, full_name, email)
      VALUES ('${ADMIN.personId}', '${ORG}', '${ADMIN.displayName}', '${ADMIN.email}')
-     ON CONFLICT (id) DO NOTHING;
+     ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
      INSERT INTO shared.person_access_roles (org_id, person_id, access_role)
      VALUES ('${ORG}', '${ADMIN.personId}', 'admin')
      ON CONFLICT (person_id, access_role) DO NOTHING`,
@@ -199,62 +240,78 @@ export default async function globalSetup() {
   )
   console.log(`[global-setup] created + linked ADMIN user → dedicated person ${ADMIN.personId} (admin role)`)
 
-  // ── 3c-bis. MEMBER (dedicated e2e person, member access, NO org role) — Issue E stacked-union ──
-  // A pure contributor (member access, no role-scope) whose stacked Home is capture-first only. Same
-  // dedicated-e2e pattern as ADMIN (never touches a dev persona).
+  // ── 3d. AC-014 (#238) — the bar-capture journey's two stream personas ─────────────────────────
+  // A member and a supervisor whose LIVE PRIMARY Team is the (Rumah Rames, bar) stream Team. That
+  // membership is the whole point: it is what makes the capture surface open on that stream by
+  // default (FR-001, shared.default_stream) and what makes the supervisor that stream's reviewer
+  // (FR-040, ops.is_stream_reviewer). No dev persona has a stream Team as its primary, so these
+  // two are dedicated e2e people — same isolation as ADMIN above, never a dev persona.
+  //
+  // The stream Team is resolved by BRANCH CODE: shared.seed_stream_teams() generates its ids, so
+  // hardcoding one would break on any reseed. The membership insert carries ON CONFLICT DO NOTHING
+  // against the one-live-primary partial unique index, which is what makes re-running idempotent.
+  for (const p of [BAR_MEMBER, BAR_SUPERVISOR]) {
+    await execSql(
+      SUPABASE_URL,
+      SERVICE_ROLE_KEY,
+      `INSERT INTO shared.people (id, org_id, full_name, email)
+       VALUES ('${p.personId}', '${ORG}', '${p.displayName}', '${p.email}')
+       ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
+       INSERT INTO shared.team_memberships (org_id, person_id, team_id, is_primary, effective_from)
+       SELECT '${ORG}', '${p.personId}', t.id, true, current_date - 30
+         FROM shared.teams t
+         JOIN shared.branches b ON b.id = t.branch_id
+        WHERE t.org_id = '${ORG}' AND b.code = '${BAR_STREAM.branchCode}'
+          AND t.activity = '${BAR_STREAM.activity}' AND t.archived_at IS NULL
+       ON CONFLICT DO NOTHING`,
+    )
+  }
   await execSql(
     SUPABASE_URL,
     SERVICE_ROLE_KEY,
-    `INSERT INTO shared.people (id, org_id, full_name, email)
-     VALUES ('${MEMBER.personId}', '${ORG}', '${MEMBER.displayName}', '${MEMBER.email}')
-     ON CONFLICT (id) DO NOTHING;
-     INSERT INTO shared.person_access_roles (org_id, person_id, access_role)
-     VALUES ('${ORG}', '${MEMBER.personId}', 'member')
+    `INSERT INTO shared.person_access_roles (org_id, person_id, access_role) VALUES
+       ('${ORG}', '${BAR_MEMBER.personId}', 'member'),
+       ('${ORG}', '${BAR_SUPERVISOR.personId}', 'member'),
+       ('${ORG}', '${BAR_SUPERVISOR.personId}', 'supervisor')
      ON CONFLICT (person_id, access_role) DO NOTHING`,
   )
-  await deleteUserByEmail(adminClient, MEMBER.email)
-  const { data: memberData, error: memberErr } = await adminClient.auth.admin.createUser({
-    email: MEMBER.email,
-    password: MEMBER.password,
-    email_confirm: true,
-  })
-  if (memberErr) throw new Error(`[global-setup] createUser MEMBER failed: ${memberErr.message}`)
-  await execSql(
-    SUPABASE_URL,
-    SERVICE_ROLE_KEY,
-    `UPDATE shared.people SET user_id = '${memberData.user.id}' WHERE id = '${MEMBER.personId}'`,
-  )
-  console.log(`[global-setup] created + linked MEMBER user → dedicated person ${MEMBER.personId} (member, no role)`)
+  for (const p of [BAR_MEMBER, BAR_SUPERVISOR]) {
+    await deleteUserByEmail(adminClient, p.email)
+    const { data: barData, error: barErr } = await adminClient.auth.admin.createUser({
+      email: p.email, password: p.password, email_confirm: true,
+    })
+    if (barErr) throw new Error(`[global-setup] createUser ${p.email} failed: ${barErr.message}`)
+    await execSql(
+      SUPABASE_URL,
+      SERVICE_ROLE_KEY,
+      `UPDATE shared.people SET user_id = '${barData.user.id}' WHERE id = '${p.personId}'`,
+    )
+  }
+  console.log('[global-setup] created + linked the AC-014 bar stream personas (member + supervisor)')
 
-  // ── 3c. Clean slate for the AC-020 cascade-catalog journey (idempotent; postgres bypasses no-delete) ─
-  await execSql(
-    SUPABASE_URL,
-    SERVICE_ROLE_KEY,
-    `DELETE FROM mos.objectives WHERE org_id = '${ORG}' AND name LIKE 'E2E %'`,
-  )
-  console.log('[global-setup] cleared E2E catalog objectives')
+  // ── 4. Storage state (#903) — sign each persona in once for loginAs to reuse (helpers/auth-state.ts).
+  // ORPHAN never reaches an authenticated shell and RECOVERY_VIEWER's password is rotated by its
+  // own spec, so both keep signing in through the form.
+  const baseUrl = devServerBaseUrl(appDir, process.env[MOS_DEV_PORT_ENV])
+  const statefulPersonas: Array<{ email: string; password: string }> = [
+    ...DEV_PERSONAS.map((email) => ({ email, password: DEV_PASSWORD })),
+    ADMIN,
+    BAR_MEMBER,
+    BAR_SUPERVISOR,
+  ]
+  const authBrowser = await chromium.launch()
+  try {
+    for (const persona of statefulPersonas) {
+      await captureStorageState(authBrowser, baseUrl, persona.email, persona.password)
+    }
+  } finally {
+    await authBrowser.close()
+  }
+  console.log(`[global-setup] captured storage state for ${statefulPersonas.length} personas`)
 
-  // ── 4. Clear mos.weekly_updates for P2-2 e2e journeys (idempotent clean slate) ─────────────────
-  await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
-    DELETE FROM mos.weekly_update_items WHERE org_id = '${ORG}';
-    DELETE FROM mos.weekly_updates      WHERE org_id = '${ORG}';
-  `)
-  console.log('[global-setup] cleared mos.weekly_updates for e2e org')
-
-  // ── 5. Clear ops.log_entries for P2-3 e2e journeys (idempotent clean slate) ────────────────────
-  await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
-    DELETE FROM ops.log_entries WHERE org_id = '${ORG}';
-  `)
-  console.log('[global-setup] cleared ops.log_entries for e2e org')
-
-  // ── 6. Seed mos.tasks for P2-1c e2e journeys (deterministic clean slate) ───────────────────────
-  const orgId = TASKS.VIEWER_ACCOUNTABLE.orgId
-  await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
-    DELETE FROM mos.task_events          WHERE org_id = '${orgId}';
-    DELETE FROM mos.task_checklist_items WHERE org_id = '${orgId}';
-    DELETE FROM mos.tasks                WHERE org_id = '${orgId}';
-  `)
-  console.log('[global-setup] cleared mos.tasks for e2e org')
+  // Refresh only the fixed fixtures. Ambient tasks, updates and operations logs remain intact.
+  await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, fixtureCleanupSql)
+  console.log('[global-setup] cleared owned fixture IDs')
 
   const t = TASKS.VIEWER_ACCOUNTABLE
   await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
@@ -278,44 +335,52 @@ export default async function globalSetup() {
   `)
   console.log(`[global-setup] seeded VIEWER_ACCOUNTABLE task (id=${t.id})`)
 
-  // ── 7. Seed AC-305 cascade fixtures (Work-spine v1) — deterministic clean slate ───────────────
-  // objective + work_line + 3 tasks (linked / objective-unlinked / no-work-line) so the
-  // everyone-cascade e2e journey has line-of-sight to assert, with NO runtime /pg/query seeding in
-  // the spec (replaces the brittle per-run service-role seed). Seeded AFTER the step-6 mos.tasks
-  // wipe; objectives/work_lines upsert idempotently. VIEWER is R+A on all three tasks.
-  const c = CASCADE
-  await execSql(
-    SUPABASE_URL,
-    SERVICE_ROLE_KEY,
-    `INSERT INTO mos.objectives (id, org_id, name)
-     VALUES ('${c.objective.id}', '${c.orgId}', '${c.objective.name}')
-     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
-
-     INSERT INTO mos.work_lines (id, org_id, name, type)
-     VALUES ('${c.workLine.id}', '${c.orgId}', '${c.workLine.name}', '${c.workLine.type}')
-     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, type = EXCLUDED.type;`,
-  )
-  await execSql(
-    SUPABASE_URL,
-    SERVICE_ROLE_KEY,
-    `INSERT INTO mos.tasks (
+  // ── 7. AC-204 — the Objective roll-up world (deterministic; the spec asserts exact counts) ────
+  // Exact counts belong to this fixed Objective/Project graph, not the organization as a whole.
+  const a = AC204
+  const owner = ADMIN.personId
+  // The "not mine" owner is a DEDICATED e2e person, never a dev persona: pointing it at Cahya put
+  // an extra project task in her workload and broke AC-230's caption ("2 projects", expected 1).
+  // RECOVERY_VIEWER owns no other task and no caption asserts over it.
+  const other = RECOVERY_VIEWER.personId
+  const seedTask = (
+    task: { id: string; title: string },
+    status: string,
+    objectiveId: string | null,
+    workLineId: string | null,
+    personId: string,
+  ) => `
+    INSERT INTO mos.tasks (
       id, org_id, title, business_unit_id, status,
       responsible_person_id, accountable_person_id,
       consulted_person_ids, informed_person_ids,
-      description, due_date, created_by, objective_id, work_line_id
-    ) VALUES
-      ('${c.tasks.linked.id}', '${c.orgId}', '${c.tasks.linked.title}', '${c.businessUnitId}', 'Open',
-        '${c.viewerPersonId}', '${c.viewerPersonId}', '{}', '{}', 'Seeded for AC-305 linked branch.', NULL, '${c.viewerPersonId}', '${c.tasks.linked.objectiveId}', '${c.tasks.linked.workLineId}'),
-      ('${c.tasks.unlinked.id}', '${c.orgId}', '${c.tasks.unlinked.title}', '${c.businessUnitId}', 'Open',
-        '${c.viewerPersonId}', '${c.viewerPersonId}', '{}', '{}', 'Seeded for AC-305 unlinked branch.', NULL, '${c.viewerPersonId}', NULL, '${c.tasks.unlinked.workLineId}'),
-      ('${c.tasks.noWorkLine.id}', '${c.orgId}', '${c.tasks.noWorkLine.title}', '${c.businessUnitId}', 'Open',
-        '${c.viewerPersonId}', '${c.viewerPersonId}', '{}', '{}', 'Seeded for AC-305 no-work-line branch.', NULL, '${c.viewerPersonId}', '${c.tasks.noWorkLine.objectiveId}', NULL)
-    ON CONFLICT (id) DO UPDATE
-    SET title = EXCLUDED.title,
-        objective_id = EXCLUDED.objective_id,
-        work_line_id = EXCLUDED.work_line_id,
-        responsible_person_id = EXCLUDED.responsible_person_id,
-        accountable_person_id = EXCLUDED.accountable_person_id;`,
-  )
-  console.log('[global-setup] seeded AC-305 cascade fixtures (objective + work_line + 3 tasks)')
+      description, due_date, objective_id, work_line_id, created_by, completed_at
+    ) VALUES (
+      '${task.id}', '${a.orgId}', '${task.title}', '${a.businessUnitId}', '${status}',
+      '${personId}', '${personId}', '{}', '{}',
+      'Seeded for the AC-204 Objective roll-up journey.', NULL,
+      ${objectiveId ? `'${objectiveId}'` : 'NULL'}, ${workLineId ? `'${workLineId}'` : 'NULL'},
+      '${personId}', ${/* mos._guard_tasks() (#752) only derives completed_at from the status
+      transition for current_user='authenticated' — a service-role seed insert is exempt and must
+      supply it itself, or a directly-inserted Done row never counts as within the "My work"/
+      "Team work" live window (task-collection-adapter.ts isDoneWithinLiveWindow) and silently
+      vanishes from those views. */ status === 'Done' ? 'now()' : 'NULL'}
+    );`
+
+  await execSql(SUPABASE_URL, SERVICE_ROLE_KEY, `
+    INSERT INTO mos.objectives (id, org_id, name)
+    VALUES ('${a.objective.id}', '${a.orgId}', '${a.objective.name}');
+
+    INSERT INTO mos.work_lines (id, org_id, name, type, objective_id) VALUES
+      ('${a.launch.id}', '${a.orgId}', '${a.launch.name}', '${a.launch.type}', '${a.objective.id}'),
+      ('${a.loose.id}',  '${a.orgId}', '${a.loose.name}',  '${a.loose.type}',  NULL);
+
+    ${seedTask(a.tasks.launchDone, 'Done', a.objective.id, a.launch.id, owner)}
+    ${/* no objective_id: it can only reach the Objective through the work-line edge */ ''}
+    ${seedTask(a.tasks.launchOpen, 'Open', null, a.launch.id, owner)}
+    ${seedTask(a.tasks.directOnObj, 'Open', a.objective.id, null, owner)}
+    ${seedTask(a.tasks.orphanLine, 'Open', null, a.loose.id, owner)}
+    ${seedTask(a.tasks.someoneElse, 'Open', null, a.launch.id, other)}
+  `)
+  console.log(`[global-setup] seeded the AC-204 roll-up world (objective ${a.objective.id})`)
 }

@@ -1,16 +1,43 @@
+// The Plan band's derivation, reshaped for the DESIGN.md "Metric summary rule"
+// (DD-WAY-40, ratified OD-WAY-74 #2 — #401): ONE inline line of label:value metrics,
+// never a KPI tile row. The old shape put WORDS in the number slots ('Active action' =
+// a movement label, 'Plan status' = 'Ready'/'No plan created yet') with dev-jargon
+// captions ('write surface', 'editing today') — exactly what the rule forbids on a
+// capture surface (OD-WAY-74 #2: "enforce"). Two numbers only: the planned-portion
+// total and the dish count for the current movement. The first label REUSES
+// kitchen.kpi.plannedTotal — the same concept Log's meta line already names. No delta
+// is ever emitted: deltas carry a state worth acting on (destructive/success) and a
+// plan band has none; neutral restating captions are omitted by construction.
+//
+// #247: cells carry a KitchenMovement (DD-WAY-13), not the removed action_type column
+// — comparisons go through movementKey, same as the plan editor and review queue. The
+// module stays pure (no i18n `t`, no branch catalog): labels are MessageKeys the page
+// translates.
 import { useMemo } from 'react'
-import type { KitchenKpis, KitchenKpiStripData } from '@/lib/kitchen-kpis'
-import type { KitchenActionType, PlanCell } from '@/lib/db/kitchen-logs.types'
+import type { MessageKey } from '@/i18n/messages'
+import type { KitchenMovement, PlanCell } from '@/lib/db/kitchen-logs.types'
+import { movementKey } from '@/lib/kitchen-action-label'
 
-export function computePlanKpis(
-  cells: PlanCell[],
-  action: KitchenActionType,
-): KitchenKpis {
+export interface PlanSummaryMetric {
+  key: string
+  label: MessageKey
+  value: string
+  /** never populated — the type seals the no-delta rule (DD-WAY-40) in the shape itself */
+  delta?: never
+}
+
+export interface PlanSummary {
+  ariaLabel: MessageKey
+  metrics: PlanSummaryMetric[]
+}
+
+export function computePlanSummary(cells: PlanCell[], movement: KitchenMovement): PlanSummary {
   let plannedTotal = 0
   let plannedDishCount = 0
+  const key = movementKey(movement)
 
   for (const c of cells) {
-    if (c.action_type !== action) continue
+    if (movementKey(c.movement) !== key) continue
     if (c.qty_porsi > 0) {
       plannedDishCount += 1
       plannedTotal += c.qty_porsi
@@ -18,76 +45,14 @@ export function computePlanKpis(
   }
 
   return {
-    plannedTotal,
-    madeOfPlan: plannedTotal,
-    madeSoFar: plannedDishCount,
-    madeOffPlan: 0,
-    pctComplete: plannedTotal > 0 ? 100 : 0,
-    itemsRemaining: 0,
-    unitsShort: 0,
-    plannedDishCount,
-  }
-}
-
-export function computePlanKpiStripData(
-  cells: PlanCell[],
-  action: KitchenActionType,
-): KitchenKpiStripData {
-  const kpis = computePlanKpis(cells, action)
-  const statusLabel = kpis.plannedTotal > 0 ? 'Ready' : 'No plan created yet'
-
-  return {
-    ariaLabel: 'Planning summary',
-    phoneLabel: 'Plan',
-    phoneValue: `${kpis.plannedDishCount} dishes`,
-    phoneMeta: action,
-    tiles: [
-      {
-        label: 'Planned total',
-        value: String(kpis.plannedTotal),
-        delta: `${kpis.plannedDishCount} dishes`,
-        deltaTone: 'neutral',
-        deltaDot: false,
-        sub: 'portions',
-      },
-      {
-        label: 'Dishes planned',
-        value: String(kpis.plannedDishCount),
-        delta: action,
-        deltaTone: 'neutral',
-        deltaDot: false,
-        sub: 'current action',
-      },
-      {
-        label: 'Active action',
-        value: action,
-        delta: kpis.plannedTotal > 0 ? `${kpis.plannedTotal} portions set` : 'set targets',
-        deltaTone: kpis.plannedTotal > 0 ? 'success' : 'neutral',
-        deltaDot: false,
-        sub: 'editing today',
-      },
-      {
-        label: 'Plan status',
-        value: statusLabel,
-        delta: kpis.plannedTotal > 0 ? 'targets set' : 'nothing planned',
-        deltaTone: kpis.plannedTotal > 0 ? 'success' : 'neutral',
-        deltaDot: false,
-        sub: 'write surface',
-      },
+    ariaLabel: 'kitchen.plan.summary.aria',
+    metrics: [
+      { key: 'plannedTotal', label: 'kitchen.kpi.plannedTotal', value: String(plannedTotal) },
+      { key: 'dishesPlanned', label: 'kitchen.plan.summary.itemsPlanned', value: String(plannedDishCount) },
     ],
   }
 }
 
-export function usePlanKpis(
-  cells: PlanCell[],
-  action: KitchenActionType,
-): KitchenKpis {
-  return useMemo(() => computePlanKpis(cells, action), [cells, action])
-}
-
-export function usePlanKpiStripData(
-  cells: PlanCell[],
-  action: KitchenActionType,
-): KitchenKpiStripData {
-  return useMemo(() => computePlanKpiStripData(cells, action), [cells, action])
+export function usePlanSummary(cells: PlanCell[], movement: KitchenMovement): PlanSummary {
+  return useMemo(() => computePlanSummary(cells, movement), [cells, movement])
 }

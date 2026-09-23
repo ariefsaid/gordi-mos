@@ -2,6 +2,11 @@
    tag). The dot inherits the Tag's status-tinted text color (currentColor) so it
    always matches the hue, and is a redundant cue only (the status word is the
    accessible name). Scoped to .status-pill so the base Tag stays dot-less. */
+.status-pill {
+  box-sizing: border-box;
+  height: 22px;
+  padding-block: 0;
+}
 .status-pill .mk-tag__icon {
   width: auto;
   height: auto;

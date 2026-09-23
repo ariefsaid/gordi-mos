@@ -33,7 +33,9 @@ import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
+import { chooseSelectOption } from './helpers/select'
 import { MANAGER } from './fixtures/users'
+import { openViewFilters } from './helpers/tasks'
 
 // ── Supabase direct-SQL helper (mirrors global-setup.ts / AC-134 pattern) ────
 function loadEnvFile(filePath: string): Record<string, string> {
@@ -77,7 +79,6 @@ async function execSql(query: string): Promise<void> {
 // ── Fixed UUIDs ───────────────────────────────────────────────────────────────
 const ORG     = '10000000-0000-0000-0000-000000000001'
 const P_CAHYA = '40000000-0000-0000-0000-000000000001' // Cahya Cafe (VIEWER persona)
-const BU_CAFE = '20000000-0000-0000-0000-000000000001' // Cafe Ops – General
 
 // Work-line IDs match seed.dev-tasks.sql canon — idempotent with ON CONFLICT.
 const WL_PROCESS = 'c0000000-0000-0000-0000-000000000001' // "Daily IG Content" (process)
@@ -110,6 +111,8 @@ test.beforeAll(async () => {
 
   // Insert Cahya cascade tasks. global-setup wipes mos.tasks → always a fresh insert.
   // ON CONFLICT DO NOTHING guards against manual re-runs without a db reset.
+  // Post-ADR-0019 D1: resolve the canonical Team by code, following AC-524.spec.ts:46;
+  // never carry forward the retired pre-D1 business-unit UUID.
   await execSql(`
     INSERT INTO mos.tasks
       (id, org_id, title, business_unit_id, status,
@@ -117,46 +120,24 @@ test.beforeAll(async () => {
        consulted_person_ids, informed_person_ids,
        description, created_by, work_line_id)
     VALUES
-      ('${T_PROCESS}', '${ORG}', '${T_PROCESS_TITLE}', '${BU_CAFE}', 'Open',
+      ('${T_PROCESS}', '${ORG}', '${T_PROCESS_TITLE}', (select id from shared.business_units where org_id='${ORG}' and code='retail_ops' limit 1), 'Open',
        '${P_CAHYA}', '${P_CAHYA}', '{}', '{}',
        'Seeded for AC-230 cascade read-path e2e.', '${P_CAHYA}', '${WL_PROCESS}'),
-      ('${T_PROJECT}', '${ORG}', '${T_PROJECT_TITLE}', '${BU_CAFE}', 'Open',
+      ('${T_PROJECT}', '${ORG}', '${T_PROJECT_TITLE}', (select id from shared.business_units where org_id='${ORG}' and code='retail_ops' limit 1), 'Open',
        '${P_CAHYA}', '${P_CAHYA}', '{}', '{}',
        'Seeded for AC-230 cascade read-path e2e.', '${P_CAHYA}', '${WL_PROJECT}')
     ON CONFLICT (id) DO NOTHING;
   `)
   console.log('[AC-230] seeded Cahya cascade tasks')
-
-  // ── Isolate from the AC-305 CASCADE fixture (seeded by global-setup) ──────────────────────
-  // global-setup seeds AC-305's own "Daily IG Content" work-line (c305…-0001, process) plus two
-  // Cahya tasks in it (linked + unlinked). That work-line shares its DISPLAY NAME with this spec's
-  // "Daily IG Content" work-line (c000…-0001), so grouping Cahya by work-line would render TWO
-  // "Daily IG Content" groups — and the workload caption would count 2 daily work-lines, not 1.
-  // This is a fixture collision, not an app bug (two distinct work-lines that happen to share a
-  // name render as two distinct groups — correct). Detach CASCADE's two process tasks (null their
-  // work_line_id) for the duration of this journey so Cahya's read-path is exactly this spec's
-  // seed (1 process + 1 project). Restored verbatim in afterAll; AC-305 runs later (alphabetical)
-  // and sees its original seeded state. The detach is idempotent (no-op if CASCADE is absent).
-  await execSql(`
-    UPDATE mos.tasks SET work_line_id = NULL
-    WHERE id IN ('c3050000-0000-0000-0000-000000000101', 'c3050000-0000-0000-0000-000000000102');
-  `)
-  console.log('[AC-230] detached AC-305 CASCADE process tasks (work_line_id → NULL) for isolation')
 })
 
 // ── Cleanup ────────────────────────────────────────────────────────────────────
 // Delete only the tasks seeded by this spec. Work-lines are left intact.
 test.afterAll(async () => {
-  // Restore the AC-305 CASCADE process tasks detached in beforeAll (work_line_id → c305…-0001) so
-  // AC-305 sees its seeded state. Idempotent + safe even if beforeAll's detach never ran.
-  await execSql(`
-    UPDATE mos.tasks SET work_line_id = 'c3050000-0000-0000-0000-000000000001'
-    WHERE id IN ('c3050000-0000-0000-0000-000000000101', 'c3050000-0000-0000-0000-000000000102');
-  `)
   await execSql(`
     DELETE FROM mos.tasks WHERE id IN ('${T_PROCESS}', '${T_PROJECT}');
   `)
-  console.log('[AC-230] restored CASCADE process tasks + cleaned up this spec\'s tasks')
+  console.log('[AC-230] cleaned up this spec\'s tasks')
 })
 
 // ── AC-230: the single curated cascade read-path journey ──────────────────────
@@ -169,21 +150,25 @@ test(
   await loginAs(page, MANAGER.email, MANAGER.password)
 
   // ── 2. Navigate to /mos/tasks ────────────────────────────────────────────────
-  await page.goto('tasks')
+  await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
 
   // ── 3. Scope = "All" ─────────────────────────────────────────────────────────
   // MANAGER's "Mine" segment shows only her R/A tasks. "All" broadens scope so
   // the Person filter alone drives ownership (FR-124 / AC-126).
-  await page.getByRole('tab', { name: 'All' }).click()
+  // STALE→fixed (#284's repair, mirrored): the saved-view chips are BUTTONS inside the
+  // role="group" "Tasks saved views" (tasks-toolbar.tsx) — a 'tab' role never existed here.
+  await page.getByRole('button', { name: 'All', exact: true }).click()
 
   // ── 4. Set Group = "Work-line" ───────────────────────────────────────────────
-  await page.locator('#group-by-filter').selectOption('workline')
+  // #870: Group/Person now live behind the desktop "View & filters" door.
+  await openViewFilters(page)
+  await chooseSelectOption(page, page.getByRole('combobox', { name: 'Group', exact: true }), 'Project/Process')
 
   // ── 5. Set Person = Cahya ────────────────────────────────────────────────────
   // The Person filter overrides the segment (FR-124). Only Cahya's tasks pass
   // raciMember. filterZeroWhenPerson=true suppresses empty work-line groups (RI-2).
-  await page.locator('#person-filter').selectOption(P_CAHYA)
+  await chooseSelectOption(page, page.getByRole('combobox', { name: 'Person', exact: true }), 'Cahya Cafe')
 
   // ── 6. Wait for work-line group headers ──────────────────────────────────────
   // Groups depend on useCascadeCatalogs (async non-blocking load of mos.work_lines).
@@ -202,14 +187,36 @@ test(
   await expect(processGrp).toBeVisible({ timeout: 10_000 })
   await expect(projectGrp).toBeVisible({ timeout: 10_000 })
 
-  // (ii) Each group shows gcount=1 (exactly the seeded task is in each group).
-  //      Proves the task landed in the correct group, not misplaced elsewhere.
-  await expect(processGrp.locator('.gcount')).toHaveText('1')
-  await expect(projectGrp.locator('.gcount')).toHaveText('1')
+  // (ii) The seeded task sits under its OWN work-line header, and only there — proves it landed
+  //      in the correct group, not misplaced or dropped. seed.dev-tasks.sql:120-122 also links
+  //      other Cahya-responsible dev demo tasks ("Update espresso recipe cards", "Replace grinder
+  //      burrs (Cafe 2)") to the same "Daily IG Content" work-line, so the group's real total is
+  //      incidental fixture noise, not part of this contract — never hard-code it.
+  const processRow = page.locator('tr.task-row').filter({ hasText: T_PROCESS_TITLE })
+  await expect(processRow).toHaveCount(1)
+  await expect(processRow).toBeVisible()
+  await expect(processRow.locator('xpath=preceding-sibling::tr[contains(@class, "grp")][1]'))
+    .toContainText(WL_PROCESS_NAME)
+  const projectRow = page.locator('tr.task-row').filter({ hasText: T_PROJECT_TITLE })
+  await expect(projectRow).toHaveCount(1)
+  await expect(projectRow).toBeVisible()
+  await expect(projectRow.locator('xpath=preceding-sibling::tr[contains(@class, "grp")][1]'))
+    .toContainText(WL_PROJECT_NAME)
 
-  // (iii) Task titles are visible → groups are expanded and leaf rows render.
-  await expect(page.getByText(T_PROCESS_TITLE)).toBeVisible()
-  await expect(page.getByText(T_PROJECT_TITLE)).toBeVisible()
+  // The displayed .gcount is cross-checked against the group's OWN rendered member rows (DOM
+  // siblings between this header and the next), never a hard-coded seed total — proves the count
+  // and the visible rows agree, whatever the incidental real total is.
+  const memberRowCount = async (header: import('@playwright/test').Locator) => header.evaluate((headerEl) => {
+    let n = 0
+    let el = headerEl.nextElementSibling
+    while (el && !el.classList.contains('grp')) {
+      if (el.classList.contains('task-row')) n += 1
+      el = el.nextElementSibling
+    }
+    return n
+  })
+  await expect(processGrp.locator('.gcount')).toHaveText(String(await memberRowCount(processGrp)))
+  await expect(projectGrp.locator('.gcount')).toHaveText(String(await memberRowCount(projectGrp)))
 
   // ── Oracle (b): group headers show the work-line type label text ──────────────
   // FR-233 / WCAG 1.4.1: WorkLineTypeTag always renders text (not color-only).

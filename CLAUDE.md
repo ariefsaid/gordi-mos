@@ -1,117 +1,202 @@
-# Gordi MOS — project instructions
+# Gordi MOS
 
-Internal **Management Operating System** app for Gordi (replaces the dormant Notion Management OS).
-The requirement has **evolved by owner decision** — current bar (E6, ADR-0019/0020): **the operating
-system for all ~30 people** — viable, not minimum; five destinations (Home/Work/Operate/Plan/Inbox);
-tasks + RACI + updates + per-Activity ops + reference data + money follow-ups. The original
-"first slice" (tasks + RACI + weekly/daily updates) is **historical (E1)** — read
-`docs/requirements-evolution.md` for the era timeline before trusting any older doc's scope.
-Ships at `https://ops.gordi.id/mos`. Product history: `docs/project-brief.md` (era-bound E1).
-Phasing: `docs/roadmap.md`. **Usability and speed beat model completeness and Notion fidelity.**
+## Active Home and Tasks replacement
+
+For Home and Tasks composition, `REDESIGN.md` is the current owner-composition brief and delivery
+scope; `DESIGN.md` is the intended style and interaction authority, amended by current owner
+direction and delegated Director Decisions in `docs/decisions.md` (DD-MVP). `REDESIGN.md` supersedes historical
+page-composition constraints only where it records current owner decisions; it does not authorize
+unrelated palette or token drift, or certify the current implementation. Retired interaction
+prescriptions must not override the current DD-MVP acceptance criteria. Current MVP UI work covers
+Tasks, Café WIP production and Signals by default; explicit current owner scope can include Home
+and other surfaces and supersede older composition constraints. Follow the
+UI execution route below.
+`docs/plans/2026-09-14-mvp-recovery.md` is the historical one-hour checkpoint; its time fences
+and pending statements do not govern this continuation. Use bounded isolated
+workers, integrate running surfaces, and review the result against actual user outcomes. Preserve
+business/security contracts and public-write safeguards.
+
+
+> ## ⚠️ THIS REPO IS PUBLIC — `github.com/ariefsaid/gordi-mos`
+>
+> Commits, issues, PRs and comments are world-readable and permanent. Deleting does not un-publish.
+> **Never write here:** unpatched weaknesses (no "X has no auth check", no list of missing
+> controls) · PII (staff names, personal emails, roles tied to people; "the 5 `@gordi.id` staff" is
+> an enumeration hint) · secrets **or their coordinates** (vault/item/env-var names, internal
+> hostnames, endpoints, tenant ids).
+>
+> Instead: weaknesses → private security advisory (`scripts/gh-post.sh api --method POST .../security-advisories` — raw write-mode `gh api` is hook-denied), described
+> publicly only **after** the fix ships. Anything documentary → `docs/`, gitignored, its own local
+> repo. Blunt on purpose: code syncs to GitHub, docs stay local — per-file judgment is what failed.
+>
+> Touching security, auth, infra or people? `gh repo view --json visibility` first.
+> (2026-07-31: fifteen issues filed from the backlog, four detailing live auth/RLS holes, visibility
+> never checked.)
+
+Internal **Management Operating System** for Gordi, ~30 people. Four workspace roots —
+Home / Work / Money / Inbox — with Work carrying the object collections (Signals · Tasks ·
+Projects & Processes · Objectives) and Café as the ops module; RACI lives on the objects.
+Updates + per-Activity ops + reference data + money follow-ups. Ships at
+`https://ops.gordi.id/mos`.
+
+**Usability and speed beat model completeness.**
+
+## UI review and improvement tasks
+
+For a bounded UI/UX/IA/IxD request, use `docs/takeover/mvp-ui-continuation.md` as the execution
+entrypoint. Inspect and critique the running interface before implementation; quantitative checks
+support the visual review. That route owns scope, skill selection, review order and stopping rules.
+The factory loop below governs ticket delivery and publication, not a prerequisite to opening or
+showing a local preview. Explicit owner deadlines stop workers and verification as well as edits;
+report the actual build and remaining limitations at the deadline.
+
+## Workflow — you run as Director; `/drive` runs the loop
+
+`/drive` is the session: frontier grill (owner present) → pick → factory build → verify →
+independent review → PR → auto-merge to dev → next. Its machinery binds outside the skill too:
+
+1. Unclear ask → `/grilling` (too big for one session → `/wayfinder`) → `/to-spec` → `/to-tickets`.
+2. Build. The factory is the default executor for ordinary bounded tickets, dispatched ONLY via
+   `bash scripts/factory-run.sh` (never bare `uv run adws/…` — the wrapper carries the gh no-auth
+   layer). An explicit owner-authorized separate Codex task/model delegation (for example, a Luna
+   task at max reasoning) is a first-class Director lane: isolate it, name it in the ticket's
+   in-flight marker, and keep the same brief, verification, independent review, public-write, and
+   security gates. A Claude subagent dispatch additionally needs a logged lane —
+   `scripts/lane-exempt.sh` (hook denies otherwise; Explore/Plan free). For explicitly authorized
+   bounded UI delegation, `bash scripts/lane-exempt.sh - owner-ui "<authorized scope>"` records
+   one dispatch locally; publication still uses the gates below.
+3. Review: three independent lens verdicts. One reviewer who did not build the candidate may
+   cover all three; separate contexts are needed only when the selected route requires them for
+   independence or calibration. Never your own read.
+4. A PR needs four stamps: `bash scripts/pre-pr-verify.sh` + one per lens via
+   `scripts/record-review.sh --lens spec|code-quality|security` (a reviewer that didn't build
+   it: glm/luna, opus fallback). CI on the PR is the merge gate.
+5. GitHub writes ONLY via `scripts/gh-post.sh` — the firewall hook denies raw `gh` writes; the
+   posting policy lives in local `docs/`, per the banner above. One carve-out: `gh pr merge`
+   stays raw (no prose leaves through a merge).
+
+Escalate **only**: money or a promise · irreversible outside a signed brief · scope-vs-time that
+changes what ships · a fact only the owner holds. Within delegated scope, decide the rest and state
+the reasoning. The owner's explicit current-task direction supersedes a project default for that
+task; security, public-write, verification, and independent-review gates bind every lane. When an
+owner-class fact or conflicting authority is required, name the blocker and park that step — never
+infer assent from silence.
+
+Out-of-scope finding: do it, file a GitHub issue, or drop it with one line. **Never a suggested-task
+chip** — that pushes the decision back to the owner (owner, 2026-08-07).
+
+## Review roster
+
+**Three lenses, always: `spec`, `code-quality`, `security`.** Adversarial briefs, run unasked before
+claiming done. One record per lens, a PR comment whose ENTIRE body is:
+
+```
+<!-- review-gate -->
+Reviewer: spec | code-quality | security
+Verdict: MERGE | MERGE WITH CHANGES | DO NOT MERGE
+Commit: <full 40-character HEAD sha>
+```
+
+Findings in a separate comment, never the PR body. Records certify the exact HEAD: a content push
+staleifies every record. Round 1 is a full independent pass; later rounds are delta-only for named
+fixes or genuinely new risk. Formatting/whitespace-only changes, or mechanical artifact refreshes
+with no new authored behavior, do not start a substantive review round; if they move HEAD, the
+independent reviewer must issue an exact-HEAD mechanical confirmation, never edit or reuse a stale
+record.
 
 ## Repo layout
-- `mos-app/` — the app (React 19 + Vite + TypeScript; scaffolded in Phase 1, NOT before). Run npm/vite here.
-- `docs/specs/` `docs/plans/` `docs/adr/` — specs, implementation plans, architecture decisions.
-- `docs/design-mockups/` — Phase 0 static HTML mockups (IA proposals + key screens).
-- `docs/backlog.md` `docs/decisions.md` `docs/roadmap.md` — what's next, owner decisions, phasing.
-- `supabase/migrations/` — Postgres schema + RLS (schemas: `shared` / `mos` / `ops` / `integrations` / `reporting`). (`reporting`: curated ESB financial read-model, snapshot-fed, finance/admin RLS — OD-P4-2 / ADR-0010 D5; migrations deployed (`20260701000001_reporting_sales_daily_revenue.sql`, `20260704000002_reporting_sales_margin_daily.sql`); snapshot job runs on the VPS at 03:30 WIB; live on staging.)
-- `.claude/agents/`, `.claude/skills/` — role agents and vendored skills (skills are gitignored; re-create with `scripts/vendor-skills.sh`).
+- `mos-app/` — the app (React 19 + Vite + TypeScript + react-router-dom 7). Run npm/vite here.
+- `supabase/migrations/` — Postgres schema + RLS. Schemas `shared`/`mos`/`ops`/`integrations`/
+  `reporting`. One self-hosted Supabase serves MOS and future Gordi apps: schema separation.
+- `docs/` — **not in this repo.** Local, gitignored, own git repo (same as `.claude/`). ADRs, owner
+  decisions, gotchas, runbooks, infra coordinates, agent config, archive. Start `docs/README.md`.
 
-## Operating model: Owner → Director → role agents
-The **owner** (Arief) talks to the **Director** (the main session). The Director runs an
-**issue-driven loop**, spawns the right role agent per phase, and takes each issue end-to-end.
-Build **one issue at a time**; pause for owner approval at issue boundaries and before any
-push / merge / deploy. Per-issue loop:
+## Commands (inside `mos-app/`)
+`npm run dev` · `build` · `typecheck` · `lint` (script already carries `--max-warnings=0`; also
+runs `lint:css`) · `test` (Vitest; the PR gate runs `test:coverage`) ·
+`e2e` (Playwright, holds the shared DB lock — #388) · `supabase test db` (pgTAP — run from the
+repo root, not `mos-app/`) ·
+`test-storybook` (phone-390 + a11y gates; not a CI lane).
 
-1. **Intake** — Director clarifies the issue with the owner. For architecturally-significant issues
-   (schema, auth, cross-cutting), run a `grill-with-docs` session: grill the approach against
-   `CONTEXT.md` (the domain glossary, repo root) + `docs/adr/` + `docs/decisions.md`; resolve terms
-   into `CONTEXT.md` inline. ADR authorship stays with eng-planner (grill proposes, planner writes).
-2. **Spec (SDD)** — `feature-forge` (new behavior) / `spec-miner` (existing code) → `docs/specs/*.spec.md`.
-3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs); `design-architect` for UI design-plans.
-4. **Build (TDD)** — `implementer` / `ui-implementer` (red-green-refactor; no prod code without a failing test).
-5. **Review** — `spec-reviewer`, then `code-quality-reviewer`; `design-reviewer` (4-lens) for UI.
-6. **Accept (BDD)** — `qa-acceptance` verifies each `AC-###` at its owning layer (unit / pgTAP / curated e2e).
-7. **Secure** (when relevant) — `security-auditor` (OWASP/STRIDE on auth + RLS + schema seams).
-8. **Ship** — `release-engineer` (branch → commit → push → PR). Director merges.
+`./scripts/setup-hooks.sh` installs the tracked git hooks (`npm install` runs it via `prepare`).
+Every guard ships a `scripts/*.test.sh` self-test, run by CI on change.
 
-**Phase 0 exception (mockup-first):** before any app code, `design-architect` produces static HTML
-mockups in `docs/design-mockups/` (IA proposals + first-slice key screens) to the adopted `DESIGN.md`
-tokens. The owner's mockup pick is a **gate**: no scaffold, spec, or UI build until signed off.
+## Claims
 
-## Director posture (main session)
-Act as a 5+-year maintainer, not a one-shot coder. Before delegating or accepting subagent work:
-ask clarifying questions, challenge bad decisions, identify scaling risks, suggest better approaches,
-prioritize simplicity. Build a production-grade MVP — minimal enough for a ~15-person rollout,
-architected so the larger MOS (objectives, programs, SWPs, RACI matrix) can grow into it without a rewrite.
-Detailed runbook: `docs/director-playbook.md`. UI/UX cycle: `docs/design-workflow.md`.
-Binding charter + per-layer Definition of Done: `docs/product-expectations.md`.
+Never report an action whose output you have not read. A `cd` that failed, an `&&` that
+short-circuited, a mutation proof naming the wrong assertion — every one shipped as "done" here.
+Paste the line that proves it, or don't claim it.
 
-**Delegation substrate (ACTIVE):** dispatch role work via the **pi CLI** (multi-provider: z.ai/GLM
-builders + OpenAI/gpt-5.4 cross-family reviewers) per `docs/pi-delegation.md` — it changes *who
-executes a phase*, nothing else; the loop, gates, DoD, and the Director's verify-everything +
-final-visual-taste + merge/git duties are unchanged. pi agents drive rendered UI checks via the
-`agent-browser` CLI. Fall back to Claude role agents (the Agent tool, `.claude/agents/`) if pi or a
-provider is unavailable — the loop is substrate-agnostic.
+Apply `ponytail` to what you WRITE, not only to what you build. A comment says what the code does
+or it doesn't exist. Say a reason ONCE, in the artifact that owns it — copied into the commit body,
+the code comment and the PR body it is three things to keep true, and each copy is a fresh claim
+the next review round has to check. A count in prose is a fact you then own on every ruling:
+re-issue it everywhere it appears, or don't write it. (Database comments DO carry counts — a schema
+reader has no other source — which is why they are pinned by tests rather than banned.)
 
-## Quality gates & checkpoints (binding from Phase 1 on)
-- **Coverage:** ≥80% lines on changed code to merge; tests assert behavior, not inflate numbers.
-- **Typecheck/lint:** `npm run typecheck` zero errors; ESLint zero errors (`--max-warnings=0`). Both block merge.
-- **Checkpoints:** the **owner** approves spec sign-off, Phase-0 mockup picks, and production deploy /
-  irreversible infra; the **Director** approves merge-to-main within the signed spec and escalates
-  anything strategic or out-of-spec.
-- **PRs:** one per issue. **ADRs:** only for architectural / irreversible / cross-cutting decisions.
-- **Data/schema:** reversible migrations; **RLS on every business table**; `org_id` + app/workspace
-  seams enforced (one shared self-hosted Supabase serves MOS + future ops apps — schema separation, not project separation).
-- **Design/UI:** `DESIGN.md` (adopted from PMO — identity authority, never re-invent) is the design-system
-  source of truth; 4-lens design review (Visual · IxD · IA · Product/Intent JTBD, oracle `docs/jtbd.md`) before merging UI changes.
-- **Review battery (BLOCKING):** before offering or performing merge-to-main, the full review battery (spec · code-quality · design if any `*.tsx`/`*.css` changed · security if any auth/RLS/schema path changed) MUST have run and be recorded in `docs/reviews/<branch>.md`, verified by `bash scripts/pre-merge-check.sh` (exit 0). Green gates ≠ reviewed. No ledger + no passing script run = no merge.
+**This repo is PUBLIC.** Never write a date beside a cause — "X was published on <date>" tells a
+reader which push to look up. State the rule, never the history; history goes to `docs/`.
 
-## Agent roster (`.claude/agents/`) and models
-eng-planner (opus) · implementer (sonnet; opus for hard slices) · spec-reviewer (opus) ·
-code-quality-reviewer (opus) · qa-acceptance (sonnet) · security-auditor (opus) ·
-release-engineer (sonnet) · mechanical (haiku) · design-architect (opus) ·
-ui-implementer (sonnet; opus for hard slices) · design-reviewer (opus).
+A hook to enforce this was built and reverted: it blocked true sentences, and a guard that refuses
+honest work teaches `--no-verify`, which disables the guards that matter. This one is on you.
 
-**Model discipline (binding):** delegate at the **minimum capable tier** — haiku for mechanical/deterministic,
-sonnet for routine build/QA/release, opus only for planning, review, security, and genuinely hard/cross-cutting
-slices. Don't use opus where sonnet suffices, nor sonnet where haiku suffices — but **don't skimp**: use opus
-for opus' jobs (architecture, multi-file refactors, security, the review battery). Match tier to task difficulty,
-both directions.
+## Bar to merge
+- typecheck + ESLint zero errors; ≥80% lines on changed code.
+- Reversible migrations. **RLS on every business table.** `org_id` seam enforced.
+- `DESIGN.md` is the design-system source of truth — never re-invent it.
+- UI changes also require the repo-vendored design-tooling lane in local `docs/decisions.md`
+  (DD-MVP-12/13) and `docs/quality-model.md`: Impeccable detector + audit/critique + post-fix
+  polish, with Taste as the secondary anti-slop lens. Missing, unrunnable or stale tooling is an
+  explicit incomplete review, never a silent fallback.
+- UI is not done until rendered and operated at real widths (incl. ≤390px phone): open controls,
+  keyboard/focus, long content, loading/empty/error states and the persisted role-correct journey.
+  Record browser evidence separately from source/test evidence; shared-component reuse is not visual acceptance.
 
-## Skill ownership (one owner per concern — avoids collisions)
-| Concern | Owner |
+## Test pyramid
+
+Retain a test or review requirement only when it owns a current behavior or risk, has a
+deterministic failure condition, and runs at the cheapest sufficient layer. Remove or archive
+stale product assertions, overlapping checks, duplicate evidence and prose-only refusal gates.
+Security, data-integrity and public-write safeguards remain binding.
+Each acceptance criterion is owned by **one** test at the lowest sufficient layer: unit (Vitest/RTL)
+for logic and components; **pgTAP** for RLS and role read/write contracts; Playwright for a handful
+of real cross-stack journeys only.
+
+**A test encodes the user's real journey to the goal and asserts that goal.** For unchanged
+behavior, the app conforms to the test. When an approved behavior change makes an assertion
+obsolete, update the test and its acceptance evidence in the same diff while keeping the assertion
+at the behavior level; never weaken an assertion solely to go green.
+
+The project lifecycle owns phase routing: discovery/grilling → `to-spec` synthesis of settled
+intent → bounded factory or authorized Director execution → independent review → milestone
+acceptance. Superpowers techniques serve these phases; they do not restart a second approval or
+specification loop. Preserve batched owner questions and original outcome/provenance in briefs.
+Under OD-REDESIGN-88, understood seams may use test-with against the approved acceptance oracle;
+retain red-first for bug fixes, uncertain logic and protected interaction-contract changes.
+Automatic UI guards and changed-surface browser checks run per change. Deep rendered judgment
+covers touched and connected surfaces at a signed milestone boundary, or when the ticket's
+contract explicitly requires it; ordinary tickets do not repeat the whole-product assessment.
+Initial visual critique runs before fixes and is independent of detector findings; final rendered
+confirmation follows fixes. The pixel layer belongs to an independent image-capable reviewer: `fe_reviewer` qualifies only
+after a real image-transport and candidate-binding probe succeeds, otherwise use a separate
+Director/Codex image-capable lane. DOM/a11y evidence alone cannot pass pixels; provider failure
+leaves review incomplete. See `docs/quality-model.md` for the two-speed design contract.
+
+## Pointers
+| for | read |
 |---|---|
-| Intake grilling (plan vs domain language) + `CONTEXT.md` glossary | grill-with-docs (`.claude/skills/`) |
-| Reverse-engineer existing code → spec | spec-miner (`.claude/skills/`) |
-| User stories + acceptance criteria | feature-forge (`.claude/skills/`) |
-| Design + task planning | superpowers (brainstorming, writing-plans) |
-| TDD build / debugging / verification | superpowers (tdd, systematic-debugging, verification) |
-| Code review | superpowers spec + quality reviewers |
-| Design-system stewardship (`DESIGN.md`) + Phase-0 mockups | design-architect (impeccable, design-consultation) |
-| UI build (to tokens + design-plan) | ui-implementer (ui-ux-pro-max, taste) |
-| Visual design review (render + screenshot audit) | design-reviewer (design-review, impeccable, taste) |
-| Browser QA · security · ship/deploy/monitor | gstack (`/qa`, `/cso`, `/ship`, `/land-and-deploy`, `/canary`) |
+| workflow, routing, decision rights, drive loop | `docs/agents/factory.md` |
+| review lenses + verdict contract | `docs/agents/review.md` |
+| past decisions (`OD-`/`DD-`) | `docs/decisions.md` |
+| scar tissue — **read this one** | `docs/gotchas.md` |
+| domain glossary | `CONTEXT.md` (this repo) + `docs/agents/domain.md` |
+| work queue | GitHub issues via `gh` — `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md` |
+| heavy/cross-family dispatch (GLM, luna) | `docs/agents/pi-delegation.md` — background it, never poll |
+| environments | `docs/environments.md` |
 
-superpowers' planning tier owns planning; do NOT also use gstack's planning tier. spec-miner's
-`Bash` tool was stripped (read-only). gstack telemetry stays `off`.
+Edit skills **only** in `.claude/skill-overrides/<name>/` — `.claude/skills/` is vendored and
+gitignored, and `scripts/vendor-skills.sh` destroys edits there. `docs/agents/skills.md`.
 
-## Spec & test conventions
-- Specs → `docs/specs/<feature>.spec.md`. Plans → `docs/plans/YYYY-MM-DD-<feature>.md` (no placeholders:
-  exact paths, real code, exact verify commands, 2–5 min tasks). ADRs → `docs/adr/NNNN-<slug>.md`.
-- IDs: `FR-###` (functional), `NFR-###`, `AC-###` (acceptance). Requirements in **EARS**; all
-  acceptance criteria in **Given/When/Then**.
-- **Test pyramid.** Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
-  Unit (Vitest/RTL, mocked) for logic/components/render-empty-error-filter; Integration (**pgTAP**,
-  `supabase test db`) for RLS/role read+write contracts; E2E (Playwright, ~6–8 curated journeys) for
-  real cross-stack flows only. AC-id tagged in the owning test's title so `grep -r AC-XXX` finds the proof.
-- **BDD authoring rule (binding).** A test encodes the **user's real, intuitive journey to the task's
-  goal** and asserts that **goal** — the app conforms to the test, never the test to the app. On failure:
-  fix the **app**; only for a *deliberate* UX change update the journey *steps*, and the goal-oracle
-  stays intact. Never bend an assertion to the app's current state to go green.
-
-## Tech stack & commands (Phase 1 on; run inside `mos-app/`)
-- React 19, Vite, TypeScript, react-router-dom 7. Backend: **self-hosted Supabase** (Postgres + Auth +
-  RLS), shared with future Gordi ops apps via schemas `shared` / `mos` / `ops` / `integrations` / `reporting`. (`reporting`: curated ESB financial read-model, snapshot-fed, finance/admin RLS — OD-P4-2 / ADR-0010 D5; migrations deployed (`20260701000001_reporting_sales_daily_revenue.sql`, `20260704000002_reporting_sales_margin_daily.sql`); snapshot job runs on the VPS at 03:30 WIB; live on staging.)
-- `npm run dev` · `npm run build` · `npm run typecheck` · `npm test` (Vitest) · `npx playwright test` (e2e).
-- Commit trailer: `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
+## No external references
+No external brand, product, or AGPL references in MOS design artifacts. The design kit is MOS's
+own. Integration-partner coordinates live in local `docs/`, never here (see the banner).

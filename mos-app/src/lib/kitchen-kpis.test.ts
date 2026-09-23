@@ -13,6 +13,7 @@ function line(
 ): KitchenLogLine {
   return {
     wip_item_id,
+    item_unit_id: 'u-porsi',
     qty_porsi,
     notes: '',
     plan_qty,

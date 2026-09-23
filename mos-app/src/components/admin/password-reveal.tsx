@@ -5,7 +5,8 @@
 // element (not this inner wrapper) owns aria-labelledby/describedby (item 7 fix).
 // Password is dropped from component state when onDone is called (never persisted).
 
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
+import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 
 // Button is still used for the Done button below
@@ -37,49 +38,9 @@ export function PasswordReveal({
   headingId = 'reveal-heading',
   warningId = 'reveal-warning',
 }: PasswordRevealProps) {
+  const t = useT()
   const [copied, setCopied] = useState(false)
   const [clipboardBlocked, setClipboardBlocked] = useState(false)
-  const copyBtnRef = useRef<HTMLButtonElement>(null)
-  const rootRef = useRef<HTMLDivElement>(null)
-
-  // Move focus to Copy button on open (design-plan §4.4 + §6)
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      copyBtnRef.current?.focus()
-    })
-  }, [])
-
-  // Tab-trap (design-review minor): confine Tab cycling to the reveal dialog so focus
-  // can't escape to the page behind the scrim. Mirrors ConfirmDialog's trap, but Esc and
-  // backdrop-dismiss stay intentionally DISABLED here (only "Done" closes) — so this
-  // handler deliberately does NOT act on Escape. Traps within the enclosing alertdialog
-  // (the role="alertdialog" element is the parent in both call sites) when present,
-  // else the reveal's own root.
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Tab') return
-      const container =
-        rootRef.current?.closest<HTMLElement>('[role="alertdialog"]') ?? rootRef.current
-      if (!container) return
-      const FOCUSABLE =
-        'button:not([disabled]):not([aria-disabled="true"]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      const focusable = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-        (el) => el.offsetParent !== null || el === document.activeElement,
-      )
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault()
-        last.focus()
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault()
-        first.focus()
-      }
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [])
 
   async function handleCopy() {
     try {
@@ -93,11 +54,11 @@ export function PasswordReveal({
 
   const heading =
     context === 'create'
-      ? `Login created for ${personName}`
-      : `Password reset for ${personName}`
+      ? t('admin.reveal.createdTitle', { name: personName })
+      : t('admin.reveal.resetTitle', { name: personName })
 
   return (
-    <div ref={rootRef}>
+    <div>
       <h2 id={headingId} className="heading text-xl font-semibold">
         {heading}
       </h2>
@@ -109,13 +70,13 @@ export function PasswordReveal({
         className="my-3 flex items-start gap-2 rounded-md px-3 py-2"
         style={{
           background: 'color-mix(in srgb, var(--warning) 18%, transparent)',
-          borderLeft: '3px solid var(--warning)',
+          border: '1px solid color-mix(in srgb, var(--warning) 45%, transparent)',
           color: 'var(--warning-foreground)',
         }}
         role="status"
       >
         <span className="font-medium text-sm">
-          Copy this now — you won't be able to see it again.
+          {t('admin.reveal.warning')}
         </span>
       </div>
 
@@ -126,7 +87,7 @@ export function PasswordReveal({
       >
         {email && (
           <div>
-            <div className="text-xs font-medium text-muted-foreground mb-1">Sign-in name</div>
+            <div className="text-xs font-medium text-muted-foreground mb-1">{t('admin.create.signInName')}</div>
             <code
               className="select-text text-sm"
               style={{ fontFamily: 'var(--font-mono)', userSelect: 'text' }}
@@ -138,7 +99,7 @@ export function PasswordReveal({
 
         <div>
           <div className="text-xs font-medium text-muted-foreground mb-1" id="pw-label">
-            Temporary password
+            {t('admin.reveal.tempPassword')}
           </div>
           <code
             aria-labelledby="pw-label"
@@ -151,23 +112,22 @@ export function PasswordReveal({
 
         {/* aria-live region for copy confirmation (design-plan §4.4) */}
         <div aria-live="polite" className="sr-only" role="status">
-          {copied ? 'Password copied to clipboard' : ''}
+          {copied ? t('admin.reveal.copiedAnnounce') : ''}
         </div>
 
         {clipboardBlocked ? (
           <p className="text-xs text-muted-foreground">
-            Select and copy manually — clipboard access is unavailable.
+            {t('admin.reveal.clipboardBlocked')}
           </p>
         ) : (
-          // Native button so we can attach a ref for auto-focus on reveal open
+          // Native button is the first focusable control, so ModalShell focuses it.
           <button
-            ref={copyBtnRef}
             type="button"
             className="btn btn-primary"
             onClick={handleCopy}
-            aria-label="Copy password"
+            aria-label={t('admin.reveal.copy')}
           >
-            {copied ? 'Copied ✓' : 'Copy password'}
+            {copied ? t('admin.reveal.copied') : t('admin.reveal.copy')}
           </button>
         )}
       </div>
@@ -175,7 +135,7 @@ export function PasswordReveal({
       {/* Done — the ONLY dismiss path (no Esc, no backdrop, design-plan §4.4) */}
       <div className="mt-4 flex justify-end">
         <Button variant="outline" onClick={onDone}>
-          Done
+          {t('admin.reveal.done')}
         </Button>
       </div>
     </div>

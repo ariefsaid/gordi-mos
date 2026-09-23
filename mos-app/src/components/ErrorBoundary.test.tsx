@@ -46,10 +46,10 @@ describe('ErrorBoundary', () => {
 
     // Should show fallback UI
     expect(screen.getByRole('alert')).toBeInTheDocument()
-    expect(screen.getByText('Something went wrong')).toBeInTheDocument()
+    expect(screen.getByText('This screen stopped working')).toBeInTheDocument()
 
     // Should have reload button
-    const reloadButton = screen.getByRole('button', { name: /reload/i })
+    const reloadButton = screen.getByRole('button', { name: /reload the app/i })
     expect(reloadButton).toBeInTheDocument()
 
     // Should have try again button
@@ -91,7 +91,7 @@ describe('ErrorBoundary', () => {
 
     expect(screen.getByText('Custom fallback')).toBeInTheDocument()
     // Should NOT show default fallback elements
-    expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument()
+    expect(screen.queryByText('This screen stopped working')).not.toBeInTheDocument()
   })
 
   it('resets error state when try again is clicked', () => {
@@ -106,7 +106,7 @@ describe('ErrorBoundary', () => {
     )
 
     // Should show fallback initially
-    expect(screen.getByText('Something went wrong')).toBeInTheDocument()
+    expect(screen.getByText('This screen stopped working')).toBeInTheDocument()
 
     // Click try again - this resets the boundary state
     const tryAgainButton = screen.getByRole('button', { name: /try again/i })
@@ -136,7 +136,7 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     )
 
-    const reloadButton = screen.getByRole('button', { name: /reload/i })
+    const reloadButton = screen.getByRole('button', { name: /reload the app/i })
     reloadButton.click()
 
     expect(reloadSpy).toHaveBeenCalled()
@@ -159,6 +159,6 @@ describe('ErrorBoundary', () => {
     // Check that the heading is focusable
     const heading = screen.getByRole('heading', { level: 2 })
     expect(heading).toBeInTheDocument()
-    expect(heading).toHaveTextContent('Something went wrong')
+    expect(heading).toHaveTextContent('This screen stopped working')
   })
 })

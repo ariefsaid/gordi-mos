@@ -1,0 +1,207 @@
+// Movement vocabulary + the DERIVED action label — the client mirror of
+// `ops.kitchen_action_label(action, destination_branch_id)` (DD-WAY-13).
+//
+// There is no stored `action_type`. The incumbent's three strings folded a destination into
+// an action because Teable had one flat field and there was one production branch; the ERP
+// was always parameterised. So the label is computed here from `action ∈ {produce,transfer}`
+// plus the destination branch, exactly as the SQL computes it — which is what lets the four
+// streams that reach the ERP on paper today be captured without inventing new literals.
+//
+// PARITY (OD-K-1): for the two currently-captured streams this reproduces the incumbent's
+// strings byte for byte — 'Production', 'Transfer to Bungur', 'Transfer to Radiant'.
+// 'Bungur' is the incumbent's UI label for the Rumah Rames branch. It is NOT a fifth branch
+// and is not in the catalog; it appears in exactly one place on each side of the seam — one
+// arm of the SQL CASE, and BRANCH_DISPLAY_ALIAS below.
+
+import type { Translate } from '@/i18n/use-t'
+import type { MessageKey } from '@/i18n/messages'
+import type {
+  BranchOption,
+  KitchenMovement,
+  MovementKey,
+  ProductionActivity,
+  ProductionStream,
+} from '@/lib/db/kitchen-logs.types'
+
+/**
+ * Display aliases for branch names, keyed by the catalog's own `code`. The single entry
+ * mirrors the single aliased arm of `ops.kitchen_action_label`. Adding a second entry here
+ * without adding it there would split the label across the seam.
+ */
+export const BRANCH_DISPLAY_ALIAS: Readonly<Record<string, string>> = {
+  rumah_rames: 'Bungur',
+}
+
+/** The branch's name as the floor reads it. */
+export function branchDisplayName(branch: BranchOption): string {
+  return BRANCH_DISPLAY_ALIAS[branch.code] ?? branch.name
+}
+
+/** Stable client-side index for a movement (see `MovementKey`). */
+export function movementKey(movement: KitchenMovement): MovementKey {
+  return movement.action === 'produce'
+    ? 'produce'
+    : `transfer:${movement.destinationBranchId ?? ''}`
+}
+
+/**
+ * Stable client-side index for a (branch, activity) stream (OD-WAY-28). Pairs with
+ * `movementKey` to build a compound key for maps that must distinguish rows across
+ * streams — e.g. the review queue's per-row plan lookup (#197/#198): a queue that can
+ * span more than one stream must compare each row to ITS OWN stream's plan, never a
+ * single hardcoded one.
+ */
+export function streamKey(branchId: string, activity: ProductionActivity): string {
+  return `${branchId}|${activity}`
+}
+
+export function movementsEqual(a: KitchenMovement, b: KitchenMovement): boolean {
+  return movementKey(a) === movementKey(b)
+}
+
+/** The production movement, present only when the selected stream's catalog row permits it. */
+export const PRODUCE: KitchenMovement = { action: 'produce', destinationBranchId: null }
+
+/**
+ * Read the producing fact for one selected stream from the same live stream-Team catalog the
+ * picker uses. An unresolved default carries no fact itself; failing closed here means it never
+ * acquires an action until it is resolved to an actual catalog row.
+ */
+export function streamProduces(
+  origin: ProductionStream | null | undefined,
+  catalog: readonly ProductionStream[],
+): boolean {
+  return origin != null && catalog.some(
+    stream => stream.branch.id === origin.branch.id
+      && stream.activity === origin.activity
+      && stream.produces === true,
+  )
+}
+
+/**
+ * Destination derivation from the live stream-Team catalog. A producing kitchen reaches every
+ * other stream branch; a producing bar reaches other bar branches plus its own branch only when a
+ * kitchen stream exists there. This preserves the known held intra-branch arm without inventing a
+ * destination for Cikal, which has no kitchen stream. A future Team remains receive-only until its
+ * explicit `produces` fact is set — activity alone never grants production.
+ */
+export function movementsForStream(
+  origin: ProductionStream,
+  catalog: readonly ProductionStream[],
+): KitchenMovement[] {
+  if (!streamProduces(origin, catalog)) return []
+
+  const destinations: ProductionStream[] = []
+  for (const candidate of catalog) {
+    const sameBranch = candidate.branch.id === origin.branch.id
+    const allowed = origin.activity === 'kitchen'
+      ? !sameBranch
+      : (sameBranch
+        ? catalog.some(stream => stream.branch.id === origin.branch.id && stream.activity === 'kitchen')
+        : candidate.activity === 'bar')
+    if (allowed && !destinations.some(destination => destination.branch.id === candidate.branch.id)) {
+      destinations.push(candidate)
+    }
+  }
+
+  return [
+    PRODUCE,
+    ...destinations.map((stream): KitchenMovement => ({
+      action: 'transfer',
+      destinationBranchId: stream.branch.id,
+    }))
+  ]
+}
+
+/**
+ * True when a movement is the intra-branch cross-activity one for this origin stream: a
+ * transfer whose destination branch IS the origin branch (FR-013/050).
+ *
+ * Read as a QUESTION ABOUT BRANCHES, exactly as `ops.esb_endpoint_for` asks it server-side
+ * (FR-051). Activity plays no part in the comparison on either side of the seam.
+ */
+export function isIntraBranch(
+  movement: KitchenMovement,
+  origin: ProductionStream | null | undefined,
+): boolean {
+  return (
+    movement.action === 'transfer' &&
+    origin != null &&
+    movement.destinationBranchId === origin.branch.id
+  )
+}
+
+/**
+ * The other activity of the origin's branch — what an intra-branch movement is understood to
+ * be moving to (bar → kitchen, kitchen → bar). DISPLAY ONLY: it names nothing stored, and
+ * deriving it is what lets the surface stay legible without a destination-activity column.
+ *
+ * TWO-ACTIVITY ASSUMPTION (#392): well-defined only while a branch carries exactly
+ * the two catalog activities. A third activity needs an owner ruling on which
+ * counterpart its intra-branch gloss names — flagged to the Director, not designed here.
+ */
+export function counterpartActivity(activity: ProductionActivity): ProductionActivity {
+  return activity === 'bar' ? 'kitchen' : 'bar'
+}
+
+/**
+ * The derived label. Mirrors the SQL arm for arm, including its fallback: a destination the
+ * caller cannot resolve yields a generic string rather than a blank or a leaked id.
+ */
+export function deriveActionLabel(
+  t: Translate,
+  movement: KitchenMovement,
+  branches: readonly BranchOption[],
+): string {
+  if (movement.action === 'produce') return t('kitchen.actionType.production')
+  const branch = branches.find((b) => b.id === movement.destinationBranchId)
+  return t('kitchen.actionType.transferTo', {
+    branch: branch ? branchDisplayName(branch) : t('kitchen.actionType.transferTo.fallback'),
+  })
+}
+
+/** The same label, abbreviated for the phone-width segmented control. */
+export function deriveActionShortLabel(
+  t: Translate,
+  movement: KitchenMovement,
+  branches: readonly BranchOption[],
+): string {
+  if (movement.action === 'produce') return t('kitchen.actionType.production')
+  const branch = branches.find((b) => b.id === movement.destinationBranchId)
+  return t('kitchen.actionType.transferTo.short', {
+    branch: branch ? branchDisplayName(branch) : t('kitchen.actionType.transferTo.fallback'),
+  })
+}
+
+/**
+ * Localized label for the activity half of a stream. The key map is TOTAL over
+ * ProductionActivity via `satisfies` — adding an activity to the vocabulary without
+ * adding its label is a compile error, not a picker that renders the wrong name
+ * (#392). Adding 'prep' to PRODUCTION_ACTIVITIES without a 'kitchen.activity.prep'
+ * message fails `tsc` before it ever renders.
+ */
+const ACTIVITY_LABEL_KEY = {
+  kitchen: 'kitchen.activity.kitchen',
+  bar: 'kitchen.activity.bar',
+} satisfies Record<ProductionActivity, MessageKey>
+
+export function activityLabel(t: Translate, activity: ProductionActivity): string {
+  return t(ACTIVITY_LABEL_KEY[activity])
+}
+
+/**
+ * Names a (branch, activity) production stream the way every Café surface must name it: the
+ * branch's CANONICAL catalog name · the activity (#238 owner ruling, CONTEXT.md "Production
+ * stream"). Never `branchDisplayName` here — the 'Bungur' alias names a transfer DESTINATION
+ * and the derived action label, and an authenticated render once found one stream reading
+ * "Rumah Rames · Bar" on capture and "Bungur · Bar" on review: two names for one stream, on
+ * the two surfaces most likely to be open side by side. Never "HQ"/"Stok HQ" for the central
+ * kitchen either (FR-061) — the catalog's own name is what keeps that true.
+ *
+ * `null` renders the em dash rather than an empty gap: a surface with no resolved stream is
+ * saying something ("none chosen yet"), not nothing.
+ */
+export function streamLabel(t: Translate, stream: ProductionStream | null): string {
+  if (!stream) return '—'
+  return `${stream.branch.name} · ${activityLabel(t, stream.activity)}`
+}

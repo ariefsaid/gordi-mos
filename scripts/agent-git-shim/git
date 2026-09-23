@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# A `git` shim for DISPATCHED AGENTS: rejects the hook-bypass flags.
+#
+# The hooks are the enforcement layer, but `git commit --no-verify` (or `-n`, or bundled
+# `-nm`) skips them — and agents hitting a blocked commit reach for exactly that. A hook
+# cannot police its own bypass; only something in front of git can.
+#
+# Use in a dispatch by prepending this dir to PATH:
+#   PATH="$PWD/scripts/agent-git-shim:$PATH" <agent command>
+#
+# Humans keep the escape hatch (don't put this on your interactive PATH).
+# Self-test: scripts/agent-git-shim.test.sh
+set -uo pipefail
+
+real_git="/usr/bin/git"
+[ -x "$real_git" ] || real_git="$(PATH="$(getconf PATH)" command -v git)"
+
+block() {
+  cat >&2 <<'MSG'
+✗ blocked: git hook bypass (--no-verify).
+
+The hook gate is not an obstacle to route around — it is the definition of done.
+If it blocked you, the change is RED. Fix the code, or report the blocker.
+Do NOT weaken/skip/delete a test to get green.
+MSG
+  exit 1
+}
+
+# Find the subcommand, skipping global options and their values — and block the
+# config-override bypass (`-c core.hooksPath=…` is `--no-verify` in a trench coat).
+args=("$@"); n=$#; i=0; sub=""
+while [ "$i" -lt "$n" ]; do
+  a="${args[$i]}"
+  case "$a" in
+    -c)
+      next="$(printf '%s' "${args[$((i + 1))]:-}" | tr '[:upper:]' '[:lower:]')"
+      case "$next" in core.hookspath=*) block ;; esac
+      i=$((i + 2)) ;;
+    -C|--git-dir|--work-tree|--namespace|--exec-path) i=$((i + 2)) ;;
+    -*) i=$((i + 1)) ;;
+    *) sub="$a"; break ;;
+  esac
+done
+
+# Only the hook-carrying subcommands are policed; everywhere else `-n` means something
+# harmless (`log -n`, `push -n` = dry-run, `merge -n` = no-stat) and must pass through.
+case "$sub" in
+  commit|merge|push|rebase)
+    for a in "$@"; do
+      case "$a" in
+        --) break ;;
+        --no-veri*) block ;;  # git accepts unambiguous long-option prefixes
+        --*) ;;
+        -*n*) [ "$sub" = "commit" ] && block ;;  # commit's short -n / bundled -nm
+      esac
+    done
+    ;;
+esac
+
+exec "$real_git" "$@"

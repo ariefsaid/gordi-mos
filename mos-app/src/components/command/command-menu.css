@@ -1,37 +1,19 @@
 /* ── Command palette (⌘K) — ADR-0013 D4 / design-plan §5. All raw values are
    DESIGN.md CSS-var tokens (no hex/rgb/hsl literals). Mirrors mock-command-menu.html. */
 
-.cm-root {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-}
-
-.cm-scrim {
-  position: absolute;
-  inset: 0;
-  background: var(--surface-overlay); /* --ds-background-overlay-primary */
-}
-
 .cm-panel {
-  position: absolute;
-  left: 50%;
-  top: 64px;
-  transform: translateX(-50%);
-  width: 560px;
-  max-width: calc(100% - 32px);
-  background: var(--surface-primary);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-strong); /* --ds-box-shadow-strong */
   overflow: hidden;
   /* Themed scope sets color explicitly so children don't inherit a body-baked
      light value (dark = invisible). ADR-0013 D2. */
   color: var(--text-primary);
 }
 
-@media (max-width: 600px) {
-  .cm-panel { top: 16px; }
+.modal-shell__surface.cm-modal-surface {
+  align-self: center;
+  width: min(100%, 560px);
+  background: var(--surface-primary);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-strong);
 }
 
 /* ── Input row ── */
@@ -50,7 +32,7 @@
   border: none;
   outline: none;
   font-family: inherit;
-  font-size: var(--text-size-sm);
+  font-size: var(--font-size-control);
   color: var(--text-primary); /* explicit — see ADR-0013 D2 */
   background: transparent;
 }
@@ -58,21 +40,24 @@
 
 /* ── Body / listbox ── */
 .cm-body {
-  max-height: 300px;
-  overflow: auto;
   padding: 6px;
 }
 
-/* Inner group list — reset browser ul defaults without inline styles. */
+/* The combobox owns the listbox; the listbox owns scrolling and is programmatically
+   focusable for axe/keyboard scrolling without stealing the input's active focus. */
 .cm-group-list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
+#cm-list {
+  max-height: 300px;
+  overflow: auto;
+}
 
 /* Group label — muted-foreground clears WCAG-AA in dark while reading as a label. */
 .cm-group {
-  font-size: var(--text-size-xxs);
+  font-size: var(--font-size-overline);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 500;
@@ -83,13 +68,13 @@
 .cm-empty {
   padding: 18px 12px;
   color: var(--text-secondary);
-  font-size: var(--text-size-xs);
+  font-size: var(--font-size-control);
 }
 
 .cm-records-error {
   padding: 8px 10px;
   color: var(--text-secondary);
-  font-size: var(--text-size-xs);
+  font-size: var(--font-size-control);
 }
 
 /* ── Item ── */
@@ -100,7 +85,7 @@
   height: 36px;
   padding: 0 10px;
   border-radius: var(--radius-sm);
-  font-size: var(--text-size-sm);
+  font-size: var(--font-size-control);
   cursor: pointer;
   color: var(--text-primary); /* explicit — see ADR-0013 D2 */
 }
@@ -110,7 +95,9 @@
 .cm-item-glyph {
   color: var(--text-tertiary);
   width: 18px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: none;
 }
 .cm-item.action .cm-item-glyph { color: var(--text-accent); }
@@ -123,8 +110,56 @@
   margin-left: auto;
   padding-left: 8px;
   color: var(--text-tertiary);
-  font-size: var(--text-size-xs);
+  font-size: var(--font-size-control);
   flex: none;
+}
+
+/* ── Child rung (DESIGN.md § The Rail Type Ladder) ──────────────────────────
+   The palette lists Work's PARENT row ("Work" → /work/tasks) and its Tasks CHILD row
+   (→ /work/tasks) back to back. The rail and the drawer can carry that pair because the
+   parent is a section header there and the children sit inside a drawn indent guide; the
+   palette is a FLAT list, so without a rung the two rows are indistinguishable — same
+   target, same weight, no reason for a second one to exist.
+
+   DESIGN.md is explicit that "the ladder is per-level, not per-surface": a child wears the
+   same rung wherever it is listed. So this is the ladder's Child rung — 13px
+   (`--font-size-mono`, the ramp's dense-compact step, not a monospace face) /
+   `muted-foreground`, 15px icon, indented behind the 1px `border` hairline guide — read
+   from the same type ramp and `--rail-*` geometry tokens the rail rules read. No value is
+   minted here.
+
+   `data-child` is the marker (the palette renders divs, so it has no class ladder of its
+   own; the same attribute the cross-surface order guard reads).
+
+   ONE part of the rung is deliberately NOT imported: its `font-weight: 500`. That number is
+   a step DOWN from the rail's Destination rung at 600; the palette's rows carry no weight of
+   their own (400), so copying the child's 500 in isolation would render Tasks HEAVIER than
+   the Work row above it and invert the very hierarchy this rule exists to state. Size, colour,
+   icon and indent carry the rung here, and a child is never bolder than its parent
+   (`command-menu.css.test.ts` holds that). Whether the palette's destination rows should take
+   the ladder's 600 is a separate question about the whole surface, not about children.
+
+   The left corners lose their radius so consecutive child rows' hairlines join into one
+   continuous guide instead of a dotted column of rounded stubs. */
+.cm-item[data-child='true'] {
+  margin-left: var(--rail-child-guide-x);
+  border-left: var(--rail-child-guide) solid var(--border);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding-left: var(--rail-child-pad);
+  font-size: var(--font-size-mono);
+  color: var(--muted-foreground);
+}
+.cm-item[data-child='true'] .cm-item-glyph svg {
+  width: var(--rail-icon-child);
+  height: var(--rail-icon-child);
+}
+/* Active outranks the rung, and does it on SPECIFICITY (compound selector), never on source
+   order — two single-class rules on one element have no tie-break. Only the COLOUR returns to
+   primary: size, weight and indent state where the row sits in the tree, which selection does
+   not change. */
+.cm-item[data-child='true'].active {
+  color: var(--text-primary);
 }
 
 /* Skeleton row while records are loading. */
@@ -142,7 +177,29 @@
   gap: 14px;
   padding: 8px 14px;
   border-top: 1px solid var(--border-light);
-  font-size: var(--text-size-xs);
+  font-size: var(--font-size-control);
   color: var(--text-tertiary);
 }
 .cm-foot-key { font-family: var(--ds-code-font-family); }
+
+/* `useIsCoarsePointer` already unmounts this copy for `(pointer: coarse)`; this CSS rule is the
+   second, independent hiding path for a touch device that reports a fine pointer but no hover
+   (`(hover: none)`), which the JS check alone does not cover. No un-pressable "esc" chip or
+   "↑↓ navigate · ↵ open · esc close" line on a screen with no keyboard. */
+@media (hover: none), (pointer: coarse) {
+  .cm-foot,
+  .cm-input .cm-foot-key {
+    display: none;
+  }
+}
+
+/* SYS-2 phone tap-target floor: the command rows are the primary touch surface of the ⌘K
+   palette on phone; their 36px height is below the 44px touch minimum. min-height (not height)
+   raises the floor on phone without disturbing the desktop rhythm. Covers the record-search
+   skeleton row too (it shares .cm-item).
+
+   Lost in the port along with `tap-targets.css.test.ts`, the guard that names it; restoring that
+   guard is what surfaced this. */
+@media (max-width: 767.98px) {
+  .cm-item { min-height: 44px; }
+}

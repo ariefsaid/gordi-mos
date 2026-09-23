@@ -1,0 +1,656 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
+import type { To } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { listPendingTasks } from '@/lib/db/processes'
+import type { PendingTaskRow } from '@/lib/db/processes.types'
+import type { TaskStatus, TaskListRow } from '@/lib/db/tasks.types'
+import { NO_WORK_LINE_KEY } from '@/lib/cascade/count-rollup'
+import { useT } from '@/i18n/use-t'
+import { useOptionalOverlayHost } from '@/shell/overlay-host'
+import { useCollectionKeyboard } from '@/components/record-collection/use-collection-keyboard'
+import { TasksTableBody } from './tasks-table-body'
+import { canEdit, picOptions } from './task-permissions'
+import type { FlatRow } from './tasks-table-body'
+import type { RenderGroup } from './tasks-grouping'
+import type { WorkloadSummary } from './workload-caption'
+import { TaskRow, type TaskTeamOption } from './task-row'
+import { GroupHeaderRow } from './group-header-row'
+import { OccurrenceAssignDialog } from './occurrence-assign-dialog'
+import './TaskQueue.css'
+import type {
+  CollectionPresentationProps,
+  CollectionProjection,
+} from '@/lib/record-collection/types'
+import { taskTableColumnSpan } from './task-collection-query'
+import { STATUS_ORDER } from './task-formatters'
+import { isOverdue } from '@/lib/due-status'
+import type {
+  TaskCollectionContext,
+  TaskCollectionQuery,
+  TaskCollectionRecord,
+  TaskRenderGroup,
+} from './task-collection-adapter'
+
+export interface TaskCollectionRuntime {
+  selectedId: string | null
+  drawerOpen: boolean
+  splitLayout: boolean
+  isDesktop: boolean
+  recordSearch: string
+  statusOverrides: ReadonlyMap<string, TaskStatus>
+  onOpenTask: (taskId: string) => void
+  /** Inline title-edit commit (E7 collection promise) — persists via the shared updateTaskFields
+   * path. Rejects to drive the row's optimistic rollback. Inert in the descriptor-only default. */
+  onEditTitle: (taskId: string, title: string) => Promise<void>
+  onEditStatus: (taskId: string, status: TaskStatus) => Promise<void>
+  onEditDue: (taskId: string, dueDate: string | null) => Promise<void>
+  onEditPic: (taskId: string, personId: string) => Promise<void>
+  /** Draft-only Team ownership choice. Existing rows edit Team in the record surface. */
+  onEditTeam: (taskId: string, teamId: string) => Promise<void>
+  /** Draft-only Supervisor choice; unlike PIC this is never inferred from the viewer. */
+  onEditSupervisor: (taskId: string, personId: string) => Promise<void>
+  /** Effective viewer Teams offered by the inline create row. */
+  teamOptions: readonly TaskTeamOption[]
+  draftTask: TaskListRow | null
+  onDiscardNewTask: () => void
+  draftLinkError: boolean
+  onRetryDraftLink: () => void
+  onCloseDrawer: () => void
+  onNewTask: (prefillParam?: string) => void
+  onAddTask: (prefillParam: string) => void
+  onRetry: () => void
+  onClearFilters: () => void
+  onSort: (sort: TaskCollectionQuery['sort']) => void
+  onOverdueFilter: () => void
+  onClearOverdue: () => void
+  createHref: To
+  canResolvePending: boolean
+  /** Per-occurrence runtime process.start authority; absence keeps legacy callers working. */
+  canResolvePendingForRun?: (runId: string) => boolean
+}
+
+const TaskCollectionRuntimeContext = createContext<TaskCollectionRuntime | null>(null)
+
+export function TaskCollectionRuntimeProvider({
+  value,
+  children,
+}: {
+  value: TaskCollectionRuntime
+  children: ReactNode
+}) {
+  return (
+    <TaskCollectionRuntimeContext.Provider value={value}>
+      {children}
+    </TaskCollectionRuntimeContext.Provider>
+  )
+}
+
+function useTaskCollectionRuntime(): TaskCollectionRuntime | null {
+  return useContext(TaskCollectionRuntimeContext)
+}
+
+// Direct descriptor-render tests and Storybook-like probes do not mount the live workspace
+// provider. They still get the same typed presentation, with only routing/host callbacks inert.
+// Direct descriptor-render tests and Storybook-like probes do not mount the live workspace
+// provider. They still get the same typed presentation, with only routing/host callbacks inert.
+const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
+  selectedId: null,
+  drawerOpen: false,
+  splitLayout: false,
+  isDesktop: true,
+  recordSearch: '',
+  statusOverrides: new Map(),
+  onOpenTask: () => {},
+  onEditTitle: async () => {},
+  onEditStatus: async () => {},
+  onEditDue: async () => {},
+  onEditPic: async () => {},
+  onEditTeam: async () => {},
+  onEditSupervisor: async () => {},
+  teamOptions: [],
+  draftTask: null,
+  onDiscardNewTask: () => {},
+  draftLinkError: false,
+  onRetryDraftLink: () => {},
+  onCloseDrawer: () => {},
+  onNewTask: () => {},
+  onAddTask: () => {},
+  onRetry: () => {},
+  onClearFilters: () => {},
+  onSort: () => {},
+  onOverdueFilter: () => {},
+  onClearOverdue: () => {},
+  createHref: '/work/tasks/new',
+  canResolvePending: false,
+}
+
+type CollapseState = Partial<Record<TaskCollectionQuery['groupBy'], string[]>>
+const COLLAPSE_KEY = 'mos.tasks.collapsedGroups'
+
+function readCollapseState(): CollapseState {
+  try {
+    const raw = localStorage.getItem(COLLAPSE_KEY)
+    if (!raw) return {}
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+    const result: CollapseState = {}
+    for (const key of ['none', 'status', 'pic', 'bu', 'workline', 'objective', 'occurrence'] as const) {
+      const values = (parsed as Record<string, unknown>)[key]
+      if (Array.isArray(values)) result[key] = values.filter((value): value is string => typeof value === 'string')
+    }
+    return result
+  } catch {
+    return {}
+  }
+}
+
+function useTaskCollapsePreference(groupBy: TaskCollectionQuery['groupBy']) {
+  const [collapsed, setCollapsed] = useState<CollapseState>(() => readCollapseState())
+
+  const toggleCollapsed = useCallback((groupId: string) => {
+    setCollapsed((previous) => {
+      const current = previous[groupBy] ?? []
+      const nextForGroup = current.includes(groupId)
+        ? current.filter((id) => id !== groupId)
+        : [...current, groupId]
+      const next = { ...previous, [groupBy]: nextForGroup }
+      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next)) } catch { /* storage disabled */ }
+      return next
+    })
+  }, [groupBy])
+
+  const isCollapsed = useCallback(
+    (groupId: string) => (collapsed[groupBy] ?? []).includes(groupId),
+    [collapsed, groupBy],
+  )
+
+  return { isCollapsed, toggleCollapsed }
+}
+
+type TaskPresentationProps = CollectionPresentationProps<
+  TaskCollectionRecord,
+  TaskCollectionQuery,
+  CollectionProjection<TaskCollectionRecord, TaskRenderGroup>,
+  TaskCollectionContext,
+  string
+>
+
+function rawTaskFor(
+  record: TaskCollectionRecord,
+  context: TaskCollectionContext,
+  statusOverrides: ReadonlyMap<string, TaskStatus>,
+): TaskListRow | null {
+  const raw = context.rowsById.get(record.id)
+  const override = statusOverrides.get(record.id)
+  if (raw) return override ? { ...raw, status: override } : raw
+  // Descriptor-level presentation probes may provide only the typed projection context. Keep that
+  // contract renderable without inventing a second loader; the live adapter always supplies the
+  // rowsById bridge above.
+  return {
+    id: record.id,
+    org_id: '',
+    title: record.title,
+    business_unit_id: record.businessUnitId,
+    status: override ?? record.status,
+    responsible_person_id: record.picId,
+    accountable_person_id: record.supervisorId,
+    consulted_person_ids: [],
+    informed_person_ids: [],
+    description: null,
+    due_date: record.dueDate,
+    objective_id: record.objectiveId,
+    work_line_id: record.workLineId,
+    last_activity_at: record.lastActivityAt,
+    archived_at: record.archivedAt,
+    created_by: '',
+    created_at: record.lastActivityAt,
+    updated_at: record.lastActivityAt,
+    process_run_id: record.processRunId,
+    generated_from_task_def_id: record.generatedFromTaskDefinitionId,
+  }
+}
+
+function localizedGroupLabel(
+  group: TaskRenderGroup,
+  query: TaskCollectionQuery,
+  t: ReturnType<typeof useT>,
+): string {
+  if (group.key === '__no_workline__') return t('tasks.group.noWorkLine')
+  if (group.key === '__no_occurrence__') return t('tasks.group.noOccurrence')
+  // An Objective branch with no Project/Process. The key is the shared projection's, so the label
+  // here and the branch label on a catalog row are the same words in every locale.
+  if (query.groupBy === 'objective' && group.key.endsWith(`:${NO_WORK_LINE_KEY}`)) {
+    return t('rollup.group.noWorkLine')
+  }
+  if (query.groupBy === 'status') return statusGroupLabel(group.key as TaskStatus, t) ?? group.label
+  return group.label
+}
+
+function statusGroupLabel(status: TaskStatus, t: ReturnType<typeof useT>): string {
+  const labels: Record<TaskStatus, string> = {
+    Open: t('tasks.status.open'),
+    'In Progress': t('tasks.status.inProgress'),
+    Blocked: t('tasks.status.blocked'),
+    Done: t('tasks.status.done'),
+  }
+  return labels[status]
+}
+
+/**
+ * #901 (the #372 gap): the projection buckets by the status loaded from the DB — an optimistic
+ * drawer edit only reaches `statusOverrides`, applied per-row by `rawTaskFor` above. For every
+ * other grouping that is enough (the row's cell just shows the new value), but `groupBy ===
+ * 'status'` renders the bucket itself as the status, so a moved row must actually move buckets.
+ * All 4 buckets are rebuilt from live (overridden) status rather than patching the projected
+ * ones, so a status with zero DB rows but a fresh override still gets a bucket to land in.
+ */
+function regroupByLiveStatus(
+  groups: readonly RenderGroup[],
+  now: Date,
+  t: ReturnType<typeof useT>,
+): RenderGroup[] {
+  const bucketByStatus = new Map<TaskStatus, RenderGroup>(
+    STATUS_ORDER.map((status) => [status, {
+      key: status, label: statusGroupLabel(status, t), rows: [], overdue: 0, prefillParam: '',
+    }]),
+  )
+  for (const group of groups) {
+    for (const row of group.rows) {
+      const bucket = bucketByStatus.get(row.status)
+      if (!bucket) continue
+      bucket.rows.push(row)
+      if (isOverdue(row, now)) bucket.overdue += 1
+    }
+  }
+  return STATUS_ORDER.map((status) => bucketByStatus.get(status)!).filter((group) => group.rows.length > 0)
+}
+
+function buildRenderGroups(
+  projection: TaskPresentationProps['projection'],
+  context: TaskCollectionContext,
+  query: TaskCollectionQuery,
+  statusOverrides: ReadonlyMap<string, TaskStatus>,
+  t: ReturnType<typeof useT>,
+): RenderGroup[] {
+  const groups = projection.groups.map((group) => ({
+    key: group.key,
+    label: localizedGroupLabel(group, query, t),
+    rows: group.rows
+      .map((record) => rawTaskFor(record, context, statusOverrides))
+      .filter((row): row is TaskListRow => row !== null),
+    overdue: group.overdue,
+    prefillParam: group.prefillParam,
+    workLineType: group.workLineType,
+    // A branch whose Objective is the synthesised `(Unlinked)` bucket carries a null id — that is
+    // what makes it localizable here and unlinkable in the header (there is no record to open).
+    objectiveHint: group.objectiveHint && {
+      id: group.objectiveHint.id,
+      name: group.objectiveHint.id ? group.objectiveHint.name : t('rollup.group.unlinked'),
+    },
+    occurrenceRollup: group.occurrenceRollup,
+  }))
+  return query.groupBy === 'status' && statusOverrides.size > 0 ? regroupByLiveStatus(groups, context.now, t) : groups
+}
+
+function buildFlatRows(
+  groups: readonly RenderGroup[],
+  groupBy: TaskCollectionQuery['groupBy'],
+  isCollapsed: (groupId: string) => boolean,
+) {
+  const flatRows: FlatRow[] = []
+  const leafTasks: TaskListRow[] = []
+  for (const group of groups) {
+    if (groupBy !== 'none') {
+      flatRows.push({ kind: 'header', group })
+      if (isCollapsed(group.key)) continue
+    }
+    for (const task of group.rows) {
+      flatRows.push({ kind: 'leaf', task, leafIndex: leafTasks.length })
+      leafTasks.push(task)
+    }
+  }
+  return { flatRows, leafTasks }
+}
+
+function buildWorkloadSummary(
+  query: TaskCollectionQuery,
+  leafTasks: readonly TaskListRow[],
+  context: TaskCollectionContext,
+): WorkloadSummary | null {
+  if (query.groupBy !== 'workline' || !query.personId) return null
+  const person = context.people.find((candidate) => candidate.id === query.personId)
+  if (!person) return null
+  const projectIds = new Set<string>()
+  const dailyIds = new Set<string>()
+  let unassignedCount = 0
+  for (const task of leafTasks) {
+    if (task.status === 'Done' || task.archived_at !== null) continue
+    if (!task.work_line_id) {
+      unassignedCount += 1
+      continue
+    }
+    const type = context.workLineTypeById.get(task.work_line_id)
+    if (type === 'project') projectIds.add(task.work_line_id)
+    if (type === 'process') dailyIds.add(task.work_line_id)
+  }
+  return {
+    isSelf: query.personId === context.viewerId,
+    firstName: person.full_name.split(' ')[0] ?? person.full_name,
+    projectCount: projectIds.size,
+    dailyCount: dailyIds.size,
+    unassignedCount,
+  }
+}
+
+function useOccurrenceAssignment(runtime: TaskCollectionRuntime) {
+  const [runId, setRunId] = useState<string | null>(null)
+  const [pending, setPending] = useState<PendingTaskRow[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(false)
+
+  const open = useCallback((nextRunId: string) => {
+    setRunId(nextRunId)
+    setLoading(true)
+    setError(false)
+    listPendingTasks(nextRunId)
+      .then((rows) => { setPending(rows); setLoading(false) })
+      .catch(() => { setError(true); setLoading(false) })
+  }, [])
+
+  const retry = useCallback(() => {
+    if (runId) open(runId)
+  }, [open, runId])
+
+  const resolved = useCallback((pendingId: string) => {
+    setPending((current) => {
+      const next = current.filter((item) => item.id !== pendingId)
+      if (next.length === 0) setRunId(null)
+      return next
+    })
+    runtime.onRetry()
+  }, [runtime])
+
+  return { runId, pending, loading, error, open, retry, resolved, close: () => setRunId(null) }
+}
+
+export function TaskTablePresentation(props: TaskPresentationProps & { cardLayout?: boolean }) {
+  const providedRuntime = useTaskCollectionRuntime()
+  const runtime = providedRuntime ?? DEFAULT_TASK_RUNTIME
+  const t = useT()
+  const { query, projection, context, selectedIds, onToggleSelected, onToggleGroup, cardLayout = false } = props
+  // Task selection capability is disabled (OD-REDESIGN-83.2) — ignore selectedIds/onToggleSelected
+  void selectedIds
+  void onToggleSelected
+  const { isCollapsed: isCollapsedPreference, toggleCollapsed } = useTaskCollapsePreference(query.groupBy)
+  const groups = useMemo<RenderGroup[]>(() => {
+    const next = buildRenderGroups(projection, context, query, runtime.statusOverrides, t)
+    const draft = runtime.draftTask
+    if (!draft) return next
+    if (next.length === 0) {
+      return [{ key: '__flat__', label: '', rows: [draft], overdue: 0, prefillParam: '' }]
+    }
+    return next.map((group, index) => index === 0
+      ? { ...group, rows: [draft, ...group.rows] }
+      : group)
+  }, [context, projection, query, runtime.draftTask, runtime.statusOverrides, t])
+  const { flatRows, leafTasks } = useMemo(
+    () => buildFlatRows(groups, query.groupBy, isCollapsedPreference),
+    [groups, isCollapsedPreference, query.groupBy],
+  )
+  const [cursor, setCursor] = useState(-1)
+  const cursorRowRef = useRef<HTMLTableRowElement | null>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+
+  // GAP-6 (OD-91 #11): after-create returns here with `?highlight=<id>` — the just-created row
+  // gets a brief accent that fades (row-just-created). The table stays MOUNTED across the
+  // create→list navigation, so react to the param arriving (not just at mount), record the id,
+  // then strip the param from the URL so a refresh/back doesn't re-flash a stale row.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [justCreatedId, setJustCreatedId] = useState<string | null>(null)
+  useEffect(() => {
+    const highlight = searchParams.get('highlight')
+    if (!highlight) return
+    setJustCreatedId(highlight)
+    const next = new URLSearchParams(searchParams)
+    next.delete('highlight')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
+  const desktopLayout = runtime.isDesktop && !cardLayout
+  const virtualize = desktopLayout && leafTasks.length >= 50
+  const rowVirtualizer = useVirtualizer({
+    count: virtualize ? flatRows.length : 0,
+    getScrollElement: () => scrollRef.current,
+    // The shared collection-table skin owns the 52px E7 row measure for Tasks and Signals.
+    estimateSize: () => 52,
+    overscan: 8,
+    initialRect: { width: 0, height: 600 },
+  })
+  const cursorFlatIndex = flatRows.findIndex((row) => row.kind === 'leaf' && row.leafIndex === cursor)
+
+  const openTask = useCallback((taskId: string) => {
+    if (providedRuntime) {
+      providedRuntime.onOpenTask(taskId)
+      return
+    }
+    const record = projection.visibleRecords.find((candidate) => candidate.id === taskId)
+    if (record) props.onOpenRecord(record)
+  }, [projection.visibleRecords, props, providedRuntime])
+  // Escape single-path (D-B3/D-F1): while ANY overlay-host session is live, the host owns the
+  // guarded Escape (runtime.onCloseDrawer routes through host.close only as a fallback) — the
+  // window keyboard layer stands down so a dirty-field guard is never raced by an unguarded close.
+  const overlayHost = useOptionalOverlayHost()
+  const overlayActive = (overlayHost?.session?.frames.length ?? 0) > 0
+  const keyboard = useCollectionKeyboard({
+    rowCount: leafTasks.length,
+    enabled: desktopLayout,
+    overlayActive,
+    onOpen: (index) => {
+      const task = leafTasks[index]
+      if (!task) return
+      // I2 (issue #379): the j/k cursor row is the invoking row; j/k move a virtual cursor and
+      // leave DOM focus on <body>. Focus the cursor row's opener so the panel's close returns
+      // focus to where the user was.
+      cursorRowRef.current?.querySelector<HTMLAnchorElement>('a.task-row-link')?.focus()
+      openTask(task.id)
+    },
+    onClose: runtime.onCloseDrawer,
+    onNew: runtime.onNewTask,
+  })
+
+  useEffect(() => { setCursor(keyboard.cursor) }, [keyboard.cursor])
+  useEffect(() => {
+    if (runtime.selectedId === null) return
+    const index = leafTasks.findIndex((task) => task.id === runtime.selectedId)
+    if (index >= 0 && index !== keyboard.cursor) keyboard.setCursor(index)
+  }, [keyboard, leafTasks, runtime.selectedId])
+  useEffect(() => { cursorRowRef.current?.scrollIntoView?.({ block: 'nearest' }) }, [cursor])
+  useEffect(() => {
+    if (virtualize && cursorFlatIndex >= 0) rowVirtualizer.scrollToIndex(cursorFlatIndex, { align: 'auto' })
+  }, [cursorFlatIndex, rowVirtualizer, virtualize])
+
+
+
+  const occurrence = useOccurrenceAssignment(runtime)
+  const canResolvePendingForRun = runtime.canResolvePendingForRun ?? (() => runtime.canResolvePending)
+  const personMap = useMemo(() => new Map(context.personNamesById), [context.personNamesById])
+  const buMap = useMemo(() => new Map(context.businessUnitNamesById), [context.businessUnitNamesById])
+  const workLineMap = useMemo(() => new Map(context.workLinesById), [context.workLinesById])
+  const objectiveMap = useMemo(() => new Map(context.objectivesById), [context.objectivesById])
+  const workloadSummary = useMemo(
+    () => buildWorkloadSummary(query, leafTasks, context),
+    [context, leafTasks, query],
+  )
+  const sortCol = query.sort === 'pic' ? 'owner' : query.sort === 'supervisor' ? 'task' : query.sort
+  const sortDirection = query.direction
+  const sortIndicator = (column: 'task' | 'status' | 'owner' | 'due' | 'activity'): ReactNode =>
+    sortCol === column ? (
+      <span className="collection-grammar-sort-indicator" aria-hidden="true">
+        {sortDirection === 'ascending' ? '↑' : '↓'}
+      </span>
+    ) : null
+  const onSort = (column: 'task' | 'status' | 'owner' | 'due' | 'activity') => {
+    const nextSort = column === 'owner' ? 'pic' : column
+    runtime.onSort(nextSort)
+  }
+  const renderRow = (task: TaskListRow, leafIndex: number) => {
+    // FR-031 / AC-022: the in-row title/PIC/Due editors render only where the viewer holds the
+    // edit right — the same one gate the record surface uses (task-permissions.canEdit: the PIC,
+    // the Supervisor, or the PIC's reporting line above). Mirrored optimistically; the database
+    // is the authority. The draft row is always editable (the creator is mid-create), and
+    // archived rows read-only. Everyone else gets honest plain-text cells.
+    const isNew = task.id === runtime.draftTask?.id
+    const editable = isNew
+      || (canEdit(task, context.viewerId ?? '', context.downlinePersonIds ?? []) && task.archived_at == null)
+    return (
+      <TaskRow
+        key={task.id}
+        task={task}
+        now={context.now}
+        condensed={runtime.drawerOpen && runtime.splitLayout}
+        isSelected={runtime.selectedId === task.id}
+        justCreated={task.id === justCreatedId}
+        isCursor={keyboard.cursor === leafIndex}
+        leafIndex={leafIndex}
+        cursorRowRef={keyboard.cursor === leafIndex ? cursorRowRef : undefined}
+        ownerName={personMap.get(task.responsible_person_id) ?? ''}
+        businessUnitName={buMap.get(task.business_unit_id) ?? ''}
+        onOpen={openTask}
+        onEditTitle={editable ? runtime.onEditTitle : undefined}
+        // A draft has no database id yet: status/due remain at their initial values until the
+        // title commit creates the row. Passing persisted-field callbacks here would issue an
+        // update against the synthetic `new-task-*` id.
+        onEditStatus={editable && !isNew ? runtime.onEditStatus : undefined}
+        onEditDue={editable && !isNew ? runtime.onEditDue : undefined}
+        onEditPic={editable ? runtime.onEditPic : undefined}
+        personOptions={picOptions(context.viewerId ?? '', context.people, context.downlinePersonIds ?? [])}
+        supervisorOptions={context.people}
+        teamOptions={isNew ? runtime.teamOptions : []}
+        onEditTeam={isNew ? runtime.onEditTeam : undefined}
+        onEditSupervisor={isNew ? runtime.onEditSupervisor : undefined}
+        showBusinessUnit={query.visibleFields.includes('businessUnit')}
+        // AC-006 (#743): every field the Fields chooser offers renders a real column when checked.
+        // The names resolve through the same catalogs the group headers use (id → display name).
+        showWorkline={query.visibleFields.includes('workline')}
+        workLineName={workLineMap.get(task.work_line_id ?? '') ?? ''}
+        showObjective={query.visibleFields.includes('objective')}
+        objectiveName={objectiveMap.get(task.objective_id ?? '') ?? ''}
+        showActivity={query.visibleFields.includes('activity')}
+        isNew={isNew}
+        onDiscardNewTask={runtime.onDiscardNewTask}
+        createError={isNew && runtime.draftLinkError}
+        onRetryCreate={runtime.onRetryDraftLink}
+        supervisorName={personMap.get(task.accountable_person_id) ?? ''}
+        recordSearch={runtime.recordSearch}
+        provenanceRoleName={task.generated_from_task_def_id
+          ? context.provenanceByTaskDefId.get(task.generated_from_task_def_id)
+          : undefined}
+        columnSpan={taskTableColumnSpan(query.visibleFields)}
+        viewerHasNoDownline={(context.downlinePersonIds?.length ?? 0) === 0}
+      />
+    )
+  }
+  const renderGroupHeader = (group: RenderGroup) => (
+    <GroupHeaderRow
+      key={`grp-${group.key}`}
+      label={group.label}
+      count={group.rows.length}
+      overdue={group.overdue}
+      collapsed={isCollapsedPreference(group.key)}
+      colSpan={taskTableColumnSpan(query.visibleFields)}
+      prefill={group.prefillParam}
+      controlsId={`grp-rows-${group.key}`}
+      workLineType={group.workLineType}
+      objectiveHint={group.objectiveHint}
+      occurrenceRollup={group.occurrenceRollup}
+      onAssignPending={group.occurrenceRollup && canResolvePendingForRun(group.key)
+        ? () => occurrence.open(group.key)
+        : undefined}
+      onToggle={() => { toggleCollapsed(group.key); onToggleGroup(group.key) }}
+      onAddTask={() => runtime.onAddTask(group.prefillParam)}
+      onOverdueFilter={runtime.onOverdueFilter}
+    />
+  )
+
+  return (
+    <div className="tasks-work-queue" data-testid="tasks-work-queue">
+      <TasksTableBody
+        loading={false}
+        error={null}
+        showBusinessUnit={query.visibleFields.includes('businessUnit')}
+        showWorkline={query.visibleFields.includes('workline')}
+        showObjective={query.visibleFields.includes('objective')}
+        showActivity={query.visibleFields.includes('activity')}
+        columnSpan={taskTableColumnSpan(query.visibleFields)}
+        leafTasks={leafTasks}
+        hasActiveFilter={projection.visibleRecordsAreFiltered}
+        isDesktop={desktopLayout}
+        onRetry={runtime.onRetry}
+        onClearFilters={runtime.onClearFilters}
+        emptyTitle={t('tasks.empty.noTasksTitle')}
+        emptyCopy={t('tasks.empty.noTasksCopy')}
+        sortCol={sortCol === 'owner' ? 'owner' : sortCol as 'task' | 'status' | 'due' | 'activity'}
+        onSort={onSort}
+        ariaSort={(column) => sortCol === column ? sortDirection : 'none'}
+        sortIndicator={sortIndicator}
+        flatRows={flatRows}
+        virtualize={virtualize}
+        scrollRef={scrollRef}
+        rowVirtualizer={rowVirtualizer}
+        renderRow={renderRow}
+        renderGroupHeader={renderGroupHeader}
+        onOpenTask={openTask}
+        groups={groups}
+        recordSearch={runtime.recordSearch}
+        now={context.now}
+        buMap={buMap}
+        personMap={personMap}
+        isCollapsed={isCollapsedPreference}
+        toggleCollapsed={(groupId) => { toggleCollapsed(groupId); onToggleGroup(groupId) }}
+        openAddTask={runtime.onAddTask}
+        setOverdueOnly={(next) => next ? runtime.onOverdueFilter() : runtime.onClearOverdue()}
+        workLineMap={workLineMap}
+        objectiveMap={objectiveMap}
+        workloadSummary={workloadSummary}
+        createHref={runtime.createHref}
+        onAssignPending={(runId) => canResolvePendingForRun(runId) ? occurrence.open(runId) : undefined}
+        provenanceByTaskDefId={new Map(context.provenanceByTaskDefId)}
+        onEditTitle={runtime.onEditTitle}
+        onEditPic={runtime.onEditPic}
+        onEditTeam={runtime.onEditTeam}
+        onEditSupervisor={runtime.onEditSupervisor}
+        personOptions={picOptions(context.viewerId ?? '', context.people, context.downlinePersonIds ?? [])}
+        supervisorOptions={context.people}
+        teamOptions={runtime.teamOptions}
+        draftTaskId={runtime.draftTask?.id}
+        onDiscardNewTask={runtime.onDiscardNewTask}
+        viewerHasNoDownline={(context.downlinePersonIds?.length ?? 0) === 0}
+      />
+      {occurrence.runId && (
+        <OccurrenceAssignDialog
+          occurrenceCaption={groups.find((group) => group.key === occurrence.runId)?.label}
+          pending={occurrence.pending}
+          people={[...context.people]}
+          loading={occurrence.loading}
+          error={occurrence.error}
+          onRetry={occurrence.retry}
+          onResolved={(_taskId, pendingId) => occurrence.resolved(pendingId)}
+          onClose={occurrence.close}
+        />
+      )}
+    </div>
+  )
+}
+
+export function TaskCardPresentation(props: TaskPresentationProps) {
+  return <TaskTablePresentation {...props} cardLayout />
+}
