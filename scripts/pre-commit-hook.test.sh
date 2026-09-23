@@ -46,34 +46,70 @@ mkdir -p "$tmp/repo/mos-app/src"
 echo "const x:number=1" > "$tmp/repo/mos-app/src/f.ts"
 git -C "$tmp/repo" add mos-app/src/f.ts
 check "missing node_modules skips lint instead of blocking" 0
+git -C "$tmp/repo" reset -q
 
-# The vitest lane ran nothing for months: `vitest related a.ts b.ts` reads everything
-# after the first file as a FILENAME FILTER, matches no test file, and exits 0. The lane
-# is too heavy to run for real here, so this pins the INVOCATION SHAPE instead — a stub
-# `npx` records argv and the assertion refuses the silently-empty form.
+# The staged-source lane must stay tied to staged app sources when global Vite config is
+# staged too. Vitest's `related` command accepts the union of source paths; `--changed HEAD`
+# derives selection from checkout-wide changes, including unstaged files.
 stub="$tmp/stub"; mkdir -p "$stub"
 cat > "$stub/npx" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$NPX_ARGV_LOG"
+if [ "${NPX_MODE:-}" = "fail-vitest" ] && [ "$1" = "vitest" ]; then
+  seq 1 4000 | sed 's/^/verbose diagnostic /'
+  printf '⎯⎯ Failed Tests 1 ⎯⎯\n'
+  printf ' FAIL  src/pages/login-page.test.tsx > login rejects invalid credentials\n'
+  printf 'AssertionError: expected false to be true\n'
+  exit 1
+fi
 exit 0
 STUB
 chmod +x "$stub/npx"
 
 mkdir -p "$tmp/repo/mos-app/node_modules" "$tmp/repo/mos-app/src"
-echo "export const a = 1" > "$tmp/repo/mos-app/src/one.ts"
-echo "export const b = 2" > "$tmp/repo/mos-app/src/two.ts"
-git -C "$tmp/repo" add mos-app/src/one.ts mos-app/src/two.ts
+echo "export default {}" > "$tmp/repo/mos-app/vite.config.ts"
+git -C "$tmp/repo" add mos-app/vite.config.ts
 export NPX_ARGV_LOG="$tmp/npx-argv.log"
 : > "$NPX_ARGV_LOG"
 (cd "$tmp/repo" && PATH="$stub:$PATH" bash "$HOOK") >/dev/null 2>&1
-vitest_argv="$(grep '^vitest' "$NPX_ARGV_LOG" || true)"
-if [ -z "$vitest_argv" ]; then
-  fail=$((fail+1)); printf '  FAIL  two staged sources invoke vitest — nothing was invoked\n'
-elif [[ "$vitest_argv" == *"related"* ]]; then
-  fail=$((fail+1)); printf '  FAIL  vitest lane uses the no-op multi-file `related` form: %s\n' "$vitest_argv"
+if grep -q '^vitest ' "$NPX_ARGV_LOG"; then
+  fail=$((fail+1)); printf '  FAIL  global config change alone does not invoke vitest\n'
 else
-  pass=$((pass+1)); printf '  ok    two staged sources invoke a vitest form that runs tests\n'
+  pass=$((pass+1)); printf '  ok    global config change alone does not invoke vitest\n'
 fi
+git -C "$tmp/repo" reset -q
+
+echo "export const a = 1" > "$tmp/repo/mos-app/src/one.ts"
+echo "export const b = 2" > "$tmp/repo/mos-app/src/two.ts"
+git -C "$tmp/repo" add mos-app/vite.config.ts mos-app/src/one.ts mos-app/src/two.ts
+: > "$NPX_ARGV_LOG"
+(cd "$tmp/repo" && PATH="$stub:$PATH" bash "$HOOK") >/dev/null 2>&1
+vitest_argv="$(grep '^vitest ' "$NPX_ARGV_LOG" || true)"
+if [[ "$vitest_argv" == *"vitest related --run --reporter=dot src/one.ts src/two.ts src/guard-no-company-email-domain.test.ts"* ]] && [[ "$vitest_argv" != *"--changed"* ]]; then
+  pass=$((pass+1)); printf '  ok    staged sources use scoped tests and retain the domain guard\n'
+else
+  fail=$((fail+1)); printf '  FAIL  staged sources use scoped tests and retain the domain guard; got: %s\n' "$vitest_argv"
+fi
+
+# A noisy failure must leave its complete log on disk while presenting only the test/error
+# summary to the committer. The hook self-test deliberately makes the fake Vitest emit 4k lines.
+: > "$NPX_ARGV_LOG"
+hook_output="$tmp/hook-failure.out"
+if (cd "$tmp/repo" && NPX_MODE=fail-vitest PATH="$stub:$PATH" bash "$HOOK") >"$hook_output" 2>&1; then
+  rc=0
+else
+  rc=$?
+fi
+log_path="$(sed -n 's/^Full Vitest log: //p' "$hook_output" | tail -n 1)"
+if [ "$rc" -eq 1 ] && grep -q 'login rejects invalid credentials' "$hook_output" && \
+   grep -q 'AssertionError: expected false to be true' "$hook_output" && \
+   [ -s "$log_path" ] && [ "$(wc -l < "$log_path")" -ge 4003 ] && \
+   [ "$(wc -l < "$hook_output")" -lt 80 ]; then
+  pass=$((pass+1)); printf '  ok    Vitest failure is concise and full log is retained\n'
+else
+  fail=$((fail+1)); printf '  FAIL  concise Vitest failure with retained full log\n'
+fi
+[ -n "$log_path" ] && rm "$log_path"
 git -C "$tmp/repo" reset -q
 
 printf '%d passed, %d failed\n' "$pass" "$fail"

@@ -56,18 +56,32 @@ else
     fi
   fi
 
-  # ── 4. Vitest, scoped to tests related to the changed source files ──────────────
-  # `vitest related <file>` takes ONE file: any further positional is a FILENAME FILTER,
-  # so `related a.ts b.ts` intersects a.ts's test set with the name "b.ts", finds nothing,
-  # and exits 0 — the gate ran no tests at all. `--related=a,b` is not accepted either.
-  # `--changed HEAD` is the one form that takes the whole set in a single invocation; it
-  # spans working-tree edits too, which is a superset of what is staged.
+  # ── 4. Vitest, scoped to tests related to staged source files ─────────────────────
+  # Use the explicit source paths from the index. `--changed HEAD` derives selection from
+  # checkout-wide changes, including unstaged files, instead of this staged-source list.
   SRC_FILES="$(echo "$STAGED" | grep -E '^mos-app/src/.*\.(ts|tsx)$' || true)"
   if [ -n "$SRC_FILES" ]; then
-    if (cd mos-app && npx vitest --run --changed HEAD); then
+    SRC_ARGS=()
+    while IFS= read -r src_file; do
+      [ -n "$src_file" ] && SRC_ARGS+=("${src_file#mos-app/}")
+    done <<< "$SRC_FILES"
+    # This guard scans files from disk, so Vitest's import graph does not select it for edits
+    # to login-page.tsx or other sources. Keep it an explicit member of the scoped run.
+    SRC_ARGS+=("src/guard-no-company-email-domain.test.ts")
+
+    VITEST_LOG="$(mktemp "${TMPDIR:-/tmp}/gordi-pre-commit-vitest.XXXXXX")"
+    if (cd mos-app && npx vitest related --run --reporter=dot "${SRC_ARGS[@]}") >"$VITEST_LOG" 2>&1; then
+      rm "$VITEST_LOG"
       ok "vitest: tests for changed sources pass"
     else
-      note "tests for changed sources FAIL — a task is not done until they pass"
+      note "vitest: tests related to staged sources failed"
+      printf '\nVitest failure summary:\n' >&2
+      if grep -q 'Failed Tests' "$VITEST_LOG"; then
+        awk '/Failed Tests/ { show=1 } show { print; if (++lines == 40) exit }' "$VITEST_LOG" >&2
+      else
+        tail -n 40 "$VITEST_LOG" >&2
+      fi
+      printf 'Full Vitest log: %s\n' "$VITEST_LOG" >&2
     fi
   fi
 fi
