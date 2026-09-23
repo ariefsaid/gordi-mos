@@ -20,8 +20,10 @@ the wider Work surface remain compatibility constraints and broader review scope
 product decisions remain acceptance requirements: persona jobs, Team ownership, truthful progress
 and permission behavior cannot be removed by retiring a presentation rule. Owner decisions override
 Director decisions; unresolved incompatible owner decisions are clarified, not silently chosen.
-Delegated work uses separate Codex tasks/sessions with compact handoffs, never collaboration
-subagents. Review against the complete owner requirement map, not only the authored replacement.
+Delegated work uses compact handoffs. Separate user-visible Codex tasks are created when the owner
+requests them; an owner-authorized subagent swarm may use native collaboration subagents with the
+current model/effort default in `CLAUDE.md`. Review against the complete owner requirement map,
+not only the authored replacement.
 
 ## Outcome
 
