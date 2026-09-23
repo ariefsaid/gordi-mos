@@ -38,6 +38,10 @@ export type CommentThreadProps = {
    * non-whitespace text, `false` once empty or posted.
    */
   onDirtyChange?: (dirty: boolean) => void
+  /** Optional record-lifetime draft owner. This preserves an unsent Task comment when its section
+   * is temporarily unmounted while the user moves within the record. */
+  draftValue?: string
+  onDraftChange?: (draft: string) => void
 }
 
 function personName(people: PersonOption[], id: string, fallback: string): string {
@@ -48,11 +52,21 @@ function mentionSlug(name: string): string {
   return name.trim().split(/\s+/)[0]?.toLowerCase() ?? ''
 }
 
-export function CommentThread({ comments, people, canPost, onPost, heading = 'visible', emptyLabel, onDirtyChange }: CommentThreadProps) {
+export function CommentThread({
+  comments, people, canPost, onPost, heading = 'visible', emptyLabel, onDirtyChange,
+  draftValue, onDraftChange,
+}: CommentThreadProps) {
   const t = useT()
   // undefined → the default "No comments yet."; an explicit string overrides; null suppresses.
   const resolvedEmpty = emptyLabel === undefined ? t('tasks.commentsEmpty') : emptyLabel
-  const [draft, setDraft] = useState('')
+  const [localDraft, setLocalDraft] = useState('')
+  const isExternallyOwnedDraft = draftValue !== undefined
+  const draft = isExternallyOwnedDraft ? draftValue : localDraft
+  const updateDraft = (next: string | ((current: string) => string)) => {
+    const value = typeof next === 'function' ? next(draft) : next
+    if (isExternallyOwnedDraft) onDraftChange?.(value)
+    else setLocalDraft(value)
+  }
   const [posting, setPosting] = useState(false)
   // Escape dismisses the mention picker without losing the draft; a fresh keystroke re-opens it.
   const [pickerDismissed, setPickerDismissed] = useState(false)
@@ -67,7 +81,7 @@ export function CommentThread({ comments, people, canPost, onPost, heading = 'vi
     setPosting(true)
     try {
       await onPost(body)
-      setDraft('')
+      updateDraft('')
     } finally {
       setPosting(false)
     }
@@ -77,7 +91,7 @@ export function CommentThread({ comments, people, canPost, onPost, heading = 'vi
     const person = people.find((p) => p.id === personId)
     if (!person) return
     const slug = mentionSlug(person.full_name)
-    setDraft((current) => current.replace(/@([a-z0-9_.-]*)$/i, `@${slug} `))
+    updateDraft((current) => current.replace(/@([a-z0-9_.-]*)$/i, `@${slug} `))
   }
 
   return (
@@ -114,7 +128,7 @@ export function CommentThread({ comments, people, canPost, onPost, heading = 'vi
           <textarea
             aria-label={t('tasks.comment.label')}
             value={draft}
-            onChange={(event) => { setDraft(event.target.value); setPickerDismissed(false) }}
+            onChange={(event) => { updateDraft(event.target.value); setPickerDismissed(false) }}
             onKeyDown={(event) => {
               // D-B2 isolation: while the mention picker is open, Escape dismisses the PICKER only
               // and is consumed here — it must not bubble to the record panel host and close the

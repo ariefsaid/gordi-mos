@@ -431,6 +431,56 @@
   gap: 12px;
   min-width: 0;
 }
+.record-viewer[data-record-kind='task'] .record-viewer__header-context {
+  gap: 4px 12px;
+}
+.record-viewer[data-record-kind='task'] .record-viewer__header-context-item[data-header-context-key='overdue'] dd {
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--status-lost-text) 10%, var(--card));
+  color: var(--status-lost-text);
+  font-weight: 700;
+}
+.record-viewer[data-record-kind='task'] .record-field[data-field-key='description'] {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+.record-viewer[data-record-kind='task'] .record-field[data-field-key='description'] .record-field__label {
+  padding-top: 0;
+}
+.record-viewer[data-record-kind='task'] .record-field[data-field-key='description'] .record-field__value {
+  max-width: 65ch;
+  line-height: 1.55;
+}
+/* Task ownership stays available before discussion without taking six full-width rows. Keep the
+   record page compact on desktop; stack each label above its value in two columns on phones. */
+.record-viewer[data-record-kind='task'] [data-content-slot='ownership'] .record-viewer__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 20px;
+}
+
+@media (max-width: 600px) {
+  .record-viewer[data-record-kind='task'] [data-content-slot='ownership'] .record-viewer__fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 16px;
+  }
+
+  .record-viewer[data-record-kind='task'] [data-content-slot='ownership'] .record-field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .record-viewer[data-record-kind='task'] [data-content-slot='ownership'] .record-field__label {
+    padding-top: 0;
+  }
+
+  .record-viewer[data-record-kind='task'] [data-content-slot='ownership'] .record-field--readonly .record-field__value {
+    min-height: 32px;
+    padding-top: 4px;
+  }
+}
 .record-viewer__pinned-status { display: flex; align-items: center; min-width: 0; }
 .record-viewer__pinned-status .record-field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .record-viewer__header-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
@@ -700,6 +750,33 @@
   .record-viewer__header-actions { margin-left: 0; }
   .record-viewer__header-actions .btn { width: 100%; }
   .dw-collapse-split { display: none; }
+}
+
+/* Task's compact phone header keeps status, completion, and overflow together. The work remains
+   the first scrollable content; controls do not take a full extra row or full-width button. */
+@media (max-width: 390px) {
+  .record-viewer[data-record-kind='task'] .record-viewer__pinned-controls {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .record-viewer[data-record-kind='task'] .record-viewer__pinned-status,
+  .record-viewer[data-record-kind='task'] .record-viewer__header-actions {
+    width: auto;
+  }
+  .record-viewer[data-record-kind='task'] .record-viewer__header-actions {
+    margin-left: auto;
+  }
+  .record-viewer[data-record-kind='task'] .record-viewer__header-actions .btn {
+    width: auto;
+    min-height: 44px;
+    padding-inline: 12px;
+  }
+  .record-viewer[data-record-kind='task'] .record-viewer__overflow-trigger {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 .record-field__linked-value { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .record-field__linked-value > .record-field__value { min-width: 0; }

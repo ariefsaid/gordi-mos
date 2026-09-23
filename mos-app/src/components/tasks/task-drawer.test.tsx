@@ -26,14 +26,18 @@ vi.mock('../../lib/db/directory', () => ({
   getTeamsByIds: () => Promise.resolve([]),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
+vi.mock('../../lib/comments/postComment', () => ({ listComments: vi.fn(), postComment: vi.fn() }))
 
 import { getTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { TaskDrawer } from './task-drawer'
 import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
+import { listComments, postComment } from '@/lib/comments/postComment'
 
 const mockGetTask = vi.mocked(getTask)
+const mockListComments = vi.mocked(listComments)
+const mockPostComment = vi.mocked(postComment)
 const VIEWER_ID = 'viewer-person-id'
 
 // Width-regime stub: control which width queries match (1100 split / 920 band / 768 desktop).
@@ -90,6 +94,8 @@ beforeEach(() => {
   vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-1', name: 'Cafe Operations' }])
   vi.mocked(getPeople).mockResolvedValue([{ id: VIEWER_ID, full_name: 'Cahya Cafe' }])
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
+  mockListComments.mockResolvedValue([])
+  mockPostComment.mockResolvedValue('comment-new')
 })
 
 function LocationProbe() {
@@ -260,18 +266,40 @@ describe('TaskDrawer — create/route dirty-guard (D-B1)', () => {
     expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/tasks?view=mine')
   })
 
-  it('cancelling the confirm keeps the create drawer open with the draft intact', async () => {
+  it('staying on the task keeps the create drawer open with the draft intact', async () => {
     renderAt('/work/tasks/new', 'create')
     await screen.findByRole('complementary', { name: /create task/i })
     fireEvent.change(screen.getByLabelText(/^title$/i), { target: { value: 'Keep me' } })
     fireEvent.keyDown(screen.getByLabelText(/^title$/i), { key: 'Escape' })
     const dialog = await screen.findByRole('dialog', { name: /discard unsaved changes/i })
-    fireEvent.click(within(dialog).getByRole('button', { name: /^cancel$/i }))
+    fireEvent.click(within(dialog).getByRole('button', { name: /stay on this page/i }))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /discard unsaved changes/i })).toBeNull())
     // Still on the create drawer, draft preserved.
     expect(screen.getByRole('complementary', { name: /create task/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/^title$/i)).toHaveValue('Keep me')
     expect(screen.queryByTestId('list-here')).toBeNull()
+  })
+
+  it('keeps a comment draft on Stay and discards it only after confirmation', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    renderAt('/work/tasks/task-abc')
+    const aside = await screen.findByRole('complementary', { name: /task detail/i })
+    const draft = 'Keep this note unless I choose to discard it.'
+    const composer = await screen.findByRole('textbox', { name: /^comment$/i })
+    fireEvent.change(composer, { target: { value: draft } })
+    fireEvent.keyDown(composer, { key: 'Escape' })
+
+    const firstConfirm = await screen.findByRole('dialog', { name: /discard unsaved changes/i })
+    fireEvent.click(within(firstConfirm).getByRole('button', { name: /stay on this page/i }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /discard unsaved changes/i })).toBeNull())
+    expect(aside).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: /^comment$/i })).toHaveValue(draft)
+
+    fireEvent.click(within(aside).getByRole('button', { name: /^close \(esc\)$/i }))
+    const discardConfirm = await screen.findByRole('dialog', { name: /discard unsaved changes/i })
+    fireEvent.click(within(discardConfirm).getByRole('button', { name: /discard changes/i }))
+    await waitFor(() => expect(screen.getByTestId('list-here')).toBeInTheDocument())
+    expect(mockPostComment).not.toHaveBeenCalled()
   })
 
   it('the host ✕ chrome button on a DIRTY create draft also routes through the guard', async () => {

@@ -98,7 +98,7 @@ describe('createTaskRecordAdapter', () => {
     expect(fieldByKey(adapter, 'businessUnit').displayValue).toBe('Retail Ops')
     expect(fieldByKey(adapter, 'pic').displayValue).toBe('Riri')
     expect(fieldByKey(adapter, 'supervisor').displayValue).toBe('Wayan Kusuma')
-    expect(fieldByKey(adapter, 'status').displayValue).toBe('Open')
+    expect(adapter.headerFields?.find((field) => field.key === 'status')?.displayValue).toBe('Open')
     expect(fieldByKey(adapter, 'dueDate').value).toBe('2026-07-25')
 
     // Checklist is Task content, rendered through a typed slot.
@@ -107,9 +107,9 @@ describe('createTaskRecordAdapter', () => {
     render(<>{checklist.render({ mode: 'panel', readOnly: false })}</>, { wrapper })
     expect(screen.getByText('Check fridge stock')).toBeInTheDocument()
 
-    // Activity is the LAST content slot (content-first): the event log lives there, quiet, not in
-    // a metadata/activity region ahead of the content.
+    // Ownership and due context follow the checklist before discussion.
     expect(adapter.activity).toHaveLength(0)
+    expect(adapter.contentSlots.map((slot) => slot.id)).toEqual(['content', 'checklist', 'ownership', 'activity', 'relations'])
     const activity = adapter.contentSlots.find((s) => s.id === 'activity')!
     render(<>{activity.render({ mode: 'panel', readOnly: false })}</>, { wrapper })
     expect(screen.getByText('Created')).toBeInTheDocument()
@@ -342,35 +342,46 @@ describe('createTaskRecordAdapter — R5: the Classification fossil is gone; pro
     expect(fieldByKey(adapter, 'projectProcess').displayValue).toBe('New menu launch')
     expect(fieldByKey(adapter, 'projectProcess').href).toBe('/work/projects/wl-1')
     fieldByKey(adapter, 'projectProcess').onOpen?.()
-    fieldByKey(adapter, 'source').onOpen?.()
-    expect(onOpenRelated).toHaveBeenCalledTimes(2)
+    expect(fieldsOf(adapter).some((field) => field.key === 'source')).toBe(false)
+    expect(onOpenRelated).toHaveBeenCalledTimes(1)
     expect(onOpenRelated).toHaveBeenLastCalledWith({ kind: 'work-line', id: 'wl-1' })
+  })
+
+  it('keeps Objective as a direct related-record link without adding a duplicate Source field', () => {
+    const onOpenRelated = vi.fn()
+    const task = makeTask({ objective_id: 'obj-1' })
+    const adapter = createTaskRecordAdapter(makeInput({
+      detail: makeDetail(task),
+      objectives: [{ id: 'obj-1', name: 'Grow direct orders' }],
+      onOpenRelated,
+    }))
+    const objective = fieldByKey(adapter, 'objective')
+    expect(objective.displayValue).toBe('Grow direct orders')
+    expect(objective.href).toBe('/work/objectives/obj-1')
+    objective.onOpen?.()
+    expect(onOpenRelated).toHaveBeenCalledWith({ kind: 'objective', id: 'obj-1' })
+    expect(fieldsOf(adapter).filter((field) => field.key === 'source')).toHaveLength(0)
   })
 })
 
-describe('createTaskRecordAdapter — Source names a real work-line/objective attribution or Ad hoc state', () => {
-  it('shows an explicit Ad hoc Source state for a pure hand-created task', () => {
-    const adapter = createTaskRecordAdapter(makeInput())
-    expect(fieldByKey(adapter, 'source').displayValue).toBe('Ad hoc')
-  })
-
-  it('shows Source when a work line names the real attribution (a Process-type work line)', () => {
-    const task = makeTask({ work_line_id: 'wl-1' })
-    const adapter = createTaskRecordAdapter(makeInput({
-      detail: makeDetail(task),
-      workLines: [{ id: 'wl-1', name: 'Today opening', type: 'process' }],
+describe('createTaskRecordAdapter — context and overdue cue', () => {
+  it('shows the due date once in context and flags only genuinely overdue active tasks', () => {
+    const overdueDate = new Date('2026-07-26T02:00:00.000Z')
+    const overdue = createTaskRecordAdapter(makeInput({
+      detail: makeDetail(makeTask({ due_date: '2026-07-25' })),
+      now: overdueDate,
     }))
-    expect(fieldByKey(adapter, 'source').displayValue).toBe('Today opening')
-  })
+    const dueField = fieldByKey(overdue, 'dueDate')
+    expect(dueField.value).toBe('2026-07-25')
+    expect(overdue.headerContext).toEqual([{ key: 'overdue', label: 'Due date', displayValue: 'Overdue' }])
+    expect(fieldsOf(overdue).filter((field) => field.key === 'dueDate')).toHaveLength(1)
+    expect(fieldsOf(overdue).some((field) => field.key === 'source')).toBe(false)
 
-  it('shows Source alongside the Project/Process relation for a Project work line', () => {
-    const task = makeTask({ work_line_id: 'wl-1' })
-    const adapter = createTaskRecordAdapter(makeInput({
-      detail: makeDetail(task),
-      workLines: [{ id: 'wl-1', name: 'New menu launch', type: 'project' }],
+    const done = createTaskRecordAdapter(makeInput({
+      detail: makeDetail(makeTask({ status: 'Done', due_date: '2026-07-25' })),
+      now: overdueDate,
     }))
-    expect(fieldByKey(adapter, 'projectProcess').displayValue).toBe('New menu launch')
-    expect(fieldByKey(adapter, 'source').displayValue).toBe('New menu launch')
+    expect(done.headerContext).toEqual([])
   })
 })
 
