@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { localSql } from './helpers/local-sql'
 import { localSqlRead } from './helpers/local-sql-read'
@@ -10,7 +10,7 @@ import { loginAs } from './helpers/login'
 // The existing tenant's matrix and dev personas are never changed by this journey.
 test('R6: Admin matrix and designated Team lead survive reload and govern own/cross-BU/member actions', async ({ browser }, testInfo) => {
   test.setTimeout(120_000)
-  const env = Object.fromEntries(readFileSync(new URL('../.env.e2e', import.meta.url), 'utf8').split('\n')
+  const env = Object.fromEntries((existsSync(new URL('../.env.e2e', import.meta.url)) ? readFileSync(new URL('../.env.e2e', import.meta.url), 'utf8') : '').split('\n')
     .filter((line) => line.trim() && !line.startsWith('#') && line.includes('='))
     .map((line) => [line.slice(0, line.indexOf('=')).trim(), line.slice(line.indexOf('=') + 1).trim()]))
   const url = env.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL!

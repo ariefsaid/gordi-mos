@@ -11,7 +11,7 @@
 
 import { test, expect } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { RECOVERY_VIEWER } from './fixtures/users'
 import { watchInbox, extractAuthLink } from './helpers/mailpit'
 import { assertTapFloor, AUTH_CONTROLS, TAP_GAP } from './helpers/tap-floor'
@@ -22,7 +22,7 @@ const NEW_PASSWORD = `E2eRecovery${Date.now()}`
 // The rotation is this journey's proof; the fixture password goes back afterwards so the specs
 // that sign this persona in later (shell-*-parity's ordinary member) still can.
 test.afterAll(async () => {
-  const env = Object.fromEntries(readFileSync(new URL('../.env.e2e', import.meta.url), 'utf8').split('\n')
+  const env = Object.fromEntries((existsSync(new URL('../.env.e2e', import.meta.url)) ? readFileSync(new URL('../.env.e2e', import.meta.url), 'utf8') : '').split('\n')
     .filter((line) => line.includes('=') && !line.startsWith('#')).map((line) => line.split('=', 2).map((part) => part.trim())))
   const url = env.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:44321'
   if (!['127.0.0.1', 'localhost'].includes(new URL(url).hostname)) throw new Error('Password reset requires local Supabase')

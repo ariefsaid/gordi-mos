@@ -35,6 +35,8 @@ function loadEnv(filePath: string): Record<string, string> {
     }
     return Object.fromEntries(entries)
   } catch (error) {
+    // CI supplies the keys as environment variables and has no file.
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {}
     throw new Error(`[AC-411] could not read ${filePath}`, { cause: error })
   }
 }
