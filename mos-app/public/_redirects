@@ -1,14 +1,14 @@
-# Cloudflare Pages routing for the SPA (built with base /mos/).
-# The build output is FLAT (dist/index.html, dist/assets/*), but the app references
-# its assets at /mos/assets/* (the base). On CF Pages those /mos/ paths have no real
-# file, so we rewrite them onto the flat output. Existing files are served first;
-# these rules only fire for the missing /mos/ paths. Order matters — every file rewrite before
-# the SPA catch-all, or the catch-all returns index.html (text/html) for a .js request and the
-# app renders blank (or the service worker fails to register). The bare root has no app, so it
-# redirects to /mos/.
+# Cloudflare Pages routing for the SPA (built with base /mos/ into a flat dist/).
+# The app references its files under /mos/, which have no real file on Pages, so these rules
+# rewrite them onto the flat output. A /mos/ file missing here is served as index.html (text/html)
+# and breaks: a .js asset renders the app blank, sw.js fails to register.
+# Every other /mos/ path (deep links) is served index.html by Pages' built-in SPA fallback, which
+# holds only while dist/ has no 404.html. A `/mos/* /index.html 200` rule is rejected by Pages as
+# an infinite loop, so it cannot replace that fallback.
+# Exact rules come before the splat rule (Pages matches them on its fast path).
 /                         /mos/                    302
-/mos/assets/*             /assets/:splat           200
 /mos/sw.js                /sw.js                   200
 /mos/manifest.webmanifest /manifest.webmanifest    200
+# Pages strips .html: an /offline.html target would answer 308, not the page the worker precaches.
 /mos/offline.html         /offline                 200
-/mos/*                    /index.html              200
+/mos/assets/*             /assets/:splat           200
