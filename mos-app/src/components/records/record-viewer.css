@@ -460,6 +460,37 @@
   gap: 8px 20px;
 }
 
+/* A split drawer can be narrow inside a desktop viewport. Reflow its Task ownership fields from
+   the viewer width so each value gets the full half-column; page-mode desktop keeps its document
+   rows and the existing phone rules continue to apply independently. */
+.record-viewer--panel[data-record-kind='task'] {
+  container-name: task-record-panel;
+  container-type: inline-size;
+}
+
+@container task-record-panel (max-width: 700px) {
+  .record-viewer--panel[data-record-kind='task'] [data-content-slot='ownership'] .record-field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .record-viewer--panel[data-record-kind='task'] [data-content-slot='ownership'] .record-field__label {
+    padding-top: 0;
+  }
+
+  .record-viewer--panel[data-record-kind='task'] [data-content-slot='ownership'] .record-field__edit,
+  .record-viewer--panel[data-record-kind='task'] [data-content-slot='ownership'] .record-field__chip,
+  .record-viewer--panel[data-record-kind='task'] [data-content-slot='ownership'] .record-field__pill,
+  .record-viewer--panel[data-record-kind='task'] [data-content-slot='ownership'] .record-field__inline-pill {
+    margin-inline-start: 0;
+  }
+
+  .record-viewer--panel[data-record-kind='task'] [data-content-slot='ownership'] .record-field--readonly .record-field__value {
+    min-height: 32px;
+    padding-top: 4px;
+  }
+}
+
 @media (max-width: 600px) {
   .record-viewer[data-record-kind='task'] [data-content-slot='ownership'] .record-viewer__fields {
     display: grid;
