@@ -271,16 +271,11 @@ function buildWorkLineUpTrace(
   return map
 }
 
-// ── OD-V4-1 H4 relations (bidirectional, on the records themselves — NOT a separate cascade
-// route: docs/v4-inheritance.md INC-1). Built from the SAME `buildCascadeGroups` projection the
-// trace builders above read (#204). An earlier version of this comment declared the two a
-// "deliberate duplication, not a refactor" — that was true before #204 and is the opposite of the
-// shipped code now, so it is corrected here rather than left for the next reader to preserve: the
-// duplication WAS the drift, and re-introducing it puts the trace and the count back to
-// disagreeing on the same row ("2 tasks" beside "1 / 4 done"). The FR-422 trace strings are
-// unaffected — they are still assembled by the trace builders, off the shared groups. ─────────────
+// ── OD-V4-1 H4 relations (bidirectional, on the records themselves).
+// Catalog traces and panels use `buildCatalogRelationProjection` to distinguish a stored parent
+// from a Task contribution. Row counts use those same relationship rules through `rollUpCounts`.
 
-/** Synthetic group copy, localized once and handed to the ONE shared projection. */
+/** Synthetic group copy, localized once for both relationship projections. */
 function cascadeLabels(t: Translate): CascadeGroupLabels {
   return { unlinked: t('rollup.group.unlinked'), noWorkLine: t('rollup.group.noWorkLine') }
 }
@@ -486,10 +481,8 @@ export const objectivesCollectionDescriptor = makeCatalogDescriptor({
     ])
     const t = translateFor(readPersistedLocale())
     const labels = cascadeLabels(t)
-    // ONE construction per load (#204 review, finding 4): the groups are built once and everything
-    // on the row — the trace, the relations panel, and the row's own count — is derived from them.
-    // Building them twice and counting the tasks again separately is the drift this ticket exists
-    // to remove, one layer down.
+    // The Tasks grouping supplies a deduplicated Task set for counts; the catalog projection
+    // distinguishes direct parents from contributions for the trace and linked-work panel.
     const groups = buildCascadeGroups({ objectives, workLines, tasks, labels, includeEmptyWorkLines: true })
     const relationProjection = buildCatalogRelationProjection({ objectives, workLines, tasks, labels })
     const counts = rollUpCounts(groups, { objectives, workLines, labels })
@@ -542,7 +535,7 @@ export const projectsProcessesCollectionDescriptor = makeCatalogDescriptor({
     ])
     const t = translateFor(readPersistedLocale())
     const labels = cascadeLabels(t)
-    // One construction per load — see the sibling Objectives descriptor above.
+    // Keep the Task census and catalog relationships aligned as in the Objectives descriptor.
     const groups = buildCascadeGroups({ objectives, workLines, tasks, labels, includeEmptyWorkLines: true })
     const relationProjection = buildCatalogRelationProjection({ objectives, workLines, tasks, labels })
     const counts = rollUpCounts(groups, { objectives, workLines, labels })

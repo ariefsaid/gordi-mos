@@ -170,7 +170,7 @@ describe('count roll-up', () => {
   })
 })
 
-describe('buildCascadeGroups — the ONE shared projection', () => {
+describe('buildCascadeGroups — Task collection grouping', () => {
   const tasks = [
     task({ id: 'w1-done', status: 'Done', work_line_id: 'w1', responsible_person_id: MINE }),
     task({ id: 'w1-open', work_line_id: 'w1' }),

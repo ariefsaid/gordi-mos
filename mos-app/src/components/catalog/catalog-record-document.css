@@ -198,10 +198,14 @@
 }
 
 .catalog-record-document__task-slot,
-.catalog-record-document__steps-slot,
-.catalog-record-document__work-slot {
+.catalog-record-document__steps-slot {
   display: grid;
   gap: 14px;
+}
+
+.catalog-record-document__work-slot {
+  display: grid;
+  gap: 12px;
 }
 
 .catalog-record-document__progress {
@@ -213,7 +217,7 @@
 }
 
 .catalog-record-document__work-slot h3 {
-  margin: 4px 0 -6px;
+  margin: 4px 0 0;
   color: var(--muted-foreground);
   font-size: var(--font-size-overline);
   font-weight: 650;
@@ -261,7 +265,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 2px 8px;
+  gap: 4px 8px;
   min-width: 0;
 }
 

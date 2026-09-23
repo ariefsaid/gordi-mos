@@ -1,13 +1,8 @@
-// The ONE construction of the Objective → Project/Process → Task drill (#204).
-//
-// Every surface that shows the three-level roll-up reads it from here: the Objectives catalog
-// row, the Projects & Processes catalog row, and the Tasks "Group by Objective" view. A second
-// construction of the same groups would drift from this one silently — the counts on a catalog
-// row and the groups on the Tasks list would disagree and nothing would fail — so there is one
-// projection and three consumers, never three projections. The per-record counts are DERIVED from
-// that same projection (`rollUpCounts`) rather than re-walked, so the count on a catalog row and
-// the count on a group inside that row's panel are arithmetic on one traversal, not two loops kept
-// in step by hand.
+// Shared Objective → Project/Process → Task relationship rules (#204).
+// `buildCascadeGroups` groups the Tasks collection; `buildCatalogRelationProjection` preserves
+// stored parents and Task contributions separately for catalog traces and linked-work panels.
+// `rollUpCounts` deduplicates the Tasks in cascade groups, then applies catalog relationship rules
+// so record counts and their linked-work panels agree.
 //
 // VOCABULARY (#204 review, finding 5): the (Objective, Project/Process) pair with its Tasks is a
 // **cascade group**, never a "branch". CONTEXT.md owns Branch as a first-class domain noun — a
@@ -231,7 +226,7 @@ export function cascadeGroupKey(objectiveId: string | null, workLineId: string |
 }
 
 /**
- * THE shared projection. Returns every (Objective, Project/Process) group, real and synthetic,
+ * Task-collection grouping. Returns every (Objective, Project/Process) group, real and synthetic,
  * each with its tasks and its count roll-up, in a stable order: real Objectives by name first
  * (their real Project/Process groups by name, then their `No Project/Process` bucket), and the
  * `(Unlinked)` Objective bucket last.

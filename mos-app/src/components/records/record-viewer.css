@@ -435,7 +435,7 @@
   gap: 4px 12px;
 }
 .record-viewer[data-record-kind='task'] .record-viewer__header-context-item[data-header-context-key='overdue'] dd {
-  padding: 3px 8px;
+  padding: 4px 8px;
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--status-lost-text) 10%, var(--card));
   color: var(--status-lost-text);
@@ -471,7 +471,7 @@
 @container task-record-panel (max-width: 700px) {
   .record-viewer--panel[data-record-kind='task'] [data-content-slot='ownership'] .record-field {
     grid-template-columns: minmax(0, 1fr);
-    gap: 2px;
+    gap: 4px;
   }
 
   .record-viewer--panel[data-record-kind='task'] [data-content-slot='ownership'] .record-field__label {
@@ -500,7 +500,7 @@
 
   .record-viewer[data-record-kind='task'] [data-content-slot='ownership'] .record-field {
     grid-template-columns: minmax(0, 1fr);
-    gap: 2px;
+    gap: 4px;
   }
 
   .record-viewer[data-record-kind='task'] [data-content-slot='ownership'] .record-field__label {
