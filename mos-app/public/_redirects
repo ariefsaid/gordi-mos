@@ -2,8 +2,13 @@
 # The build output is FLAT (dist/index.html, dist/assets/*), but the app references
 # its assets at /mos/assets/* (the base). On CF Pages those /mos/ paths have no real
 # file, so we rewrite them onto the flat output. Existing files are served first;
-# these rules only fire for the missing /mos/ paths. Order matters — assets before
-# the SPA catch-all, or the catch-all would return index.html (text/html) for a .js
-# request and the app renders blank.
-/mos/assets/*  /assets/:splat  200
-/mos/*         /index.html     200
+# these rules only fire for the missing /mos/ paths. Order matters — every file rewrite before
+# the SPA catch-all, or the catch-all returns index.html (text/html) for a .js request and the
+# app renders blank (or the service worker fails to register). The bare root has no app, so it
+# redirects to /mos/.
+/                         /mos/                    302
+/mos/assets/*             /assets/:splat           200
+/mos/sw.js                /sw.js                   200
+/mos/manifest.webmanifest /manifest.webmanifest    200
+/mos/offline.html         /offline                 200
+/mos/*                    /index.html              200
