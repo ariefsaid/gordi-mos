@@ -2,7 +2,7 @@
 
 Every UUID gets a deterministic new one (same input -> same output across files, so foreign keys
 stay consistent); the all-zero system UUID is kept. Emails become <local>@sample.gordi.test and
-password hashes become a psql expression bound at import time, so the payload carries none.
+password hashes are blanked (import.sh sets passwords through the auth admin API, never in SQL).
 Refuses (exit 1) if the output still names the dev org or any address outside the sample domain.
 
 Usage: remap.py <app-dump.sql> <auth-dump.sql>  > sample-org.sql
@@ -23,7 +23,9 @@ BCRYPT_RE = re.compile(r"'\$2[aby]\$[^']+'")
 def remap(text: str) -> str:
     text = UUID_RE.sub(lambda m: KEEP.get(m.group(0)) or str(uuid.uuid5(NAMESPACE, m.group(0))), text)
     text = EMAIL_RE.sub(lambda m: f'{m.group(1)}@sample.gordi.test', text)
-    text = BCRYPT_RE.sub("extensions.crypt(:'sample_password', extensions.gen_salt('bf'))", text)
+    text = BCRYPT_RE.sub("''", text)
+    # pg_dump --column-inserts emits orgs as (id, name, slug, …); a different order fails the
+    # "sample org row is missing" check below rather than writing a wrong row.
     return re.sub(
         rf"(INSERT INTO shared\.orgs \([^)]*\) VALUES \('{SAMPLE_ORG}', )'[^']*', '[^']*'",
         r"\1'Gordi Sample', 'gordi-sample'", text)

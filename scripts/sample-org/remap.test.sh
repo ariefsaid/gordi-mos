@@ -12,7 +12,7 @@ printf "INSERT INTO auth.users (id, email, encrypted_password) VALUES ('%s', 'de
 if out=$(python3 "$here/remap.py" "$tmp/app.sql" "$tmp/auth.sql" 2>"$tmp/err"); then
   grep -q "'5a000000-0000-0000-0000-000000000001', 'Gordi Sample', 'gordi-sample'" <<<"$out" && ok "org re-keyed and renamed" || bad "org re-keyed and renamed"
   grep -q "dewi@sample.gordi.test" <<<"$out" && ok "fixture address rewritten" || bad "fixture address rewritten"
-  grep -q "crypt(:'sample_password'" <<<"$out" && ! grep -q '\$2a\$' <<<"$out" && ok "password hash replaced" || bad "password hash replaced"
+  ! grep -q '\$2a\$' <<<"$out" && grep -q "'dewi@sample.gordi.test', ''" <<<"$out" && ok "password hash blanked" || bad "password hash blanked"
   grep -q "40000000-0000-0000-0000-000000000001" <<<"$out" && bad "person id remapped" || ok "person id remapped"
 else bad "clean input accepted ($(cat "$tmp/err"))"; fi
 echo "INSERT INTO shared.people (id, email) VALUES ('40000000-0000-0000-0000-000000000002', 'someone@gordi.id');" >> "$tmp/app.sql"

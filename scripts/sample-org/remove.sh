@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Remove the sample org completely: its photos (Storage API — Storage refuses SQL deletes), its
-# logins, and every row. Proves nothing of it is left. Touches no other org.
+# logins, and every row. Proves nothing of it is left. Touches no other org. The photos go first
+# (found by their org-id path prefix), so a later SQL failure leaves rows without photos; rerun to finish.
 # Usage: SAMPLE_PSQL='psql "$URL"' SAMPLE_API_URL=https://… SAMPLE_SERVICE_KEY=… remove.sh
 set -euo pipefail
 : "${SAMPLE_PSQL:?}" "${SAMPLE_API_URL:?}" "${SAMPLE_SERVICE_KEY:?}"
@@ -32,6 +33,9 @@ do \$\$ declare r record; n bigint; begin
   end loop;
   if exists (select 1 from auth.users where email like '%@sample.gordi.test') then
     raise exception 'sample logins left';
+  end if;
+  if exists (select 1 from storage.objects where bucket_id = 'signal-photos' and name like '$org/%') then
+    raise exception 'sample photos left in Storage';
   end if;
 end \$\$;
 commit;"
