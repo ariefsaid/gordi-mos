@@ -9,7 +9,9 @@ const KEY_COLLAPSED = 'mos.tasks.collapsedGroups'
 // ── Types ────────────────────────────────────────────────────────────────────
 // 'none' = a FLAT, ungrouped list (the signed mockup default — mock-shell-and-table.html
 // is not status-grouped). status/owner/bu/workline remain available via the Group chip.
-export type TasksGroupBy = 'none' | 'status' | 'owner' | 'bu' | 'workline'
+// Step 6 (ADR-0051 D9/D10, C1): 'occurrence' groups generated Tasks under their run's caption
+// (never the internal-only string "Process Run" — FR-611).
+export type TasksGroupBy = 'none' | 'status' | 'owner' | 'bu' | 'workline' | 'occurrence'
 export type TasksView = 'table'
 
 export interface TasksViewPref {
@@ -25,7 +27,7 @@ export interface TasksViewPref {
 
 // ── Storage helpers (guarded try/catch for SSR / privacy-mode) ──────────────
 
-const VALID_GROUP_BY: TasksGroupBy[] = ['none', 'status', 'owner', 'bu', 'workline']
+const VALID_GROUP_BY: TasksGroupBy[] = ['none', 'status', 'owner', 'bu', 'workline', 'occurrence']
 
 function readView(): TasksView {
   // Only 'table' is valid in v1 (Board/Calendar are stubs); the stored value is

@@ -1,0 +1,168 @@
+/* SignalComposer — the FB-style capture-minimal panel (PORT convergence `sigComposer` @ the
+   e7 visual bar, design-review step-4 CRITICAL-1). Panel padding + vertical rhythm, labeled
+   fields with real space between label and value (MINOR-7/8), and a bordered foot row. */
+.signal-composer {
+  display: flex; flex-direction: column; gap: 12px; padding: 16px;
+}
+
+/* The composer's mention popover anchors to the textarea, so the wrapper is the positioning
+   context for the absolutely-positioned SignalMentionPicker (replaces an inline style — house
+   pattern is a class in a co-located stylesheet). */
+.signal-composer-mention-anchor {
+  position: relative;
+}
+.signal-composer-mention-anchor textarea {
+  width: 100%; min-height: 96px; padding: 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--card); font: inherit; font-size: var(--font-size-body); color: var(--foreground);
+  resize: vertical; line-height: 1.5;
+}
+.signal-composer-mention-anchor textarea::placeholder { color: var(--text-light); }
+.signal-composer-mention-anchor textarea:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: 1px; border-radius: var(--radius-lg);
+}
+
+.signal-composer-row { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.signal-composer-row > * { flex: 1; min-width: 180px; }
+
+.signal-composer-context {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  min-width: 0;
+}
+.signal-composer-context-pill {
+  position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 32px;
+  padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius-pill);
+  background: var(--background); color: var(--muted-foreground); font-size: var(--font-size-label);
+  white-space: nowrap;
+}
+.signal-composer-context-pill:hover { background: var(--surface-tertiary); color: var(--foreground); }
+.signal-composer-occurred-pill { cursor: pointer; }
+/* `inset: 0` lands inside the pill's own border, so the input measured 42px against a pill
+   that is 44. Pressing the border presses the pill either way; the control now covers it. */
+.signal-composer-occurred-pill input,
+.signal-composer-photo-pill input {
+  position: absolute; inset: -1px; width: calc(100% + 2px); height: calc(100% + 2px);
+  opacity: 0; cursor: pointer;
+}
+.signal-composer-photo-pill { cursor: pointer; }
+.signal-composer-photo-pill[data-disabled] { opacity: 0.5; cursor: default; }
+.signal-composer-photo-pill:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; }
+.signal-composer-photos { display: flex; gap: 8px; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
+.signal-composer-photos li { position: relative; width: 72px; height: 72px; }
+.signal-composer-photos img {
+  width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-md); border: 1px solid var(--border);
+}
+/* A 44px press area around a 24px badge. */
+.signal-composer-photos button {
+  position: absolute; top: -10px; right: -10px; width: 44px; height: 44px; padding: 0;
+  display: grid; place-items: center; border: 0; background: none; cursor: pointer;
+}
+.signal-composer-photos button span {
+  display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--foreground); color: var(--background); font-size: var(--font-size-body-lg); line-height: 1;
+}
+.signal-composer-photos li[data-failed] img { border: 2px solid var(--destructive); opacity: 0.6; }
+.signal-composer-team-choice { width: min(100%, 420px); }
+.signal-composer-team-choice .picker { width: 100%; }
+.signal-composer-identity {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0; margin: 0;
+  color: var(--muted-foreground); font-size: var(--font-size-label); line-height: 1.4;
+}
+.signal-composer-identity > span:first-child { color: var(--foreground); font-weight: 600; }
+
+/* datetime-local has no equivalent styled kit primitive (TextInput/Select), so the label +
+   box are styled directly here — mirrors the kit's own label-above-box rhythm (Select.css). */
+.signal-composer-datetime { display: flex; flex-direction: column; gap: 4px; }
+.signal-composer-field-label {
+  font-size: var(--font-size-label); color: var(--muted-foreground); font-weight: 500;
+}
+/* OD-REDESIGN-91 #20: the WIB timezone hint sits beside the "Occurred at" label — quiet, micro. */
+.signal-composer-field-hint {
+  margin-left: 6px; font-size: var(--font-size-micro); font-weight: 600;
+  letter-spacing: 0.04em; color: var(--muted-foreground);
+}
+.signal-composer-datetime input {
+  display: block; width: 100%; height: 32px; padding: 0 10px; box-sizing: border-box;
+  background: var(--background); border: 1px solid var(--input);
+  border-radius: var(--radius-sm); font: inherit; font-size: var(--font-size-body-lg); color: var(--foreground);
+}
+.signal-composer-datetime input:focus-visible {
+  outline: 2px solid var(--ring); outline-offset: 2px;
+}
+
+.signal-composer-pill {
+  /* typeset: was 11.5px off-ramp — matches DESIGN.md's `label` role (dense metadata pill). */
+  display: inline-flex; align-items: center; gap: 5px; min-height: 32px; height: auto; padding: 0 10px;
+  border-radius: var(--radius-pill); background: var(--secondary); color: var(--muted-foreground);
+  font-size: var(--font-size-label); width: fit-content;
+}
+
+/* One metadata line (audience → notify → author) directly under the chips. */
+.signal-composer-vis {
+  margin: 0; font-size: var(--font-size-label); color: var(--muted-foreground);
+}
+
+/* Only the primary action (+ its Shift+Enter hint) lives here — right-aligned on desktop; the
+   phone override below makes the primary full-width instead. */
+.signal-composer-foot {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+/* OD-REDESIGN-91 #10: Send button + its quiet Shift+Enter hint. Hidden without a real keyboard —
+   a coarse (touch) pointer, or ANY pointer with no hover (some phones report hover: none on a
+   fine/stylus pointer too), never just "pointer: coarse" alone. */
+.signal-composer-send { display: flex; align-items: center; gap: 8px; }
+.signal-composer-send-hint {
+  font-size: var(--font-size-micro); color: var(--muted-foreground); white-space: nowrap;
+}
+@media (hover: none), (pointer: coarse) {
+  .signal-composer-send-hint { display: none; }
+}
+
+/* SYS-2 phone tap-target floor: the datetime-local control is 32px tall (no styled-kit
+   primitive backs it, so it never inherited the DO-15(a) field floor). Raise it to the 44px
+   touch minimum on phone. The textarea and datetime input both step up to the 16px touch-input
+   rung — below it, mobile Safari zooms the viewport on focus. */
+@media (max-width: 767.98px) {
+  .signal-composer-mention-anchor textarea { font-size: var(--font-size-touch-input); }
+  .signal-composer-datetime input { min-height: 44px; font-size: var(--font-size-touch-input); }
+  .signal-composer {
+    min-height: 100%; padding: 16px;
+    /* The sheet is its own scroll container: short content still lands the footer at the true
+       bottom via margin-top: auto below, and content taller than the viewport gets a real
+       scrollport for the footer to stick in. */
+    overflow-y: auto;
+  }
+  .signal-composer-context { align-items: stretch; }
+  .signal-composer-context > * { min-height: 44px; }
+  .signal-composer-foot {
+    position: sticky; bottom: 0; z-index: 2;
+    /* margin-top: auto claims all leftover flex space so the footer sits at the true bottom
+       instead of right after the content; the negative inline/bottom margins bleed it past the
+       container's own 16px padding so ITS OWN padding (below) is the only space under the bar. */
+    margin: auto -16px -16px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--card) 94%, transparent);
+    backdrop-filter: blur(8px);
+  }
+  .signal-composer-send { width: 100%; }
+  .signal-composer-send .btn { flex: 1; min-height: 44px; }
+}
+
+/* A required choice that has not been made, marked the same way the Café capture surface marks
+   its stream. Share Signal is disabled until this is set, and the trigger gave no sign it was
+   the reason — the same defect, on the other surface, so it gets the same answer rather than a
+   second grammar. Where there is only one team the composer states it instead of asking, so
+   this never fires for someone with nothing to choose. */
+/* Keyed off the placeholder span the Picker renders while nothing is chosen. `data-full-value`
+   is NOT empty in that state — it carries the placeholder text — so a `[data-full-value='']`
+   selector matched nothing and the cue never appeared. */
+.signal-composer-team-choice .picker__trigger[aria-required='true']:has(.picker__placeholder) {
+  border-color: var(--warning-foreground);
+  box-shadow: 0 0 0 1px var(--warning-foreground);
+}
+.signal-composer-team-choice:has(.picker__trigger[aria-required='true'] .picker__placeholder)
+  .picker__label {
+  color: var(--warning-foreground);
+}

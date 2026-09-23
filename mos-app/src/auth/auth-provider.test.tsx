@@ -35,6 +35,7 @@ const personRow: PeopleRow = {
   user_id: 'auth-user-001',
   full_name: 'Cahya Cafe',
   email: 'cahya.dev@example.test',
+  must_change_password: false,
   archived_at: null,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
@@ -92,7 +93,7 @@ describe('AuthProvider', () => {
       data: { session: { user: { id: 'auth-user-001' } } },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [] })
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [] })
 
     await act(async () => {
       render(
@@ -111,7 +112,7 @@ describe('AuthProvider', () => {
       data: { session: { user: { id: 'auth-user-orphan' } } },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: null, roles: [], isManager: false, accessRoles: [] })
+    mockResolveViewer.mockResolvedValue({ person: null, roles: [], isManager: false, accessRoles: [], affiliated: [] })
 
     await act(async () => {
       render(
@@ -162,7 +163,7 @@ describe('AuthProvider', () => {
       data: { session: null },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [] })
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [] })
 
     let capturedCallback: Parameters<typeof supabase.auth.onAuthStateChange>[0] | null = null
     mockOnAuthStateChange.mockImplementation((cb) => {
@@ -204,7 +205,7 @@ describe('AuthProvider', () => {
       data: { session: { user: { id: 'auth-user-001' } } },
       error: null,
     } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
-    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [] })
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [] })
     mockSignOut.mockResolvedValue({ error: null })
 
     const user = userEvent.setup()

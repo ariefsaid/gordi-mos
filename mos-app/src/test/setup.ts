@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest'
+import { transferableAbortController } from 'node:util'
 import { afterEach } from 'vitest'
 import { cleanup, configure } from '@testing-library/react'
 
@@ -8,13 +9,51 @@ import { cleanup, configure } from '@testing-library/react'
 // (the original tasks-workspace flake was `await waitFor(() => screen.getByText('A task'))`
 // after a resolved mock — pure starvation, never a logic race). A single global raise is the
 // deterministic replacement for the per-test `waitFor(..., { timeout })` whack-a-mole that
-// only moved the flake from file to file. 3000ms is comfortably under the default 5000ms
-// test timeout and gives ~3x headroom once css:false has cut the per-env CPU.
-configure({ asyncUtilTimeout: 3000 })
+// only moved the flake from file to file.
+//
+// Raised 3000 → 5000 (2026-07-30). 3000 was chosen to sit "comfortably under the default
+// 5000ms test timeout" — but that left only 2000ms of slack, and on a shared CI runner the
+// kitchen-plan `saved` assertion lapsed at 3078ms, i.e. exactly at this budget, reddening CI
+// on a commit that touched no app code. The test timeout is now an explicit 15000ms
+// (vite.config.ts), so 5000 here keeps a 3x margin beneath it instead of a 1.6x one.
+//
+// Raised 5000 → 10000 (2026-07-31). 5000 still wasn't enough: kitchen-plan-page's save-error wait
+// failed CI at 5081ms. That test passes locally WITH coverage, so this is pure starvation — a
+// 2-core GitHub runner plus v8 instrumentation, not a hang. testTimeout stays 15000, which is the
+// real hang ceiling; this is the starvation budget and it should sit well under it.
+configure({ asyncUtilTimeout: 10000 })
 
 afterEach(() => {
   cleanup()
 })
+
+// Node 26's global Request is backed by undici and checks its own AbortSignal brand. In jsdom,
+// React Router creates the signal from the DOM AbortController, which is a different realm even
+// when globalThis.AbortSignal === window.AbortSignal. Bridge it at the test fetch boundary so
+// router navigation and its cancellation semantics work without changing application code.
+const nativeRequest = globalThis.Request
+if (typeof nativeRequest === 'function' && typeof window !== 'undefined') {
+  class JsdomCompatibleRequest extends nativeRequest {
+    constructor(input: RequestInfo | URL, init?: RequestInit) {
+      const sourceSignal = init?.signal
+      if (!sourceSignal) {
+        super(input, init)
+        return
+      }
+
+      const bridgeController = transferableAbortController()
+      if (sourceSignal.aborted) bridgeController.abort()
+      else sourceSignal.addEventListener('abort', () => bridgeController.abort(), { once: true })
+      super(input, { ...init, signal: bridgeController.signal })
+    }
+  }
+
+  Object.defineProperty(globalThis, 'Request', {
+    value: JsdomCompatibleRequest,
+    configurable: true,
+    writable: true,
+  })
+}
 
 // Node 26+ no longer provides a global localStorage by default; jsdom does not
 // inject one either. Several hooks (useExpandPref, useTasksViewPref, useTheme)
@@ -77,3 +116,10 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
     }),
   })
 }
+
+// Any rendered feed or Signal record reads its photos. Default that read to "none" so a test that is
+// not about photos makes no storage call; a test that is overrides this mock.
+vi.mock('@/lib/db/signal-photos', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db/signal-photos')>()),
+  listSignalPhotos: vi.fn(async () => []),
+}))

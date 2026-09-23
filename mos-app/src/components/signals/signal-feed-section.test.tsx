@@ -1,0 +1,292 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
+import { OverlayHostProvider } from '@/shell/overlay-host'
+import type { SignalRow } from '@/lib/db/signals.types'
+
+// C3b (AC-426/FR-414): the Home ambient (FYI) feed. SignalFeedSection is now PRESENTATIONAL —
+// HomePage owns the ONE shared signal read (FR-V3-013) and passes the FYI split + resolved names +
+// a reload callback down (OD-84.1 / Luna P0-1: attention-worthy Signals lead the stream as band 0).
+
+vi.mock('@/lib/db/signals', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/db/signals')>()
+  return { ...actual, correctSignal: vi.fn() }
+})
+import { correctSignal } from '@/lib/db/signals'
+const mockCorrectSignal = vi.mocked(correctSignal)
+
+const composerPostCount = vi.hoisted(() => ({ value: 0 }))
+const openSignalComposer = vi.fn()
+vi.mock('@/shell/signal-composer-host', () => ({
+  useSignalComposer: () => ({ open: openSignalComposer, postCount: composerPostCount.value }),
+}))
+vi.mock('@/components/signals/signal-record-host', () => ({
+  SignalRecordHost: ({ signalId }: { signalId: string }) => <div data-testid="home-signal-record" data-signal-id={signalId} />,
+}))
+
+import { SignalFeedSection } from './signal-feed-section'
+
+function row(overrides: Partial<SignalRow> = {}): SignalRow {
+  return {
+    id: 'signal-1', author_id: 'person-author-a', owning_team_id: 'team-hq',
+    occurred_at: '2026-07-16T02:00:00Z', body: 'The freezer alarm went off',
+    attention: 'FYI', category: null, audience: 'org',source: 'human',
+    retracted_at: null, retract_reason: null, edited_at: null,
+    created_at: '2026-07-16T02:00:00Z',
+    ...overrides,
+  }
+}
+
+const AUTHORS = new Map([['person-author-a', 'Author One']])
+const TEAMS = new Map([['team-hq', 'HQ Operations']])
+
+function LocationProbe() {
+  const loc = useLocation()
+  return <div data-testid="location">{loc.pathname + loc.search}</div>
+}
+
+function renderSection(props: Partial<React.ComponentProps<typeof SignalFeedSection>> = {}) {
+  return render(
+    <I18nProvider>
+      <MemoryRouter initialEntries={['/']}>
+        <LocationProbe />
+        <Routes>
+          <Route path="/" element={
+            <SignalFeedSection signals={[row()]} authorNamesById={AUTHORS} teamNamesById={TEAMS} {...props} />
+          } />
+          <Route path="/work/signals" element={
+            <SignalFeedSection signals={[row()]} authorNamesById={AUTHORS} teamNamesById={TEAMS} {...props} />
+          } />
+        </Routes>
+      </MemoryRouter>
+    </I18nProvider>,
+  )
+}
+
+function renderSectionWithHost(props: Partial<React.ComponentProps<typeof SignalFeedSection>> = {}) {
+  return render(
+    <I18nProvider>
+      <MemoryRouter initialEntries={['/']}>
+        <OverlayHostProvider>
+          <Routes>
+            <Route path="/" element={
+              <SignalFeedSection signals={[row()]} authorNamesById={AUTHORS} teamNamesById={TEAMS} {...props} />
+            } />
+          </Routes>
+        </OverlayHostProvider>
+      </MemoryRouter>
+    </I18nProvider>,
+  )
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  composerPostCount.value = 0
+})
+
+describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => {
+  it('renders the Home feed door, live count, and plain-text row meta without row actions', async () => {
+    renderSection({ signals: [
+      row({ id: 's1', body: 'Freezer alarm went off' }),
+      row({ id: 's2', body: 'Grinder is running slowly' }),
+    ]})
+
+    expect(screen.getByRole('button', { name: 'Share a Signal' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Signals · 2' })).toBeInTheDocument()
+    const feed = screen.getByTestId('signal-feed')
+    // P1 (#770): the meta line is plain text in BOTH variants — never bordered chips.
+    expect(feed.querySelectorAll('.home-signal-location-chip')).toHaveLength(0)
+    expect(feed.querySelectorAll('.home-signal-time-chip')).toHaveLength(0)
+    expect(feed.querySelectorAll('.home-signal-meta-fact').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Visible to HQ Operations')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add category/i })).not.toBeInTheDocument()
+  })
+
+  it('renders the passed FYI Signals with the resolved author/Team names', async () => {
+    renderSection()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    expect(screen.getByText('Author One')).toBeInTheDocument()
+    expect(screen.getByText('HQ Operations')).toBeInTheDocument()
+  })
+
+  // GOAL UNCHANGED (C1/C2): from the Home feed a viewer can start a Signal in one action.
+  // Only the STEP changed — owner 2026-07-28 split the one full-width row into a search field
+  // plus a create button, because the row's shape read as search and behaved as a composer.
+  it('the create-Signal button opens the shared composer host (C1/C2)', async () => {
+    renderSection()
+    await userEvent.click(screen.getByRole('button', { name: /Share a Signal/i }))
+    expect(openSignalComposer).toHaveBeenCalledTimes(1)
+    expect(openSignalComposer).toHaveBeenCalledWith()
+  })
+
+  // The GOAL of feed search: a viewer who half-remembers a Signal can get back to it — by what it
+  // said, or by who said it. Both are what people actually recall.
+  it('search narrows the feed by body text', async () => {
+    renderSection({ signals: [
+      row({ id: 's1', body: 'The freezer alarm went off' }),
+      row({ id: 's2', body: 'Grinder 2 is throwing inconsistent doses' }),
+    ] })
+    expect(screen.getByText(/freezer alarm/i)).toBeInTheDocument()
+    await userEvent.type(screen.getByRole('searchbox', { name: /search signals/i }), 'grinder')
+    expect(screen.queryByText(/freezer alarm/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/inconsistent doses/i)).toBeInTheDocument()
+  })
+
+  it('search narrows the feed by author name', async () => {
+    renderSection({
+      signals: [
+        row({ id: 's1', author_id: 'person-author-a', body: 'The freezer alarm went off' }),
+        row({ id: 's2', author_id: 'person-author-b', body: 'Cooling tray running slow' }),
+      ],
+      authorNamesById: new Map([['person-author-a', 'Author One'], ['person-author-b', 'Author Two']]),
+    })
+    // "two" appears in the second author's NAME and in neither body, so a hit proves the search
+    // reaches the author index rather than the message text.
+    await userEvent.type(screen.getByRole('searchbox', { name: /search signals/i }), 'two')
+    expect(screen.getByText(/cooling tray/i)).toBeInTheDocument()
+    expect(screen.queryByText(/freezer alarm/i)).not.toBeInTheDocument()
+  })
+
+  // A filtered-empty must NOT read as "no Signals yet" — that is a false all-clear, and it must
+  // offer the way back out.
+  it('a search with no matches names the query and offers a way back', async () => {
+    renderSection({ signals: [row({ body: 'The freezer alarm went off' })] })
+    await userEvent.type(screen.getByRole('searchbox', { name: /search signals/i }), 'zzzz')
+    expect(screen.queryByText(/No Signals yet/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/zzzz/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /clear search/i }))
+    expect(screen.getByText(/freezer alarm/i)).toBeInTheDocument()
+  })
+
+  it('the search field is a search input, not the compose door (owner 2026-07-28)', async () => {
+    renderSection()
+    const search = screen.getByRole('searchbox', { name: /search signals/i })
+    await userEvent.type(search, 'grinder')
+    // Typing into search must NEVER open the composer — that conflation was the defect.
+    expect(openSignalComposer).not.toHaveBeenCalled()
+  })
+
+  it('keeps Home rows read-only; categorization is record/archive-only', async () => {
+    renderSection()
+    expect(screen.queryByRole('button', { name: /add category/i })).not.toBeInTheDocument()
+    expect(mockCorrectSignal).not.toHaveBeenCalled()
+  })
+
+  it('opening a card navigates to the canonical record URL', async () => {
+    renderSection()
+    await userEvent.click(screen.getByRole('button', { name: /open signal/i }))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/work/signals?record=signal-1'))
+  })
+
+  it('opens a Home Signal in the shared record host and keeps Home as the underlying page', async () => {
+    renderSectionWithHost()
+    await userEvent.click(screen.getByRole('button', { name: /open signal/i }))
+    await waitFor(() => expect(screen.getByTestId('home-signal-record')).toHaveAttribute('data-signal-id', 'signal-1'))
+    expect(document.querySelector('[data-overlay-host]')).toBeInTheDocument()
+    expect(document.body.textContent).toContain('The freezer alarm went off')
+  })
+
+  it('does not advertise Create Task until the card can create a Task directly', async () => {
+    renderSection()
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Create Task' })).not.toBeInTheDocument()
+  })
+
+  it('shows the empty-state (composer still present) when there are no FYI Signals', async () => {
+    renderSection({ signals: [] })
+    await waitFor(() => expect(screen.getByText(/No Signals yet/i)).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /Share a Signal/i })).toBeInTheDocument()
+  })
+
+  // Issue 360 (AC-430): the composer host bumps postCount on each successful Share; the section must
+  // turn that bump into a re-run of HomePage's ONE shared read, or a freshly shared Signal never
+  // appears on Home without a manual refresh. Pinned at the component layer so the e2e is not the
+  // only owner of the re-read trigger.
+  it('Issue 360: a postCount bump (a Share) re-runs the shared read — once per bump, never on mount', async () => {
+    const onReload = vi.fn()
+    const feedTree = () => (
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="/" element={
+              <SignalFeedSection signals={[row()]} authorNamesById={AUTHORS} teamNamesById={TEAMS} onReload={onReload} />
+            } />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>
+    )
+    const { rerender } = render(feedTree())
+    await waitFor(() => expect(screen.getByText('The freezer alarm went off')).toBeInTheDocument())
+    expect(onReload).not.toHaveBeenCalled()
+
+    composerPostCount.value = 1
+    rerender(feedTree())
+    await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1))
+
+    composerPostCount.value = 2
+    rerender(feedTree())
+    await waitFor(() => expect(onReload).toHaveBeenCalledTimes(2))
+  })
+
+  it('keeps Signals discoverable while the shared read loads, without a false zero count', () => {
+    renderSection({ loading: true })
+    expect(screen.getByRole('heading', { name: 'Signals' })).toBeVisible()
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true')
+  })
+
+  // DIV-G5 (fix work-order item 8): a failed load must surface ErrorState + Retry — never the
+  // "No Signals yet" empty state, which reads as a false all-clear while the service is down.
+  it('a failed shared read shows ErrorState + Retry (no false "No Signals yet"), Retry re-runs the read', async () => {
+    const onReload = vi.fn()
+    renderSection({ signals: [], error: true, onReload })
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/couldn't load signals/i))
+    expect(screen.queryByText(/No Signals yet/i)).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }))
+    expect(onReload).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ── DIV: the column has ONE name, and states no count it cannot back up ────────────────────────
+// The head said "RECENT" while the link beside it said "Signals →" and the layout picker's help
+// calls it "the Signals column": three names for one column in one viewport. "Recent" was a fossil
+// of F15/OD-91 #27, whose stated reason was avoiding an attention-level collision with the ranked
+// stream — under FR-928 the feed is the only home for Signals (Urgent included), so the collision
+// it avoided no longer exists. The mockup also drew an `N today` count beside the head, but that
+// mockup's dataset was a single day — "today" was tautological there. This feed is not day-scoped,
+// so a "today" count next to a feed reaching back further would be untraceable by the viewer; it
+// is dropped entirely rather than replaced with the feed's depth relabelled as "today" (the exact
+// falsehood already fixed elsewhere). "See N more →" on the capped list carries the volume signal.
+describe('FR-928: the Signals column is named Signals, and states no untraceable count', () => {
+  it('the heading is "Signals" — the word the picker and the destination already use', async () => {
+    renderSection()
+    const head = await screen.findByRole('heading', { name: /^signals · 1$/i })
+    expect(head).toBeInTheDocument()
+    expect(screen.queryByText(/^recent$/i)).not.toBeInTheDocument()
+  })
+
+  it('renders the live total count beside the heading', async () => {
+    renderSection({
+      signals: [
+        row({ id: 's1', body: 'The freezer alarm went off' }),
+        row({ id: 's2', body: 'Grinder 2 is throwing inconsistent doses' }),
+      ],
+    })
+    await waitFor(() => expect(screen.getByText(/freezer alarm/i)).toBeInTheDocument())
+    expect(screen.getByRole('heading', { name: 'Signals · 2' })).toBeInTheDocument()
+  })
+
+  it('does not show a count when the read failed', async () => {
+    renderSection({ signals: [], error: true })
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(screen.getByRole('heading', { name: 'Signals' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Signals · 0' })).not.toBeInTheDocument()
+  })
+
+  it('counts the ambient rows actually rendered after the feed cap', async () => {
+    renderSection({ signals: Array.from({ length: 11 }, (_, index) => row({ id: `s${index}` })) })
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /open signal/i })).toHaveLength(6))
+    expect(screen.getByRole('heading', { name: 'Signals · 6' })).toBeInTheDocument()
+  })
+})

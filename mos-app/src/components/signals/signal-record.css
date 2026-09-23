@@ -1,0 +1,150 @@
+/* Signal record — JTBD anatomy (docs/specs/record-page-anatomy.spec.md §2.1, OD-REDESIGN-90;
+   visual reference scratchpad ds-bundle/mockups/signal-record-anatomy.html). Five regions read as
+   one calm document: Message → Reach & response → Discussion → Facts → History, each a quiet
+   sibling section separated by a hairline + negative space (LAW-7: no card-in-card). E7 tokens
+   only. Reuses signal-card.css's attention pill (same visual language as the feed). */
+
+/* ── Region shell — a quiet section register (border-t + space, not a boxed card, LAW-7). ── */
+.signal-region { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--border); }
+.signal-region-title {
+  margin: 0 0 12px; font-size: var(--font-size-overline); font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground);
+}
+
+/* ── 1 · Message — identity controls establish the decision seam; body follows once (LAW-2). ── */
+.signal-message { display: flex; flex-direction: column; }
+.signal-record-control-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 32px;
+  margin-bottom: 2px;
+}
+.signal-record-control-row .signal-attention,
+.signal-record-control-row .signal-attention-picker .signal-attention { margin-left: 0; }
+.signal-message-urgency { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.signal-message-occurred { margin-left: auto; font-size: var(--font-size-control); color: var(--muted-foreground); }
+.signal-message-body {
+  margin: 16px 0 0; max-width: 72ch; font-size: var(--font-size-body); line-height: 1.6;
+  color: var(--foreground); overflow-wrap: anywhere; white-space: pre-wrap;
+}
+.signal-overflow { position: relative; display: inline-flex; }
+.signal-overflow-trigger {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 32px;
+  padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: transparent; color: var(--muted-foreground); font: inherit; cursor: pointer;
+}
+.signal-overflow-trigger:hover { background: var(--surface-tertiary); color: var(--foreground); }
+.signal-overflow-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.signal-overflow-menu {
+  position: absolute; z-index: var(--z-popover, 30); top: calc(100% + 6px); right: 0; min-width: 190px;
+  display: flex; flex-direction: column; gap: 2px; padding: 6px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card);
+  box-shadow: var(--shadow-overlay);
+}
+.signal-overflow-menu button {
+  min-height: 44px; padding: 0 10px; border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--foreground); font: inherit; font-size: var(--font-size-control);
+  text-align: left; cursor: pointer;
+}
+.signal-overflow-menu button:hover { background: var(--surface-tertiary); }
+.signal-overflow-menu button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+/* ── 2 · Reach & response — one action register (LAW-3). ── */
+.signal-reach-audience { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.signal-reach-linked-error {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 12px 0 0; padding: 10px 12px;
+  border: 1px solid var(--destructive); border-radius: var(--radius-sm);
+  color: var(--destructive); font-size: var(--font-size-control);
+}
+.signal-record-mentions {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none;
+}
+.signal-record-mentions li {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
+  border-radius: var(--radius-pill); background: var(--accent-subtle); color: var(--text-accent);
+  font-size: var(--font-size-label); font-weight: 600;
+}
+.signal-record-vis { margin: 0; font-size: var(--font-size-control); color: var(--muted-foreground); }
+
+.signal-reach-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.signal-reach-linked { margin: 14px 0 0; font-size: var(--font-size-control); color: var(--muted-foreground); }
+
+.signal-linked-work { margin-top: 16px; }
+.signal-linked-work-title { margin: 0 0 8px; font-size: var(--font-size-label); font-weight: 600; color: var(--muted-foreground); }
+.signal-linked-work-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.signal-linked-work-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px;
+  width: 100%; min-height: 44px; padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: transparent; color: var(--foreground); font: inherit;
+  text-align: left; text-decoration: none; cursor: pointer;
+}
+.signal-linked-work-row:hover { background: var(--surface-tertiary); }
+.signal-linked-work-row:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.signal-linked-work-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.signal-linked-work-status { color: var(--muted-foreground); font-size: var(--font-size-label); white-space: nowrap; }
+
+.signal-reach-ack { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.signal-reach-ack-label { font-size: var(--font-size-label); color: var(--muted-foreground); }
+.signal-ack-list { display: flex; gap: 6px; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
+.signal-ack-name {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
+  border-radius: var(--radius-pill); background: var(--secondary); color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+/* ── 3 · Discussion — the comment thread in the document grammar (no nested card, LAW-7). ──
+   The reused CommentThread wraps itself in a bordered .card with a 20px .card-h2. Inside the
+   Signal record DOCUMENT that reads as a nested card; neutralize the chrome so Comments is a quiet
+   peer of the sibling regions. (jsdom cannot compute the border — the guard pins this grammar.) */
+.signal-discussion .card {
+  background: transparent; border: 0; border-radius: 0; box-shadow: none;
+  margin: 0; padding: 0;
+}
+.signal-discussion .card-h2 {
+  font-size: var(--font-size-mono); font-weight: 600; margin-bottom: 8px; color: var(--foreground);
+}
+
+/* ── 4 · Facts (provenance) — quiet, compact, last; ONE section note, no per-field captions. ── */
+.signal-facts {
+  display: grid; grid-template-columns: 130px 1fr; row-gap: 8px; column-gap: 16px;
+  margin: 0; font-size: var(--font-size-control);
+}
+.signal-facts-row { display: contents; }
+.signal-facts-label { color: var(--muted-foreground); }
+.signal-facts-value { color: var(--foreground); overflow-wrap: anywhere; }
+.signal-facts-value--category { display: flex; }
+.signal-facts-note { margin: 12px 0 0; font-size: var(--font-size-label); color: var(--muted-foreground); }
+
+/* ── 5 · History (audit) — disclosed, readable, never a raw diff dump in the default view. ── */
+.signal-history-toggle {
+  background: none; border: 0; padding: 0; font: inherit; font-size: var(--font-size-control);
+  color: var(--text-accent); cursor: pointer; text-decoration: underline;
+}
+.signal-history-toggle:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.signal-history-list {
+  margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px;
+}
+.signal-history-item {
+  padding-left: 14px; border-left: 2px solid var(--border); font-size: var(--font-size-control);
+}
+.signal-history-who { font-weight: 600; color: var(--foreground); }
+.signal-history-what { color: var(--muted-foreground); }
+.signal-history-diff { margin-top: 4px; color: var(--muted-foreground); overflow-wrap: anywhere; }
+
+/* Retraction tombstone — preserve the original identity, then state who/when/why. */
+.signal-tombstone { margin: 0; max-width: 72ch; color: var(--muted-foreground); }
+.signal-tombstone-original { margin: 0 0 12px; color: var(--foreground); font-size: var(--font-size-body); line-height: 1.5; font-style: italic; }
+.signal-tombstone-status { margin: 0 0 10px; font-size: var(--font-size-control); font-weight: 600; }
+.signal-tombstone-meta { display: grid; gap: 6px; margin: 0 0 16px; font-size: var(--font-size-control); }
+.signal-tombstone-meta > div { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 12px; }
+.signal-tombstone-meta dt { color: var(--muted-foreground); }
+.signal-tombstone-meta dd { margin: 0; color: var(--foreground); overflow-wrap: anywhere; }
+
+@media (max-width: 767.98px) {
+  .signal-record-control-row { align-items: stretch; }
+  .signal-message-occurred { width: 100%; margin-left: 0; }
+  .signal-overflow { margin-inline-start: auto; }
+  .signal-overflow-trigger { min-height: 44px; }
+  .signal-overflow-menu { position: fixed; inset-inline: 16px auto; right: 16px; top: auto; margin-top: 6px; }
+  .signal-reach-linked-error { align-items: flex-start; flex-direction: column; }
+  .signal-tombstone-meta > div { grid-template-columns: 96px minmax(0, 1fr); }
+}

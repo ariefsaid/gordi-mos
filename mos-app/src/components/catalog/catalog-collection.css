@@ -1,0 +1,319 @@
+/* Projects/Processes and Objectives share one collection-first table grammar. The surrounding
+   RecordCollection surface owns the card/frame; these rows are a quiet divider list, not nested
+   cards and not a second action system. */
+.catalog-collection__table {
+  min-width: 0;
+  width: 100%;
+}
+
+.catalog-collection__header,
+.catalog-collection__row-link {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.8fr) minmax(120px, 1fr) minmax(130px, 1fr) minmax(140px, 1.1fr) minmax(120px, .9fr) minmax(160px, 1.1fr);
+  align-items: center;
+  column-gap: 16px;
+}
+
+.catalog-collection__header {
+  min-height: 36px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--row-divider);
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+  font-weight: 600;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.catalog-collection__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalog-collection__row {
+  min-width: 0;
+  min-height: 52px;
+  border-bottom: 1px solid var(--row-divider);
+}
+
+.catalog-collection__row:last-child {
+  border-bottom: none;
+}
+
+.catalog-collection__row--archived {
+  opacity: .68;
+}
+
+.catalog-collection__row-link {
+  min-height: 52px;
+  box-sizing: border-box;
+  padding: 7px 14px;
+  color: inherit;
+  text-decoration: none;
+  transition: background-color .12s ease-out;
+}
+
+.catalog-collection__row-link:hover {
+  background: color-mix(in srgb, var(--surface-secondary) 72%, transparent);
+}
+
+.catalog-collection__row-link:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.catalog-collection__identity,
+.catalog-collection__cell {
+  min-width: 0;
+}
+
+.catalog-collection__metadata {
+  display: contents;
+}
+
+.catalog-collection__primary-action {
+  display: none;
+}
+
+/* The Active/Archived state travels WITH the record's identity so it survives every width and
+   every panel-open reflow — a decision-critical fact must not depend on viewport — as a quiet
+   badge beside the name, never a 7th table column to keep track of. */
+.catalog-collection__row-state {
+  display: inline-flex;
+  flex: none;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-secondary);
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.catalog-collection__identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.catalog-collection__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-collection__row--archived .catalog-collection__name {
+  color: var(--muted-foreground);
+  font-weight: 500;
+  text-decoration: line-through;
+}
+
+.catalog-collection__cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+  color: var(--foreground);
+  font-size: var(--font-size-body);
+}
+
+.catalog-collection__cell-label {
+  display: none;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+  font-weight: 600;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.catalog-collection__cell-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-collection__cell-value--muted,
+.catalog-collection__cell-note,
+.catalog-record-document__muted {
+  color: var(--muted-foreground);
+}
+
+.catalog-collection__cell-note {
+  font-size: var(--font-size-label);
+}
+
+/* The create form is its own card, positioned above the collection card — never inside the
+   table's header row (see CatalogCreateForm). */
+.catalog-create-panel {
+  margin-bottom: 12px;
+}
+
+.catalog-record-document__muted {
+  color: var(--muted-foreground);
+}
+
+@media (min-width: 768px) and (max-width: 1099.98px) {
+  .catalog-collection__header {
+    display: none;
+  }
+
+  .catalog-collection__row-link {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 10px 12px;
+    min-height: 112px;
+    padding: 12px 14px;
+  }
+
+  .catalog-collection__identity {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .catalog-collection__primary-action {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    grid-column: 3;
+    grid-row: 1;
+    color: var(--primary);
+    font-size: var(--font-size-label);
+    font-weight: 600;
+  }
+
+  .catalog-collection__metadata {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+    min-width: 0;
+    padding-top: 8px;
+    border-top: 1px solid var(--row-divider);
+  }
+
+  .catalog-collection__cell {
+    align-self: start;
+  }
+
+  .catalog-collection__cell-label {
+    display: block;
+  }
+
+  .catalog-collection__cell-value {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .catalog-collection__header {
+    display: none;
+  }
+
+  .catalog-collection__row-link {
+    grid-template-columns: minmax(0, 1fr) minmax(100px, auto);
+    grid-template-rows: auto auto;
+    align-items: start;
+    min-height: 96px;
+    padding: 12px 14px;
+    row-gap: 4px;
+  }
+
+  .catalog-collection__identity {
+    grid-column: 1 / -1;
+    align-items: flex-start;
+  }
+
+  .catalog-collection__name {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .catalog-collection__cell-label {
+    display: none;
+  }
+
+  .catalog-collection__cell--activity,
+  .catalog-collection__table--objective .catalog-collection__cell--relation,
+  .catalog-collection__table--work_line .catalog-collection__cell--cadence {
+    display: none;
+  }
+
+  .catalog-collection__table--objective .catalog-collection__cell--cadence,
+  .catalog-collection__table--work_line .catalog-collection__cell--relation {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .catalog-collection__cell--owner .catalog-collection__cell-label {
+    display: inline;
+  }
+
+  .catalog-collection__cell--owner {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  .catalog-collection__cell--progress {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .catalog-collection__cell-value {
+    white-space: nowrap;
+  }
+}
+
+/* A record panel keeps this collection in a narrower desktop track. Preserve the row's primary
+   scan unit — identity, owner, progress — and remove secondary facts that would force the queue to
+   overflow or hide the progress column. The standalone collection keeps all six columns above. */
+@media (min-width: 1100px) {
+  .record-split .catalog-collection__header,
+  .record-split .catalog-collection__row-link {
+    grid-template-columns: minmax(0, 1fr) minmax(92px, .75fr) minmax(110px, .85fr);
+    column-gap: 12px;
+  }
+
+  .record-split .catalog-collection__header > :nth-child(2),
+  .record-split .catalog-collection__header > :nth-child(4),
+  .record-split .catalog-collection__header > :nth-child(6) {
+    display: none;
+  }
+
+  .record-split .catalog-collection__cell--relation,
+  .record-split .catalog-collection__cell--cadence,
+  .record-split .catalog-collection__cell--activity {
+    display: none;
+  }
+
+  /* The narrower track means less room for the name — wrap it onto a second line rather than
+     truncating it, since Name is one of the three facts this track deliberately keeps. */
+  .record-split .catalog-collection__name {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+  }
+}

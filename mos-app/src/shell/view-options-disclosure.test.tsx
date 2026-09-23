@@ -1,0 +1,186 @@
+// ViewOptionsDisclosure tests — the ONE capture-first "View options" disclosure primitive
+// (Rule 11 component reuse). Home's order toggle and the Tasks filter stack both mount it,
+// so the trigger/panel behavior + a11y wiring lives in one place. Each host passes its own
+// skin classes, so computed styles are preserved (design-reviewer-verified).
+import { describe, it, expect, vi } from 'vitest'
+import { useState } from 'react'
+import { render, screen, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { ViewOptionsDisclosure } from './view-options-disclosure'
+
+function renderDisclosure(props: Partial<React.ComponentProps<typeof ViewOptionsDisclosure>> = {}) {
+  return render(
+    <ViewOptionsDisclosure
+      open={props.open ?? false}
+      onToggle={props.onToggle ?? vi.fn()}
+      label="View options"
+      panelId="panel-1"
+      summary="Attention first"
+      {...props}
+    >
+      <div data-testid="panel-content">the collapsible options</div>
+    </ViewOptionsDisclosure>,
+  )
+}
+
+describe('ViewOptionsDisclosure', () => {
+  it('renders a trigger with the label and wires aria-expanded/aria-controls to the panel', () => {
+    renderDisclosure({ open: false })
+    const trigger = screen.getByRole('button', { name: /view options/i })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).toHaveAttribute('aria-controls', 'panel-1')
+  })
+
+  it('keeps the panel content collapsed (out of the DOM) when closed', () => {
+    renderDisclosure({ open: false })
+    expect(screen.queryByTestId('panel-content')).toBeNull()
+  })
+
+  it('reveals the panel (with the wired id) when open', () => {
+    renderDisclosure({ open: true })
+    const trigger = screen.getByRole('button', { name: /view options/i })
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    const content = screen.getByTestId('panel-content')
+    expect(content).toBeInTheDocument()
+    expect(content.closest('#panel-1')).not.toBeNull()
+  })
+
+  it('calls onToggle when the trigger is clicked', async () => {
+    const onToggle = vi.fn()
+    const user = userEvent.setup()
+    renderDisclosure({ open: false, onToggle })
+    await user.click(screen.getByRole('button', { name: /view options/i }))
+    expect(onToggle).toHaveBeenCalledOnce()
+  })
+
+  // #382 traversal, and the two limits the PR #394 review put on it: expanding a disclosure is not
+  // an overlay opening, so it must not move focus; and a control that natively owns these keys
+  // (a <select>'s option list) keeps them.
+  it('roves the enabled controls with arrows/Home/End, without stealing focus on open or from a select', async () => {
+    function Harness() {
+      const [open, setOpen] = useState(false)
+      return (
+        <ViewOptionsDisclosure open={open} onToggle={() => setOpen(value => !value)} label="View options" panelId="focus-panel">
+          <button type="button">First</button>
+          <select aria-label="Second" defaultValue="a"><option value="a">A</option></select>
+          <button type="button" disabled>Disabled</button>
+          <button type="button" hidden>Hidden</button>
+          <button type="button" aria-disabled="true">Unavailable</button>
+          <button type="button" tabIndex={-1}>Untabbable</button>
+          <button type="button">Last</button>
+        </ViewOptionsDisclosure>
+      )
+    }
+    const user = userEvent.setup()
+    render(<Harness />)
+    const trigger = screen.getByRole('button', { name: 'View options' })
+    await user.click(trigger)
+    const first = screen.getByRole('button', { name: 'First' })
+    const second = screen.getByRole('combobox', { name: 'Second' })
+    const last = screen.getByRole('button', { name: 'Last' })
+    // Opening reveals the panel and leaves focus where the user put it.
+    expect(trigger).toHaveFocus()
+
+    first.focus()
+    await user.keyboard('{ArrowDown}')
+    expect(second).toHaveFocus()
+    // The select owns Arrow/Home/End for its options — traversal does not take them.
+    await user.keyboard('{ArrowDown}')
+    expect(second).toHaveFocus()
+    await user.keyboard('{End}')
+    expect(second).toHaveFocus()
+
+    // Disabled, hidden, aria-disabled and tabindex=-1 controls are not traversal stops.
+    last.focus()
+    await user.keyboard('{ArrowUp}')
+    expect(second).toHaveFocus()
+    last.focus()
+    await user.keyboard('{ArrowDown}')
+    expect(first).toHaveFocus()
+    await user.keyboard('{ArrowUp}')
+    expect(last).toHaveFocus()
+    await user.keyboard('{Home}')
+    expect(first).toHaveFocus()
+    await user.keyboard('{End}')
+    expect(last).toHaveFocus()
+  })
+
+  it('renders the summary as a decorative (aria-hidden) hint, not part of the accessible name', () => {
+    renderDisclosure({ open: false, summary: 'Attention first', summaryClassName: 'sum', hasActiveFilters: true })
+    const summary = screen.getByText('Attention first')
+    expect(summary).toHaveAttribute('aria-hidden', 'true')
+    expect(summary).toHaveClass('sum')
+    // The summary remains decorative, but the trigger announces the active context.
+    expect(screen.getByRole('button', { name: 'View options, Attention first' })).toBeInTheDocument()
+  })
+
+  it('shows the decorative active cue only when filters are active', () => {
+    const { unmount } = renderDisclosure({ open: false, hasActiveFilters: false })
+    expect(document.querySelectorAll('.view-options-disclosure__active-dot')).toHaveLength(0)
+    unmount()
+    renderDisclosure({ open: false, hasActiveFilters: true, summary: 'All · Status' })
+    expect(document.querySelectorAll('.view-options-disclosure__active-dot')).toHaveLength(1)
+    expect(screen.getByText('All · Status')).toHaveAttribute('aria-hidden', 'true')
+    expect(document.querySelector('.view-options-disclosure__active-dot')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByRole('button', { name: 'View options, All · Status' })).toBeInTheDocument()
+  })
+
+  it('applies each host skin class (container/trigger/chevron/panel) so CSS is preserved', () => {
+    const { container } = renderDisclosure({
+      open: true,
+      className: 'host-wrap',
+      triggerClassName: 'host-trigger',
+      chevronClassName: 'host-chev',
+      panelClassName: 'host-panel',
+    })
+    expect(container.querySelector('.host-wrap')).not.toBeNull()
+    expect(screen.getByRole('button', { name: /view options/i })).toHaveClass('host-trigger')
+    // Chevron carries the base + open modifier when expanded.
+    expect(container.querySelector('.host-chev.host-chev--open')).not.toBeNull()
+    expect(container.querySelector('#panel-1.host-panel')).not.toBeNull()
+  })
+})
+
+// I3 (issue #379): Escape closes the disclosure and leaves focus on the trigger — the trigger is
+// the disclosure's focus home. Covers BOTH phone doors (Tasks workspace, Signals archive).
+describe('ViewOptionsDisclosure — I3 Escape (issue #379)', () => {
+  it('Escape on the open trigger closes via onClose and keeps focus on the trigger', () => {
+    const onClose = vi.fn()
+    const onToggle = vi.fn()
+    renderDisclosure({ open: true, onToggle, onClose })
+    const trigger = screen.getByRole('button', { name: /view options/i })
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(onToggle).not.toHaveBeenCalled()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('Escape inside the open panel closes via onClose and returns focus to the trigger', () => {
+    const onClose = vi.fn()
+    render(
+      <ViewOptionsDisclosure open onToggle={vi.fn()} onClose={onClose} label="View options" panelId="p">
+        <button type="button">a filter control</button>
+      </ViewOptionsDisclosure>,
+    )
+    const inner = screen.getByRole('button', { name: /a filter control/i })
+    inner.focus()
+    fireEvent.keyDown(inner, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'View options' })).toHaveFocus()
+  })
+
+  it('Escape on a CLOSED trigger is a no-op (never reopens)', () => {
+    const onToggle = vi.fn()
+    renderDisclosure({ open: false, onToggle })
+    fireEvent.keyDown(screen.getByRole('button', { name: /view options/i }), { key: 'Escape' })
+    expect(onToggle).not.toHaveBeenCalled()
+  })
+
+  it('without onClose, Escape falls back to onToggle (open → closed)', () => {
+    const onToggle = vi.fn()
+    renderDisclosure({ open: true, onToggle })
+    fireEvent.keyDown(screen.getByRole('button', { name: /view options/i }), { key: 'Escape' })
+    expect(onToggle).toHaveBeenCalledOnce()
+  })
+})

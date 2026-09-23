@@ -50,10 +50,11 @@ const row: FollowUpRow = {
 const viewer: AuthState = {
   status: 'authenticated',
   viewer: {
-    person: { id: 'p1', org_id: 'org-1', user_id: 'u1', full_name: 'Sales', email: null, archived_at: null, created_at: '', updated_at: '' },
+    person: { id: 'p1', org_id: 'org-1', user_id: 'u1', full_name: 'Sales', email: null, must_change_password: false, archived_at: null, created_at: '', updated_at: '' },
     roles: [{ id: 'r1', org_id: 'org-1', business_unit_id: 'bu-sales', name: 'Sales Lead', reports_to_role_id: null, created_at: '', updated_at: '' }],
     isManager: false,
     accessRoles: [],
+    affiliated: [],
   },
   signOut: vi.fn(),
 }
@@ -73,8 +74,7 @@ function renderRoute(initialEntry: string) {
         createElement(
           Routes,
           null,
-          createElement(Route, { path: '/work/follow-ups', element: createElement(FollowUpsPage) }),
-          createElement(Route, { path: '/work/follow-ups/:id', element: createElement(FollowUpsPage) }),
+          createElement(Route, { path: '/money/follow-ups', element: createElement(FollowUpsPage) }),
         ),
       ),
     ),
@@ -94,7 +94,10 @@ describe('FollowUpsPage', () => {
   it('AC-520: renders queue rows in the shared DataTable with lifecycle actions', async () => {
     const { container } = render(createElement(FollowUpsPage), { wrapper })
     expect(await screen.findByText('PT Big Buyer')).toBeInTheDocument()
-    expect(screen.getByRole('table', { name: 'Follow-up queue' })).toBeInTheDocument()
+    // Ported for #192 (Tasks): renamed "AR Follow-up queue". The Task follow-ups view shares this
+    // i18n KEY with this page (via FollowUpQueueEmbed) — but not this table: that embed renders the
+    // shared FollowUpQueueTable while this page renders its own bespoke one (#428).
+    expect(screen.getByRole('table', { name: 'AR Follow-up queue' })).toBeInTheDocument()
     expect(container.querySelector('.dt-table')).toBeTruthy()
     expect(container.querySelector('.follow-ups-table')).toBeNull()
     expect(screen.getAllByText(/Rp/).length).toBeGreaterThan(0)
@@ -112,10 +115,11 @@ describe('FollowUpsPage', () => {
     expect(container.querySelector('.follow-ups-table-wrap')).toBeNull()
   })
 
-  it('AC-520: /work/follow-ups/:id opens a read-only detail panel for that follow-up', async () => {
-    renderRoute('/work/follow-ups/fu-1')
-    expect(await screen.findByRole('complementary', { name: 'Follow-up detail' })).toHaveTextContent('INV-1001')
-    expect(screen.getByRole('complementary', { name: 'Follow-up detail' })).toHaveTextContent('PT Big Buyer')
+  it('DD-WAY-36: the queue renders the source ref as plain text — no link to the deleted Work path', async () => {
+    renderRoute('/money/follow-ups')
+    expect(await screen.findByText('PT Big Buyer')).toBeInTheDocument()
+    expect(screen.getByText('INV-1001')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Read-only source/i })).toBeNull()
   })
 
   it('AC-520: renders queue rows with lifecycle actions', async () => {

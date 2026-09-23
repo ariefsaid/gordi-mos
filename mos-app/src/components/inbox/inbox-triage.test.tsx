@@ -1,0 +1,284 @@
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent, within } from '@testing-library/react'
+import { I18nProvider } from '@/i18n/I18nProvider'
+import { translateFor } from '@/i18n/use-t'
+import { InboxTriage, type InboxTriageProps } from './inbox-triage'
+import type { TriageNotificationRow } from './read-handled-semantics'
+import { formatAge } from '@/components/tasks/task-formatters'
+
+function trow(id: string, over?: Partial<TriageNotificationRow>): TriageNotificationRow {
+  return {
+    id,
+    severity: 'info',
+    title: `Title ${id}`,
+    body: `Body ${id}`,
+    metadata: {},
+    read_at: null,
+    created_at: '2026-07-20T00:00:00Z',
+    handled_at: null,
+    ...over,
+  }
+}
+
+function renderTriage(props: Partial<InboxTriageProps> = {}) {
+  const full: InboxTriageProps = {
+    mode: 'page',
+    state: 'ready',
+    rows: [trow('a'), trow('b', { read_at: '2026-07-20T01:00:00Z' })],
+    filter: 'all',
+    handledFilterAvailable: false,
+    onFilterChange: vi.fn(),
+    onOpen: vi.fn(),
+    onRetry: vi.fn(),
+    ...props,
+  }
+  render(
+    <I18nProvider>
+      <InboxTriage {...full} />
+    </I18nProvider>,
+  )
+  return full
+}
+
+describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 / J06)', () => {
+  it('renders the All and Unread filters and reflects the active filter', () => {
+    renderTriage({ filter: 'unread' })
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Unread' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('omits the Handled filter when handledFilterAvailable is false (no dead tab)', () => {
+    renderTriage({ handledFilterAvailable: false })
+    expect(screen.queryByRole('button', { name: 'Handled' })).toBeNull()
+  })
+
+  it('shows the Handled filter when handledFilterAvailable is true', () => {
+    renderTriage({ handledFilterAvailable: true })
+    expect(screen.getByRole('button', { name: 'Handled' })).toBeInTheDocument()
+  })
+
+  it('clicking a filter calls onFilterChange with that filter', () => {
+    const props = renderTriage()
+    fireEvent.click(screen.getByRole('button', { name: 'Unread' }))
+    expect(props.onFilterChange).toHaveBeenCalledWith('unread')
+  })
+
+  it('loading state exposes a busy status region', () => {
+    renderTriage({ state: 'loading', rows: [] })
+    const status = screen.getByRole('status')
+    expect(status).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('error state shows Retry and calls onRetry', () => {
+    const props = renderTriage({ state: 'error', rows: [] })
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    expect(props.onRetry).toHaveBeenCalled()
+  })
+
+  it('empty state shows the caught-up message via the shared kit', () => {
+    renderTriage({ state: 'empty', rows: [] })
+    const empty = screen.getByTestId('empty-state')
+    expect(empty).toHaveAttribute('data-empty-variant', 'quiet')
+    expect(empty).toHaveTextContent(/caught up/i)
+  })
+
+  it('F13 (OD-91 #26): the unread view empty with read items hidden shows filter-aware copy + a Show all escape (not a false all-clear)', () => {
+    const props = renderTriage({ state: 'empty', rows: [], filter: 'unread', hiddenCount: 3 })
+    const empty = screen.getByTestId('empty-state')
+    expect(empty).toHaveTextContent(/no unread/i)
+    expect(empty).toHaveTextContent(/3 read hidden/i)
+    // The all-clear affirmation is NOT shown — that would be dishonest while read items exist.
+    expect(empty).not.toHaveTextContent(/caught up/i)
+    fireEvent.click(screen.getByRole('button', { name: /show all/i }))
+    expect(props.onFilterChange).toHaveBeenCalledWith('all')
+  })
+
+  it('F13 (OD-91 #26): a truly empty unread view (nothing hidden) keeps the earned all-clear', () => {
+    renderTriage({ state: 'empty', rows: [], filter: 'unread', hiddenCount: 0 })
+    expect(screen.getByTestId('empty-state')).toHaveTextContent(/caught up/i)
+  })
+
+  it('ready state renders one row per notification with title and body', () => {
+    renderTriage()
+    expect(screen.getByText('Title a')).toBeInTheDocument()
+    expect(screen.getByText('Body a')).toBeInTheDocument()
+    expect(screen.getByText('Title b')).toBeInTheDocument()
+  })
+
+  it('renders actor/source title, type, attention, and a concise source line', () => {
+    renderTriage({ rows: [trow('signal-1', {
+      title: 'You were mentioned in a Signal',
+      body: 'The freezer alarm went off\nInvestigating the grinder.',
+      metadata: {
+        source: 'mention',
+        attention: 'Urgent',
+        actor: { id: 'person-cahya', name: 'Cahya' },
+        entity: { type: 'signal', id: 'signal-1' },
+      },
+    })] })
+    const row = document.querySelector('[data-notification-id="signal-1"]') as HTMLElement
+    expect(within(row).getByText('Cahya mentioned you')).toBeInTheDocument()
+    expect(within(row).getByText('Signal')).toBeInTheDocument()
+    expect(within(row).getByText('Urgent')).toBeInTheDocument()
+    expect(within(row).getByText('The freezer alarm went off')).toBeInTheDocument()
+    expect(within(row).queryByText('Investigating the grinder.')).not.toBeInTheDocument()
+  })
+
+  it('renders a Signal-retraction actor, localized reason, and typed Signal target', () => {
+    renderTriage({ rows: [trow('retraction-1', {
+      title: 'Signal retracted',
+      body: 'Duplicate report',
+      metadata: {
+        source: 'signal_retraction',
+        actor: { id: 'person-lead', name: 'Dewi' },
+        reason: 'Duplicate report',
+        entity: { type: 'signal', id: 'signal-1', route: '/work/signals?record=signal-1' },
+      },
+    })] })
+    const row = document.querySelector('[data-notification-id="retraction-1"]') as HTMLElement
+    expect(within(row).getByText('Dewi retracted your Signal')).toBeInTheDocument()
+    expect(within(row).getByText('Reason: Duplicate report')).toBeInTheDocument()
+    expect(within(row).getByText('Signal')).toBeInTheDocument()
+  })
+
+  it('issue #583: each row renders its created time in the shared humane-age format, reused not reinvented', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-20T03:00:00Z')) // 3h after row a's created_at
+    try {
+      renderTriage({ rows: [trow('a')] })
+      // Same helper Activity already renders ages with (task-formatters.ts formatAge) — a second,
+      // reinvented format here would drift from it the first time either one changes.
+      const expected = formatAge('2026-07-20T00:00:00Z', new Date())
+      const row = screen.getByText('Title a').closest('.inbox-row')!
+      expect(within(row as HTMLElement).getByText(expected)).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('issue #583 i18n: the id locale renders id age units, not the hardcoded en m/h/d beside the localized age Pill', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-20T03:00:00Z')) // 3h after row a's created_at
+    localStorage.setItem('mos.locale', 'id')
+    try {
+      renderTriage({ rows: [trow('a')] })
+      const expected = formatAge('2026-07-20T00:00:00Z', new Date(), 'id')
+      expect(expected).toBe('3jam') // sanity: not the en "3h" the Pill's neighbour used to show
+      const row = screen.getByText('Title a').closest('.inbox-row')!
+      expect(within(row as HTMLElement).getByText(expected)).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+      localStorage.removeItem('mos.locale')
+    }
+  })
+
+  it('an unread row is marked unread in its accessible name and style hook', () => {
+    renderTriage({ rows: [trow('a')] })
+    const btn = screen.getByRole('button', { name: /Title a \(unread\)/ })
+    expect(btn.closest('.inbox-row')).toHaveClass('inbox-row--unread')
+  })
+
+  it('clicking a row calls onOpen with that notification', () => {
+    const props = renderTriage({ rows: [trow('a')] })
+    fireEvent.click(screen.getByRole('button', { name: /Title a/ }))
+    expect(props.onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }))
+  })
+
+  it('renders row titles as inert text (no injected markup)', () => {
+    renderTriage({ rows: [trow('x', { title: '<img src=x onerror=alert(1)>' })] })
+    expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeInTheDocument()
+    expect(document.querySelector('img')).toBeNull()
+  })
+
+  it('exposes a Mark handled action only when onMarkHandled is supplied and the row is unhandled', () => {
+    const onMarkHandled = vi.fn()
+    renderTriage({ rows: [trow('a')], onMarkHandled })
+    const row = screen.getByRole('button', { name: /Title a/ }).closest('.inbox-row')!
+    fireEvent.click(within(row as HTMLElement).getByRole('button', { name: /mark handled/i }))
+    expect(onMarkHandled).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }))
+  })
+
+  it('does not offer Mark handled for an already-handled row', () => {
+    renderTriage({
+      rows: [trow('a', { handled_at: '2026-07-20T02:00:00Z' })],
+      onMarkHandled: vi.fn(),
+    })
+    expect(screen.queryByRole('button', { name: /mark handled/i })).toBeNull()
+  })
+
+  it('a pending open row disables its open button with aria-busy and announces via status', () => {
+    renderTriage({ rows: [trow('a')], pendingActions: { a: 'open' } })
+    const btn = screen.getByRole('button', { name: /Title a/ })
+    expect(btn).toBeDisabled()
+    expect(btn).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('status')).toHaveTextContent(/opening/i)
+  })
+
+  it('a pending row also disables its Mark handled action', () => {
+    renderTriage({ rows: [trow('a')], onMarkHandled: vi.fn(), pendingActions: { a: 'handled' } })
+    const row = screen.getByRole('button', { name: /Title a/ }).closest('.inbox-row')!
+    const handle = within(row as HTMLElement).getByRole('button', { name: /mark handled/i })
+    expect(handle).toBeDisabled()
+    expect(handle).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('status')).toHaveTextContent(/updating/i)
+    expect(screen.getByRole('status')).not.toHaveTextContent(/opening/i)
+  })
+
+  it('is chrome-free: no dialog role, no scrim, no close button — the host owns those', () => {
+    renderTriage()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.querySelector('.drawer-scrim, .drawer-modal-root')).toBeNull()
+    expect(screen.queryByRole('button', { name: /close/i })).toBeNull()
+  })
+
+  it('reflects its mode for the host without changing row meaning', () => {
+    renderTriage({ mode: 'quick' })
+    expect(document.querySelector('.inbox-triage')).toHaveAttribute('data-mode', 'quick')
+  })
+})
+
+describe('OD-WAY-86 (#141) — re-nudge age badge', () => {
+  // Deterministic local-day bucket: exactly `n` VIEWER-LOCAL calendar days before today at a fixed
+  // hour — guarantees age `n` regardless of runtime clock time (unlike an hoursAgo offset, which
+  // crosses a local midnight and flips the bucket under the calendar-day semantics).
+  const daysAgo = (n: number) => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    d.setDate(d.getDate() - n)
+    d.setHours(12, 0, 0, 0)
+    return d.toISOString()
+  }
+  const nowIso = new Date().toISOString()
+
+  it('AC-141-1: an untriaged row older than 48h carries the age badge; a younger row does not', () => {
+    renderTriage({
+      rows: [
+        trow('aged', { created_at: daysAgo(3) }), // 3 local days ago → "3 days"
+        trow('young', { created_at: daysAgo(0) }),
+      ],
+    })
+    const agedRow = document.querySelector('[data-notification-id="aged"]')!
+    expect(within(agedRow as HTMLElement).getByText('3 days')).toBeInTheDocument()
+    expect(document.querySelector('[data-notification-id="young"]')!.textContent).not.toMatch(/days/)
+  })
+
+  it('AC-141-2: read and handled rows never carry the badge', () => {
+    renderTriage({
+      rows: [
+        trow('read', { read_at: nowIso, created_at: daysAgo(8) }),
+        trow('handled', { read_at: nowIso, handled_at: nowIso, created_at: daysAgo(8) }),
+      ],
+    })
+    expect(screen.queryByText(/days/)).toBeNull()
+  })
+
+  it('the badge is part of the row open-button accessible name', () => {
+    renderTriage({ rows: [trow('aged', { created_at: daysAgo(3) })] })
+    expect(screen.getByRole('button', { name: /Title aged \(unread\) \(3 days\)/ })).toBeInTheDocument()
+  })
+
+  it('the badge localizes: en "3 days", id "3 hari" (OD-WAY-86: both locales)', () => {
+    expect(translateFor('en')('inbox.age.days', { count: 3 })).toBe('3 days')
+    expect(translateFor('id')('inbox.age.days', { count: 3 })).toBe('3 hari')
+  })
+})

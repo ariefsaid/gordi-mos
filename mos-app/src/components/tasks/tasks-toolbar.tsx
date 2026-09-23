@@ -1,203 +1,318 @@
-// TasksToolbar — the records-workspace toolbar strip, re-presented in the signed
-// mockup idiom (docs/design-mockups/ui-revamp/mock-shell-and-table.html `.toolbar`):
-//   view-tabs (Table active · Board/Calendar disabled "soon") · spacer ·
-//   Mine/RACI/All segmented pill (`.seg`) · chip-style filter controls (`.chip`:
-//   Group / Business unit / Status / Person) · search-mini · Show-archived.
-//
-// Pure presentational control surface — it owns no state; every value + setter is
-// threaded from TasksWorkspace (the data/state orchestrator). The chips wrap the
-// native <select> (a transparent overlay) so the FULL filter capability + native
-// a11y (labelled combobox, keyboard) is preserved — this is a re-skin, not a
-// removal. Extracted from TasksWorkspace to keep that file at composition altitude.
-import type { Dispatch, SetStateAction } from 'react'
-import type { TaskStatus } from '@/lib/db/tasks.types'
+import { useRef } from 'react'
+import { Button } from '@/components/ui/button'
+import { Picker } from '@/components/ui/picker'
+import {
+  CollectionToolbar,
+  type CollectionToolbarFilter,
+  type CollectionToolbarSavedViews,
+} from '@/components/record-collection/collection-toolbar'
+import type { CollectionViewOperationStatus } from '@/lib/record-collection/types'
+import type { PersistedCollectionView } from '@/lib/record-collection/collection-view-spec'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
-import type { TasksGroupBy } from './use-tasks-view-pref'
-import { Chevron } from '@/shell/icons'
-import { ViewTabs, type ViewTab } from '@/components/ui/view-tabs'
+import { useT } from '@/i18n/use-t'
+import { useIsDesktop } from '@/shell/use-is-desktop'
+import type { TaskStatus } from '@/lib/db/tasks.types'
+import type {
+  TaskCollectionGroup,
+  TaskCollectionPresentation,
+  TaskCollectionQuery,
+  TaskCollectionSort,
+  TaskCollectionView,
+} from './task-collection-adapter'
 
-export type TasksToolbarSegment = 'mine' | 'raci' | 'all'
+type SortDir = TaskCollectionQuery['direction']
+type TasksSavedViewSaveResult = PersistedCollectionView | null | void
+type SavedViewRetryAction = { kind: 'load' } | { kind: 'apply'; id: string } | { kind: 'save'; name: string }
 
-export type TasksToolbarProps = {
-  groupBy: TasksGroupBy
-  setGroupBy: (next: TasksGroupBy) => void
-  businessUnitId: string
-  setBusinessUnitId: Dispatch<SetStateAction<string>>
-  statusFilter: TaskStatus | ''
-  setStatusFilter: Dispatch<SetStateAction<TaskStatus | ''>>
-  personFilter: string
-  setPersonFilter: Dispatch<SetStateAction<string>>
-  segment: TasksToolbarSegment
-  setSegment: Dispatch<SetStateAction<TasksToolbarSegment>>
-  /** Person filter overrides the segment (FR-124 / AC-126) → the segment is inert. */
-  segmentDisabled: boolean
-  searchText: string
-  setSearchText: Dispatch<SetStateAction<string>>
-  includeArchived: boolean
-  setIncludeArchived: Dispatch<SetStateAction<boolean>>
-  buOptions: BusinessUnitOption[]
-  personOptions: PersonOption[]
+export type TasksToolbarSavedViews = {
+  label: string
+  selectedId: string | null
+  operation: CollectionViewOperationStatus
+  error: string | null
+  items: readonly { id: string; name: string }[]
+  onLoad?: () => void | Promise<void>
+  onApply: (id: string) => void | Promise<void>
+  onSave: (name: string) => TasksSavedViewSaveResult | Promise<TasksSavedViewSaveResult>
 }
 
-const SEGMENTS: { key: TasksToolbarSegment; label: string }[] = [
-  { key: 'mine', label: 'Mine' },
-  { key: 'raci', label: 'RACI' },
-  { key: 'all', label: 'All' },
+export type TasksToolbarProps = {
+  query: TaskCollectionQuery
+  onQueryChange: (patch: Partial<TaskCollectionQuery>) => void
+  onViewChange: (next: TaskCollectionView) => void
+  onPresentationChange: (next: TaskCollectionPresentation) => void
+  onFieldToggle: (field: string, visible: boolean) => void
+  overdueCount: number
+  onOverdueFilter: () => void
+  onClearOverdue: () => void
+  onClearFilters: () => void
+  activeQuery: { summary: string; hasActiveFilters: boolean }
+  buOptions: readonly BusinessUnitOption[]
+  personOptions: readonly PersonOption[]
+  savedViews?: TasksToolbarSavedViews
+  attentionCounts?: { overdue: number; blocked: number; total: number }
+  onAttentionOverdue?: () => void
+  onAttentionBlocked?: () => void
+}
+
+const STATUS_VALUES: { value: TaskStatus | ''; key: 'any' | 'open' | 'inProgress' | 'blocked' | 'done' }[] = [
+  { value: '', key: 'any' },
+  { value: 'Open', key: 'open' },
+  { value: 'In Progress', key: 'inProgress' },
+  { value: 'Blocked', key: 'blocked' },
+  { value: 'Done', key: 'done' },
 ]
 
-// View-tabs (the shared ViewTabs primitive, OD-P3-6): Table is the live view;
-// Board + Calendar are non-functional placeholders ("soon"), disabled exactly
-// like the signed mockup. Only Table is live in this slice, so the view-switch is
-// a forward-compatible no-op until Board/Calendar ship.
-const VIEW_TABS: ViewTab[] = [
-  { id: 'table', label: 'Table' },
-  { id: 'board', label: 'Board', soon: true },
-  { id: 'calendar', label: 'Calendar', soon: true },
+const GROUP_VALUES: { value: TaskCollectionGroup; key: 'none' | 'status' | 'pic' | 'businessUnit' | 'projectProcess' | 'objective' | 'occurrence' }[] = [
+  { value: 'none', key: 'none' },
+  { value: 'status', key: 'status' },
+  { value: 'pic', key: 'pic' },
+  { value: 'bu', key: 'businessUnit' },
+  { value: 'workline', key: 'projectProcess' },
+  { value: 'objective', key: 'objective' },
+  { value: 'occurrence', key: 'occurrence' },
 ]
 
-const STATUS_VALUES: { value: TaskStatus | ''; label: string }[] = [
-  { value: '', label: 'Any' },
-  { value: 'Open', label: 'Open' },
-  { value: 'In Progress', label: 'In Progress' },
-  { value: 'Blocked', label: 'Blocked' },
-  { value: 'Done', label: 'Done' },
+const VIEW_VALUES: { value: TaskCollectionView; key: 'all' | 'my-work' | 'team-work' | 'overdue' }[] = [
+  { value: 'all', key: 'all' },
+  { value: 'my-work', key: 'my-work' },
+  { value: 'team-work', key: 'team-work' },
+  { value: 'overdue', key: 'overdue' },
 ]
 
-const GROUP_VALUES: { value: TasksGroupBy; label: string }[] = [
-  { value: 'none', label: 'None' },
-  { value: 'status', label: 'Status' },
-  { value: 'owner', label: 'Owner' },
-  { value: 'bu', label: 'Business unit' },
-  { value: 'workline', label: 'Project/Process' },
+const FIELD_OPTIONS: { value: string; key: string; required?: boolean }[] = [
+  { value: 'title', key: 'tasks.label.task', required: true },
+  { value: 'pic', key: 'tasks.pic', required: true },
+  { value: 'supervisor', key: 'tasks.supervisor', required: true },
+  { value: 'status', key: 'tasks.filter.status', required: true },
+  { value: 'due', key: 'tasks.dueLabel', required: true },
+  { value: 'businessUnit', key: 'tasks.filter.businessUnit' },
+  { value: 'workline', key: 'tasks.filter.projectProcess' },
+  { value: 'objective', key: 'tasks.objective' },
+  { value: 'activity', key: 'tasks.fields.activity' },
 ]
 
 export function TasksToolbar({
-  groupBy, setGroupBy,
-  businessUnitId, setBusinessUnitId,
-  statusFilter, setStatusFilter,
-  personFilter, setPersonFilter,
-  segment, setSegment, segmentDisabled,
-  searchText, setSearchText,
-  includeArchived, setIncludeArchived,
-  buOptions, personOptions,
+  query,
+  onQueryChange,
+  onViewChange,
+  onPresentationChange,
+  onFieldToggle,
+  overdueCount,
+  onOverdueFilter,
+  onClearOverdue,
+  onClearFilters,
+  activeQuery,
+  buOptions,
+  personOptions,
+  savedViews,
+  attentionCounts,
+  onAttentionOverdue,
+  onAttentionBlocked,
 }: TasksToolbarProps) {
-  // Current-value labels shown inside each chip (mockup `.ch-v`).
-  const groupValue = GROUP_VALUES.find(g => g.value === groupBy)?.label ?? 'None'
-  const buValue = businessUnitId ? buOptions.find(b => b.id === businessUnitId)?.name ?? 'All' : 'All'
-  const statusValue = STATUS_VALUES.find(s => s.value === statusFilter)?.label ?? 'Any'
-  const personValue = personFilter
-    ? personOptions.find(p => p.id === personFilter)?.full_name ?? 'Anyone'
-    : 'Anyone'
+  const t = useT()
+  const isDesktop = useIsDesktop()
+  const savedViewRetryRef = useRef<SavedViewRetryAction | null>(null)
+  const attention = attentionCounts ?? { overdue: overdueCount, blocked: 0, total: overdueCount }
+  const attentionTotal = attention.total
+
+  const statusLabel = (key: (typeof STATUS_VALUES)[number]['key']) => t(`tasks.status.${key}` as const)
+  const groupLabel = (key: (typeof GROUP_VALUES)[number]['key']) => {
+    if (key === 'none') return t('tasks.filter.none')
+    if (key === 'status') return t('tasks.filter.status')
+    if (key === 'pic') return t('tasks.pic')
+    if (key === 'businessUnit') return t('tasks.filter.businessUnit')
+    if (key === 'projectProcess') return t('tasks.filter.projectProcess')
+    if (key === 'objective') return t('tasks.objective')
+    return t('tasks.filter.occurrence')
+  }
+
+  const filters: CollectionToolbarFilter[] = [
+    {
+      id: 'group',
+      label: t('tasks.filter.group'),
+      triggerPrefix: t('tasks.filter.group'),
+      value: query.groupBy,
+      options: GROUP_VALUES.map(({ value, key }) => ({ value, label: groupLabel(key) })),
+      tinted: query.groupBy !== 'none',
+      onChange: (value) => {
+        onQueryChange({ groupBy: value as TaskCollectionGroup })
+        try { localStorage.setItem('mos.tasks.groupBy', value === 'pic' ? 'owner' : value) } catch { /* storage disabled */ }
+      },
+    },
+    {
+      id: 'business-unit',
+      label: t('tasks.filter.businessUnit'),
+      value: query.businessUnitId ?? '',
+      options: [
+        { value: '', label: t('tasks.filter.anyBusinessUnit') },
+        ...buOptions.map((unit) => ({ value: unit.id, label: unit.name })),
+      ],
+      onChange: (value) => onQueryChange({ businessUnitId: value || null }),
+    },
+    {
+      id: 'status',
+      label: t('tasks.filter.status'),
+      display: query.status ? statusLabel(STATUS_VALUES.find((item) => item.value === query.status)?.key ?? 'any') : statusLabel('any'),
+      popover: {
+        choices: [
+          ...STATUS_VALUES.map(({ value, key }) => ({
+            key: `status-${key}`,
+            label: statusLabel(key),
+            checked: (query.status ?? '') === value,
+            onChange: () => onQueryChange({ status: (value || null) as TaskStatus | null }),
+          })),
+          {
+            key: 'include-archived',
+            label: t('tasks.filter.includeArchived'),
+            checked: query.includeArchived,
+            onChange: (checked: boolean) => onQueryChange({ includeArchived: checked }),
+          },
+        ],
+      },
+    },
+    {
+      id: 'person',
+      label: t('tasks.filter.person'),
+      value: query.personId ?? '',
+      options: [
+        { value: '', label: t('tasks.filter.anyone') },
+        ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
+      ],
+      onChange: (value) => onQueryChange({ personId: value || null }),
+    },
+    {
+      id: 'sort',
+      label: t('tasks.filter.sort'),
+      value: `${query.sort}:${query.direction}`,
+      options: [
+        { value: 'due:ascending', label: t('tasks.filter.sortDueSoonest') },
+        { value: 'due:descending', label: t('tasks.filter.sortDueLatest') },
+        { value: 'task:ascending', label: t('tasks.filter.sortTask') },
+        { value: 'status:ascending', label: t('tasks.filter.sortStatus') },
+        { value: 'pic:ascending', label: t('tasks.filter.sortPic') },
+        { value: 'supervisor:ascending', label: t('tasks.supervisor') },
+        { value: 'activity:descending', label: t('tasks.filter.sortActivity') },
+      ],
+      onChange: (value) => {
+        const [sort, direction] = value.split(':')
+        onQueryChange({ sort: sort as TaskCollectionSort, direction: direction as SortDir })
+      },
+    },
+  ]
+
+  let collectionSavedViews: CollectionToolbarSavedViews | undefined
+  if (savedViews) {
+    collectionSavedViews = {
+      label: savedViews.label,
+      selectedId: savedViews.selectedId,
+      operation: savedViews.operation,
+      error: savedViews.error,
+      errorMessage: t('tasks.savedViewsError'),
+      items: savedViews.items,
+      onLoad: () => {
+        savedViewRetryRef.current = { kind: 'load' }
+        return savedViews.onLoad?.()
+      },
+      onRetry: () => {
+        const retry = savedViewRetryRef.current
+        if (!retry) return
+        if (retry.kind === 'load') void savedViews.onLoad?.()
+        else if (retry.kind === 'apply') void savedViews.onApply(retry.id)
+        else void savedViews.onSave(retry.name)
+      },
+      onApply: (id) => {
+        savedViewRetryRef.current = { kind: 'apply', id }
+        return savedViews.onApply(id)
+      },
+      onSave: (name) => {
+        savedViewRetryRef.current = { kind: 'save', name }
+        return savedViews.onSave(name)
+      },
+    }
+  }
 
   return (
-    <div className="toolbar">
-      {/* View-tabs (shared ViewTabs primitive) — Table live; Board/Calendar "soon" placeholders. */}
-      <ViewTabs
-        ariaLabel="View"
-        active="table"
-        onChange={() => { /* view switch is a future slice; only Table is live today */ }}
-        tabs={VIEW_TABS}
-      />
-
-      <span className="tb-spacer" />
-
-      {/* Mine/RACI/All segmented pill (mockup `.seg`). Disabled when a Person filter
-          drives scope (FR-124 / AC-126) — the override gets a tooltip, not a label. */}
-      <div
-        role="tablist"
-        aria-label="Ownership filter"
-        className={`seg${segmentDisabled ? ' seg-disabled' : ''}`}
-        title={segmentDisabled ? 'Scope is set by the Person filter' : undefined}
-        aria-description={segmentDisabled ? 'Scope is set by the Person filter' : undefined}
-      >
-        {SEGMENTS.map(({ key, label }) => (
-          <button
-            key={key}
-            role="tab"
-            aria-selected={!segmentDisabled && segment === key}
-            aria-disabled={segmentDisabled ? 'true' : undefined}
-            tabIndex={segmentDisabled ? -1 : 0}
-            disabled={segmentDisabled}
-            className={!segmentDisabled && segment === key ? 'seg-btn seg-btn-on' : 'seg-btn'}
-            title={segmentDisabled ? 'Scope is set by the Person filter' : undefined}
-            onClick={() => setSegment(key)}
-            type="button"
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Group chip — grouping is opt-in (default flat / "None"). */}
-      <label htmlFor="group-by-filter" className="sr-only">Group</label>
-      <div className="chip">
-        <span className="ch-k">Group</span>
-        <span className="ch-v">{groupValue}</span>
-        <Chevron className="chip-chev" />
-        <select
-          id="group-by-filter"
-          aria-label="Group"
-          value={groupBy}
-          onChange={e => setGroupBy(e.target.value as TasksGroupBy)}
-          className="chip-select"
-        >
-          {GROUP_VALUES.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
-        </select>
-      </div>
-
-      {/* Business unit chip */}
-      <label htmlFor="bu-filter" className="sr-only">Business unit</label>
-      <div className="chip">
-        <span className="ch-k">Unit</span>
-        <span className="ch-v">{buValue}</span>
-        <Chevron className="chip-chev" />
-        <select id="bu-filter" aria-label="Business unit" value={businessUnitId}
-          onChange={e => setBusinessUnitId(e.target.value)} className="chip-select">
-          <option value="">All</option>
-          {buOptions.map(bu => <option key={bu.id} value={bu.id}>{bu.name}</option>)}
-        </select>
-      </div>
-
-      {/* Status chip */}
-      <label htmlFor="status-filter" className="sr-only">Status</label>
-      <div className="chip">
-        <span className="ch-k">Status</span>
-        <span className="ch-v">{statusValue}</span>
-        <Chevron className="chip-chev" />
-        <select id="status-filter" aria-label="Status" value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value as TaskStatus | '')} className="chip-select">
-          {STATUS_VALUES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-        </select>
-      </div>
-
-      {/* Person chip */}
-      <label htmlFor="person-filter" className="sr-only">Person</label>
-      <div className="chip">
-        <span className="ch-k">Person</span>
-        <span className="ch-v">{personValue}</span>
-        <Chevron className="chip-chev" />
-        <select id="person-filter" aria-label="Person" value={personFilter}
-          onChange={e => setPersonFilter(e.target.value)} className="chip-select">
-          <option value="">Anyone</option>
-          {personOptions.map(p => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-        </select>
-      </div>
-
-      {/* Search-mini (mockup `⌕ Filter rows`) */}
-      <label htmlFor="task-search" className="sr-only">Search tasks</label>
-      <div className="search-mini">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-          <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-        </svg>
-        <input id="task-search" type="search" placeholder="Filter rows" value={searchText}
-          onChange={e => setSearchText(e.target.value)} className="search-input" aria-label="Search tasks" />
-      </div>
-
-      <label className="archived-toggle">
-        <input type="checkbox" checked={includeArchived}
-          onChange={e => setIncludeArchived(e.target.checked)} aria-label="Show archived" className="archived-checkbox" />
-        <span className="archived-label">Show archived</span>
-      </label>
-    </div>
+    <CollectionToolbar
+      className="tasks-collection-toolbar"
+      // Tasks' saved views ARE its common journeys — All, My work, Team work, Overdue answer the
+      // questions people actually arrive with. They stay exposed; the configuration long tail
+      // (group, unit, status, assignee, sort, fields, save) moves behind the door that already
+      // carries this surface's filter state on a phone. Two bands become one.
+      collapseOptionsOnDesktop
+      optionsActive={activeQuery.hasActiveFilters}
+      optionsSummary={activeQuery.summary}
+      presentation={{
+        // Card is the phone rendering of Table, so Tasks has one live desktop presentation and no
+        // dead Table/Card segment in the exposed row.
+        label: 'Presentation',
+        value: query.layout,
+        options: [{ value: query.layout, label: query.layout === 'card' ? 'Card' : 'Table' }],
+        onChange: onPresentationChange,
+      }}
+      views={{
+        label: t('tasks.toolbar.viewNavigation'),
+        value: query.view,
+        options: VIEW_VALUES.map(({ value, key }) => ({
+          value,
+          label: key === 'all'
+            ? t('tasks.saved.all')
+            : key === 'my-work'
+              ? t('tasks.saved.mine')
+              : key === 'team-work'
+                ? t('tasks.saved.team')
+                : t('tasks.saved.overdue'),
+        })),
+        onChange: (value) => onViewChange(value as TaskCollectionView),
+      }}
+      search={{
+        label: t('tasks.filter.search'),
+        placeholder: t('tasks.filter.searchPlaceholder'),
+        value: query.q,
+        onChange: (value) => onQueryChange({ q: value }),
+      }}
+      filters={filters}
+      fields={isDesktop ? {
+        label: t('tasks.fields'),
+        options: FIELD_OPTIONS.map((field) => ({ value: field.value, label: t(field.key as Parameters<typeof t>[0]), required: field.required })),
+        visible: query.visibleFields,
+        onToggle: onFieldToggle,
+      } : undefined}
+      savedViews={collectionSavedViews}
+      toggles={
+        <>
+          {attentionTotal > 0 ? (
+            <Picker
+              id="tasks-filter-attention"
+              label={t('tasks.filter.attentionAria', { count: attentionTotal })}
+              hideLabel
+              value=""
+              placeholder={t('tasks.filter.attentionCount', { count: attentionTotal })}
+              options={[
+                { value: 'overdue', label: t('tasks.filter.overdueCount', { count: attention.overdue }) },
+                { value: 'blocked', label: t('tasks.filter.blockedCount', { count: attention.blocked }) },
+              ]}
+              onChange={(value) => {
+                if (value === 'overdue') (onAttentionOverdue ?? (query.overdueOnly ? onClearOverdue : onOverdueFilter))()
+                else (onAttentionBlocked ?? (() => onQueryChange({ overdueOnly: false, status: 'Blocked' })))()
+              }}
+              className="tasks-attention-picker"
+              triggerClassName={`overdue-filter-btn${query.overdueOnly ? ' overdue-filter-btn--active' : ''}`}
+            />
+          ) : null}
+          {activeQuery.hasActiveFilters ? (
+            <Button
+              variant="ghost"
+              className="tasks-toolbar__clear"
+              onClick={onClearFilters}
+              aria-label={t('tasks.toolbar.clearFilters')}
+              title={t('tasks.toolbar.clearFilters')}
+            >
+              <span className="tasks-toolbar__clear-label">{t('tasks.toolbar.clearFilters')}</span>
+              <span className="tasks-toolbar__clear-compact-label">{t('tasks.toolbar.clearFiltersCompact')}</span>
+            </Button>
+          ) : null}
+        </>
+      }
+    />
   )
 }

@@ -4,8 +4,9 @@
 // Search: case-insensitive substring match on full_name OR email.
 // AC: each segment, search by name, search by email, combined, no-match empty state.
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import userEvent from '@testing-library/user-event'
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 import { UserTable } from './user-table'
@@ -16,51 +17,75 @@ vi.mock('@/shell/use-is-desktop')
 import { useIsDesktop } from '@/shell/use-is-desktop'
 const mockUseIsDesktop = vi.mocked(useIsDesktop)
 
+// The list presents as cards on a coarse pointer regardless of width; these toolbar tests
+// assert the desktop table presentation, so the pointer stays fine.
+vi.mock('@/shell/use-is-coarse-pointer')
+import { useIsCoarsePointer } from '@/shell/use-is-coarse-pointer'
+
+beforeEach(() => {
+  vi.mocked(useIsCoarsePointer).mockReturnValue(false)
+})
+
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const ADMIN: AdminPersonRow = {
   id: 'p-admin',
   full_name: 'Admin Gordi',
-  email: 'admin@gordi.id',
+  email: 'admin@example.test',
   archived_at: null,
   login: 'active',
   access_roles: ['admin'],
+  jabatan: [],
+  revenue_scope: [],
+  teams: [],
 }
 
 const ACTIVE_MEMBER: AdminPersonRow = {
   id: 'p-member',
   full_name: 'Budi Santoso',
-  email: 'budi@gordi.id',
+  email: 'budi@example.test',
   archived_at: null,
   login: 'active',
   access_roles: ['member'],
+  jabatan: [],
+  revenue_scope: [],
+  teams: [],
 }
 
 const NO_LOGIN_PERSON: AdminPersonRow = {
   id: 'p-no-login',
   full_name: 'Citra Wulandari',
-  email: 'citra@gordi.id',
+  email: 'citra@example.test',
   archived_at: null,
   login: 'none',
   access_roles: ['member'],
+  jabatan: [],
+  revenue_scope: [],
+  teams: [],
 }
 
 const DISABLED_LOGIN_PERSON: AdminPersonRow = {
   id: 'p-disabled',
   full_name: 'Dewi Rahayu',
-  email: 'dewi@gordi.id',
+  email: 'dewi@example.test',
   archived_at: null,
   login: 'disabled',
   access_roles: ['member'],
+  jabatan: [],
+  revenue_scope: [],
+  teams: [],
 }
 
 const ARCHIVED_PERSON: AdminPersonRow = {
   id: 'p-archived',
   full_name: 'Eko Prasetyo',
-  email: 'eko@gordi.id',
+  email: 'eko@example.test',
   archived_at: '2026-01-01T00:00:00Z',
   login: 'disabled',
   access_roles: [],
+  jabatan: [],
+  revenue_scope: [],
+  teams: [],
 }
 
 // Full roster: admin + active + no-login + disabled + archived
@@ -76,13 +101,17 @@ function renderTable(
   } = {},
 ) {
   mockUseIsDesktop.mockReturnValue(opts.isDesktop !== false)
+  // URL-synced filter state (I7 / interaction item 7) — the toolbar reads useSearchParams now,
+  // so the harness provides a Router (deliberate infra change; assertions untouched).
   return render(
-    <UserTable
-      people={people}
-      viewerPersonId={opts.viewerPersonId ?? 'viewer-id'}
-      onAction={opts.onAction ?? vi.fn()}
-      onAddPerson={opts.onAddPerson ?? vi.fn()}
-    />,
+    <MemoryRouter>
+      <UserTable
+        people={people}
+        viewerPersonId={opts.viewerPersonId ?? 'viewer-id'}
+        onAction={opts.onAction ?? vi.fn()}
+        onAddPerson={opts.onAddPerson ?? vi.fn()}
+      />
+    </MemoryRouter>,
   )
 }
 
@@ -178,6 +207,68 @@ describe('PeopleToolbar — segment filters', () => {
 
     expect(activeTab).toHaveAttribute('aria-selected', 'true')
   })
+
+  // Interaction-contract I7 / the shared ViewTabs keyboard grammar (view-tabs.tsx):
+  // roving tabindex (only the active tab is tabindex=0, every other tab is -1) plus
+  // Arrow/Home/End cycling. Previously the status filter was raw tablist buttons with
+  // no keyboard contract at all.
+  describe('roving tabindex + Arrow/Home/End (shared ViewTabs contract)', () => {
+    it('only the active tab is tabindex=0; every other tab is -1', () => {
+      renderTable(ALL_PEOPLE)
+      const tablist = screen.getByRole('tablist', { name: /status filter/i })
+      const tabs = within(tablist).getAllByRole('tab')
+      const allTab = within(tablist).getByRole('tab', { name: /^all$/i })
+
+      expect(allTab).toHaveAttribute('tabindex', '0')
+      for (const tab of tabs) {
+        if (tab !== allTab) expect(tab).toHaveAttribute('tabindex', '-1')
+      }
+    })
+
+    it('ArrowRight moves selection + DOM focus to the next tab (wrapping)', async () => {
+      const user = userEvent.setup()
+      renderTable(ALL_PEOPLE)
+      const tablist = screen.getByRole('tablist', { name: /status filter/i })
+      const allTab = within(tablist).getByRole('tab', { name: /^all$/i })
+      const activeTab = within(tablist).getByRole('tab', { name: /^active$/i })
+
+      allTab.focus()
+      await user.keyboard('{ArrowRight}')
+
+      expect(activeTab).toHaveFocus()
+      expect(activeTab).toHaveAttribute('aria-selected', 'true')
+      expect(allTab).toHaveAttribute('aria-selected', 'false')
+    })
+
+    it('End jumps to the last tab (Archived) and selects it', async () => {
+      const user = userEvent.setup()
+      renderTable(ALL_PEOPLE)
+      const tablist = screen.getByRole('tablist', { name: /status filter/i })
+      const allTab = within(tablist).getByRole('tab', { name: /^all$/i })
+      const archivedTab = within(tablist).getByRole('tab', { name: /archived/i })
+
+      allTab.focus()
+      await user.keyboard('{End}')
+
+      expect(archivedTab).toHaveFocus()
+      expect(archivedTab).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByText('Eko Prasetyo')).toBeInTheDocument()
+    })
+
+    it('Home jumps back to the first tab (All) from anywhere', async () => {
+      const user = userEvent.setup()
+      renderTable(ALL_PEOPLE)
+      const tablist = screen.getByRole('tablist', { name: /status filter/i })
+      const archivedTab = within(tablist).getByRole('tab', { name: /archived/i })
+      const allTab = within(tablist).getByRole('tab', { name: /^all$/i })
+
+      archivedTab.focus()
+      await user.keyboard('{End}{Home}')
+
+      expect(allTab).toHaveFocus()
+      expect(allTab).toHaveAttribute('aria-selected', 'true')
+    })
+  })
 })
 
 // ── Search filter tests ────────────────────────────────────────────────────────
@@ -203,7 +294,7 @@ describe('PeopleToolbar — search filter', () => {
     const user = userEvent.setup()
     renderTable(ALL_PEOPLE)
 
-    await user.type(screen.getByRole('searchbox'), 'citra@gordi')
+    await user.type(screen.getByRole('searchbox'), 'citra@example')
 
     expect(screen.getByText('Citra Wulandari')).toBeInTheDocument()
     expect(screen.queryByText('Budi Santoso')).not.toBeInTheDocument()
@@ -303,7 +394,7 @@ describe('PeopleToolbar — no-match empty state', () => {
 // ── Org-empty ("Just you so far") still works ─────────────────────────────────
 
 describe('PeopleToolbar — does not interfere with org-empty state', () => {
-  it('shows "Just you so far" when the org has only the admin (non-self count = 0)', () => {
+  it('AC-046: shows "Just you so far" when the org has only the admin (non-self count = 0)', () => {
     // Only the admin themselves; no filter active
     renderTable([ADMIN], { viewerPersonId: 'p-admin' })
 

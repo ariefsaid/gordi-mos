@@ -1,0 +1,47 @@
+.top-bar__breadcrumb-track {
+  min-width: 0;
+  flex: 1;
+}
+
+.top-bar__breadcrumb {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.top-bar__breadcrumb-content {
+  display: contents;
+}
+
+.top-bar__breadcrumb-fixed {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.top-bar__breadcrumb-leaf {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Phone contract: the header's icon doors keep a real 44px hit area even though their
+   desktop visual token is 32px. This component-local rule supplies the winning floor. */
+@media (max-width: 919.98px) {
+  .top-bar .tap-target-phone--icon {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Below rail-collapse the header IS the page title (breadcrumb.tsx renders the leaf alone,
+     no ancestors) — there is no shorter fallback to fall back to, so a one-line ellipsis on
+     the leaf would cut the one word that says what screen this is ("Projects & Process…").
+     Two lines read the full title instead; the utility's own `truncate` (single-line ellipsis)
+     still applies at every wider width. */
+  .top-bar__breadcrumb-leaf.truncate {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    white-space: normal;
+    text-overflow: clip;
+  }
+}

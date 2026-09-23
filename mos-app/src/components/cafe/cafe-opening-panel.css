@@ -1,0 +1,163 @@
+/* CafeOpeningPanel (Step 7 / cafe-retrofit.spec.md §4) — a thin "Start today's opening" surface
+   over the DS tokens (DESIGN.md --ds-*, --brand-*, and --status-* aliases only; no --e7-*).
+   layout pass (v4): 16px ("base" spacing step) between the panel's real sections (header block /
+   action link / pending-resolution) — was a single 12px gap shared with the header's own internal
+   trio, flattening a title into equal rhythm with an unrelated button (layout.md "Rhythm"). Capped
+   to the same 560px single column as the page's team-choice field and capture-links row (see
+   cafe-opening-page.css) so this isn't the one piece that still stretches full-bleed. */
+.cafe-opening-panel {
+  display: flex; flex-direction: column; gap: 16px;
+  max-width: 560px;
+}
+/* The kicker/title/subtitle header block (eyebrow + caption + rollup) — tight internal rhythm,
+   distinct from the panel's looser section rhythm above. */
+.cafe-opening-head {
+  display: flex; flex-direction: column; gap: 4px;
+}
+/* The bound-Team eyebrow — the panel's subject label. Bound into the header block of
+   BOTH the not-started and started bodies (census DO-24a, cafe F4) so it no longer
+   floats as an orphan that vanishes once the opening starts. On-ladder label token,
+   replacing the prior inline fontSize:12 muted paragraph. */
+.cafe-opening-team {
+  font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); margin: 0;
+}
+/* DESIGN.md Subheading role verbatim ("sub-section headers inside detail panels") — the occurrence
+   caption ("Café Opening · 17 Jul 2026") titles this panel. Was a bare 16px, off the documented
+   --font-size-* ramp and one px off the reserved --font-size-touch-input value; the h2 already
+   inherits Plus Jakarta Sans from index.css's heading-tier selector, so only size/line-height
+   needed correcting onto the ramp. */
+.cafe-opening-caption {
+  font-size: var(--font-size-subheading); line-height: 1.3; font-weight: 600; color: var(--foreground); margin: 0;
+}
+/* This is a meta/subtitle sentence ("2/5 done · 1 overdue · 1 to assign"), not a machine
+   identifier — --font-size-mono's role is IDs/codes (The Mono-For-Identifiers Rule); its 13px
+   also collided with the reserved --font-size-touch-input step. --font-size-body is the token
+   PageHead's own subtitle-under-title role already uses at this same 14px size, and the token's
+   own doc comment names exactly this case ("base body, table cells, meta"). */
+.cafe-opening-rollup {
+  font-size: var(--font-size-body); color: var(--muted-foreground); margin: 0;
+}
+.cafe-opening-pending {
+  display: flex; flex-direction: column; gap: 8px;
+  padding-top: 8px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+/* v4 density fix: the shared EmptyState kit (CardHead.css) is tuned for a page-level "nothing to
+   show" block — 240px min-height + 28px padding — which is right for a genuinely empty list but
+   wrong for this panel's "here is today's one action" moment: ~300px of near-blank surface sat
+   between the bound-Team eyebrow and the Start button on a phone, the exact "composition serves
+   the wrong persona first" failure DD-1 named on Café · Log, just from a different device (an
+   over-sized system default here, not a KPI row). Scoped override, same convention as
+   src/components/home/home-stream.css's `.empty-state.stream-all-clear` — overrides only
+   sizing, the icon/title/copy/action grammar is untouched. */
+.cafe-opening-panel .empty-state {
+  min-height: 0;
+  padding: 20px 4px 4px;
+}
+
+/* DD-MVP-17 door presentation — the Café capture root carries this panel as a status ROW
+   above the capture form, not as a page body. The page variant's centered empty-state frame
+   costs ~240px on desktop and a whole first screen on a phone before the worker reaches the
+   job the surface exists for, so the door lays the same parts out on one wrapping line and
+   drops the decorative glyph. Actions and gating are unchanged — only the arrangement is. */
+.cafe-opening-panel--door {
+  max-width: none;
+  gap: 8px;
+}
+/* The door needs a surface of its own or it reads as page body: three stacked lines with no
+   boundary, sitting between the page head and the capture form and belonging to neither. A
+   quiet filled row with a border says "status about this location" without competing with
+   the form below it. */
+.cafe-opening-door {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--secondary);
+}
+/* Both halves of the door share the door's measure. The location block carries a 560px cap
+   for the standalone page, and inside the door that put the location and the action on
+   different measures — "Change location" stranded mid-width with the Start action far to
+   its right, in what is meant to read as one row. */
+.cafe-opening-door .cafe-opening-location {
+  max-width: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.cafe-opening-door-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+/* The status sentence is the row's own copy, never a heading: the capture form owns the
+   page's heading ladder and a second h2 here competed with it. */
+.cafe-opening-status {
+  font-size: var(--font-size-body); color: var(--foreground); margin: 0;
+}
+/* The causal line ("Today's plan loads once the opening starts.") is context, not the row's
+   own status fact — muted so it reads as a footnote beside the status sentence, not a second
+   status claiming the same rank. */
+.cafe-opening-status--muted {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+/* Push the row's action to the trailing edge so the label/status pair reads as one unit.
+   Only while the row actually IS a row: below the phone breakpoint it wraps, and an auto
+   inline-start margin then strands the action against the right edge under its own label. */
+@media (min-width: 768px) {
+  .cafe-opening-door-row > .btn,
+  .cafe-opening-door-row > button {
+    margin-inline-start: auto;
+  }
+}
+
+/* On a phone the location block stacks, and the page rule stretches this ghost button to
+   full width — which centres its label and strands it on its own line while every other
+   element in the door is left-aligned. Inside the door it stays a normal inline control. */
+@media (max-width: 390px) {
+  .cafe-opening-door .cafe-opening-location__change {
+    width: auto;
+    align-self: flex-start;
+  }
+}
+
+/* On a phone the door's location identity is three stacked lines — the word "Location", the
+   branch name under it, and "Change location" under that — before the opening status and its
+   action, and before the capture list below all of it. For a viewer with more than one branch
+   that put the first item to log at y=576 of 844: two thirds of the screen spent saying where
+   you are, to someone who is standing there.
+
+   It is one fact and one way to change it, so it reads as one line: label and branch inline,
+   the switch at the trailing edge. Nothing is removed and the switch keeps its own target. */
+@media (max-width: 767.98px) {
+  .cafe-opening-door .cafe-opening-location {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+  .cafe-opening-door .cafe-opening-location__copy {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+  }
+  .cafe-opening-door .cafe-opening-location__change {
+    width: auto;
+    margin-inline-start: auto;
+  }
+}
+
+/* The door would otherwise name the branch twice: the location line says "Location · Gordi HQ"
+   and the caption under it says "Opening · Gordi HQ" — that repeats the same fact at every width,
+   and on a phone also costs a whole row above the list the person came here to fill in. Where the
+   location line is present the caption is dropped and the status sits beside its own button on
+   one row; where it is absent (a single-location org renders no location line) the caption is the
+   only thing naming the branch and stays. */
+.cafe-opening-door:has(.cafe-opening-location) .cafe-opening-team {
+  display: none;
+}

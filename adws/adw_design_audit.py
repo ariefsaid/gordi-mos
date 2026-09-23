@@ -1,0 +1,837 @@
+#!/usr/bin/env -S uv run
+# /// script
+# dependencies = ["pydantic", "python-dotenv", "pyyaml", "rich"]
+# ///
+"""ADW Design Audit — the milestone judgment pass (OD-WAY-55) run as a factory chain.
+
+Usage:
+    uv run adws/adw_design_audit.py <scope.md> [--base-url http://localhost:5173/mos/]
+                                    [--config adws/adw_sssf_config/sssf.config.yaml]
+                                    [--adw-id a1b2c3d4] [--auditor fe_reviewer]
+
+Phases: engineer(request) -> code(record_scope: trace record) -> fe_reviewer(audit)
+        -> code(verdict: trace record)
+
+The design gate runs at two speeds (OD-WAY-55, amending DD-WAY-32): per change the
+guard suites only — automatic, code, cannot be forgotten; at a milestone boundary
+(one signed brief completing) THIS chain runs the judgment pass over the milestone's
+touched surfaces plus connected screens. It never runs per-ticket.
+
+No plan phase — the scope IS the plan. The scope file is recorded on the trace as a
+code phase (the same shape as findings-mode `reuse_plan` in adw_simple_sdlc), then
+handed to the auditor as the previous envelope. One agent phase runs the layered
+battery per the design-reviewer contract: guard suites confirmed green (the auditor
+may run the named guard test files, read-only), then census / interaction-contract
+conformance / the artifacts the judgment layer rests on — all over FRESH renders,
+driven with agent-browser against an already-running dev server.
+
+The Director starts that server BEFORE the run (`npm run dev` from `mos-app/`) and
+passes `--base-url`. The chain never boots vite itself — factory worktrees carry no
+.env, so a chain-started server renders an unauthenticated husk and every verdict on
+it would be void. Non-localhost base URLs are refused outright: the audit drives a
+local render, never staging or production.
+
+No commit phases. The audit writes only the session trace — screenshots and audit.md
+live in the session dir (docs-split rule: documentary artifacts never land in this
+public tree), and its findings become tickets or findings fix-runs
+(`adw_simple_sdlc.py --findings`), never commits here. Still binding from DD-WAY-32:
+never self-score — this chain produces layer 0-2 artifacts and the per-surface
+verdict; the Director's cross-family judgment and the owner's milestone review sit
+above it — and a verdict without artifacts is void, which the gates enforce
+mechanically (audit.md and every screenshot must live under this run's session dir;
+every surface needs both width classes — desktop and ≤390px phone — declared in its
+screenshot filenames; a failing surface must carry findings).
+
+Scope file format (markdown; refused when missing or empty of surfaces):
+    free prose anywhere; every line beginning "- " names ONE surface, e.g.
+        - /work — Work destination (list, filters, needs-attention)
+    The auditor echoes each such line verbatim (minus the "- ") as a `surface` id —
+    the scope-coverage gate holds it to that — and ADDS entries for connected
+    screens it judges affected.
+
+Exit code: 0 only when every audited surface passes. A failing audit is a completed,
+accepted-as-work chain whose RUN acceptance fails — same two-question split as
+adw_simple_sdlc's red suite: the phase did its job; the milestone is not clean.
+"""
+
+import argparse
+import hashlib
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+from urllib.parse import urlparse
+
+from adw_modules import agents, gates, git_helper, session
+from adw_modules.data_types import (AgentCall, AuditOutput, GateReport,
+                                    PhaseParams, PlanOutput)
+
+DEFAULT_BASE_URL = "http://localhost:5173/mos/"
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+WIDTH_CLASSES = ("desktop", "phone")   # phone = ≤390px viewport, per the contract
+QUANTITATIVE_ARTIFACTS = (
+    "manifest.json",
+    "fixture-receipt.json",
+    "gate-log.txt",
+    "contrast.csv",
+    "geometry.csv",
+    "number-census.csv",
+    "control-census.csv",
+    "control-consistency.csv",
+    "state-matrix.csv",
+    "affordance-census.csv",
+    "copy-census.csv",
+    "visible-content.csv",
+    "quantitative-summary.json",
+    "control-consistency-summary.json",
+    "contrast-summary.json",
+    "anti-slop-summary.json",
+    "axe-summary.json",
+    "impeccable.json",
+    "mockup-diff",
+)
+_SHA = re.compile(r"^[0-9a-f]{40}$")
+_SESSION_ID = re.compile(r"^[0-9a-f]{8}$")
+_SNAPSHOT_SHA = re.compile(r"^[0-9a-f]{64}$")
+AUTOMATIC_FAILURE_BASELINE_PATH = "mos-app/e2e/design-quality/automatic-failure-baseline.json"
+AUTOMATIC_FAILURE_BASELINE_KIND = "mos.design-quality.automatic-failure-baseline"
+AUTOMATIC_FAILURE_BASELINE_VERSION = 1
+AUTOMATIC_FAILURE_LANES = (
+    "quantitative", "controlConsistency", "contrast", "antiSlop", "axe", "mockup",
+)
+SNAPSHOT_PRODUCT_PATHS = (
+    "mos-app/src", "mos-app/public", "mos-app/package.json", "mos-app/package-lock.json",
+    "package.json", "package-lock.json", "DESIGN.md", "supabase",
+)
+
+# The exact shape session.py mints (utils.new_id(8) -> token_hex): 8 lowercase hex
+# chars. --adw-id becomes a filesystem path component under the sessions dir, so
+# anything else is refused BEFORE a session exists — an id is opaque, never a path.
+# Same validation adw_simple_sdlc applies to --from-adw-id.
+_ADW_ID = re.compile(r"^[0-9a-f]{8}$")
+
+AUDIT_PROMPT = """\
+This is the MILESTONE DESIGN AUDIT (OD-WAY-55) — the judgment pass over a completed
+milestone, not a build review. There is no builder, no diff, and no plan.md: the
+scope below IS the plan, and the previous envelope records it.
+
+Dev server: ALREADY RUNNING at {base_url} — the engineer started it. Do NOT start,
+stop, restart, or rebuild it (no `npm run dev`, no vite, no builds). Drive that URL
+with agent-browser exactly as your contract describes.
+
+## Scope — audit every surface listed, plus connected screens
+Echo each scope line verbatim (minus the leading "- ") as that surface's `surface`
+id. Add extra `surfaces` entries for connected screens you judge affected — a
+milestone's blast radius is wider than its diff.
+
+{scope}
+
+## Run identity and quantitative handoff
+This run is bound to candidate SHA `{candidate_sha}` and runner session `{session_id}`.
+The quantitative harness has already written the following files under
+`{context_handoff_dir}`. Treat those exact paths as the evidence for this run and
+include every one in your `artifacts` list; do not substitute files from the repo,
+another session, or a different checkout:
+
+{quantitative_artifacts}
+
+## Audit mode — {audit_mode_heading}
+{audit_mode_policy}
+
+## The battery, per your contract
+0. Confirm the guard suites green over the scoped surfaces — you may run the named
+   guard test files (read-only; they change nothing tracked). A red guard is a
+   failing verdict for its surface, not a reason to stop auditing the rest.
+1. Census battery on FRESH renders of each surface — every number, control, state,
+   geometry measurement, affordance, copy string enumerated in audit.md.
+2. Interaction-contract conformance DRIVEN with real clicks/keys per the contract's
+   classes — never judged from source or a screenshot.
+3. The judgment layer is NOT yours to score — your artifacts and screenshots feed
+   it. Never self-score taste/intent; report what you measured and saw.
+
+## Artifacts (a verdict without artifacts is void)
+- Screenshots per surface — populated state at desktop AND ≤390px phone width at
+  minimum — under <context_handoff_dir>/screenshots/, named
+  `<surface-slug>-desktop.png` and `<surface-slug>-phone.png` (the gate requires
+  BOTH width classes in every surface's filenames; capture phone at ≤390px for
+  real). Every screenshot must be from THIS run's session dir; stale or
+  repo-committed images are void.
+- The audit report at <context_handoff_dir>/audit.md: findings grouped
+  Critical / Important / Minor, each citing surface + the violated token /
+  contract rule / job story, per your contract's Report section.
+
+## REPORT SHAPE OVERRIDE — AuditOutput, not ReviewOutput
+This run's Report JSON is `AuditOutput`. IGNORE the ReviewOutput example later in
+this message (it belongs to the build-review chain). Respond with ONLY:
+
+{{
+  "status": "success",
+  "summary": "<one sentence: N of M surfaces pass>",
+  "approved": <true ONLY when every surface verdict is "pass">,
+  "surfaces": [
+    {{"surface": "<scope line verbatim>", "verdict": "pass" | "fail",
+      "screenshots": ["<path under the session dir>"]}}
+  ],
+  "findings": [
+    {{"surface": "<the surface id it was seen on>",
+      "severity": "critical" | "important" | "minor",
+      "finding": "<what is wrong, as rendered>",
+      "rule": "<the violated token / contract rule / job story>"}}
+  ],
+  "audit_path": "<context_handoff_dir>/audit.md",
+  "artifacts": ["<context_handoff_dir>/audit.md", "<every screenshot path>", "<every quantitative artifact path>"],
+  "notes_for_next_agent": "<what a findings fix-run must address, or how to verify>"
+}}
+
+A "fail" surface must carry at least one finding naming it; a critical finding
+forces its surface to "fail". You change nothing in the repo, and this chain
+commits nothing — findings become tickets or fix-runs.
+"""
+
+
+# ── refusals (before any session exists) ─────────────────────────────────────
+
+def _read_scope(scope_path: str) -> tuple[Path, str, list[str]]:
+    """The scope file, its text, and the surfaces it lists — or a refusal."""
+    scope_file = Path(scope_path)
+    if not scope_file.is_file():
+        raise SystemExit(f"scope file not found: {scope_path} — the scope IS the "
+                         f"plan; this chain refuses to audit without one")
+    text = scope_file.read_text()
+    surfaces = [line.strip()[2:].strip() for line in text.splitlines()
+                if line.strip().startswith("- ") and line.strip()[2:].strip()]
+    if not surfaces:
+        raise SystemExit(f"scope file lists no surfaces: {scope_path} — every "
+                         f'audited surface is a line beginning "- "')
+    return scope_file, text, surfaces
+
+
+def _validate_base_url(base_url: str) -> str:
+    """Localhost only: the audit drives a local render, never a deployed one."""
+    parsed = urlparse(base_url)
+    if parsed.username is not None or parsed.password is not None:
+        # Refused FIRST, and the URL is deliberately not echoed: credentials in a
+        # URL must reach neither the trace log nor the agent prompt.
+        raise SystemExit(
+            "--base-url refused: it carries userinfo (credentials@host). A local "
+            "dev server needs none, and secrets must never reach the trace or the "
+            "prompt — pass a bare localhost URL.")
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme not in ("http", "https") or host not in LOCAL_HOSTS:
+        raise SystemExit(
+            f"--base-url {base_url!r} refused: the audit drives an already-running "
+            f"LOCAL dev server only (host must be one of {sorted(LOCAL_HOSTS)}). "
+            f"Start it yourself — `npm run dev` from mos-app/ — and point --base-url "
+            f"at it; this chain never audits staging or production.")
+    return base_url
+
+
+def _validate_adw_id(cfg, adw_id: str | None) -> str | None:
+    """--adw-id joins a session BY PATH under the sessions dir, so it is held to
+    the exact shape the runner mints (utils.new_id(8)) plus containment — the
+    same validation adw_simple_sdlc applies to --from-adw-id."""
+    if adw_id is None:
+        return None
+    if not _ADW_ID.fullmatch(adw_id):
+        raise SystemExit(f"--adw-id {adw_id!r} is not a session id "
+                         f"(8 hex chars, as the runner mints them)")
+    sessions = (Path(cfg.defaults.data_dir) / "sessions").resolve()
+    path = (sessions / adw_id).resolve()
+    if sessions not in path.parents:      # defense in depth behind the format check
+        raise SystemExit(f"--adw-id {adw_id!r} is not a session id "
+                         f"(resolves outside the sessions dir)")
+    return adw_id
+
+
+# ── gates (chain-local: they verify AuditOutput's claims, nothing else uses them) ──
+
+def _inside(path: str, root: Path) -> bool:
+    resolved = Path(path).resolve()
+    return root.resolve() in resolved.parents
+
+
+def _context_handoff_dir(run) -> Path:
+    """Locate this run's quantitative handoff directory without widening scope."""
+    context = getattr(run, "context_handoff_dir", None)
+    return Path(context) if context else Path(run.session_dir) / "context_handoff"
+
+
+def _metadata_from_json(path: Path) -> tuple[str | None, str | None]:
+    try:
+        payload = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None, None
+    if not isinstance(payload, dict):
+        return None, None
+    candidate = payload.get("candidateSha", payload.get("candidate_sha"))
+    session_id = payload.get("sessionId", payload.get("session_id", payload.get("adwId")))
+    if not isinstance(candidate, str) or not isinstance(session_id, str):
+        return None, None
+    return candidate, session_id
+
+
+def _metadata_from_text(path: Path) -> tuple[str | None, str | None]:
+    try:
+        text = path.read_text()
+    except OSError:
+        return None, None
+    candidate = re.search(r"^# candidate_sha=([^\r\n]+)$", text, re.MULTILINE)
+    session_id = re.search(r"^# session_id=([^\r\n]+)$", text, re.MULTILINE)
+    return (candidate.group(1) if candidate else None,
+            session_id.group(1) if session_id else None)
+
+
+def _expected_candidate_sha(run) -> str | None:
+    value = getattr(run, "candidate_sha", None)
+    if not value:
+        try:
+            value = git_helper.rev("HEAD")
+        except (OSError, RuntimeError):
+            return None
+    return value if isinstance(value, str) and _SHA.fullmatch(value) else None
+
+
+def _declared_path_matches(value: object, target: Path) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        return Path(value).resolve() == target.resolve()
+    except OSError:
+        return False
+
+
+def _git(repo_root: Path, *args: str) -> str:
+    completed = subprocess.run(
+        ["git", *args], cwd=repo_root, check=False, capture_output=True, text=True, timeout=15,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError((completed.stderr or completed.stdout).strip() or f"git {' '.join(args)} failed")
+    return completed.stdout.strip()
+
+
+def _git_blob(repo_root: Path, revision: str, relative_path: str) -> bytes:
+    completed = subprocess.run(
+        ["git", "show", f"{revision}:{relative_path}"], cwd=repo_root,
+        check=False, capture_output=True, timeout=15,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError((completed.stderr or completed.stdout).decode(errors="replace").strip()
+                           or f"git show {revision}:{relative_path} failed")
+    return completed.stdout
+
+
+def _git_is_ancestor(repo_root: Path, ancestor: str, descendant: str) -> bool:
+    completed = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+        cwd=repo_root, check=False, capture_output=True, timeout=15,
+    )
+    return completed.returncode == 0
+
+
+def _product_tree_equivalent(repo_root: Path, product_sha: str, harness_sha: str) -> bool:
+    if product_sha == harness_sha:
+        return True
+    completed = subprocess.run(
+        ["git", "diff", "--quiet", f"{product_sha}..{harness_sha}", "--", *SNAPSHOT_PRODUCT_PATHS],
+        cwd=repo_root, check=False, capture_output=True, timeout=15,
+    )
+    return completed.returncode == 0
+
+
+def _stable_json(value):
+    if isinstance(value, list):
+        return [_stable_json(entry) for entry in value]
+    if isinstance(value, dict):
+        return {key: _stable_json(value[key]) for key in sorted(value)}
+    return value
+
+
+def _snapshot_digest(payload: dict) -> str:
+    without_digest = {key: value for key, value in payload.items() if key != "digest"}
+    encoded = json.dumps(_stable_json(without_digest), ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode()).hexdigest()
+
+
+def _snapshot_bytes(payload: dict) -> bytes:
+    source = {key: payload["source"][key] for key in ("productSha", "harnessSha", "sessionId", "manifestDigest")}
+    failures = [{key: failure[key] for key in ("ruleId", "cellId", "selector", "state")}
+                for failure in payload["failures"]]
+    lanes = {
+        name: {key: payload["lanes"][name][key] for key in ("complete", "count", "digest")}
+        for name in AUTOMATIC_FAILURE_LANES
+    }
+    ordered = {
+        "kind": payload["kind"],
+        "version": payload["version"],
+        "source": source,
+        "failures": failures,
+        "untestedCellIds": payload["untestedCellIds"],
+        "lanes": lanes,
+        "digest": payload["digest"],
+    }
+    return (json.dumps(ordered, ensure_ascii=False, separators=(",", ":")) + "\n").encode()
+
+
+def _validate_snapshot(payload) -> tuple[bool, str]:
+    if not isinstance(payload, dict):
+        return False, "snapshot is not a JSON object"
+    expected = {"kind", "version", "source", "failures", "untestedCellIds", "lanes", "digest"}
+    if set(payload) != expected:
+        return False, "snapshot schema keys are invalid"
+    if payload.get("kind") != AUTOMATIC_FAILURE_BASELINE_KIND or payload.get("version") != AUTOMATIC_FAILURE_BASELINE_VERSION:
+        return False, "snapshot kind/version is invalid"
+    source = payload.get("source")
+    if not isinstance(source, dict) or set(source) != {"productSha", "harnessSha", "sessionId", "manifestDigest"}:
+        return False, "snapshot source schema is invalid"
+    if not _SHA.fullmatch(source.get("productSha", "")) or not _SHA.fullmatch(source.get("harnessSha", "")):
+        return False, "snapshot source SHA is invalid"
+    if not _SESSION_ID.fullmatch(source.get("sessionId", "")):
+        return False, "snapshot source session id is invalid"
+    if not _SNAPSHOT_SHA.fullmatch(source.get("manifestDigest", "")):
+        return False, "snapshot source manifest digest is invalid"
+    failures = payload.get("failures")
+    if not isinstance(failures, list):
+        return False, "snapshot failures are not an array"
+    identity_keys = {"ruleId", "cellId", "selector", "state"}
+    identities = []
+    for failure in failures:
+        if not isinstance(failure, dict) or set(failure) != identity_keys or any(
+                not isinstance(failure.get(key), str) or not failure[key] for key in identity_keys):
+            return False, "snapshot failures contain non-identity or empty entries"
+        identities.append(tuple(failure[key] for key in ("ruleId", "cellId", "selector", "state")))
+    if identities != sorted(set(identities)):
+        return False, "snapshot failures are not sorted and unique"
+    untested = payload.get("untestedCellIds")
+    if not isinstance(untested, list) or any(not isinstance(value, str) or not value for value in untested):
+        return False, "snapshot untested cell IDs are invalid"
+    if untested != sorted(set(untested)):
+        return False, "snapshot untested cell IDs are not sorted and unique"
+    lanes = payload.get("lanes")
+    if not isinstance(lanes, dict) or set(lanes) != set(AUTOMATIC_FAILURE_LANES):
+        return False, "snapshot lane metadata is incomplete"
+    for name in AUTOMATIC_FAILURE_LANES:
+        lane = lanes[name]
+        if (not isinstance(lane, dict) or set(lane) != {"complete", "count", "digest"}
+                or lane.get("complete") is not True or not isinstance(lane.get("count"), int)
+                or lane["count"] <= 0 or not _SNAPSHOT_SHA.fullmatch(lane.get("digest", ""))):
+            return False, f"snapshot lane {name} metadata is invalid"
+    digest = payload.get("digest")
+    if not _SNAPSHOT_SHA.fullmatch(digest or "") or digest != _snapshot_digest(payload):
+        return False, "snapshot digest does not match its canonical payload"
+    return True, "valid"
+
+
+def _exact_base_binding(run, session_payload: dict, report: GateReport) -> None:
+    """Independently bind change-gate evidence to the exact Git merge-base blob."""
+    forbidden = ["baselineEvidenceDir", "baselineCandidateSha", "baselineSessionId", "baselineDigest"]
+    for field in forbidden:
+        report.check(f"change-gate rejects {field}", field not in session_payload,
+                     f"filesystem baseline input {field} is forbidden")
+    change_gate = session_payload.get("auditMode") == "change-gate"
+    if not change_gate:
+        if any(field in session_payload for field in ("verificationBase", "mergeBaseSha", "snapshotBlobDigest")):
+            report.check("non-change-gate session has no snapshot binding fields", False,
+                         "snapshot binding fields are only valid in change-gate mode")
+        return
+
+    configured_root = getattr(run, "repo_root", None)
+    repo_root = Path(configured_root).resolve() if configured_root else Path(__file__).resolve().parents[1]
+    expected_sha = _expected_candidate_sha(run)
+    verification_base = session_payload.get("verificationBase")
+    recorded_merge = session_payload.get("mergeBaseSha")
+    recorded_blob_digest = session_payload.get("snapshotBlobDigest")
+    report.check("change-gate candidate SHA is available", expected_sha is not None,
+                 expected_sha or "missing candidate SHA")
+    report.check("change-gate verification base is declared", isinstance(verification_base, str) and bool(verification_base),
+                 verification_base or "missing verificationBase")
+    report.check("change-gate merge-base SHA is declared", isinstance(recorded_merge, str) and bool(_SHA.fullmatch(recorded_merge)),
+                 recorded_merge or "missing mergeBaseSha")
+    report.check("change-gate snapshot blob digest is declared", isinstance(recorded_blob_digest, str)
+                 and bool(_SNAPSHOT_SHA.fullmatch(recorded_blob_digest)),
+                 recorded_blob_digest or "missing snapshotBlobDigest")
+
+    current_head = None
+    worktree_status = None
+    try:
+        current_head = _git(repo_root, "rev-parse", "HEAD")
+        worktree_status = _git(repo_root, "status", "--porcelain", "--untracked-files=all")
+    except (OSError, RuntimeError):
+        pass
+    report.check("change-gate candidate HEAD is unchanged", expected_sha is not None and current_head == expected_sha,
+                 f"resolved {current_head!r}")
+    report.check("change-gate worktree is unchanged", worktree_status == "",
+                 "working tree changed during the audit" if worktree_status else "unable to inspect working tree")
+
+    actual_merge = None
+    snapshot = None
+    blob = None
+    try:
+        if expected_sha and isinstance(verification_base, str):
+            actual_merge = _git(repo_root, "merge-base", expected_sha, verification_base)
+        if actual_merge and _SHA.fullmatch(actual_merge):
+            blob = _git_blob(repo_root, actual_merge, AUTOMATIC_FAILURE_BASELINE_PATH)
+            snapshot = json.loads(blob.decode())
+    except (OSError, RuntimeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        report.check("change-gate exact merge-base snapshot is readable", False, str(exc))
+    report.check("change-gate merge-base matches verification base", actual_merge == recorded_merge,
+                 f"resolved {actual_merge!r} from {verification_base!r}")
+    if blob is not None:
+        blob_digest = hashlib.sha256(blob).hexdigest()
+        report.check("change-gate snapshot blob digest matches Git", blob_digest == recorded_blob_digest,
+                     f"resolved {blob_digest!r}")
+    if snapshot is not None:
+        valid, reason = _validate_snapshot(snapshot)
+        report.check("change-gate snapshot schema and digest are valid", valid, reason)
+        if valid and blob is not None:
+            report.check("change-gate snapshot has canonical compact bytes", blob == _snapshot_bytes(snapshot),
+                         "snapshot bytes are not the canonical serialization")
+        if valid and actual_merge:
+            source = snapshot["source"]
+            source_ok = (_git_is_ancestor(repo_root, source["productSha"], actual_merge)
+                         and _git_is_ancestor(repo_root, source["harnessSha"], actual_merge)
+                         and _git_is_ancestor(repo_root, source["productSha"], source["harnessSha"])
+                         and _product_tree_equivalent(repo_root, source["productSha"], source["harnessSha"]))
+            report.check("change-gate snapshot source ancestry is valid", source_ok,
+                         "source product/harness is stale, unrelated, or changed the product tree")
+
+
+def audit_quantitative_artifacts(envelope, run) -> GateReport:
+    """Require fresh, complete quantitative evidence for this exact run.
+
+    The browser lane writes these files before the factory chain is called. Every
+    report carries the full candidate SHA and runner session id, and the session
+    envelope lists the same paths. This gate therefore catches a stale checkout,
+    a missing census, an artifact copied from another run, and a directory that
+    only exists as an empty placeholder without trusting the agent's prose.
+    """
+    report = GateReport()
+    root = _context_handoff_dir(run).resolve()
+    expected_sha = _expected_candidate_sha(run)
+    session_path = root / "session.json"
+    session_candidate: str | None = None
+    session_id: str | None = None
+    session_payload: dict = {}
+    try:
+        raw = json.loads(session_path.read_text())
+        if isinstance(raw, dict):
+            session_payload = raw
+            session_candidate, session_id = _metadata_from_json(session_path)
+    except (OSError, ValueError):
+        pass
+
+    report.check("candidate SHA is a full lowercase git revision", expected_sha is not None,
+                 expected_sha or "missing or malformed candidate SHA")
+    report.check("session.json exists under this run's context handoff",
+                 session_path.is_file() and _inside(str(session_path), root),
+                 str(session_path) if session_path.is_file() else "missing session.json")
+    report.check("session candidate SHA matches this checkout",
+                 expected_sha is not None and session_candidate == expected_sha,
+                 session_candidate or "session.json has no candidateSha")
+    run_id = getattr(run, "adw_id", None)
+    expected_session_id = run_id if isinstance(run_id, str) and _SESSION_ID.fullmatch(run_id) else session_id
+    report.check("session id is a runner-shaped id", bool(session_id and _SESSION_ID.fullmatch(session_id)),
+                 session_id or "session.json has no sessionId")
+    report.check("session id matches the run", bool(expected_session_id and session_id == expected_session_id),
+                 f"expected {expected_session_id!r}, got {session_id!r}")
+    if session_payload.get("auditMode") == "change-gate" or any(
+        field in session_payload for field in (
+            "baselineEvidenceDir", "baselineCandidateSha", "baselineSessionId",
+            "baselineDigest", "verificationBase", "mergeBaseSha", "snapshotBlobDigest",
+        )
+    ):
+        _exact_base_binding(run, session_payload, report)
+
+    validator = Path(__file__).resolve().parents[1] / "scripts" / "validate-design-evidence.mjs"
+    if not validator.is_file():
+        validator = Path.cwd() / "scripts" / "validate-design-evidence.mjs"
+    validation_note = "validator did not run"
+    validation_ok = False
+    if expected_sha is not None:
+        try:
+            validator_args = ["node", "--experimental-strip-types", str(validator), str(root), expected_sha]
+            if session_payload.get("auditMode") == "change-gate":
+                # The reviewer is part of the chain, so its input gate can only require the
+                # browser half. The outer pre-PR gate separately requires the finished chain.
+                validator_args.append("--require-browser-change-gate")
+            completed = subprocess.run(
+                validator_args,
+                check=False, capture_output=True, text=True, timeout=30,
+            )
+            validation_note = (completed.stdout or completed.stderr).strip()
+            validation_ok = completed.returncode == 0
+        except (OSError, subprocess.SubprocessError) as exc:
+            validation_note = f"validator failed to execute: {exc}"
+    report.check("quantitative artifacts pass the shared structural validator",
+                 validation_ok, validation_note)
+
+    declared = session_payload.get("quantitativeArtifacts", [])
+    artifacts_to_check = list(QUANTITATIVE_ARTIFACTS)
+    if session_payload.get("auditMode") == "change-gate":
+        artifacts_to_check.insert(artifacts_to_check.index("impeccable.json"), AUTOMATIC_FAILURE_BASELINE_PATH.rsplit("/", 1)[-1])
+    for artifact in artifacts_to_check:
+        target = root / artifact
+        exists = target.exists() and _inside(str(target), root)
+        if artifact == "mockup-diff":
+            nested = list(target.rglob("*")) if target.is_dir() else []
+            nonempty = target.is_dir() and bool(nested) and any(item.is_file() and item.stat().st_size > 0 for item in nested)
+            report.check(f"quantitative artifact: {artifact}", exists and nonempty,
+                         "non-empty artifact directory" if exists and nonempty else "missing or empty artifact directory")
+            metadata_targets = [item for item in nested if item.is_file() and item.stat().st_size > 0]
+        else:
+            valid_file = target.is_file() and target.stat().st_size > 0
+            report.check(f"quantitative artifact: {artifact}", exists and valid_file,
+                         "non-empty artifact" if exists and valid_file else "missing or empty artifact")
+            metadata_targets = [target] if valid_file else []
+        report.check(f"session declares artifact: {artifact}",
+                     any(_declared_path_matches(item, target) for item in declared),
+                     "declared in session.json" if any(_declared_path_matches(item, target) for item in declared)
+                     else "missing from session.json quantitativeArtifacts")
+        if artifact == "automatic-failure-baseline.json":
+            snapshot_ok = False
+            snapshot_note = "snapshot is missing or unreadable"
+            if not exists or not target.is_file():
+                report.check("candidate automatic-failure snapshot is structurally valid", False, snapshot_note)
+                continue
+            try:
+                snapshot_bytes = target.read_bytes()
+                snapshot_payload = json.loads(snapshot_bytes)
+                snapshot_ok, snapshot_note = _validate_snapshot(snapshot_payload)
+                if snapshot_ok and snapshot_bytes != _snapshot_bytes(snapshot_payload):
+                    snapshot_ok, snapshot_note = False, "snapshot bytes are not the canonical serialization"
+            except (OSError, ValueError) as exc:
+                snapshot_note = str(exc)
+            report.check("candidate automatic-failure snapshot is structurally valid", snapshot_ok, snapshot_note)
+            continue
+        if not metadata_targets:
+            continue
+        metadata_path = metadata_targets[0]
+        if metadata_path.suffix == ".json":
+            actual_sha, actual_id = _metadata_from_json(metadata_path)
+        else:
+            actual_sha, actual_id = _metadata_from_text(metadata_path)
+        report.check(f"fresh metadata: {artifact}",
+                     expected_sha is not None and actual_sha == expected_sha and actual_id == session_id,
+                     f"candidate={actual_sha!r}, session={actual_id!r}")
+    return report
+
+
+def audit_artifacts_exist(envelope, run) -> GateReport:
+    """A verdict without artifacts is void (DD-WAY-32) — enforced, not trusted.
+
+    audit.md must exist non-empty UNDER THIS RUN'S session dir — a pre-existing
+    report outside the run is not this run's audit. Every surface must carry
+    screenshots that exist under the session dir too (a path outside it is not a
+    fresh render, whatever the auditor claims), covering BOTH width classes:
+    filenames must carry "desktop" and "phone" (phone = ≤390px viewport). The
+    width class is a declaration in the name — the smallest honest mechanism the
+    harness can hold a path to; capturing phone at ≤390px for real stays the
+    contract's obligation on the auditor.
+    """
+    report = GateReport()
+    session_root = Path(run.session_dir)
+    audit_path = str(getattr(envelope, "audit_path", "") or "")
+    p = Path(audit_path) if audit_path else None
+    ok = (bool(p) and p.is_file() and p.stat().st_size > 0
+          and _inside(audit_path, session_root))
+    report.check("audit.md", ok,
+                 f"exists in the session dir, {p.stat().st_size}B" if ok
+                 else "audit_path missing, empty, or outside this run's session dir "
+                      "— the audit report must be this run's own")
+    for surface in getattr(envelope, "surfaces", []):
+        shots = list(getattr(surface, "screenshots", []))
+        if not shots:
+            report.check(f"screenshots: {surface.surface}", False,
+                         "no screenshot — a verdict without artifacts is void")
+            continue
+        for shot in shots:
+            fresh = Path(shot).is_file() and _inside(shot, session_root)
+            report.check(f"screenshot: {shot}", fresh,
+                         "fresh render in the session dir" if fresh
+                         else "missing, or outside this run's session dir — only fresh renders count")
+        names = [Path(shot).name.lower() for shot in shots]
+        for width_class in WIDTH_CLASSES:
+            covered = any(width_class in name for name in names)
+            report.check(f"{width_class} render: {surface.surface}", covered,
+                         "declared" if covered
+                         else f"no screenshot filename carries {width_class!r} — both "
+                              f"width classes are required (phone = ≤390px)")
+    return report
+
+
+def audit_verdict_consistent(envelope, run) -> GateReport:
+    """The verdict must agree with the findings written next to it.
+
+    Same idea as gates.verdict_consistent, per-surface: a failing surface with no
+    finding, an approval over a failing surface, a rejection naming no failing
+    surface, or a critical finding on a "pass" surface are claims the harness can
+    refute without any design judgment.
+    """
+    report = GateReport()
+    surfaces = list(getattr(envelope, "surfaces", []))
+    findings = list(getattr(envelope, "findings", []))
+    approved = bool(getattr(envelope, "approved", False))
+    failing = [s.surface for s in surfaces if s.verdict == "fail"]
+    passing = {s.surface for s in surfaces if s.verdict == "pass"}
+
+    report.check("at least one surface audited", bool(surfaces),
+                 f"{len(surfaces)} surface(s)" if surfaces
+                 else "no surfaces in the envelope — nothing was audited")
+    for surface in failing:
+        count = sum(1 for f in findings if f.surface == surface)
+        report.check(f"failing surface carries findings: {surface}", count > 0,
+                     f"{count} finding(s)" if count
+                     else "verdict is fail but no finding names this surface")
+    report.check("approved vs surface verdicts", not (approved and failing),
+                 "no failing surface" if not failing
+                 else f"{len(failing)} failing surface(s) while approved=true"
+                 if approved else f"{len(failing)} failing surface(s), not approved")
+    report.check("rejection names a failing surface", approved or bool(failing),
+                 "verdict is supported" if approved or failing
+                 else "approved=false but every surface verdict is pass")
+    critical_on_pass = sorted({f.surface for f in findings
+                               if f.severity == "critical" and f.surface in passing})
+    report.check("critical findings force a fail verdict", not critical_on_pass,
+                 "none on passing surfaces" if not critical_on_pass
+                 else f"critical finding(s) on passing surface(s): {', '.join(critical_on_pass)}")
+    return report
+
+
+def scope_covered(scoped: list[str]):
+    """Gate factory: every scoped surface must appear in the audited surfaces.
+
+    Connected screens ADD entries; nothing scoped may silently drop out — a
+    skipped surface is an unaudited surface wearing a green run.
+    """
+    def gate(envelope, run) -> GateReport:
+        report = GateReport()
+        audited = {s.surface for s in getattr(envelope, "surfaces", [])}
+        for surface in scoped:
+            report.check(f"scope covered: {surface}", surface in audited,
+                         "audited" if surface in audited
+                         else "scoped surface missing from the audit — echo the scope line verbatim")
+        return report
+    gate.__name__ = "scope_covered"
+    return gate
+
+
+# ── the chain ────────────────────────────────────────────────────────────────
+
+def main(scope_path: str, config: str = "adws/adw_sssf_config/sssf.config.yaml",
+         adw_id: str | None = None, base_url: str = DEFAULT_BASE_URL,
+         auditor: str = "fe_reviewer") -> int:
+    # Refusals first: no session, no trace, until the inputs are auditable.
+    scope_file, scope_text, scoped = _read_scope(scope_path)
+    base_url = _validate_base_url(base_url)
+    cfg = agents.load_config(config)
+    adw_id = _validate_adw_id(cfg, adw_id)
+    agents.validate(cfg, [auditor])
+    candidate_sha = git_helper.rev("HEAD")
+    if not _SHA.fullmatch(candidate_sha):
+        raise SystemExit("candidate HEAD is not a full lowercase git SHA — quantitative evidence cannot be bound")
+    run = session.ensure(cfg, adw_id)
+    run.candidate_sha = candidate_sha
+    try:
+        session_payload = json.loads((_context_handoff_dir(run) / "session.json").read_text())
+    except (OSError, ValueError):
+        session_payload = {}
+    if not isinstance(session_payload, dict):
+        session_payload = {}
+    audit_mode = session_payload.get("auditMode", "mvp-assessment")
+    if audit_mode == "change-gate":
+        audit_mode_heading = "CHANGE-GATE"
+        audit_mode_policy = (
+            "Evaluate regressions introduced by the candidate delta against the exact merge-base "
+            f"Git blob at {AUTOMATIC_FAILURE_BASELINE_PATH}. The quantitative browser lane retains "
+            "the complete candidate census and reports only new failure signatures as automatic "
+            "blockers. Record inherited untested state cells and assessed-with-gaps mockup "
+            "comparisons as Important follow-up evidence, but you must not fail a surface solely "
+            "because either remains. Fail a surface only for a live defect introduced by this "
+            "candidate or another red change-gate check."
+        )
+    else:
+        audit_mode_heading = "MVP-ASSESSMENT"
+        audit_mode_policy = (
+            "Evaluate the complete MVP scope. Missing requested states, breakpoints, or required "
+            "evidence blocks the affected surface; untested cells remain blocking."
+        )
+    handoff_artifacts = list(QUANTITATIVE_ARTIFACTS)
+    if audit_mode == "change-gate":
+        handoff_artifacts.insert(handoff_artifacts.index("impeccable.json"), "automatic-failure-baseline.json")
+
+    with run.phase(PhaseParams(name="request", kind="engineer", owner=run.engineer,
+                               description="Capture the milestone audit ask: which scope, "
+                                           "against which running server, on which tree")) as ph:
+        ph.log(input=f"design audit of {scope_file} against {base_url}",
+               scope=str(scope_file), base_url=base_url, surfaces=len(scoped),
+               tree=git_helper.short_sha("HEAD"), candidate_sha=candidate_sha,
+               context_handoff_dir=str(_context_handoff_dir(run)))
+
+    # OD-WAY-55: no plan phase — the scope IS the plan. Recorded on the trace the
+    # way findings mode records reuse_plan, then handed over as the previous
+    # envelope, so the auditor and the trace read the same document.
+    scope_envelope = PlanOutput(
+        status="success",
+        summary=f"Milestone design-audit scope: {len(scoped)} surface(s) from {scope_file}",
+        artifacts=[str(scope_file), str(_context_handoff_dir(run) / "session.json")]
+                  + [str(_context_handoff_dir(run) / artifact)
+                     for artifact in handoff_artifacts],
+        notes_for_next_agent="The scope is the plan — audit every listed surface "
+                             "plus the connected screens you judge affected. "
+                             f"Candidate SHA: {candidate_sha}. Session: {run.adw_id}. "
+                             "The quantitative artifact paths above are binding evidence.")
+    with run.phase(PhaseParams(name="record_scope", kind="code", owner="git",
+                               description="The scope IS the plan (OD-WAY-55): record it on the "
+                                           "trace like findings-mode reuse_plan — no planner runs")) as ph:
+        ph.log(scope=str(scope_file), surfaces=" | ".join(scoped),
+               note="scope file recorded on the trace; no plan phase — the scope is the plan")
+
+    with run.phase(PhaseParams(name="audit", kind="agent", owner=auditor, retries=1,
+                               description="Run the layered judgment battery over fresh renders "
+                                           "of every scoped surface plus connected screens")) as ph:
+        audit = ph.call(AgentCall(
+            output_type=AuditOutput,
+            prompt=AUDIT_PROMPT.format(
+                base_url=base_url,
+                scope=scope_text,
+                candidate_sha=candidate_sha,
+                session_id=run.adw_id,
+                context_handoff_dir=_context_handoff_dir(run),
+                audit_mode_heading=audit_mode_heading,
+                audit_mode_policy=audit_mode_policy,
+                quantitative_artifacts="\n".join(
+                    f"- {_context_handoff_dir(run) / artifact}"
+                    for artifact in handoff_artifacts)),
+            previous=scope_envelope,
+            gates=[gates.artifacts_exist, audit_artifacts_exist,
+                   audit_quantitative_artifacts, audit_verdict_consistent,
+                   scope_covered(scoped)]))
+
+    with run.phase(PhaseParams(name="verdict", kind="code", owner="git",
+                               description="Put the per-surface verdicts and findings on the trace — "
+                                           "findings become tickets or fix-runs, never commits here")) as ph:
+        failing = [s.surface for s in audit.surfaces if s.verdict == "fail"]
+        ph.log(approved=audit.approved,
+               surfaces=f"{len(audit.surfaces)} audited ({len(scoped)} scoped)",
+               failing=", ".join(failing) or "none",
+               findings=len(audit.findings), audit=audit.audit_path)
+
+    return run.finish(accepted=audit.approved,
+                      reason="the audit found failing surfaces — route the findings "
+                             "into tickets or a findings fix-run")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("scope",
+                        help='path to the milestone scope file — surfaces as "- " lines; '
+                             "the scope IS the plan (OD-WAY-55)")
+    parser.add_argument("--config", default="adws/adw_sssf_config/sssf.config.yaml")
+    parser.add_argument("--adw-id", default=None, help="join or pin an existing session")
+    parser.add_argument("--base-url", default=DEFAULT_BASE_URL,
+                        help="already-running LOCAL dev server (the engineer starts it; "
+                             "localhost only — this chain never boots vite itself)")
+    parser.add_argument("--auditor", default="fe_reviewer",
+                        help="roster agent for the audit phase (design-reviewer contract)")
+    args = parser.parse_args()
+    sys.exit(main(args.scope, args.config, args.adw_id, args.base_url, args.auditor))

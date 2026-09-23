@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Self-test for scripts/drive-next.sh — strict admission, the drivable filters, any-mention
+# PR parking (DD-WAY-45), and milestone → number order, against a stubbed gh.
+set -uo pipefail
+cd "$(dirname "$0")/.."
+SCRIPT="$(pwd)/scripts/drive-next.sh"
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+pass=0; fail=0
+
+cat > "$tmp/issues.json" <<'EOF'
+[
+ {"number":1,"title":"built already","labels":[{"name":"ready-for-agent"}],"assignees":[],"milestone":null},
+ {"number":2,"title":"blocked","labels":[{"name":"ready-for-agent"}],"assignees":[],"milestone":null,
+  "issue_dependencies_summary":{"blocked_by":1}},
+ {"number":3,"title":"claimed","labels":[{"name":"ready-for-agent"}],"assignees":[{"login":"x"}],"milestone":null},
+ {"number":4,"title":"owner frontier","labels":[{"name":"wayfinder:grilling"}],"assignees":[],"milestone":null},
+ {"number":5,"title":"milestone one","labels":[{"name":"ready-for-agent"}],"assignees":[],"milestone":{"number":1}},
+ {"number":6,"title":"a PR","labels":[{"name":"ready-for-agent"}],"assignees":[],"milestone":null,"pull_request":{}},
+ {"number":7,"title":"human only","labels":[{"name":"ready-for-human"}],"assignees":[],"milestone":null},
+ {"number":8,"title":"agent ready","labels":[{"name":"ready-for-agent"}],"assignees":[],"milestone":null},
+ {"number":9,"title":"plain old — NOT admitted (strict)","labels":[],"assignees":[],"milestone":null}
+]
+EOF
+cat > "$tmp/pulls.json" <<'EOF'
+[
+ {"number":90,"title":"feat: builds it","body":"does things\n\nCloses #1"},
+ {"number":91,"title":"fix: mentions","body":"Touches on #9 in passing. #8abc is not a ref (unbounded)."}
+]
+EOF
+
+mkdir -p "$tmp/bin"
+cat > "$tmp/bin/gh" <<EOF
+#!/usr/bin/env bash
+# stub: answers the issues and pulls endpoints; two pages for issues (real --paginate shape)
+[ "\$1" = api ] && [ "\$2" = --paginate ] || exit 9
+[ "\${GH_STUB_FAIL:-0}" = 1 ] && exit 1
+case "\$3" in
+  *"/issues"*) jq '.[0:4]' < "$tmp/issues.json"; jq '.[4:]' < "$tmp/issues.json" ;;
+  *"/pulls"*)  cat "$tmp/pulls.json" ;;
+  *) exit 9 ;;
+esac
+EOF
+chmod +x "$tmp/bin/gh"
+export PATH="$tmp/bin:$PATH"
+
+out="$(bash "$SCRIPT")"; rc=$?
+t() { if [ "$2" -eq 0 ]; then pass=$((pass+1)); printf '  ok    %s\n' "$1"
+      else fail=$((fail+1)); printf '  FAIL  %s\n%s\n' "$1" "$out"; fi; }
+[ "$rc" -eq 0 ]; t "query exits 0" $?
+[ "$(printf '%s\n' "$out" | sed -n 1p)" = "$(printf '#5\tmilestone one\tready-for-agent')" ]; t "milestone ticket first" $?
+[ "$(printf '%s\n' "$out" | sed -n 2p)" = "$(printf '#8\tagent ready\tready-for-agent')" ]; t "unmilestoned ready ticket second (#8abc unbounded = not a ref)" $?
+! printf '%s' "$out" | grep -q "#9	"; t "unlabeled issue NOT admitted (strict admission, OD-WAY-83)" $?
+! printf '%s' "$out" | grep -q "#1	"; t "issue with an open 'Closes #1' PR excluded" $?
+[ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = "2" ]; t "blocked/claimed/parked/PR/human/built/unlabeled all excluded" $?
+cat > "$tmp/pulls.json" <<'EOF2'
+[{"number":92,"title":"wip","body":"Closes the recoverable part of #8."}]
+EOF2
+out2="$(bash "$SCRIPT")"; rc2=$?
+[ "$rc2" -eq 0 ]; t "second picker run exits 0 (guards the regression check against vacuous pass)" $?
+! printf '%s' "$out2" | grep -q "#8	"; t "prose-separated mention parks the ticket (the #472 failure)" $?
+
+if GH_STUB_FAIL=1 bash "$SCRIPT" >/dev/null 2>&1; then
+  fail=$((fail+1)); printf '  FAIL  gh failure must exit non-zero\n'
+else pass=$((pass+1)); printf '  ok    gh failure exits non-zero (empty ≠ broken)\n'; fi
+
+printf '%d passed, %d failed\n' "$pass" "$fail"
+[ "$fail" -eq 0 ]

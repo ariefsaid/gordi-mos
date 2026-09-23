@@ -13,11 +13,18 @@ vi.mock('../lib/supabase', () => ({
   },
 }))
 
-// Mock react-router-dom navigate
+// Mock react-router-dom navigate + location. `location.state.from` is the route ProtectedRoute
+// turned away; each test that cares sets it through `setRememberedRoute`.
 const mockNavigate = vi.fn()
+let mockLocation: { pathname: string; search: string; hash: string; state: unknown; key: string } = {
+  pathname: '/login', search: '', hash: '', state: null, key: 'test',
+}
+function setRememberedRoute(from: unknown) {
+  mockLocation = { ...mockLocation, state: from === undefined ? null : { from } }
+}
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
-  return { ...actual, useNavigate: () => mockNavigate }
+  return { ...actual, useNavigate: () => mockNavigate, useLocation: () => mockLocation }
 })
 
 import { LoginPage } from './login-page'
@@ -33,15 +40,23 @@ describe('LoginPage — credentials form', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockNavigate.mockClear()
+    setRememberedRoute(undefined)
   })
 
   // AC-011: inputs reachable by accessible label; error linked via aria-describedby
-  it('AC-011: login inputs reachable by accessible label', () => {
+  it('AC-011/AC-017 pin: login inputs reachable by accessible label', () => {
     render(<LoginPage />)
 
     // Each input must be query-able by its label text
     expect(screen.getByLabelText('Email')).toBeInTheDocument()
     expect(screen.getByLabelText('Password')).toBeInTheDocument()
+  })
+
+  // #425: the port dropped aria-required — the sign-in fields are required and must say so
+  it('login required fields carry aria-required (#425)', () => {
+    render(<LoginPage />)
+    expect(screen.getByLabelText('Email')).toHaveAttribute('aria-required', 'true')
+    expect(screen.getByLabelText('Password')).toHaveAttribute('aria-required', 'true')
   })
 
   it('AC-011: error linked via aria-describedby after failed submit', async () => {
@@ -53,7 +68,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'test@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'test@example.test')
     await user.type(screen.getByLabelText('Password'), 'wrongpass')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
@@ -73,7 +88,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'test@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'test@example.test')
     await user.type(screen.getByLabelText('Password'), 'wrongpass')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
@@ -91,7 +106,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'nobody@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'nobody@example.test')
     await user.type(screen.getByLabelText('Password'), 'somepass')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
@@ -109,7 +124,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'test@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'test@example.test')
     await user.type(screen.getByLabelText('Password'), 'pass')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
@@ -124,7 +139,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'test@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'test@example.test')
     await user.type(screen.getByLabelText('Password'), 'pass')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
@@ -141,7 +156,12 @@ describe('LoginPage — credentials form', () => {
     expect(screen.queryByText(/create account/i)).not.toBeInTheDocument()
   })
 
-  it('successful sign-in navigates home (FR-002)', async () => {
+  // ── #799 ── AC-012 / AC-013: sign-in returns to the route that was asked for ───────────────
+
+  // Where sign-in LANDS is RedirectIfAuthed's call, asserted end to end in
+  // src/auth/entry-return.test.tsx. This page never navigates on success.
+  it('AC-012: this page does not decide the landing — it never navigates on success', async () => {
+    setRememberedRoute('/money/detail?w=30d')
     mockSignIn.mockResolvedValue({
       data: {
         user: { id: 'u1' } as unknown as import('@supabase/supabase-js').User,
@@ -153,13 +173,82 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'test@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'test@example.test')
+    await user.type(screen.getByLabelText('Password'), 'goodpass')
+    await user.click(screen.getByRole('button', { name: /sign in/i }))
+
+    await waitFor(() => expect(mockSignIn).toHaveBeenCalled())
+    expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
+  it('AC-013: the sign-in link carries the remembered route in its redirect target', async () => {
+    setRememberedRoute('/work/tasks')
+    mockSignInWithOtp.mockResolvedValue({
+      data: {},
+      error: null,
+    } as Awaited<ReturnType<typeof supabase.auth.signInWithOtp>>)
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
+    await user.click(screen.getByRole('button', { name: /email me a sign-in link/i }))
+
+    await waitFor(() => {
+      expect(mockSignInWithOtp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            emailRedirectTo: `${window.location.origin}/mos/work/tasks`,
+          }),
+        }),
+      )
+    })
+  })
+
+  it('AC-013: an off-app remembered route never reaches the sign-in link redirect', async () => {
+    setRememberedRoute('https://example.test/steal')
+    mockSignInWithOtp.mockResolvedValue({
+      data: {},
+      error: null,
+    } as Awaited<ReturnType<typeof supabase.auth.signInWithOtp>>)
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
+    await user.click(screen.getByRole('button', { name: /email me a sign-in link/i }))
+
+    await waitFor(() => {
+      expect(mockSignInWithOtp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            emailRedirectTo: `${window.location.origin}/mos/`,
+          }),
+        }),
+      )
+    })
+  })
+
+  it('successful sign-in submits the typed credentials and reports no error (FR-002)', async () => {
+    mockSignIn.mockResolvedValue({
+      data: {
+        user: { id: 'u1' } as unknown as import('@supabase/supabase-js').User,
+        session: {} as unknown as import('@supabase/supabase-js').Session,
+      },
+      error: null,
+    })
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'test@example.test')
     await user.type(screen.getByLabelText('Password'), 'goodpass')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true })
+      expect(mockSignIn).toHaveBeenCalledWith({ email: 'test@example.test', password: 'goodpass' })
     })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   // ── T-015 ── AC-006 + AC-007 ──────────────────────────────────────────────
@@ -176,7 +265,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'test@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'test@example.test')
     await user.type(screen.getByLabelText('Password'), 'pass')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
@@ -196,7 +285,8 @@ describe('LoginPage — credentials form', () => {
     })
   })
 
-  // AC-006: magic-link shows neutral confirmation "Check your email for a link."
+  // AC-006: magic-link shows a neutral confirmation. The wording carries the neutrality —
+  // it must not assert that mail was sent to THIS address (#137 security review).
   it('AC-006: magic-link confirmation shows neutral message', async () => {
     mockSignInWithOtp.mockResolvedValue({
       data: {},
@@ -206,13 +296,15 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'user@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
 
     const magicLinkBtn = screen.getByRole('button', { name: /email me a sign-in link/i })
     await user.click(magicLinkBtn)
 
     await waitFor(() => {
-      expect(screen.getByText('Check your email for a sign-in link.')).toBeInTheDocument()
+      expect(
+        screen.getByText('If an account exists for that address, a sign-in link is on its way.'),
+      ).toBeInTheDocument()
     })
   })
 
@@ -225,13 +317,13 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'user@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
     await user.click(screen.getByRole('button', { name: /email me a sign-in link/i }))
 
     await waitFor(() => {
       expect(mockSignInWithOtp).toHaveBeenCalledWith(
         expect.objectContaining({
-          email: 'user@gordi.id',
+          email: 'user@example.test',
           options: expect.objectContaining({ shouldCreateUser: false }),
         }),
       )
@@ -248,17 +340,96 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'user@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
 
     const forgotBtn = screen.getByRole('button', { name: /forgot password/i })
     await user.click(forgotBtn)
 
     await waitFor(() => {
-      expect(screen.getByText('Check your email to reset your password.')).toBeInTheDocument()
+      expect(
+        screen.getByText('If an account exists for that address, a reset link is on its way.'),
+      ).toBeInTheDocument()
     })
   })
 
-  it('AC-006: magic-link and reset confirmations both show back-to-sign-in link', async () => {
+  // #137, as corrected by the PR's adversarial security review. The first attempt at this fix
+  // branched the user-visible outcome on `sendError` — and that IS an account-existence oracle:
+  // GoTrue answers 200 for an address it has never seen (it attempts no mail), so a send that
+  // FAILS is evidence the address exists. These two tests pin the property that replaced it:
+  // the outcome is identical whether the send succeeds or fails, and the copy never asserts that
+  // mail went to this address. If either regresses, an attacker learns who has an account.
+  it('a refused reset send is indistinguishable from a successful one (no existence oracle)', async () => {
+    mockResetPassword.mockResolvedValue({
+      data: {},
+      error: { status: 500, message: 'Error sending recovery email' },
+    } as unknown as Awaited<ReturnType<typeof supabase.auth.resetPasswordForEmail>>)
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
+    await user.click(screen.getByRole('button', { name: /forgot password/i }))
+
+    // the SAME neutral panel a successful send produces
+    await waitFor(() => {
+      expect(
+        screen.getByText('If an account exists for that address, a reset link is on its way.'),
+      ).toBeInTheDocument()
+    })
+    // and nothing anywhere on screen betrays the failure
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/couldn't reach|too many attempts|error sending/i)
+  })
+
+  // The strongest form of the property: not "these phrases are absent" (which a differently-worded
+  // leak would slip past) but "the rendered panel is IDENTICAL". If any future change makes the
+  // success and failure renders differ by a single character, this fails (#137 security re-check).
+  it('the confirmation panel is byte-identical whether the send succeeded or failed', async () => {
+    async function renderPanel(sendError: unknown): Promise<string> {
+      mockResetPassword.mockResolvedValue({ data: {}, error: sendError } as unknown as Awaited<
+        ReturnType<typeof supabase.auth.resetPasswordForEmail>
+      >)
+      const user = userEvent.setup()
+      const view = render(<LoginPage />)
+      await user.type(screen.getByLabelText('Email'), 'user@example.test')
+      await user.click(screen.getByRole('button', { name: /forgot password/i }))
+      await waitFor(() => {
+        expect(screen.getByText(/a reset link is on its way/i)).toBeInTheDocument()
+      })
+      const html = view.container.innerHTML
+      view.unmount()
+      return html
+    }
+
+    const ok = await renderPanel(null)
+    const refused = await renderPanel({ status: 500, message: 'Error sending recovery email' })
+    const rateLimited = await renderPanel({ status: 429, message: 'over_email_send_rate_limit' })
+
+    expect(refused).toBe(ok)
+    expect(rateLimited).toBe(ok)
+  })
+
+  it('a rate-limited magic-link send is likewise indistinguishable, and claims no send', async () => {
+    mockSignInWithOtp.mockResolvedValue({
+      data: {},
+      error: { status: 429, message: 'over_email_send_rate_limit' },
+    } as unknown as Awaited<ReturnType<typeof supabase.auth.signInWithOtp>>)
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
+    await user.click(screen.getByRole('button', { name: /email me a sign-in link/i }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('If an account exists for that address, a sign-in link is on its way.'),
+      ).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    // the copy must not assert a send happened for THIS address — that was the original lie
+    expect(document.body.textContent).not.toMatch(/check your email/i)
+  })
+
+  it('AC-006/AC-017 pin: magic-link and reset confirmations both show back-to-sign-in link', async () => {
     mockSignInWithOtp.mockResolvedValue({
       data: {},
       error: null,
@@ -267,7 +438,7 @@ describe('LoginPage — credentials form', () => {
     const user = userEvent.setup()
     render(<LoginPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'user@gordi.id')
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
     await user.click(screen.getByRole('button', { name: /email me a sign-in link/i }))
 
     await waitFor(() => {
@@ -299,6 +470,7 @@ describe('LoginPage — demo login (dev-only)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockNavigate.mockClear()
+    setRememberedRoute(undefined)
   })
 
   it('renders the demo-login panel in dev (import.meta.env.DEV)', () => {
@@ -306,7 +478,7 @@ describe('LoginPage — demo login (dev-only)', () => {
     expect(screen.getByText(/demo login/i)).toBeInTheDocument()
   })
 
-  it('one-click persona signs in with the persona email + shared dev password and navigates home', async () => {
+  it('one-click persona signs in with the persona email + shared dev password', async () => {
     mockSignIn.mockResolvedValue({
       data: {
         user: { id: 'u1' } as unknown as import('@supabase/supabase-js').User,
@@ -325,9 +497,6 @@ describe('LoginPage — demo login (dev-only)', () => {
         email: 'dewi.dev@example.test',
         password: 'Passw0rd!dev',
       })
-    })
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true })
     })
   })
 
@@ -440,26 +609,34 @@ describe('LoginPage — email client-validation (fix-2)', () => {
   })
 })
 
-// ── fix-3 ── "Forgot password?" touch target ≥44px (design-plan §4) ─────────
-
-describe('LoginPage — forgot-password touch target (fix-3)', () => {
-  it('"Forgot password?" button has min-height class matching magic-link ≥44px treatment', () => {
+// ── #403 (supersedes fix-3) ── the phone tap contract on this card ──────────
+//
+// fix-3's test asserted the MECHANISM — an inline `minHeight: 44` on each link — and so it could
+// only ever pass while the floor was re-authored per control. #403 moved the floor to the shared
+// auth.css seam, and DESIGN.md scopes it to phone; an unconditional inline 44 also inflated these
+// links on DESKTOP, where the density is 32px. The GOAL that replaced it is owned at two levels:
+//   • the floor itself      → src/components/ui/tap-targets.css.test.ts (CSS source, BOTH axes,
+//                             in `verify` — the only lane that gates a PR→dev merge)
+//   • the rendered box+gap  → GUARD-TAP in e2e/guards.geometry.spec.ts (real pixels at 390px)
+// What is left for THIS level is the drift this PR's review actually caught: the floor being
+// stated twice, and the separation half being a Tailwind class jsdom can see.
+describe('LoginPage — phone tap contract lives at the shared seam (#403)', () => {
+  it('neither auth link re-authors the 44px floor inline — auth.css owns it', () => {
     render(<LoginPage />)
     const forgotBtn = screen.getByRole('button', { name: /forgot password/i })
     const magicBtn = screen.getByRole('button', { name: /email me a sign-in link/i })
 
-    // Both should carry the touch-target min-height treatment
-    // Magic-link already has inline minHeight:44 or class; forgot-password must match
-    const forgotStyle = window.getComputedStyle(forgotBtn)
-    const magicStyle = window.getComputedStyle(magicBtn)
+    expect(forgotBtn.style.minHeight).toBe('')
+    expect(magicBtn.style.minHeight).toBe('')
+  })
 
-    // Assert that the forgot button has at least min-height set (via class or inline)
-    const forgotMinH = forgotBtn.style.minHeight || forgotStyle.minHeight
-    const magicMinH = magicBtn.style.minHeight || magicStyle.minHeight
-
-    // Both must have a 44px min-height
-    expect(forgotMinH).toBe('44px')
-    expect(magicMinH).toBe('44px')
+  it('the "Forgot password?" row keeps 8px (mt-2) off the password field it sits under', () => {
+    // DESIGN.md pairs the 44px floor with "8px between adjacent targets". At mt-1 the two 44px
+    // boxes sat 4.0px apart and a mistap cost the person their typed password. Structural twin of
+    // the measured gap assertion in GUARD-TAP.
+    render(<LoginPage />)
+    const forgotBtn = screen.getByRole('button', { name: /forgot password/i })
+    expect(forgotBtn.parentElement?.className).toContain('mt-2')
   })
 })
 

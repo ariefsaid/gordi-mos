@@ -89,6 +89,27 @@ describe('ConfirmDialog', () => {
     resolve()
   })
 
+  it('does not dismiss a consequential action while it is submitting', async () => {
+    const user = userEvent.setup()
+    const onCancel = vi.fn()
+    const onConfirm = vi.fn(() => new Promise<void>(() => {}))
+    render(
+      <ConfirmDialog
+        open
+        title="Disable login?"
+        body="They won't be able to log in."
+        confirmLabel="Disable"
+        onConfirm={onConfirm}
+        onCancel={onCancel}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /^disable$/i }))
+    await user.keyboard('{Escape}')
+    expect(onCancel).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
   it('renders error state on onConfirm rejection', async () => {
     const user = userEvent.setup()
     const onConfirm = vi.fn().mockRejectedValue(new Error('server error'))
@@ -156,8 +177,8 @@ describe('ConfirmDialog', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true')
   })
 
-  // FIX B1 regression — dialog card must have a visible border (Single-Border Rule)
-  it('FIX-B1: dialog card container has a non-empty border style (Single-Border Rule)', () => {
+  // FIX B1 regression — ModalShell owns the visible border (Single-Border Rule).
+  it('FIX-B1: dialog card uses the canonical bordered modal surface', () => {
     render(
       <ConfirmDialog
         open
@@ -169,9 +190,8 @@ describe('ConfirmDialog', () => {
       />,
     )
     const dialog = screen.getByRole('dialog')
-    // border must be a non-empty inline style (1px solid var(--input))
-    expect(dialog.style.border).toBeTruthy()
-    expect(dialog.style.border).not.toBe('')
+    expect(dialog).toHaveClass('modal-shell__surface')
+    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
   })
 
   // Focus management (item 4)

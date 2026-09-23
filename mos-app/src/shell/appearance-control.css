@@ -1,0 +1,27 @@
+/* Appearance lives in the account popover, so its foreground follows the popover surface rather
+   than a route-specific shell override. The same approved aliases work in light and dark themes. */
+.appearance-control { color: var(--popover-foreground, var(--foreground)); }
+
+.appearance-control-option {
+  color: var(--popover-foreground, var(--foreground));
+  background: transparent;
+}
+
+.appearance-control-option:hover,
+.appearance-control-option[aria-checked="true"] {
+  color: var(--popover-foreground, var(--foreground));
+  background: var(--surface-secondary);
+}
+
+.appearance-control-option:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.appearance-control-option .text-muted-foreground { color: var(--muted-foreground); }
+
+.appearance-control-option .text-primary { color: var(--text-on-accent-tint); }
+
+@media (max-width: 767.98px) {
+  .appearance-control-option { min-height: 44px; }
+}

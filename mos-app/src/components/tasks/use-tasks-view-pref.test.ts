@@ -59,6 +59,19 @@ describe('useTasksViewPref (per-user-global, mirrors useExpandPref)', () => {
     expect(localStorage.getItem('mos.tasks.groupBy')).toBe('bu')
   })
 
+  // Step 6 (ADR-0051, C1): "Occurrence" is a valid, persistable group-by dimension — the
+  // occurrence-caption grouping in /work/tasks reuses this SAME per-user-global pref store
+  // (Rule 11 — no parallel view-state mechanism for the occurrence surface).
+  it('C1: setGroupBy("occurrence") persists correctly and survives a remount', () => {
+    const { result } = renderHook(() => useTasksViewPref())
+    act(() => result.current.setGroupBy('occurrence'))
+    expect(result.current.groupBy).toBe('occurrence')
+    expect(localStorage.getItem('mos.tasks.groupBy')).toBe('occurrence')
+    __resetTasksViewPrefForTests()
+    const { result: r2 } = renderHook(() => useTasksViewPref())
+    expect(r2.current.groupBy).toBe('occurrence')
+  })
+
   it('AC-127: collapsedGroups are scoped per dimension (status vs owner)', () => {
     const { result } = renderHook(() => useTasksViewPref())
     // Collapse 'Done' under status

@@ -12,7 +12,7 @@ import {
   updateTaskStatus, updateTaskFields, updateTaskRaci,
   archiveTask, unarchiveTask,
   addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,
-  searchTasksByTitle,
+  searchTasksByTitle, getTaskTitlesByIds,
 } from './tasks'
 import { supabase } from '@/lib/supabase'
 
@@ -245,6 +245,21 @@ describe('createTask', () => {
     noOrgId(rec)
   })
 
+  it('includes the real owning team when the composer supplies one', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      tasks: [{ data: { id: TASK_ID }, error: null }],
+      task_events: [{ data: null, error: null }],
+    }, rec) as never)
+
+    await createTask({
+      title: 'Team-owned task', businessUnitId: 'bu', teamId: 'team-1',
+      responsiblePersonId: ACTOR, accountablePersonId: ACTOR, createdBy: ACTOR,
+    })
+
+    expect((rec.inserts[0] as Record<string, unknown>).team_id).toBe('team-1')
+  })
+
   it('defaults objective_id and work_line_id to null when not provided', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({
@@ -280,6 +295,16 @@ describe('update mutations', () => {
     expect(ev.to_value).toBe('In Progress')
     expect(ev.actor_person_id).toBe(ACTOR)
     noOrgId(rec)
+  })
+
+  it('AC-059: PIC/Due edits log one field_edited event with from/to', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: null, error: null }], task_events: [{ data: null, error: null }] }, rec) as never)
+    await updateTaskFields(TASK_ID, { due_date: '2026-06-20' }, ACTOR, '2026-06-19')
+    const ev = rec.inserts[0] as Record<string, unknown>
+    expect(ev.event_type).toBe('field_edited')
+    expect(ev.from_value).toBe('2026-06-19')
+    expect(ev.to_value).toBe('2026-06-20')
   })
 
   it('updateTaskFields updates given fields then logs a field_edited event', async () => {
@@ -318,6 +343,17 @@ describe('update mutations', () => {
     expect(rec.updates[0]).toEqual({ objective_id: null, work_line_id: null })
     expect((rec.inserts[0] as Record<string, unknown>).event_type).toBe('field_edited')
     noOrgId(rec)
+  })
+
+  it('updateTaskFields can move a task to a selected Team without touching BU authority', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      tasks: [{ data: null, error: null }],
+      task_events: [{ data: null, error: null }],
+    }, rec) as never)
+    await updateTaskFields(TASK_ID, { team_id: 'team-2' }, ACTOR, 'team-1')
+    expect(rec.updates[0]).toEqual({ team_id: 'team-2' })
+    expect((rec.inserts[0] as Record<string, unknown>).event_type).toBe('field_edited')
   })
 
   it('updateTaskRaci updates consulted/informed arrays then logs a raci_edited event', async () => {
@@ -494,5 +530,22 @@ describe('searchTasksByTitle', () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: null, error: { message: 'search boom' } }] }, rec) as never)
     await expect(searchTasksByTitle('x')).rejects.toThrow(/searchTasksByTitle failed — search boom/)
+  })
+})
+
+
+describe('linked Task identity reads', () => {
+  it('can exclude archived Tasks for live Signal work without changing other identity readers', async () => {
+    const active = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [], error: null }] }, active) as never)
+    await getTaskTitlesByIds([TASK_ID], { includeArchived: false })
+    expect(active.eqs).toContainEqual(['id', [TASK_ID]])
+    expect(active.eqs).toContainEqual(['archived_at', null])
+    noOrgId(active)
+
+    const historical = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [], error: null }] }, historical) as never)
+    await getTaskTitlesByIds([TASK_ID])
+    expect(historical.eqs).not.toContainEqual(['archived_at', null])
   })
 })

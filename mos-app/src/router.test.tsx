@@ -1,51 +1,77 @@
 import { describe, it, expect, vi } from 'vitest'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 
 vi.mock('./auth/use-auth')
 import { useAuth } from './auth/use-auth'
 import { routeConfig } from './router'
 import { RequireAccessRole } from './auth/require-access-role'
-import { RequireCapability } from './auth/require-capability'
+import { REVENUE_VIEW_ROLES } from './lib/capabilities'
+import {
+  allRoutes,
+  allRedirects,
+  flattenRoutes,
+  isRedirect,
+  redirectProps,
+  expectOneHop,
+  describeRedirectMap,
+  leafInThisTable,
+  lazyPayloadOf,
+  gatesOnPath,
+} from './test/route-table'
 
-// nav-five-destinations flag-staleness cleanup: dev (ae7cffa) ungated SHOW_USER_VIEWS to true,
-// but this test's intent is the flag-OFF branch (stale deep-link redirects to /). Mock the flag
-// to false LOCALLY so the flag-gating coverage is preserved (BDD rule — the behavior is valid).
+// The flag-OFF branch is this file's subject: SHOW_USER_VIEWS, SHOW_FOLLOWUPS and SHOW_PLAN_BUDGET
+// are all mocked off so the "a stale deep link cannot reach a switched-off surface" coverage is
+// exercised. The flag-ON branch — where every page route must be code-split — is
+// `router-lazy.test.tsx`, which mocks the same module the other way.
+// SHOW_INBOX is absent: it is retired (#188/#189), Inbox is unconditionally live.
 vi.mock('./config/features', () => ({
-  SHOW_WEEKLY_UPDATES: true,
-  SHOW_DAILY_LOG: true,
   SHOW_USER_VIEWS: false,
   SHOW_ASSISTANT: true,
-  SHOW_INBOX: true,
-  SHOW_HOME_STACKED: false,
   SHOW_FOLLOWUPS: false,
   SHOW_PLAN_BUDGET: false,
 }))
 
 const mockUseAuth = vi.mocked(useAuth)
 
-// Import components used in the route tree to verify guard behavior
 import { ProtectedRoute } from './auth/protected-route'
 import { AppShell } from './shell/app-shell'
 import { TasksLayout } from './pages/tasks-layout'
-import { UpdatesPage } from './pages/updates-page'
-import { OpsPage } from './pages/ops-page'
+import { KitchenLogPage } from './pages/kitchen-log-page'
+import { NotFoundPage } from './pages/not-found-page'
+import { SignalsArchivePage } from './pages/signals-archive-page'
 
 function LoginStub() {
   return <div data-testid="login-page">Login</div>
 }
 
-// AC-008: unauthenticated users are redirected away from new section routes
-// Uses MemoryRouter (same pattern as guards.test.tsx) for reliable redirect testing.
-describe('AC-008: Guard on new routes', () => {
-  const cases = [
-    { path: '/tasks', element: <TasksLayout /> },
-    { path: '/updates', element: <UpdatesPage /> },
-    { path: '/ops', element: <OpsPage /> },
-  ]
+/** The AppShell layout route's children — the canonical route table. */
+function shellChildren() {
+  const protectedRoute = routeConfig.find(
+    (r) =>
+      Array.isArray(r.children) &&
+      r.children.some((c) => Array.isArray(c.children) && c.children.some((cc) => cc.path === 'work/tasks')),
+  )!
+  const shell = protectedRoute.children!.find((c) => Array.isArray(c.children))!
+  return shell.children!
+}
 
-  cases.forEach(({ path, element }) => {
-    it(`redirects unauthenticated visitor from ${path} to login, no shell content`, () => {
+/** A concrete URL for a route path, so `/tasks/:taskId` can actually be visited. */
+function concrete(path: string): string {
+  return path
+    .split('/')
+    .map((segment) => (segment.startsWith(':') ? `${segment.slice(1)}-1` : segment))
+    .join('/')
+}
+
+// AC-008: unauthenticated visitors are redirected away from protected routes.
+describe('AC-008: guard on protected routes', () => {
+  const cases = ['/work/tasks', '/work/signals', '/cafe/log']
+
+  cases.forEach((path) => {
+    it(`redirects an unauthenticated visitor from ${path} to login, no shell content`, () => {
       mockUseAuth.mockReturnValue({ status: 'unauthenticated' })
 
       render(
@@ -54,161 +80,282 @@ describe('AC-008: Guard on new routes', () => {
             <Route path="/login" element={<LoginStub />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<AppShell />}>
-                <Route path="/tasks" element={element} />
-                <Route path="/updates" element={element} />
-                <Route path="/ops" element={element} />
+                <Route path="/work/tasks" element={<TasksLayout />} />
+                <Route path="/work/signals" element={<SignalsArchivePage />} />
+                <Route path="/cafe/log" element={<KitchenLogPage />} />
               </Route>
             </Route>
           </Routes>
         </MemoryRouter>,
       )
 
-      // No shell navigation rendered
       expect(screen.queryByRole('navigation', { name: 'Primary' })).toBeNull()
-      // Redirected to login stub
       expect(screen.getByTestId('login-page')).toBeInTheDocument()
     })
   })
 })
 
-// ADR-0007: the three sibling /tasks routes become nested children under a
-// parent /tasks route so the table can persist (split-view, PR-B). PR-A only
-// establishes the nesting — the rendered output stays identical to today.
-describe('router — tasks nesting (ADR-0007)', () => {
-  it('AC-100: tasks is a parent route with :taskId and new as children', () => {
-    // Find the ProtectedRoute (which wraps AppShell) by locating the route whose
-    // children include an AppShell — index-agnostic so a DEV-only /dev/ui route
-    // prepended ahead of it doesn't shift the lookup.
-    const protectedRoute = routeConfig.find(
-      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
-    )!
-    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
-    const tasks = shell.children!.find(r => r.path === 'tasks')!
+// ADR-0007: the Tasks split-view shell keeps its drawer children, re-homed under /work/tasks.
+describe('router — Tasks nesting under /work/tasks (ADR-0007)', () => {
+  it('AC-100: work/tasks is a parent route with :taskId and new as children', () => {
+    const tasks = shellChildren().find((r) => r.path === 'work/tasks')!
     expect(tasks.children).toBeDefined()
-    const childPaths = tasks.children!.map(c => c.path).sort()
-    expect(childPaths).toEqual(['new', ':taskId'].sort())
-    // siblings `tasks/new` / `tasks/:taskId` no longer exist at the shell level
-    expect(shell.children!.some(r => r.path === 'tasks/new')).toBe(false)
-    expect(shell.children!.some(r => r.path === 'tasks/:taskId')).toBe(false)
+    expect(tasks.children!.map((c) => c.path).sort()).toEqual(['new', ':taskId'].sort())
+    // No second Tasks surface: the drawer children are the ONLY children.
+    expect(shellChildren().some((r) => r.path === 'work/tasks/:taskId')).toBe(false)
+    expect(shellChildren().some((r) => r.path === 'work/tasks/new')).toBe(false)
   })
-
 })
 
-// ADR-0018 P1 — the /dev/views harness is DEV + SHOW_USER_VIEWS flag gated (mirrors the
-// SHOW_WEEKLY_UPDATES/SHOW_DAILY_LOG pattern). SHOW_USER_VIEWS defaults false, so both routes
-// must redirect to / — a stale deep-link can never reach the harness while the flag is off.
-describe('router — /dev/views is flag-gated (ADR-0018 P1, SHOW_USER_VIEWS default false)', () => {
+// ADR-0018 P1 — the /dev/views harness is DEV + SHOW_USER_VIEWS gated. With the flag off both
+// routes redirect to /, so a stale deep link can never reach the harness.
+describe('router — /dev/views is flag-gated (ADR-0018 P1, flag off)', () => {
   it('redirects /dev/views and /dev/views/:viewId to / while the flag is off', () => {
-    const protectedRoute = routeConfig.find(
-      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
-    )!
-    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
-    const bare = shell.children!.find(r => r.path === 'dev/views')!
-    const withId = shell.children!.find(r => r.path === 'dev/views/:viewId')!
-    expect(bare.element).toEqual(<Navigate to="/" replace />)
-    expect(withId.element).toEqual(<Navigate to="/" replace />)
+    expect(shellChildren().find((r) => r.path === 'dev/views')!.element).toEqual(
+      <Navigate to="/" replace />,
+    )
+    expect(shellChildren().find((r) => r.path === 'dev/views/:viewId')!.element).toEqual(
+      <Navigate to="/" replace />,
+    )
   })
 })
 
-// FR-421 (nav-five-destinations): the catalog manage routes are RELOCATED under /work/ as
-// Work's manage-mode, and the retired top-level paths redirect into the cascade. The manage pages
-// stay behind RequireCapability (bounces non-holders to /work/cascade); page components reused.
-describe('router — catalog manage-mode relocated under /work/ (FR-421)', () => {
-  it('AC-302/304: wires /work/cascade directly + /work/objectives + /work/projects-processes behind capability gates', () => {
-    const protectedRoute = routeConfig.find(
-      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
-    )!
-    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
+// ── The redirect map (FR-015/FR-016, AC-017/AC-018) ──────────────────────────────────────────
+//
+// Both suites below enumerate the REAL table. Nothing here is a hand-kept list of paths, so a
+// redirect added to router.tsx without a canonical destination fails without anyone remembering
+// to add a case for it.
+describeRedirectMap('plan/budget + follow-ups flags OFF')
 
-    expect(shell.children!.some((r) => r.path === 'work/cascade')).toBe(true)
-
-    const objectivesGate = shell.children!.find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'work/objectives'),
-    )!
-    expect(objectivesGate.element).toEqual(<RequireCapability capability="objective.manage" />)
-
-    const workLinesGate = shell.children!.find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'work/projects-processes'),
-    )!
-    expect(workLinesGate.element).toEqual(<RequireCapability capability="workline.manage" />)
-  })
-
-  it('AC-405: /objectives + /projects-processes are redirect routes to /work/cascade (replace)', () => {
-    const protectedRoute = routeConfig.find(
-      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
-    )!
-    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
-
-    const objectivesRedirect = shell.children!.find((r) => r.path === 'objectives')!
-    expect(objectivesRedirect.element).toEqual(<Navigate to="/work/cascade" replace />)
-
-    const workLinesRedirect = shell.children!.find((r) => r.path === 'projects-processes')!
-    expect(workLinesRedirect.element).toEqual(<Navigate to="/work/cascade" replace />)
-  })
-})
-
-describe('router — dashboard route gate + redirect (OD-DASH-2, FR-001/002)', () => {
-  // Helper: find the AppShell route node.
-  function shellChildren() {
-    const protectedRoute = routeConfig.find(
-      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
-    )!
-    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
-    return shell.children!
+describe('AC-018: a retired route requested with ?view= / ?record= keeps its query', () => {
+  function LocationProbe() {
+    const loc = useLocation()
+    return <div data-testid="location">{loc.pathname + loc.search}</div>
   }
 
-  it('AC-002/003: /dashboard sits under a RequireAccessRole anyOf={finance,admin} branch', () => {
-    const dashGate = shellChildren().find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'dashboard'),
-    )!
-    expect(dashGate).toBeDefined()
-    expect(dashGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+  // Only the redirect MAP owes the caller their query. A flag-off fallback is not forwarding a
+  // deep link to its new home — it is refusing to serve a switched-off surface — so carrying the
+  // caller's parameters onto `/` would be noise.
+  const mapEntries = allRedirects().filter((r) => r.kind === 'map')
+
+  it.each(mapEntries.map((r) => [r.from, r.to] as const))(
+    '%s?view=v&record=r arrives at %s with both parameters intact',
+    (from, to) => {
+      const element = flattenRoutes().find((f) => f.path === from)!.route.element
+      render(
+        <MemoryRouter initialEntries={[`${concrete(from)}?view=v&record=r`]}>
+          <Routes>
+            <Route path={from} element={element} />
+            <Route path="*" element={<LocationProbe />} />
+          </Routes>
+        </MemoryRouter>,
+      )
+      const landed = screen.getByTestId('location').textContent!
+      const [wantPath, ownQuery] = to.split('?')
+      expect(landed.split('?')[0]).toBe(concrete(wantPath))
+      // A target that names its own view keeps it (see route-redirect.test.tsx); every other
+      // target has to carry the caller's parameters across.
+      expect(landed.split('?')[1]).toBe(ownQuery ?? 'view=v&record=r')
+    },
+  )
+})
+
+// ── AC-021: not found renders INSIDE the shell ───────────────────────────────────────────────
+describe('AC-021: an unmatched path renders the not-found surface inside the shell', () => {
+  it('a nonsense path resolves to the catch-all, and the AppShell is one of its ancestors', () => {
+    const matches = leafInThisTable('/no/such/place')!
+    expect(matches).toBeDefined()
+    expect(matches.route.path).toBe('*')
   })
 
-  it('AC-001: /sales redirects to /dashboard (back-compat)', () => {
-    const gate = shellChildren().find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'sales'),
-    )!
-    const salesRoute = gate.children!.find(r => r.path === 'sales')!
-    expect(salesRoute.element).toEqual(<Navigate to="/dashboard" replace />)
+  it('the catch-all is a child of the AppShell layout route, not a sibling of it', () => {
+    const notFound = shellChildren().find((r) => r.path === '*')
+    expect(notFound).toBeDefined()
+    // …and it is not declared anywhere OUTSIDE the shell, which is what would strip the rail.
+    const catchAlls = flattenRoutes().filter((f) => f.route.path === '*')
+    expect(catchAlls).toHaveLength(1)
   })
 
-  it('AC-017: /dashboard/detail is wired (parameterized detail sub-view)', () => {
-    const gate = shellChildren().find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'dashboard'),
-    )!
-    const detailRoute = gate.children!.find(r => r.path === 'dashboard/detail')
-    expect(detailRoute).toBeDefined()
+  it('the catch-all resolves to NotFoundPage', async () => {
+    const payload = lazyPayloadOf(shellChildren().find((r) => r.path === '*')!.element)!
+    expect(payload).toBeDefined()
+    expect((await payload.preload!()).default).toBe(NotFoundPage)
   })
 })
 
-// ADR-0022 (Issue D) — Plan budget + pricing pre-flight routes are flag-gated (SHOW_PLAN_BUDGET
-// default false) AND finance/admin-gated. AC-PB-001 (flag-off redirect) + AC-PB-002 (role gate).
-describe('router — Plan budget + pricing routes (ADR-0022, SHOW_PLAN_BUDGET default false)', () => {
-  it('AC-PB-001: /plan/budget + /plan/pricing redirect to / while the flag is off', () => {
-    const protectedRoute = routeConfig.find(
-      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
-    )!
-    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
-    const planGate = shell.children!.find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'plan/budget' || c.path === 'plan/pricing'),
-    )!
-    expect(planGate).toBeDefined()
-    const budget = planGate.children!.find((r) => r.path === 'plan/budget')!
-    const pricing = planGate.children!.find((r) => r.path === 'plan/pricing')!
-    expect(budget.element).toEqual(<Navigate to="/" replace />)
-    expect(pricing.element).toEqual(<Navigate to="/" replace />)
+// ── Gates ────────────────────────────────────────────────────────────────────────────────────
+describe('router — Work catalog read access', () => {
+  it('OD-V4-1: /work/objectives and /work/projects carry NO read gate — the reads are open at the database', () => {
+    // v4-redesign's own router.test.tsx asserts a RequireCapability(objective.manage) gate here,
+    // which contradicts v4's own router.tsx. OD-V4-1 (owner-ratified) removed the gate: the
+    // objectives SELECT policy carries no role check, so the gate hid a screen RLS already
+    // permits. #188 removed it from the rail; this is the route half. Write stays behind
+    // can('objective.manage') inside the page.
+    expect(flattenRoutes().find((f) => f.path === '/work/objectives')).toBeDefined()
+    // Resolved through the real matcher: nothing on the ancestor chain bounces a subset of
+    // authenticated viewers. Re-add the gate and this goes red.
+    expect(gatesOnPath('/work/objectives')).toEqual([])
+    expect(gatesOnPath('/work/projects')).toEqual([])
   })
 
-  it('AC-PB-002: the plan/budget + plan/pricing branch sits under RequireAccessRole anyOf={finance,admin}', () => {
-    const protectedRoute = routeConfig.find(
-      r => Array.isArray(r.children) && r.children.some(c => Array.isArray(c.children) && c.children.some(cc => cc.path === 'tasks')),
+  it('AC-304: /work/projects is directly reachable for authenticated org members', () => {
+    const route = shellChildren().find((r) => r.path === 'work/projects')
+    expect(route).toBeDefined()
+    expect(route?.element).toBeDefined()
+  })
+
+  it('both retired catalog spellings redirect directly to the org-readable catalog', () => {
+    const paths = shellChildren()
+      .filter((r) =>
+        ['projects-processes', 'work/projects', 'work/projects-processes', 'work/projects/:workLineId'].includes(
+          r.path ?? '',
+        ),
+      )
+      .map((r) => r.path)
+      .sort()
+    expect(paths).toEqual([
+      'projects-processes',
+      'work/projects',
+      'work/projects-processes',
+      'work/projects/:workLineId',
+    ])
+  })
+})
+
+describe('router — Money gates (dev security series preserved)', () => {
+  it('AC-127/AC-326: /money admits the financial VIEW tiers, not just finance+admin', () => {
+    // v4-redesign gates ALL of Money on finance|admin. Carrying that across would revoke the
+    // dashboard visibility this line granted manager (ADR-0050 D8) and supervisor (ADR-0051) —
+    // migrations that exist only here. The policy is pinned with a literal on purpose; comparing
+    // against the constant the router is built from cannot fail.
+    const gate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money'),
     )!
-    const shell = protectedRoute.children!.find(c => Array.isArray(c.children))!
-    const planGate = shell.children!.find(
-      r => Array.isArray(r.children) && r.children.some(c => c.path === 'plan/budget' || c.path === 'plan/pricing'),
+    // #797: admin is users-and-settings and is not a money arm.
+    expect(gate.element).toEqual(
+      <RequireAccessRole anyOf={['finance', 'manager', 'supervisor']} />,
+    )
+  })
+
+  it('I-2: the Money read gate consumes the REVENUE_VIEW_ROLES constant (identity, not value)', () => {
+    const gate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money'),
     )!
-    expect(planGate).toBeDefined()
-    expect(planGate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+    expect((gate.element as React.ReactElement<{ anyOf: readonly string[] }>).props.anyOf).toBe(
+      REVENUE_VIEW_ROLES,
+    )
+  })
+
+  it('AC-127/AC-326: budget + pricing stay finance|admin — a VIEW tier is not a planning tier', () => {
+    const gate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money/budget'),
+    )!
+    expect(gate.element).toEqual(<RequireAccessRole anyOf={['finance', 'admin']} />)
+    expect(gate.element).not.toEqual(<RequireAccessRole anyOf={['finance', 'admin', 'manager']} />)
+    expect(gate.element).not.toEqual(<RequireAccessRole anyOf={['finance', 'admin', 'supervisor']} />)
+  })
+
+  it('AC-PB-001 / AC-052 (#804 regression pin): /money/budget + /money/pricing redirect to / while SHOW_PLAN_BUDGET is off', () => {
+    const gate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money/budget'),
+    )!
+    expect(gate.children!.find((r) => r.path === 'money/budget')!.element).toEqual(
+      <Navigate to="/" replace />,
+    )
+    expect(gate.children!.find((r) => r.path === 'money/pricing')!.element).toEqual(
+      <Navigate to="/" replace />,
+    )
+  })
+
+  it('AC-052 (#804 regression pin): the retired Money paths — /sales, /dashboard — redirect from inside the gate that owns their destination', () => {
+    const readGate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money'),
+    )!
+    expect(readGate.children!.map((c) => c.path).sort()).toEqual([
+      'dashboard',
+      'dashboard/detail',
+      'money',
+      'money/detail',
+      'sales',
+    ])
+    const planGate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money/budget'),
+    )!
+    expect(planGate.children!.map((c) => c.path).sort()).toEqual([
+      'money/budget',
+      'money/follow-ups',
+      'money/pricing',
+      'plan/budget',
+      'plan/pricing',
+    ])
+  })
+})
+
+describe('router — Café review + pushes are role-gated', () => {
+  // The two used to share one gate. #236 (FR-040) made the stream supervisor a reviewer on the
+  // server and in the page but not here, so the reviewer it created was bounced off the URL —
+  // found by #238's cross-stack journey. Review now admits them; Pushes, the dispatch surface,
+  // does not, so the two gates are deliberately different and asserted apart.
+  it('AC-006: /cafe/review sits behind RequireAccessRole(ops_lead|admin|supervisor) — the FR-040 reviewer included', () => {
+    const gate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'cafe/review'),
+    )!
+    expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} scope="link" />)
+    expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/review', 'kitchen/review'])
+  })
+
+  it('AC-006: /cafe/pushes stays behind RequireAccessRole(ops_lead|admin) — posting state is not a review queue', () => {
+    const gate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'cafe/pushes'),
+    )!
+    expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin']} />)
+    expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/pushes', 'kitchen/pushes'])
+  })
+})
+
+describe('router — /admin redirects from inside AdminRoute', () => {
+  it('AC-006: /admin, /admin/people, and /admin/access are children of the admin gate', () => {
+    const gate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'admin/people'),
+    )!
+    expect(gate.children!.map((c) => c.path).sort()).toEqual(['admin', 'admin/access', 'admin/people'])
+  })
+})
+
+// AC-001 (#179, #217, OD-WAY-32): the cascade SCREEN is cut; the PATH keeps its doormat.
+describe('router — the retired cascade path (OD-WAY-32)', () => {
+  it('AC-001: no PAGE is served at a cascade path — a redirect away is all there is', () => {
+    const cascadeRoutes = allRoutes(routeConfig).filter((r) => (r.path ?? '').includes('cascade'))
+    expect(cascadeRoutes.map((r) => r.path)).toEqual(['work/cascade'])
+    for (const r of cascadeRoutes) expect(isRedirect(r.element)).toBe(true)
+  })
+
+  it('AC-001 (#217, FR-015): it lands on a live route in one hop, history replaced', () => {
+    const cascade = allRoutes(routeConfig).find((r) => r.path === 'work/cascade')!
+    expect(cascade).toBeDefined()
+    const { to, replace } = redirectProps(cascade.element)
+    expect(replace).toBe(true)
+    // …and the destination is resolved against THIS table: it exists, it is a live surface rather
+    // than the not-found catch-all, it is not a second redirect, and — the clause #220 added — it
+    // carries no gate the retired path does not. `work/cascade` is ungated, so its destination has
+    // to be reachable by every authenticated viewer or the hop is not one hop.
+    expectOneHop('/work/cascade', to)
+  })
+})
+
+// AC-003 (#179): the cascade screen is cut, not hidden. "Cascade" survives as glossary vocabulary
+// for the Objective → Project/Process → Task relation (CONTEXT.md), but the surface that rendered
+// it — the page, its stylesheet, and the ladder builder that fed only that page — is gone.
+describe('cascade surface removed from the source tree (#179)', () => {
+  const srcDir = join(process.cwd(), 'src')
+
+  it.each([
+    'pages/cascade-page.tsx',
+    'pages/cascade-page.css',
+    'pages/cascade-page.test.tsx',
+    'lib/cascade/build-ladder.ts',
+    'lib/cascade/build-ladder.test.ts',
+  ])('%s is absent', (relative) => {
+    expect(existsSync(join(srcDir, relative))).toBe(false)
   })
 })

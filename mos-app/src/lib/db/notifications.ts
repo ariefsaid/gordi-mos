@@ -2,8 +2,9 @@ import { supabase } from '@/lib/supabase'
 
 // Data layer for mos.notifications (Inbox destination — ADR-0044 §5 / ADR-0019 D9). Reads/writes via
 // supabase.schema('mos') on the existing caller-JWT client; RLS is the authority (owner-private,
-// org-scoped) — this layer NEVER sends org_id/owner_id. The only permitted write is marking read
-// (the mark-read-only column-pin trigger enforces content immutability server-side).
+// org-scoped) — this layer NEVER sends org_id/owner_id. The only permitted writes are marking read
+// and marking handled (OD-WAY-88, the viewer-personal triage stamp); the column-pin trigger keeps
+// the delivered content itself immutable server-side.
 
 const mos = () => supabase.schema('mos')
 
@@ -23,10 +24,12 @@ export interface NotificationRow {
   body: string | null
   metadata: { entity?: NotificationEntity } | Record<string, unknown>
   read_at: string | null
+  /** Set when this viewer explicitly triaged the row out of their queue (OD-WAY-88); null = active. */
+  handled_at?: string | null
   created_at: string
 }
 
-const COLUMNS = 'id, severity, title, body, metadata, read_at, created_at'
+const COLUMNS = 'id, severity, title, body, metadata, read_at, handled_at, created_at'
 
 // CQ#2: Inbox rows accumulate forever (every @mention + self-notify is a row). The Inbox page is
 // owner-scoped via RLS but must not pull the full history on every render. The unread fast-path
@@ -67,15 +70,18 @@ export async function markNotificationRead(id: string, readAtIso: string): Promi
 }
 
 /**
- * The deep-link route for a notification, if it carries a SAFE app-relative one. Defense-in-depth
- * (security review 2026-07-05, Low-2): metadata is producer-supplied; only an app-internal path
- * (single leading slash) is honoured — protocol (`javascript:`, `http:`) and protocol-relative
- * (`//host`) routes are rejected so a crafted notification can never navigate off-app or execute.
+ * Mark one notification handled — the viewer's PRIVATE triage stamp (OD-WAY-88): never Task/Signal
+ * domain state. Mirrors applyMarkHandled: an unread row is marked read in the same write. Only
+ * read_at/handled_at may change (server column-pin trigger enforces it). `readAtIso` is the read
+ * stamp to co-write when the row was unread; null = already read, leave untouched.
  */
-export function notificationRoute(row: NotificationRow): string | null {
-  const entity = (row.metadata as { entity?: NotificationEntity })?.entity
-  const route = entity?.route
-  if (typeof route !== 'string') return null
-  if (!route.startsWith('/') || route.startsWith('//')) return null
-  return route
+export async function markNotificationHandled(
+  id: string,
+  handledAtIso: string,
+  readAtIso: string | null,
+): Promise<void> {
+  const patch: { handled_at: string; read_at?: string } = { handled_at: handledAtIso }
+  if (readAtIso != null) patch.read_at = readAtIso
+  const { error } = await mos().from('notifications').update(patch).eq('id', id)
+  if (error) throw new Error(`markNotificationHandled failed: ${error.message}`)
 }

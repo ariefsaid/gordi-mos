@@ -1,56 +1,21 @@
 /* ════════════════════════════════════════════════════════════════════════════
    CutToggle — the `seg` segmented control grammar (DESIGN.md §Tabs / Segmented,
-   design-plan §2.5). 32px track on `secondary`; "on" = white `background` pill +
-   `foreground` + 600 + a 0 1px 2px lift. Token-only.
+   design-plan §2.5). Shared visual grammar now lives in
+   styles/segmented-track.css (extract, 2026-07-28) — this file's own job is CutToggle's
+   own concerns only: the phone min-width floor per option (a toolbar view-switcher
+   can sit in a narrow slot).
    ════════════════════════════════════════════════════════════════════════════ */
-.cut-toggle {
-  display: inline-flex;
-  gap: 4px;
-  height: 32px;
-  padding: 3px;
-  background: var(--secondary);
-  border-radius: var(--radius-sm);
-  box-sizing: border-box;
-}
-
-.cut-toggle-tab {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px; /* phone tap target floor (design-plan §4.2) */
-  height: 100%;
-  padding: 0 12px;
-  border: none;
-  border-radius: calc(var(--radius-sm) - 2px);
-  background: transparent;
-  color: var(--muted-foreground);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 120ms ease, box-shadow 120ms ease, color 120ms ease;
-}
-.cut-toggle-tab:hover:not([aria-selected='true']) {
-  color: var(--foreground);
-}
-.cut-toggle-tab[aria-selected='true'] {
-  background: var(--background);
-  color: var(--foreground);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-font-color-primary) 12%, transparent);
-  cursor: default;
-}
-@media (prefers-reduced-motion: reduce) {
-  .cut-toggle-tab { transition: none; }
-}
+@import '../../styles/segmented-track.css';
 
 @media (max-width: 767.98px) {
+  .cut-toggle-tab {
+    min-width: 44px; /* phone tap target floor (design-plan §4.2) */
+  }
+  /* Also stated here, redundant with segmented-track.css's shared rule: tap-targets.css.test.ts
+     (B-i) reads this file's own source text for the 44px floor, so the declaration must be
+     physically present in both files. Same value in both places — never drifts, never conflicts. */
   .cut-toggle,
   .cut-toggle-tab {
     min-height: 44px;
-  }
-
-  .cut-toggle,
-  .cut-toggle-tab {
-    height: auto;
   }
 }

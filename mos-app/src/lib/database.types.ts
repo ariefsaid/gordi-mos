@@ -1,11 +1,15 @@
 // Minimal handwritten types for the `shared` schema rows this app reads (P1-3). No codegen yet.
-// Source of truth: supabase/migrations/20260611000002_shared_directory.sql. Keep in sync by hand.
+// Source of truth: supabase/migrations/20260805000001_shared_directory.sql. Keep in sync by hand.
 export interface PeopleRow {
   id: string
   org_id: string
   user_id: string | null
   full_name: string
   email: string | null
+  // #131: the current password was set by an admin and is known to them. The shell blocks on a
+  // set-password screen until the holder replaces it. Cleared only by an actual password change,
+  // via the trigger on auth.users — a direct write is refused by shared._guard_people().
+  must_change_password: boolean
   archived_at: string | null
   created_at: string
   updated_at: string
@@ -26,7 +30,9 @@ export interface PersonRolesRow {
   role_id: string
   created_at: string
 }
-export type AccessRole = 'admin' | 'ops_lead' | 'finance' | 'member'
+// Mirrors the shared.access_role domain — the ONE database statement of the set (#216). Six
+// values; grows by migration there first, then here in the same change.
+export type AccessRole = 'admin' | 'ops_lead' | 'finance' | 'member' | 'manager' | 'supervisor'
 export interface PersonAccessRolesRow {
   id: string
   org_id: string

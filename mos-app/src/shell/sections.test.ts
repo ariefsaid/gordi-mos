@@ -1,85 +1,133 @@
 /**
- * Unit tests for sectionForPath — covering both SECTIONS and KITCHEN_SECTIONS.
- * AC-KIT-006: kitchen paths resolve to a named section (non-empty breadcrumb).
+ * sections.test.ts — Redesign Step 2 (T5). CAFE_SECTIONS remap (Kitchen → Café,
+ * /cafe/* paths), events/money/signals/profile sections added, retired /updates
+ * + /ops entries dropped. ADMIN_SECTIONS kept. FR-027 prep.
  */
+import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
 import { describe, it, expect } from 'vitest'
-import { sectionForPath, KITCHEN_SECTIONS } from './sections'
+import { SECTIONS, CAFE_SECTIONS, ADMIN_SECTIONS, sectionForPath, sectionHasPrefixChild } from './sections'
 
-describe('sectionForPath — workspace sections', () => {
-  it('returns My Week for /', () => {
+describe('T5: SECTIONS — workspace fallback registry', () => {
+  it('home section resolves for /', () => {
     const s = sectionForPath('/')
     expect(s).not.toBeNull()
-    expect(s!.label).toBe('My Week')
+    expect(s!.label).toBe('Home')
   })
 
-  it('returns Tasks for /tasks', () => {
-    const s = sectionForPath('/tasks')
-    expect(s).not.toBeNull()
-    expect(s!.label).toBe('Tasks')
+  it('retired /updates and /ops entries are absent', () => {
+    expect(SECTIONS.some((s) => s.path === '/updates')).toBe(false)
+    expect(SECTIONS.some((s) => s.path === '/ops')).toBe(false)
+    expect(sectionForPath('/updates')).toBeNull()
+    expect(sectionForPath('/ops')).toBeNull()
+  })
+})
+
+describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
+  // Step 7 (cafe-retrofit.spec.md, RATIFY-7D): /cafe now hosts the "Start today's opening" home
+  // (Opening) ahead of the re-homed kitchen screens (Log · Plan · Stock · Review · Pushes).
+  it('exports the capture root + 4 café sections in canonical order (DD-MVP-17: /cafe/log retired)', () => {
+    expect(CAFE_SECTIONS.map((s) => s.path)).toEqual([
+      '/cafe',
+      '/cafe/plan',
+      '/cafe/stock',
+      '/cafe/review',
+      '/cafe/pushes',
+    ])
   })
 
-  it('returns Tasks for /tasks/some-id (prefix match)', () => {
-    const s = sectionForPath('/tasks/abc-123')
-    expect(s).not.toBeNull()
-    expect(s!.label).toBe('Tasks')
+  it('each section has a path, label, labelKey, and Icon', () => {
+    CAFE_SECTIONS.forEach((s) => {
+      expect(s.path).toBeTruthy()
+      expect(s.label).toBeTruthy()
+      expect(s.labelKey).toBeTruthy()
+      expect(typeof s.Icon).toBe('function')
+    })
   })
 
-  it('returns null for an unknown path', () => {
+  it('sectionForPath resolves /cafe/log, /cafe/review, /cafe/pushes', () => {
+    expect(sectionForPath('/cafe/log')!.label).toBe('Log')
+    expect(sectionForPath('/cafe/review')!.label).toBe('Review')
+    expect(sectionForPath('/cafe/pushes')!.label).toBe('Pushes')
+  })
+
+  it('sectionForPath resolves /cafe/plan/anything by prefix (the specific leaf, not the /cafe root)', () => {
+    expect(sectionForPath('/cafe/plan/anything')!.path).toBe('/cafe/plan')
+  })
+
+  it('DD-MVP-17: sectionForPath resolves the exact /cafe path to the capture root (Log)', () => {
+    expect(sectionForPath('/cafe')!.label).toBe('Log')
+  })
+})
+
+describe('T5: ADMIN_SECTIONS — kept (People)', () => {
+  it('resolves /admin/people to People', () => {
+    expect(ADMIN_SECTIONS.some((s) => s.path === '/admin/people')).toBe(true)
+    expect(sectionForPath('/admin/people')!.label).toBe('People')
+  })
+})
+
+describe('T5: new destination sections resolve', () => {
+  it('sectionForPath resolves /profile and /work/signals', () => {
+    expect(sectionForPath('/events')).toBeNull()
+    expect(sectionForPath('/profile')!.label).toBe('Personal Profile')
+    expect(sectionForPath('/work/signals')!.label).toBe('Signals')
+  })
+
+  it('sectionForPath resolves a sub-route by prefix', () => {
+    // Was `/money/detail` → `/money`; Money is ship-gated (#444) and resolves to nothing now, so
+    // the PREFIX behaviour itself is proven on a path that is still live.
+    expect(sectionForPath('/cafe/plan/anything')!.path).toBe('/cafe/plan')
+  })
+
+  // #444 — the gate closes resolution, not just rendering. The router forwards a gated path home,
+  // so the breadcrumb should never be asked; a resolver that still named the hidden surface would
+  // be a second source of truth waiting to leak one.
+  it.each([...SHIP_GATED_PATHS])(
+    'sectionForPath finds nothing at the ship-gated %s',
+    (path) => {
+      expect(sectionForPath(path)).toBeNull()
+    },
+  )
+
+  it('keeps non-navigation gated sections in the fallback registry', () => {
+    const paths = SECTIONS.map((s) => s.path)
+    for (const p of ['/money', '/work/objectives', '/ecommerce', '/roastery']) {
+      expect(paths, `${p} was deleted from SECTIONS rather than gated`).toContain(p)
+    }
+  })
+})
+
+describe('T5: sectionForPath — fallbacks', () => {
+  it('returns null for a truly unknown path', () => {
     expect(sectionForPath('/unknown-xyz')).toBeNull()
   })
 })
 
-// AC-KIT-006: kitchen paths must resolve so the breadcrumb is non-empty.
-describe('AC-KIT-006: sectionForPath — kitchen sections', () => {
-  it('returns Log section for /kitchen/log', () => {
-    const s = sectionForPath('/kitchen/log')
-    expect(s).not.toBeNull()
-    expect(s!.label).toBe('Kitchen Log')
-    expect(s!.path).toBe('/kitchen/log')
+describe('the Café children carry marks of their own (#457)', () => {
+  // Several rungs, one picture: each Café tab gets its own mark so compact rail and phone drawer entries remain identifiable.
+  it('the five children use five distinct components (DD-MVP-17: Opening merged into the root)', () => {
+    const icons = CAFE_SECTIONS.map((s) => s.Icon)
+    expect(icons).toHaveLength(5)
+    expect(new Set(icons).size).toBe(5)
   })
 
-  it('returns Plan section for /kitchen/plan', () => {
-    const s = sectionForPath('/kitchen/plan')
-    expect(s).not.toBeNull()
-    expect(s!.label).toBe('Plan')
-  })
-
-  it('returns Stock section for /kitchen/stock', () => {
-    const s = sectionForPath('/kitchen/stock')
-    expect(s).not.toBeNull()
-    expect(s!.label).toBe('Stock')
-  })
-
-  it('returns Review section for /kitchen/review', () => {
-    const s = sectionForPath('/kitchen/review')
-    expect(s).not.toBeNull()
-    expect(s!.label).toBe('Review')
-  })
-
-  it('returns Pushes section for /kitchen/pushes', () => {
-    const s = sectionForPath('/kitchen/pushes')
-    expect(s).not.toBeNull()
-    expect(s!.label).toBe('Pushes')
-  })
-
-  it('does NOT match /kitchen root (no trailing section)', () => {
-    // /kitchen itself has no section entry — sections are leaf paths
-    expect(sectionForPath('/kitchen')).toBeNull()
+  it('none of them is a mark another destination already draws', () => {
+    // The breadcrumb registries — SECTIONS and ADMIN_SECTIONS — and nothing more: the rail's own
+    // rungs are inline literals in destinations.tsx, so a child borrowing ShieldIcon or WorkIcon
+    // passes this. rail-glyph-uniqueness.test.tsx closes that by comparing what the rail actually
+    // renders; this stays because it is fast and names the component.
+    const elsewhere = new Set(
+      [...SECTIONS, ...ADMIN_SECTIONS].filter((s) => !s.path.startsWith('/cafe/')).map((s) => s.Icon),
+    )
+    for (const s of CAFE_SECTIONS) {
+      expect(elsewhere.has(s.Icon), `${s.path} borrows a mark from another destination`).toBe(false)
+    }
   })
 })
 
-describe('KITCHEN_SECTIONS export', () => {
-  it('exports exactly 5 kitchen sections in the canonical order', () => {
-    expect(KITCHEN_SECTIONS).toHaveLength(5)
-    const labels = KITCHEN_SECTIONS.map((s) => s.label)
-    expect(labels).toEqual(['Kitchen Log', 'Plan', 'Stock', 'Review', 'Pushes'])
-  })
-
-  it('each section has a path, label, and Icon', () => {
-    KITCHEN_SECTIONS.forEach((s) => {
-      expect(s.path).toBeTruthy()
-      expect(s.label).toBeTruthy()
-      expect(typeof s.Icon).toBe('function')
-    })
+describe('sectionHasPrefixChild', () => {
+  it('marks only a section with a prefix-child sibling', () => {
+    expect(sectionHasPrefixChild(CAFE_SECTIONS[0], CAFE_SECTIONS)).toBe(true)
+    expect(sectionHasPrefixChild(CAFE_SECTIONS[1], CAFE_SECTIONS)).toBe(false)
   })
 })

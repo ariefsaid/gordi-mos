@@ -12,6 +12,8 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { AssistantPanel } from '@/components/assistant/AssistantPanel'
 
+vi.mock('./use-is-desktop', () => ({ useIsDesktop: () => true }))
+
 // Mutable flag via a getter so each test toggles SHOW_ASSISTANT without a module reset.
 const flag = { SHOW_ASSISTANT: true }
 vi.mock('@/config/features', () => ({
@@ -19,16 +21,20 @@ vi.mock('@/config/features', () => ({
     return flag.SHOW_ASSISTANT
   },
   SHOW_USER_VIEWS: false,
-  SHOW_WEEKLY_UPDATES: false,
-  SHOW_INBOX: false,
   SHOW_FOLLOWUPS: false,
   SHOW_PLAN_BUDGET: false,
-  SHOW_DAILY_LOG: false,
 }))
 
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
+
+// The always-live NotificationBell (SHOW_INBOX retired, D-1) fires useUnreadCount → countUnread.
+// Mock it so the bell's async read resolves cleanly instead of racing teardown.
+vi.mock('@/lib/db/notifications', () => ({
+  countUnread: vi.fn().mockResolvedValue(0),
+  listNotifications: vi.fn().mockResolvedValue([]),
+}))
 
 vi.mock('./use-is-narrow')
 import { useIsNarrow } from './use-is-narrow'
@@ -42,14 +48,16 @@ const viewer = {
     org_id: '10000000-0000-0000-0000-000000000001',
     user_id: 'auth-user-001',
     full_name: 'Cahya Cafe',
-    email: 'cahya@gordi.id',
+    email: 'cahya@example.test',
     archived_at: null,
+    must_change_password: false,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
   },
   roles: [],
   isManager: false,
   accessRoles: [],
+  affiliated: [],
 }
 
 function renderTopBar({ narrow, withPanel }: { narrow: boolean; withPanel?: boolean }) {
@@ -79,12 +87,12 @@ describe('TopBar assistant button (T28)', () => {
     renderTopBar({ narrow: false })
     const btn = screen.getByRole('button', { name: 'Open deputy' })
     expect(btn).toBeInTheDocument()
-    // It sits in the right cluster after search, before the bell — assert it precedes the bell.
+    // It sits in the right cluster after search and after the Inbox bell (OD-57: Search · Inbox · Deputy).
     const search = screen.getByRole('button', { name: /Search/i })
-    const bell = screen.getByRole('button', { name: 'Notifications' })
+    const bell = screen.getByRole('button', { name: 'Inbox' })
     const precedes = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(precedes(search, btn)).toBe(true)
-    expect(precedes(btn, bell)).toBe(true)
+    expect(precedes(search, bell)).toBe(true)
+    expect(precedes(bell, btn)).toBe(true)
   })
 
   it('AC-AP-001: clicking the desktop button opens the slide-over', () => {

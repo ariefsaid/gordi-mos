@@ -1,8 +1,12 @@
 /// <reference types="vitest/config" />
+import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type Plugin, type ViteDevServer, type PreviewServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { MOS_DEV_IDENTITY_PATH, worktreeFingerprint } from './src/lib/dev-server'
+
+const __dir = dirname(fileURLToPath(import.meta.url))
 
 // Dev/preview ergonomics: visiting bare "/" or "/mos" (no trailing slash) otherwise
 // shows Vite's "did you mean to visit /mos/ instead?" notice. Redirect those to the
@@ -28,10 +32,55 @@ function redirectToBase(base = '/mos/'): Plugin {
   }
 }
 
+// #419 — dev-server worktree identity. The browser suite must never measure another
+// worktree's app: playwright derives a per-worktree port, and e2e/global-setup.ts fetches
+// this fingerprint before any test, refusing a server that is not provably this tree's.
+// Dev-server-only (configureServer); builds and preview are unaffected.
+function mosDevIdentity(): Plugin {
+  const identity = worktreeFingerprint(__dir)
+  return {
+    name: 'mos-dev-identity',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if ((req.url ?? '').split('?')[0] === MOS_DEV_IDENTITY_PATH) {
+          res.setHeader('Cache-Control', 'no-store')
+          res.end(identity)
+          return
+        }
+        next()
+      })
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   base: '/mos/',
-  plugins: [redirectToBase('/mos/'), react(), tailwindcss()],
+  plugins: [redirectToBase('/mos/'), mosDevIdentity(), react(), tailwindcss()],
+  build: {
+    rollupOptions: {
+      output: {
+        // Perf (impeccable/optimize, 2026-07-28): group stable third-party deps into their
+        // own named chunks, separate from the app's own eager code (main.tsx/app.tsx/router
+        // guards/AppShell/HomePage/LoginPage). These libraries change far less often than app
+        // code, so on a repeat visit — the normal case for the primary café/kitchen-floor
+        // persona on intermittent connectivity — a browser/CDN cache hit on `vendor-*` means
+        // only the small app chunk needs to be re-fetched after a deploy, not the whole bundle.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (/react-dom|\/react\/|scheduler/.test(id)) return 'vendor-react'
+          if (/react-router/.test(id)) return 'vendor-router'
+          if (/@supabase/.test(id)) return 'vendor-supabase'
+          if (/@tanstack/.test(id)) return 'vendor-tanstack'
+          if (/react-markdown|remark-|micromark|mdast|unist|unified|vfile|hast|property-information|space-separated|comma-separated|html-void-elements|zwitch|longest-streak|ccount|escape-string-regexp|markdown-table|trim-lines|bail|decode-named-character-reference|character-entities|is-plain-obj|trough/.test(
+              id,
+            ))
+            return 'vendor-markdown'
+          return 'vendor'
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -63,6 +112,24 @@ export default defineConfig({
         url: 'http://localhost/mos/',
       },
     },
+    // Flake fix (2026-07-30). Two distinct defects, both from leaving testTimeout at its 5000ms
+    // default while async budgets grew underneath it:
+    //
+    //  1. A per-test `waitFor(..., { timeout: 5000 })` (kitchen-plan-page.test.tsx:159) can NEVER
+    //     spend its budget — the 5000ms test timeout fires first, so the test dies as a timeout
+    //     rather than reporting the assertion. Not "slow under load": structurally unable to pass
+    //     if the wait ever approaches its own limit. It flaked locally on exactly that path.
+    //  2. The global asyncUtilTimeout of 3000 (src/test/setup.ts) left only 2000ms of slack before
+    //     the test timeout. On a shared CI runner the `saved` confirmation assertion in the same
+    //     file lapsed at 3078ms — right at that budget — turning CI red on a commit that changed
+    //     no app code at all (scripts + pgTAP + docs only).
+    //
+    // testTimeout is a HANG ceiling, not a performance target: no assertion here should need
+    // seconds, so a generous ceiling costs nothing on the happy path (the suite runs in ~30s) and
+    // buys the headroom that starvation flakes need. Raising it — rather than shaving the waits —
+    // also keeps every per-test timeout meaningful instead of silently capped.
+    testTimeout: 15000,
+    hookTimeout: 15000,
     // Keep Playwright's e2e specs out of the Vitest run.
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
     coverage: {

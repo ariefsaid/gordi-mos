@@ -5,10 +5,10 @@
 //
 // Design authority: docs/specs/plan-budget.spec.md + docs/plans/2026-07-07-plan-budget.md.
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useT } from '@/i18n/use-t'
+import { formatDayMonthYear } from '@/lib/format/date'
 import { listBudgets, getCertifiedMetric } from '@/lib/db/plan-budget'
 import {
   projectMargin,
@@ -20,15 +20,21 @@ import {
   type CertifiedMetric,
 } from '@/lib/plan-budget-logic'
 import { FailLoudBadge } from '@/components/plan/fail-loud-badge'
+import { KPITile } from '@/components/dashboard/kpi-tile'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { Select } from '@/components/ui/select'
+import { TextInput } from '@/components/ui/text-input'
 import './pricing-page.css'
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
+// r5 F-1 (GUARD-R2 class, mirrors the Money head): while the count is unknown the
+// head shows a quiet placeholder — never a stale bare digit or a '0' pill.
+const HEAD_META_PLACEHOLDER = <span className="ch-meta-line tabular-nums">—</span>
+
 export function PricingPage() {
-  useDocumentTitle('Pricing pre-flight — Gordi MOS')
   const t = useT()
+  useDocumentTitle(t('common.docTitle', { page: t('nav.planPricing') }))
 
   const [budgets, setBudgets] = useState<BudgetRow[]>([])
   const [metric, setMetric] = useState<CertifiedMetric | null>(null)
@@ -77,39 +83,49 @@ export function PricingPage() {
 
   if (load.kind === 'loading') {
     return (
-      <PageFrame variant="data">
+      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.plan.pricing')} meta={HEAD_META_PLACEHOLDER} state="loading">
         <div role="status" aria-label="Loading" aria-busy="true">
           <SkeletonRows count={3} />
         </div>
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
   if (load.kind === 'error') {
     return (
-      <PageFrame variant="data">
-        <PageHead variant="content" title={t('plan.pricing.title')} count={null} />
+      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.plan.pricing')} meta={HEAD_META_PLACEHOLDER} state="error">
         <ErrorState
-          message="Couldn't load budgets. Try again."
+          message={t('common.loadFailed', { what: t('common.what.budgets') })}
           onRetry={() => setRetryKey((k) => k + 1)}
         />
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
   if (budgets.length === 0) {
     return (
-      <PageFrame variant="data">
-        <PageHead variant="content" title={t('plan.pricing.title')} count={0} />
+      <PageFamilyFrame family="workspace" title={t('plan.pricing.title')} jobSentence={t('job.plan.pricing')} meta={HEAD_META_PLACEHOLDER} state="empty">
         <EmptyState
           title="No budgets captured yet"
           copy="Capture a budget scenario first (Plan → Budget creation), then run the pricing pre-flight against it."
         />
-      </PageFrame>
+      </PageFamilyFrame>
     )
   }
 
   return (
-    <PageFrame variant="data">
-      <PageHead variant="content" title={t('plan.pricing.title')} count={budgets.length} />
+    <PageFamilyFrame
+      family="workspace"
+      title={t('plan.pricing.title')}
+      jobSentence={t('job.plan.pricing')}
+      meta={
+        // r5 F-1 (GUARD-R2 class): a labeled sentence, never a naked count pill.
+        <span className="ch-meta-line tabular-nums">
+          {budgets.length} {budgets.length === 1 ? 'check' : 'checks'}
+        </span>
+      }
+      // The pre-flight computes and never writes (ADR-0022 D5) — the family's read-only
+      // state is the honest one, and it is what keeps a Save affordance from ever appearing.
+      state="read-only"
+    >
 
       <section className="pp-section" aria-label="Pricing pre-flight">
         <p className="pp-help">
@@ -134,10 +150,10 @@ export function PricingPage() {
             </Select>
           </div>
           <div className="pp-field">
-            <label className="pp-label" htmlFor="pricing-candidate-price">Candidate price (Rp)</label>
-            <input
+            <TextInput
               id="pricing-candidate-price"
-              className="pp-input"
+              label="Candidate price (Rp)"
+              fullWidth
               inputMode="decimal"
               type="number"
               min={0}
@@ -150,47 +166,54 @@ export function PricingPage() {
         </div>
 
         {budget && (
+          // Metric summary rule (DESIGN.md, v4): one dense line, label:value pairs
+          // (label at label size in muted-foreground, value at body-lg/600 tabular),
+          // closed by a hairline — not the mono-text key:value strip this replaces.
           <div className="pp-meta">
             <span className="pp-meta-item">
-              Budgeted COGS: <span className="tabular">{formatIDR(budget.total_budgeted_cogs)}</span>
+              <span className="pp-meta-label">Budgeted COGS</span>
+              <span className="pp-meta-value tabular">{formatIDR(budget.total_budgeted_cogs)}</span>
             </span>
             <span className="pp-meta-item">
-              Basis as of: <span className="tabular">{shortDate(budget.cost_basis_as_of)}</span>
+              <span className="pp-meta-label">Basis as of</span>
+              <span className="pp-meta-value tabular">{shortDate(budget.cost_basis_as_of)}</span>
             </span>
             {status && <FailLoudBadge status={status} />}
           </div>
         )}
 
         {status && !status.fresh && (
+          // The specific reasons already surface in the FailLoudBadge above — this line
+          // states the instruction only, so the reasons aren't printed twice on screen.
           <p className="pp-warn" role="alert" data-testid="pricing-freshness-warning">
-            Do not price against this basis — {status.reasons.join(' ')}
+            Do not price against this basis.
           </p>
         )}
 
         {margin && (
+          // KPITile — the DESIGN.md "KPI Tile (signature)" primitive: this is a Money
+          // surface's read-the-result moment (the pre-flight's computed answer), the
+          // stated exception to the summary-rule/no-tiles-on-capture-surfaces default.
           <div className="pp-result" data-testid="pricing-result">
-            <div className="pp-result-tile">
-              <span className="pp-result-label">Gross margin</span>
-              <span className="pp-result-value tabular">{formatIDR(margin.margin)}</span>
-            </div>
-            <div className="pp-result-tile">
-              <span className="pp-result-label">Margin %</span>
-              <span className="pp-result-value tabular">{formatPct(margin.margin_pct)}</span>
-            </div>
-            {margin.below_floor && margin.margin_pct !== null && (
-              <p className="pp-floor-warn" role="status">
-                Below the {formatPct(MARGIN_FLOOR_PCT)} margin floor — warn-only; you set the price.
-              </p>
-            )}
+            <KPITile className="pp-result-tile" label="Gross margin" value={formatIDR(margin.margin)} />
+            <KPITile
+              className="pp-result-tile"
+              label="Margin %"
+              value={formatPct(margin.margin_pct)}
+              delta={
+                margin.below_floor
+                  ? { text: `Below ${formatPct(MARGIN_FLOOR_PCT)} floor`, tone: 'destructive' }
+                  : undefined
+              }
+              sub={margin.below_floor ? 'Warn-only — you set the price.' : undefined}
+            />
           </div>
         )}
       </section>
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }
 
-function shortDate(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-}
+// Cohesion-debt 2026-07-19, item #1: the basis date routes through the ONE
+// canonical locale-aware date module — no per-page en-GB copy.
+const shortDate = formatDayMonthYear

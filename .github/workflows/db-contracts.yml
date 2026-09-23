@@ -1,0 +1,139 @@
+name: db-contracts
+
+# ─── WHY THIS LANE EXISTS ──────────────────────────────────────────────────────────────────
+# The database contracts a dev PR must not break: RLS and role behaviour (pgTAP), the rule that a
+# SECURITY DEFINER function revokes PUBLIC execute, and the proof that a migrated database matches
+# a freshly built one (#393). One Supabase boot serves all three (#565).
+#
+# NO BROWSER RUNS HERE. A dev PR gets `verify` (unit, types, lint) plus these database contracts;
+# anything that renders a page is a PR → main gate, in integration.yml, which runs the whole
+# Playwright suite — rendered-geometry guards included. That seam is the sibling project's: its
+# `pgtap` job is `base_ref == 'dev'` and its `integration` job is `base_ref == 'main'`, and no
+# dev PR installs a browser. This lane had drifted across it, paying a Chromium install and a
+# browser run on every dev PR for guards that main gates anyway (owner ruling).
+#
+# What that trade costs, stated plainly: a composition regression now reaches dev unmeasured and
+# is caught at the release boundary instead. The 44px floor does not rest on the browser either
+# way — mos-app/src/components/ui/tap-targets.css.test.ts asserts both axes against the CSS
+# source inside `verify`, which IS required.
+#
+# ⚠️ NOT A REQUIRED CHECK. `dev` requires `verify` and `guard-self-tests` only.
+
+on:
+  # Deliberately NOT path-filtered, for the same reason verify.yml is not: a check skipped by a
+  # path filter never reports, so the day this becomes required a docs-only PR would block
+  # forever. PR-side savings come from the `scope` step below, which still reports green.
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-contracts-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  db-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20 # Supabase boot + pgTAP + the applied-path check; no browser
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # FAIL-CLOSED BY CONSTRUCTION, copied from verify.yml's reasoning: skip only when EVERY
+      # changed path is on the inert allowlist. Anything unrecognised — including any new
+      # top-level directory — boots the stack. An out-of-date allowlist costs a wasted run, never
+      # an unrun gate. Note what is NOT inert here and IS inert in verify.yml: supabase/, because
+      # these guards render the seeded app and a seed/migration change can move real pixels.
+      #
+      # #565: this now also gates the pgTAP + applied-path checks this job absorbed from the old
+      # `pgtap` job, whose own trigger was a POSITIVE path filter (supabase/**, mos-app/e2e/**,
+      # mos-app/playwright.config.*, mos-app/package-lock.json, plus the two applied-path harness
+      # files). Every one of those is already non-inert under INERT below EXCEPT the two harness
+      # files, which sit under scripts/ — inert here on purpose (scripts/ ships no pixels) but the
+      # applied-path check's own inputs, so they get an explicit carve-out. Net effect: this job
+      # runs at least everywhere either old job did (no regression), and additionally on any
+      # non-inert app change that isn't supabase/e2e-shaped (e.g. plain mos-app/src/** UI code) —
+      # widening where pgTAP/applied-path run, never narrowing where either used to run.
+      - name: Scope — does this change feed pgTAP or the applied-path check?
+        id: scope
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --quiet --no-tags origin \
+              "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+            RANGE="$(git merge-base "origin/${BASE_REF}" HEAD)..HEAD"
+          else
+            RANGE="HEAD~1..HEAD"
+          fi
+          # Extended 2026-09-01: the gate-era surfaces (scripts/, hooks, CI defs, contracts, justfile)
+          # ship no pixels — every guard PR was paying ~3 min of screenshots (owner audit of the
+          # gates' own spend). Same inert-allowlist polarity as pre-pr-verify's local scope.
+          INERT='^(docs/|review/|adws/|\.claude/|scripts/|agents/|\.githooks/|\.github/|justfile$|\.env\.sample$|[^/]*\.md$|[^/]*\.(jpe?g|png)$|\.gitignore$)'
+          CHANGED="$(git diff --name-only "$RANGE")"
+          NOT_INERT="$(printf '%s\n' "$CHANGED" | grep -Ev "$INERT" || true)"
+          # Carve-out: the applied-path harness's own inputs (#393) live under scripts/, which is
+          # otherwise inert here — a change to THESE two files must still run, even though nothing
+          # else in scripts/ would.
+          APPLIED_PATH_INPUTS="$(printf '%s\n' "$CHANGED" | grep -E '^scripts/(applied-path-check\.sh|lib/applied-path-fingerprint\.sql|lib/sql-blank\.sh)$' || true)"
+          if [ -n "$NOT_INERT" ] || [ -n "$APPLIED_PATH_INPUTS" ]; then
+            echo "render=true" >> "$GITHUB_OUTPUT"
+            echo "Running the DB checks — these paths are not inert:"
+            printf '%s\n' "$NOT_INERT" "$APPLIED_PATH_INPUTS" | sed '/^$/d;s/^/  /'
+          else
+            echo "render=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### geometry: DB checks skipped"
+              echo ""
+              echo "Every changed path is inert (prose/config that cannot move a rendered pixel or"
+              echo "affect the schema), so pgTAP and the applied-path check were **not run**. A"
+              echo "green check here means *nothing DB-relevant changed* — not that the DB is green."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Install Supabase CLI
+        if: steps.scope.outputs.render == 'true'
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.104.0
+
+      - name: Start local Supabase stack (applies migrations + seed)
+        if: steps.scope.outputs.render == 'true'
+        # Same exclusion list as integration.yml — proven to boot. auth/rest/kong are needed to
+        # log the guards in; inbucket is needed by the AC-005 recovery round-trip.
+        run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
+
+      # ─── absorbed from the old `pgtap` job (#565) — see scripts/lint-security-definer.sh for
+      # what this checks; `db` in integration.yml runs the same script on the PR→main lane. ────
+      - name: Lint — every SECURITY DEFINER migration must revoke PUBLIC execute
+        if: steps.scope.outputs.render == 'true'
+        run: bash scripts/lint-security-definer.sh
+
+      - name: pgTAP suite
+        if: steps.scope.outputs.render == 'true'
+        run: supabase test db
+
+      # #393. Everything above starts from nothing, so every conditional migration has a branch
+      # CI structurally cannot reach. This builds a database from the DEPLOYED commit's tree,
+      # runs the real migration chain over it, and asserts the result is indistinguishable from
+      # a fresh reset. Exit 2 means the check could not run meaningfully — treat it as red.
+      # No `--prove` here (that stays on the `db` job, PR→main): this is the fast lane.
+      - name: Applied-path check — a migrated database matches a fresh one (#393)
+        if: steps.scope.outputs.render == 'true'
+        run: bash scripts/applied-path-check.sh --out artifacts/applied-path
+
+      - name: Upload applied-path artifacts on failure
+        if: failure() && steps.scope.outputs.render == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: geometry-applied-path
+          path: artifacts/applied-path/
+          retention-days: 7
+
+      - name: Stop stack
+        if: always() && steps.scope.outputs.render == 'true'
+        run: supabase stop

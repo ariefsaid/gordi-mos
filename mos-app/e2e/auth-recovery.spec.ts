@@ -10,30 +10,57 @@
 // in this test does NOT affect VIEWER's credentials used by other e2e specs.
 
 import { test, expect } from '@playwright/test'
+import { createClient } from '@supabase/supabase-js'
+import { existsSync, readFileSync } from 'node:fs'
 import { RECOVERY_VIEWER } from './fixtures/users'
-import { waitForEmail, clearMailpit, extractAuthLink } from './helpers/mailpit'
+import { watchInbox, extractAuthLink } from './helpers/mailpit'
+import { assertTapFloor, AUTH_CONTROLS, TAP_GAP } from './helpers/tap-floor'
 
 // Rotate to a fresh password each run to avoid previous-run state collisions.
 const NEW_PASSWORD = `E2eRecovery${Date.now()}`
+
+// The rotation is this journey's proof; the fixture password goes back afterwards so the specs
+// that sign this persona in later (shell-*-parity's ordinary member) still can.
+test.afterAll(async () => {
+  const env = Object.fromEntries((existsSync(new URL('../.env.e2e', import.meta.url)) ? readFileSync(new URL('../.env.e2e', import.meta.url), 'utf8') : '').split('\n')
+    .filter((line) => line.includes('=') && !line.startsWith('#')).map((line) => line.split('=', 2).map((part) => part.trim())))
+  const url = env.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:44321'
+  if (!['127.0.0.1', 'localhost'].includes(new URL(url).hostname)) throw new Error('Password reset requires local Supabase')
+  const admin = createClient(url, env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } })
+  const { data } = await admin.auth.admin.listUsers({ perPage: 1000 })
+  const user = data.users.find((u) => u.email === RECOVERY_VIEWER.email)
+  if (!user) throw new Error('recovery persona missing after its own journey')
+  const { error } = await admin.auth.admin.updateUserById(user.id, { password: RECOVERY_VIEWER.password })
+  if (error) throw error
+})
 
 test('AC-005: password-recovery journey — link opens set-password form, rotation verified', async ({ page }) => {
   // This test performs a full email round-trip; allow extra time.
   test.setTimeout(120_000)
 
-  // Clear inbox so stale recovery emails from prior runs don't interfere.
-  await clearMailpit()
+  // The mail catcher is shared with every other spec, rerun and checkout on this stack, so take a
+  // snapshot of it BEFORE asking for the email — the waiter then accepts only a message that was
+  // not already there. No inbox clearing: wiping a shared box is what raced other suites (#137).
+  const recoveryMail = await watchInbox(RECOVERY_VIEWER.email)
 
   // ── Step 1: go to login, click "Forgot password?" ────────────────────────
   await page.goto('login')
   // Fill email first — the forgot-password handler validates the email field
   await page.getByLabel('Email').fill(RECOVERY_VIEWER.email)
+  const recoveryRequested = page.waitForResponse((r) => r.url().includes('/auth/v1/recover'))
   await page.getByRole('button', { name: /forgot password/i }).click()
 
   // ── Step 2: confirmation message must appear ──────────────────────────────
-  await expect(page.getByText(/check your email/i)).toBeVisible({ timeout: 5_000 })
+  // The confirmation is deliberately NEUTRAL about whether an account exists (AC-006). It is no
+  // longer neutral about whether the request succeeded — the page used to show it even when the
+  // send was refused, which is how a failed send spent 20s masquerading as a mail-catcher timeout
+  // (#137). The status check below names that number outright instead of leaving it to a screenshot.
+  await expect(page.getByText(/a reset link is on its way/i)).toBeVisible({ timeout: 5_000 })
+  const requestStatus = (await recoveryRequested).status()
+  expect(requestStatus, 'the recovery email must actually have been accepted for sending').toBeLessThan(300)
 
   // ── Step 3: fetch the recovery link from mailpit ──────────────────────────
-  const { html, text } = await waitForEmail(RECOVERY_VIEWER.email, 20_000)
+  const { html, text } = await recoveryMail(20_000)
   const recoveryUrl = extractAuthLink(html, text)
 
   // ── Step 4: open the recovery link — must land on the set-password form ──
@@ -46,13 +73,25 @@ test('AC-005: password-recovery journey — link opens set-password form, rotati
   ).toBeVisible({ timeout: 15_000 })
   await expect(page).toHaveURL(/\/recovery/, { timeout: 5_000 })
 
+  // ── GUARD-TAP (#403): the set-password card's phone tap floor ────────────
+  // This form is reachable ONLY through the mailpit round-trip above, so its 44×44 + 8px-gap
+  // census is measured here rather than in a second copy of this journey (CLAUDE.md § Test
+  // pyramid). Sibling auth surfaces are guarded in e2e/guards.geometry.spec.ts.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await assertTapFloor(page, AUTH_CONTROLS, 'Set-password (recovery link) @390', {
+    axes: 'both',
+    minGap: TAP_GAP,
+    noOverflow: true,
+  })
+  await page.setViewportSize({ width: 1280, height: 720 })
+
   // ── Step 5: set the new password ─────────────────────────────────────────
   await page.getByLabel('New password').fill(NEW_PASSWORD)
   await page.getByLabel('Confirm password').fill(NEW_PASSWORD)
   await page.getByRole('button', { name: /save password/i }).click()
 
   // ── Step 6: lands home authenticated ─────────────────────────────────────
-  // RECOVERY_VIEWER maps to a dedicated e2e person row (Recovery Tester) — name shown in user chip
+  // RECOVERY_VIEWER maps to a dedicated e2e person row — its name is what the user chip shows
   await expect(
     page.getByRole('button', { name: RECOVERY_VIEWER.displayName }),
   ).toBeVisible({ timeout: 15_000 })
@@ -66,7 +105,7 @@ test('AC-005: password-recovery journey — link opens set-password form, rotati
   // Wait for login form to be fully interactive after sign-out
   await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible({ timeout: 5_000 })
   await page.getByLabel('Email').fill(RECOVERY_VIEWER.email)
-  await page.getByLabel('Password').fill(RECOVERY_VIEWER.password) // original e2e-password-123
+  await page.getByLabel('Password').fill(RECOVERY_VIEWER.password) // the original
   await page.getByRole('button', { name: /sign in/i }).click()
   await expect(page.getByRole('alert')).toBeVisible({ timeout: 5_000 })
   // Must remain on /login — no redirect to home

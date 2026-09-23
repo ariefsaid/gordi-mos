@@ -1,6 +1,9 @@
 // Shared auth chrome used by LoginPage, RecoveryPage, and OrphanScreen.
 // Design-plan §2: centered viewport + brand block + foot line.
 
+import { useT } from '@/i18n/use-t'
+import './auth.css'
+
 // Inline spinner — aria-hidden; button label carries meaning (design-plan §5)
 export function Spinner({ className }: { className?: string }) {
   return (
@@ -33,6 +36,8 @@ export function Spinner({ className }: { className?: string }) {
 
 // AuthShell — centered viewport + brand block + foot line
 export function AuthShell({ children }: { children: React.ReactNode }) {
+  const t = useT()
+
   return (
     <div className="min-h-dvh bg-background flex flex-col items-center justify-center px-4">
       {/* Brand block — mirrors IA-8 rail brand */}
@@ -56,7 +61,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           {/* Overline: 11px/600, ls 0.06em, uppercase, muted-foreground */}
           <span
             className="text-muted-foreground font-semibold uppercase tracking-[0.06em]"
-            style={{ fontSize: 11 }}
+            style={{ fontSize: 'var(--font-size-overline)' }}
           >
             Management OS
           </span>
@@ -68,9 +73,9 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       {/* Foot line: body 13px, muted-foreground */}
       <p
         className="mt-6 text-muted-foreground text-center"
-        style={{ fontSize: 15 }}
+        style={{ fontSize: 'var(--font-size-body-lg)' }}
       >
-        Trouble signing in? Contact Arief.
+        {t('auth.footer')}
       </p>
     </div>
   )
@@ -80,7 +85,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 export function AuthCard({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="w-full max-w-[360px] bg-card border border-border rounded-lg shadow-rest"
+      className="auth-card w-full max-w-[360px] bg-card border border-border rounded-lg shadow-rest"
       style={{ padding: 24 }}
     >
       {children}

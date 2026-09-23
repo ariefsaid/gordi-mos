@@ -6,7 +6,14 @@ vi.mock('../supabase', () => {
   return { supabase: { schema } }
 })
 
-import { getBusinessUnits, getPeople } from './directory'
+import {
+  getBusinessUnits,
+  getDownlinePersonIds,
+  getPeople,
+  getPersonTeams,
+  getTeamsByIds,
+  searchPeopleByName,
+} from './directory'
 import { supabase } from '@/lib/supabase'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -14,16 +21,45 @@ const schemaMock = vi.mocked(supabase.schema)
 // ── Chainable mock builder ────────────────────────────────────────────────────
 function makeSharedSchema(
   responses: Record<string, { data: unknown; error: unknown }>,
-  rec?: { isCalls: Array<[string, unknown]> },
+  rec?: {
+    isCalls: Array<[string, unknown]>
+    ilikes?: Array<[string, unknown]>
+    filters?: Array<[string, string, unknown]>
+    selects?: Array<[string, unknown]>
+  },
 ) {
   const fromImpl = (table: string) => {
     const result = responses[table] ?? { data: null, error: null }
     const builder: Record<string, unknown> = {}
-    builder.select = vi.fn(() => builder)
+    builder.select = vi.fn((columns: unknown) => {
+      rec?.selects?.push([table, columns])
+      return builder
+    })
+    builder.eq = vi.fn((col: string, val: unknown) => {
+      rec?.filters?.push([table, 'eq', `${col}=${String(val)}`])
+      return builder
+    })
+    builder.lte = vi.fn((col: string, val: unknown) => {
+      rec?.filters?.push([table, 'lte', `${col}=${String(val)}`])
+      return builder
+    })
+    builder.or = vi.fn((value: string) => {
+      rec?.filters?.push([table, 'or', value])
+      return builder
+    })
+    builder.in = vi.fn((col: string, values: unknown[]) => {
+      rec?.filters?.push([table, 'in', `${col}=${values.join(',')}`])
+      return builder
+    })
     builder.is = vi.fn((col: string, val: unknown) => {
       rec?.isCalls.push([col, val])
       return builder
     })
+    builder.ilike = vi.fn((col: string, val: unknown) => {
+      rec?.ilikes?.push([col, val])
+      return builder
+    })
+    builder.limit = vi.fn(() => builder)
     builder.order = vi.fn(() => builder)
     builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve)
     return builder
@@ -105,5 +141,152 @@ describe('getPeople', () => {
     schemaMock.mockReturnValue(makeSharedSchema({ people: { data: [], error: null } }) as never)
     const result = await getPeople()
     expect(result).toEqual([])
+  })
+})
+
+// ── getDownlinePersonIds (AC-060 plumbing: who may the composer offer as PIC) ─────────────────
+// Role tree: exec -> lead -> staff -> sub. viewer holds `lead`, so the downline is everyone
+// holding staff or sub, walked through the role graph rather than the person graph.
+describe('getDownlinePersonIds', () => {
+  const roles = [
+    { id: 'exec', reports_to_role_id: null },
+    { id: 'lead', reports_to_role_id: 'exec' },
+    { id: 'staff', reports_to_role_id: 'lead' },
+    { id: 'staff2', reports_to_role_id: 'exec' },
+    { id: 'sub', reports_to_role_id: 'staff' },
+  ]
+  const assignments = [
+    { person_id: 'viewer', role_id: 'lead' },
+    { person_id: 'author', role_id: 'staff' },
+    { person_id: 'report', role_id: 'sub' },
+    { person_id: 'dualhat', role_id: 'staff' },
+    { person_id: 'dualhat', role_id: 'staff2' },
+    { person_id: 'lead2holder', role_id: 'staff2' },
+    { person_id: 'exec-holder', role_id: 'exec' },
+  ]
+  const schema = () => makeSharedSchema({
+    person_roles: { data: assignments, error: null },
+    roles: { data: roles, error: null },
+  })
+
+  it('AC-060: walks the role tree DOWN from the viewer\'s own role(s), across multiple hops', async () => {
+    schemaMock.mockReturnValue(schema() as never)
+    const result = await getDownlinePersonIds('viewer')
+    expect(new Set(result)).toEqual(new Set(['author', 'report', 'dualhat']))
+  })
+
+  it('AC-060: a person is included once even if a downline role reaches them twice', async () => {
+    schemaMock.mockReturnValue(schema() as never)
+    const result = await getDownlinePersonIds('viewer')
+    expect(result.filter((id) => id === 'dualhat')).toHaveLength(1)
+  })
+
+  it('AC-060: a leaf-role viewer with nobody reporting to them has an empty downline', async () => {
+    schemaMock.mockReturnValue(schema() as never)
+    const result = await getDownlinePersonIds('report')
+    expect(result).toEqual([])
+  })
+
+  it('AC-060: a manager two levels up (exec) reaches the whole downline, not just direct reports', async () => {
+    schemaMock.mockReturnValue(schema() as never)
+    const result = await getDownlinePersonIds('exec-holder')
+    expect(new Set(result)).toEqual(new Set(['viewer', 'author', 'report', 'dualhat', 'lead2holder']))
+  })
+
+  it('AC-060: throws on a PostgREST error from either query', async () => {
+    schemaMock.mockReturnValue(makeSharedSchema({
+      person_roles: { data: null, error: { message: 'rls denied' } },
+      roles: { data: roles, error: null },
+    }) as never)
+    await expect(getDownlinePersonIds('viewer')).rejects.toThrow(/rls denied/)
+  })
+})
+
+// ── searchPeopleByName (⌘K palette read path, #748) ───────────────────────
+describe('searchPeopleByName', () => {
+  const personRow = { id: '40000000-0000-0000-0000-000000000001', full_name: 'Cahya Cafe' }
+
+  it('AC-C1-P-search: reads shared.people ilike full_name, active-only, limited — and escapes LIKE wildcards', async () => {
+    const rec = { isCalls: [] as Array<[string, unknown]>, ilikes: [] as Array<[string, unknown]> }
+    schemaMock.mockReturnValue(makeSharedSchema({ people: { data: [personRow], error: null } }, rec) as never)
+
+    const result = await searchPeopleByName('cah')
+    expect(result).toEqual([personRow])
+    expect(schemaMock).toHaveBeenCalledWith('shared')
+    expect(rec.isCalls).toContainEqual(['archived_at', null])
+    expect(rec.ilikes).toContainEqual(['full_name', '%cah%'])
+    // A wildcard in the query is escaped, so "50_" matches a literal underscore — not any char.
+    await searchPeopleByName('50_')
+    expect(rec.ilikes).toContainEqual(['full_name', '%50\\_%'])
+    // PostgREST takes `*` as a LIKE wildcard too (its ilike alias for %), so it is escaped as well.
+    await searchPeopleByName('a*b')
+    expect(rec.ilikes).toContainEqual(['full_name', '%a\\*b%'])
+  })
+
+  it('AC-C1-P-search-err: throws on PostgREST error', async () => {
+    schemaMock.mockReturnValue(
+      makeSharedSchema({ people: { data: null, error: { message: 'rls denied' } } }) as never,
+    )
+    await expect(searchPeopleByName('cah')).rejects.toThrow(/searchPeopleByName failed — rls denied/)
+  })
+
+  it('AC-C1-P-search-empty: returns empty array when nothing matches', async () => {
+    schemaMock.mockReturnValue(makeSharedSchema({ people: { data: [], error: null } }) as never)
+    const result = await searchPeopleByName('nobody')
+    expect(result).toEqual([])
+  })
+})
+
+describe('Task Team directory reads', () => {
+  it('getPersonTeams keeps only effective, active memberships and returns Team picker data', async () => {
+    const rec = {
+      isCalls: [] as Array<[string, unknown]>,
+      filters: [] as Array<[string, string, unknown]>,
+      selects: [] as Array<[string, unknown]>,
+    }
+    schemaMock.mockReturnValue(makeSharedSchema({
+      team_memberships: {
+        data: [
+          { team_id: 'team-cafe', is_primary: true, effective_from: '2026-01-01', effective_to: null },
+          { team_id: 'team-old', is_primary: false, effective_from: '2025-01-01', effective_to: '2026-01-01' },
+        ], error: null,
+      },
+      teams: {
+        data: [{
+          id: 'team-cafe', name: 'Café Floor', business_unit_id: 'bu-cafe',
+          site_id: 'site-1', org_id: 'org-1', archived_at: null,
+        }], error: null,
+      },
+    }, rec) as never)
+
+    const result = await getPersonTeams('person-1', '2026-07-20')
+
+    expect(result).toEqual([{
+      id: 'team-cafe', name: 'Café Floor', businessUnitId: 'bu-cafe',
+      siteId: 'site-1', orgId: 'org-1', isPrimary: true,
+    }])
+    expect(rec.filters).toContainEqual(['team_memberships', 'lte', 'effective_from=2026-07-20'])
+    expect(rec.filters).toContainEqual(['team_memberships', 'or', 'effective_to.is.null,effective_to.gte.2026-07-20'])
+    expect(rec.isCalls).toContainEqual(['archived_at', null])
+  })
+
+  it('getPersonTeams returns no picker choices without a viewer id and does not query', async () => {
+    schemaMock.mockReturnValue(makeSharedSchema({}) as never)
+    await expect(getPersonTeams('')).resolves.toEqual([])
+    expect(schemaMock).not.toHaveBeenCalled()
+  })
+
+  it('getTeamsByIds loads real Team identity for peer/cross-team Task display', async () => {
+    const rec = { isCalls: [] as Array<[string, unknown]> }
+    const rows = [{
+      id: 'team-1', name: 'Retail Ops', business_unit_id: 'bu-retail', site_id: null,
+      org_id: 'org-1', archived_at: null,
+    }]
+    schemaMock.mockReturnValue(makeSharedSchema({ teams: { data: rows, error: null } }, rec) as never)
+
+    await expect(getTeamsByIds(['team-1', 'team-1'])).resolves.toEqual([{
+      id: 'team-1', name: 'Retail Ops', businessUnitId: 'bu-retail', siteId: null, orgId: 'org-1',
+    }])
+    expect(rec.isCalls).toContainEqual(['archived_at', null])
   })
 })

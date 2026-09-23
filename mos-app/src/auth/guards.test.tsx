@@ -124,6 +124,7 @@ describe('ProtectedRoute', () => {
           user_id: 'u1',
           full_name: 'Test User',
           email: null,
+          must_change_password: false,
           archived_at: null,
           created_at: '',
           updated_at: '',
@@ -131,6 +132,7 @@ describe('ProtectedRoute', () => {
         roles: [],
         isManager: false,
         accessRoles: [],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })
@@ -161,6 +163,7 @@ describe('RedirectIfAuthed', () => {
           user_id: 'u1',
           full_name: 'Test User',
           email: null,
+          must_change_password: false,
           archived_at: null,
           created_at: '',
           updated_at: '',
@@ -168,6 +171,7 @@ describe('RedirectIfAuthed', () => {
         roles: [],
         isManager: false,
         accessRoles: [],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })
@@ -275,6 +279,7 @@ describe('RedirectIfAuthed', () => {
           user_id: 'u1',
           full_name: 'Test User',
           email: null,
+          must_change_password: false,
           archived_at: null,
           created_at: '',
           updated_at: '',
@@ -282,6 +287,7 @@ describe('RedirectIfAuthed', () => {
         roles: [],
         isManager: false,
         accessRoles: [],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })

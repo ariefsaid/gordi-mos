@@ -10,6 +10,7 @@
 // `groups` wins. Callers pass exactly one of `rows` (flat) / `groups` (grouped).
 import { Fragment, useState, type ReactNode } from 'react'
 import { Chevron } from '@/shell/icons'
+import { useT } from '@/i18n/use-t'
 import './data-table.css'
 
 export interface DataTableColumn<Row> {
@@ -52,6 +53,23 @@ export interface DataTableProps<Row> {
   rows: Row[]
   /** grouped mode (OD-P3-6 group-header row). When provided, `groups` wins over `rows`. */
   groups?: DataTableGroup<Row>[]
+  /** Extra class on the <table>, for consumers converging on a shared collection-table skin. */
+  tableClassName?: string
+  /**
+   * CONTROLLED grouped-collapse state. Omit both and the table keeps its own internal state
+   * (every existing caller). A collection engine that persists collapse across presentation
+   * switches and saved views passes both: the engine owns the set, the table only reports the
+   * toggle. Passing `collapsedGroupKeys` without `onToggleGroup` yields a table whose groups
+   * cannot be collapsed by the user, which is a caller bug, not a mode.
+   */
+  collapsedGroupKeys?: ReadonlySet<string>
+  onToggleGroup?: (key: string) => void
+  /**
+   * Initial grouped-collapse state for a high-frequency list. The table keeps ownership of
+   * subsequent toggles; callers use this only to make the first view reflect the list's
+   * information hierarchy (for example, a secondary Off-plan group behind a populated Plan).
+   */
+  defaultCollapsedGroupKeys?: ReadonlySet<string>
   rowClassName?: (row: Row, index: number) => string | undefined
   sort?: DataTableSort
   onSortChange?: (sort: DataTableSort) => void
@@ -60,10 +78,19 @@ export interface DataTableProps<Row> {
   /** caller passes useIsDesktop() — single-render, exactly one branch in the DOM */
   isDesktop: boolean
   state?: 'ready' | 'loading' | 'empty' | 'error'
+  /** empty-state label; defaults to the localized common.noRows */
   emptyLabel?: string
   onRetry?: () => void
   /** <caption> / aria — a11y table name */
   caption: string
+  /**
+   * Opt-in, purpose-built phone card body. The default card is a <dl> of every detail
+   * column — right for READING a record, wrong for a high-frequency capture list where the
+   * label/value stack costs ~200px per row. A surface whose phone job is "run down a long
+   * list and act on each" supplies its own compact body here and still keeps DataTable's
+   * grouping, collapse, empty, loading and skeleton machinery. Desktop is unaffected.
+   */
+  renderCard?: (row: Row, index: number) => ReactNode
 }
 
 function cellValue<Row>(row: Row, column: DataTableColumn<Row>): ReactNode {
@@ -84,37 +111,56 @@ export function DataTable<Row extends object>({
   columns,
   rows,
   groups,
+  tableClassName,
+  collapsedGroupKeys,
+  onToggleGroup: onToggleGroupProp,
+  defaultCollapsedGroupKeys,
   rowClassName,
+  renderCard,
   sort,
   onSortChange,
   footer,
   isDesktop,
   state = 'ready',
-  emptyLabel = 'No rows to show.',
+  emptyLabel,
   onRetry,
   caption,
 }: DataTableProps<Row>) {
+  // #400: the kit's default strings go through the catalog — a caller that passes its own
+  // emptyLabel keeps owning it, every other caller gets the localized default.
+  const t = useT()
+  const resolvedEmptyLabel = emptyLabel ?? t('common.noRows')
   // Collapse state lives at the top so it is shared by both branches — a re-render
   // with a different isDesktop keeps the same groups open/closed. All-expanded by
-  // default. INTERNAL: callers do not control it. (useState is called before the
-  // error early-return to satisfy the rules-of-hooks order invariant.)
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
+  // default. Internal UNLESS the caller supplies `collapsedGroupKeys`/`onToggleGroup`,
+  // in which case the caller's set wins and the internal one is never read. (useState is
+  // called before the error early-return to satisfy the rules-of-hooks order invariant.)
+  const [internalCollapsed, setInternalCollapsed] = useState<Set<string>>(
+    () => new Set(defaultCollapsedGroupKeys ?? []),
+  )
   const toggleGroup = (key: string) => {
-    setCollapsed(prev => {
+    if (onToggleGroupProp) {
+      onToggleGroupProp(key)
+      return
+    }
+    setInternalCollapsed(prev => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
       else next.add(key)
       return next
     })
   }
+  const collapsed = collapsedGroupKeys ?? internalCollapsed
 
+  // #400: the failure copy joins the same `common.loadFailed` sentence every other load
+  // failure in the app already uses.
   if (state === 'error') {
     return (
       <div className="dt-error" role="alert">
-        <p className="dt-error-text">Couldn&apos;t load this table. Try again.</p>
+        <p className="dt-error-text">{t('common.loadFailed', { what: t('common.what.table') })}</p>
         {onRetry && (
           <button type="button" className="dt-retry" onClick={onRetry}>
-            Try again
+            {t('common.retry')}
           </button>
         )}
       </div>
@@ -127,12 +173,13 @@ export function DataTable<Row extends object>({
           columns={columns}
           rows={rows}
           groups={groups}
+          tableClassName={tableClassName}
           rowClassName={rowClassName}
           sort={sort}
           onSortChange={onSortChange}
           footer={footer}
           state={state}
-          emptyLabel={emptyLabel}
+          emptyLabel={resolvedEmptyLabel}
           caption={caption}
           collapsed={collapsed}
           onToggleGroup={toggleGroup}
@@ -140,12 +187,13 @@ export function DataTable<Row extends object>({
       )
     : (
         <PhoneCards
+          renderCard={renderCard}
           columns={columns}
           rows={rows}
           groups={groups}
           rowClassName={rowClassName}
           state={state}
-          emptyLabel={emptyLabel}
+          emptyLabel={resolvedEmptyLabel}
           caption={caption}
           collapsed={collapsed}
           onToggleGroup={toggleGroup}
@@ -157,6 +205,7 @@ interface DesktopTableProps<Row> {
   columns: DataTableColumn<Row>[]
   rows: Row[]
   groups?: DataTableGroup<Row>[]
+  tableClassName?: string
   rowClassName?: (row: Row, index: number) => string | undefined
   sort?: DataTableSort
   onSortChange?: (sort: DataTableSort) => void
@@ -164,7 +213,7 @@ interface DesktopTableProps<Row> {
   state: 'ready' | 'loading' | 'empty'
   emptyLabel: string
   caption: string
-  collapsed: Set<string>
+  collapsed: ReadonlySet<string>
   onToggleGroup: (key: string) => void
 }
 
@@ -211,15 +260,18 @@ function GroupHeaderRow<Row>({
   collapsed: boolean
   onToggle: () => void
 }) {
+  const t = useT()
   return (
     <tr className="dt-group-row">
       <th scope="colgroup" colSpan={columnCount} className="dt-group-cell">
         <div className="dt-group-bar">
           <button
             type="button"
-            className="dt-group-toggle"
+            className="dt-group-toggle tap-floor"
             aria-expanded={!collapsed}
-            aria-label={collapsed ? `Expand ${group.label}` : `Collapse ${group.label}`}
+            aria-label={collapsed
+              ? t('table.group.expand', { group: group.label ?? '' })
+              : t('table.group.collapse', { group: group.label ?? '' })}
             onClick={onToggle}
           >
             <Chevron className={`dt-group-chev${collapsed ? ' dt-group-chev-collapsed' : ''}`} />
@@ -240,6 +292,7 @@ function DesktopTable<Row>({
   columns,
   rows,
   groups,
+  tableClassName,
   rowClassName,
   sort,
   onSortChange,
@@ -251,7 +304,7 @@ function DesktopTable<Row>({
   onToggleGroup,
 }: DesktopTableProps<Row>) {
   return (
-    <table className="dt-table" aria-label={caption}>
+    <table className={`dt-table${tableClassName ? ` ${tableClassName}` : ''}`} aria-label={caption}>
       <caption className="dt-caption">{caption}</caption>
       <thead>
         <tr>
@@ -358,10 +411,12 @@ interface PhoneCardsProps<Row> {
   rows: Row[]
   groups?: DataTableGroup<Row>[]
   rowClassName?: (row: Row, index: number) => string | undefined
+  /** Custom compact card body, e.g. Café · Log's phone capture row. */
+  renderCard?: (row: Row, index: number) => ReactNode
   state: 'ready' | 'loading' | 'empty'
   emptyLabel: string
   caption: string
-  collapsed: Set<string>
+  collapsed: ReadonlySet<string>
   onToggleGroup: (key: string) => void
 }
 
@@ -372,13 +427,25 @@ function PhoneCard<Row>({
   titleColumn,
   detailColumns,
   rowClassName,
+  renderCard,
 }: {
   row: Row
   rowIndex: number
   titleColumn: DataTableColumn<Row>
   detailColumns: DataTableColumn<Row>[]
   rowClassName?: (row: Row, index: number) => string | undefined
+  renderCard?: (row: Row, index: number) => ReactNode
 }) {
+  if (renderCard) {
+    return (
+      <div
+        className={['dt-card', 'dt-card--compact', rowClassName?.(row, rowIndex)].filter(Boolean).join(' ')}
+        data-touch-target="true"
+      >
+        {renderCard(row, rowIndex)}
+      </div>
+    )
+  }
   return (
     <div
       className={['dt-card', rowClassName?.(row, rowIndex)].filter(Boolean).join(' ')}
@@ -408,12 +475,14 @@ function PhoneCards<Row>({
   rows,
   groups,
   rowClassName,
+  renderCard,
   state,
   emptyLabel,
   caption,
   collapsed,
   onToggleGroup,
 }: PhoneCardsProps<Row>) {
+  const t = useT()
   if (state === 'loading') {
     return (
       <div className="dt-cards" aria-label={caption}>
@@ -444,6 +513,7 @@ function PhoneCards<Row>({
           titleColumn={titleColumn}
           detailColumns={detailColumns}
           rowClassName={rowClassName}
+          renderCard={renderCard}
         />
       ))}
       {groups && groups.map(group => (
@@ -452,9 +522,11 @@ function PhoneCards<Row>({
             <div className="dt-cards-group">
               <button
                 type="button"
-                className="dt-cards-group-toggle"
+                className="dt-cards-group-toggle tap-floor"
                 aria-expanded={!collapsed.has(group.key)}
-                aria-label={collapsed.has(group.key) ? `Expand ${group.label}` : `Collapse ${group.label}`}
+                aria-label={collapsed.has(group.key)
+                  ? t('table.group.expand', { group: group.label ?? '' })
+                  : t('table.group.collapse', { group: group.label ?? '' })}
                 onClick={() => onToggleGroup(group.key)}
               >
                 <Chevron className={`dt-cards-group-chev${collapsed.has(group.key) ? ' dt-cards-group-chev-collapsed' : ''}`} />
@@ -475,6 +547,7 @@ function PhoneCards<Row>({
               titleColumn={titleColumn}
               detailColumns={detailColumns}
               rowClassName={rowClassName}
+              renderCard={renderCard}
             />
           ))}
         </Fragment>

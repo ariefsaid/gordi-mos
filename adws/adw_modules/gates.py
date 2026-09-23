@@ -1,0 +1,142 @@
+"""Validation gates: verify the envelope's CLAIMS, never guesses.
+
+A gate is `gate(envelope, run) -> GateReport` — one check per item it looked at.
+Violations are derived from the failed checks and sent back to the SAME agent
+session as a correction. Every check is recorded either way, so a green gate
+says WHAT it verified instead of only that it passed.
+
+Gates check what is mechanically checkable; plan quality is a reviewer's job.
+"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+from pathlib import Path
+
+from .data_types import EnvelopeBase, GateReport
+
+TAIL_CHARS = 1000        # command output kept as evidence on a failure
+
+
+def _size(path: Path) -> str:
+    n = path.stat().st_size
+    return f"{n}B" if n < 1024 else f"{n / 1024:.1f}KB"
+
+
+def artifacts_exist(envelope: EnvelopeBase, run) -> GateReport:
+    report = GateReport()
+    for a in envelope.artifacts:
+        p = Path(a)
+        report.check(a, p.exists(),
+                     f"exists, {_size(p)}" if p.exists() else "declared artifact does not exist")
+    return report
+
+
+def files_non_empty(envelope: EnvelopeBase, run) -> GateReport:
+    report = GateReport()
+    for a in envelope.artifacts:
+        p = Path(a)
+        if not (p.exists() and p.is_file()):
+            continue                       # existence is artifacts_exist's job
+        empty = p.stat().st_size == 0
+        report.check(a, not empty, "declared artifact is empty" if empty else _size(p))
+    return report
+
+
+def json_parses(envelope: EnvelopeBase, run) -> GateReport:
+    report = GateReport()
+    for a in envelope.artifacts:
+        p = Path(a)
+        if p.suffix != ".json" or not p.exists():
+            continue
+        try:
+            parsed = json.loads(p.read_text())
+            report.check(a, True, f"parses, {type(parsed).__name__}")
+        except json.JSONDecodeError as e:
+            report.check(a, False, f"declared JSON artifact does not parse: {e}")
+    return report
+
+
+def diff_matches_claims(envelope: EnvelopeBase, run) -> GateReport:
+    """Every file claimed changed must be corroborated by the run's own tree:
+    it exists under repo_root, or git records its deletion. Deletions are
+    legitimate build outcomes (a retirement ticket deletes files); what the gate
+    refuses is a claim the tree cannot corroborate either way, a path escaping
+    the repository, or a symlink pointing out of it (first hit live on the #348
+    events retirement, 2026-08-19)."""
+    report = GateReport()
+    root = Path(getattr(run, "repo_root", ".")).resolve()
+    deleted = _git_deleted_paths(root)
+    for f in getattr(envelope, "changed_files", []):
+        candidate = (root / f)
+        try:
+            resolved = candidate.resolve()
+            inside = resolved.is_relative_to(root)
+        except OSError:
+            inside = False
+        if not inside:
+            report.check(f, False, "claim escapes the repository root")
+        elif candidate.exists():
+            report.check(f, True, f"exists, {_size(candidate)}")
+        elif f in deleted:
+            report.check(f, True, "deleted (git-visible deletion)")
+        else:
+            report.check(f, False, "claimed changed file neither exists nor is a git-visible deletion")
+    return report
+
+
+def _git_deleted_paths(root: Path) -> set[str]:
+    """Paths git records as deleted (staged or not) in the tree at root.
+    --no-renames so a rename never masquerades as a blessed deletion; -z so
+    quoted/escaped filenames arrive verbatim instead of C-quoted."""
+    import subprocess
+    out = subprocess.run(["git", "status", "--porcelain", "--no-renames", "-z"],
+                         cwd=root, capture_output=True, text=True)
+    if out.returncode != 0:
+        return set()
+    paths = set()
+    for entry in out.stdout.split("\0"):
+        if len(entry) > 3 and "D" in entry[:2]:
+            paths.add(entry[3:])
+    return paths
+
+
+def verdict_consistent(envelope: EnvelopeBase, run) -> GateReport:
+    """A review's verdict must agree with the findings it just wrote down.
+
+    Nothing here judges the code — that is the reviewer's job. This checks the
+    envelope against itself: an approval that ships blocking items, or a
+    rejection that names no problem, is a claim the harness can refute without
+    reading a line of the diff.
+    """
+    report = GateReport()
+    approved = bool(getattr(envelope, "approved", False))
+    blocking = list(getattr(envelope, "blocking", []))
+    unmet = [f.requirement for f in getattr(envelope, "findings", []) if not f.met]
+
+    report.check("approved vs blocking", not (approved and blocking),
+                 "no blocking items" if not blocking
+                 else f"{len(blocking)} blocking item(s) while approved=true"
+                 if approved else f"{len(blocking)} blocking item(s), not approved")
+    report.check("approved vs findings", not (approved and unmet),
+                 "every requirement met" if not unmet
+                 else f"{len(unmet)} unmet requirement(s) while approved=true"
+                 if approved else f"{len(unmet)} unmet requirement(s), not approved")
+    report.check("rejection names a problem", approved or bool(blocking or unmet),
+                 "verdict is supported" if approved or blocking or unmet
+                 else "approved=false but no blocking item or unmet requirement was given")
+    return report
+
+
+def tests_pass(command: str):
+    """Gate factory: the given shell command must exit 0."""
+    def gate(envelope: EnvelopeBase, run) -> GateReport:
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        ok = result.returncode == 0
+        note = f"exit {result.returncode}"
+        if not ok:
+            note += "\n" + (result.stdout + result.stderr)[-TAIL_CHARS:]
+        return GateReport().check(command, ok, note)
+    gate.__name__ = f"tests_pass({command})"
+    return gate

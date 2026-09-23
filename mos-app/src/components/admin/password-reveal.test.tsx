@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PasswordReveal } from './password-reveal'
+import { ModalShell } from '@/components/ui/modal-shell'
 
 // jsdom exposes navigator.clipboard as a getter-only prop; redefine it for the test.
 function stubClipboard(writeText: (text: string) => Promise<void>) {
@@ -17,11 +18,10 @@ function stubClipboard(writeText: (text: string) => Promise<void>) {
   })
 }
 
-// Render PasswordReveal inside a role="alertdialog" wrapper, mirroring both call sites
-// (create-person-dialog + admin-users-page) so the trap finds its enclosing dialog.
+// Render through the same ModalShell as both production call sites.
 function renderReveal(props: Partial<Parameters<typeof PasswordReveal>[0]> = {}) {
   return render(
-    <div role="alertdialog" aria-modal="true">
+    <ModalShell open onClose={vi.fn()} role="alertdialog" ariaLabel="Temporary password" closeOnEscape={false}>
       <PasswordReveal
         personName="Budi Santoso"
         password="TempPw9999"
@@ -30,7 +30,7 @@ function renderReveal(props: Partial<Parameters<typeof PasswordReveal>[0]> = {})
         onDone={props.onDone ?? vi.fn()}
         {...props}
       />
-    </div>,
+    </ModalShell>,
   )
 }
 

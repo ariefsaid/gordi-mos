@@ -28,6 +28,30 @@ describe('i18n messages catalog', () => {
     expect(idKeys).toEqual(enKeys)
   })
 
+  it('tasks editing and full-page action labels are localized in both locales', () => {
+    expect(messages.en['tasks.inlineEdit.activeHint']).toBe('Enter saves · Tab moves · Esc discards')
+    expect(messages.id['tasks.inlineEdit.activeHint']).toBe('Enter menyimpan · Tab berpindah · Esc membatalkan')
+    expect(messages.en['tasks.openFullPage']).toBe('Open full page')
+    expect(messages.id['tasks.openFullPage']).toBe('Buka halaman penuh')
+    expect('tasks.rowOpen' in messages.en).toBe(false)
+    expect('tasks.rowOpen' in messages.id).toBe(false)
+  })
+
+  it('issue 579: common.resultCount has a singular noun in both locales', () => {
+    expect(interpolate(messages.en['common.resultCount.one'], { count: 1 })).toBe(
+      '1 item in your scope',
+    )
+    expect(interpolate(messages.en['common.resultCount.other'], { count: 2 })).toBe(
+      '2 items in your scope',
+    )
+    expect(interpolate(messages.id['common.resultCount.one'], { count: 1 })).toBe(
+      '1 item dalam cakupan Anda',
+    )
+    expect(interpolate(messages.id['common.resultCount.other'], { count: 2 })).toBe(
+      '2 item dalam cakupan Anda',
+    )
+  })
+
   it('AC-I02: with locale persisted as id, t("dest.home") returns "Beranda"', () => {
     localStorage.setItem('mos.locale', 'id')
     const { result } = renderHook(() => useT(), { wrapper })
@@ -49,7 +73,7 @@ describe('i18n messages catalog', () => {
 
   it('useT resolves a catalog string unchanged when no vars are passed', () => {
     const { result } = renderHook(() => useT(), { wrapper })
-    expect(result.current('home.kpi.tasks')).toBe('My open tasks')
+    expect(result.current('home.title')).toBe('Home')
   })
 
   it('interpolate() replaces ${name} placeholders with the provided vars', () => {
@@ -70,15 +94,16 @@ describe('nav i18n (AC-409, FR-440) — every nav label through the catalog', ()
     'nav.home',
     'nav.inbox',
     'nav.updates',
-    'nav.dailyLog',
     'nav.sales',
     'nav.objectives',
     'nav.projectsProcesses',
-    'nav.kitchen.log',
-    'nav.kitchen.plan',
-    'nav.kitchen.stock',
-    'nav.kitchen.review',
-    'nav.kitchen.pushes',
+    // issue 455: the Café module's children — `nav.kitchen.*` retired with the wrong name.
+    'nav.cafe',
+    'nav.cafe.log',
+    'nav.cafe.plan',
+    'nav.cafe.stock',
+    'nav.cafe.review',
+    'nav.cafe.pushes',
   ] as const
 
   it('AC-409: every nav.* key is present in both en and id (shape-identical parity)', () => {
@@ -105,7 +130,6 @@ describe('nav i18n (AC-409, FR-440) — every nav label through the catalog', ()
 describe('assistant panel i18n (T26, AC-P2-AP-004/005)', () => {
   const ASSISTANT_KEYS = [
     'assistant.title',
-    'assistant.close',
     'assistant.history',
     'assistant.newConversation',
     'assistant.open',
@@ -115,8 +139,8 @@ describe('assistant panel i18n (T26, AC-P2-AP-004/005)', () => {
     'assistant.empty.suggestion2',
     'assistant.empty.suggestion3',
     'assistant.composer.placeholder',
+    'assistant.composer.sendHint',
     'assistant.send',
-    'assistant.stop',
     'assistant.retry',
     'assistant.streaming',
     'assistant.approval.header',
@@ -151,45 +175,14 @@ describe('assistant panel i18n (T26, AC-P2-AP-004/005)', () => {
   })
 })
 
-describe('cascade i18n (AC-304)', () => {
-  const CASCADE_KEYS = [
-    'cascade.title',
-    'cascade.subtitle',
-    'cascade.link',
-    'cascade.mine',
-    'cascade.all',
-    'cascade.unlinked',
-    'cascade.noWorkLine',
-    'cascade.manage.objectives',
-    'cascade.manage.projects',
-    'cascade.empty.title',
-    'cascade.empty.body',
-    'cascade.mine.empty.title',
-    'cascade.mine.empty.body',
-    'cascade.error.title',
-    'cascade.error.retry',
-    'cascade.loading',
-    'cascade.card.owner',
-    'cascade.card.due',
-    'cascade.overdue',
-    'cascade.untitledObjective',
-    'cascade.untitledWorkLine',
-  ] as const
-
-  it('every cascade.* key is present in both en and id', () => {
-    for (const key of CASCADE_KEYS) {
-      expect(messages.en[key], `en missing ${key}`).toBeDefined()
-      expect(messages.id[key], `id missing ${key}`).toBeDefined()
+// The cascade screen is cut (#179, OD-WAY-32), so the strings that only ever labelled it are cut
+// with it — a translator should never be asked to keep copy for a surface that no longer exists.
+// "Cascade" survives as glossary vocabulary in CONTEXT.md, not as UI copy.
+describe('cascade i18n is retired with the surface (#179)', () => {
+  it('no cascade.* key survives in either locale', () => {
+    for (const locale of ['en', 'id'] as const) {
+      expect(Object.keys(messages[locale]).filter((k) => k.startsWith('cascade.'))).toEqual([])
     }
   })
 
-  it('under locale:id, every cascade.* key resolves to a localized string, not the key itself', () => {
-    localStorage.setItem('mos.locale', 'id')
-    const { result } = renderHook(() => useT(), { wrapper })
-    for (const key of CASCADE_KEYS) {
-      const resolved = result.current(key)
-      expect(resolved, `${key} fell back to the key stub under id`).not.toBe(key)
-      expect(resolved.length).toBeGreaterThan(0)
-    }
-  })
 })

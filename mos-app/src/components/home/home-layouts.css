@@ -1,0 +1,164 @@
+/* Shared v4 Home arrangement primitives. These own geometry; the Home collection host and
+   home-stream.css own the data-row grammar. Approved theme tokens provide every surface, border,
+   text and focus color. */
+
+.home-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 32px;
+  align-items: start;
+}
+
+.home-layout > * { min-width: 0; }
+
+.home-layout-leading { min-width: 0; }
+
+.home-bento {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 20px;
+  align-items: stretch;
+}
+
+.home-tile {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: none;
+}
+
+.home-tile[data-weight="full"] { grid-column: span 6; }
+.home-tile[data-weight="wide"] { grid-column: span 4; }
+.home-tile[data-weight="narrow"] { grid-column: span 2; }
+.home-tile[data-region="needs-you"] { background: var(--surface-tertiary); }
+
+.home-tile-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.home-tile-name {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-display);
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+}
+
+.home-tile-count {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  white-space: nowrap;
+}
+
+.home-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.home-tab {
+  flex: 0 0 auto;
+  min-height: 44px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 8px 12px;
+  background: none;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 500;
+}
+
+.home-tab:hover { color: var(--foreground); }
+.home-tab[aria-selected="true"] { border-bottom-color: var(--primary); color: var(--foreground); }
+.home-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.home-tab-count { margin-left: 4px; color: var(--muted-foreground); font-weight: 400; }
+
+/* Keep the restored arrangements as readable as the current daily brief. */
+.home-layout .stream-row-link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 16px 4px;
+}
+
+.home-layout .stream-row-title {
+  color: var(--foreground);
+  font-size: var(--font-size-body-lg);
+  line-height: 1.5;
+}
+
+.home-layout .stream-row-tail { flex-wrap: wrap; justify-content: flex-end; max-width: 220px; }
+.home-layout .stream-row-action { margin-left: auto; border: 0; padding: 0; color: var(--text-on-accent-tint); }
+.home-layout .home-signal-body { font-size: var(--font-size-body-lg); font-weight: 400; line-height: 1.6; }
+.home-layout .home-signal-row { flex-direction: column; gap: 8px; padding: 16px 4px; }
+.home-layout .home-signal-main { width: 100%; gap: 8px; }
+.home-layout .home-signal-meta-item { overflow: visible; white-space: normal; }
+.home-layout .home-signal-attention--needs-attention,
+.home-layout .home-signal-attention--fyi {
+  height: auto;
+  padding: 0;
+  background: transparent;
+  font-weight: 400;
+}
+.home-layout .signal-feed-label,
+.home-layout .stream-band-label,
+.home-layout .home-objectives-door .stream-band-label { font-size: var(--font-size-subheading); }
+.home-layout .home-objective-name { white-space: normal; font-weight: 500; }
+
+@container home (max-width: 940px) {
+  .home-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .home-bento { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .home-tile[data-weight="full"] { grid-column: span 4; }
+  .home-tile[data-weight="wide"] { grid-column: span 2; }
+}
+
+@container home (max-width: 620px) {
+  .home-layout { gap: 8px; }
+  .home-tabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    overflow-y: visible;
+  }
+  .home-bento { grid-template-columns: minmax(0, 1fr); }
+  .home-tile[data-weight] { grid-column: span 1; }
+}
+
+@container home (min-width: 961px) {
+  .home-layout .home-brief-my-work .stream-row-link { display: flex; padding-block: 12px; }
+  .home-layout .home-brief-my-work .stream-row-tail { flex-wrap: nowrap; }
+}
+
+.home-layout .stream-band-link,
+.home-layout .stream-band-more--link,
+.home-layout .signal-feed-link { color: var(--text-on-accent-tint); }
+
+/* Tiles can be narrower than the Home container; retain a second metadata line there. */
+.home-tile .stream-row-link { grid-template-columns: minmax(0, 1fr); gap: 8px; padding-block: 12px; }
+.home-tile .stream-row-tail { max-width: none; justify-content: flex-start; }
+
+@container home (max-width: 620px) {
+  .home-layout .stream-row-link { grid-template-columns: minmax(0, 1fr); gap: 8px; padding-block: 12px; }
+  .home-layout .stream-row-tail { max-width: none; justify-content: flex-start; }
+  .home-layout .stream-band-head { flex-wrap: wrap; gap: 4px 12px; }
+  .home-layout .stream-band-link,
+  .home-layout .stream-band-more--link,
+  .home-layout .signal-feed-link { display: inline-flex; align-items: center; min-height: 44px; }
+}

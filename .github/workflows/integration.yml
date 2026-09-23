@@ -3,29 +3,80 @@ name: integration
 on:
   push:
     branches: [main]
-  # integration is PR→main ONLY (PMO convention: dev/feature PRs run just `verify`; the heavy
-  # full-stack gate belongs to the dev→main promotion PR + the post-merge push-to-main smoke).
-  # On main-targeted PRs the job still runs ONLY when something it validates changes — DB/
+  # integration is PR→main ONLY (PMO convention: dev/feature PRs run just `verify` + `db-contracts`;
+  # the heavy full-stack gate belongs to the dev→main promotion PR + the post-merge push-to-main
+  # smoke). On main-targeted PRs the job still runs ONLY when something it validates changes — DB/
   # migrations/RLS, the e2e journeys, or this workflow's deps. Pushes to main always run it
   # (no paths filter on push), so every merge is fully validated post-merge.
   pull_request:
+    # The heavy `db` job is PR→main only; it is gated on base_ref, not on this list.
     branches: [main]
     paths:
       - 'supabase/**'
       - 'mos-app/e2e/**'
       - 'mos-app/playwright.config.*'
       - 'mos-app/package-lock.json'
+      # The deployed-database harness (#393). `scripts/**` is otherwise absent from this filter,
+      # which is how the first version of this check shipped without ever running: the workflow
+      # simply did not trigger on it.
+      - 'scripts/applied-path-check.sh'
+      - 'scripts/lib/applied-path-fingerprint.sql'
+      # Both lanes run this lint (here + db-contracts.yml #565) — an edit to the lint itself must
+      # re-run the lane that validates it (#645).
+      - 'scripts/lint-security-definer.sh'
+      - 'scripts/lib/sql-blank.sh'
       # NB: edits to THIS workflow are validated by the always-run push-to-main trigger
       # (kept out of the PR paths filter so a workflow-only PR doesn't boot the full stack).
 
+# ─── CI TIERING ─────────────────────────────────────────────────────────────────────────────
+# PR → dev    `verify` + `db-contracts` — ONE Supabase boot: pgTAP + applied-path. No browser.
+# PR → main   `verify` + `db`           — Supabase + pgTAP + the whole Playwright suite, the
+#             rendered-geometry guards among it. Authoritative gate, and the only tier that
+#             renders a page.
+# push main   `verify` + `db`       — post-merge smoke.
+#
+# HISTORY. Until now gordi had no DB test on dev PRs at all: `integration` was PR→main only, so
+# PRs #113–#117 ran `verify` alone and the 637 pgTAP tests — including every assertion written for
+# the M-1/M-2 security remediation — had never executed in CI. A migration that broke RLS could
+# sit undetected on `dev` for days. A `pgtap` job here (branches: [main, dev]) was the fix, then
+# geometry.yml grew its OWN dev-PR Supabase boot for the rendered-geometry guards (#403) — the two
+# booted Supabase, npm-ci'd and ran in parallel on the same PR. #565 merged the `pgtap` job into
+# it so a dev PR boots the stack once. The browser then came back out of that lane: a dev PR now
+# installs no Chromium, and the guards ride this job, which already runs every spec. `db` here is
+# untouched: it is the PR→main / push-main lane and was never part of the duplication.
+
+# Public repo: fork PRs run this workflow. Nothing here needs to write, so the token gets
+# read-only. Actions are pinned to commit SHAs (tags are mutable — a hijacked v4 would run here).
+permissions:
+  contents: read
+
+# Supersede in-flight runs on the same ref — this is the expensive workflow (median ~4 min,
+# dominated by an 84s Supabase boot), so letting an obsolete run finish is the costliest waste
+# here. Never cancel on main: the post-merge run is the record that main is fully validated.
+concurrency:
+  group: integration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
+  # ── AUTHORITATIVE GATE: PR → main, and the post-merge smoke on main. ──────────────────────
+  # The dev-PR fast lane (formerly the `pgtap` job here) now lives in db-contracts.yml (#565),
+  # which boots Supabase once and runs no browser. This job is unaffected, and it is where the
+  # rendered-geometry guards are gated: `npx playwright test` below runs every spec.
   db:
+    # Gated on base_ref rather than the trigger's branch list, so this job's condition alone
+    # decides whether the expensive browser tier runs — it cannot accidentally start on a
+    # PR → dev, whatever branches the trigger above lists.
+    if: github.event_name == 'push' || github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The applied-path check (#393) builds a database from the supabase/ tree at the
+          # commit named in supabase/applied-path-baseline. A shallow clone does not have it.
+          fetch-depth: 0
 
       - name: Install Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
         with:
           version: 2.104.0
 
@@ -40,33 +91,34 @@ jobs:
         # vector/analytics (log shipping). Re-add a name here if the app starts using it.
         run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
 
+      # Logic lives in scripts/lint-security-definer.sh (#565) — this used to be inline here AND
+      # in the `pgtap` job that has since moved to db-contracts.yml, an acknowledged sync burden.
+      # One file, called from both dev-PR (db-contracts.yml) and main-PR (here) lanes.
       - name: Lint — every SECURITY DEFINER migration must revoke PUBLIC execute
-        # Defense-in-depth: prevents a recurrence of the _test_seed_role_tree audit Critical
-        # (2026-06-11) where a SECURITY DEFINER function was reachable via PostgREST because
-        # it lacked an explicit REVOKE. Each file that DEFINES a 'security definer' function
-        # must contain a matching 'revoke execute on function' in the same file.
-        # SQL line comments are stripped first so a mere *mention* of "security definer" in a
-        # comment (e.g. "writes are RPC-only via the SECURITY DEFINER approval RPC") is not a
-        # false positive — only an actual definer clause in executable SQL is flagged.
-        run: |
-          failed=0
-          for f in supabase/migrations/*.sql; do
-            body=$(sed 's/--.*//' "$f")
-            if echo "$body" | grep -qi 'security definer'; then
-              if ! echo "$body" | grep -qi 'revoke execute on function'; then
-                echo "LINT FAIL: $f has SECURITY DEFINER but no 'revoke execute on function'" >&2
-                failed=1
-              fi
-            fi
-          done
-          if [ "$failed" -eq 1 ]; then
-            echo "Fix: add 'revoke execute on function <fn>() from public, anon, authenticated;' after each SECURITY DEFINER function definition." >&2
-            exit 1
-          fi
-          echo "Lint OK: all SECURITY DEFINER migrations have revoke."
+        run: bash scripts/lint-security-definer.sh
 
       - name: pgTAP suite
         run: supabase test db
+
+      # #393. THE GATE IMMEDIATELY BEFORE A STAGING DEPLOY, which is the entire point of the
+      # check: staging and production are the only environments that run a conditional
+      # migration's other branch. `--prove` also breaks the conditional on purpose and requires
+      # the applied path to go red while a fresh reset stays byte-identical — so the run itself
+      # is the evidence that this check can fail, not a claim in a PR body.
+      - name: Applied-path check + proof it can fail (#393)
+        run: bash scripts/applied-path-check.sh --prove --out artifacts/applied-path
+
+      - name: Publish the green/red contrast to the run summary
+        if: always()
+        run: cat artifacts/applied-path/SUMMARY.md >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Keep the fingerprints and diffs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: applied-path-${{ github.run_id }}
+          path: artifacts/applied-path
+          retention-days: 14
 
       # ── E2E against the live stack ────────────────────────────────────────────
       # e2e lives here (not verify.yml) because journeys need auth + DB (T-027).
@@ -80,7 +132,7 @@ jobs:
           supabase status -o env | grep -E '^(ANON_KEY|SERVICE_ROLE_KEY|API_URL)=' | tr -d '"' >> "$GITHUB_ENV"
           grep -q '^SERVICE_ROLE_KEY=eyJ' "$GITHUB_ENV"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
@@ -91,7 +143,7 @@ jobs:
         run: npm ci
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright

@@ -14,6 +14,10 @@ import './index.css'
 // <Link>/<a> resolve (not just the <Button>/<Pill> component imports). Vite dedupes.
 import './components/ui/Button.css'
 import './components/ui/Pill.css'
+// The shared drawer/overlay chrome (#190). Loaded globally because RecordPanelHost mounts at the
+// shell root as well as inside a collection page — a route-scoped stylesheet would leave the
+// shell-mounted panel unskinned.
+import './styles/drawer.css'
 import { App } from './app.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { registerServiceWorker } from './sw-register'

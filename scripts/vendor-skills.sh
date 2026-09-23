@@ -10,18 +10,59 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$DEST"
 
+# GUARD: a tracked override that is missing from disk means this run silently applies pure upstream.
+#
+# On 2026-08-06 all five overrides sat DELETED-BUT-TRACKED in `.claude`. `git status` showed ' D ' on
+# each and nobody looked, so none of this project's skill customisations were being applied —
+# agents ran vendored upstream, including the /code-review battery this repo gates on. Nothing
+# caught it, because a deleted file produces no error and the populated `skills/` directory still
+# looked authoritative. At least one agent concluded the overrides simply did not exist.
+#
+# It runs BEFORE the first clone, because every vendored skill is `rm -rf`d and replaced further
+# down — including all five overridden ones. Aborting after that point would leave the tree in exactly
+# the incident state it exists to prevent.
+#
+# The check lives HERE rather than in CI because `.claude/` is gitignored by this repo — CI can
+# never see it — and a standalone script would be one more gate nobody runs. This is the tool that
+# consumes the overrides, so it is the one place the absence is guaranteed to matter.
+if [ -e "$ROOT/.claude/.git" ]; then
+  MISSING="$(git -C "$ROOT/.claude" ls-files 'skill-overrides/*/SKILL.md' | while read -r rel; do
+    [ -f "$ROOT/.claude/$rel" ] || printf '  %s\n' "$rel"
+  done)"
+  if [ -n "$MISSING" ]; then
+    echo "ERROR: these skill overrides are TRACKED but missing from disk:" >&2
+    printf '%s\n' "$MISSING" >&2
+    echo >&2
+    echo "Vendoring now would apply pure upstream and silently drop this project's customisations." >&2
+    echo "Restore them first:  git -C .claude checkout -- skill-overrides/" >&2
+    echo "See docs/agents/skills.md." >&2
+    exit 1
+  fi
+fi
+
+
 echo "==> gstack (cherry-picked; project-scoped — we do NOT run gstack's global ./setup)"
-git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git "$TMP/gstack"
+GSTACK_PIN="a6b3a57512ca6d5c6aa5b68f74f736195021f96e"
+git init -q "$TMP/gstack"
+git -C "$TMP/gstack" remote add origin https://github.com/garrytan/gstack.git
+git -C "$TMP/gstack" fetch -q --depth 1 origin "$GSTACK_PIN"
+git -C "$TMP/gstack" checkout -q FETCH_HEAD
 for s in careful freeze guard cso design-review design-consultation; do
   rm -rf "${DEST:?}/$s"
   cp -R "$TMP/gstack/$s" "$DEST/$s"
   rm -f "$DEST/$s/SKILL.md.tmpl"
 done
 
-echo "==> jeffallan/claude-skills (feature-forge + spec-miner only)"
-git clone --depth 1 --filter=blob:none --sparse https://github.com/jeffallan/claude-skills.git "$TMP/jeff"
-git -C "$TMP/jeff" sparse-checkout set skills/feature-forge skills/spec-miner
-for s in feature-forge spec-miner; do
+echo "==> jeffallan/claude-skills (spec-miner only)"
+# feature-forge RETIRED 2026-07-31: its EARS/AC discipline folded into the upgraded `to-spec`
+# override; the interview half is already covered by grill-with-docs (loop step 1 intake).
+JEFF_PIN="882ef55e377dbf9a4dbe496bb41ac6ccd0e555cf"
+git init -q "$TMP/jeff"
+git -C "$TMP/jeff" remote add origin https://github.com/jeffallan/claude-skills.git
+git -C "$TMP/jeff" fetch -q --depth 1 origin "$JEFF_PIN"
+git -C "$TMP/jeff" checkout -q FETCH_HEAD
+git -C "$TMP/jeff" sparse-checkout set skills/spec-miner
+for s in spec-miner; do
   rm -rf "${DEST:?}/$s"
   cp -R "$TMP/jeff/skills/$s" "$DEST/$s"
 done
@@ -32,7 +73,11 @@ rm -f "$DEST/spec-miner/SKILL.md.bak"
 
 # --- UI/UX design skills (vetted SAFE-with-caveats; see docs/design-workflow.md) ---
 echo "==> impeccable (pbakaus/impeccable) — design/critique/extract; phone-home DISABLED"
-git clone --depth 1 https://github.com/pbakaus/impeccable.git "$TMP/impeccable"
+IMPECCABLE_PIN="cb56ed6c19a07329a9fa0cd4e657bee040156593"
+git init -q "$TMP/impeccable"
+git -C "$TMP/impeccable" remote add origin https://github.com/pbakaus/impeccable.git
+git -C "$TMP/impeccable" fetch -q --depth 1 origin "$IMPECCABLE_PIN"
+git -C "$TMP/impeccable" checkout -q FETCH_HEAD
 rm -rf "${DEST:?}/impeccable"
 cp -R "$TMP/impeccable/skill" "$DEST/impeccable"
 [ -f "$DEST/impeccable/SKILL.src.md" ] && mv "$DEST/impeccable/SKILL.src.md" "$DEST/impeccable/SKILL.md"
@@ -42,13 +87,35 @@ if [ -f "$DEST/impeccable/scripts/context.mjs" ]; then
   rm -f "$DEST/impeccable/scripts/context.mjs.bak"
 fi
 
+# The skill distribution can contain the wrappers without the detector engine. Keep the engine
+# in the public repository and stamp the same copy into each refreshed local skill so `detect`,
+# hooks, and `doctor` never depend on an untracked partial install.
+IMPECCABLE_VENDOR="$ROOT/scripts/vendor/impeccable"
+if [ ! -f "$IMPECCABLE_VENDOR/detector/detect-antipatterns.mjs" ] || \
+   [ ! -f "$IMPECCABLE_VENDOR/lib/impeccable-config.mjs" ]; then
+  echo "ERROR: tracked Impeccable detector vendor is incomplete: $IMPECCABLE_VENDOR" >&2
+  exit 1
+fi
+rm -rf "${DEST:?}/impeccable/scripts/detector"
+cp -R "$IMPECCABLE_VENDOR/detector" "$DEST/impeccable/scripts/detector"
+mkdir -p "$DEST/impeccable/scripts/lib"
+cp "$IMPECCABLE_VENDOR/lib/impeccable-config.mjs" "$DEST/impeccable/scripts/lib/impeccable-config.mjs"
+
 echo "==> taste (Leonxlnx/taste-skill — v1 stable) — anti-slop craft discipline"
-git clone --depth 1 https://github.com/Leonxlnx/taste-skill.git "$TMP/taste"
+TASTE_PIN="ccbc15639c97057cbfcf32ecebc38ef716e4bb37"
+git init -q "$TMP/taste"
+git -C "$TMP/taste" remote add origin https://github.com/Leonxlnx/taste-skill.git
+git -C "$TMP/taste" fetch -q --depth 1 origin "$TASTE_PIN"
+git -C "$TMP/taste" checkout -q FETCH_HEAD
 rm -rf "${DEST:?}/taste"
 cp -R "$TMP/taste/skills/taste-skill-v1" "$DEST/taste"
 
 echo "==> ui-ux-pro-max (nextlevelbuilder) — CORE skills only (skip Gemini generative sub-skills)"
-git clone --depth 1 https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git "$TMP/uupm"
+UUPM_PIN="15de38fb70bc80ae9276fa7703b48ae861a672e6"
+git init -q "$TMP/uupm"
+git -C "$TMP/uupm" remote add origin https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git
+git -C "$TMP/uupm" fetch -q --depth 1 origin "$UUPM_PIN"
+git -C "$TMP/uupm" checkout -q FETCH_HEAD
 # Upstream restructured: payload moved from .claude/skills/<s> to src/<s>, and the skill dir uses
 # RELATIVE SYMLINKS (data -> ../../../src/...) that dangle when copied verbatim — cp -RL
 # dereferences them so the vendored copy is self-contained. Old path kept as fallback.
@@ -63,12 +130,87 @@ for s in ui-ux-pro-max design-system ui-styling; do
 done
 # NOTE: deliberately NOT vendoring design/banner/slides/brand sub-skills (Gemini-API generative; need GEMINI_API_KEY).
 
-echo "==> grill-with-docs (mattpocock/skills) — intake grilling + CONTEXT.md glossary steward"
-# Vetted 2026-06-11 at commit 694fa30 (3 prompt-only .md files, no executables). Re-vet on re-vendor.
-git clone --depth 1 --filter=blob:none --sparse https://github.com/mattpocock/skills.git "$TMP/mps"
-git -C "$TMP/mps" sparse-checkout set skills/engineering/grill-with-docs
-rm -rf "${DEST:?}/grill-with-docs"
-cp -R "$TMP/mps/skills/engineering/grill-with-docs" "$DEST/grill-with-docs"
+echo "==> mattpocock/skills — full engineering + productivity sets"
+# Vetted 2026-07-31 at HEAD: eng+prod skills are prompt-only .md + a harmless per-skill codex
+# `agents/openai.yaml` interface config; the ONLY executable is
+# diagnosing-bugs/scripts/hitl-loop.template.sh (a benign interactive template — no net/eval/telemetry).
+# Re-vet on re-vendor. We vendor ONLY engineering/ + productivity/ (skip deprecated/in-progress/personal/misc).
+MPS_PIN="959a8e9f1edc3adbe2f7e3054bb6fbefa6696260"
+git init -q "$TMP/mps"
+git -C "$TMP/mps" remote add origin https://github.com/mattpocock/skills.git
+git -C "$TMP/mps" fetch -q --depth 1 origin "$MPS_PIN"
+git -C "$TMP/mps" checkout -q FETCH_HEAD
+git -C "$TMP/mps" sparse-checkout set skills/engineering skills/productivity
+for cat in engineering productivity; do
+  for d in "$TMP/mps/skills/$cat"/*/; do          # */ matches dirs only → category README.md skipped
+    s="$(basename "$d")"
+    rm -rf "${DEST:?}/$s"
+    cp -R "$d" "$DEST/$s"
+  done
+done
+
+echo "==> disler/super-simple-software-factory — sssf orchestrator skill + adws/ factory skeleton (#334)"
+# The factory skeleton is stamped into the TRACKED tree (adws/),
+# so an upstream bump must be a deliberate act — raise SSSF_PIN, re-run, review `git diff adws/`,
+# update adws/PORT-MANIFEST.md. scripts/vendor-sssf.test.sh proves the stamped tree is byte-identical
+# to upstream at this pin except the manifest-listed MOS files.
+# Vetted 2026-08-18 at this pin — RE-VET ON EVERY PIN BUMP: skill scripts/{install,make_adw,
+# make_config}.py are local file-stampers (no network); apps/visualizer is a bun/Vue app serving
+# localhost only; templates/adws has no network beyond what the pi/claude runners themselves do.
+SSSF_PIN="de31374882e7a4e3e5b7bb9bd09e69dc2f779356"
+git init -q "$TMP/sssf"
+git -C "$TMP/sssf" remote add origin https://github.com/disler/super-simple-software-factory.git
+git -C "$TMP/sssf" fetch -q --depth 1 origin "$SSSF_PIN"
+git -C "$TMP/sssf" checkout -q FETCH_HEAD
+rm -rf "${DEST:?}/sssf"
+cp -R "$TMP/sssf/.claude/skills/sssf" "$DEST/sssf"
+# Stamp the factory skeleton the way upstream's own skill installer
+# (.claude/skills/sssf/scripts/install.py) lays it out — but force-overwrite instead of
+# skip-if-exists, so a re-vendor surfaces upstream drift as a git diff on the tracked files.
+# EXCEPT the deviated files carrying ported PMO deltas + MOS rewiring (#335/#336): those are
+# excluded from the stamp — upstream drift on them is merged BY HAND on a pin bump, per
+# adws/PORT-MANIFEST.md. MOS-authored files inside adws/ (PORT-MANIFEST.md; LICENSE is
+# upstream's, relocated) survive because only upstream-owned subtrees are removed first.
+SSSF_T="$TMP/sssf/.claude/skills/sssf/templates"
+# adws/-relative deviated paths. adws/PORT-MANIFEST.md is the source of truth; this list and
+# scripts/vendor-sssf.test.sh's must both match it (the self-test cross-checks). The MOS-owned
+# config and root .env.sample are handled below as bootstrap-only stamps, never overwritten.
+SSSF_DEVIATED="adw_modules/agents.py adw_modules/agent_pi.py adw_modules/data_types.py adw_modules/quality.py \
+adw_modules/git_helper.py adw_modules/gates.py adw_simple_sdlc.py adw_design_audit.py adw_modules/permissions.py \
+adw_plan_build.py adw_plan_build_test.py adw_plan_build_test_quality.py \
+adw_data/prompt_engineering/planner/system.md adw_data/prompt_engineering/planner/user.md \
+adw_data/prompt_engineering/builder/system.md adw_data/prompt_engineering/reviewer/system.md \
+adw_data/prompt_engineering/documenter/system.md adw_data/prompt_engineering/documenter/user.md \
+adw_data/prompt_engineering/fe_builder/system.md adw_data/prompt_engineering/fe_reviewer/system.md"
+SSSF_KEEP="$(mktemp -d)"
+for f in $SSSF_DEVIATED; do
+  if [ -f "$ROOT/adws/$f" ]; then
+    mkdir -p "$SSSF_KEEP/$(dirname "$f")"; cp "$ROOT/adws/$f" "$SSSF_KEEP/$f"
+  fi
+done
+rm -rf "$ROOT/adws/adw_modules" "$ROOT/adws/adw_data/prompt_engineering" "$ROOT/adws/adw_data/harness_engineering"
+mkdir -p "$ROOT/adws/adw_data" "$ROOT/adws/adw_sssf_config"
+cp -R "$SSSF_T/adws/." "$ROOT/adws/"
+cp -R "$SSSF_T/prompt_engineering" "$ROOT/adws/adw_data/prompt_engineering"
+cp -R "$SSSF_T/harness_engineering" "$ROOT/adws/adw_data/harness_engineering"
+for f in $SSSF_DEVIATED; do
+  if [ -f "$SSSF_KEEP/$f" ]; then mkdir -p "$ROOT/adws/$(dirname "$f")"; cp "$SSSF_KEEP/$f" "$ROOT/adws/$f"; fi
+done
+rm -rf "$SSSF_KEEP"
+if [ ! -f "$ROOT/adws/adw_sssf_config/sssf.config.yaml" ]; then
+  cp "$SSSF_T/sssf.config.yaml" "$ROOT/adws/adw_sssf_config/sssf.config.yaml"  # bootstrap only; the MOS roster owns it (#336)
+fi
+cp "$TMP/sssf/LICENSE" "$ROOT/adws/LICENSE"                # MIT notice travels with the vendored code
+if [ ! -f "$ROOT/.env.sample" ]; then
+  cp "$SSSF_T/env.sample" "$ROOT/.env.sample"              # bootstrap only; MOS roster note owns it (#336)
+fi
+cp "$SSSF_T/justfile" "$ROOT/justfile"                     # root-stamped, exactly as install.py does
+# Ruled MOS deviation (PORT-MANIFEST): every ADW invocation routes through the factory door —
+# bare `uv run adws/` runs the factory with live gh auth (no shim, no GH_CONFIG_DIR scrub).
+# Deterministic transform, so conformance stays checkable (vendor-sssf.test.sh applies the same).
+sed -i '' 's#uv run adws/#bash scripts/factory-run.sh #g' "$ROOT/justfile" 2>/dev/null \
+  || sed -i 's#uv run adws/#bash scripts/factory-run.sh #g' "$ROOT/justfile"
+# (install.py's .gitignore entries are committed directly in this repo's tracked .gitignore)
 
 echo "==> agent-browser (discovery stub) — rendered UI verification from pi (docs/pi-delegation.md §3a)"
 # The CLI (npm i -g agent-browser) serves its own version-matched usage skill via
@@ -79,7 +221,34 @@ if [ -f /Users/ariefsaid/Coding/PMO/.claude/skills/agent-browser/SKILL.md ]; the
   cp /Users/ariefsaid/Coding/PMO/.claude/skills/agent-browser/SKILL.md "$DEST/agent-browser/SKILL.md"
 fi
 
+# --- Project overrides (OVERLAY, not replace) ---
+# Our upgraded files (committed, git-tracked, de-branded, OURS: implement, to-spec, code-review, tdd, handoff)
+# are OVERLAID on top of the pristine vendored skill — our SKILL.md wins while upstream SIBLINGS
+# (tests.md, mocking.md, agents/…) are KEPT. Before overlaying, snapshot the pristine upstream to
+# .claude/skill-original/<name>/ (gitignored) so `diff skill-original/<s>/SKILL.md
+# skill-overrides/<s>/SKILL.md` shows exactly our delta and a re-vendor reveals upstream drift.
+# See docs/agents/skills.md (written 2026-08-06; this
+# comment previously cited a "skill-ownership table" that did not exist, which is why agents kept
+# editing the generated skills/ directory).
+OVERRIDES="$ROOT/.claude/skill-overrides"
+ORIGINAL="$ROOT/.claude/skill-original"
+
+if [ -d "$OVERRIDES" ]; then
+  for d in "$OVERRIDES"/*/; do
+    [ -d "$d" ] || continue
+    s="$(basename "$d")"
+    if [ -d "$DEST/$s" ]; then
+      mkdir -p "$ORIGINAL"; rm -rf "${ORIGINAL:?}/$s"; cp -R "$DEST/$s" "$ORIGINAL/$s"   # snapshot pristine
+    fi
+    echo "==> override (overlay): $s — our files win, upstream siblings kept"
+    mkdir -p "$DEST/$s"
+    cp -R "$d". "$DEST/$s/"                                                              # overlay contents
+  done
+fi
+
 echo
-echo "Vendored: careful freeze guard cso design-review design-consultation feature-forge spec-miner impeccable taste ui-ux-pro-max design-system ui-styling grill-with-docs agent-browser"
+echo "Vendored: gstack(careful freeze guard cso design-review design-consultation) jeffallan(spec-miner) impeccable(+tracked detector) taste ui-ux-pro-max design-system ui-styling sssf agent-browser + mattpocock full eng+prod set"
+echo "sssf factory skeleton stamped into adws/ at pin $SSSF_PIN (see adws/PORT-MANIFEST.md)"
+echo "Project overrides applied from .claude/skill-overrides/: $(ls "$OVERRIDES" 2>/dev/null | tr '\n' ' ')"
 echo "superpowers (plugin) — install once with:"
 echo "  claude plugin install superpowers@claude-plugins-official --scope project"

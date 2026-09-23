@@ -36,9 +36,12 @@ export const ORPHAN = {
 // the dev canon.
 export const RECOVERY_VIEWER = {
   email: 'e2e.recovery@example.test',
-  password: 'e2e-password-123',
+  // Meets the sign-up policy (lower, upper, digit): auth-recovery sets it back through the admin API.
+  password: 'E2e-password-123',
   personId: '4e000000-0000-0000-0000-000000000004', // dedicated e2e person (isolated from dev Sari)
-  displayName: 'Recovery Tester',
+  // Every dedicated e2e person's display name starts with "E2E " — that prefix is what
+  // global-teardown deletes on, so the dev directory holds only the seed after a run.
+  displayName: 'E2E Recovery Tester',
 }
 
 // ADMIN: dedicated e2e-only user + dedicated e2e person row, granted the `admin` access role in
@@ -52,13 +55,29 @@ export const ADMIN = {
   displayName: 'E2E Admin',
 }
 
-// MEMBER (Issue E — Home stacked-union): a dedicated e2e-only user + dedicated e2e person with the
-// `member` access role and NO org role (not a manager/BU-head/owner) → a pure contributor whose
-// stacked Home is capture-first only. Same dedicated-e2e isolation pattern as ADMIN/RECOVERY so it
-// never touches a dev persona (all dev personas are BU-heads). Used by home-stacked-union.spec.ts.
-export const MEMBER = {
-  email: 'e2e.member@example.test',
+// ── AC-014 (#238) — the bar-capture journey's two personas ────────────────────────────────────
+// A BAR STREAM is what this journey needs and no dev persona is one: every dev persona's primary
+// Team is org structure, not a (branch, activity). So these two are dedicated e2e people, granted
+// a live primary membership of the (Rumah Rames, bar) stream Team in global-setup — which makes
+// BAR_MEMBER's capture surface open on that stream by default (FR-001) and BAR_SUPERVISOR its
+// stream reviewer (FR-040). Same dedicated-e2e isolation as ADMIN: e2e-namespaced person
+// ids (4e00…), so no dev persona's team, roles or login is touched.
+//
+// NFR-005 (public repo): role-shaped display names only — never a staff name.
+export const BAR_MEMBER = {
+  email: 'e2e.bar.member@example.test',
   password: 'e2e-password-123',
-  personId: '4e000000-0000-0000-0000-0000000000e1', // dedicated e2e person (E2E Member)
-  displayName: 'E2E Member',
+  personId: '4e000000-0000-0000-0000-0000000000b1',
+  displayName: 'E2E Bar Member',
 }
+
+export const BAR_SUPERVISOR = {
+  email: 'e2e.bar.supervisor@example.test',
+  password: 'e2e-password-123',
+  personId: '4e000000-0000-0000-0000-0000000000b2',
+  displayName: 'E2E Bar Supervisor',
+}
+
+/** The stream both personas belong to — resolved by branch CODE, since the seeded stream Teams
+ *  carry generated ids (shared.seed_stream_teams). */
+export const BAR_STREAM = { branchCode: 'rumah_rames', activity: 'bar' } as const

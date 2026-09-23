@@ -1,162 +1,255 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { useMemo } from 'react'
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { BreadcrumbTitleProvider, useSetBreadcrumbTitle, useSetCollectionLeaf } from './breadcrumb-title'
 import { Breadcrumb } from './breadcrumb'
+import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
+import { useT } from '@/i18n/use-t'
 
-function renderBreadcrumb(path: string) {
+function TestCollectionChrome() {
+  const { search } = useLocation()
+  const t = useT()
+  const view = new URLSearchParams(search).get('view')
+  const canonical = view === 'mine' ? 'my-work' : view ?? 'all'
+  const leaf = useMemo(() => ({
+    label: canonical === 'my-work' ? t('tasks.saved.mine') : canonical === 'overdue' ? t('followUps.overdue') : t('tasks.saved.all'),
+    hasNonDefaultView: canonical !== 'all',
+  }), [canonical, t])
+  useSetCollectionLeaf(leaf)
+  return null
+}
+
+// Breadcrumb reads useBreadcrumbTitle for the dynamic task title (AC-019).
+function renderBC(path: string) {
   return render(
     <I18nProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path="*" element={<Breadcrumb />} />
-        </Routes>
-      </MemoryRouter>
+      <BreadcrumbTitleProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <TestCollectionChrome />
+          <Routes>
+            <Route path="*" element={<nav aria-label="Breadcrumb"><Breadcrumb /></nav>} />
+          </Routes>
+        </MemoryRouter>
+      </BreadcrumbTitleProvider>
     </I18nProvider>,
   )
 }
 
-// AC-S04: breadcrumb drops the leading "Gordi MOS" brand crumb (ADR-0013 D1 — brand lives in top bar)
-describe('AC-S04: Breadcrumb drops the leading brand crumb', () => {
-  it('AC-S04: at /tasks, shows "Work › Tasks" and no "Gordi MOS"', () => {
-    renderBreadcrumb('/tasks')
-    expect(screen.getByText('Work')).toBeInTheDocument()
+// Helper: the breadcrumb's full text content (labels joined by · separators).
+// Normalize the · separator spacing (it's rendered with CSS margins, so textContent
+// has no surrounding spaces) to match the §9 visual "Work · Tasks".
+function crumbText() {
+  const nav = screen.getByRole('navigation', { name: 'Breadcrumb' })
+  return (nav.textContent?.replace(/\s+/g, ' ').replace(/\s*·\s*/g, ' · ').trim() ?? '')
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+// AC-018: · separator, last segment bold, no brand prefix (§9 table).
+describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', () => {
+  it('/ → "Home"', () => {
+    renderBC('/')
+    expect(crumbText()).toBe('Home')
+  })
+
+  it('/work/tasks → "Work · Tasks"', () => {
+    renderBC('/work/tasks')
+    expect(crumbText()).toBe('Work · Tasks')
+  })
+
+  it('/work/tasks?view=mine → "Work · Tasks · My work"', () => {
+    renderBC('/work/tasks?view=mine')
+    expect(crumbText()).toBe('Work · Tasks · My work')
+  })
+
+  it('/work/signals → "Work · Signals"', () => {
+    renderBC('/work/signals')
+    expect(crumbText()).toBe('Work · Signals')
+  })
+
+  // #444 — a ship-gated path resolves to NOTHING, the same answer an unknown path gets, and for
+  // the same reason: nothing routes there. `/work/projects`, `/work/objectives`, `/work/events`,
+  // `/money` and `/money/detail` each read "Work · …" / "Money · …" here until the gate closed
+  // them. Printing a crumb for a surface the router forwards away from would name a page the
+  // viewer is not on. Delete a path from SHIP_GATED_PATHS and its crumb comes back with no edit
+  // to breadcrumb.tsx.
+  it.each([...SHIP_GATED_PATHS, '/money/detail'])(
+    'the ship-gated %s renders no crumb at all',
+    (path) => {
+      renderBC(path)
+      expect(crumbText()).toBe('')
+    },
+  )
+
+  it('/inbox → "Inbox"', () => {
+    renderBC('/inbox')
+    expect(crumbText()).toBe('Inbox')
+  })
+
+  it('/cafe/log → "Café"', () => {
+    renderBC('/cafe/log')
+    expect(crumbText()).toBe('Café')
+  })
+
+  it('/cafe/review → "Café · Review"', () => {
+    renderBC('/cafe/review')
+    expect(crumbText()).toBe('Café · Review')
+  })
+
+  it('/admin/people → "Admin Settings · People"', () => {
+    renderBC('/admin/people')
+    expect(crumbText()).toBe('Admin Settings · People')
+  })
+
+  it('/profile → "Personal Profile"', () => {
+    renderBC('/profile')
+    expect(crumbText()).toBe('Personal Profile')
+  })
+
+  it('desktop: the leaf owns /profile, which has no rail row (OD-WAY-77), while Admin and Work leaves do not', () => {
+    // Rule 5: exactly one element carries aria-current. Admin pins to the rail foot and Work is a
+    // rail row, so the rail owns them; Personal Profile lives in the identity menu, so its leaf
+    // is the only thing on screen that can say where the viewer is.
+    renderBC('/profile')
+    expect(screen.getByText('Personal Profile')).toHaveAttribute('aria-current', 'page')
+    renderBC('/admin/people')
+    expect(screen.getByText('People')).not.toHaveAttribute('aria-current')
+    renderBC('/work/tasks')
+    expect(screen.getAllByText('Tasks').at(-1)).not.toHaveAttribute('aria-current')
+  })
+
+  it('uses the · separator (not ›)', () => {
+    const { container } = renderBC('/work/tasks')
+    expect(container.textContent).toContain('·')
+    expect(container.textContent).not.toContain('›')
+  })
+
+  it('last segment is bold (<b>)', () => {
+    renderBC('/work/tasks')
+    const bold = screen.getByText('Tasks')
+    expect(bold.tagName).toBe('B')
+  })
+
+  it('no brand prefix — does not start with "Gordi"', () => {
+    renderBC('/work/tasks')
+    expect(crumbText().startsWith('Gordi')).toBe(false)
+  })
+
+  it('renders nothing for an unknown/404 route (empty breadcrumb)', () => {
+    renderBC('/unknown-xyz')
+    // Breadcrumb returns null for an unknown route — the nav wrapper is empty.
+    expect(crumbText()).toBe('')
+  })
+})
+
+// #410: the ?view= leaf map and the create-task leaf were hardcoded English (module-level
+// literals), so an Indonesian viewer read "Work · Tasks · My work" around a translated shell.
+describe('breadcrumb leaves resolve the id locale (#410)', () => {
+  beforeEach(() => localStorage.setItem('mos.locale', 'id'))
+  afterEach(() => localStorage.removeItem('mos.locale'))
+
+  it('?view=mine leaf renders Pekerjaan saya, not My work', () => {
+    renderBC('/work/tasks?view=mine')
+    expect(crumbText()).toContain('Pekerjaan saya')
+    expect(crumbText()).not.toContain('My work')
+  })
+
+  it('?view=overdue leaf renders Terlambat', () => {
+    renderBC('/work/tasks?view=overdue')
+    expect(crumbText()).toContain('Terlambat')
+    expect(crumbText()).not.toContain('Overdue')
+  })
+
+  it('/work/tasks/new leaf renders Buat tugas, not Create task', () => {
+    renderBC('/work/tasks/new')
+    expect(crumbText()).toContain('Buat tugas')
+    expect(crumbText()).not.toContain('Create task')
+  })
+})
+
+// ── AC-020 (#755, A-3 / FR-020): below rail-collapse the header shows the LEAF title only ──
+// A phone header has no room for a trail of ancestors: "Work · Tasks ·" with a dangling
+// separator names places the viewer navigated PAST (audit F-9). The leaf is never empty —
+// a record page shows the record title, a collection page the collection leaf.
+const originalMatchMedia = window.matchMedia
+
+afterEach(() => {
+  Object.defineProperty(window, 'matchMedia', { value: originalMatchMedia, writable: true, configurable: true })
+})
+
+function setNarrow(matches: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches, media: query, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
+    }),
+  })
+}
+
+function TitleSetter({ title }: { title: string }) {
+  useSetBreadcrumbTitle(title)
+  return null
+}
+
+function renderBCNarrow(path: string, dynamicTitle?: string) {
+  setNarrow(true)
+  return render(
+    <I18nProvider>
+      <BreadcrumbTitleProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route
+              path="*"
+              element={
+                <>
+                  {dynamicTitle && <TitleSetter title={dynamicTitle} />}
+                  <Breadcrumb />
+                </>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
+      </BreadcrumbTitleProvider>
+    </I18nProvider>,
+  )
+}
+
+describe('AC-020: below rail-collapse the breadcrumb is the leaf title only (A-3)', () => {
+  it('390 task page: the record title only — no Work crumb, no Tasks crumb, no · separator', () => {
+    const { container } = renderBCNarrow('/work/tasks/abc-123', 'Fix the grinder')
+    expect(screen.getByText('Fix the grinder')).toBeInTheDocument()
+    expect(screen.queryByText('Work')).toBeNull()
+    expect(screen.queryByText('Tasks')).toBeNull()
+    const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
+      .filter((el) => el.textContent === '·')
+    expect(separators).toHaveLength(0)
+  })
+
+  it('390 collection page: the collection leaf only', () => {
+    const { container } = renderBCNarrow('/work/tasks')
     expect(screen.getByText('Tasks')).toBeInTheDocument()
-    expect(screen.queryByText('Gordi MOS')).toBeNull()
-  })
-
-  it('AC-S04: at /tasks/new, text content is "Work › New task" (no brand prefix)', () => {
-    const { container } = renderBreadcrumb('/tasks/new')
-    expect(screen.getByText('Work')).toBeInTheDocument()
-    expect(screen.getByText('New task')).toBeInTheDocument()
-    expect(screen.queryByText('Gordi MOS')).toBeNull()
-    // Exactly one › separator between Work and New task
+    expect(screen.queryByText('Work')).toBeNull()
     const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
-      .filter((el) => el.textContent === '›')
-    expect(separators).toHaveLength(1)
-  })
-})
-
-// FIX-4: 404 breadcrumb — no orphan separator, no aria-current on unknown route
-describe('FIX-4: Breadcrumb at unknown path — no orphan separator', () => {
-  it('does NOT render the › separator when no section exists (unknown path)', () => {
-    const { container } = renderBreadcrumb('/unknown-route-xyz')
-    // The separator span should not be present when there's no section
-    const separators = container.querySelectorAll('[aria-hidden="true"]')
-    // Either no separator span at all, or zero rendered chars matching ›
-    const orphanSep = Array.from(separators).find((el) => el.textContent === '›')
-    expect(orphanSep).toBeUndefined()
+      .filter((el) => el.textContent === '·')
+    expect(separators).toHaveLength(0)
   })
 
-  it('does NOT have aria-current on any nav item when at an unknown path (NotFound has no section)', () => {
-    // Breadcrumb renders "Gordi MOS" with no active section — no nav item should claim aria-current
-    const { container } = renderBreadcrumb('/some-unknown-path')
-    const currentEls = container.querySelectorAll('[aria-current]')
-    expect(currentEls.length).toBe(0)
-  })
-})
-
-// AC-004 (updated for ADR-0013 D1 / AC-S04, FR-S03): breadcrumb shows "<Section>" only for a
-// single-link destination (Home), and "<Destination> › <Leaf>" for a multi/regrouped route.
-describe('AC-004: Breadcrumb per route (brand-crumb dropped per AC-S04)', () => {
-  it('renders "Home" (bold, no leaf) at "/" — the single-link Home destination', () => {
-    renderBreadcrumb('/')
-    expect(screen.queryByText('Gordi MOS')).toBeNull()
-    const sectionEl = screen.getByText('Home')
-    expect(sectionEl.tagName.toLowerCase()).toBe('b')
+  it('the leaf is never empty: an unresolved record title falls back to the collection leaf', () => {
+    renderBCNarrow('/work/tasks/abc-123')
+    expect(screen.getByText('Tasks')).toBeInTheDocument()
   })
 
-  it('renders "Work › Tasks" at "/tasks" (FR-S03: destination label as section, own label as leaf)', () => {
-    renderBreadcrumb('/tasks')
-    expect(screen.queryByText('Gordi MOS')).toBeNull()
-    expect(screen.getByText('Work').tagName.toLowerCase()).not.toBe('b')
-    expect(screen.getByText('Tasks').tagName.toLowerCase()).toBe('b')
+  it('the leaf carries the location when the phone surface cannot (a non-tab destination)', () => {
+    // Rule 5: a Work child's leaf does NOT claim aria-current at phone width — the bottom-tab
+    // Work entry owns the location. A destination with no tab (Admin) is owned by the leaf.
+    renderBCNarrow('/admin/people')
+    const leaf = screen.getByText('People')
+    expect(leaf).toHaveAttribute('aria-current', 'page')
   })
-})
-
-// FR-S03 + UI-coherence C2/C3: every /kitchen/* route reads "Operate › Kitchen › <own label>".
-describe('FR-S03/RI-IA-KITCHEN: Kitchen routes read "Operate › Kitchen › <Log|Plan|Stock|Review|Pushes>"', () => {
-  const kitchenCases = [
-    { path: '/kitchen/log', leaf: 'Kitchen Log' },
-    { path: '/kitchen/plan', leaf: 'Plan' },
-    { path: '/kitchen/stock', leaf: 'Stock' },
-    { path: '/kitchen/review', leaf: 'Review' },
-    { path: '/kitchen/pushes', leaf: 'Pushes' },
-  ]
-
-  kitchenCases.forEach(({ path, leaf }) => {
-    it(`renders "Operate › Kitchen › ${leaf}" at "${path}"`, () => {
-      const { container } = renderBreadcrumb(path)
-      expect(screen.getByText('Operate')).toBeInTheDocument()
-      expect(screen.getByText('Kitchen')).toBeInTheDocument()
-      const leafEl = screen.getByText(leaf)
-      expect(leafEl.tagName.toLowerCase()).toBe('b')
-      const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
-        .filter((el) => el.textContent === '›')
-      expect(separators).toHaveLength(2)
-    })
-  })
-})
-
-// FR-424 (nav-five-destinations): the relocated Work manage routes + the Plan Dashboard link + the
-// Operate Daily Log all resolve through their owning destination — "Work › Objectives",
-// "Work › Projects & Processes", "Plan › Dashboard", "Operate › Daily Log".
-describe('AC-408: breadcrumb resolves manage/Plan/Operate routes through their destination (FR-424)', () => {
-  const cases = [
-    { path: '/work/objectives', section: 'Work', leaf: 'Objectives' },
-    { path: '/work/projects-processes', section: 'Work', leaf: 'Projects & Processes' },
-    { path: '/dashboard', section: 'Plan', leaf: 'Dashboard' },
-    { path: '/ops', section: 'Operate', leaf: 'Daily Log' },
-  ]
-
-  for (const { path, section, leaf } of cases) {
-    it(`renders "${section} › ${leaf}" at "${path}"`, () => {
-      const { container } = renderBreadcrumb(path)
-      expect(screen.getByText(section)).toBeInTheDocument()
-      const leafEl = screen.getByText(leaf)
-      expect(leafEl.tagName.toLowerCase()).toBe('b')
-      const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
-        .filter((el) => el.textContent === '›')
-      expect(separators).toHaveLength(1)
-    })
-  }
-})
-
-// Routes NOT owned by a destination (Admin, cascade catalog, manage surfaces — drill-only or
-// role-gated) keep resolving via sectionForPath's own label, unaffected.
-describe('Routes outside DESTINATIONS resolve via their own section label (unaffected)', () => {
-  it('renders "Admin › People" at /admin/people', () => {
-    const { container } = renderBreadcrumb('/admin/people')
-    expect(screen.getByText('Admin')).toBeInTheDocument()
-    expect(screen.getByText('People').tagName.toLowerCase()).toBe('b')
-    const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
-      .filter((el) => el.textContent === '›')
-    expect(separators).toHaveLength(1)
-  })
-})
-
-// IA-2 (updated for AC-S04/FR-S03): breadcrumb EXTENDS to the leaf on sub-pages.
-// No brand prefix — format is "Destination › Leaf" (one separator, two segments).
-describe('IA-2: Breadcrumb extends to the leaf on sub-pages (no brand prefix)', () => {
-  const leafCases: Array<{ path: string; section: string; leaf: string }> = [
-    { path: '/tasks/new', section: 'Work', leaf: 'New task' },
-  ]
-
-  for (const { path, section, leaf } of leafCases) {
-    it(`renders "${section} › ${leaf}" at "${path}" (leaf bold, section muted, no brand prefix)`, () => {
-      const { container } = renderBreadcrumb(path)
-      // No brand prefix (AC-S04 deliberate UX change — brand lives in TopBar)
-      expect(screen.queryByText('Gordi MOS')).toBeNull()
-      // Two segments + one › separator
-      expect(screen.getByText(section)).toBeInTheDocument()
-      expect(screen.getByText(leaf)).toBeInTheDocument()
-      const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
-        .filter((el) => el.textContent === '›')
-      expect(separators).toHaveLength(1)
-      // Leaf is bold (current page); section is muted
-      const leafEl = screen.getByText(leaf)
-      expect(leafEl.tagName.toLowerCase()).toBe('b')
-      expect(screen.getByText(section).tagName.toLowerCase()).not.toBe('b')
-    })
-  }
 })

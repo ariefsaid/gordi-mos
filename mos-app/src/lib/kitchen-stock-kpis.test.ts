@@ -16,7 +16,8 @@
 // round and the selector has no A–E consumer; building it now would be dead code.)
 
 import { describe, it, expect } from 'vitest'
-import { computeStockKpis } from './kitchen-stock-kpis'
+import { computeStockKpis, computeStockKpiStripData } from './kitchen-stock-kpis'
+import { translateFor } from '@/i18n/use-t'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
 
 function row(wip_item_id: string, name: string, stok: number, tersedia: number): KitchenStockRow {
@@ -88,5 +89,37 @@ describe('computeStockKpis — edge: empty roster', () => {
       unitsShort: 0,
       plannedDishCount: 0,
     })
+  })
+})
+
+// #411 review: this function had NO direct test — the "existing pure-compute tests keep their
+// single-argument call shape (they then assert the en fallback)" comment on its optional `t`
+// described tests that did not exist; every real caller passes `t`. `t` is now required, and
+// this is the coverage the comment claimed. It also pins the two sub-lines the port rewrote:
+// the on-hand tile carries the unit of its headline number, and the available tile says what
+// the figure is (transfer-ready), not that it accumulates.
+describe('computeStockKpiStripData — the translated strip (#411)', () => {
+  const strip = computeStockKpiStripData(ROWS, translateFor('en'))
+
+  it('names the on-hand tile in its own unit', () => {
+    const onHand = strip.tiles[0]
+    expect(onHand.label).toBe('Total on-hand')
+    expect(onHand.value).toBe('29') // 12 − 3 + 0 + 20
+    expect(onHand.sub).toBe('portions')
+  })
+
+  it('describes the available total as transfer-ready, and claims nothing about accumulation', () => {
+    const available = strip.tiles[3]
+    expect(available.label).toBe('Available total')
+    expect(available.value).toBe('20') // 8 − 3 + 0 + 15
+    expect(available.sub).toBe('transfer-ready')
+    expect(available.delta).not.toMatch(/cumulative/i)
+  })
+
+  it('resolves through the injected translator, not a private English copy', () => {
+    const id = computeStockKpiStripData(ROWS, translateFor('id'))
+    expect(id.tiles[0].label).toBe('Total stok fisik')
+    expect(id.tiles[0].sub).toBe('porsi')
+    expect(id.tiles[3].sub).toBe('siap ditransfer')
   })
 })

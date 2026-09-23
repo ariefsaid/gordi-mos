@@ -1,90 +1,110 @@
-// PR-D e2e journeys 4–6 (split-view redesign, ADR-0007):
-//   J4 (AC-102): deep-link /tasks/:id → table + that task's drawer render together.
-//   J5 (AC-110 mobile): 390×844 viewport → /tasks/:id renders the full-screen modal;
-//        Esc/back returns to the card list.
-//   J6 (AC-109): keyboard nav — j j Enter opens the 2nd row; Esc → /tasks; n → /tasks/new.
-// Requires the live stack (supabase up on 44321) + the global-setup seed.
+// Task record journeys:
+// hard links render the standalone canonical page at any width; desktop in-list opens retain the
+// collection panel; phone card opens use the full-screen record page and return to the card list;
+// desktop keyboard navigation opens the second row and creates an inline draft.
 
-import { test, expect } from '@playwright/test'
+import { type Page } from '@playwright/test'
+import { test, expect } from './fixtures/task-browser'
 import { loginAs } from './helpers/login'
-import { createTaskViaUI } from './helpers/tasks'
+import { createTaskViaUI, selectTaskView } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
 import { TASKS } from './fixtures/tasks'
 
-test('AC-102 (J4): deep-link to /tasks/:id renders the table AND that task drawer together', async ({ page }) => {
+// selectTaskView is self-managing (#870): it opens the phone "View & filters" door only when the
+// chips are nested inside it, and closes it again — a door left open was seen to intercept the
+// page-level 'n'/'j' keyboard shortcuts this file's AC-109 exercises.
+async function selectAllView(page: Page) {
+  await selectTaskView(page, 'All')
+}
+
+test('AC-102 (J4): deep-link to /work/tasks/:id renders the standalone canonical record page (OD-63)', async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
   const taskId = TASKS.VIEWER_ACCOUNTABLE.id
   const title = TASKS.VIEWER_ACCOUNTABLE.title
 
-  // Land directly on the deep link (e.g. from My Week / Daily Log).
-  await page.goto(`tasks/${taskId}`)
-  await page.waitForURL(new RegExp(`/tasks/${taskId}$`))
+  await page.goto(`work/tasks/${taskId}`)
+  await page.waitForURL(new RegExp(`/work/tasks/${taskId}$`))
 
-  // Both panes render: the persistent table AND the task's drawer.
-  const drawer = page.getByRole('complementary', { name: /task detail/i })
-  await expect(drawer.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByRole('region', { name: 'Tasks' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('link', { name: /back to tasks/i })).toBeVisible()
+  await expect(page.getByRole('complementary', { name: /task detail/i })).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Tasks' })).toHaveCount(0)
 })
 
 test.describe('mobile', () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
-  test('AC-110 (J5): on a phone, /tasks/:id is a full-screen modal; back returns to the card list', async ({ page }) => {
+  test('AC-110 (J5) part A: a deep link is the SAME standalone page on a phone (OD-63 is viewport-independent)', async ({ page }) => {
     await loginAs(page, VIEWER.email, VIEWER.password)
     const taskId = TASKS.VIEWER_ACCOUNTABLE.id
     const title = TASKS.VIEWER_ACCOUNTABLE.title
 
-    await page.goto(`tasks/${taskId}`)
-    await page.waitForURL(new RegExp(`/tasks/${taskId}$`))
+    await page.goto(`work/tasks/${taskId}`)
+    await page.waitForURL(new RegExp(`/work/tasks/${taskId}$`))
 
-    // Full-screen modal dialog (no 1/3 drawer on a phone).
-    const dialog = page.getByRole('dialog', { name: /task detail/i })
-    await expect(dialog.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
-    await expect(page.locator('.drawer-modal.drawer-fullscreen')).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('link', { name: /back to tasks/i })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: /task detail/i })).toHaveCount(0)
+  })
 
-    // Esc closes back to the list (the modal's document-level Esc handler).
-    await page.keyboard.press('Escape')
-    await page.waitForURL(/\/tasks$/)
-    // The list form on mobile is the card list.
+  test('AC-110 (J5) part B: opening a task in-app on a phone renders the full-screen record; Back returns to the card list', async ({ page }, testInfo) => {
+    await loginAs(page, VIEWER.email, VIEWER.password)
+    const title = `Phone record ${Date.now()}`
+
+    await page.goto('work/tasks')
+    await page.waitForURL(/\/work\/tasks$/)
+    await selectAllView(page)
+    await createTaskViaUI(page, title)
+    const card = page.locator('[data-testid="task-card"]', { hasText: title }).first()
+    await expect(card).toBeVisible({ timeout: 10_000 })
+    await card.getByRole('link').click()
+    await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}(?:\?.*)?$/)
+
+    await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole('link', { name: /back to tasks/i })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: /task detail/i })).toHaveCount(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.screenshot({ path: testInfo.outputPath('canonical-phone.png') })
+
+    await page.getByRole('link', { name: /back to tasks/i }).click()
+    await page.waitForURL(/\/work\/tasks(?:\?.*)?$/)
     await expect(page.locator('[data-testid="task-card"]').first()).toBeVisible({ timeout: 10_000 })
   })
 })
 
 test('AC-109 (J6): keyboard — j j Enter opens the 2nd row; Esc closes; n opens create', async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
-  await page.goto('tasks')
-  await page.waitForURL(/\/tasks$/)
-  await page.getByRole('tab', { name: 'All' }).click()
+  await page.goto('work/tasks')
+  await page.waitForURL(/\/work\/tasks$/)
+  await selectAllView(page)
 
-  // The seed has one task; create a second so j j has somewhere to land.
   await createTaskViaUI(page, `J6 Second ${Date.now()}`)
-  await page.goto('tasks')
-  await page.waitForURL(/\/tasks$/)
-  await page.getByRole('tab', { name: 'All' }).click()
+  await page.goto('work/tasks')
+  await page.waitForURL(/\/work\/tasks$/)
+  await selectAllView(page)
 
-  // Wait for at least two rows so j j has somewhere to land.
   await expect(page.locator('tbody tr.task-row').nth(1)).toBeVisible({ timeout: 10_000 })
+  const secondTitle = await page.locator('tbody tr.task-row').nth(1).locator('.task-name').first().innerText()
 
-  // Click the page-head (not a field) so single-letter hotkeys are live.
-  await page.getByRole('heading', { name: 'Tasks' }).click();
+  await page.getByRole('heading', { name: 'Tasks', exact: true }).click()
 
-  // j j moves the cursor to the 2nd row; Enter opens it.
   await page.keyboard.press('j')
   await page.keyboard.press('j')
   await expect(page.locator('tr.task-row.kfocus')).toBeVisible()
   const cursorTitle = await page.locator('tr.task-row.kfocus .task-name').first().innerText()
+  expect(cursorTitle).toBe(secondTitle)
   await page.keyboard.press('Enter')
-  await page.waitForURL(/\/tasks\/[0-9a-f-]{36}$/)
+  await page.waitForURL(/\/work\/tasks\?(?=[^#]*record=[0-9a-f-]{36})[^#]*$/)
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   await expect(drawer.getByRole('heading', { name: cursorTitle })).toBeVisible({ timeout: 10_000 })
 
-  // Esc closes the drawer → back to /tasks.
   await page.keyboard.press('Escape')
-  await page.waitForURL(/\/tasks$/)
+  await page.waitForURL(/\/work\/tasks$/)
 
-  // n opens the create drawer.
-  await page.getByRole('heading', { name: 'Tasks' }).click()
+  await page.getByRole('heading', { name: 'Tasks', exact: true }).click()
   await page.keyboard.press('n')
-  await page.waitForURL(/\/tasks\/new$/)
-  await expect(page.getByRole('complementary', { name: /new task/i })).toBeVisible()
+  await expect(page).toHaveURL(/\/work\/tasks$/)
+  // task-create-form.tsx: the ONE create form's Title field — "Edit task title" was the retired
+  // TaskDrawer inline-rename control's name; the create draft's own Title field is just "Title".
+  await expect(page.getByRole('textbox', { name: 'Title', exact: true })).toBeVisible()
 })

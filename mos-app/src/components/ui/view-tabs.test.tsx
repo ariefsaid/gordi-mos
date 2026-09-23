@@ -2,8 +2,9 @@
 // archetype de-duplication). Replaces the deleted tab-strip.test.tsx coverage +
 // adds the `soon`/`disabled` + enabled-only keyboard-nav contracts that the
 // tasks Table/Board/Calendar grammar needs.
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { ViewTabs } from './view-tabs'
 import type { ViewTab } from './view-tabs'
 
@@ -151,5 +152,28 @@ describe('ViewTabs', () => {
       />,
     )
     expect(screen.getByText('Applies to both tabs')).toBeInTheDocument()
+  })
+})
+
+
+// #359 — the soon-tab tooltip goes through the catalog (was a hardcoded 'Coming soon').
+describe('ViewTabs — localized soon tooltip (#359)', () => {
+  it('a soon tab carries the en catalog tooltip', () => {
+    render(<ViewTabs tabs={TABS} active="summary" onChange={vi.fn()} />)
+    expect(screen.getByRole('tab', { name: /board/i })).toHaveAttribute('title', 'Coming soon')
+  })
+
+  describe('id locale', () => {
+    beforeEach(() => localStorage.setItem('mos.locale', 'id'))
+    afterEach(() => localStorage.clear())
+
+    it('renders "Segera hadir" when the locale is id', () => {
+      render(
+        <I18nProvider>
+          <ViewTabs tabs={TABS} active="summary" onChange={vi.fn()} />
+        </I18nProvider>,
+      )
+      expect(screen.getByRole('tab', { name: /board/i })).toHaveAttribute('title', 'Segera hadir')
+    })
   })
 })

@@ -1,0 +1,85 @@
+/* TaskCreateForm — ONE create form, desktop (full-width colSpan row) and phone (single column,
+   inside a card) alike. Tokens only — see DESIGN.md / index.css. */
+.tcf {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+}
+.tcf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.tcf-label {
+  font-size: var(--font-size-label);
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.tcf-required {
+  color: var(--status-lost-text);
+}
+.tcf-title {
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  overflow: hidden;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-touch-input);
+  line-height: 1.4;
+}
+.tcf-title:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.tcf-title[aria-invalid='true'] {
+  border-color: var(--status-lost-text);
+}
+.tcf-error {
+  margin: 0;
+  font-size: var(--font-size-label);
+  color: var(--field-error-text);
+}
+.tcf-save-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tcf-hint {
+  margin: 0;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+/* Field row: Team · PIC · Supervisor. Three columns on a wide track (desktop table),
+   one column on a narrow one (phone card) — no separate phone-only markup to drift. */
+.tcf-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 767.98px) {
+  .tcf-row { grid-template-columns: 1fr; }
+}
+.tcf-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+/* Phone touch floor (DO-15(a) convention, TaskSurface.css): every control in the create form
+   is ≥44px tall, and inputs run ≥16px so mobile browsers never auto-zoom on focus. */
+@media (max-width: 767.98px) {
+  .tcf-title { min-height: 44px; font-size: var(--font-size-touch-input); }
+  .tcf .picker__trigger { min-height: 44px; font-size: var(--font-size-touch-input); }
+  .tcf-foot .btn { min-height: 44px; }
+}

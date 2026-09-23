@@ -12,6 +12,12 @@
   box-sizing: border-box;
 }
 
+.kpu-tally {
+  margin: 0 0 12px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
 /* ── Dead-letter row treatment (DESIGN.md "Ops Log tokens" exception).
    warning/7% fill + 2px warning left rule — the one owner-approved side-stripe.
    Paired with text label + fill (never color-alone, WCAG 1.4.1). ── */
@@ -39,9 +45,73 @@
 /* Mono for IDs (batch_id / esb_doc_num) — "Mono-For-IDs" rule (DESIGN.md) */
 .mono {
   font-family: var(--font-mono, "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace);
-  font-size: 12px;
+  font-size: var(--font-size-label);
   font-weight: 500;
   letter-spacing: 0;
+}
+
+/* ── #402: batch / ESB doc ids — one paste-able line ──
+   The mono id never wraps (hyphen line-breaks were folding ids across three lines),
+   scrolls horizontally inside its own cell if ever longer than it, and one click
+   selects the whole identifier — it is the one string a lead pastes into a support
+   conversation. The clamp is only real because `.kpu-cols` is fixed-layout (below):
+   in an auto-layout table the cell width is derived from its content, so `max-width:
+   100%` has nothing definite to resolve against, the overflow never fires, and an
+   unbreakable id widens the COLUMN instead (#416). */
+.kpu-ref {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow-x: auto;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+/* ── #416: the table fits the frame; long content is absorbed, never pushed off ──
+   Measured before this rule at an 820px viewport: the table laid out at 950px inside a
+   772px content column and `main` carried 154px of whole-page horizontal scroll, so
+   Created and Posted sat off screen with no affordance — the intermediate-width overflow
+   DESIGN.md §Responsive rules out ("the frame contracts … without forcing horizontal page
+   overflow", 768–1279px).
+
+   Fixed layout + literal widths, with the free-text Error column taking the slack, is the
+   house pattern (the Tasks collection table, `.tasks-table`). Every width below is the
+   column's real content demand, measured in the live page, not a guess. */
+.kpu-cols-host { container: kpu-pushes / inline-size; }
+
+.kpu-cols { table-layout: fixed; }
+
+.kpu-cols th:nth-child(1), .kpu-cols td:nth-child(1) { width: 140px; }  /* Batch — the pasted id */
+.kpu-cols th:nth-child(2), .kpu-cols td:nth-child(2) { width: 104px; }  /* Endpoint */
+.kpu-cols th:nth-child(3), .kpu-cols td:nth-child(3) { width: 84px; }   /* Target env tag */
+.kpu-cols th:nth-child(4), .kpu-cols td:nth-child(4) { width: 140px; }  /* Status tag ("Failed · stopped" is the widest) */
+.kpu-cols th:nth-child(5), .kpu-cols td:nth-child(5) { width: 72px; }   /* Retries */
+.kpu-cols th:nth-child(6), .kpu-cols td:nth-child(6) { width: auto; }   /* Error — prose, absorbs all slack */
+.kpu-cols th:nth-child(7), .kpu-cols td:nth-child(7) { width: 128px; }  /* ESB doc no. */
+.kpu-cols th:nth-child(8), .kpu-cols td:nth-child(8) { width: 144px; }  /* Created (date + time) */
+.kpu-cols th:nth-child(9), .kpu-cols td:nth-child(9) { width: 72px; }   /* Posted time */
+
+/* Narrow frame (< 1050px of table width): the nine columns above demand 884px before the
+   Error column has read a single character, so any frame under ~1050px would crush the one
+   column that answers "why". Below that the table follows a column PRIORITY instead of
+   clipping everything equally. The lead's question here is "what is stuck, why, and since
+   when": Batch, Target (is this even live?), Status, Error and Created stay; Endpoint,
+   Retries and Posted-time — the three the Status tag already implies — drop out, and come
+   back with the width. Created loses its nowrap so the date and clock stack rather than
+   demanding a 144px column.
+
+   The trigger is the CONTAINER, not the viewport: measured on this page, a 1280px window
+   with the full rail leaves 984px of content while a 1100px window with the compact rail
+   leaves 1052px — more room at the smaller viewport. A viewport breakpoint would drop
+   columns in the wrong places (DESIGN.md § Layout, The Container-Query Rule). */
+@container kpu-pushes (max-width: 1049.98px) {
+  .kpu-cols th:nth-child(2), .kpu-cols td:nth-child(2),
+  .kpu-cols th:nth-child(5), .kpu-cols td:nth-child(5),
+  .kpu-cols th:nth-child(9), .kpu-cols td:nth-child(9) { display: none; }
+
+  .kpu-cols th:nth-child(4), .kpu-cols td:nth-child(4) { width: 136px; }
+  .kpu-cols th:nth-child(8), .kpu-cols td:nth-child(8) { width: 96px; }
+  .kpu-cols td:nth-child(8) .kpu-time { white-space: normal; }
 }
 
 /* Tabular digits for retry_count and time columns */
@@ -53,13 +123,13 @@
 /* Muted tertiary text for last_error and dash placeholders */
 .kpu-cell-muted {
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--font-size-label);
 }
 
 /* Escalate hint (dead-letter read-only cue) */
 .kpu-escalate-hint {
   display: block;
-  font-size: 11px;
+  font-size: var(--font-size-overline);
   color: var(--warning-foreground);
   margin-top: 4px;
 }
@@ -67,7 +137,13 @@
 /* Time cell */
 .kpu-time {
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: var(--font-size-label);
+  white-space: nowrap;
+}
+
+/* One unbreakable part of a timestamp (the date, or the clock) — see the Created
+   column: the cell may wrap between them, never inside them. */
+.kpu-nb {
   white-space: nowrap;
 }
 
@@ -87,7 +163,7 @@
 }
 
 .kpu-forbidden-title {
-  font-size: 16px;
+  font-size: var(--font-size-body-lg);
   font-weight: 600;
   color: var(--foreground);
   margin-bottom: 8px;
@@ -96,5 +172,31 @@
 .kpu-forbidden-msg {
   color: var(--muted-foreground);
   margin-bottom: 16px;
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
+
+/* ── #422: the phone card ─────────────────────────────────────────────────────
+   Ten columns as labelled <dl> rows read one record fine but bury the broken row
+   in a long outbox. Head: ref + status. ONE muted meta line. Error only when real. */
+.kpu-card { display: flex; flex-direction: column; gap: 6px; }
+.kpu-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.kpu-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 12px;
+  row-gap: 2px;
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+.kpu-card-error { display: flex; flex-direction: column; gap: 2px; font-size: var(--font-size-label); }
+.kpu-meta-line { display: inline-flex; gap: 12px; font-size: var(--font-size-label); }
+/* needs-attention counts: amber for failed (retrying), the darkened destructive text
+   token for dead-letter — text on the page background, never a filled row treatment */
+.kpu-meta-dead { color: var(--status-lost-text); font-weight: 600; }
+.kpu-meta-failed { color: var(--status-open-text); font-weight: 600; }

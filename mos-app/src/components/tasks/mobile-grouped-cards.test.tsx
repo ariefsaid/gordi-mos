@@ -2,14 +2,16 @@
  * MobileGroupedCards — unit tests (Fix 2, PR-3 review fix-up).
  * Verifies the extracted mobile group-header+card list component shares the same
  * semantics as desktop GroupHeaderRow: caret/aria-expanded, label/count,
- * overdue-gating, and the "+ Add task" wiring.
+ * overdue-gating, and the "+ Create task" wiring.
  */
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { useState } from 'react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { MobileGroupedCards } from './mobile-grouped-cards'
 import type { MobileGroupedCardsProps } from './mobile-grouped-cards'
 import type { TaskListRow } from '@/lib/db/tasks.types'
+import { isShipGated } from '@/lib/ship-gate'
 
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   return {
@@ -26,6 +28,7 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 }
 
 const BASE_PROPS: MobileGroupedCardsProps = {
+  recordSearch: '',
   groups: [
     {
       key: 'Open',
@@ -49,7 +52,6 @@ const BASE_PROPS: MobileGroupedCardsProps = {
   toggleCollapsed: () => {},
   openAddTask: () => {},
   setOverdueOnly: () => {},
-  buildOthers: () => [],
   workLineMap: new Map<string, string>(),
   objectiveMap: new Map<string, string>(),
 }
@@ -63,6 +65,120 @@ function renderCards(props: Partial<MobileGroupedCardsProps> = {}) {
 }
 
 describe('MobileGroupedCards', () => {
+  it('retains a rejected create draft, shows inline Retry, and succeeds without discarding', async () => {
+    const onEditTitle = vi.fn()
+      .mockRejectedValueOnce(new Error('create failed'))
+      .mockResolvedValueOnce(undefined)
+    const onDiscardNewTask = vi.fn()
+    function Harness() {
+      return (
+        <MobileGroupedCards
+          {...BASE_PROPS}
+          groups={[{ ...BASE_PROPS.groups[0], rows: [makeTask({ id: 'draft', title: '', team_id: 'team-1' })] }]}
+          draftTaskId="draft"
+          onEditTitle={onEditTitle}
+          onDiscardNewTask={onDiscardNewTask}
+        />
+      )
+    }
+    render(<MemoryRouter><Harness /></MemoryRouter>)
+    const input = screen.getByRole('textbox', { name: /title/i })
+    fireEvent.change(input, { target: { value: 'New task' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    // role=alert IS the announcement (no separate live-region echo needed) — the failed save
+    // keeps every entered value and offers Retry, never silently discarding the draft.
+    expect(await screen.findByRole('alert')).toHaveTextContent(/couldn't save|try again/i)
+    expect(screen.getByRole('textbox', { name: /title/i })).toHaveValue('New task')
+    expect(onDiscardNewTask).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(onEditTitle).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('keeps a phone draft title across blur, then saves after Team and Supervisor are chosen', async () => {
+    const onEditTitle = vi.fn().mockResolvedValue(undefined)
+    function Harness() {
+      const [draft, setDraft] = useState(makeTask({
+        id: 'draft-mobile', title: '', team_id: null, business_unit_id: '', accountable_person_id: '',
+      }))
+      return (
+        <MobileGroupedCards
+          {...BASE_PROPS}
+          groups={[{ ...BASE_PROPS.groups[0], rows: [draft] }]}
+          draftTaskId={draft.id}
+          onEditTitle={onEditTitle}
+          onEditPic={async (_taskId, personId) => setDraft((current) => ({ ...current, responsible_person_id: personId }))}
+          onEditTeam={async (_taskId, teamId) => setDraft((current) => ({ ...current, team_id: teamId, business_unit_id: 'bu-1' }))}
+          onEditSupervisor={async (_taskId, personId) => setDraft((current) => ({ ...current, accountable_person_id: personId }))}
+          personOptions={[{ id: 'person-1', full_name: 'Arief Said' }]}
+          supervisorOptions={[{ id: 'person-2', full_name: 'Dewi Santoso' }]}
+          teamOptions={[{ id: 'team-1', name: 'Café team', businessUnitId: 'bu-1' }]}
+        />
+      )
+    }
+
+    render(<MemoryRouter><Harness /></MemoryRouter>)
+    const title = screen.getByRole('textbox', { name: /title/i })
+    fireEvent.change(title, { target: { value: 'Ship the café launch' } })
+    fireEvent.blur(title)
+    expect(screen.getByRole('textbox', { name: /title/i })).toHaveValue('Ship the café launch')
+    expect(onEditTitle).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Team' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Café team' }))
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supervisor' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Dewi Santoso' }))
+    expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Dewi Santoso')
+    fireEvent.keyDown(screen.getByRole('textbox', { name: /title/i }), { key: 'Enter' })
+
+    await waitFor(() => expect(onEditTitle).toHaveBeenCalledWith('draft-mobile', 'Ship the café launch'))
+  })
+
+  // The draft card renders the shared TaskCreateForm — its primary action reads "Create task"
+  // (reused i18n key), not a bare "Save".
+  it('renders the shared TaskCreateForm outside the record link with visible primary/Cancel actions', () => {
+    renderCards({
+      groups: [{
+        key: '__flat__', label: 'Tasks', rows: [makeTask({ id: 'draft-markup', title: '', team_id: 'team-1' })],
+        overdue: 0, prefillParam: '',
+      }],
+      draftTaskId: 'draft-markup',
+      onEditTitle: vi.fn().mockResolvedValue(undefined),
+      onEditPic: vi.fn().mockResolvedValue(undefined),
+      onEditTeam: vi.fn().mockResolvedValue(undefined),
+      onEditSupervisor: vi.fn().mockResolvedValue(undefined),
+      personOptions: [{ id: 'person-1', full_name: 'Arief Said' }],
+      supervisorOptions: [{ id: 'person-1', full_name: 'Arief Said' }],
+      teamOptions: [{ id: 'team-1', name: 'Café team', businessUnitId: 'bu-1' }],
+    })
+    const card = screen.getByTestId('task-card')
+    expect(card.querySelector('a')).toBeNull()
+    expect(screen.getByRole('textbox', { name: /title/i }).closest('a')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Create task' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
+    // The SAME TaskCreateForm the desktop colSpan row renders (task-row.test.tsx) — one
+    // component, single column here, never a bespoke phone-only draft implementation.
+    expect(card.querySelector('.tcf')).toBeTruthy()
+  })
+
+  it('opens an ordinary card on plain click but preserves modified-click navigation', () => {
+    const onOpenTask = vi.fn()
+    renderCards({
+      onOpenTask,
+      groups: [{
+        key: '__flat__', label: 'Tasks', rows: [makeTask({ id: 'ordinary', title: 'Ordinary task' })],
+        overdue: 0, prefillParam: '',
+      }],
+    })
+    const link = screen.getByRole('link', { name: /ordinary task/i })
+    const modifiedClick = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true })
+    link.dispatchEvent(modifiedClick)
+    expect(modifiedClick.defaultPrevented).toBe(false)
+    expect(onOpenTask).not.toHaveBeenCalled()
+    fireEvent.click(link)
+    expect(onOpenTask).toHaveBeenCalledWith('ordinary')
+  })
+
   it('renders a group header for each group with label and count', () => {
     renderCards()
     // Labels appear in .mgc-label spans
@@ -72,6 +188,25 @@ describe('MobileGroupedCards', () => {
     // Count for Open group (1 task)
     const openHead = document.querySelector('.mgc-group-head')!
     expect(openHead.textContent).toContain('1')
+  })
+
+  it('renders Objective hint above the Project/Process group title at phone width', () => {
+    renderCards({ groups: [{
+      key: 'objective:project', label: 'Launch', rows: [makeTask({ title: 'Ship task' })], overdue: 0, prefillParam: '',
+      objectiveHint: { id: 'objective-1', name: 'Grow revenue' }, workLineType: 'project',
+    }] })
+    // The hint's job is to say WHICH Objective this group of work belongs to, so the name is
+    // asserted unconditionally. Whether it is also a drill depends on the ship gate (#444): with
+    // Objectives outside the MVP payload the name stays and the link goes, because a phone tap
+    // that lands on a redirect back to Home is a dead end dressed as a control.
+    expect(screen.getByText('Grow revenue')).toBeInTheDocument()
+    if (isShipGated('/work/objectives')) {
+      expect(screen.queryByRole('link', { name: 'Grow revenue' })).toBeNull()
+    } else {
+      expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives/objective-1')
+    }
+    expect(screen.getByText('Launch')).toBeInTheDocument()
+    expect(screen.getByText('Ship task')).toBeInTheDocument()
   })
 
   it('renders task cards for non-collapsed groups', () => {
@@ -122,15 +257,27 @@ describe('MobileGroupedCards', () => {
     expect(setOverdueOnly).toHaveBeenCalledWith(true)
   })
 
-  it('+ Add task button fires openAddTask with the group prefillParam', () => {
+  it('+ Create task button fires openAddTask with the group prefillParam', () => {
     const openAddTask = vi.fn()
     const groups = [
       { key: 'p1', label: 'Arief Said', rows: [], overdue: 0, prefillParam: 'r=person-1' },
     ]
     renderCards({ groups, openAddTask })
-    const addBtn = screen.getByRole('button', { name: /add task to arief said/i })
+    const addBtn = screen.getByRole('button', { name: /create task in arief said/i })
     fireEvent.click(addBtn)
     expect(openAddTask).toHaveBeenCalledWith('r=person-1')
+  })
+
+  // DO-18(c) (census-sweep R2 tasks FINDING4) named the card's recency meta "Updated", never the
+  // ambiguous "Activity Nd" — but the v4 distill pass (TaskCard comment, .claude/skills/impeccable
+  // distill.md "remove redundancy") went further and dropped the recency line from the card body
+  // entirely: PIC + Supervisor + Due are the decision-relevant fields for weekly triage; the last-
+  // activity timestamp is one tap away on the record, not restated on every card. Neither the old
+  // ambiguous label nor the disambiguated one should appear — the field itself is gone.
+  it("DO-18(c) superseded by the distill pass: no recency meta on the card at all (neither \"Activity\" nor \"Updated\")", () => {
+    renderCards()
+    expect(screen.queryByText('Activity')).toBeNull()
+    expect(screen.queryByText('Updated')).toBeNull()
   })
 
   it('role="list" on the container and role="listitem" on each card wrapper (a11y)', () => {
@@ -143,5 +290,142 @@ describe('MobileGroupedCards', () => {
     renderCards()
     const cards = document.querySelectorAll('[data-testid="task-card"]')
     expect(cards.length).toBe(2)
+    expect(cards[0]).toHaveClass('collection-grammar-card')
+    expect(cards[0].querySelector('.collection-grammar-title')).toHaveTextContent('Task A')
+    expect(cards[0].querySelector('.collection-grammar-card-details')).toBeInTheDocument()
+  })
+
+  // Design fix wave item 3 (Rule 9 — occurrence group parity, phone width). Desktop's
+  // GroupHeaderRow renders the process_run_rollup summary + a capability-gated "N to assign"
+  // affordance for occurrence groups; the phone card list previously fell back to the plain
+  // count/overdue grammar with no rollup and no way to resolve a pending step — this closes
+  // that gap using the SAME handler contract (onAssignPending(runId)) the desktop path gets.
+  describe('occurrence group parity (item 3)', () => {
+    const OCC_GROUP = {
+      key: 'run-1',
+      label: 'Café Opening · 17 Jul 2026',
+      rows: [makeTask({ id: 'gen-1', title: 'Open the café' })],
+      overdue: 0,
+      prefillParam: '',
+      occurrenceRollup: { total: 2, done: 1, overdue: 0, pendingUnresolved: 1 },
+    }
+
+    // Design fix wave item 6 (MINOR — "1 to assign" stutter): no onAssignPending handler here
+    // (the viewer cannot act) — neutral "N unassigned" wording, never actionable-sounding text
+    // with nothing to click (mirrors GroupHeaderRow).
+    it('renders the roll-up summary (not the plain count) for an occurrence group, "N unassigned" with no assign handler', () => {
+      renderCards({ groups: [OCC_GROUP] })
+      expect(screen.getByText('1/2 done · 0 overdue · 1 unassigned')).toBeInTheDocument()
+    })
+
+    it('renders the "N to assign" affordance when pendingUnresolved > 0 and a handler is given, firing it with the run id', () => {
+      const onAssignPending = vi.fn()
+      renderCards({ groups: [OCC_GROUP], onAssignPending })
+      const assignBtn = screen.getByRole('button', { name: '1 to assign' })
+      fireEvent.click(assignBtn)
+      expect(onAssignPending).toHaveBeenCalledWith('run-1')
+    })
+
+    it('item 6: drops the pending clause from the summary when the "N to assign" button ALSO renders (no stutter)', () => {
+      renderCards({ groups: [OCC_GROUP], onAssignPending: vi.fn() })
+      expect(screen.getByText('1/2 done · 0 overdue')).toBeInTheDocument()
+      expect(screen.queryByText('1 to assign', { selector: '.mgc-count' })).not.toBeInTheDocument()
+    })
+
+    it('never renders the assign affordance when no handler is given (viewer cannot resolve)', () => {
+      renderCards({ groups: [OCC_GROUP] })
+      expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+    })
+
+    it('never renders the assign affordance when pendingUnresolved is 0, even with a handler', () => {
+      const zeroGroup = { ...OCC_GROUP, occurrenceRollup: { ...OCC_GROUP.occurrenceRollup, pendingUnresolved: 0 } }
+      renderCards({ groups: [zeroGroup], onAssignPending: vi.fn() })
+      expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+    })
+
+    it('a non-occurrence group is unaffected (plain count grammar, no assign affordance)', () => {
+      renderCards({ onAssignPending: vi.fn() }) // BASE_PROPS groups carry no occurrenceRollup
+      expect(screen.queryByRole('button', { name: /to assign/i })).not.toBeInTheDocument()
+    })
+
+    // Design fix wave item 4 (OD-65 mockup regression) — the generated-ownership "via <role>" line
+    // on the phone card, same data source (provenanceByTaskDefId) as the desktop TaskRow.
+    it('renders "via <role name>" on the card when the task carries a resolvable generated_from_task_def_id', () => {
+      const group = {
+        ...OCC_GROUP,
+        rows: [makeTask({ id: 'gen-1', title: 'Open the café', generated_from_task_def_id: 'def-1' })],
+      }
+      renderCards({
+        groups: [group],
+        provenanceByTaskDefId: new Map([['def-1', 'Cafe Ops Lead']]),
+      })
+      expect(screen.getByText('via Cafe Ops Lead')).toBeInTheDocument()
+    })
+
+    it('renders no provenance line when the task\'s def has no resolvable role name', () => {
+      const group = {
+        ...OCC_GROUP,
+        rows: [makeTask({ id: 'gen-1', title: 'Open the café', generated_from_task_def_id: 'def-2' })],
+      }
+      renderCards({ groups: [group], provenanceByTaskDefId: new Map() })
+      expect(screen.queryByText(/^via /)).not.toBeInTheDocument()
+    })
+  })
+
+  it('task-card open link preserves ?view=overdue', () => {
+    renderCards({
+      recordSearch: '?view=overdue',
+      groups: [{
+        key: '__flat__',
+        label: 'Tasks',
+        rows: [makeTask({ id: 'task-9', title: 'Overdue card task' })],
+        overdue: 0,
+        prefillParam: '',
+      }],
+    })
+    const cardLink = screen.getByRole('link', { name: /overdue card task/i })
+    expect(cardLink.getAttribute('href')).toBe('/work/tasks/task-9?view=overdue')
+  })
+
+  // #742 AC-060 (W-M persona step 3): the draft card's PIC is fixed to self when the viewer has
+  // no downline, and says so — the sentence never appears on an existing (non-draft) card, and
+  // never appears on the draft card when the viewer DOES have a downline to pick from.
+  it('AC-060: the draft card shows the PIC-lock sentence when the viewer has no downline', () => {
+    renderCards({
+      groups: [{
+        key: '__flat__', label: 'Tasks',
+        rows: [makeTask({ id: 'draft-1', title: '' })],
+        overdue: 0, prefillParam: '',
+      }],
+      draftTaskId: 'draft-1',
+      viewerHasNoDownline: true,
+    })
+    expect(screen.getByText('Only you can be PIC — a supervisor names others')).toBeInTheDocument()
+  })
+
+  it('AC-060: the draft card omits the lock sentence when the viewer has a downline', () => {
+    renderCards({
+      groups: [{
+        key: '__flat__', label: 'Tasks',
+        rows: [makeTask({ id: 'draft-1', title: '' })],
+        overdue: 0, prefillParam: '',
+      }],
+      draftTaskId: 'draft-1',
+      viewerHasNoDownline: false,
+    })
+    expect(screen.queryByText('Only you can be PIC — a supervisor names others')).not.toBeInTheDocument()
+  })
+
+  it('AC-060: an existing (non-draft) card never shows the lock sentence, even with no downline', () => {
+    renderCards({
+      groups: [{
+        key: '__flat__', label: 'Tasks',
+        rows: [makeTask({ id: 'task-1', title: 'Existing task' })],
+        overdue: 0, prefillParam: '',
+      }],
+      draftTaskId: null,
+      viewerHasNoDownline: true,
+    })
+    expect(screen.queryByText('Only you can be PIC — a supervisor names others')).not.toBeInTheDocument()
   })
 })

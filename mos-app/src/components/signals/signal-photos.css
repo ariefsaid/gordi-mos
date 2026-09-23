@@ -1,0 +1,11 @@
+/* Feed: a quiet row of 56px squares. Record: up to two across, each a full-size link. */
+.signal-photos { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 0; padding: 0; list-style: none; }
+.signal-photos li { width: 56px; height: 56px; }
+.signal-photos img {
+  display: block; width: 100%; height: 100%; object-fit: cover;
+  border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--surface-tertiary);
+}
+.signal-photos--record { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.signal-photos--record li { width: auto; height: auto; aspect-ratio: 4 / 3; }
+.signal-photos--record a { display: block; height: 100%; border-radius: var(--radius-md); }
+.signal-photos--record a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }

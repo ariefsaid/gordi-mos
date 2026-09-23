@@ -1,5 +1,6 @@
 // AdminRoute guard tests — TDD, plan §4.1.
-// AC-070 (route arm): admin sees outlet; non-admin redirected to /.
+// AC-070 (route arm): admin sees the outlet; an authenticated non-admin meets the access boundary
+// in place (#800); a session that is not authenticated yet still redirects to /.
 
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -43,7 +44,8 @@ describe('AdminRoute (AC-070 route arm)', () => {
           org_id: 'o1',
           user_id: 'u1',
           full_name: 'Admin User',
-          email: 'admin@gordi.id',
+          email: 'admin@example.test',
+          must_change_password: false,
           archived_at: null,
           created_at: '',
           updated_at: '',
@@ -51,6 +53,7 @@ describe('AdminRoute (AC-070 route arm)', () => {
         roles: [],
         isManager: false,
         accessRoles: ['admin'],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })
@@ -70,6 +73,7 @@ describe('AdminRoute (AC-070 route arm)', () => {
           user_id: 'u1',
           full_name: 'Admin User',
           email: null,
+          must_change_password: false,
           archived_at: null,
           created_at: '',
           updated_at: '',
@@ -77,6 +81,7 @@ describe('AdminRoute (AC-070 route arm)', () => {
         roles: [],
         isManager: false,
         accessRoles: ['member', 'admin', 'ops_lead'],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })
@@ -85,7 +90,7 @@ describe('AdminRoute (AC-070 route arm)', () => {
     expect(screen.getByTestId('admin-content')).toBeInTheDocument()
   })
 
-  it('AC-070: member (no admin role) is redirected to /', () => {
+  it('AC-070/#800: member (no admin role) meets the access boundary, not a bounce home', () => {
     mockUseAuth.mockReturnValue({
       status: 'authenticated',
       viewer: {
@@ -95,6 +100,7 @@ describe('AdminRoute (AC-070 route arm)', () => {
           user_id: 'u2',
           full_name: 'Member User',
           email: null,
+          must_change_password: false,
           archived_at: null,
           created_at: '',
           updated_at: '',
@@ -102,16 +108,18 @@ describe('AdminRoute (AC-070 route arm)', () => {
         roles: [],
         isManager: false,
         accessRoles: ['member'],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })
 
     renderAdminRoute()
     expect(screen.queryByTestId('admin-content')).not.toBeInTheDocument()
-    expect(screen.getByTestId('home-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
+    expect(screen.getByText('Admin Settings is outside your access')).toBeInTheDocument()
   })
 
-  it('AC-070: ops_lead without admin role is redirected to /', () => {
+  it('AC-070/#800: ops_lead without admin role meets the access boundary', () => {
     mockUseAuth.mockReturnValue({
       status: 'authenticated',
       viewer: {
@@ -121,6 +129,7 @@ describe('AdminRoute (AC-070 route arm)', () => {
           user_id: 'u3',
           full_name: 'Ops Lead',
           email: null,
+          must_change_password: false,
           archived_at: null,
           created_at: '',
           updated_at: '',
@@ -128,13 +137,15 @@ describe('AdminRoute (AC-070 route arm)', () => {
         roles: [],
         isManager: false,
         accessRoles: ['ops_lead'],
+        affiliated: [],
       },
       signOut: vi.fn(),
     })
 
     renderAdminRoute()
     expect(screen.queryByTestId('admin-content')).not.toBeInTheDocument()
-    expect(screen.getByTestId('home-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('home-page')).not.toBeInTheDocument()
+    expect(screen.getByText('Admin Settings is outside your access')).toBeInTheDocument()
   })
 
   it('AC-070: loading state redirects to / (no admin content shown)', () => {

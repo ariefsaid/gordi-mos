@@ -1,0 +1,52 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   MetricSummaryRule — DESIGN.md § "Metric summary rule (v4, 2026-07-27)".
+   ONE inline line, closed by a single 1px hairline. No card, no shadow, no
+   radius, no width branch. Promoted from pricing-page's page-local .pp-meta
+   (consumer #1) because DD-WAY-40 assigns the rule to Review AND Plan.
+   Token-only (DESIGN.md). Namespace msr-* (C1 disjoint-namespace guard).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.msr {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* The page-head meta line (kl-meta-line idiom): same type ramp, no hairline —
+   the head already owns its bottom edge — tighter rhythm. A placement variant,
+   never a viewport branch. */
+.msr--inline {
+  display: inline-flex;
+  gap: 4px 14px;
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.msr-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.msr-label {
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+.msr-value {
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+  color: var(--foreground);
+}
+.msr-delta {
+  font-size: var(--font-size-label);
+}
+.msr-delta--destructive { color: var(--status-lost-text); }
+.msr-delta--success { color: var(--status-won-text); }

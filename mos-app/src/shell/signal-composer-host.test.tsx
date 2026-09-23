@@ -1,0 +1,244 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { I18nProvider } from '@/i18n/I18nProvider'
+import type { AuthState } from '@/auth/context'
+
+// C1 (AC-428 backing / FR-417): one global command, many entry points. The host owns:
+//  - the useSignalComposer().open() hook consumed by ⌘K / FAB / Home feed (C2/C3),
+//  - mounting SignalComposer in the shared drawer host on open() / unmounting on close,
+//  - wiring the real viewer (authorId/authorName) + mention capability (canMentionBu)
+//    + real fan-out-preview rosters (KNOWN GAP 1 — loadMentionRosters, not the {} default).
+
+vi.mock('@/auth/use-auth')
+import { useAuth } from '@/auth/use-auth'
+const mockUseAuth = vi.mocked(useAuth)
+
+vi.mock('@/lib/db/signals', () => ({
+  getSignalPostAuthority: vi.fn(),
+  loadMentionRosters: vi.fn(),
+}))
+import { getSignalPostAuthority, loadMentionRosters } from '@/lib/db/signals'
+const mockGetSignalPostAuthority = vi.mocked(getSignalPostAuthority)
+const mockLoadMentionRosters = vi.mocked(loadMentionRosters)
+
+// SignalComposer itself is fully covered by signal-composer.test.tsx (B8–B11) — the host's own
+// job is wiring, so it mocks the child component and asserts the props it receives + how open/
+// close/onShared propagate.
+vi.mock('@/components/signals/signal-composer', () => ({
+  SignalComposer: vi.fn((props: Record<string, unknown>) => (
+    <div data-testid="signal-composer-stub">
+      <textarea ref={props.textareaRef as React.RefObject<HTMLTextAreaElement>} aria-label="What happened?" />
+      <button type="button" onClick={() => (props.onDirtyChange as (dirty: boolean) => void)(true)}>make-dirty</button>
+      <button type="button" onClick={() => (props.onShared as (id: string) => void)('signal-new')}>
+        stub-share
+      </button>
+    </div>
+  )),
+}))
+import { SignalComposer } from '@/components/signals/signal-composer'
+const mockSignalComposer = vi.mocked(SignalComposer)
+
+import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
+
+function Opener() {
+  const { open, postCount } = useSignalComposer()
+  return (
+    <>
+      <button type="button" onClick={() => open()}>open-composer</button>
+      <span data-testid="post-count">{postCount}</span>
+    </>
+  )
+}
+
+function renderHost(auth: AuthState) {
+  mockUseAuth.mockReturnValue(auth)
+  return render(
+    <I18nProvider>
+      <SignalComposerHost>
+        <Opener />
+      </SignalComposerHost>
+    </I18nProvider>,
+  )
+}
+
+// Narrowed to the authenticated arm, not the whole union: the "plain member" case below re-spreads
+// `.viewer`, which is only reachable on this arm. `must_change_password` is on `PeopleRow` on this
+// line (the credential security series, which exists only here) and v4's fixture predates it.
+type AuthedState = Extract<AuthState, { status: 'authenticated' }>
+
+const authedViewer: AuthedState = {
+  status: 'authenticated',
+  viewer: {
+    person: {
+      id: 'person-author', org_id: 'org-1', user_id: 'auth-1', full_name: 'Signal Author',
+      email: 'author@example.test', archived_at: null, must_change_password: false,
+      created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+    },
+    roles: [], isManager: false, accessRoles: ['ops_lead'], affiliated: [],
+  },
+  signOut: vi.fn(),
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  mockGetSignalPostAuthority.mockResolvedValue({ can_post: true, can_tag: true })
+  mockLoadMentionRosters.mockResolvedValue({ teamMembers: { 'team-a': ['p1'] }, buMembers: { 'bu-1': ['p1'] } })
+})
+
+describe('SignalComposerHost — one command, many entry points (C1, AC-428 backing / FR-417)', () => {
+  it('does not mount the composer before open() is called', () => {
+    renderHost(authedViewer)
+    expect(screen.queryByTestId('signal-composer-stub')).not.toBeInTheDocument()
+  })
+
+  it('open() mounts SignalComposer in the shared drawer host', async () => {
+    renderHost(authedViewer)
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+    expect(screen.getByTestId('signal-composer-stub')).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog', { name: /share signal/i })
+    expect(dialog).toHaveClass('modal-shell__surface')
+    expect(dialog).toHaveAttribute('data-phone-mode', 'fullscreen')
+    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
+  })
+
+  it('focuses the textarea on open, not the close button', async () => {
+    renderHost(authedViewer)
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'What happened?' })).toHaveFocus())
+  })
+
+  it('closing (the scrim / Close control) unmounts the composer', async () => {
+    renderHost(authedViewer)
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+    expect(screen.getByTestId('signal-composer-stub')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /close/i }))
+    expect(screen.queryByTestId('signal-composer-stub')).not.toBeInTheDocument()
+  })
+
+  it('Escape/close/backdrop with a body asks to discard; Keep editing restores textarea focus and Discard closes', async () => {
+    renderHost(authedViewer)
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+    await userEvent.click(screen.getByRole('button', { name: 'make-dirty' }))
+    await userEvent.click(screen.getByTestId('modal-shell-scrim'))
+    expect(screen.getByRole('heading', { name: 'Discard this Signal?' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }))
+    await userEvent.click(screen.getByRole('button', { name: /close/i }))
+    expect(screen.getByRole('heading', { name: 'Discard this Signal?' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }))
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'What happened?' })).toHaveFocus())
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.getByRole('heading', { name: 'Discard this Signal?' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }))
+    await userEvent.click(screen.getByRole('button', { name: /close/i }))
+    expect(screen.getByRole('heading', { name: 'Discard this Signal?' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    expect(screen.queryByTestId('signal-composer-stub')).not.toBeInTheDocument()
+  })
+
+  it('confirm Escape cancels the confirm instead of closing or swallowing it', async () => {
+    renderHost(authedViewer)
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+    await userEvent.click(screen.getByRole('button', { name: 'make-dirty' }))
+    await userEvent.click(screen.getByRole('button', { name: /close/i }))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('heading', { name: 'Discard this Signal?' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('signal-composer-stub')).toBeInTheDocument()
+  })
+
+  it('closes automatically when the composer reports a successful share (onShared)', async () => {
+    renderHost(authedViewer)
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+    await userEvent.click(screen.getByRole('button', { name: 'stub-share' }))
+    expect(screen.queryByTestId('signal-composer-stub')).not.toBeInTheDocument()
+  })
+
+  it('a successful share clears the dirty flag, so reopening and closing does not prompt to discard', async () => {
+    renderHost(authedViewer)
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+    await userEvent.click(screen.getByRole('button', { name: 'make-dirty' }))
+    await userEvent.click(screen.getByRole('button', { name: 'stub-share' }))
+    expect(screen.queryByTestId('signal-composer-stub')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('heading', { name: 'Discard this Signal?' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('signal-composer-stub')).not.toBeInTheDocument()
+  })
+
+  it('increments postCount on each successful share so feed/archive surfaces reload (AC-430)', async () => {
+    renderHost(authedViewer)
+    expect(screen.getByTestId('post-count')).toHaveTextContent('0')
+
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+    await userEvent.click(screen.getByRole('button', { name: 'stub-share' }))
+    expect(screen.getByTestId('post-count')).toHaveTextContent('1')
+
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+    await userEvent.click(screen.getByRole('button', { name: 'stub-share' }))
+    expect(screen.getByTestId('post-count')).toHaveTextContent('2')
+  })
+
+  it('wires the real viewer and runtime Signal authority', async () => {
+    renderHost(authedViewer)
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+
+    await waitFor(() => expect(mockSignalComposer).toHaveBeenCalled())
+    const props = mockSignalComposer.mock.calls.at(-1)![0]
+    expect(props.authorId).toBe('person-author')
+    expect(props.authorName).toBe('Signal Author')
+    expect(props.canTag).toBe(true)
+  })
+
+  it('fails closed when the runtime Signal authority denies tagging', async () => {
+    mockGetSignalPostAuthority.mockResolvedValue({ can_post: true, can_tag: false })
+    renderHost({ ...authedViewer, viewer: { ...authedViewer.viewer, accessRoles: [] } })
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+
+    await waitFor(() => expect(mockSignalComposer).toHaveBeenCalled())
+    const props = mockSignalComposer.mock.calls.at(-1)![0]
+    expect(props.canTag).toBe(false)
+  })
+
+  it('allows an ordinary member to mention a BU when effective signal.tag allows tagging', async () => {
+    mockGetSignalPostAuthority.mockResolvedValue({ can_post: true, can_tag: true })
+    renderHost({ ...authedViewer, viewer: { ...authedViewer.viewer, accessRoles: ['member'] } })
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+
+    await waitFor(() => expect(mockSignalComposer).toHaveBeenCalled())
+    const props = mockSignalComposer.mock.calls.at(-1)![0]
+    expect(props.canTag).toBe(true)
+    expect(props.canMentionBu).toBe(true)
+  })
+
+  it('denies BU mentions when effective signal.tag explicitly denies a legacy-capable role', async () => {
+    mockGetSignalPostAuthority.mockResolvedValue({ can_post: true, can_tag: false })
+    renderHost({ ...authedViewer, viewer: { ...authedViewer.viewer, accessRoles: ['ops_lead'] } })
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+
+    await waitFor(() => expect(mockSignalComposer).toHaveBeenCalled())
+    const props = mockSignalComposer.mock.calls.at(-1)![0]
+    expect(props.canTag).toBe(false)
+    expect(props.canMentionBu).toBe(false)
+  })
+
+  it('loads real fan-out-preview rosters (KNOWN GAP 1) instead of the {} default', async () => {
+    renderHost(authedViewer)
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+
+    await waitFor(() => expect(mockLoadMentionRosters).toHaveBeenCalled())
+    await waitFor(() => {
+      const props = mockSignalComposer.mock.calls.at(-1)![0]
+      expect(props.teamMembers).toEqual({ 'team-a': ['p1'] })
+      expect(props.buMembers).toEqual({ 'bu-1': ['p1'] })
+    })
+  })
+
+  it('does not mount the composer for an unauthenticated/loading viewer (no person to author as)', async () => {
+    renderHost({ status: 'loading' })
+    await userEvent.click(screen.getByRole('button', { name: 'open-composer' }))
+    expect(screen.queryByTestId('signal-composer-stub')).not.toBeInTheDocument()
+  })
+})

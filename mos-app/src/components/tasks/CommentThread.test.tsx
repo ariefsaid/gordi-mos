@@ -31,7 +31,7 @@ describe('CommentThread (T28, AC-P3-CM-004)', () => {
     fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
 
     await waitFor(() => expect(onPost).toHaveBeenCalledWith('Ship it'))
-    expect(screen.getByRole('textbox', { name: /comment/i })).toHaveValue('')
+    await waitFor(() => expect(screen.getByRole('textbox', { name: /comment/i })).toHaveValue(''))
   })
 
   it('typing @ shows a person picker and selecting a person inserts their slug', () => {
@@ -45,5 +45,59 @@ describe('CommentThread (T28, AC-P3-CM-004)', () => {
     fireEvent.click(screen.getByRole('option', { name: /riri kitchen/i }))
 
     expect(screen.getByRole('textbox', { name: /comment/i })).toHaveValue('Please ask @riri ')
+  })
+})
+
+// D-B2 (I5 / OD-83.1): a typed comment is unsaved work — it must feed the host leave-guard, and
+// the mention picker must consume Escape LOCALLY (dismiss the picker) so an Escape while composing
+// never leaks to the host and closes the whole panel, losing the comment.
+describe('CommentThread — leave-guard + Escape isolation (D-B2)', () => {
+  it('reports dirty when the draft is non-empty and clean again once cleared', () => {
+    const onDirtyChange = vi.fn()
+    render(<CommentThread comments={[]} people={people} canPost onPost={vi.fn()} onDirtyChange={onDirtyChange} />)
+    const box = screen.getByRole('textbox', { name: /comment/i })
+    fireEvent.change(box, { target: { value: 'A half-typed thought' } })
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true)
+    fireEvent.change(box, { target: { value: '   ' } }) // whitespace-only is not real work
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('reports clean again after a successful post', async () => {
+    const onDirtyChange = vi.fn()
+    render(<CommentThread comments={[]} people={people} canPost onPost={vi.fn().mockResolvedValue(undefined)} onDirtyChange={onDirtyChange} />)
+    const box = screen.getByRole('textbox', { name: /comment/i })
+    fireEvent.change(box, { target: { value: 'Ship it' } })
+    fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false))
+  })
+
+  it('Escape while the mention picker is open dismisses the picker and is CONSUMED (never bubbles to the host)', () => {
+    const hostEscape = vi.fn()
+    render(
+      <div onKeyDown={(e) => { if (e.key === 'Escape') hostEscape() }}>
+        <CommentThread comments={[]} people={people} canPost onPost={vi.fn()} />
+      </div>,
+    )
+    const box = screen.getByRole('textbox', { name: /comment/i })
+    fireEvent.change(box, { target: { value: 'ping @' } })
+    expect(screen.getByRole('listbox', { name: /select person/i })).toBeInTheDocument()
+    fireEvent.keyDown(box, { key: 'Escape' })
+    // Picker gone, draft preserved, and the host never saw the Escape (isolation).
+    expect(screen.queryByRole('listbox', { name: /select person/i })).toBeNull()
+    expect(box).toHaveValue('ping @')
+    expect(hostEscape).not.toHaveBeenCalled()
+  })
+
+  it('Escape with NO picker open bubbles to the host (the leave-guard, not the composer, owns it)', () => {
+    const hostEscape = vi.fn()
+    render(
+      <div onKeyDown={(e) => { if (e.key === 'Escape') hostEscape() }}>
+        <CommentThread comments={[]} people={people} canPost onPost={vi.fn()} />
+      </div>,
+    )
+    const box = screen.getByRole('textbox', { name: /comment/i })
+    fireEvent.change(box, { target: { value: 'a plain comment' } })
+    fireEvent.keyDown(box, { key: 'Escape' })
+    expect(hostEscape).toHaveBeenCalledTimes(1)
   })
 })

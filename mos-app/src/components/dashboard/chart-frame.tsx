@@ -3,6 +3,8 @@
 // tableFallback is MANDATORY (NFR-accessibility): the a11y table equivalent, and
 // doubles as the phone primary view when the chart is unreadable.
 import type { ReactNode } from 'react'
+import { useT } from '@/i18n/use-t'
+import { ErrorState } from '@/components/ui/state-kit'
 import './chart-frame.css'
 
 export interface ChartFrameProps {
@@ -27,6 +29,7 @@ export function ChartFrame({
   onRetry,
   ariaLabel,
 }: ChartFrameProps) {
+  const t = useT()
   return (
     <section className="chart-frame" role="region" aria-label={ariaLabel}>
       <div className="chart-frame-head">
@@ -42,18 +45,19 @@ export function ChartFrame({
         )}
         {state === 'empty' && (
           <div className="chart-frame-empty" role="status">
-            No data for this cut.
+            {t('chart.empty')}
           </div>
         )}
+        {/* #400: the failure copy joins the same `common.loadFailed` sentence every other
+            load failure in the app already uses. #359: the shell itself is now the shared
+            ErrorState — it brings role="alert" (this was the one dashboard error that never
+            announced; the empty state has role="status" and DataTable's error has
+            role="alert") and collapses the third bespoke error implementation. */}
         {state === 'error' && (
-          <div className="chart-frame-error">
-            <p className="chart-frame-error-text">Couldn&apos;t load this chart. Try again.</p>
-            {onRetry && (
-              <button type="button" className="chart-frame-retry" onClick={onRetry}>
-                Try again
-              </button>
-            )}
-          </div>
+          <ErrorState
+            message={t('common.loadFailed', { what: t('common.what.chart') })}
+            onRetry={onRetry}
+          />
         )}
         {state === 'ready' && children}
       </div>

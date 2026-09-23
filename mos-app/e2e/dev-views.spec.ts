@@ -4,10 +4,12 @@
 // list, and sees the panel render. Author-only per plan Task J3 — the dev harness is DEV +
 // SHOW_USER_VIEWS flag gated (default false); this spec skips while the flag is off, mirroring
 // the ops-log-add.spec.ts / weekly-update-submit.spec.ts convention.
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures/user-view-browser'
 import { loginAs } from './helpers/login'
 import { VIEWER } from './fixtures/users'
 import { SHOW_USER_VIEWS } from '../src/config/features'
+
+// @e2e-owned-cleanup: captured-user-view-ids
 
 test.beforeEach(() => {
   test.skip(!SHOW_USER_VIEWS, 'User Views substrate is flag-hidden (config/features.ts)')

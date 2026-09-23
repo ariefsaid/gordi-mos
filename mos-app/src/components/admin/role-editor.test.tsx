@@ -17,7 +17,7 @@ vi.mock('@/lib/db/admin-users', () => ({
 import { grantRole, revokeRole } from '@/lib/db/admin-users'
 
 import { RoleEditor } from './role-editor'
-import type { AdminPersonRow } from '@/lib/db/admin-users.types'
+import type { AdminPersonRow, RevenueScopeOption } from '@/lib/db/admin-users.types'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockGrantRole = vi.mocked(grantRole)
@@ -31,7 +31,8 @@ const ADMIN_VIEWER: AuthState = {
       org_id: 'org-1',
       user_id: 'admin-user-id',
       full_name: 'Admin Gordi',
-      email: 'admin@gordi.id',
+      email: 'admin@example.test',
+      must_change_password: false,
       archived_at: null,
       created_at: '',
       updated_at: '',
@@ -39,6 +40,7 @@ const ADMIN_VIEWER: AuthState = {
     roles: [],
     isManager: false,
     accessRoles: ['admin'],
+    affiliated: [],
   },
   signOut: vi.fn(),
 }
@@ -46,19 +48,25 @@ const ADMIN_VIEWER: AuthState = {
 const OTHER_PERSON: AdminPersonRow = {
   id: 'other-person-id',
   full_name: 'Budi Santoso',
-  email: 'budi@gordi.id',
+  email: 'budi@example.test',
   archived_at: null,
   login: 'active',
   access_roles: ['member'],
+  jabatan: [],
+  revenue_scope: [],
+  teams: [],
 }
 
 const SELF_PERSON: AdminPersonRow = {
   id: 'admin-person-id', // matches viewer person id
   full_name: 'Admin Gordi',
-  email: 'admin@gordi.id',
+  email: 'admin@example.test',
   archived_at: null,
   login: 'active',
   access_roles: ['admin', 'member'],
+  jabatan: [],
+  revenue_scope: [],
+  teams: [],
 }
 
 beforeEach(() => {
@@ -70,14 +78,21 @@ beforeEach(() => {
 
 function renderEditor(
   person: AdminPersonRow = OTHER_PERSON,
-  opts: { onClose?: () => void; onDone?: () => void } = {},
+  opts: {
+    onClose?: () => void
+    onDone?: () => void
+    onShowToast?: (message: string) => void
+    people?: AdminPersonRow[]
+  } = {},
 ) {
   return render(
     <RoleEditor
       person={person}
+      people={opts.people}
       open
       onClose={opts.onClose ?? vi.fn()}
       onDone={opts.onDone ?? vi.fn()}
+      onShowToast={opts.onShowToast}
     />,
   )
 }
@@ -105,10 +120,55 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
     expect(screen.queryByText('ops_lead')).not.toBeInTheDocument()
   })
 
-  it('AC-050: "manager" role is never rendered', () => {
+  it('AC-121: renders a Manager checkbox (manager is now assignable)', () => {
     renderEditor()
-    expect(screen.queryByRole('checkbox', { name: /manager/i })).not.toBeInTheDocument()
-    expect(screen.queryByText('manager')).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /manager/i })).toBeInTheDocument()
+  })
+
+  it('AC-122: on the self row, the manager checkbox is disabled (self-guard)', () => {
+    renderEditor({ ...SELF_PERSON, access_roles: ['admin', 'member'] })
+    expect(screen.getByRole('checkbox', { name: /manager/i })).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('AC-123: toggling Manager on calls grantRole(id, "manager")', async () => {
+    const user = userEvent.setup()
+    renderEditor(OTHER_PERSON)
+    await user.click(screen.getByRole('checkbox', { name: /manager/i }))
+    await waitFor(() => expect(mockGrantRole).toHaveBeenCalledWith('other-person-id', 'manager'))
+  })
+
+  it('AC-322: renders a Supervisor checkbox', () => {
+    renderEditor()
+    expect(screen.getByRole('checkbox', { name: /supervisor/i })).toBeInTheDocument()
+  })
+
+  it('AC-322: on the self row, the supervisor checkbox is disabled (self-guard)', () => {
+    renderEditor({ ...SELF_PERSON, access_roles: ['admin'] })
+    expect(screen.getByRole('checkbox', { name: /supervisor/i })).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('AC-324: the Revenue scope picker renders only when the person holds supervisor', () => {
+    const baseProps = {
+      people: undefined,
+      roles: undefined,
+      open: true,
+      onClose: vi.fn(),
+      onDone: vi.fn(),
+    }
+    const { rerender } = render(
+      <RoleEditor {...baseProps} person={{ ...OTHER_PERSON, access_roles: ['member'] }} scopeOptions={[]} />,
+    )
+    expect(screen.queryByText('Revenue scope')).not.toBeInTheDocument()
+
+    const options: RevenueScopeOption[] = []
+    rerender(
+      <RoleEditor
+        {...baseProps}
+        person={{ ...OTHER_PERSON, access_roles: ['supervisor'] }}
+        scopeOptions={options}
+      />,
+    )
+    expect(screen.getByText('Revenue scope')).toBeInTheDocument()
   })
 
   it('AC-050: currently granted roles appear checked', () => {
@@ -208,11 +268,106 @@ describe('RoleEditor (AC-050 / FR-050)', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  // FIX B1 regression — dialog card must have a visible border (Single-Border Rule)
-  it('FIX-B1: dialog card container has a non-empty border style (Single-Border Rule)', () => {
+  // The dialog must not dismiss out from under an in-flight write — a strayed Escape used to
+  // close it while a grant/revoke was still pending, leaving the viewer with no confirmation
+  // and no error if it failed.
+  it('does not dismiss while a role mutation is pending', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    mockGrantRole.mockReturnValue(new Promise(() => {}))
+    renderEditor(OTHER_PERSON, { onClose })
+
+    await user.click(screen.getByRole('checkbox', { name: /ops lead/i }))
+    await user.keyboard('{Escape}')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  // FIX B1 regression, re-homed (#201): the Single-Border Rule still binds, but the border is
+  // now ModalShell's — an inline `style.border` assertion would fail on correct code, so it
+  // asserts the canonical bordered surface instead of re-implementing the check.
+  it('FIX-B1: dialog card uses the canonical bordered modal surface (Single-Border Rule)', () => {
     renderEditor()
     const dialog = screen.getByRole('dialog')
-    expect(dialog.style.border).toBeTruthy()
-    expect(dialog.style.border).not.toBe('')
+    expect(dialog).toHaveClass('modal-shell__surface')
+    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
+  })
+
+  // Defect 1 (design review, Important) — toast must never leak the raw role SLUG
+  it('DEFECT-1: granting ops_lead fires a toast with the human label, not the raw slug', async () => {
+    const user = userEvent.setup()
+    const onShowToast = vi.fn()
+    renderEditor(OTHER_PERSON, { onShowToast })
+
+    await user.click(screen.getByRole('checkbox', { name: /ops lead/i }))
+
+    await waitFor(() => {
+      expect(onShowToast).toHaveBeenCalledWith(expect.stringContaining('Ops Lead granted'))
+    })
+    const [message] = onShowToast.mock.calls[0] as [string]
+    expect(message).not.toContain('ops_lead')
+  })
+
+  it('DEFECT-1: granting manager fires a toast with the human label, not the raw slug', async () => {
+    const user = userEvent.setup()
+    const onShowToast = vi.fn()
+    renderEditor(OTHER_PERSON, { onShowToast })
+
+    await user.click(screen.getByRole('checkbox', { name: /manager/i }))
+
+    await waitFor(() => {
+      expect(onShowToast).toHaveBeenCalledWith(expect.stringContaining('Manager granted'))
+    })
+    // The raw slug "manager" must not leak in lowercase form anywhere in the message
+    const [message] = onShowToast.mock.calls[0] as [string]
+    expect(message).not.toMatch(/\bmanager\b/) // only the capitalized "Manager" label is allowed
+  })
+
+  // Defect 2 (design review, Important, WCAG 1.4.10) — dialog must not clip on short viewports.
+  // The height bound moved from an inline `max-h-[90vh]` to ModalShell's own surface rule, so
+  // the assertion follows it: the panel is the ModalShell surface's only child (which is what
+  // the `:has(> .role-editor-panel)` rule keys off — see modal-shell.css), and the middle
+  // region is still the one that scrolls, leaving the ✕ and Close outside it.
+  it('DEFECT-2: only the middle region scrolls, so the header ✕ and footer Close stay reachable', () => {
+    // jsdom has no real layout engine, so this is a structural guard: it asserts the
+    // scroll-container classes are present on the correct element, not actual clipping/scroll
+    // behavior (which would need a real browser + viewport to observe).
+    renderEditor()
+    const body = screen.getByTestId('role-editor-scroll-body')
+    expect(body.className).toContain('overflow-y-auto')
+    expect(body.className).toContain('flex-1')
+
+    const dialog = screen.getByRole('dialog')
+    const panel = dialog.firstElementChild as HTMLElement
+    expect(panel).toHaveClass('role-editor-panel')
+    // The header ✕ and the footer Close both live OUTSIDE the scrolling region.
+    expect(body.contains(screen.getByRole('button', { name: /dismiss dialog/i }))).toBe(false)
+    expect(body.contains(screen.getByRole('button', { name: /^close$/i }))).toBe(false)
+  })
+
+  // Defect 3 (design review, Important, a11y) — the whole row must be clickable, single-fire
+  it('DEFECT-3: clicking the row text (not the checkbox glyph) toggles exactly once', async () => {
+    const user = userEvent.setup()
+    renderEditor(OTHER_PERSON)
+
+    // ops_lead is unchecked — click its text label, not the checkbox itself
+    await user.click(screen.getByText('Ops Lead'))
+
+    await waitFor(() => {
+      expect(mockGrantRole).toHaveBeenCalledTimes(1)
+    })
+    expect(mockGrantRole).toHaveBeenCalledWith('other-person-id', 'ops_lead')
+    expect(mockRevokeRole).not.toHaveBeenCalled()
+  })
+
+  it('DEFECT-3: clicking the text of a self-guarded (disabled) row does not toggle', async () => {
+    const user = userEvent.setup()
+    renderEditor(SELF_PERSON)
+
+    // admin is self-guarded/disabled for SELF_PERSON — click its text label
+    await user.click(screen.getByText('Admin'))
+
+    expect(mockGrantRole).not.toHaveBeenCalled()
+    expect(mockRevokeRole).not.toHaveBeenCalled()
   })
 })
