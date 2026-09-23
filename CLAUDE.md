@@ -58,8 +58,10 @@ independent review → PR → auto-merge to dev → next. Its machinery binds ou
 1. Unclear ask → `/grilling` (too big for one session → `/wayfinder`) → `/to-spec` → `/to-tickets`.
 2. Build. The factory is the default executor for ordinary bounded tickets, dispatched ONLY via
    `bash scripts/factory-run.sh` (never bare `uv run adws/…` — the wrapper carries the gh no-auth
-   layer). An explicit owner-authorized separate Codex task/model delegation (for example, a Luna
-   task at max reasoning) is a first-class Director lane: isolate it, name it in the ticket's
+   layer). An explicit owner-authorized separate Codex task/model delegation is a first-class
+   Director lane. For Codex subagents, the owner default is `gpt-6-luna` with `max` reasoning;
+   pass both explicitly on dispatch, rather than inheriting the Director's model or effort.
+   Isolate the lane, name it in the ticket's
    in-flight marker, and keep the same brief, verification, independent review, public-write, and
    security gates. A Claude subagent dispatch additionally needs a logged lane —
    `scripts/lane-exempt.sh` (hook denies otherwise; Explore/Plan free). For explicitly authorized
