@@ -21,6 +21,10 @@ import './process-occurrence-controls.css'
 export interface ProcessOccurrenceControlsProps {
   /** The Process work-line id. All occurrence reads and starts are scoped from this id. */
   workLineId: string
+  /** The detail knows whether the Process has an active step definition to materialize. */
+  setupIncomplete?: boolean
+  /** Managers can configure the definition; members need to route setup to a manager. */
+  canManageSetup?: boolean
   /** Optional in-app navigation hook; the canonical href remains for refresh/new-tab behavior. */
   onViewTasks?: (runId: string) => void
   onChanged?: () => void
@@ -29,7 +33,7 @@ export interface ProcessOccurrenceControlsProps {
 type FetchState = 'loading' | 'ready' | 'error'
 type Confirmation = { kind: 'complete' | 'cancel'; run: ProcessOccurrenceSummary }
 
-export function ProcessOccurrenceControls({ workLineId, onViewTasks, onChanged }: ProcessOccurrenceControlsProps) {
+export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false, canManageSetup = false, onViewTasks, onChanged }: ProcessOccurrenceControlsProps) {
   const t = useT()
   const { locale } = useI18n()
 
@@ -200,6 +204,18 @@ export function ProcessOccurrenceControls({ workLineId, onViewTasks, onChanged }
         {authorityError ? <ErrorState message={t('processes.occurrence.authorityError')} onRetry={() => setRetryNonce((nonce) => nonce + 1)} /> : null}
         {actionError ? <ErrorState message={t('processes.occurrence.actionError')} /> : null}
       </header>
+
+      {setupIncomplete ? (
+        <p className="process-occurrence-controls__next-action" role="note">
+          {t(canManageSetup ? 'processes.occurrence.setupIncomplete.manager' : 'processes.occurrence.setupIncomplete.member')}
+        </p>
+      ) : startable.length > 0 ? (
+        <p className="process-occurrence-controls__next-action" role="note">{t('processes.occurrence.nextActionReady')}</p>
+      ) : occurrences.length === 0 ? (
+        <p className="process-occurrence-controls__next-action" role="note">{t('processes.occurrence.nextActionMissing')}</p>
+      ) : (
+        <p className="process-occurrence-controls__next-action" role="note">{t('processes.occurrence.nextActionCurrent')}</p>
+      )}
 
       {startable.length > 0 ? (
         <section className="process-occurrence-controls__start" aria-labelledby="process-occurrence-start-title">
