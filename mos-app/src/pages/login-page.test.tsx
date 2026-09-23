@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
@@ -9,6 +9,7 @@ vi.mock('../lib/supabase', () => ({
       signInWithPassword: vi.fn(),
       signInWithOtp: vi.fn(),
       resetPasswordForEmail: vi.fn(),
+      signOut: vi.fn(),
     },
   },
 }))
@@ -33,6 +34,7 @@ import { supabase } from '@/lib/supabase'
 const mockSignIn = vi.mocked(supabase.auth.signInWithPassword)
 const mockSignInWithOtp = vi.mocked(supabase.auth.signInWithOtp)
 const mockResetPassword = vi.mocked(supabase.auth.resetPasswordForEmail)
+const mockSignOut = vi.mocked(supabase.auth.signOut)
 
 // ── T-014 ── AC-011 + AC-005 ────────────────────────────────────────────────
 
@@ -528,6 +530,60 @@ describe('LoginPage — demo login (dev-only)', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('Invalid email or password.')
     })
+  })
+})
+
+describe('LoginPage — staging sample one-click login', () => {
+  const originalLocation = window.location
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubEnv('DEV', false)
+    vi.stubEnv('PROD', true)
+    vi.stubEnv('VITE_SAMPLE_ONE_CLICK_LOGIN', 'true')
+    vi.stubEnv('VITE_SAMPLE_LOGIN_PASSWORD', 'SamplePassword123')
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalLocation, hostname: 'gordi-mos.pages.dev', search: '' },
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    Object.defineProperty(window, 'location', { configurable: true, value: originalLocation })
+  })
+
+  it('signs in with a sample email and verifies the minted sample-org claim', async () => {
+    const payload = Buffer.from(JSON.stringify({ org_id: '5a000000-0000-0000-0000-000000000001' })).toString('base64url')
+    mockSignIn.mockResolvedValue({
+      data: {
+        user: { id: 'sample-user', email: 'dewi@sample.gordi.test' } as import('@supabase/supabase-js').User,
+        session: { access_token: `header.${payload}.sig` } as import('@supabase/supabase-js').Session,
+      },
+      error: null,
+    })
+    render(<LoginPage />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Director' }))
+    await waitFor(() => expect(mockSignIn).toHaveBeenCalledWith({
+      email: 'dewi@sample.gordi.test', password: 'SamplePassword123',
+    }))
+    expect(mockSignOut).not.toHaveBeenCalled()
+    expect(screen.queryByText(/SamplePassword123/)).not.toBeInTheDocument()
+  })
+
+  it('signs out if the account resolves to a different organisation', async () => {
+    const payload = Buffer.from(JSON.stringify({ org_id: '10000000-0000-0000-0000-000000000001' })).toString('base64url')
+    mockSignIn.mockResolvedValue({
+      data: {
+        user: { id: 'wrong-user', email: 'dewi@sample.gordi.test' } as import('@supabase/supabase-js').User,
+        session: { access_token: `header.${payload}.sig` } as import('@supabase/supabase-js').Session,
+      },
+      error: null,
+    })
+    render(<LoginPage />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Director' }))
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledOnce())
+    expect(screen.getByRole('alert')).toHaveTextContent(/not in Gordi Sample/i)
   })
 })
 
