@@ -38,12 +38,27 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   }
 }
 
-function makeDetail(task: TaskListRow): TaskDetail {
+function makeChecklist(
+  task: TaskListRow,
+  completed: readonly boolean[],
+  labels = completed.map((_, index) => `Checklist item ${index + 1}`),
+): TaskDetail['checklist'] {
+  return completed.map((is_done, index) => ({
+    id: `c${index + 1}`,
+    org_id: 'org',
+    task_id: task.id,
+    label: labels[index],
+    is_done,
+    position: index,
+    created_at: '',
+    updated_at: '',
+  }))
+}
+
+function makeDetail(task: TaskListRow, checklist = makeChecklist(task, [false], ['Check fridge stock'])): TaskDetail {
   return {
     task,
-    checklist: [
-      { id: 'c1', org_id: 'org', task_id: task.id, label: 'Check fridge stock', is_done: false, position: 0, created_at: '', updated_at: '' },
-    ],
+    checklist,
     events: [
       { id: 'e1', org_id: 'org', task_id: task.id, actor_person_id: PIC, event_type: 'created', from_value: null, to_value: null, created_at: '2026-07-19T00:00:00Z' },
     ],
@@ -148,13 +163,96 @@ describe('createTaskRecordAdapter', () => {
     expect(onUpdateStatus).toHaveBeenCalledWith('In Progress')
   })
 
-  it('owner-eyes item 10: Open/In Progress/Blocked keep the Mark complete primary', () => {
-    for (const status of ['Open', 'In Progress', 'Blocked'] as const) {
-      const adapter = createTaskRecordAdapter(makeInput({ detail: makeDetail(makeTask({ status })) }))
-      const ids = adapter.actions.map((a) => a.id)
-      expect(ids).toContain('complete')
-      expect(ids).not.toContain('reopen')
-      expect(adapter.actions.find((a) => a.id === 'complete')!.intent).toBe('primary')
+  it('keeps completion available with hierarchy based on Blocked status, checklist readiness, and permission', async () => {
+    const blockedTask = makeTask({ status: 'Blocked' })
+    const unfinishedTask = makeTask({ status: 'In Progress' })
+    const readyTask = makeTask({ status: 'In Progress' })
+    const noChecklistTask = makeTask({ status: 'Open' })
+    const doneTask = makeTask({ status: 'Done' })
+    const readOnlyTask = makeTask({ status: 'Open' })
+    const blockedUpdate = vi.fn(async () => {})
+
+    const cases = [
+      {
+        name: 'Blocked',
+        input: makeInput({
+          detail: makeDetail(blockedTask, makeChecklist(blockedTask, [true])),
+          onUpdateStatus: blockedUpdate,
+        }),
+        expectedAction: 'complete',
+        expectedIntent: 'secondary',
+        expectedEditable: true,
+      },
+      {
+        name: 'unfinished checklist',
+        input: makeInput({
+          detail: makeDetail(unfinishedTask, makeChecklist(unfinishedTask, [true, false])),
+        }),
+        expectedAction: 'complete',
+        expectedIntent: 'secondary',
+        expectedEditable: true,
+      },
+      {
+        name: 'ready nonblocked task',
+        input: makeInput({
+          detail: makeDetail(readyTask, makeChecklist(readyTask, [true])),
+        }),
+        expectedAction: 'complete',
+        expectedIntent: 'primary',
+        expectedEditable: true,
+      },
+      {
+        name: 'ready task with no checklist items',
+        input: makeInput({ detail: makeDetail(noChecklistTask, []) }),
+        expectedAction: 'complete',
+        expectedIntent: 'primary',
+        expectedEditable: true,
+      },
+      {
+        name: 'Done task',
+        input: makeInput({
+          detail: makeDetail(doneTask, makeChecklist(doneTask, [true])),
+        }),
+        expectedAction: 'reopen',
+        expectedIntent: 'secondary',
+        expectedEditable: true,
+      },
+      {
+        name: 'read-only task',
+        input: makeInput({
+          detail: makeDetail(readOnlyTask, makeChecklist(readOnlyTask, [false])),
+          viewerId: 'stranger',
+        }),
+        expectedAction: null,
+        expectedIntent: null,
+        expectedEditable: false,
+      },
+    ] as const
+
+    for (const testCase of cases) {
+      const adapter = createTaskRecordAdapter(testCase.input)
+      const status = adapter.headerFields?.find((field) => field.key === 'status')
+      expect(status, testCase.name).toBeDefined()
+      expect(status!.editable, testCase.name).toBe(testCase.expectedEditable)
+
+      if (!testCase.expectedAction) {
+        expect(adapter.actions.map((action) => action.id), testCase.name).not.toContain('complete')
+        expect(adapter.headerActionIds, testCase.name).toEqual([])
+        expect(adapter.permission.readOnly, testCase.name).toBe(true)
+        continue
+      }
+
+      const action = adapter.actions.find((candidate) => candidate.id === testCase.expectedAction)
+      expect(action, testCase.name).toBeDefined()
+      expect(action!.intent, testCase.name).toBe(testCase.expectedIntent)
+      expect(adapter.headerActionIds, testCase.name).toContain(testCase.expectedAction)
+      expect(adapter.permission.readOnly, testCase.name).toBe(false)
+
+      if (testCase.name === 'Blocked') {
+        expect(status!.options?.some((option) => option.value === 'Done')).toBe(true)
+        await action!.run()
+        expect(blockedUpdate).toHaveBeenCalledWith('Done')
+      }
     }
   })
 
@@ -232,7 +330,7 @@ describe('createTaskRecordAdapter — AC-061 on the record: edit/archive follow 
     expect(editableOf(container, 'pic')).toBe('true')
     expect(editableOf(container, 'supervisor')).toBe('true')
     expect(editableOf(container, 'dueDate')).toBe('true')
-    expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mark complete' })).toHaveClass('btn-outline')
     expect(screen.queryByRole('button', { name: 'Archive task' })).not.toBeInTheDocument()
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
   })
