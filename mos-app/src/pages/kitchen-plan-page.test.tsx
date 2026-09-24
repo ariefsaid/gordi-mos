@@ -48,6 +48,9 @@ import { listActiveWipItems, listStreamItemIds, listStreamPairs } from '@/lib/db
 // shared.default_stream() (FR-001) — the viewer's own stream. #440: the plan surfaces resolve
 // their stream the way the capture surface always did, instead of guessing at the catalog.
 vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
+// #781 coordinator follow-up: useCafeStream now also reads current Team memberships for
+// "Your Team" tagging (myStreamKeys) — empty by default here; tests that care override it.
+vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn().mockResolvedValue([]) }))
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 
 vi.mock('@/lib/db/kitchen-plans', () => ({

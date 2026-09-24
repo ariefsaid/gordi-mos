@@ -45,14 +45,45 @@ import './cafe-stream-bar.css'
 /** Sentinel option value for the cross-stream view — never a stream key (those carry a '|'). */
 export const ALL_STREAMS = 'all'
 
+const EMPTY_STREAM_KEYS: ReadonlySet<string> = new Set()
+
 function sameStream(a: ProductionStream | null, b: ProductionStream | null): boolean {
   return a != null && b != null && a.branch.id === b.branch.id && a.activity === b.activity
 }
 
+/**
+ * True for any stream the person currently belongs to — home included, but not only home
+ * (coordinator follow-up: marking is not defaulting, so a secondary current membership is
+ * "Your Team" too, even though the binding rule keeps it out of `stream`'s default).
+ */
+function isMineStream(
+  option: ProductionStream,
+  homeStream: ProductionStream | null,
+  myStreamKeys: ReadonlySet<string>,
+): boolean {
+  return sameStream(option, homeStream) || myStreamKeys.has(streamKey(option.branch.id, option.activity))
+}
+
+/** Home first, then the person's other current streams, then everything else. */
+function myRank(
+  option: ProductionStream,
+  homeStream: ProductionStream | null,
+  myStreamKeys: ReadonlySet<string>,
+): number {
+  if (sameStream(option, homeStream)) return 0
+  if (isMineStream(option, homeStream, myStreamKeys)) return 1
+  return 2
+}
+
 /** The tags this module can say about one option, baked into its picker-menu label (item 1). */
-function taggedLabel(t: Translate, option: ProductionStream, homeStream: ProductionStream | null): string {
+function taggedLabel(
+  t: Translate,
+  option: ProductionStream,
+  homeStream: ProductionStream | null,
+  myStreamKeys: ReadonlySet<string>,
+): string {
   const tags = [
-    sameStream(option, homeStream) ? t('cafe.stream.yourTeam') : null,
+    isMineStream(option, homeStream, myStreamKeys) ? t('cafe.stream.yourTeam') : null,
     option.produces === false ? t('kitchen.stream.receivingOnly.tag') : null,
   ].filter((tag): tag is string => tag !== null)
   const label = streamLabel(t, option)
@@ -78,6 +109,12 @@ export interface CafeStreamBarProps {
    * Review, whose choice is deliberately cross-stream and carries no personal default to return to.
    */
   homeStream?: ProductionStream | null
+  /**
+   * Stream keys (`streamKey(branch_id, activity)`) for every stream Team the person is a CURRENT
+   * member of (`useCafeStream().myStreamKeys`) — home included, but not only home. Every one of
+   * these is tagged "Your Team" and ranked first (home first among them) in the Switch menu.
+   */
+  myStreamKeys?: ReadonlySet<string>
 }
 
 export function CafeStreamBar({
@@ -88,6 +125,7 @@ export function CafeStreamBar({
   onAllStreams,
   disabled = false,
   homeStream = null,
+  myStreamKeys = EMPTY_STREAM_KEYS,
 }: CafeStreamBarProps) {
   const t = useT()
 
@@ -135,6 +173,7 @@ export function CafeStreamBar({
           id="cafe-stream"
           options={options}
           homeStream={homeStream}
+          myStreamKeys={myStreamKeys}
           onAllStreams={onAllStreams}
           disabled={disabled}
           onChange={onChange}
@@ -156,25 +195,34 @@ interface StreamSwitchMenuProps {
   id: string
   options: readonly ProductionStream[]
   homeStream: ProductionStream | null
+  myStreamKeys: ReadonlySet<string>
   onAllStreams?: () => void
   disabled: boolean
   onChange: (next: ProductionStream) => void
 }
 
-function StreamSwitchMenu({ id, options, homeStream, onAllStreams, disabled, onChange }: StreamSwitchMenuProps) {
+function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, onAllStreams, disabled, onChange }: StreamSwitchMenuProps) {
   const t = useT()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  const entries = useMemo<Array<{ value: string; label: string; isAllStreams: boolean }>>(() => [
-    ...(onAllStreams ? [{ value: ALL_STREAMS, label: t('kitchen.review.allStreams'), isAllStreams: true }] : []),
-    ...options.map((option) => ({
-      value: streamKey(option.branch.id, option.activity),
-      label: taggedLabel(t, option, homeStream),
-      isAllStreams: false,
-    })),
-  ], [homeStream, onAllStreams, options, t])
+  const entries = useMemo<Array<{ value: string; label: string; isAllStreams: boolean }>>(() => {
+    // "All streams" is a sentinel, not a stream to rank — it stays pinned first (Review's own
+    // cross-stream default). The real options rank the person's current streams first, home
+    // first among them (coordinator follow-up to item 1).
+    const ranked = [...options].sort(
+      (a, b) => myRank(a, homeStream, myStreamKeys) - myRank(b, homeStream, myStreamKeys),
+    )
+    return [
+      ...(onAllStreams ? [{ value: ALL_STREAMS, label: t('kitchen.review.allStreams'), isAllStreams: true }] : []),
+      ...ranked.map((option) => ({
+        value: streamKey(option.branch.id, option.activity),
+        label: taggedLabel(t, option, homeStream, myStreamKeys),
+        isAllStreams: false,
+      })),
+    ]
+  }, [homeStream, myStreamKeys, onAllStreams, options, t])
 
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false)
@@ -299,8 +347,14 @@ function StreamSwitchMenu({ id, options, homeStream, onAllStreams, disabled, onC
 export interface CafeStreamChoicesProps {
   /** This location's stream catalog — the same `locationOptions` the head bar would offer. */
   options: readonly ProductionStream[]
-  /** The person's own stream, so their Team's option can be marked and listed first. */
+  /** The person's own stream, ranked first among their current streams. */
   homeStream?: ProductionStream | null
+  /**
+   * Stream keys for every stream Team the person is a CURRENT member of
+   * (`useCafeStream().myStreamKeys`) — home included, but not only home. Every one is marked
+   * "Your Team" and listed first, home first among them.
+   */
+  myStreamKeys?: ReadonlySet<string>
   onChoose: (next: ProductionStream) => void
   disabled?: boolean
 }
@@ -311,21 +365,25 @@ export interface CafeStreamChoicesProps {
  * any Opening row it owns, B12), never in the head: with no default there is nothing for the
  * head to state.
  */
-export function CafeStreamChoices({ options, homeStream = null, onChoose, disabled = false }: CafeStreamChoicesProps) {
+export function CafeStreamChoices({
+  options,
+  homeStream = null,
+  myStreamKeys = EMPTY_STREAM_KEYS,
+  onChoose,
+  disabled = false,
+}: CafeStreamChoicesProps) {
   const t = useT()
   if (options.length === 0) {
     return <p className="cafe-stream-choices__empty">{streamLabel(t, null)}</p>
   }
-  const ranked = [...options].sort((a, b) => {
-    const aHome = sameStream(a, homeStream)
-    const bHome = sameStream(b, homeStream)
-    return aHome === bHome ? 0 : aHome ? -1 : 1
-  })
+  const ranked = [...options].sort(
+    (a, b) => myRank(a, homeStream, myStreamKeys) - myRank(b, homeStream, myStreamKeys),
+  )
   return (
     <div className="cafe-stream-choices">
       <div className="cafe-stream-choices__list" role="group" aria-label={t('kitchen.log.stream.pickerAria')}>
         {ranked.map((option) => {
-          const isHome = sameStream(option, homeStream)
+          const isMine = isMineStream(option, homeStream, myStreamKeys)
           return (
             <button
               key={streamKey(option.branch.id, option.activity)}
@@ -335,7 +393,7 @@ export function CafeStreamChoices({ options, homeStream = null, onChoose, disabl
               onClick={() => onChoose(option)}
             >
               <span className="cafe-stream-choices__name">{streamLabel(t, option)}</span>
-              {isHome && <span className="cafe-stream-choices__tag">{t('cafe.stream.yourTeam')}</span>}
+              {isMine && <span className="cafe-stream-choices__tag">{t('cafe.stream.yourTeam')}</span>}
               {option.produces === false && (
                 <span className="cafe-stream-choices__tag cafe-stream-choices__tag--muted">
                   {t('kitchen.stream.receivingOnly.tag')}

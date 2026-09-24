@@ -12,11 +12,13 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { ReactNode } from 'react'
 import { CafeStreamBar, CafeStreamChoices } from './cafe-stream-bar'
+import { streamKey } from '@/lib/kitchen-action-label'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 
 const RR = { id: 'b-rr', code: 'rumah_rames', name: 'Rumah Rames' }
 const RAD = { id: 'b-rad', code: 'radiant', name: 'Radiant' }
 const RR_KITCHEN: ProductionStream = { branch: RR, activity: 'kitchen', produces: true }
+const RR_BAR: ProductionStream = { branch: RR, activity: 'bar', produces: true }
 const RAD_BAR: ProductionStream = { branch: RAD, activity: 'bar', produces: true }
 const RAD_KITCHEN: ProductionStream = { branch: RAD, activity: 'kitchen', produces: false }
 const CATALOG = [RR_KITCHEN, RAD_BAR]
@@ -64,6 +66,24 @@ describe('CafeStreamBar', () => {
     fireEvent.click(screen.getByRole('button', { name: /switch/i }))
     expect(screen.getByText(/Rumah Rames · Kitchen.*Your Team/)).toBeInTheDocument()
     expect(screen.getByText(/Radiant · Kitchen.*Receiving only/)).toBeInTheDocument()
+  })
+
+  it('coordinator follow-up to item 1: a current NON-home membership is marked "Your Team" and ranked ahead of streams the person does not belong to (home ranks first)', () => {
+    wrap(
+      <CafeStreamBar
+        options={[RR_BAR, RAD_BAR, RR_KITCHEN]}
+        stream={RR_KITCHEN}
+        homeStream={RR_KITCHEN}
+        myStreamKeys={new Set([streamKey(RAD.id, 'bar')])}
+        onChange={() => {}}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /switch/i }))
+    expect(screen.getByText(/Radiant · Bar.*Your Team/)).toBeInTheDocument()
+    const opts = screen.getAllByRole('option')
+    expect(opts[0]).toHaveTextContent('Rumah Rames · Kitchen') // home, first
+    expect(opts[1]).toHaveTextContent('Radiant · Bar') // current membership, second
+    expect(opts[2]).toHaveTextContent('Rumah Rames · Bar') // neither — last
   })
 
   it('item 3 / B4: a session switch away from home carries a "Back to <home>" action', () => {
@@ -121,6 +141,20 @@ describe('CafeStreamChoices — the no-default one-step choice (item 2, B5)', ()
 
   it('lists and marks the person\'s own Team stream first', () => {
     wrap(<CafeStreamChoices options={[RAD_BAR, RR_KITCHEN]} homeStream={RR_KITCHEN} onChoose={() => {}} />)
+    const buttons = screen.getAllByRole('button')
+    expect(buttons[0]).toHaveTextContent('Rumah Rames · Kitchen')
+    expect(buttons[0]).toHaveTextContent('Your Team')
+  })
+
+  it('coordinator follow-up: a Krishna-like person (no default, current member of a stream elsewhere) sees it marked "Your Team" and first — marking is not defaulting', () => {
+    wrap(
+      <CafeStreamChoices
+        options={[RAD_BAR, RR_KITCHEN]}
+        homeStream={null}
+        myStreamKeys={new Set([streamKey(RR.id, 'kitchen')])}
+        onChoose={() => {}}
+      />,
+    )
     const buttons = screen.getAllByRole('button')
     expect(buttons[0]).toHaveTextContent('Rumah Rames · Kitchen')
     expect(buttons[0]).toHaveTextContent('Your Team')

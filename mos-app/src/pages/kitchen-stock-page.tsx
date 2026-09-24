@@ -89,7 +89,7 @@ function KitchenStockPageForViewer() {
   const cafeStream = useCafeStream()
   // OD-CAFE-1: stock is keyed on (org, date, item, branch, activity) — a balance belongs to one
   // branch's books — so the picker offers this location's streams only.
-  const { options: streamOptions, locationOptions, stream, homeStream } = cafeStream
+  const { options: streamOptions, locationOptions, stream, homeStream, myStreamKeys } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [rows, setRows] = useState<KitchenStockRow[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
@@ -240,6 +240,7 @@ function KitchenStockPageForViewer() {
       options={locationOptions}
       stream={stream}
       homeStream={homeStream}
+      myStreamKeys={myStreamKeys}
       onChange={next => { void applyStream(next) }}
     />
   )
@@ -283,6 +284,7 @@ function KitchenStockPageForViewer() {
           <CafeStreamChoices
             options={locationOptions}
             homeStream={homeStream}
+            myStreamKeys={myStreamKeys}
             onChoose={next => { void applyStream(next) }}
           />
         </EmptyState>
