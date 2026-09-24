@@ -303,25 +303,20 @@ describe('Unauthenticated state', () => {
 
   // #410: the prompt + button were hardcoded English while the rest of the page is translated.
   it('sign-in prompt renders Indonesian in the id locale', async () => {
-    localStorage.setItem('mos.locale', 'id')
-    try {
-      mockUseAuth.mockReturnValue({ status: 'unauthenticated' })
-      const { I18nProvider } = await import('@/i18n/I18nProvider')
-      render(
-        <I18nProvider>
-          <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/log']}>
-            <Routes>
-              <Route path="/kitchen/log" element={<KitchenLogPage />} />
-            </Routes>
-          </MemoryRouter>
-        </I18nProvider>,
-      )
-      expect(await screen.findByRole('link', { name: 'Masuk' })).toBeInTheDocument()
-      expect(screen.getByText('Anda perlu masuk untuk menggunakan Log Kafe.')).toBeInTheDocument()
-      expect(screen.queryByText(/sign in/i)).toBeNull()
-    } finally {
-      localStorage.removeItem('mos.locale')
-    }
+    mockUseAuth.mockReturnValue({ status: 'unauthenticated' })
+    const { I18nProvider } = await import('@/i18n/I18nProvider')
+    render(
+      <I18nProvider initialLocale="id">
+        <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/log']}>
+          <Routes>
+            <Route path="/kitchen/log" element={<KitchenLogPage />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    expect(await screen.findByRole('link', { name: 'Masuk' })).toBeInTheDocument()
+    expect(screen.getByText('Anda perlu masuk untuk menggunakan Log Kafe.')).toBeInTheDocument()
+    expect(screen.queryByText(/sign in/i)).toBeNull()
   })
 })
 

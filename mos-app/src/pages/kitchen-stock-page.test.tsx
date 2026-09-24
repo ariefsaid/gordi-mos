@@ -58,6 +58,10 @@ function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
 }
 
+function idWrapper({ children }: { children: ReactNode }) {
+  return createElement(MemoryRouter, null, createElement(I18nProvider, { initialLocale: 'id' }, children))
+}
+
 function viewer(accessRoles: string[]): AuthState {
   return {
     status: 'authenticated',
@@ -544,13 +548,11 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
 describe('KitchenStockPage — locale seam (#400)', () => {
   beforeEach(() => {
     setDesktop()
-    localStorage.setItem('mos.locale', 'id')
     mockFetchStock.mockResolvedValue(STOCK_ROWS) // one negative row → 'perlu ditinjau'
   })
-  afterEach(() => localStorage.clear())
 
   it('renders the whole summary rule in Bahasa Indonesia', async () => {
-    render(<KitchenStockPage />, { wrapper })
+    render(<KitchenStockPage />, { wrapper: idWrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByRole('group', { name: 'Ringkasan stok' })).toBeInTheDocument()
     expect(screen.getByText('Total stok fisik')).toBeInTheDocument()
@@ -565,7 +567,7 @@ describe('KitchenStockPage — locale seam (#400)', () => {
 
   it('phone summary line is Indonesian and stays a single rule', async () => {
     setPhone()
-    render(<KitchenStockPage />, { wrapper })
+    render(<KitchenStockPage />, { wrapper: idWrapper })
     await screen.findByText('Ayam Bakar')
     const summary = document.querySelector('.msr') as HTMLElement
     expect(summary).not.toBeNull()
@@ -578,7 +580,7 @@ describe('KitchenStockPage — locale seam (#400)', () => {
     mockFetchStock.mockResolvedValue([
       { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
     ])
-    render(<KitchenStockPage />, { wrapper })
+    render(<KitchenStockPage />, { wrapper: idWrapper })
     await screen.findByText('Ayam Bakar')
     expect(document.querySelector('.msr')).not.toBeNull()
     expect(screen.getAllByText(/erp inventory not connected|inventori ERP belum terhubung/i)).toHaveLength(1)

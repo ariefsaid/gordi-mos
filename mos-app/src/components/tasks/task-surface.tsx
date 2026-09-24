@@ -36,13 +36,26 @@ import { Picker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
 import { DateField } from '@/components/ui/date-field'
 import { Button } from '@/components/ui/button'
-import { LoadingShell, EmptyState } from '@/components/ui/state-kit'
+import { LoadingShell, EmptyState, ErrorState } from '@/components/ui/state-kit'
 
 type DirectoryTeamOption = {
   id: string
   name: string
   businessUnitId?: string
   business_unit_id?: string
+}
+
+// Distinguishes a genuinely missing/inaccessible task (PostgREST PGRST116) from a transport
+// failure (mirrors signal-record-host.tsx's readFailureState) — only the former is "Task not
+// found"; the rest need the retryable ErrorState. `code` is the primary signal (getTask's
+// dbError preserves it); the message regex is only a fallback for an error shape without one.
+function isMissingTaskError(error: unknown): boolean {
+  const code = error && typeof error === 'object' && 'code' in error
+    ? (error as { code?: unknown }).code
+    : undefined
+  if (code === 'PGRST116' || code === '42501') return true
+  const message = error instanceof Error ? error.message : String(error)
+  return /PGRST116|permission denied|row-level security/i.test(message)
 }
 
 function toTaskTeamView(team: DirectoryTeamOption | undefined, businessUnits: readonly BusinessUnitOption[]): TaskTeamView | null {
@@ -144,6 +157,9 @@ function ViewSurface({
 
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  // A retryable read failure (network/500), distinct from a genuinely missing task — see
+  // isMissingTaskError above.
+  const [loadError, setLoadError] = useState(false)
   const [data, setData] = useState<TaskDetailData | null>(null)
   const [busDirectory, setBusDirectory] = useState<BusinessUnitOption[]>([])
   const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
@@ -196,6 +212,7 @@ function ViewSurface({
     const isCurrent = () => seq === loadSeq.current
     setLoading(true)
     setNotFound(false)
+    setLoadError(false)
     const viewerTeamsPromise = getPersonTeams(viewerId).catch(() => [])
     Promise.all([
       getTask(taskId),
@@ -229,9 +246,10 @@ function ViewSurface({
           if (isCurrent()) setGeneratedFromLabel(defs[0]?.title ?? null)
         }).catch(() => {})
       }
-    }).catch(() => {
+    }).catch((err: unknown) => {
       if (!isCurrent()) return
-      setNotFound(true)
+      if (isMissingTaskError(err)) setNotFound(true)
+      else setLoadError(true)
       setLoading(false)
     })
     // Non-blocking comments load — a slow comments API must not keep task detail on skeleton.
@@ -694,6 +712,14 @@ function ViewSurface({
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (loading) return <DetailSkeleton />
+
+  // A retryable read failure must never render as "not found" — `load` re-runs the same fetch.
+  // At full width it sits in the same reading column as the loaded record (`.record-doc`),
+  // not full-bleed across the page.
+  if (loadError) {
+    const errorState = <ErrorState message={t('tasks.loadError')} onRetry={load} />
+    return width === 'drawer' ? errorState : <div className="record-doc">{errorState}</div>
+  }
 
   if (notFound || !localTask) {
     // The shared EmptyState primitive, not a bespoke `.not-found-panel`: it already carries

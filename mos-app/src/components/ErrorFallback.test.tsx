@@ -1,20 +1,23 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ErrorFallback } from './ErrorFallback'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
-// #400: the crash screen renders ABOVE I18nProvider, so it resolves the persisted locale
-// directly from localStorage — no provider in these renders, by design.
+// #400: the crash screen renders ABOVE I18nProvider, after the provider's subtree is gone, so it
+// resolves the locale the provider last applied — no provider in the ErrorFallback renders.
+function applyThenUnmount(locale: 'en' | 'id') {
+  render(<I18nProvider initialLocale={locale}><div /></I18nProvider>).unmount()
+}
+
 describe('ErrorFallback — locale seam (#400)', () => {
-  afterEach(() => localStorage.clear())
-
   it('renders the honest English fallback by default', () => {
     render(<ErrorFallback />)
     expect(screen.getByText('This screen stopped working')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reload the app' })).toBeInTheDocument()
   })
 
-  it('with mos.locale=id, the whole card is Indonesian', () => {
-    localStorage.setItem('mos.locale', 'id')
+  it('after an Indonesian provider unmounts, the whole card is Indonesian', () => {
+    applyThenUnmount('id')
     render(<ErrorFallback />)
     expect(screen.getByText('Layar ini berhenti bekerja')).toBeInTheDocument()
     expect(screen.getByText(/Biasanya memuat ulang sudah cukup/)).toBeInTheDocument()
@@ -23,7 +26,7 @@ describe('ErrorFallback — locale seam (#400)', () => {
   })
 
   it('onReset variant shows the shared retry label, localized', () => {
-    localStorage.setItem('mos.locale', 'id')
+    applyThenUnmount('id')
     render(<ErrorFallback onReset={() => {}} />)
     expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument()
   })
@@ -35,8 +38,6 @@ describe('ErrorFallback — locale seam (#400)', () => {
 // 32px; phone targets are at least 44px" — the width split belongs to Button.css's media
 // query, which `[data-touch-target='true']` already opts into.
 describe('ErrorFallback — recovery buttons use the shared button, not a local re-author (#411)', () => {
-  afterEach(() => localStorage.clear())
-
   function recoveryButtons() {
     render(<ErrorFallback onReset={() => {}} />)
     return screen.getAllByRole('button')

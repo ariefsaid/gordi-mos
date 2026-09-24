@@ -24,9 +24,9 @@ const CANDIDATES = [
   { person_id: 'person-2', full_name: 'Dina Lead' },
 ]
 
-function renderPage() {
+function renderPage(locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={['/admin/teams']}>
         <AdminTeamsPage />
       </MemoryRouter>
@@ -144,8 +144,7 @@ describe('AdminTeamsPage', () => {
   })
 
   it('reads in Indonesian', async () => {
-    localStorage.setItem('mos.locale', 'id')
-    renderPage()
+    renderPage('id')
     expect(await screen.findByRole('heading', { level: 1, name: 'Tim' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Ketua untuk Gordi HQ Bar' })).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText('2 anggota aktif')).toBeInTheDocument())

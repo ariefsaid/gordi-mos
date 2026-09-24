@@ -202,15 +202,19 @@ const noScopeViewer: AuthState = {
   viewer: { ...financeViewer.viewer, accessRoles: ['member'], roles: [ANALYST_ROLE], isManager: false },
 }
 
-function wrapper({ children }: { children: ReactNode }) {
-  return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
+function localeWrapper(locale: 'en' | 'id') {
+  return function wrapper({ children }: { children: ReactNode }) {
+    return createElement(MemoryRouter, null, createElement(I18nProvider, { initialLocale: locale }, children))
+  }
 }
 
-async function renderHome(auth: AuthState = financeViewer) {
+const wrapper = localeWrapper('en')
+
+async function renderHome(auth: AuthState = financeViewer, locale: 'en' | 'id' = 'en') {
   mockUseAuth.mockReturnValue(auth)
   let utils!: ReturnType<typeof render>
   await act(async () => {
-    utils = render(createElement(HomePage), { wrapper })
+    utils = render(createElement(HomePage), { wrapper: localeWrapper(locale) })
     await Promise.resolve()
     await Promise.resolve()
   })
@@ -654,14 +658,12 @@ describe('AC-040 / AC-052: Home identity is day-aware and does not add a mention
     try {
       vi.setSystemTime(new Date('2026-09-09T08:17:00.000Z'))
 
-      window.localStorage.setItem('mos.locale', 'en')
       const english = await renderHome(ownerDirectorViewer)
       expect(within(screen.getByTestId('page-head')).getByRole('heading', { level: 1 }))
         .toHaveTextContent('Good afternoon')
       english.unmount()
 
-      window.localStorage.setItem('mos.locale', 'id')
-      const indonesian = await renderHome(ownerDirectorViewer)
+      const indonesian = await renderHome(ownerDirectorViewer, 'id')
       expect(within(screen.getByTestId('page-head')).getByRole('heading', { level: 1 }))
         .toHaveTextContent('Selamat sore')
       indonesian.unmount()

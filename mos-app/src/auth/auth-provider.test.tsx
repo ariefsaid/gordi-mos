@@ -58,6 +58,7 @@ function AuthConsumer() {
       {auth.status === 'orphan' && (
         <button onClick={() => auth.signOut()}>Sign out orphan</button>
       )}
+      {auth.status === 'unauthenticated' && auth.signedOut && <span data-testid="signed-out" />}
       {auth.status === 'recovering' && (
         <button onClick={() => auth.clearRecovering()}>Clear recovering</button>
       )}
@@ -226,5 +227,7 @@ describe('AuthProvider', () => {
 
     expect(mockSignOut).toHaveBeenCalledOnce()
     expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
+    // Marks the session as ended, so ProtectedRoute keeps no return route for the next person.
+    expect(screen.getByTestId('signed-out')).toBeInTheDocument()
   })
 })

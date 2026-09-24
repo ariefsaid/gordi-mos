@@ -210,7 +210,13 @@ export function useCatalogRecordOverlay({
       hadSession.current = true
       return
     }
-    if (!hadSession.current || !params.get('record')) return
+    if (!hadSession.current) return
+    if (!params.get('record')) {
+      // The session closed and the URL already names no record (e.g. browser Back past it). The
+      // memory is spent; keeping it would strip the record from a later Forward onto that entry.
+      hadSession.current = false
+      return
+    }
     if (suppressNextOpen.current) return
     hadSession.current = false
     const next = new URLSearchParams(params)
@@ -252,6 +258,9 @@ export function useCatalogRecordOverlay({
           // A denied leave must keep both the URL and the draft in place. The query is cleared
           // only after the host confirms that the close committed.
           if (result.status === 'committed') {
+            // A record the URL opened (Back/Forward, a shared link) had no clicked row; its own
+            // row is still the place focus returns to.
+            if (recordId) recordInvoker.current = recordId
             clearRecordQuery()
             restoreRecordFocus.current = true
           } else {

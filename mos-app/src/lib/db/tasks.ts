@@ -52,11 +52,24 @@ export interface TaskDetail {
   events: TaskEventRow[]
 }
 
+/** A PostgREST error carries a `code` (e.g. `PGRST116` — `.single()` matched 0 or >1 rows) the UI
+ * needs to tell "this record doesn't exist" apart from a transport failure; a plain `Error` drops
+ * it, so callers that must distinguish (task-surface.tsx's isMissingTaskError) read it back off. */
+export interface DbError extends Error {
+  code?: string
+}
+
+function dbError(message: string, code?: string): DbError {
+  const err = new Error(message) as DbError
+  if (code) err.code = code
+  return err
+}
+
 /** Read one task plus its checklist (position asc) and events (created_at desc, FR-034). */
 export async function getTask(id: string): Promise<TaskDetail> {
   const { data: task, error: taskErr } = await mos()
     .from('tasks').select(LIST_SELECT).eq('id', id).single()
-  if (taskErr) throw new Error(`getTask failed — ${taskErr.message}`)
+  if (taskErr) throw dbError(`getTask failed — ${taskErr.message}`, taskErr.code)
 
   const { data: checklist, error: clErr } = await mos()
     .from('task_checklist_items').select('*').eq('task_id', id)

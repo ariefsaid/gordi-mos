@@ -47,9 +47,9 @@ async function selectPicker(user: ReturnType<typeof userEvent.setup>, label: str
   await user.click(await screen.findByRole('option', { name: option }))
 }
 
-function renderPage() {
+function renderPage(locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={['/admin/access']}>
         <AdminAccessPage />
       </MemoryRouter>
@@ -162,8 +162,7 @@ describe('AdminAccessPage', () => {
   })
 
   it('renders the new settings copy in Indonesian', async () => {
-    localStorage.setItem('mos.locale', 'id')
-    renderPage()
+    renderPage('id')
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Peran & izin' })).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Bagian pengaturan admin' })

@@ -363,39 +363,34 @@ describe('PersonPanel — closing', () => {
 describe('PersonPanel — Indonesian', () => {
   it('translates the title, summary, section heads, Home controls and row status', async () => {
     const user = userEvent.setup()
-    localStorage.setItem('mos.locale', 'id')
-    try {
-      render(
-        <I18nProvider>
-          <MemoryRouter>
-            <PersonPanel
-              person={BAYU}
-              people={[BAYU, OTHER_ADMIN]}
-              roles={[]}
-              teams={TEAMS}
-              scopeOptions={[]}
-              authority={authority()}
-              refresh={vi.fn().mockResolvedValue(undefined)}
-              onClose={vi.fn()}
-            />
-          </MemoryRouter>
-        </I18nProvider>,
-      )
-      expect(screen.getByRole('heading', { level: 2, name: 'Kelola Bayu Barista' })).toBeInTheDocument()
-      expect(screen.getByRole('heading', { name: 'Yang bisa dilakukan' })).toBeInTheDocument()
-      expect(screen.getByText('Tim utama menentukan tempat produksi Café dibuka untuknya.')).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'Ubah di Tim' })).toBeInTheDocument()
-      for (const head of [/^Tim/, /^Jabatan/, /^Akses/]) {
-        expect(screen.getByRole('button', { name: head, expanded: true })).toBeInTheDocument()
-      }
-      expect(screen.getAllByText('Utama').length).toBeGreaterThan(0)
-      expect(screen.getByRole('button', { name: 'Jadikan utama — HQ Operations' })).toHaveTextContent('Jadikan utama')
-
-      await user.click(screen.getByRole('checkbox', { name: 'Keuangan' }))
-      const row = screen.getByRole('checkbox', { name: 'Keuangan' }).closest('.admin-check-row') as HTMLElement
-      await waitFor(() => expect(within(row).getByRole('status')).toHaveTextContent('Tersimpan'))
-    } finally {
-      localStorage.removeItem('mos.locale')
+    render(
+      <I18nProvider initialLocale="id">
+        <MemoryRouter>
+          <PersonPanel
+            person={BAYU}
+            people={[BAYU, OTHER_ADMIN]}
+            roles={[]}
+            teams={TEAMS}
+            scopeOptions={[]}
+            authority={authority()}
+            refresh={vi.fn().mockResolvedValue(undefined)}
+            onClose={vi.fn()}
+          />
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    expect(screen.getByRole('heading', { level: 2, name: 'Kelola Bayu Barista' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Yang bisa dilakukan' })).toBeInTheDocument()
+    expect(screen.getByText('Tim utama menentukan tempat produksi Café dibuka untuknya.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ubah di Tim' })).toBeInTheDocument()
+    for (const head of [/^Tim/, /^Jabatan/, /^Akses/]) {
+      expect(screen.getByRole('button', { name: head, expanded: true })).toBeInTheDocument()
     }
+    expect(screen.getAllByText('Utama').length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Jadikan utama — HQ Operations' })).toHaveTextContent('Jadikan utama')
+
+    await user.click(screen.getByRole('checkbox', { name: 'Keuangan' }))
+    const row = screen.getByRole('checkbox', { name: 'Keuangan' }).closest('.admin-check-row') as HTMLElement
+    await waitFor(() => expect(within(row).getByRole('status')).toHaveTextContent('Tersimpan'))
   })
 })

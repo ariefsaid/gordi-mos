@@ -38,13 +38,8 @@ describe('AC-014: auth chrome names a role', () => {
   })
 
   it('renders the Indonesian footer when the catalog is switched to id', () => {
-    localStorage.setItem('mos.locale', 'id')
-    try {
-      render(<I18nProvider><AuthShell><div /></AuthShell></I18nProvider>)
-      expect(screen.getByText(/Hubungi admin kamu/)).toBeInTheDocument()
-    } finally {
-      localStorage.clear()
-    }
+    render(<I18nProvider initialLocale="id"><AuthShell><div /></AuthShell></I18nProvider>)
+    expect(screen.getByText(/Hubungi admin kamu/)).toBeInTheDocument()
   })
 
   // The dev personas are fictional and DEV-gated, so the sweep is over the shipped catalog.
