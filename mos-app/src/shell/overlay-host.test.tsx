@@ -889,3 +889,52 @@ describe('overlay host — a route session belongs to its route', () => {
     expect(getApi().session).toBeNull()
   })
 })
+
+// A record whose id lives only in its history marker (Home-feed Signal, Follow-up) has no page
+// effect to reopen it. Browser Back/Forward onto that entry restores it from the marker.
+describe('overlay host — marker-only records come back with their history entry', () => {
+  const resolver: OverlayDeepLinkResolver = (marker) =>
+    /^(signal|follow-up):/.test(marker.entryKey) ? makeEntry({ key: marker.entryKey }) : null
+
+  for (const key of ['signal:s1', 'follow-up:f1']) {
+    it(`${key}: Back after leaving the route reopens it; Forward away retires it again`, async () => {
+      const { driver, connect } = wireDriver()
+      const { router, getApi } = makeRouterHarness({ historyDriver: driver, deepLinkResolver: resolver, initialEntries: ['/'] })
+      connect(router)
+
+      await act(() => getApi().openRoot(makeEntry({ key }), 'route'))
+      await act(() => router.navigate('/work/tasks'))
+      expect(getApi().session).toBeNull()
+
+      await act(() => router.navigate(-1))
+      expect(router.state.location.pathname).toBe('/')
+      expect(getApi().session?.frames.map((f) => f.entry.key)).toEqual([key])
+      expect(document.querySelectorAll('[data-overlay-host="true"]')).toHaveLength(1)
+
+      await act(() => router.navigate(1))
+      expect(getApi().session).toBeNull()
+      expect(document.querySelectorAll('[data-overlay-host="true"]')).toHaveLength(0)
+    })
+
+    it(`${key}: Forward onto its entry after Back closed it reopens it`, async () => {
+      const { driver, connect } = wireDriver()
+      const { router, getApi } = makeRouterHarness({ historyDriver: driver, deepLinkResolver: resolver, initialEntries: ['/'] })
+      connect(router)
+
+      await act(() => getApi().openRoot(makeEntry({ key }), 'route'))
+      await act(() => router.navigate(-1))
+      expect(getApi().session).toBeNull()
+
+      await act(() => router.navigate(1))
+      expect(getApi().session?.frames.map((f) => f.entry.key)).toEqual([key])
+    })
+  }
+
+  it('an entry without a marker restores nothing', async () => {
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver, deepLinkResolver: resolver, initialEntries: ['/work/tasks', '/'], initialIndex: 1 })
+    connect(router)
+    await act(() => router.navigate(-1))
+    expect(getApi().session).toBeNull()
+  })
+})

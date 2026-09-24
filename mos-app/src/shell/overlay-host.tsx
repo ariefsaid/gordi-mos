@@ -22,6 +22,7 @@ import {
 } from 'react-router-dom'
 import { RecordPanelHost } from './record-panel-host'
 import { useIsNarrow } from './use-is-narrow'
+import { useBesideRecordPlacement } from './use-beside-record-placement'
 import {
   historyDeltaForClose,
   readOverlayMarker,
@@ -315,6 +316,23 @@ export function OverlayHostProvider({
     restoreCacheRef.current = new Map()
   }, [])
 
+  // Open the session a history entry's route marker names, through the tenant resolver. Used on a
+  // fresh arrival and on a browser Back/Forward onto a marker entry whose session was retired: the
+  // marker is then the only record of which panel that entry had open.
+  const restoreFromMarker = useCallback((at: Location): void => {
+    if (!deepLinkResolver) return
+    const marker = readOverlayMarker(at.state)
+    if (!marker || marker.mode === 'ephemeral') return
+    const entry = deepLinkResolver(marker, at)
+    if (!entry) return
+    commitSession({
+      id: marker.sessionId,
+      mode: marker.mode,
+      frames: [makeFrame(entry, marker)],
+      pathname: at.pathname,
+    })
+  }, [deepLinkResolver, commitSession])
+
   // ── Browser POP sync (Task 3 step 3 + Task 3A steps 4-5) ────────────────────
   useEffect(() => {
     if (!didMountRef.current) {
@@ -345,10 +363,15 @@ export function OverlayHostProvider({
       // first by the route-leave blocker below.
       clearRouteSeam()
       commitSession(null)
+      if (navigationType === 'POP') restoreFromMarker(location)
       return
     }
     if (navigationType !== 'POP') return
-    if (!active || active.mode !== 'route') return // ephemeral sessions have no URL contract
+    if (!active) {
+      restoreFromMarker(location)
+      return
+    }
+    if (active.mode !== 'route') return // ephemeral sessions have no URL contract
 
     const marker = readOverlayMarker(location.state)
     const sessionDepth = active.frames.length - 1
@@ -436,6 +459,7 @@ export function OverlayHostProvider({
     commitSession,
     programmaticGo,
     clearRouteSeam,
+    restoreFromMarker,
     driver,
   ])
 
@@ -447,17 +471,7 @@ export function OverlayHostProvider({
     if (didDeepLinkRef.current) return
     didDeepLinkRef.current = true
     if (sessionRef.current) return
-    if (!deepLinkResolver) return
-    const marker = readOverlayMarker(location.state)
-    if (!marker || marker.mode === 'ephemeral') return
-    const entry = deepLinkResolver(marker, location)
-    if (!entry) return
-    commitSession({
-      id: marker.sessionId,
-      mode: marker.mode,
-      frames: [makeFrame(entry, marker)],
-      pathname: location.pathname,
-    })
+    restoreFromMarker(location)
     // The URL already carries the marker — do not navigate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -860,6 +874,7 @@ export function OverlayCompanionSlot({
   // looks identical to one that resolves correctly in every jsdom test. An interpolated class name
   // is invisible to that scan, so the one place a missing rule could hide is written out in full.
   const layoutClass = COMPANION_LAYOUT_CLASS[layout]
+  const besideRecord = useBesideRecordPlacement(open && layout === 'with-record', session?.frames.at(-1)?.entry.key)
 
   // Keep the owning component mounted even while its physical host is closed. Deputy's runtime,
   // transcript, draft, and history state therefore survive close/reopen without leaving a hidden
@@ -892,6 +907,7 @@ export function OverlayCompanionSlot({
       escapeCapture={isNarrow && recordOpen}
       escapeOnDocument
       rootClassName={layoutClass}
+      style={besideRecord}
       onClose={(via) => onClose(via ?? 'explicit-close')}
     >
       {entry.content}
