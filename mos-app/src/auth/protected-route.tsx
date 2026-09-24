@@ -28,12 +28,14 @@ export function ProtectedRoute() {
   if (auth.status === 'unauthenticated') {
     // The route asked for travels in router state, never the URL: a `?next=` on a public form is
     // an open-redirect surface and it leaks the person's destination into logs and referrers.
-    // /login decides what to do with it — see safeReturnTarget in return-target.ts.
+    // /login decides what to do with it — see safeReturnTarget in return-target.ts. A route only
+    // outlives sign-in for a visitor who arrived signed out; after a sign-out it belongs to the
+    // session that ended, so the next person lands on Home.
     return (
       <Navigate
         to="/login"
         replace
-        state={{ from: `${location.pathname}${location.search}` }}
+        state={auth.signedOut ? undefined : { from: `${location.pathname}${location.search}` }}
       />
     )
   }
