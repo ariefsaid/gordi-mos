@@ -401,6 +401,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
   const archived = task.archived_at !== null
   const editable = canEdit(task, viewerId, downlineIds) && !archived
   const canArchiveTask = canArchive(task, viewerId, downlineIds)
+  const hasUnfinishedChecklist = detail.checklist.some((item) => !item.is_done)
 
   // The ONE whole-record read-only note (why the viewer can't edit) — surfaced once by
   // RecordViewer's footer via `permission.reason` below. It is NOT stamped onto every field
@@ -533,10 +534,10 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     }
   } else {
     if (editable) {
-      // Lifecycle-aware lead action (owner-eyes item 10): a Task whose status is already Done must
-      // NOT offer a dead-end "Mark complete" primary. Reopening is a supported transition (the Status
-      // control freely moves Done → any state), so a Done task instead offers a quiet "Reopen"
-      // secondary that returns it to the active pool; every other state keeps "Mark complete".
+      // A Done task offers Reopen; otherwise Mark complete stays available, with visual priority
+      // reflecting the task's readiness. Blocked work or unfinished checklist items make it
+      // secondary while the status control remains the deliberate route to Done. This changes only
+      // action hierarchy: the existing status permissions and completion behavior stay the same.
       // onUpdateStatus RE-THROWS on failure (so the Status FIELD surfaces its visible error/retry).
       // A lifecycle-button trigger is fire-and-forget (`void action.run()` in RecordViewer), so the
       // button swallows the rejection here — the optimistic rollback + sr-only announce it already
@@ -553,7 +554,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
         actions.push({
           id: 'complete',
           label: L.markComplete,
-          intent: 'primary',
+          intent: task.status === 'Blocked' || hasUnfinishedChecklist ? 'secondary' : 'primary',
           run: async () => { try { await input.onUpdateStatus('Done') } catch { /* surfaced via optimistic rollback */ } },
         })
         allowedActionIds.push('complete')

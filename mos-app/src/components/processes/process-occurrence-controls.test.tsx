@@ -150,9 +150,9 @@ describe('ProcessOccurrenceControls', () => {
     expect(screen.getByText('1 overdue')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '1 to assign' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'View tasks' })).toHaveAttribute('href', `/work/tasks?occurrence=${RUN_ID}`)
-    expect(screen.getByRole('button', { name: 'Start · Café Opening' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start · Café Operations' })).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Start · Café Opening' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Start · Café Operations' }))
     expect(mockStartRun).toHaveBeenCalledWith(WORK_LINE_ID, TEAM_ID, '2026-07-18')
   })
 
