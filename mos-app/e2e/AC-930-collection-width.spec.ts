@@ -9,33 +9,63 @@
 import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { MANAGER } from './fixtures/users'
-import { TASKS_RECORD_PANEL_FLOOR_PX } from '../src/shell/use-is-split-width'
+import { TASKS_RECORD_PANEL_FLOOR_PX, TASKS_SPLIT_MIN_WIDTH } from '../src/shell/use-is-split-width'
 
 const RECORD_PANEL_CAP_PX = 640
-// Enough for a realistic task title on one line, not a single truncated word.
-const TASK_TITLE_FLOOR_PX = 240
-// The identity column's own upper bound (TasksWorkspace.css / catalog-collection.css /
-// signal-table-presentation.css).
+// The identity column (Title / Message / Name) is never narrower than this nor wider than the
+// cap (TasksWorkspace.css / catalog-collection.css / signal-table-presentation.css).
+const IDENTITY_FLOOR_PX = 240
 const IDENTITY_COLUMN_CAP_PX = 640
+const SWEEP_WIDTHS = [1100, 1200, 1300, 1366, 1440, 1920, 2300] as const
 
 type Collection = {
   name: 'Tasks' | 'Signals' | 'Projects & Processes' | 'Objectives'
   path: string
-  /** Opens the first row's record (inline split panel at desktop widths). */
+  /** A populated row — the collection's ready state. */
+  rowSelector: string
+  /** Opens the first row's record (inline split panel at desktop widths) without leaving the route. */
   openFirstRecord: (page: Page) => Promise<void>
   /** A phone card-list root, present once the collection has rendered. */
   phoneCardSelector: string
-  /** The identity/title cell of the first row — the one column meant to absorb spare width. */
+  /** The identity/title cell of the first row. */
   identityCellSelector: string
+  /** Visible header cells, identity first. */
+  headerSelector: string
+  /** The identity value inside each row, measured at its natural width. */
+  identityContentSelector: string
+  /** Padding between the identity value and its column edge (table cell padding; 0 for the catalog grid). */
+  identityCellPadding: number
+  /** Rows whose right edge must reach the card's. */
+  rowBoxSelector: string
+  /** Tasks' virtualized list sets the identity width instead of reading it from its content. */
+  identityContentSized: boolean
+  /** Narrowest viewport at which a record opens beside the list. */
+  splitMinWidth: number
+  /** The visible fact headers at 1300px with no record open (the catalog kept all of them before). */
+  expectedHeadersAt1300?: string[]
+}
+
+// Click the title's first characters: the title-edit pencil sits at the other end of the cell.
+async function clickStart(page: Page, selector: string) {
+  const box = await page.locator(selector).first().boundingBox()
+  expect(box, `${selector} must render a box`).not.toBeNull()
+  await page.mouse.click(box!.x + 8, box!.y + box!.height / 2)
 }
 
 const COLLECTIONS: Collection[] = [
   {
     name: 'Tasks',
     path: 'work/tasks',
-    openFirstRecord: async (page) => { await page.locator('.task-row-link').first().click() },
+    rowSelector: 'tr.task-row',
+    openFirstRecord: (page) => clickStart(page, '.task-row .task-name'),
     phoneCardSelector: '.task-card-link, .task-row--create',
     identityCellSelector: 'td.td-main',
+    headerSelector: 'table.tasks-table thead th',
+    identityContentSelector: 'td.td-main .task-title-cell',
+    identityCellPadding: 24,
+    rowBoxSelector: 'table.tasks-table tbody tr.task-row',
+    identityContentSized: false,
+    splitMinWidth: TASKS_SPLIT_MIN_WIDTH,
   },
   {
     name: 'Signals',
@@ -43,25 +73,88 @@ const COLLECTIONS: Collection[] = [
     // inline split panel this suite measures — force Table (?layout=table), whose rows call
     // onOpenRecord like every other collection here.
     path: 'work/signals?layout=table',
-    openFirstRecord: async (page) => { await page.locator('.signal-table-message').first().click() },
+    rowSelector: '.signal-table-message',
+    openFirstRecord: (page) => clickStart(page, '.signal-table-message'),
     phoneCardSelector: '.record-collection-view',
     identityCellSelector: '.signal-table-title-cell',
+    headerSelector: 'table.signal-collection-table thead th',
+    identityContentSelector: '.signal-table-title-cell',
+    identityCellPadding: 24,
+    rowBoxSelector: 'table.signal-collection-table tbody tr:not(.dt-group-row)',
+    identityContentSized: true,
+    splitMinWidth: 1100,
   },
   {
     name: 'Projects & Processes',
     path: 'work/projects',
+    rowSelector: '.catalog-collection__row-link',
     openFirstRecord: async (page) => { await page.locator('.catalog-collection__row-link').first().click() },
     phoneCardSelector: '.catalog-collection__row-link',
     identityCellSelector: '.catalog-collection__identity',
+    headerSelector: '.catalog-collection__header > [role="columnheader"]',
+    identityContentSelector: '.catalog-collection__identity',
+    identityCellPadding: 0,
+    rowBoxSelector: '.catalog-collection__row-link',
+    identityContentSized: true,
+    splitMinWidth: 1100,
+    expectedHeadersAt1300: ['Name', 'Objective', 'Accountable', 'Cadence · due', 'Progress', 'Last activity'],
   },
   {
     name: 'Objectives',
     path: 'work/objectives',
+    rowSelector: '.catalog-collection__row-link',
     openFirstRecord: async (page) => { await page.locator('.catalog-collection__row-link').first().click() },
     phoneCardSelector: '.catalog-collection__row-link',
     identityCellSelector: '.catalog-collection__identity',
+    headerSelector: '.catalog-collection__header > [role="columnheader"]',
+    identityContentSelector: '.catalog-collection__identity',
+    identityCellPadding: 0,
+    rowBoxSelector: '.catalog-collection__row-link',
+    identityContentSized: true,
+    splitMinWidth: 1100,
+    expectedHeadersAt1300: ['Name', 'Business Unit', 'Accountable', 'Projects & Processes', 'Progress', 'Last activity'],
   },
 ]
+
+/** Identity column geometry from real layout. `identityContentBound` is the widest identity
+ *  value at its natural (max-content) width plus its cell padding, or the floor column when the
+ *  values are shorter — the widest the column may be if it is sized to its content. */
+async function columnGeometry(page: Page, collection: Collection) {
+  return page.evaluate(({ headerSelector, identityContentSelector, identityCellPadding, identityFloor, rowBoxSelector }) => {
+    const visible = (el: Element) => getComputedStyle(el).display !== 'none'
+    const headers = Array.from(document.querySelectorAll<HTMLElement>(headerSelector)).filter(visible)
+    const identity = headers[0].getBoundingClientRect()
+    const identityStyle = getComputedStyle(headers[0])
+    const natural = Array.from(document.querySelectorAll<HTMLElement>(identityContentSelector)).map((el) => {
+      const clone = el.cloneNode(true) as HTMLElement
+      clone.style.cssText += ';position:absolute;visibility:hidden;width:max-content;max-width:none;min-width:0'
+      el.parentElement!.appendChild(clone)
+      const w = clone.getBoundingClientRect().width
+      clone.remove()
+      return w
+    })
+    const fact = headers[1]
+    const identityPadRight = parseFloat(identityStyle.paddingRight)
+    const factPadLeft = fact ? parseFloat(getComputedStyle(fact).paddingLeft) : 0
+    const rows = Array.from(document.querySelectorAll<HTMLElement>(rowBoxSelector))
+    const card = (headers[0].closest('.record-collection-view') as HTMLElement).getBoundingClientRect()
+    return {
+      headers: headers.map((h) => h.textContent?.replace(/[↑↓]/g, '').trim() ?? ''),
+      identityWidth: identity.width,
+      identityContentBound: Math.max(Math.max(...natural) + identityCellPadding, identityFloor),
+      factGap: fact ? (fact.getBoundingClientRect().left + factPadLeft) - (identity.right - identityPadRight) : null,
+      gapPadding: identityPadRight + factPadLeft,
+      rowRight: Math.max(...rows.map((r) => r.getBoundingClientRect().right)),
+      cardRight: card.right - 1, // the card's 1px border
+    }
+  }, {
+    headerSelector: collection.headerSelector,
+    identityContentSelector: collection.identityContentSelector,
+    identityCellPadding: collection.identityCellPadding,
+    identityFloor: IDENTITY_FLOOR_PX,
+    rowBoxSelector: collection.rowBoxSelector,
+  })
+}
 
 async function contentFrameWidth(page: Page): Promise<number> {
   const box = await page.locator('.page-frame__content').first().boundingBox()
@@ -98,10 +191,10 @@ async function overflowReport(page: Page) {
   }, CONTENT_WIDTH_ROOTS)
 }
 
-function assertNoOverflowReport(report: Awaited<ReturnType<typeof overflowReport>>, label: string) {
-  expect(report.page.scrollWidth, `${label}: page must not scroll horizontally`).toBeLessThanOrEqual(report.page.clientWidth + 1)
+function assertNoOverflowReport(report: Awaited<ReturnType<typeof overflowReport>>, label: string, check: typeof expect.soft = expect) {
+  check(report.page.scrollWidth, `${label}: page must not scroll horizontally`).toBeLessThanOrEqual(report.page.clientWidth + 1)
   for (const root of report.roots) {
-    expect(root.scrollWidth, `${label}: .${root.selector} content must fit its box (no clipped/overflowing column)`).toBeLessThanOrEqual(root.clientWidth + 1)
+    check(root.scrollWidth, `${label}: .${root.selector} content must fit its box (no clipped/overflowing column)`).toBeLessThanOrEqual(root.clientWidth + 1)
   }
 }
 
@@ -180,7 +273,7 @@ test.describe('Work collections share one wide measure and one record-panel widt
         }
 
         const sawOverdueAtRest = await assertSingleLineDueAndStatus()
-        await page.locator('.task-row-link').first().click()
+        await clickStart(page, '.task-row .task-name')
         await expect(page.locator('aside.drawer.drawer-split')).toBeVisible()
         const sawOverdueOpen = await assertSingleLineDueAndStatus()
         // Surfaced so a run that never exercised the stacked overdue state is visible, not a
@@ -189,24 +282,6 @@ test.describe('Work collections share one wide measure and one record-panel widt
           type: 'coverage',
           description: `saw an overdue row at rest=${sawOverdueAtRest}, with a record open=${sawOverdueOpen}`,
         })
-      })
-
-      test(`Tasks' Title column keeps a readable floor with a record open (${width}px)`, async ({ page }) => {
-        // The record panel narrowing the list must not starve the identity column — the list
-        // drops PIC/Supervisor first (TasksWorkspace.css) so Title keeps room, at every desktop
-        // width from the split threshold up.
-        await page.setViewportSize({ width, height: width === 1440 ? 900 : 1080 })
-        await loginAs(page, MANAGER.email, MANAGER.password)
-        await page.goto('work/tasks')
-        await page.locator('.task-row-link').first().click()
-        await expect(page.locator('aside.drawer.drawer-split')).toBeVisible()
-        const titleBox = await page.locator('td.td-main').first().boundingBox()
-        expect(titleBox, 'the Task title cell must render a box').not.toBeNull()
-        expect(titleBox!.width, `Title column width at ${width}px with a record open`).toBeGreaterThanOrEqual(TASK_TITLE_FLOOR_PX)
-        // The dropped columns are the mechanism, not just a side effect — assert they are hidden
-        // (CSS display:none — still in the DOM for a11y/test stability, never on screen).
-        await expect(page.locator('td.td-owner').first()).toBeHidden()
-        await expect(page.locator('td.td-supervisor').first()).toBeHidden()
       })
     })
   }
@@ -235,22 +310,48 @@ test.describe('Work collections share one wide measure and one record-panel widt
     }
   })
 
-  // A fixed column budget sized for one reference width can still overflow at another; sweep
-  // the desktop band and catch it with real layout, not arithmetic.
-  for (const width of [1100, 1200, 1300, 1366, 1440] as const) {
-    test(`no horizontal overflow at ${width}px, at rest and with a record open`, async ({ page }) => {
+  // The column rule, swept across the laptop-to-ultrawide band, at rest and with a record open:
+  // (a) nothing overflows, (b) the identity column keeps its floor and cap, (c) the first fact
+  // sits right after the identity column, which is only as wide as its widest value (Tasks' is
+  // width-capped instead: its virtualized list must not resize it as rows scroll in),
+  // (d) at 1300px the catalog keeps every fact column, (e) rows reach the card's right edge.
+  for (const width of SWEEP_WIDTHS) {
+    test(`column rule at ${width}px, at rest and with a record open`, async ({ page }) => {
+      test.setTimeout(120_000) // eight page loads and four record opens
       await page.setViewportSize({ width, height: 900 })
       await loginAs(page, MANAGER.email, MANAGER.password)
       for (const collection of COLLECTIONS) {
-        await page.goto(collection.path)
-        await expect(page.locator('.page-frame__content')).toBeVisible()
-        assertNoOverflowReport(await overflowReport(page), `${collection.name} at rest, ${width}px`)
-
-        await collection.openFirstRecord(page)
-        // Below TASKS_SPLIT_MIN_WIDTH, Tasks escalates to the full page instead of the inline
-        // split; `.record-page-back` is that page's own chrome.
-        await expect(page.locator('aside.drawer.drawer-split, [role="dialog"], .record-page-back').first()).toBeVisible()
-        assertNoOverflowReport(await overflowReport(page), `${collection.name} with a record open, ${width}px`)
+        for (const withRecord of [false, true]) {
+          // Below its split width Tasks opens the record as its full page; nothing to measure.
+          if (withRecord && width < collection.splitMinWidth) continue
+          const label = `${collection.name} ${withRecord ? 'with a record open' : 'at rest'}, ${width}px`
+          await page.goto(collection.path)
+          // Measure the ready collection, not a loading shell.
+          await expect(page.locator(collection.rowSelector).first()).toBeVisible({ timeout: 15_000 })
+          const route = new URL(page.url()).pathname
+          if (withRecord) {
+            await collection.openFirstRecord(page)
+            const beside = await page.locator('aside.drawer.drawer-split').first().waitFor({ state: 'visible', timeout: 5_000 }).then(() => true, () => false)
+            expect.soft(beside, `${label}: the record opens beside the list`).toBe(true)
+            expect.soft(new URL(page.url()).pathname, `${label}: the record stays on the collection route`).toBe(route)
+            if (!beside) continue
+          }
+          // Soft: one width reports every broken part of the rule, not just the first.
+          assertNoOverflowReport(await overflowReport(page), label, expect.soft) // (a)
+          const g = await columnGeometry(page, collection)
+          expect.soft(g.identityWidth, `${label}: identity column floor`).toBeGreaterThanOrEqual(IDENTITY_FLOOR_PX) // (b)
+          expect.soft(g.identityWidth, `${label}: identity column cap`).toBeLessThanOrEqual(IDENTITY_COLUMN_CAP_PX + 1)
+          if (collection.identityContentSized) {
+            expect.soft(g.identityWidth, `${label}: identity column is no wider than its widest value`).toBeLessThanOrEqual(g.identityContentBound + 2) // (c)
+          }
+          if (g.factGap !== null) {
+            expect.soft(g.factGap, `${label}: first fact sits beside the identity column`).toBeLessThanOrEqual(24 + g.gapPadding)
+          }
+          if (!withRecord && width === 1300 && collection.expectedHeadersAt1300) {
+            expect.soft(g.headers, `${label}: fact columns`).toEqual(collection.expectedHeadersAt1300) // (d)
+          }
+          expect.soft(Math.abs(g.rowRight - g.cardRight), `${label}: rows reach the card edge (row ${g.rowRight}, card ${g.cardRight})`).toBeLessThanOrEqual(2) // (e)
+        }
       }
     })
   }
@@ -275,6 +376,7 @@ test.describe('Work collections share one wide measure and one record-panel widt
       for (const width of widths) {
         await page.setViewportSize({ width, height: 1200 })
         await page.goto(collection.path)
+        await expect(page.locator(collection.rowSelector).first()).toBeVisible({ timeout: 15_000 })
         const box = await page.locator(collection.identityCellSelector).first().boundingBox()
         expect(box, `${collection.name} identity cell must render a box at ${width}px`).not.toBeNull()
         byWidth.push(box!.width)

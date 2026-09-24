@@ -6,15 +6,9 @@
   width: 100%;
 }
 
-/* Only Name is flexible, capped at 640px; every other column is a fixed px floor. The trailing,
-   unoccupied `minmax(0, 1fr)` track absorbs leftover width after the last column instead of
-   letting Name push its neighbours away. */
 .catalog-collection__header,
 .catalog-collection__row-link {
   display: grid;
-  /* Column 4 (.cell--cadence) holds Projects & Processes' cadence/due OR an Objective's relation
-     sentence, which can run long; sized and (see the wrap rule below) wrapped for the latter. */
-  grid-template-columns: minmax(220px, 640px) 120px 130px 200px 120px 160px minmax(0, 1fr);
   align-items: center;
   column-gap: 16px;
 }
@@ -301,65 +295,76 @@
   }
 }
 
-/* A record panel narrows the list to Name, Accountable and Progress; the other columns hide.
-   Name keeps the same 640px cap and trailing gutter track as the six-column grid, for the same
-   reason: a wide list beside the panel should not stretch Name away from its neighbours. */
+/* Wide rows (>=1100px). One grid owns the columns; the header and every row join it through
+   subgrid, so Name is as wide as the longest visible name (240-640px), the facts follow it at
+   fixed widths, and leftover width is one empty trailing track at the row's end. A fact's
+   leading padding is its gap from the column before it, so that empty track adds no gap. */
 @media (min-width: 1100px) {
-  .record-split .catalog-collection__header,
-  .record-split .catalog-collection__row-link {
-    grid-template-columns: minmax(0, 640px) 92px 110px minmax(0, 1fr);
-    column-gap: 12px;
+  .catalog-collection__table {
+    --catalog-facts: 128px 136px 160px 104px 176px; /* relation, accountable, cadence, progress, activity */
+    display: grid;
+    /* 654px = the 640px Name cap plus the row's 14px leading padding, which subgrid adds to this track. */
+    grid-template-columns: fit-content(654px) var(--catalog-facts) minmax(0, 1fr);
   }
 
-  .record-split .catalog-collection__header > :nth-child(2),
-  .record-split .catalog-collection__header > :nth-child(4),
-  .record-split .catalog-collection__header > :nth-child(6) {
-    display: none;
-  }
-
-  .record-split .catalog-collection__cell--relation,
-  .record-split .catalog-collection__cell--cadence,
-  .record-split .catalog-collection__cell--activity {
-    display: none;
-  }
-
-  /* The narrower track means less room for the name — wrap it onto a second line rather than
-     truncating it, since Name is one of the three facts this track deliberately keeps. */
-  .record-split .catalog-collection__name {
-    overflow: visible;
-    overflow-wrap: anywhere;
-    text-overflow: clip;
-    white-space: normal;
-  }
-}
-
-/* Below the width where the six-column grid fits its floors, at rest (no record open), the row
-   otherwise overflows its card and clips silently. Applies the same reduced Name/Accountable/
-   Progress track as the record-split rule above, since a narrow viewport and a narrowed-by-panel
-   list need the same drop order. */
-@media (min-width: 1100px) and (max-width: 1353.98px) {
   .catalog-collection__header,
+  .catalog-collection__list,
+  .catalog-collection__row,
   .catalog-collection__row-link {
-    grid-template-columns: minmax(0, 640px) 92px 110px minmax(0, 1fr);
-    column-gap: 12px;
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    column-gap: 0;
   }
 
-  .catalog-collection__header > :nth-child(2),
-  .catalog-collection__header > :nth-child(4),
-  .catalog-collection__header > :nth-child(6) {
-    display: none;
+  .catalog-collection__identity {
+    min-width: 240px;
   }
 
-  .catalog-collection__cell--relation,
-  .catalog-collection__cell--cadence,
-  .catalog-collection__cell--activity {
-    display: none;
+  .catalog-collection__header > :not(:first-child),
+  .catalog-collection__cell {
+    padding-left: 16px;
   }
 
+  /* A squeezed Name wraps onto a second line rather than truncating. */
   .catalog-collection__name {
     overflow: visible;
     overflow-wrap: anywhere;
     text-overflow: clip;
     white-space: normal;
+  }
+
+  /* Facts drop lowest-value first, each only when keeping it would push Name under 240px:
+     Last activity, the Objective / Business Unit link, Cadence / Projects & Processes,
+     Accountable, then Progress. Thresholds are the card's inner width: 28px row padding +
+     240px Name + the kept fact tracks. The same rule serves a list narrowed by a record panel. */
+  @container work-list (max-width: 971.98px) {
+    .catalog-collection__table { --catalog-facts: 128px 136px 160px 104px; }
+    .catalog-collection__header > :nth-child(6),
+    .catalog-collection__cell--activity { display: none; }
+  }
+
+  @container work-list (max-width: 795.98px) {
+    .catalog-collection__table { --catalog-facts: 136px 160px 104px; }
+    .catalog-collection__header > :nth-child(2),
+    .catalog-collection__cell--relation { display: none; }
+  }
+
+  @container work-list (max-width: 667.98px) {
+    .catalog-collection__table { --catalog-facts: 136px 104px; }
+    .catalog-collection__header > :nth-child(4),
+    .catalog-collection__cell--cadence { display: none; }
+  }
+
+  @container work-list (max-width: 507.98px) {
+    .catalog-collection__table { --catalog-facts: 104px; }
+    .catalog-collection__header > :nth-child(3),
+    .catalog-collection__cell--owner { display: none; }
+  }
+
+  @container work-list (max-width: 371.98px) {
+    .catalog-collection__table { grid-template-columns: fit-content(654px) minmax(0, 1fr); }
+    .catalog-collection__header > :nth-child(5),
+    .catalog-collection__cell--progress { display: none; }
   }
 }

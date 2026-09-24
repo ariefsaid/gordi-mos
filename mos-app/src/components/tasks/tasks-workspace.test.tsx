@@ -2051,7 +2051,8 @@ describe('S2.1 — decision-column floors', () => {
     expect(start, `expected ${taskSelector} in TasksWorkspace.css`).toBeGreaterThanOrEqual(0)
     const open = css.indexOf('{', start)
     const close = css.indexOf('}', open)
-    expect(css.slice(open + 1, close), `${taskSelector} must own its floor`).toMatch(/min-width:\s*\d+px/)
+    // Task fills the room the facts leave, between its 240px floor and 640px cap.
+    expect(css.slice(open + 1, close), `${taskSelector} must own its floor and cap`).toMatch(/width:\s*clamp\(240px,[^;]*640px\)/)
   })
 
   it('bounds inline cell controls to the table cell so long values cannot widen the scroll viewport', () => {

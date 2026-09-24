@@ -8,7 +8,9 @@ export const TASKS_FRAME_GUTTER_PX = 32
 export const TASKS_RECORD_PANEL_FLOOR_PX = 440
 export const TASKS_SPLIT_GAP_PX = 12
 export const TASKS_TABLE_BORDER_PX = 2 // the .assembly card's 1px left + 1px right border (a width budget)
-export const TASKS_SPLIT_FLOOR_TOTAL = 690 // the five decision-column floors authored in TasksWorkspace.css
+// The list width the split keeps beside the smallest panel. Narrower lists shed facts
+// (TasksWorkspace.css), so this must hold at least the Task floor, Status and Due.
+export const TASKS_SPLIT_FLOOR_TOTAL = 690
 
 // Keep this arithmetic beside the media query: it is the viewport width at which the rail,
 // wide-frame gutters, the smallest the record panel can render, the gap, table floors, and the
