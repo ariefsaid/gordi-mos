@@ -575,45 +575,35 @@ describe('KitchenPushesPage — #402 AC-1: no raw database enum reaches the scre
   })
 
   it('AC-1 id locale (#402): the outbox speaks Indonesian', async () => {
-    localStorage.setItem('mos.locale', 'id')
-    try {
-      mockListPushes.mockResolvedValue([POSTED_ROW, DEAD_LETTER_ROW, FAILED_ROW, PENDING_ROW])
-      render(
-        <MemoryRouter>
-          <I18nProvider>
-            <KitchenPushesPage />
-          </I18nProvider>
-        </MemoryRouter>,
-      )
-      await screen.findByText('PR-20260621-001')
+    mockListPushes.mockResolvedValue([POSTED_ROW, DEAD_LETTER_ROW, FAILED_ROW, PENDING_ROW])
+    render(
+      <MemoryRouter>
+        <I18nProvider initialLocale="id">
+          <KitchenPushesPage />
+        </I18nProvider>
+      </MemoryRouter>,
+    )
+    await screen.findByText('PR-20260621-001')
 
-      expect(screen.getAllByText('Terkirim').length).toBeGreaterThan(0)
-      expect(screen.getAllByText('Gagal · berhenti').length).toBeGreaterThan(0)
-      expect(screen.getAllByText('Gagal · mengirim ulang').length).toBeGreaterThan(0)
-      expect(screen.getAllByText('Menunggu').length).toBeGreaterThan(0)
-      expect(screen.getByText('4 push · 1 menunggu')).toBeInTheDocument()
-      expect(screen.queryByText('dead_letter')).toBeNull()
-    } finally {
-      localStorage.clear()
-    }
+    expect(screen.getAllByText('Terkirim').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Gagal · berhenti').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Gagal · mengirim ulang').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Menunggu').length).toBeGreaterThan(0)
+    expect(screen.getByText('4 push · 1 menunggu')).toBeInTheDocument()
+    expect(screen.queryByText('dead_letter')).toBeNull()
   })
 
   it('AC-1 id locale: the whole Pushes screen avoids the integration acronym', async () => {
-    localStorage.setItem('mos.locale', 'id')
-    try {
-      mockListPushes.mockResolvedValue([POSTED_ROW])
-      const { container } = render(
-        <MemoryRouter>
-          <I18nProvider>
-            <KitchenPushesPage />
-          </I18nProvider>
-        </MemoryRouter>,
-      )
-      await screen.findByText('PR-20260621-001')
-      expect(container).not.toHaveTextContent(/\bESB\b/i)
-    } finally {
-      localStorage.clear()
-    }
+    mockListPushes.mockResolvedValue([POSTED_ROW])
+    const { container } = render(
+      <MemoryRouter>
+        <I18nProvider initialLocale="id">
+          <KitchenPushesPage />
+        </I18nProvider>
+      </MemoryRouter>,
+    )
+    await screen.findByText('PR-20260621-001')
+    expect(container).not.toHaveTextContent(/\bESB\b/i)
   })
 })
 

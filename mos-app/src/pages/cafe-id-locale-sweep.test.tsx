@@ -104,9 +104,8 @@ describe('AC-063/AC-064: Café pages stay Indonesian end to end', () => {
     ['id', ENGLISH_TOKENS, 'Tim', 'Kirim Log', 'Ayam', 'Stok'],
     ['en', INDONESIAN_TOKENS, 'Stream', 'Pushes', 'Chicken', 'Stock'],
   ] as const)('renders every stream-resolved page in the %s catalog', async (locale, denyList, streamWord, pushesWord, categoryLabel, stockLabel) => {
-    localStorage.setItem('mos.locale', locale)
     for (const [name, Page] of pages) {
-      const { container } = render(<MemoryRouter><I18nProvider><Page /></I18nProvider></MemoryRouter>)
+      const { container } = render(<MemoryRouter><I18nProvider initialLocale={locale}><Page /></I18nProvider></MemoryRouter>)
       await screen.findByText(name === 'Pushes' ? 'batch-1' : 'Dish One')
       expect(container.textContent).not.toMatch(denyList)
       expect(container.textContent).toContain(streamWord)

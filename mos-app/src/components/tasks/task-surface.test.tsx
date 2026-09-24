@@ -78,6 +78,15 @@ const authedState: AuthState = {
   signOut: async () => {},
 }
 
+// Matches the real shape getTask throws for a missing row (lib/db/tasks.ts's dbError): a
+// `code: 'PGRST116'` whose message text never contains that code string.
+function missingTaskError(): Error & { code: string } {
+  return Object.assign(
+    new Error('getTask failed — JSON object requested, multiple (or no) rows returned'),
+    { code: 'PGRST116' },
+  )
+}
+
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   return {
     id: 'task-abc', org_id: 'org', title: 'Fix the coffee machine',
@@ -164,7 +173,7 @@ function choosePickerOption(label: string, option: string) {
 
 function renderIndonesianSurface() {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale="id">
       <AuthContext.Provider value={authedState}>
         <MemoryRouter initialEntries={['/tasks/task-abc']}>
           <TaskSurface taskId="task-abc" mode="view" width="full" />
@@ -257,7 +266,6 @@ describe('TaskSurface — view mode', () => {
   })
 
   it('AC-I02: Indonesian locale localizes the task record chrome and feed', async () => {
-    localStorage.setItem('mos.locale', 'id')
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
 
     renderIndonesianSurface()
@@ -273,7 +281,6 @@ describe('TaskSurface — view mode', () => {
     expect(screen.getByRole('button', { name: 'Tandai selesai' })).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).toBeNull()
     expect(screen.queryByText('Task details')).toBeNull()
-    localStorage.removeItem('mos.locale')
   })
 
   it('AC-R01: full width renders the work-first document with all work regions visible', async () => {
@@ -399,13 +406,13 @@ describe('TaskSurface — view mode', () => {
   })
 
   it('AC-070 (TaskSurface): shows the not-found panel when getTask rejects', async () => {
-    mockGetTask.mockRejectedValue(new Error('PGRST116'))
+    mockGetTask.mockRejectedValue(missingTaskError())
     renderSurface()
     await waitFor(() => expect(screen.getByText(/task not found/i)).toBeInTheDocument())
   })
 
   it('R-T-3: demotes the not-found heading to h2 when a PageFamilyFrame owns the page h1 (identityHeadingLevel=2)', async () => {
-    mockGetTask.mockRejectedValue(new Error('PGRST116'))
+    mockGetTask.mockRejectedValue(missingTaskError())
     renderSurface({ identityHeadingLevel: 2 })
     // Inside the focused-record PageFamilyFrame the region-3 head is the page h1, so the not-found
     // panel must nest as an h2 — never a second h1 (R-T-3 double-h1 fix).
@@ -416,11 +423,50 @@ describe('TaskSurface — view mode', () => {
   })
 
   it('R-T-3: keeps the not-found heading an h1 in the default full-width host (identityHeadingLevel defaults to 1)', async () => {
-    mockGetTask.mockRejectedValue(new Error('PGRST116'))
+    mockGetTask.mockRejectedValue(missingTaskError())
     renderSurface()
     await waitFor(() =>
       expect(screen.getByRole('heading', { level: 1, name: /task not found/i })).toBeInTheDocument(),
     )
+  })
+
+  // A transport failure renders the retryable ErrorState, not "Task not found"; Retry re-issues
+  // the same read.
+  it('shows ErrorState with a working Retry when getTask rejects with a non-PGRST116 (network/500) error', async () => {
+    mockGetTask.mockRejectedValueOnce(new Error('Failed to fetch'))
+    renderSurface()
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(screen.queryByText(/task not found/i)).not.toBeInTheDocument()
+
+    mockGetTask.mockResolvedValueOnce({ task: makeTask(), checklist: [], events: [] })
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    await waitFor(() => expect(mockGetTask).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByText('Fix the coffee machine')).toBeInTheDocument())
+  })
+
+  // A missing task's real message text has no matching substring to key on — only its `.code`
+  // does — and must still render "Task not found", not the retryable ErrorState.
+  it('a real missing-task error (code PGRST116, no matching text in the message) still renders "Task not found"', async () => {
+    mockGetTask.mockRejectedValue(missingTaskError())
+    renderSurface()
+    await waitFor(() => expect(screen.getByText(/task not found/i)).toBeInTheDocument())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  // At full width the retryable error sits in the same reading column as the loaded record and
+  // "Task not found", not full-bleed across the page.
+  it('at full width, the retryable ErrorState renders inside .record-doc (the shared record column)', async () => {
+    mockGetTask.mockRejectedValue(new Error('Failed to fetch'))
+    renderSurface({ width: 'full' })
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(document.querySelector('.record-doc > .error-state')).toBeInTheDocument()
+  })
+
+  it('at drawer width, the retryable ErrorState renders without the page-only .record-doc column', async () => {
+    mockGetTask.mockRejectedValue(new Error('Failed to fetch'))
+    renderSurface({ width: 'drawer' })
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(document.querySelector('.record-doc')).not.toBeInTheDocument()
   })
 
   it('calls onClose (not navigate) after a successful archive', async () => {
@@ -720,7 +766,7 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
   })
 
   it('AC-112 (drawer): not-found shows "Task not found" + All tasks link', async () => {
-    mockGetTask.mockRejectedValue(new Error('PGRST116'))
+    mockGetTask.mockRejectedValue(missingTaskError())
     renderDrawer()
     await waitFor(() => expect(screen.getByText(/task not found/i)).toBeInTheDocument())
     expect(screen.getByRole('link', { name: /all tasks/i })).toBeInTheDocument()
@@ -757,7 +803,7 @@ function renderCreate(auth: AuthState = authedState, onClose = vi.fn()) {
 
 describe('TaskSurface — saved-view URL preservation', () => {
   it('AC-307: not-found link from /work/tasks/task-abc?view=mine points back to /work/tasks?view=mine', async () => {
-    mockGetTask.mockRejectedValue(new Error('PGRST116'))
+    mockGetTask.mockRejectedValue(missingTaskError())
     renderSurfaceRoute('/work/tasks/task-abc?view=mine')
     const link = await screen.findByRole('link', { name: /all tasks/i })
     expect(link.getAttribute('href')).toBe('/work/tasks?view=mine')

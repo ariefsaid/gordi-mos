@@ -147,6 +147,8 @@ export const messages = {
     'locale.toggle.label': 'Language',
     'locale.en': 'English',
     'locale.id': 'Bahasa Indonesia',
+    'locale.saveFailed': 'Your language was not saved. The previous choice is still in use.',
+    'locale.loadFailed': 'Your saved language could not be loaded, so English is shown for now.',
     // `common.docTitle` is NOT redeclared here — the Home port (#191) already added it above.
     // Personal Profile (#199). Identity is read-only — Admin owns the person and role records —
     // and the language SELECTION lives here (it is the app's only way to reach the Indonesian UI).
@@ -1042,6 +1044,7 @@ export const messages = {
     'tasks.inlineEdit.hint': "Click a row to open it · ✎ or F2 edits the title · Enter saves · Esc discards",
     'tasks.inlineEdit.pencil': "Edit title",
     'tasks.label.task': "Task",
+    'tasks.loadError': "Couldn't load this task.",
     'tasks.loading': "Loading tasks",
     'tasks.markComplete': "Mark complete",
     'tasks.meta.openCount': "${count} open",
@@ -1777,6 +1780,8 @@ export const messages = {
     'locale.toggle.label': 'Bahasa',
     'locale.en': 'English',
     'locale.id': 'Bahasa Indonesia',
+    'locale.saveFailed': 'Bahasa Anda tidak tersimpan. Pilihan sebelumnya masih digunakan.',
+    'locale.loadFailed': 'Bahasa tersimpan Anda tidak dapat dimuat, jadi untuk sementara ditampilkan bahasa Inggris.',
     // `common.docTitle` is NOT redeclared here — the Home port (#191) already added it above.
     'profile.identity': 'Identitas',
     'profile.person': 'Orang',
@@ -2590,6 +2595,7 @@ export const messages = {
     'tasks.inlineEdit.hint': "Klik baris untuk membukanya · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan",
     'tasks.inlineEdit.pencil': "Sunting judul",
     'tasks.label.task': "Tugas",
+    'tasks.loadError': "Tugas ini tidak dapat dimuat.",
     'tasks.loading': "Memuat tugas",
     'tasks.markComplete': "Tandai selesai",
     'tasks.meta.openCount': "${count} terbuka",

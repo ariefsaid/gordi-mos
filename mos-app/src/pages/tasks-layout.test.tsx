@@ -1069,7 +1069,11 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     // The record fails to load → the not-found back link must carry the preserved
     // ?view= search (TaskSurface builds it from location.search), so a direct-open
     // of /work/tasks/:id?view=overdue returns the user to the SAME saved view.
-    mockGetTask.mockRejectedValue(new Error('not found'))
+    // Matches the real shape getTask throws for a missing row (lib/db/tasks.ts's dbError) —
+    // isMissingTaskError (task-surface.tsx) keys on `.code`, not this message text.
+    mockGetTask.mockRejectedValue(
+      Object.assign(new Error('getTask failed — JSON object requested, multiple (or no) rows returned'), { code: 'PGRST116' }),
+    )
     renderAtState('/work/tasks/task-1?view=overdue', { taskSurface: 'page' })
     await waitFor(() => screen.getByText(/task not found/i))
     const allTasks = screen.getByRole('link', { name: /all tasks/i })

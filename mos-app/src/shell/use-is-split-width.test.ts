@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { renderHook } from '@testing-library/react'
 import {
-  TASKS_DRAWER_MAX_WIDTH,
   TASKS_FRAME_GUTTER_PX,
   TASKS_RAIL_WIDTH,
+  TASKS_RECORD_PANEL_FLOOR_PX,
   TASKS_SPLIT_FLOOR_TOTAL,
   TASKS_SPLIT_GAP_PX,
   TASKS_SPLIT_MIN_WIDTH,
@@ -24,24 +24,20 @@ function stubMatchMedia(matchesFor: (query: string) => boolean) {
 }
 
 describe('useIsSplitWidth (decision-column split threshold)', () => {
-  it('derives the threshold from the authored decision floors and real wide-frame gutter', () => {
+  it('derives the threshold from a list width that holds the Task floor, Status and Due', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
-    const floors = [1, 2, 3, 4, 5].map((column) => {
-      const match = css.match(new RegExp(
-        `\\.split:not\\(\\.nodrawer\\) \\.tasks-table th:nth-child\\(${column}\\)[^\\{]*\\{[^}]*width:\\s*(\\d+)px`,
-      ))
-      expect(match, `missing authored split floor for column ${column}`).not.toBeNull()
+    const widthOf = (className: string, pattern: string) => {
+      const match = css.match(new RegExp(`\\.tasks-table th\\.${className}[^{]*\\{[^}]*width:\\s*${pattern}(\\d+)px`))
+      expect(match, `missing authored width for .${className}`).not.toBeNull()
       return Number(match![1])
-    })
-    const parsedFloorTotal = floors.reduce((sum, floor) => sum + floor, 0)
-    // Title's authored split floor is its `min-width` (120, `width` itself is `auto` — it is
-    // the column that gives, never the status pill); Status is wide enough that the longest
-    // closed-vocabulary word never wraps. 120 + 132 + 112 + 104 + 128 = 596.
-    expect(parsedFloorTotal).toBe(596)
-    expect(parsedFloorTotal).toBe(TASKS_SPLIT_FLOOR_TOTAL)
+    }
+    // Beside a record the list sheds PIC and Supervisor before Task drops under its floor, so the
+    // split needs room for the three columns it keeps.
+    const kept = widthOf('th-task', 'clamp\\(') + widthOf('th-status', '') + widthOf('th-due', '')
+    expect(kept).toBeLessThanOrEqual(TASKS_SPLIT_FLOOR_TOTAL)
     expect(TASKS_SPLIT_MIN_WIDTH).toBe(
-      TASKS_RAIL_WIDTH + (TASKS_FRAME_GUTTER_PX * 2) + TASKS_DRAWER_MAX_WIDTH +
-      TASKS_SPLIT_GAP_PX + parsedFloorTotal + TASKS_TABLE_BORDER_PX,
+      TASKS_RAIL_WIDTH + (TASKS_FRAME_GUTTER_PX * 2) + TASKS_RECORD_PANEL_FLOOR_PX +
+      TASKS_SPLIT_GAP_PX + TASKS_SPLIT_FLOOR_TOTAL + TASKS_TABLE_BORDER_PX,
     )
   })
   beforeEach(() => vi.restoreAllMocks())

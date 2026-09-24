@@ -28,6 +28,10 @@ function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
 }
 
+function idWrapper({ children }: { children: ReactNode }) {
+  return createElement(MemoryRouter, null, createElement(I18nProvider, { initialLocale: 'id' }, children))
+}
+
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 
@@ -750,14 +754,12 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
 // ── #401 locale seam: the band and the save status render the active locale ──────
 describe('KitchenPlanPage — locale id (#401)', () => {
   beforeEach(() => {
-    localStorage.setItem('mos.locale', 'id')
     mockUseAuth.mockReturnValue(viewer(['ops_lead']))
     mockPlans.mockResolvedValue(PLAN_CELLS)
   })
-  afterEach(() => localStorage.clear())
 
   it('the summary band renders Indonesian (reused plannedTotal key + the new label)', async () => {
-    render(<KitchenPlanPage />, { wrapper })
+    render(<KitchenPlanPage />, { wrapper: idWrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByRole('group', { name: 'Ringkasan perencanaan' })).toBeInTheDocument()
     expect(screen.getByText('Total rencana')).toBeInTheDocument()
@@ -769,7 +771,7 @@ describe('KitchenPlanPage — locale id (#401)', () => {
     let release!: (id: string) => void
     mockUpsert.mockImplementation(() => new Promise<string>(r => { release = r }))
     const user = userEvent.setup()
-    render(<KitchenPlanPage />, { wrapper })
+    render(<KitchenPlanPage />, { wrapper: idWrapper })
     // PlanQtyField's aria is English in both locales (out-of-scope finding — see plan notes)
     const input = await screen.findByRole('spinbutton', { name: /jumlah yang direncanakan untuk ayam bakar/i })
     await user.type(input, '15{Enter}')
@@ -781,7 +783,7 @@ describe('KitchenPlanPage — locale id (#401)', () => {
 
   it('(#401) the saved tick reads from the catalog ("Tersimpan"), never hardcoded "Saved"', async () => {
     const user = userEvent.setup()
-    render(<KitchenPlanPage />, { wrapper })
+    render(<KitchenPlanPage />, { wrapper: idWrapper })
     const input = await screen.findByRole('spinbutton', { name: /jumlah yang direncanakan untuk ayam bakar/i })
     await user.type(input, '15{Enter}')
     expect(await screen.findByText(/tersimpan/i)).toBeInTheDocument()

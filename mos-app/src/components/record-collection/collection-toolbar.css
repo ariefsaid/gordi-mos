@@ -233,9 +233,24 @@
   .tasks-collection-toolbar .collection-toolbar__query { flex: 1 1 220px; min-width: 200px; max-width: none; }
   .tasks-collection-toolbar .collection-toolbar__search { flex: 1 1 200px; min-width: 160px; max-width: none; }
 }
-/* Tasks' desktop grammar is exactly two toolbar rows from 1024px upward. Row 2 stays on one
-   line; its dropdown boxes may contract and ellipsize while their full values remain available
-   through the trigger title. */
+/* #930 — the row-1 budget above (view chips + search + door trigger) was tuned against the
+   FULL-WIDTH list column; a record panel narrows that column at the SAME viewport width
+   (--record-panel-w can now render wider than Tasks' old fixed 400px track), and a viewport
+   `@media` cannot see that — the exact case DESIGN.md's Container-Query Rule names. Real
+   measurement at 1440px with a record open: the search field was squeezed to ~120px and its
+   placeholder clipped to "Search tasl". Rather than re-tune the row-2 chip budget below (which
+   IS a real per-viewport contract, pinned by its own tests), row 1 takes the same "wrap instead
+   of clip" floor the sub-1024px band already uses, scoped to exactly the narrowed case: a
+   record open, at a viewport still under 1441px (the split panel keeps growing above that, so
+   the row keeps enough room without wrapping — see AC-930-collection-width.spec.ts). */
+@media (min-width: 1024px) and (max-width: 1440.98px) {
+  .split:not(.nodrawer) .tasks-collection-toolbar .collection-toolbar__primary { flex-wrap: wrap; row-gap: 8px; }
+  .split:not(.nodrawer) .tasks-collection-toolbar .collection-toolbar__query { flex: 1 1 220px; min-width: 200px; max-width: none; }
+  .split:not(.nodrawer) .tasks-collection-toolbar .collection-toolbar__search { flex: 1 1 200px; min-width: 160px; max-width: none; }
+}
+/* Tasks' desktop grammar is exactly two toolbar rows from 1024px upward when no record panel has
+   narrowed row 1 (see the #930 exception above). Row 2 stays on one line; its dropdown boxes may
+   contract and ellipsize while their full values remain available through the trigger title. */
 @media (min-width: 1024px) {
   .tasks-collection-toolbar .collection-toolbar__options { flex-wrap: nowrap; gap: 4px; }
   /* A floor on the give, not zero: these boxes may contract, but not to a sliver if the fixed

@@ -146,7 +146,6 @@ for (const width of [390, 1440]) {
 for (const width of [390,1440]) {
   test(`Process tabs and panel/page return at ${width}px`,async ({page},testInfo)=>{
     await page.setViewportSize({width,height:900})
-    await page.addInitScript(()=>localStorage.setItem('mos.locale','en'))
     await loginAs(page,'bulan.dev@example.test',DEMO_PASSWORD)
     await page.goto('work/projects')
     await page.getByRole('link',{name:'E2E Trace Process',exact:true}).click()

@@ -22,9 +22,9 @@ function TestCollectionChrome() {
 }
 
 // Breadcrumb reads useBreadcrumbTitle for the dynamic task title (AC-019).
-function renderBC(path: string) {
+function renderBC(path: string, locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <BreadcrumbTitleProvider>
         <MemoryRouter initialEntries={[path]}>
           <TestCollectionChrome />
@@ -149,23 +149,20 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
 // #410: the ?view= leaf map and the create-task leaf were hardcoded English (module-level
 // literals), so an Indonesian viewer read "Work · Tasks · My work" around a translated shell.
 describe('breadcrumb leaves resolve the id locale (#410)', () => {
-  beforeEach(() => localStorage.setItem('mos.locale', 'id'))
-  afterEach(() => localStorage.removeItem('mos.locale'))
-
   it('?view=mine leaf renders Pekerjaan saya, not My work', () => {
-    renderBC('/work/tasks?view=mine')
+    renderBC('/work/tasks?view=mine', 'id')
     expect(crumbText()).toContain('Pekerjaan saya')
     expect(crumbText()).not.toContain('My work')
   })
 
   it('?view=overdue leaf renders Terlambat', () => {
-    renderBC('/work/tasks?view=overdue')
+    renderBC('/work/tasks?view=overdue', 'id')
     expect(crumbText()).toContain('Terlambat')
     expect(crumbText()).not.toContain('Overdue')
   })
 
   it('/work/tasks/new leaf renders Buat tugas, not Create task', () => {
-    renderBC('/work/tasks/new')
+    renderBC('/work/tasks/new', 'id')
     expect(crumbText()).toContain('Buat tugas')
     expect(crumbText()).not.toContain('Create task')
   })

@@ -58,7 +58,6 @@ describe('SliceStubPage — the placeholder for a route whose surface is not bui
 // is why every case above passed while `/ecommerce` printed its job sentence twice.
 describe('PORT-024: the Ecommerce and Roastery stubs, mounted under the shell context row', () => {
   beforeEach(() => {
-    localStorage.setItem('mos.locale', 'en')
     mockUseAuth.mockReturnValue({
       status: 'authenticated',
       viewer: {

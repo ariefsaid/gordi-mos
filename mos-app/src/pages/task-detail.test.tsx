@@ -262,7 +262,7 @@ describe('AC-070 — detail page renders task fields', () => {
   })
 
   it('renders not-found panel when task returns no data', async () => {
-    mockGetTask.mockRejectedValue(new Error('getTask failed — PGRST116'))
+    mockGetTask.mockRejectedValue(Object.assign(new Error('getTask failed — JSON object requested, multiple (or no) rows returned'), { code: 'PGRST116' }))
     renderDetail()
     await waitFor(() => {
       expect(screen.getByText(/task not found/i)).toBeTruthy()
@@ -545,7 +545,7 @@ describe('RIC-1 — loading state renders styled skeleton', () => {
 // ── RIC-2: not-found state renders styled panel + link ───────────────────────
 describe('RIC-2 — not-found state renders styled panel', () => {
   it('renders not-found panel with styled classes and a back link', async () => {
-    mockGetTask.mockRejectedValue(new Error('getTask failed — PGRST116'))
+    mockGetTask.mockRejectedValue(Object.assign(new Error('getTask failed — JSON object requested, multiple (or no) rows returned'), { code: 'PGRST116' }))
     renderDetail()
     await waitFor(() => {
       expect(screen.getByText(/task not found/i)).toBeTruthy()
