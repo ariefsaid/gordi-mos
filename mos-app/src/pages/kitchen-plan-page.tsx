@@ -131,7 +131,7 @@ function PlanEditor() {
   // OD-CAFE-1: plans are keyed on (org, date, item, branch, activity) — a plan row belongs to one
   // branch's books — so the picker offers this location's streams only. `streamOptions` stays whole
   // for the movement/destination derivation below.
-  const { branches, options: streamOptions, locationOptions, stream, homeStream } = cafeStream
+  const { branches, options: streamOptions, locationOptions, stream, homeStream, myStreamKeys } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const streamMissing = stream === null
   const streamCanProduce = streamProduces(stream, streamOptions)
@@ -447,6 +447,7 @@ function PlanEditor() {
           options={locationOptions}
           stream={stream}
           homeStream={homeStream}
+          myStreamKeys={myStreamKeys}
           onChange={next => { void applyStream(next) }}
         />
       }
@@ -485,6 +486,7 @@ function PlanEditor() {
           <CafeStreamChoices
             options={locationOptions}
             homeStream={homeStream}
+            myStreamKeys={myStreamKeys}
             onChoose={next => { void applyStream(next) }}
           />
         </div>
@@ -575,7 +577,7 @@ function PesananView() {
   // OD-CAFE-1: plans are keyed on (org, date, item, branch, activity) — a plan row belongs to one
   // branch's books — so the picker offers this location's streams only. `streamOptions` stays whole
   // for the movement/destination derivation below.
-  const { branches, options: streamOptions, locationOptions, stream, homeStream } = cafeStream
+  const { branches, options: streamOptions, locationOptions, stream, homeStream, myStreamKeys } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
@@ -685,6 +687,7 @@ function PesananView() {
           options={locationOptions}
           stream={stream}
           homeStream={homeStream}
+          myStreamKeys={myStreamKeys}
           onChange={next => { void applyStream(next) }}
         />
       }
@@ -737,6 +740,7 @@ function PesananView() {
           <CafeStreamChoices
             options={locationOptions}
             homeStream={homeStream}
+            myStreamKeys={myStreamKeys}
             onChoose={next => { void applyStream(next) }}
           />
         </EmptyState>

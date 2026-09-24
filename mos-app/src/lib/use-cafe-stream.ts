@@ -31,7 +31,11 @@ import { listStreamPairs, streamCatalogFrom } from '@/lib/db/kitchen-logs'
 import { listActiveBranches } from '@/lib/db/branches'
 import { activeCafeLocation, rememberCafeLocation } from '@/lib/cafe-opening-location'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
+import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
+import { streamKey } from '@/lib/kitchen-action-label'
 import type { BranchOption, ProductionStream } from '@/lib/db/kitchen-logs.types'
+
+const EMPTY_STREAM_KEYS: ReadonlySet<string> = new Set()
 
 /** What one bootstrap read resolved — nothing is on screen until `adopt` takes it. */
 export interface CafeStreamCatalog {
@@ -56,6 +60,15 @@ export interface CafeStreamCatalog {
    * a deliberate switch is overriding it, which `stream` alone cannot say once it has moved on.
    */
   homeStream: ProductionStream | null
+  /**
+   * Stream keys (`streamKey(branch_id, activity)`, `lib/kitchen-action-label`) for every stream
+   * Team the person is a CURRENT member of — home included, but not only home. Marking is not
+   * defaulting: the binding rule only bars a SECONDARY membership from becoming `stream`'s
+   * default, it says nothing about display, so a person can be a current member of more than one
+   * stream and CafeStreamBar/CafeStreamChoices need all of them to tag "Your Team" and rank them
+   * first (issue #781 follow-up).
+   */
+  myStreamKeys: ReadonlySet<string>
   /**
    * The branch `locationOptions` was narrowed to — the explicit location, else the one the
    * person's own stream names. Null only when neither exists. A switch is remembered against it,
@@ -85,6 +98,7 @@ export function useCafeStream(): CafeStreamState {
     locationOptions: [],
     stream: null,
     homeStream: null,
+    myStreamKeys: EMPTY_STREAM_KEYS,
     branchId: null,
   })
 
@@ -92,12 +106,26 @@ export function useCafeStream(): CafeStreamState {
   // new viewer's bootstrap completes, so a stale branch/activity label cannot sit beside their
   // loading state or be mistaken for the new person's context.
   useEffect(() => {
-    setCatalog({ branches: [], options: [], locationOptions: [], stream: null, homeStream: null, branchId: null })
+    setCatalog({
+      branches: [], options: [], locationOptions: [], stream: null,
+      homeStream: null, myStreamKeys: EMPTY_STREAM_KEYS, branchId: null,
+    })
   }, [viewerId])
 
   const resolve = useCallback(async (): Promise<CafeStreamCatalog> => {
-    const [branches, pairs] = await Promise.all([listActiveBranches(), listStreamPairs()])
+    const [branches, pairs, myTeams] = await Promise.all([
+      listActiveBranches(),
+      listStreamPairs(),
+      // Current profile memberships (effective-dated, home included) — the read the "Your Team"
+      // tag needs beyond the single default (issue #781 follow-up). Skipped when unauthenticated.
+      viewerId ? listCafeViewerTeams(viewerId) : Promise.resolve([]),
+    ])
     const options = streamCatalogFrom(pairs, branches)
+    const myStreamKeys = new Set(
+      myTeams
+        .filter((team) => team.branch_id !== null && team.activity !== null)
+        .map((team) => streamKey(team.branch_id as string, team.activity!)),
+    )
     // fetchDefaultStream needs the branch catalog, so it runs after the parallel pair.
     const ownDefault = await fetchDefaultStream(branches)
     // Where the viewer is working. An explicit choice from the Café root wins; with none — a fresh
@@ -113,7 +141,10 @@ export function useCafeStream(): CafeStreamState {
     // found and falls through to the person's own stream, then to null — the same safe ladder a
     // stale pair already took, with no special case for "wrong branch".
     const stream = resolveCafeStream(locationOptions, ownDefault, viewerId, effectiveBranchId)
-    return { branches, options, locationOptions, stream, homeStream: ownDefault, branchId: effectiveBranchId }
+    return {
+      branches, options, locationOptions, stream,
+      homeStream: ownDefault, myStreamKeys, branchId: effectiveBranchId,
+    }
   }, [activeBranchId, viewerId])
 
   const adopt = useCallback((next: CafeStreamCatalog) => setCatalog(next), [])

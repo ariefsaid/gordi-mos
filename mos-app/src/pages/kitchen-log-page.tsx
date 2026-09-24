@@ -200,7 +200,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   // `.activity` are NOT NULL (AC-007). `streamOptions` is the enumerable stream catalog (FR-005):
   // the live stream Teams, so the roastery — a branch with no stream — can never appear.
   const cafeStream = useCafeStream()
-  const { branches, options: streamOptions, stream: resolvedStream, homeStream } = cafeStream
+  const { branches, options: streamOptions, stream: resolvedStream, homeStream, myStreamKeys } = cafeStream
   // OD-CAFE-1 — production capture is location-bound.
   //
   // The picker offered every stream in the org while the page said which location you were at, so
@@ -501,6 +501,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
       options={locationStreams}
       stream={stream}
       homeStream={homeStream}
+      myStreamKeys={myStreamKeys}
       onChange={selectStream}
       disabled={status.kind === 'submitting'}
     />
@@ -1152,6 +1153,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
               <CafeStreamChoices
                 options={locationStreams}
                 homeStream={homeStream}
+                myStreamKeys={myStreamKeys}
                 onChoose={selectStream}
                 disabled={status.kind === 'submitting'}
               />

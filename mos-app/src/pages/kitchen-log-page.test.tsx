@@ -42,6 +42,9 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
 // The person's own default stream — the ONE shape-validated resolver (default-stream.ts,
 // #234 consolidation), shared with the stock page.
 vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
+// #781 coordinator follow-up: useCafeStream now also reads current Team memberships for
+// "Your Team" tagging (myStreamKeys) — empty by default here; tests that care override it.
+vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 // The missing-item report (AC-013) files through the Daily Log data layer — mocked like the rest.
 vi.mock('@/lib/db/ops-log', () => ({ addLogEntry: vi.fn() }))
@@ -56,6 +59,7 @@ import {
   listStreamItemIds,
 } from '@/lib/db/kitchen-logs'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
+import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import { listActiveBranches } from '@/lib/db/branches'
 import type {
   BranchOption,
@@ -70,6 +74,7 @@ const mockFetchPlanMap = vi.mocked(fetchPlanMap)
 const mockFetchStockMap = vi.mocked(fetchStockMap)
 const mockFetchActualsMap = vi.mocked(fetchActualsMap)
 const mockFetchDefaultStream = vi.mocked(fetchDefaultStream)
+const mockListCafeViewerTeams = vi.mocked(listCafeViewerTeams)
 const mockListStreamPairs = vi.mocked(listStreamPairs)
 const mockResolveKitchenBuId = vi.mocked(resolveKitchenBuId)
 const mockInsertKitchenLogBatch = vi.mocked(insertKitchenLogBatch)
@@ -1681,6 +1686,36 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     expect(mockInsertKitchenLogBatch.mock.calls[0][0][0]).toEqual(
       expect.objectContaining({ branch_id: BRANCH_RADIANT.id, activity: 'bar' }),
     )
+  })
+
+  // Coordinator follow-up to item 1: marking is not defaulting. A Krishna-like person — home
+  // Team is an office Team (not a stream, so still no default) but a CURRENT member of a stream
+  // Team elsewhere — must see that stream marked "Your Team" and listed first among the choices,
+  // with nothing preselected: the binding rule bars a secondary membership from becoming the
+  // default, not from being findable.
+  it('a current stream membership (not the — missing — home) is marked "Your Team" and listed first, with nothing preselected', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null) // the home Team is an office Team — no default
+    mockListCafeViewerTeams.mockResolvedValue([
+      {
+        id: 'team-office', name: 'Ops Office', business_unit_id: 'bu-1', site_id: null,
+        is_primary: true, branch_id: null, activity: null,
+      },
+      {
+        id: 'team-ghq-kitchen', name: 'Gordi HQ Kitchen', business_unit_id: 'bu-1', site_id: null,
+        is_primary: false, branch_id: BRANCH_GORDI_HQ.id, activity: 'kitchen',
+      },
+    ])
+    await renderPage()
+    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+
+    // Nothing preselected — the office Team is still not a stream.
+    expect(screen.queryByText('Nasi Goreng')).toBeNull()
+    expect(mockFetchPlanMap).not.toHaveBeenCalled()
+
+    const group = screen.getByRole('group', { name: /production stream/i })
+    const choices = within(group).getAllByRole('button')
+    expect(choices[0]).toHaveTextContent('Gordi HQ · Kitchen')
+    expect(choices[0]).toHaveTextContent('Your Team')
   })
 })
 
