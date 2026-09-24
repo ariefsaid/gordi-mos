@@ -31,6 +31,12 @@ vi.mock('@/lib/db/user-views-collection', () => ({
 // The V3 collection Table renders in desktop mode here (deterministic), and the archive Feed's
 // "Share a Signal" row opens the shared composer host — stub it so this page test needs no shell.
 const desktopState = vi.hoisted(() => ({ value: true }))
+// The hard-load record id is a module-level browser capture; jsdom has none, so tests set it.
+const bootSignal = vi.hoisted(() => ({ id: null as string | null }))
+vi.mock('@/components/signals/signal-page-mode', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components/signals/signal-page-mode')>()),
+  get BOOT_SIGNAL_RECORD_ID() { return bootSignal.id },
+}))
 vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => desktopState.value }))
 const { composerOpen, composerPostCount, composerCanPost } = vi.hoisted(() => ({
   composerOpen: vi.fn(),
@@ -177,6 +183,7 @@ function LocationProbe() {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  bootSignal.id = null
   composerPostCount.value = 0
   composerCanPost.value = undefined
   desktopState.value = true
@@ -1115,5 +1122,34 @@ describe('signals Team filter — historical team rows vs All Teams (AC-8)', () 
     await userEvent.click(screen.getByRole('combobox', { name: 'Team' }))
     expect(await screen.findByRole('option', { name: 'Radiant Operations' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'HQ Operations' })).not.toBeInTheDocument()
+  })
+})
+
+// A pasted/bookmarked collection link naming a record (a hard load onto ?record=<id>) resolves to
+// the canonical full page. The collection must not mount underneath that redirect: its panel
+// open and URL sync would write the collection URL back over it and strand a blank page.
+describe('SignalsArchivePage — a hard load onto ?record=<id> lands on the canonical page', () => {
+  it('ends on /work/signals/<id> with the collection query kept, and stays there', async () => {
+    bootSignal.id = 'signal-1'
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/work/signals?layout=feed&record=signal-1']}>
+          <AuthContext.Provider value={{ status: 'unauthenticated' }}>
+            <OverlayHostProvider>
+              <LocationProbe />
+              <Routes>
+                <Route path="/work/signals" element={<SignalsArchivePage />} />
+                <Route path="/work/signals/:signalId" element={<p data-testid="canonical-page">page</p>} />
+              </Routes>
+            </OverlayHostProvider>
+          </AuthContext.Provider>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    await screen.findByTestId('canonical-page')
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)) })
+    expect(screen.getByTestId('location')).toHaveTextContent(/^\/work\/signals\/signal-1\?layout=feed$/)
+    expect(screen.getByTestId('canonical-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('signal-record-host-stub')).not.toBeInTheDocument()
   })
 })
