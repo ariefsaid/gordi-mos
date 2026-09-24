@@ -42,10 +42,6 @@ describe('useIsSplitWidth (decision-column split threshold)', () => {
       floorOf('th-due', 'width'),
     ]
     const parsedFloorTotal = floors.reduce((sum, floor) => sum + floor, 0)
-    // Status is wide enough that the longest closed-vocabulary word never wraps; Due is wide
-    // enough that the stacked "Overdue · <date>" state stays on one line (#930).
-    // 120 + 132 + 112 + 104 + 208 = 676.
-    expect(parsedFloorTotal).toBe(676)
     expect(parsedFloorTotal).toBe(TASKS_SPLIT_FLOOR_TOTAL)
     expect(TASKS_SPLIT_MIN_WIDTH).toBe(
       TASKS_RAIL_WIDTH + (TASKS_FRAME_GUTTER_PX * 2) + TASKS_RECORD_PANEL_FLOOR_PX +

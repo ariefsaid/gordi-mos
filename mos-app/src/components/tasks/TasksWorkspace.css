@@ -12,24 +12,17 @@
 
 /* Shared PageHead/content-header styling lives in src/shell/page-head.css. */
 
-/* owner-eyes item 7 — kill the dead right void. PageFrame caps its content region at 1180px and
-   left-aligns it; on a wide monitor (e.g. 1870px) that stranded a ~430px void to the RIGHT of the
-   drawer, because the whole master-detail split was boxed into 1180px and pinned left. The Tasks
-   workspace is a DATA workspace whose design intent is full-bleed (see the .split note below), not a
-   single-column readable page, so where the content region hosts the split we lift that cap and let
-   the split fill the content area. The DRAWER column is separately capped at the E7 record reading
-   measure (~520px, below) so the record never balloons — the table absorbs the reclaimed width and
-   the drawer pins to the content's right edge. Scoped by :has(.split) so only the Tasks route (the
-   only page with a .split) is affected; every single-column readable page keeps its 1180px cap. */
-.page-frame__content:has(.split) { max-width: none; }
+/* Tasks is a DATA workspace, not a single-column readable page, so its content region takes the
+   wide 1760px operating measure instead of the default 1180px — matching `.split`'s own max-width
+   below, so the page head (title, "+ Create task") shares one right edge with the table beneath
+   it rather than growing past it. Scoped to :has(.split) so only this route is affected. */
+.page-frame__content:has(.split) { max-width: 1760px; }
 
 /* ── Split-view grid (the push/squash master-detail, ADR-0007) ── */
 .split {
   display: grid;
-  /* minmax(0,1fr) prevents table content from stretching the track past the viewport.
-     #930 — the record column is --record-panel-w (index.css), the SAME token every other Work
-     collection's split uses (styles/drawer.css .record-split); Tasks no longer carries its own
-     fixed 400px track. */
+  /* minmax(0,1fr) prevents table content from stretching the track past the viewport. The record
+     column is --record-panel-w (index.css) — the one panel width every Work collection uses. */
   grid-template-columns: minmax(0, 1fr) var(--record-panel-w);
   align-items: start; gap: 12px;
   /* CONV (owner-directed 2026-06-17): the data workspace runs FULL-BLEED — it fills PageFrame's
@@ -42,19 +35,12 @@
 /* GAP-2 (OD-91 #7): expand-in-place is retired — there is no .split.expanded focus mode; an open
    drawer always keeps the two-column split (table stays visible), and "Open full page" escalates. */
 
-/* ── R1 (owner review r2): split height parity ──
-   With align-items:start the table card and the record drawer each sat at their OWN content
-   height, so their bottoms never lined up — the owner read them as two mismatched boxes. At the
-   split width both columns now stretch to ONE shared track height (the taller of the two), and the
-   drawer becomes a flex column that FILLS that height and OWNS its overflow via an internal scroll —
-   so the composition reads as one surface. The drawer's <aside> is the single card frame; its inner
-   .dw-surface fills and scrolls (dropping the nested card border/shadow it carried inside the aside).
-   Scoped to the decision-column split threshold because below it the drawer is not a column.
-   The threshold tracks TASKS_SPLIT_MIN_WIDTH (use-is-split-width.ts) — keep this literal equal
-   to that constant by hand (guard-r1-split-parity.css.test.ts pins it). #930 raised it from 1306
-   to 1426: the record column grew from a fixed 400px to --record-panel-w's 440px floor, and
-   Due's floor grew from 128 to 208 so the stacked "Overdue · <date>" state stays on one line. */
-@media (min-width: 1426px) {
+/* ── Split height parity ──
+   At the split width both columns stretch to one shared track height; the drawer becomes a flex
+   column that fills it and scrolls its own content, so the two read as one surface. Scoped to
+   the decision-column split threshold — below it the drawer isn't a column at all.
+   Keep this literal equal to TASKS_SPLIT_MIN_WIDTH (use-is-split-width.ts); a test pins it. */
+@media (min-width: 1440px) {
   .split:not(.nodrawer) { align-items: stretch; }
   .split .drawer {
     display: flex;
@@ -241,44 +227,29 @@
    Due column can NEVER be clipped off-screen at 1280px. .tasks-scroll (overflow-x:auto)
    is the safety net only for absurdly narrow shells. */
 .tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 0; }
-/* #930 — every non-title decision column is a fixed px floor sized to its longest realistic
-   value, by CLASS (every <th>/<td> always carries one — tasks-table-body.tsx, task-row.tsx —
-   regardless of nth-child position, extended Fields columns, or whether a record is open), so
-   the SAME rule holds at rest and with the record panel open: only the Task identity column
-   (auto, min-width 120px) absorbs spare width. This replaces the old %-based rest state, which
-   let these columns balloon at a wide viewport (#930 N2 — 1920 rest spread Status/PIC/Supervisor
-   ~240px apart) and a SEPARATE `.split:not(.nodrawer)`-scoped px set that only won at some
-   specificities and not others, leaving the rest/split states free to disagree. */
+/* Every non-title decision column is a fixed px floor sized to its class (every <th>/<td> always
+   carries one), regardless of position, extended Fields columns, or whether a record is open —
+   only Title (auto, min-width 120px) absorbs spare width, at rest or in split. */
 .tasks-table th.th-task, .tasks-table td.td-main { width: auto; min-width: 120px; }
-/* Wide enough for the longest closed-vocabulary word in either locale ("Sedang berjalan")
-   without wrapping. */
+/* Wide enough for the longest closed-vocabulary word in either locale without wrapping. */
 .tasks-table th.th-status, .tasks-table td.td-status { width: 132px; }
-/* A person column holds a first name. */
-.tasks-table th.th-owner, .tasks-table td.td-owner { width: 112px; }
+/* Wide enough for a first name plus its avatar and gap. */
+.tasks-table th.th-owner, .tasks-table td.td-owner { width: 126px; }
 .tasks-table th.th-supervisor, .tasks-table td.td-supervisor { width: 104px; }
-/* Due holds the longest ordinary string in the row — the stacked "Overdue · <date>" state
-   (task-row.tsx `inline-cell-trigger--stacked`, DD-MVP-4) must fit on ONE line at this width;
-   208px (184px content after the cell's 12px×2 padding) clears "Overdue · Sun 13 Sept" with
-   room for a longer month name. Below 1100px Supervisor is hidden by CLASS (not position), so
-   an optional Fields column never shifts the wrong column out — the fixed floors above already
-   guard the identity column, so .tasks-scroll's horizontal scroll is the only fallback needed
-   at an extremely narrow desktop shell. */
+/* Wide enough for the stacked "Overdue · <date>" state (task-row.tsx, DD-MVP-4) to stay on one
+   line. Below 1100px Supervisor hides by class so an optional Fields column can't shift it out. */
 .tasks-table th.th-due, .tasks-table td.td-due { width: 208px; }
 @media (max-width: 1099.98px) {
   .tasks-table th.th-supervisor, .tasks-table td.td-supervisor { display: none; }
 }
-/* With a record open, the list drops lower-priority columns instead of starving the Task
-   identity column. With all 5 columns forced into the list beside --record-panel-w, Title can
-   fall to a single-word width; the fixed floors above make columns "never stretch" but do not
-   by themselves keep Title readable once the panel takes its share. Declared drop order (highest
-   priority — never
-   dropped — to lowest): Task > Status > Due > PIC > Supervisor. PIC and Supervisor are both
-   already visible in the open record itself (Task Ownership), so hiding them here loses no
-   information, only a second copy of it; Status and Due stay because they are the two facts
-   a viewer scans the LIST for while a record is open. Unconditional on viewport (not a
-   max-width band): the narrowest point of the live split range is already at its floor
-   (TASKS_RECORD_PANEL_FLOOR_PX in use-is-split-width.ts), so a wider desktop only ever gives
-   Title MORE room under this same rule, never less — one rule covers the whole range. */
+/* Title is `width: auto`, so it can absorb all remaining table width. Capping the TABLE's
+   max-width instead of the title cell keeps Status/PIC/Supervisor/Due right after Title, and
+   sends leftover space to a gutter after the row instead of between Title and them. */
+.tasks-table { max-width: 1210px; } /* title cap + status + PIC + supervisor + due */
+.split:not(.nodrawer) .tasks-table { max-width: 980px; } /* title cap + status + due (PIC/supervisor hidden) */
+/* With a record open, hide PIC and Supervisor before Title starves — both are already visible in
+   the open record's own Task Ownership block, so nothing is lost. Status and Due stay: they're
+   what a viewer scans the list for while a record is open. */
 .split:not(.nodrawer) .tasks-table th.th-owner,
 .split:not(.nodrawer) .tasks-table td.td-owner,
 .split:not(.nodrawer) .tasks-table th.th-supervisor,
@@ -714,21 +685,15 @@ tr.grp td { padding: 0; }
 .tasks-table .th-objective, .tasks-table .td-objective { width: 112px; }
 .tasks-table .th-activity, .tasks-table .td-activity { width: 128px; }
 
-/* Extended tier (#743 r3, #930): with any optional column on, the table drops onto its floored
-   track — decision columns pin to a wider CLASS floor than the basic 5-column tier (more
-   columns share the row, so Task's own floor grows to 160) and .tasks-scroll owns the
-   horizontal overflow (never the page). min-width is the sum of every floor below; the
-   identity column absorbs every pixel above that. One set of floors, no split-scoped shrink —
-   the record panel taking room is exactly when a column must NOT get narrower (#930 rule 2). */
-.tasks-table--extended { min-width: 1260px; } /* sum of the floors below (was 1244 at Due:176) */
+/* With any optional column on, the table drops onto a wider set of CLASS floors (more columns
+   share the row, so Task's own floor grows to 160) and .tasks-scroll owns any horizontal
+   overflow, never the page. min-width is the sum of the floors below; Task absorbs the rest,
+   at rest or in split — none of these floors shrink when a record panel narrows the list. */
+.tasks-table--extended { min-width: 1260px; } /* sum of the floors below */
 .tasks-table--extended th.th-task, .tasks-table--extended td.td-main { width: 160px; }
 .tasks-table--extended th.th-status, .tasks-table--extended td.td-status { width: 132px; }
 .tasks-table--extended th.th-owner, .tasks-table--extended td.td-owner { width: 128px; }
 .tasks-table--extended th.th-supervisor, .tasks-table--extended td.td-supervisor { width: 120px; }
-/* #930 — same 208px Due floor as the basic tier (was 176 at rest, 104 in split — a record
-   panel made Due narrower still, exactly backwards for a value that must never wrap). One
-   width, no split-scoped shrink: the extended tier's own min-width above already accounts for
-   it, and .tasks-scroll is still the horizontal-overflow fallback at an extreme narrow shell. */
 .tasks-table--extended th.th-due, .tasks-table--extended td.td-due { width: 208px; }
 .tasks-table--extended th.th-business-unit, .tasks-table--extended td.td-business-unit { width: 128px; }
 .tasks-table--extended th.th-workline, .tasks-table--extended td.td-workline { width: 144px; }
@@ -783,6 +748,5 @@ tr.grp td { padding: 0; }
 }
 
 /* A status pill is never cut: the trigger that wraps it does not ellipsize — the fixed
-   132px .th-status/.td-status floor above (#930) already fits the longest label at every
-   width, so the column no longer needs a separate narrow-desktop override. */
+   .th-status/.td-status floor above already fits the longest label at every width. */
 .tasks-table td.td-status .inline-cell-trigger { overflow: visible; text-overflow: clip; }

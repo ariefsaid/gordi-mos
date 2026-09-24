@@ -6,22 +6,15 @@
   width: 100%;
 }
 
-/* #930 rule 2 — only the Name column is flexible (minmax(220px, 1fr), so it absorbs spare width
-   whether the frame is 1142px or the full 1760px wide-operating measure); every other column is
-   a fixed px floor sized to its longest realistic value and never stretches. Previously every
-   column carried an `fr` share, so widening the frame (#930 rule 1) would have stretched
-   Business Unit/Accountable/Work/Progress/Activity into a dead-looking gap instead of leaving
-   that width to the one column meant to use it. */
+/* Only Name is flexible, capped at 640px; every other column is a fixed px floor. The trailing,
+   unoccupied `minmax(0, 1fr)` track absorbs leftover width after the last column instead of
+   letting Name push its neighbours away. */
 .catalog-collection__header,
 .catalog-collection__row-link {
   display: grid;
-  /* Column 4 (.cell--cadence) carries two different jobs at the same grid slot — Projects &
-     Processes' short "Weekly · 20 Jul 2026" cadence, and an Objective's relation sentence
-     ("Linked through a Task: <name>"), which a real name can push past a short fixed width and
-     clip mid-word. 200px plus the wrap override below (scoped to the objective table only, so
-     P&P's shorter value keeps its one-line ellipsis) covers a realistic name on one or two clean
-     lines instead of a mid-word clip. */
-  grid-template-columns: minmax(220px, 1fr) 120px 130px 200px 120px 160px;
+  /* Column 4 (.cell--cadence) holds Projects & Processes' cadence/due OR an Objective's relation
+     sentence, which can run long; sized and (see the wrap rule below) wrapped for the latter. */
+  grid-template-columns: minmax(220px, 640px) 120px 130px 200px 120px 160px minmax(0, 1fr);
   align-items: center;
   column-gap: 16px;
 }
@@ -157,11 +150,9 @@
   white-space: nowrap;
 }
 
-/* The Objective flavour of .cell--cadence holds a full sentence
-   ("Linked through a Task: <name>"), not a short label; 200px (above) fits a realistic name on
-   one line, but a name has no upper bound, so this value wraps to a second line instead of
-   ellipsis-clipping mid-word. Scoped to the objective table only — Projects & Processes' short
-   cadence/due value in the same grid slot keeps the shared one-line ellipsis. */
+/* An Objective's relation sentence has no length bound, so it wraps here instead of clipping
+   mid-word. Scoped to the objective table only — Projects & Processes' shorter value in the
+   same slot keeps a one-line ellipsis. */
 .catalog-collection__table--objective .catalog-collection__cell--cadence .catalog-collection__cell-value {
   overflow: visible;
   overflow-wrap: anywhere;
@@ -310,16 +301,13 @@
   }
 }
 
-/* A record panel keeps this collection in a narrower desktop track. Preserve the row's primary
-   scan unit — identity, owner, progress — and remove secondary facts that would force the queue to
-   overflow or hide the progress column. The standalone collection keeps all six columns above.
-   #930 rule 2: the two kept columns are fixed px here too, for the same reason as the six-column
-   grid above — a record panel narrows the list, which is exactly when a column must not also
-   start stretching into whatever room is left. */
+/* A record panel narrows the list to Name, Accountable and Progress; the other columns hide.
+   Name keeps the same 640px cap and trailing gutter track as the six-column grid, for the same
+   reason: a wide list beside the panel should not stretch Name away from its neighbours. */
 @media (min-width: 1100px) {
   .record-split .catalog-collection__header,
   .record-split .catalog-collection__row-link {
-    grid-template-columns: minmax(0, 1fr) 92px 110px;
+    grid-template-columns: minmax(0, 640px) 92px 110px minmax(0, 1fr);
     column-gap: 12px;
   }
 
@@ -345,23 +333,14 @@
   }
 }
 
-/* #930 rule 2/4 — the full six-column desktop grid (220 name floor + 730 fixed columns + 5×16px
-   gaps + the row's 14px×2 padding = 1058px) needs more room than the content frame has between
-   the desktop rail breakpoint and where the frame itself reaches 1058px: at the 232px rail, the
-   frame is `viewport - 296px`, which only clears 1058px at 1354px. Below that (down to 1100px,
-   where the full rail applies and the tablet metadata-band layout above no longer does) the
-   six-column grid scrolled the row horizontally at rest and pushed Activity past the fold.
-   Below 1354px this REST state borrows the identical reduced 3-column track the record-split
-   rule above already uses once a panel narrows the list — the same column priority (Name,
-   Accountable, Progress kept; Relation/Cadence/Activity give way) applies whether the list is
-   narrowed by a viewport this size or by a record panel, so one drop order covers both causes.
-   Declared as its own rule rather than widening the `.record-split` selector above: this band
-   applies with or without `.record-split`, and duplicating the four declarations is smaller and
-   safer than reworking the already-covered record-split rule's own media query. */
+/* Below the width where the six-column grid fits its floors, at rest (no record open), the row
+   otherwise overflows its card and clips silently. Applies the same reduced Name/Accountable/
+   Progress track as the record-split rule above, since a narrow viewport and a narrowed-by-panel
+   list need the same drop order. */
 @media (min-width: 1100px) and (max-width: 1353.98px) {
   .catalog-collection__header,
   .catalog-collection__row-link {
-    grid-template-columns: minmax(0, 1fr) 92px 110px;
+    grid-template-columns: minmax(0, 640px) 92px 110px minmax(0, 1fr);
     column-gap: 12px;
   }
 

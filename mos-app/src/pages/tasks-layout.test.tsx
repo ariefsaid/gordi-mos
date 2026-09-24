@@ -1069,11 +1069,8 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     // The record fails to load → the not-found back link must carry the preserved
     // ?view= search (TaskSurface builds it from location.search), so a direct-open
     // of /work/tasks/:id?view=overdue returns the user to the SAME saved view.
-    // TaskSurface distinguishes a genuinely missing task from a retryable read failure
-    // (isMissingTaskError in task-surface.tsx) — a plain 'not found' message no longer qualifies.
-    // The real PostgREST error for `.single()` matching 0 rows carries `code: 'PGRST116'`, not
-    // that literal string in its message — build the same shape getTask actually throws
-    // (lib/db/tasks.ts's dbError).
+    // Matches the real shape getTask throws for a missing row (lib/db/tasks.ts's dbError) —
+    // isMissingTaskError (task-surface.tsx) keys on `.code`, not this message text.
     mockGetTask.mockRejectedValue(
       Object.assign(new Error('getTask failed — JSON object requested, multiple (or no) rows returned'), { code: 'PGRST116' }),
     )

@@ -10,20 +10,12 @@
    ════════════════════════════════════════════════════════════════════════════ */
 
 /* ── Shared split track (list | record) ───────────────────────────────────────
-   The generic push/squash grid any RecordPanelHost tenant page (Signals archive,
-   …) uses so its list squashes and the non-modal <aside> record panel sits BESIDE
-   it at >=1100px — identical side/width to the Task drawer's split (spec FR-3).
-   This generic record track is percentage-based; Tasks .split has its own fixed 400px named
-   track because its decision-column threshold must be arithmetic. Below 1100px the host renders its own modal overlay, so pages drop this class
-   and the list runs full-width underneath. */
+   The generic push/squash grid any RecordPanelHost tenant page uses so its list squashes and
+   the non-modal <aside> record panel sits beside it at >=1100px. Below that the host renders
+   its own modal overlay instead, and pages drop this class. */
 .record-split {
   display: grid;
-  /* #930 — the ONE record-panel width (--record-panel-w, index.css): clamp(440px, 40%, 640px),
-     the same track Tasks' own .split now uses. Previously this generic panel ran a plain
-     percentage (44%, floored 360px) while Tasks carried its own fixed 400px — two different
-     panel widths for what is the same job (a record beside its list). The clamp already carries
-     its own floor/ceiling, so the track needs no extra minmax(). */
-  grid-template-columns: minmax(0, 1fr) var(--record-panel-w);
+  grid-template-columns: minmax(0, 1fr) var(--record-panel-w); /* --record-panel-w: index.css, the one panel width every Work collection uses */
   align-items: start; gap: 12px;
 }
 
@@ -36,13 +28,11 @@
 }
 
 /* ── Shell-mounted split panel (Luna audit B1) ───────────────────────────────
-   The shell OverlayHostSlot sits above the page Outlet (no page-level .record-split wrapper),
-   so a shell-owned non-modal panel (Bell quick-triage, future shell overlays) would otherwise
-   render as an unpositioned auto-width <aside>. This rule gives it the SAME right-anchored
-   desktop track as a collection .record-split panel — using the generic percentage track for
-   non-Tasks hosts. It floats over the main content (z-drawer) so the underlying page stays mounted
-   and interactive. Below the split threshold RecordPanelHost switches to its modal regime
-   (.drawer-modal), so this rule is desktop-only. */
+   Positions a shell-owned non-modal panel (Bell quick-triage, Home's Signal panel) that has no
+   page-level .record-split wrapper of its own. Below the split threshold RecordPanelHost uses
+   its modal regime instead, so this rule is desktop-only.
+   Width is its own, not --record-panel-w: that token sizes the four Work-collection panels,
+   each beside a list built for it; Home's list was not, and needs its own narrower panel. */
 /* 1100px is the generic shell overlay breakpoint; Tasks uses its named decision-column threshold. */
 @media (min-width: 1100px) {
   .drawer-shell-split {
@@ -54,7 +44,8 @@
     top: var(--header-h);
     right: 0;
     bottom: 0;
-    width: var(--record-panel-w); /* #930 — same one panel width as every other record track */
+    width: min(44%, 480px);
+    min-width: 360px;
     z-index: var(--z-drawer);
     border-radius: 0;
     border-top: 0; border-right: 0; border-bottom: 0;
@@ -142,16 +133,10 @@
 /* Right-side sheet (desktop / narrow-laptop band). */
 .drawer-modal.drawer-sheet {
   position: absolute; top: 0; right: 0; bottom: 0;
-  /* Intermediate-width (768–1099px) right sheet: ~45% of the viewport, capped at 520px
-     (plan Task 4 Step 3), floored at 440px.
-     THE FLOOR IS LOAD-BEARING — it was lost once already. v4 writes this `min(45vw, 520px)`,
-     with no lower bound, and carrying that verbatim narrowed the sheet against what `dev` ships.
-     The floor tracks #930's shared --record-panel-w floor (index.css) rather than a private
-     number — the sheet and the desktop split panel are the same record-panel job at two
-     viewport bands, so they read the SAME floor instead of two that could drift apart.
-     `clamp()` keeps v4's 45vw/520px intent and adds that floor back. `drawer.css.test.ts` derives
-     the expected floor from index.css's token rather than repeating the literal here.
-     `max-width: 100%` still wins below 440px, so the floor never overflows a narrow viewport. */
+  /* Intermediate-width (768–1099px) right sheet: ~45% of the viewport, capped at 520px, floored
+     at the same value as --record-panel-w's floor (index.css) — one record-panel floor, not a
+     private number that could drift from it. drawer.css.test.ts derives the expected value from
+     the token rather than repeating the literal. `max-width: 100%` covers below-floor viewports. */
   width: clamp(440px, 45vw, 520px); max-width: 100%; border-radius: 0;
   border: 0; border-left: 1px solid var(--border);
   box-shadow: -8px 0 32px color-mix(in srgb, var(--ds-font-color-primary) 18%, transparent);
