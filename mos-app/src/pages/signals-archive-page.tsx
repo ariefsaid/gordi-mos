@@ -55,7 +55,27 @@ function deputySeed(body: string): string {
   return line.length > DEPUTY_SEED_MAX ? `${line.slice(0, DEPUTY_SEED_MAX).trimEnd()}…` : line
 }
 
+/**
+ * OD-63 / Rule 4: a DIRECT hard load / refresh / new-tab / shared deep-link onto ?record=<id>
+ * resolves to the canonical full page (mirror of task-page-mode). An in-list click is an in-app
+ * SPA nav (no boot timing entry → BOOT_SIGNAL_RECORD_ID is null), so it stays in the panel. The
+ * redirect is decided before the collection mounts: the collection's panel open and URL sync
+ * would otherwise write the collection URL back over it. jsdom has no PerformanceNavigationTiming,
+ * so unit tests stay in the panel unless they set the boot id.
+ */
 export function SignalsArchivePage() {
+  const [params] = useSearchParams()
+  const recordId = params.get('record')
+  if (recordId && BOOT_SIGNAL_RECORD_ID === recordId) {
+    const next = new URLSearchParams(params)
+    next.delete('record')
+    const search = next.toString()
+    return <Navigate to={{ pathname: `/work/signals/${recordId}`, search: search ? `?${search}` : '' }} replace />
+  }
+  return <SignalsArchiveCollection />
+}
+
+function SignalsArchiveCollection() {
   const t = useT()
   useDocumentTitle(t('common.docTitle', { page: t('nav.signals') }))
   const host = useOverlayHost()
@@ -166,21 +186,14 @@ export function SignalsArchivePage() {
   // steps aside: the + launcher owns Share Signal there (AC-029), exactly as Tasks' head yields
   // "New task" to the launcher (showNewTask && !isNarrow).
 
-  // The list-search query minus ?record= — shared by the canonical-page redirect and the
-  // panel's "Open full page" escalation, so the search state (q / retracted) survives the jump.
+  // The list-search query minus ?record= — the panel's "Open full page" escalation keeps the
+  // search state (q / retracted) across the jump.
   const searchWithoutRecord = useCallback(() => {
     const next = new URLSearchParams(params)
     next.delete('record')
     const s = next.toString()
     return s ? `?${s}` : ''
   }, [params])
-
-  // OD-63 / Rule 4: a DIRECT hard load / refresh / new-tab / shared deep-link onto
-  // ?record=<id> escalates to the full canonical page (mirror of task-page-mode). An in-list
-  // click is an in-app SPA nav (no boot timing entry → BOOT_SIGNAL_RECORD_ID is null), so it
-  // stays in the drawer. jsdom has no PerformanceNavigationTiming, so unit tests stay in the
-  // drawer; the e2e proves the real-browser hard-load redirect.
-  const shouldEscalateToCanonical = Boolean(recordId && BOOT_SIGNAL_RECORD_ID === recordId)
 
   // ≥1100px + a record open → the list squashes and the record mounts as an inline non-modal
   // split beside it (identical side/width to a Task, spec FR-3). Below split, OverlayHostSlot
@@ -261,12 +274,6 @@ export function SignalsArchivePage() {
     next.delete('record')
     setParams(next, { replace: true })
   }, [params, recordId, setParams, signalSessionActive])
-
-  // Keep the direct-load redirect after every hook so an in-app route change and a
-  // hard-load redirect share one stable hook order.
-  if (shouldEscalateToCanonical) {
-    return <Navigate to={{ pathname: `/work/signals/${recordId}`, search: searchWithoutRecord() }} replace />
-  }
 
   const clearFilters = () =>
     setQuery({ q: '', attention: null, category: null, teamId: null, view: 'all', showRetracted: false })

@@ -21,6 +21,26 @@ function ruleBody(css: string, selector: string): string {
   throw new Error(`unterminated rule: ${selector}`)
 }
 
+/** Every rule (any nesting depth) in the overlay sheets that sets `position`, with its value. */
+function positionRules(css: string): { selector: string; value: string }[] {
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  const rules: { selector: string; value: string }[] = []
+  for (const [, selector, body] of bare.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const value = body.match(/(?:^|;)\s*position:\s*([a-z-]+)/)?.[1]
+    if (value) rules.push({ selector: selector.trim(), value })
+  }
+  return rules
+}
+
+/** Position values of every overlay-sheet rule matching an aside with `className`. */
+function positionsFor(className: string): { selector: string; value: string }[] {
+  const aside = document.createElement('aside')
+  aside.className = className
+  return [...positionRules(drawerCss), ...positionRules(recordPanelCss)].filter(({ selector }) => {
+    try { return aside.matches(selector) } catch { return false }
+  })
+}
+
 // TB-1 / OD-P4-9 — the shell-mounted overlay panels (Inbox quick-triage on `.drawer-shell-split`,
 // standalone Deputy on `.overlay-companion-host--standalone`) float over MAIN content, so they must
 // NOT cover the in-flow top-bar chrome (the bell/deputy/⌘K cluster, incl. the control that opened
@@ -39,8 +59,9 @@ describe('TB-1: shell overlay panels leave the top-bar chrome reachable', () => 
   })
 
   it('the in-flow split stacking context cannot override shell-panel fixed positioning', () => {
-    expect(recordPanelCss).toMatch(/\.drawer-split:not\(\.drawer-shell-split\)\s*\{[^}]*position:\s*relative/)
-    expect(recordPanelCss).not.toMatch(/(^|\n)\.drawer-split\s*\{[^}]*position:\s*relative/)
+    const matching = positionsFor('drawer drawer-split drawer-shell-split')
+    expect(matching.length).toBeGreaterThan(0)
+    expect(matching).toEqual(matching.map((rule) => ({ ...rule, value: 'fixed' })))
   })
 })
 
@@ -126,5 +147,25 @@ describe('the overlay root sits on the z-index ladder, not a raw number (#190)',
     const drawerTier = Number(indexCss.match(/--z-drawer:\s*(\d+)/)![1])
     const modalTier = Number(indexCss.match(/--z-modal:\s*(\d+)/)![1])
     expect(drawerTier).toBeLessThan(modalTier)
+  })
+})
+
+// ── Deputy's position does not depend on stylesheet order ────────────────────────────────────
+//
+// The desktop companion aside carries `drawer drawer-split overlay-companion-host …`. Two
+// equal-specificity rules setting `position` on it are decided by which file the bundle loads
+// last, which jsdom cannot see. So the contract is: every rule in the shared overlay sheets that
+// matches the companion aside and sets `position` sets `fixed` — no competitor exists to win.
+describe('the desktop Deputy companion has exactly one position, independent of CSS order', () => {
+  for (const layout of ['standalone', 'with-record']) {
+    it(`every position rule matching the ${layout} companion says fixed`, () => {
+      const matching = positionsFor(`drawer drawer-split overlay-companion-host overlay-companion-host--${layout}`)
+      expect(matching.length).toBeGreaterThan(0)
+      expect(matching).toEqual(matching.map((rule) => ({ ...rule, value: 'fixed' })))
+    })
+  }
+
+  it('the in-flow record aside still gets its own stacking context', () => {
+    expect(positionsFor('drawer drawer-split').map(({ value }) => value)).toEqual(['relative'])
   })
 })
