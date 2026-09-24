@@ -964,4 +964,31 @@ describe('issue 222: the plan offers the stream\'s own item list', () => {
     await waitFor(() => expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toBeDisabled())
     expect(screen.getByText('Not on this stream’s list')).toBeInTheDocument()
   })
+
+  it('a switch while the refused save re-reads the list keeps the NEW stream\'s list', async () => {
+    let kitchenReads = 0
+    let releaseStale: (ids: Set<string>) => void = () => {}
+    mockOffered.mockImplementation(async (s) => {
+      if (s.activity === 'bar') return new Set(['w1', 'w2'])
+      kitchenReads += 1
+      if (kitchenReads === 1) return new Set(['w1', 'w2'])
+      return new Promise<Set<string>>((resolve) => { releaseStale = resolve })
+    })
+    mockUpsert.mockRejectedValueOnce(NOT_ON_LIST)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const ayam = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(ayam, { target: { value: '9' } })
+    fireEvent.blur(ayam)
+    await screen.findByRole('alert')
+    await waitFor(() => expect(kitchenReads).toBe(2))
+
+    chooseStream('Rumah Rames · Bar')
+    await waitFor(() => expect(mockPlans.mock.calls.at(-1)?.[1]).toEqual(OWN_STREAM_BAR))
+    await waitFor(() => expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toBeEnabled())
+    await act(async () => { releaseStale(new Set(['w2'])) })
+
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toBeEnabled()
+    expect(screen.queryByText('Not on this stream’s list')).toBeNull()
+  })
 })

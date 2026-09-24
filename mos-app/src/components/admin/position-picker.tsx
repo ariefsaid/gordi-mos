@@ -65,7 +65,7 @@ export function PositionPicker({ person, roles, commits, refresh }: PositionPick
                   onToggle={() => toggle(role, checked)}
                   trailing={
                     <RowStatus
-                      status={commits.status(key)}
+                      status={commits.status(key, assigned(role))}
                       error={commits.error(key)}
                       item={role.name}
                       onRetry={() => void commits.retry(key)}

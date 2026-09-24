@@ -171,10 +171,10 @@ export function CafeStreamBar({
       {canSwitch && (
         <StreamSwitchMenu
           id="cafe-stream"
-          options={options}
+          options={allStreams ? options : alternatives}
           homeStream={homeStream}
           myStreamKeys={myStreamKeys}
-          onAllStreams={onAllStreams}
+          onAllStreams={allStreams ? undefined : onAllStreams}
           disabled={disabled}
           onChange={onChange}
         />
@@ -185,7 +185,8 @@ export function CafeStreamBar({
 
 // ── The Switch menu ──────────────────────────────────────────────────────────────────────────
 // A quiet text-button trigger whose own label always reads "Switch" — the current stream is
-// already stated beside it, so the trigger does not need to repeat it (unlike the shared
+// already stated beside it, so the trigger does not need to repeat it, and the menu offers only
+// the OTHER choices: re-choosing the view in place would re-read it (and on Log discard a draft) (unlike the shared
 // `Select`/`Picker` controls, whose trigger IS the current value). Built on the same listbox
 // popover primitives those controls share (DESIGN.md DD-MVP-2 "existing searchable/contextual
 // Picker controls share the same listbox interaction contract") — portalled, edge-clamped,

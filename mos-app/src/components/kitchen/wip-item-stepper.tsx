@@ -245,6 +245,7 @@ export function WipItemStepper({
               renders. */}
           <textarea
             id={`note-${line.wip_item_id}`}
+            aria-label={t('kitchen.log.stepper.noteAria', { item: itemName })}
             aria-describedby={`note-cue-${line.wip_item_id}`}
             aria-required={true}
             aria-invalid={notes === ''}

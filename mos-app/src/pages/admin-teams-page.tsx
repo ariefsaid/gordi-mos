@@ -68,7 +68,14 @@ export function AdminTeamsPage() {
     const teamId = assignment.team_id
     const saved = assignment.lead_person_id ?? ''
     void commits.commit(`lead:${teamId}`, leadId, saved, async () => {
-      await saveTeamLeadAssignment(teamId, leadId || null)
+      try {
+        await saveTeamLeadAssignment(teamId, leadId || null)
+      } catch (error) {
+        // The response may be lost after the save committed: show the lead the server holds.
+        const rows = await listTeamLeadAssignments().catch(() => null)
+        if (rows) setAssignments(rows)
+        throw error
+      }
       const lead = (candidates[teamId]?.candidates ?? []).find((c) => c.person_id === leadId)
       setAssignments((current) => current.map((row) => row.team_id === teamId
         ? { ...row, lead_person_id: leadId || null, lead_name: lead?.full_name ?? null }
@@ -118,7 +125,7 @@ export function AdminTeamsPage() {
                     stream={streamOf.get(assignment.team_id)}
                     candidateState={candidates[assignment.team_id] ?? { status: 'loading', candidates: [] }}
                     value={commits.display(`lead:${assignment.team_id}`, assignment.lead_person_id ?? '')}
-                    status={commits.status(`lead:${assignment.team_id}`)}
+                    status={commits.status(`lead:${assignment.team_id}`, assignment.lead_person_id ?? '')}
                     error={commits.error(`lead:${assignment.team_id}`)}
                     onChoose={(leadId) => chooseLead(assignment, leadId)}
                     onRetry={() => void commits.retry(`lead:${assignment.team_id}`)}

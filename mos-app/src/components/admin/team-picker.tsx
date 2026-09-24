@@ -94,14 +94,15 @@ export function TeamPicker({ person, teams, commits, refresh }: TeamPickerProps)
             {visible.map((team, i) => {
               const membership = memberOf.get(team.id)
               const checked = commits.display(`team:${team.id}`, membership !== undefined)
-              const homeStatus = commits.status(`home:${team.id}`)
+              const homeStatus = commits.status(`home:${team.id}`, membership?.is_primary === true)
+              const teamStatus = commits.status(`team:${team.id}`, membership !== undefined)
               // A failed Make home keeps its button with Failed · Retry beside it; only an
               // in-flight one already reads as Home.
               const isHome = membership?.is_primary === true || homeStatus === 'saving'
-              const statusKey = STATUS_RANK[homeStatus ?? 'none'] > STATUS_RANK[commits.status(`team:${team.id}`) ?? 'none']
-                ? `home:${team.id}`
-                : `team:${team.id}`
-              const rowSaving = commits.status(statusKey) === 'saving'
+              const homeWins = STATUS_RANK[homeStatus ?? 'none'] > STATUS_RANK[teamStatus ?? 'none']
+              const statusKey = homeWins ? `home:${team.id}` : `team:${team.id}`
+              const rowStatus = homeWins ? homeStatus : teamStatus
+              const rowSaving = rowStatus === 'saving'
               return (
                 <CheckboxRow
                   key={team.id}
@@ -128,7 +129,7 @@ export function TeamPicker({ person, teams, commits, refresh }: TeamPickerProps)
                         </button>
                       )}
                       <RowStatus
-                        status={commits.status(statusKey)}
+                        status={rowStatus}
                         error={commits.error(statusKey)}
                         item={team.name}
                         onRetry={() => void commits.retry(statusKey)}

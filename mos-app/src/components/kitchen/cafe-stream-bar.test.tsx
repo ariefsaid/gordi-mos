@@ -13,6 +13,7 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { ReactNode } from 'react'
 import { CafeStreamBar, CafeStreamChoices } from './cafe-stream-bar'
 import { streamKey } from '@/lib/kitchen-action-label'
+import { messages } from '@/i18n/messages'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 
 const RR = { id: 'b-rr', code: 'rumah_rames', name: 'Rumah Rames' }
@@ -57,8 +58,8 @@ describe('CafeStreamBar', () => {
   it('item 1: marks the person\'s own stream "Your Team" and a receiving-only one as such', () => {
     wrap(
       <CafeStreamBar
-        options={[RR_KITCHEN, RAD_KITCHEN]}
-        stream={RR_KITCHEN}
+        options={[RR_KITCHEN, RAD_KITCHEN, RR_BAR]}
+        stream={RR_BAR}
         homeStream={RR_KITCHEN}
         onChange={() => {}}
       />,
@@ -71,8 +72,8 @@ describe('CafeStreamBar', () => {
   it('coordinator follow-up to item 1: a current NON-home membership is marked "Your Team" and ranked ahead of streams the person does not belong to (home ranks first)', () => {
     wrap(
       <CafeStreamBar
-        options={[RR_BAR, RAD_BAR, RR_KITCHEN]}
-        stream={RR_KITCHEN}
+        options={[RR_BAR, RAD_BAR, RR_KITCHEN, RAD_KITCHEN]}
+        stream={RAD_KITCHEN}
         homeStream={RR_KITCHEN}
         myStreamKeys={new Set([streamKey(RAD.id, 'bar')])}
         onChange={() => {}}
@@ -84,6 +85,13 @@ describe('CafeStreamBar', () => {
     expect(opts[0]).toHaveTextContent('Rumah Rames · Kitchen') // home, first
     expect(opts[1]).toHaveTextContent('Radiant · Bar') // current membership, second
     expect(opts[2]).toHaveTextContent('Rumah Rames · Bar') // neither — last
+  })
+
+  it('the Switch menu never offers the stream already in view', () => {
+    wrap(<CafeStreamBar options={[RR_KITCHEN, RR_BAR, RAD_BAR]} stream={RR_BAR} onChange={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: /switch/i }))
+    const opts = screen.getAllByRole('option').map((o) => o.textContent)
+    expect(opts).toEqual(['Rumah Rames · Kitchen', 'Radiant · Bar'])
   })
 
   it('item 3 / B4: a session switch away from home carries a "Back to <home>" action', () => {
@@ -172,5 +180,11 @@ describe('CafeStreamChoices — the no-default one-step choice (item 2, B5)', ()
     fireEvent.click(screen.getByRole('button', { name: /radiant · bar/i }))
     expect(onChoose).toHaveBeenCalledTimes(1)
     expect(onChoose).toHaveBeenCalledWith(RAD_BAR)
+  })
+})
+
+describe('the no-default hint names the menu as each locale shows it', () => {
+  it.each(['en', 'id'] as const)('%s: the Admin destination label appears in the path', (locale) => {
+    expect(messages[locale]['cafe.stream.noDefaultHint']).toContain(`(${messages[locale]['dest.admin']} →`)
   })
 })

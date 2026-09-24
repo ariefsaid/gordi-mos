@@ -143,6 +143,24 @@ describe('useCafeStream — the shared Café bootstrap', () => {
     expect(resolved.myStreamKeys.size).toBe(1)
   })
 
+  it('a failed Team-membership read drops the "Your Team" tags, never the surface', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      status: 'authenticated',
+      viewer: { person: { id: 'p-krishna' } },
+    } as ReturnType<typeof useAuth>)
+    vi.mocked(listCafeViewerTeams).mockRejectedValue(new Error('network'))
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { result } = renderHook(() => useCafeStream())
+    const resolved = await act(async () => result.current.resolve())
+
+    expect(resolved.stream).toEqual(RADIANT_BAR)
+    expect(resolved.options).toHaveLength(4)
+    expect(resolved.myStreamKeys.size).toBe(0)
+    expect(consoleError).toHaveBeenCalled()
+    consoleError.mockRestore()
+  })
+
   it('setStream records the choice for the whole module at that location', () => {
     const { result } = renderHook(() => useCafeStream())
 

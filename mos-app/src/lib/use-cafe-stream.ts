@@ -32,6 +32,7 @@ import { listActiveBranches } from '@/lib/db/branches'
 import { activeCafeLocation, rememberCafeLocation } from '@/lib/cafe-opening-location'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
+import { reportError } from '@/lib/telemetry'
 import { streamKey } from '@/lib/kitchen-action-label'
 import type { BranchOption, ProductionStream } from '@/lib/db/kitchen-logs.types'
 
@@ -118,7 +119,13 @@ export function useCafeStream(): CafeStreamState {
       listStreamPairs(),
       // Current profile memberships (effective-dated, home included) — the read the "Your Team"
       // tag needs beyond the single default (issue #781 follow-up). Skipped when unauthenticated.
-      viewerId ? listCafeViewerTeams(viewerId) : Promise.resolve([]),
+      // Display only: a failure drops the tags, never the surface.
+      viewerId
+        ? listCafeViewerTeams(viewerId).catch((error: unknown) => {
+          reportError(error, { read: 'cafe viewer teams' })
+          return []
+        })
+        : Promise.resolve([]),
     ])
     const options = streamCatalogFrom(pairs, branches)
     const myStreamKeys = new Set(

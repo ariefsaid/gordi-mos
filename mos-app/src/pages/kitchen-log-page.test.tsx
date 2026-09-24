@@ -513,7 +513,7 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
     await waitFor(() => screen.getByText('Nasi Goreng'))
 
     // No note field before any staged quantity
-    expect(screen.queryByRole('textbox', { name: /^note$/i })).toBeNull()
+    expect(screen.queryByRole('textbox', { name: /^note for /i })).toBeNull()
 
     // Type an off-target qty (plan=12, qty=1 → off-target). The footer gate is live while the
     // quantity input remains focused, so the field that satisfies it must be reachable without
@@ -525,7 +525,7 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
     })
 
     await waitFor(() => {
-      expect(screen.getByRole('textbox', { name: /^note$/i })).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: /^note for nasi goreng$/i })).toBeInTheDocument()
       // Row-level note cue, localized (cafe-1 fix — default test locale is English)
       expect(screen.getByText(/note required — off plan/i)).toBeInTheDocument()
     })
@@ -590,7 +590,7 @@ describe('F3: Submit disabled while a required variance-note is unresolved', () 
     // The note field is already reachable from the live gate; blur still applies invalid styling.
     // Fill it
     fireEvent.blur(qtyInput)
-    const note = await screen.findByRole('textbox', { name: /^note$/i })
+    const note = await screen.findByRole('textbox', { name: /^note for ayam bakar$/i })
     fireEvent.change(note, { target: { value: 'extra batch' } })
 
     await waitFor(() => {
@@ -727,7 +727,7 @@ describe('F3b: disabled Submit shows a note-missing pointer when a variance note
     const pointer = screen.getByRole('button', { name: /1 note missing/i })
     expect(pointer).toBeInTheDocument()
     fireEvent.click(pointer)
-    const note = await screen.findByRole('textbox', { name: /^note$/i })
+    const note = await screen.findByRole('textbox', { name: /^note for ayam bakar$/i })
     expect(note).toHaveFocus()
   })
 
@@ -744,7 +744,7 @@ describe('F3b: disabled Submit shows a note-missing pointer when a variance note
 
     // Fill the required note (the field is reachable as soon as the live gate appears).
     fireEvent.blur(qtyInput)
-    const note = await screen.findByRole('textbox', { name: /^note$/i })
+    const note = await screen.findByRole('textbox', { name: /^note for ayam bakar$/i })
     fireEvent.change(note, { target: { value: 'extra batch today' } })
 
     // Once the note is filled, Submit re-enables and the pointer disappears
@@ -826,7 +826,7 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
       await Promise.resolve()
     })
     expect(screen.queryByText(/insufficient stock/i)).toBeNull()
-    const note = screen.getByRole('textbox', { name: /^note$/i })
+    const note = screen.getByRole('textbox', { name: /^note for ayam bakar$/i })
     await act(async () => {
       fireEvent.change(note, { target: { value: 'extra ship' } })
       await Promise.resolve()
@@ -1750,18 +1750,20 @@ describe('FR-005: the picker offers exactly the catalog pairs it is given — th
     fireEvent.click(screen.getByRole('button', { name: /^switch$/i }))
     const listbox = screen.getByRole('listbox')
     const options = within(listbox).getAllByRole('option')
-    // Exactly STREAM_PAIRS — no placeholder (a default resolved), no roastery, and nothing the
-    // fixture did not stage. Pinned to the fixture's own length so growing the live catalog does
-    // not touch this test; what is under test is 'exactly the pairs given', not a number.
-    expect(options).toHaveLength(STREAM_PAIRS.length)
+    // Exactly STREAM_PAIRS minus the stream already in view — no placeholder (a default
+    // resolved), no roastery, and nothing the fixture did not stage. Pinned to the fixture's own
+    // length so growing the live catalog does not touch this test.
+    expect(options).toHaveLength(STREAM_PAIRS.length - 1)
     const labels = options.map(o => o.textContent ?? '')
+    const inView = screen.getByTestId('cafe-stream').querySelector('.cafe-stream__value')?.textContent
     // CANONICAL catalog names (OD-WAY-39) — never the 'Bungur' destination alias:
     // a Rumah Rames barista picking their own stream reads 'Rumah Rames', not the
     // incumbent's transfer-destination label. `startsWith` because the person's own stream
     // (item 1) carries an appended "— Your Team" tag.
     for (const branchLabel of ['Gordi HQ', 'Radiant', 'Rumah Rames']) {
       for (const activity of ['Kitchen', 'Bar']) {
-        expect(labels.some(label => label.startsWith(`${branchLabel} · ${activity}`))).toBe(true)
+        const name = `${branchLabel} · ${activity}`
+        expect(labels.some(label => label.startsWith(name))).toBe(name !== inView)
       }
     }
     expect(labels.join(' ')).not.toMatch(/bungur/i)
@@ -1839,7 +1841,7 @@ describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-
     })
     await waitFor(() => {
       expect(screen.getByText(/note required — off plan/i)).toBeInTheDocument()
-      expect(screen.getByRole('textbox', { name: /^note$/i })).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: /^note for ayam bakar$/i })).toBeInTheDocument()
     })
   })
 
@@ -1986,7 +1988,7 @@ describe('AC-007: destinations cover both movement classes from both activity su
       fireEvent.blur(qtyInput)
       await Promise.resolve()
     })
-    const note = screen.getByRole('textbox', { name: /^note$/i })
+    const note = screen.getByRole('textbox', { name: /^note for ayam bakar$/i })
     await act(async () => {
       fireEvent.change(note, { target: { value: 'cut fruit to the kitchen' } })
       await Promise.resolve()
@@ -2164,7 +2166,7 @@ describe('issue 586 AC: a confirmed switch — the SUBMIT payload never carries 
     const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     fireEvent.change(ayamInput, { target: { value: '9' } })
     fireEvent.blur(ayamInput)
-    const note = screen.getByRole('textbox', { name: /^note$/i })
+    const note = screen.getByRole('textbox', { name: /^note for ayam bakar$/i })
     fireEvent.change(note, { target: { value: 'extra ship' } })
 
     const submit = screen.getAllByRole('button', { name: /^submit/i })[0]

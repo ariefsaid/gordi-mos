@@ -2,6 +2,11 @@
 // Revenue scope, Team lead): the row shows its own state beside itself — Saving… → Saved, or
 // Failed · Retry — and a failed row keeps showing the value the admin attempted until Retry
 // succeeds or they change it back. There is no second feedback channel (no toast).
+//
+// A failed request does not prove the write failed: the response can be lost after the database
+// committed. Every failure is followed by the caller's re-read, and a failed row whose re-read
+// saved value already equals the attempted one reads Saved — so the next click acts on what the
+// server holds, never on a stale "failed" picture of it.
 
 import { useCallback, useRef, useState } from 'react'
 
@@ -16,7 +21,8 @@ interface RowEntry<V> {
 }
 
 export interface RowCommits<V> {
-  status: (key: string) => RowCommitStatus | undefined
+  /** `saved` is the latest re-read value: a failure the server already holds reads Saved. */
+  status: (key: string, saved: V) => RowCommitStatus | undefined
   error: (key: string) => string | undefined
   /** Saved value unless a write for this row is in flight or failed — then the attempted value. */
   display: (key: string, saved: V) => V
@@ -69,7 +75,10 @@ export function useRowCommits<V>(): RowCommits<V> {
   }, [run])
 
   return {
-    status: (key) => rows[key]?.status,
+    status: (key, saved) => {
+      const row = rows[key]
+      return row?.status === 'failed' && Object.is(row.value, saved) ? 'saved' : row?.status
+    },
     error: (key) => rows[key]?.error,
     display: (key, saved) => {
       const row = rows[key]

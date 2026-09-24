@@ -702,6 +702,7 @@ export const messages = {
     // field, but a required control needs a label of its own rather than relying on the cue to
     // double as one.
     'kitchen.log.stepper.noteLabel': 'Note',
+    'kitchen.log.stepper.noteAria': 'Note for ${item}',
     'kitchen.log.stepper.noteCue': 'Note required — off plan',
     'kitchen.log.unit.changeAria': 'Change unit for ${item}',
     'kitchen.log.unit.selectAria': 'Unit for ${item}',
@@ -2219,7 +2220,7 @@ export const messages = {
     'cafe.stream.switch': 'Ganti',
     'cafe.stream.backTo': 'Kembali ke ${stream}',
     'cafe.stream.yourTeam': 'Tim Anda',
-    'cafe.stream.noDefaultHint': 'Tim utama menentukan tempat Kafe dibuka — admin dapat mengaturnya (Admin Settings → orang tersebut → Tim).',
+    'cafe.stream.noDefaultHint': 'Tim utama menentukan tempat Kafe dibuka — admin dapat mengaturnya (Pengaturan Admin → orang tersebut → Tim).',
     'cafe.stream.none': 'Pilih stream produksi untuk melihat layar ini.',
     // common.loadFailed: same key, same value, already added by the Money/Budget port above
     // (line ~1214) — dropped here rather than duplicated (TS1117).
@@ -2329,6 +2330,7 @@ export const messages = {
     'kitchen.log.stepper.avail': 'tersedia',
     'kitchen.log.stepper.capCue': 'Stok kurang — produksi dulu',
     'kitchen.log.stepper.noteLabel': 'Catatan',
+    'kitchen.log.stepper.noteAria': 'Catatan untuk ${item}',
     'kitchen.log.stepper.noteCue': 'Catatan wajib — di luar rencana',
     'kitchen.log.unit.changeAria': 'Ganti satuan untuk ${item}',
     'kitchen.log.unit.selectAria': 'Satuan untuk ${item}',
@@ -3142,7 +3144,7 @@ export const messages = {
     'admin.person.leads': 'Memimpin',
     'admin.person.noTeams': 'Belum masuk Tim',
     'admin.person.home': 'Utama',
-    'admin.person.homeNote': 'Tim utama menentukan tempat produksi Café dibuka untuknya.',
+    'admin.person.homeNote': 'Tim utama menentukan tempat produksi Kafe dibuka untuknya.',
     'admin.person.leadsNone': 'Tidak memimpin Tim',
     'admin.person.changeLeads': 'Ubah di Tim',
     'admin.person.canDo': 'Yang bisa dilakukan',
@@ -3157,8 +3159,8 @@ export const messages = {
     'admin.person.filterPlaceholder': 'Saring…',
     'admin.person.filterEmpty': 'Tidak ada yang cocok dengan “${q}”.',
     'admin.person.showAll': 'Tampilkan semua ${count}',
-    'admin.teams.helper': 'Tim utama menentukan tempat produksi Café dibuka — dan, untuk supervisor, log produksi siapa yang mereka setujui.',
-    'admin.teams.noHome': 'Belum ada Tim utama — ${name} tidak punya alur produksi Café bawaan. Pilih satu dengan “Jadikan utama”.',
+    'admin.teams.helper': 'Tim utama menentukan tempat produksi Kafe dibuka — dan, untuk supervisor, log produksi siapa yang mereka setujui.',
+    'admin.teams.noHome': 'Belum ada Tim utama — ${name} tidak punya stream produksi Kafe bawaan. Pilih satu dengan “Jadikan utama”.',
     'admin.teams.makeHome': 'Jadikan utama',
     'admin.teams.makeHomeAria': 'Jadikan utama — ${team}',
     'admin.teams.none': 'Belum ada Tim',

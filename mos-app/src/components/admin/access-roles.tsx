@@ -82,7 +82,7 @@ export function AccessRoles({ person, people, commits, refresh }: AccessRolesPro
                 onToggle={() => toggle(role, checked)}
                 trailing={
                   <RowStatus
-                    status={commits.status(key)}
+                    status={commits.status(key, person.access_roles.includes(role))}
                     error={commits.error(key)}
                     item={meta.label}
                     onRetry={() => void commits.retry(key)}

@@ -116,6 +116,25 @@ describe('AdminTeamsPage', () => {
     expect(within(row).getByRole('combobox', { name: 'Lead for Gordi HQ Bar' })).toHaveTextContent('Dina Lead')
   })
 
+  it('a lost response on a lead save that the server committed reads Saved after the re-read', async () => {
+    const user = userEvent.setup()
+    const committed = (await listTeamLeadAssignments()).map((row) => row.team_id === 'team-1'
+      ? { ...row, lead_person_id: 'person-2', lead_name: 'Dina Lead' }
+      : row)
+    mockSave.mockImplementationOnce(async () => {
+      mockAssignments.mockResolvedValue(committed)
+      throw new Error('response lost')
+    })
+    renderPage()
+    await screen.findByRole('heading', { level: 1, name: 'Teams' })
+    await choose(user, 'Lead for Gordi HQ Bar', 'Dina Lead')
+
+    const row = rowOf('Gordi HQ Bar')
+    await waitFor(() => expect(within(row).getByRole('status')).toHaveTextContent('Saved'))
+    expect(within(row).queryByRole('alert')).toBeNull()
+    expect(within(row).getByRole('combobox', { name: 'Lead for Gordi HQ Bar' })).toHaveTextContent('Dina Lead')
+  })
+
   it('choosing the saved lead again after a failure reverts without writing', async () => {
     const user = userEvent.setup()
     mockSave.mockRejectedValueOnce(new Error('network down'))

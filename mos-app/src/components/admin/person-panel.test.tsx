@@ -4,6 +4,7 @@
 // the Admin confirmation.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { useState } from 'react'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -27,7 +28,7 @@ vi.mock('@/lib/db/admin-users', () => ({
   assignRevenueScope: vi.fn(),
   removeRevenueScope: vi.fn(),
 }))
-import { grantRole, revokeRole } from '@/lib/db/admin-users'
+import { addTeamMembership, endTeamMembership, grantRole, revokeRole } from '@/lib/db/admin-users'
 
 import { PersonPanel, type PersonAuthoritySource } from './person-panel'
 import type { AdminPersonRow, TeamOption } from '@/lib/db/admin-users.types'
@@ -37,6 +38,8 @@ const mockUseAuth = vi.mocked(useAuth)
 const mockUseIsPhone = vi.mocked(useIsPhone)
 const mockGrantRole = vi.mocked(grantRole)
 const mockRevokeRole = vi.mocked(revokeRole)
+const mockAddTeam = vi.mocked(addTeamMembership)
+const mockEndTeam = vi.mocked(endTeamMembership)
 
 const ADMIN_VIEWER: AuthState = {
   status: 'authenticated',
@@ -337,6 +340,88 @@ describe('PersonPanel — Access roles', () => {
   })
 })
 
+/** The panel over a fake server: `refresh` re-reads whatever the server holds now. */
+function ServerBackedPanel({ server }: { server: { current: AdminPersonRow } }) {
+  const [person, setPerson] = useState(server.current)
+  return (
+    <MemoryRouter>
+      <PersonPanel
+        person={person}
+        people={[person, OTHER_ADMIN]}
+        roles={[]}
+        teams={TEAMS}
+        scopeOptions={[]}
+        authority={authority()}
+        refresh={async () => setPerson(server.current)}
+        onClose={vi.fn()}
+      />
+    </MemoryRouter>
+  )
+}
+
+describe('PersonPanel — a failed request whose outcome is unknown', () => {
+  it('access role: the server committed but the response was lost → the re-read row reads Saved, no Retry', async () => {
+    const user = userEvent.setup()
+    const server = { current: BAYU }
+    mockGrantRole.mockImplementationOnce(async () => {
+      server.current = { ...server.current, access_roles: [...server.current.access_roles, 'finance'] }
+      throw new Error('response lost')
+    })
+    render(<ServerBackedPanel server={server} />)
+    await user.click(screen.getByRole('checkbox', { name: 'Finance' }))
+
+    await waitFor(() => expect(within(accessRow('Finance')).getByRole('status')).toHaveTextContent('Saved'))
+    expect(within(accessRow('Finance')).queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retry Finance' })).toBeNull()
+    expect(screen.getByRole('checkbox', { name: 'Finance' })).toHaveAttribute('aria-checked', 'true')
+    expect(mockRevokeRole).not.toHaveBeenCalled()
+  })
+
+  it('access role: nothing committed → Failed · Retry; clicking the row returns it to the server state without a write', async () => {
+    const user = userEvent.setup()
+    const server = { current: BAYU }
+    mockGrantRole.mockRejectedValueOnce(new Error('offline'))
+    render(<ServerBackedPanel server={server} />)
+    await user.click(screen.getByRole('checkbox', { name: 'Finance' }))
+    await waitFor(() => expect(within(accessRow('Finance')).getByRole('alert')).toHaveTextContent('Failed'))
+
+    await user.click(screen.getByRole('checkbox', { name: 'Finance' }))
+    expect(screen.getByRole('checkbox', { name: 'Finance' })).toHaveAttribute('aria-checked', 'false')
+    expect(within(accessRow('Finance')).queryByRole('alert')).toBeNull()
+    expect(mockGrantRole).toHaveBeenCalledTimes(1)
+    expect(mockRevokeRole).not.toHaveBeenCalled()
+  })
+
+  it('access role: Retry re-sends the attempted value', async () => {
+    const user = userEvent.setup()
+    const server = { current: BAYU }
+    mockGrantRole.mockRejectedValueOnce(new Error('offline'))
+    render(<ServerBackedPanel server={server} />)
+    await user.click(screen.getByRole('checkbox', { name: 'Finance' }))
+    await user.click(await screen.findByRole('button', { name: 'Retry Finance' }))
+
+    await waitFor(() => expect(mockGrantRole).toHaveBeenCalledTimes(2))
+    expect(mockGrantRole).toHaveBeenLastCalledWith('bayu-id', 'finance')
+    expect(mockRevokeRole).not.toHaveBeenCalled()
+  })
+
+  it('membership: the server committed but the response was lost → the re-read row reads Saved, no Retry', async () => {
+    const user = userEvent.setup()
+    const server = { current: { ...BAYU, teams: [{ team_id: 't-hq', is_primary: true }] } }
+    mockAddTeam.mockImplementationOnce(async () => {
+      server.current = { ...server.current, teams: [...server.current.teams, { team_id: 't-bar', is_primary: false }] }
+      throw new Error('response lost')
+    })
+    render(<ServerBackedPanel server={server} />)
+    await user.click(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' }))
+
+    await waitFor(() => expect(within(accessRow('Gordi HQ Bar')).getByRole('status')).toHaveTextContent('Saved'))
+    expect(screen.queryByRole('button', { name: 'Retry Gordi HQ Bar' })).toBeNull()
+    expect(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' })).toHaveAttribute('aria-checked', 'true')
+    expect(mockEndTeam).not.toHaveBeenCalled()
+  })
+})
+
 describe('PersonPanel — closing', () => {
   it('Close and Escape dismiss the panel', async () => {
     const user = userEvent.setup()
@@ -381,7 +466,7 @@ describe('PersonPanel — Indonesian', () => {
     )
     expect(screen.getByRole('heading', { level: 2, name: 'Kelola Bayu Barista' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Yang bisa dilakukan' })).toBeInTheDocument()
-    expect(screen.getByText('Tim utama menentukan tempat produksi Café dibuka untuknya.')).toBeInTheDocument()
+    expect(screen.getByText('Tim utama menentukan tempat produksi Kafe dibuka untuknya.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Ubah di Tim' })).toBeInTheDocument()
     for (const head of [/^Tim/, /^Jabatan/, /^Akses/]) {
       expect(screen.getByRole('button', { name: head, expanded: true })).toBeInTheDocument()

@@ -269,6 +269,7 @@ function PlanEditor() {
     const current = qtyOf(wipItemId)
     if (!canPlan(wipItemId)) return
     if (nextQty === current) return
+    const gen = requestGen.current // a stream switch or reload after this moves it
     setSavingId(wipItemId)
     setSaveError('')
     try {
@@ -297,7 +298,9 @@ function PlanEditor() {
       if (isItemNotOnStreamError(err)) {
         // The list changed while the editor was open (#222): re-read it so the row reads as off-list.
         setSaveError(t('kitchen.plan.error.itemNotOnStream'))
-        listStreamItemIds(stream).then(setOfferedIds, () => {})
+        listStreamItemIds(stream).then((offered) => {
+          if (gen === requestGen.current) setOfferedIds(offered)
+        }, () => {})
       } else {
         setSaveError(err instanceof Error ? `Couldn't save — ${err.message}` : "Couldn't save — please try again.")
       }

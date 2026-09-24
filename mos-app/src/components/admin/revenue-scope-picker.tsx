@@ -105,7 +105,7 @@ export function RevenueScopePicker({ person, options, commits, refresh }: Revenu
                     onToggle={() => toggle(row, checked)}
                     trailing={
                       <RowStatus
-                        status={commits.status(key)}
+                        status={commits.status(key, isAssigned(row))}
                         error={commits.error(key)}
                         item={row.label}
                         onRetry={() => void commits.retry(key)}
