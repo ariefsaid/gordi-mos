@@ -49,6 +49,14 @@ export interface CafeStreamCatalog {
   /** The stream this surface should open on; null = ask (FR-002). */
   stream: ProductionStream | null
   /**
+   * The person's own stream — `shared.default_stream()`, unnarrowed by location or by a session
+   * switch (issue #781 AC-016). `stream` above already folds this in as the FALLBACK a session
+   * choice outranks; this copy is kept alongside it purely for DISPLAY — the "Your Team" tag and
+   * the "Back to <home>" action (CafeStreamBar) need to know what the default WOULD be even while
+   * a deliberate switch is overriding it, which `stream` alone cannot say once it has moved on.
+   */
+  homeStream: ProductionStream | null
+  /**
    * The branch `locationOptions` was narrowed to — the explicit location, else the one the
    * person's own stream names. Null only when neither exists. A switch is remembered against it,
    * so a choice never lands in another location's slot.
@@ -76,6 +84,7 @@ export function useCafeStream(): CafeStreamState {
     options: [],
     locationOptions: [],
     stream: null,
+    homeStream: null,
     branchId: null,
   })
 
@@ -83,7 +92,7 @@ export function useCafeStream(): CafeStreamState {
   // new viewer's bootstrap completes, so a stale branch/activity label cannot sit beside their
   // loading state or be mistaken for the new person's context.
   useEffect(() => {
-    setCatalog({ branches: [], options: [], locationOptions: [], stream: null, branchId: null })
+    setCatalog({ branches: [], options: [], locationOptions: [], stream: null, homeStream: null, branchId: null })
   }, [viewerId])
 
   const resolve = useCallback(async (): Promise<CafeStreamCatalog> => {
@@ -104,7 +113,7 @@ export function useCafeStream(): CafeStreamState {
     // found and falls through to the person's own stream, then to null — the same safe ladder a
     // stale pair already took, with no special case for "wrong branch".
     const stream = resolveCafeStream(locationOptions, ownDefault, viewerId, effectiveBranchId)
-    return { branches, options, locationOptions, stream, branchId: effectiveBranchId }
+    return { branches, options, locationOptions, stream, homeStream: ownDefault, branchId: effectiveBranchId }
   }, [activeBranchId, viewerId])
 
   const adopt = useCallback((next: CafeStreamCatalog) => setCatalog(next), [])

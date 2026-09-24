@@ -53,6 +53,10 @@ describe('useCafeStream — the shared Café bootstrap', () => {
     expect(resolved.options).toHaveLength(4) // two branches × two activities, from the pairs
     expect(resolved.branches).toEqual(BRANCHES)
     expect(resolved.stream).toEqual(RADIANT_BAR)
+    // #781 item 3: the person's own default, kept alongside `stream` for display even once a
+    // session switch has moved `stream` elsewhere — CafeStreamBar's "Your Team" tag and "Back
+    // to <home>" action both read this.
+    expect(resolved.homeStream).toEqual(RADIANT_BAR)
     // The seam: nothing is on screen until the caller adopts it, so a superseded read is
     // simply dropped rather than pairing one stream's name with another stream's rows.
     expect(result.current.stream).toBeNull()
@@ -78,6 +82,20 @@ describe('useCafeStream — the shared Café bootstrap', () => {
   // Supersession is genuinely proven where it actually happens, at the page layer, by interleaving
   // a hung fetch: kitchen-stock-page.test.tsx and kitchen-log-page.test.tsx both do it.
 
+
+  it('item 3 (#781): a session switch moves `stream` but leaves `homeStream` alone', async () => {
+    const { result } = renderHook(() => useCafeStream())
+    const resolved = await act(async () => result.current.resolve())
+    act(() => result.current.adopt(resolved))
+    await waitFor(() => expect(result.current.homeStream).toEqual(RADIANT_BAR))
+
+    const BRANCH_RR_KITCHEN = { branch: BRANCH_RR, activity: 'kitchen' as const, produces: true }
+    act(() => result.current.setStream(BRANCH_RR_KITCHEN))
+
+    expect(result.current.stream).toEqual(BRANCH_RR_KITCHEN)
+    // The default itself never moved — CafeStreamBar's "Back to <home>" still knows what home is.
+    expect(result.current.homeStream).toEqual(RADIANT_BAR)
+  })
 
   it('setStream records the choice for the whole module at that location', () => {
     const { result } = renderHook(() => useCafeStream())

@@ -46,7 +46,7 @@ import {
   streamProduces,
 } from '@/lib/kitchen-action-label'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
-import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
@@ -131,7 +131,7 @@ function PlanEditor() {
   // OD-CAFE-1: plans are keyed on (org, date, item, branch, activity) — a plan row belongs to one
   // branch's books — so the picker offers this location's streams only. `streamOptions` stays whole
   // for the movement/destination derivation below.
-  const { branches, options: streamOptions, locationOptions, stream } = cafeStream
+  const { branches, options: streamOptions, locationOptions, stream, homeStream } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const streamMissing = stream === null
   const streamCanProduce = streamProduces(stream, streamOptions)
@@ -446,6 +446,7 @@ function PlanEditor() {
         <CafeStreamBar
           options={locationOptions}
           stream={stream}
+          homeStream={homeStream}
           onChange={next => { void applyStream(next) }}
         />
       }
@@ -472,14 +473,21 @@ function PlanEditor() {
       {saveError && (
         <div role="alert" className="kp-banner kp-banner-error kp-block">{saveError}</div>
       )}
-      {/* #548 FR-006: the precondition is a muted hint at rest (Log's .kl-submit-reason
-          grammar, role="status" — programmatically associated as a live region, NFR-002).
-          saveCell keeps the same guard as a defensive backstop if a caller bypasses the
-          disabled field. */}
+      {/* #548 FR-006 / #781 item 2: the precondition is a muted hint at rest (Log's
+          .kl-submit-reason grammar, role="status" — programmatically associated as a live
+          region, NFR-002), plus the same one-step choice Log offers — the head bar has nothing
+          to state while no default resolves (FR-002), so this is the only place the choice is
+          reachable on this page. saveCell keeps the same guard as a defensive backstop if a
+          caller bypasses the disabled field. */}
       {streamMissing && load.kind === 'ready' && (
-        <p className="kp-stream-hint" role="status" aria-live="polite">
-          {t('kitchen.log.stream.missing')}
-        </p>
+        <div className="kp-stream-hint" role="status" aria-live="polite">
+          <p>{t('kitchen.log.stream.missing')}</p>
+          <CafeStreamChoices
+            options={locationOptions}
+            homeStream={homeStream}
+            onChoose={next => { void applyStream(next) }}
+          />
+        </div>
       )}
       {streamNonProducing && load.kind === 'ready' && (
         receivingOnlyNotice
@@ -567,7 +575,7 @@ function PesananView() {
   // OD-CAFE-1: plans are keyed on (org, date, item, branch, activity) — a plan row belongs to one
   // branch's books — so the picker offers this location's streams only. `streamOptions` stays whole
   // for the movement/destination derivation below.
-  const { branches, options: streamOptions, locationOptions, stream } = cafeStream
+  const { branches, options: streamOptions, locationOptions, stream, homeStream } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
@@ -676,6 +684,7 @@ function PesananView() {
         <CafeStreamBar
           options={locationOptions}
           stream={stream}
+          homeStream={homeStream}
           onChange={next => { void applyStream(next) }}
         />
       }
@@ -724,12 +733,23 @@ function PesananView() {
           the first one told as the second is how a person concludes the kitchen has no plan when
           they simply have no stream yet (FR-002). */}
       {load.kind === 'ready' && stream === null && (
-        <EmptyState variant="blank" title={t('cafe.stream.none')} />
+        <EmptyState variant="next-step" title={t('cafe.stream.none')}>
+          <CafeStreamChoices
+            options={locationOptions}
+            homeStream={homeStream}
+            onChoose={next => { void applyStream(next) }}
+          />
+        </EmptyState>
       )}
 
       {load.kind === 'ready' && stream !== null && rows.length === 0 && (
         <EmptyState
           variant="awaiting"
+          // B10: the shared 'awaiting' glyph is a rotating-arrow ↻ — a real cue on a surface with
+          // a refresh action, but this read view has none, so it read as a dead refresh button.
+          // A neutral glyph keeps the "a plan will eventually land here" meaning without implying
+          // a control.
+          icon="…"
           title={t('kitchen.plan.pesanan.empty.title')}
           copy={t('kitchen.plan.pesanan.empty.copy', { days: PESANAN_HORIZON_DAYS })}
         />

@@ -87,10 +87,23 @@ const OWN_STREAM = { branch: BRANCHES[0], activity: 'kitchen' as const, produces
 const RADIANT_KITCHEN = { branch: BRANCHES[1], activity: 'kitchen' as const, produces: false }
 const OWN_STREAM_BAR = { branch: BRANCHES[0], activity: 'bar' as const, produces: true }
 const RADIANT_BAR = { branch: BRANCHES[1], activity: 'bar' as const, produces: true }
-/** The head picker's option value for a stream — what a switch fires. */
+// #781: CafeStreamBar states a resolved stream as text with a quiet "Switch" beside it (opens a
+// portaled listbox) — or, with no default resolved at all, offers the location's streams as
+// direct one-click buttons (CafeStreamChoices), no separate open step. `startsWith` rather than
+// an exact match because an option carries an appended tag ("— Your Team" / "— Receiving only")
+// when it applies.
+function startsWith(label: string) {
+  return (accessibleName: string) => accessibleName.startsWith(label)
+}
+
 function chooseStream(optionName: string) {
-  fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
-  fireEvent.click(screen.getByRole('option', { name: optionName }))
+  const switchButton = screen.queryByRole('button', { name: /^switch$/i })
+  if (switchButton) {
+    fireEvent.click(switchButton)
+    fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
+    return
+  }
+  fireEvent.click(screen.getByRole('button', { name: startsWith(optionName) }))
 }
 
 function chooseCategory(optionName: string) {
@@ -188,8 +201,7 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
     const { container } = render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = within(head).getByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveTextContent('Radiant · Bar')
+    expect(within(head).getByTestId('cafe-stream')).toHaveTextContent('Radiant · Bar')
     expect(mockPlans.mock.calls[0][1]).toEqual(RADIANT_BAR)
   })
 
@@ -207,7 +219,7 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
   it('offers only the streams of the branch the viewer is working at', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch$/i }))
     const offered = screen.getAllByRole('option').map(o => o.textContent?.trim() ?? '')
 
     // A plan row is keyed on (org, date, item, branch, activity): it belongs to ONE branch's books.
@@ -247,14 +259,14 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
     const { container } = render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = within(head).getByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveTextContent('Radiant · Bar')
+    expect(within(head).getByTestId('cafe-stream')).toHaveTextContent('Radiant · Bar')
   })
 
   it('issue 440: the branch × activity pair of selects is GONE — one control names the stream, once', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    expect(screen.getAllByRole('combobox', { name: /production stream/i })).toHaveLength(1)
+    // #781: the stream is a stated fact, never a combobox — one statement for the whole surface.
+    expect(screen.getAllByTestId('cafe-stream')).toHaveLength(1)
     expect(screen.queryByRole('combobox', { name: /^branch$/i })).toBeNull()
     expect(screen.queryByRole('combobox', { name: /^activity$/i })).toBeNull()
   })
@@ -858,8 +870,7 @@ describe('DD-MVP-9: the Plan editor treats a receiving-only stream as readable, 
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
-    const picker = screen.getByRole('combobox', { name: /production stream/i }) as HTMLSelectElement
-    expect(picker).toHaveTextContent('Radiant · Kitchen')
+    expect(screen.getByTestId('cafe-stream')).toHaveTextContent('Radiant · Kitchen')
     expect(screen.getByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
     expect(screen.getByText(/production capture and planning are unavailable/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', '/cafe/stock')

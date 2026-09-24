@@ -360,15 +360,16 @@ describe('WipItemStepper — DD-18: the variance-note field survives being fille
     fireEvent.change(qty, { target: { value: '7' } })
     fireEvent.blur(qty)
 
-    // The gate asks for an explanation, so they start writing it.
-    const note = screen.getByRole('textbox', { name: /note for nasi goreng/i })
+    // The gate asks for an explanation, so they start writing it. B13: the field's accessible
+    // name now comes from its own visible <label> ("Note"), not a per-item aria-label.
+    const note = screen.getByRole('textbox', { name: /^note$/i })
     await user.click(note)
     await user.keyboard('bahan habis sejak pagi')
 
     // The goal: the sentence they came to write is written. The field is the SAME element
     // throughout (never remounted), still holds the caret, and holds the whole note — not the
     // single character that survived the gate destroying its own control.
-    const stillThere = screen.getByRole('textbox', { name: /note for nasi goreng/i })
+    const stillThere = screen.getByRole('textbox', { name: /^note$/i })
     expect(stillThere).toBe(note)
     expect(stillThere).toHaveValue('bahan habis sejak pagi')
     expect(document.activeElement).toBe(note)
@@ -382,6 +383,6 @@ describe('WipItemStepper — DD-18: the variance-note field survives being fille
     // state must expose the field that satisfies that gate; otherwise a focused quantity input
     // leaves the worker with a disabled action and no route to resolve it.
     fireEvent.change(qty, { target: { value: '1' } })
-    expect(screen.getByRole('textbox', { name: /note for nasi goreng/i })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: /^note$/i })).toBeInTheDocument()
   })
 })

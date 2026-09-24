@@ -222,17 +222,29 @@ export function WipItemStepper({
       {/* Transfer-availability cap cue (FR-023 / AC-022) */}
       {capError && <span role="alert" className="kls-cap">{capCueText}</span>}
 
-      {/* Variance-note gate (FR-022 / AC-020/021) — revealed inline when qty != target */}
+      {/* Variance-note gate (FR-022 / AC-020/021) — revealed inline when qty != target.
+          B13: the field needs a visible label of its own — the red cue was the ONLY label
+          before this, so an unread field looked like a standing error rather than a question
+          waiting for an answer. The label stays neutral; the cue renders as helper text below
+          the field, and only reads as an error (destructive colour) while it is still required. */}
       {showNote && (
         <div className="kls-note-wrap">
-          <span className="kls-note-cue" id={`note-cue-${line.wip_item_id}`}>{noteCueText}</span>
+          <label className="kls-note-label" htmlFor={`note-${line.wip_item_id}`}>
+            {t('kitchen.log.stepper.noteLabel')}
+          </label>
           {/* v4: the cue was ALSO the textarea's placeholder, printing the same sentence twice in
               the narrowest row in the app. The cue stays (it explains why the field appeared) and
-              is now wired to the field via aria-describedby, with aria-required/aria-invalid so a
-              screen reader is told the field is mandatory rather than left to infer it. */}
+              is wired to the field via aria-describedby, with aria-required/aria-invalid so a
+              screen reader is told the field is mandatory rather than left to infer it.
+              `cols={1}` is a layout hint, not a visual width — DESIGN.md B8: the shared
+              DataTable's `auto`-layout column widths measure a textarea's DEFAULT 20-column
+              intrinsic size regardless of its own `width: 100%` (a percentage cannot resolve
+              during that pass), so an opened note used to widen the "Made" column and shove
+              PLAN/STOCK left under the reader's eyes. Collapsing the intrinsic hint to one
+              column removes that contribution; the CSS width still governs what actually
+              renders. */}
           <textarea
             id={`note-${line.wip_item_id}`}
-            aria-label={`Note for ${itemName}`}
             aria-describedby={`note-cue-${line.wip_item_id}`}
             aria-required={true}
             aria-invalid={notes === ''}
@@ -241,7 +253,14 @@ export function WipItemStepper({
             onChange={e => onNotesChange(e.target.value)}
             disabled={disabled}
             rows={2}
+            cols={1}
           />
+          <span
+            className={`kls-note-cue${notes === '' ? ' kls-note-cue--error' : ''}`}
+            id={`note-cue-${line.wip_item_id}`}
+          >
+            {noteCueText}
+          </span>
         </div>
       )}
     </div>

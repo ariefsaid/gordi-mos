@@ -37,7 +37,7 @@ import {
 // Plan/Stock/Review open on the same books, and every switch carries across (issue 456).
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { clearCafeDraftCount, setCafeDraftCount } from '@/lib/cafe-capture-draft'
-import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import type { ReactNode } from 'react'
 import type {
   ActualsMap,
@@ -200,7 +200,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   // `.activity` are NOT NULL (AC-007). `streamOptions` is the enumerable stream catalog (FR-005):
   // the live stream Teams, so the roastery — a branch with no stream — can never appear.
   const cafeStream = useCafeStream()
-  const { branches, options: streamOptions, stream: resolvedStream } = cafeStream
+  const { branches, options: streamOptions, stream: resolvedStream, homeStream } = cafeStream
   // OD-CAFE-1 — production capture is location-bound.
   //
   // The picker offered every stream in the org while the page said which location you were at, so
@@ -480,6 +480,15 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
     }
   }, [chooseStream, logDate, t])
 
+  // Staged quantities belong to the stream they were typed against: ask before a switch
+  // discards them, and switch straight through when nothing is staged. Shared by the head's
+  // Switch/Back actions and the body's one-step choice (#781 item 2) so both routes into a
+  // stream change go through the one guard.
+  function selectStream(next: ProductionStream) {
+    if (draftCount > 0) setPendingStream(next)
+    else void applyStream(next)
+  }
+
   // The stream picker (FR-003/005) — ONE definition, rendered in the page head in EVERY
   // state including while a switch's read is in flight: a slow stream's fetch must never
   // unmount the control that lets the person leave that stream (default-not-wall).
@@ -491,12 +500,8 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
     <CafeStreamBar
       options={locationStreams}
       stream={stream}
-      onChange={next => {
-        // Staged quantities belong to the stream they were typed against: ask before a switch
-        // discards them, and switch straight through when nothing is staged.
-        if (draftCount > 0) setPendingStream(next)
-        else void applyStream(next)
-      }}
+      homeStream={homeStream}
+      onChange={selectStream}
       disabled={status.kind === 'submitting'}
     />
     {pendingStream && <ConfirmDialog
@@ -1139,17 +1144,17 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
           {noStreamChosen ? (
             // No dish list, no filters over a list that isn't there, and nothing that LOOKS
             // like an editable quantity field until a stream makes it one — one guidance state
-            // where the list would render, with the Stream control (page head) named as the
-            // next action. A person who inherits exactly one stream never sees this: `stream`
-            // resolves before this render is reached.
+            // where the list would render. #781 item 2 / B5: the head has nothing to state while
+            // no default resolves (FR-002), so the one-click choice itself renders here — never
+            // a button that only focused a hidden control. A person who inherits exactly one
+            // stream never sees this: `stream` resolves before this render is reached.
             <EmptyState variant="next-step" title={t('kitchen.log.stream.chooseTitle')}>
-              <button
-                type="button"
-                className="btn btn-outline"
-                onClick={() => { document.getElementById('cafe-stream')?.focus() }}
-              >
-                {t('kitchen.log.stream.chooseCta')}
-              </button>
+              <CafeStreamChoices
+                options={locationStreams}
+                homeStream={homeStream}
+                onChoose={selectStream}
+                disabled={status.kind === 'submitting'}
+              />
             </EmptyState>
           ) : (
             <>

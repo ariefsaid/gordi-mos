@@ -580,10 +580,15 @@ export const messages = {
     // #440: the axis the whole Café module turns on, named in every Café page head. One word,
     // because the value beside it ("Rumah Rames · Kitchen") is what carries the meaning.
     'cafe.stream.label': 'Stream',
+    // #781: the quiet action beside the stated stream, and the one-step choice's own heading —
+    // both read the same "choose a production stream" job, wherever the choice actually renders.
+    'cafe.stream.switch': 'Switch',
+    'cafe.stream.backTo': 'Back to ${stream}',
+    'cafe.stream.yourTeam': 'Your Team',
+    'cafe.stream.noDefaultHint': 'The home Team decides where Café opens — an admin can set it (Admin Settings → the person → Teams).',
     // Shown where a Café surface has no stream to read against — the person has no live primary
-    // stream Team, so there is no default (FR-002) and the head's picker is the whole next step.
-    // Says WHERE the control is, because it is in the page head, not in the body.
-    'cafe.stream.none': 'Choose a stream in the page head to see this screen.',
+    // stream Team, so there is no default (FR-002) and the one-step choice below is the next step.
+    'cafe.stream.none': 'Choose a production stream to see this screen.',
     // common.loadFailed: same key, same value, already added by the Money/Budget port above
     // (line ~371) — dropped here rather than duplicated (TS1117).
     'common.retry': 'Try again',
@@ -689,12 +694,14 @@ export const messages = {
     'kitchen.log.stepper.already': 'logged',
     'kitchen.log.stepper.avail': 'avail',
     'kitchen.log.stepper.capCue': 'Insufficient stock — produce first',
+    // B13: the field's own visible label — the cue text stays, as helper/error text under the
+    // field, but a required control needs a label of its own rather than relying on the cue to
+    // double as one.
+    'kitchen.log.stepper.noteLabel': 'Note',
     'kitchen.log.stepper.noteCue': 'Note required — off plan',
     'kitchen.log.unit.changeAria': 'Change unit for ${item}',
     'kitchen.log.unit.selectAria': 'Unit for ${item}',
-    'kitchen.log.stream.choose': 'Choose stream…',
     'kitchen.log.stream.chooseTitle': 'Choose a production stream to start logging',
-    'kitchen.log.stream.chooseCta': 'Choose stream',
     'kitchen.log.stream.missing': 'Choose a production stream before submitting.',
     'kitchen.log.stream.nonProducing': 'This stream receives production; production capture is unavailable here.',
     'kitchen.log.stream.pickerAria': 'Production stream',
@@ -732,6 +739,7 @@ export const messages = {
     'kitchen.plan.toolbarAria': 'Plan scope and filters',
     'kitchen.stream.receivingOnly.title': 'Receiving-only stream',
     'kitchen.stream.receivingOnly.body': 'This stream receives production, so production capture and planning are unavailable here.',
+    'kitchen.stream.receivingOnly.tag': 'Receiving only',
     'kitchen.stream.receivingOnly.stockCta': 'View Café stock',
     'kitchen.stream.receivingOnly.logCaption': 'Café production log — receiving-only read view',
     'kitchen.stream.receivingOnly.planCaption': 'Café plan — receiving-only read view',
@@ -2149,8 +2157,12 @@ export const messages = {
     'cafe.opening.start': 'Mulai pembukaan hari ini',
     'cafe.opening.teamCaption': 'Pembukaan · ${team}',
     'cafe.opening.viewTasks': 'Lihat tugas pembukaan',
-    'cafe.stream.label': 'Tim',
-    'cafe.stream.none': 'Pilih Tim di kepala halaman untuk melihat layar ini.',
+    'cafe.stream.label': 'Stream',
+    'cafe.stream.switch': 'Ganti',
+    'cafe.stream.backTo': 'Kembali ke ${stream}',
+    'cafe.stream.yourTeam': 'Tim Anda',
+    'cafe.stream.noDefaultHint': 'Tim utama menentukan tempat Kafe dibuka — admin dapat mengaturnya (Admin Settings → orang tersebut → Tim).',
+    'cafe.stream.none': 'Pilih stream produksi untuk melihat layar ini.',
     // common.loadFailed: same key, same value, already added by the Money/Budget port above
     // (line ~1214) — dropped here rather than duplicated (TS1117).
     'common.retry': 'Coba lagi',
@@ -2258,15 +2270,14 @@ export const messages = {
     'kitchen.log.stepper.already': 'sudah',
     'kitchen.log.stepper.avail': 'tersedia',
     'kitchen.log.stepper.capCue': 'Stok kurang — produksi dulu',
+    'kitchen.log.stepper.noteLabel': 'Catatan',
     'kitchen.log.stepper.noteCue': 'Catatan wajib — di luar rencana',
     'kitchen.log.unit.changeAria': 'Ganti satuan untuk ${item}',
     'kitchen.log.unit.selectAria': 'Satuan untuk ${item}',
-    'kitchen.log.stream.choose': 'Pilih Tim…',
-    'kitchen.log.stream.chooseTitle': 'Pilih Tim produksi untuk mulai mencatat',
-    'kitchen.log.stream.chooseCta': 'Pilih Tim',
-    'kitchen.log.stream.missing': 'Pilih Tim produksi sebelum mengirim.',
-    'kitchen.log.stream.nonProducing': 'Tim ini menerima produksi; pencatatan produksi tidak tersedia di sini.',
-    'kitchen.log.stream.pickerAria': 'Tim produksi',
+    'kitchen.log.stream.chooseTitle': 'Pilih stream produksi untuk mulai mencatat',
+    'kitchen.log.stream.missing': 'Pilih stream produksi sebelum mengirim.',
+    'kitchen.log.stream.nonProducing': 'Stream ini menerima produksi; pencatatan produksi tidak tersedia di sini.',
+    'kitchen.log.stream.pickerAria': 'Stream produksi',
     'kitchen.log.submit.default': 'Kirim',
     'kitchen.log.submit.entry.one': 'Kirim ${count} entri',
     'kitchen.log.submit.entry.other': 'Kirim ${count} entri',
@@ -2297,11 +2308,12 @@ export const messages = {
     'kitchen.plan.summary.aria': 'Ringkasan perencanaan',
     'kitchen.plan.summary.itemsPlanned': 'Item direncanakan',
     'kitchen.plan.toolbarAria': 'Lingkup dan filter rencana',
-    'kitchen.stream.receivingOnly.title': 'Tim penerima produksi',
-    'kitchen.stream.receivingOnly.body': 'Tim ini menerima produksi, jadi pencatatan dan perencanaan produksi tidak tersedia di sini.',
+    'kitchen.stream.receivingOnly.title': 'Stream penerima produksi',
+    'kitchen.stream.receivingOnly.body': 'Stream ini menerima produksi, jadi pencatatan dan perencanaan produksi tidak tersedia di sini.',
+    'kitchen.stream.receivingOnly.tag': 'Hanya menerima',
     'kitchen.stream.receivingOnly.stockCta': 'Lihat stok Kafe',
-    'kitchen.stream.receivingOnly.logCaption': 'Log produksi Kafe — tampilan baca untuk tim penerima',
-    'kitchen.stream.receivingOnly.planCaption': 'Rencana Kafe — tampilan baca untuk tim penerima',
+    'kitchen.stream.receivingOnly.logCaption': 'Log produksi Kafe — tampilan baca untuk stream penerima',
+    'kitchen.stream.receivingOnly.planCaption': 'Rencana Kafe — tampilan baca untuk stream penerima',
     'kitchen.review.allStreams': 'Semua Tim',
     'kitchen.review.backToLog': 'Kembali ke Log',
     'kitchen.review.bulkApprove': 'Setujui semua sesuai rencana (${count})',
