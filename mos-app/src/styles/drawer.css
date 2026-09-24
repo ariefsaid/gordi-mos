@@ -108,24 +108,22 @@
 
 @media (min-width: 920px) and (max-width: 1099.98px) {
   .drawer.overlay-companion-host--with-record {
-    /* #930 — the record is the .drawer-modal.drawer-sheet in this band, whose floor now matches
-       --record-panel-w's (440px). Deputy's offset must carry the same floor or it sits closer
-       than the record's real left edge and the two overlap at the narrow end of this band. */
-    right: calc(max(var(--record-panel-w), min(45vw, 520px)) + 12px);
-    width: min(var(--assistant-w), calc(55vw - var(--rail-w) - 24px));
-    min-width: 220px;
+    /* The record is the .drawer-modal.drawer-sheet in this band. The measured placement (see the
+       ≥1100px rule) is authoritative; this fallback carries the sheet's floor until it lands. */
+    right: var(--companion-right, calc(max(var(--record-panel-w), min(45vw, 520px)) + 12px));
+    width: var(--companion-width, min(var(--assistant-w), calc(55vw - var(--rail-w) - 24px)));
   }
 }
 
 /* 1100px is the generic shell overlay breakpoint; Tasks uses its named decision-column threshold. */
 @media (min-width: 1100px) {
   .drawer.overlay-companion-host--with-record {
-    /* #930 — this is the desktop .record-split band: the record beside it is exactly
-       --record-panel-w wide, so Deputy's offset is computed from the SAME token, not a second
-       floor/vw formula that could drift from the record's real width. */
-    right: calc(var(--record-panel-w) + 12px);
-    width: min(var(--assistant-w), calc(56vw - var(--rail-w) - 24px));
-    min-width: 320px;
+    /* The record's real left edge depends on the content cap, frame gutters and rail, not only on
+       --record-panel-w, so OverlayCompanionSlot measures it and sets --companion-right/-width
+       (use-beside-record-placement.ts). The token formula only covers the frame before that
+       measurement lands. */
+    right: var(--companion-right, calc(var(--record-panel-w) + 12px));
+    width: var(--companion-width, min(var(--assistant-w), calc(56vw - var(--rail-w) - 24px)));
   }
 }
 

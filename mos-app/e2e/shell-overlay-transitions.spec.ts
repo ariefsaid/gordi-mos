@@ -163,6 +163,60 @@ test.describe('shell overlay transitions', () => {
     await expect(recordPanel(page)).toHaveCount(0)
   })
 
+  test('a Home Signal comes back with its history entry on Back, and leaves again on Forward', async ({ page }) => {
+    await page.setViewportSize(DESKTOP)
+    await loginAs(page, DIRECTOR, DEMO_PASSWORD)
+
+    const row = page.locator('main [data-signal-id][role="button"]').first()
+    await expect(row).toBeVisible()
+    const id = await row.getAttribute('data-signal-id')
+    await row.click()
+    const panel = page.locator('[data-overlay-host][data-overlay-owner="signals"]')
+    await expect(panel).toHaveAttribute('data-overlay-entry', `signal:${id}`)
+
+    await rail(page).getByRole('link', { name: /^Tasks/ }).first().click()
+    await expect(page).toHaveURL(/\/work\/tasks/)
+    await expect(recordPanel(page)).toHaveCount(0)
+
+    await page.goBack()
+    await expect(page).toHaveURL(/\/mos\/?$/)
+    await expect(panel).toHaveAttribute('data-overlay-entry', `signal:${id}`)
+
+    await page.goForward()
+    await expect(page).toHaveURL(/\/work\/tasks/)
+    await expect(recordPanel(page)).toHaveCount(0)
+
+    await page.goBack()
+    await expect(panel).toHaveAttribute('data-overlay-entry', `signal:${id}`)
+  })
+
+  for (const width of [1280, 1440, 1920, 2300]) {
+    test(`Deputy beside a record never overlaps it at ${width}px`, async ({ page }, info) => {
+      const viewport = { width, height: 900 }
+      await page.setViewportSize(viewport)
+      await loginAs(page, DIRECTOR, DEMO_PASSWORD)
+      for (const collection of ['objectives', 'projects'] as const) {
+        await openFirstRecord(page, collection)
+        await deputyButton(page).click()
+        await expect(deputy(page)).toHaveClass(/overlay-companion-host--with-record/)
+        const d = await box(deputy(page))
+        const r = await box(recordPanel(page))
+        for (const b of [d, r]) {
+          expect(b.x).toBeGreaterThanOrEqual(0)
+          expect(b.x + b.width).toBeLessThanOrEqual(width + 0.5)
+        }
+        expect(d.width).toBeGreaterThanOrEqual(280)
+        expect(d.x + d.width).toBeLessThanOrEqual(r.x)
+        const header = await box(page.locator('header').first())
+        expect(header.y).toBe(0)
+        await expect(deputyButton(page)).toBeVisible()
+        await page.screenshot({ path: info.outputPath(`deputy-beside-${collection}-${width}.png`), animations: 'disabled' })
+        await page.keyboard.press('Escape')
+        await expect(deputy(page)).toHaveCount(0)
+      }
+    })
+  }
+
   for (const width of [1024, 1440, 1920]) {
     test(`Deputy keeps the header in view at ${width}px, with and without a record`, async ({ page }, info) => {
       const viewport = { width, height: width === 1920 ? 1080 : width === 1024 ? 768 : 900 }
