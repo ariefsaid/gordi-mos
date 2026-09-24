@@ -211,6 +211,21 @@ describe('listCaptureFormItems — the gated capture-form read (FR-011, DD-WAY-2
     unitRow('w2', 'Nasi Goreng', 'u2', 'porsi', true),
   ]
 
+  it('issue 222: given a stream, offers only the items on that stream\'s list', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({
+        capture_form_items: [{ data: VIEW_ROWS, error: null }],
+        stream_items: [{ data: [{ wip_item_id: 'w2' }], error: null }],
+      }, rec) as never,
+    )
+
+    const result = await listCaptureFormItems(STREAM)
+    expect(result.map(item => item.id)).toEqual(['w2'])
+    expect(rec.fromTables).toContain('stream_items')
+    expect(rec.eqs).toEqual(expect.arrayContaining([['branch_id', BRANCH_ID], ['activity', 'kitchen']]))
+  })
+
   it('reads the gated capture_form_items view ordered by name — never raw wip_items', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
@@ -745,6 +760,7 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
               error: null,
             },
           ],
+          stream_items: [{ data: [{ wip_item_id: 'w1' }, { wip_item_id: 'w2' }], error: null }],
         },
         rec,
       ) as never,
@@ -756,13 +772,13 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
       { p_as_of: '2026-06-20', p_branch_id: BRANCH_ID, p_activity: 'kitchen' },
     ])
     expect(rows).toEqual([
-      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: 'Main', stok: 12, tersedia: 8 },
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: 'Main', on_stream: true, stok: 12, tersedia: 8 },
       // negative balances preserved, not clamped (FR-061, AC-032)
-      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', category: 'Main', stok: -3, tersedia: -3 },
+      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', category: 'Main', on_stream: true, stok: -3, tersedia: -3 },
     ])
   })
 
-  it('lists every active item even when it has no stock row (defaults to 0/0)', async () => {
+  it('lists every item on the stream\'s list even when it has no stock row (defaults to 0/0)', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
@@ -771,14 +787,50 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
             { data: [{ id: 'w1', name: 'Ayam Bakar', category: 'Main' }], error: null },
           ],
           kitchen_stock_for_date: [{ data: [], error: null }],
+          stream_items: [{ data: [{ wip_item_id: 'w1' }], error: null }],
         },
         rec,
       ) as never,
     )
     const rows = await fetchKitchenStock('2026-06-20', STREAM)
     expect(rows).toEqual([
-      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: 'Main', stok: 0, tersedia: 0 },
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: 'Main', on_stream: true, stok: 0, tersedia: 0 },
     ])
+  })
+
+  it('issue 222: an item off the stream\'s list shows, labelled, only while it holds a balance there', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          wip_items: [{
+            data: [
+              { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
+              { id: 'w2', name: 'Nasi Goreng', category: 'Main' },
+              { id: 'w3', name: 'Es Teh', category: 'Drinks' },
+              { id: 'w4', name: 'Kopi', category: 'Drinks' },
+            ],
+            error: null,
+          }],
+          kitchen_stock_for_date: [{
+            data: [
+              { wip_item_id: 'w1', usable_qty: 0, available_qty: 0 },
+              { wip_item_id: 'w2', usable_qty: 5, available_qty: 5 },
+              { wip_item_id: 'w3', usable_qty: 0, available_qty: 0 },
+              { wip_item_id: 'w4', usable_qty: 0, available_qty: -2 },
+            ],
+            error: null,
+          }],
+          stream_items: [{ data: [{ wip_item_id: 'w1' }], error: null }],
+        },
+        rec,
+      ) as never,
+    )
+    const rows = await fetchKitchenStock('2026-06-20', STREAM)
+    expect(rows.map(r => [r.wip_item_id, r.on_stream])).toEqual([
+      ['w1', true], ['w2', false], ['w4', false],
+    ])
+    expect(rec.eqs).toEqual(expect.arrayContaining([['branch_id', BRANCH_ID], ['activity', 'kitchen']]))
   })
 
   it('returns [] when there are no active items', async () => {

@@ -51,6 +51,10 @@ select is((select produces from shared.teams
     and branch_id = '00000000-0000-0000-0000-00000000bf03'
     and activity = 'prep' and archived_at is null), true,
   'the new activity test establishes an explicit producer fact before asserting production writes');
+-- Offer the fixture item on the new stream, so the writes below meet its item list (#222).
+insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source) values
+  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bf03','prep',
+   '00000000-0000-0000-0000-00000000ab01','manual');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
 select lives_ok($$ insert into ops.stream_completeness
   (org_id, branch_id, activity, confirmed_by)

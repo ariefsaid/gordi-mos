@@ -26,7 +26,7 @@ import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useSearchParamState } from '@/lib/use-search-param-state'
-import { listActiveWipItems } from '@/lib/db/kitchen-logs'
+import { isItemNotOnStreamError, listActiveWipItems, listStreamItemIds } from '@/lib/db/kitchen-logs'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { listKitchenPlans, listPesanan, upsertKitchenPlan } from '@/lib/db/kitchen-plans'
 import type {
@@ -42,10 +42,12 @@ import {
   movementsEqual,
   movementsForStream,
   PRODUCE,
+  streamLabel,
   streamProduces,
 } from '@/lib/kitchen-action-label'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
-import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
@@ -113,6 +115,11 @@ export function KitchenPlanPage() {
 // ════════════════════════════════════════════════════════════════════════════
 // ops_lead / admin — the plan EDITOR (FR-030/031)
 // ════════════════════════════════════════════════════════════════════════════
+// The rows a stream's plan shows: its listed items, plus any item already planned there (#222).
+function streamRows(items: WipItemOption[], offered: Set<string>, planCells: PlanCell[]): WipItemOption[] {
+  return items.filter(item => offered.has(item.id) || planCells.some(cell => cell.wip_item_id === item.id))
+}
+
 function PlanEditor() {
   const t = useT()
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
@@ -124,7 +131,7 @@ function PlanEditor() {
   // OD-CAFE-1: plans are keyed on (org, date, item, branch, activity) — a plan row belongs to one
   // branch's books — so the picker offers this location's streams only. `streamOptions` stays whole
   // for the movement/destination derivation below.
-  const { branches, options: streamOptions, locationOptions, stream } = cafeStream
+  const { branches, options: streamOptions, locationOptions, stream, homeStream } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const streamMissing = stream === null
   const streamCanProduce = streamProduces(stream, streamOptions)
@@ -148,6 +155,9 @@ function PlanEditor() {
   )
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [items, setItems] = useState<WipItemOption[]>([])
+  // The stream's item list (#222). New plan rows are offered only for these; a row already
+  // planned for any other item stays on screen, labelled, with its quantity editable.
+  const [offeredIds, setOfferedIds] = useState<Set<string>>(new Set())
   const [cells, setCells] = useState<PlanCell[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
@@ -188,9 +198,13 @@ function PlanEditor() {
     setLoad({ kind: 'loading' })
     try {
       const [itemRows, catalog] = await Promise.all([listActiveWipItems(), resolveStream()])
-      const planCells = catalog.stream ? await listKitchenPlans(logDate, catalog.stream) : []
+      const [planCells, offered] = catalog.stream
+        ? await Promise.all([listKitchenPlans(logDate, catalog.stream), listStreamItemIds(catalog.stream)])
+        : [[], null]
       if (gen !== requestGen.current) return
-      setItems(itemRows)
+      // No stream yet: every item, read-only until a stream is chosen (planWriteClosed).
+      setItems(offered ? streamRows(itemRows, offered, planCells) : itemRows)
+      setOfferedIds(offered ?? new Set())
       adoptStream(catalog)
       setMovement(PRODUCE)
       setCells(planCells)
@@ -210,14 +224,27 @@ function PlanEditor() {
     setMovement(PRODUCE)
     setLoad({ kind: 'loading' })
     try {
-      const planCells = await listKitchenPlans(logDate, nextStream)
+      const [itemRows, planCells, offered] = await Promise.all([
+        listActiveWipItems(), listKitchenPlans(logDate, nextStream), listStreamItemIds(nextStream),
+      ])
       if (gen !== requestGen.current) return
+      setItems(streamRows(itemRows, offered, planCells))
+      setOfferedIds(offered)
       setCells(planCells)
       setLoad({ kind: 'ready' })
     } catch {
       if (gen === requestGen.current) setLoad({ kind: 'error' })
     }
   }, [logDate, chooseStream])
+
+  // A new plan row needs the item on the stream's list; an existing row keeps its quantity editable.
+  const canPlan = useCallback(
+    (wipItemId: string): boolean =>
+      offeredIds.has(wipItemId)
+      || cells.some(c => c.wip_item_id === wipItemId && movementsEqual(c.movement, movement)),
+    [cells, movement, offeredIds],
+  )
+  const offList = (wipItemId: string) => stream !== null && !offeredIds.has(wipItemId)
 
   // Plan qty for (item, current movement) — 0 when no plan row yet.
   const qtyOf = useCallback(
@@ -240,6 +267,7 @@ function PlanEditor() {
       return
     }
     const current = qtyOf(wipItemId)
+    if (!canPlan(wipItemId)) return
     if (nextQty === current) return
     setSavingId(wipItemId)
     setSaveError('')
@@ -266,7 +294,13 @@ function PlanEditor() {
       if (savedTimer.current) clearTimeout(savedTimer.current)
       savedTimer.current = setTimeout(() => setJustSavedId(null), 1500)
     } catch (err) {
-      setSaveError(err instanceof Error ? `Couldn't save — ${err.message}` : "Couldn't save — please try again.")
+      if (isItemNotOnStreamError(err)) {
+        // The list changed while the editor was open (#222): re-read it so the row reads as off-list.
+        setSaveError(t('kitchen.plan.error.itemNotOnStream'))
+        listStreamItemIds(stream).then(setOfferedIds, () => {})
+      } else {
+        setSaveError(err instanceof Error ? `Couldn't save — ${err.message}` : "Couldn't save — please try again.")
+      }
     } finally {
       setSavingId(null)
     }
@@ -303,6 +337,7 @@ function PlanEditor() {
     render: item => (
       <span className="kp-dish">
         <span className="kp-name">{item.name}</span>
+        {offList(item.id) && <NotOnStreamTag />}
         {item.category && <span className="kp-cat">{kitchenCategoryLabel(t, item.category)}</span>}
       </span>
     ),
@@ -335,7 +370,7 @@ function PlanEditor() {
               // #548 FR-006: a missing or receiving-only stream keeps the committed value
               // readable but closes the field; offline also pre-disables it. Commit state
               // renders beside the field at the page.
-              disabled={!isOnline || planWriteClosed}
+              disabled={!isOnline || planWriteClosed || !canPlan(item.id)}
               onSave={next => saveCell(item.id, next)}
               dense={isDesktop}
             />
@@ -377,11 +412,12 @@ function PlanEditor() {
         <div className="kp-card-head">
           <span className="kp-card-name">
             {item.name}
+            {offList(item.id) && <NotOnStreamTag />}
           </span>
           <PlanQtyField
             itemName={item.name}
             qty={qtyOf(item.id)}
-            disabled={!isOnline || planWriteClosed}
+            disabled={!isOnline || planWriteClosed || !canPlan(item.id)}
             onSave={next => saveCell(item.id, next)}
           />
         </div>
@@ -410,6 +446,7 @@ function PlanEditor() {
         <CafeStreamBar
           options={locationOptions}
           stream={stream}
+          homeStream={homeStream}
           onChange={next => { void applyStream(next) }}
         />
       }
@@ -436,14 +473,21 @@ function PlanEditor() {
       {saveError && (
         <div role="alert" className="kp-banner kp-banner-error kp-block">{saveError}</div>
       )}
-      {/* #548 FR-006: the precondition is a muted hint at rest (Log's .kl-submit-reason
-          grammar, role="status" — programmatically associated as a live region, NFR-002).
-          saveCell keeps the same guard as a defensive backstop if a caller bypasses the
-          disabled field. */}
+      {/* #548 FR-006 / #781 item 2: the precondition is a muted hint at rest (Log's
+          .kl-submit-reason grammar, role="status" — programmatically associated as a live
+          region, NFR-002), plus the same one-step choice Log offers — the head bar has nothing
+          to state while no default resolves (FR-002), so this is the only place the choice is
+          reachable on this page. saveCell keeps the same guard as a defensive backstop if a
+          caller bypasses the disabled field. */}
       {streamMissing && load.kind === 'ready' && (
-        <p className="kp-stream-hint" role="status" aria-live="polite">
-          {t('kitchen.log.stream.missing')}
-        </p>
+        <div className="kp-stream-hint" role="status" aria-live="polite">
+          <p>{t('kitchen.log.stream.missing')}</p>
+          <CafeStreamChoices
+            options={locationOptions}
+            homeStream={homeStream}
+            onChoose={next => { void applyStream(next) }}
+          />
+        </div>
       )}
       {streamNonProducing && load.kind === 'ready' && (
         receivingOnlyNotice
@@ -461,8 +505,8 @@ function PlanEditor() {
       {load.kind === 'ready' && items.length === 0 && (
         <EmptyState
           variant="blank"
-          title={t('kitchen.empty.noActiveItems.title')}
-          copy={t('kitchen.plan.empty.copy')}
+          title={stream ? t('kitchen.streamItems.empty.title', { stream: streamLabel(t, stream) }) : t('kitchen.empty.noActiveItems.title')}
+          copy={stream ? t('kitchen.streamItems.empty.copy') : t('kitchen.plan.empty.copy')}
         />
       )}
 
@@ -531,7 +575,7 @@ function PesananView() {
   // OD-CAFE-1: plans are keyed on (org, date, item, branch, activity) — a plan row belongs to one
   // branch's books — so the picker offers this location's streams only. `streamOptions` stays whole
   // for the movement/destination derivation below.
-  const { branches, options: streamOptions, locationOptions, stream } = cafeStream
+  const { branches, options: streamOptions, locationOptions, stream, homeStream } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
@@ -640,6 +684,7 @@ function PesananView() {
         <CafeStreamBar
           options={locationOptions}
           stream={stream}
+          homeStream={homeStream}
           onChange={next => { void applyStream(next) }}
         />
       }
@@ -688,12 +733,23 @@ function PesananView() {
           the first one told as the second is how a person concludes the kitchen has no plan when
           they simply have no stream yet (FR-002). */}
       {load.kind === 'ready' && stream === null && (
-        <EmptyState variant="blank" title={t('cafe.stream.none')} />
+        <EmptyState variant="next-step" title={t('cafe.stream.none')}>
+          <CafeStreamChoices
+            options={locationOptions}
+            homeStream={homeStream}
+            onChoose={next => { void applyStream(next) }}
+          />
+        </EmptyState>
       )}
 
       {load.kind === 'ready' && stream !== null && rows.length === 0 && (
         <EmptyState
           variant="awaiting"
+          // B10: the shared 'awaiting' glyph is a rotating-arrow ↻ — a real cue on a surface with
+          // a refresh action, but this read view has none, so it read as a dead refresh button.
+          // A neutral glyph keeps the "a plan will eventually land here" meaning without implying
+          // a control.
+          icon="…"
           title={t('kitchen.plan.pesanan.empty.title')}
           copy={t('kitchen.plan.pesanan.empty.copy', { days: PESANAN_HORIZON_DAYS })}
         />

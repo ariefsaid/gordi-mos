@@ -28,6 +28,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     listActiveWipItems: vi.fn(), listCaptureFormItems: vi.fn(), fetchPlanMap: vi.fn(), fetchStockMap: vi.fn(),
     fetchActualsMap: vi.fn(), listStreamPairs: vi.fn(), resolveKitchenBuId: vi.fn(), listSubmittedKitchenLogs: vi.fn(),
     fetchKitchenStock: vi.fn(), approveKitchenLog: vi.fn(), approveKitchenLogsBulk: vi.fn(), rejectKitchenLog: vi.fn(),
+    listStreamItemIds: vi.fn(async () => ({ has: () => true })), listAllStreamItemKeys: vi.fn(async () => ({ has: () => true })),
   }
 })
 vi.mock('@/lib/db/kitchen-plans', () => ({ listKitchenPlans: vi.fn(), listPesanan: vi.fn(), upsertKitchenPlan: vi.fn() }))
@@ -76,7 +77,11 @@ const PUSH_ROW: EsbPushRow = {
   id: 'push-1', source_module: 'kitchen', source_ref: 'batch-1', endpoint: 'assembly-actual', target_env: 'dry_run',
   status: 'posted', retry_count: 0, last_error: null, esb_doc_num: 'doc-1', created_at: '2026-06-20T09:00:00Z', posted_at: '2026-06-20T09:01:00Z',
 }
-const ENGLISH_TOKENS = /\b(?:Stock|Chicken|Meat|Seafood|Snack|Veg|Rice|Pushes|Review|Plan|Stream|Transfer to)\b/i
+// #781 item 6: "Stream" is deliberately ONE shared word in both catalogs now (cafe.stream.label
+// and its sibling keys) — "Tim" was the Indonesian half of the control's OWN name reading as a
+// different concept ("Team") from the English "Stream", which is the defect B6 reported. It is
+// therefore excluded from both denylists rather than asserted as either locale's alone.
+const ENGLISH_TOKENS = /\b(?:Stock|Chicken|Meat|Seafood|Snack|Veg|Rice|Pushes|Review|Plan|Transfer to)\b/i
 const INDONESIAN_TOKENS = /\b(?:Stok|Ayam|Daging|Makanan|Camilan|Sayur|Tim|Kiriman|Tinjau|Rencana|Alur|Pindah ke)\b/i
 const pages = [
   ['Log', KitchenLogPage], ['Plan', KitchenPlanPage], ['Stock', KitchenStockPage],
@@ -101,7 +106,8 @@ describe('AC-063/AC-064: Café pages stay Indonesian end to end', () => {
   })
 
   it.each([
-    ['id', ENGLISH_TOKENS, 'Tim', 'Kirim Log', 'Ayam', 'Stok'],
+    // #781 item 6: "Stream" is the one word for the control in BOTH catalogs now.
+    ['id', ENGLISH_TOKENS, 'Stream', 'Kirim Log', 'Ayam', 'Stok'],
     ['en', INDONESIAN_TOKENS, 'Stream', 'Pushes', 'Chicken', 'Stock'],
   ] as const)('renders every stream-resolved page in the %s catalog', async (locale, denyList, streamWord, pushesWord, categoryLabel, stockLabel) => {
     localStorage.setItem('mos.locale', locale)

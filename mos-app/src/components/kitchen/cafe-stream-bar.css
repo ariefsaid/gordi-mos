@@ -1,11 +1,11 @@
 /* CafeStreamBar — cafe-stream- namespace (C1: disjoint from kl-/kp-/kpu-/kr-/ks-/kpe-).
    Lives in the page head's status row, so it stays one quiet line: an overline-rank label
-   ("Stream") against the 32px kit Select. On a phone the select takes the full width — a
-   half-width <select> truncates a branch name to the point where two branches read the
-   same, the exact ambiguity the catalog exists to end. */
+   ("Stream") against the stated value, with a text "Switch"/"Back to …" action beside it —
+   never a full-width control (#781: the old bordered <select> read as a mandatory choice on
+   every visit, and cost a whole extra head row on a 390px phone). */
 .cafe-stream {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
@@ -20,8 +20,8 @@
   text-transform: uppercase;
 }
 
-/* The read-only statement (a surface that names its stream but cannot switch it) carries the
-   same rank as the control's own text, so the two surfaces read as one grammar. */
+/* The stated value — read-only surfaces, and every surface that CAN switch: the fact reads the
+   same weight everywhere, whatever sits beside it. */
 .cafe-stream__value {
   color: var(--foreground);
   font-size: var(--font-size-control);
@@ -30,24 +30,122 @@
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 390px) {
-  .cafe-stream { width: 100%; }
-  .cafe-stream__select { flex: 1 1 100%; min-width: 0; }
+/* "Switch" / "Back to …" — quiet text actions, never a bordered field: the stream is already
+   named by `.cafe-stream__value` beside them, so neither one repeats it. Underline is the only
+   affordance at rest; the shared focus ring covers keyboard/`:focus-visible`. */
+.cafe-stream__switch,
+.cafe-stream__back {
+  flex: 0 0 auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--primary);
+  font: inherit;
+  font-size: var(--font-size-control);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  cursor: pointer;
+}
+.cafe-stream__switch:hover:not(:disabled),
+.cafe-stream__back:hover:not(:disabled) {
+  text-decoration-color: currentColor;
+}
+.cafe-stream__switch:disabled,
+.cafe-stream__back:disabled {
+  color: var(--muted-foreground);
+  cursor: not-allowed;
+  text-decoration: none;
+}
+.cafe-stream__switch[aria-expanded='true'] {
+  text-decoration-color: currentColor;
 }
 
-/* An unmade required choice. Nothing submits until this is set, so while it is empty the bar
-   carries the weight of the gate it is: the label stops being muted and the control takes the
-   attention boundary instead of the ordinary input hairline. It returns to one quiet line the
-   moment a stream is chosen — this is state, not a louder default.
-   `className` on the shared `<Select>` lands on its OUTER wrapper (`.mk-select`), not the
-   visible bordered trigger — `.cafe-stream__select` here IS that wrapper, and `border-color`
-   on an element with no `border-style` renders nothing. Targeting the trigger itself
-   (`.mk-select__field`, Select's own stable visible class) makes the amber treatment the
-   field's ACTUAL border, uniformly, everywhere it renders. */
-.cafe-stream[data-stream-unset='true'] .cafe-stream__label {
-  color: var(--warning-foreground);
+/* The Switch menu — same popup grammar as Select/Picker (DD-MVP-2): portal, elevation, radius. */
+.cafe-stream__menu {
+  position: fixed;
+  z-index: 100;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--popover);
+  color: var(--foreground);
+  box-shadow: var(--shadow-overlay);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  outline: none;
 }
-.cafe-stream[data-stream-unset='true'] .cafe-stream__select .mk-select__field {
-  border-color: var(--warning-foreground);
-  box-shadow: 0 0 0 1px var(--warning-foreground);
+.cafe-stream__option {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.cafe-stream__option[data-active='true'] { background: var(--secondary); }
+
+@media (max-width: 390px) {
+  .cafe-stream { width: 100%; }
+}
+
+/* ── CafeStreamChoices (item 2, FR-002, B5): the one-step direct choice, rendered in the page
+   BODY (after any Opening row, B12) — never a select that has to be opened before it can be
+   used. Each option is its own 44px touch target; own-Team and receiving-only streams carry a
+   quiet tag rather than a second control. */
+.cafe-stream-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cafe-stream-choices__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cafe-stream-choices__option {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-control);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.cafe-stream-choices__option:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--muted-foreground) 50%, var(--input));
+  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+}
+.cafe-stream-choices__option:disabled { cursor: not-allowed; opacity: 0.6; }
+.cafe-stream-choices__name { flex: 1 1 auto; min-width: 0; }
+.cafe-stream-choices__tag {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--secondary);
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 500;
+  text-transform: none;
+}
+.cafe-stream-choices__tag--muted {
+  background: transparent;
+  border: 1px solid var(--border);
+}
+.cafe-stream-choices__hint,
+.cafe-stream-choices__empty {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
 }

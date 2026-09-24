@@ -127,6 +127,9 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
       INSERT INTO ops.item_units (org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id, is_default, is_transferable, confirmed_at)
       VALUES ('${ORG}', '${ITEM_ID}', '${UNIT_NAME}', 'PD-E2E-014', 'P-E2E-014', true, true, now())
       ON CONFLICT (wip_item_id, unit_name) DO UPDATE SET confirmed_at = now();
+      INSERT INTO ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
+      VALUES ('${ORG}', ${BRANCH_SQL}, '${BAR_STREAM.activity}', '${ITEM_ID}', 'manual')
+      ON CONFLICT (org_id, branch_id, activity, wip_item_id) DO NOTHING;
     `)
 
     // The plan the member logs AGAINST (FR-015): the stream's own plan for today.
@@ -163,6 +166,7 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
       DELETE FROM ops.kitchen_stock     WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.kitchen_logs      WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.kitchen_plans     WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
+      DELETE FROM ops.stream_items      WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.item_units        WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.wip_items         WHERE org_id='${ORG}' AND id='${ITEM_ID}';
     `)

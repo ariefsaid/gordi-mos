@@ -34,6 +34,7 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import type { KitchenStockRow, ProductionStream } from '@/lib/db/kitchen-logs.types'
@@ -41,10 +42,11 @@ import { streamLabel } from '@/lib/kitchen-action-label'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
-import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 import './kitchen-stock-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the capture/review pages.
@@ -87,7 +89,7 @@ function KitchenStockPageForViewer() {
   const cafeStream = useCafeStream()
   // OD-CAFE-1: stock is keyed on (org, date, item, branch, activity) — a balance belongs to one
   // branch's books — so the picker offers this location's streams only.
-  const { options: streamOptions, locationOptions, stream } = cafeStream
+  const { options: streamOptions, locationOptions, stream, homeStream } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [rows, setRows] = useState<KitchenStockRow[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
@@ -126,6 +128,7 @@ function KitchenStockPageForViewer() {
       render: row => (
         <span className="ks-item">
           <span>{row.wip_item_name}</span>
+          {row.on_stream === false && <NotOnStreamTag />}
           {row.category && <span className="ks-category">{kitchenCategoryLabel(t, row.category)}</span>}
         </span>
       ),
@@ -146,6 +149,7 @@ function KitchenStockPageForViewer() {
   const renderStockCard = (row: KitchenStockRow) => (
     <div className="ks-card">
       <span className="ks-card-name">{row.wip_item_name}</span>
+      {row.on_stream === false && <NotOnStreamTag />}
       <div className="ks-card-meta">
         <span><span className="ks-card-label">{t('kitchen.stock.col.stok')}</span> <strong className="tabular">{row.stok}</strong></span>
         <span><span className="ks-card-label">{t('kitchen.stock.card.erp')}</span> <span className="ks-erp-pending">—</span></span>
@@ -235,6 +239,7 @@ function KitchenStockPageForViewer() {
     <CafeStreamBar
       options={locationOptions}
       stream={stream}
+      homeStream={homeStream}
       onChange={next => { void applyStream(next) }}
     />
   )
@@ -244,7 +249,9 @@ function KitchenStockPageForViewer() {
       family="workspace"
       title={pageTitle}
       statusRow={streamHead}
-      meta={<span className="ks-date tabular">{asOf}</span>}
+      // B9: one date format across Log/Plan/Stock heads — Stock used to print the raw ISO
+      // date (`2026-09-24`) while Log/Plan already read "Thu 24 Sept".
+      meta={<span className="ks-date tabular">{formatWeekdayDayMonth(asOf)}</span>}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
       {/* FR-027: one summary line only — no tile strip and no second "no entries" note. */}
@@ -269,10 +276,16 @@ function KitchenStockPageForViewer() {
       )}
 
       {/* No stream resolved (FR-002 — no live primary stream Team, nothing chosen yet): the
-          head's picker is the whole next step, so say that instead of rendering a table of
+          head has nothing to state, so the one-step choice renders here instead of a table of
           nothing under an em dash. */}
       {load.kind === 'ready' && stream === null && (
-        <EmptyState variant="blank" title={t('cafe.stream.none')} />
+        <EmptyState variant="next-step" title={t('cafe.stream.none')}>
+          <CafeStreamChoices
+            options={locationOptions}
+            homeStream={homeStream}
+            onChoose={next => { void applyStream(next) }}
+          />
+        </EmptyState>
       )}
 
       {((load.kind === 'ready' && stream !== null) || (load.kind === 'loading' && streamOptions.length > 0)) && (
@@ -288,7 +301,7 @@ function KitchenStockPageForViewer() {
           ) : rows.length === 0 ? (
             <EmptyState
               title={t('kitchen.stock.empty.title')}
-              copy={t('kitchen.stock.empty.copy', { stream: streamLabel(t, stream), date: asOf })}
+              copy={t('kitchen.stock.empty.copy', { stream: streamLabel(t, stream), date: formatWeekdayDayMonth(asOf) })}
             />
           ) : (
             <>
@@ -299,7 +312,7 @@ function KitchenStockPageForViewer() {
                 renderCard={renderStockCard}
                 state={visibleRows.length > 0 ? 'ready' : 'empty'}
                 emptyLabel={t('kitchen.filter.noMatch')}
-                caption={t('kitchen.stock.caption', { stream: streamLabel(t, stream), date: asOf })}
+                caption={t('kitchen.stock.caption', { stream: streamLabel(t, stream), date: formatWeekdayDayMonth(asOf) })}
               />
               <DataProvenanceNote kind="live" show note={t('kitchen.stock.erpPending')} />
             </>

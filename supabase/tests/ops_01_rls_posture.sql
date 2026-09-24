@@ -55,17 +55,18 @@ select is(
   '{}'::name[],
   'org seam: every table in ops carries org_id');
 
--- ── No hard delete anywhere in ops (NFR-002/004, FR-095) ─────────────────────────────────────
--- Unlike `mos`, ops has NO exception. Removal on the Daily Log is an archive timestamp and on a
--- kitchen log is a status transition; a production fact is never destroyed, because the ERP holds a
--- document that corresponds to it.
+-- ── No hard delete of an operational fact in ops (NFR-002/004, FR-095) ───────────────────────
+-- Removal on the Daily Log is an archive timestamp and on a kitchen log is a status transition; a
+-- production fact is never destroyed, because the ERP holds a document that corresponds to it. The
+-- one exception is master data, not a fact: a stream's item list (ops.stream_items), whose rows are
+-- removed when a stream stops offering an item.
 select is(
   (select coalesce(array_agg(c.relname order by c.relname), '{}')
      from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'ops' and c.relkind = 'r'
       and has_table_privilege('authenticated', c.oid, 'DELETE')),
-  '{}'::name[],
-  'NFR-002: authenticated holds DELETE on NO ops table — there is no exception in this schema');
+  '{stream_items}'::name[],
+  'NFR-002: authenticated holds DELETE on exactly one ops table, the stream item list');
 
 select ok(not has_table_privilege('authenticated','integrations.esb_push','DELETE'),
   'NFR-002: authenticated cannot delete an outbox row either — a posting record is evidence');
