@@ -4,13 +4,8 @@
 
 .signal-collection-presentation { min-width: 0; }
 
-/* #930 rule 2 — only the Message column is flexible (width:auto below); Team/Attention/Occurred
-   are fixed px floors sized to their longest realistic value and never stretch, so widening the
-   frame to the shared wide operating measure (#930 rule 1) grows the message column, not a dead
-   gap between three narrow proportional ones. A fixed floor also means the previous "boost the
-   percentage at a narrower width" band is no longer needed — the raw px already guarantees the
-   full "20 Jul 2026, 21:40" timestamp regardless of viewport; .tasks-scroll-style horizontal
-   overflow on the surrounding collection remains the fallback at an extreme narrow shell. */
+/* Only Message is flexible; Team/Attention/Occurred are fixed px floors sized to their longest
+   realistic value and never stretch, so a wider frame grows Message, not the gaps between them. */
 .signal-collection-table th:nth-child(1),
 .signal-collection-table td:nth-child(1) { width: auto; min-width: 220px; }
 .signal-collection-table th:nth-child(2),
@@ -20,12 +15,17 @@
 .signal-collection-table th:nth-child(4),
 .signal-collection-table td:nth-child(4) { width: 200px; } /* Occurred — full "20 Jul 2026, 21:40" never clips */
 
-/* A record panel narrows this collection to the shared #930 record-panel track; keep Team and
-   Occurred whole and drop Attention (already visible via the urgent-row tint) rather than let
-   the message column starve or force a scroll. */
+/* Message is `width: auto`, so an uncapped table let it absorb all remaining width and open a
+   gap before Team/Attention/Occurred. Capping the TABLE's max-width instead keeps them right
+   after Message and sends leftover space to a gutter after the row. */
+.signal-collection-table { max-width: 1140px; } /* message cap + team + attention + occurred */
+
+/* A record panel narrows this collection to the shared record-panel track. Team gives way first:
+   it's often blank, and Attention is the fact a narrowed list is scanned for. */
 @media (min-width: 1100px) {
-  .record-split .signal-collection-table th:nth-child(3),
-  .record-split .signal-collection-table td:nth-child(3) { display: none; }
+  .record-split .signal-collection-table th:nth-child(2),
+  .record-split .signal-collection-table td:nth-child(2) { display: none; }
+  .record-split .signal-collection-table { max-width: 1000px; } /* message cap + attention + occurred */
 }
 .signal-collection-table td {
   overflow: hidden;
