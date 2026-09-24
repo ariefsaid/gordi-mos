@@ -40,7 +40,7 @@ export function TasksLayout() {
   // the promotion below must carry it through, or the record page's Back names a collection the
   // viewer never visited (audit F-9).
   const fromHome = (location.state as { from?: string } | null)?.from === 'home'
-  // The live push/squash split starts only where all decision-column floors fit; below it
+  // The live push/squash split starts where the Task column's floor fits beside the panel; below it
   // row activation navigates to the standalone record page.
   const isSplit = useIsSplitWidth()
 

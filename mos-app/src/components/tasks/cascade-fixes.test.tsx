@@ -207,13 +207,10 @@ describe('RI-3 — Task column width and scroll container', () => {
   it('RI-3: the Task identity column absorbs slack and can never be starved to 0px', () => {
     const cssPath = resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css')
     const css = readFileSync(cssPath, 'utf8')
-    // #930: the RI-3 concern (an `auto` Task column starved to 0px beside FIXED-PX secondaries)
-    // is now guarded the opposite way from the original %-share scheme — every secondary is a
-    // fixed px floor sized to its OWN longest realistic value (#930 rule 2: never stretch, never
-    // starve the identity column by demanding a moving share of it), and Task itself carries a
-    // min-width floor of its own. The bounded set can only run out of room on an extremely
-    // narrow desktop shell, where .tasks-scroll's overflow-x:auto (RI-3's sibling test above)
-    // is the guarded fallback — the table scrolls, it never clips Task to nothing.
+    // Every secondary is a fixed px width sized to its own longest realistic value, and Task
+    // carries a px floor of its own (auto layout widens it to its longest title above that).
+    // Secondaries drop before Task goes under that floor; the rendered rule is owned by
+    // e2e/AC-930-collection-width.spec.ts.
     const idx = css.indexOf('.tasks-table {')
     expect(idx).toBeGreaterThanOrEqual(0)
     const open = css.indexOf('{', idx)
@@ -226,8 +223,7 @@ describe('RI-3 — Task column width and scroll container', () => {
     const taskRuleOpen = css.indexOf('{', taskRuleIdx)
     const taskRuleClose = css.indexOf('}', taskRuleOpen)
     const taskRule = css.slice(taskRuleOpen + 1, taskRuleClose)
-    expect(taskRule).toMatch(/width:\s*auto/)
-    expect(taskRule).toMatch(/min-width:\s*\d+px/)
+    expect(taskRule).toMatch(/width:\s*\d+px/)
     // The four decision secondaries are fixed px floors, never a %-share the Task column would
     // have to keep feeding as the table's own width changes.
     for (const cls of ['th-status', 'th-owner', 'th-supervisor', 'th-due']) {

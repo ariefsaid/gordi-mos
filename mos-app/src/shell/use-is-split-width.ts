@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { WIDE_OVERLAY_MIN_WIDTH } from './use-is-wide-overlay-width'
 
 export const TASKS_RAIL_WIDTH = 232
 export const TASKS_FRAME_GUTTER_PX = 32
@@ -8,18 +9,23 @@ export const TASKS_FRAME_GUTTER_PX = 32
 export const TASKS_RECORD_PANEL_FLOOR_PX = 440
 export const TASKS_SPLIT_GAP_PX = 12
 export const TASKS_TABLE_BORDER_PX = 2 // the .assembly card's 1px left + 1px right border (a width budget)
-export const TASKS_SPLIT_FLOOR_TOTAL = 690 // the five decision-column floors authored in TasksWorkspace.css
+// The Task column's floor (TasksWorkspace.css): the list sheds every other column before Task
+// drops below it, so this is all the list itself needs beside the panel.
+export const TASKS_IDENTITY_FLOOR_PX = 240
 
-// Keep this arithmetic beside the media query: it is the viewport width at which the rail,
-// wide-frame gutters, the smallest the record panel can render, the gap, table floors, and the
-// .assembly card's border all fit.
-export const TASKS_SPLIT_MIN_WIDTH =
+// Keep this arithmetic beside the media query: the viewport width at which the rail, wide-frame
+// gutters, the smallest the record panel can render, the gap, the Task floor and the .assembly
+// card's border all fit, never below the shared overlay breakpoint.
+export const TASKS_SPLIT_MIN_WIDTH = Math.max(
+  WIDE_OVERLAY_MIN_WIDTH,
   TASKS_RAIL_WIDTH + (TASKS_FRAME_GUTTER_PX * 2) + TASKS_RECORD_PANEL_FLOOR_PX +
-  TASKS_SPLIT_GAP_PX + TASKS_SPLIT_FLOOR_TOTAL + TASKS_TABLE_BORDER_PX
+    TASKS_SPLIT_GAP_PX + TASKS_IDENTITY_FLOOR_PX + TASKS_TABLE_BORDER_PX,
+)
 const QUERY = `(min-width: ${TASKS_SPLIT_MIN_WIDTH}px)`
 
 /**
- * The table + drawer render as a live push/squash split only when the decision columns fit.
+ * The table + drawer render as a live push/squash split only when the Task column's floor fits
+ * beside the record panel.
  * Below the derived threshold the record opens as a standalone page instead of a drawer.
  *
  * Synchronous first read (no wrong-branch flash); subscribes to live changes.

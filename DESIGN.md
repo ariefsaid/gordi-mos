@@ -457,8 +457,8 @@ is** — not by who authored it, and not per-page taste.
 1. **The four Work collections — Tasks, Signals, Projects & Processes, Objectives.** Each is a
    list-plus-record operating surface: scan a queue, open one row, work it beside the list. Tasks
    carries its own scoping (`components/tasks/TasksWorkspace.css` `.split` — the data workspace
-   runs full-bleed so the table's right edge aligns with the account chip; only the `1fr` Task
-   column absorbs the extra width, the other columns are fixed-px, so nothing balloons;
+   runs full-bleed so the table's right edge aligns with the account chip; spare width goes to
+   an empty trailing track, never into the columns (see the column rule below);
    *"owner-eyes item 7 — kill the dead right void"*). Signals, Projects & Processes and Objectives
    share one rule instead of three repeats of it: each renders a stable `.work-collection` marker
    on its top-level wrapper — present whether or not a record is open, the same way Tasks'
@@ -482,18 +482,35 @@ further constraints follow:
 - **A next instance must bring the same evidence:** name the second dimension the surface composes,
   and the void the readable cap leaves at a real window width. "It looks narrow" is not the
   measurement. A single-column page is never widened — 1180px is what keeps a line readable.
-- **Within a wide surface, only the identity/title column flexes.** Status, people, date, count and
-  every other column is a fixed-px floor sized to its longest realistic value (e.g. "Overdue · Sun
-  13 Sept" must render on one line) and never stretches — widening the frame grows the identity
-  column's spare room, not a proportional share of every column into a wider gap between values.
+- **Within a wide surface, the identity column is content-sized and everything else follows it.**
+  In the four Work collections:
+  - **Identity** (Task title, Signal message, Project/Process or Objective name) is as wide as its
+    longest visible value, never narrower than **240px** and never wider than **640px**. Tasks
+    and Signals size it with auto table layout; Projects & Processes and Objectives with one grid
+    whose rows join it through subgrid.
+  - **Facts** (status, people, dates, counts, links) sit immediately after the identity column at
+    fixed widths sized to their longest realistic value (e.g. "Overdue · Sun 13 Sept" renders on
+    one line). They never stretch.
+  - **Slack** — whatever width remains — is **one empty trailing track** at the row's end, so
+    dividers, hover, selection and the urgent fill still run to the card edge and the rows meet
+    their toolbar's right edge.
+  - **Dropping.** A fact column hides only when keeping it would push the identity below its
+    240px floor, in a fixed per-collection order, lowest value first: **Tasks** Supervisor, PIC,
+    Status, Due; **Signals** Team, Attention, Occurred; **Projects & Processes / Objectives** Last
+    activity, the Objective / Business Unit link, Cadence·Due / Projects & Processes, Accountable,
+    Progress. The thresholds are container queries on the list's own width, so a narrow window and
+    a list narrowed by an open record follow the same rule. No width from 1100px to 2300px, with or
+    without a record, overflows horizontally.
 
 **The record-panel width** is one further shared number: `--record-panel-w` (`index.css`,
 `clamp(440px, 40%, 640px)`) is the width of every in-page record panel beside a Work-collection
-list — `styles/drawer.css` `.record-split`, `.drawer-shell-split` and the Deputy-beside-a-record
-offset, and `components/tasks/TasksWorkspace.css` `.split`, all read the one token rather than each
-authoring its own literal. With a record open, the list itself sheds lower-priority columns in a
-declared order before it lets a column wrap or the panel narrows further — the panel width and the
-column priority are both fixed decisions, not something that renegotiates per collection.
+list — `styles/drawer.css` `.record-split` and the Deputy-beside-a-record offset, and
+`components/tasks/TasksWorkspace.css` `.split`, all read the one token rather than each authoring
+its own literal. Home's Signal panel (`.drawer-shell-split`) is not a Work-collection panel: it
+keeps its own narrower width, `min(44%, 480px)`, and does not use `--record-panel-w`. From 1100px
+every Work collection, Tasks included, opens a record beside its list: at 1100px the list keeps
+about 350px beside the smallest panel, above the identity floor, so the list sheds facts rather
+than the record falling back to a modal or page. Below 1100px the record opens as a modal or page.
 
 ### Spacing: a real gap in the system (2026-07-29)
 
