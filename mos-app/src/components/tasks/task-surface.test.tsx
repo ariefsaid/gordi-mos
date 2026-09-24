@@ -458,6 +458,24 @@ describe('TaskSurface — view mode', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  // F-11 (2026-09-24 independent review): at full width the retryable error must sit in the SAME
+  // 820px reading column (`.record-doc`) the loaded record and "Task not found" both read as —
+  // not spill full-bleed across the whole page-content region (text flush left, Retry stranded at
+  // the far right, per the reviewed screenshot). Drawer width has no such column and is untouched.
+  it('F-11: at full width, the retryable ErrorState renders inside .record-doc (the shared record column)', async () => {
+    mockGetTask.mockRejectedValue(new Error('Failed to fetch'))
+    renderSurface({ width: 'full' })
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(document.querySelector('.record-doc > .error-state')).toBeInTheDocument()
+  })
+
+  it('F-11: at drawer width, the retryable ErrorState renders without the page-only .record-doc column', async () => {
+    mockGetTask.mockRejectedValue(new Error('Failed to fetch'))
+    renderSurface({ width: 'drawer' })
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(document.querySelector('.record-doc')).not.toBeInTheDocument()
+  })
+
   it('calls onClose (not navigate) after a successful archive', async () => {
     const onClose = vi.fn()
     mockGetTask.mockResolvedValue({ task: makeTask({ responsible_person_id: 'other-id' }), checklist: [], events: [] })

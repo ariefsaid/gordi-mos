@@ -722,7 +722,14 @@ function ViewSurface({
 
   // S9: a retryable read failure (network/500) must never render as "not found" — `load` re-runs
   // the exact same fetch, preserving whatever query/filter state got the surface here.
-  if (loadError) return <ErrorState message={t('tasks.loadError')} onRetry={load} />
+  // F-11 (2026-09-24 independent review): at full width the bare ErrorState spanned the whole
+  // uncapped page-content region (text flush left, Retry stranded at the far right) instead of
+  // sitting in the same 820px reading column the loaded record and its "Back to Tasks" chrome
+  // share. `.record-doc` (TaskSurface.css) is that exact column/card — reused as-is, no new CSS.
+  if (loadError) {
+    const errorState = <ErrorState message={t('tasks.loadError')} onRetry={load} />
+    return width === 'drawer' ? errorState : <div className="record-doc">{errorState}</div>
+  }
 
   if (notFound || !localTask) {
     // The shared EmptyState primitive, not a bespoke `.not-found-panel`: it already carries
