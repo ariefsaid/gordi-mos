@@ -7,6 +7,7 @@ import { loginViaForm } from './helpers/login'
 import { localSql } from './helpers/local-sql'
 import { localSqlRead } from './helpers/local-sql-read'
 import { personPreferenceCleanupSql } from './fixtures/cleanup'
+import { TASKS } from './fixtures/tasks'
 
 const A = ADMIN
 const B = BAR_SUPERVISOR
@@ -78,4 +79,32 @@ test('issue 927: language follows the account across sign-outs and devices, neve
   } finally {
     await device.close()
   }
+})
+
+// The form already on screen, not loginViaForm: that helper reloads /login, which is not what the
+// next person at a shared browser does.
+async function signInHere(page: Page, user: { email: string; password: string }) {
+  await page.getByLabel('Email').fill(user.email)
+  await page.getByLabel('Password').fill(user.password)
+  await page.getByRole('button', { name: /sign in/i }).click()
+  await expect(page).not.toHaveURL(/\/login/)
+}
+
+test('a return route belongs to the session that parked it', async ({ page }) => {
+  const taskPath = `work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}`
+
+  // A signs out while on a Task; B signs in on the same browser and lands on B's own Home.
+  await loginViaForm(page, A.email, A.password)
+  await page.goto(taskPath)
+  await expect(page).toHaveURL(new RegExp(TASKS.VIEWER_ACCOUNTABLE.id))
+  await signOut(page, A.displayName)
+  await signInHere(page, B)
+  await expect(page).toHaveURL(/\/mos\/?$/)
+
+  // A signed-out visitor who opens a deep link still arrives there after signing in.
+  await signOut(page, B.displayName)
+  await page.goto(taskPath)
+  await expect(page).toHaveURL(/\/login/)
+  await signInHere(page, A)
+  await expect(page).toHaveURL(new RegExp(TASKS.VIEWER_ACCOUNTABLE.id))
 })

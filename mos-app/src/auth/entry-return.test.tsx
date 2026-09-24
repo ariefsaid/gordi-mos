@@ -6,7 +6,7 @@
 // the real form against an auth stub that flips the way the provider does, so the assertion is the
 // URL the person ends on.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 
@@ -117,6 +117,22 @@ describe('AC-011: sign-in returns you to the route you asked for', () => {
 
   it('with no route asked for, sign-in finishes on Home', async () => {
     render(<EntryApp start="/login" />)
+
+    await signIn()
+
+    await waitFor(() => expect(url()).toBe('/'))
+    expect(screen.getByText('Home')).toBeInTheDocument()
+  })
+
+  it('after an explicit sign-out, the next sign-in finishes on Home, not the previous person’s route', async () => {
+    authStub.set(AUTHENTICATED)
+    render(<EntryApp start="/work/tasks" />)
+    expect(url()).toBe('/work/tasks')
+
+    // The provider's state after signOut() or a SIGNED_OUT event: the session that parked a route
+    // has ended, so its route must not carry over to whoever signs in next.
+    act(() => authStub.set({ status: 'unauthenticated', signedOut: true }))
+    await waitFor(() => expect(url()).toBe('/login'))
 
     await signIn()
 
