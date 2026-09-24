@@ -10,7 +10,7 @@
 // Below: the editable sections in the order the domain reads them — Teams · Position · Access ·
 // Revenue scope (only while Supervisor is on). Every row commits and reports beside itself.
 
-import { useId, useState, type ReactNode } from 'react'
+import { useId, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { RecordPanelHost } from '@/shell/record-panel-host'
@@ -51,6 +51,8 @@ export interface PersonPanelProps {
 export function PersonPanel({ person, people, roles, teams, scopeOptions, authority, refresh, onClose }: PersonPanelProps) {
   const t = useT()
   const commits = useRowCommits<boolean>()
+  // Read-first: open on the heading, not the summary's first link.
+  const headingRef = useRef<HTMLHeadingElement>(null)
   const title = t('admin.person.title', { name: person.full_name })
   // Closing mid-write would strand the row's outcome behind a closed panel.
   const close = () => { if (!commits.busy()) onClose() }
@@ -58,10 +60,11 @@ export function PersonPanel({ person, people, roles, teams, scopeOptions, author
   return (
     <RecordPanelHost
       label={title}
-      title={<h2 className="admin-person__title">{title}</h2>}
+      title={<h2 ref={headingRef} tabIndex={-1} className="admin-person__title">{title}</h2>}
       closeLabel={t('record.close')}
       onClose={close}
       focusKey={person.id}
+      initialFocusRef={headingRef}
       rootClassName="admin-person-panel"
     >
       <div className="admin-person">

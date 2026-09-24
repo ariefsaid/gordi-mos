@@ -158,6 +158,11 @@ describe('PersonPanel — read first', () => {
     expect(screen.queryByText('Access level')).toBeNull()
   })
 
+  it('opens on its heading, not the summary\'s first link', () => {
+    renderPanel()
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 2, name: 'Manage Bayu Barista' }))
+  })
+
   it('summarizes access roles, Teams with Home marked and what Home decides, and the Teams they lead', () => {
     renderPanel()
     const summary = screen.getByRole('region', { name: 'Summary' })

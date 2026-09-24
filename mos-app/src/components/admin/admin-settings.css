@@ -516,6 +516,10 @@
   line-height: 1.3;
   overflow-wrap: anywhere;
 }
+/* Open-focus target only (tabIndex -1), never a control: no ring on a heading. */
+.admin-person__title:focus {
+  outline: none;
+}
 
 .admin-person {
   padding: 0 0 24px;

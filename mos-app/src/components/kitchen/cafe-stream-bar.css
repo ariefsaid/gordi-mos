@@ -61,6 +61,19 @@
   text-decoration-color: currentColor;
 }
 
+/* Phone floor (DESIGN.md: targets >=44px): the hit box grows, the text link does not — no fill or
+   border, so the action keeps its quiet weight. Keyed to width, like record-viewer.css. */
+@media (max-width: 767.98px) {
+  .cafe-stream__switch,
+  .cafe-stream__back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 /* The Switch menu — same popup grammar as Select/Picker (DD-MVP-2): portal, elevation, radius. */
 .cafe-stream__menu {
   position: fixed;

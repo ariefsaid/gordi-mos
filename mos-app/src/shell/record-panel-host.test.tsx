@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { useRef } from 'react'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -320,7 +321,31 @@ describe('RecordPanelHost — focus contract (FR-1)', () => {
     })
     expect(document.activeElement?.closest('.record-panel-chrome')).toBeTruthy()
   })
+
+  it('initialFocusRef: a read-first panel opens on its heading, not the content first link', () => {
+    renderHeadingFirst()
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Manage Bayu' }))
+  })
 })
+
+/** A read-first tenant: heading in the chrome as the open-focus target, a side link first in content. */
+function HeadingFirst() {
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  return (
+    <RecordPanelHost
+      label="Manage Bayu"
+      title={<h2 ref={headingRef} tabIndex={-1}>Manage Bayu</h2>}
+      initialFocusRef={headingRef}
+      onClose={vi.fn()}
+    >
+      <a href="/teams">Change on Teams</a>
+      <button type="button">last control</button>
+    </RecordPanelHost>
+  )
+}
+function renderHeadingFirst() {
+  return render(<I18nProvider><HeadingFirst /></I18nProvider>)
+}
 
 // ── WCAG 2.1 AA on the phone regime (#190, authored here per DD-WAY-21) ──────────────────────
 // A record panel on a phone is the case most likely to be wrong: it is the ONLY regime where the
@@ -375,6 +400,25 @@ describe('RecordPanelHost — phone regime a11y (NFR-003 / AC-022)', () => {
       first.focus()
       fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
       expect(document.activeElement).toBe(last)
+    } finally {
+      if (original) Object.defineProperty(HTMLElement.prototype, 'offsetParent', original)
+      else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetParent
+    }
+  })
+
+  it('Shift+Tab from a parked open-focus heading wraps to the last control, not out of the sheet', () => {
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetParent')
+    Object.defineProperty(HTMLElement.prototype, 'offsetParent', {
+      configurable: true,
+      get() { return document.body },
+    })
+    try {
+      phone()
+      renderHeadingFirst()
+      const dialog = screen.getByRole('dialog', { name: 'Manage Bayu' })
+      expect(document.activeElement).toBe(within(dialog).getByRole('heading', { name: 'Manage Bayu' }))
+      fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
+      expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'last control' }))
     } finally {
       if (original) Object.defineProperty(HTMLElement.prototype, 'offsetParent', original)
       else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetParent
