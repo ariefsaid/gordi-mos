@@ -45,17 +45,16 @@ type DirectoryTeamOption = {
   business_unit_id?: string
 }
 
-// S9 (2026-09-24 cross-boundary scout): `getTask`'s Promise.all rejects on BOTH a genuinely
-// missing/inaccessible task (PostgREST `.single()` with 0 rows, PGRST116) and a transport failure
-// (aborted fetch, a 500) — the two need different UI (mirrors signal-record-host.tsx's
-// readFailureState). Only the former is "Task not found"; anything else is a retryable read
-// failure and must show ErrorState + Retry, never strand the surface on its loading skeleton or a
-// false not-found.
-// F1 (2026-09-24 independent review): the real client throws PostgREST's actual message
-// ("JSON object requested, multiple (or no) rows returned" / "Cannot coerce the result to a
-// single JSON object" depending on the server version) — matching on that text is brittle. getTask
-// now preserves the PostgREST `code` on the thrown error (lib/db/tasks.ts's dbError), so `code` is
-// the primary signal; the message regex is only a fallback for an error shape without one.
+// `getTask`'s Promise.all rejects on BOTH a genuinely missing/inaccessible task (PostgREST
+// `.single()` with 0 rows, PGRST116) and a transport failure (aborted fetch, a 500) — the two
+// need different UI (mirrors signal-record-host.tsx's readFailureState). Only the former is
+// "Task not found"; anything else is a retryable read failure and must show ErrorState + Retry,
+// never strand the surface on its loading skeleton or a false not-found.
+// The real client throws PostgREST's actual message ("JSON object requested, multiple (or no)
+// rows returned" / "Cannot coerce the result to a single JSON object" depending on the server
+// version) — matching on that text is brittle. getTask preserves the PostgREST `code` on the
+// thrown error (lib/db/tasks.ts's dbError), so `code` is the primary signal; the message regex is
+// only a fallback for an error shape without one.
 function isMissingTaskError(error: unknown): boolean {
   const code = error && typeof error === 'object' && 'code' in error
     ? (error as { code?: unknown }).code
@@ -164,7 +163,7 @@ function ViewSurface({
 
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
-  // S9: a retryable read failure (network/500), distinct from a genuinely missing task — see
+  // A retryable read failure (network/500), distinct from a genuinely missing task — see
   // isMissingTaskError above.
   const [loadError, setLoadError] = useState(false)
   const [data, setData] = useState<TaskDetailData | null>(null)
@@ -720,12 +719,12 @@ function ViewSurface({
   // ── Render ───────────────────────────────────────────────────────────────
   if (loading) return <DetailSkeleton />
 
-  // S9: a retryable read failure (network/500) must never render as "not found" — `load` re-runs
-  // the exact same fetch, preserving whatever query/filter state got the surface here.
-  // F-11 (2026-09-24 independent review): at full width the bare ErrorState spanned the whole
-  // uncapped page-content region (text flush left, Retry stranded at the far right) instead of
-  // sitting in the same 820px reading column the loaded record and its "Back to Tasks" chrome
-  // share. `.record-doc` (TaskSurface.css) is that exact column/card — reused as-is, no new CSS.
+  // A retryable read failure must never render as "not found" — `load` re-runs the exact same
+  // fetch, preserving whatever query/filter state got the surface here.
+  // At full width the bare ErrorState spanned the whole uncapped page-content region (text flush
+  // left, Retry stranded at the far right) instead of sitting in the same 820px reading column
+  // the loaded record and its "Back to Tasks" chrome share. `.record-doc` (TaskSurface.css) is
+  // that exact column/card — reused as-is, no new CSS.
   if (loadError) {
     const errorState = <ErrorState message={t('tasks.loadError')} onRetry={load} />
     return width === 'drawer' ? errorState : <div className="record-doc">{errorState}</div>

@@ -78,10 +78,10 @@ const authedState: AuthState = {
   signOut: async () => {},
 }
 
-// F1 (2026-09-24 independent review): the real PostgREST error for `.single()` matching 0 rows
-// carries `code: 'PGRST116'` — its message never contains the literal string "PGRST116" (it reads
-// e.g. "JSON object requested, multiple (or no) rows returned"). Build the same shape getTask
-// throws (lib/db/tasks.ts's dbError), not a fake message the real client would never produce.
+// The real PostgREST error for `.single()` matching 0 rows carries `code: 'PGRST116'` — its
+// message never contains the literal string "PGRST116" (it reads e.g. "JSON object requested,
+// multiple (or no) rows returned"). Build the same shape getTask throws (lib/db/tasks.ts's
+// dbError), not a fake message the real client would never produce.
 function missingTaskError(): Error & { code: string } {
   return Object.assign(
     new Error('getTask failed — JSON object requested, multiple (or no) rows returned'),
@@ -432,10 +432,10 @@ describe('TaskSurface — view mode', () => {
     )
   })
 
-  // S9 (2026-09-24 cross-boundary scout): a transport failure (aborted fetch / 500) is not a
-  // missing task — it must render the retryable ErrorState, never the "Task not found" copy, and
-  // Retry must re-issue the exact same read.
-  it('S9: shows ErrorState with a working Retry when getTask rejects with a non-PGRST116 (network/500) error', async () => {
+  // A transport failure (aborted fetch / 500) is not a missing task — it must render the
+  // retryable ErrorState, never the "Task not found" copy, and Retry must re-issue the exact
+  // same read.
+  it('shows ErrorState with a working Retry when getTask rejects with a non-PGRST116 (network/500) error', async () => {
     mockGetTask.mockRejectedValueOnce(new Error('Failed to fetch'))
     renderSurface()
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
@@ -447,29 +447,29 @@ describe('TaskSurface — view mode', () => {
     await waitFor(() => expect(screen.getByText('Fix the coffee machine')).toBeInTheDocument())
   })
 
-  // F1 (2026-09-24 independent review): getTask's own thrown message for a real missing task is
-  // PostgREST's actual wording ("JSON object requested, multiple (or no) rows returned"), which
-  // contains no "PGRST116"/"no rows" substring a text-only classifier could key on — only the
-  // preserved `.code` does. This must render "Task not found", not the retryable ErrorState.
-  it('F1: a real missing-task error (code PGRST116, no matching text in the message) still renders "Task not found"', async () => {
+  // getTask's own thrown message for a real missing task is PostgREST's actual wording ("JSON
+  // object requested, multiple (or no) rows returned"), which contains no "PGRST116"/"no rows"
+  // substring a text-only classifier could key on — only the preserved `.code` does. This must
+  // render "Task not found", not the retryable ErrorState.
+  it('a real missing-task error (code PGRST116, no matching text in the message) still renders "Task not found"', async () => {
     mockGetTask.mockRejectedValue(missingTaskError())
     renderSurface()
     await waitFor(() => expect(screen.getByText(/task not found/i)).toBeInTheDocument())
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  // F-11 (2026-09-24 independent review): at full width the retryable error must sit in the SAME
-  // 820px reading column (`.record-doc`) the loaded record and "Task not found" both read as —
-  // not spill full-bleed across the whole page-content region (text flush left, Retry stranded at
-  // the far right, per the reviewed screenshot). Drawer width has no such column and is untouched.
-  it('F-11: at full width, the retryable ErrorState renders inside .record-doc (the shared record column)', async () => {
+  // At full width the retryable error must sit in the SAME 820px reading column (`.record-doc`)
+  // the loaded record and "Task not found" both read as — not spill full-bleed across the whole
+  // page-content region (text flush left, Retry stranded at the far right). Drawer width has no
+  // such column and is untouched.
+  it('at full width, the retryable ErrorState renders inside .record-doc (the shared record column)', async () => {
     mockGetTask.mockRejectedValue(new Error('Failed to fetch'))
     renderSurface({ width: 'full' })
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
     expect(document.querySelector('.record-doc > .error-state')).toBeInTheDocument()
   })
 
-  it('F-11: at drawer width, the retryable ErrorState renders without the page-only .record-doc column', async () => {
+  it('at drawer width, the retryable ErrorState renders without the page-only .record-doc column', async () => {
     mockGetTask.mockRejectedValue(new Error('Failed to fetch'))
     renderSurface({ width: 'drawer' })
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())

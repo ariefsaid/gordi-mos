@@ -267,11 +267,11 @@
 @media (max-width: 1099.98px) {
   .tasks-table th.th-supervisor, .tasks-table td.td-supervisor { display: none; }
 }
-/* #930-cb-r1 (F-2 regression) — with a record open, the list drops lower-priority columns
-   instead of starving the Task identity column. At 1440 with all 5 columns forced into the
-   narrowed list beside --record-panel-w, Title fell to ~118px (13 titles read as one word);
-   the fixed floors above make columns "never stretch" but do not by themselves keep Title
-   readable once the panel takes its share. Declared drop order (highest priority — never
+/* With a record open, the list drops lower-priority columns instead of starving the Task
+   identity column. With all 5 columns forced into the list beside --record-panel-w, Title can
+   fall to a single-word width; the fixed floors above make columns "never stretch" but do not
+   by themselves keep Title readable once the panel takes its share. Declared drop order (highest
+   priority — never
    dropped — to lowest): Task > Status > Due > PIC > Supervisor. PIC and Supervisor are both
    already visible in the open record itself (Task Ownership), so hiding them here loses no
    information, only a second copy of it; Status and Due stay because they are the two facts

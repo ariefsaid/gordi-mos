@@ -12,9 +12,9 @@ import { MANAGER } from './fixtures/users'
 import { TASKS_RECORD_PANEL_FLOOR_PX } from '../src/shell/use-is-split-width'
 
 const RECORD_PANEL_CAP_PX = 640
-// #930-cb-r1 (F-2) — with a record open, Tasks' Title column must stay readable, not just
-// non-zero. 240px is the floor named in the correction: enough for a realistic task title
-// ("Replace grinder burrs (Cafe 2)") on one line without reading as a single truncated word.
+// With a record open, Tasks' Title column must stay readable, not just non-zero. 240px is
+// enough for a realistic task title ("Replace grinder burrs (Cafe 2)") on one line without
+// reading as a single truncated word.
 const TASK_TITLE_FLOOR_PX = 240
 
 type Collection = {
@@ -72,6 +72,35 @@ async function panelWidth(page: Page): Promise<number> {
   const box = await panel.boundingBox()
   expect(box, 'the record panel must render a box').not.toBeNull()
   return box!.width
+}
+
+/** `.record-collection-view` is the shared rounded card every collection (Tasks, Signals, the
+ *  catalog pages) renders its list inside, and it clips overflow (`overflow: hidden`, for the
+ *  border radius) — so a fixed column/track budget that no longer fits does NOT push the page
+ *  itself wider, it just clips silently (the exact shape of this bug: no page scrollbar, but a
+ *  column is invisibly cut off). `scrollWidth` reports an element's full content size regardless
+ *  of its own `overflow` value, so comparing it to `clientWidth` catches the clip whether or not
+ *  anything ever becomes visibly scrollable. Tasks additionally names an explicit, INTENTIONAL
+ *  scroll fallback (`.tasks-scroll`) for an extremely narrow shell — checked the same way, since
+ *  it must not be needed inside the range this test covers either. */
+const CONTENT_WIDTH_ROOTS = ['.record-collection-view', '.tasks-scroll']
+
+async function overflowReport(page: Page) {
+  return page.evaluate((selectors: string[]) => {
+    const roots = selectors.flatMap((selector) => Array.from(document.querySelectorAll<HTMLElement>(selector)))
+      .map((el) => ({ selector: el.className, scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }))
+    return {
+      page: { scrollWidth: document.documentElement.scrollWidth, clientWidth: window.innerWidth },
+      roots,
+    }
+  }, CONTENT_WIDTH_ROOTS)
+}
+
+function assertNoOverflowReport(report: Awaited<ReturnType<typeof overflowReport>>, label: string) {
+  expect(report.page.scrollWidth, `${label}: page must not scroll horizontally`).toBeLessThanOrEqual(report.page.clientWidth + 1)
+  for (const root of report.roots) {
+    expect(root.scrollWidth, `${label}: .${root.selector} content must fit its box (no clipped/overflowing column)`).toBeLessThanOrEqual(root.clientWidth + 1)
+  }
 }
 
 test.describe('Work collections share one wide measure and one record-panel width (#930)', () => {
@@ -164,9 +193,9 @@ test.describe('Work collections share one wide measure and one record-panel widt
       })
 
       test(`Tasks' Title column keeps a readable floor with a record open (${width}px)`, async ({ page }) => {
-        // #930-cb-r1 (F-2 regression): the record panel narrowing the list must not starve the
-        // identity column — the list drops PIC/Supervisor first (TasksWorkspace.css) so Title
-        // keeps room, at every desktop width from the split threshold up.
+        // The record panel narrowing the list must not starve the identity column — the list
+        // drops PIC/Supervisor first (TasksWorkspace.css) so Title keeps room, at every desktop
+        // width from the split threshold up.
         await page.setViewportSize({ width, height: width === 1440 ? 900 : 1080 })
         await loginAs(page, MANAGER.email, MANAGER.password)
         await page.goto('work/tasks')
@@ -183,7 +212,7 @@ test.describe('Work collections share one wide measure and one record-panel widt
     })
   }
 
-  test('Objectives\' Projects & Processes column shows its relation sentence without an ellipsis clip (F-9)', async ({ page }) => {
+  test('Objectives\' Projects & Processes column shows its relation sentence without an ellipsis clip', async ({ page }) => {
     for (const width of [1440, 1920] as const) {
       await page.setViewportSize({ width, height: width === 1440 ? 900 : 1080 })
       await loginAs(page, MANAGER.email, MANAGER.password)
@@ -198,14 +227,39 @@ test.describe('Work collections share one wide measure and one record-panel widt
         if (!text || text === '–') continue // "–" — no linked work, nothing to measure
         sawRelationText = true
         const geometry = await cell.evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }))
-        // #930-cb-r1 (F-9): sized to content (200px + wrap), not clipped to a fixed 140px —
+        // Sized to content and allowed to wrap, not clipped to a narrow fixed width —
         // scrollWidth over clientWidth on a nowrap+ellipsis box is exactly what an ellipsis clip
-        // looks like; this cell now wraps instead, so its own scroll box never exceeds it.
+        // looks like; this cell wraps instead, so its own scroll box never exceeds it.
         expect(geometry.scrollWidth, `row ${i} Projects & Processes cell must not clip at ${width}px`).toBeLessThanOrEqual(geometry.clientWidth + 1)
       }
       test.info().annotations.push({ type: 'coverage', description: `${width}px: saw relation text=${sawRelationText}` })
     }
   })
+
+  // A fixed column budget (rule 2) is only safe if it also fits every width it will actually
+  // render at — the desktop rail is full-size from 1100px, and the wide 1760px measure applies
+  // up to that cap, so a column budget sized for one reference width (e.g. 1440) can still
+  // overflow well inside that range. Sweep the desktop band and catch it with real layout,
+  // not arithmetic.
+  for (const width of [1100, 1200, 1300, 1366, 1440] as const) {
+    test(`no horizontal overflow at ${width}px, at rest and with a record open`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await loginAs(page, MANAGER.email, MANAGER.password)
+      for (const collection of COLLECTIONS) {
+        await page.goto(collection.path)
+        await expect(page.locator('.page-frame__content')).toBeVisible()
+        assertNoOverflowReport(await overflowReport(page), `${collection.name} at rest, ${width}px`)
+
+        await collection.openFirstRecord(page)
+        // Below TASKS_SPLIT_MIN_WIDTH, Tasks' own row click escalates to the full canonical page
+        // instead of the inline split (record-page-back is that page's own chrome) — still a
+        // real "record open" state, just a different one than the panel every other collection
+        // (and Tasks above its own threshold) uses.
+        await expect(page.locator('aside.drawer.drawer-split, [role="dialog"], .record-page-back').first()).toBeVisible()
+        assertNoOverflowReport(await overflowReport(page), `${collection.name} with a record open, ${width}px`)
+      }
+    })
+  }
 
   test('phone (390px): no horizontal overflow and cards render for all four collections', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
