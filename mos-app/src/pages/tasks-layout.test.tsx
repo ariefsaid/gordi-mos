@@ -1071,9 +1071,12 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     // of /work/tasks/:id?view=overdue returns the user to the SAME saved view.
     // S9 (2026-09-24 cross-boundary scout): TaskSurface now distinguishes a genuinely missing
     // task from a retryable read failure (isMissingTaskError in task-surface.tsx) — a plain
-    // 'not found' message no longer qualifies, so this fixture uses the real PGRST116 shape
-    // PostgREST's `.single()` throws for zero rows, same as task-surface.test.tsx's own cases.
-    mockGetTask.mockRejectedValue(new Error('PGRST116'))
+    // 'not found' message no longer qualifies. F1 (independent review): the real PostgREST error
+    // for `.single()` matching 0 rows carries `code: 'PGRST116'`, not that literal string in its
+    // message — build the same shape getTask actually throws (lib/db/tasks.ts's dbError).
+    mockGetTask.mockRejectedValue(
+      Object.assign(new Error('getTask failed — JSON object requested, multiple (or no) rows returned'), { code: 'PGRST116' }),
+    )
     renderAtState('/work/tasks/task-1?view=overdue', { taskSurface: 'page' })
     await waitFor(() => screen.getByText(/task not found/i))
     const allTasks = screen.getByRole('link', { name: /all tasks/i })
