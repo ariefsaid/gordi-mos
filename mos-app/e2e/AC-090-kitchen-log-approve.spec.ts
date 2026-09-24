@@ -151,6 +151,7 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
     }
     statements.push(
       `DELETE FROM ops.kitchen_plans WHERE org_id=${uuidLiteral(ORG)} AND id=${uuidLiteral(PLAN_ID)}`,
+      `DELETE FROM ops.stream_items WHERE org_id=${uuidLiteral(ORG)} AND wip_item_id=${uuidLiteral(ITEM_ID)}`,
       `DELETE FROM ops.item_units WHERE org_id=${uuidLiteral(ORG)} AND id=${uuidLiteral(UNIT_ID)}`,
       `DELETE FROM ops.wip_items WHERE org_id=${uuidLiteral(ORG)} AND id=${uuidLiteral(ITEM_ID)}`,
     )
@@ -170,6 +171,8 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
          is_default, is_transferable, confirmed_at)
       VALUES (${uuidLiteral(UNIT_ID)}, ${uuidLiteral(ORG)}, ${uuidLiteral(ITEM_ID)}, '${UNIT_NAME}',
               'PD-E2E-090', 'P-E2E-090', true, true, now());
+      INSERT INTO ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
+      VALUES (${uuidLiteral(ORG)}, ${uuidLiteral(STREAM_BRANCH_ID)}, '${STREAM_ACTIVITY}', ${uuidLiteral(ITEM_ID)}, 'manual');
       INSERT INTO ops.kitchen_plans
         (id, org_id, log_date, wip_item_id, branch_id, activity, action,
          destination_branch_id, qty_porsi, plan_by)
