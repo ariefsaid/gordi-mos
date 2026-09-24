@@ -30,7 +30,6 @@ async function mutateSignalBody(route: Route, signalId: string) {
 test.describe('bounded visual and interaction acceptance', () => {
   test('Home → Signal preserves the Home-named Back and long leaf title at phone and desktop', async ({ page }) => {
     let activeSignalId = ''
-    await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
     await page.route('**/rest/v1/signals*', async (route) => {
       const url = new URL(route.request().url())
       if (url.pathname.endsWith('/signals')) return mutateSignalBody(route, activeSignalId)
@@ -101,7 +100,6 @@ test.describe('bounded visual and interaction acceptance', () => {
     test(`Tasks toolbar, group grammar, title fit and lifecycle at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await page.addInitScript(() => {
-        localStorage.setItem('mos.locale', 'en')
         localStorage.removeItem('mos.tasks.groupBy')
       })
       await loginAs(page, MANAGER.email, MANAGER.password)
@@ -351,7 +349,6 @@ test.describe('bounded visual and interaction acceptance', () => {
   for (const width of [390, 768, 1280, 1440] as const) {
     test(`Signals Feed/Table and record chrome at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
-      await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
       await loginAs(page, MANAGER.email, MANAGER.password)
       await page.goto('work/signals')
       await expect(page.getByRole('heading', { name: 'Signals', exact: true })).toBeVisible()
@@ -385,7 +382,6 @@ test.describe('bounded visual and interaction acceptance', () => {
   }
 
   test('missing relations keep exact No Objective and No tasks yet copy', async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
     await loginAs(page, MANAGER.email, MANAGER.password)
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto(`work/tasks/${AC204.tasks.orphanLine.id}`)
