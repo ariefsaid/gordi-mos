@@ -5,6 +5,10 @@
 > and Signals' right-hand desktop placement. Review actual rendered interactions, including
 > opened controls and failure states. Neither existing implementation nor a passing structural
 > test certifies conformance. `REDESIGN.md` retains the current Home/Tasks composition brief.
+> Record and page compositions here describe the current iteration. A later UI/UX/IA/IxD pass may
+> revise their visual placement and acceptance criteria when an operated user job supports a more
+> familiar, useful workflow; preserve product meaning and explicitly current owner preferences.
+> An owner screenshot or prior PASS does not silently become a pixel-perfect regression target.
 
 ---
 name: Gordi MOS
