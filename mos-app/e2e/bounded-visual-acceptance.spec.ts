@@ -3,6 +3,7 @@ import { loginAs } from './helpers/login'
 import { MANAGER } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
 import { stubAccountLocale } from './helpers/account-locale'
+import { TASKS_SPLIT_MIN_WIDTH } from '../src/shell/use-is-split-width'
 
 const LONG_SIGNAL = 'A long Signal leaf title that stays readable without breaking a word across the record header boundary'
 const WIDTHS = [390, 768, 1024, 1280, 1370, 1440] as const
@@ -226,7 +227,10 @@ test.describe('bounded visual and interaction acceptance', () => {
       const taskLink = page.locator(`a[href*="/work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}"]`).first()
       await expect(taskLink).toBeVisible()
       await taskLink.click()
-      if (width >= 1370) {
+      // #930 raised the derived split threshold (TASKS_SPLIT_MIN_WIDTH) above the WIDTHS
+      // sample point once used for this comparison — compare against the real constant so a
+      // future threshold change can't silently flip which branch a fixed sample width takes.
+      if (width >= TASKS_SPLIT_MIN_WIDTH) {
         await expect(page.getByRole('complementary', { name: /task detail/i })).toBeVisible()
       } else {
         await expect(page.getByRole('heading', { name: TASKS.VIEWER_ACCOUNTABLE.title, exact: true })).toBeVisible()

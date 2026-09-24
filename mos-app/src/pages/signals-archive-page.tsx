@@ -454,7 +454,10 @@ function SignalsArchiveCollection() {
       )}
     >
       <SignalCollectionActionsProvider actions={actions}>
-        <div className={splitOpen ? 'record-split' : undefined}>
+        {/* #930 — work-collection always renders (record open or not) so the page frame stays
+            at the shared wide operating measure in both states; record-split is added only
+            when a record is open, same as before. */}
+        <div className={`work-collection${splitOpen ? ' record-split' : ''}`}>
           <div className={`record-collection-view signals-archive-main record-collection-view--${controller.state.presentation}`}>
             <RecordCollectionSurface
               controller={controller}
