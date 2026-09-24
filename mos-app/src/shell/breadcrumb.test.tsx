@@ -100,9 +100,13 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
     expect(crumbText()).toBe('Café · Review')
   })
 
-  it('/admin/people → "Admin Settings · People"', () => {
-    renderBC('/admin/people')
-    expect(crumbText()).toBe('Admin Settings · People')
+  it.each([
+    ['/admin/people', 'Admin Settings · People'],
+    ['/admin/teams', 'Admin Settings · Teams'],
+    ['/admin/access', 'Admin Settings · Roles & permissions'],
+  ])('%s → "%s"', (path, trail) => {
+    renderBC(path)
+    expect(crumbText()).toBe(trail)
   })
 
   it('/profile → "Personal Profile"', () => {
@@ -248,5 +252,10 @@ describe('AC-020: below rail-collapse the breadcrumb is the leaf title only (A-3
     renderBCNarrow('/admin/people')
     const leaf = screen.getByText('People')
     expect(leaf).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('the phone header names every Admin Settings tab', () => {
+    renderBCNarrow('/admin/access')
+    expect(screen.getByText('Roles & permissions')).toHaveAttribute('aria-current', 'page')
   })
 })

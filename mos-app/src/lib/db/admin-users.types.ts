@@ -130,3 +130,10 @@ export interface TeamMembership {
 export function isStreamTeam(team: TeamOption): boolean {
   return team.branch_name !== null && team.activity !== null
 }
+
+/** "Gordi HQ · Kitchen" for a stream team; nothing for an ordinary org team. */
+export function teamStreamLabel(team: TeamOption): string | undefined {
+  if (!isStreamTeam(team)) return undefined
+  const activity = team.activity!
+  return `${team.branch_name} · ${activity.charAt(0).toUpperCase()}${activity.slice(1)}`
+}

@@ -33,6 +33,8 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     approveKitchenLog: vi.fn(),
     approveKitchenLogsBulk: vi.fn(),
     rejectKitchenLog: vi.fn(),
+    // #222: every queued item is on its stream's list unless a test says otherwise.
+    listAllStreamItemKeys: vi.fn(async () => ({ has: () => true })),
   }
 })
 import {
@@ -43,6 +45,8 @@ import {
   approveKitchenLogsBulk,
   rejectKitchenLog,
   KitchenRpcError,
+  listAllStreamItemKeys,
+  streamItemKey,
 } from '@/lib/db/kitchen-logs'
 
 // The viewer's own stream comes from the ONE resolver (#234 consolidation), which returns a
@@ -93,13 +97,20 @@ function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
 }
 
+// #781: CafeStreamBar states the resolved view as text with a quiet "Switch" beside it (opens a
+// portaled listbox) — Review always has something to state (a stream, or "All streams"), so the
+// Switch action is always present here.
+function startsWith(label: string) {
+  return (accessibleName: string) => accessibleName.startsWith(label)
+}
+
 function idWrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, { initialLocale: 'id' }, children))
 }
 
 function chooseStream(optionName: string) {
-  fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
-  fireEvent.click(screen.getByRole('option', { name: optionName }))
+  fireEvent.click(screen.getByRole('button', { name: /^switch$/i }))
+  fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
 }
 
 function viewer(accessRoles: string[]): AuthState {
@@ -606,11 +617,10 @@ describe('KitchenReviewPage — the stream reads in the page head (#440)', () =>
     await screen.findByText('Nasi Goreng')
 
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = within(head).getByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveTextContent('Rumah Rames · Kitchen')
+    expect(within(head).getByTestId('cafe-stream')).toHaveTextContent('Rumah Rames · Kitchen')
 
-    fireEvent.click(picker)
-    fireEvent.click(screen.getByRole('option', { name: 'Radiant · Bar' }))
+    fireEvent.click(within(head).getByRole('button', { name: /^switch$/i }))
+    fireEvent.click(screen.getByRole('option', { name: startsWith('Radiant · Bar') }))
     await screen.findByText('Es Kopi')
     expect(screen.queryByText('Nasi Goreng')).toBeNull()
   })
@@ -620,8 +630,7 @@ describe('KitchenReviewPage — the stream reads in the page head (#440)', () =>
     const { container } = render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = within(head).getByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveTextContent('All streams')
+    expect(within(head).getByTestId('cafe-stream')).toHaveTextContent('All streams')
     expect(screen.getByText('Es Kopi')).toBeInTheDocument()
   })
 
@@ -636,7 +645,7 @@ describe('KitchenReviewPage — the stream reads in the page head (#440)', () =>
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Es Kopi')
-    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveTextContent('Radiant · Bar')
+    expect(screen.getByTestId('cafe-stream')).toHaveTextContent('Radiant · Bar')
     expect(screen.queryByText('Nasi Goreng')).toBeNull()
   })
 })
@@ -648,8 +657,7 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
-    const filter = screen.getByRole('combobox', { name: /production stream/i })
-    expect(filter).toHaveTextContent('Rumah Rames · Kitchen')
+    expect(screen.getByTestId('cafe-stream')).toHaveTextContent('Rumah Rames · Kitchen')
     // own-stream row is shown; the other stream's row is not
     expect(screen.queryByText('Es Kopi')).not.toBeInTheDocument()
   })
@@ -658,7 +666,7 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
-    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveTextContent('All streams')
+    expect(screen.getByTestId('cafe-stream')).toHaveTextContent('All streams')
     expect(screen.getByText('Es Kopi')).toBeInTheDocument()
   })
 
@@ -1149,11 +1157,24 @@ describe('issue 587: the row names its own stream in the All-streams view', () =
     mockPlan.mockResolvedValue({ w1: { produce: 8 } })
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
-    const filter = screen.getByRole('combobox', { name: /production stream/i })
+    const filter = screen.getByTestId('cafe-stream')
     chooseStream('Rumah Rames · Kitchen')
     await waitFor(() => expect(filter).toHaveTextContent('Rumah Rames · Kitchen'))
-    // the SELECT itself legitimately carries this stream's name as an <option> — the
-    // assertion is on the queue row, never on the filter control.
+    // the stated stream legitimately carries this stream's name — the assertion is on the
+    // queue row, never on the head's own statement.
     expect(document.querySelector('.krow-stream')).toBeNull()
+  })
+})
+
+describe('issue 222: a queued row whose item left its stream\'s list stays reviewable, labelled', () => {
+  it('labels only that row and keeps its decision controls', async () => {
+    vi.mocked(listAllStreamItemKeys).mockResolvedValue(new Set([streamItemKey(BRANCH_ID, 'kitchen', 'w2')]))
+    mockList.mockResolvedValue([PROD_LOG, XFER_LOG])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    expect(screen.getAllByText('Not on this stream’s list')).toHaveLength(1)
+    const card = screen.getByText('Not on this stream’s list').closest('tr, .krow-card') as HTMLElement
+    expect(card).toHaveTextContent('Nasi Goreng')
+    expect(within(card).getByRole('button', { name: /approve/i })).toBeEnabled()
   })
 })

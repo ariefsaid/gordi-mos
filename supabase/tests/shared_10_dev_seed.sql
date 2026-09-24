@@ -4,7 +4,7 @@
 -- the subject is the seed itself. begin;...rollback; keeps it read-only.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(28);
 
 -- The seed admin row exists despite the admin-only RLS rule AND the self-escalation guard: the seed
 -- runs under a connection that bypasses RLS, and the guard's self-assign check is keyed on
@@ -243,6 +243,25 @@ select is(
       and t.title = 'Draft Q3 OKRs for cafe team' and t.work_line_id is null),
   'Q3 Growth',
   'a planning Task keeps the direct-Objective branch reachable without a Project');
+
+-- ── Stream item lists (#222) ─────────────────────────────────────────────────────────────────
+-- One item on two lists stays one item; a stream the ERP records no production for lists nothing;
+-- and every listed item reaches a capture form (a listed item with no confirmed unit is invisible).
+select is(
+  (select count(*)::int from ops.stream_items si join shared.branches b on b.id = si.branch_id
+    where si.org_id = '10000000-0000-0000-0000-000000000001' and si.activity = 'kitchen'
+      and b.code in ('rumah_rames', 'radiant') and si.wip_item_id = 'a1100000-0000-0000-0000-000000000001'),
+  2, 'Nasi Putih is one item on both the Rumah Rames and the Radiant kitchen lists');
+select is(
+  (select count(*)::int from ops.stream_items si join shared.branches b on b.id = si.branch_id
+    where si.org_id = '10000000-0000-0000-0000-000000000001' and si.activity = 'bar'
+      and b.code in ('rumah_rames', 'radiant', 'cikal')),
+  0, 'the bars the ERP records no production for have empty item lists');
+select is(
+  (select count(*)::int from ops.stream_items si
+    where si.org_id = '10000000-0000-0000-0000-000000000001'
+      and not exists (select 1 from ops.capture_form_items c where c.wip_item_id = si.wip_item_id)),
+  0, 'every listed item has a confirmed unit, so it reaches the capture form');
 
 select * from finish();
 rollback;

@@ -263,12 +263,14 @@ export async function setLoginEnabled(personId: string, enabled: boolean): Promi
 // ── Role grant/revoke (FR-050) ────────────────────────────────────────────────
 
 /**
- * Grant an access role to a person (INSERT person_access_roles).
+ * Grant an access role to a person. One row per (person, role) and revoke is soft, so a first grant
+ * inserts and a re-grant clears revoked_at on the existing row; granted_by/granted_at are not in the
+ * payload, so the original grant's provenance stays.
  */
 export async function grantRole(personId: string, role: string): Promise<void> {
   const { error } = await shared()
     .from('person_access_roles')
-    .insert({ person_id: personId, access_role: role })
+    .upsert({ person_id: personId, access_role: role, revoked_at: null }, { onConflict: 'person_id,access_role' })
   if (error) throw surface('grant role', error)
 }
 

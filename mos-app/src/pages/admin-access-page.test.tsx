@@ -1,35 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('@/lib/db/admin-access', () => ({
   listRoleAuthority: vi.fn(),
   saveRoleAuthority: vi.fn(),
-  listTeamLeadAssignments: vi.fn(),
-  listTeamLeadCandidates: vi.fn(),
-  saveTeamLeadAssignment: vi.fn(),
 }))
 
 vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: vi.fn() }))
 
-import {
-  listRoleAuthority,
-  listTeamLeadAssignments,
-  listTeamLeadCandidates,
-  saveRoleAuthority,
-  saveTeamLeadAssignment,
-} from '@/lib/db/admin-access'
+import { listRoleAuthority, saveRoleAuthority } from '@/lib/db/admin-access'
 import { AUTHORITY_ACTIONS, AUTHORITY_ROLES, type RoleAuthorityRow } from '@/lib/db/admin-access.types'
 import { AdminAccessPage } from './admin-access-page'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 
 const mockListRoleAuthority = vi.mocked(listRoleAuthority)
 const mockSaveRoleAuthority = vi.mocked(saveRoleAuthority)
-const mockListTeamLeadAssignments = vi.mocked(listTeamLeadAssignments)
-const mockListTeamLeadCandidates = vi.mocked(listTeamLeadCandidates)
-const mockSaveTeamLeadAssignment = vi.mocked(saveTeamLeadAssignment)
 const mockUseIsDesktop = vi.mocked(useIsDesktop)
 
 const SCOPE_BY_ACTION: Record<string, RoleAuthorityRow['scope']> = {
@@ -74,34 +62,81 @@ beforeEach(() => {
   localStorage.clear()
   mockUseIsDesktop.mockReturnValue(true)
   mockListRoleAuthority.mockResolvedValue(authorityRows())
-  mockListTeamLeadAssignments.mockResolvedValue([
-    {
-      team_id: 'team-1',
-      team_name: 'Café opening',
-      business_unit_id: 'bu-1',
-      lead_person_id: 'person-1',
-      lead_name: 'Ari Lead',
-    },
-  ])
-  mockListTeamLeadCandidates.mockResolvedValue([
-    { person_id: 'person-1', full_name: 'Ari Lead' },
-    { person_id: 'person-2', full_name: 'Dina Lead' },
-  ])
   mockSaveRoleAuthority.mockResolvedValue(undefined)
-  mockSaveTeamLeadAssignment.mockResolvedValue(undefined)
 })
 
 describe('AdminAccessPage', () => {
-  it('renders the editable authority table and explicit Team lead section', async () => {
+  it('renders the editable role × action table; Team leads live on the Teams tab, not here', async () => {
     renderPage()
 
-    expect(await screen.findByRole('heading', { name: 'Access & authority' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Roles & permissions' })).toBeInTheDocument()
     expect(screen.getByRole('table', { name: 'Role access and authority' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Team leads' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Team leads' })).toBeNull()
     expect(screen.getByRole('combobox', { name: 'Manage Projects & Processes — Member' })).toHaveTextContent('Own Business Unit')
-    expect(screen.getByRole('combobox', { name: 'Café opening team lead' })).toHaveTextContent('Ari Lead')
     expect(screen.getAllByText('Organization-wide — fixed')).toHaveLength(AUTHORITY_ACTIONS.length)
     expect(screen.getByText(/Everyone in the organization can read Work/)).toBeInTheDocument()
+  })
+
+  it('names roles the way the person panel does, and says where the derived columns come from', async () => {
+    renderPage()
+    const table = await screen.findByRole('table', { name: 'Role access and authority' })
+    const headers = within(table).getAllByRole('columnheader').map((th) => th.textContent)
+    expect(headers).toEqual([
+      'Action',
+      'Member',
+      'Team leadFrom Team leadership',
+      'BU headFrom Business Unit Position',
+      'Ops Lead',
+      'Admin',
+      'Finance',
+      'Manager',
+      'Supervisor',
+    ])
+    expect(within(table).getByRole('link', { name: 'From Team leadership' })).toHaveAttribute('href', '/admin/teams')
+    expect(within(table).getByRole('link', { name: 'From Business Unit Position' })).toHaveAttribute('href', '/admin/people')
+  })
+
+  it('asks before leaving with unsaved access rules, and Stay keeps the draft', async () => {
+    const user = userEvent.setup()
+    const router = createMemoryRouter(
+      [
+        { path: '/admin/access', element: <AdminAccessPage /> },
+        { path: '/admin/people', element: <p>People tab</p> },
+      ],
+      { initialEntries: ['/admin/access'] },
+    )
+    render(<I18nProvider><RouterProvider router={router} /></I18nProvider>)
+    await screen.findByRole('table', { name: 'Role access and authority' })
+
+    await selectPicker(user, 'Manage Projects & Processes — Member', 'Organization')
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+    await user.click(screen.getByRole('link', { name: 'People' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Leave without saving?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Stay on this page' }))
+    expect(router.state.location.pathname).toBe('/admin/access')
+    expect(screen.getByRole('combobox', { name: 'Manage Projects & Processes — Member' })).toHaveTextContent('Organization')
+    expect(mockSaveRoleAuthority).not.toHaveBeenCalled()
+  })
+
+  it('leaves without asking once the rules are saved', async () => {
+    const user = userEvent.setup()
+    const router = createMemoryRouter(
+      [
+        { path: '/admin/access', element: <AdminAccessPage /> },
+        { path: '/admin/people', element: <p>People tab</p> },
+      ],
+      { initialEntries: ['/admin/access'] },
+    )
+    render(<I18nProvider><RouterProvider router={router} /></I18nProvider>)
+    await screen.findByRole('table', { name: 'Role access and authority' })
+    await selectPicker(user, 'Manage Projects & Processes — Member', 'Organization')
+    await user.click(screen.getByRole('button', { name: 'Save access rules' }))
+    await screen.findByRole('status', { name: 'Access rules saved' })
+
+    await user.click(screen.getByRole('link', { name: 'People' }))
+    expect(await screen.findByText('People tab')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Leave without saving?' })).toBeNull()
   })
 
   it('keeps an authority draft after save failure and retries the same draft', async () => {
@@ -126,58 +161,13 @@ describe('AdminAccessPage', () => {
     expect(screen.getByRole('status', { name: 'Access rules saved' })).toBeInTheDocument()
   })
 
-  it('saves a changed Team lead and supports clearing the designation', async () => {
-    const user = userEvent.setup()
-    renderPage()
-    await screen.findByRole('heading', { name: 'Team leads' })
-
-    await selectPicker(user, 'Café opening team lead', 'No designated lead')
-    await user.click(screen.getByRole('button', { name: 'Save Café opening team lead' }))
-
-    await waitFor(() => expect(mockSaveTeamLeadAssignment).toHaveBeenCalledWith('team-1', null))
-    expect(screen.getByRole('status', { name: 'Café opening team lead saved' })).toBeInTheDocument()
-  })
-
-  it('keeps a Team lead draft after failure and exposes a retry action', async () => {
-    const user = userEvent.setup()
-    mockSaveTeamLeadAssignment.mockRejectedValueOnce(new Error('network down')).mockResolvedValueOnce(undefined)
-    renderPage()
-    await screen.findByRole('heading', { name: 'Team leads' })
-
-    const picker = screen.getByRole('combobox', { name: 'Café opening team lead' })
-    await selectPicker(user, 'Café opening team lead', 'Dina Lead')
-    await user.click(screen.getByRole('button', { name: 'Save Café opening team lead' }))
-
-    const row = picker.closest('[data-team-lead-row]') as HTMLElement
-    expect(within(row).getByRole('alert')).toHaveTextContent('Could not save this Team lead. Try again.')
-    expect(picker).toHaveTextContent('Dina Lead')
-    await user.click(within(row).getByRole('button', { name: 'Retry Café opening team lead' }))
-
-    await waitFor(() => expect(mockSaveTeamLeadAssignment).toHaveBeenCalledTimes(2))
-    expect(picker).toHaveTextContent('Dina Lead')
-  })
-
-  it('keeps primary settings visible when one Team candidate list fails and retries that row independently', async () => {
-    const user = userEvent.setup()
-    mockListTeamLeadCandidates.mockRejectedValueOnce(new Error('candidate timeout')).mockResolvedValueOnce([
-      { person_id: 'person-1', full_name: 'Ari Lead' },
-      { person_id: 'person-2', full_name: 'Dina Lead' },
-    ])
-    renderPage()
-
-    expect(await screen.findByRole('heading', { name: 'Access & authority' })).toBeInTheDocument()
-    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load Team members. Try again.")
-    expect(screen.getByRole('table', { name: 'Role access and authority' })).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Retry Café opening members' }))
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Café opening team lead' })).toBeEnabled())
-  })
-
   it('renders the new settings copy in Indonesian', async () => {
     renderPage('id')
 
-    expect(await screen.findByRole('heading', { name: 'Akses & kewenangan' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Ketua tim' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Peran & izin' })).toBeInTheDocument()
+    const nav = screen.getByRole('navigation', { name: 'Bagian pengaturan admin' })
+    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Orang', 'Tim', 'Peran & izin'])
+    expect(screen.getByRole('link', { name: 'Dari kepemimpinan Tim' })).toBeInTheDocument()
   })
 
   it('lets a phone user choose a role, edit its grant, and save only that change', async () => {

@@ -92,7 +92,6 @@ describe('CHROME-Z: z-index tier scale', () => {
     for (const f of [
       'components/ui/confirm-dialog.tsx',
       'components/admin/create-person-dialog.tsx',
-      'components/admin/role-editor.tsx',
       'pages/admin-users-page.tsx',
     ]) {
       const body = readSrc(f)
@@ -190,7 +189,6 @@ describe('CHROME-CLOSE: one CloseIcon', () => {
       'shell/mobile-drawer.tsx',
       'shell/record-panel-host.tsx',
       'components/tasks/task-surface.tsx',
-      'components/admin/role-editor.tsx',
     ]) {
       const body = readSrc(f)
       // imports the shared CloseIcon from the shell/icons module (absolute or shell-relative)
@@ -201,9 +199,7 @@ describe('CHROME-CLOSE: one CloseIcon', () => {
   })
 
   it('CHROME-CLOSE: the migrated standalone dismiss buttons no longer render a raw ×/✕ glyph', () => {
-    // Comments stripped: role-editor DOCUMENTS its header ✕ in prose, which is not a glyph.
     expect(stripTsx(readSrc('shell/signal-composer-host.tsx'))).not.toMatch(/>×<\/button>/)
-    expect(stripTsx(readSrc('components/admin/role-editor.tsx'))).not.toMatch(/✕/)
   })
 })
 
@@ -336,7 +332,6 @@ describe('CHROME-MODAL: modal consolidation', () => {
       'components/ui/confirm-dialog.tsx',
       'components/tasks/occurrence-assign-dialog.tsx',
       'components/admin/create-person-dialog.tsx',
-      'components/admin/role-editor.tsx',
       'pages/admin-users-page.tsx',
       'components/command/command-menu.tsx',
       'shell/signal-composer-host.tsx',

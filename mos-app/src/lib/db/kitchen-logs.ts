@@ -114,6 +114,37 @@ export async function listActiveWipItems(): Promise<WipItemOption[]> {
   return (data ?? []) as WipItemOption[]
 }
 
+// ── Stream item lists (#222) ──────────────────────────────────────────────────
+
+/** The items a stream offers for new capture and planning (ops.stream_items). */
+export async function listStreamItemIds(stream: ProductionStream): Promise<Set<string>> {
+  const { data, error } = await ops()
+    .from('stream_items')
+    .select('wip_item_id')
+    .eq('branch_id', stream.branch.id)
+    .eq('activity', stream.activity)
+  if (error) throw new Error(`listStreamItemIds failed — ${error.message}`)
+  return new Set(((data ?? []) as { wip_item_id: string }[]).map(row => row.wip_item_id))
+}
+
+/** The key one list row answers to, for surfaces that read rows from many streams at once. */
+export function streamItemKey(branchId: string, activity: string, wipItemId: string): string {
+  return `${branchId}|${activity}|${wipItemId}`
+}
+
+/** Every stream's list in the org, as streamItemKey values. */
+export async function listAllStreamItemKeys(): Promise<Set<string>> {
+  const { data, error } = await ops().from('stream_items').select('branch_id,activity,wip_item_id')
+  if (error) throw new Error(`listAllStreamItemKeys failed — ${error.message}`)
+  return new Set(((data ?? []) as { branch_id: string; activity: string; wip_item_id: string }[])
+    .map(row => streamItemKey(row.branch_id, row.activity, row.wip_item_id)))
+}
+
+/** True when a write was refused because its item is not on its stream's list (DB token). */
+export function isItemNotOnStreamError(err: unknown): boolean {
+  return err instanceof Error && err.message.includes('CAFE_ITEM_NOT_ON_STREAM')
+}
+
 /**
  * List the items the CAPTURE FORM may offer, sorted by name — read from
  * ops.capture_form_items, the gated read path (FR-011, DD-WAY-29): only item-units whose
@@ -126,14 +157,17 @@ export async function listActiveWipItems(): Promise<WipItemOption[]> {
  * AC-015: never offered); the default is kept whatever its flag, because the fixed unit is
  * master data, not an offer. An item whose confirmed rows yield no offerable unit at all
  * (non-transferable alternates only, no default) is absent — a row that cannot name its
- * unit cannot be captured.
+ * unit cannot be captured. Given a stream, only the items on that stream's list come back (#222).
  */
-export async function listCaptureFormItems(): Promise<CaptureFormItem[]> {
-  const { data, error } = await ops()
-    .from('capture_form_items')
-    .select('wip_item_id,name,category,item_unit_id,unit_name,is_default,is_transferable')
-    .order('name', { ascending: true })
-    .order('unit_name', { ascending: true })
+export async function listCaptureFormItems(stream?: ProductionStream): Promise<CaptureFormItem[]> {
+  const [{ data, error }, offered] = await Promise.all([
+    ops()
+      .from('capture_form_items')
+      .select('wip_item_id,name,category,item_unit_id,unit_name,is_default,is_transferable')
+      .order('name', { ascending: true })
+      .order('unit_name', { ascending: true }),
+    stream ? listStreamItemIds(stream) : Promise.resolve(null),
+  ])
   if (error) throw new Error(`listCaptureFormItems failed — ${error.message}`)
   type ViewRow = {
     wip_item_id: string
@@ -161,7 +195,8 @@ export async function listCaptureFormItems(): Promise<CaptureFormItem[]> {
     if (unit.is_default) item.units.unshift(unit)
     else item.units.push(unit)
   }
-  return [...byItem.values()]
+  const items = [...byItem.values()]
+  return offered ? items.filter(item => offered.has(item.id)) : items
 }
 
 // ── Kitchen plans ─────────────────────────────────────────────────────────────
@@ -318,27 +353,35 @@ export async function fetchStockMap(
 
 /**
  * Fetch the read-only Stock view's display rows for a date (S4, FR-060/061).
- * Lists **every active WIP item** (FR-011, sorted by name) with its two cuts —
- * `stok` (usable_qty) and `tersedia` (available_qty) — for the selected date.
- * An active item with no stock row defaults to 0/0 (it simply has no approved
- * activity yet). Negative balances are preserved, never clamped (FR-061/AC-032).
- * Reuses `fetchStockForDate` + `listActiveWipItems` (DRY with the capture path).
+ * Lists every active WIP item on the stream's list, plus any other active item holding a
+ * non-zero balance in the stream's books (`on_stream: false`) — sorted by name, with its two
+ * cuts, `stok` (usable_qty) and `tersedia` (available_qty), for the selected date.
+ * A listed item with no stock row defaults to 0/0 (it simply has no approved activity yet).
+ * Negative balances are preserved, never clamped (FR-061/AC-032).
  */
 export async function fetchKitchenStock(
   asOf: string,
   stream: ProductionStream,
 ): Promise<KitchenStockRow[]> {
-  const [items, stockRows] = await Promise.all([
+  const [items, stockRows, offered] = await Promise.all([
     listActiveWipItems(),
     fetchStockForDate(asOf, stream),
+    listStreamItemIds(stream),
   ])
   const byItem = new Map(stockRows.map(r => [r.wip_item_id, r]))
-  return items.map(item => {
+  // A stream's own items, plus any other item still holding a balance in its books (#222): a
+  // list change never hides stock someone has to account for.
+  const holdsBalance = (id: string) => {
+    const s = byItem.get(id)
+    return !!s && (Number(s.usable_qty) !== 0 || Number(s.available_qty) !== 0)
+  }
+  return items.filter(item => offered.has(item.id) || holdsBalance(item.id)).map(item => {
     const s = byItem.get(item.id)
     return {
       wip_item_id: item.id,
       wip_item_name: item.name,
       category: item.category,
+      on_stream: offered.has(item.id),
       stok: s?.usable_qty ?? 0,
       tersedia: s?.available_qty ?? 0,
     }

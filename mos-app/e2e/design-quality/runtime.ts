@@ -9,7 +9,7 @@ import { assertAuditRoute } from './audit-route.ts'
 
 import { loginAs } from '../helpers/login'
 import { stubAccountLocale } from '../helpers/account-locale'
-import { ADMIN, BAR_MEMBER, BAR_SUPERVISOR, MANAGER, ORPHAN, VIEWER } from '../fixtures/users'
+import { ADMIN, BAR_MEMBER, BAR_SUPERVISOR, BARISTA, MANAGER, ORPHAN, VIEWER } from '../fixtures/users'
 import { assertDevServerOwnership, worktreeFingerprint } from '../../src/lib/dev-server'
 import {
   AUDIT_RECEIVING_ONLY,
@@ -429,6 +429,7 @@ export async function assertAuditServer(baseURL: string): Promise<void> {
 
 const fixtureCredentials = {
   BAR_MEMBER,
+  BARISTA,
   BAR_SUPERVISOR,
   VIEWER,
   MANAGER,

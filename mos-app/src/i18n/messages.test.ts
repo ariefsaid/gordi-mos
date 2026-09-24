@@ -187,3 +187,19 @@ describe('cascade i18n is retired with the surface (#179)', () => {
   })
 
 })
+
+// The person panel's "What they can do" lines name Work collections; in Indonesian they must use
+// the same words the sidebar does, or a reader cannot match a right to the place it applies.
+describe('admin access actions use the nav terms for Work collections', () => {
+  it.each([
+    ['admin.access.action.workline.manage', 'nav.work.projects'],
+    ['admin.access.action.objective.manage', 'nav.work.objectives'],
+    ['admin.access.action.signal.post', 'nav.work.signals'],
+    ['admin.access.action.signal.tag', 'nav.work.signals'],
+    ['admin.access.action.signal.retract', 'nav.work.signals'],
+  ] as const)('%s names %s in both locales', (actionKey, navKey) => {
+    for (const locale of ['en', 'id'] as const) {
+      expect(messages[locale][actionKey]).toContain(messages[locale][navKey])
+    }
+  })
+})
