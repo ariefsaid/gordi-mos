@@ -526,7 +526,6 @@ describe('DashboardPage — populated (phone)', () => {
 describe('DashboardPage — locale seam (I18N-1)', () => {
   beforeEach(() => {
     setDesktop()
-    localStorage.setItem('mos.locale', 'id')
     mockRev.mockResolvedValue(sixtyDaysRevenue())
     mockMarg.mockResolvedValue(sixtyDaysMargin())
   })
@@ -534,7 +533,7 @@ describe('DashboardPage — locale seam (I18N-1)', () => {
 
   it('renders KPI labels, tabs, chart, and table headers in Bahasa Indonesia under id', async () => {
     render(
-      <I18nProvider>
+      <I18nProvider initialLocale="id">
         <MemoryRouter initialEntries={['/money']}>
           <DashboardPage />
         </MemoryRouter>

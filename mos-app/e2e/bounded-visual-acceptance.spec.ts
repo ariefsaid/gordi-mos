@@ -2,6 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { MANAGER } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
+import { stubAccountLocale } from './helpers/account-locale'
 
 const LONG_SIGNAL = 'A long Signal leaf title that stays readable without breaking a word across the record header boundary'
 const WIDTHS = [390, 768, 1024, 1280, 1370, 1440] as const
@@ -72,7 +73,7 @@ test.describe('bounded visual and interaction acceptance', () => {
     for (const width of [390, 768] as const) {
       test(`Home localized action census has tappable controls at ${locale}/${width}px`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 })
-        await page.addInitScript((value) => localStorage.setItem('mos.locale', value), locale)
+        await stubAccountLocale(page, locale)
         await loginAs(page, MANAGER.email, MANAGER.password)
         await page.goto('./')
         await expect(page.getByRole('tablist', { name: locale === 'id' ? 'Bagian Beranda' : 'Home regions', exact: true })).toBeVisible()
@@ -241,10 +242,8 @@ test.describe('bounded visual and interaction acceptance', () => {
   for (const width of [1024, 1440] as const) {
     test(`Tasks toolbar keeps Indonesian labels and active Group visible at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
-      await page.addInitScript(() => {
-        localStorage.setItem('mos.locale', 'id')
-        localStorage.removeItem('mos.tasks.groupBy')
-      })
+      await stubAccountLocale(page, 'id')
+      await page.addInitScript(() => localStorage.removeItem('mos.tasks.groupBy'))
       await loginAs(page, MANAGER.email, MANAGER.password)
       await page.goto('work/tasks')
       await expect(page.getByText(TASKS.VIEWER_ACCOUNTABLE.title, { exact: true }).first()).toBeVisible()
@@ -320,10 +319,8 @@ test.describe('bounded visual and interaction acceptance', () => {
     for (const width of [390, 768, 1280] as const) {
       test(`Tasks grouped copy and focus are stable in ${locale} at ${width}px`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 })
-        await page.addInitScript((value) => {
-          localStorage.setItem('mos.locale', value)
-          localStorage.setItem('mos.tasks.groupBy', 'owner')
-        }, locale)
+        await stubAccountLocale(page, locale)
+        await page.addInitScript(() => localStorage.setItem('mos.tasks.groupBy', 'owner'))
         await loginAs(page, MANAGER.email, MANAGER.password)
         await page.goto('work/tasks')
         await expect(page.getByRole('heading', { name: locale === 'id' ? 'Tugas' : 'Tasks', exact: true })).toBeVisible()

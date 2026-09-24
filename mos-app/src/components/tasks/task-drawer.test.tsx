@@ -149,9 +149,8 @@ describe('TaskDrawer (AC-101, AC-102)', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
 
     function renderWithLocale(locale: 'en' | 'id') {
-      localStorage.setItem('mos.locale', locale)
       return render(
-        <I18nProvider>
+        <I18nProvider initialLocale={locale}>
           <AuthContext.Provider value={authedState}>
             <MemoryRouter initialEntries={['/work/tasks/task-abc']}>
               <Routes>
@@ -171,8 +170,6 @@ describe('TaskDrawer (AC-101, AC-102)', () => {
     renderWithLocale('en')
     expect(await screen.findByRole('complementary', { name: 'Task detail' })).toBeInTheDocument()
     expect(screen.queryByRole('complementary', { name: 'Detail tugas' })).toBeNull()
-
-    localStorage.removeItem('mos.locale')
   })
 
   it('GAP-2 (OD-91 #7): expand-in-place is retired — the drawer offers no expand/collapse toggle, only Open full page', async () => {

@@ -1,10 +1,12 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from './use-auth'
+import { useAccountLocale } from '@/i18n/account-locale'
 import { OrphanScreen } from './orphan-screen'
 import { SetPasswordScreen } from './set-password-screen'
 
 // FR-010/011/013/016: gate for all protected routes.
-// loading → neutral loading indicator (no protected content flash, FR-013)
+// loading → neutral loading indicator (no protected content flash, FR-013) — also while the
+//   signed-in account's language loads, so nothing renders in a language that is not theirs (#927)
 // unauthenticated → redirect to /login, carrying the route asked for (FR-010)
 // orphan → blocked orphan screen (FR-016)
 // recovering → redirect to /recovery (audit L1: password must be set before accessing the app)
@@ -12,9 +14,10 @@ import { SetPasswordScreen } from './set-password-screen'
 // authenticated → render the route (Outlet)
 export function ProtectedRoute() {
   const auth = useAuth()
+  const accountLocale = useAccountLocale()
   const location = useLocation()
 
-  if (auth.status === 'loading') {
+  if (auth.status === 'loading' || accountLocale.status === 'loading') {
     return (
       <div role="status" aria-label="Loading">
         <span className="sr-only">Loading…</span>

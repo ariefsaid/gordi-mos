@@ -4,9 +4,9 @@ import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { HomeLayoutPicker } from './home-layout-picker'
 
-function renderPicker(value: 'focused' | 'overview' | 'list' = 'focused', onChange = vi.fn()) {
+function renderPicker(value: 'focused' | 'overview' | 'list' = 'focused', onChange = vi.fn(), locale: 'en' | 'id' = 'en') {
   render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <HomeLayoutPicker value={value} onChange={onChange} />
     </I18nProvider>,
   )
@@ -47,8 +47,7 @@ describe('HomeLayoutPicker (OD-V4-9, FR-920)', () => {
   })
 
   it.each(['en', 'id'] as const)('FR-920: every option says who it suits, not just its shape (%s)', (locale) => {
-    localStorage.setItem('mos.locale', locale)
-    renderPicker()
+    renderPicker('focused', vi.fn(), locale)
     for (const radio of screen.getAllByRole('radio')) {
       expect(radio).toHaveAccessibleName(SUITABILITY_CLAUSE[locale])
     }

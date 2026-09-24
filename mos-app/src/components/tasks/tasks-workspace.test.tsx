@@ -166,6 +166,7 @@ function renderTable(
   props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {},
   auth: AuthState = authedState,
   entries = ['/work/tasks'],
+  locale: 'en' | 'id' = 'en',
 ) {
   function Harness() {
     const initialSavedView = props.savedView ?? makeSavedView('all')
@@ -180,7 +181,7 @@ function renderTable(
   }
 
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <AuthContext.Provider value={auth}>
         <MemoryRouter initialEntries={entries}>
           <OverlayHostProvider>
@@ -453,11 +454,10 @@ describe('Create from Signal convergence', () => {
   })
 
   it('the id locale renders the translated link-failure announcement', async () => {
-    localStorage.setItem('mos.locale', 'id')
     mockListTasks.mockResolvedValue([makeTask()])
     mockCreateTask.mockResolvedValue('created-id')
     mockLinkSignalTask.mockRejectedValue(new Error('offline'))
-    renderTable({}, authedState, ['/work/tasks?sourceSignal=signal-42'])
+    renderTable({}, authedState, ['/work/tasks?sourceSignal=signal-42'], 'id')
     fireEvent.click(await screen.findByRole('button', { name: /create task|buat tugas/i }))
     const title = await screen.findByRole('textbox')
     fireEvent.change(title, { target: { value: 'Original' } })
@@ -737,18 +737,16 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
   })
 
   it('AC-I-TASK: Indonesian locale translates the member disclosure and typed filter grammar', async () => {
-    localStorage.setItem('mos.locale', 'id')
     stubMatchMedia(false, false)
     mockListTasks.mockResolvedValue([makeTask({ title: 'Pekerjaan pertama' })])
 
-    renderTable()
+    renderTable({}, authedState, undefined, 'id')
     await waitFor(() => screen.getByText('Pekerjaan pertama'))
 
     expect(screen.getByRole('button', { name: 'Tampilan & filter' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Tampilan & filter' }))
     expect(screen.getByRole('button', { name: 'Pekerjaan saya' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Kelompok' })).toBeInTheDocument()
-    localStorage.removeItem('mos.locale')
   })
 })
 
@@ -2276,23 +2274,16 @@ describe('Ticket #750 — AC-019 footer legend states the click grammar', () => 
   const ID_LEGEND = 'Klik baris untuk membukanya · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan'
 
   it('AC-019: the legend under the table reads the new grammar in EN and in ID', async () => {
-    const previousLocale = localStorage.getItem('mos.locale')
-    try {
-      mockListTasks.mockResolvedValue([makeTask({ title: 'Legend task' })])
-      renderTable()
-      await waitFor(() => screen.getByText('Legend task'))
-      expect(document.querySelector('.tasks-inline-edit-hint')?.textContent).toBe(EN_LEGEND)
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Legend task' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Legend task'))
+    expect(document.querySelector('.tasks-inline-edit-hint')?.textContent).toBe(EN_LEGEND)
 
-      localStorage.setItem('mos.locale', 'id')
-      cleanup()
-      mockListTasks.mockResolvedValue([makeTask({ title: 'Tugas legenda' })])
-      renderTable()
-      await waitFor(() => screen.getByText('Tugas legenda'))
-      expect(document.querySelector('.tasks-inline-edit-hint')?.textContent).toBe(ID_LEGEND)
-    } finally {
-      if (previousLocale === null) localStorage.removeItem('mos.locale')
-      else localStorage.setItem('mos.locale', previousLocale)
-    }
+    cleanup()
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Tugas legenda' })])
+    renderTable({}, authedState, undefined, 'id')
+    await waitFor(() => screen.getByText('Tugas legenda'))
+    expect(document.querySelector('.tasks-inline-edit-hint')?.textContent).toBe(ID_LEGEND)
   })
 })
 

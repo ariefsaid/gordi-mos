@@ -123,9 +123,9 @@ const archiveAuth: AuthState = {
   signOut: async () => {},
 }
 
-function pageTree(initialPath = '/work/signals', runtime: AgentRuntime | null = null, auth?: AuthState, extra?: ReactNode) {
+function pageTree(initialPath = '/work/signals', runtime: AgentRuntime | null = null, auth?: AuthState, extra?: ReactNode, locale: 'en' | 'id' = 'en') {
   return (
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={[initialPath]}>
         <AuthContext.Provider value={auth ?? { status: 'unauthenticated' }}>
           <AgentRuntimeProvider runtime={runtime}>
@@ -144,8 +144,8 @@ function pageTree(initialPath = '/work/signals', runtime: AgentRuntime | null = 
   )
 }
 
-function renderPage(initialPath = '/work/signals', runtime: AgentRuntime | null = null, auth?: AuthState, extra?: ReactNode) {
-  return render(pageTree(initialPath, runtime, auth, extra))
+function renderPage(initialPath = '/work/signals', runtime: AgentRuntime | null = null, auth?: AuthState, extra?: ReactNode, locale: 'en' | 'id' = 'en') {
+  return render(pageTree(initialPath, runtime, auth, extra, locale))
 }
 
 function SignalStackProbe() {
@@ -1038,13 +1038,12 @@ describe('issue #770 — Save view, phone door, and empty states (AC-028/029/030
 
 describe('issue #770 — AC-031: the archive renders one language at a time (ID)', () => {
   it('renders the eight category families, the attention words and the Team placeholder in Indonesian; "FYI" stays', async () => {
-    localStorage.setItem('mos.locale', 'id')
     mockListReadableSignals.mockResolvedValue([
       row({ id: 's-fyi', body: 'FYI body', attention: 'FYI', category: 'Supply/vendor' }),
       row({ id: 's-needs', body: 'Needs body', attention: 'Needs attention', category: 'Quality' }),
       row({ id: 's-urgent', body: 'Urgent body', attention: 'Urgent', category: null }),
     ])
-    renderPage('/work/signals?layout=table')
+    renderPage('/work/signals?layout=table', null, undefined, undefined, 'id')
     await waitFor(() => expect(screen.getByText('FYI body')).toBeInTheDocument())
 
     // View chips in Indonesian.
@@ -1074,7 +1073,6 @@ describe('issue #770 — AC-031: the archive renders one language at a time (ID)
 
 describe('signals Team filter — historical team rows vs All Teams (AC-8)', () => {
   it('the Team filter still matches historical team rows while All Teams rows (no Team) stay neutral', async () => {
-    localStorage.setItem('mos.locale', 'en')
     mockListReadableSignals.mockResolvedValue([
       // An All Teams Signal has no owning Team, so it belongs to no Team bucket; a historical
       // team-audience Signal keeps its owning Team.

@@ -164,7 +164,7 @@ function choosePickerOption(label: string, option: string) {
 
 function renderIndonesianSurface() {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale="id">
       <AuthContext.Provider value={authedState}>
         <MemoryRouter initialEntries={['/tasks/task-abc']}>
           <TaskSurface taskId="task-abc" mode="view" width="full" />
@@ -257,7 +257,6 @@ describe('TaskSurface — view mode', () => {
   })
 
   it('AC-I02: Indonesian locale localizes the task record chrome and feed', async () => {
-    localStorage.setItem('mos.locale', 'id')
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
 
     renderIndonesianSurface()
@@ -273,7 +272,6 @@ describe('TaskSurface — view mode', () => {
     expect(screen.getByRole('button', { name: 'Tandai selesai' })).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).toBeNull()
     expect(screen.queryByText('Task details')).toBeNull()
-    localStorage.removeItem('mos.locale')
   })
 
   it('AC-R01: full width renders the work-first document with all work regions visible', async () => {
