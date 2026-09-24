@@ -423,6 +423,21 @@ describe('TaskSurface — view mode', () => {
     )
   })
 
+  // S9 (2026-09-24 cross-boundary scout): a transport failure (aborted fetch / 500) is not a
+  // missing task — it must render the retryable ErrorState, never the "Task not found" copy, and
+  // Retry must re-issue the exact same read.
+  it('S9: shows ErrorState with a working Retry when getTask rejects with a non-PGRST116 (network/500) error', async () => {
+    mockGetTask.mockRejectedValueOnce(new Error('Failed to fetch'))
+    renderSurface()
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(screen.queryByText(/task not found/i)).not.toBeInTheDocument()
+
+    mockGetTask.mockResolvedValueOnce({ task: makeTask(), checklist: [], events: [] })
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    await waitFor(() => expect(mockGetTask).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByText('Fix the coffee machine')).toBeInTheDocument())
+  })
+
   it('calls onClose (not navigate) after a successful archive', async () => {
     const onClose = vi.fn()
     mockGetTask.mockResolvedValue({ task: makeTask({ responsible_person_id: 'other-id' }), checklist: [], events: [] })

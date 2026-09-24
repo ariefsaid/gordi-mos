@@ -36,13 +36,24 @@ import { Picker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
 import { DateField } from '@/components/ui/date-field'
 import { Button } from '@/components/ui/button'
-import { LoadingShell, EmptyState } from '@/components/ui/state-kit'
+import { LoadingShell, EmptyState, ErrorState } from '@/components/ui/state-kit'
 
 type DirectoryTeamOption = {
   id: string
   name: string
   businessUnitId?: string
   business_unit_id?: string
+}
+
+// S9 (2026-09-24 cross-boundary scout): `getTask`'s Promise.all rejects on BOTH a genuinely
+// missing/inaccessible task (PostgREST `.single()` with 0 rows, PGRST116) and a transport failure
+// (aborted fetch, a 500) — the two need different UI (mirrors signal-record-host.tsx's
+// readFailureState). Only the former is "Task not found"; anything else is a retryable read
+// failure and must show ErrorState + Retry, never strand the surface on its loading skeleton or a
+// false not-found.
+function isMissingTaskError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /PGRST116|0 rows|no rows|permission denied|row-level security/i.test(message)
 }
 
 function toTaskTeamView(team: DirectoryTeamOption | undefined, businessUnits: readonly BusinessUnitOption[]): TaskTeamView | null {
@@ -144,6 +155,9 @@ function ViewSurface({
 
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  // S9: a retryable read failure (network/500), distinct from a genuinely missing task — see
+  // isMissingTaskError above.
+  const [loadError, setLoadError] = useState(false)
   const [data, setData] = useState<TaskDetailData | null>(null)
   const [busDirectory, setBusDirectory] = useState<BusinessUnitOption[]>([])
   const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
@@ -196,6 +210,7 @@ function ViewSurface({
     const isCurrent = () => seq === loadSeq.current
     setLoading(true)
     setNotFound(false)
+    setLoadError(false)
     const viewerTeamsPromise = getPersonTeams(viewerId).catch(() => [])
     Promise.all([
       getTask(taskId),
@@ -229,9 +244,10 @@ function ViewSurface({
           if (isCurrent()) setGeneratedFromLabel(defs[0]?.title ?? null)
         }).catch(() => {})
       }
-    }).catch(() => {
+    }).catch((err: unknown) => {
       if (!isCurrent()) return
-      setNotFound(true)
+      if (isMissingTaskError(err)) setNotFound(true)
+      else setLoadError(true)
       setLoading(false)
     })
     // Non-blocking comments load — a slow comments API must not keep task detail on skeleton.
@@ -694,6 +710,10 @@ function ViewSurface({
 
   // ── Render ───────────────────────────────────────────────────────────────
   if (loading) return <DetailSkeleton />
+
+  // S9: a retryable read failure (network/500) must never render as "not found" — `load` re-runs
+  // the exact same fetch, preserving whatever query/filter state got the surface here.
+  if (loadError) return <ErrorState message={t('tasks.loadError')} onRetry={load} />
 
   if (notFound || !localTask) {
     // The shared EmptyState primitive, not a bespoke `.not-found-panel`: it already carries
