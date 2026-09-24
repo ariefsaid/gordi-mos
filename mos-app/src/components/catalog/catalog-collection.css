@@ -15,7 +15,13 @@
 .catalog-collection__header,
 .catalog-collection__row-link {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 120px 130px 140px 120px 160px;
+  /* #930-cb-r1 (F-9): column 4 (.cell--cadence) carries two different jobs at the same grid
+     slot — Projects & Processes' short "Weekly · 20 Jul 2026" cadence, and an Objective's
+     relation sentence ("Linked through a Task: <name>"), which a real name pushed past 140px
+     ("Linked through a Ta…", wrapped 3-4 lines). 200px plus the wrap override below (scoped to
+     the objective table only, so P&P's shorter value keeps its one-line ellipsis) covers a
+     realistic name on one or two clean lines instead of a mid-word clip. */
+  grid-template-columns: minmax(220px, 1fr) 120px 130px 200px 120px 160px;
   align-items: center;
   column-gap: 16px;
 }
@@ -149,6 +155,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* #930-cb-r1 (F-9) — the Objective flavour of .cell--cadence holds a full sentence
+   ("Linked through a Task: <name>"), not a short label; 200px (above) fits a realistic name on
+   one line, but a name has no upper bound, so this value wraps to a second line instead of
+   ellipsis-clipping mid-word. Scoped to the objective table only — Projects & Processes' short
+   cadence/due value in the same grid slot keeps the shared one-line ellipsis. */
+.catalog-collection__table--objective .catalog-collection__cell--cadence .catalog-collection__cell-value {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .catalog-collection__cell-value--muted,
