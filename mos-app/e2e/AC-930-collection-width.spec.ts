@@ -12,6 +12,10 @@ import { MANAGER } from './fixtures/users'
 import { TASKS_RECORD_PANEL_FLOOR_PX } from '../src/shell/use-is-split-width'
 
 const RECORD_PANEL_CAP_PX = 640
+// #930-cb-r1 (F-2) — with a record open, Tasks' Title column must stay readable, not just
+// non-zero. 240px is the floor named in the correction: enough for a realistic task title
+// ("Replace grinder burrs (Cafe 2)") on one line without reading as a single truncated word.
+const TASK_TITLE_FLOOR_PX = 240
 
 type Collection = {
   name: 'Tasks' | 'Signals' | 'Projects & Processes' | 'Objectives'
@@ -158,8 +162,50 @@ test.describe('Work collections share one wide measure and one record-panel widt
           description: `saw an overdue row at rest=${sawOverdueAtRest}, with a record open=${sawOverdueOpen}`,
         })
       })
+
+      test(`Tasks' Title column keeps a readable floor with a record open (${width}px)`, async ({ page }) => {
+        // #930-cb-r1 (F-2 regression): the record panel narrowing the list must not starve the
+        // identity column — the list drops PIC/Supervisor first (TasksWorkspace.css) so Title
+        // keeps room, at every desktop width from the split threshold up.
+        await page.setViewportSize({ width, height: width === 1440 ? 900 : 1080 })
+        await loginAs(page, MANAGER.email, MANAGER.password)
+        await page.goto('work/tasks')
+        await page.locator('.task-row-link').first().click()
+        await expect(page.locator('aside.drawer.drawer-split')).toBeVisible()
+        const titleBox = await page.locator('td.td-main').first().boundingBox()
+        expect(titleBox, 'the Task title cell must render a box').not.toBeNull()
+        expect(titleBox!.width, `Title column width at ${width}px with a record open`).toBeGreaterThanOrEqual(TASK_TITLE_FLOOR_PX)
+        // The dropped columns are the mechanism, not just a side effect — assert they are hidden
+        // (CSS display:none — still in the DOM for a11y/test stability, never on screen).
+        await expect(page.locator('td.td-owner').first()).toBeHidden()
+        await expect(page.locator('td.td-supervisor').first()).toBeHidden()
+      })
     })
   }
+
+  test('Objectives\' Projects & Processes column shows its relation sentence without an ellipsis clip (F-9)', async ({ page }) => {
+    for (const width of [1440, 1920] as const) {
+      await page.setViewportSize({ width, height: width === 1440 ? 900 : 1080 })
+      await loginAs(page, MANAGER.email, MANAGER.password)
+      await page.goto('work/objectives')
+      await expect(page.locator('.catalog-collection__row-link').first()).toBeVisible()
+      const cells = page.locator('.catalog-collection__cell--cadence .catalog-collection__cell-value')
+      const count = await cells.count()
+      let sawRelationText = false
+      for (let i = 0; i < count; i += 1) {
+        const cell = cells.nth(i)
+        const text = (await cell.textContent())?.trim() ?? ''
+        if (!text || text === '–') continue // "–" — no linked work, nothing to measure
+        sawRelationText = true
+        const geometry = await cell.evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }))
+        // #930-cb-r1 (F-9): sized to content (200px + wrap), not clipped to a fixed 140px —
+        // scrollWidth over clientWidth on a nowrap+ellipsis box is exactly what an ellipsis clip
+        // looks like; this cell now wraps instead, so its own scroll box never exceeds it.
+        expect(geometry.scrollWidth, `row ${i} Projects & Processes cell must not clip at ${width}px`).toBeLessThanOrEqual(geometry.clientWidth + 1)
+      }
+      test.info().annotations.push({ type: 'coverage', description: `${width}px: saw relation text=${sawRelationText}` })
+    }
+  })
 
   test('phone (390px): no horizontal overflow and cards render for all four collections', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })

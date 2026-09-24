@@ -267,6 +267,24 @@
 @media (max-width: 1099.98px) {
   .tasks-table th.th-supervisor, .tasks-table td.td-supervisor { display: none; }
 }
+/* #930-cb-r1 (F-2 regression) — with a record open, the list drops lower-priority columns
+   instead of starving the Task identity column. At 1440 with all 5 columns forced into the
+   narrowed list beside --record-panel-w, Title fell to ~118px (13 titles read as one word);
+   the fixed floors above make columns "never stretch" but do not by themselves keep Title
+   readable once the panel takes its share. Declared drop order (highest priority — never
+   dropped — to lowest): Task > Status > Due > PIC > Supervisor. PIC and Supervisor are both
+   already visible in the open record itself (Task Ownership), so hiding them here loses no
+   information, only a second copy of it; Status and Due stay because they are the two facts
+   a viewer scans the LIST for while a record is open. Unconditional on viewport (not a
+   max-width band): the narrowest point of the live split range is already at its floor
+   (TASKS_RECORD_PANEL_FLOOR_PX in use-is-split-width.ts), so a wider desktop only ever gives
+   Title MORE room under this same rule, never less — one rule covers the whole range. */
+.split:not(.nodrawer) .tasks-table th.th-owner,
+.split:not(.nodrawer) .tasks-table td.td-owner,
+.split:not(.nodrawer) .tasks-table th.th-supervisor,
+.split:not(.nodrawer) .tasks-table td.td-supervisor {
+  display: none;
+}
 /* DO-18(a) (census-sweep R2 tasks FINDING1): the squashed drawer-open track truncated 6/11 Task
    titles at 1280 — the IDENTITY column must not starve. In the condensed tier the title may wrap
    to 2 lines (clamped) instead of the one-line ellipsis; the row grows, the identity survives. */
