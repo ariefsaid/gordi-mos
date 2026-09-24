@@ -208,9 +208,8 @@ describe('RI-3 — Task column width and scroll container', () => {
     const cssPath = resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css')
     const css = readFileSync(cssPath, 'utf8')
     // Every secondary is a fixed px width sized to its own longest realistic value, and Task
-    // carries a px floor of its own (auto layout widens it to its longest title above that).
-    // Secondaries drop before Task goes under that floor; the rendered rule is owned by
-    // e2e/AC-930-collection-width.spec.ts.
+    // takes the room they leave between a 240px floor and a 640px cap. Secondaries drop before
+    // Task goes under that floor; the rendered rule is owned by e2e/AC-930-collection-width.spec.ts.
     const idx = css.indexOf('.tasks-table {')
     expect(idx).toBeGreaterThanOrEqual(0)
     const open = css.indexOf('{', idx)
@@ -223,7 +222,7 @@ describe('RI-3 — Task column width and scroll container', () => {
     const taskRuleOpen = css.indexOf('{', taskRuleIdx)
     const taskRuleClose = css.indexOf('}', taskRuleOpen)
     const taskRule = css.slice(taskRuleOpen + 1, taskRuleClose)
-    expect(taskRule).toMatch(/width:\s*\d+px/)
+    expect(taskRule).toMatch(/width:\s*clamp\(240px,[^;]*640px\)/)
     // The four decision secondaries are fixed px floors, never a %-share the Task column would
     // have to keep feeding as the table's own width changes.
     for (const cls of ['th-status', 'th-owner', 'th-supervisor', 'th-due']) {

@@ -96,7 +96,7 @@ test.describe('desktop geometry guards', () => {
     }).toBeLessThanOrEqual(2)
   })
 
-  test('GUARD-R8: split exists from the derived threshold; narrower rows open the page', async ({ page }) => {
+  test('GUARD-R8: split exists only where decision columns fit; narrow rows open the page', async ({ page }) => {
     const columns = ['Task', 'Status', 'PIC', 'Supervisor', 'Due']
     // TASKS_SPLIT_MIN_WIDTH is the derived floor itself; 1440 is DESIGN.md's desktop
     // reference width. Both are AT OR ABOVE the threshold, so both must render the split.
@@ -106,12 +106,18 @@ test.describe('desktop geometry guards', () => {
       await page.waitForURL(/\/work\/tasks$/)
       const row = page.locator('tr.task-row').first()
       await expect(row).toBeVisible()
-      // Activate via the row's empty trailing cell: it belongs to the <tr> itself, so the row's
-      // own onClick (unconditional onOpen) catches it. The title <Link> starts a rename for an
-      // editable row, and the PIC/Status/Due cells carry inline edit triggers that stop the
-      // click; Supervisor may be shed at the narrowest split widths.
-      const rowBox = (await row.boundingBox())!
-      await row.click({ position: { x: rowBox.width - 8, y: rowBox.height / 2 } })
+      // Activate via td.td-supervisor, a plain cell with no nested interactive element: the
+      // <tr>'s own onClick (unconditional onOpen) is the only handler left to catch the bubble.
+      // Three other doors were tried and rejected on the REAL stack (task-row.tsx): the title
+      // cell's innerText joins name + meta with a newline, so getByText(title, {exact:true})
+      // never matches it (round-3); the PIC cell (nth-child(3)) carries an inline edit trigger
+      // that stopPropagation()s, so a positional click there never opens the row (round-3); and
+      // `.task-row-link` — the title's own <Link> — calls beginEdit() instead of onOpen() for
+      // any row the viewer can rename (onTitleClick, task-row.tsx), so it silently enters inline
+      // rename instead of opening the drawer on the E2E fixture's own accountable-viewer row
+      // (round-5 finding: the class exists as instructed, but its click handler is "select to
+      // edit", not "open" — proven by running this guard against the live stack, not assumed).
+      await row.locator('td.td-supervisor').click()
       const drawer = page.getByRole('complementary', { name: /task detail/i })
       await expect(drawer).toBeVisible()
 
@@ -133,7 +139,7 @@ test.describe('desktop geometry guards', () => {
       expect(scrollWidths.scrollWidth, `task card must not overflow at ${width}px`).toBe(scrollWidths.clientWidth)
     }
 
-    for (const width of [1000, TASKS_SPLIT_MIN_WIDTH - 1]) {
+    for (const width of [1152, 1280]) {
       await page.setViewportSize({ width, height: 800 })
       await page.goto('work/tasks')
       await page.waitForURL(/\/work\/tasks$/)
@@ -144,8 +150,7 @@ test.describe('desktop geometry guards', () => {
       }))
       console.log(JSON.stringify({ width, scrollWidths: narrowScrollWidths }))
       expect(narrowScrollWidths.scrollWidth).toBe(narrowScrollWidths.clientWidth)
-      const narrowBox = (await narrowRow.boundingBox())!
-      await narrowRow.click({ position: { x: narrowBox.width - 8, y: narrowBox.height / 2 } })
+      await narrowRow.locator('td.td-supervisor').click()
       await expect(page.locator('.record-doc')).toBeVisible()
       await expect(page.getByRole('complementary', { name: /task detail/i })).toHaveCount(0)
       // The role-aware queue view is preserved while the narrow row promotes to the canonical

@@ -9,7 +9,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { MANAGER } from './fixtures/users'
-import { TASKS_RECORD_PANEL_FLOOR_PX } from '../src/shell/use-is-split-width'
+import { TASKS_RECORD_PANEL_FLOOR_PX, TASKS_SPLIT_MIN_WIDTH } from '../src/shell/use-is-split-width'
 
 const RECORD_PANEL_CAP_PX = 640
 // The identity column (Title / Message / Name) is never narrower than this nor wider than the
@@ -37,6 +37,10 @@ type Collection = {
   identityCellPadding: number
   /** Rows whose right edge must reach the card's. */
   rowBoxSelector: string
+  /** Tasks' virtualized list sets the identity width instead of reading it from its content. */
+  identityContentSized: boolean
+  /** Narrowest viewport at which a record opens beside the list. */
+  splitMinWidth: number
   /** The visible fact headers at 1300px with no record open (the catalog kept all of them before). */
   expectedHeadersAt1300?: string[]
 }
@@ -60,6 +64,8 @@ const COLLECTIONS: Collection[] = [
     identityContentSelector: 'td.td-main .task-title-cell',
     identityCellPadding: 24,
     rowBoxSelector: 'table.tasks-table tbody tr.task-row',
+    identityContentSized: false,
+    splitMinWidth: TASKS_SPLIT_MIN_WIDTH,
   },
   {
     name: 'Signals',
@@ -75,6 +81,8 @@ const COLLECTIONS: Collection[] = [
     identityContentSelector: '.signal-table-title-cell',
     identityCellPadding: 24,
     rowBoxSelector: 'table.signal-collection-table tbody tr:not(.dt-group-row)',
+    identityContentSized: true,
+    splitMinWidth: 1100,
   },
   {
     name: 'Projects & Processes',
@@ -87,6 +95,8 @@ const COLLECTIONS: Collection[] = [
     identityContentSelector: '.catalog-collection__identity',
     identityCellPadding: 0,
     rowBoxSelector: '.catalog-collection__row-link',
+    identityContentSized: true,
+    splitMinWidth: 1100,
     expectedHeadersAt1300: ['Name', 'Objective', 'Accountable', 'Cadence · due', 'Progress', 'Last activity'],
   },
   {
@@ -100,6 +110,8 @@ const COLLECTIONS: Collection[] = [
     identityContentSelector: '.catalog-collection__identity',
     identityCellPadding: 0,
     rowBoxSelector: '.catalog-collection__row-link',
+    identityContentSized: true,
+    splitMinWidth: 1100,
     expectedHeadersAt1300: ['Name', 'Business Unit', 'Accountable', 'Projects & Processes', 'Progress', 'Last activity'],
   },
 ]
@@ -299,8 +311,9 @@ test.describe('Work collections share one wide measure and one record-panel widt
   })
 
   // The column rule, swept across the laptop-to-ultrawide band, at rest and with a record open:
-  // (a) nothing overflows, (b) the identity column keeps its floor and cap, (c) the identity
-  // column is only as wide as its widest value and the first fact sits right after it,
+  // (a) nothing overflows, (b) the identity column keeps its floor and cap, (c) the first fact
+  // sits right after the identity column, which is only as wide as its widest value (Tasks' is
+  // width-capped instead: its virtualized list must not resize it as rows scroll in),
   // (d) at 1300px the catalog keeps every fact column, (e) rows reach the card's right edge.
   for (const width of SWEEP_WIDTHS) {
     test(`column rule at ${width}px, at rest and with a record open`, async ({ page }) => {
@@ -309,6 +322,8 @@ test.describe('Work collections share one wide measure and one record-panel widt
       await loginAs(page, MANAGER.email, MANAGER.password)
       for (const collection of COLLECTIONS) {
         for (const withRecord of [false, true]) {
+          // Below its split width Tasks opens the record as its full page; nothing to measure.
+          if (withRecord && width < collection.splitMinWidth) continue
           const label = `${collection.name} ${withRecord ? 'with a record open' : 'at rest'}, ${width}px`
           await page.goto(collection.path)
           // Measure the ready collection, not a loading shell.
@@ -326,7 +341,9 @@ test.describe('Work collections share one wide measure and one record-panel widt
           const g = await columnGeometry(page, collection)
           expect.soft(g.identityWidth, `${label}: identity column floor`).toBeGreaterThanOrEqual(IDENTITY_FLOOR_PX) // (b)
           expect.soft(g.identityWidth, `${label}: identity column cap`).toBeLessThanOrEqual(IDENTITY_COLUMN_CAP_PX + 1)
-          expect.soft(g.identityWidth, `${label}: identity column is no wider than its widest value`).toBeLessThanOrEqual(g.identityContentBound + 2) // (c)
+          if (collection.identityContentSized) {
+            expect.soft(g.identityWidth, `${label}: identity column is no wider than its widest value`).toBeLessThanOrEqual(g.identityContentBound + 2) // (c)
+          }
           if (g.factGap !== null) {
             expect.soft(g.factGap, `${label}: first fact sits beside the identity column`).toBeLessThanOrEqual(24 + g.gapPadding)
           }
@@ -359,6 +376,7 @@ test.describe('Work collections share one wide measure and one record-panel widt
       for (const width of widths) {
         await page.setViewportSize({ width, height: 1200 })
         await page.goto(collection.path)
+        await expect(page.locator(collection.rowSelector).first()).toBeVisible({ timeout: 15_000 })
         const box = await page.locator(collection.identityCellSelector).first().boundingBox()
         expect(box, `${collection.name} identity cell must render a box at ${width}px`).not.toBeNull()
         byWidth.push(box!.width)

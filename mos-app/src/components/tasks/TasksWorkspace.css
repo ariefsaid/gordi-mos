@@ -40,7 +40,7 @@
    column that fills it and scrolls its own content, so the two read as one surface. Scoped to
    the decision-column split threshold — below it the drawer isn't a column at all.
    Keep this literal equal to TASKS_SPLIT_MIN_WIDTH (use-is-split-width.ts); a test pins it. */
-@media (min-width: 1100px) {
+@media (min-width: 1440px) {
   .split:not(.nodrawer) { align-items: stretch; }
   .split .drawer {
     display: flex;
@@ -226,16 +226,15 @@
    table inside the content area; .tasks-scroll (overflow-x:auto) scrolls only the extended
    tier and absurdly narrow shells. */
 .tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 0; }
-/* Default columns: Task is as wide as its longest visible title (240-640px); Status, PIC,
-   Supervisor and Due follow it at fixed widths sized to their longest realistic value; leftover
-   width goes to one empty trailing cell (`tr::after`). Auto layout sizes Task from its content;
-   `.task-title-cell` caps that content at what the card leaves after the visible facts. The
-   extended (Fields) tier keeps its own fixed floors below. */
-.tasks-table:not(.tasks-table--extended) {
-  --tasks-facts-w: 570px; /* status + PIC + supervisor + due */
-  table-layout: auto;
+/* Default columns: Task takes the room the visible facts leave, never under 240px or over 640px;
+   Status, PIC, Supervisor and Due follow it at fixed widths sized to their longest realistic
+   value; leftover width goes to one empty trailing cell (`tr::after`). Task's width is set, not
+   read from its content, so a virtualized list never shifts it as rows scroll in. The extended
+   (Fields) tier keeps its own fixed floors below. */
+.tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 570px; } /* status + PIC + supervisor + due */
+.tasks-table th.th-task, .tasks-table td.td-main {
+  width: clamp(240px, calc(100cqw - var(--tasks-facts-w, 570px)), 640px);
 }
-.tasks-table th.th-task, .tasks-table td.td-main { width: 240px; } /* Task floor */
 /* Wide enough for the longest closed-vocabulary word in either locale without wrapping. */
 .tasks-table th.th-status, .tasks-table td.td-status { width: 132px; }
 /* Wide enough for a first name plus its avatar and gap. */
@@ -244,11 +243,6 @@
 /* Wide enough for the stacked "Overdue · <date>" state (task-row.tsx, DD-MVP-4) to stay on one
    line. */
 .tasks-table th.th-due, .tasks-table td.td-due { width: 208px; }
-.tasks-table:not(.tasks-table--extended) .task-title-cell {
-  width: max-content;
-  /* 24px = the Task cell's own padding; 616px + 24px = the 640px cap. */
-  max-width: clamp(216px, calc(100cqw - var(--tasks-facts-w) - 24px), 616px);
-}
 /* Facts drop only when keeping them would push Task under 240px: Supervisor, PIC, Status, then
    Due. Thresholds are the list's width: 240px + the kept facts. A list narrowed by an open record
    follows the same rule; the record itself shows every dropped fact. */

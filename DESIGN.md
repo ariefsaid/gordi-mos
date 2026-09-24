@@ -484,10 +484,12 @@ further constraints follow:
   measurement. A single-column page is never widened — 1180px is what keeps a line readable.
 - **Within a wide surface, the identity column is content-sized and everything else follows it.**
   In the four Work collections:
-  - **Identity** (Task title, Signal message, Project/Process or Objective name) is as wide as its
-    longest visible value, never narrower than **240px** and never wider than **640px**. Tasks
-    and Signals size it with auto table layout; Projects & Processes and Objectives with one grid
-    whose rows join it through subgrid.
+  - **Identity** (Signal message, Project/Process or Objective name) is as wide as its longest
+    visible value, never narrower than **240px** and never wider than **640px**. Signals sizes it
+    with auto table layout; Projects & Processes and Objectives with one grid whose rows join it
+    through subgrid. **Tasks' title column is width-capped, not content-sized**: its list is
+    virtualized, so a width read from the rows on screen would shift as rows scroll in. It takes
+    the room the visible facts leave, clamped to the same 240–640px, in a fixed-layout table.
   - **Facts** (status, people, dates, counts, links) sit immediately after the identity column at
     fixed widths sized to their longest realistic value (e.g. "Overdue · Sun 13 Sept" renders on
     one line). They never stretch.
@@ -507,10 +509,10 @@ further constraints follow:
 list — `styles/drawer.css` `.record-split` and the Deputy-beside-a-record offset, and
 `components/tasks/TasksWorkspace.css` `.split`, all read the one token rather than each authoring
 its own literal. Home's Signal panel (`.drawer-shell-split`) is not a Work-collection panel: it
-keeps its own narrower width, `min(44%, 480px)`, and does not use `--record-panel-w`. From 1100px
-every Work collection, Tasks included, opens a record beside its list: at 1100px the list keeps
-about 350px beside the smallest panel, above the identity floor, so the list sheds facts rather
-than the record falling back to a modal or page. Below 1100px the record opens as a modal or page.
+keeps its own narrower width, `min(44%, 480px)`, and does not use `--record-panel-w`. Signals,
+Projects & Processes and Objectives open a record beside the list from 1100px, and Tasks from its
+own split threshold (`TASKS_SPLIT_MIN_WIDTH`, `shell/use-is-split-width.ts`); below those widths
+the record opens as a modal or full page.
 
 ### Spacing: a real gap in the system (2026-07-29)
 
