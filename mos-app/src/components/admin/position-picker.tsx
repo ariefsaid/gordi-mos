@@ -1,85 +1,83 @@
-// PositionPicker — "Position" (Jabatan) section mounted inside RoleEditor's dialog (ADR-0050 D5,
-// FR-201/202/206, AC-125). Mirrors RoleEditor's checkbox-row structure/tokens/a11y, but for
-// shared.person_roles assignment. Never labeled "Role" — the org-chart position is "Position".
-// Checked = person.jabatan.some(j => j.role_id === role.id).
-// Toggle ON → assignJabatan, OFF → removeJabatan; then onDone() (list reload) + onShowToast().
-// Empty roles → muted "No positions defined yet" line (no crash).
-// Errors surface inline via role="alert" (mirror RoleEditor's error block).
+// PositionPicker — the Position (Jabatan) section of the person panel. A Position is an org
+// title, never labelled "Role", and carries no permission of its own.
+// Checked = person.jabatan.some(j => j.role_id === role.id); each row commits on toggle.
 
 import { useState } from 'react'
+import { useT } from '@/i18n/use-t'
+import { matchesTokens } from '@/lib/token-search'
 import { assignJabatan, removeJabatan } from '@/lib/db/admin-users'
 import type { AdminPersonRow, RoleOption } from '@/lib/db/admin-users.types'
-import { CheckboxRow, PickerError } from './checkbox-row'
+import { CheckboxRow } from './checkbox-row'
+import { FilterEmpty, ListFilter, ShowAll } from './long-list'
+import { FILTER_THRESHOLD, useLongList } from './use-long-list'
+import { RowStatus } from './row-status'
+import type { RowCommits } from './use-row-commits'
 
 export interface PositionPickerProps {
   person: AdminPersonRow
   /** All org roles (Positions), from listRoles(). */
   roles: RoleOption[]
-  /** Called after a successful assign/remove so the page can reload the list. */
-  onDone: () => void
-  /** Called with a success message after assign/remove succeeds. */
-  onShowToast?: (message: string) => void
+  /** The panel's shared row-commit state; keys here start with `pos:`. */
+  commits: RowCommits<boolean>
+  refresh: () => Promise<void>
 }
 
-export function PositionPicker({ person, roles, onDone, onShowToast }: PositionPickerProps) {
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+export function PositionPicker({ person, roles, commits, refresh }: PositionPickerProps) {
+  const t = useT()
+  const [filter, setFilter] = useState('')
+  const busy = commits.busy('pos:')
+  const assigned = (role: RoleOption) => person.jabatan.some((j) => j.role_id === role.id)
+  const list = useLongList(roles, (role) => role.id, assigned)
+  const collapsed = list.collapsed(filter)
+  const visible = list.ordered.filter((role) => collapsed
+    ? list.pinned(role) || commits.display(`pos:${role.id}`, assigned(role))
+    : matchesTokens(filter, [role.name]))
 
-  async function handleToggle(role: RoleOption) {
-    const isAssigned = person.jabatan.some((j) => j.role_id === role.id)
-    setBusy(true)
-    setError('')
-    try {
-      if (isAssigned) {
-        await removeJabatan(person.id, role.id)
-        onShowToast?.(`${role.name} removed from ${person.full_name}.`)
-      } else {
-        await assignJabatan(person.id, role.id)
-        onShowToast?.(`${role.name} assigned to ${person.full_name}.`)
-      }
-      onDone()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Position change failed. Try again.')
-    } finally {
-      setBusy(false)
-    }
+  function toggle(role: RoleOption, checked: boolean) {
+    const wanted = !checked
+    const write = wanted ? () => assignJabatan(person.id, role.id) : () => removeJabatan(person.id, role.id)
+    void commits.commit(`pos:${role.id}`, wanted, assigned(role), write, refresh)
   }
 
   return (
-    <div className="px-6 py-5" style={{ borderTop: '1px solid var(--border)' }}>
-      <h3
-        className="mb-2 text-sm font-semibold"
-        style={{ color: 'var(--foreground)' }}
-      >
-        Position
-      </h3>
-      <fieldset disabled={busy}>
-        <legend className="sr-only">Position for {person.full_name}</legend>
-
+    <div className="admin-person-section__body">
+      {roles.length > FILTER_THRESHOLD && (
+        <ListFilter section={t('admin.person.position')} value={filter} onChange={setFilter} />
+      )}
+      <fieldset>
+        <legend className="sr-only">{t('admin.position.legend', { name: person.full_name })}</legend>
         {roles.length === 0 ? (
-          <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-            No positions defined yet
-          </p>
+          <p className="admin-person-section__empty">{t('admin.position.none')}</p>
+        ) : visible.length === 0 ? (
+          !collapsed && <FilterEmpty query={filter} />
         ) : (
-          <div
-            className="overflow-hidden rounded-md"
-            style={{ border: '1px solid var(--input)' }}
-          >
-            {roles.map((role, i) => (
-              <CheckboxRow
-                key={role.id}
-                label={role.name}
-                checked={person.jabatan.some((j) => j.role_id === role.id)}
-                disabled={busy}
-                divider={i > 0}
-                onToggle={() => handleToggle(role)}
-              />
-            ))}
+          <div className="admin-choice-list">
+            {visible.map((role, i) => {
+              const key = `pos:${role.id}`
+              const checked = commits.display(key, assigned(role))
+              return (
+                <CheckboxRow
+                  key={role.id}
+                  label={role.name}
+                  checked={checked}
+                  disabled={busy}
+                  divider={i > 0}
+                  onToggle={() => toggle(role, checked)}
+                  trailing={
+                    <RowStatus
+                      status={commits.status(key)}
+                      error={commits.error(key)}
+                      item={role.name}
+                      onRetry={() => void commits.retry(key)}
+                    />
+                  }
+                />
+              )
+            })}
           </div>
         )}
+        {collapsed && visible.length < roles.length && <ShowAll count={roles.length} onShow={list.showAll} />}
       </fieldset>
-
-      <PickerError message={error} />
     </div>
   )
 }

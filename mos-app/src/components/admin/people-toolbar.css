@@ -91,22 +91,21 @@
     min-height: 44px;
   }
 
-  /* The five segments must all be READABLE at 390px, so the strip wraps to a second row
-     rather than scrolling: a horizontally-scrolled strip inside the list container's
-     `overflow: hidden` left the last segment invisible and unreachable, and Indonesian
-     labels ("Dinonaktifkan"/"Diarsipkan") make that the normal case, not the edge one.
-     Each LABEL still stays on one line (DO-22(d)) — it is the strip that wraps. */
+  /* One row that scrolls sideways: the strip scrolls INSIDE its own box, so a segment past the
+     edge is reachable by swipe or by the tabs' own Arrow/Home/End keys, and nothing wraps onto an
+     orphan line. Each label stays on one line (DO-22(d)). */
   .people-status-tabs {
     min-width: 0;
     width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
   .people-status-tabs .view-tabs {
-    width: 100%;
-    max-width: 100%;
+    width: max-content;
+    min-width: 100%;
     justify-content: flex-start;
-    flex-wrap: wrap;
-    row-gap: 4px;
+    flex-wrap: nowrap;
   }
 
   .people-status-tabs .view-tabs__tab {
@@ -124,5 +123,10 @@
 
   .people-tb-spacer {
     display: none;
+  }
+
+  /* Cards carry their own chrome, so the toolbar sits on the page gutter like the cards below. */
+  .people-toolbar--flush {
+    padding-inline: 0;
   }
 }

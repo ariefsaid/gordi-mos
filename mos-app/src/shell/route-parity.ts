@@ -19,6 +19,7 @@ export const ROUTE_PATHS = {
   cafeReview: 'cafe/review',
   cafePushes: 'cafe/pushes',
   adminPeople: 'admin/people',
+  adminTeams: 'admin/teams',
   adminAccess: 'admin/access',
   profile: 'profile',
 } as const
@@ -38,6 +39,7 @@ export type RouteParityId =
   | 'cafeReview'
   | 'cafePushes'
   | 'adminPeople'
+  | 'adminTeams'
   | 'adminAccess'
   | 'profile'
 
@@ -67,6 +69,7 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'cafeReview', path: absolutePath(ROUTE_PATHS.cafeReview), kind: 'child' },
   { id: 'cafePushes', path: absolutePath(ROUTE_PATHS.cafePushes), kind: 'child' },
   { id: 'adminPeople', path: absolutePath(ROUTE_PATHS.adminPeople), kind: 'visible-root' },
+  { id: 'adminTeams', path: absolutePath(ROUTE_PATHS.adminTeams), kind: 'utility', owner: 'admin-settings' },
   { id: 'adminAccess', path: absolutePath(ROUTE_PATHS.adminAccess), kind: 'utility', owner: 'admin-settings' },
   { id: 'profile', path: absolutePath(ROUTE_PATHS.profile), kind: 'utility', owner: 'breadcrumb' },
 ]

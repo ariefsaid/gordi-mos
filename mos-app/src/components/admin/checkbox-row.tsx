@@ -1,8 +1,8 @@
-// Shared primitives for the admin dialog's checkbox-list pickers (PositionPicker, RevenueScopePicker).
-// Extracts the one bit that was copied verbatim between them: the toggleable row (with the "Defect 3"
-// whole-row click target) and the inline error block. Each picker still owns its own section shell +
-// data shaping (PositionPicker = flat list; RevenueScopePicker = per-channel groups).
+// The toggleable row shared by the person panel's checkbox lists (Teams, Position, Access, Revenue
+// scope), with the "Defect 3" whole-row click target. Each list owns its own section shell and data
+// shaping.
 
+import type { ReactNode } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
 
 export interface CheckboxRowProps {
@@ -17,10 +17,13 @@ export interface CheckboxRowProps {
   indent?: boolean
   /** Stronger weight for a group-parent / select-all row. */
   emphasis?: boolean
-  /** Optional description sub-line under the label (for RoleEditor rows). */
+  /** Optional description sub-line under the label (Access role descriptions, stream labels). */
   description?: string
   /** Optional tooltip for disabled rows (shows why the row is disabled). */
   title?: string
+  /** Row-level controls and status beside the label. Rendered OUTSIDE the <label>, so a button
+   *  here is never a second click target for the checkbox. */
+  trailing?: ReactNode
 }
 
 /**
@@ -39,64 +42,45 @@ export function CheckboxRow({
   emphasis = false,
   description,
   title,
+  trailing,
 }: CheckboxRowProps) {
   return (
-    <label
-      className={`flex items-start gap-3 py-2.5 select-none ${indent ? 'pl-6 pr-3' : 'px-3'} ${
-        disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-accent/60'
-      }`}
-      style={divider ? { borderTop: '1px solid var(--input)' } : undefined}
-      onClick={() => {
-        if (!disabled) onToggle()
-      }}
-      title={title}
-    >
-      <span className="mt-0.5" onClick={(e) => e.stopPropagation()}>
-        <Checkbox
-          checked={checked}
-          disabled={disabled}
-          onChange={() => !disabled && onToggle()}
-          aria-label={label}
-        />
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span
-          className={`text-sm leading-tight ${emphasis ? 'font-semibold' : 'font-medium'}`}
-          style={{ color: 'var(--foreground)' }}
-        >
-          {label}
+    <div className="admin-check-row" style={divider ? { borderTop: '1px solid var(--input)' } : undefined}>
+      <label
+        className={`flex min-w-0 flex-1 items-start gap-3 py-2.5 select-none ${indent ? 'pl-6 pr-3' : 'px-3'} ${
+          disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-accent/60'
+        }`}
+        onClick={() => {
+          if (!disabled) onToggle()
+        }}
+        title={title}
+      >
+        <span className="mt-0.5" onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={checked}
+            disabled={disabled}
+            onChange={() => !disabled && onToggle()}
+            aria-label={label}
+          />
         </span>
-        {description && (
+        <span className="flex min-w-0 flex-1 flex-col">
           <span
-            className="text-xs leading-snug"
-            style={{ color: 'var(--muted-foreground)' }}
+            className={`text-sm leading-tight ${emphasis ? 'font-semibold' : 'font-medium'}`}
+            style={{ color: 'var(--foreground)' }}
           >
-            {description}
+            {label}
           </span>
-        )}
-      </span>
-    </label>
-  )
-}
-
-export interface PickerErrorProps {
-  message: string
-}
-
-/** Inline error block shared by the pickers (destructive-tinted, role="alert"). Renders nothing when empty. */
-export function PickerError({ message }: PickerErrorProps) {
-  if (!message) return null
-  return (
-    <div
-      role="alert"
-      className="mt-4 rounded-md px-3 py-2 text-sm"
-      style={{
-        background: 'color-mix(in srgb, var(--destructive) 10%, var(--card))',
-        color: 'var(--destructive)',
-        border: '1px solid color-mix(in srgb, var(--destructive) 30%, transparent)',
-      }}
-    >
-      {message}
+          {description && (
+            <span
+              className="text-xs leading-snug"
+              style={{ color: 'var(--muted-foreground)' }}
+            >
+              {description}
+            </span>
+          )}
+        </span>
+      </label>
+      {trailing && <div className="admin-check-row__trailing">{trailing}</div>}
     </div>
   )
 }
