@@ -225,6 +225,7 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
             expanded
             startingKey={startingKey}
             startError={startError}
+            context="process-record"
             onStart={handleStart}
           />
         </section>
