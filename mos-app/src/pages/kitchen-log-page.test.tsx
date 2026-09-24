@@ -35,6 +35,8 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     listStreamPairs: vi.fn(),
     resolveKitchenBuId: vi.fn(),
     insertKitchenLogBatch: vi.fn(),
+    listStreamItemIds: vi.fn(),
+    isItemNotOnStreamError: actual.isItemNotOnStreamError,
   }
 })
 // The person's own default stream — the ONE shape-validated resolver (default-stream.ts,
@@ -51,6 +53,7 @@ import {
   listStreamPairs,
   resolveKitchenBuId,
   insertKitchenLogBatch,
+  listStreamItemIds,
 } from '@/lib/db/kitchen-logs'
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { listActiveBranches } from '@/lib/db/branches'
@@ -71,6 +74,7 @@ const mockListStreamPairs = vi.mocked(listStreamPairs)
 const mockResolveKitchenBuId = vi.mocked(resolveKitchenBuId)
 const mockInsertKitchenLogBatch = vi.mocked(insertKitchenLogBatch)
 const mockListActiveBranches = vi.mocked(listActiveBranches)
+const mockListStreamItemIds = vi.mocked(listStreamItemIds)
 
 // The canonical branch catalog (OD-WAY-39) — "Transfer to Bungur" is a transfer whose
 // destination IS the origin. The ROASTERY is deliberately in the catalog: it is a branch
@@ -311,14 +315,18 @@ describe('Unauthenticated state', () => {
 
 // ── empty state (no WIP items) ────────────────────────────────────────────────
 describe('Empty state — no WIP items (FR-011)', () => {
-  it('resolved-empty item read renders the honest empty form, not an error', async () => {
+  it('issue 222: a stream with an empty item list names the stream and who can fill it — no form, no error', async () => {
     mockListCaptureFormItems.mockResolvedValue([])
     // An empty item roster must not turn an unnecessary plan read into a false item-read error.
     mockFetchPlanMap.mockRejectedValue(new Error('no plan read should be needed'))
     await renderPage()
     await waitFor(() => {
-      expect(screen.getByText(/no active wip items/i)).toBeInTheDocument()
+      expect(screen.getByText('No items for Rumah Rames · Kitchen')).toBeInTheDocument()
     })
+    expect(screen.getByText(/an ops lead or admin can add them/i)).toBeInTheDocument()
+    expect(mockListCaptureFormItems).toHaveBeenCalledWith(DEFAULT_STREAM)
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^submit/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -983,6 +991,87 @@ describe('Submitting state', () => {
       const submitBtn = screen.getByRole('button', { name: /submitting|submit/i })
       expect(submitBtn).toBeDisabled()
     })
+  })
+})
+
+// ── Stream item lists (#222) ──────────────────────────────────────────────────
+describe('issue 222: capture offers the stream\'s own item list', () => {
+  const NOT_ON_LIST = new Error('insertKitchenLogBatch failed — CAFE_ITEM_NOT_ON_STREAM: the item is not on this stream\'s item list')
+
+  it('switching stream re-reads the list for the new stream', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    mockListCaptureFormItems.mockResolvedValue([WIP_ITEMS[1]])
+    await chooseStream('Gordi HQ · Kitchen')
+    await waitFor(() => expect(screen.queryByText('Ayam Bakar')).not.toBeInTheDocument())
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+    expect(mockListCaptureFormItems).toHaveBeenLastCalledWith(
+      expect.objectContaining({ branch: BRANCH_GORDI_HQ, activity: 'kitchen' }),
+    )
+  })
+
+  it('a line refused as off-list keeps the draft, is marked, and says what to do; clearing it lets Submit through', async () => {
+    mockInsertKitchenLogBatch.mockRejectedValueOnce(NOT_ON_LIST).mockResolvedValueOnce(['log-1'])
+    // The list changed while the form was open: Nasi Goreng is still listed, Ayam Bakar is not.
+    mockListStreamItemIds.mockResolvedValue(new Set(['w2']))
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const ayam = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    const nasi = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(ayam, { target: { value: '17' } })
+    fireEvent.change(nasi, { target: { value: '12' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+      await Promise.resolve()
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/no longer on this stream.s list\. clear the marked lines or switch stream/i)
+    expect(ayam).toHaveValue(17)
+    expect(nasi).toHaveValue(12)
+    expect(screen.getAllByText('Not on this stream’s list')).toHaveLength(1)
+    const marked = screen.getByText('Not on this stream’s list').closest('tr, .dt-card')
+    expect(marked).toHaveTextContent('Ayam Bakar')
+
+    fireEvent.change(ayam, { target: { value: '0' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(2))
+    expect(mockInsertKitchenLogBatch.mock.calls[1][0].map(row => row.wip_item_id)).toEqual(['w2'])
+    await waitFor(() => expect(screen.queryByText('Not on this stream’s list')).not.toBeInTheDocument())
+  })
+
+  it('switching stream with typed quantities asks first; Cancel keeps them, confirming switches', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    const nasi = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    fireEvent.change(nasi, { target: { value: '12' } })
+
+    await chooseStream('Gordi HQ · Kitchen')
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent(/you have 1 quantity entered for rumah rames · kitchen/i)
+    expect(dialog).toHaveTextContent(/switching to gordi hq · kitchen clears them/i)
+    const planCallsBefore = mockFetchPlanMap.mock.calls.length
+
+    fireEvent.click(within(dialog).getByRole('button', { name: /cancel/i }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(nasi).toHaveValue(12)
+    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveTextContent('Rumah Rames · Kitchen')
+    expect(mockFetchPlanMap.mock.calls.length).toBe(planCallsBefore)
+
+    await chooseStream('Gordi HQ · Kitchen')
+    const again = await screen.findByRole('dialog')
+    await act(async () => {
+      fireEvent.click(within(again).getByRole('button', { name: /discard and switch/i }))
+      await Promise.resolve()
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveTextContent('Gordi HQ · Kitchen')
+    })
+    expect(screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })).not.toHaveValue(12)
   })
 })
 

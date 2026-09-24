@@ -33,6 +33,8 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     approveKitchenLog: vi.fn(),
     approveKitchenLogsBulk: vi.fn(),
     rejectKitchenLog: vi.fn(),
+    // #222: every queued item is on its stream's list unless a test says otherwise.
+    listAllStreamItemKeys: vi.fn(async () => ({ has: () => true })),
   }
 })
 import {
@@ -43,6 +45,8 @@ import {
   approveKitchenLogsBulk,
   rejectKitchenLog,
   KitchenRpcError,
+  listAllStreamItemKeys,
+  streamItemKey,
 } from '@/lib/db/kitchen-logs'
 
 // The viewer's own stream comes from the ONE resolver (#234 consolidation), which returns a
@@ -1153,5 +1157,18 @@ describe('issue 587: the row names its own stream in the All-streams view', () =
     // the SELECT itself legitimately carries this stream's name as an <option> — the
     // assertion is on the queue row, never on the filter control.
     expect(document.querySelector('.krow-stream')).toBeNull()
+  })
+})
+
+describe('issue 222: a queued row whose item left its stream\'s list stays reviewable, labelled', () => {
+  it('labels only that row and keeps its decision controls', async () => {
+    vi.mocked(listAllStreamItemKeys).mockResolvedValue(new Set([streamItemKey(BRANCH_ID, 'kitchen', 'w2')]))
+    mockList.mockResolvedValue([PROD_LOG, XFER_LOG])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    expect(screen.getAllByText('Not on this stream’s list')).toHaveLength(1)
+    const card = screen.getByText('Not on this stream’s list').closest('tr, .krow-card') as HTMLElement
+    expect(card).toHaveTextContent('Nasi Goreng')
+    expect(within(card).getByRole('button', { name: /approve/i })).toBeEnabled()
   })
 })

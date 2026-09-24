@@ -27,6 +27,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     fetchKitchenStock: vi.fn(),
     listStreamPairs: vi.fn(),
     listActiveWipItems: vi.fn(),
+    listStreamItemIds: vi.fn(async () => ({ has: () => true })),
   }
 })
 import { fetchKitchenStock, listStreamPairs, listActiveWipItems } from '@/lib/db/kitchen-logs'

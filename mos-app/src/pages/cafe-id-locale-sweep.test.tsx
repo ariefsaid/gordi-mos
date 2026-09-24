@@ -28,6 +28,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     listActiveWipItems: vi.fn(), listCaptureFormItems: vi.fn(), fetchPlanMap: vi.fn(), fetchStockMap: vi.fn(),
     fetchActualsMap: vi.fn(), listStreamPairs: vi.fn(), resolveKitchenBuId: vi.fn(), listSubmittedKitchenLogs: vi.fn(),
     fetchKitchenStock: vi.fn(), approveKitchenLog: vi.fn(), approveKitchenLogsBulk: vi.fn(), rejectKitchenLog: vi.fn(),
+    listStreamItemIds: vi.fn(async () => ({ has: () => true })), listAllStreamItemKeys: vi.fn(async () => ({ has: () => true })),
   }
 })
 vi.mock('@/lib/db/kitchen-plans', () => ({ listKitchenPlans: vi.fn(), listPesanan: vi.fn(), upsertKitchenPlan: vi.fn() }))

@@ -26,7 +26,7 @@ import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useSearchParamState } from '@/lib/use-search-param-state'
-import { listActiveWipItems } from '@/lib/db/kitchen-logs'
+import { isItemNotOnStreamError, listActiveWipItems, listStreamItemIds } from '@/lib/db/kitchen-logs'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { listKitchenPlans, listPesanan, upsertKitchenPlan } from '@/lib/db/kitchen-plans'
 import type {
@@ -42,10 +42,12 @@ import {
   movementsEqual,
   movementsForStream,
   PRODUCE,
+  streamLabel,
   streamProduces,
 } from '@/lib/kitchen-action-label'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
 import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
+import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
@@ -113,6 +115,11 @@ export function KitchenPlanPage() {
 // ════════════════════════════════════════════════════════════════════════════
 // ops_lead / admin — the plan EDITOR (FR-030/031)
 // ════════════════════════════════════════════════════════════════════════════
+// The rows a stream's plan shows: its listed items, plus any item already planned there (#222).
+function streamRows(items: WipItemOption[], offered: Set<string>, planCells: PlanCell[]): WipItemOption[] {
+  return items.filter(item => offered.has(item.id) || planCells.some(cell => cell.wip_item_id === item.id))
+}
+
 function PlanEditor() {
   const t = useT()
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
@@ -148,6 +155,9 @@ function PlanEditor() {
   )
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [items, setItems] = useState<WipItemOption[]>([])
+  // The stream's item list (#222). New plan rows are offered only for these; a row already
+  // planned for any other item stays on screen, labelled, with its quantity editable.
+  const [offeredIds, setOfferedIds] = useState<Set<string>>(new Set())
   const [cells, setCells] = useState<PlanCell[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
@@ -188,9 +198,13 @@ function PlanEditor() {
     setLoad({ kind: 'loading' })
     try {
       const [itemRows, catalog] = await Promise.all([listActiveWipItems(), resolveStream()])
-      const planCells = catalog.stream ? await listKitchenPlans(logDate, catalog.stream) : []
+      const [planCells, offered] = catalog.stream
+        ? await Promise.all([listKitchenPlans(logDate, catalog.stream), listStreamItemIds(catalog.stream)])
+        : [[], null]
       if (gen !== requestGen.current) return
-      setItems(itemRows)
+      // No stream yet: every item, read-only until a stream is chosen (planWriteClosed).
+      setItems(offered ? streamRows(itemRows, offered, planCells) : itemRows)
+      setOfferedIds(offered ?? new Set())
       adoptStream(catalog)
       setMovement(PRODUCE)
       setCells(planCells)
@@ -210,14 +224,27 @@ function PlanEditor() {
     setMovement(PRODUCE)
     setLoad({ kind: 'loading' })
     try {
-      const planCells = await listKitchenPlans(logDate, nextStream)
+      const [itemRows, planCells, offered] = await Promise.all([
+        listActiveWipItems(), listKitchenPlans(logDate, nextStream), listStreamItemIds(nextStream),
+      ])
       if (gen !== requestGen.current) return
+      setItems(streamRows(itemRows, offered, planCells))
+      setOfferedIds(offered)
       setCells(planCells)
       setLoad({ kind: 'ready' })
     } catch {
       if (gen === requestGen.current) setLoad({ kind: 'error' })
     }
   }, [logDate, chooseStream])
+
+  // A new plan row needs the item on the stream's list; an existing row keeps its quantity editable.
+  const canPlan = useCallback(
+    (wipItemId: string): boolean =>
+      offeredIds.has(wipItemId)
+      || cells.some(c => c.wip_item_id === wipItemId && movementsEqual(c.movement, movement)),
+    [cells, movement, offeredIds],
+  )
+  const offList = (wipItemId: string) => stream !== null && !offeredIds.has(wipItemId)
 
   // Plan qty for (item, current movement) — 0 when no plan row yet.
   const qtyOf = useCallback(
@@ -240,6 +267,7 @@ function PlanEditor() {
       return
     }
     const current = qtyOf(wipItemId)
+    if (!canPlan(wipItemId)) return
     if (nextQty === current) return
     setSavingId(wipItemId)
     setSaveError('')
@@ -266,7 +294,13 @@ function PlanEditor() {
       if (savedTimer.current) clearTimeout(savedTimer.current)
       savedTimer.current = setTimeout(() => setJustSavedId(null), 1500)
     } catch (err) {
-      setSaveError(err instanceof Error ? `Couldn't save — ${err.message}` : "Couldn't save — please try again.")
+      if (isItemNotOnStreamError(err)) {
+        // The list changed while the editor was open (#222): re-read it so the row reads as off-list.
+        setSaveError(t('kitchen.plan.error.itemNotOnStream'))
+        listStreamItemIds(stream).then(setOfferedIds, () => {})
+      } else {
+        setSaveError(err instanceof Error ? `Couldn't save — ${err.message}` : "Couldn't save — please try again.")
+      }
     } finally {
       setSavingId(null)
     }
@@ -303,6 +337,7 @@ function PlanEditor() {
     render: item => (
       <span className="kp-dish">
         <span className="kp-name">{item.name}</span>
+        {offList(item.id) && <NotOnStreamTag />}
         {item.category && <span className="kp-cat">{kitchenCategoryLabel(t, item.category)}</span>}
       </span>
     ),
@@ -335,7 +370,7 @@ function PlanEditor() {
               // #548 FR-006: a missing or receiving-only stream keeps the committed value
               // readable but closes the field; offline also pre-disables it. Commit state
               // renders beside the field at the page.
-              disabled={!isOnline || planWriteClosed}
+              disabled={!isOnline || planWriteClosed || !canPlan(item.id)}
               onSave={next => saveCell(item.id, next)}
               dense={isDesktop}
             />
@@ -377,11 +412,12 @@ function PlanEditor() {
         <div className="kp-card-head">
           <span className="kp-card-name">
             {item.name}
+            {offList(item.id) && <NotOnStreamTag />}
           </span>
           <PlanQtyField
             itemName={item.name}
             qty={qtyOf(item.id)}
-            disabled={!isOnline || planWriteClosed}
+            disabled={!isOnline || planWriteClosed || !canPlan(item.id)}
             onSave={next => saveCell(item.id, next)}
           />
         </div>
@@ -461,8 +497,8 @@ function PlanEditor() {
       {load.kind === 'ready' && items.length === 0 && (
         <EmptyState
           variant="blank"
-          title={t('kitchen.empty.noActiveItems.title')}
-          copy={t('kitchen.plan.empty.copy')}
+          title={stream ? t('kitchen.streamItems.empty.title', { stream: streamLabel(t, stream) }) : t('kitchen.empty.noActiveItems.title')}
+          copy={stream ? t('kitchen.streamItems.empty.copy') : t('kitchen.plan.empty.copy')}
         />
       )}
 

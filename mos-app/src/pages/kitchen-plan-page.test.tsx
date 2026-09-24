@@ -35,9 +35,15 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
   // #440: the head's stream picker offers the ENUMERATED stream catalog, so the page reads the
   // live stream Teams. Un-mocked that hits Supabase and every bootstrap lands in the error state.
-  return { ...actual, listActiveWipItems: vi.fn(), listStreamPairs: vi.fn() }
+  // #222: every item is on the stream's list unless a test says otherwise.
+  return {
+    ...actual,
+    listActiveWipItems: vi.fn(),
+    listStreamPairs: vi.fn(),
+    listStreamItemIds: vi.fn(async () => ({ has: () => true })),
+  }
 })
-import { listActiveWipItems, listStreamPairs } from '@/lib/db/kitchen-logs'
+import { listActiveWipItems, listStreamItemIds, listStreamPairs } from '@/lib/db/kitchen-logs'
 
 // shared.default_stream() (FR-001) — the viewer's own stream. #440: the plan surfaces resolve
 // their stream the way the capture surface always did, instead of guessing at the catalog.
@@ -896,4 +902,50 @@ it('gives a receiving-only member a Stock handoff without production inputs', as
   expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', '/cafe/stock')
   expect(screen.queryByRole('spinbutton')).toBeNull()
   expect(mockUpsert).not.toHaveBeenCalled()
+})
+
+describe('issue 222: the plan offers the stream\'s own item list', () => {
+  const mockOffered = vi.mocked(listStreamItemIds)
+  const WITH_UNLISTED: WipItemOption[] = [...ITEMS, { id: 'w3', name: 'Es Teh', category: 'Drinks' }]
+  const NOT_ON_LIST = new Error('upsertKitchenPlan failed — CAFE_ITEM_NOT_ON_STREAM: the item is not on this stream\'s item list')
+
+  it('a row already planned for an off-list item stays, labelled and editable; an off-list item with no plan is not offered', async () => {
+    mockItems.mockResolvedValue(WITH_UNLISTED)
+    mockOffered.mockResolvedValue(new Set(['w2']))
+    mockPlans.mockResolvedValue(PLAN_CELLS) // Ayam Bakar (w1) planned at 12, then left the list
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+
+    expect(screen.queryByText('Es Teh')).not.toBeInTheDocument()
+    expect(screen.getAllByText('Not on this stream’s list')).toHaveLength(1)
+    expect(screen.getByText('Not on this stream’s list').closest('tr, .kp-card')).toHaveTextContent('Ayam Bakar')
+    const ayam = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    expect(ayam).toBeEnabled()
+    fireEvent.change(ayam, { target: { value: '15' } })
+    fireEvent.blur(ayam)
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({ wip_item_id: 'w1', qty_porsi: 15 })))
+    expect(mockOffered).toHaveBeenCalledWith(OWN_STREAM)
+  })
+
+  it('an empty list names the stream and who can fill it', async () => {
+    mockOffered.mockResolvedValue(new Set())
+    render(<KitchenPlanPage />, { wrapper })
+    expect(await screen.findByText('No items for Rumah Rames · Kitchen')).toBeInTheDocument()
+    expect(screen.getByText(/an ops lead or admin can add them/i)).toBeInTheDocument()
+    expect(screen.queryByRole('spinbutton')).toBeNull()
+  })
+
+  it('a save refused as off-list reads as guidance and the row turns read-only', async () => {
+    mockOffered.mockResolvedValueOnce(new Set(['w1', 'w2'])).mockResolvedValue(new Set(['w2']))
+    mockUpsert.mockRejectedValueOnce(NOT_ON_LIST)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const ayam = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(ayam, { target: { value: '9' } })
+    fireEvent.blur(ayam)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/no longer on this stream.s list, so it can.t be planned here/i)
+    await waitFor(() => expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toBeDisabled())
+    expect(screen.getByText('Not on this stream’s list')).toBeInTheDocument()
+  })
 })

@@ -34,6 +34,7 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { fetchKitchenStock } from '@/lib/db/kitchen-logs'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import type { KitchenStockRow, ProductionStream } from '@/lib/db/kitchen-logs.types'
@@ -126,6 +127,7 @@ function KitchenStockPageForViewer() {
       render: row => (
         <span className="ks-item">
           <span>{row.wip_item_name}</span>
+          {row.on_stream === false && <NotOnStreamTag />}
           {row.category && <span className="ks-category">{kitchenCategoryLabel(t, row.category)}</span>}
         </span>
       ),
@@ -146,6 +148,7 @@ function KitchenStockPageForViewer() {
   const renderStockCard = (row: KitchenStockRow) => (
     <div className="ks-card">
       <span className="ks-card-name">{row.wip_item_name}</span>
+      {row.on_stream === false && <NotOnStreamTag />}
       <div className="ks-card-meta">
         <span><span className="ks-card-label">{t('kitchen.stock.col.stok')}</span> <strong className="tabular">{row.stok}</strong></span>
         <span><span className="ks-card-label">{t('kitchen.stock.card.erp')}</span> <span className="ks-erp-pending">—</span></span>

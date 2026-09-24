@@ -588,3 +588,17 @@ describe('issue 455: document title', () => {
     await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.stock')))
   })
 })
+
+describe('issue 222: stock keeps every balance, labelling items off the stream\'s list', () => {
+  it('an item off the list still shows its balance, labelled', async () => {
+    mockFetchStock.mockResolvedValue([
+      { ...STOCK_ROWS[0], on_stream: true },
+      { ...STOCK_ROWS[1], on_stream: false },
+    ])
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getAllByText('Not on this stream’s list')).toHaveLength(1)
+    expect(screen.getByText('Not on this stream’s list').closest('tr, .ks-card')).toHaveTextContent('Nasi Goreng')
+  })
+})
