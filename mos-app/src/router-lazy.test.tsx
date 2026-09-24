@@ -43,6 +43,7 @@ import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
 import { AdminUsersPage } from './pages/admin-users-page'
 import { AdminAccessPage } from './pages/admin-access-page'
+import { AdminTeamsPage } from './pages/admin-teams-page'
 import { RecoveryPage } from './pages/recovery-page'
 import { SliceStubPage } from './pages/slice-stub-page'
 
@@ -165,6 +166,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   // locale control in the app, so the stub left the Indonesian catalog unreachable.
   ['/profile', ProfilePage, 'v4'],
   ['/admin/people', AdminUsersPage, 'dev'],
+  ['/admin/teams', AdminTeamsPage, 'redesign'],
   ['/admin/access', AdminAccessPage, 'redesign'],
   ['/recovery', RecoveryPage, 'dev'],
 ]

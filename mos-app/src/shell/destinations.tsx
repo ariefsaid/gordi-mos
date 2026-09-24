@@ -2,12 +2,12 @@ import type React from 'react'
 import type { MessageKey } from '@/i18n/messages'
 import { REVENUE_VIEW_ROLES } from '@/lib/capabilities'
 import { isShipGated } from '@/lib/ship-gate'
-import { CAFE_SECTIONS, sectionForPath, visibleSections, type Section } from './sections'
+import { ADMIN_SECTIONS, CAFE_SECTIONS, sectionForPath, visibleSections, type Section } from './sections'
 import {
   HomeIcon, TasksIcon, InboxIcon, WorkLineIcon, ObjectiveIcon,
   WorkIcon, SignalsIcon, MoneyIcon,
   CafeIcon, EcommerceIcon, RoasteryIcon,
-  ProfileIcon, ShieldIcon, PeopleIcon,
+  ProfileIcon, ShieldIcon,
 } from './icons'
 
 /**
@@ -277,7 +277,9 @@ export const UTILITY: Destination[] = [
     Icon: ShieldIcon,
     anyOf: ['admin'],
     primaryPath: '/admin/people',
-    links: [{ path: '/admin/people', label: 'People', labelKey: 'nav.admin.people', Icon: PeopleIcon }],
+    // All three Admin Settings tabs, so each resolves to Admin Settings for the rail's active
+    // state and the breadcrumb. Nav surfaces still draw one entry, at `primaryPath`.
+    links: ADMIN_SECTIONS,
   },
   {
     id: 'profile',

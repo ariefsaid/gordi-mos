@@ -1,27 +1,26 @@
-// RevenueScopePicker — "Revenue scope" section mounted inside RoleEditor's dialog (ADR-0051,
-// FR-323, AC-323), rendered only when the person holds `supervisor`. Mirrors PositionPicker's
-// checkbox-row structure/tokens/a11y, but for reporting.supervisor_revenue_scope assignment.
+// RevenueScopePicker — the Revenue scope section of the person panel (ADR-0051, FR-323, AC-323),
+// rendered only when the person holds `supervisor`. Same row grammar as PositionPicker, for
+// reporting.supervisor_revenue_scope assignment.
 // Never labeled "Role" — this is per-branch revenue visibility, not an access role.
 // Grouped by channel (POS then B2B); each group has a "Whole {channel}" row (branch_code null)
 // plus one row per branch (label branch_name ?? branch_code).
 // Checked = person.revenue_scope.some(s => s.channel === row.channel && s.branch_code === row.branch_code).
-// Toggle ON → assignRevenueScope, OFF → removeRevenueScope; then onDone() (list reload) + onShowToast().
-// Empty options → muted "No revenue branches available yet" line (no crash).
-// Errors surface inline via role="alert" (mirror PositionPicker's error block).
+// Toggle ON → assignRevenueScope, OFF → removeRevenueScope; each row reports its own save.
 
-import { useState } from 'react'
+import { useT } from '@/i18n/use-t'
 import { assignRevenueScope, removeRevenueScope } from '@/lib/db/admin-users'
 import type { AdminPersonRow, RevenueScopeOption } from '@/lib/db/admin-users.types'
-import { CheckboxRow, PickerError } from './checkbox-row'
+import { CheckboxRow } from './checkbox-row'
+import { RowStatus } from './row-status'
+import type { RowCommits } from './use-row-commits'
 
 export interface RevenueScopePickerProps {
   person: AdminPersonRow
   /** Distinct live (channel, branch) options, from listRevenueScopeOptions(). */
   options: RevenueScopeOption[]
-  /** Called after a successful assign/remove so the page can reload the list. */
-  onDone: () => void
-  /** Called with a success message after assign/remove succeeds. */
-  onShowToast?: (message: string) => void
+  /** The panel's shared row-commit state; keys here start with `scope:`. */
+  commits: RowCommits<boolean>
+  refresh: () => Promise<void>
 }
 
 // One toggleable row: either "Whole {channel}" (branch_code null) or a specific branch.
@@ -40,14 +39,14 @@ interface ChannelGroup {
 
 /** Groups options by channel (POS then B2B); each group's first row is "Whole {channel}",
  *  followed by that channel's branch rows — never a flat cross-channel list (design-review). */
-function buildChannelGroups(options: RevenueScopeOption[]): ChannelGroup[] {
+function buildChannelGroups(options: RevenueScopeOption[], wholeLabel: (channel: string) => string): ChannelGroup[] {
   const channels = CHANNEL_ORDER.filter((c) => options.some((o) => o.channel === c)).concat(
     Array.from(new Set(options.map((o) => o.channel))).filter((c) => !CHANNEL_ORDER.includes(c)),
   )
   return channels.map((channel) => ({
     channel,
     rows: [
-      { channel, branch_code: null, label: `Whole ${channel}` },
+      { channel, branch_code: null, label: wholeLabel(channel) },
       ...options
         .filter((o) => o.channel === channel)
         .map((opt) => ({
@@ -59,82 +58,59 @@ function buildChannelGroups(options: RevenueScopeOption[]): ChannelGroup[] {
   }))
 }
 
-export function RevenueScopePicker({ person, options, onDone, onShowToast }: RevenueScopePickerProps) {
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+export function RevenueScopePicker({ person, options, commits, refresh }: RevenueScopePickerProps) {
+  const t = useT()
+  const busy = commits.busy('scope:')
+  const groups = buildChannelGroups(options, (channel) => t('admin.scope.whole', { channel }))
+  const isAssigned = (row: ScopeRow) =>
+    person.revenue_scope.some((s) => s.channel === row.channel && s.branch_code === row.branch_code)
 
-  const groups = buildChannelGroups(options)
-
-  async function handleToggle(row: ScopeRow) {
-    const isAssigned = person.revenue_scope.some(
-      (s) => s.channel === row.channel && s.branch_code === row.branch_code,
-    )
-    setBusy(true)
-    setError('')
-    try {
-      if (isAssigned) {
-        await removeRevenueScope(person.id, row.channel, row.branch_code)
-      } else {
-        await assignRevenueScope(person.id, row.channel, row.branch_code)
-      }
-      onShowToast?.(`Revenue scope updated for ${person.full_name}.`)
-      onDone()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Revenue scope change failed. Try again.')
-    } finally {
-      setBusy(false)
-    }
+  function toggle(row: ScopeRow, checked: boolean) {
+    const wanted = !checked
+    const write = wanted
+      ? () => assignRevenueScope(person.id, row.channel, row.branch_code)
+      : () => removeRevenueScope(person.id, row.channel, row.branch_code)
+    void commits.commit(rowKey(row), wanted, isAssigned(row), write, refresh)
   }
 
   return (
-    <div className="px-6 py-5" style={{ borderTop: '1px solid var(--border)' }}>
-      <h3
-        className="mb-2 text-sm font-semibold"
-        style={{ color: 'var(--foreground)' }}
-      >
-        Revenue scope
-      </h3>
-      <p className="mb-2 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-        Which branches&apos; revenue this person can see
-      </p>
+    <div className="admin-person-section__body">
+      <p className="admin-person-section__helper">{t('admin.scope.helper')}</p>
       {groups.length === 0 ? (
-        <p className="text-sm" style={{ color: 'var(--muted-foreground)' }}>
-          No revenue branches available yet
-        </p>
+        <p className="admin-person-section__empty">{t('admin.scope.none')}</p>
       ) : (
         groups.map((group) => (
-          // One fieldset per channel — a screen reader announces the channel (via its own
-          // legend) when entering that channel's rows, instead of one flat legend spanning
-          // every channel (design-review: channel grouping wasn't expressed before).
-          <fieldset key={group.channel} disabled={busy} className="mb-4 last:mb-0">
+          // One fieldset per channel — a screen reader announces the channel when entering its rows.
+          <fieldset key={group.channel} className="mb-4 last:mb-0">
             <legend className="sr-only">
-              Revenue scope — {group.channel} for {person.full_name}
+              {t('admin.scope.legend', { channel: group.channel, name: person.full_name })}
             </legend>
-            <div
-              aria-hidden="true"
-              className="mb-1.5 px-0.5 text-xs font-semibold uppercase tracking-wide"
-              style={{ color: 'var(--muted-foreground)' }}
-            >
+            <div aria-hidden="true" className="admin-person-section__group">
               {group.channel}
             </div>
-            <div
-              className="overflow-hidden rounded-md"
-              style={{ border: '1px solid var(--input)' }}
-            >
+            <div className="admin-choice-list">
               {group.rows.map((row, i) => {
+                const key = rowKey(row)
+                const checked = commits.display(key, isAssigned(row))
                 const isWholeChannel = row.branch_code === null
                 return (
                   <CheckboxRow
-                    key={`${row.channel}-${row.branch_code ?? 'whole'}`}
+                    key={key}
                     label={row.label}
-                    checked={person.revenue_scope.some(
-                      (s) => s.channel === row.channel && s.branch_code === row.branch_code,
-                    )}
+                    checked={checked}
                     disabled={busy}
                     divider={i > 0}
                     indent={!isWholeChannel}
                     emphasis={isWholeChannel}
-                    onToggle={() => handleToggle(row)}
+                    onToggle={() => toggle(row, checked)}
+                    trailing={
+                      <RowStatus
+                        status={commits.status(key)}
+                        error={commits.error(key)}
+                        item={row.label}
+                        onRetry={() => void commits.retry(key)}
+                      />
+                    }
                   />
                 )
               })}
@@ -142,8 +118,10 @@ export function RevenueScopePicker({ person, options, onDone, onShowToast }: Rev
           </fieldset>
         ))
       )}
-
-      <PickerError message={error} />
     </div>
   )
+}
+
+function rowKey(row: ScopeRow): string {
+  return `scope:${row.channel}:${row.branch_code ?? '*'}`
 }

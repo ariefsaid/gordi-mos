@@ -1,6 +1,7 @@
-// PositionPicker tests — TDD, FR-201/202/206, AC-125.
-// Tests: lists roles under "Position" (never "Role"), toggle ON calls assignJabatan,
-// toggle OFF calls removeJabatan, empty roles shows the muted empty line, RPC error surfaces inline.
+// PositionPicker tests — FR-201/202/206, AC-125.
+// Tests: lists roles as the person's Position (never "Role"), toggle ON calls assignJabatan,
+// toggle OFF calls removeJabatan, empty roles shows the muted empty line, a failure reports beside
+// the row.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
@@ -13,6 +14,7 @@ vi.mock('@/lib/db/admin-users', () => ({
 import { assignJabatan, removeJabatan } from '@/lib/db/admin-users'
 
 import { PositionPicker } from './position-picker'
+import { useRowCommits } from './use-row-commits'
 import type { AdminPersonRow, RoleOption } from '@/lib/db/admin-users.types'
 
 const mockAssignJabatan = vi.mocked(assignJabatan)
@@ -48,25 +50,23 @@ beforeEach(() => {
   mockRemoveJabatan.mockResolvedValue(undefined)
 })
 
+function Harness({ person, roles, refresh }: { person: AdminPersonRow; roles: RoleOption[]; refresh: () => Promise<void> }) {
+  const commits = useRowCommits<boolean>()
+  return <PositionPicker person={person} roles={roles} commits={commits} refresh={refresh} />
+}
+
 function renderPicker(
   person: AdminPersonRow = PERSON_NO_POSITION,
   roles: RoleOption[] = ROLES,
-  opts: { onDone?: () => void; onShowToast?: (message: string) => void } = {},
+  opts: { refresh?: () => Promise<void> } = {},
 ) {
-  return render(
-    <PositionPicker
-      person={person}
-      roles={roles}
-      onDone={opts.onDone ?? vi.fn()}
-      onShowToast={opts.onShowToast}
-    />,
-  )
+  return render(<Harness person={person} roles={roles} refresh={opts.refresh ?? vi.fn().mockResolvedValue(undefined)} />)
 }
 
 describe('PositionPicker (AC-125 / FR-201/202/206)', () => {
-  it('AC-125: lists roles under a "Position" label, never "Role"', () => {
+  it('AC-125: lists roles as the person\'s Position, never "Role"', () => {
     renderPicker()
-    expect(screen.getByText('Position')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Position for Budi Santoso' })).toBeInTheDocument()
     expect(screen.getByText('Barista')).toBeInTheDocument()
     expect(screen.getByText('Shift Lead')).toBeInTheDocument()
     expect(screen.queryByText(/^Role$/)).not.toBeInTheDocument()
@@ -74,8 +74,8 @@ describe('PositionPicker (AC-125 / FR-201/202/206)', () => {
 
   it('AC-125: checking an unassigned role calls assignJabatan(id, roleId)', async () => {
     const user = userEvent.setup()
-    const onDone = vi.fn()
-    renderPicker(PERSON_NO_POSITION, ROLES, { onDone })
+    const refresh = vi.fn().mockResolvedValue(undefined)
+    renderPicker(PERSON_NO_POSITION, ROLES, { refresh })
 
     await user.click(screen.getByRole('checkbox', { name: /barista/i }))
 
@@ -83,13 +83,13 @@ describe('PositionPicker (AC-125 / FR-201/202/206)', () => {
       expect(mockAssignJabatan).toHaveBeenCalledWith('other-person-id', 'r-barista')
     })
     expect(mockRemoveJabatan).not.toHaveBeenCalled()
-    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
   })
 
   it('AC-125: unchecking an assigned role calls removeJabatan(id, roleId)', async () => {
     const user = userEvent.setup()
-    const onDone = vi.fn()
-    renderPicker(PERSON_WITH_POSITION, ROLES, { onDone })
+    const refresh = vi.fn().mockResolvedValue(undefined)
+    renderPicker(PERSON_WITH_POSITION, ROLES, { refresh })
 
     const baristaBox = screen.getByRole('checkbox', { name: /barista/i })
     expect(baristaBox).toHaveAttribute('aria-checked', 'true')
@@ -99,7 +99,7 @@ describe('PositionPicker (AC-125 / FR-201/202/206)', () => {
       expect(mockRemoveJabatan).toHaveBeenCalledWith('other-person-id', 'r-barista')
     })
     expect(mockAssignJabatan).not.toHaveBeenCalled()
-    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
   })
 
   it('AC-125: empty roles shows "No positions defined yet"', () => {
@@ -108,28 +108,25 @@ describe('PositionPicker (AC-125 / FR-201/202/206)', () => {
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
   })
 
-  it('AC-125: onShowToast is called with a message naming the role and person on assign', async () => {
+  it('AC-125: a saved row reads Saved beside itself', async () => {
     const user = userEvent.setup()
-    const onShowToast = vi.fn()
-    renderPicker(PERSON_NO_POSITION, ROLES, { onShowToast })
+    renderPicker(PERSON_NO_POSITION, ROLES)
 
     await user.click(screen.getByRole('checkbox', { name: /barista/i }))
 
-    await waitFor(() => {
-      expect(onShowToast).toHaveBeenCalledWith(expect.stringContaining('Barista'))
-    })
-    expect(onShowToast).toHaveBeenCalledWith(expect.stringContaining('Budi Santoso'))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Saved'))
   })
 
-  it('AC-125: an RPC error surfaces inline via role="alert", does not crash', async () => {
+  it('AC-125: an RPC error reads Failed · Retry beside the row and keeps the attempted value', async () => {
     const user = userEvent.setup()
     mockAssignJabatan.mockRejectedValue(new Error('42501 permission denied'))
     renderPicker()
 
     await user.click(screen.getByRole('checkbox', { name: /barista/i }))
 
-    await screen.findByRole('alert')
-    expect(screen.getByText('Position')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed')
+    expect(screen.getByRole('button', { name: 'Retry Barista' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /barista/i })).toHaveAttribute('aria-checked', 'true')
   })
 
   // Defect 3 (design review, Important, a11y) — the whole row must be clickable, single-fire
