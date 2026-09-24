@@ -51,9 +51,18 @@ type DirectoryTeamOption = {
 // readFailureState). Only the former is "Task not found"; anything else is a retryable read
 // failure and must show ErrorState + Retry, never strand the surface on its loading skeleton or a
 // false not-found.
+// F1 (2026-09-24 independent review): the real client throws PostgREST's actual message
+// ("JSON object requested, multiple (or no) rows returned" / "Cannot coerce the result to a
+// single JSON object" depending on the server version) — matching on that text is brittle. getTask
+// now preserves the PostgREST `code` on the thrown error (lib/db/tasks.ts's dbError), so `code` is
+// the primary signal; the message regex is only a fallback for an error shape without one.
 function isMissingTaskError(error: unknown): boolean {
+  const code = error && typeof error === 'object' && 'code' in error
+    ? (error as { code?: unknown }).code
+    : undefined
+  if (code === 'PGRST116' || code === '42501') return true
   const message = error instanceof Error ? error.message : String(error)
-  return /PGRST116|0 rows|no rows|permission denied|row-level security/i.test(message)
+  return /PGRST116|permission denied|row-level security/i.test(message)
 }
 
 function toTaskTeamView(team: DirectoryTeamOption | undefined, businessUnits: readonly BusinessUnitOption[]): TaskTeamView | null {
