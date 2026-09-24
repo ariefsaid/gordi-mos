@@ -395,8 +395,8 @@ test.describe('Work collections share one wide measure and one record-panel widt
     for (const width of [1440, 1920, 2300] as const) {
       await page.setViewportSize({ width, height: 1200 })
       await page.goto('work/tasks')
-      await expect(page.locator('.tasks-table').first()).toBeVisible()
       const names = page.locator('td.td-owner .own-name')
+      await expect(names.first()).toBeVisible()
       const count = await names.count()
       for (let i = 0; i < count; i += 1) {
         const geometry = await names.nth(i).evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, text: el.textContent }))
