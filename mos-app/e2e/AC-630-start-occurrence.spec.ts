@@ -17,7 +17,6 @@ for (const width of [390, 1440]) {
     let runId: string | undefined
     try {
       await page.setViewportSize({ width, height: 900 })
-      await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
       await loginAs(page, 'krishna.dev@example.test', DEMO_PASSWORD)
       await page.goto('cafe')
       const response = page.waitForResponse(r => /\/rpc\/spawn_process_run/.test(r.url()) && r.ok())

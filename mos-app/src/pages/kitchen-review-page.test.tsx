@@ -13,7 +13,7 @@
 // contract (a PlanMap keyed by MOVEMENT — 'produce' | 'transfer:<destinationBranchId>' —
 // never by the derived label string).
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
@@ -91,6 +91,10 @@ const mockConfirmComplete = vi.mocked(confirmStreamComplete)
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
+}
+
+function idWrapper({ children }: { children: ReactNode }) {
+  return createElement(MemoryRouter, null, createElement(I18nProvider, { initialLocale: 'id' }, children))
 }
 
 function chooseStream(optionName: string) {
@@ -873,11 +877,9 @@ describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', 
 // and read the outcome banner, all under id. RED first: the flow renders English today.
 describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
   beforeEach(() => {
-    localStorage.setItem('mos.locale', 'id')
     mockList.mockResolvedValue([PROD_LOG]) // on-plan (plan 8, logged 8)
     mockPlan.mockResolvedValue({ w1: { produce: 8 } })
   })
-  afterEach(() => localStorage.clear())
 
   // #410: the owner's named worst case, mirrored — the decision buttons were translated while
   // the table AROUND them stayed English (headers, the on/off-plan tag, the plan/logged words).
@@ -894,7 +896,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
       dispatchEvent: () => false,
     } as MediaQueryList)
     try {
-      render(<KitchenReviewPage />, { wrapper })
+      render(<KitchenReviewPage />, { wrapper: idWrapper })
       await screen.findByText('Nasi Goreng')
       // column headers
       const ths = Array.from(document.querySelectorAll('thead th'))
@@ -917,7 +919,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
 
   it('phone card chrome is Indonesian too: variance tag and qty words', async () => {
     // Default jsdom matchMedia (matches: false) → the phone-card branch (#436).
-    render(<KitchenReviewPage />, { wrapper })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
     expect(screen.getByText('sesuai rencana')).toBeInTheDocument()
     expect(screen.getByText('rencana')).toBeInTheDocument()
@@ -927,7 +929,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
   })
 
   it('idle row: Approve/Reject buttons and their aria names are Indonesian', async () => {
-    render(<KitchenReviewPage />, { wrapper })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
     expect(screen.getByRole('button', { name: 'Setujui Nasi Goreng' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Tolak Nasi Goreng' })).toBeInTheDocument()
@@ -937,7 +939,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
 
   it('reject flow: note gate, placeholders, cue, confirm — Indonesian end to end', async () => {
     mockReject.mockResolvedValue(undefined)
-    render(<KitchenReviewPage />, { wrapper })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
 
     fireEvent.click(screen.getByRole('button', { name: 'Tolak Nasi Goreng' }))
@@ -960,7 +962,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
 
   it('in-flight: the busy label is Memproses…, never Working…', async () => {
     mockReject.mockReturnValue(new Promise(() => {})) // never resolves
-    render(<KitchenReviewPage />, { wrapper })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: 'Tolak Nasi Goreng' }))
     fireEvent.change(screen.getByLabelText('Catatan penolakan untuk Nasi Goreng'), {
@@ -979,7 +981,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
   // press apart must not announce identically, or a screen-reader/keyboard user gets no signal
   // that the second press is the one that cannot be undone.
   it('the destructive confirm does not announce the same name as the trigger that opened it', async () => {
-    render(<KitchenReviewPage />, { wrapper })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
     const trigger = screen.getByRole('button', { name: 'Tolak Nasi Goreng' })
     const triggerName = trigger.textContent
@@ -997,7 +999,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
   it('approve flow (off-plan): note gate + outcome banner in Indonesian', async () => {
     mockPlan.mockResolvedValue({ w1: { produce: 12 } }) // 8 ≠ 12 → off-plan → note gate
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-010' })
-    render(<KitchenReviewPage />, { wrapper })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: 'Setujui Nasi Goreng' }))
     expect(screen.getByText('Catatan persetujuan')).toBeInTheDocument()
@@ -1011,7 +1013,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
 
   it('action errors: forbidden and generic RPC failures surface Indonesian banners', async () => {
     mockApprove.mockRejectedValue(new KitchenRpcError('42501', 'forbidden'))
-    render(<KitchenReviewPage />, { wrapper })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: 'Setujui Nasi Goreng' }))
     expect(await screen.findByText('Anda tidak memiliki izin untuk meninjau log ini.')).toBeInTheDocument()

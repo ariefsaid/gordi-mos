@@ -2,11 +2,12 @@ import { test, expect } from '@playwright/test'
 import { writeFileSync } from 'node:fs'
 import { loginAs } from './helpers/login'
 import { DEMO_PASSWORD } from '../src/pages/demo-personas'
+import { stubAccountLocale } from './helpers/account-locale'
 
 for (const locale of ['en','id']) for (const width of [390,768,1280,1440]) {
   test(`Work catalog row geometry and long settled copy ${locale} ${width}px`,async({page},testInfo)=>{
     await page.setViewportSize({width,height:900})
-    await page.addInitScript(locale=>localStorage.setItem('mos.locale',locale),locale)
+    await stubAccountLocale(page,locale as 'en'|'id')
     await loginAs(page,'dewi.dev@example.test',DEMO_PASSWORD)
     const measurements=[]
     for(const collection of ['projects','objectives']) {

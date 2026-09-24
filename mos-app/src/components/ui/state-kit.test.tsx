@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { EmptyState, ErrorState, LoadingShell } from './state-kit'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { messages } from '@/i18n/messages'
@@ -162,12 +162,9 @@ describe('ErrorState — localized retry default (#359)', () => {
   })
 
   describe('id locale', () => {
-    beforeEach(() => localStorage.setItem('mos.locale', 'id'))
-    afterEach(() => localStorage.clear())
-
     it('renders "Coba lagi" with no per-call-site work', () => {
       render(
-        <I18nProvider>
+        <I18nProvider initialLocale="id">
           <ErrorState message="Gagal" onRetry={vi.fn()} />
         </I18nProvider>,
       )

@@ -110,10 +110,10 @@ function authState(accessRoles: string[] = ['ops_lead'], personId = VIEWER_ID): 
   }
 }
 
-function renderPage(accessRoles: string[] = ['ops_lead'], personId = VIEWER_ID) {
+function renderPage(accessRoles: string[] = ['ops_lead'], personId = VIEWER_ID, locale: 'en' | 'id' = 'en') {
   return render(
     <AuthContext.Provider value={authState(accessRoles, personId)}>
-      <I18nProvider>
+      <I18nProvider initialLocale={locale}>
         <MemoryRouter initialEntries={['/cafe']}>
           <CafeRootPage />
         </MemoryRouter>
@@ -134,7 +134,6 @@ function mapResolver() {
 beforeEach(() => {
   vi.clearAllMocks()
   sessionStorage.clear()
-  localStorage.removeItem('mos.locale')
   rememberCafeOpeningTeam(VIEWER_ID, null)
   rememberCafeOpeningTeam('person-b', null)
   mockGetPeople.mockResolvedValue([])
@@ -148,7 +147,6 @@ beforeEach(() => {
   mockGetTodayOpeningForTeam.mockResolvedValue(notStarted)
 })
 
-afterEach(() => localStorage.removeItem('mos.locale'))
 
 describe('Café Opening context', () => {
   it('uses the primary branch when another branch is due and has no production stream picker', async () => {
@@ -280,12 +278,11 @@ describe('Café Opening context', () => {
   })
 
   it('keeps the location status in the Indonesian accessible name', async () => {
-    localStorage.setItem('mos.locale', 'id')
     mapResolver()
     mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD), viewerTeam(TEAM_RR)])
     mockListStartableCafeTeams.mockResolvedValue([dueTeam(TEAM_RAD)])
 
-    renderPage(['member'])
+    renderPage(['member'], VIEWER_ID, 'id')
 
     expect(await screen.findByRole('button', { name: /Buka lokasi Radiant.*Pembukaan siap dimulai/ })).toBeInTheDocument()
   })

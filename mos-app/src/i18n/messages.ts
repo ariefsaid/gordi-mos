@@ -147,6 +147,8 @@ export const messages = {
     'locale.toggle.label': 'Language',
     'locale.en': 'English',
     'locale.id': 'Bahasa Indonesia',
+    'locale.saveFailed': 'Your language was not saved. The previous choice is still in use.',
+    'locale.loadFailed': 'Your saved language could not be loaded, so English is shown for now.',
     // `common.docTitle` is NOT redeclared here — the Home port (#191) already added it above.
     // Personal Profile (#199). Identity is read-only — Admin owns the person and role records —
     // and the language SELECTION lives here (it is the app's only way to reach the Indonesian UI).
@@ -1778,6 +1780,8 @@ export const messages = {
     'locale.toggle.label': 'Bahasa',
     'locale.en': 'English',
     'locale.id': 'Bahasa Indonesia',
+    'locale.saveFailed': 'Bahasa Anda tidak tersimpan. Pilihan sebelumnya masih digunakan.',
+    'locale.loadFailed': 'Bahasa tersimpan Anda tidak dapat dimuat, jadi untuk sementara ditampilkan bahasa Inggris.',
     // `common.docTitle` is NOT redeclared here — the Home port (#191) already added it above.
     'profile.identity': 'Identitas',
     'profile.person': 'Orang',
