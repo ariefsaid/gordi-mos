@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 
 const drawerCss = readFileSync(resolve(process.cwd(), 'src/styles/drawer.css'), 'utf8')
 const recordPanelCss = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
+const indexCss = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
 
 /** Return the declaration block body for the first rule whose selector line contains `selector`. */
 function ruleBody(css: string, selector: string): string {
@@ -76,12 +77,12 @@ describe('TB-1: shell overlay panels leave the top-bar chrome reachable', () => 
 // `TasksWorkspace.css` (they had to be — a shell-mounted RecordPanelHost got no skin from a
 // route-scoped stylesheet), and the move took v4's `min(45vw, 520px)`, which has NO lower bound,
 // over this line's `clamp(360px, 50vw, 520px)`. Nothing was asserting width, so nothing went red.
-describe('the record sheet keeps its floor (#190)', () => {
-  /** The `minmax()` minimum of the split track — the app's ONE stated record width floor. */
+describe('the record sheet keeps its floor (#190, #930)', () => {
+  /** The floor of --record-panel-w (index.css) — the app's ONE stated record width floor,
+   *  shared by .record-split, .drawer-shell-split, Tasks' .split and this modal sheet. */
   function splitTrackFloorPx(): number {
-    const body = ruleBody(drawerCss, '.record-split {')
-    const match = body.match(/grid-template-columns:[^;]*minmax\(\s*(\d+)px\s*,/)
-    expect(match, '.record-split no longer declares a minmax(<px>, …) record track').not.toBeNull()
+    const match = indexCss.match(/--record-panel-w:\s*clamp\(\s*(\d+)px\s*,/)
+    expect(match, 'index.css no longer declares --record-panel-w: clamp(<px>, …)').not.toBeNull()
     return Number(match![1])
   }
 

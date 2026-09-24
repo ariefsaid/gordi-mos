@@ -4,29 +4,28 @@
 
 .signal-collection-presentation { min-width: 0; }
 
-/* Domain-specific anatomy inside the shared full-width collection table. Fixed layout prevents a
-   short archive from collapsing into a 60%-wide visual island; these proportions keep the message
-   primary while leaving stable scanning columns for provenance and attention. */
+/* #930 rule 2 — only the Message column is flexible (width:auto below); Team/Attention/Occurred
+   are fixed px floors sized to their longest realistic value and never stretch, so widening the
+   frame to the shared wide operating measure (#930 rule 1) grows the message column, not a dead
+   gap between three narrow proportional ones. A fixed floor also means the previous "boost the
+   percentage at a narrower width" band is no longer needed — the raw px already guarantees the
+   full "20 Jul 2026, 21:40" timestamp regardless of viewport; .tasks-scroll-style horizontal
+   overflow on the surrounding collection remains the fallback at an extreme narrow shell. */
 .signal-collection-table th:nth-child(1),
-.signal-collection-table td:nth-child(1) { width: 50%; }
+.signal-collection-table td:nth-child(1) { width: auto; min-width: 220px; }
 .signal-collection-table th:nth-child(2),
-.signal-collection-table td:nth-child(2) { width: 16%; }
+.signal-collection-table td:nth-child(2) { width: 140px; } /* Team */
 .signal-collection-table th:nth-child(3),
-.signal-collection-table td:nth-child(3) { width: 15%; } /* Attention */
+.signal-collection-table td:nth-child(3) { width: 160px; } /* Attention */
 .signal-collection-table th:nth-child(4),
-.signal-collection-table td:nth-child(4) { width: 19%; } /* Occurred — full "20 Jul 2026, 21:40" never clips */
+.signal-collection-table td:nth-child(4) { width: 200px; } /* Occurred — full "20 Jul 2026, 21:40" never clips */
 
-/* Intermediate widths: keep Team and the full WIB timestamp whole — the message cell is the
-   flexible one (it already carries its own subline and ellipsis). */
-@media (max-width: 1120px) {
-  .signal-collection-table th:nth-child(1),
-  .signal-collection-table td:nth-child(1) { width: 43%; }
-  .signal-collection-table th:nth-child(2),
-  .signal-collection-table td:nth-child(2) { width: 18%; }
-  .signal-collection-table th:nth-child(3),
-  .signal-collection-table td:nth-child(3) { width: 15%; }
-  .signal-collection-table th:nth-child(4),
-  .signal-collection-table td:nth-child(4) { width: 24%; }
+/* A record panel narrows this collection to the shared #930 record-panel track; keep Team and
+   Occurred whole and drop Attention (already visible via the urgent-row tint) rather than let
+   the message column starve or force a scroll. */
+@media (min-width: 1100px) {
+  .record-split .signal-collection-table th:nth-child(3),
+  .record-split .signal-collection-table td:nth-child(3) { display: none; }
 }
 .signal-collection-table td {
   overflow: hidden;

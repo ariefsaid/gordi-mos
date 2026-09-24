@@ -452,28 +452,48 @@ is** — not by who authored it, and not per-page taste.
 | **Readable single column** | **1180px** — `shell/page-families.css` `.page-frame__content` | The default. One column of prose-width content: records, forms, management surfaces, settings, anything read top-to-bottom. |
 | **Wide operating surface** | **1760px** | A surface whose composition is genuinely *two-dimensional* — a master/detail split, or a work column beside a standing aside — where the readable cap leaves a **dead gutter** rather than a margin. |
 
-`1760px` is a **rule with two instances**, not a one-off:
+`1760px` is a **rule with multiple instances**, not a one-off:
 
-1. **Tasks master/detail** — `components/tasks/TasksWorkspace.css` `.split`. The data workspace runs
-   full-bleed so the table's right edge aligns with the account chip; only the `1fr` Task column
-   absorbs the extra width, the other columns are fixed-px, so nothing balloons. (*"owner-eyes item 7
-   — kill the dead right void"*.)
+1. **The four Work collections — Tasks, Signals, Projects & Processes, Objectives.** Each is a
+   list-plus-record operating surface: scan a queue, open one row, work it beside the list. Tasks
+   carries its own scoping (`components/tasks/TasksWorkspace.css` `.split` — the data workspace
+   runs full-bleed so the table's right edge aligns with the account chip; only the `1fr` Task
+   column absorbs the extra width, the other columns are fixed-px, so nothing balloons;
+   *"owner-eyes item 7 — kill the dead right void"*). Signals, Projects & Processes and Objectives
+   share one rule instead of three repeats of it: each renders a stable `.work-collection` marker
+   on its top-level wrapper — present whether or not a record is open, the same way Tasks'
+   `.split`/`.split.nodrawer` always renders — and `shell/page-families.css` widens
+   `.page-frame--v3 .page-frame__content:has(.work-collection)` to 1760px. The measure holds in
+   both states on purpose: switching cap width the moment a record opens is itself a dead-gutter
+   defect, just a briefer one.
 2. **Home** — `components/home/home-layouts.css`, scoped
    `.page-frame--v3 .page-frame__content:has(.home-frame)`. Home is a work region beside a standing
    Signals aside, so the readable cap stopped the header rule, the arrangement and the Signals column
    ~250px short of the content area and stranded a gutter to their right (*"why is the container for
    home got cut mid screen horizontally?"* — owner, ~1730px window).
 
-Both take the **same** 1760px on purpose, so the two wide surfaces' right edges land in the same
-place; a different number would be a *second* wide measure, not a reuse of this one. Two further
-constraints follow:
+Every instance takes the **same** 1760px on purpose, so every wide surface's right edge lands in the
+same place; a different number would be a *second* wide measure, not a reuse of this one. Three
+further constraints follow:
 
-- **A wide surface opts in; it never widens the shared rule.** Home's `:has(.home-frame)` scoping is
-  the shape — it outranks the shared cap on **specificity**, not on stylesheet order, and every
-  single-column page keeps 1180px untouched.
-- **A third instance must bring the same evidence:** name the second dimension the surface composes,
+- **A wide surface opts in; it never widens the shared rule.** Home's `:has(.home-frame)` scoping and
+  the Work collections' `:has(.work-collection)` scoping are the shape — each outranks the shared cap
+  on **specificity**, not on stylesheet order, and every single-column page keeps 1180px untouched.
+- **A next instance must bring the same evidence:** name the second dimension the surface composes,
   and the void the readable cap leaves at a real window width. "It looks narrow" is not the
   measurement. A single-column page is never widened — 1180px is what keeps a line readable.
+- **Within a wide surface, only the identity/title column flexes.** Status, people, date, count and
+  every other column is a fixed-px floor sized to its longest realistic value (e.g. "Overdue · Sun
+  13 Sept" must render on one line) and never stretches — widening the frame grows the identity
+  column's spare room, not a proportional share of every column into a wider gap between values.
+
+**The record-panel width** is one further shared number: `--record-panel-w` (`index.css`,
+`clamp(440px, 40%, 640px)`) is the width of every in-page record panel beside a Work-collection
+list — `styles/drawer.css` `.record-split`, `.drawer-shell-split` and the Deputy-beside-a-record
+offset, and `components/tasks/TasksWorkspace.css` `.split`, all read the one token rather than each
+authoring its own literal. With a record open, the list itself sheds lower-priority columns in a
+declared order before it lets a column wrap or the panel narrows further — the panel width and the
+column priority are both fixed decisions, not something that renegotiates per collection.
 
 ### Spacing: a real gap in the system (2026-07-29)
 
@@ -514,7 +534,7 @@ one side of it, and a new branch needs the same kind of evidence.
 | `rail-collapse` | 920px | *Below* it the desktop rail is gone entirely and a hamburger appears; `cmdk` shrinks to an icon; user name/role hide. **Distinct from `table-reflow` — do not conflate the two.** *At or above* it the rail returns, but at 72px — see `rail-compact`. |
 | `rail-compact` | 1100px | Between `rail-collapse` and this, the rail is **icon-only at 72px** (`--rail-w-compact`; OD-REDESIGN-84.2 / P1-1, the 920–1099.98px regime): the item keeps its icon, the label moves to `.sr-only` (still its accessible name) and a CSS-only tooltip surfaces it back on hover/`:focus-visible` via `attr(data-label)`; the top-bar brand column narrows to match and drops the wordmark so the divider stays on the rail boundary. At or above 1100px the full 232px rail returns — and only there does the user's own collapse toggle appear, since only there can it change anything (#442: width wins below this branch). **This regime is why available content width is non-monotonic in the viewport across 768→1280** — the diagnostic in The Container-Query Rule below, and the picker measurement on the `table-reflow` row, are both consequences of it. |
 | `home-single-column` | 940px | The Home work/feed split collapses: the Signals column stops being an aside and stacks under the work region (gap 32px → 24px), and the bento drops 6 columns → 4 (v4, `OD-V4-7`). **Measured on the Home frame (`@container home`), not the viewport.** |
-| `desktop` | 1280px | The full desktop contract of § Responsive grammar — rail + header + frame + a 40–45% record panel, without clipping. |
+| `desktop` | 1280px | The full desktop contract of § Responsive grammar — rail + header + frame + the shared `--record-panel-w` record panel (`clamp(440px, 40%, 640px)`), without clipping. |
 
 **The Container-Query Rule (v4, 2026-07-28).** A component that renders at *different widths inside
 the same viewport* adapts to **the space it has**, not to the window. The Signal row is the reference
@@ -725,7 +745,7 @@ outside the single "View & filters" door; the door never carries the surface pri
   destination roots only (≤6, never children at rest — children match by typed name); **ACT** with
   the three universal actions. Phone palette: search only — navigation is the tab bar, actions are
   the launcher.
-- **Record panel:** the collection click target is a wide right-side panel on desktop (40–45% of the available content area), not a centered record popup. It retains the collection, uses the RecordViewer anatomy, and becomes full-screen on phone.
+- **Record panel:** the collection click target is a wide right-side panel on desktop, sized to the shared `--record-panel-w` (`clamp(440px, 40%, 640px)`), not a centered record popup. It retains the collection, uses the RecordViewer anatomy, and becomes full-screen on phone.
 - **Menus, confirmations, and feedback:** menus/pickers stay anchored to their trigger; destructive confirmation is one centered blocking dialog; toasts are brief status feedback and never a second navigation surface. Every real overlay owns focus entry, Escape/close, and focus return.
 
 ### Metric summary rule (v4, 2026-07-27)
@@ -1318,7 +1338,7 @@ Canonical route state is part of the interaction grammar: collection query state
 There is one overlay grammar by interaction job:
 
 - **Search/command** is a centered temporary overlay, including the `⌘K` entry point. It is bounded by the viewport, keyboard reachable, dismissible with Escape, and returns focus to its launcher.
-- **Record open from a collection** is a wide right panel on desktop, retaining the collection in view. It is a right-side panel sized to 40–45% of the available content area at desktop widths and is not a near-full centered record popup. The panel uses the same RecordViewer as the full page.
+- **Record open from a collection** is a wide right panel on desktop, retaining the collection in view. It is a right-side panel sized to the shared `--record-panel-w` (`clamp(440px, 40%, 640px)`) at desktop widths, the same track for every Work collection (Tasks included), and is not a near-full centered record popup. The panel uses the same RecordViewer as the full page.
 - **Panel navigation** uses one host and an internal stack. Relation clicks push a new record; internal Back pops the stack; Close exits the panel. Focus enters the new record and returns to the originating control when the panel closes.
 - **Explicit full page** is always available from the viewer. A direct URL, refresh, bookmark, browser new tab, or explicit Open full page action is the canonical full-page destination, not an accidental re-opening of a panel.
 - **Deputy** uses the same host and focus/close behavior as other non-blocking panels. Deputy is never a FAB; it uses the shared top-bar/host door. The sanctioned phone Action Launcher remains the one capability-filtered `+` FAB and is not a Deputy or Capture control.
@@ -1338,7 +1358,7 @@ Supported inline edits use the same direct-edit lifecycle:
 
 ### Responsive grammar
 
-- **Desktop (≥1280px):** rail, header, page frame, collection, and 40–45% record panel fit without clipping. The **readable** content measure remains 1180px or less; a **wide operating surface** (Tasks master/detail, Home) takes the 1760px measure instead — see § Layout → The Two-Measure Rule. The panel preserves enough collection context to understand the opened record.
+- **Desktop (≥1280px):** rail, header, page frame, collection, and the shared `clamp(440px, 40%, 640px)` record panel (`--record-panel-w`) fit without clipping. The **readable** content measure remains 1180px or less; a **wide operating surface** (the four Work collections — Tasks, Signals, Projects & Processes, Objectives — and Home) takes the 1760px measure instead — see § Layout → The Two-Measure Rule. The panel preserves enough collection context to understand the opened record.
 - **Intermediate (768–1279px):** the frame contracts, tool rails wrap or become a coherent selector stack, and the record panel remains usable without forcing horizontal page overflow.
 - **Phone (390px and ≤767px):** work appears before configuration; selectors stack; collection rows/cards retain meaning; the record viewer is full-screen; bottom navigation carries the viewer's destination roots (see § Navigation → Bottom tab bar); every required tap target is at least 44×44px; no horizontal page overflow is allowed.
 - **Very narrow devices:** at 390px and below, controls may wrap or stack but must not shrink below the tap-target contract. Avoid permanent horizontal scroll as a substitute for responsive layout.

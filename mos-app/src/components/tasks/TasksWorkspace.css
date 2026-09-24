@@ -26,8 +26,11 @@
 /* ── Split-view grid (the push/squash master-detail, ADR-0007) ── */
 .split {
   display: grid;
-  /* minmax(0,1fr) prevents table content from stretching the track past the viewport. */
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 400px);
+  /* minmax(0,1fr) prevents table content from stretching the track past the viewport.
+     #930 — the record column is --record-panel-w (index.css), the SAME token every other Work
+     collection's split uses (styles/drawer.css .record-split); Tasks no longer carries its own
+     fixed 400px track. */
+  grid-template-columns: minmax(0, 1fr) var(--record-panel-w);
   align-items: start; gap: 12px;
   /* CONV (owner-directed 2026-06-17): the data workspace runs FULL-BLEED — it fills PageFrame's
      gutters so the table's right edge aligns with the account chip (no detached content on wide
@@ -48,8 +51,10 @@
    .dw-surface fills and scrolls (dropping the nested card border/shadow it carried inside the aside).
    Scoped to the decision-column split threshold because below it the drawer is not a column.
    The threshold tracks TASKS_SPLIT_MIN_WIDTH (use-is-split-width.ts) — keep this literal equal
-   to that constant by hand (guard-r1-split-parity.css.test.ts pins it). */
-@media (min-width: 1306px) {
+   to that constant by hand (guard-r1-split-parity.css.test.ts pins it). #930 raised it from 1306
+   to 1426: the record column grew from a fixed 400px to --record-panel-w's 440px floor, and
+   Due's floor grew from 128 to 208 so the stacked "Overdue · <date>" state stays on one line. */
+@media (min-width: 1426px) {
   .split:not(.nodrawer) { align-items: stretch; }
   .split .drawer {
     display: flex;
@@ -236,48 +241,32 @@
    Due column can NEVER be clipped off-screen at 1280px. .tasks-scroll (overflow-x:auto)
    is the safety net only for absurdly narrow shells. */
 .tasks-table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 0; }
-/* The Task identity column absorbs remaining space so it cannot collapse at the normal shell. */
-.tasks-table th:nth-child(1), .tasks-table td:nth-child(1) { width: auto; }   /* Task */
-/* Status keeps a %-share wide enough to fit the longest closed-vocabulary word in either locale
-   ("Sedang berjalan") without wrapping at ordinary widths. Still a bounded %-share, not a fixed
-   px — RI-3 (cascade-fixes) requires columns 2..5 to stay %, summing under 70%, so the auto
-   Task column can never be starved to 0px; this stays at 60. */
-.tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 16%; }    /* Status */
-.tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 15%; }    /* PIC / Ownership */
-.tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { width: 15%; }    /* Supervisor */
-.tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 14%; }    /* Due */
-
-/* Intermediate widths: column PRIORITY (Wave 2c) — Task > Status > PIC > Due > Supervisor.
-   Supervisor stays in the record drawer/full page; Due must never clip ("Overdue · Mon 13 Jul"). */
+/* #930 — every non-title decision column is a fixed px floor sized to its longest realistic
+   value, by CLASS (every <th>/<td> always carries one — tasks-table-body.tsx, task-row.tsx —
+   regardless of nth-child position, extended Fields columns, or whether a record is open), so
+   the SAME rule holds at rest and with the record panel open: only the Task identity column
+   (auto, min-width 120px) absorbs spare width. This replaces the old %-based rest state, which
+   let these columns balloon at a wide viewport (#930 N2 — 1920 rest spread Status/PIC/Supervisor
+   ~240px apart) and a SEPARATE `.split:not(.nodrawer)`-scoped px set that only won at some
+   specificities and not others, leaving the rest/split states free to disagree. */
+.tasks-table th.th-task, .tasks-table td.td-main { width: auto; min-width: 120px; }
+/* Wide enough for the longest closed-vocabulary word in either locale ("Sedang berjalan")
+   without wrapping. */
+.tasks-table th.th-status, .tasks-table td.td-status { width: 132px; }
+/* A person column holds a first name. */
+.tasks-table th.th-owner, .tasks-table td.td-owner { width: 112px; }
+.tasks-table th.th-supervisor, .tasks-table td.td-supervisor { width: 104px; }
+/* Due holds the longest ordinary string in the row — the stacked "Overdue · <date>" state
+   (task-row.tsx `inline-cell-trigger--stacked`, DD-MVP-4) must fit on ONE line at this width;
+   208px (184px content after the cell's 12px×2 padding) clears "Overdue · Sun 13 Sept" with
+   room for a longer month name. Below 1100px Supervisor is hidden by CLASS (not position), so
+   an optional Fields column never shifts the wrong column out — the fixed floors above already
+   guard the identity column, so .tasks-scroll's horizontal scroll is the only fallback needed
+   at an extremely narrow desktop shell. */
+.tasks-table th.th-due, .tasks-table td.td-due { width: 208px; }
 @media (max-width: 1099.98px) {
-  .tasks-table th:nth-child(4), .tasks-table td:nth-child(4) { display: none; }
-  .tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 17%; }
-  .tasks-table th:nth-child(3), .tasks-table td:nth-child(3) { width: 16%; }
-  .tasks-table th:nth-child(5), .tasks-table td:nth-child(5) { width: 21%; }
+  .tasks-table th.th-supervisor, .tasks-table td.td-supervisor { display: none; }
 }
-/* Split floors keep each decision column measurable. Title is `auto` here too (not a fixed
-   200px) so it — never the status pill — is what gives when the record panel narrows the
-   table. */
-.split:not(.nodrawer) .tasks-table th:nth-child(1),
-.split:not(.nodrawer) .tasks-table td:nth-child(1) { width: auto; min-width: 120px; } /* Title */
-.split:not(.nodrawer) .tasks-table th:nth-child(2),
-.split:not(.nodrawer) .tasks-table td:nth-child(2) { width: 132px; } /* Status */
-/* A person column holds a first name; Due holds the longest ordinary string in the row.
-   At 104px Due could not fit `Wed 16 Sept` and clipped it to `Wed 16 Se…` — a date that
-   reads as a different day. The two name columns had the slack; Due takes it. */
-.split:not(.nodrawer) .tasks-table th:nth-child(3),
-.split:not(.nodrawer) .tasks-table td:nth-child(3) { width: 112px; } /* PIC */
-.split:not(.nodrawer) .tasks-table th:nth-child(4),
-.split:not(.nodrawer) .tasks-table td:nth-child(4) { width: 104px; } /* Supervisor */
-.split:not(.nodrawer) .tasks-table th:nth-child(5),
-.split:not(.nodrawer) .tasks-table td:nth-child(5) { width: 128px; } /* Due */
-/* Due + pencil floors are sized by CLASS, not column position, in every state (split or
-   rest): the optional Business Unit column shifts every later column's nth-child index, so
-   an nth-child-based floor lands on the wrong column once BU is on — measured on dev at
-   REST (drawer shut) with BU on: Due clipped to 40px against a 64px need. One rule, no
-   split/nodrawer or :has() gate (those were tautological — same 104px the nth-child(5) rule
-   already set within the split, and never reached at rest at all). */
-.tasks-table th.th-due, .tasks-table td.td-due { width: 176px; }
 /* DO-18(a) (census-sweep R2 tasks FINDING1): the squashed drawer-open track truncated 6/11 Task
    titles at 1280 — the IDENTITY column must not starve. In the condensed tier the title may wrap
    to 2 lines (clamped) instead of the one-line ellipsis; the row grows, the identity survives. */
@@ -707,31 +696,26 @@ tr.grp td { padding: 0; }
 .tasks-table .th-objective, .tasks-table .td-objective { width: 112px; }
 .tasks-table .th-activity, .tasks-table .td-activity { width: 128px; }
 
-/* Extended tier (#743 r3): with any optional column on, the table drops onto its floored
-   track — decision columns pin to their split-floor px by CLASS (the base percentages would
-   otherwise eat the identity column's slack) and .tasks-scroll owns the horizontal overflow
-   (never the page). Task keeps its 160px floor: min-width = all other floors + 160, and the
-   identity column absorbs every pixel above that. These rules tie the base nth-child tiers'
-   specificity (0,2,1) and win by source order; the split mirror below does the same against
-   the split nth-child floors that mis-land once optional columns shift every position. */
-.tasks-table--extended { min-width: 1244px; }
+/* Extended tier (#743 r3, #930): with any optional column on, the table drops onto its floored
+   track — decision columns pin to a wider CLASS floor than the basic 5-column tier (more
+   columns share the row, so Task's own floor grows to 160) and .tasks-scroll owns the
+   horizontal overflow (never the page). min-width is the sum of every floor below; the
+   identity column absorbs every pixel above that. One set of floors, no split-scoped shrink —
+   the record panel taking room is exactly when a column must NOT get narrower (#930 rule 2). */
+.tasks-table--extended { min-width: 1260px; } /* sum of the floors below (was 1244 at Due:176) */
 .tasks-table--extended th.th-task, .tasks-table--extended td.td-main { width: 160px; }
 .tasks-table--extended th.th-status, .tasks-table--extended td.td-status { width: 132px; }
 .tasks-table--extended th.th-owner, .tasks-table--extended td.td-owner { width: 128px; }
 .tasks-table--extended th.th-supervisor, .tasks-table--extended td.td-supervisor { width: 120px; }
-.tasks-table--extended th.th-due, .tasks-table--extended td.td-due { width: 176px; }
+/* #930 — same 208px Due floor as the basic tier (was 176 at rest, 104 in split — a record
+   panel made Due narrower still, exactly backwards for a value that must never wrap). One
+   width, no split-scoped shrink: the extended tier's own min-width above already accounts for
+   it, and .tasks-scroll is still the horizontal-overflow fallback at an extreme narrow shell. */
+.tasks-table--extended th.th-due, .tasks-table--extended td.td-due { width: 208px; }
 .tasks-table--extended th.th-business-unit, .tasks-table--extended td.td-business-unit { width: 128px; }
 .tasks-table--extended th.th-workline, .tasks-table--extended td.td-workline { width: 144px; }
 .tasks-table--extended th.th-objective, .tasks-table--extended td.td-objective { width: 112px; }
 .tasks-table--extended th.th-activity, .tasks-table--extended td.td-activity { width: 128px; }
-.split:not(.nodrawer) .tasks-table--extended th.th-status, .split:not(.nodrawer) .tasks-table--extended td.td-status { width: 132px; }
-.split:not(.nodrawer) .tasks-table--extended th.th-owner, .split:not(.nodrawer) .tasks-table--extended td.td-owner { width: 128px; }
-.split:not(.nodrawer) .tasks-table--extended th.th-supervisor, .split:not(.nodrawer) .tasks-table--extended td.td-supervisor { width: 120px; }
-.split:not(.nodrawer) .tasks-table--extended th.th-due, .split:not(.nodrawer) .tasks-table--extended td.td-due { width: 104px; }
-.split:not(.nodrawer) .tasks-table--extended th.th-business-unit, .split:not(.nodrawer) .tasks-table--extended td.td-business-unit { width: 128px; }
-.split:not(.nodrawer) .tasks-table--extended th.th-workline, .split:not(.nodrawer) .tasks-table--extended td.td-workline { width: 144px; }
-.split:not(.nodrawer) .tasks-table--extended th.th-objective, .split:not(.nodrawer) .tasks-table--extended td.td-objective { width: 112px; }
-.split:not(.nodrawer) .tasks-table--extended th.th-activity, .split:not(.nodrawer) .tasks-table--extended td.td-activity { width: 128px; }
 
 /* Cascade D1: summary caption (FR-236 / NFR-206 literacy bar).
    One short plain-text sentence; quiet — not a heading, not a warning.
@@ -780,11 +764,7 @@ tr.grp td { padding: 0; }
   }
 }
 
-/* A status pill is never cut: the trigger that wraps it does not ellipsize, and below the wide
-   desktop band the status column takes a share that fits the longest label at the narrowest
-   table (21% of 720px). It stays a percentage like every other secondary column, so the auto
-   Task column is always left a remainder. */
+/* A status pill is never cut: the trigger that wraps it does not ellipsize — the fixed
+   132px .th-status/.td-status floor above (#930) already fits the longest label at every
+   width, so the column no longer needs a separate narrow-desktop override. */
 .tasks-table td.td-status .inline-cell-trigger { overflow: visible; text-overflow: clip; }
-@media (max-width: 1099.98px) {
-  .tasks-table th:nth-child(2), .tasks-table td:nth-child(2) { width: 21%; }
-}

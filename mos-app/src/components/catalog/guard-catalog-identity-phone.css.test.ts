@@ -28,7 +28,9 @@ describe('catalog row layout stays readable at phone width', () => {
   it('collapses a desktop split queue to identity + owner + progress', () => {
     const split = css.slice(css.indexOf('@media (min-width: 1100px)'))
     expect(split).toMatch(/\.record-split \.catalog-collection__header,[\s\S]*?\.record-split \.catalog-collection__row-link/)
-    expect(split).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)\s+minmax\(92px, [^)]+\)\s+minmax\(110px, [^)]+\)/)
+    // #930 rule 2: the two kept columns are fixed px (never stretch), not an `fr` share, so a
+    // record panel narrowing this collection can't also balloon them into unused width.
+    expect(split).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)\s+92px\s+110px/)
     expect(split).toMatch(/\.record-split \.catalog-collection__cell--relation,[\s\S]*?\.record-split \.catalog-collection__cell--cadence,[\s\S]*?\.record-split \.catalog-collection__cell--activity\s*\{[\s\S]*?display:\s*none/)
   })
 

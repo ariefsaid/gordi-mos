@@ -111,6 +111,19 @@
   --ctx-row-h: 40px;   /* region 2 — the shell context row (scope crumb + job sentence) */
   --tabbar-h: 60px;    /* ADR-0019 D8: phone bottom-tab bar row height (+ safe-area inset) */
   --assistant-w: 400px; /* ADR-0018 P2: deputy slide-over drawer width (desktop right drawer) */
+  /* #930 — the ONE in-page record-panel width, every Work collection (Tasks, Signals, Projects &
+     Processes, Objectives). A record panel beside a list is 40% of the split's own track, floored
+     at 440px (never too narrow to read) and capped at 640px (never so wide the list starves) —
+     the same shape at every desktop width instead of Tasks' old fixed 400px vs the others' ~44%.
+     Consumed by styles/drawer.css (.record-split, .drawer-shell-split, the Deputy-beside-a-record
+     offset) and components/tasks/TasksWorkspace.css (.split) — one token, not four literals.
+     The 40% term reads differently depending on where it lands: inside a grid track
+     (.record-split, .split) it is 40% of that track's own content area; on a `position: fixed`
+     box's `width`/`right` (.drawer-shell-split, the Deputy offset) it is 40% of the full viewport,
+     which is always the wider of the two (the content area is the viewport minus the rail and
+     frame gutters). A fixed consumer therefore never renders NARROWER than the grid panel beside
+     it — the direction that keeps Deputy off the record, never the direction that would cover it. */
+  --record-panel-w: clamp(440px, 40%, 640px);
   --radius: 0.75rem;   /* OD-P3-10: 12px for cards/containers/overlays */
 
   /* ── Z-index tier scale (cohesion-debt 2026-07-19, item #3). ONE documented

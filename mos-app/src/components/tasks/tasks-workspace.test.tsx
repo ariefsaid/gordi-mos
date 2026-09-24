@@ -2035,17 +2035,25 @@ function cssRuleBody(selector: string): string {
   return css.slice(open + 1, close)
 }
 
-describe('S2.1 — split decision-column floors', () => {
-  it('keeps each decision column floor in its own split rule block', () => {
+describe('S2.1 — decision-column floors', () => {
+  it('keeps each decision column floor in its own class-based rule (#930: applies at rest and in split alike)', () => {
     const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
-    expect(css).toContain('.split:not(.nodrawer) .tasks-table th:nth-child(1)')
-    for (const column of [1, 2, 3, 4, 5]) {
-      const selector = `.split:not(.nodrawer) .tasks-table th:nth-child(${column})`
+    // #930: a fixed px floor per class, unconditional — no separate `.split:not(.nodrawer)`
+    // rule set, since the rule now holds whether or not a record is open.
+    for (const cls of ['th-status', 'th-owner', 'th-supervisor', 'th-due']) {
+      const selector = `.tasks-table th.${cls}`
       const start = css.indexOf(selector)
+      expect(start, `expected ${selector} in TasksWorkspace.css`).toBeGreaterThanOrEqual(0)
       const open = css.indexOf('{', start)
       const close = css.indexOf('}', open)
       expect(css.slice(open + 1, close), `${selector} must own its floor`).toMatch(/width:\s*\d+px/)
     }
+    const taskSelector = '.tasks-table th.th-task'
+    const start = css.indexOf(taskSelector)
+    expect(start, `expected ${taskSelector} in TasksWorkspace.css`).toBeGreaterThanOrEqual(0)
+    const open = css.indexOf('{', start)
+    const close = css.indexOf('}', open)
+    expect(css.slice(open + 1, close), `${taskSelector} must own its floor`).toMatch(/min-width:\s*\d+px/)
   })
 
   it('bounds inline cell controls to the table cell so long values cannot widen the scroll viewport', () => {
