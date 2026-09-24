@@ -788,3 +788,104 @@ describe('overlay host — browser POP transaction (clean + dirty)', () => {
     expect(getApi().session?.frames.at(-1)?.entry.key).toBe('synthetic:draft')
   })
 })
+
+// A route session belongs to the pathname that opened it. Leaving that route retires it — a
+// catalog record must not follow the viewer into another collection that happens to mount a slot
+// for the same owner — while in-collection drill (same pathname) keeps it.
+describe('overlay host — a route session belongs to its route', () => {
+  it('a navigation to another route retires the session and no slot renders it', async () => {
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver, initialEntries: ['/work/objectives'] })
+    connect(router)
+
+    await act(() => getApi().openRoot(makeEntry({ key: 'objective:1' }), 'route'))
+    expect(document.querySelectorAll('[data-overlay-host="true"]')).toHaveLength(1)
+
+    await act(() => router.navigate('/work/projects'))
+    expect(getApi().session).toBeNull()
+    expect(document.querySelectorAll('[data-overlay-host="true"]')).toHaveLength(0)
+
+    // It does not come back when the viewer returns to the collection without a record in the URL.
+    await act(() => router.navigate('/work/objectives'))
+    expect(getApi().session).toBeNull()
+  })
+
+  it('a same-route navigation (record drill, query change) keeps the session', async () => {
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver, initialEntries: ['/work/objectives'] })
+    connect(router)
+
+    await act(() => getApi().openRoot(makeEntry({ key: 'objective:1' }), 'route'))
+    await act(() => router.navigate('/work/objectives?record=2&recordType=objective'))
+    await act(() => getApi().push(makeEntry({ key: 'objective:2' })))
+    expect(getApi().session?.frames.map((f) => f.entry.key)).toEqual(['objective:1', 'objective:2'])
+    expect(getApi().session?.pathname).toBe('/work/objectives')
+  })
+
+  it('an ephemeral session is not route-bound and survives navigation', async () => {
+    const { router, getApi } = makeRouterHarness({ initialEntries: ['/work/objectives'] })
+    await act(() => getApi().openRoot(makeEntry({ key: 'inbox-quick', tenant: 'quick' }), 'ephemeral'))
+    await act(() => router.navigate('/'))
+    expect(getApi().session?.frames.at(-1)?.entry.key).toBe('inbox-quick')
+  })
+
+  it('browser Back onto another route retires a session whose marker it does not carry', async () => {
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({
+      historyDriver: driver,
+      initialEntries: ['/work/objectives', '/work/projects'],
+      initialIndex: 1,
+    })
+    connect(router)
+
+    await act(() => getApi().openRoot(makeEntry({ key: 'work-line:1' }), 'route'))
+    await act(() => router.navigate(-2))
+    expect(router.state.location.pathname).toBe('/work/objectives')
+    expect(getApi().session).toBeNull()
+  })
+
+  it('the destination route re-stamps a session it opens or replaces', async () => {
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver, initialEntries: ['/work/tasks'] })
+    connect(router)
+
+    await act(() => getApi().openRoot(makeEntry({ key: 'task:1', owner: 'tasks' }), 'route'))
+    await act(() => router.navigate('/work/tasks/2'))
+    await act(() => getApi().openRoot(makeEntry({ key: 'task:2', owner: 'tasks' }), 'route', true))
+    expect(getApi().session?.pathname).toBe('/work/tasks/2')
+    expect(getApi().session?.frames.at(-1)?.entry.key).toBe('task:2')
+  })
+
+  it('a dirty session asks its leave guard before an in-app navigation lands; Stay keeps route and draft', async () => {
+    const decision = deferred<OverlayLeaveDecision>()
+    const leaveGuard: OverlayLeaveGuard = vi.fn(() => decision.promise)
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver, initialEntries: ['/work/objectives'] })
+    connect(router)
+
+    await act(() => getApi().openRoot(makeEntry({ key: 'objective:draft', leaveGuard }), 'route'))
+    await act(async () => { void router.navigate('/work/projects') })
+    await waitFor(() => expect(leaveGuard).toHaveBeenCalledTimes(1))
+    const intent = vi.mocked(leaveGuard).mock.calls[0][0] as OverlayLeaveIntent
+    expect(intent).toMatchObject({ kind: 'route-leave', via: 'navigation', to: { pathname: '/work/projects' } })
+    expect(router.state.location.pathname).toBe('/work/objectives')
+
+    await act(async () => { decision.resolve({ decision: 'deny' }) })
+    expect(router.state.location.pathname).toBe('/work/objectives')
+    expect(getApi().session?.frames.at(-1)?.entry.key).toBe('objective:draft')
+    expect(document.querySelectorAll('[data-overlay-host="true"]')).toHaveLength(1)
+  })
+
+  it('Discard on that guard lets the navigation land and retires the session', async () => {
+    const leaveGuard: OverlayLeaveGuard = vi.fn(async () => ({ decision: 'allow' as const }))
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver, initialEntries: ['/work/objectives'] })
+    connect(router)
+
+    await act(() => getApi().openRoot(makeEntry({ key: 'objective:draft', leaveGuard }), 'route'))
+    await act(async () => { void router.navigate('/work/projects') })
+    await waitFor(() => expect(router.state.location.pathname).toBe('/work/projects'))
+    expect(leaveGuard).toHaveBeenCalledTimes(1)
+    expect(getApi().session).toBeNull()
+  })
+})

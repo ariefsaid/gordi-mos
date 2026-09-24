@@ -11,9 +11,12 @@ import {
   type ReactNode,
 } from 'react'
 import {
+  UNSAFE_DataRouterContext,
+  useBlocker,
   useLocation,
   useNavigate,
   useNavigationType,
+  type BlockerFunction,
   type Location,
   type To,
 } from 'react-router-dom'
@@ -114,6 +117,16 @@ export type OverlaySession = {
   id: string
   mode: 'route' | 'ephemeral'
   frames: readonly OverlayFrame[]
+  /**
+   * The route pathname a route-mode session belongs to (stamped when its root opens). Leaving that
+   * pathname retires the session; an ephemeral session has no route and survives navigation.
+   */
+  pathname?: string
+}
+
+/** Whether `session` belongs on `pathname`: ephemeral sessions float over any route. */
+export function sessionBelongsTo(session: OverlaySession, pathname: string): boolean {
+  return session.mode !== 'route' || session.pathname === undefined || session.pathname === pathname
 }
 
 export type OverlayHostApi = {
@@ -324,9 +337,17 @@ export function OverlayHostProvider({
       suppressPopRef.current = false
       return
     }
-    if (navigationType !== 'POP') return
 
     const active = sessionRef.current
+    if (active && !sessionBelongsTo(active, location.pathname)) {
+      // Any navigation off the session's route retires it: a record belongs to the collection that
+      // opened it, and the URL decides what a later arrival restores. A dirty entry is asked
+      // first by the route-leave blocker below.
+      clearRouteSeam()
+      commitSession(null)
+      return
+    }
+    if (navigationType !== 'POP') return
     if (!active || active.mode !== 'route') return // ephemeral sessions have no URL contract
 
     const marker = readOverlayMarker(location.state)
@@ -431,7 +452,12 @@ export function OverlayHostProvider({
     if (!marker || marker.mode === 'ephemeral') return
     const entry = deepLinkResolver(marker, location)
     if (!entry) return
-    commitSession({ id: marker.sessionId, mode: marker.mode, frames: [makeFrame(entry, marker)] })
+    commitSession({
+      id: marker.sessionId,
+      mode: marker.mode,
+      frames: [makeFrame(entry, marker)],
+      pathname: location.pathname,
+    })
     // The URL already carries the marker — do not navigate.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -446,7 +472,7 @@ export function OverlayHostProvider({
       const prev = sessionRef.current
       const prevWasRoute = prev?.mode === 'route'
       const commit = () => {
-        commitSession({ id: createId('ovs'), mode, frames: [makeFrame(entry)] })
+        commitSession({ id: createId('ovs'), mode, frames: [makeFrame(entry)], pathname: location.pathname })
         clearRouteSeam()
         if (mode === 'route') {
           // Reflect a depth-0 marker for the new route session. REPLACE the current entry when a
@@ -469,7 +495,7 @@ export function OverlayHostProvider({
         commit,
       )
     },
-    [activeEntry, commitSession, clearRouteSeam, requestLeave, syncRouteMarker, programmaticGo],
+    [activeEntry, commitSession, clearRouteSeam, requestLeave, syncRouteMarker, programmaticGo, location.pathname],
   )
 
   const replaceRoot = useCallback(
@@ -481,7 +507,7 @@ export function OverlayHostProvider({
         const mode = current?.mode ?? 'ephemeral'
         commitSession(
           current
-            ? { ...current, frames: [makeFrame(entry)] }
+            ? { ...current, frames: [makeFrame(entry)], pathname: location.pathname }
             : { id: createId('ovs'), mode: 'ephemeral', frames: [makeFrame(entry)] },
         )
         clearRouteSeam()
@@ -498,7 +524,7 @@ export function OverlayHostProvider({
         commit,
       )
     },
-    [activeEntry, commitSession, clearRouteSeam, requestLeave, syncRouteMarker, programmaticGo],
+    [activeEntry, commitSession, clearRouteSeam, requestLeave, syncRouteMarker, programmaticGo, location.pathname],
   )
 
   const push = useCallback(
@@ -631,9 +657,37 @@ export function OverlayHostProvider({
     [activeEntry, clearRouteSeam, commitSession, requestLeave, navigate],
   )
 
+  // ── Route-leave guard ───────────────────────────────────────────────────────
+  // An in-app navigation off a route session's pathname asks the active entry's leaveGuard before
+  // it lands, so a dirty record is never discarded silently. A clean entry is not blocked; the
+  // location effect above retires it once the navigation lands.
+  const shouldBlockRouteLeave = useCallback<BlockerFunction>(({ nextLocation }) => {
+    const active = sessionRef.current
+    if (!active || sessionBelongsTo(active, nextLocation.pathname)) return false
+    return Boolean(activeEntry()?.leaveGuard)
+  }, [activeEntry])
+
+  const confirmRouteLeave = useCallback((next: Location): Promise<OverlayTransitionResult> => {
+    const active = activeEntry()
+    if (!active) return Promise.resolve(COMMITTED)
+    return requestLeave({
+      kind: 'route-leave',
+      via: 'navigation',
+      from: summarize(active),
+      to: { pathname: next.pathname, search: next.search, hash: next.hash },
+    }, () => {})
+  }, [activeEntry, requestLeave])
+
+  const inDataRouter = useContext(UNSAFE_DataRouterContext) != null
+  const routeSessionOpen = session?.mode === 'route'
+
+  // A session left behind by a navigation is invisible from the render that lands on the new
+  // route, before the location effect retires it — so no slot or companion ever sees it.
+  const visibleSession = session && sessionBelongsTo(session, location.pathname) ? session : null
+
   const api = useMemo<OverlayHostApi>(
     () => ({
-      session,
+      session: visibleSession,
       pendingLeave,
       openRoot,
       replaceRoot,
@@ -643,10 +697,37 @@ export function OverlayHostProvider({
       close,
       openPage,
     }),
-    [session, pendingLeave, openRoot, replaceRoot, push, replaceCurrent, back, close, openPage],
+    [visibleSession, pendingLeave, openRoot, replaceRoot, push, replaceCurrent, back, close, openPage],
   )
 
-  return <OverlayHostContext.Provider value={api}>{children}</OverlayHostContext.Provider>
+  return (
+    <OverlayHostContext.Provider value={api}>
+      {inDataRouter && routeSessionOpen ? (
+        <RouteLeaveBlocker shouldBlock={shouldBlockRouteLeave} onBlocked={confirmRouteLeave} />
+      ) : null}
+      {children}
+    </OverlayHostContext.Provider>
+  )
+}
+
+// Mounted only while a route session is open: a data router consults a single blocker, and pages
+// that carry their own RouteLeaveGuard (full-page records, Café log) hold no record session.
+function RouteLeaveBlocker({
+  shouldBlock,
+  onBlocked,
+}: {
+  shouldBlock: BlockerFunction
+  onBlocked: (next: Location) => Promise<OverlayTransitionResult>
+}): null {
+  const blocker = useBlocker(shouldBlock)
+  useEffect(() => {
+    if (blocker.state !== 'blocked') return
+    void onBlocked(blocker.location).then((result) => {
+      if (result.status === 'committed') blocker.proceed()
+      else blocker.reset()
+    })
+  }, [blocker, onBlocked])
+  return null
 }
 
 export function useOverlayHost(): OverlayHostApi {
