@@ -574,7 +574,8 @@ on conflict (wip_item_id, unit_name) do nothing;
 
 -- ── Stream item lists (#222) — which items each stream offers, from the ERP's production record ─
 -- An item is on a stream's list only where the ERP records that stream producing it. Rumah Rames
--- and Radiant kitchens list the roster items the ERP names for them (its "WIP - " prefix aside);
+-- kitchen lists the seed dishes on the kitchen's live ERP-coordinated roster, Radiant kitchen the
+-- roster items the ERP names for it (its "WIP - " prefix aside);
 -- Nasi Putih is one item on both lists. Streams the ERP records no production for — the Rumah
 -- Rames, Radiant and Cikal bars — have an empty list and show the empty state.
 insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
@@ -588,6 +589,9 @@ insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source) 
   ('10000000-0000-0000-0000-000000000001', '25000000-0000-0000-0000-000000000002', 'kitchen', 'a1100000-0000-0000-0000-000000000004', 'esb'),
   ('10000000-0000-0000-0000-000000000001', '25000000-0000-0000-0000-000000000002', 'kitchen', 'a1100000-0000-0000-0000-000000000006', 'esb'),
   ('10000000-0000-0000-0000-000000000001', '25000000-0000-0000-0000-000000000002', 'kitchen', 'a1100000-0000-0000-0000-000000000009', 'esb'),
+  ('10000000-0000-0000-0000-000000000001', '25000000-0000-0000-0000-000000000002', 'kitchen', 'a1100000-0000-0000-0000-00000000000b', 'esb'),
+  ('10000000-0000-0000-0000-000000000001', '25000000-0000-0000-0000-000000000002', 'kitchen', 'a1100000-0000-0000-0000-00000000000e', 'esb'),
+  ('10000000-0000-0000-0000-000000000001', '25000000-0000-0000-0000-000000000002', 'kitchen', 'a1100000-0000-0000-0000-00000000001e', 'esb'),
   ('10000000-0000-0000-0000-000000000001', '25000000-0000-0000-0000-000000000002', 'kitchen', 'a1100000-0000-0000-0000-00000000000c', 'esb'),
   ('10000000-0000-0000-0000-000000000001', '25000000-0000-0000-0000-000000000002', 'kitchen', 'a1100000-0000-0000-0000-00000000000d', 'esb'),
   ('10000000-0000-0000-0000-000000000001', '25000000-0000-0000-0000-000000000002', 'kitchen', 'a1100000-0000-0000-0000-000000000011', 'esb'),
