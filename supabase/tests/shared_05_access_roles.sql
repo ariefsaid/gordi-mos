@@ -2,7 +2,7 @@
 -- grant guard, provenance, soft revoke, capabilities, and the no-lockout floor.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(44);
+select plan(53);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -268,6 +268,70 @@ select is(
   0, 'a revoked grant drops out of the live set while the row survives for the audit trail');
 select ok(not has_table_privilege('authenticated','shared.person_access_roles','DELETE'),
   'there is no DELETE privilege at all — removal is a soft revoke, never a vanished row');
+
+-- ── Re-grant: the app's grant statement un-revokes the existing row ──────────────────────────
+-- The admin app grants with ONE statement for both cases — PostgREST's upsert on the unique
+-- (person_id, access_role), written out here exactly as it reaches the database. A plain INSERT
+-- would hit the unique key on every re-grant, because revoke keeps the row.
+select is(
+  (select granted_by from shared.person_access_roles
+    where person_id = '00000000-0000-0000-0000-0000000000d1' and access_role = 'member'),
+  null::uuid, 'precondition: the revoked member grant came from the seed path, so granted_by is null');
+select lives_ok($$
+  insert into shared.person_access_roles (person_id, access_role, revoked_at)
+  values ('00000000-0000-0000-0000-0000000000d1','member',null)
+  on conflict (person_id, access_role) do update
+    set person_id = excluded.person_id, access_role = excluded.access_role, revoked_at = excluded.revoked_at
+$$, 'an admin re-grants a revoked role with the app''s grant statement');
+select results_eq($$
+  select revoked_at is null, revoked_by is null, granted_by is null, count(*) over ()
+    from shared.person_access_roles
+   where person_id = '00000000-0000-0000-0000-0000000000d1' and access_role = 'member'
+$$, $$ values (true, true, true, 1::bigint) $$,
+  '...the SAME row is live again: revoked_at and revoked_by cleared, the original provenance kept');
+
+select lives_ok($$
+  insert into shared.person_access_roles (person_id, access_role, revoked_at)
+  values ('00000000-0000-0000-0000-0000000000d7','ops_lead',null)
+  on conflict (person_id, access_role) do update
+    set person_id = excluded.person_id, access_role = excluded.access_role, revoked_at = excluded.revoked_at
+$$, 'the same statement is also the first grant when there is no row yet');
+select is(
+  (select granted_by from shared.person_access_roles
+    where person_id = '00000000-0000-0000-0000-0000000000d7' and access_role = 'ops_lead' and revoked_at is null),
+  '00000000-0000-0000-0000-0000000000d3'::uuid, '...inserted live, with granted_by forced to the acting admin');
+
+-- Self-assign stays refused on the un-revoke path. A revoked admin row for the acting person, and a
+-- session that still claims admin (a token minted before the revoke).
+reset role;
+insert into shared.person_access_roles (org_id, person_id, access_role, revoked_at)
+values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d5','admin', now());
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["admin"]}';
+select throws_ok($$
+  insert into shared.person_access_roles (person_id, access_role, revoked_at)
+  values ('00000000-0000-0000-0000-0000000000d5','admin',null)
+  on conflict (person_id, access_role) do update
+    set person_id = excluded.person_id, access_role = excluded.access_role, revoked_at = excluded.revoked_at
+$$, '42501', null, 'an admin cannot re-grant themselves admin through the grant statement');
+select throws_ok($$
+  update shared.person_access_roles set revoked_at = null
+   where person_id = '00000000-0000-0000-0000-0000000000d5' and access_role = 'admin'
+$$, '42501', null, '...nor by clearing revoked_at directly');
+
+-- A non-admin cannot re-grant: the Author's ops_lead grant is revoked in the seed.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
+select throws_ok($$
+  insert into shared.person_access_roles (person_id, access_role, revoked_at)
+  values ('00000000-0000-0000-0000-0000000000d1','ops_lead',null)
+  on conflict (person_id, access_role) do update
+    set person_id = excluded.person_id, access_role = excluded.access_role, revoked_at = excluded.revoked_at
+$$, '42501', null, 'a non-admin cannot re-grant a revoked role');
+reset role;
+select is(
+  (select revoked_at is not null from shared.person_access_roles
+    where person_id = '00000000-0000-0000-0000-0000000000d1' and access_role = 'ops_lead'),
+  true, '...and the grant stays revoked');
 
 -- ── No-lockout: the last active admin cannot be stripped ─────────────────────────────────────
 -- GrandMgr (...0d03) is org A's only admin, but has no auth.users row, so _count_active_admins()

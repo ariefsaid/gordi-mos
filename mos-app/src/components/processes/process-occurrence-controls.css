@@ -22,6 +22,16 @@
   margin: 0;
 }
 
+.process-occurrence-controls__next-action {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--secondary);
+  color: var(--foreground);
+  font-size: var(--font-size-label);
+}
+
 .process-occurrence-controls__list {
   display: flex;
   flex-direction: column;

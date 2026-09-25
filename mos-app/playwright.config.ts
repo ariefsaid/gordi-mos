@@ -50,10 +50,11 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   projects: [
-    // DD-WAY-53: 1280×720 (Desktop Chrome's default) sits below TASKS_SPLIT_MIN_WIDTH=1370,
-    // so specs that open the Tasks drawer by row click and wait for the panel to mount would
-    // fail here even though nothing regressed. DESIGN.md's desktop reference width (1440×900)
-    // is comfortably above the threshold.
+    // DD-WAY-53: 1280×720 (Desktop Chrome's default) sits below TASKS_SPLIT_MIN_WIDTH
+    // (src/shell/use-is-split-width.ts — kept out of this comment on purpose, since a
+    // hardcoded copy here is exactly what went stale before), so specs that open the Tasks
+    // drawer by row click and wait for the panel to mount would fail here even though nothing
+    // regressed. DESIGN.md's desktop reference width (1440×900) stays above the threshold.
     { name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
   ],
   webServer: {

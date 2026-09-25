@@ -28,6 +28,8 @@ import {
   fetchActualsMap,
   fetchPlanMap,
   fetchStockMap,
+  listStreamItemIds,
+  isItemNotOnStreamError,
   resolveKitchenBuId,
   insertKitchenLogBatch,
 } from '@/lib/db/kitchen-logs'
@@ -35,7 +37,7 @@ import {
 // Plan/Stock/Review open on the same books, and every switch carries across (issue 456).
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { clearCafeDraftCount, setCafeDraftCount } from '@/lib/cafe-capture-draft'
-import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import type { ReactNode } from 'react'
 import type {
   ActualsMap,
@@ -74,6 +76,7 @@ import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { reportError } from '@/lib/telemetry'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
+import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
 import './kitchen-log-page.css'
 
@@ -197,7 +200,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   // `.activity` are NOT NULL (AC-007). `streamOptions` is the enumerable stream catalog (FR-005):
   // the live stream Teams, so the roastery — a branch with no stream — can never appear.
   const cafeStream = useCafeStream()
-  const { branches, options: streamOptions, stream: resolvedStream } = cafeStream
+  const { branches, options: streamOptions, stream: resolvedStream, homeStream, myStreamKeys } = cafeStream
   // OD-CAFE-1 — production capture is location-bound.
   //
   // The picker offered every stream in the org while the page said which location you were at, so
@@ -256,6 +259,11 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   // clears `lines` before the new movement takes effect. `pendingMovement` holds the tab the
   // person clicked while that confirm is open; null means no switch is pending.
   const [pendingMovement, setPendingMovement] = useState<KitchenMovement | null>(null)
+  // A stream the person picked while quantities are staged, held until the discard confirm
+  // resolves. Null = nothing pending.
+  const [pendingStream, setPendingStream] = useState<ProductionStream | null>(null)
+  // Staged items the database refused as not on this stream's list (#222). Their lines stay, marked.
+  const [invalidItemIds, setInvalidItemIds] = useState<Set<string>>(new Set())
 
   // Client-side search + category (P-3), URL-synced so the view survives refresh/share (I7 / D-E1).
   // Group collapse stays INTERNAL to the shared <DataTable> (no page-level collapsedGroups state).
@@ -327,10 +335,9 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
     const gen = ++requestGen.current
     setStatus({ kind: 'loading' })
     try {
-      const [items, catalog, bu] = await Promise.all([
+      const [catalog, bu] = await Promise.all([
         // The GATED item source (FR-011, DD-WAY-29): only confirmed item-units reach the
         // capture form. Stock/plan surfaces keep the ungated listActiveWipItems.
-        listCaptureFormItems(),
         // The module's stream, resolved the one way every Café surface resolves it
         // (issue 456): the session's own choice (#440) outranks the person's own stream
         // (shared.default_stream(), FR-001), and neither may name a pair outside the live
@@ -339,6 +346,9 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
         resolveKitchenBuId(),
       ])
       const resolvedStream = catalog.stream
+      // The stream's own list (#222). No stream yet: the whole gated catalog, as before — nothing
+      // is writable until a stream is chosen, and the choose-stream state replaces the list.
+      const items = await listCaptureFormItems(resolvedStream ?? undefined)
       const resolvedMovement = PRODUCE
       // An empty successful item read is a complete empty state. Do not make follow-up
       // plan/stock/actual reads turn that honest absence into a false load error.
@@ -364,6 +374,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
         : [{} as PlanMap, {} as StockMap, {} as ActualsMap]
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
       setWipItems(items)
+      setInvalidItemIds(new Set())
       adoptStream(catalog)
       setMovement(resolvedMovement)
       setPlanMap(plan)
@@ -449,23 +460,34 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
     setMovement(PRODUCE)
     setStatus({ kind: 'loading' })
     try {
-      const [plan, stock, actuals] = await Promise.all([
+      const [items, plan, stock, actuals] = await Promise.all([
+        listCaptureFormItems(nextStream),
         fetchPlanMap(logDate, nextStream),
         fetchStockMap(logDate, nextStream),
         fetchActualsMap(logDate, nextStream),
       ])
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
       setPlanMap(plan)
+      setWipItems(items)
+      setInvalidItemIds(new Set())
       setStockMap(stock)
       setActualsMap(actuals)
-      setLines(buildLines(wipItems, plan, stock, PRODUCE))
+      setLines(buildLines(items, plan, stock, PRODUCE))
       setStatus({ kind: 'ready' })
     } catch {
       if (gen !== requestGen.current) return
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logDate, wipItems])
+  }, [chooseStream, logDate, t])
+
+  // Staged quantities belong to the stream they were typed against: ask before a switch
+  // discards them, and switch straight through when nothing is staged. Shared by the head's
+  // Switch/Back actions and the body's one-step choice (#781 item 2) so both routes into a
+  // stream change go through the one guard.
+  function selectStream(next: ProductionStream) {
+    if (draftCount > 0) setPendingStream(next)
+    else void applyStream(next)
+  }
 
   // The stream picker (FR-003/005) — ONE definition, rendered in the page head in EVERY
   // state including while a switch's read is in flight: a slow stream's fetch must never
@@ -474,12 +496,31 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   // surface carries, in the same place, so a person who walks Log → Plan → Stock reads the
   // stream in one spot instead of guessing on two thirds of the module.
   const streamPicker = (
+    <>
     <CafeStreamBar
       options={locationStreams}
       stream={stream}
-      onChange={next => { void applyStream(next) }}
+      homeStream={homeStream}
+      myStreamKeys={myStreamKeys}
+      onChange={selectStream}
       disabled={status.kind === 'submitting'}
     />
+    {pendingStream && <ConfirmDialog
+      open
+      title={t('kitchen.log.streamSwitch.confirmTitle')}
+      body={t('kitchen.log.streamSwitch.confirmBody', {
+        count: draftCount,
+        qty: t(draftCount === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
+        from: streamLabel(t, stream),
+        to: streamLabel(t, pendingStream),
+      })}
+      confirmLabel={t('kitchen.log.streamSwitch.confirm')}
+      cancelLabel={t('common.cancel')}
+      tone="destructive"
+      onConfirm={async () => { const next = pendingStream; setPendingStream(null); await applyStream(next) }}
+      onCancel={() => setPendingStream(null)}
+    />}
+    </>
   )
 
   const receivingOnlyNotice = (
@@ -625,10 +666,19 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
         return next
       })
       setStatus({ kind: 'success', count: staged.length })
+      setInvalidItemIds(new Set())
       setLines(buildLines(wipItems, planMap, stockMap, movement))
     } catch (err) {
       reportError(err, { source: 'kitchen-log.submit' })
-      setSubmitError(t('kitchen.log.error.submitFailed'))
+      if (isItemNotOnStreamError(err)) {
+        // The list changed under the open form (#222). The draft stays; the refused lines are
+        // marked so the person can clear them or switch stream, then submit again.
+        try {
+          const offered = await listStreamItemIds(stream)
+          setInvalidItemIds(new Set(staged.filter(line => !offered.has(line.wip_item_id)).map(line => line.wip_item_id)))
+        } catch { /* The guidance below still applies when the re-read fails. */ }
+        setSubmitError(t('kitchen.log.error.itemNotOnStream'))
+      } else setSubmitError(t('kitchen.log.error.submitFailed'))
       setStatus({ kind: 'ready' })
     }
   }
@@ -705,8 +755,8 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
               all done" instead of "nothing CAN be logged until items exist". */}
           <EmptyState
             variant="blank"
-            title={t('kitchen.empty.noActiveItems.title')}
-            copy={t('kitchen.log.empty.copy')}
+            title={stream ? t('kitchen.streamItems.empty.title', { stream: streamLabel(t, stream) }) : t('kitchen.empty.noActiveItems.title')}
+            copy={stream ? t('kitchen.streamItems.empty.copy') : t('kitchen.log.empty.copy')}
           />
           {/* AC-013: the DD-WAY-29 gate also empties this list when nothing is confirmed —
               the report route must be reachable from here too, not only under a full list.
@@ -779,6 +829,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
       render: item => (
         <span className="kl-dish">
           <span className="kl-dish-name">{item.name}</span>
+          {invalidItemIds.has(item.id) && <NotOnStreamTag />}
           {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
         </span>
       ),
@@ -916,6 +967,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
         <div className="kl-card-head">
           <div className="kl-card-identity">
             <span className="kl-card-name">{item.name}</span>
+            {invalidItemIds.has(item.id) && <NotOnStreamTag />}
           </div>
           <WipItemStepper
             itemName={item.name}
@@ -1093,17 +1145,18 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
           {noStreamChosen ? (
             // No dish list, no filters over a list that isn't there, and nothing that LOOKS
             // like an editable quantity field until a stream makes it one — one guidance state
-            // where the list would render, with the Stream control (page head) named as the
-            // next action. A person who inherits exactly one stream never sees this: `stream`
-            // resolves before this render is reached.
+            // where the list would render. #781 item 2 / B5: the head has nothing to state while
+            // no default resolves (FR-002), so the one-click choice itself renders here — never
+            // a button that only focused a hidden control. A person who inherits exactly one
+            // stream never sees this: `stream` resolves before this render is reached.
             <EmptyState variant="next-step" title={t('kitchen.log.stream.chooseTitle')}>
-              <button
-                type="button"
-                className="btn btn-outline"
-                onClick={() => { document.getElementById('cafe-stream')?.focus() }}
-              >
-                {t('kitchen.log.stream.chooseCta')}
-              </button>
+              <CafeStreamChoices
+                options={locationStreams}
+                homeStream={homeStream}
+                myStreamKeys={myStreamKeys}
+                onChoose={selectStream}
+                disabled={status.kind === 'submitting'}
+              />
             </EmptyState>
           ) : (
             <>

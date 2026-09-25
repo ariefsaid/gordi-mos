@@ -13,7 +13,13 @@
 # Explicit exact-commit evidence: DESIGN_AUDIT_MODE=change-gate DESIGN_AUDIT_EVIDENCE_DIR=<dir>
 # bash scripts/pre-pr-verify.sh. Unset DESIGN_AUDIT_MODE for ordinary checks.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+script_root="$(cd "$(dirname "$0")/.." && pwd -P)"
+caller_root="$(git rev-parse --show-toplevel 2>/dev/null || :)"
+if [ -z "$caller_root" ] || [ "$(cd "$caller_root" && pwd -P)" != "$script_root" ]; then
+  echo "✗ pre-pr-verify invoked from a different checkout; run the script belonging to the checkout being verified" >&2
+  exit 1
+fi
+cd "$script_root"
 
 head="$(git rev-parse HEAD)"
 gitdir="$(git rev-parse --git-dir)"
@@ -150,6 +156,11 @@ if [ "$app_touched" = 1 ]; then
 else
   mode=skipped
   echo "── every changed path proven inert — npm lane skipped (CI verify applies the same polarity)"
+fi
+
+if [ "$(git rev-parse HEAD)" != "$head" ] || [ -n "$(git status --porcelain)" ]; then
+  echo "✗ checkout changed during verification — rerun on the final clean commit" >&2
+  exit 1
 fi
 
 printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"

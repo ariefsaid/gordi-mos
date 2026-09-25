@@ -103,7 +103,7 @@ export function TaskOverlayContent({
         title={t('tasks.unsaved.title')}
         body={t('tasks.unsaved.copy')}
         confirmLabel={t('tasks.unsaved.discard')}
-        cancelLabel={t('tasks.cancel')}
+        cancelLabel={t('leaveGuard.stay')}
         tone="destructive"
         onConfirm={discardAndLeave}
         onCancel={cancelLeave}
@@ -187,8 +187,15 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
   const close = () => guardedClose(leaveToList)
   const label = mode === 'create' ? t('tasks.create.new') : t('tasks.detail.title')
   const openPage = mode === 'view' && taskId
-    ? () => navigate({ pathname: `/work/tasks/${taskId}`, search: location.search }, { state: { taskSurface: 'page' } })
+    ? () => guardedClose(() => navigate({ pathname: `/work/tasks/${taskId}`, search: location.search }, { state: { taskSurface: 'page' } }))
     : undefined
+  const openRelated = useCallback<NonNullable<TaskSurfaceProps['onOpenRelated']>>(
+    ({ kind, id }) => guardedClose(() => navigate({
+      pathname: kind === 'objective' ? `/work/objectives/${id}` : `/work/projects/${id}`,
+      search: location.search,
+    })),
+    [guardedClose, navigate, location.search],
+  )
   // Record-scoped "Ask Deputy" is the only tenant action in the host's actions slot. Close stays
   // in the shared host so every TaskDrawer regime has exactly one dismiss control; the task's
   // localized "Close (Esc)" label is supplied through the host's closeLabel seam below.
@@ -208,6 +215,7 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
         mode={mode}
         width="drawer"
         onClose={close}
+        onOpenRelated={openRelated}
         onTaskChanged={ctx?.onTaskChanged}
         onTaskCreated={ctx?.onTaskCreated}
         onTaskArchived={ctx?.onTaskArchived}
@@ -242,7 +250,7 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
         title={t('tasks.unsaved.title')}
         body={t('tasks.unsaved.copy')}
         confirmLabel={t('tasks.unsaved.discard')}
-        cancelLabel={t('tasks.cancel')}
+        cancelLabel={t('leaveGuard.stay')}
         tone="destructive"
         onConfirm={discardAndLeave}
         onCancel={cancelLeave}

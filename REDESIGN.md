@@ -11,17 +11,21 @@ before further UI replacement; see `docs/redesign/home-work-closure/AUDIT-CORREC
 
 # Home and Work
 
-For the current MVP acceptance recovery, the actionable local plan is
-`docs/plans/2026-09-14-mvp-recovery.md`, amended by the active acceptance ledger
-`docs/plans/2026-09-14-mvp-acceptance.md` and DD-MVP in `docs/decisions.md`. The broader
+For ongoing MVP UI iterations, use `docs/takeover/mvp-ui-continuation.md` in the main checkout as
+the execution route. The 2026-09-14 recovery plan and acceptance ledger are historical checkpoints;
+current owner direction and applicable DD-MVP decisions govern the selected work. This brief
+preserves persona jobs, product meaning and specific still-current owner preferences, while visual
+placement and acceptance criteria may improve with each iteration. The broader
 `docs/redesign/home-work-closure/PLAN.md` is historical evidence, not a completion claim. This
 work covers Tasks, Café WIP production (Plan, Log, Stock and Review), and Signals; Home and
 the wider Work surface remain compatibility constraints and broader review scope. Original owner
 product decisions remain acceptance requirements: persona jobs, Team ownership, truthful progress
 and permission behavior cannot be removed by retiring a presentation rule. Owner decisions override
 Director decisions; unresolved incompatible owner decisions are clarified, not silently chosen.
-Delegated work uses separate Codex tasks/sessions with compact handoffs, never collaboration
-subagents. Review against the complete owner requirement map, not only the authored replacement.
+Delegated work uses compact handoffs. Separate user-visible Codex tasks are created when the owner
+requests them; an owner-authorized subagent swarm may use native collaboration subagents with the
+current model/effort default in `CLAUDE.md`. Review against the complete owner requirement map,
+not only the authored replacement.
 
 ## Outcome
 

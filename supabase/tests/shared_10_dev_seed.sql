@@ -4,7 +4,7 @@
 -- the subject is the seed itself. begin;...rollback; keeps it read-only.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(28);
 
 -- The seed admin row exists despite the admin-only RLS rule AND the self-escalation guard: the seed
 -- runs under a connection that bypasses RLS, and the guard's self-assign check is keyed on
@@ -181,6 +181,87 @@ select ok(
            where person_id = '40000000-0000-0000-0000-00000000000a'
              and access_role = 'supervisor'),
   'Sinta has the supervisor access role');
+
+-- The ordinary demo Task must tell one believable story across its record and linked work.
+-- Seed-only checks belong here: a UI test that manufactures a different Task cannot catch
+-- incoherent relationships or timestamps in the data people actually see after setup.
+select is(
+  (select w.name || ' / ' || o.name from mos.tasks t
+     join mos.work_lines w on w.id = t.work_line_id
+     join mos.objectives o on o.id = w.objective_id
+    where t.org_id = '10000000-0000-0000-0000-000000000001'
+      and t.title = 'Replace grinder burrs (Cafe 2)'),
+  'Café equipment recovery / Operational Excellence',
+  'the blocked grinder repair belongs to equipment recovery under the operations Objective');
+
+select is(
+  (select array_agg(t.title order by t.title) from mos.tasks t
+     join mos.work_lines w on w.id = t.work_line_id
+    where t.org_id = '10000000-0000-0000-0000-000000000001'
+      and w.name = 'Daily IG Content'),
+  array['Photograph new pastry line']::text[],
+  'the daily content Process contains content work, not unrelated recipe or repair Tasks');
+
+select is(
+  (select count(*)::int from mos.task_checklist_items c
+     join mos.tasks t on t.id = c.task_id
+    where t.org_id = '10000000-0000-0000-0000-000000000001'
+      and t.title = 'Replace grinder burrs (Cafe 2)'),
+  3, 'the blocked Task has three concrete next-step checklist items');
+
+select is(
+  (select count(*)::int from mos.task_events e
+     join mos.tasks t on t.id = e.task_id
+    where t.org_id = '10000000-0000-0000-0000-000000000001'
+      and t.title = 'Replace grinder burrs (Cafe 2)'
+      and e.event_type in ('created', 'status_changed')),
+  2, 'the blocked Task has a creation and a status-change event behind Last activity');
+
+select is(
+  (select count(*)::int from mos.tasks t
+    where t.org_id = '10000000-0000-0000-0000-000000000001'
+      and t.created_by = '40000000-0000-0000-0000-000000000000'
+      and t.title in ('Dial in new Brazil single-origin', 'Update espresso recipe cards',
+                      'Photograph new pastry line', 'Q3 wholesale price list',
+                      'Replace grinder burrs (Cafe 2)', 'Source compostable cups vendor',
+                      'Plan barista latte-art workshop', 'Roastery extractor PM schedule',
+                      'Draft Q3 OKRs for cafe team', 'Refit cold brew taps', 'Migrate POS to v4')
+      and t.last_activity_at < t.created_at),
+  0, 'no seeded Task claims activity before its creation');
+
+select is(
+  (select w.name from mos.tasks t join mos.work_lines w on w.id = t.work_line_id
+    where t.org_id = '10000000-0000-0000-0000-000000000001'
+      and t.title = 'Plan barista latte-art workshop'
+      and t.objective_id is null and w.objective_id is null),
+  'Barista development',
+  'a believable work-line-only Task keeps the unlinked Objective branch reachable');
+
+select is(
+  (select o.name from mos.tasks t join mos.objectives o on o.id = t.objective_id
+    where t.org_id = '10000000-0000-0000-0000-000000000001'
+      and t.title = 'Draft Q3 OKRs for cafe team' and t.work_line_id is null),
+  'Q3 Growth',
+  'a planning Task keeps the direct-Objective branch reachable without a Project');
+
+-- ── Stream item lists (#222) ─────────────────────────────────────────────────────────────────
+-- One item on two lists stays one item; a stream the ERP records no production for lists nothing;
+-- and every listed item reaches a capture form (a listed item with no confirmed unit is invisible).
+select is(
+  (select count(*)::int from ops.stream_items si join shared.branches b on b.id = si.branch_id
+    where si.org_id = '10000000-0000-0000-0000-000000000001' and si.activity = 'kitchen'
+      and b.code in ('rumah_rames', 'radiant') and si.wip_item_id = 'a1100000-0000-0000-0000-000000000001'),
+  2, 'Nasi Putih is one item on both the Rumah Rames and the Radiant kitchen lists');
+select is(
+  (select count(*)::int from ops.stream_items si join shared.branches b on b.id = si.branch_id
+    where si.org_id = '10000000-0000-0000-0000-000000000001' and si.activity = 'bar'
+      and b.code in ('rumah_rames', 'radiant', 'cikal')),
+  0, 'the bars the ERP records no production for have empty item lists');
+select is(
+  (select count(*)::int from ops.stream_items si
+    where si.org_id = '10000000-0000-0000-0000-000000000001'
+      and not exists (select 1 from ops.capture_form_items c where c.wip_item_id = si.wip_item_id)),
+  0, 'every listed item has a confirmed unit, so it reaches the capture form');
 
 select * from finish();
 rollback;

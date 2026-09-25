@@ -279,17 +279,10 @@ export function RecordViewer({
     : []
   const [activeTab, setActiveTab] = useState('details')
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const tabLabels = {
-    details: t('tasks.record.tab.details'),
-    checklist: t('tasks.checklistTitle'),
-    activity: t('tasks.feed.activity'),
-  }
   useEffect(() => {
-    const tabs = taskAnatomy
-      ? ['details', 'checklist', 'activity']
-      : customTabs.map((tab) => tab.id)
+    const tabs = customTabs.map((tab) => tab.id)
     if (tabs.length > 0 && !tabs.includes(activeTab)) setActiveTab(tabs[0])
-  }, [activeTab, customTabs, taskAnatomy])
+  }, [activeTab, customTabs])
 
   const selectTab = (tab: string) => setActiveTab(tab)
   const onTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, tab: string, tabs: readonly string[]) => {
@@ -322,7 +315,7 @@ export function RecordViewer({
       <RecordBody
         adapter={adapter}
         mode={mode}
-        activeTab={taskAnatomy || tabbedAnatomy ? activeTab : undefined}
+        activeTab={tabbedAnatomy ? activeTab : undefined}
         onOpenRelated={onOpenRelated}
         onDirtyChange={onDirtyChange}
         onCommitField={onCommitField ?? (async () => noopCommit())}
@@ -360,8 +353,17 @@ export function RecordViewer({
               <dl className="record-viewer__header-context" data-record-header-context="true">
                 {adapter.headerContext.map((item) => (
                   <div key={item.key} className="record-viewer__header-context-item" data-header-context-key={item.key}>
-                    <dt>{item.label}</dt>
-                    <dd>{item.displayValue}</dd>
+                    {item.key === 'overdue' ? (
+                      <>
+                        <dt className="sr-only">{item.label}</dt>
+                        <dd role="status">{item.displayValue}</dd>
+                      </>
+                    ) : (
+                      <>
+                        <dt>{item.label}</dt>
+                        <dd>{item.displayValue}</dd>
+                      </>
+                    )}
                   </div>
                 ))}
               </dl>
@@ -392,13 +394,6 @@ export function RecordViewer({
               )}
             </div>
           </header>
-          <div className="record-viewer__tabs" role="tablist" aria-label={t('tasks.record.tabsAria')}>
-            {(['details', 'checklist', 'activity'] as const).map((tab, index) => (
-              <button key={tab} ref={(element) => { tabRefs.current[index] = element }} type="button" role="tab" id={`record-tab-${tab}`} aria-controls={`record-panel-${tab}`} aria-selected={activeTab === tab} tabIndex={activeTab === tab ? 0 : -1} className={activeTab === tab ? 'is-active' : ''} onClick={() => selectTab(tab)} onKeyDown={(event) => onTabKeyDown(event, tab, ['details', 'checklist', 'activity'])}>
-                {tabLabels[tab]}
-              </button>
-            ))}
-          </div>
         </div>
       )}
       {showIdentityHeader && !taskAnatomy && (
@@ -440,7 +435,7 @@ export function RecordViewer({
           ))}
         </div>
       )}
-      {taskAnatomy || tabbedAnatomy ? (
+      {tabbedAnatomy ? (
         <div id={`record-panel-${activeTab}`} role="tabpanel" aria-labelledby={`record-tab-${activeTab}`} tabIndex={0}>
           {body}
         </div>

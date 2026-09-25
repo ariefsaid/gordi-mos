@@ -56,10 +56,9 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   expect(page.url()).toMatch(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
 
   // ── 8. Assert: the Activity section shows the status_changed event ─────────
-  // The approved record anatomy keeps Activity as a tab; the event is still persisted evidence.
-  await drawer.getByRole('tab', { name: /^Activity/ }).click()
-  const activityPane = drawer.getByRole('region', { name: 'Activity' })
-  await expect(activityPane.getByText(/status changed|→ In Progress|In Progress/i).first()).toBeVisible({ timeout: 8_000 })
+  // The work-first Task record shows Activity inline (no tab); the event is persisted evidence.
+  const activityPane = drawer.getByRole('region', { name: 'Activity', exact: true })
+  await expect(activityPane.getByText(/Status changed · Open → In Progress/).first()).toBeVisible({ timeout: 8_000 })
 
   // ── 9. Assert: returning to the list shows "In Progress" on the row ─────────
   await page.goto('work/tasks')

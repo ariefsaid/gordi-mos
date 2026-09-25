@@ -32,7 +32,7 @@ import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
 import { BAR_MEMBER, BAR_SUPERVISOR, BAR_STREAM } from './fixtures/users'
-import { ensureStream } from './helpers/cafe-stream'
+import { ensureStream, STREAM_CONTROL_NAME, streamStatement, streamSwitch } from './helpers/cafe-stream'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
@@ -127,6 +127,9 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
       INSERT INTO ops.item_units (org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id, is_default, is_transferable, confirmed_at)
       VALUES ('${ORG}', '${ITEM_ID}', '${UNIT_NAME}', 'PD-E2E-014', 'P-E2E-014', true, true, now())
       ON CONFLICT (wip_item_id, unit_name) DO UPDATE SET confirmed_at = now();
+      INSERT INTO ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
+      VALUES ('${ORG}', ${BRANCH_SQL}, '${BAR_STREAM.activity}', '${ITEM_ID}', 'manual')
+      ON CONFLICT (org_id, branch_id, activity, wip_item_id) DO NOTHING;
     `)
 
     // The plan the member logs AGAINST (FR-015): the stream's own plan for today.
@@ -163,6 +166,7 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
       DELETE FROM ops.kitchen_stock     WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.kitchen_logs      WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.kitchen_plans     WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
+      DELETE FROM ops.stream_items      WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.item_units        WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.wip_items         WHERE org_id='${ORG}' AND id='${ITEM_ID}';
     `)
@@ -190,21 +194,20 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     // ambiguous. If BAR_MEMBER ever needed the choice, that would itself be the finding.
     await ensureStream(page)
 
-    // FR-001 — the surface OPENS on their own stream. Resolved from the live primary Team
-    // membership, through the real RPC: nothing in the URL or the click path said "Rumah Rames".
-    // FR-005 — and the picker enumerates every stream AT THE RESOLVED LOCATION, switchable
-    // (FR-003): the default is a default, not a wall (OD-WAY-49/31). OD-CAFE-1 bound the picker
-    // to the active location (previously the whole seven-stream org catalog, OD-WAY-79) — Rumah
-    // Rames carries exactly two, {kitchen, bar} (supabase/seed.sql shared.seed_stream_teams()).
-    const streamPicker = page.getByRole('combobox', { name: /Production stream/i })
-    await expect(streamPicker).toBeVisible({ timeout: 15_000 })
-    await streamPicker.click()
-    const streamListbox = page.getByRole('listbox', { name: /Production stream/i })
-    await expect(streamListbox.getByRole('option')).toHaveCount(2)
-    const selectedStreamOption = streamListbox.getByRole('option', { name: /Rumah Rames · Bar/i })
-    await expect(selectedStreamOption).toHaveAttribute('aria-selected', 'true')
-    await selectedStreamOption.click()
-    await expect(streamPicker).toContainText(/Rumah Rames · Bar/i)
+    // FR-001 — the surface OPENS on their own stream, stated in the head. Resolved from the live
+    // primary Team membership, through the real RPC: nothing in the URL or the click path said
+    // "Rumah Rames". FR-005 — and Switch offers the other streams AT THE RESOLVED LOCATION
+    // (FR-003): the default is a default, not a wall (OD-WAY-49/31). OD-CAFE-1 bound the choice to
+    // the active location — Rumah Rames carries exactly two, {kitchen, bar}
+    // (supabase/seed.sql shared.seed_stream_teams()), and the one already in view is not offered.
+    await expect(streamStatement(page)).toContainText(/Rumah Rames · Bar/i, { timeout: 15_000 })
+    await streamSwitch(page).click()
+    const streamListbox = page.getByRole('listbox', { name: STREAM_CONTROL_NAME })
+    await expect(streamListbox.getByRole('option')).toHaveCount(1)
+    await expect(streamListbox.getByRole('option', { name: /Rumah Rames · Kitchen/i })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(streamListbox).toHaveCount(0)
+    await expect(streamStatement(page)).toContainText(/Rumah Rames · Bar/i)
 
     // FR-011 / DD-WAY-29 — the item is on the form because its unit is CONFIRMED, and it carries
     // that unit as fixed master data beside the qty input (FR-020).
@@ -301,9 +304,7 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     // ...and it is VISIBLE on the stream's stock surface — the number a person actually reads.
     await page.goto('cafe/stock')
     await page.waitForURL(/\/cafe\/stock$/, { timeout: 15_000 })
-    const stockStreamPicker = page.getByRole('combobox', { name: /Production stream/i })
-    await expect(stockStreamPicker).toBeVisible({ timeout: 20_000 })
-    await expect(stockStreamPicker).toContainText(/Rumah Rames · Bar/i)
+    await expect(streamStatement(page)).toContainText(/Rumah Rames · Bar/i, { timeout: 20_000 })
     const stockRow = page.getByRole('row', { name: new RegExp(ITEM_NAME, 'i') })
     await expect(stockRow).toBeVisible({ timeout: 15_000 })
     await expect(stockRow).toContainText(String(PLAN_QTY))

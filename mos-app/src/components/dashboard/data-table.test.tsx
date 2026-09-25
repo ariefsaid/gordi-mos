@@ -1,6 +1,6 @@
 // DataTable tests — design-plan §2.3 (general sortable, reflowing table primitive).
 // Generalises kitchen-table.css (.kt-*) grammar with a formal sort + card-reflow prop-shape.
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within, fireEvent } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { readFileSync } from 'node:fs'
@@ -469,12 +469,9 @@ describe('DataTable — grouping regression + glyph guard', () => {
 // through the catalog. Needs the provider wrapper (bare renders resolve the standalone
 // en default context).
 describe('DataTable — locale seam (#400)', () => {
-  beforeEach(() => localStorage.setItem('mos.locale', 'id'))
-  afterEach(() => localStorage.clear())
-
   it('default empty label is Indonesian when the caller passes none', () => {
     render(
-      <I18nProvider>
+      <I18nProvider initialLocale="id">
         <DataTable columns={COLUMNS} rows={[]} isDesktop state="empty" caption="Tabel" />
       </I18nProvider>,
     )
@@ -484,7 +481,7 @@ describe('DataTable — locale seam (#400)', () => {
 
   it('group toggle aria names are Indonesian (desktop + phone)', () => {
     const { unmount } = render(
-      <I18nProvider>
+      <I18nProvider initialLocale="id">
         <DataTable columns={COLUMNS} rows={[]} groups={GROUPS} isDesktop caption="Tabel" />
       </I18nProvider>,
     )
@@ -494,7 +491,7 @@ describe('DataTable — locale seam (#400)', () => {
     unmount()
 
     render(
-      <I18nProvider>
+      <I18nProvider initialLocale="id">
         <DataTable columns={COLUMNS} rows={[]} groups={GROUPS} isDesktop={false} caption="Tabel" />
       </I18nProvider>,
     )
@@ -506,7 +503,7 @@ describe('DataTable — locale seam (#400)', () => {
   // is the last string in the kit still bypassing `common.loadFailed`.
   it('the error state and its retry control render Indonesian', () => {
     render(
-      <I18nProvider>
+      <I18nProvider initialLocale="id">
         <DataTable
           columns={COLUMNS}
           rows={[]}

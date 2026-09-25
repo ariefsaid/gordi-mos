@@ -71,7 +71,7 @@ echo "==> harden spec-miner: read-only + Write (drop Bash)"
 sed -i.bak 's/^allowed-tools:.*/allowed-tools: Read, Grep, Glob, Write/' "$DEST/spec-miner/SKILL.md"
 rm -f "$DEST/spec-miner/SKILL.md.bak"
 
-# --- UI/UX design skills (vetted SAFE-with-caveats; see docs/design-workflow.md) ---
+# --- UI/UX design skills (vetted SAFE-with-caveats; see docs/takeover/mvp-ui-continuation.md) ---
 echo "==> impeccable (pbakaus/impeccable) — design/critique/extract; phone-home DISABLED"
 IMPECCABLE_PIN="cb56ed6c19a07329a9fa0cd4e657bee040156593"
 git init -q "$TMP/impeccable"

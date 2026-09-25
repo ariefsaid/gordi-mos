@@ -43,9 +43,15 @@ Updates + per-Activity ops + reference data + money follow-ups. Ships at
 
 ## UI review and improvement tasks
 
-For a bounded UI/UX/IA/IxD request, use `docs/takeover/mvp-ui-continuation.md` as the execution
-entrypoint. Inspect and critique the running interface before implementation; quantitative checks
-support the visual review. That route owns scope, skill selection, review order and stopping rules.
+For every UI/UX/IA/IxD iteration, use `docs/takeover/mvp-ui-continuation.md` in the main checkout
+as the execution entrypoint. Managed worktrees lack private `docs/` and `.claude/skills/`; use
+`git worktree list` to find the former and `bash scripts/ui-skill-tools.sh paths` for the actual
+skill files, playbooks and launchers. Read and apply the applicable skills and run their supported
+CLI utilities; their names or a context probe alone do not certify their methods were used. The
+route interprets older owner decisions and chats as expected behavior
+without freezing their layouts or today's approved screen into a pixel oracle. Inspect and critique
+the running interface before implementation; quantitative checks support the visual review. The
+route owns scope, skill use, review order and bounded stopping rules.
 The factory loop below governs ticket delivery and publication, not a prerequisite to opening or
 showing a local preview. Explicit owner deadlines stop workers and verification as well as edits;
 report the actual build and remaining limitations at the deadline.
@@ -58,8 +64,10 @@ independent review → PR → auto-merge to dev → next. Its machinery binds ou
 1. Unclear ask → `/grilling` (too big for one session → `/wayfinder`) → `/to-spec` → `/to-tickets`.
 2. Build. The factory is the default executor for ordinary bounded tickets, dispatched ONLY via
    `bash scripts/factory-run.sh` (never bare `uv run adws/…` — the wrapper carries the gh no-auth
-   layer). An explicit owner-authorized separate Codex task/model delegation (for example, a Luna
-   task at max reasoning) is a first-class Director lane: isolate it, name it in the ticket's
+   layer). An explicit owner-authorized separate Codex task/model delegation is a first-class
+   Director lane. For Codex subagents, the owner default is `gpt-6-luna` with `max` reasoning;
+   pass both explicitly on dispatch, rather than inheriting the Director's model or effort.
+   Isolate the lane, name it in the ticket's
    in-flight marker, and keep the same brief, verification, independent review, public-write, and
    security gates. A Claude subagent dispatch additionally needs a logged lane —
    `scripts/lane-exempt.sh` (hook denies otherwise; Explore/Plan free). For explicitly authorized
@@ -171,15 +179,16 @@ The project lifecycle owns phase routing: discovery/grilling → `to-spec` synth
 intent → bounded factory or authorized Director execution → independent review → milestone
 acceptance. Superpowers techniques serve these phases; they do not restart a second approval or
 specification loop. Preserve batched owner questions and original outcome/provenance in briefs.
-Under OD-REDESIGN-88, understood seams may use test-with against the approved acceptance oracle;
+Under OD-REDESIGN-88, understood seams may use test-with against the current behavior contract;
+visual placement assertions change when the owner-authorized workflow changes;
 retain red-first for bug fixes, uncertain logic and protected interaction-contract changes.
 Automatic UI guards and changed-surface browser checks run per change. Deep rendered judgment
 covers touched and connected surfaces at a signed milestone boundary, or when the ticket's
 contract explicitly requires it; ordinary tickets do not repeat the whole-product assessment.
 Initial visual critique runs before fixes and is independent of detector findings; final rendered
-confirmation follows fixes. The pixel layer belongs to an independent image-capable reviewer: `fe_reviewer` qualifies only
+confirmation follows fixes. Rendered visual judgment belongs to an independent image-capable reviewer: `fe_reviewer` qualifies only
 after a real image-transport and candidate-binding probe succeeds, otherwise use a separate
-Director/Codex image-capable lane. DOM/a11y evidence alone cannot pass pixels; provider failure
+Director/Codex image-capable lane. DOM/a11y evidence alone cannot pass visual judgment; provider failure
 leaves review incomplete. See `docs/quality-model.md` for the two-speed design contract.
 
 ## Pointers
