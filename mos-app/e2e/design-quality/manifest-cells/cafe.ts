@@ -10,19 +10,19 @@ export const CAFE_CELL_INPUTS = [
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-plan-default-desktop', {
-    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BARISTA',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-plan-default-phone', {
-    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BARISTA',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-log-default-desktop', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BARISTA',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-log-default-phone', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BARISTA',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-review-default-phone', {
@@ -97,10 +97,10 @@ export const CAFE_CELL_INPUTS = [
     },
   }],
   ['cafe-log-producing-compact', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BARISTA',
     viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'producing', status: 'covered', primary: true,
     // A producing stream gets the capture form; a receiving-only one gets a read view and no
-    // form at all. BAR_MEMBER has one assigned location, so the root IS the capture surface
+    // form at all. BARISTA has one assigned location, so the root IS the capture surface
     // (DD-MVP-17) and no location has to be chosen first.
     stateContract: {
       setup: [],
@@ -109,11 +109,11 @@ export const CAFE_CELL_INPUTS = [
     },
   }],
   ['cafe-log-loading-phone', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BARISTA',
     viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'loading', status: 'covered', primary: true,
   }],
   ['cafe-log-success-desktop', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BARISTA',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'success', status: 'covered', primary: true,
   }],
   ['cafe-review-authorized-desktop', {
@@ -129,10 +129,16 @@ export const CAFE_CELL_INPUTS = [
     // has none. Covering it needs the drivers to tolerate a control-less face, not a
     // different contract.
   }],
+  // BAR_MEMBER opens on the Rumah Rames bar, whose item list is empty and whose books hold no
+  // balance, so its stock list is truthfully empty.
   ['cafe-stock-empty-compact', {
-    area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'VIEWER',
-    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'empty', status: 'untested', primary: true,
-    note: 'No seeded production stream has an empty stock list: all seven return 32 rows, so no read-only drive reaches this state. The page-level "choose a stream" face is a missing selection, not an empty list.',
+    area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'BAR_MEMBER',
+    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'empty', status: 'covered', primary: true,
+    stateContract: {
+      setup: [],
+      assertion: { selector: '.ks-block [data-testid="empty-state"]' },
+      negativeAssertion: { selector: '.ks-block table' },
+    },
   }],
   ['cafe-stock-validation-phone', {
     area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'VIEWER',
@@ -156,7 +162,7 @@ export const CAFE_CELL_INPUTS = [
     viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'error', status: 'covered',
   }],
   ['cafe-wip-long-content', {
-    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BARISTA',
     viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'long-content', status: 'covered',
   }],
 ] satisfies readonly ManifestCellInput[]

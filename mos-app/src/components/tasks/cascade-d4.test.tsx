@@ -381,7 +381,7 @@ describe('FR-249 — detail panel shows an explicit Ad hoc state when context is
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
     // FR-249: absent Project/Process and Objective context is explicit and meaningful rather
     // than blank. Due keeps its more informative "No due date" label.
-    expect(screen.getAllByText('Ad hoc').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getAllByText('Ad hoc')).toHaveLength(1)
     expect(screen.getByText('No due date')).toBeInTheDocument()
   })
 })

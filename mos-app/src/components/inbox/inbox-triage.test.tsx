@@ -20,7 +20,7 @@ function trow(id: string, over?: Partial<TriageNotificationRow>): TriageNotifica
   }
 }
 
-function renderTriage(props: Partial<InboxTriageProps> = {}) {
+function renderTriage(props: Partial<InboxTriageProps> = {}, locale: 'en' | 'id' = 'en') {
   const full: InboxTriageProps = {
     mode: 'page',
     state: 'ready',
@@ -33,7 +33,7 @@ function renderTriage(props: Partial<InboxTriageProps> = {}) {
     ...props,
   }
   render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <InboxTriage {...full} />
     </I18nProvider>,
   )
@@ -159,16 +159,14 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
   it('issue #583 i18n: the id locale renders id age units, not the hardcoded en m/h/d beside the localized age Pill', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-20T03:00:00Z')) // 3h after row a's created_at
-    localStorage.setItem('mos.locale', 'id')
     try {
-      renderTriage({ rows: [trow('a')] })
+      renderTriage({ rows: [trow('a')] }, 'id')
       const expected = formatAge('2026-07-20T00:00:00Z', new Date(), 'id')
       expect(expected).toBe('3jam') // sanity: not the en "3h" the Pill's neighbour used to show
       const row = screen.getByText('Title a').closest('.inbox-row')!
       expect(within(row as HTMLElement).getByText(expected)).toBeInTheDocument()
     } finally {
       vi.useRealTimers()
-      localStorage.removeItem('mos.locale')
     }
   })
 

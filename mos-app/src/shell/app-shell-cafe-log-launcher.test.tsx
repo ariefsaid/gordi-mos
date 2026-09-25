@@ -112,7 +112,6 @@ async function openLauncher() {
 
 beforeEach(() => {
   localStorage.clear()
-  localStorage.setItem('mos.locale', 'en')
   setNarrow(true)
 })
 afterEach(() => {

@@ -13,7 +13,7 @@
 // contract (a PlanMap keyed by MOVEMENT — 'produce' | 'transfer:<destinationBranchId>' —
 // never by the derived label string).
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
@@ -33,6 +33,8 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     approveKitchenLog: vi.fn(),
     approveKitchenLogsBulk: vi.fn(),
     rejectKitchenLog: vi.fn(),
+    // #222: every queued item is on its stream's list unless a test says otherwise.
+    listAllStreamItemKeys: vi.fn(async () => ({ has: () => true })),
   }
 })
 import {
@@ -43,6 +45,8 @@ import {
   approveKitchenLogsBulk,
   rejectKitchenLog,
   KitchenRpcError,
+  listAllStreamItemKeys,
+  streamItemKey,
 } from '@/lib/db/kitchen-logs'
 
 // The viewer's own stream comes from the ONE resolver (#234 consolidation), which returns a
@@ -93,9 +97,20 @@ function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
 }
 
+// #781: CafeStreamBar states the resolved view as text with a quiet "Switch" beside it (opens a
+// portaled listbox) — Review always has something to state (a stream, or "All streams"), so the
+// Switch action is always present here.
+function startsWith(label: string) {
+  return (accessibleName: string) => accessibleName.startsWith(label)
+}
+
+function idWrapper({ children }: { children: ReactNode }) {
+  return createElement(MemoryRouter, null, createElement(I18nProvider, { initialLocale: 'id' }, children))
+}
+
 function chooseStream(optionName: string) {
-  fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
-  fireEvent.click(screen.getByRole('option', { name: optionName }))
+  fireEvent.click(screen.getByRole('button', { name: /^switch$/i }))
+  fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
 }
 
 function viewer(accessRoles: string[]): AuthState {
@@ -602,11 +617,10 @@ describe('KitchenReviewPage — the stream reads in the page head (#440)', () =>
     await screen.findByText('Nasi Goreng')
 
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = within(head).getByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveTextContent('Rumah Rames · Kitchen')
+    expect(within(head).getByTestId('cafe-stream')).toHaveTextContent('Rumah Rames · Kitchen')
 
-    fireEvent.click(picker)
-    fireEvent.click(screen.getByRole('option', { name: 'Radiant · Bar' }))
+    fireEvent.click(within(head).getByRole('button', { name: /^switch$/i }))
+    fireEvent.click(screen.getByRole('option', { name: startsWith('Radiant · Bar') }))
     await screen.findByText('Es Kopi')
     expect(screen.queryByText('Nasi Goreng')).toBeNull()
   })
@@ -616,8 +630,7 @@ describe('KitchenReviewPage — the stream reads in the page head (#440)', () =>
     const { container } = render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
-    const picker = within(head).getByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveTextContent('All streams')
+    expect(within(head).getByTestId('cafe-stream')).toHaveTextContent('All streams')
     expect(screen.getByText('Es Kopi')).toBeInTheDocument()
   })
 
@@ -632,7 +645,7 @@ describe('KitchenReviewPage — the stream reads in the page head (#440)', () =>
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Es Kopi')
-    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveTextContent('Radiant · Bar')
+    expect(screen.getByTestId('cafe-stream')).toHaveTextContent('Radiant · Bar')
     expect(screen.queryByText('Nasi Goreng')).toBeNull()
   })
 })
@@ -644,8 +657,7 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
-    const filter = screen.getByRole('combobox', { name: /production stream/i })
-    expect(filter).toHaveTextContent('Rumah Rames · Kitchen')
+    expect(screen.getByTestId('cafe-stream')).toHaveTextContent('Rumah Rames · Kitchen')
     // own-stream row is shown; the other stream's row is not
     expect(screen.queryByText('Es Kopi')).not.toBeInTheDocument()
   })
@@ -654,7 +666,7 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
-    expect(screen.getByRole('combobox', { name: /production stream/i })).toHaveTextContent('All streams')
+    expect(screen.getByTestId('cafe-stream')).toHaveTextContent('All streams')
     expect(screen.getByText('Es Kopi')).toBeInTheDocument()
   })
 
@@ -873,11 +885,9 @@ describe('KitchenReviewPage — per-stream completeness confirmation (FR-031)', 
 // and read the outcome banner, all under id. RED first: the flow renders English today.
 describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
   beforeEach(() => {
-    localStorage.setItem('mos.locale', 'id')
     mockList.mockResolvedValue([PROD_LOG]) // on-plan (plan 8, logged 8)
     mockPlan.mockResolvedValue({ w1: { produce: 8 } })
   })
-  afterEach(() => localStorage.clear())
 
   // #410: the owner's named worst case, mirrored — the decision buttons were translated while
   // the table AROUND them stayed English (headers, the on/off-plan tag, the plan/logged words).
@@ -894,7 +904,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
       dispatchEvent: () => false,
     } as MediaQueryList)
     try {
-      render(<KitchenReviewPage />, { wrapper })
+      render(<KitchenReviewPage />, { wrapper: idWrapper })
       await screen.findByText('Nasi Goreng')
       // column headers
       const ths = Array.from(document.querySelectorAll('thead th'))
@@ -917,7 +927,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
 
   it('phone card chrome is Indonesian too: variance tag and qty words', async () => {
     // Default jsdom matchMedia (matches: false) → the phone-card branch (#436).
-    render(<KitchenReviewPage />, { wrapper })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
     expect(screen.getByText('sesuai rencana')).toBeInTheDocument()
     expect(screen.getByText('rencana')).toBeInTheDocument()
@@ -927,7 +937,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
   })
 
   it('idle row: Approve/Reject buttons and their aria names are Indonesian', async () => {
-    render(<KitchenReviewPage />, { wrapper })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
     expect(screen.getByRole('button', { name: 'Setujui Nasi Goreng' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Tolak Nasi Goreng' })).toBeInTheDocument()
@@ -937,7 +947,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
 
   it('reject flow: note gate, placeholders, cue, confirm — Indonesian end to end', async () => {
     mockReject.mockResolvedValue(undefined)
-    render(<KitchenReviewPage />, { wrapper })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
 
     fireEvent.click(screen.getByRole('button', { name: 'Tolak Nasi Goreng' }))
@@ -960,7 +970,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
 
   it('in-flight: the busy label is Memproses…, never Working…', async () => {
     mockReject.mockReturnValue(new Promise(() => {})) // never resolves
-    render(<KitchenReviewPage />, { wrapper })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: 'Tolak Nasi Goreng' }))
     fireEvent.change(screen.getByLabelText('Catatan penolakan untuk Nasi Goreng'), {
@@ -979,7 +989,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
   // press apart must not announce identically, or a screen-reader/keyboard user gets no signal
   // that the second press is the one that cannot be undone.
   it('the destructive confirm does not announce the same name as the trigger that opened it', async () => {
-    render(<KitchenReviewPage />, { wrapper })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
     const trigger = screen.getByRole('button', { name: 'Tolak Nasi Goreng' })
     const triggerName = trigger.textContent
@@ -997,7 +1007,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
   it('approve flow (off-plan): note gate + outcome banner in Indonesian', async () => {
     mockPlan.mockResolvedValue({ w1: { produce: 12 } }) // 8 ≠ 12 → off-plan → note gate
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-010' })
-    render(<KitchenReviewPage />, { wrapper })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: 'Setujui Nasi Goreng' }))
     expect(screen.getByText('Catatan persetujuan')).toBeInTheDocument()
@@ -1011,7 +1021,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
 
   it('action errors: forbidden and generic RPC failures surface Indonesian banners', async () => {
     mockApprove.mockRejectedValue(new KitchenRpcError('42501', 'forbidden'))
-    render(<KitchenReviewPage />, { wrapper })
+    render(<KitchenReviewPage />, { wrapper: idWrapper })
     await screen.findByText('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: 'Setujui Nasi Goreng' }))
     expect(await screen.findByText('Anda tidak memiliki izin untuk meninjau log ini.')).toBeInTheDocument()
@@ -1147,11 +1157,24 @@ describe('issue 587: the row names its own stream in the All-streams view', () =
     mockPlan.mockResolvedValue({ w1: { produce: 8 } })
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
-    const filter = screen.getByRole('combobox', { name: /production stream/i })
+    const filter = screen.getByTestId('cafe-stream')
     chooseStream('Rumah Rames · Kitchen')
     await waitFor(() => expect(filter).toHaveTextContent('Rumah Rames · Kitchen'))
-    // the SELECT itself legitimately carries this stream's name as an <option> — the
-    // assertion is on the queue row, never on the filter control.
+    // the stated stream legitimately carries this stream's name — the assertion is on the
+    // queue row, never on the head's own statement.
     expect(document.querySelector('.krow-stream')).toBeNull()
+  })
+})
+
+describe('issue 222: a queued row whose item left its stream\'s list stays reviewable, labelled', () => {
+  it('labels only that row and keeps its decision controls', async () => {
+    vi.mocked(listAllStreamItemKeys).mockResolvedValue(new Set([streamItemKey(BRANCH_ID, 'kitchen', 'w2')]))
+    mockList.mockResolvedValue([PROD_LOG, XFER_LOG])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    expect(screen.getAllByText('Not on this stream’s list')).toHaveLength(1)
+    const card = screen.getByText('Not on this stream’s list').closest('tr, .krow-card') as HTMLElement
+    expect(card).toHaveTextContent('Nasi Goreng')
+    expect(within(card).getByRole('button', { name: /approve/i })).toBeEnabled()
   })
 })

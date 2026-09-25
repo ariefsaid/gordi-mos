@@ -193,8 +193,8 @@ describe('listCafeViewerTeams', () => {
       }],
       'shared.teams': [{
         data: [
-          { id: 'team-primary', name: 'Gordi HQ Bar', business_unit_id: 'bu-1', site_id: null },
-          { id: 'team-secondary', name: 'Radiant Bar', business_unit_id: 'bu-1', site_id: null },
+          { id: 'team-primary', name: 'Gordi HQ Bar', business_unit_id: 'bu-1', site_id: null, branch_id: null, activity: null },
+          { id: 'team-secondary', name: 'Radiant Bar', business_unit_id: 'bu-1', site_id: null, branch_id: 'branch-radiant', activity: 'bar' },
         ], error: null,
       }],
     }, rec)
@@ -208,6 +208,16 @@ describe('listCafeViewerTeams', () => {
     expect(result.map(team => [team.id, team.is_primary])).toEqual([
       ['team-primary', true], ['team-secondary', false],
     ])
+    // A stream Team carries its (branch, activity); an office Team (e.g. the primary here) is
+    // null on both — that null is what tells a current membership apart from a stream one
+    // (coordinator gap: "Your Team" tagging needs this to find every stream the person belongs to,
+    // not only their home).
+    expect(result.find(team => team.id === 'team-secondary')).toMatchObject({
+      branch_id: 'branch-radiant', activity: 'bar',
+    })
+    expect(result.find(team => team.id === 'team-primary')).toMatchObject({
+      branch_id: null, activity: null,
+    })
   })
 
   it('returns no memberships without issuing a broad team read', async () => {

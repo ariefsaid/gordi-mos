@@ -35,14 +35,19 @@
 }
 
 @media (max-width: 767.98px) {
+  /* Three tabs stay one row; a long Indonesian label scrolls the row instead of wrapping it. */
   .admin-settings-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
     margin-bottom: 12px;
+    scrollbar-width: none;
   }
 
   .admin-settings-nav__link {
     min-height: 44px;
-    flex: 1 1 160px;
+    flex: 1 0 auto;
     justify-content: center;
+    white-space: nowrap;
   }
 }
 
@@ -209,52 +214,6 @@
   min-height: 44px;
 }
 
-.admin-team-leads {
-  display: flex;
-  flex-direction: column;
-}
-
-.admin-team-lead-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.9fr) auto;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 16px;
-}
-
-.admin-team-lead-row + .admin-team-lead-row {
-  border-top: 1px solid var(--border);
-}
-
-.admin-team-lead-row__name {
-  min-width: 0;
-  color: var(--foreground);
-  font-size: var(--font-size-body-lg);
-  font-weight: 600;
-}
-
-.admin-team-lead-row__control {
-  min-width: 0;
-}
-
-.admin-team-lead-row__action {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  min-width: 160px;
-}
-
-.admin-team-lead-row__feedback {
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-  white-space: nowrap;
-}
-
-.admin-team-lead-row__error {
-  grid-column: 1 / -1;
-}
-
 .admin-team-lead-row__candidate-error {
   margin-top: 8px;
 }
@@ -280,9 +239,6 @@
     z-index: 2;
   }
 
-  .admin-access-mobile-save .btn {
-    width: 100%;
-  }
 
   .admin-access-panel__head {
     flex-direction: column;
@@ -293,9 +249,6 @@
     width: 100%;
   }
 
-  .admin-access-panel__head-action .btn {
-    width: 100%;
-  }
 
   .admin-access-mobile__action {
     align-items: stretch;
@@ -307,15 +260,637 @@
     width: 100%;
   }
 
-  .admin-team-lead-row {
-    display: flex;
-    align-items: stretch;
-    flex-direction: column;
-    gap: 8px;
+}
+
+/* ── Roles & permissions: derived columns, scroll cue, save group ──────────── */
+
+.admin-access-table__role-name {
+  display: block;
+}
+
+.admin-access-derived {
+  display: inline-block;
+  margin-top: 2px;
+  color: var(--primary);
+  font-size: var(--font-size-micro);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.admin-access-derived:hover,
+.admin-access-derived:focus-visible {
+  text-decoration: underline;
+}
+
+.admin-access-derived:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.admin-access-mobile__role .admin-access-derived {
+  margin-top: 6px;
+  font-size: var(--font-size-label);
+}
+
+.admin-access-table-frame {
+  position: relative;
+}
+
+/* The cue: a line above the table and a fade on the clipped edge, both only while columns are
+   hidden past the right edge. */
+.admin-access-scroll-hint {
+  margin: 0;
+  padding: 8px 16px 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  text-align: right;
+}
+
+.admin-access-table-frame--more::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 40px;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--card));
+  border-bottom-right-radius: var(--radius-lg);
+}
+
+.admin-access-save {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-access-unsaved {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  white-space: nowrap;
+}
+
+/* ── Teams tab ─────────────────────────────────────────────────────────────── */
+
+.admin-teams__header,
+.admin-teams__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) 150px minmax(240px, 1fr) 150px;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+}
+
+.admin-teams__header {
+  min-height: 38px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+}
+
+.admin-teams__row {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.admin-teams__row + .admin-teams__row {
+  border-top: 1px solid var(--border);
+}
+
+.admin-teams__name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.admin-teams__team {
+  color: var(--foreground);
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+}
+
+.admin-teams__stream,
+.admin-teams__members {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.admin-teams__members {
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-teams__lead {
+  min-width: 0;
+}
+
+.admin-teams__lead .admin-access-note__copy {
+  margin: 6px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.admin-teams__status {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 32px;
+  align-items: center;
+}
+
+/* ── Row status: Saving… → Saved, or Failed · Retry, printed beside the row ── */
+
+.admin-row-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-size: var(--font-size-label);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.admin-row-status--saving {
+  color: var(--muted-foreground);
+}
+
+.admin-row-status--saved {
+  color: var(--status-won-text);
+}
+
+.admin-row-status--failed {
+  color: var(--field-error-text);
+}
+
+.admin-row-status__retry {
+  min-height: 32px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-row-status__retry:hover {
+  text-decoration: underline;
+}
+
+.admin-row-status__retry:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse), (max-width: 767.98px) {
+  .admin-row-status__retry {
+    min-height: 44px;
+  }
+}
+
+/* ── People list: row door, selection, phone gutter ───────────────────────── */
+
+.people-row {
+  cursor: pointer;
+}
+
+.people-row[data-selected='true'],
+.people-card[data-selected='true'] {
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
+}
+
+.people-card {
+  cursor: pointer;
+}
+
+.people-row-open {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.people-row-open:hover {
+  text-decoration: underline;
+}
+
+.people-row-open:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ── Person panel ──────────────────────────────────────────────────────────── */
+
+/* Beside the list, the panel keeps its own scroll so the list stays in view. */
+.admin-people-split > .admin-person-panel {
+  position: sticky;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - var(--header-h) - 24px);
+}
+
+.admin-person-panel .record-panel-chrome {
+  flex: none;
+}
+
+.admin-person-panel .admin-person {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.admin-person__title {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-display);
+  font-size: var(--font-size-subheading);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+/* Open-focus target only (tabIndex -1), never a control: no ring on a heading. */
+.admin-person__title:focus {
+  outline: none;
+}
+
+.admin-person {
+  padding: 0 0 24px;
+}
+
+.admin-person__email {
+  margin: 0;
+  padding: 12px 16px 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  overflow-wrap: anywhere;
+}
+
+.admin-person-summary {
+  padding: 12px 16px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-person-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+
+.admin-person-facts__row {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+}
+
+.admin-person-facts dt {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+}
+
+.admin-person-facts dd {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--font-size-body);
+}
+
+.admin-person-teams {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-person-teams li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-person-note {
+  margin: 6px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.4;
+}
+
+.admin-person-muted {
+  color: var(--muted-foreground);
+}
+
+.admin-person-link {
+  color: var(--primary);
+  font-size: var(--font-size-label);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.admin-person-link:hover,
+.admin-person-link:focus-visible {
+  text-decoration: underline;
+}
+
+.admin-person-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.admin-person-subhead {
+  margin: 20px 0 8px;
+  color: var(--foreground);
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+
+.admin-person-cando {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.admin-person-cando__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'action scope'
+    'action source';
+  column-gap: 12px;
+  padding: 8px 12px;
+}
+
+.admin-person-cando__row + .admin-person-cando__row {
+  border-top: 1px solid var(--border);
+}
+
+.admin-person-cando__action {
+  grid-area: action;
+  align-self: center;
+  color: var(--foreground);
+  font-size: var(--font-size-body);
+}
+
+.admin-person-cando__scope {
+  grid-area: scope;
+  justify-self: end;
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+
+.admin-person-cando__source {
+  grid-area: source;
+  justify-self: end;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.admin-person-candoerror {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--field-error-text);
+  font-size: var(--font-size-body);
+}
+
+/* Sections: collapsible, Teams · Position · Access · Revenue scope. */
+.admin-person-section {
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-person-section__heading {
+  margin: 0;
+}
+
+.admin-person-section__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Inset 4px each side so the +2px focus ring is not clipped by the panel's scroller. */
+  width: calc(100% - 8px);
+  min-height: 44px;
+  margin: 0 4px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-person-section__toggle:hover {
+  background: var(--surface-secondary);
+}
+
+.admin-person-section__toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.admin-person-section__chevron {
+  flex: none;
+  color: var(--muted-foreground);
+  transition: transform var(--dur-fast) ease-out;
+}
+
+.admin-person-section__chevron--closed {
+  transform: rotate(-90deg);
+}
+
+.admin-person-section__title {
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+
+.admin-person-section__summary {
+  margin-left: auto;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.admin-person-section__body {
+  padding: 0 16px 16px;
+}
+
+.admin-person-section__helper {
+  margin: 0 0 8px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.4;
+}
+
+.admin-person-section__empty {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+}
+
+.admin-person-section__group {
+  margin: 0 0 6px;
+  padding: 0 2px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-person-warning {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--destructive) 8%, var(--card));
+  color: var(--field-error-text);
+  font-size: var(--font-size-label);
+}
+
+.admin-choice-list {
+  overflow: hidden;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+}
+
+.admin-check-row {
+  display: flex;
+  align-items: center;
+}
+
+.admin-check-row__trailing {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding-right: 12px;
+}
+
+.admin-list-filter {
+  margin: 0 0 8px;
+}
+
+.admin-list-filter__input {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-body);
+}
+
+.admin-list-filter__input::placeholder {
+  color: var(--muted-foreground);
+}
+
+.admin-list-filter__input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.admin-list-filter__show-all {
+  min-height: 32px;
+  margin-top: 6px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-list-filter__show-all:hover {
+  text-decoration: underline;
+}
+
+.admin-list-filter__show-all:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.admin-list-filter__empty {
+  margin: 0;
+  padding: 8px 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+}
+
+@media (max-width: 767.98px) {
+  .admin-list-filter__show-all {
+    min-height: 44px;
   }
 
-  .admin-team-lead-row__action {
-    justify-content: flex-start;
-    min-width: 0;
+  .admin-list-filter__input {
+    height: 44px;
+    font-size: var(--font-size-touch-input);
+  }
+
+  .admin-check-row {
+    flex-wrap: wrap;
+  }
+
+  .admin-check-row__trailing {
+    padding-left: 40px;
+  }
+
+  .admin-check-row__trailing:empty {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-person-section__chevron {
+    transition: none;
+  }
+}
+
+/* Phone composition for the Teams tab and the Roles save group. Kept after the base rules above:
+   a media query adds no specificity, so an earlier phone rule would lose to them. */
+@media (max-width: 767.98px) {
+  .admin-teams__header {
+    display: none;
+  }
+
+  .admin-teams__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'name members'
+      'lead lead'
+      'status status';
+    row-gap: 8px;
+  }
+
+  .admin-teams__name { grid-area: name; }
+  .admin-teams__members { grid-area: members; }
+  .admin-teams__lead { grid-area: lead; }
+  .admin-teams__status { grid-area: status; justify-content: flex-start; min-height: 0; }
+  .admin-teams__status:empty { display: none; }
+
+  .admin-access-save {
+    width: 100%;
+  }
+
+  .admin-access-save .btn {
+    flex: 1;
   }
 }

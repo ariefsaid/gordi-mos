@@ -20,7 +20,6 @@ import { CommandMenu } from './command-menu'
 const mockScopes = vi.mocked(getWorkWriteScopes)
 
 function renderAt(path: string) {
-  localStorage.setItem('mos.locale', 'en')
   return render(
     <I18nProvider>
       <MemoryRouter initialEntries={[path]}>

@@ -40,6 +40,9 @@ import { listActiveBranches } from '@/lib/db/branches'
 // shared.default_stream() (FR-001) — the viewer's live primary stream Team. Un-mocked
 // it hits Supabase for real and every bootstrap lands in the error state.
 vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
+// #781 coordinator follow-up: useCafeStream now also reads current Team memberships for
+// "Your Team" tagging (myStreamKeys) — empty by default here; tests that care override it.
+vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn().mockResolvedValue([]) }))
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 
 import { KitchenStockPage } from './kitchen-stock-page'
@@ -56,6 +59,10 @@ const mockStreamPairs = vi.mocked(listStreamPairs)
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
+}
+
+function idWrapper({ children }: { children: ReactNode }) {
+  return createElement(MemoryRouter, null, createElement(I18nProvider, { initialLocale: 'id' }, children))
 }
 
 function viewer(accessRoles: string[]): AuthState {
@@ -100,10 +107,23 @@ const STREAM_PAIRS = [BRANCH_GHQ, BRANCH_RAD, BRANCH_RR].flatMap(b => [
   { branch_id: b.id, activity: 'bar' as const, produces: true },
 ])
 
-/** The head picker's option value for a stream — what a switch fires. */
+// #781: CafeStreamBar states a resolved stream as text with a quiet "Switch" beside it (opens a
+// portaled listbox) — or, with no default resolved at all, offers the location's streams as
+// direct one-click buttons (CafeStreamChoices), no separate open step. `startsWith` rather than
+// an exact match because an option carries an appended tag ("— Your Team" / "— Receiving only")
+// when it applies.
+function startsWith(label: string) {
+  return (accessibleName: string) => accessibleName.startsWith(label)
+}
+
 function chooseStream(optionName: string) {
-  fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
-  fireEvent.click(screen.getByRole('option', { name: optionName }))
+  const switchButton = screen.queryByRole('button', { name: /^switch$/i })
+  if (switchButton) {
+    fireEvent.click(switchButton)
+    fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
+    return
+  }
+  fireEvent.click(screen.getByRole('button', { name: startsWith(optionName) }))
 }
 
 beforeEach(() => {
@@ -228,10 +248,13 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     mockDefaultStream.mockResolvedValue(null)
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
-    expect(await screen.findByText(/choose a stream/i)).toBeInTheDocument()
+    expect(await screen.findByText(/choose a production stream/i)).toBeInTheDocument()
     expect(mockFetchStock).not.toHaveBeenCalled()
-    const picker = screen.getByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveTextContent(/choose stream/i)
+    // #781/B12: nothing is resolved, so the head states NOTHING — the one-step choice (item 2)
+    // is what replaces it, as direct buttons rather than a control that has to be opened first.
+    expect(screen.queryByTestId('cafe-stream')).toBeNull()
+    const group = screen.getByRole('group', { name: /production stream/i })
+    expect(within(group).getAllByRole('button').length).toBeGreaterThan(0)
   })
 
   it('issue 440: the head STATES the stream in view — canonical branch · activity', async () => {
@@ -241,8 +264,7 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     await screen.findByText('Ayam Bakar')
     const head = container.querySelector('[data-testid="page-head"]')
     expect(head?.textContent).toContain('Stream')
-    const picker = within(head as HTMLElement).getByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveTextContent('Radiant · Bar')
+    expect(within(head as HTMLElement).getByTestId('cafe-stream')).toHaveTextContent('Radiant · Bar')
   })
 
   it('issue 440: a stream chosen elsewhere in Café wins over the viewer\'s own default', async () => {
@@ -314,10 +336,10 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText(/no stock to show/i)
 
-    // The picker is present in the empty state — an empty stream is not a dead end.
-    const picker = screen.getByRole('combobox', { name: /production stream/i })
-    expect(picker).toBeInTheDocument()
-    expect(picker).not.toBeDisabled()
+    // The Switch action is present in the empty state — an empty stream is not a dead end.
+    const switchButton = screen.getByRole('button', { name: /^switch$/i })
+    expect(switchButton).toBeInTheDocument()
+    expect(switchButton).not.toBeDisabled()
 
     mockFetchStock.mockResolvedValueOnce(STOCK_ROWS)
     chooseStream('Radiant · Kitchen')
@@ -345,11 +367,11 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
 
-    // The selected stream option for the central kitchen reads the CATALOG name, matching the
-    // capture surface exactly — the two are routinely open side by side.
-    const picker = screen.getByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveTextContent('Rumah Rames · Kitchen')
-    expect(picker).not.toHaveTextContent(/Bungur/)
+    // The stated stream for the central kitchen reads the CATALOG name, matching the capture
+    // surface exactly — the two are routinely open side by side.
+    const stated = screen.getByTestId('cafe-stream')
+    expect(stated).toHaveTextContent('Rumah Rames · Kitchen')
+    expect(stated).not.toHaveTextContent(/Bungur/)
 
     // The incumbent's trap label never renders, anywhere on the surface. Unchanged, and the
     // reason FR-061 exists: "Stok HQ" means the central kitchen, which books to Rumah Rames.
@@ -529,13 +551,11 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
 describe('KitchenStockPage — locale seam (#400)', () => {
   beforeEach(() => {
     setDesktop()
-    localStorage.setItem('mos.locale', 'id')
     mockFetchStock.mockResolvedValue(STOCK_ROWS) // one negative row → 'perlu ditinjau'
   })
-  afterEach(() => localStorage.clear())
 
   it('renders the whole summary rule in Bahasa Indonesia', async () => {
-    render(<KitchenStockPage />, { wrapper })
+    render(<KitchenStockPage />, { wrapper: idWrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByRole('group', { name: 'Ringkasan stok' })).toBeInTheDocument()
     expect(screen.getByText('Total stok fisik')).toBeInTheDocument()
@@ -550,7 +570,7 @@ describe('KitchenStockPage — locale seam (#400)', () => {
 
   it('phone summary line is Indonesian and stays a single rule', async () => {
     setPhone()
-    render(<KitchenStockPage />, { wrapper })
+    render(<KitchenStockPage />, { wrapper: idWrapper })
     await screen.findByText('Ayam Bakar')
     const summary = document.querySelector('.msr') as HTMLElement
     expect(summary).not.toBeNull()
@@ -563,7 +583,7 @@ describe('KitchenStockPage — locale seam (#400)', () => {
     mockFetchStock.mockResolvedValue([
       { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: null, stok: 0, tersedia: 0 },
     ])
-    render(<KitchenStockPage />, { wrapper })
+    render(<KitchenStockPage />, { wrapper: idWrapper })
     await screen.findByText('Ayam Bakar')
     expect(document.querySelector('.msr')).not.toBeNull()
     expect(screen.getAllByText(/erp inventory not connected|inventori ERP belum terhubung/i)).toHaveLength(1)
@@ -586,5 +606,19 @@ describe('issue 455: document title', () => {
   it('titles the tab from the Café nav label, not the retired kitchen one', async () => {
     render(<KitchenStockPage />, { wrapper })
     await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.stock')))
+  })
+})
+
+describe('issue 222: stock keeps every balance, labelling items off the stream\'s list', () => {
+  it('an item off the list still shows its balance, labelled', async () => {
+    mockFetchStock.mockResolvedValue([
+      { ...STOCK_ROWS[0], on_stream: true },
+      { ...STOCK_ROWS[1], on_stream: false },
+    ])
+    render(<KitchenStockPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getAllByText('Not on this stream’s list')).toHaveLength(1)
+    expect(screen.getByText('Not on this stream’s list').closest('tr, .ks-card')).toHaveTextContent('Nasi Goreng')
   })
 })

@@ -8,6 +8,20 @@
   margin: 0;
 }
 
+/* #930 — the four Work collections (Tasks, Signals, Projects & Processes, Objectives) are
+   master/detail operating surfaces: DESIGN.md's Two-Measure Rule wide operating measure
+   (1760px) applies to all of them, whether or not a record is open, not only to Tasks and Home.
+   `.work-collection` is a stable marker each collection's top-level wrapper always renders
+   (Tasks' own `.split`/`.split.nodrawer` already served this role and keeps doing so via its own
+   scoped rule in TasksWorkspace.css; Signals/Objectives/Projects & Processes render it via
+   pages/signals-archive-page.tsx, pages/objectives-page.tsx, pages/projects-processes-page.tsx),
+   unlike the old per-page `record-split` class those three only carried once a record was open —
+   which left them at the 1180px readable cap at rest and made the frame jump width when a record
+   opened. One rule here instead of three repeated `:has()` overrides. */
+.page-frame--v3 .page-frame__content:has(.work-collection) {
+  max-width: 1760px;
+}
+
 @media (min-width: 768px) and (max-width: 1279px) {
   .page-frame--v3 {
     padding: 20px 24px 40px;

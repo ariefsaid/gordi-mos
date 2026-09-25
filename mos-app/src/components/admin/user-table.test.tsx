@@ -183,7 +183,7 @@ describe('UserTable — desktop ⋯ menu', () => {
 
     // Menu should be open
     const menu = screen.getByRole('menu')
-    expect(within(menu).getByRole('menuitem', { name: /manage access & position/i })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /^manage person$/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /reset password/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /disable login/i })).toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: /enable login/i })).not.toBeInTheDocument()
@@ -244,15 +244,15 @@ describe('UserTable — desktop ⋯ menu', () => {
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
   })
 
-  it('dispatches manage-roles action when "Manage access & position" clicked', async () => {
+  it('dispatches manage-person when "Manage person" is clicked', async () => {
     const user = userEvent.setup()
     const onAction = vi.fn()
     renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { onAction })
 
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
-    await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
+    await user.click(screen.getByRole('menuitem', { name: /^manage person$/i }))
 
-    expect(onAction).toHaveBeenCalledWith('manage-roles', ACTIVE_MEMBER)
+    expect(onAction).toHaveBeenCalledWith('manage-person', ACTIVE_MEMBER)
   })
 
   it('dispatches reset-password action when "Reset password" clicked', async () => {
@@ -288,7 +288,7 @@ describe('UserTable — I3 menu contract (useMenuPopover)', () => {
     renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
     await waitFor(() =>
-      expect(screen.getByRole('menuitem', { name: /manage access & position/i })).toHaveFocus(),
+      expect(screen.getByRole('menuitem', { name: /^manage person$/i })).toHaveFocus(),
     )
   })
 
@@ -296,7 +296,7 @@ describe('UserTable — I3 menu contract (useMenuPopover)', () => {
     const user = userEvent.setup()
     renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
-    await waitFor(() => expect(screen.getByRole('menuitem', { name: /manage access & position/i })).toHaveFocus())
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: /^manage person$/i })).toHaveFocus())
 
     await user.keyboard('{ArrowDown}')
     expect(screen.getByRole('menuitem', { name: /reset password/i })).toHaveFocus()
@@ -310,12 +310,12 @@ describe('UserTable — I3 menu contract (useMenuPopover)', () => {
     const user = userEvent.setup()
     renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
-    await waitFor(() => expect(screen.getByRole('menuitem', { name: /manage access & position/i })).toHaveFocus())
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: /^manage person$/i })).toHaveFocus())
 
     await user.keyboard('{End}')
     expect(screen.getByRole('menuitem', { name: /archive/i })).toHaveFocus()
     await user.keyboard('{Home}')
-    expect(screen.getByRole('menuitem', { name: /manage access & position/i })).toHaveFocus()
+    expect(screen.getByRole('menuitem', { name: /^manage person$/i })).toHaveFocus()
   })
 
   it('closes on outside pointerdown and returns focus to the trigger', async () => {
@@ -426,7 +426,7 @@ describe('UserTable — mobile action sheet', () => {
 
     // Action sheet should be open with actions
     expect(screen.getByRole('menu')).toBeInTheDocument()
-    expect(screen.getByRole('menuitem', { name: /manage access & position/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /^manage person$/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /reset password/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /disable login/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /archive/i })).toBeInTheDocument()
@@ -439,9 +439,9 @@ describe('UserTable — mobile action sheet', () => {
 
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
 
-    await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
+    await user.click(screen.getByRole('menuitem', { name: /^manage person$/i }))
 
-    expect(onAction).toHaveBeenCalledWith('manage-roles', ACTIVE_MEMBER)
+    expect(onAction).toHaveBeenCalledWith('manage-person', ACTIVE_MEMBER)
   })
 
   it('mobile action sheet closes after action', async () => {
@@ -451,7 +451,7 @@ describe('UserTable — mobile action sheet', () => {
 
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
 
-    await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
+    await user.click(screen.getByRole('menuitem', { name: /^manage person$/i }))
 
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
   })
@@ -535,7 +535,7 @@ describe('UserTable — ⋯ menu portaled to body', () => {
     await user.click(screen.getByRole('button', { name: /more actions for budi santoso/i }))
 
     const menu = screen.getByRole('menu')
-    expect(within(menu).getByRole('menuitem', { name: /manage access & position/i })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /^manage person$/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /reset password/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /disable login/i })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: /archive/i })).toBeInTheDocument()
@@ -651,7 +651,7 @@ describe('AC-041: the phone card is one ⋯, never a button in the card', () => 
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
-  it('AC-041: no card holds a filled primary, and the ⋯ is the card’s only button', () => {
+  it('AC-041: no card holds a filled primary; its controls are the name (opens the person) and one ⋯', () => {
     const { container } = renderTable([ACTIVE_ADMIN, TEAMED_MEMBER], {
       isDesktop: false,
       teams: [BAR_TEAM],
@@ -660,12 +660,14 @@ describe('AC-041: the phone card is one ⋯, never a button in the card', () => 
     expect(cards).toHaveLength(2)
     for (const card of cards) {
       expect(card.querySelectorAll('.btn-primary')).toHaveLength(0)
-      const buttons = card.querySelectorAll('button')
-      expect(buttons).toHaveLength(1)
-      expect(buttons[0].getAttribute('aria-label')).toMatch(/^More actions for /)
+      const buttons = [...card.querySelectorAll('button')]
+      expect(buttons).toHaveLength(2)
+      expect(buttons[0].className).toContain('people-row-open')
+      const more = buttons[1]
+      expect(more.getAttribute('aria-label')).toMatch(/^More actions for /)
       // The coarse-pointer touch floor.
-      expect(buttons[0].style.minHeight).toBe('44px')
-      expect(buttons[0].style.minWidth).toBe('44px')
+      expect(more.style.minHeight).toBe('44px')
+      expect(more.style.minWidth).toBe('44px')
     }
   })
 
@@ -691,5 +693,62 @@ describe('AC-044: the no-match empty state is neutral, never an all-clear', () =
     const empty = await screen.findByTestId('empty-state')
     expect(empty.getAttribute('data-empty-variant')).not.toBe('quiet')
     expect(empty.textContent).not.toContain('✓')
+  })
+})
+
+describe('the row opens the person', () => {
+  it('a click anywhere on the row opens that person', async () => {
+    const user = userEvent.setup()
+    const onAction = vi.fn()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { onAction })
+    const row = screen.getByText(ACTIVE_MEMBER.full_name).closest('tr') as HTMLElement
+    await user.click(within(row).getAllByRole('cell')[1])
+    expect(onAction).toHaveBeenCalledWith('manage-person', ACTIVE_MEMBER)
+  })
+
+  it('Enter on the name opens that person', async () => {
+    const user = userEvent.setup()
+    const onAction = vi.fn()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { onAction })
+    screen.getByRole('button', { name: ACTIVE_MEMBER.full_name }).focus()
+    await user.keyboard('{Enter}')
+    expect(onAction).toHaveBeenCalledTimes(1)
+    expect(onAction).toHaveBeenCalledWith('manage-person', ACTIVE_MEMBER)
+  })
+
+  it('the ⋯ menu never also opens the row', async () => {
+    const user = userEvent.setup()
+    const onAction = vi.fn()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { onAction })
+    await user.click(screen.getByRole('button', { name: `More actions for ${ACTIVE_MEMBER.full_name}` }))
+    expect(onAction).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('menuitem', { name: 'Reset password' }))
+    expect(onAction).toHaveBeenCalledTimes(1)
+    expect(onAction).toHaveBeenCalledWith('reset-password', ACTIVE_MEMBER)
+  })
+
+  it('on a phone card, a tap on the card opens the person', async () => {
+    const user = userEvent.setup()
+    const onAction = vi.fn()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { onAction, isDesktop: false })
+    const card = screen.getByText(ACTIVE_MEMBER.full_name).closest('article') as HTMLElement
+    await user.click(card)
+    expect(onAction).toHaveBeenCalledWith('manage-person', ACTIVE_MEMBER)
+  })
+})
+
+describe('search matches every typed word, in any order', () => {
+  it('"barista bayu" finds Bayu Barista; a word that matches nothing finds nobody', async () => {
+    const user = userEvent.setup()
+    const bayu: AdminPersonRow = { ...ACTIVE_MEMBER, id: 'bayu', full_name: 'Bayu Barista', email: 'bayu@example.test' }
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER, bayu])
+    const search = screen.getByRole('searchbox', { name: /search people/i })
+
+    await user.type(search, 'barista bayu')
+    expect(screen.getByText('Bayu Barista')).toBeInTheDocument()
+    expect(screen.queryByText(ACTIVE_MEMBER.full_name)).toBeNull()
+
+    await user.type(search, ' zzz')
+    expect(screen.queryByText('Bayu Barista')).toBeNull()
   })
 })

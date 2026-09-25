@@ -66,7 +66,8 @@ async function assertCanonicalSurface(page: Page, route: string) {
   if (routeEntry?.owner === 'admin-settings') {
     const settings = page.getByRole('navigation', { name: 'Admin settings sections' })
     await expect(settings).toBeVisible()
-    await expect(settings.getByRole('link', { name: 'Access & authority' })).toHaveAttribute('aria-current', 'page')
+    const tab = route === '/admin/teams' ? 'Teams' : 'Roles & permissions'
+    await expect(settings.getByRole('link', { name: tab, exact: true })).toHaveAttribute('aria-current', 'page')
   } else {
     await expect(breadcrumb).toBeVisible()
   }

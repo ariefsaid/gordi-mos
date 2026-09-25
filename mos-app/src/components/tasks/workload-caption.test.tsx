@@ -1,15 +1,12 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { WorkloadCaption } from './workload-caption'
 
 describe('WorkloadCaption locale grammar', () => {
-  afterEach(() => localStorage.removeItem('mos.locale'))
-
   it('renders the Indonesian workload sentence and accessible label', () => {
-    localStorage.setItem('mos.locale', 'id')
     render(
-      <I18nProvider>
+      <I18nProvider initialLocale="id">
         <WorkloadCaption summary={{
           isSelf: true,
           firstName: 'Arief',

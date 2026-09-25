@@ -70,10 +70,10 @@ function setOnline(online: boolean) {
   })
 }
 
-function renderShell(page: React.ReactNode, { crashBoundary = false } = {}) {
+function renderShell(page: React.ReactNode, { crashBoundary = false, locale = 'en' as 'en' | 'id' } = {}) {
   authenticate()
   const tree = (
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={['/']}>
         <Routes>
           <Route element={<AppShell />}>
@@ -324,9 +324,8 @@ describe('AC-026 — the header says offline exactly once, and only while offlin
   })
 
   it('renders the Indonesian line under locale id', async () => {
-    localStorage.setItem('mos.locale', 'id')
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
-    renderShell(<div>page</div>)
+    renderShell(<div>page</div>, { locale: 'id' })
 
     expect(screen.getByText('Anda sedang offline')).toBeInTheDocument()
     expect(screen.queryByText('You’re offline')).toBeNull()

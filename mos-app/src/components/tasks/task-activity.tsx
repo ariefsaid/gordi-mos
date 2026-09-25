@@ -4,10 +4,8 @@ import { ActivityCard } from './activity-card'
 import { CommentThread, type TaskComment } from './CommentThread'
 import { useT } from '@/i18n/use-t'
 
-// TaskActivity — the Task record's Activity (audit) region: the event log + the comment thread,
-// stacked and quiet, as the LAST content region of the content-first anatomy (OD-REDESIGN-90 §2.2
-// item 5). Extracted verbatim from the retired RecordFeed's Activity pane (the tabbed feed is gone
-// now that Checklist and Activity are separate ordered regions, not two tabs). It never carries a
+// TaskActivity — the Task record's discussion region: the event log + the comment thread, stacked
+// below the checklist and above task context. It never carries a
 // weekly-update write/ack affordance (Lens-D guard A2 — this is a Task, not the upward-review pane)
 // and never re-renders the Task description read-only (owner-eyes item 11 — Description has ONE home,
 // the content region above).
@@ -18,12 +16,14 @@ export type TaskActivityProps = {
   now: Date
   editable: boolean
   onPostComment: (body: string) => Promise<void> | void
+  commentDraft?: string
+  onCommentDraftChange?: (draft: string) => void
   /** D-B2: a typed-but-unposted comment feeds the host leave-guard (forwarded to CommentThread). */
   onCommentDirtyChange?: (dirty: boolean) => void
 }
 
 export function TaskActivity({
-  events, comments, people, now, editable, onPostComment, onCommentDirtyChange,
+  events, comments, people, now, editable, onPostComment, commentDraft, onCommentDraftChange, onCommentDirtyChange,
 }: TaskActivityProps) {
   const t = useT()
   // owner-eyes item 5 — collapse the empty stack. Never stack "No activity yet." + "No comments
@@ -47,7 +47,9 @@ export function TaskActivity({
         people={people}
         canPost={editable}
         onPost={onPostComment}
-        heading="srOnly"
+        draftValue={commentDraft}
+        onDraftChange={onCommentDraftChange}
+        heading="visible"
         emptyLabel={commentsEmptyLabel}
         onDirtyChange={onCommentDirtyChange}
       />

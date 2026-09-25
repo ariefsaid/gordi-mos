@@ -17,7 +17,6 @@ for (const width of [390, 1440]) {
     let runId: string | undefined
     try {
       await page.setViewportSize({ width, height: 900 })
-      await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
       await loginAs(page, 'krishna.dev@example.test', DEMO_PASSWORD)
       await page.goto('cafe')
       const response = page.waitForResponse(r => /\/rpc\/spawn_process_run/.test(r.url()) && r.ok())
@@ -30,8 +29,10 @@ for (const width of [390, 1440]) {
       await page.getByRole('link', {name:/view opening tasks/i}).click()
       await expect(page.getByText('Open the café floor', { exact: true }).first()).toBeVisible()
       await page.goto('work/projects/e3000000-0000-0000-0000-000000000001')
-      await page.getByRole('tab', {name:'Occurrences',exact:true}).click()
-      const occurrence = page.locator('li').filter({has:page.getByRole('link',{name:/view tasks/i})}).filter({has:page.locator(`a[href*="${runId}"]`)}).first()
+      // A Process record's current occurrences live under its Work tab ("Current and next action").
+      await page.getByRole('tab', {name:'Work',exact:true}).click()
+      const occurrences = page.getByRole('region', {name:'Current and next action',exact:true}).getByRole('region', {name:'Occurrences',exact:true})
+      const occurrence = occurrences.locator('li').filter({has:page.getByRole('link',{name:/view tasks/i})}).filter({has:page.locator(`a[href*="${runId}"]`)}).first()
       const assign = occurrence.getByRole('button',{name:/to assign/i})
       await assign.click()
       const dialog = page.getByRole('dialog',{name:/assign/i})

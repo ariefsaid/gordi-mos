@@ -1,5 +1,5 @@
 import './record-panel-host.css'
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { useIsWideOverlayWidth } from './use-is-wide-overlay-width'
 import { useIsDesktop } from './use-is-desktop'
 import { useIsNarrow } from './use-is-narrow'
@@ -32,6 +32,11 @@ export type RecordPanelHostProps = {
   children: ReactNode
   /** Re-run the open-focus + trap wiring when this changes (e.g. a fresh record mounts). */
   focusKey?: string
+  /**
+   * Where open-focus lands instead of the content's first control — for a read-first panel whose
+   * first control is a side link. Point it at the panel heading (with tabIndex={-1}).
+   */
+  initialFocusRef?: RefObject<HTMLElement | null>
   /** When set, the host renders its chrome header (title zone · optional Open-full-page · ✕). */
   title?: ReactNode
   /** Optional tenant actions rendered inside the shared chrome before Open/Close. */
@@ -44,6 +49,8 @@ export type RecordPanelHostProps = {
   canGoBack?: boolean
   /** Extra identity class on the panel (aside in split, .drawer-modal-root in modal). */
   rootClassName?: string
+  /** Inline style on the non-modal aside (e.g. a companion's measured placement). */
+  style?: CSSProperties
   /** Overlay-host oracle: which route/shell owner mounts this host. */
   owner?: OverlayOwner
   /** Overlay-host oracle: the active stack entry key. */
@@ -77,7 +84,7 @@ function OpenPageIcon() {
  * closing returns it); <1100px modal dialog (scrim + focus-trap + Esc + return-focus).
  */
 export function RecordPanelHost({
-  label, onClose, closeLabel, children, focusKey, title, actions, onOpenPage, rootClassName,
+  label, onClose, closeLabel, children, focusKey, initialFocusRef, title, actions, onOpenPage, rootClassName, style,
   onBack, canGoBack, owner, entryKey, transitionPending, layout = 'standard',
   escapeCapture = false, escapeOnDocument = false, companion = false,
 }: RecordPanelHostProps) {
@@ -105,13 +112,14 @@ export function RecordPanelHost({
     // chrome bar's ✕ — the chrome stays reachable by Tab. Chrome-only panels keep their first
     // chrome control as the fallback so focus always enters the panel.
     const focusables = focusableWithin(panel)
-    const first = focusables.find((el) => !el.closest('.record-panel-chrome')) ?? focusables[0]
+    const first = initialFocusRef?.current
+      ?? focusables.find((el) => !el.closest('.record-panel-chrome')) ?? focusables[0]
     first?.focus()
 
     return () => {
       invokerRef.current?.focus?.()
     }
-  }, [focusKey, isModal])
+  }, [focusKey, initialFocusRef, isModal])
 
   // Modal-only: focus trap (on the panel). Tab wraps within the sheet because the modal
   // owns the whole screen; the split regime keeps the page live, so no trap there.
@@ -127,7 +135,9 @@ export function RecordPanelHost({
       if (focusable.length === 0) return
       const firstEl = focusable[0]
       const lastEl = focusable[focusable.length - 1]
-      if (e.shiftKey && document.activeElement === firstEl) {
+      // Focus parked outside the tab order (an initialFocusRef heading) wraps back like the first.
+      const parked = !focusable.includes(document.activeElement as HTMLElement)
+      if (e.shiftKey && (document.activeElement === firstEl || parked)) {
         e.preventDefault(); lastEl.focus()
       } else if (!e.shiftKey && document.activeElement === lastEl) {
         e.preventDefault(); firstEl.focus()
@@ -239,7 +249,7 @@ export function RecordPanelHost({
     const asideClass = ['drawer', 'drawer-split', rootClassName ?? '']
       .filter(Boolean).join(' ')
     return (
-      <aside ref={panelRef} className={asideClass} aria-label={label} {...overlayAttrs}>
+      <aside ref={panelRef} className={asideClass} style={style} aria-label={label} {...overlayAttrs}>
         {body}
       </aside>
     )

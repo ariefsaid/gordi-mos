@@ -35,6 +35,13 @@ vi.mock('@/lib/db/admin-users', () => ({
 }))
 import { listAdminPeople, listRoles, listRevenueScopeOptions, listTeams } from '@/lib/db/admin-users'
 
+vi.mock('@/lib/db/admin-access', () => ({
+  listRoleAuthority: vi.fn(),
+  listTeamLeadAssignments: vi.fn(),
+}))
+import { listRoleAuthority, listTeamLeadAssignments } from '@/lib/db/admin-access'
+import { AUTHORITY_ACTIONS, AUTHORITY_ROLES } from '@/lib/db/admin-access.types'
+
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 import { AdminUsersPage } from './admin-users-page'
 
@@ -124,11 +131,15 @@ beforeEach(() => {
   // The page's load() awaits every option list; an unstubbed one rejects and the whole page
   // renders its error state, which is how adding listTeams took 24 tests red at once.
   mockListTeams.mockResolvedValue([])
+  vi.mocked(listRoleAuthority).mockResolvedValue(AUTHORITY_ACTIONS.flatMap((action) => AUTHORITY_ROLES.map((role) => ({
+    action, role, scope: role === 'admin' ? 'org' as const : 'none' as const,
+  }))))
+  vi.mocked(listTeamLeadAssignments).mockResolvedValue([])
 })
 
-function renderPage() {
+function renderPage(initialPath = '/admin/people') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialPath]}>
       <AdminUsersPage />
     </MemoryRouter>,
   )
@@ -141,7 +152,13 @@ describe('AdminUsersPage (AC-060)', () => {
     renderPage()
     // Page heading should be present immediately
     expect(screen.getByRole('heading', { name: /People/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Access & authority' })).toHaveAttribute('href', '/admin/access')
+    // The three Admin Settings tabs render before any data does.
+    const tabs = within(screen.getByRole('navigation', { name: 'Admin settings sections' })).getAllByRole('link')
+    expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('href')])).toEqual([
+      ['People', '/admin/people'],
+      ['Teams', '/admin/teams'],
+      ['Roles & permissions', '/admin/access'],
+    ])
     // Loading state — SkeletonRows uses aria-hidden, so check for the page head
     // and that no person names render yet
     expect(screen.queryByText('Budi Santoso')).not.toBeInTheDocument()
@@ -367,10 +384,10 @@ describe('AdminUsersPage — V3 Management frame', () => {
   })
 })
 
-// CQ Issue 1 (feat/manager-tier-role-assignment review): the open Access/Position dialog must re-derive
-// from reloaded people after a write, not hold a stale snapshot (else the just-toggled Position reverts).
-describe('AdminUsersPage — dialog reflects fresh data after a Position toggle', () => {
-  it('re-renders the open dialog against reloaded people (no stale snapshot)', async () => {
+// CQ Issue 1 (feat/manager-tier-role-assignment review): the open person panel must re-derive from
+// reloaded people after a write, not hold a stale snapshot (else the just-toggled Position reverts).
+describe('AdminUsersPage — the person panel reflects fresh data after a Position toggle', () => {
+  it('re-renders the open panel against reloaded people (no stale snapshot)', async () => {
     const user = userEvent.setup()
     const base: AdminPersonRow = {
       id: 'p-riri',
@@ -392,25 +409,24 @@ describe('AdminUsersPage — dialog reflects fresh data after a Position toggle'
     await screen.findByText('Riri')
 
     await user.click(screen.getByRole('button', { name: /more actions for riri/i }))
-    await user.click(screen.getByRole('menuitem', { name: /manage access & position/i }))
+    await user.click(screen.getByRole('menuitem', { name: /^manage person$/i }))
 
     const box = screen.getByRole('checkbox', { name: /kitchen lead/i })
     expect(box).toHaveAttribute('aria-checked', 'false')
 
-    await user.click(box) // assignJabatan → onDone → load() returns the assigned Position
+    await user.click(box) // assignJabatan → refresh() returns the assigned Position
 
-    // With the stale-snapshot bug the dialog would stay unchecked; the fix re-derives it from fresh data.
+    // With the stale-snapshot bug the panel would stay unchecked; the fix re-derives it from fresh data.
     await waitFor(() =>
       expect(screen.getByRole('checkbox', { name: /kitchen lead/i })).toHaveAttribute('aria-checked', 'true'),
     )
   })
 })
 
-// The Teams section is the one part of the RoleEditor dialog nothing asserted end to end: every
-// suite stubbed listTeams to [] and RoleEditor's `teams` prop defaults to [], so deleting
-// `teams={teams}` from the page left the whole suite green.
+// The Teams section must be wired end to end: every other suite stubs listTeams to [], so deleting
+// `teams={teams}` from the page would leave them all green.
 describe('AdminUsersPage — the Teams section is actually wired through', () => {
-  it('passes listTeams() into the role editor, so a real team renders in the dialog', async () => {
+  it('passes listTeams() into the person panel, so a real team renders there', async () => {
     const user = userEvent.setup()
     mockListAdminPeople.mockResolvedValue([
       {
@@ -425,12 +441,42 @@ describe('AdminUsersPage — the Teams section is actually wired through', () =>
     renderPage()
 
     await user.click(await screen.findByRole('button', { name: /More actions for Budi Santoso/i }))
-    await user.click(await screen.findByText(/Manage access & position/i))
+    await user.click(await screen.findByText(/^Manage person$/i))
 
     // The team the PAGE fetched, rendered by the picker, showing its (branch, activity) pair —
     // and marked Home, which is what resolves this person's default capture stream.
     expect(await screen.findByRole('checkbox', { name: 'Gordi HQ Bar' })).toBeChecked()
     expect(screen.getByText('Gordi HQ · Bar')).toBeInTheDocument()
-    expect(screen.getByText('Home')).toBeInTheDocument()
+    const teamRow = screen.getByRole('checkbox', { name: 'Gordi HQ Bar' }).closest('.admin-check-row') as HTMLElement
+    expect(within(teamRow).getByText('Home')).toBeInTheDocument()
+  })
+})
+
+describe('AdminUsersPage — find and open a person', () => {
+  it('while filtered, the head counts what the list shows out of everyone ("1 of 4")', async () => {
+    const user = userEvent.setup()
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    renderPage()
+    await screen.findByText('Budi Santoso')
+    expect(screen.getByTestId('people-count-line')).toHaveTextContent('4 people')
+
+    await user.type(screen.getByRole('searchbox', { name: /search people/i }), 'santoso budi')
+    expect(screen.getByTestId('people-count-line')).toHaveTextContent('1 of 4 people')
+  })
+
+  it('a row click opens the person, read-first, titled with their name; Close returns to the list', async () => {
+    const user = userEvent.setup()
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    renderPage()
+    const name = await screen.findByText('Budi Santoso')
+    await user.click(name.closest('tr')!.querySelectorAll('td')[1])
+
+    const panel = await screen.findByRole('dialog', { name: 'Manage Budi Santoso' })
+    expect(within(panel).getByRole('heading', { level: 2, name: 'Manage Budi Santoso' })).toBeInTheDocument()
+    expect(within(panel).getByRole('region', { name: 'Summary' })).toBeInTheDocument()
+    expect(within(panel).getByRole('heading', { name: 'What they can do' })).toBeInTheDocument()
+
+    await user.click(within(panel).getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog', { name: 'Manage Budi Santoso' })).toBeNull()
   })
 })

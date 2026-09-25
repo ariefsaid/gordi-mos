@@ -17,6 +17,10 @@ function wrapper({ children }: { children: ReactNode }) {
   return createElement(I18nProvider, null, children)
 }
 
+function idWrapper({ children }: { children: ReactNode }) {
+  return createElement(I18nProvider, { initialLocale: 'id' }, children)
+}
+
 describe('i18n messages catalog', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -52,9 +56,8 @@ describe('i18n messages catalog', () => {
     )
   })
 
-  it('AC-I02: with locale persisted as id, t("dest.home") returns "Beranda"', () => {
-    localStorage.setItem('mos.locale', 'id')
-    const { result } = renderHook(() => useT(), { wrapper })
+  it('AC-I02: with the id locale active, t("dest.home") returns "Beranda"', () => {
+    const { result } = renderHook(() => useT(), { wrapper: idWrapper })
     expect(result.current('dest.home')).toBe('Beranda')
   })
 
@@ -114,8 +117,7 @@ describe('nav i18n (AC-409, FR-440) — every nav label through the catalog', ()
   })
 
   it('AC-409: under locale:id, every nav.* key resolves to a localized string, not the key itself', () => {
-    localStorage.setItem('mos.locale', 'id')
-    const { result } = renderHook(() => useT(), { wrapper })
+    const { result } = renderHook(() => useT(), { wrapper: idWrapper })
     for (const key of NAV_KEYS) {
       const resolved = result.current(key)
       expect(resolved, `${key} fell back to the key stub under id`).not.toBe(key)
@@ -163,8 +165,7 @@ describe('assistant panel i18n (T26, AC-P2-AP-004/005)', () => {
   })
 
   it('under locale:id, every assistant.* key resolves to a localized string, not the key itself', () => {
-    localStorage.setItem('mos.locale', 'id')
-    const { result } = renderHook(() => useT(), { wrapper })
+    const { result } = renderHook(() => useT(), { wrapper: idWrapper })
     for (const key of ASSISTANT_KEYS) {
       const resolved = result.current(key)
       expect(resolved, `${key} fell back to the key stub under id`).not.toBe(key)
@@ -185,4 +186,20 @@ describe('cascade i18n is retired with the surface (#179)', () => {
     }
   })
 
+})
+
+// The person panel's "What they can do" lines name Work collections; in Indonesian they must use
+// the same words the sidebar does, or a reader cannot match a right to the place it applies.
+describe('admin access actions use the nav terms for Work collections', () => {
+  it.each([
+    ['admin.access.action.workline.manage', 'nav.work.projects'],
+    ['admin.access.action.objective.manage', 'nav.work.objectives'],
+    ['admin.access.action.signal.post', 'nav.work.signals'],
+    ['admin.access.action.signal.tag', 'nav.work.signals'],
+    ['admin.access.action.signal.retract', 'nav.work.signals'],
+  ] as const)('%s names %s in both locales', (actionKey, navKey) => {
+    for (const locale of ['en', 'id'] as const) {
+      expect(messages[locale][actionKey]).toContain(messages[locale][navKey])
+    }
+  })
 })

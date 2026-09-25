@@ -122,6 +122,12 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
     symbol: 'AdminUsersPage',
   },
   {
+    path: '/admin/teams',
+    family: 'management',
+    sourceFile: 'pages/admin-teams-page.tsx',
+    symbol: 'AdminTeamsPage',
+  },
+  {
     path: '/admin/access',
     family: 'management',
     sourceFile: 'pages/admin-access-page.tsx',

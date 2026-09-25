@@ -207,36 +207,33 @@ describe('RI-3 — Task column width and scroll container', () => {
   it('RI-3: the Task identity column absorbs slack and can never be starved to 0px', () => {
     const cssPath = resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css')
     const css = readFileSync(cssPath, 'utf8')
-    // Score-gate slice (2026-07-22): Task is width:auto so titles never truncate, and the
-    // 0px regression RI-3 originally guarded (auto beside FIXED-PX secondaries) stays
-    // impossible because every secondary column is a bounded %-share summing well under 100.
+    // Every secondary is a fixed px width sized to its own longest realistic value, and Task
+    // takes the room they leave between a 240px floor and a 640px cap. Secondaries drop before
+    // Task goes under that floor; the rendered rule is owned by e2e/AC-930-collection-width.spec.ts.
     const idx = css.indexOf('.tasks-table {')
     expect(idx).toBeGreaterThanOrEqual(0)
     const open = css.indexOf('{', idx)
     const close = css.indexOf('}', open)
     const body = css.slice(open + 1, close)
     expect(body).toMatch(/min-width:/)
-    const taskRuleSelector = '.tasks-table th:nth-child(1), .tasks-table td:nth-child(1)'
+    const taskRuleSelector = '.tasks-table th.th-task, .tasks-table td.td-main'
     const taskRuleIdx = css.indexOf(taskRuleSelector)
     expect(taskRuleIdx).toBeGreaterThanOrEqual(0)
     const taskRuleOpen = css.indexOf('{', taskRuleIdx)
     const taskRuleClose = css.indexOf('}', taskRuleOpen)
     const taskRule = css.slice(taskRuleOpen + 1, taskRuleClose)
-    expect(taskRule).toMatch(/width:\s*auto/)
-    // Secondary columns (2..5) at the base tier: all %-shares, summing < 70% so the auto
-    // Task column always keeps a readable share.
-    const shares: number[] = []
-    for (const col of [2, 3, 4, 5]) {
-      const sel = `.tasks-table th:nth-child(${col}), .tasks-table td:nth-child(${col})`
+    expect(taskRule).toMatch(/width:\s*clamp\(240px,[^;]*640px\)/)
+    // The four decision secondaries are fixed px floors, never a %-share the Task column would
+    // have to keep feeding as the table's own width changes.
+    for (const cls of ['th-status', 'th-owner', 'th-supervisor', 'th-due']) {
+      const sel = `.tasks-table th.${cls}, .tasks-table td.${cls.replace('th-', 'td-')}`
       const colIdx = css.indexOf(sel)
-      expect(colIdx, `expected a width rule for column ${col}`).toBeGreaterThanOrEqual(0)
+      expect(colIdx, `expected a width rule for .${cls}`).toBeGreaterThanOrEqual(0)
       const colOpen = css.indexOf('{', colIdx)
       const colClose = css.indexOf('}', colOpen)
-      const match = css.slice(colOpen + 1, colClose).match(/width:\s*(\d+(?:\.\d+)?)%/)
-      expect(match, `column ${col} must use a bounded %-share, not a fixed px width`).toBeTruthy()
-      shares.push(Number(match![1]))
+      const colBody = css.slice(colOpen + 1, colClose)
+      expect(colBody, `.${cls} must use a fixed px width, not a %-share`).toMatch(/width:\s*\d+px/)
     }
-    expect(shares.reduce((a, b) => a + b, 0)).toBeLessThan(70)
   })
 })
 
