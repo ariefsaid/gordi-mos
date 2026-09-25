@@ -20,6 +20,7 @@ mkdir -p "$tmp/repo/scripts" "$tmp/repo/mos-app/src" "$tmp/bin"
 # side (scripts/reporting-snapshot.test.sh), and stubbing that away would make this self-test
 # green over a step it never exercised.
 cp -R "$(pwd)/scripts/." "$tmp/repo/scripts/"
+printf 'node_modules/\n__pycache__/\n' > "$tmp/repo/.gitignore"
 echo x > "$tmp/repo/f"; git -C "$tmp/repo" add -A; git -C "$tmp/repo" commit -qm init
 HEAD=$(git -C "$tmp/repo" rev-parse HEAD)
 STAMP="$tmp/repo/.git/pre-pr-verify-ok"
@@ -397,6 +398,17 @@ if grep -q 'different checkout' "$tmp/wrong-checkout.log"; then
 else
   bad "wrong-checkout refusal did not name the cause"
 fi
+
+# A source change during a long battery invalidates its starting HEAD even when tests pass.
+cat > "$tmp/bin/npm" <<STUB
+#!/bin/sh
+if [ "\$1 \$2" = 'run build' ]; then printf 'changed during verification\n' > "$tmp/repo/f"; fi
+exit 0
+STUB
+chmod +x "$tmp/bin/npm"
+if run; then bad "checkout changed during verification must refuse"
+else ok "checkout changed during verification refuses"; fi
+[ ! -f "$STAMP" ] && ok "no stamp after in-flight checkout change" || bad "stamp written after in-flight checkout change"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

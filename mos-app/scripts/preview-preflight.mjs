@@ -15,6 +15,26 @@ export function entryAsset(html) {
   return entry
 }
 
+export function assertBuildIdentity(identity, sha, entry) {
+  if (identity.sha !== sha || identity.clean !== true) {
+    throw new Error('build identity is stale or was built from a dirty checkout')
+  }
+  if (!identity.assets?.['index.html'] || !identity.assets?.[entry.replace(/^\/mos\//, '')]) {
+    throw new Error('build identity does not cover the HTML and entry asset')
+  }
+}
+
+export function assertAssetDigest(bytes, digest, path) {
+  if (sha256(bytes) !== digest) throw new Error(`build asset differs from candidate: ${path}`)
+}
+
+export function assertRenderedRoute(finalUrl, base, route, markerCount) {
+  const final = new URL(finalUrl)
+  if (markerCount !== 1 || final.origin !== base.origin || final.pathname !== route.pathname) {
+    throw new Error('populated record marker or route was not unique and exact')
+  }
+}
+
 function options(argv) {
   const found = {}
   for (let index = 0; index < argv.length; index += 2) {
@@ -48,10 +68,7 @@ export async function run(argv) {
   const identityPath = resolve(appRoot, 'dist/mos-build-identity.json')
   const identityBytes = await readFile(identityPath)
   const identity = JSON.parse(identityBytes.toString('utf8'))
-  if (identity.sha !== head || identity.clean !== true) throw new Error('build identity is stale or was built from a dirty checkout')
-  if (!identity.assets?.['index.html'] || !identity.assets?.[builtAsset.replace(/^\/mos\//, '')]) {
-    throw new Error('build identity does not cover the HTML and entry asset')
-  }
+  assertBuildIdentity(identity, head, builtAsset)
   const servedIdentity = await request(new URL('mos-build-identity.json', base))
   if (!servedIdentity.ok || sha256(Buffer.from(await servedIdentity.arrayBuffer())) !== sha256(identityBytes)) {
     throw new Error('served build identity differs from this checkout')
@@ -60,11 +77,12 @@ export async function run(argv) {
     if (typeof digest !== 'string' || !/^[0-9a-f]{64}$/.test(digest) ||
         path.startsWith('/') || path.split('/').includes('..')) throw new Error('invalid build identity asset')
     const localBytes = await readFile(resolve(appRoot, 'dist', path))
-    if (sha256(localBytes) !== digest) throw new Error(`local build asset changed after build: ${path}`)
+    assertAssetDigest(localBytes, digest, path)
     const response = await request(new URL(path, base))
-    if (!response.ok || sha256(Buffer.from(await response.arrayBuffer())) !== digest) {
+    if (!response.ok) {
       throw new Error(`served build asset differs from candidate: ${path}`)
     }
+    assertAssetDigest(Buffer.from(await response.arrayBuffer()), digest, path)
   }
 
   const { chromium } = await import('@playwright/test')
@@ -80,9 +98,7 @@ export async function run(argv) {
     if (!response?.ok()) throw new Error(`authenticated route returned ${response?.status() ?? 'no response'}`)
     const marker = page.locator(input['ready-selector']).filter({ hasText: input['ready-text'] })
     await marker.first().waitFor({ state: 'visible', timeout: 15_000 })
-    if (await marker.count() !== 1 || new URL(page.url()).pathname !== route.pathname) {
-      throw new Error('populated record marker or route was not unique and exact')
-    }
+    assertRenderedRoute(page.url(), base, route, await marker.count())
     if (errors.length) throw new Error(`browser runtime error: ${errors[0]}`)
     console.log(`preview preflight PASS: ${head} serves ${Object.keys(identity.assets).length} matching files; authenticated route rendered`)
   } finally {

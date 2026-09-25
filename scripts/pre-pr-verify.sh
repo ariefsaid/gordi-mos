@@ -158,5 +158,10 @@ else
   echo "── every changed path proven inert — npm lane skipped (CI verify applies the same polarity)"
 fi
 
+if [ "$(git rev-parse HEAD)" != "$head" ] || [ -n "$(git status --porcelain)" ]; then
+  echo "✗ checkout changed during verification — rerun on the final clean commit" >&2
+  exit 1
+fi
+
 printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
 echo "✓ ALL GREEN — stamped ${head:0:8}"
