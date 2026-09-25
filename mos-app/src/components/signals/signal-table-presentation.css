@@ -10,7 +10,7 @@
    content; `.signal-table-title-cell` caps that content at whatever the card leaves after the
    visible facts. */
 .dt-table.signal-collection-table {
-  --signal-facts-w: 444px; /* team + attention + occurred */
+  --signal-facts-w: 460px; /* team + attention + occurred */
   table-layout: auto;
 }
 .signal-collection-table th:nth-child(1),
@@ -20,7 +20,7 @@
 .signal-collection-table th:nth-child(3),
 .signal-collection-table td:nth-child(3) { width: 128px; } /* Attention */
 .signal-collection-table th:nth-child(4),
-.signal-collection-table td:nth-child(4) { width: 180px; } /* Occurred — full "20 Jul 2026, 21:40" never clips */
+.signal-collection-table td:nth-child(4) { width: 196px; } /* Occurred — the widest "30 Sept 2026, 00:00 WIB" never clips */
 .signal-collection-table .signal-table-title-cell {
   /* Opts out of the cells' blanket nowrap so the message can wrap (2-line clamp below). */
   white-space: normal;
@@ -33,17 +33,17 @@
    blank), then Attention, then Occurred. Thresholds are the card's inner width: 240px + the kept
    facts.
    A list narrowed by a record panel follows the same rule. */
-@container work-list (max-width: 683.98px) {
-  .dt-table.signal-collection-table { --signal-facts-w: 308px; }
+@container work-list (max-width: 699.98px) {
+  .dt-table.signal-collection-table { --signal-facts-w: 324px; }
   .signal-collection-table th:nth-child(2),
   .signal-collection-table td:nth-child(2) { display: none; }
 }
-@container work-list (max-width: 547.98px) {
-  .dt-table.signal-collection-table { --signal-facts-w: 180px; }
+@container work-list (max-width: 563.98px) {
+  .dt-table.signal-collection-table { --signal-facts-w: 196px; }
   .signal-collection-table th:nth-child(3),
   .signal-collection-table td:nth-child(3) { display: none; }
 }
-@container work-list (max-width: 419.98px) {
+@container work-list (max-width: 435.98px) {
   .dt-table.signal-collection-table { --signal-facts-w: 0px; }
   .signal-collection-table th:nth-child(4),
   .signal-collection-table td:nth-child(4) { display: none; }
