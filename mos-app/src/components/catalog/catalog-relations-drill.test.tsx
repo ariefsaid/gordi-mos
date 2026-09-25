@@ -127,6 +127,16 @@ async function openDetailsTab() {
   await waitFor(() => expect(screen.getByRole('tab', { name: 'Details' })).toHaveAttribute('aria-selected', 'true'))
 }
 
+/** What separates a member from a catalog manager on the same record: no record actions, and a
+ *  Details tab that says it is read-only and offers no field edits. */
+async function expectMemberReadOnly() {
+  expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull()
+  await openDetailsTab()
+  const details = screen.getByRole('tabpanel', { name: 'Details' })
+  expect(within(details).getByRole('note')).toHaveTextContent('You can view this, but not edit it.')
+  expect(within(details).queryAllByRole('button', { name: /^Edit / })).toHaveLength(0)
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   runtimeAuthority.scopes = {
@@ -355,8 +365,7 @@ it.each(['panel', 'page'] as const)('keeps the org-readable Work record availabl
   </MemoryRouter></I18nProvider></AuthContext.Provider>)
   expect(await screen.findByRole('heading', { name: 'Menu launch' })).toBeInTheDocument()
   expect(loadCatalogRecordData).toHaveBeenCalledWith('work-line', 'wl-1', 'p1')
-  expect(screen.queryByRole('button', { name: 'Edit Name' })).toBeNull()
-  await openDetailsTab()
+  await expectMemberReadOnly()
   // Read-only appears ONCE, at the top of Details, in plain language — never per field and never
   // duplicated in the footer, in EITHER mode (panel or full page — read-only never depends on it).
   const notes = document.querySelectorAll('.record-viewer__permission-note')
@@ -380,8 +389,7 @@ it('keeps Objectives readable by members through the shared record renderer', as
     <CatalogRecordDocument kind="objective" id="obj-1" mode="panel" />
   </MemoryRouter></I18nProvider></AuthContext.Provider>)
   expect(await screen.findByRole('heading', { name: 'Grow revenue' })).toBeInTheDocument()
-  await openDetailsTab()
-  expect(screen.queryByRole('button', { name: 'Edit Name' })).toBeNull()
+  await expectMemberReadOnly()
 })
 
 

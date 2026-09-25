@@ -8,7 +8,7 @@
 //
 // Encodes the user's real journey + asserts the goal (manage is reachable in-place, with trace).
 // The app conforms to this test. Fixtures seeded by global-setup.
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { loginAs } from './helpers/login'
@@ -120,6 +120,16 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
   })
 })
 
+/** What separates a member from a catalog manager on the same record: no record actions, and a
+ *  Details tab that says it is read-only and offers no field edits. */
+async function expectMemberReadOnly(page: Page) {
+  await page.getByRole('tab', { name: 'Details', exact: true }).click()
+  const details = page.getByRole('tabpanel', { name: 'Details', exact: true })
+  await expect(details.getByRole('note')).toHaveText('You can view this, but not edit it.')
+  await expect(details.getByRole('button', { name: /^Edit / })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'More actions', exact: true })).toHaveCount(0)
+}
+
 for (const width of [390, 1440]) {
   test(`AC-411: ordinary member reads Project, Process and Objective direct records at ${width}px`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 })
@@ -134,7 +144,7 @@ for (const width of [390, 1440]) {
     ]) {
       await page.goto(path)
       await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Edit Name', exact: true })).toHaveCount(0)
+      await expectMemberReadOnly(page)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
       await page.reload()
       await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible()
@@ -151,7 +161,8 @@ for (const width of [390,1440]) {
     await page.getByRole('link',{name:'E2E Trace Process',exact:true}).click()
     const panel=page.getByRole('region',{name:'E2E Trace Process',exact:true})
     await expect(panel).toBeVisible()
-    for(const tab of ['Details','Steps','Occurrences','Activity']) {
+    // A Process record reads Work (current and next action) · Details · Steps.
+    for(const tab of ['Details','Steps','Work']) {
       await panel.getByRole('tab',{name:tab,exact:true}).click()
       await expect(panel.getByRole('tab',{name:tab,exact:true})).toHaveAttribute('aria-selected','true')
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
