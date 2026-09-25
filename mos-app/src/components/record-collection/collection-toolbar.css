@@ -247,6 +247,9 @@
   .split:not(.nodrawer) .tasks-collection-toolbar .collection-toolbar__primary { flex-wrap: wrap; row-gap: 8px; }
   .split:not(.nodrawer) .tasks-collection-toolbar .collection-toolbar__query { flex: 1 1 220px; min-width: 200px; max-width: none; }
   .split:not(.nodrawer) .tasks-collection-toolbar .collection-toolbar__search { flex: 1 1 200px; min-width: 160px; max-width: none; }
+  /* The wrap puts the door trigger at the start of its line, so its panel opens from that leading
+     edge into the list instead of behind the navigation rail. */
+  .split:not(.nodrawer) .tasks-collection-toolbar .collection-toolbar__desktop-door-panel { inset-inline: 0 auto; }
 }
 /* Tasks' desktop grammar is exactly two toolbar rows from 1024px upward when no record panel has
    narrowed row 1 (see the #930 exception above). Row 2 stays on one line; its dropdown boxes may
