@@ -151,7 +151,8 @@ for (const width of [390,1440]) {
     await page.getByRole('link',{name:'E2E Trace Process',exact:true}).click()
     const panel=page.getByRole('region',{name:'E2E Trace Process',exact:true})
     await expect(panel).toBeVisible()
-    for(const tab of ['Details','Steps','Occurrences','Activity']) {
+    // A Process record reads Work (current and next action) · Details · Steps.
+    for(const tab of ['Details','Steps','Work']) {
       await panel.getByRole('tab',{name:tab,exact:true}).click()
       await expect(panel.getByRole('tab',{name:tab,exact:true})).toHaveAttribute('aria-selected','true')
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
