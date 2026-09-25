@@ -88,6 +88,8 @@ jobs:
         run: bash scripts/agent-git-shim.test.sh
       - name: pre-pr-verify self-test
         run: bash scripts/pre-pr-verify.test.sh
+      - name: review read-only and served-preview self-tests
+        run: node --test scripts/review-read-only.test.mjs scripts/preview-preflight.test.mjs
       - name: MVP handoff preflight self-test
         run: bash scripts/mvp-handoff-preflight.test.sh
       - name: Impeccable detector vendor self-test
