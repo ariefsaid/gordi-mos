@@ -383,5 +383,20 @@ else
   bad "relative subdirectory invocation must reach the repository root"
 fi
 
+# An absolute script path from another checkout must not certify this checkout. The old script
+# immediately cd'd to its own directory and silently stamped that tree instead of the caller's.
+mkdir -p "$tmp/foreign"
+git init -q "$tmp/foreign"
+if (cd "$tmp/foreign" && PATH="$tmp/bin:$PATH" bash "$tmp/repo/scripts/pre-pr-verify.sh") >"$tmp/wrong-checkout.log" 2>&1; then
+  bad "absolute script path from another checkout must refuse"
+else
+  ok "absolute script path from another checkout refuses"
+fi
+if grep -q 'different checkout' "$tmp/wrong-checkout.log"; then
+  ok "wrong-checkout refusal names the cause"
+else
+  bad "wrong-checkout refusal did not name the cause"
+fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
