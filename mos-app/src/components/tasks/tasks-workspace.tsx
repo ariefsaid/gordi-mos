@@ -13,6 +13,7 @@ import { useSetCollectionLeaf } from '@/shell/breadcrumb-title'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import type { PageFamilyState } from '@/shell/page-families'
+import { HelpTip } from '@/components/ui/help-tip'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { createRecordRouteAdapter } from '@/shell/overlay-navigation'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
@@ -901,6 +902,9 @@ export function TasksWorkspace({
       family="workspace"
       title={t('tasks.title')}
       jobSentence={t('job.tasks')}
+      // #958: PIC/Supervisor stay reachable at every width (the job sentence above is
+      // desktop-only) — smallest possible diff on this shared surface, see LEDGER.md.
+      titleHelp={<HelpTip label={t('job.tasksHelp')} />}
       headClassName="tasks-page-head"
       state={frameState}
       action={showNewTask ? (

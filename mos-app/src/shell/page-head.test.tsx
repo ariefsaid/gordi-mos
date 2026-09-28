@@ -40,6 +40,16 @@ describe('PageHead — shared header invariant (RI-IA-1)', () => {
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(screen.getAllByText('Find and update the tasks your Team owns.')).toHaveLength(1)
   })
+
+  // #958: titleHelp is the always-visible (desktop AND phone) companion to jobSentence, which
+  // `.page-head-job` hides under 768px (below) — a caller that needs its terms reachable at every
+  // width passes titleHelp instead of relying on the sentence alone.
+  it('renders titleHelp immediately beside the title, omitted by default', () => {
+    const { rerender } = render(<PageHead title="Tasks" />)
+    expect(screen.queryByText('PIC / Supervisor, explained')).not.toBeInTheDocument()
+    rerender(<PageHead title="Tasks" titleHelp={<span>PIC / Supervisor, explained</span>} />)
+    expect(screen.getByText('PIC / Supervisor, explained')).toBeInTheDocument()
+  })
 })
 
 describe('PageHead — content-header variant (mockup chrome)', () => {
@@ -76,6 +86,15 @@ describe('PageHead — content-header variant (mockup chrome)', () => {
     const action = container.querySelector('.ch-action')
     expect(action).toBeTruthy()
     expect(screen.getByRole('link', { name: /\+ create task/i })).toBeInTheDocument()
+  })
+
+  // #958: the content variant is what Tasks/Projects & Processes/Objectives actually render —
+  // titleHelp must reach this presentation too, not only the prose default above.
+  it('renders titleHelp beside the title in the content variant', () => {
+    render(
+      <PageHead variant="content" title="Tasks" count={5} titleHelp={<span>PIC / Supervisor, explained</span>} />,
+    )
+    expect(screen.getByText('PIC / Supervisor, explained')).toBeInTheDocument()
   })
 
   it('renders the content-header chrome row (.content-header) with NO surface-title glyph', () => {
