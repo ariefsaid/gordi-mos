@@ -41,6 +41,17 @@ Updates + per-Activity ops + reference data + money follow-ups. Ships at
 
 **Usability and speed beat model completeness.**
 
+## Standing principles (owner)
+
+- Route work through the skills; unsure which, `/ask-matt`. Owner observations go through
+  `/feedback` into issues before anything is built. Every brief names its skills plan: which skill,
+  which phase, what evidence it leaves. Naming a skill is not running it.
+- Vendor before build: a proven library (MIT, Apache-2.0 or MPL-2.0; never AGPL/GPL) over a
+  hand-built control, behind a MOS-owned interface.
+- A record is typed fields plus an authored block document (OD-REDESIGN-16, ADR-0052).
+- UI review is exhaustive: every route, width and control state, each finding searched for as a
+  class. Never a top-N pass.
+
 ## UI review and improvement tasks
 
 For every UI/UX/IA/IxD iteration, use `docs/takeover/mvp-ui-continuation.md` in the main checkout
