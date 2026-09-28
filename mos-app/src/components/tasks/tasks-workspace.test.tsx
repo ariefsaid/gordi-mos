@@ -1202,6 +1202,25 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
       expect(screen.getByText('Alpha task')).toBeInTheDocument()
     })
   })
+
+  // Calibration finding (#749 lane): a viewer with nothing assigned lands on an empty My work.
+  // Its own Clear filters button left ?view=my-work standing, so clicking it did nothing — a dead
+  // button next to copy that promises "Clear filters to see all tasks."
+  it('calibration: Clear filters on an empty My work view actually broadens scope to All', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'other', title: 'Someone else’s task', responsible_person_id: 'other-person', accountable_person_id: 'other-person' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'My work' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true'))
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0))
+    fireEvent.click(screen.getAllByRole('button', { name: /clear filters/i })[0])
+    await waitFor(() => expect(screen.getByText('Someone else’s task')).toBeInTheDocument())
+    // Broadened scope means the chip state itself moved off My work, not just the row list.
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+  })
 })
 
 // ── PR-3 — TanStack refactor + group-by engine + group headers ────────────────

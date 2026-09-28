@@ -720,14 +720,16 @@ export function TasksWorkspace({
     // lands from its own render's snapshot, so the two must agree or the last one wins.
     setParams(writeCollectionQuery(taskCollectionDescriptor.query, query, next), { replace: true })
   }, [dataContext, draftTask, onNewTask, params, query, setParams, viewerTeams])
-  // The query schema owns URL cleanup, including constraints reset to neutral.
+  // The query schema owns URL cleanup, including constraints reset to neutral. "Clear filters"
+  // means clear — including the base view scope (My work / Team work / Overdue) — never a
+  // standing constraint next to copy that promises "see all tasks" (calibration finding: an
+  // empty My work view kept ?view=my-work after Clear, so the button did nothing).
   const onClearFilters = useCallback(() => {
-    const nextView = query.view === 'overdue' ? 'all' : query.view
     setQuery({
       q: '', businessUnitId: null, status: null, picId: null, supervisorId: null, personId: null,
-      overdueOnly: false, includeArchived: false, view: nextView, savedViewId: null,
+      overdueOnly: false, includeArchived: false, view: 'all', savedViewId: null,
     })
-  }, [query.view, setQuery])
+  }, [setQuery])
   const onSort = useCallback((sort: TaskCollectionSort) => {
     const direction = query.sort === sort
       ? query.direction === 'ascending' ? 'descending' : 'ascending'
