@@ -954,6 +954,11 @@ heading, a bespoke card, or two CTAs for one empty is out of grammar.
 - **`blank`** — empty by design: a placeholder route, an unbuilt slice. Deliberately the quietest of
   the four, with **no accent tint**, so it never reads as an earned all-clear (`quiet`) or as
   pending work (`awaiting`).
+- **Denied** — a record the viewer may not read. Renders the `blank` archetype (no accent tint) with
+  one `Back`, never `ErrorState`'s Retry: a denied read is not transient, and retrying re-fires the
+  same denied request. RLS makes "retracted/deleted" and "you may not read this" indistinguishable
+  at the wire, so a well-formed id that resolves to no row gets the same treatment as an explicit
+  permission error — one honest answer instead of a guess at which case it was.
 
 **Rule.** One route, one empty frame, one action maximum. The archetypes vary only the message and
 whether the single action slot is absent or populated; spacing, type, icon treatment and body

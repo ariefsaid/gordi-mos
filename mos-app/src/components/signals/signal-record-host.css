@@ -4,13 +4,6 @@
    forms; the record itself is styled by signal-record.css. */
 .signal-record-host { display: flex; flex-direction: column; min-height: 0; flex: 1; overflow-y: auto; }
 
-.signal-record-unavailable {
-  margin: 16px 0; padding: 20px;
-  border: 1px solid var(--border); border-radius: var(--radius-lg);
-  background: var(--secondary); color: var(--foreground);
-}
-.signal-record-unavailable h2 { margin: 0; font-size: var(--font-size-heading); }
-.signal-record-unavailable p { margin: 8px 0 0; color: var(--muted-foreground); line-height: 1.5; }
 .signal-record-action-error {
   margin: 12px 0 0; padding: 10px 12px;
   border: 1px solid var(--destructive); border-radius: var(--radius-sm);

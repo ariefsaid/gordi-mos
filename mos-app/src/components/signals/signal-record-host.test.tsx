@@ -190,13 +190,16 @@ describe('SignalRecordHost — loading/error states', () => {
     expect(writeText).toHaveBeenCalledWith(new URL('/mos/work/signals/signal-1', window.location.origin).href)
   })
 
-  it('shows an honest outside-access state when the primary read is denied', async () => {
+  // AC-046 (#775): a denied read (42501) shows the shared `blank` archetype with one Back — never
+  // the retriable ErrorState, which would just re-fire the same denied read.
+  it('shows the blank denied archetype — never a retriable error — when the primary read is denied', async () => {
     mockGetSignal.mockRejectedValueOnce(new Error('permission denied (42501)'))
     renderHost()
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Signal outside your access' })).toBeInTheDocument())
-    expect(screen.getByText(/do not have access to this Signal/i)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Signal is outside your access' })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
     expect(screen.queryByText(/couldn.t load/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: /retry|try again/i })).toBeNull()
   })
 
   it('shows an error state with retry when getSignal fails', async () => {
@@ -209,10 +212,22 @@ describe('SignalRecordHost — loading/error states', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
   })
 
-  it('treats PostgREST no-row responses as missing records', async () => {
+  // AC-046: RLS makes "retracted/deleted" and "you may not read this" indistinguishable at the
+  // wire — a well-formed id resolving to a PostgREST no-row response gets the SAME denied
+  // archetype as an explicit 42501, not the old "That Signal no longer exists" retry state.
+  it('treats a well-formed id with no visible row the same as a denied read (AC-046)', async () => {
     mockGetSignal.mockRejectedValueOnce(new Error('JSON object requested, multiple (or no) rows returned'))
     renderHost()
-    await waitFor(() => expect(screen.getByText('That Signal no longer exists.')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Signal is outside your access' })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
+  })
+
+  // AC-048: before first paint exactly the Signal itself is awaited — the Task list (for Link
+  // existing Task) is never fetched until that picker opens.
+  it('never calls searchTasksByTitle before Link existing Task opens (AC-048)', async () => {
+    renderHost()
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
+    expect(mockSearchTasksByTitle).not.toHaveBeenCalled()
   })
 })
 
