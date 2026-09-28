@@ -8,7 +8,12 @@ export type ChecklistCardProps = {
   canEdit: boolean
   taskId: string
   viewerId: string
-  onAdd: (label: string) => void
+  /**
+   * #965: the add input owns clearing its own draft, so it MUST see whether the write actually
+   * succeeded. A rejection (or a rejected returned Promise) keeps the typed text; only a
+   * resolved add clears it — same contract as CommentThread's composer.
+   */
+  onAdd: (label: string) => void | Promise<void>
   onToggle: (id: string, isDone: boolean) => void
   onReorder: (id: string, direction: 'up' | 'down') => void
   onDelete: (id: string) => void
@@ -23,12 +28,28 @@ export type ChecklistCardProps = {
 export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReorder, onDelete, saveError = null }: ChecklistCardProps) {
   const t = useT()
   const [draft, setDraft] = useState('')
+  const [posting, setPosting] = useState(false)
   const done = items.filter(i => i.is_done).length
+
+  // #965: clear the draft ONLY once the write resolves. A rejection leaves the text (and focus,
+  // since the input is never blurred) so the person can hit Retry instead of retyping the step.
+  async function submit() {
+    const label = draft.trim()
+    if (!label || posting) return
+    setPosting(true)
+    try {
+      await onAdd(label)
+      setDraft('')
+    } catch {
+      // The parent already surfaces a visible error + Retry (saveError prop); this keeps the draft.
+    } finally {
+      setPosting(false)
+    }
+  }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter' && draft.trim()) {
-      onAdd(draft.trim())
-      setDraft('')
+      void submit()
     }
   }
 

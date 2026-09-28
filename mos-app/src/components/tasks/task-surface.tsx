@@ -617,10 +617,14 @@ function ViewSurface({
       await addChecklistItem(localTask.id, label, position, viewerId)
       await refetchEvents(localTask.id)
       announce(t('tasks.feedback.checklistAdded'))
-    } catch {
+    } catch (error) {
       setLocalChecklist(prev => prev.filter(i => i.id !== newItem.id))
       announce(ROLLBACK_MSG)
-      setChecklistError(() => () => { void handleAddChecklist(label) })
+      // The banner's own Retry re-invokes this same call fire-and-forget, so it swallows here.
+      setChecklistError(() => () => { void handleAddChecklist(label).catch(() => {}) })
+      // #965: rethrow so ChecklistCard's add input — which DOES await this call — sees the
+      // rejection and keeps the typed text instead of clearing it on a failed save.
+      throw error
     }
   }
 
