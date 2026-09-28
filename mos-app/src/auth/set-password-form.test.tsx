@@ -90,10 +90,12 @@ describe('SetPasswordForm', () => {
 
   // ── #799 ── AC-015: the rule is stated before any error, and it is checked first ────────────
 
-  it('AC-015: the length rule sits under New password before anything is submitted', () => {
+  it('AC-015: the full password rule sits under New password before anything is submitted', () => {
     renderForm(vi.fn())
 
-    const rule = screen.getByText('At least 8 characters')
+    const rule = screen.getByText(
+      'At least 8 characters, with upper- and lowercase letters and a number. Different from your current password.',
+    )
     expect(rule).toBeInTheDocument()
     // Announced with the field, not just painted near it.
     expect(screen.getByLabelText(/new password/i).getAttribute('aria-describedby')).toContain(rule.id)
