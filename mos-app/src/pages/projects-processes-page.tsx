@@ -293,7 +293,10 @@ export function ProjectsProcessesPage() {
             <CatalogCreateForm draft={draft} />
           </div>
         )}
-        <div className={overlay.splitOpen ? 'record-split' : undefined}>
+        {/* #930 — work-collection always renders (record open or not) so the page frame stays
+            at the shared wide operating measure in both states; record-split is added only
+            when a record is open, same as before. */}
+        <div className={`work-collection${overlay.splitOpen ? ' record-split' : ''}`}>
           <div className="record-collection-view record-collection-view--list">
             <RecordCollectionSurface
               controller={controller}

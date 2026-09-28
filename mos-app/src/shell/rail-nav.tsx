@@ -1,5 +1,5 @@
 import { Link, NavLink, useLocation } from 'react-router-dom'
-import { DESTINATIONS, navUtility, isLive, modulesByBU, moduleChildrenForViewer, type Destination } from './destinations'
+import { DESTINATIONS, navUtility, isLive, modulesByBU, moduleChildrenForViewer, destinationForPath, type Destination } from './destinations'
 import { sectionHasPrefixChild, visibleSections, type Section } from './sections'
 import type { MessageKey } from '@/i18n/messages'
 import type { RailCounts } from '@/lib/db/rail-counts'
@@ -86,12 +86,31 @@ const itemBase = (isActive: boolean, compact = false, rung: 'dest' | 'child' = '
 // (unread count) below — and follow the EXACT WorkChild pattern (DO-18(d)): the accessible NAME
 // is built on the link itself by joining the already-localized label + badge sentence, so AT
 // never concatenates the two with no separator (the "Tugas12" run-together defect this guards).
-function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parentOfChildren = false, showChevron = false }: { d: Destination; onNavigate?: () => void; compact?: boolean; badge?: number; badgeLabelKey?: MessageKey; parentOfChildren?: boolean; showChevron?: boolean }) {
+function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parentOfChildren = false, showChevron = false, ownsPath }: { d: Destination; onNavigate?: () => void; compact?: boolean; badge?: number; badgeLabelKey?: MessageKey; parentOfChildren?: boolean; showChevron?: boolean; ownsPath?: boolean }) {
   const t = useT()
   const to = d.primaryPath ?? d.links[0].path
   const label = t(d.labelKey)
   const badgeLabel = badge !== undefined && badge > 0 && badgeLabelKey ? t(badgeLabelKey, { count: badge }) : undefined
   const accessibleName = badgeLabel ? `${label}, ${badgeLabel}` : label
+  // A destination whose tabs live on sibling paths (Admin Settings: People · Teams · Roles &
+  // permissions) is active on every one of them, not only on the path its link targets.
+  if (ownsPath !== undefined) {
+    return (
+      <Link
+        to={to}
+        onClick={onNavigate}
+        aria-label={compact ? label : undefined}
+        aria-current={ownsPath ? 'page' : undefined}
+        data-label={compact ? label : undefined}
+        className={itemBase(ownsPath, compact)}
+      >
+        <span>
+          <d.Icon />
+        </span>
+        {!compact && <span>{label}</span>}
+      </Link>
+    )
+  }
   return (
     <NavLink
       to={to}
@@ -352,7 +371,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
             follows the modules, as it did before. */}
         {liveUtility.map((u, i) => (
           <div key={u.id} className={`rail-item-list-item ${i === 0 ? 'mt-auto pt-3' : 'mt-1'}`}>
-            <DestLink d={u} onNavigate={onNavigate} compact={compact} />
+            <DestLink d={u} onNavigate={onNavigate} compact={compact} ownsPath={destinationForPath(pathname)?.id === u.id} />
           </div>
         ))}
       </nav>

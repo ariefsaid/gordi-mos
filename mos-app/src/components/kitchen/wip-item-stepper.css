@@ -151,8 +151,21 @@
   flex-direction: column;
   gap: 4px;
 }
+/* B13: the field's own visible label, same weight as every other quiet field label in the row
+   (`.kls-unit`) — neutral, never the destructive colour the cue below carries while unmet. */
+.kls-note-label {
+  font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+/* Helper text at rest (a note has been typed — the requirement is history, not a live error);
+   destructive only while genuinely required and empty (`--error`, matched to the textarea's own
+   `aria-invalid` state below). */
 .kls-note-cue {
   font-size: var(--font-size-label);
+  color: var(--muted-foreground);
+}
+.kls-note-cue--error {
   color: var(--status-lost-text);
 }
 .kls-note {

@@ -22,6 +22,14 @@ export const MANAGER = {
   personId: '40000000-0000-0000-0000-000000000000', // Dewi Director (MD role holder)
 }
 
+// BARISTA: Bulan Barista, whose Home Team is the Gordi HQ bar stream — a stream with items on its
+// list, so her Café surfaces are populated. BAR_MEMBER's Rumah Rames bar has an empty list.
+export const BARISTA = {
+  email: 'bulan.dev@example.test',
+  password: 'Passw0rd!dev',
+  personId: '40000000-0000-0000-0000-000000000007',
+}
+
 // ORPHAN: dedicated e2e-only auth user with NO people link (user_id stays NULL → orphan screen).
 // Touches no dev person row.
 export const ORPHAN = {

@@ -177,6 +177,8 @@ select throws_ok($$
 set local request.jwt.claims = '{}';
 insert into ops.wip_items (id, org_id, name, flag_active) values
   ('00000000-0000-0000-0000-00000000dd11','00000000-0000-0000-0000-0000000000a1','Backfill Subject',true);
+insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source) values
+  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bf02','kitchen','00000000-0000-0000-0000-00000000dd11','manual');
 insert into ops.kitchen_logs
   (id, org_id, business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi, submitted_by) values
   ('00000000-0000-0000-0000-00000000ac21','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-23','00000000-0000-0000-0000-00000000bf02','kitchen','produce','00000000-0000-0000-0000-00000000dd11',3,'00000000-0000-0000-0000-0000000000d1');

@@ -78,6 +78,7 @@ test('R6: Admin matrix and designated Team lead survive reload and govern own/cr
         .getByRole('option', { name: value, exact: true }).click()
     }
     async function saveScope(value: string) {
+      await settings.goto('admin/access')
       const picker = settings.getByRole('combobox', { name: 'Manage Projects & Processes — Team lead', exact: true })
       if (!(await picker.innerText()).includes(value)) {
         await choose('Manage Projects & Processes — Team lead', value)
@@ -88,13 +89,15 @@ test('R6: Admin matrix and designated Team lead survive reload and govern own/cr
       await settings.reload()
       await expect(picker).toContainText(value)
     }
+    // Team leads live on the Teams tab and save as they are chosen — there is no Save button.
+    const leadPicker = () => settings.getByRole('combobox', { name: 'Lead for R6 Test Team' })
     async function designate(value: string) {
-      await choose('R6 Test Team team lead', value)
+      await settings.goto('admin/teams')
       const saved = settings.waitForResponse((response) => response.url().endsWith('/rpc/save_team_lead_assignment') && response.ok())
-      await settings.getByRole('button', { name: 'Save R6 Test Team team lead' }).click()
+      await choose('Lead for R6 Test Team', value)
       await saved
       await settings.reload()
-      await expect(settings.getByRole('combobox', { name: 'R6 Test Team team lead' })).toContainText(value)
+      await expect(leadPicker()).toContainText(value)
     }
     async function recordAction(page: Page, id: string, allowed: boolean) {
       await page.goto(`work/projects/${id}`)
@@ -107,7 +110,8 @@ test('R6: Admin matrix and designated Team lead survive reload and govern own/cr
       else await expect(page.getByRole('menuitem', { name: 'Archive', exact: true }).or(archive)).toHaveCount(0)
       await page.keyboard.press('Escape')
     }
-    await expect(settings.getByRole('combobox', { name: 'R6 Test Team team lead' })).toContainText('No designated lead')
+    await settings.goto('admin/teams')
+    await expect(leadPicker()).toContainText('No designated lead')
     await saveScope('No additional permission')
     await designate('R6 Lead')
     await recordAction(lead, ownProject, false)
@@ -121,10 +125,11 @@ test('R6: Admin matrix and designated Team lead survive reload and govern own/cr
     const restoredRead = settings.waitForResponse((response) => response.url().endsWith('/rpc/list_role_authority') && response.ok())
     await settings.reload()
     expect(await (await restoredRead).json()).toEqual(original)
-    await expect(settings.getByRole('combobox', { name: 'R6 Test Team team lead' })).toContainText('No designated lead')
     await settings.screenshot({ path: testInfo.outputPath('authority-restored.png'), fullPage: true })
-    await settings.getByRole('combobox', { name: 'R6 Test Team team lead' }).scrollIntoViewIfNeeded()
-    await settings.locator('[data-team-lead-row]').screenshot({ path: testInfo.outputPath('team-lead-restored.png') })
+    await settings.goto('admin/teams')
+    await expect(leadPicker()).toContainText('No designated lead')
+    await leadPicker().scrollIntoViewIfNeeded()
+    await settings.locator('[data-team-lead-row]', { has: leadPicker() }).screenshot({ path: testInfo.outputPath('team-lead-restored.png') })
     // Also restore physical absence of the one override row; effective defaults were restored through UI above.
     await localSql(`DELETE FROM shared.role_authority WHERE org_id = '${org}' AND action = 'workline.manage' AND role = 'team_lead';`)
     const residualAuthority = await localSqlRead(`SELECT 1 AS present FROM shared.role_authority WHERE org_id = '${org}'`)

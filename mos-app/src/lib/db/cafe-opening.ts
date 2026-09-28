@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { getRunRollup, startRun, listDueRuns } from './processes'
 import type { DueProcessRun, ProcessRunRollup, SpawnResult } from './processes.types'
+import type { ProductionActivity } from './kitchen-logs.types'
 
 // Café DAL (Step 7 / cafe-retrofit.spec.md). Resolves the "Café Opening" Process + reads today's
 // opening run/roll-up + starts it — REUSES Step 6's processes.ts (startRun/listDueRuns/getRunRollup,
@@ -48,6 +49,9 @@ export interface CafeViewerTeam {
   business_unit_id: string
   site_id: string | null
   is_primary: boolean
+  /** Null when this Team is not a production stream Team (e.g. an office Team). */
+  branch_id: string | null
+  activity: ProductionActivity | null
 }
 
 /**
@@ -70,7 +74,7 @@ export async function listCafeViewerTeams(personId: string): Promise<CafeViewerT
 
   const { data: teams, error: teamError } = await shared()
     .from('teams')
-    .select('id,name,business_unit_id,site_id')
+    .select('id,name,business_unit_id,site_id,branch_id,activity')
     .in('id', rows.map(row => row.team_id))
     .is('archived_at', null)
   if (teamError) throw new Error(`listCafeViewerTeams teams failed — ${teamError.message}`)

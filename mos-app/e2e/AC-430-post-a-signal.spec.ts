@@ -6,6 +6,7 @@ import { localSqlRead } from './helpers/local-sql-read'
 import { assertTapFloor } from './helpers/tap-floor'
 import { DEMO_PASSWORD } from '../src/pages/demo-personas'
 import { messages } from '../src/i18n/messages'
+import { stubAccountLocale } from './helpers/account-locale'
 
 // @e2e-owned-cleanup: captured-signal-ids
 
@@ -26,7 +27,7 @@ for (const locale of ['en', 'id'] as const) {
       where author.email = '${authorEmail}' and recipient.email = '${recipientEmail}'
     `)
     expect(fixture?.eligible).toBe(true)
-    await page.addInitScript((value) => localStorage.setItem('mos.locale', value), locale)
+    await stubAccountLocale(page, locale)
     await loginAs(page, authorEmail, DEMO_PASSWORD)
     await page.goto('work/signals')
     let failDirectory = true

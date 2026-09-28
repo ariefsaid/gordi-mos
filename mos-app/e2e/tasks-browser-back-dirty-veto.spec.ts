@@ -101,9 +101,9 @@ test('AC-1010: browser Back on a dirty task draft is vetoed, Cancel keeps state,
   await expect(confirmDialog).toBeVisible({ timeout: 8_000 })
   await expect(confirmDialog).toContainText('Your edits are not saved. Discard them and leave this task?')
 
-  // Cancel/Retain → the record stays open, draft intact — the dirty-pop TRANSACTION already
-  // restored the pre-pop URL/state before the guard was even consulted.
-  await confirmDialog.getByRole('button', { name: 'Cancel' }).click()
+  // Cancel/Retain ("Stay on this page") → the record stays open, draft intact — the dirty-pop
+  // TRANSACTION already restored the pre-pop URL/state before the guard was even consulted.
+  await confirmDialog.getByRole('button', { name: 'Stay on this page', exact: true }).click()
   await expect(confirmDialog).toBeHidden()
   await expect(drawer.getByRole('heading', { name: title })).toBeVisible()
   await expect(description).toHaveValue(draftText)

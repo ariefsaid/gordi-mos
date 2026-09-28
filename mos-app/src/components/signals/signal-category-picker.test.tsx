@@ -4,9 +4,9 @@ import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { SignalCategoryPicker } from './signal-category-picker'
 
-function renderPicker(props: Partial<React.ComponentProps<typeof SignalCategoryPicker>> = {}) {
+function renderPicker(props: Partial<React.ComponentProps<typeof SignalCategoryPicker>> = {}, locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <SignalCategoryPicker category={null} {...props} />
     </I18nProvider>,
   )
@@ -41,17 +41,9 @@ describe('SignalCategoryPicker', () => {
   })
 
   it('renders the localized category label in Indonesian while retaining the stored enum', () => {
-    const previousLocale = window.localStorage.getItem('mos.locale')
-    window.localStorage.setItem('mos.locale', 'id')
-    const view = renderPicker({ category: 'Equipment/facility' })
-    try {
-      expect(screen.getByText('Peralatan/fasilitas')).toBeInTheDocument()
-      expect(screen.queryByText('Equipment/facility')).not.toBeInTheDocument()
-    } finally {
-      view.unmount()
-      if (previousLocale === null) window.localStorage.removeItem('mos.locale')
-      else window.localStorage.setItem('mos.locale', previousLocale)
-    }
+    renderPicker({ category: 'Equipment/facility' }, 'id')
+    expect(screen.getByText('Peralatan/fasilitas')).toBeInTheDocument()
+    expect(screen.queryByText('Equipment/facility')).not.toBeInTheDocument()
   })
 
   // #577: on a right-column feed row the anchor sits close to the viewport's right edge; the

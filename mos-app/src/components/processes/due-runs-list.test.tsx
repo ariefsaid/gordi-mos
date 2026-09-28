@@ -83,4 +83,38 @@ describe('DueRunsList (design fix wave item 1)', () => {
     expect(screen.getByRole('button', { name: 'Start · Café Opening' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start · Café Closing' })).toBeInTheDocument()
   })
+
+  it('names same-Process starts by Team in the Process record and starts the selected Team row', () => {
+    const due = [
+      { ...DUE_ROW, process_name: 'Café HQ daily opening', owning_team_id: 'hq-ops', team_name: 'HQ Operations' },
+      { ...DUE_ROW, process_name: 'Café HQ daily opening', owning_team_id: 'hq-bar', team_name: 'Gordi HQ Bar' },
+    ]
+    const onStart = vi.fn().mockResolvedValue(undefined)
+    renderList({ due, context: 'process-record', onStart })
+
+    const operationsStart = screen.getByRole('button', { name: 'Start · HQ Operations' })
+    const barStart = screen.getByRole('button', { name: 'Start · Gordi HQ Bar' })
+    expect(operationsStart).toBeInTheDocument()
+    expect(barStart).toBeInTheDocument()
+    expect(screen.getByText('HQ Operations')).toBeInTheDocument()
+    expect(screen.getByText('Gordi HQ Bar')).toBeInTheDocument()
+    expect(screen.queryByText('Café HQ daily opening')).not.toBeInTheDocument()
+
+    fireEvent.click(barStart)
+    expect(onStart).toHaveBeenCalledWith(due[1])
+  })
+
+  it('keeps process-name actions and Team descriptions in generic due-run lists', () => {
+    const due = [
+      { ...DUE_ROW, owning_team_id: 'hq-ops', team_name: 'HQ Operations' },
+      { ...DUE_ROW, owning_team_id: 'hq-bar', team_name: 'Gordi HQ Bar' },
+    ]
+    renderList({ due })
+
+    const starts = screen.getAllByRole('button', { name: 'Start · Café Opening' })
+    expect(starts).toHaveLength(2)
+    expect(starts[0]).toHaveAccessibleDescription(/HQ Operations/)
+    expect(starts[1]).toHaveAccessibleDescription(/Gordi HQ Bar/)
+    expect(screen.getAllByText('Café Opening')).toHaveLength(2)
+  })
 })

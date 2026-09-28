@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { useState } from 'react'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
@@ -77,6 +78,15 @@ const authedState: AuthState = {
   signOut: async () => {},
 }
 
+// Matches the real shape getTask throws for a missing row (lib/db/tasks.ts's dbError): a
+// `code: 'PGRST116'` whose message text never contains that code string.
+function missingTaskError(): Error & { code: string } {
+  return Object.assign(
+    new Error('getTask failed — JSON object requested, multiple (or no) rows returned'),
+    { code: 'PGRST116' },
+  )
+}
+
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   return {
     id: 'task-abc', org_id: 'org', title: 'Fix the coffee machine',
@@ -109,8 +119,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(readObjective).mockResolvedValue(null)
-  // Clear per-task tab memory (sessionStorage) so a Checklist-tab test doesn't
-  // leak the active tab into a later Details-default test (useTabMemory keys by id).
+  // Per-task drafts and focus state are isolated so one test cannot leak composer content.
   sessionStorage.clear()
   mockGetBusinessUnits.mockResolvedValue(mockBUs)
   mockGetPeople.mockResolvedValue(mockPeople)
@@ -164,7 +173,7 @@ function choosePickerOption(label: string, option: string) {
 
 function renderIndonesianSurface() {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale="id">
       <AuthContext.Provider value={authedState}>
         <MemoryRouter initialEntries={['/tasks/task-abc']}>
           <TaskSurface taskId="task-abc" mode="view" width="full" />
@@ -223,7 +232,7 @@ describe('TaskSurface — view mode', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument()
     })
-    // Left panel: status + typed ownership always visible (decision-drivers above the fold)
+    // Status/action stay in the compact header; the full work path and context remain in one view.
     expect(screen.getByText('Open')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
     const ownership = document.querySelector('[data-content-slot="ownership"]') as HTMLElement
@@ -231,15 +240,32 @@ describe('TaskSurface — view mode', () => {
     expect(within(ownership).getByText('Supervisor')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
     expect(screen.queryByText(/RACI|Responsible \(R\)|Accountable \(A\)|Consulted|Informed/)).toBeNull()
-    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
     expect(screen.getByText('Inspect coil')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: /activity/i }))
     expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
   })
 
+  it('navigates directly to the related Objective from a standalone Task record', async () => {
+    vi.mocked(listObjectives).mockResolvedValue([{ id: 'obj-direct', name: 'Grow direct orders' }])
+    mockGetTask.mockResolvedValue({
+      task: makeTask({ objective_id: 'obj-direct' }), checklist: [], events: [],
+    })
+    render(
+      <AuthContext.Provider value={authedState}>
+        <MemoryRouter initialEntries={['/work/tasks/task-abc']}>
+          <LocationProbe />
+          <TaskSurface taskId="task-abc" mode="view" width="full" />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    )
+
+    const objectiveLink = await screen.findByRole('link', { name: 'Grow direct orders' })
+    expect(objectiveLink).toHaveAttribute('href', '/work/objectives/obj-direct')
+    fireEvent.click(objectiveLink)
+    await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/work/objectives/obj-direct'))
+  })
+
   it('AC-I02: Indonesian locale localizes the task record chrome and feed', async () => {
-    localStorage.setItem('mos.locale', 'id')
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
 
     renderIndonesianSurface()
@@ -247,38 +273,30 @@ describe('TaskSurface — view mode', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument())
     expect(screen.getByRole('region', { name: 'Detail tugas' })).toBeInTheDocument()
     expect(screen.getByText('Kepemilikan tugas')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: 'Checklist' }))
     expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: 'Aktivitas' }))
     expect(screen.getByRole('region', { name: 'Aktivitas' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Komentar' })).toBeInTheDocument()
     expect(screen.getByText(/jadilah yang pertama berkomentar/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Kirim komentar' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: 'Detail' }))
     expect(screen.getByRole('button', { name: 'Tandai selesai' })).toBeInTheDocument()
+    expect(screen.queryByRole('tablist')).toBeNull()
     expect(screen.queryByText('Task details')).toBeNull()
-    localStorage.removeItem('mos.locale')
   })
 
-  it('AC-R01: full width renders the single-column content-first record document (content leads; checklist + activity stacked below)', async () => {
+  it('AC-R01: full width renders the work-first document with all work regions visible', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     renderSurface()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    // Content-first anatomy: content (Task details) leads, then ownership, relations, and the
-    // Checklist + Activity regions stacked below — one column, one shared RecordViewer, no tabs.
+    // Description and checklist lead; compact owner/due context stays visible before discussion.
     expect(screen.getByRole('region', { name: /task details/i })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: /activity/i }))
     expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
-    expect(screen.getByRole('tablist')).toBeInTheDocument()
-    // The shared RecordViewer owns identity + every ordered content slot, content-first.
+    expect(screen.queryByRole('tablist')).toBeNull()
+    // The shared RecordViewer owns identity + every ordered Task work/context slot.
     expect(document.querySelector('.record-viewer--page')).toBeTruthy()
-    const regions = new Set<string>()
-    for (const tab of ['Details', 'Checklist', 'Activity']) {
-      fireEvent.click(screen.getByRole('tab', { name: tab }))
-      document.querySelectorAll('[data-content-slot]').forEach((n) => regions.add((n as HTMLElement).dataset.contentSlot!))
-    }
-    expect([...regions]).toEqual(['content', 'ownership', 'relations', 'checklist', 'activity'])
+    const regions = [...document.querySelectorAll('[data-content-slot]')]
+      .map((node) => (node as HTMLElement).dataset.contentSlot)
+    expect(regions).toEqual(['content', 'checklist', 'ownership', 'activity', 'relations'])
   })
 
   it('AC-P3-CM-004: renders task comments in the live task surface', async () => {
@@ -289,12 +307,46 @@ describe('TaskSurface — view mode', () => {
 
     renderSurface()
 
-    fireEvent.click(await screen.findByRole('tab', { name: /activity/i }))
     await waitFor(() => expect(screen.getByText('Please check the blocker')).toBeInTheDocument())
     expect(mockListComments).toHaveBeenCalledWith(expect.objectContaining({
       entityType: 'task',
       entityId: 'task-abc',
     }))
+  })
+
+  it('preserves and posts a comment draft when the record moves from panel to page context', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    function PresentationHarness() {
+      const [width, setWidth] = useState<'drawer' | 'full'>('drawer')
+      return (
+        <AuthContext.Provider value={authedState}>
+          <MemoryRouter initialEntries={['/work/tasks/task-abc']}>
+            <TaskSurface
+              taskId="task-abc"
+              mode="view"
+              width={width}
+              onOpenPage={() => setWidth('full')}
+            />
+          </MemoryRouter>
+        </AuthContext.Provider>
+      )
+    }
+    render(<PresentationHarness />)
+
+    const composer = await screen.findByRole('textbox', { name: /comment/i })
+    const draft = 'Need the serial number before I can order the part.'
+    fireEvent.change(composer, { target: { value: draft } })
+    expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /open full page/i }))
+    await waitFor(() => expect(document.querySelector('.record-viewer--page')).toBeInTheDocument())
+    const pageComposer = screen.getByRole('textbox', { name: /comment/i })
+    expect(pageComposer).toHaveValue(draft)
+
+    fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
+    await waitFor(() => expect(mockPostComment).toHaveBeenCalledWith(expect.objectContaining({ body: draft })))
+    await waitFor(() => expect(screen.getByRole('textbox', { name: /comment/i })).toHaveValue(''))
   })
 
   it('issue 584 review: posting a comment threads the viewer as actorId/actorName + the active locale', async () => {
@@ -303,7 +355,6 @@ describe('TaskSurface — view mode', () => {
     renderSurface()
 
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    fireEvent.click(screen.getByRole('tab', { name: /activity/i }))
     const box = screen.getByRole('textbox', { name: /^comment$/i })
     fireEvent.change(box, { target: { value: 'On it' } })
     fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
@@ -355,13 +406,13 @@ describe('TaskSurface — view mode', () => {
   })
 
   it('AC-070 (TaskSurface): shows the not-found panel when getTask rejects', async () => {
-    mockGetTask.mockRejectedValue(new Error('PGRST116'))
+    mockGetTask.mockRejectedValue(missingTaskError())
     renderSurface()
     await waitFor(() => expect(screen.getByText(/task not found/i)).toBeInTheDocument())
   })
 
   it('R-T-3: demotes the not-found heading to h2 when a PageFamilyFrame owns the page h1 (identityHeadingLevel=2)', async () => {
-    mockGetTask.mockRejectedValue(new Error('PGRST116'))
+    mockGetTask.mockRejectedValue(missingTaskError())
     renderSurface({ identityHeadingLevel: 2 })
     // Inside the focused-record PageFamilyFrame the region-3 head is the page h1, so the not-found
     // panel must nest as an h2 — never a second h1 (R-T-3 double-h1 fix).
@@ -372,11 +423,50 @@ describe('TaskSurface — view mode', () => {
   })
 
   it('R-T-3: keeps the not-found heading an h1 in the default full-width host (identityHeadingLevel defaults to 1)', async () => {
-    mockGetTask.mockRejectedValue(new Error('PGRST116'))
+    mockGetTask.mockRejectedValue(missingTaskError())
     renderSurface()
     await waitFor(() =>
       expect(screen.getByRole('heading', { level: 1, name: /task not found/i })).toBeInTheDocument(),
     )
+  })
+
+  // A transport failure renders the retryable ErrorState, not "Task not found"; Retry re-issues
+  // the same read.
+  it('shows ErrorState with a working Retry when getTask rejects with a non-PGRST116 (network/500) error', async () => {
+    mockGetTask.mockRejectedValueOnce(new Error('Failed to fetch'))
+    renderSurface()
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(screen.queryByText(/task not found/i)).not.toBeInTheDocument()
+
+    mockGetTask.mockResolvedValueOnce({ task: makeTask(), checklist: [], events: [] })
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    await waitFor(() => expect(mockGetTask).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByText('Fix the coffee machine')).toBeInTheDocument())
+  })
+
+  // A missing task's real message text has no matching substring to key on — only its `.code`
+  // does — and must still render "Task not found", not the retryable ErrorState.
+  it('a real missing-task error (code PGRST116, no matching text in the message) still renders "Task not found"', async () => {
+    mockGetTask.mockRejectedValue(missingTaskError())
+    renderSurface()
+    await waitFor(() => expect(screen.getByText(/task not found/i)).toBeInTheDocument())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  // At full width the retryable error sits in the same reading column as the loaded record and
+  // "Task not found", not full-bleed across the page.
+  it('at full width, the retryable ErrorState renders inside .record-doc (the shared record column)', async () => {
+    mockGetTask.mockRejectedValue(new Error('Failed to fetch'))
+    renderSurface({ width: 'full' })
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(document.querySelector('.record-doc > .error-state')).toBeInTheDocument()
+  })
+
+  it('at drawer width, the retryable ErrorState renders without the page-only .record-doc column', async () => {
+    mockGetTask.mockRejectedValue(new Error('Failed to fetch'))
+    renderSurface({ width: 'drawer' })
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(document.querySelector('.record-doc')).not.toBeInTheDocument()
   })
 
   it('calls onClose (not navigate) after a successful archive', async () => {
@@ -404,7 +494,7 @@ describe('TaskSurface — view mode', () => {
     })
   })
 
-  it('updates Team with its derived BU and refreshes the record Team display', async () => {
+  it('updates Team and shows Business Unit once in task context', async () => {
     const initialTask = { ...makeTask(), team_id: 'team-cafe' }
     const refreshedTask = { ...makeTask({ business_unit_id: 'bu-2' }), team_id: 'team-sales' }
     mockGetTask
@@ -426,7 +516,7 @@ describe('TaskSurface — view mode', () => {
       VIEWER_ID,
       null,
     ))
-    await waitFor(() => expect(screen.getAllByText('Sales Team').length).toBeGreaterThanOrEqual(2))
+    await waitFor(() => expect(screen.getAllByText('Sales Team')).toHaveLength(1))
     expect(document.querySelector('[data-field-key="businessUnit"]')).toHaveTextContent('Sales')
   })
 })
@@ -444,7 +534,6 @@ describe('TaskSurface — mutation handlers', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [item], events: [] })
     vi.mocked(toggleChecklistItem).mockResolvedValue()
     renderSurface()
-    fireEvent.click(await screen.findByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Drain reservoir'))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Drain reservoir' }))
     await waitFor(() =>
@@ -456,7 +545,6 @@ describe('TaskSurface — mutation handlers', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [item], events: [] })
     vi.mocked(toggleChecklistItem).mockRejectedValue(new Error('write failed'))
     renderSurface()
-    fireEvent.click(await screen.findByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Drain reservoir'))
     const cb = () => screen.getByRole('checkbox', { name: 'Drain reservoir' }) as HTMLInputElement
     expect(cb().checked).toBe(false)
@@ -563,7 +651,6 @@ describe('TaskSurface — live region (AC-111)', () => {
     const { addChecklistItem } = await import('@/lib/db/tasks')
     vi.mocked(addChecklistItem).mockResolvedValue()
     renderDrawer()
-    fireEvent.click(await screen.findByRole('tab', { name: /checklist/i }))
     const input = await screen.findByLabelText(/add checklist item/i)
     fireEvent.change(input, { target: { value: 'Buy beans' } })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -578,7 +665,6 @@ describe('TaskSurface — live region (AC-111)', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [item], events: [] })
     vi.mocked(toggleChecklistItem).mockRejectedValue(new Error('write failed'))
     renderSurface()
-    fireEvent.click(await screen.findByRole('tab', { name: /checklist/i }))
     await waitFor(() => screen.getByText('Wipe counter'))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Wipe counter' }))
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
@@ -613,29 +699,26 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     is_done: false, position: 0, created_at: '2026-06-11T00:00:00Z', updated_at: '2026-06-11T00:00:00Z',
   }]
 
-  it('AC-R06 (drawer): compact single-column record — content leads with tabs present', async () => {
+  it('AC-R06 (drawer): compact single-column record keeps work sections and context visible', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
-    // Variant B anatomy: the persistent tabs accompany the directly-visible regions.
-    expect(screen.getByRole('tablist')).toBeInTheDocument()
+    expect(screen.queryByRole('tablist')).toBeNull()
     expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: /activity/i }))
     expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
     expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
+    expect(screen.getByText('Inspect coil')).toBeInTheDocument()
     expect(document.querySelector('.record-viewer--panel')).toBeTruthy()
   })
 
-  it('AC-R06 (drawer): tabs are present for record sections', async () => {
+  it('AC-R06 (drawer): all record sections stay visible without section navigation', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist, events: [] })
     renderDrawer()
     await waitFor(() => screen.getByText('Fix the coffee machine'))
     expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: /checklist/i }))
-    await waitFor(() => expect(screen.getByText('Inspect coil')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('tab', { name: /details/i }))
-    expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
+    expect(screen.getByText('Inspect coil')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /task details/i })).toBeInTheDocument()
+    expect(screen.queryByRole('tablist')).toBeNull()
   })
 
   it('AC-103 (drawer): changing status in the pinned header updates the pill and calls updateTaskStatus', async () => {
@@ -683,7 +766,7 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
   })
 
   it('AC-112 (drawer): not-found shows "Task not found" + All tasks link', async () => {
-    mockGetTask.mockRejectedValue(new Error('PGRST116'))
+    mockGetTask.mockRejectedValue(missingTaskError())
     renderDrawer()
     await waitFor(() => expect(screen.getByText(/task not found/i)).toBeInTheDocument())
     expect(screen.getByRole('link', { name: /all tasks/i })).toBeInTheDocument()
@@ -720,7 +803,7 @@ function renderCreate(auth: AuthState = authedState, onClose = vi.fn()) {
 
 describe('TaskSurface — saved-view URL preservation', () => {
   it('AC-307: not-found link from /work/tasks/task-abc?view=mine points back to /work/tasks?view=mine', async () => {
-    mockGetTask.mockRejectedValue(new Error('PGRST116'))
+    mockGetTask.mockRejectedValue(missingTaskError())
     renderSurfaceRoute('/work/tasks/task-abc?view=mine')
     const link = await screen.findByRole('link', { name: /all tasks/i })
     expect(link.getAttribute('href')).toBe('/work/tasks?view=mine')

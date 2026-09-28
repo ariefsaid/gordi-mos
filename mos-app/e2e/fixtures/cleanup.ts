@@ -75,6 +75,13 @@ export const objectiveCleanupSql = (objectiveIds: readonly string[], objectiveOr
 export const processRunPendingCleanupSql = (pendingIds: readonly string[], pendingOrg = org) =>
   capturedRowCleanupSql('mos.process_run_pending_tasks', pendingIds, pendingOrg)
 
+/** Remove the saved preferences of fixed e2e people. */
+export function personPreferenceCleanupSql(personIds: readonly string[]): string {
+  if (personIds.some((id) => !UUID.test(id))) throw new Error('E2E preference cleanup requires UUID-owned rows')
+  if (personIds.length === 0) return ''
+  return `DELETE FROM shared.person_preferences WHERE person_id IN (${ids(personIds)});`
+}
+
 /** Remove notifications created by a journey, optionally asserting their owning person. */
 export function notificationCleanupSql(
   notificationIds: readonly string[],
@@ -104,6 +111,7 @@ export const E2E_CLEANUP_REGISTRY = {
   'AC-720-cafe-today-opening.spec.ts': 'captured-process-run-id',
   'AC-744-cafe-write-gate.spec.ts': 'fixed-item-id',
   'AC-PB-012-budget-pricing-preflight.spec.ts': 'captured-budget-id',
+  'account-language.spec.ts': 'fixed-person-ids',
   'authority-settings-roundtrip.spec.ts': 'captured-tenant-ids',
   'dev-views.spec.ts': 'captured-user-view-id',
   'guards.geometry.spec.ts': 'captured-task-ids',
@@ -197,6 +205,7 @@ export function assertFixtureSqlSafe(query: string): void {
     new RegExp(`^delete from mos\\.notifications where org_id = ${uuid} and id in \\(${uuidList}\\)$`),
     new RegExp(`^delete from mos\\.notifications where org_id = ${uuid} and id in \\(${uuidList}\\) and owner_id = ${uuid}$`),
     new RegExp(`^delete from mos\\.process_run_pending_tasks where org_id = ${uuid} and id in \\(${uuidList}\\)$`),
+    new RegExp(`^delete from shared\\.person_preferences where person_id in \\(${uuidList}\\)$`),
     new RegExp(`^delete from shared\\.orgs where id = ${uuid}$`),
     new RegExp(`^delete from shared\\.role_authority where org_id = ${uuid} and action = 'workline\\.manage' and role = 'team_lead'$`),
   ]

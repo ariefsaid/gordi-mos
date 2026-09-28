@@ -85,6 +85,7 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
       DELETE FROM ops.kitchen_stock WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.kitchen_logs   WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.kitchen_plans  WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
+      DELETE FROM ops.stream_items   WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.item_units     WHERE org_id='${ORG}' AND wip_item_id='${ITEM_ID}';
       DELETE FROM ops.wip_items      WHERE org_id='${ORG}' AND id='${ITEM_ID}';
     `)
@@ -99,6 +100,9 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
       INSERT INTO ops.item_units (org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id, is_default, is_transferable, confirmed_at)
       VALUES ('${ORG}', '${ITEM_ID}', '${UNIT_NAME}', 'PD-E2E-744', 'P-E2E-744', true, true, now())
       ON CONFLICT (wip_item_id, unit_name) DO UPDATE SET confirmed_at = now();
+      INSERT INTO ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
+      VALUES ('${ORG}', ${BRANCH_SQL}, '${BAR_STREAM.activity}', '${ITEM_ID}', 'manual')
+      ON CONFLICT (org_id, branch_id, activity, wip_item_id) DO NOTHING;
       INSERT INTO ops.kitchen_plans
         (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi, plan_by)
       VALUES ('${ORG}', '${today}', '${ITEM_ID}', ${BRANCH_SQL}, '${BAR_STREAM.activity}', 'produce', NULL,

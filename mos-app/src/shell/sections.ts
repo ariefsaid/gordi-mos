@@ -5,7 +5,7 @@ import { isShipGated } from '@/lib/ship-gate'
 import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
   MoneyIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
-  ProfileIcon, PeopleIcon,
+  ProfileIcon, PeopleIcon, ShieldIcon,
   LogIcon, PlanIcon, StockIcon, ReviewIcon, DispatchIcon,
 } from './icons'
 
@@ -111,6 +111,8 @@ export function visibleSections(sections: readonly Section[], accessRoles: reado
 /** Admin module sections — admin-only; rendered conditionally in the rail. */
 export const ADMIN_SECTIONS: Section[] = [
   { path: '/admin/people', label: 'People', labelKey: 'nav.admin.people', Icon: PeopleIcon },
+  { path: '/admin/teams', label: 'Teams', labelKey: 'nav.admin.teams', Icon: PeopleIcon },
+  { path: '/admin/access', label: 'Roles & permissions', labelKey: 'nav.admin.roles', Icon: ShieldIcon },
 ]
 
 /**

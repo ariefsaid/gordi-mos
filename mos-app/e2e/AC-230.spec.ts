@@ -26,7 +26,7 @@
 //   (b) Group headers show the type label text — "Project" or "Daily / ongoing"
 //       (FR-233 / WCAG 1.4.1: text always present, never color-only).
 //   (c) Workload caption (role="status", aria-label="Workload summary") renders
-//       "Cahya's work" + "1 project" + "1 daily job" (FR-236).
+//       "Cahya's work" + the project/daily/unassigned counts of the rendered groups (FR-236).
 
 import { test, expect } from '@playwright/test'
 import { readFileSync } from 'fs'
@@ -188,10 +188,8 @@ test(
   await expect(projectGrp).toBeVisible({ timeout: 10_000 })
 
   // (ii) The seeded task sits under its OWN work-line header, and only there — proves it landed
-  //      in the correct group, not misplaced or dropped. seed.dev-tasks.sql:120-122 also links
-  //      other Cahya-responsible dev demo tasks ("Update espresso recipe cards", "Replace grinder
-  //      burrs (Cafe 2)") to the same "Daily IG Content" work-line, so the group's real total is
-  //      incidental fixture noise, not part of this contract — never hard-code it.
+  //      in the correct group, not misplaced or dropped. Other fixtures may add tasks to either
+  //      group, so the group's total is not part of this contract — never hard-code it.
   const processRow = page.locator('tr.task-row').filter({ hasText: T_PROCESS_TITLE })
   await expect(processRow).toHaveCount(1)
   await expect(processRow).toBeVisible()
@@ -227,13 +225,35 @@ test(
   // ── Oracle (c): workload caption renders Cahya's name + daily/project shape ───
   // FR-236: WorkloadCaption (role="status", aria-label="Workload summary") renders
   // when groupBy==="workline" AND a single person is filtered.
-  // Shape: "{Name}'s work: {N} project(s) and {M} daily job(s)[and N unassigned]."
-  //   Cahya has 1 process WL (Daily IG Content) → 1 daily job.
-  //   Cahya has 1 project WL (New Menu Design) → 1 project.
+  // Shape: "{Name}'s work: {N} project(s) and {M} daily job(s)[ and {K} unassigned]."
+  //   N / M = work-line groups of each type holding at least one of Cahya's open (not Done) tasks;
+  //   K = Cahya's open tasks with no work-line (RI-4). The dev seed gives Cahya work on other
+  //   work-lines too, so the expected shape is read from the rendered groups, never hard-coded —
+  //   the caption must reconcile with what the table shows.
   //   isSelf=false (Dewi is viewing Cahya) → subject "Cahya's work".
+  const shape = await page.evaluate(() => {
+    const result = { project: 0, daily: 0, unassigned: 0 }
+    for (const header of Array.from(document.querySelectorAll('tr.grp'))) {
+      let open = 0
+      let el = header.nextElementSibling
+      while (el && !el.classList.contains('grp')) {
+        if (el.classList.contains('task-row') && el.querySelector('.td-status')?.textContent?.trim() !== 'Done') open += 1
+        el = el.nextElementSibling
+      }
+      const label = header.textContent?.trim() ?? ''
+      if (label.startsWith('No work-line')) result.unassigned += open
+      else if (open > 0 && label.includes('Daily / ongoing')) result.daily += 1
+      else if (open > 0 && label.includes('Project')) result.project += 1
+    }
+    return result
+  })
+  // Both seeded work-lines count: at least one of each type.
+  expect(shape.project).toBeGreaterThanOrEqual(1)
+  expect(shape.daily).toBeGreaterThanOrEqual(1)
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+  const parts = [plural(shape.project, 'project', 'projects'), plural(shape.daily, 'daily job', 'daily jobs')]
+  if (shape.unassigned > 0) parts.push(`${shape.unassigned} unassigned`)
   const caption = page.locator('[aria-label="Workload summary"]')
   await expect(caption).toBeVisible({ timeout: 15_000 })
-  await expect(caption).toContainText("Cahya's work", { timeout: 10_000 })
-  await expect(caption).toContainText('1 project', { timeout: 10_000 })
-  await expect(caption).toContainText('1 daily job', { timeout: 10_000 })
+  await expect(caption).toHaveText(`Cahya's work: ${parts.join(' and ')}.`, { timeout: 10_000 })
 })

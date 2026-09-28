@@ -1,7 +1,10 @@
-// AdminUsersPage — admin-only people list + actions.
+// AdminUsersPage — admin-only people list + actions, and the person panel.
 // Route: /admin/people (behind AdminRoute, AC-070). Renamed from /admin/users (glossary: Person).
 // Design-plan §1, §2, §4. Covers AC-060, FR-010/011/020/021/022/030/040/050/060.
 // Never fetches before AdminRoute resolves (AC-070).
+//
+// A row opens the person panel (PersonPanel). On a wide desktop the panel sits beside the list in
+// the shared record split; narrower, the panel host covers the page.
 //
 // Rework items addressed:
 //   item 2: reset/disable/archive gated behind ConfirmDialog (design-plan §4.7)
@@ -10,6 +13,7 @@
 //   item 9: route renamed /admin/users → /admin/people
 
 import { useState, useEffect, useCallback, useId, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -17,11 +21,13 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/state-kit'
 import { UserTable } from '@/components/admin/user-table'
+import { filterPeople } from '@/components/admin/people-filter'
 import type { PersonAction } from '@/components/admin/user-table'
 import { usePeopleListPresentsCards } from '@/components/admin/use-people-list-presents-cards'
 import { CreatePersonDialog } from '@/components/admin/create-person-dialog'
 import { PasswordReveal } from '@/components/admin/password-reveal'
-import { RoleEditor } from '@/components/admin/role-editor'
+import { PersonPanel, type PersonAuthoritySource } from '@/components/admin/person-panel'
+import { useIsWideOverlayWidth } from '@/shell/use-is-wide-overlay-width'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { Toast } from '@/components/admin/toast'
@@ -38,6 +44,8 @@ import {
   restorePerson,
   createLogin,
 } from '@/lib/db/admin-users'
+import { listRoleAuthority, listTeamLeadAssignments } from '@/lib/db/admin-access'
+import { normalizeAuthorityRows, type RoleAuthorityRow, type TeamLeadAssignment } from '@/lib/db/admin-access.types'
 import type { AdminPersonRow, RoleOption, RevenueScopeOption, TeamOption } from '@/lib/db/admin-users.types'
 
 type LoadState = 'loading' | 'loaded' | 'error'
@@ -63,6 +71,8 @@ export function AdminUsersPage() {
   // DO-22(b): same presentation decision the UserTable itself makes — chrome and list
   // presentation can never disagree.
   const presentsCards = usePeopleListPresentsCards()
+  const isSplit = useIsWideOverlayWidth()
+  const [searchParams] = useSearchParams()
 
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [people, setPeople] = useState<AdminPersonRow[]>([])
@@ -71,9 +81,14 @@ export function AdminUsersPage() {
   const [teams, setTeams] = useState<TeamOption[]>([])
   const [addOpen, setAddOpen] = useState(false)
   const [reveal, setReveal] = useState<RevealContext | null>(null)
-  // Hold only the id; derive the live row from `people` so a post-write load() refreshes the open
-  // dialog (else PositionPicker/RoleEditor checkboxes render a stale snapshot — CQ Issue 1).
-  const [roleEditorPersonId, setRoleEditorPersonId] = useState<string | null>(null)
+  // Hold only the id; derive the live row from `people` so a post-write refresh reaches the open
+  // panel (else its checkboxes render a stale snapshot — CQ Issue 1).
+  const [openPersonId, setOpenPersonId] = useState<string | null>(null)
+  // What the panel's summary explains: the role authority table and who leads which Team. Loaded
+  // beside the list, never in front of it — a failure here costs the summary, not the roster.
+  const [authorityState, setAuthorityState] = useState<PersonAuthoritySource['state']>('loading')
+  const [authorityRows, setAuthorityRows] = useState<RoleAuthorityRow[]>([])
+  const [teamLeads, setTeamLeads] = useState<TeamLeadAssignment[]>([])
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null)
   const [actionError, setActionError] = useState('')
 
@@ -110,19 +125,40 @@ export function AdminUsersPage() {
     }
   }, [])
 
+  // A post-write reload keeps the list on screen: no skeleton flash behind an open panel.
+  const refresh = useCallback(async () => {
+    try {
+      setPeople(await listAdminPeople())
+    } catch {
+      // The list keeps its last good rows; the row that triggered this reports its own write.
+    }
+  }, [])
+
+  const loadAuthority = useCallback(async () => {
+    setAuthorityState('loading')
+    try {
+      const [rows, leads] = await Promise.all([listRoleAuthority(), listTeamLeadAssignments()])
+      setAuthorityRows(normalizeAuthorityRows(rows))
+      setTeamLeads(leads)
+      setAuthorityState('loaded')
+    } catch {
+      setAuthorityState('error')
+    }
+  }, [])
+
   useEffect(() => {
     void load()
-  }, [load])
+    void loadAuthority()
+  }, [load, loadAuthority])
 
   // Collect taken emails for create-dialog uniqueness
   const takenEmails = new Set(people.map((p) => p.email).filter(Boolean) as string[])
 
-  // Live editor row (re-derived each render from fresh `people`); closes if the person is gone.
-  const roleEditorPerson = roleEditorPersonId
-    ? people.find((p) => p.id === roleEditorPersonId) ?? null
-    : null
+  // Live panel row (re-derived each render from fresh `people`); closes if the person is gone.
+  const openPerson = openPersonId ? people.find((p) => p.id === openPersonId) ?? null : null
+  const { rows: shownPeople, filtered } = filterPeople(people, searchParams.get('status') ?? 'all', searchParams.get('q') ?? '')
 
-  // Actions that need NO confirm: enable-login, restore, create-login, manage-roles
+  // Actions that need NO confirm: enable-login, restore, create-login, manage-person
   // Actions that DO need confirm: reset-password, disable-login, archive
   async function handleAction(action: PersonAction, person: AdminPersonRow) {
     setActionError('')
@@ -164,9 +200,9 @@ export function AdminUsersPage() {
           showToast(t('admin.people.toast.restored', { name: person.full_name }))
           break
 
-        case 'manage-roles':
-          // Opens the RoleEditor dialog; no async call here — the dialog owns grant/revoke.
-          setRoleEditorPersonId(person.id)
+        case 'manage-person':
+          // Opens the person panel; its rows own every write.
+          setOpenPersonId(person.id)
           break
       }
     } catch (err) {
@@ -220,9 +256,11 @@ export function AdminUsersPage() {
       jobSentence={t('admin.people.job')}
       meta={
         <span data-testid="people-count-line" className="ch-meta-line tabular-nums">
-          {loadState === 'loaded'
-            ? t(people.length === 1 ? 'admin.people.count.one' : 'admin.people.count.other', { count: people.length })
-            : '—'}
+          {loadState !== 'loaded'
+            ? '—'
+            : filtered
+              ? t('admin.people.count.filtered', { shown: shownPeople.length, count: people.length })
+              : t(people.length === 1 ? 'admin.people.count.one' : 'admin.people.count.other', { count: people.length })}
         </span>
       }
       action={<Button variant="primary" onClick={() => setAddOpen(true)}>{t('admin.people.addPerson')}</Button>}
@@ -232,7 +270,7 @@ export function AdminUsersPage() {
 
       {/* Action error (inline, non-fatal) */}
       {actionError && (
-        <div className="px-6 pt-2">
+        <div className="pb-2">
           <ErrorState
             message={actionError}
             onRetry={() => setActionError('')}
@@ -245,33 +283,51 @@ export function AdminUsersPage() {
           coarse pointer) the person cards carry their own card chrome — the outer
           container drops its border/shadow/bg so cards never nest inside a card. The
           container card exists for the table presentation only. */}
-      <div
-        data-testid="people-list-container"
-        className="mx-6 mb-6 rounded-lg overflow-hidden"
-        style={presentsCards ? undefined : {
-          border: '1px solid var(--border)',
-          boxShadow: 'var(--shadow-rest)',
-          background: 'var(--card)',
-        }}
-      >
-        {loadState === 'error' && (
-          <div className="py-12 px-4">
-            <ErrorState
-              message={t('admin.people.loadError')}
-              onRetry={load}
-            />
-          </div>
-        )}
+      {/* The split sits around list + panel only while the panel is open beside it. */}
+      <div className={openPerson && isSplit ? 'record-split admin-people-split' : undefined}>
+        <div
+          data-testid="people-list-container"
+          className="mb-6 rounded-lg overflow-hidden"
+          style={presentsCards ? undefined : {
+            border: '1px solid var(--border)',
+            boxShadow: 'var(--shadow-rest)',
+            background: 'var(--card)',
+          }}
+        >
+          {loadState === 'error' && (
+            <div className="py-12 px-4">
+              <ErrorState
+                message={t('admin.people.loadError')}
+                onRetry={load}
+              />
+            </div>
+          )}
 
-        {loadState !== 'error' && (
-          <UserTable
+          {loadState !== 'error' && (
+            <UserTable
+              people={people}
+              viewerPersonId={viewerPersonId}
+              onAction={handleAction}
+              onAddPerson={() => setAddOpen(true)}
+              teams={teams}
+              loading={loadState === 'loading'}
+              justSavedId={justSavedId}
+              selectedId={openPerson?.id ?? null}
+            />
+          )}
+        </div>
+
+        {openPerson && (
+          <PersonPanel
+            key={openPerson.id}
+            person={openPerson}
             people={people}
-            viewerPersonId={viewerPersonId}
-            onAction={handleAction}
-            onAddPerson={() => setAddOpen(true)}
+            roles={roles}
             teams={teams}
-            loading={loadState === 'loading'}
-            justSavedId={justSavedId}
+            scopeOptions={scopeOptions}
+            authority={{ state: authorityState, rows: authorityRows, leads: teamLeads, retry: () => void loadAuthority() }}
+            refresh={refresh}
+            onClose={() => setOpenPersonId(null)}
           />
         )}
       </div>
@@ -284,23 +340,6 @@ export function AdminUsersPage() {
         takenEmails={takenEmails}
         onShowToast={showToast}
       />
-
-      {/* Role editor dialog (FR-050) */}
-      {roleEditorPerson && (
-        <RoleEditor
-          person={roleEditorPerson}
-          people={people}
-          roles={roles}
-          scopeOptions={scopeOptions}
-          teams={teams}
-          open
-          onClose={() => setRoleEditorPersonId(null)}
-          onDone={() => {
-            void load()
-          }}
-          onShowToast={showToast}
-        />
-      )}
 
       {/* Confirm dialogs (item 2) — reset password, disable login, archive */}
       {pendingConfirm?.type === 'reset-password' && (

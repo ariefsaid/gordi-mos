@@ -80,12 +80,16 @@ test('AC-020: admin adds → renames → archives an objective; archived leaves 
   pickerTaskCreated = true
   await objective.click()
 
-  // ── Rename ───────────────────────────────────────────────────────────────────
-  await page.getByRole('button', { name: 'Edit Name', exact: true }).click()
-  const editField = page.getByRole('textbox', { name: 'Name', exact: true })
+  // ── Rename (the record's More actions → Rename dialog) ──────────────────────
+  await page.getByRole('button', { name: 'More actions', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Rename', exact: true }).click()
+  const renameDialog = page.getByRole('dialog', { name: 'Rename', exact: true })
+  const editField = renameDialog.getByRole('textbox', { name: 'Name', exact: true })
+  await expect(editField).toHaveValue(NAME)
   await editField.fill(RENAMED)
   await editField.press('Enter')
-  await expect(page.getByRole('button', { name: 'Edit Name', exact: true })).toContainText(RENAMED)
+  await expect(renameDialog).toBeHidden()
+  await expect(page.getByRole('heading', { name: RENAMED, exact: true })).toBeVisible()
 
   // ── Archive → moves to the Archived section with an Unarchive control ────────
   await page.getByRole('button', { name: 'More actions', exact: true }).click()

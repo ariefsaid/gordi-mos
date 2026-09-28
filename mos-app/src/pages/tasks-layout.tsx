@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Outlet, useParams, useMatch, useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -8,7 +8,9 @@ import { isTaskPageMode } from '@/components/tasks/task-page-mode'
 import { TaskSurface } from '@/components/tasks/task-surface'
 import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
 import { RecordPageChrome } from '@/shell/record-page-chrome'
+import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { useT } from '@/i18n/use-t'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { TaskDrawerOutletContext } from '@/components/tasks/task-drawer'
 
@@ -140,6 +142,9 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
   // never visited (audit F-9).
   const fromHome = (location.state as { from?: string } | null)?.from === 'home'
   const [title, setTitle] = useState<string | null>(null)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const dirtyRef = useRef(false)
+  const [confirmCollapseOpen, setConfirmCollapseOpen] = useState(false)
   // Empty string before the title resolves keeps the crumb at "Work · Tasks";
   // once resolved it pushes the task title; on unmount the hook clears it.
   useSetBreadcrumbTitle(title ?? '')
@@ -150,10 +155,27 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
   // just back to table"): the inverse of "Open full page". Re-opens the SAME task in the split drawer
   // over the table by navigating to the same URL with the panel page-state (isTaskPageMode → false),
   // preserving the collection's query string. A PUSH, so browser Back from the drawer still works.
-  const collapseToSplit = () => navigate(
+  const proceedToSplit = () => navigate(
     { pathname: `/work/tasks/${taskId}`, search: location.search },
     { state: { taskSurface: 'panel' } },
   )
+  const collapseToSplit = () => {
+    if (dirtyRef.current) {
+      setConfirmCollapseOpen(true)
+      return
+    }
+    proceedToSplit()
+  }
+  const handleDirtyChange = useCallback((dirty: boolean) => {
+    dirtyRef.current = dirty
+    setHasUnsavedChanges(dirty)
+  }, [])
+  const discardAndCollapse = async () => {
+    dirtyRef.current = false
+    setHasUnsavedChanges(false)
+    setConfirmCollapseOpen(false)
+    proceedToSplit()
+  }
   // V3 focused-record family, P1-2 (Luna: record identity behind a generic "Task" page head +
   // utility strip at y≈234, vs E7's compact chrome at y≈124). The RecordViewer's own identity
   // header (overline + resolved title) IS the page heading now — PageFamilyFrame's generic
@@ -170,6 +192,17 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
       state={title ? 'default' : 'loading'}
       hideHead
     >
+      <RouteLeaveGuard when={hasUnsavedChanges} message={t('tasks.unsaved.copy')} />
+      <ConfirmDialog
+        open={confirmCollapseOpen}
+        title={t('tasks.unsaved.title')}
+        body={t('tasks.unsaved.copy')}
+        confirmLabel={t('tasks.unsaved.discard')}
+        cancelLabel={t('leaveGuard.stay')}
+        tone="destructive"
+        onConfirm={discardAndCollapse}
+        onCancel={() => setConfirmCollapseOpen(false)}
+      />
       {/* H3 (Luna floor): the record-page Back lives at the SHARED record-page seam now (mirror of
           the Signal page), not baked into TaskSurface — so every record kind returns the same way.
           TaskSurface's own utility strip is suppressed (showPanelUtility={false}); its record-scoped
@@ -199,6 +232,7 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
         presentation="page"
         showPanelUtility={false}
         onTitleResolved={setTitle}
+        onDirtyChange={handleDirtyChange}
         onCollapseToSplit={collapseToSplit}
         identityHeadingLevel={1}
       />

@@ -1,7 +1,9 @@
 import '@testing-library/jest-dom/vitest'
 import { transferableAbortController } from 'node:util'
+import { createElement } from 'react'
 import { afterEach } from 'vitest'
-import { cleanup, configure } from '@testing-library/react'
+import { cleanup, configure, render } from '@testing-library/react'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
 // Paired with css:false in vite.config.ts (the root overhead/contention fix), raise RTL's
 // default async budget ONCE, GLOBALLY. Under parallel-test load the host event loop can be
@@ -25,6 +27,9 @@ configure({ asyncUtilTimeout: 10000 })
 
 afterEach(() => {
   cleanup()
+  // The last applied locale outlives its provider (the crash screen relies on that), so every test
+  // starts from the product default, as a fresh page load does.
+  if (typeof document !== 'undefined') render(createElement(I18nProvider, null)).unmount()
 })
 
 // Node 26's global Request is backed by undici and checks its own AbortSignal brand. In jsdom,

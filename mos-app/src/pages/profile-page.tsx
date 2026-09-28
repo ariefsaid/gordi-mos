@@ -17,6 +17,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useI18n } from '@/i18n/I18nProvider'
+import { useAccountLocale } from '@/i18n/account-locale'
 import type { Locale } from '@/i18n/messages'
 import { useT } from '@/i18n/use-t'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -31,6 +32,8 @@ const CARD_PADDING = 16
 const CARD_BORDER = 1
 const FORM_MEASURE = 560
 const PICKER_MEASURE = 720 + 2 * (CARD_PADDING + CARD_BORDER)
+// DESIGN.md §Field-error tokens: error text is the AA-darkened red, never base --destructive.
+const LOCALE_ERROR_STYLE = { color: 'var(--status-lost-text)', fontSize: 'var(--font-size-label)', margin: '8px 0 0' }
 
 function ProfileCard({
   title,
@@ -83,7 +86,10 @@ function ReadonlyRow({ term, value }: { term: string; value: string }) {
 export function ProfilePage() {
   const t = useT()
   const auth = useAuth()
-  const { locale, setLocale } = useI18n()
+  const { locale } = useI18n()
+  const accountLocale = useAccountLocale()
+  const [savingLocale, setSavingLocale] = useState(false)
+  const [localeSaveFailed, setLocaleSaveFailed] = useState(false)
   useDocumentTitle(t('common.docTitle', { page: t('dest.profile') }))
 
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
@@ -95,6 +101,21 @@ export function ProfilePage() {
   useEffect(() => {
     setHomeLayoutState(personId ? resolveHomeLayout(personId) : 'focused')
   }, [personId])
+
+  // The select keeps showing the language in use until the account has stored the new one; a
+  // failed save leaves it there and says so, rather than showing a choice that was not saved.
+  async function handleLocaleChange(next: Locale) {
+    if (next === locale) return
+    setSavingLocale(true)
+    setLocaleSaveFailed(false)
+    try {
+      await accountLocale.save(next)
+    } catch {
+      setLocaleSaveFailed(true)
+    } finally {
+      setSavingLocale(false)
+    }
+  }
 
   function handleHomeLayoutChange(next: HomeLayout) {
     setHomeLayoutState(next)
@@ -136,11 +157,20 @@ export function ProfilePage() {
             id="profile-language"
             fullWidth
             value={locale}
-            onChange={(e) => setLocale(e.target.value as Locale)}
+            disabled={savingLocale || accountLocale.status === 'loading'}
+            error={localeSaveFailed}
+            aria-describedby={localeSaveFailed ? 'profile-language-error' : undefined}
+            onChange={(e) => void handleLocaleChange(e.target.value as Locale)}
           >
             <option value="en">{t('locale.en')}</option>
             <option value="id">{t('locale.id')}</option>
           </Select>
+          {localeSaveFailed && (
+            <p id="profile-language-error" role="alert" style={LOCALE_ERROR_STYLE}>{t('locale.saveFailed')}</p>
+          )}
+          {!localeSaveFailed && accountLocale.status === 'unavailable' && (
+            <p role="status" style={LOCALE_ERROR_STYLE}>{t('locale.loadFailed')}</p>
+          )}
         </ProfileCard>
 
         {viewer && (

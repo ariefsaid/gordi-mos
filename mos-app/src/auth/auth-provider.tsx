@@ -27,7 +27,7 @@ export function AuthProvider({ children }: Props) {
 
   const handleSignOut = useCallback(async () => {
     await supabase.auth.signOut()
-    setState({ status: 'unauthenticated' })
+    setState({ status: 'unauthenticated', signedOut: true })
   }, [])
 
   const handleClearRecovering = useCallback(async () => {
@@ -108,7 +108,7 @@ export function AuthProvider({ children }: Props) {
         resolveSession(session?.user?.id, session?.access_token)
       } else if (event === 'SIGNED_OUT') {
         isRecoveringRef.current = false
-        if (!cancelled) setState({ status: 'unauthenticated' })
+        if (!cancelled) setState({ status: 'unauthenticated', signedOut: true })
       }
     })
 

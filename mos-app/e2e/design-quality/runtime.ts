@@ -8,7 +8,8 @@ import type { Page } from '@playwright/test'
 import { assertAuditRoute } from './audit-route.ts'
 
 import { loginAs } from '../helpers/login'
-import { ADMIN, BAR_MEMBER, BAR_SUPERVISOR, MANAGER, ORPHAN, VIEWER } from '../fixtures/users'
+import { stubAccountLocale } from '../helpers/account-locale'
+import { ADMIN, BAR_MEMBER, BAR_SUPERVISOR, BARISTA, MANAGER, ORPHAN, VIEWER } from '../fixtures/users'
 import { assertDevServerOwnership, worktreeFingerprint } from '../../src/lib/dev-server'
 import {
   AUDIT_RECEIVING_ONLY,
@@ -428,6 +429,7 @@ export async function assertAuditServer(baseURL: string): Promise<void> {
 
 const fixtureCredentials = {
   BAR_MEMBER,
+  BARISTA,
   BAR_SUPERVISOR,
   VIEWER,
   MANAGER,
@@ -474,12 +476,13 @@ export async function prepareAuditPage(page: Page, run: AuditRun, cell: Manifest
       writes: cell.stateContract?.writes === true,
     })
     await loginAuditFixture(page, cell.fixture, run.sessionId, state.identities.get(cell.fixture))
-    await page.evaluate(({ theme, language }) => {
-      // Providers read their persisted state during the first render. Seed both values while the
+    // The language belongs to the signed-in account; answer its read rather than saving to it.
+    await stubAccountLocale(page, cell.language === 'id' ? 'id' : 'en')
+    await page.evaluate(({ theme }) => {
+      // The theme provider reads its persisted state during the first render. Seed it while the
       // authenticated page is still mounted so each matrix cell exercises the real provider path.
-      window.localStorage.setItem('mos.locale', language === 'id' ? 'id' : 'en')
       window.localStorage.setItem('mos-theme', theme === 'dark' ? 'dark' : 'light')
-    }, { theme: cell.theme, language: cell.language })
+    }, { theme: cell.theme })
     await page.goto(cell.route, { waitUntil: 'domcontentloaded' })
     assertAuditRoute(page.url(), cell.route)
     await page.locator('main').waitFor({ state: 'visible', timeout: 10_000 })

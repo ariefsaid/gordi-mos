@@ -61,12 +61,15 @@ describe('GUARD DO-3: the People phone toolbar resets the row flex-basis when th
     expect(body).toMatch(/white-space:\s*nowrap/)
   })
 
-  // AC-042 (#803): every status label has to be READABLE at 390px. A scrolling strip inside the
-  // list container's `overflow: hidden` hid the last segment outright, so the strip wraps instead.
-  it('AC-042: the phone status strip wraps rather than scrolling, so no segment is clipped away', () => {
-    const body = ruleBodyWithin(phoneMediaBlock(), '.people-status-tabs .view-tabs')
-    expect(body).toMatch(/flex-wrap:\s*wrap/)
-    expect(body).not.toMatch(/flex-wrap:\s*nowrap/)
-    expect(body).not.toMatch(/overflow-x:\s*(auto|scroll|hidden)/)
+  // AC-042 (#803): every status label has to stay REACHABLE at 390px. A strip that overflowed the
+  // list container's `overflow: hidden` hid the last segment outright. The strip is one row (no
+  // orphan "Archived" line), so its own wrapper is the scroller: nothing overflows into the
+  // container's clip, and a segment past the edge is a swipe or an Arrow key away.
+  it('AC-042: the phone status strip is one row that scrolls inside its own wrapper, so no segment is clipped away', () => {
+    const strip = ruleBodyWithin(phoneMediaBlock(), '.people-status-tabs .view-tabs')
+    expect(strip).toMatch(/flex-wrap:\s*nowrap/)
+    expect(strip).not.toMatch(/overflow-x:\s*hidden/)
+    const wrapper = ruleBodyWithin(phoneMediaBlock(), '.people-status-tabs {')
+    expect(wrapper).toMatch(/overflow-x:\s*auto/)
   })
 })

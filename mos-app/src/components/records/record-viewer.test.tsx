@@ -70,16 +70,15 @@ function signalAdapter(): RecordViewerAdapter {
 }
 
 describe('RecordViewer', () => {
-  it('tabs switch from details to checklist content', () => {
+  it('keeps Task details and checklist content visible in the work-first record', () => {
     const adapter = taskAdapter({
       headerFields: [{ key: 'title', label: 'Title', control: 'text', value: 'Restock oat milk', displayValue: 'Restock oat milk', editable: false }],
       metadata: [{ id: 'details', label: 'Details', fields: [{ key: 'description', label: 'Description', control: 'text', value: 'Details content', displayValue: 'Details content', editable: false }] }],
     })
     renderViewer(adapter)
     expect(screen.getByText('Details content')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: 'Checklist' }))
-    expect(screen.queryByText('Details content')).not.toBeInTheDocument()
     expect(screen.getByTestId('checklist-slot')).toBeInTheDocument()
+    expect(screen.queryByRole('tablist')).toBeNull()
   })
 
   it('FR-V3-003 / TaskSignalGrammarContract: Task and Signal render the shared identity, metadata, content, activity, and action grammar', () => {

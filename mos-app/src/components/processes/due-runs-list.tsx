@@ -6,10 +6,8 @@ import { dueKey } from './use-due-runs'
 import type { DueProcessRun } from '@/lib/db/processes.types'
 import './due-runs.css'
 
-// DueRunsList (design fix wave item 1b). Renders the actual due-occurrence rows + Start actions —
-// ONLY when the toolbar pill's disclosure is expanded. Mounted by the host AFTER the Tasks
-// table (not between the toolbar and the table) so the table stays the first substantive content
-// on the page regardless of collapse state (design-review step-6 CRITICAL).
+// Renders due-occurrence rows and Start actions. Process records pass their context so each Team,
+// rather than the already-visible Process title, identifies its ready run.
 
 export interface DueRunsListProps {
   due: DueProcessRun[]
@@ -17,11 +15,13 @@ export interface DueRunsListProps {
   startingKey: string | null
   startError: boolean
   onStart: (row: DueProcessRun) => Promise<void>
+  context?: 'process-record'
 }
 
-export function DueRunsList({ due, expanded, startingKey, startError, onStart }: DueRunsListProps) {
+export function DueRunsList({ due, expanded, startingKey, startError, onStart, context }: DueRunsListProps) {
   const t = useT()
   const idPrefix = useId()
+  const processRecordContext = context === 'process-record'
   if (!expanded || due.length === 0) return null
 
   return (
@@ -32,25 +32,28 @@ export function DueRunsList({ due, expanded, startingKey, startError, onStart }:
           const key = dueKey(row)
           const labelsId = `${idPrefix}-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`
           return (
-            <li key={key} className="due-runs-row">
-              <div className="due-runs-row-labels" id={labelsId}>
-                <span className="due-runs-row-process">{row.process_name}</span>
-                <span className="due-runs-row-team">{row.team_name}</span>
+            <li key={key} className={`due-runs-row${processRecordContext ? ' due-runs-row--process-record' : ''}`}>
+              <div className="due-runs-row-labels" id={!processRecordContext ? labelsId : undefined}>
+                {processRecordContext ? (
+                  <span className="due-runs-row-team">{row.team_name}</span>
+                ) : (
+                  <>
+                    <span className="due-runs-row-process">{row.process_name}</span>
+                    <span className="due-runs-row-team">{row.team_name}</span>
+                  </>
+                )}
               </div>
-              {/* Design fix wave item 5 (Rule 7/12, OD-58) FINAL DECISION — the visible/accessible
-                  NAME composes "Start · <process name>" (verb+object, the REAL job — never a bare
-                  "Start"/"Create"); a long name clamps via CSS (due-runs-start-label). The Team
-                  context still rides aria-describedby (WCAG AA) since it's not in the visible
-                  label. */}
+              {/* Generic lists name the Process action and describe its Team. Inside a Process
+                  record, the Team is the distinct start target and is named in the action itself. */}
               <Button
                 variant="primary"
                 className="due-runs-start-btn"
                 disabled={startingKey === key}
-                aria-describedby={labelsId}
+                aria-describedby={!processRecordContext ? labelsId : undefined}
                 onClick={() => { void onStart(row) }}
               >
                 <span className="due-runs-start-label">
-                  {t('processes.action.startComposed', { name: row.process_name })}
+                  {t('processes.action.startComposed', { name: processRecordContext ? row.team_name : row.process_name })}
                 </span>
               </Button>
             </li>

@@ -314,11 +314,11 @@ describe('router — Café review + pushes are role-gated', () => {
 })
 
 describe('router — /admin redirects from inside AdminRoute', () => {
-  it('AC-006: /admin, /admin/people, and /admin/access are children of the admin gate', () => {
+  it('AC-006: /admin and every Admin Settings tab are children of the admin gate', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'admin/people'),
     )!
-    expect(gate.children!.map((c) => c.path).sort()).toEqual(['admin', 'admin/access', 'admin/people'])
+    expect(gate.children!.map((c) => c.path).sort()).toEqual(['admin', 'admin/access', 'admin/people', 'admin/teams'])
   })
 })
 

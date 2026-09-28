@@ -33,7 +33,6 @@ const personas = [
 for (const width of [390, 1440]) {
  test(`a Signal keeps its context while opening and cancelling a Task draft at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
-  await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
   await loginAs(page, 'dewi.dev@example.test', DEMO_PASSWORD)
   await page.goto('work/signals')
   await page.locator('main [data-signal-id][role="button"]').first().click()
@@ -62,7 +61,6 @@ for (const width of [390, 1440]) {
 for (const width of [390, 1440]) {
   test(`inline Task creation retains its title while choosing ownership at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
-    await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
     await loginAs(page, 'dewi.dev@example.test', DEMO_PASSWORD)
     await page.goto('work/tasks?create=1')
     const title = `[e2e] Inline task ${width}`
@@ -100,7 +98,6 @@ for (const width of [390, 1440]) {
 for (const width of [390, 1440]) {
 test(`a Signal lists its newly created follow-up Task without losing the source at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
-  await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
   await loginAs(page, 'dewi.dev@example.test', DEMO_PASSWORD)
   await page.goto('./')
   const opener = page.getByRole('button', { name: /^Open signal:/ }).first()
@@ -131,7 +128,6 @@ test(`a Signal lists its newly created follow-up Task without losing the source 
 }
 
 test('a Task opens its Project and Back restores the Task in its queue', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
   await loginAs(page, 'dewi.dev@example.test', DEMO_PASSWORD)
   await page.goto('work/tasks')
   await expect(page.getByRole('heading', { name: 'Tasks', exact: true })).toBeVisible()
@@ -149,7 +145,6 @@ test('a Task opens its Project and Back restores the Task in its queue', async (
 })
 
 test('an Objective opens its related Project and Back restores the source record', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
   await loginAs(page, 'dewi.dev@example.test', DEMO_PASSWORD)
   await page.goto('work/objectives')
   await page.getByRole('link', { name: 'AC204 Grow revenue', exact: true }).click()
@@ -179,7 +174,6 @@ test('an Objective opens its related Project and Back restores the source record
 
 for (const persona of personas) {
   test(`${persona.label} lands in the right Task scope and an explicit view survives refresh`, async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
     await loginAs(page, persona.email, DEMO_PASSWORD)
     await page.goto('work/tasks')
     await expect(taskViewsGroup(page).getByRole('button', { name: persona.taskView, exact: true })).toHaveAttribute('aria-pressed', 'true')
@@ -191,7 +185,6 @@ for (const persona of personas) {
 
 test('ordinary barista Home offers opening work before the management brief on a phone', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
   await loginAs(page, 'bulan.dev@example.test', DEMO_PASSWORD)
   await page.goto('./')
   const main = page.locator('main')
@@ -211,7 +204,6 @@ test('ordinary barista Home offers opening work before the management brief on a
 
 test('a barista completes assigned work from Home and the result survives refresh', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
   await loginAs(page, 'bulan.dev@example.test', DEMO_PASSWORD)
   await page.goto('./')
   await page.locator('main a[href*="/work/tasks/e9000000-0000-0000-0000-000000000001"]').first().click()
@@ -229,7 +221,6 @@ for (const persona of [
 ]) {
   test(`${persona.label} Home excludes Café opening and production jobs`, async ({page}) => {
     await page.setViewportSize({width:390,height:844})
-    await page.addInitScript(() => localStorage.setItem('mos.locale','en'))
     await loginAs(page,persona.email,DEMO_PASSWORD)
     await page.goto('./')
     await expect(page.getByRole('heading',{name:/Home|Good|Today/}).first()).toBeVisible()
@@ -241,7 +232,6 @@ for (const persona of [
 
 for (const persona of ['bulan','cahya']) {
   test(`${persona} Objective quiet empty, real record and return`, async ({page}) => {
-    await page.addInitScript(() => localStorage.setItem('mos.locale','en'))
     await loginAs(page,`${persona}.dev@example.test`,DEMO_PASSWORD)
     await page.route('**/rest/v1/objectives*',route => route.fulfill({json:[]}))
     await page.goto('./')
@@ -273,7 +263,6 @@ for (const persona of ['bulan','cahya']) {
 
 for(const width of [390,1440]) test(`Task Objective relation and absent Project stay truthful at ${width}px`,async({page})=>{
   await page.setViewportSize({width,height:900})
-  await page.addInitScript(()=>localStorage.setItem('mos.locale','en'))
   await loginAs(page,'dewi.dev@example.test',DEMO_PASSWORD)
   await page.goto('work/tasks')
   await page.getByRole('link',{name:/^AC204 Sign the lease/}).click()

@@ -14,7 +14,7 @@ import { createTaskRecordAdapter, type TaskRecordAdapterInput } from './task-rec
 // observed === declared, and evaluates the FAIL gates F1–F5. A green mechanical guard does NOT
 // substitute for this recorded pass.
 
-const DECLARED = ['content', 'ownership', 'relations', 'checklist', 'activity'] as const
+const DECLARED = ['content', 'checklist', 'ownership', 'activity', 'relations'] as const
 
 const PIC = 'p-pic'
 const SUPERVISOR = 'p-sup'
@@ -83,14 +83,10 @@ function observedVector(container: HTMLElement): string[] {
 }
 
 describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', () => {
-  it('observed section-order vector === declared [content, ownership, relations, checklist, activity]', () => {
+  it('shows the declared work-first order without requiring section-tab navigation', () => {
     const { container } = renderRecord()
-    const slots = new Set<string>()
-    for (const tab of within(container).getAllByRole('tab')) {
-      fireEvent.click(tab)
-      container.querySelectorAll('[data-content-slot]').forEach((node) => slots.add((node as HTMLElement).dataset.contentSlot!))
-    }
-    expect([...slots]).toEqual([...DECLARED])
+    expect(observedVector(container)).toEqual([...DECLARED])
+    expect(within(container).queryByRole('tablist')).toBeNull()
   })
 
   it('F1 — content leads: the first body region after identity is content, with no metadata region before it (AC-ANAT-006)', () => {
@@ -127,7 +123,6 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
 
   it('F4 — no raw diff dump; the event log lives in exactly ONE region (activity)', () => {
     const { container } = renderRecord()
-    fireEvent.click(within(container).getByRole('tab', { name: 'Activity' }))
     const activityRegions = [...container.querySelectorAll('[data-content-slot]')].filter((n) =>
       n.querySelector('.record-viewer__activity'),
     )
@@ -143,20 +138,21 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
     expect(container.querySelectorAll('[data-record-header-actions="true"]')).toHaveLength(1)
   })
 
-  it('Status + Due ride with the content region (LAW-2), not a downstream metadata block', () => {
+  it('Status stays in the pinned header and Due appears once in task context', () => {
     const { container } = renderRecord()
     const content = container.querySelector('[data-content-slot="content"]')!
+    const ownership = container.querySelector('[data-content-slot="ownership"]')!
     expect(container.querySelector('[data-record-header="pinned"] [data-field-key="status"]')).toBeTruthy()
-    expect(content.querySelector('[data-field-key="dueDate"]')).toBeTruthy()
+    expect(content.querySelector('[data-field-key="status"]')).toBeNull()
+    expect(ownership.querySelectorAll('[data-field-key="dueDate"]')).toHaveLength(1)
   })
 
-  it('tasks-redesign-B: pins the action header, tabs the record, and edits the title inline', () => {
+  it('keeps the pinned action header, title, checklist, and discussion visible together', () => {
     const { container } = renderRecord()
     expect(container.querySelector('[data-record-header="pinned"]')).toBeTruthy()
-    expect(within(container).getByRole('tablist')).toBeInTheDocument()
-    for (const label of ['Details', 'Checklist', 'Activity']) {
-      expect(within(container).getByRole('tab', { name: label })).toBeInTheDocument()
-    }
+    expect(within(container).queryByRole('tablist')).toBeNull()
+    expect(container.querySelector('[data-content-slot="checklist"]')).toBeTruthy()
+    expect(container.querySelector('[data-content-slot="activity"]')).toBeTruthy()
     expect(container.querySelector('[data-field-key="title"]')).toBeTruthy()
     expect(container.querySelector('[data-field-key="status"] .record-field__pill')).toBeTruthy()
   })
@@ -167,7 +163,8 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
       workLines: [{ id: 'process-1', name: 'Café Opening', type: 'process' }],
       generatedFromLabel: 'Café Opening',
     })
-    expect(container.querySelector('[data-field-key="source"]')).toHaveTextContent('Café Opening')
+    expect(container.querySelector('[data-field-key="source"]')).toBeNull()
+    expect(container.querySelector('[data-field-key="projectProcess"]')).toHaveTextContent('Café Opening')
     expect(container.querySelector('[data-field-key="generatedFrom"]')).toHaveTextContent('Café Opening')
   })
 
@@ -181,20 +178,20 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
     fireEvent.click(within(header).getByRole('button', { name: 'More actions' }))
     expect(within(container).getByRole('menuitem', { name: 'Archive task' })).toBeInTheDocument()
     expect(within(header).queryByRole('button', { name: 'Activity' })).not.toBeInTheDocument()
-    expect(within(container).getAllByRole('tab', { name: 'Activity' })).toHaveLength(1)
+    expect(within(container).queryByRole('tablist')).toBeNull()
+    expect(container.querySelector('[data-content-slot="activity"]')).toBeTruthy()
   })
 
-  it('tasks-redesign-C: surfaces compact ownership and due context beside the title', () => {
+  it('surfaces compact ownership and due context once before discussion', () => {
     const { container } = renderRecord()
-    const context = container.querySelector('[data-record-header-context="true"]')
-
-    expect(context).toBeInTheDocument()
-    expect(context).toHaveTextContent('PIC')
-    expect(context).toHaveTextContent('Riri')
-    expect(context).toHaveTextContent('Supervisor')
-    expect(context).toHaveTextContent('Wayan Kusuma')
-    expect(context).toHaveTextContent('Due date')
-    expect(context).toHaveTextContent('2026-07-25')
+    const ownership = container.querySelector('[data-content-slot="ownership"]') as HTMLElement
+    expect(container.querySelector('[data-record-header-context="true"]')).toBeNull()
+    expect(observedVector(container).indexOf('ownership')).toBeLessThan(observedVector(container).indexOf('activity'))
+    expect(ownership).toHaveTextContent('Riri')
+    expect(ownership).toHaveTextContent('Wayan Kusuma')
+    expect(ownership).toHaveTextContent('Due date')
+    expect(ownership).toHaveTextContent('2026-07-25')
+    expect(ownership.querySelectorAll('[data-field-key="dueDate"]')).toHaveLength(1)
   })
 
   it('a record on its own page reads h1 then h2, with no level skipped into its sections', () => {
@@ -210,10 +207,10 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
     }
   })
 
-  it('tasks-redesign-C: omits absent due context so the canonical null marker stays singular', () => {
+  it('keeps a single editable empty due value in context when no deadline is set', () => {
     const { container } = renderRecord({ detail: makeDetail(makeTask({ due_date: null })) })
 
     expect(container.querySelector('[data-header-context-key="dueDate"]')).toBeNull()
-    expect(container.querySelector('[data-content-slot="content"]')).toHaveTextContent('No due date')
+    expect(container.querySelector('[data-content-slot="ownership"]')).toHaveTextContent('No due date')
   })
 })

@@ -91,7 +91,7 @@ beforeEach(() => {
 })
 
 describe('OD-REDESIGN-62 — typed Task record', () => {
-  it('shows Team, PIC, Supervisor, Due, source, completion, and reassignment without Task RACI grammar', async () => {
+  it('shows Task work first, one compact context section, completion, and reassignment without RACI grammar', async () => {
     const task = makeTask()
     vi.mocked(getTask)
       .mockResolvedValueOnce({ task, checklist: [], events: [] })
@@ -111,14 +111,14 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     expect(screen.getAllByText(/team not assigned yet/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText('Café Operations').length).toBeGreaterThan(0)
     expect(screen.getByTestId('record-details').querySelector('[data-record-header="pinned"]')).toBeTruthy()
-    expect(screen.getByRole('tablist')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Details' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Checklist' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Activity' })).toBeInTheDocument()
+    expect(screen.queryByRole('tablist')).toBeNull()
+    expect(screen.getByRole('region', { name: /task details/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
     expect(screen.getByTestId('record-details').querySelector('.record-field__pill')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Edit title' })).toBeInTheDocument()
-    expect(screen.getByText('Source')).toBeInTheDocument()
-    expect(screen.getAllByText('Today opening').length).toBeGreaterThan(0)
+    expect(screen.getByTestId('record-details').querySelector('[data-field-key="source"]')).toBeNull()
+    expect(screen.getByTestId('record-details').querySelector('[data-field-key="projectProcess"]')).toHaveTextContent('Today opening')
     expect(within(screen.getByTestId('record-details').querySelector('[data-content-slot="ownership"]') as HTMLElement).getByText('PIC')).toBeInTheDocument()
     // Value-first document grammar: ownership fields render their VALUE first, then swap in the
     // edit control on activation (click the row). The shared picker exposes the selected label.
@@ -131,10 +131,6 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Arief Said')
     fireEvent.click(screen.getByRole('combobox', { name: 'Supervisor' }))
     fireEvent.click(screen.getByRole('option', { name: 'Arief Said' }))
-    // Source is a read-only derived classification (never activated) — its value shows directly.
-    expect(screen.getByText('Source')).toBeInTheDocument()
-    const sourceField = document.querySelector('[data-field-key="source"]') as HTMLElement
-    expect(within(sourceField).getByText('Today opening')).toBeInTheDocument()
     // Due date renders as a native <input type="date"> once activated (its value is the ISO date
     // in the attribute, not visible text). Assert via the labeled control's value.
     fireEvent.click(screen.getByRole('button', { name: 'Edit Due' }))
@@ -168,7 +164,7 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
   // Wave 2c (OD-REDESIGN-61..64): the optional columns moved OUT of the default desktop
   // table must remain reachable in the record drawer/full page. This proves the
   // Objective field (the one not covered by the test above) resolves + renders in the
-  // drawer — alongside Source/Work-line already asserted above (Team is gated off, §Task-11).
+  // drawer — alongside Project/Process already asserted above (Team is gated off, §Task-11).
   it('AC-W2C: Objective (moved out of the table) stays reachable in the drawer', async () => {
     vi.mocked(listObjectives).mockResolvedValue([
       { id: 'obj-direct', name: 'Grow direct orders' } as never,

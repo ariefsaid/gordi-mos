@@ -121,6 +121,7 @@ const DashboardPage = lazyPage(() => import('./pages/dashboard-page').then((m) =
 const BudgetPage = lazyPage(() => import('./pages/budget-page').then((m) => ({ default: m.BudgetPage })))
 const PricingPage = lazyPage(() => import('./pages/pricing-page').then((m) => ({ default: m.PricingPage })))
 const AdminUsersPage = lazyPage(() => import('./pages/admin-users-page').then((m) => ({ default: m.AdminUsersPage })))
+const AdminTeamsPage = lazyPage(() => import('./pages/admin-teams-page').then((m) => ({ default: m.AdminTeamsPage })))
 const AdminAccessPage = lazyPage(() => import('./pages/admin-access-page').then((m) => ({ default: m.AdminAccessPage })))
 const SliceStubPage = lazyPage(() => import('./pages/slice-stub-page').then((m) => ({ default: m.SliceStubPage })))
 const ProfilePage = lazyPage(() => import('./pages/profile-page').then((m) => ({ default: m.ProfilePage })))
@@ -501,6 +502,11 @@ const routeTable: RouteObject[] = [
               {
                 path: ROUTE_PATHS.adminPeople,
                 element: withSuspense(<AdminUsersPage />),
+                handle: pageHandle('management'),
+              },
+              {
+                path: ROUTE_PATHS.adminTeams,
+                element: withSuspense(<AdminTeamsPage />),
                 handle: pageHandle('management'),
               },
               {

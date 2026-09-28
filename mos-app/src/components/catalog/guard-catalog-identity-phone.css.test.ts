@@ -8,7 +8,7 @@ import { resolve } from 'node:path'
 const css = readFileSync(resolve(process.cwd(), 'src/components/catalog/catalog-collection.css'), 'utf8')
 
 describe('catalog row layout stays readable at phone width', () => {
-  it('uses a four-column desktop row with a 52px floor', () => {
+  it('uses a grid desktop row with a 52px floor', () => {
     expect(css).toMatch(/\.catalog-collection__row\s*\{[\s\S]*?min-height:\s*52px/)
     expect(css).toMatch(/\.catalog-collection__header,[\s\S]*?\.catalog-collection__row-link\s*\{[\s\S]*?grid-template-columns:/)
   })
@@ -25,11 +25,16 @@ describe('catalog row layout stays readable at phone width', () => {
     expect(phone).toContain('.catalog-collection__table--work_line')
   })
 
-  it('collapses a desktop split queue to identity + owner + progress', () => {
-    const split = css.slice(css.indexOf('@media (min-width: 1100px)'))
-    expect(split).toMatch(/\.record-split \.catalog-collection__header,[\s\S]*?\.record-split \.catalog-collection__row-link/)
-    expect(split).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)\s+minmax\(92px, [^)]+\)\s+minmax\(110px, [^)]+\)/)
-    expect(split).toMatch(/\.record-split \.catalog-collection__cell--relation,[\s\S]*?\.record-split \.catalog-collection__cell--cadence,[\s\S]*?\.record-split \.catalog-collection__cell--activity\s*\{[\s\S]*?display:\s*none/)
+  it('sheds facts in a fixed order on the wide grid, by the list width rather than the window', () => {
+    const wide = css.slice(css.indexOf('@media (min-width: 1100px)'))
+    // One grid shared through subgrid, so Name is content-sized across every row.
+    expect(wide).toMatch(/grid-template-columns:\s*fit-content\(654px\)\s+var\(--catalog-facts\)\s+minmax\(0, 1fr\)/)
+    expect(wide).toMatch(/grid-template-columns:\s*subgrid/)
+    // Lowest value first: Last activity, relation, cadence, accountable, progress.
+    const order = ['activity', 'relation', 'cadence', 'owner', 'progress']
+      .map((cell) => wide.search(new RegExp(`@container work-list[^{]*\\{[^@]*\\.catalog-collection__cell--${cell}\\s*\\{\\s*display:\\s*none`)))
+    for (const index of order) expect(index).toBeGreaterThanOrEqual(0)
+    expect([...order].sort((x, y) => x - y)).toEqual(order)
   })
 
   it('stacks every lower-priority fact into one labelled metadata band at intermediate width', () => {

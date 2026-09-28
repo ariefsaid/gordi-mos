@@ -48,6 +48,13 @@ export type OverlayLeaveIntent =
       to: To
     }
   | {
+      /** An in-app navigation to another route; the route-bound session retires if allowed. */
+      kind: 'route-leave'
+      via: 'navigation'
+      from: OverlayEntrySummary
+      to: { pathname: string; search: string; hash: string }
+    }
+  | {
       kind: 'browser-pop'
       direction: 'back' | 'forward'
       from: OverlayHistoryMarker

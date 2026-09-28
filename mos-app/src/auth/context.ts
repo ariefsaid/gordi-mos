@@ -3,7 +3,9 @@ import type { PeopleRow, RolesRow } from '@/lib/database.types'
 
 export type AuthState =
   | { status: 'loading' }
-  | { status: 'unauthenticated' }
+  // signedOut: this browser's session just ended (sign-out here or in another tab). The next
+  // person to sign in is not assumed to be the last one, so no return route is kept for them.
+  | { status: 'unauthenticated'; signedOut?: true }
   | { status: 'orphan'; signOut: () => Promise<void> }
   | {
       status: 'authenticated'

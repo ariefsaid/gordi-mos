@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   rollUpCounts,
   buildCascadeGroups,
+  buildCatalogRelationProjection,
   cascadeGroupKey,
   formatCountRollup,
   resolveTaskObjectiveId,
@@ -86,6 +87,17 @@ describe('count roll-up', () => {
     expect(result.workLines.find((row) => row.id === 'w1')).toMatchObject({ done: 0, total: 1 })
   })
 
+  it('counts a mixed work line under its direct Objective and its Task contribution Objective', () => {
+    const result = rollup({
+      objectives: OBJECTIVES,
+      workLines: [{ id: 'mixed', name: 'Shared project', type: 'project', objective_id: 'o1' }],
+      tasks: [task({ id: 'contribution', status: 'Done', objective_id: 'o2', work_line_id: 'mixed' })],
+    })
+    expect(result.objectives.find((row) => row.id === 'o1')).toMatchObject({ done: 1, total: 1 })
+    expect(result.objectives.find((row) => row.id === 'o2')).toMatchObject({ done: 1, total: 1 })
+    expect(result.workLines.find((row) => row.id === 'mixed')).toMatchObject({ done: 1, total: 1, objective_id: 'o1' })
+  })
+
   it('gives a record with no work a real 0 / 0 rather than no entry at all', () => {
     const result = rollup({
       // o3 is the case the group projection alone cannot supply: an Objective with no
@@ -158,7 +170,7 @@ describe('count roll-up', () => {
   })
 })
 
-describe('buildCascadeGroups — the ONE shared projection', () => {
+describe('buildCascadeGroups — Task collection grouping', () => {
   const tasks = [
     task({ id: 'w1-done', status: 'Done', work_line_id: 'w1', responsible_person_id: MINE }),
     task({ id: 'w1-open', work_line_id: 'w1' }),
@@ -249,5 +261,60 @@ describe('buildCascadeGroups — the ONE shared projection', () => {
     expect(cascadeGroupKey('o1', 'w1')).toBe('o1:w1')
     expect(cascadeGroupKey('o1', null)).toBe(`o1:${NO_WORK_LINE_KEY}`)
     expect(cascadeGroupKey(null, 'w1')).toBe(`${UNLINKED_OBJECTIVE_KEY}:w1`)
+  })
+})
+
+describe('catalog linked-work projection', () => {
+  const objectives = [
+    { id: 'o1', name: 'Grow revenue' },
+    { id: 'o2', name: 'Improve quality' },
+  ]
+  const workLines = [
+    { id: 'direct', name: 'Direct project', type: 'project' as const, objective_id: 'o1' },
+    { id: 'task-only', name: 'Task-linked project', type: 'project' as const, objective_id: null },
+    { id: 'mixed', name: 'Mixed process', type: 'process' as const, objective_id: 'o1' },
+    { id: 'unlinked', name: 'Unlinked process', type: 'process' as const, objective_id: null },
+  ]
+  const tasks = [
+    task({ id: 'direct-task', work_line_id: 'direct' }),
+    task({ id: 'task-only-task', objective_id: 'o2', work_line_id: 'task-only' }),
+    task({ id: 'mixed-task', objective_id: 'o2', work_line_id: 'mixed' }),
+    task({ id: 'unlinked-task', work_line_id: 'unlinked' }),
+    task({ id: 'objective-task', objective_id: 'o2' }),
+  ]
+
+  it('keeps a direct Objective parent distinct from a task contribution on a mixed work line', () => {
+    const projection = buildCatalogRelationProjection({ objectives, workLines, tasks })
+    expect(projection.byWorkLineId.get('mixed')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ objectiveId: 'o1', relationship: 'direct', total: 1 }),
+      expect.objectContaining({ objectiveId: 'o2', relationship: 'contribution', total: 1 }),
+    ]))
+    expect(projection.byObjectiveId.get('o1')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'mixed', relationship: 'direct', total: 1 }),
+    ]))
+    expect(projection.byObjectiveId.get('o2')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'mixed', relationship: 'contribution', total: 1 }),
+    ]))
+  })
+
+  it('labels a task-only Objective link as a contribution and includes tasks linked straight to the Objective', () => {
+    const projection = buildCatalogRelationProjection({ objectives, workLines, tasks })
+    expect(projection.byWorkLineId.get('task-only')).toEqual([
+      expect.objectContaining({ objectiveId: 'o2', relationship: 'contribution', tasks: [expect.objectContaining({ id: 'task-only-task' })] }),
+    ])
+    expect(projection.byObjectiveId.get('o2')).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'task-only', relationship: 'contribution' }),
+      expect.objectContaining({ entity: 'task', relationship: 'direct', tasks: [expect.objectContaining({ id: 'objective-task' })] }),
+    ]))
+  })
+
+  it('keeps unlinked work visible without assigning it to an Objective', () => {
+    const projection = buildCatalogRelationProjection({ objectives, workLines, tasks })
+    expect(projection.byWorkLineId.get('unlinked')).toEqual([
+      expect.objectContaining({ objectiveId: null, relationship: 'unlinked', total: 1 }),
+    ])
+    expect(projection.byObjectiveId.get('o1')).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'unlinked' }),
+    ]))
   })
 })

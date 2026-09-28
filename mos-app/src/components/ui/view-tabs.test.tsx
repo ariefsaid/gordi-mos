@@ -2,7 +2,7 @@
 // archetype de-duplication). Replaces the deleted tab-strip.test.tsx coverage +
 // adds the `soon`/`disabled` + enabled-only keyboard-nav contracts that the
 // tasks Table/Board/Calendar grammar needs.
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ViewTabs } from './view-tabs'
@@ -164,12 +164,9 @@ describe('ViewTabs — localized soon tooltip (#359)', () => {
   })
 
   describe('id locale', () => {
-    beforeEach(() => localStorage.setItem('mos.locale', 'id'))
-    afterEach(() => localStorage.clear())
-
     it('renders "Segera hadir" when the locale is id', () => {
       render(
-        <I18nProvider>
+        <I18nProvider initialLocale="id">
           <ViewTabs tabs={TABS} active="summary" onChange={vi.fn()} />
         </I18nProvider>,
       )

@@ -17,6 +17,13 @@ insert into shared.branches (id, org_id, code, name) values
 insert into ops.wip_items (id, org_id, name, flag_active) values
   ('00000000-0000-0000-0000-00000000ab01','00000000-0000-0000-0000-0000000000a1','Nasi Goreng',true);
 select shared.seed_stream_teams();
+-- The item is on every stream's list (#222), so each refusal below is the books guard's own.
+insert into ops.stream_items (org_id,branch_id,activity,wip_item_id,source)
+select '00000000-0000-0000-0000-0000000000a1', t.branch_id, t.activity,
+       '00000000-0000-0000-0000-00000000ab01', 'manual'
+from shared.teams t
+where t.org_id='00000000-0000-0000-0000-0000000000a1'
+  and t.branch_id is not null and t.archived_at is null;
 insert into shared.teams (id, org_id, business_unit_id, name, code)
 values ('00000000-0000-0000-0000-00000000ba18','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','Back Office','fixture_back_office');
 -- The positive capture persona needs the same real Café affiliation required by the live INSERT

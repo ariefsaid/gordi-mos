@@ -14,6 +14,7 @@ import {
   fixtureCleanupSql,
   notificationCleanupSql,
   objectiveCleanupSql,
+  personPreferenceCleanupSql,
   processRunCleanupSql,
   signalCleanupSql,
   taskCleanupSql,
@@ -175,7 +176,9 @@ test('SQL guard rejects broad and disguised deletes and allows the owned cleanup
     userViewCleanupSql(['a1000000-0000-0000-0000-000000000003']),
     budgetCleanupSql(['a1000000-0000-0000-0000-000000000004']),
     objectiveCleanupSql(['a1000000-0000-0000-0000-000000000005']),
+    personPreferenceCleanupSql(['a1000000-0000-0000-0000-000000000007']),
   ]) expect(() => assertFixtureSqlSafe(cleanup)).not.toThrow()
+  expect(() => personPreferenceCleanupSql(['not-a-uuid'])).toThrow(/UUID-owned/)
   const runCleanup = processRunCleanupSql(['a1000000-0000-0000-0000-000000000006'])
   expect(() => assertFixtureSqlSafe(runCleanup)).not.toThrow()
   expect(() => processRunCleanupSql(['not-a-uuid'])).toThrow(/UUID-owned/)
@@ -187,6 +190,7 @@ test('SQL guard rejects broad and disguised deletes and allows the owned cleanup
     "DELETE FROM mos.weekly_updates WHERE org_id = 'demo';",
     "DELETE FROM ops.log_entries WHERE org_id = 'demo';",
     "DELETE FROM mos.tasks WHERE title LIKE 'E2E %';",
+    'DELETE FROM shared.person_preferences;',
     "WITH doomed AS (DELETE FROM mos.tasks RETURNING *) SELECT * FROM doomed;",
     'TRUNCATE mos.tasks CASCADE;',
     'DROP TABLE mos.tasks;',

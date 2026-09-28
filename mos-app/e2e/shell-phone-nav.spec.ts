@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { ADMIN, VIEWER } from './fixtures/users'
 import { isShipGated } from './helpers/ship-gate'
+import { stubAccountLocale } from './helpers/account-locale'
 
 // Label -> the path behind it, so the assertions below ask the gate rather than re-listing it.
 const GATED_BY_LABEL: Record<string, string> = {
@@ -78,7 +79,7 @@ for (const actor of [
   test(`R1 Indonesian ${actor.label}: Inbox and one-line phone tabs at 390`, async ({ page }, info) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await loginAs(page, actor.email, actor.password)
-    await page.addInitScript(() => localStorage.setItem('mos.locale', 'id'))
+    await stubAccountLocale(page, 'id')
     await page.reload()
     const nav = page.getByRole('navigation', { name: 'Primary' })
     await expect(nav.locator('.bottom-tab-label')).toHaveCount(actor.cafe ? 5 : 4)

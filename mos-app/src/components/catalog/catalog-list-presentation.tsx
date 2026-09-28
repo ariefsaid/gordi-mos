@@ -123,7 +123,10 @@ function dueValue(row: CatalogRow, t: ReturnType<typeof useT>): { label: string;
 }
 
 function primaryRelation(context: CatalogCollectionContext, row: CatalogRow) {
-  return context.relationsById.get(row.id)?.groups.find((group) => !group.synthetic)
+  const groups = context.relationsById.get(row.id)?.groups ?? []
+  const direct = groups.find((group) => group.relationship === 'direct' && !group.synthetic)
+  if (context.relationsKind === 'work_line') return direct
+  return direct ?? groups.find((group) => group.relationship === 'contribution' && !group.synthetic)
 }
 
 export function CatalogListPresentation({ query, projection, context, onOpenRecord }: CatalogListProps) {
@@ -148,8 +151,15 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
         {projection.visibleRecords.map((row) => {
           const rowArchived = row.archived_at !== null
           const relation = primaryRelation(context, row)
+          const relationGroups = context.relationsById.get(row.id)?.groups ?? []
+          const contributions = relationGroups.filter((group) => group.relationship === 'contribution' && !group.synthetic)
+          const directChildren = relationGroups.filter((group) => group.relationship === 'direct' && group.entity === 'work-line')
           const progress = context.progressById.get(row.id)
-          const relationLabel = relation?.name ?? t('catalog.notSet')
+          const relationLabel = relation
+            ? relation.relationship === 'contribution'
+              ? t(context.relationsKind === 'work_line' ? 'catalog.relations.contributesTo' : 'catalog.relations.viaTask', { name: relation.name })
+              : relation.name
+            : t('catalog.notSet')
           const progressLabel = rowProgressText(row, progress, t)
           const activityLabel = latestActivity(context, row, t)
           // One word for one fact: what a reader sees in the cell is what a screen reader hears,
@@ -228,7 +238,12 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
                     </span>
                     {context.relationsKind === 'objective' ? (
                       <span className="catalog-collection__cell-note">
-                        {t('catalog.childCount', { count: String(context.relationsById.get(row.id)?.groups.filter((group) => !group.synthetic).length ?? 0) })}
+                        {t('catalog.childCount', { count: String(directChildren.length) })}
+                        {contributions.length > 0 ? ` · ${t('catalog.contributionCount', { count: String(contributions.length) })}` : ''}
+                      </span>
+                    ) : contributions.length > 0 ? (
+                      <span className="catalog-collection__cell-note">
+                        {t(relation ? 'catalog.relations.alsoContributes' : 'catalog.relations.taskContributions', { names: contributions.map((group) => group.name).join(', ') })}
                       </span>
                     ) : null}
                   </span>

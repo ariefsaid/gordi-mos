@@ -57,9 +57,9 @@ const viewer = {
   affiliated: [],
 }
 
-function renderTopBar(path = '/work/tasks', onOpenDrawer = vi.fn(), onOpenSearch = vi.fn()) {
+function renderTopBar(path = '/work/tasks', onOpenDrawer = vi.fn(), onOpenSearch = vi.fn(), locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="*" element={<TopBar onOpenDrawer={onOpenDrawer} onOpenSearch={onOpenSearch} />} />
@@ -157,8 +157,7 @@ describe('AC-014: TopBar layout (OD-57)', () => {
   })
 
   it('renders localized top-bar chrome for Indonesian', () => {
-    localStorage.setItem('mos.locale', 'id')
-    renderTopBar()
+    renderTopBar(undefined, undefined, undefined, 'id')
     expect(screen.getByRole('button', { name: /Cari/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Inbox' })).toBeInTheDocument()
   })

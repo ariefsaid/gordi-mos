@@ -1,5 +1,5 @@
 // ChartFrame tests — design-plan §2.2 (titled chart surface + mandatory tableFallback).
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ChartFrame } from './chart-frame'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -149,12 +149,9 @@ describe('ChartFrame — error state', () => {
 // #400: the kit's own empty-cut string goes through the catalog — needs the provider
 // wrapper so the id locale resolves.
 describe('ChartFrame — locale seam (#400)', () => {
-  beforeEach(() => localStorage.setItem('mos.locale', 'id'))
-  afterEach(() => localStorage.clear())
-
   it('the empty state renders Indonesian when the locale is id', () => {
     render(
-      <I18nProvider>
+      <I18nProvider initialLocale="id">
         <ChartFrame title="Pendapatan harian" ariaLabel="Grafik pendapatan harian" tableFallback={FALLBACK} state="empty">
           <div data-testid="chart-body">chart</div>
         </ChartFrame>
@@ -170,7 +167,7 @@ describe('ChartFrame — locale seam (#400)', () => {
   // was the last one still holding its own English literal.
   it('the error state and its retry control render Indonesian', () => {
     render(
-      <I18nProvider>
+      <I18nProvider initialLocale="id">
         <ChartFrame
           title="Pendapatan harian"
           ariaLabel="Grafik pendapatan harian"

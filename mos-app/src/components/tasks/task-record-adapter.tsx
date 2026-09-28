@@ -18,6 +18,7 @@ import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
 import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { canEdit, canArchive, picOptions } from './task-permissions'
+import { isOverdue } from '@/lib/due-status'
 import { RecordFieldList } from '@/components/records/record-viewer'
 import type {
   RecordAction,
@@ -95,6 +96,8 @@ export interface TaskRecordAdapterInput {
   formatCreatedAt?: (iso: string) => string
   /** Formats a relative activity/completion age for the pinned header. */
   formatAge?: (iso: string) => string
+  /** Live render clock shared with task rows for WIB overdue semantics. */
+  now?: Date
   onUpdateField: (field: TaskViewerFieldKey, value: string | null) => Promise<void>
   onUpdateStatus: (next: TaskStatus) => Promise<void>
   onArchive: () => Promise<void>
@@ -148,7 +151,6 @@ function editableSpec(
  *  TaskSurface passes locale-resolved strings (LocaleParityContract). */
 export interface TaskFieldLabels {
   businessUnit: string
-  businessUnitDerived: string
   pic: string
   supervisor: string
   team: string
@@ -157,7 +159,6 @@ export interface TaskFieldLabels {
   teamMigration: string
   dueDate: string
   createdBy: string
-  activity: string
 }
 
 /** i18n-able labels for the FULL Task record adapter's chrome — section titles, the
@@ -183,7 +184,7 @@ export interface TaskRecordLabels {
   descriptionField: string
   projectProcessField: string
   objectiveField: string
-  sourceField: string
+  overdueLabel: string
   /** Visible null-indicator for a read-only catalog field with no value (em dash). */
   noneMarker: string
   markComplete: string
@@ -216,7 +217,7 @@ const DEFAULT_TASK_RECORD_LABELS: TaskRecordLabels = {
   descriptionField: 'Description',
   projectProcessField: 'Project/Process',
   objectiveField: 'Objective',
-  sourceField: 'Source',
+  overdueLabel: 'Overdue',
   noneMarker: '—',
   markComplete: 'Mark complete',
   reopen: 'Reopen',
@@ -233,7 +234,6 @@ const DEFAULT_TASK_RECORD_LABELS: TaskRecordLabels = {
 
 const DEFAULT_TASK_FIELD_LABELS: TaskFieldLabels = {
   businessUnit: 'Business Unit',
-  businessUnitDerived: 'BU',
   pic: 'Person in charge (PIC)',
   supervisor: 'Supervisor',
   team: 'Team',
@@ -242,7 +242,6 @@ const DEFAULT_TASK_FIELD_LABELS: TaskFieldLabels = {
   teamMigration: 'No team is assigned to this task yet (data migration).',
   dueDate: 'Due date',
   createdBy: 'Created by',
-  activity: 'Activity',
 }
 
 /** The honest Team field spec — Business Unit is NEVER relabelled Team; a real task.team_id lookup
@@ -267,7 +266,6 @@ export function teamOwnershipField(
     control: 'team',
     value: team?.id ?? null,
     displayValue: team?.label ?? labels.teamUnassigned,
-    subline: `${labels.businessUnitDerived}: ${team?.businessUnitLabel ?? ''}`.replace(/: $/, ''),
     options: canPick ? options : undefined,
     editable: canPick,
     readOnlyReason: canPick ? undefined : team ? labels.teamFromRecord : labels.teamMigration,
@@ -286,6 +284,9 @@ function ownershipFields(
   teamOptions: readonly TaskTeamView[],
   createdAt: string,
   formatCreatedAt: (iso: string) => string,
+  due: RecordFieldSpec,
+  completedAt: string | null,
+  completedAtLabel: string,
   labels: TaskFieldLabels = DEFAULT_TASK_FIELD_LABELS,
 ): RecordFieldSpec[] {
   return [
@@ -326,6 +327,16 @@ function ownershipFields(
       editable: false,
       readOnlyReason: undefined,
     },
+    due,
+    ...(completedAt ? [{
+      key: 'completedAt',
+      label: completedAtLabel,
+      control: 'text' as const,
+      value: completedAt,
+      displayValue: completedAt,
+      editable: false,
+      readOnlyReason: undefined,
+    }] : []),
   ]
 }
 
@@ -390,6 +401,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
   const archived = task.archived_at !== null
   const editable = canEdit(task, viewerId, downlineIds) && !archived
   const canArchiveTask = canArchive(task, viewerId, downlineIds)
+  const hasUnfinishedChecklist = detail.checklist.some((item) => !item.is_done)
 
   // The ONE whole-record read-only note (why the viewer can't edit) — surfaced once by
   // RecordViewer's footer via `permission.reason` below. It is NOT stamped onto every field
@@ -401,12 +413,9 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     editable,
   })
 
-  // Content-first document anatomy (OD-REDESIGN-90 §2.2, FR-ANAT-009): the Task leads with its
-  // OWN content — Title (identity h1) + Description — then Ownership → Relations → Checklist →
-  // Activity. The regions are packed into ORDERED content slots so the content leads without
-  // flipping record-viewer.tsx's shared region order (which would endanger every other consumer
-  // and paint the metadata region before content anyway). E7's calm-document intent is preserved;
-  // only the ORDER obeys LAW-1 (content leads) / LAW-2 (Status + Due ride with the content).
+  // Work-first anatomy: Description → Checklist → Task context → Discussion → Related records.
+  // The shared RecordViewer consumes these ordered slots while keeping Task status/actions in its
+  // compact identity header.
   const workLine = workLines.find((row) => row.id === task.work_line_id) ?? null
   const workLineName = workLine?.name ?? null
   const objectiveName = objectives.find((row) => row.id === task.objective_id)?.name
@@ -415,18 +424,8 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
   // fossil — it duplicated what the record already carries ("Generated" ⇒ the Generated-by chip,
   // "Project" ⇒ the Project/Process relation row, "Ad hoc" ⇒ the absence of both). It only existed
   // because the E7 mockup drew it (a quality floor, not a data spec), so no information is lost.
-  const sourceDisplay = workLineName ?? objectiveName
-  const sourceHref = workLineName
-    ? `/work/projects/${task.work_line_id}`
-    : objectiveName
-      ? `/work/objectives/${task.objective_id}`
-      : undefined
-  const teamWithDerivedBu = team
-    ? { ...team, businessUnitLabel: team.businessUnitLabel ?? buName(businessUnits, task.business_unit_id) }
-    : null
-
-  // 1. Content (LEADS) — Description prose directly beneath the identity title; Status pill + Due
-  //    ride with it (LAW-2 — urgency adjacent to the content it qualifies, not a downstream block).
+  // 1. Work (LEADS) — description, checklist and discussion stay visible together. Ownership and
+  //    relationships follow once the immediate work is in view.
   const titleField = editSpec({
     key: 'title',
     label: 'title',
@@ -435,38 +434,18 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     displayValue: task.title,
   })
   const due = dueField(task, editable, labels.dueDate, formatDate)
-  const headerContext: RecordHeaderContextItem[] = [
-    {
-      key: 'team',
-      label: labels.team,
-      displayValue: teamWithDerivedBu?.label ?? labels.teamUnassigned,
-    },
-    {
-      key: 'pic',
-      label: labels.pic,
-      displayValue: personName(people, task.responsible_person_id),
-    },
-    {
-      key: 'supervisor',
-      label: labels.supervisor,
-      displayValue: personName(people, task.accountable_person_id),
-    },
-    ...(task.due_date ? [{
-      key: 'dueDate',
-      label: labels.dueDate,
-      displayValue: due.displayValue,
-    }] : []),
-    {
-      key: 'activity',
-      label: labels.activity,
-      displayValue: formatAge(task.last_activity_at),
-    },
-    ...(task.status === 'Done' && task.completed_at ? [{
-      key: 'completedAt',
-      label: L.completedAtField,
-      displayValue: formatAge(task.completed_at),
-    }] : []),
-  ]
+  const statusField = editSpec({
+    key: 'status',
+    label: L.statusField,
+    control: 'status',
+    value: task.status,
+    displayValue: statusLabel(task.status, L),
+    options: TASK_STATUSES.map((s) => ({ value: s, label: statusLabel(s, L) })),
+  })
+  const completedAt = task.status === 'Done' && task.completed_at ? formatAge(task.completed_at) : null
+  const headerContext: RecordHeaderContextItem[] = input.now && isOverdue(task, input.now)
+    ? [{ key: 'overdue', label: labels.dueDate, displayValue: L.overdueLabel }]
+    : []
   const content: RecordMetadataSection = {
     id: 'content',
     label: L.detailsSection,
@@ -478,20 +457,11 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
         value: task.description,
         displayValue: task.description ?? L.noneMarker,
       }),
-      editSpec({
-        key: 'status',
-        label: L.statusField,
-        control: 'status',
-        value: task.status,
-        displayValue: statusLabel(task.status, L),
-        options: TASK_STATUSES.map((s) => ({ value: s, label: statusLabel(s, L) })),
-      }),
-      due,
     ],
   }
 
-  // 2. Ownership — Team · derived BU · PIC · Supervisor · Created by. Team is the canonical
-  //    editable owner; legacy BU remains visible but read-only and is never used as a Team.
+  // 2. Context — ownership and due date each appear once. Team is the canonical editable owner;
+  //    legacy BU remains visible but read-only and is never used as a Team.
   const ownership: RecordMetadataSection = {
     id: 'ownership',
     label: L.ownershipSection,
@@ -502,17 +472,19 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
       downlineIds,
       people,
       businessUnits,
-      teamWithDerivedBu,
+      team,
       teamOptions,
       task.created_at,
       formatCreatedAt,
+      due,
+      completedAt,
+      L.completedAtField,
       labels,
     ),
   }
 
-  // 3. Relations — Project/Process · Objective (settable navigational links) · Generated-by ·
-  //    Source (read-only provenance), each rendered WHERE the datum exists. Source/Generated-by
-  //    carry no per-field reason (LAW-6 / F3 — one whole-record note only).
+  // 3. Relations — Project/Process and Objective are the actual parent links. Generated-by is
+  //    distinct process-task-definition provenance; a second Source field would alias a parent.
   const relations: RecordMetadataSection = {
     id: 'relations',
     label: L.relatedSection,
@@ -550,19 +522,6 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
             readOnlyReason: undefined,
           }]
         : []),
-      // Source/provenance — always present so an unlinked hand-created Task reads as a state,
-      // while a resolved parent is a direct link chip rather than a dead text label.
-      {
-        key: 'source',
-        label: L.sourceField,
-        control: 'text' as const,
-        value: task.work_line_id ?? task.objective_id ?? null,
-        displayValue: sourceDisplay ?? L.adHoc,
-        href: sourceHref,
-        onOpen: sourceHref && input.onOpenRelated ? () => input.onOpenRelated?.(task.work_line_id ? { kind: 'work-line', id: task.work_line_id } : { kind: 'objective', id: task.objective_id! }) : undefined,
-        editable: false,
-        readOnlyReason: undefined,
-      },
     ],
   }
 
@@ -575,10 +534,10 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     }
   } else {
     if (editable) {
-      // Lifecycle-aware lead action (owner-eyes item 10): a Task whose status is already Done must
-      // NOT offer a dead-end "Mark complete" primary. Reopening is a supported transition (the Status
-      // control freely moves Done → any state), so a Done task instead offers a quiet "Reopen"
-      // secondary that returns it to the active pool; every other state keeps "Mark complete".
+      // A Done task offers Reopen; otherwise Mark complete stays available, with visual priority
+      // reflecting the task's readiness. Blocked work or unfinished checklist items make it
+      // secondary while the status control remains the deliberate route to Done. This changes only
+      // action hierarchy: the existing status permissions and completion behavior stay the same.
       // onUpdateStatus RE-THROWS on failure (so the Status FIELD surfaces its visible error/retry).
       // A lifecycle-button trigger is fire-and-forget (`void action.run()` in RecordViewer), so the
       // button swallows the rejection here — the optimistic rollback + sr-only announce it already
@@ -595,7 +554,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
         actions.push({
           id: 'complete',
           label: L.markComplete,
-          intent: 'primary',
+          intent: task.status === 'Blocked' || hasUnfinishedChecklist ? 'secondary' : 'primary',
           run: async () => { try { await input.onUpdateStatus('Done') } catch { /* surfaced via optimistic rollback */ } },
         })
         allowedActionIds.push('complete')
@@ -621,10 +580,10 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
   // TaskSurface overrides them with the interactive checklist + activity/comments composition.
   const contentSlots: RecordContentSlot[] = [
     fieldSectionSlot(content),
-    fieldSectionSlot(ownership),
-    fieldSectionSlot(relations),
     { id: 'checklist', label: 'Checklist', render: () => renderChecklist(detail) },
+    fieldSectionSlot(ownership),
     { id: 'activity', label: 'Activity', render: () => renderActivity(detail) },
+    fieldSectionSlot(relations),
   ]
 
   return {
@@ -632,7 +591,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     id: task.id,
     title: task.title,
     typeLabel: L.typeLabel,
-    headerFields: [titleField, content.fields.find((field) => field.key === 'status')!],
+    headerFields: [titleField, statusField],
     headerContext,
     headerActionIds,
     headerOverflowActionIds,
@@ -650,7 +609,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
   }
 }
 
-/** Wrap a Task field section as an ordered content slot (content-first anatomy): the section
+/** Wrap a Task field section as an ordered slot: the section
  *  specs are carried as DATA so the adapter stays inspectable, while `render` produces the same
  *  value-first RecordField markup the metadata region emits — wired through the slot's commit seam. */
 function fieldSectionSlot(section: RecordMetadataSection): RecordContentSlot {

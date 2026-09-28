@@ -169,7 +169,7 @@ const routes = [
   '/mos/cafe/stock',
   '/mos/cafe/pushes',
 ]
-const fixtures = ['BAR_MEMBER', 'BAR_SUPERVISOR', 'VIEWER', 'MANAGER', 'ADMIN', 'ORPHAN', 'AUDIT_RECEIVING_ONLY']
+const fixtures = ['BAR_MEMBER', 'BARISTA', 'BAR_SUPERVISOR', 'VIEWER', 'MANAGER', 'ADMIN', 'ORPHAN', 'AUDIT_RECEIVING_ONLY']
 const viewports = ['phone-390x844', 'compact-1024x768', 'desktop-1440x900']
 const themes = ['light', 'dark']
 const languages = ['en', 'id']
@@ -325,8 +325,9 @@ const emptyNamedLists: ManifestLists = {
       // The capture footer rides the capture face. A profile without a single assigned
       // location gets the location overview first (DD-MVP-11), which has no footer to
       // measure — the group was reported missing there once the root became the capture
-      // surface and both faces started sharing this route.
-      fixtures: ['BAR_MEMBER'],
+      // surface and both faces started sharing this route. BARISTA, not BAR_MEMBER: the footer
+      // needs items to capture, and BAR_MEMBER's stream has an empty item list.
+      fixtures: ['BARISTA'],
     },
   ],
 }

@@ -65,9 +65,8 @@ function LocationProbe() {
 }
 
 function renderMenu(onClose = vi.fn(), locale: 'en' | 'id' = 'en', onShareSignal = vi.fn()) {
-  localStorage.setItem('mos.locale', locale)
   const utils = render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={['/']}>
         <LocationProbe />
         <Routes>
@@ -536,7 +535,6 @@ describe('default groups (empty query): Recent + Actions + Navigate', () => {
 // ── OD-REDESIGN-91 #15 / GAP-10: the phone `+` launcher opens the reduced create-set ──
 describe('#15/GAP-10: launcher mode opens the REDUCED create-set (per OD-46)', () => {
   function renderLauncher(onShareSignal = vi.fn()) {
-    localStorage.setItem('mos.locale', 'en')
     return render(
       <I18nProvider>
         <MemoryRouter initialEntries={['/']}>
@@ -826,7 +824,6 @@ describe('AC-K04: stale response cannot clobber newer query results', () => {
 // ── CMDK-1: session state resets on close → reopen ───────────────────────────
 describe('CMDK-1: palette resets to the default view on close→reopen', () => {
   it('CMDK-1: a typed query + record results are cleared after close, so reopen shows the default view', async () => {
-    localStorage.setItem('mos.locale', 'en')
     mockSearch.mockResolvedValue([{ id: 't1', title: 'Some searched task', status: 'Open' }])
     const onClose = vi.fn()
     const { rerender } = render(

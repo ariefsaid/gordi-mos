@@ -43,6 +43,7 @@ mkdir -p "$fixture/scripts/lib"
 cp scripts/lib/flock-run.sh "$fixture/scripts/lib/"
 cp scripts/pre-pr-verify.sh scripts/reporting-snapshot.test.sh scripts/prose-budget.sh "$fixture/scripts/"
 cp scripts/reporting_snapshot.py scripts/reporting_local_env.py scripts/test_reporting_snapshot.py "$fixture/scripts/"
+printf '__pycache__/\n' > "$fixture/.gitignore"
 touch "$fixture/file"; git -C "$fixture" add -A; git -C "$fixture" commit -qm init
 git -C "$fixture" update-ref refs/remotes/origin/dev "$(git -C "$fixture" rev-parse HEAD)"
 git -C "$fixture" worktree add -q -b linked "$linked"

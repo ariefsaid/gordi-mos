@@ -245,7 +245,8 @@ function allReachable(): { rail: Set<string>; phone: Set<string> } {
  * has to defend in review; leaving a surface out of nav silently is not possible.
  */
 const NO_NAV_ENTRY_BY_DESIGN: Record<string, string> = {
-  '/admin/access': 'Admin Settings tab — linked from the People page through AdminSettingsNav; the page test proves the rendered link before data loads',
+  '/admin/teams': 'Admin Settings tab — linked from every Admin Settings page through AdminSettingsNav; the People page test proves the rendered tabs before data loads',
+  '/admin/access': 'Admin Settings tab — linked from every Admin Settings page through AdminSettingsNav; the People page test proves the rendered tabs before data loads',
   '/work/objectives/:objectiveId': 'record door — opened from Objectives or a related record',
   '/work/projects/:workLineId': 'record door — opened from Projects & Processes or a related record',
   '/work/signals/:signalId': 'record door — opened from the Signals list or a deep link, never from nav',

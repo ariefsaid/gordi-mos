@@ -203,6 +203,46 @@
   gap: 14px;
 }
 
+.catalog-record-document__work-slot {
+  display: grid;
+  gap: 12px;
+}
+
+.catalog-record-document__progress {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--font-size-body-lg);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.catalog-record-document__work-slot h3 {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+  font-weight: 650;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.catalog-record-document__rename {
+  display: grid;
+  gap: 16px;
+  min-width: min(420px, calc(100vw - 40px));
+  padding: 24px;
+}
+
+.catalog-record-document__rename h2 {
+  margin: 0;
+  font-size: var(--font-size-body-lg);
+}
+
+.catalog-record-document__rename-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .catalog-record-document__task-list {
   border-top: 1px solid var(--row-divider);
 }
@@ -219,6 +259,24 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.catalog-record-document__related-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.catalog-record-document__related-list .catalog-record-document__related-link {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.catalog-record-document__related-list .catalog-record-document__task-status {
+  flex: none;
+  white-space: nowrap;
 }
 
 .catalog-record-document__steps,
@@ -259,6 +317,10 @@
   color: var(--muted-foreground);
   font-size: var(--font-size-label);
   text-align: right;
+}
+
+.catalog-record-document__steps-slot {
+  container: catalog-steps / inline-size;
 }
 
 .catalog-record-document__steps li {
@@ -303,6 +365,23 @@
   padding-left: 18px;
   color: var(--muted-foreground);
   font-size: var(--font-size-label);
+}
+
+@container catalog-steps (max-width: 640px) {
+  .catalog-record-document__steps li {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .catalog-record-document__step-copy {
+    max-width: none;
+    text-align: left;
+  }
+
+  .catalog-record-document__step-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 600px) {

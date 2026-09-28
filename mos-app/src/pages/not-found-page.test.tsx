@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -19,10 +19,10 @@ function LocationProbe() {
  * previous shape (a single entry) made the back button a guaranteed no-op — which is
  * how a test named for the navigation ended up unable to observe it.
  */
-function renderPage() {
+function renderPage(locale: 'en' | 'id' = 'en') {
   return render(
     <MemoryRouter initialEntries={['/mos/work/tasks', '/mos/no/such/path']} initialIndex={1}>
-      <I18nProvider>
+      <I18nProvider initialLocale={locale}>
         <NotFoundPage />
         <LocationProbe />
       </I18nProvider>
@@ -49,11 +49,8 @@ describe('NotFoundPage — English (default)', () => {
 })
 
 describe('NotFoundPage — locale id (#400)', () => {
-  beforeEach(() => localStorage.setItem('mos.locale', 'id'))
-  afterEach(() => localStorage.clear())
-
   it('renders Indonesian, including the document title', async () => {
-    renderPage()
+    renderPage('id')
     expect(screen.getByText('Halaman ini tidak ada')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Kembali' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Ke Beranda' })).toBeInTheDocument()
@@ -62,7 +59,7 @@ describe('NotFoundPage — locale id (#400)', () => {
   })
 
   it('Go back navigates history backwards', () => {
-    renderPage()
+    renderPage('id')
     expect(screen.getByTestId('loc')).toHaveTextContent('at /mos/no/such/path')
     fireEvent.click(screen.getByRole('button', { name: 'Kembali' }))
     expect(screen.getByTestId('loc')).toHaveTextContent('at /mos/work/tasks')
@@ -73,8 +70,6 @@ describe('NotFoundPage — locale id (#400)', () => {
 // page's only <h1>." The v4 port replaced the hand-rolled h1 with an EmptyState h2 and added
 // no PageHead, so the route's heading tree started at level 2 with nothing above it.
 describe('NotFoundPage — heading contract (#411)', () => {
-  afterEach(() => localStorage.clear())
-
   it('the route has exactly one h1, and it names the surface', () => {
     renderPage()
     const h1s = screen.getAllByRole('heading', { level: 1 })
@@ -83,8 +78,7 @@ describe('NotFoundPage — heading contract (#411)', () => {
   })
 
   it('the h1 is localized with the rest of the surface', () => {
-    localStorage.setItem('mos.locale', 'id')
-    renderPage()
+    renderPage('id')
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Halaman ini tidak ada')
   })
 })

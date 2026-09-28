@@ -5,12 +5,12 @@ import { useT } from '@/i18n/use-t'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { RecordViewer } from '@/components/records/record-viewer'
+import { ModalShell } from '@/components/ui/modal-shell'
+import { TextInput } from '@/components/ui/text-input'
+import { RecordFieldList, RecordViewer } from '@/components/records/record-viewer'
 import type {
   RecordAction,
-  RecordActivityItem,
   RecordFieldSpec,
-  RecordRelation,
   RecordViewerAdapter,
   RecordViewerTab,
   RecordValue,
@@ -25,6 +25,7 @@ import {
   objectivesCatalogActions,
   projectsProcessesCatalogActions,
   type CatalogCollectionContext,
+  type CatalogRelationGroup,
   type CatalogRow,
 } from './catalog-collection-adapter'
 import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogRecordEditDirectory } from './catalog-record-loader'
@@ -149,24 +150,6 @@ type CatalogTask = CatalogRecordState['context']['relationsById'] extends Readon
   ? R extends { tasks: readonly (infer T)[] } ? T : never
   : never
 
-function taskActivity(
-  tasks: readonly CatalogTask[],
-  t: ReturnType<typeof useT>,
-  onOpenRelated?: CatalogRecordDocumentProps['onOpenRelated'],
-): RecordActivityItem[] {
-  return tasks
-    .filter((task): task is CatalogTask & { lastActivityAt: string } => Boolean(task.lastActivityAt))
-    .map((task) => ({
-      id: `task-activity:${task.id}`,
-      label: task.title,
-      detail: task.status ? statusLabel(task.status, t) : undefined,
-      occurredAt: task.lastActivityAt,
-      href: relatedPath('task', task.id),
-      ...(onOpenRelated ? { onOpen: () => onOpenRelated('task', task.id) } : {}),
-    }))
-    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
-}
-
 function taskSlot(
   tasks: readonly CatalogTask[],
   kind: CatalogRecordKind,
@@ -200,6 +183,50 @@ function taskSlot(
   )
 }
 
+function linkedWorkSlot(
+  groups: readonly CatalogRelationGroup[],
+  tasks: readonly CatalogTask[],
+  kind: CatalogRecordKind,
+  id: string,
+  progress: { done: number; total: number },
+  onOpenRelated: CatalogRecordDocumentProps['onOpenRelated'],
+  onCreateTask: CatalogRecordDocumentProps['onCreateTask'],
+  t: ReturnType<typeof useT>,
+) {
+  const linkable = groups.filter((group) => group.entity === 'work-line' || group.entity === 'objective')
+  return (
+    <div className="catalog-record-document__work-slot">
+      <p className="catalog-record-document__progress" data-testid="catalog-record-progress">
+        {t('catalog.record.progress', { done: String(progress.done), total: String(progress.total) })}
+      </p>
+      <h3>{t('catalog.record.linkedWork')}</h3>
+      {linkable.length > 0 ? (
+        <ul className="catalog-record-document__related-list" data-testid="catalog-record-links">
+          {linkable.map((group, index) => {
+            const relationship = group.relationship === 'contribution'
+              ? t(kind === 'work-line' ? 'catalog.relations.contributesTo' : 'catalog.relations.viaTask', { name: group.name })
+              : group.name
+            const targetKind = group.entity === 'objective' ? 'objective' : 'work-line'
+            const label = group.synthetic ? group.name : relationship
+            return (
+              <li key={`${group.relationship ?? 'related'}:${group.id}:${index}`}>
+                {group.synthetic ? <span>{label}</span> : (
+                  <RelatedLink kind={targetKind} id={group.id} onOpenRelated={onOpenRelated}>{label}</RelatedLink>
+                )}
+                <span className="catalog-record-document__task-status">
+                  {t('catalog.relations.progress', { done: String(group.done), total: String(group.total) })}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      ) : <p className="catalog-record-document__muted">{t(kind === 'work-line' ? 'catalog.record.noRelatedObjective' : 'catalog.record.noRelatedWork')}</p>}
+      <h3>{t('catalog.record.tasks')}</h3>
+      {taskSlot(tasks, kind, id, onOpenRelated, onCreateTask, t)}
+    </div>
+  )
+}
+
 export function CatalogRecordDocument({
   kind,
   id,
@@ -221,6 +248,8 @@ export function CatalogRecordDocument({
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'not-found'>('loading')
   const [mutationError, setMutationError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renameDraft, setRenameDraft] = useState('')
   const [reloadNonce, setReloadNonce] = useState(0)
   const [editDirectory, setEditDirectory] = useState<CatalogRecordEditDirectory | null>(null)
   const [editDirectoryError, setEditDirectoryError] = useState(false)
@@ -367,30 +396,18 @@ export function CatalogRecordDocument({
     const businessUnitEditOptions = allowedBuIds === null
       ? [emptyOption, ...businessUnitOptions]
       : businessUnitOptions
-    const relationGroups = context.relationsById.get(id)?.groups.filter((group) => !group.synthetic) ?? []
-    const relation = relationGroups[0]
+    const allRelationGroups = context.relationsById.get(id)?.groups ?? []
+    const relationGroups = allRelationGroups.filter((group) => !group.synthetic)
+    const parentRelation = relationGroups.find((group) => group.relationship === 'direct' && group.entity === 'objective')
+    const relation = kind === 'work-line' ? parentRelation : relationGroups[0]
     const relationTasks = context.relationsById.get(id)?.tasks ?? []
-    const activity = taskActivity(relationTasks, t, onOpenRelated)
-    const nameField: RecordFieldSpec = {
-      key: 'name',
-      label: t('catalog.nameLabel'),
-      control: 'text',
-      value: row.name,
-      displayValue: row.name,
-      editable: canManage && row.archived_at === null,
-      required: true,
-      // The read-only reason renders once, at the top of Details (RecordViewer), never stamped
-      // onto this or any other field.
-    }
     const fields: RecordFieldSpec[] = kind === 'objective'
       ? [
-          nameField,
           { key: 'businessUnit', label: t('catalog.record.businessUnit'), control: 'relation', value: row.businessUnitId ?? null, displayValue: directoryName(row.businessUnitId, businessUnitsById, t), editable: false },
           { key: 'accountable', label: t('catalog.record.accountable'), control: 'person', value: row.accountablePersonId ?? null, displayValue: directoryName(row.accountablePersonId, allPeopleById, t), editable: false },
           { key: 'period', label: t('catalog.record.period'), control: 'text', value: row.periodYear ?? null, displayValue: row.periodYear == null ? t('catalog.notSet') : String(row.periodYear), editable: false },
         ]
       : [
-          nameField,
           {
             key: 'objective',
             label: t('catalog.record.objective'),
@@ -406,39 +423,27 @@ export function CatalogRecordDocument({
         ]
 
     for (const field of fields) {
-      if (field.key === 'cadence' || field.key === 'owningTeam' || field.key === 'name') continue
+      if (field.key === 'cadence' || field.key === 'owningTeam') continue
       field.editable = canManage && row.archived_at === null && (field.key === 'period' || editDirectory !== null)
       if (canManage && field.key !== 'period' && !editDirectory) field.readOnlyReason = t(editDirectoryError ? 'catalog.record.editChoicesError' : 'catalog.record.editChoicesLoading')
       if (field.key === 'businessUnit') field.options = businessUnitEditOptions
       if (field.key === 'accountable' || field.key === 'responsible') field.options = [emptyOption, ...[...allPeopleById].map(([value, label]) => ({ value, label }))]
-      if (field.key === 'objective') {
-        field.options = [emptyOption, ...objectiveOptions]
-        field.href = row.objectiveId ? relatedPath('objective', row.objectiveId) : undefined
-        field.onOpen = row.objectiveId && onOpenRelated ? () => onOpenRelated('objective', row.objectiveId!) : undefined
+      if (field.key === 'objective') field.options = [emptyOption, ...objectiveOptions]
       }
-    }
-
-    const relations: RecordRelation[] = kind === 'objective'
-      ? relationGroups.map((group) => ({
-          id: `work-line:${group.id}`,
-          kind: 'work-line' as const,
-          label: group.name,
-          href: relatedPath('work-line', group.id),
-          ...(onOpenRelated ? { onOpen: () => onOpenRelated('work-line', group.id) } : {}),
-        }))
-      : []
 
     const tabs: RecordViewerTab[] = [
-      { id: 'details', label: t('catalog.record.tabs.details') },
-      ...(row.type === 'project' ? [{ id: 'tasks', label: t('catalog.record.tabs.tasks') }] : []),
-      ...(row.type === 'process' ? [
-        { id: 'steps', label: t('catalog.record.tabs.steps') },
-        { id: 'occurrences', label: t('catalog.record.tabs.occurrences') },
-      ] : []),
-      { id: 'activity', label: t('catalog.record.tabs.activity') },
+      { id: 'work', label: t('catalog.record.tabs.work') },
+      { id: 'facts', label: t('catalog.record.tabs.details') },
+      ...(row.type === 'process' ? [{ id: 'steps', label: t('catalog.record.tabs.steps') }] : []),
     ]
 
     const actions: RecordAction[] = canManage ? [{
+      id: 'rename',
+      label: t('catalog.rename'),
+      intent: 'secondary',
+      disabled: busy || row.archived_at !== null,
+      run: () => { setRenameDraft(row.name); setRenameOpen(true) },
+    }, {
       id: 'archive',
       label: row.archived_at ? t('catalog.unarchive') : t('catalog.archive'),
       intent: row.archived_at ? 'secondary' : 'danger',
@@ -452,12 +457,22 @@ export function CatalogRecordDocument({
       title: row.name,
       typeLabel: recordTypeLabel(row, t),
       tabs,
-      metadata: [{ id: 'facts', label: t('catalog.record.details'), fields }],
-      relations,
-      relationsLabel: kind === 'objective' && relations.length > 0 ? t('nav.work.projects') : undefined,
+      metadata: [],
+      relations: [],
       contentSlots: [
-        ...(row.type === 'project' ? [{ id: 'tasks', label: t('catalog.record.tabs.tasks'), render: () => taskSlot(relationTasks, kind, id, onOpenRelated, onCreateTask, t) }] : []),
+        ...(kind === 'objective' || row.type === 'project' ? [{
+          id: 'work',
+          label: t('catalog.record.tabs.work'),
+          render: () => linkedWorkSlot(
+            allRelationGroups, relationTasks, kind, id,
+            context.progressById.get(id) ?? { done: 0, total: 0 }, onOpenRelated, onCreateTask, t,
+          ),
+        }] : []),
         ...(row.type === 'process' ? [{
+          id: 'work',
+          label: t('catalog.record.currentNextAction'),
+          render: () => <ProcessOccurrenceControls workLineId={id} setupIncomplete={!process?.steps.length} canManageSetup={canManage} onChanged={() => { setReloadNonce((nonce) => nonce + 1); onChanged?.() }} />,
+        }, {
           id: 'steps',
           label: t('catalog.record.steps'),
           render: () => (
@@ -488,20 +503,27 @@ export function CatalogRecordDocument({
             </div>
           ),
         }] : []),
-        ...(row.type === 'process' ? [{
-          id: 'occurrences',
-          label: t('catalog.record.occurrences'),
-          render: () => <ProcessOccurrenceControls workLineId={id} onChanged={() => { setReloadNonce((nonce) => nonce + 1); onChanged?.() }} />,
-        }] : []),
-        ...(activity.length === 0 ? [{
-          id: 'activity',
-          label: t('catalog.record.activity'),
-          render: () => <p className="catalog-record-document__muted">{t('catalog.record.noActivity')}</p>,
-        }] : []),
+        {
+          id: 'facts',
+          label: t('catalog.record.details'),
+          section: { id: 'facts', label: t('catalog.record.details'), fields },
+          render: (slotContext) => (
+            <>
+              {!canManage ? <p className="record-viewer__permission-note" role="note">{t('catalog.record.readOnly')}</p> : null}
+              <RecordFieldList
+                section={{ id: 'facts', label: t('catalog.record.details'), fields }}
+                onCommitField={slotContext.onCommitField}
+                onDirtyChange={slotContext.onDirtyChange}
+                fieldCommitsFrozen={slotContext.fieldCommitsFrozen}
+                headingLevel={slotContext.headingLevel}
+              />
+            </>
+          ),
+        },
       ],
-      activity,
+      activity: [],
       actions,
-      headerOverflowActionIds: canManage ? ['archive'] : [],
+      headerOverflowActionIds: canManage ? ['rename', 'archive'] : [],
       permission: {
         readOnly: !canManage,
         reason: canManage ? undefined : t('catalog.record.readOnly'),
@@ -555,6 +577,22 @@ export function CatalogRecordDocument({
         onConfirm={discardAndLeave}
         onCancel={retainDraft}
       />
+      <ModalShell open={renameOpen} onClose={() => setRenameOpen(false)} ariaLabelledBy="catalog-record-rename-title">
+        <form
+          className="catalog-record-document__rename"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void renameRecord(renameDraft).then(() => setRenameOpen(false)).catch(() => {})
+          }}
+        >
+          <h2 id="catalog-record-rename-title">{t('catalog.rename')}</h2>
+          <TextInput label={t('catalog.nameLabel')} value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} autoFocus fullWidth />
+          <div className="catalog-record-document__rename-actions">
+            <Button type="button" variant="outline" disabled={busy} onClick={() => setRenameOpen(false)}>{t('common.cancel')}</Button>
+            <Button type="submit" variant="primary" disabled={busy || !renameDraft.trim()}>{busy ? t('record.field.saving') : t('catalog.rename')}</Button>
+          </div>
+        </form>
+      </ModalShell>
     </>
   )
 }

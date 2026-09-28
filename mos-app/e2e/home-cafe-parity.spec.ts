@@ -215,7 +215,6 @@ test.afterAll(async () => {
 
 test('Barista Home follows the canonical Café Opening run through completion', async ({ page }) => {
   test.setTimeout(120_000)
-  await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
 
   await loginAs(page, 'krishna.dev@example.test', DEMO_PASSWORD)
   await page.goto('cafe')

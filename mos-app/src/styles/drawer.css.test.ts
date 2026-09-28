@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 
 const drawerCss = readFileSync(resolve(process.cwd(), 'src/styles/drawer.css'), 'utf8')
 const recordPanelCss = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
+const indexCss = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
 
 /** Return the declaration block body for the first rule whose selector line contains `selector`. */
 function ruleBody(css: string, selector: string): string {
@@ -19,6 +20,26 @@ function ruleBody(css: string, selector: string): string {
     }
   }
   throw new Error(`unterminated rule: ${selector}`)
+}
+
+/** Every rule (any nesting depth) in the overlay sheets that sets `position`, with its value. */
+function positionRules(css: string): { selector: string; value: string }[] {
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  const rules: { selector: string; value: string }[] = []
+  for (const [, selector, body] of bare.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const value = body.match(/(?:^|;)\s*position:\s*([a-z-]+)/)?.[1]
+    if (value) rules.push({ selector: selector.trim(), value })
+  }
+  return rules
+}
+
+/** Position values of every overlay-sheet rule matching an aside with `className`. */
+function positionsFor(className: string): { selector: string; value: string }[] {
+  const aside = document.createElement('aside')
+  aside.className = className
+  return [...positionRules(drawerCss), ...positionRules(recordPanelCss)].filter(({ selector }) => {
+    try { return aside.matches(selector) } catch { return false }
+  })
 }
 
 // TB-1 / OD-P4-9 — the shell-mounted overlay panels (Inbox quick-triage on `.drawer-shell-split`,
@@ -39,8 +60,9 @@ describe('TB-1: shell overlay panels leave the top-bar chrome reachable', () => 
   })
 
   it('the in-flow split stacking context cannot override shell-panel fixed positioning', () => {
-    expect(recordPanelCss).toMatch(/\.drawer-split:not\(\.drawer-shell-split\)\s*\{[^}]*position:\s*relative/)
-    expect(recordPanelCss).not.toMatch(/(^|\n)\.drawer-split\s*\{[^}]*position:\s*relative/)
+    const matching = positionsFor('drawer drawer-split drawer-shell-split')
+    expect(matching.length).toBeGreaterThan(0)
+    expect(matching).toEqual(matching.map((rule) => ({ ...rule, value: 'fixed' })))
   })
 })
 
@@ -55,12 +77,12 @@ describe('TB-1: shell overlay panels leave the top-bar chrome reachable', () => 
 // `TasksWorkspace.css` (they had to be — a shell-mounted RecordPanelHost got no skin from a
 // route-scoped stylesheet), and the move took v4's `min(45vw, 520px)`, which has NO lower bound,
 // over this line's `clamp(360px, 50vw, 520px)`. Nothing was asserting width, so nothing went red.
-describe('the record sheet keeps its floor (#190)', () => {
-  /** The `minmax()` minimum of the split track — the app's ONE stated record width floor. */
+describe('the record sheet keeps its floor (#190, #930)', () => {
+  /** The floor of --record-panel-w (index.css) — the app's ONE stated record width floor,
+   *  shared by .record-split, .drawer-shell-split, Tasks' .split and this modal sheet. */
   function splitTrackFloorPx(): number {
-    const body = ruleBody(drawerCss, '.record-split {')
-    const match = body.match(/grid-template-columns:[^;]*minmax\(\s*(\d+)px\s*,/)
-    expect(match, '.record-split no longer declares a minmax(<px>, …) record track').not.toBeNull()
+    const match = indexCss.match(/--record-panel-w:\s*clamp\(\s*(\d+)px\s*,/)
+    expect(match, 'index.css no longer declares --record-panel-w: clamp(<px>, …)').not.toBeNull()
     return Number(match![1])
   }
 
@@ -126,5 +148,25 @@ describe('the overlay root sits on the z-index ladder, not a raw number (#190)',
     const drawerTier = Number(indexCss.match(/--z-drawer:\s*(\d+)/)![1])
     const modalTier = Number(indexCss.match(/--z-modal:\s*(\d+)/)![1])
     expect(drawerTier).toBeLessThan(modalTier)
+  })
+})
+
+// ── Deputy's position does not depend on stylesheet order ────────────────────────────────────
+//
+// The desktop companion aside carries `drawer drawer-split overlay-companion-host …`. Two
+// equal-specificity rules setting `position` on it are decided by which file the bundle loads
+// last, which jsdom cannot see. So the contract is: every rule in the shared overlay sheets that
+// matches the companion aside and sets `position` sets `fixed` — no competitor exists to win.
+describe('the desktop Deputy companion has exactly one position, independent of CSS order', () => {
+  for (const layout of ['standalone', 'with-record']) {
+    it(`every position rule matching the ${layout} companion says fixed`, () => {
+      const matching = positionsFor(`drawer drawer-split overlay-companion-host overlay-companion-host--${layout}`)
+      expect(matching.length).toBeGreaterThan(0)
+      expect(matching).toEqual(matching.map((rule) => ({ ...rule, value: 'fixed' })))
+    })
+  }
+
+  it('the in-flow record aside still gets its own stacking context', () => {
+    expect(positionsFor('drawer drawer-split').map(({ value }) => value)).toEqual(['relative'])
   })
 })

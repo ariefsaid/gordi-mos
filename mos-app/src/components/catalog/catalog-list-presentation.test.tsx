@@ -110,12 +110,52 @@ describe('CatalogListPresentation owner-cell grammar', () => {
     const record = { id: 'work-3', name: 'Literal-name project', archived_at: null, type: 'project' as const, accountablePersonId: 'person-1' }
     renderRows([record], {
       relationsById: new Map([[record.id, {
-        groups: [{ id: 'objective-1', name: 'Not set', taskCount: 0, done: 0, total: 0 }],
+        groups: [{ id: 'objective-1', name: 'Not set', relationship: 'direct', entity: 'objective', taskCount: 0, done: 0, total: 0 }],
         tasks: [],
       }]]),
     })
 
     const row = screen.getByRole('link', { name: 'Literal-name project' })
     expect(within(row).getByRole('cell', { name: 'Objective: Not set' })).toHaveTextContent('Not set')
+  })
+
+  it('keeps a stored Objective parent separate from Task-linked contributions in the list', () => {
+    const record = { id: 'work-4', name: 'Shared project', archived_at: null, type: 'project' as const }
+    renderRows([record], {
+      relationsById: new Map([[record.id, {
+        groups: [
+          { id: 'objective-1', name: 'Grow revenue', relationship: 'direct', entity: 'objective', taskCount: 1, done: 0, total: 1 },
+          { id: 'objective-2', name: 'Improve margin', relationship: 'contribution', entity: 'objective', taskCount: 1, done: 1, total: 1 },
+        ],
+        tasks: [],
+      }]]),
+    })
+
+    const row = screen.getByRole('link', { name: 'Shared project' })
+    expect(within(row).getByRole('cell', { name: 'Objective: Grow revenue' })).toBeInTheDocument()
+    expect(row).toHaveTextContent('Also contributes to: Improve margin')
+  })
+
+  it('keeps a Task-only relationship out of the direct Objective cell', () => {
+    const record = { id: 'work-5', name: 'Shared through tasks', archived_at: null, type: 'project' as const }
+    renderRows([record], {
+      relationsById: new Map([[record.id, {
+        groups: [{ id: 'objective-2', name: 'Improve margin', relationship: 'contribution', entity: 'objective', taskCount: 1, done: 0, total: 1 }],
+        tasks: [],
+      }]]),
+    })
+
+    const row = screen.getByRole('link', { name: 'Shared through tasks' })
+    expect(within(row).getByRole('cell', { name: 'Objective: Not set' })).toBeInTheDocument()
+    expect(row).toHaveTextContent('Contributes through Tasks to: Improve margin')
+  })
+
+  it('keeps an unlinked row at Not set without inventing a contribution', () => {
+    const record = { id: 'work-6', name: 'Unlinked work', archived_at: null, type: 'project' as const }
+    renderRows([record])
+
+    const row = screen.getByRole('link', { name: 'Unlinked work' })
+    expect(within(row).getByRole('cell', { name: 'Objective: Not set' })).toBeInTheDocument()
+    expect(row).not.toHaveTextContent('Contributes to:')
   })
 })

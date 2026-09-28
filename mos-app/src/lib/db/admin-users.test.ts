@@ -51,6 +51,7 @@ function makeSharedSchema(tableResponses: Record<string, { data: unknown; error:
     builder.eq = vi.fn(() => builder)
     builder.in = vi.fn(() => builder)
     builder.insert = vi.fn(() => builder)
+    builder.upsert = vi.fn(() => builder)
     builder.update = vi.fn(() => builder)
     builder.delete = vi.fn(() => builder)
     builder.single = vi.fn(() => Promise.resolve(result))
@@ -272,12 +273,34 @@ describe('setLoginEnabled', () => {
 
 // ── grantRole ─────────────────────────────────────────────────────────────────
 describe('grantRole', () => {
-  it('inserts into person_access_roles (never sends org_id or granted_by)', async () => {
+  // A revoked grant keeps its row, and (person_id, access_role) is unique, so the grant must upsert:
+  // insert when there is no row, clear revoked_at when there is. A plain insert fails every re-grant.
+  it('upserts on (person_id, access_role) clearing revoked_at — never sends org_id or provenance', async () => {
     const schemaObj = makeSharedSchema({ person_access_roles: { data: null, error: null } })
     schemaMock.mockReturnValue(schemaObj as never)
 
     await grantRole('p1', 'ops_lead')
     expect(schemaMock).toHaveBeenCalledWith('shared')
+    expect(schemaObj.from).toHaveBeenCalledWith('person_access_roles')
+    const builder = schemaObj.from.mock.results[0].value as { upsert: ReturnType<typeof vi.fn>; insert: ReturnType<typeof vi.fn> }
+    expect(builder.upsert).toHaveBeenCalledWith(
+      { person_id: 'p1', access_role: 'ops_lead', revoked_at: null },
+      { onConflict: 'person_id,access_role' },
+    )
+    expect(builder.insert).not.toHaveBeenCalled()
+  })
+
+  it('re-grant after revoke issues the same un-revoking upsert', async () => {
+    const schemaObj = makeSharedSchema({ person_access_roles: { data: null, error: null } })
+    schemaMock.mockReturnValue(schemaObj as never)
+
+    await revokeRole('p1', 'ops_lead')
+    await grantRole('p1', 'ops_lead')
+    const grantBuilder = schemaObj.from.mock.results[1].value as { upsert: ReturnType<typeof vi.fn> }
+    expect(grantBuilder.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ person_id: 'p1', access_role: 'ops_lead', revoked_at: null }),
+      { onConflict: 'person_id,access_role' },
+    )
   })
 
   it('throws on error', async () => {

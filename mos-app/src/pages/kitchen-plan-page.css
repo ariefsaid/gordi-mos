@@ -219,10 +219,14 @@
    Café · Log's .kl-submit-reason vocabulary (muted, label size); the red alert is
    reserved for an actual attempt. */
 .kp-stream-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   font-size: var(--font-size-label);
   color: var(--muted-foreground);
   margin: 8px 0;
 }
+.kp-stream-hint p { margin: 0; }
 
 /* #548 FR-007: the compact capture row — Café · Log's .kl-card recipe (identity body-lg/600
    left, control right, muted meta only when it has something to say). Outer padding is

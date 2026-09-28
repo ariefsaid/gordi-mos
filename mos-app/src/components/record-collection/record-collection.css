@@ -38,6 +38,12 @@
   box-shadow: var(--shadow-rest);
 }
 
+/* A Work collection's card is the width its column rules query (`@container work-list`), so a
+   list narrowed by a record panel sheds columns by the same rule as a narrow window. */
+.work-collection > .record-collection-view {
+  container: work-list / inline-size;
+}
+
 .record-collection-table {
   width: 100%;
   table-layout: fixed;

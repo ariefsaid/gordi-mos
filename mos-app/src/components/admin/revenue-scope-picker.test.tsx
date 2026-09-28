@@ -14,6 +14,7 @@ vi.mock('@/lib/db/admin-users', () => ({
 import { assignRevenueScope, removeRevenueScope } from '@/lib/db/admin-users'
 
 import { RevenueScopePicker } from './revenue-scope-picker'
+import { useRowCommits } from './use-row-commits'
 import type { AdminPersonRow, RevenueScopeOption } from '@/lib/db/admin-users.types'
 
 const mockAssignRevenueScope = vi.mocked(assignRevenueScope)
@@ -48,25 +49,23 @@ beforeEach(() => {
   mockRemoveRevenueScope.mockResolvedValue(undefined)
 })
 
+function Harness({ person, options, refresh }: { person: AdminPersonRow; options: RevenueScopeOption[]; refresh: () => Promise<void> }) {
+  const commits = useRowCommits<boolean>()
+  return <RevenueScopePicker person={person} options={options} commits={commits} refresh={refresh} />
+}
+
 function renderPicker(
   person: AdminPersonRow = PERSON_NO_SCOPE,
   options: RevenueScopeOption[] = OPTIONS,
-  opts: { onDone?: () => void; onShowToast?: (message: string) => void } = {},
+  opts: { refresh?: () => Promise<void> } = {},
 ) {
-  return render(
-    <RevenueScopePicker
-      person={person}
-      options={options}
-      onDone={opts.onDone ?? vi.fn()}
-      onShowToast={opts.onShowToast}
-    />,
-  )
+  return render(<Harness person={person} options={options} refresh={opts.refresh ?? vi.fn().mockResolvedValue(undefined)} />)
 }
 
 describe('RevenueScopePicker (AC-323 / FR-323)', () => {
   it('AC-323: lists a "Whole POS"/"Whole B2B" option per channel + each branch, never "Role"', () => {
     renderPicker()
-    expect(screen.getByText('Revenue scope')).toBeInTheDocument()
+    expect(screen.getByText("Which branches' revenue this person can see")).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /whole pos/i })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /whole b2b/i })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /bungur/i })).toBeInTheDocument()
@@ -76,8 +75,8 @@ describe('RevenueScopePicker (AC-323 / FR-323)', () => {
 
   it('AC-323: checking an unassigned branch calls assignRevenueScope(id, "POS", "BGR")', async () => {
     const user = userEvent.setup()
-    const onDone = vi.fn()
-    renderPicker(PERSON_NO_SCOPE, OPTIONS, { onDone })
+    const refresh = vi.fn().mockResolvedValue(undefined)
+    renderPicker(PERSON_NO_SCOPE, OPTIONS, { refresh })
 
     await user.click(screen.getByRole('checkbox', { name: /bungur/i }))
 
@@ -85,7 +84,7 @@ describe('RevenueScopePicker (AC-323 / FR-323)', () => {
       expect(mockAssignRevenueScope).toHaveBeenCalledWith('other-person-id', 'POS', 'BGR')
     })
     expect(mockRemoveRevenueScope).not.toHaveBeenCalled()
-    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
   })
 
   it('AC-323: checking "Whole B2B" calls assignRevenueScope(id, "B2B", null)', async () => {
@@ -101,8 +100,8 @@ describe('RevenueScopePicker (AC-323 / FR-323)', () => {
 
   it('AC-323: unchecking an assigned branch calls removeRevenueScope(id, "POS", "BGR")', async () => {
     const user = userEvent.setup()
-    const onDone = vi.fn()
-    renderPicker(PERSON_WITH_SCOPE, OPTIONS, { onDone })
+    const refresh = vi.fn().mockResolvedValue(undefined)
+    renderPicker(PERSON_WITH_SCOPE, OPTIONS, { refresh })
 
     const bgrBox = screen.getByRole('checkbox', { name: /bungur/i })
     expect(bgrBox).toHaveAttribute('aria-checked', 'true')
@@ -112,7 +111,7 @@ describe('RevenueScopePicker (AC-323 / FR-323)', () => {
       expect(mockRemoveRevenueScope).toHaveBeenCalledWith('other-person-id', 'POS', 'BGR')
     })
     expect(mockAssignRevenueScope).not.toHaveBeenCalled()
-    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    await waitFor(() => expect(refresh).toHaveBeenCalled())
   })
 
   it('AC-323: each channel renders as its own grouped fieldset (POS, B2B), branches nest under their channel', () => {
@@ -147,26 +146,23 @@ describe('RevenueScopePicker (AC-323 / FR-323)', () => {
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
   })
 
-  it('AC-323: onShowToast is called with a message naming the person on assign', async () => {
+  it('AC-323: a saved row reads Saved beside itself', async () => {
     const user = userEvent.setup()
-    const onShowToast = vi.fn()
-    renderPicker(PERSON_NO_SCOPE, OPTIONS, { onShowToast })
+    renderPicker(PERSON_NO_SCOPE, OPTIONS)
 
     await user.click(screen.getByRole('checkbox', { name: /bungur/i }))
 
-    await waitFor(() => {
-      expect(onShowToast).toHaveBeenCalledWith(expect.stringContaining('Budi Santoso'))
-    })
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Saved'))
   })
 
-  it('AC-323: an assign error surfaces inline via role="alert", does not crash', async () => {
+  it('AC-323: an assign error reads Failed · Retry beside the row, does not crash', async () => {
     const user = userEvent.setup()
     mockAssignRevenueScope.mockRejectedValue(new Error('42501 permission denied'))
     renderPicker()
 
     await user.click(screen.getByRole('checkbox', { name: /bungur/i }))
 
-    await screen.findByRole('alert')
-    expect(screen.getByText('Revenue scope')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed')
+    expect(screen.getByRole('button', { name: 'Retry Bungur' })).toBeInTheDocument()
   })
 })

@@ -2,6 +2,8 @@ import { test, expect, type Page, type Route } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { MANAGER } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
+import { stubAccountLocale } from './helpers/account-locale'
+import { TASKS_SPLIT_MIN_WIDTH } from '../src/shell/use-is-split-width'
 
 const LONG_SIGNAL = 'A long Signal leaf title that stays readable without breaking a word across the record header boundary'
 const WIDTHS = [390, 768, 1024, 1280, 1370, 1440] as const
@@ -29,7 +31,6 @@ async function mutateSignalBody(route: Route, signalId: string) {
 test.describe('bounded visual and interaction acceptance', () => {
   test('Home → Signal preserves the Home-named Back and long leaf title at phone and desktop', async ({ page }) => {
     let activeSignalId = ''
-    await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
     await page.route('**/rest/v1/signals*', async (route) => {
       const url = new URL(route.request().url())
       if (url.pathname.endsWith('/signals')) return mutateSignalBody(route, activeSignalId)
@@ -72,7 +73,7 @@ test.describe('bounded visual and interaction acceptance', () => {
     for (const width of [390, 768] as const) {
       test(`Home localized action census has tappable controls at ${locale}/${width}px`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 })
-        await page.addInitScript((value) => localStorage.setItem('mos.locale', value), locale)
+        await stubAccountLocale(page, locale)
         await loginAs(page, MANAGER.email, MANAGER.password)
         await page.goto('./')
         await expect(page.getByRole('tablist', { name: locale === 'id' ? 'Bagian Beranda' : 'Home regions', exact: true })).toBeVisible()
@@ -100,7 +101,6 @@ test.describe('bounded visual and interaction acceptance', () => {
     test(`Tasks toolbar, group grammar, title fit and lifecycle at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await page.addInitScript(() => {
-        localStorage.setItem('mos.locale', 'en')
         localStorage.removeItem('mos.tasks.groupBy')
       })
       await loginAs(page, MANAGER.email, MANAGER.password)
@@ -227,7 +227,10 @@ test.describe('bounded visual and interaction acceptance', () => {
       const taskLink = page.locator(`a[href*="/work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}"]`).first()
       await expect(taskLink).toBeVisible()
       await taskLink.click()
-      if (width >= 1370) {
+      // #930 raised the derived split threshold (TASKS_SPLIT_MIN_WIDTH) above the WIDTHS
+      // sample point once used for this comparison — compare against the real constant so a
+      // future threshold change can't silently flip which branch a fixed sample width takes.
+      if (width >= TASKS_SPLIT_MIN_WIDTH) {
         await expect(page.getByRole('complementary', { name: /task detail/i })).toBeVisible()
       } else {
         await expect(page.getByRole('heading', { name: TASKS.VIEWER_ACCOUNTABLE.title, exact: true })).toBeVisible()
@@ -241,10 +244,8 @@ test.describe('bounded visual and interaction acceptance', () => {
   for (const width of [1024, 1440] as const) {
     test(`Tasks toolbar keeps Indonesian labels and active Group visible at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
-      await page.addInitScript(() => {
-        localStorage.setItem('mos.locale', 'id')
-        localStorage.removeItem('mos.tasks.groupBy')
-      })
+      await stubAccountLocale(page, 'id')
+      await page.addInitScript(() => localStorage.removeItem('mos.tasks.groupBy'))
       await loginAs(page, MANAGER.email, MANAGER.password)
       await page.goto('work/tasks')
       await expect(page.getByText(TASKS.VIEWER_ACCOUNTABLE.title, { exact: true }).first()).toBeVisible()
@@ -320,10 +321,8 @@ test.describe('bounded visual and interaction acceptance', () => {
     for (const width of [390, 768, 1280] as const) {
       test(`Tasks grouped copy and focus are stable in ${locale} at ${width}px`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 })
-        await page.addInitScript((value) => {
-          localStorage.setItem('mos.locale', value)
-          localStorage.setItem('mos.tasks.groupBy', 'owner')
-        }, locale)
+        await stubAccountLocale(page, locale)
+        await page.addInitScript(() => localStorage.setItem('mos.tasks.groupBy', 'owner'))
         await loginAs(page, MANAGER.email, MANAGER.password)
         await page.goto('work/tasks')
         await expect(page.getByRole('heading', { name: locale === 'id' ? 'Tugas' : 'Tasks', exact: true })).toBeVisible()
@@ -354,7 +353,6 @@ test.describe('bounded visual and interaction acceptance', () => {
   for (const width of [390, 768, 1280, 1440] as const) {
     test(`Signals Feed/Table and record chrome at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
-      await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
       await loginAs(page, MANAGER.email, MANAGER.password)
       await page.goto('work/signals')
       await expect(page.getByRole('heading', { name: 'Signals', exact: true })).toBeVisible()
@@ -388,7 +386,6 @@ test.describe('bounded visual and interaction acceptance', () => {
   }
 
   test('missing relations keep exact No Objective and No tasks yet copy', async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('mos.locale', 'en'))
     await loginAs(page, MANAGER.email, MANAGER.password)
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto(`work/tasks/${AC204.tasks.orphanLine.id}`)

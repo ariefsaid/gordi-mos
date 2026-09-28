@@ -1,11 +1,8 @@
-/* Signal record — JTBD anatomy (docs/specs/record-page-anatomy.spec.md §2.1, OD-REDESIGN-90;
-   visual reference scratchpad ds-bundle/mockups/signal-record-anatomy.html). Five regions read as
-   one calm document: Message → Reach & response → Discussion → Facts → History, each a quiet
-   sibling section separated by a hairline + negative space (LAW-7: no card-in-card). E7 tokens
-   only. Reuses signal-card.css's attention pill (same visual language as the feed). */
+/* Signal record — Message → Reach & response → Discussion → Facts → History.
+   RecordViewer owns the spacing and separator between the five sections. */
 
-/* ── Region shell — a quiet section register (border-t + space, not a boxed card, LAW-7). ── */
-.signal-region { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--border); }
+/* ── Region shell — inner content must not add another divider or band. ── */
+.signal-region { margin: 0; padding: 0; border: 0; }
 .signal-region-title {
   margin: 0 0 12px; font-size: var(--font-size-overline); font-weight: 600;
   letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground);

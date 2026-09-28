@@ -27,6 +27,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     fetchKitchenStock: vi.fn(),
     listStreamPairs: vi.fn(),
     listActiveWipItems: vi.fn(),
+    listStreamItemIds: vi.fn(async () => ({ has: () => true })),
   }
 })
 import { fetchKitchenStock, listStreamPairs, listActiveWipItems } from '@/lib/db/kitchen-logs'
@@ -42,6 +43,9 @@ vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 import { listActiveBranches } from '@/lib/db/branches'
 
 vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
+// #781 coordinator follow-up: useCafeStream now also reads current Team memberships for
+// "Your Team" tagging (myStreamKeys) — empty by default here; tests that care override it.
+vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn().mockResolvedValue([]) }))
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 
 import { KitchenStockPage } from './kitchen-stock-page'
@@ -104,7 +108,8 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
     await waitFor(() => expect(fetchKitchenStock).toHaveBeenCalled())
     expect(vi.mocked(fetchKitchenStock).mock.calls[0][1]).toEqual(OWN_STREAM)
 
-    fireEvent.click(screen.getByRole('combobox', { name: /production stream/i }))
+    // #781: the head STATES the resolved stream and offers a quiet "Switch" beside it.
+    fireEvent.click(screen.getByRole('button', { name: /^switch$/i }))
     fireEvent.click(screen.getByRole('option', { name: 'Rumah Rames · Bar' }))
     await waitFor(() => expect(fetchKitchenStock).toHaveBeenCalledTimes(2))
     stock.unmount() // …and walks to Plan
@@ -113,8 +118,7 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
     await waitFor(() => expect(listKitchenPlans).toHaveBeenCalled())
     expect(vi.mocked(listKitchenPlans).mock.calls[0][1]).toEqual(OWN_STREAM_BAR)
     // …and Plan SAYS so, rather than showing another stream's numbers under no name at all.
-    const picker = await screen.findByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveTextContent('Rumah Rames · Bar')
+    expect(await screen.findByTestId('cafe-stream')).toHaveTextContent('Rumah Rames · Bar')
   })
 
   it('with nothing chosen, every surface opens on the person\'s OWN stream', async () => {
@@ -139,7 +143,6 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
     render(<KitchenPlanPage />, { wrapper })
     await waitFor(() => expect(listPesanan).toHaveBeenCalled())
     expect(vi.mocked(listPesanan).mock.calls[0][2]).toEqual(RADIANT_BAR)
-    const picker = await screen.findByRole('combobox', { name: /production stream/i })
-    expect(picker).toHaveTextContent('Radiant · Bar')
+    expect(await screen.findByTestId('cafe-stream')).toHaveTextContent('Radiant · Bar')
   })
 })

@@ -5,6 +5,7 @@ import { listObjectivesAll, readObjective, type ObjectiveRecord } from '@/lib/db
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { readWorkLine, type WorkLineRecord, type WorkLineAdminRow } from '@/lib/db/work-lines'
 import { loadProcessRecordData, type ProcessRecordData } from '@/lib/db/work-records'
+import { buildCatalogRelationProjection, type CatalogRelationGroup as ProjectedRelationGroup } from '@/lib/cascade/count-rollup'
 import type {
   CatalogCollectionContext,
   CatalogRelationGroup,
@@ -269,76 +270,33 @@ function relationContext(
   }
 }
 
-function objectiveRelations(
-  workLines: readonly RelatedWorkLine[],
-  tasks: readonly RelatedTask[],
-): { relations: CatalogRelations; progress: { done: number; total: number } } {
-  const labels = translateFor(readPersistedLocale())
-  const groups: CatalogRelationGroup[] = []
-  const relationTasks: RelatedTask[] = []
-  for (const workLine of workLines) {
-    const childTasks = tasks.filter((task) => task.work_line_id === workLine.id)
-    const count = countTasks(childTasks)
-    relationTasks.push(...childTasks)
-    groups.push({
-      id: workLine.id,
-      name: workLine.name,
-      taskCount: count.total,
-      done: count.done,
-      total: count.total,
-      tasks: childTasks.map(relationTask),
-    })
-  }
-  const unassignedTasks = tasks.filter((task) => task.work_line_id === null)
-  if (unassignedTasks.length > 0) {
-    const count = countTasks(unassignedTasks)
-    relationTasks.push(...unassignedTasks)
-    groups.push({
-      id: '__no_work_line__',
-      name: labels('rollup.group.noWorkLine'),
-      taskCount: count.total,
-      done: count.done,
-      total: count.total,
-      synthetic: 'no-work-line',
-      tasks: unassignedTasks.map(relationTask),
-    })
-  }
-  const allTasks = dedupeTasks([...relationTasks, ...tasks])
-  const progress = countTasks(allTasks)
-  return {
-    relations: { groups, tasks: allTasks.map(relationTask) },
-    progress,
-  }
+function groupsForCatalogRecord(
+  groups: readonly ProjectedRelationGroup<RelatedTask>[],
+): CatalogRelations {
+  const converted: CatalogRelationGroup[] = groups.map((group) => ({
+    id: group.id,
+    name: group.name,
+    relationship: group.relationship,
+    entity: group.entity,
+    objectiveId: group.objectiveId,
+    workLineId: group.workLineId,
+    taskCount: group.total,
+    done: group.done,
+    total: group.total,
+    ...(group.synthetic ? { synthetic: group.synthetic } : {}),
+    tasks: group.tasks.map(relationTask),
+  }))
+  const byId = new Map<string, CatalogRelationTask>()
+  for (const group of groups) for (const task of group.tasks) byId.set(task.id, relationTask(task))
+  return { groups: converted, tasks: [...byId.values()] }
 }
 
-function workLineRelations(
-  parent: ObjectiveRecord | null,
-  tasks: readonly RelatedTask[],
-): { relations: CatalogRelations; progress: { done: number; total: number } } {
-  const labels = translateFor(readPersistedLocale())
-  const count = countTasks(tasks)
-  const groups: CatalogRelationGroup[] = []
-  if (parent) {
-    groups.push({
-      id: parent.id,
-      name: parent.name,
-      taskCount: count.total,
-      done: count.done,
-      total: count.total,
-      tasks: tasks.map(relationTask),
-    })
-  } else if (tasks.length > 0) {
-    groups.push({
-      id: '__unlinked__',
-      name: labels('rollup.group.unlinked'),
-      taskCount: count.total,
-      done: count.done,
-      total: count.total,
-      synthetic: 'unlinked',
-      tasks: tasks.map(relationTask),
-    })
-  }
-  return { relations: { groups, tasks: tasks.map(relationTask) }, progress: count }
+async function loadObjectiveNames(db: SchemaClient, ids: readonly string[]): Promise<ObjectiveRecord[]> {
+  const uniqueIds = unique(ids)
+  if (uniqueIds.length === 0) return []
+  const { data, error } = await db.from('objectives').select('id,name,archived_at,business_unit_id,accountable_person_id,period_year').in('id', uniqueIds)
+  if (error) throw new Error(`loadCatalogRecordData linked Objectives failed — ${error.message}`)
+  return asRows<ObjectiveRecord>(data)
 }
 
 /** Load one catalog record and only the facts that can appear on that record. */
@@ -413,9 +371,28 @@ export async function loadCatalogRecordData(
     owningTeams.set(`${binding.id}:supervisor`, binding.supervisor_team_id ? directory.teamNamesById.get(binding.supervisor_team_id) ?? null : null)
   }
 
-  const built = kind === 'objective'
-    ? objectiveRelations(related.workLines, related.tasks)
-    : workLineRelations(parent, related.tasks)
+  const labels = translateFor(readPersistedLocale())
+  const objectiveRows = kind === 'objective'
+    ? [{ id: objectiveSource!.id, name: objectiveSource!.name }]
+    : [
+        ...(parent ? [{ id: parent.id, name: parent.name }] : []),
+        ...await loadObjectiveNames(db, unique(related.tasks.map((task) => task.objective_id))
+          .filter((objectiveId) => objectiveId !== parent?.id)),
+      ]
+  const workLineRows = kind === 'objective' ? related.workLines : [workLineSource!]
+  const projection = buildCatalogRelationProjection({
+    objectives: objectiveRows,
+    workLines: workLineRows,
+    tasks: related.tasks,
+    labels: { unlinked: labels('rollup.group.unlinked'), noWorkLine: labels('rollup.group.noWorkLine') },
+  })
+  const projectedGroups = kind === 'objective'
+    ? projection.byObjectiveId.get(id) ?? []
+    : projection.byWorkLineId.get(id) ?? []
+  const built = {
+    relations: groupsForCatalogRecord(projectedGroups),
+    progress: countTasks(related.tasks),
+  }
   const context = relationContext(
     sourceRow,
     built.relations,

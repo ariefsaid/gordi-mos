@@ -31,6 +31,12 @@ vi.mock('@/lib/db/user-views-collection', () => ({
 // The V3 collection Table renders in desktop mode here (deterministic), and the archive Feed's
 // "Share a Signal" row opens the shared composer host — stub it so this page test needs no shell.
 const desktopState = vi.hoisted(() => ({ value: true }))
+// The hard-load record id is a module-level browser capture; jsdom has none, so tests set it.
+const bootSignal = vi.hoisted(() => ({ id: null as string | null }))
+vi.mock('@/components/signals/signal-page-mode', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/components/signals/signal-page-mode')>()),
+  get BOOT_SIGNAL_RECORD_ID() { return bootSignal.id },
+}))
 vi.mock('@/shell/use-is-desktop', () => ({ useIsDesktop: () => desktopState.value }))
 const { composerOpen, composerPostCount, composerCanPost } = vi.hoisted(() => ({
   composerOpen: vi.fn(),
@@ -123,9 +129,9 @@ const archiveAuth: AuthState = {
   signOut: async () => {},
 }
 
-function pageTree(initialPath = '/work/signals', runtime: AgentRuntime | null = null, auth?: AuthState, extra?: ReactNode) {
+function pageTree(initialPath = '/work/signals', runtime: AgentRuntime | null = null, auth?: AuthState, extra?: ReactNode, locale: 'en' | 'id' = 'en') {
   return (
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={[initialPath]}>
         <AuthContext.Provider value={auth ?? { status: 'unauthenticated' }}>
           <AgentRuntimeProvider runtime={runtime}>
@@ -144,8 +150,8 @@ function pageTree(initialPath = '/work/signals', runtime: AgentRuntime | null = 
   )
 }
 
-function renderPage(initialPath = '/work/signals', runtime: AgentRuntime | null = null, auth?: AuthState, extra?: ReactNode) {
-  return render(pageTree(initialPath, runtime, auth, extra))
+function renderPage(initialPath = '/work/signals', runtime: AgentRuntime | null = null, auth?: AuthState, extra?: ReactNode, locale: 'en' | 'id' = 'en') {
+  return render(pageTree(initialPath, runtime, auth, extra, locale))
 }
 
 function SignalStackProbe() {
@@ -177,6 +183,7 @@ function LocationProbe() {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  bootSignal.id = null
   composerPostCount.value = 0
   composerCanPost.value = undefined
   desktopState.value = true
@@ -1038,13 +1045,12 @@ describe('issue #770 — Save view, phone door, and empty states (AC-028/029/030
 
 describe('issue #770 — AC-031: the archive renders one language at a time (ID)', () => {
   it('renders the eight category families, the attention words and the Team placeholder in Indonesian; "FYI" stays', async () => {
-    localStorage.setItem('mos.locale', 'id')
     mockListReadableSignals.mockResolvedValue([
       row({ id: 's-fyi', body: 'FYI body', attention: 'FYI', category: 'Supply/vendor' }),
       row({ id: 's-needs', body: 'Needs body', attention: 'Needs attention', category: 'Quality' }),
       row({ id: 's-urgent', body: 'Urgent body', attention: 'Urgent', category: null }),
     ])
-    renderPage('/work/signals?layout=table')
+    renderPage('/work/signals?layout=table', null, undefined, undefined, 'id')
     await waitFor(() => expect(screen.getByText('FYI body')).toBeInTheDocument())
 
     // View chips in Indonesian.
@@ -1074,7 +1080,6 @@ describe('issue #770 — AC-031: the archive renders one language at a time (ID)
 
 describe('signals Team filter — historical team rows vs All Teams (AC-8)', () => {
   it('the Team filter still matches historical team rows while All Teams rows (no Team) stay neutral', async () => {
-    localStorage.setItem('mos.locale', 'en')
     mockListReadableSignals.mockResolvedValue([
       // An All Teams Signal has no owning Team, so it belongs to no Team bucket; a historical
       // team-audience Signal keeps its owning Team.
@@ -1115,5 +1120,34 @@ describe('signals Team filter — historical team rows vs All Teams (AC-8)', () 
     await userEvent.click(screen.getByRole('combobox', { name: 'Team' }))
     expect(await screen.findByRole('option', { name: 'Radiant Operations' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'HQ Operations' })).not.toBeInTheDocument()
+  })
+})
+
+// A pasted/bookmarked collection link naming a record (a hard load onto ?record=<id>) resolves to
+// the canonical full page. The collection must not mount underneath that redirect: its panel
+// open and URL sync would write the collection URL back over it and strand a blank page.
+describe('SignalsArchivePage — a hard load onto ?record=<id> lands on the canonical page', () => {
+  it('ends on /work/signals/<id> with the collection query kept, and stays there', async () => {
+    bootSignal.id = 'signal-1'
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/work/signals?layout=feed&record=signal-1']}>
+          <AuthContext.Provider value={{ status: 'unauthenticated' }}>
+            <OverlayHostProvider>
+              <LocationProbe />
+              <Routes>
+                <Route path="/work/signals" element={<SignalsArchivePage />} />
+                <Route path="/work/signals/:signalId" element={<p data-testid="canonical-page">page</p>} />
+              </Routes>
+            </OverlayHostProvider>
+          </AuthContext.Provider>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    await screen.findByTestId('canonical-page')
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)) })
+    expect(screen.getByTestId('location')).toHaveTextContent(/^\/work\/signals\/signal-1\?layout=feed$/)
+    expect(screen.getByTestId('canonical-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('signal-record-host-stub')).not.toBeInTheDocument()
   })
 })

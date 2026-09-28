@@ -37,6 +37,7 @@ function renderTable(
   onToggleSelected = vi.fn(),
   onOpenRecord = vi.fn(),
   actions: SignalCollectionActions = {},
+  locale: 'en' | 'id' = 'en',
 ) {
   const projection: CollectionProjection<SignalRow, SignalRenderGroup> = {
     visibleRecords: rows,
@@ -61,7 +62,7 @@ function renderTable(
     isGroupCollapsed: () => false,
   }
   const utils = render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={['/work/signals']}>
         <SignalCollectionActionsProvider actions={actions}>
           <SignalTablePresentation {...props} />
@@ -91,21 +92,13 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
   })
 
   it('renders localized category and attention labels in Indonesian, not stored enum values', () => {
-    const previousLocale = window.localStorage.getItem('mos.locale')
-    window.localStorage.setItem('mos.locale', 'id')
-    const view = renderTable([
+    renderTable([
       row({ category: 'Equipment/facility', attention: 'Urgent' }),
-    ])
-    try {
-      expect(screen.getByText('Peralatan/fasilitas')).toBeInTheDocument()
-      expect(screen.getByText('Mendesak')).toBeInTheDocument()
-      expect(screen.queryByText('Equipment/facility')).not.toBeInTheDocument()
-      expect(screen.queryByText('Urgent')).not.toBeInTheDocument()
-    } finally {
-      view.unmount()
-      if (previousLocale === null) window.localStorage.removeItem('mos.locale')
-      else window.localStorage.setItem('mos.locale', previousLocale)
-    }
+    ], undefined, undefined, undefined, undefined, 'id')
+    expect(screen.getByText('Peralatan/fasilitas')).toBeInTheDocument()
+    expect(screen.getByText('Mendesak')).toBeInTheDocument()
+    expect(screen.queryByText('Equipment/facility')).not.toBeInTheDocument()
+    expect(screen.queryByText('Urgent')).not.toBeInTheDocument()
   })
 
   it('GAP-9 (OD-91 #14): the Signal table inherits the shared j/k row cursor — j moves it, Enter opens the cursor row', async () => {

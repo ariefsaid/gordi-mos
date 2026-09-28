@@ -10,6 +10,8 @@ import {
   listSubmittedKitchenLogs,
   fetchPlanMap,
   listStreamPairs,
+  listAllStreamItemKeys,
+  streamItemKey,
   streamCatalogFrom,
   approveKitchenLog,
   approveKitchenLogsBulk,
@@ -36,6 +38,7 @@ import { getPeople } from '@/lib/db/directory'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Avatar } from '@/components/ui/avatar'
 import { Tag } from '@/components/ui/tag'
+import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { DataTable } from '@/components/dashboard/data-table'
 import type { DataTableColumn, DataTableGroup } from '@/components/dashboard/data-table'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
@@ -369,6 +372,8 @@ function KitchenReviewPageForViewer() {
 
   const [logDate] = useState(wibToday)
   const [logs, setLogs] = useState<ReviewLogRow[]>([])
+  // Every stream's item list (#222): a queued row whose item left its stream's list is labelled.
+  const [offeredKeys, setOfferedKeys] = useState<Set<string>>(new Set())
   // Keyed by streamKey(branch_id, activity) — one PlanMap per DISTINCT stream present in
   // the queue (#247/#197), not one flat map for the whole queue.
   const [streamPlans, setStreamPlans] = useState<Map<string, PlanMap>>(new Map())
@@ -433,12 +438,13 @@ function KitchenReviewPageForViewer() {
     const gen = ++requestGen.current
     setLoad({ kind: 'loading' })
     try {
-      const [rows, branchRows, people, pairs, confirmations] = await Promise.all([
+      const [rows, branchRows, people, pairs, confirmations, itemKeys] = await Promise.all([
         listSubmittedKitchenLogs(logDate),
         listActiveBranches(),
         getPeople(),
         listStreamPairs(),
         listStreamCompleteness(),
+        listAllStreamItemKeys(),
       ])
       const ownStream = await fetchDefaultStream(branchRows)
       // Fetch the plan baseline for every DISTINCT (branch, activity) stream present in
@@ -460,6 +466,7 @@ function KitchenReviewPageForViewer() {
       const ownKey = ownStream ? streamKey(ownStream.branch.id, ownStream.activity) : null
       const catalog = streamCatalogFrom(pairs, branchRows)
       setLogs(rows)
+      setOfferedKeys(itemKeys)
       setStreamPlans(new Map(planEntries))
       setPeopleMap(new Map(people.map(p => [p.id, p.full_name])))
       setBranchCatalog(branchRows)
@@ -786,6 +793,7 @@ function KitchenReviewPageForViewer() {
         return (
           <>
             <span className="krow-name">{log.wip_item_name}</span>
+            {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
             {/* #587: "All streams" groups rows from every stream under one action_type
                 heading with nothing naming which — this is that name, shown only when
                 more than one stream could be in the group (the filter is on ALL_STREAMS). */}
@@ -878,6 +886,7 @@ function KitchenReviewPageForViewer() {
       <div className="krow-card">
         <div className="krow-card-head">
           <span className="krow-name">{log.wip_item_name}</span>
+          {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
           <Tag color={offPlan ? 'amber' : 'green'}>
             <span className="krow-dot" aria-hidden="true" />
             {offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}

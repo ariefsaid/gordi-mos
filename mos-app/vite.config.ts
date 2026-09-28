@@ -1,5 +1,9 @@
 /// <reference types="vitest/config" />
 import { dirname } from 'node:path'
+import { resolve, relative } from 'node:path'
+import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type Plugin, type ViteDevServer, type PreviewServer } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -66,10 +70,38 @@ function sampleLoginBuildGuard(): Plugin {
   }
 }
 
+function previewBuildIdentity(): Plugin {
+  let sha = ''
+  let clean = false
+  return {
+    name: 'preview-build-identity',
+    apply: 'build',
+    buildStart() {
+      sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dir, encoding: 'utf8' }).trim()
+      clean = execFileSync('git', ['status', '--porcelain'], { cwd: __dir, encoding: 'utf8' }).trim() === ''
+    },
+    closeBundle() {
+      const dist = resolve(__dir, 'dist')
+      const assets: Record<string, string> = {}
+      const walk = (directory: string) => {
+        for (const name of readdirSync(directory)) {
+          const path = resolve(directory, name)
+          if (statSync(path).isDirectory()) { walk(path); continue }
+          const key = relative(dist, path).replaceAll('\\', '/')
+          if (key === 'mos-build-identity.json') continue
+          assets[key] = createHash('sha256').update(readFileSync(path)).digest('hex')
+        }
+      }
+      walk(dist)
+      writeFileSync(resolve(dist, 'mos-build-identity.json'), JSON.stringify({ sha, clean, assets }))
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   base: '/mos/',
-  plugins: [redirectToBase('/mos/'), mosDevIdentity(), sampleLoginBuildGuard(), react(), tailwindcss()],
+  plugins: [redirectToBase('/mos/'), mosDevIdentity(), sampleLoginBuildGuard(), previewBuildIdentity(), react(), tailwindcss()],
   build: {
     rollupOptions: {
       output: {

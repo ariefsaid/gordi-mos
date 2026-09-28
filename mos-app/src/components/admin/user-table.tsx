@@ -13,7 +13,9 @@
 // PeopleToolbar (§2.1): search-mini + ViewTabs status filter, both URL-synced (I7 / D-E1).
 // No-match empty state (§4.1): distinct from org-empty "Just you so far".
 // Access + Position columns (ADR-0050, AC-126): "Access" = access roles (RoleChips), "Position" =
-//   Jabatan (JabatanChips) — neither ever labeled "Role". Menu item: "Manage access & position".
+//   Jabatan (JabatanChips) — neither ever labeled "Role".
+// A row (or card) opens the person: click anywhere on it, or Enter on the name. The ⋯ menu's
+//   "Manage person" opens the same panel; the menu's own clicks never reach the row.
 
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useId, useMemo } from 'react'
 import { createPortal } from 'react-dom'
@@ -32,6 +34,7 @@ import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { ViewTabs } from '@/components/ui/view-tabs'
 import { usePeopleListPresentsCards } from './use-people-list-presents-cards'
 import { localizedRoleMeta } from '@/lib/db/admin-users.types'
+import { SEGMENT_OPTIONS, filterPeople, isLastActiveAdmin, toSegment, type StatusSegment } from './people-filter'
 import type { AdminPersonRow, LoginStatus, TeamOption } from '@/lib/db/admin-users.types'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
@@ -40,7 +43,7 @@ import './people-toolbar.css'
 // ── PersonAction union type (item 12) ────────────────────────────────────────
 // Compile-time contract: bad action strings fail type-check (caught the 'manage' bug).
 export type PersonAction =
-  | 'manage-roles'
+  | 'manage-person'
   | 'reset-password'
   | 'create-login'
   | 'disable-login'
@@ -143,18 +146,6 @@ function primaryTeamName(person: AdminPersonRow, teams: TeamOption[]): string | 
   return teams.find((t) => t.id === primary.team_id)?.name ?? null
 }
 
-// ── Last-admin detection helper ───────────────────────────────────────────────
-// A person is the "last active admin" when they are the only person in the list
-// who has an 'admin' role, an active login, and is not archived.
-function isLastActiveAdmin(person: AdminPersonRow, people: AdminPersonRow[]): boolean {
-  const activeAdminCount = people.filter(
-    (p) => p.access_roles.includes('admin') && p.login === 'active' && !p.archived_at,
-  ).length
-  const personIsActiveAdmin =
-    person.access_roles.includes('admin') && person.login === 'active' && !person.archived_at
-  return personIsActiveAdmin && activeAdminCount === 1
-}
-
 // ── PersonActionMenu — shared between desktop ⋯ and mobile action sheet ──────
 // Renders a role="menu" list of per-person actions, gated by person state.
 // The dismissal + keyboard contract (focus-enter, Arrow/Home/End, Esc, outside-click)
@@ -201,7 +192,7 @@ function PersonActionMenu({
         type="button"
         tabIndex={0}
         className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
-        onClick={() => dispatch('manage-roles')}
+        onClick={() => dispatch('manage-person')}
       >
         {t('admin.people.action.manageAccess')}
       </button>
@@ -387,8 +378,10 @@ function PersonActions({ person, people, onAction, presentation = 'row' }: Perso
     if (wasOpenRef.current) triggerRef.current?.focus()
   }, [open])
 
+  // The menu is portaled, but React still bubbles its events through this wrapper — stop them
+  // here so choosing an action (or opening the menu) never also opens the row.
   return (
-    <div>
+    <div onClick={(event) => event.stopPropagation()}>
       <button
         ref={triggerRef}
         id={btnId}
@@ -491,117 +484,140 @@ function InlineSaved() {
 }
 
 // Column widths. DO-22(c) rebalance: Person carries the dense two-line content and must never
-// be narrower than the chip columns beside it. This line carries a Position column v4 does not
-// (ADR-0050), so v4's 50/15/35 split is redistributed rather than copied — the invariant the
-// guard actually pins is Person ≥ Access, and 38 ≥ 25 holds.
+// be narrower than the chip columns beside it (the guard pins Person ≥ Access). While the person
+// panel is open beside the list, Login and Position step out so the rest stays readable.
 const COL_WIDTH = { person: '30%', team: '16%', login: '12%', access: '21%', position: '21%' } as const
+const COMPACT_COL_WIDTH = { person: '42%', team: '26%', access: '32%' } as const
+
+/** The person's name as the row's keyboard door: Enter or Space on it opens the person. */
+function PersonName({ person, onOpen }: { person: AdminPersonRow; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      className="people-row-open font-medium text-sm"
+      style={{
+        color: 'var(--foreground)',
+        textDecoration: person.archived_at ? 'line-through' : undefined,
+        opacity: person.archived_at ? 0.6 : undefined,
+      }}
+      onClick={(event) => {
+        event.stopPropagation()
+        onOpen()
+      }}
+    >
+      {person.full_name}
+    </button>
+  )
+}
 
 function DesktopTable({
   people,
   teams,
   onAction,
   justSavedId,
+  selectedId,
 }: {
   people: AdminPersonRow[]
   teams: TeamOption[]
   onAction: (action: PersonAction, person: AdminPersonRow) => void
   justSavedId: string | null
+  selectedId: string | null
 }) {
   const t = useT()
+  const compact = selectedId !== null
   const headClass = 'text-left px-4 text-xs font-semibold uppercase'
   const headStyle = { color: 'var(--muted-foreground)', letterSpacing: '0.06em' }
+  const width = compact ? COMPACT_COL_WIDTH : COL_WIDTH
   return (
     <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
       <thead>
         <tr style={{ borderBottom: '1px solid var(--border)', height: 38 }}>
-          <th scope="col" className={headClass} style={{ ...headStyle, width: COL_WIDTH.person }}>
+          <th scope="col" className={headClass} style={{ ...headStyle, width: width.person }}>
             {t('admin.people.col.person')}
           </th>
-          <th scope="col" className={headClass} style={{ ...headStyle, width: COL_WIDTH.team }}>
+          <th scope="col" className={headClass} style={{ ...headStyle, width: width.team }}>
             {t('admin.people.col.team')}
           </th>
-          <th scope="col" className={headClass} style={{ ...headStyle, width: COL_WIDTH.login }}>
-            {t('admin.people.col.login')}
-          </th>
-          <th scope="col" className={headClass} style={{ ...headStyle, width: COL_WIDTH.access }}>
+          {!compact && (
+            <th scope="col" className={headClass} style={{ ...headStyle, width: COL_WIDTH.login }}>
+              {t('admin.people.col.login')}
+            </th>
+          )}
+          <th scope="col" className={headClass} style={{ ...headStyle, width: width.access }}>
             {t('admin.people.col.access')}
           </th>
-          <th scope="col" className={headClass} style={{ ...headStyle, width: COL_WIDTH.position }}>
-            {t('admin.people.col.position')}
-          </th>
+          {!compact && (
+            <th scope="col" className={headClass} style={{ ...headStyle, width: COL_WIDTH.position }}>
+              {t('admin.people.col.position')}
+            </th>
+          )}
           {/* No dedicated Status column: archived rows are signalled inline on the name
-              (line-through + 0.6 opacity), so a permanent header that was blank for every
-              non-archived row — the default 'All' view shows only non-archived — earned no
-              screen real estate. (V3 sweep F1, fossil-delete.) */}
+              (line-through + 0.6 opacity). */}
           <th scope="col" className="w-10" />
         </tr>
       </thead>
       <tbody>
-        {people.map((person) => (
-          <tr
-            key={person.id}
-            className="group/row hover:bg-accent/60"
-            // 52px is DESIGN.md's Data Table row spec ("E7 table rows are 52px" /
-            // table-body-cell height:52) — was 54px, a 2px off-spec drift. The
-            // name+email two-line stack still fits: flex items-center centers it
-            // regardless, and craft-floor's own guidance is to tighten a multi-line
-            // stack's line-height rather than inflate the row to fit it.
-            style={{ height: 52, borderBottom: '1px solid var(--border)' }}
-          >
-            <td className="px-4">
-              <div className="flex items-center gap-2">
-                <Avatar placeholder={person.full_name} size="sm" />
-                <div>
-                  <div
-                    className="font-medium text-sm"
-                    style={{
-                      color: 'var(--foreground)',
-                      textDecoration: person.archived_at ? 'line-through' : undefined,
-                      opacity: person.archived_at ? 0.6 : undefined,
-                    }}
-                  >
-                    {person.full_name}
+        {people.map((person) => {
+          const open = () => onAction('manage-person', person)
+          return (
+            <tr
+              key={person.id}
+              className="people-row group/row hover:bg-accent/60"
+              data-selected={person.id === selectedId ? 'true' : undefined}
+              onClick={open}
+              // 52px is DESIGN.md's Data Table row spec.
+              style={{ height: 52, borderBottom: '1px solid var(--border)' }}
+            >
+              <td className="px-4">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Avatar placeholder={person.full_name} size="sm" />
+                  <div className="min-w-0">
+                    <PersonName person={person} onOpen={open} />
+                    {person.email && (
+                      <div
+                        className="text-xs truncate"
+                        style={{
+                          color: 'var(--muted-foreground)',
+                          fontFamily: person.email.includes('@ops.gordi.local')
+                            ? 'var(--font-mono)'
+                            : undefined,
+                        }}
+                      >
+                        {person.email}
+                      </div>
+                    )}
                   </div>
-                  {person.email && (
-                    <div
-                      className="text-xs"
-                      style={{
-                        color: 'var(--muted-foreground)',
-                        fontFamily: person.email.includes('@ops.gordi.local')
-                          ? 'var(--font-mono)'
-                          : undefined,
-                      }}
-                    >
-                      {person.email}
-                    </div>
-                  )}
                 </div>
-              </div>
-            </td>
-            <td className="px-4 text-sm" style={{ color: 'var(--foreground)' }}>
-              {primaryTeamName(person, teams) ?? (
-                <span style={{ color: 'var(--muted-foreground)' }} aria-label={t('admin.people.team.none')}>
-                  —
-                </span>
+              </td>
+              <td className="px-4 text-sm" style={{ color: 'var(--foreground)' }}>
+                {primaryTeamName(person, teams) ?? (
+                  <span style={{ color: 'var(--muted-foreground)' }} aria-label={t('admin.people.team.none')}>
+                    —
+                  </span>
+                )}
+              </td>
+              {!compact && (
+                <td className="px-4">
+                  <div className="flex items-center gap-2">
+                    <LoginStatusPill status={person.login} />
+                    {justSavedId === person.id && <InlineSaved />}
+                  </div>
+                </td>
               )}
-            </td>
-            <td className="px-4">
-              <div className="flex items-center gap-2">
-                <LoginStatusPill status={person.login} />
-                {justSavedId === person.id && <InlineSaved />}
-              </div>
-            </td>
-            <td className="px-4">
-              <RoleChips roles={person.access_roles} />
-            </td>
-            <td className="px-4">
-              <JabatanChips jabatan={person.jabatan} />
-            </td>
-            <td className="px-2 text-right">
-              <PersonActions person={person} people={people} onAction={onAction} />
-            </td>
-          </tr>
-        ))}
+              <td className="px-4">
+                <RoleChips roles={person.access_roles} />
+              </td>
+              {!compact && (
+                <td className="px-4">
+                  <JabatanChips jabatan={person.jabatan} />
+                </td>
+              )}
+              <td className="px-2 text-right">
+                <PersonActions person={person} people={people} onAction={onAction} />
+              </td>
+            </tr>
+          )
+        })}
       </tbody>
     </table>
   )
@@ -614,88 +630,55 @@ function MobileCardList({
   teams,
   onAction,
   justSavedId,
+  selectedId,
 }: {
   people: AdminPersonRow[]
   teams: TeamOption[]
   onAction: (action: PersonAction, person: AdminPersonRow) => void
   justSavedId: string | null
+  selectedId: string | null
 }) {
   return (
-    <div className="flex flex-col gap-3 p-3">
-      {people.map((person) => (
-        <article
-          key={person.id}
-          className="rounded-lg p-3"
-          style={{
-            background: 'var(--card)',
-            border: '1px solid var(--border)',
-            boxShadow: 'var(--shadow-rest)',
-          }}
-        >
-          {/* Head row: identity, status, and the card's ONE action door. */}
-          <div className="flex items-center gap-2">
-            <Avatar placeholder={person.full_name} size="sm" />
-            <div
-              className="font-medium text-sm flex-1 min-w-0"
-              style={{
-                color: 'var(--foreground)',
-                textDecoration: person.archived_at ? 'line-through' : undefined,
-              }}
-            >
-              {person.full_name}
+    <div className="people-card-list flex flex-col gap-3 py-3">
+      {people.map((person) => {
+        const open = () => onAction('manage-person', person)
+        return (
+          <article
+            key={person.id}
+            className="people-card rounded-lg p-3"
+            data-selected={person.id === selectedId ? 'true' : undefined}
+            onClick={open}
+            style={{
+              background: 'var(--card)',
+              border: '1px solid var(--border)',
+              boxShadow: 'var(--shadow-rest)',
+            }}
+          >
+            {/* Head row: identity, status, and the card's ONE action door. */}
+            <div className="flex items-center gap-2">
+              <Avatar placeholder={person.full_name} size="sm" />
+              <div className="flex-1 min-w-0">
+                <PersonName person={person} onOpen={open} />
+              </div>
+              <LoginStatusPill status={person.login} />
+              {justSavedId === person.id && <InlineSaved />}
+              <PersonActions person={person} people={people} onAction={onAction} presentation="card" />
             </div>
-            <LoginStatusPill status={person.login} />
-            {justSavedId === person.id && <InlineSaved />}
-            <PersonActions person={person} people={people} onAction={onAction} presentation="card" />
-          </div>
 
-          {/* Team · Position — the two org facts, as one quiet line rather than a field grid. */}
-          <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
-            {[primaryTeamName(person, teams), person.jabatan.map((j) => j.role_name).join(', ')]
-              .filter(Boolean)
-              .join(' · ') || '—'}
-          </p>
+            {/* Team · Position — the two org facts, as one quiet line rather than a field grid. */}
+            <p className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+              {[primaryTeamName(person, teams), person.jabatan.map((j) => j.role_name).join(', ')]
+                .filter(Boolean)
+                .join(' · ') || '—'}
+            </p>
 
-          <div className="mt-2">
-            <RoleChips roles={person.access_roles} />
-          </div>
-        </article>
-      ))}
+            <div className="mt-2">
+              <RoleChips roles={person.access_roles} />
+            </div>
+          </article>
+        )
+      })}
     </div>
-  )
-}
-
-// ── Segment filter types ──────────────────────────────────────────────────────
-
-type StatusSegment = 'all' | 'active' | 'none' | 'disabled' | 'archived'
-
-const SEGMENT_OPTIONS: { value: StatusSegment; labelKey: MessageKey }[] = [
-  { value: 'all', labelKey: 'admin.people.seg.all' },
-  { value: 'active', labelKey: 'admin.people.seg.active' },
-  { value: 'none', labelKey: 'admin.people.seg.none' },
-  { value: 'disabled', labelKey: 'admin.people.seg.disabled' },
-  { value: 'archived', labelKey: 'admin.people.seg.archived' },
-]
-
-// ── Filter logic ──────────────────────────────────────────────────────────────
-// Design-plan §2.1:
-//   All = every non-archived person; Archived = archived_at != null;
-//   Active/No login/Disabled are non-archived subsets by login status.
-
-function applySegment(people: AdminPersonRow[], segment: StatusSegment): AdminPersonRow[] {
-  if (segment === 'archived') return people.filter((p) => p.archived_at != null)
-  const nonArchived = people.filter((p) => p.archived_at == null)
-  if (segment === 'all') return nonArchived
-  return nonArchived.filter((p) => p.login === segment)
-}
-
-function applySearch(people: AdminPersonRow[], query: string): AdminPersonRow[] {
-  const q = query.trim().toLowerCase()
-  if (!q) return people
-  return people.filter(
-    (p) =>
-      p.full_name.toLowerCase().includes(q) ||
-      (p.email ?? '').toLowerCase().includes(q),
   )
 }
 
@@ -704,6 +687,8 @@ function applySearch(people: AdminPersonRow[], query: string): AdminPersonRow[] 
 // Seamed to the table top (flat toolbar — no resting shadow, utility surface).
 
 interface PeopleToolbarProps {
+  /** Cards presentation: no container card around the list, so the toolbar sits on the page gutter. */
+  flush: boolean
   segment: StatusSegment
   onSegmentChange: (s: StatusSegment) => void
   searchQuery: string
@@ -727,12 +712,12 @@ function SearchIcon() {
   )
 }
 
-function PeopleToolbar({ segment, onSegmentChange, searchQuery, onSearchChange }: PeopleToolbarProps) {
+function PeopleToolbar({ flush, segment, onSegmentChange, searchQuery, onSearchChange }: PeopleToolbarProps) {
   const searchId = useId()
   const t = useT()
 
   return (
-    <div className="people-toolbar">
+    <div className={flush ? 'people-toolbar people-toolbar--flush' : 'people-toolbar'}>
       {/* Search-mini: filter by name or email */}
       <label className="people-search-mini" htmlFor={searchId}>
         <SearchIcon />
@@ -783,6 +768,8 @@ export interface UserTableProps {
   loading?: boolean
   /** GAP-7: the person whose in-place edit just committed → shows an inline "Saved". */
   justSavedId?: string | null
+  /** The person open in the panel: their row is marked, and the table drops to its compact columns. */
+  selectedId?: string | null
 }
 
 export function UserTable({
@@ -793,6 +780,7 @@ export function UserTable({
   teams = [],
   loading = false,
   justSavedId = null,
+  selectedId = null,
 }: UserTableProps) {
   const presentsCards = usePeopleListPresentsCards()
   const t = useT()
@@ -801,18 +789,15 @@ export function UserTable({
   // "filter to Disabled + search andi, then share the link" reproduces the same view. Client-side
   // still — the query never refetches; the URL is the source of truth for the view.
   const [statusParam, setStatusParam] = useSearchParamState('status', 'all')
-  const segment: StatusSegment = SEGMENT_OPTIONS.some((o) => o.value === statusParam)
-    ? (statusParam as StatusSegment)
-    : 'all'
+  const segment = toSegment(statusParam)
   const setSegment = (next: StatusSegment) => setStatusParam(next)
   const [searchQuery, setSearchQuery] = useSearchParamState('q', '')
   const resetFilterParams = useSearchParamReset(['status', 'q'])
 
-  // Filtered people (memoised)
-  const filteredPeople = useMemo(() => {
-    const bySegment = applySegment(people, segment)
-    return applySearch(bySegment, searchQuery)
-  }, [people, segment, searchQuery])
+  const { rows: filteredPeople, filtered: isFiltered } = useMemo(
+    () => filterPeople(people, statusParam, searchQuery),
+    [people, statusParam, searchQuery],
+  )
 
   // Clear all filters
   function clearFilters() {
@@ -825,13 +810,13 @@ export function UserTable({
   const isOrgEmpty = nonSelfCount === 0
 
   // No-match: filters active but yield zero rows (distinct from org-empty)
-  const isFiltered = segment !== 'all' || searchQuery.trim() !== ''
   const isNoMatch = !isOrgEmpty && isFiltered && filteredPeople.length === 0
 
   return (
     <>
       {/* Toolbar always renders (seamed to table top, flat utility surface) */}
       <PeopleToolbar
+        flush={presentsCards}
         segment={segment}
         onSegmentChange={setSegment}
         searchQuery={searchQuery}
@@ -869,9 +854,9 @@ export function UserTable({
           </EmptyState>
         </div>
       ) : presentsCards ? (
-        <MobileCardList people={filteredPeople} teams={teams} onAction={onAction} justSavedId={justSavedId} />
+        <MobileCardList people={filteredPeople} teams={teams} onAction={onAction} justSavedId={justSavedId} selectedId={selectedId} />
       ) : (
-        <DesktopTable people={filteredPeople} teams={teams} onAction={onAction} justSavedId={justSavedId} />
+        <DesktopTable people={filteredPeople} teams={teams} onAction={onAction} justSavedId={justSavedId} selectedId={selectedId} />
       )}
     </>
   )

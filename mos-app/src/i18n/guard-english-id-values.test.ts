@@ -21,6 +21,11 @@ import { messages } from './messages'
  * symbols/templates with no words of their own.
  */
 const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
+  // #781 item 6 (B6): "Stream" is deliberately the SAME word in both catalogs — the Indonesian
+  // catalog previously said "Tim" (Team), a different concept from every sibling stream key
+  // ("Pilih stream…", "Stream ini menerima produksi…"), which is the defect the ticket reports.
+  // One borrowed word for the control, not a translation gap.
+  'cafe.stream.label',
   'common.docTitle', // ${page} — Gordi MOS
   'locale.en', // English — the language's own name in its own language
   'locale.id', // Bahasa Indonesia

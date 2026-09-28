@@ -38,8 +38,8 @@ function makeProps(overrides: Partial<TasksToolbarProps> = {}): TasksToolbarProp
   }
 }
 
-function renderToolbar(props: TasksToolbarProps = makeProps()) {
-  return render(<I18nProvider><TasksToolbar {...props} /></I18nProvider>)
+function renderToolbar(props: TasksToolbarProps = makeProps(), locale: 'en' | 'id' = 'en') {
+  return render(<I18nProvider initialLocale={locale}><TasksToolbar {...props} /></I18nProvider>)
 }
 
 // The desktop long tail lives behind the surface's own door. "Reachable" is the contract these
@@ -71,8 +71,7 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
 
   // #749: both locales carry the new chip label (EN "Team work").
   it('AC-011: the ID locale carries the Team work chip as "Pekerjaan tim"', () => {
-    localStorage.setItem('mos.locale', 'id')
-    renderToolbar()
+    renderToolbar(makeProps(), 'id')
     expect(screen.getByRole('button', { name: 'Pekerjaan tim' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
   })
