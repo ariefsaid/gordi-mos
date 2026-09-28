@@ -495,6 +495,7 @@ function ViewSurface({
         teamMigration: t('tasks.field.teamMigration'),
         dueDate: t('tasks.dueLabel'),
         createdBy: t('tasks.field.createdBy'),
+        supervisorInheritedFrom: t('tasks.field.supervisorInheritedFrom'),
       },
       recordLabels: {
         typeLabel: t('tasks.label.task'),

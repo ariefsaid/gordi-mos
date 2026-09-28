@@ -20,6 +20,7 @@ import type { WorkLineRow } from '@/lib/db/work-lines'
 import { canEdit, canArchive, picOptions } from './task-permissions'
 import { isOverdue } from '@/lib/due-status'
 import { RecordFieldList } from '@/components/records/record-viewer'
+import { interpolate } from '@/i18n/use-t'
 import type {
   RecordAction,
   RecordContentSlot,
@@ -159,6 +160,9 @@ export interface TaskFieldLabels {
   teamMigration: string
   dueDate: string
   createdBy: string
+  /** AC-039/FR-029 (OD-REDESIGN-41): the Supervisor subline when its value equals the parent
+   *  Project/Process's Accountable — `${name}` interpolates the parent's name. */
+  supervisorInheritedFrom: string
 }
 
 /** i18n-able labels for the FULL Task record adapter's chrome — section titles, the
@@ -242,6 +246,7 @@ const DEFAULT_TASK_FIELD_LABELS: TaskFieldLabels = {
   teamMigration: 'No team is assigned to this task yet (data migration).',
   dueDate: 'Due date',
   createdBy: 'Created by',
+  supervisorInheritedFrom: 'inherited from ${name}',
 }
 
 /** The honest Team field spec — Business Unit is NEVER relabelled Team; a real task.team_id lookup
@@ -288,7 +293,15 @@ function ownershipFields(
   completedAt: string | null,
   completedAtLabel: string,
   labels: TaskFieldLabels = DEFAULT_TASK_FIELD_LABELS,
+  /** AC-039: the resolved parent Project/Process, or null/undefined for an Ad hoc task — the
+   *  Supervisor subline compares against its accountable_person_id. */
+  workLine?: WorkLineRow | null,
 ): RecordFieldSpec[] {
+  const inheritsSupervisor = Boolean(
+    workLine?.accountable_person_id
+    && task.accountable_person_id
+    && workLine.accountable_person_id === task.accountable_person_id,
+  )
   return [
     teamOwnershipField(team, labels, editable, teamOptions),
     {
@@ -317,6 +330,9 @@ function ownershipFields(
       value: task.accountable_person_id,
       displayValue: personName(people, task.accountable_person_id),
       options: personOptions(people),
+      subline: inheritsSupervisor && workLine
+        ? interpolate(labels.supervisorInheritedFrom, { name: workLine.name })
+        : undefined,
     }),
     {
       key: 'createdBy',
@@ -480,6 +496,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
       completedAt,
       L.completedAtField,
       labels,
+      workLine,
     ),
   }
 
