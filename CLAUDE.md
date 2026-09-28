@@ -43,10 +43,18 @@ Updates + per-Activity ops + reference data + money follow-ups. Ships at
 
 ## Standing principles (owner)
 
-- Route work through the skills; unsure which, read and follow `ask-matt`. Owner observations go
-  through `feedback` (read and follow its SKILL.md) into issues before anything is built. Every brief
-  names its skills plan: which skill, which phase, what evidence it leaves. Naming a skill is not
-  evidence it ran.
+- Route every phase through its skills, reading each SKILL.md and following its flow (owner-typed
+  ones included); unsure which, `ask-matt`:
+  - owner observations: `feedback`, into issues before anything is built;
+  - fog and decisions: `wayfinder`, `grilling`, `domain-modeling`, `research`, `prototype`;
+  - spec and tickets: `to-spec`, `to-tickets`, `triage`; goals and briefs: `writing-agent-goals`;
+  - build: `implement` with `tdd`, `codebase-design`, `diagnosing-bugs`; ponytail's ladder first
+    (vendor before build) and `ponytail-review` on the diff;
+  - UI: `impeccable` (Operate first-look, then its critique, layout, clarify, adapt, harden, audit
+    and polish references), `ui-ux-pro-max` search, `taste`;
+  - review: `code-review` (three lenses); the rendered pass uses the calibrated reviewer.
+- Every brief names its skills plan: which skill, which phase, what evidence it leaves. Naming a
+  skill is not evidence it ran.
 - Vendor before build: a proven library (MIT, Apache-2.0 or MPL-2.0 only) over a hand-built
   control, behind a MOS-owned interface.
 - A record is typed fields plus an authored block document (OD-REDESIGN-16).
