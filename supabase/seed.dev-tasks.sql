@@ -38,61 +38,66 @@ begin
   select id into bu_sales   from shared.business_units where code = 'b2b_sales';
   select id into bu_fin     from shared.business_units where code = 'finance';
 
+  -- completed_at is the #752 live-work clock. The guard only stamps it for `authenticated`
+  -- writes (mos._guard_tasks(), AC-015); this seed runs as the migration role, so the two Done
+  -- rows below carry it explicitly — one past the 7-day window, one inside it — or the rule
+  -- (#752 AC-016: My work/Team work hide Done after 7 days) would have nothing to show on dev.
   insert into mos.tasks
     (id, org_id, title, business_unit_id, status, responsible_person_id, accountable_person_id,
      consulted_person_ids, informed_person_ids, description, due_date, last_activity_at,
-     created_by, created_at, updated_at)
+     created_by, created_at, updated_at, completed_at)
   values
     -- In Progress (4; one overdue)
     (gen_random_uuid(), v_org, 'Dial in new Brazil single-origin', bu_roast, 'In Progress',
        p_rama, p_dewi, array[p_cahya, p_sari], '{}',
        'Pull shots across 3 ratios, log TDS + tasting notes, lock the recipe card before the Saturday wholesale tasting.',
        current_date - 4, now() - interval '2 days', p_dewi,
-       now() - interval '9 days', now() - interval '2 days'),
+       now() - interval '9 days', now() - interval '2 days', null),
     (gen_random_uuid(), v_org, 'Update espresso recipe cards', bu_cafe, 'In Progress',
        p_cahya, p_dewi, '{}', '{}', 'Refresh dose/yield/time on the bar cards for the new season blend.',
        current_date + 2, now() - interval '5 hours', p_dewi,
-       now() - interval '4 days', now() - interval '5 hours'),
+       now() - interval '4 days', now() - interval '5 hours', null),
     (gen_random_uuid(), v_org, 'Photograph new pastry line', bu_kitchen, 'In Progress',
        p_krishna, p_dewi, array[p_cahya], '{}', 'Studio shots for the menu + socials.',
        current_date + 8, now() - interval '1 day', p_dewi,
-       now() - interval '5 days', now() - interval '1 day'),
+       now() - interval '5 days', now() - interval '1 day', null),
     (gen_random_uuid(), v_org, 'Q3 wholesale price list', bu_sales, 'In Progress',
        p_sari, p_dewi, '{}', '{}', 'Rebuild the wholesale sheet with the new green-bean costs.',
        current_date + 14, now() - interval '3 days', p_dewi,
-       now() - interval '7 days', now() - interval '3 days'),
+       now() - interval '7 days', now() - interval '3 days', null),
     -- Blocked (2; both overdue)
     (gen_random_uuid(), v_org, 'Replace grinder burrs (Cafe 2)', bu_cafe, 'Blocked',
        p_cahya, p_dewi, '{}', '{}',
        'Cafe 2 grinder is out of service. Replacement burrs are delayed; resume fitting and safety checks when the parts arrive.',
        current_date - 7, now() - interval '6 days', p_dewi,
-       now() - interval '12 days', now() - interval '6 days'),
+       now() - interval '12 days', now() - interval '6 days', null),
     (gen_random_uuid(), v_org, 'Source compostable cups vendor', bu_fin, 'Blocked',
        p_fitri, p_dewi, array[p_cahya], '{}', 'Two quotes in; blocked on the sustainability cert check.',
        current_date - 5, now() - interval '4 days', p_dewi,
-       now() - interval '10 days', now() - interval '4 days'),
+       now() - interval '10 days', now() - interval '4 days', null),
     -- Open (3)
     (gen_random_uuid(), v_org, 'Plan barista latte-art workshop', bu_cafe, 'Open',
        p_cahya, p_dewi, '{}', '{}', 'Half-day internal workshop for the bar team.',
        current_date + 17, now() - interval '1 day', p_dewi,
-       now() - interval '1 day', now() - interval '1 day'),
+       now() - interval '1 day', now() - interval '1 day', null),
     (gen_random_uuid(), v_org, 'Roastery extractor PM schedule', bu_roast, 'Open',
        p_rama, p_dewi, '{}', '{}', 'Stand up a preventive-maintenance calendar for the extractor.',
        current_date + 22, now() - interval '2 days', p_dewi,
-       now() - interval '2 days', now() - interval '2 days'),
+       now() - interval '2 days', now() - interval '2 days', null),
     (gen_random_uuid(), v_org, 'Draft Q3 OKRs for cafe team', bu_cafe, 'Open',
        p_dewi, p_dewi, array[p_cahya, p_sari, p_krishna], '{}', 'First pass at the cafe-team objectives for Q3.',
        current_date + 25, now() - interval '7 hours', p_dewi,
-       now() - interval '7 hours', now() - interval '7 hours'),
-    -- Done (2)
+       now() - interval '7 hours', now() - interval '7 hours', null),
+    -- Done (2): one completed 9 days ago (past the 7-day window — hidden from My work/Team work,
+    -- still in All), one completed 2 days ago (inside the window — visible everywhere).
     (gen_random_uuid(), v_org, 'Refit cold brew taps', bu_kitchen, 'Done',
        p_krishna, p_dewi, '{}', '{}', 'Swapped the cold-brew tap hardware on both lines.',
        current_date - 10, now() - interval '9 days', p_dewi,
-       now() - interval '15 days', now() - interval '9 days'),
+       now() - interval '15 days', now() - interval '9 days', now() - interval '9 days'),
     (gen_random_uuid(), v_org, 'Migrate POS to v4', bu_sales, 'Done',
        p_sari, p_dewi, '{}', '{}', 'Cutover to the v4 POS completed across all outlets.',
-       current_date - 14, now() - interval '12 days', p_dewi,
-       now() - interval '20 days', now() - interval '12 days');
+       current_date - 14, now() - interval '2 days', p_dewi,
+       now() - interval '20 days', now() - interval '2 days', now() - interval '2 days');
 
   -- Seed the event clock behind the displayed Last activity, not just a timestamp on
   -- the Task. Keep each intended latest time in the loop record before event triggers
