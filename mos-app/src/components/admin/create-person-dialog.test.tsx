@@ -81,6 +81,16 @@ describe('CreatePersonDialog (AC-011)', () => {
     expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument()
   })
 
+  // #959: Name and Email shared a row via the form-grid rule (styles/form-grid.css) instead of
+  // each sitting on its own full-width row — pin the two fields into the shared grid wrapper.
+  it('AC-959: Name and Email share the shared form-grid row', () => {
+    const { container } = renderDialog()
+    const grid = container.querySelector('.form-grid')
+    expect(grid).toBeInTheDocument()
+    expect(grid!.querySelector('input#' + screen.getByLabelText(/full name/i).id)).toBeInTheDocument()
+    expect(grid!.querySelector('input#' + screen.getByLabelText('Email').id)).toBeInTheDocument()
+  })
+
   it('AC-011: "no email" checkbox is present and toggles email field disabled state', async () => {
     const user = userEvent.setup()
     renderDialog()
