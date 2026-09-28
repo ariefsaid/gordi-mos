@@ -18,7 +18,12 @@
    unlike the old per-page `record-split` class those three only carried once a record was open —
    which left them at the 1180px readable cap at rest and made the frame jump width when a record
    opened. One rule here instead of three repeated `:has()` overrides. */
-.page-frame--v3 .page-frame__content:has(.work-collection) {
+/* #957: Admin People is a list-plus-panel master/detail surface too (same test DESIGN.md's
+   Two-Measure Rule already states for the Work collections), so it takes the same wide measure
+   via its own stable marker — `.admin-people-collection` (pages/admin-users-page.tsx) — rather
+   than a page-specific width. Admin Teams and Admin Access stay single-column settings surfaces
+   at the 1180px default; they render no such marker. */
+.page-frame--v3 .page-frame__content:has(.work-collection, .admin-people-collection) {
   max-width: 1760px;
 }
 
