@@ -126,6 +126,20 @@ describe('must_change_password gate', () => {
     expect(location.reload).not.toHaveBeenCalled()
   })
 
+  it('an expired sign-in says so instead of asking for a retry', async () => {
+    authed(true)
+    const { AuthSessionMissingError } = await import('@supabase/supabase-js')
+    mockUpdateUser.mockResolvedValue({ data: { user: null }, error: new AuthSessionMissingError() } as never)
+    renderApp()
+
+    await userEvent.type(screen.getByLabelText(/new password/i), 'Password1')
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'Password1')
+    await userEvent.click(screen.getByRole('button', { name: /save password/i }))
+
+    expect(await screen.findByText(/your sign-in has expired/i)).toBeInTheDocument()
+    expect(location.reload).not.toHaveBeenCalled()
+  })
+
   it('leaves the gate up when Auth rejects the password', async () => {
     authed(true)
     mockUpdateUser.mockResolvedValue({

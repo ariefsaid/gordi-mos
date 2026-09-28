@@ -1,13 +1,14 @@
-import { isAuthWeakPasswordError, type AuthError } from '@supabase/supabase-js'
+import { isAuthSessionMissingError, isAuthWeakPasswordError, type AuthError } from '@supabase/supabase-js'
 import type { MessageKey } from '@/i18n/messages'
 
 // The sign-in service's refusal of a new password, named in the person's language. The rule itself
 // lives in supabase/config.toml (8+ characters; lower- and uppercase letters and a number) and the
-// service refuses only the current password as a reuse — nothing else is checked here.
+// service refuses only the current password as a reuse. A missing or expired sign-in reaches us as
+// AuthSessionMissingError, which carries no code.
 export function passwordRefusal(error: AuthError): MessageKey {
+  if (isAuthSessionMissingError(error)) return 'auth.password.refused.session'
   if (isAuthWeakPasswordError(error) || error.code === 'weak_password') {
     const reasons: readonly string[] = isAuthWeakPasswordError(error) ? error.reasons ?? [] : []
-    if (reasons.includes('pwned')) return 'auth.password.refused.leaked'
     if (reasons.includes('length') && !reasons.includes('characters')) return 'auth.password.refused.length'
     if (reasons.includes('characters') && !reasons.includes('length')) return 'auth.password.refused.characters'
     return 'auth.password.refused.weak'

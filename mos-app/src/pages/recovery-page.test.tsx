@@ -156,6 +156,38 @@ describe('RecoveryPage', () => {
     expect(screen.queryByText(/that link has expired/i)).not.toBeInTheDocument()
   })
 
+  it('Issue 951: reusing the current password is named on the form, not treated as an expired link', async () => {
+    mockUpdateUser.mockResolvedValue({
+      data: { user: null },
+      error: { code: 'same_password', message: 'refused', status: 422 } as unknown as import('@supabase/supabase-js').AuthError,
+    } as unknown as Awaited<ReturnType<typeof supabase.auth.updateUser>>)
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+    await user.type(screen.getByLabelText('New password'), 'Password1')
+    await user.type(screen.getByLabelText('Confirm password'), 'Password1')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+
+    await waitFor(() => expect(screen.getByText(/that is your current password/i)).toBeInTheDocument())
+    expect(screen.queryByText(/that link has expired/i)).not.toBeInTheDocument()
+  })
+
+  it('Issue 951: a missing recovery session shows the expired-link notice', async () => {
+    const { AuthSessionMissingError } = await import('@supabase/supabase-js')
+    mockUpdateUser.mockResolvedValue({
+      data: { user: null },
+      error: new AuthSessionMissingError(),
+    } as unknown as Awaited<ReturnType<typeof supabase.auth.updateUser>>)
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+    await user.type(screen.getByLabelText('New password'), 'Password1')
+    await user.type(screen.getByLabelText('Confirm password'), 'Password1')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+
+    await waitFor(() => expect(screen.getByText(/that link has expired/i)).toBeInTheDocument())
+  })
+
   it('FR-005: recovery success — calls clearRecovering before navigating home', async () => {
     mockUpdateUser.mockResolvedValue({
       data: { user: {} as unknown as import('@supabase/supabase-js').User },
