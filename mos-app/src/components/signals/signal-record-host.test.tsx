@@ -579,6 +579,53 @@ describe('SignalRecordHost — Create follow-up Task (canonical Task composer, P
     expect(mockCreateTask).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(screen.queryByRole('button', { name: /retry link/i })).not.toBeInTheDocument())
   })
+
+  // AC-051: the success path — Create pops the composer back to the Signal (never navigates to
+  // /work/tasks), and the new Task appears under Linked work with its status.
+  it('AC-051: a successful create pops back to the Signal with the new Task under Linked work', async () => {
+    mockGetPersonTeams.mockResolvedValue([{
+      id: TEAM_ID,
+      name: 'HQ Operations',
+      businessUnitId: BU_ID,
+      siteId: 'site-1',
+      orgId: 'org-1',
+    }])
+    mockLinkSignalTask.mockResolvedValue(undefined)
+    // refreshTaskProjection's re-read of the Signal after a successful link — the created Task
+    // is now under signal_tasks; readTaskTitlesByIds resolves it in the same follow-up read.
+    mockGetSignal.mockResolvedValueOnce({
+      signal: baseSignal, mentions: [], acknowledgements: [], tasks: [],
+    }).mockResolvedValueOnce({
+      signal: baseSignal, mentions: [], acknowledgements: [],
+      tasks: [{ id: 'st-new', signal_id: SIGNAL_ID, task_id: 'task-created', created_by: VIEWER_ID }],
+    })
+    mockGetTaskTitlesByIds.mockResolvedValueOnce([
+      { id: 'task-created', title: 'The freezer alarm went off', status: 'Open' },
+    ])
+    renderHost()
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
+
+    const createTrigger = screen.getByRole('button', { name: /create task/i })
+    await userEvent.click(createTrigger)
+    await screen.findByRole('textbox', { name: /^title$/i })
+    await userEvent.click(await screen.findByRole('combobox', { name: /supervisor/i }))
+    await userEvent.click(screen.getByRole('option', { name: 'Author One' }))
+    const taskComposer = document.querySelector('.signal-task-create-frame') as HTMLElement
+    await userEvent.click(within(taskComposer).getByRole('button', { name: /^create task$/i }))
+
+    await waitFor(() => expect(mockLinkSignalTask).toHaveBeenCalledWith(SIGNAL_ID, 'task-created'))
+    // Never navigates to the Tasks collection — the composer just pops off the Signal.
+    expect(screen.getByTestId('location')).not.toHaveTextContent('/work/tasks')
+    // Back on the Signal: the composer is gone, the new Task reads as a Linked-work row.
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: /^title$/i })).not.toBeInTheDocument())
+    const reach = document.querySelector('[data-signal-region="reach"]') as HTMLElement
+    const newRow = await within(reach).findByRole('link', { name: /The freezer alarm went off.*Open/i })
+    expect(newRow).toHaveAttribute('href', '/work/tasks/task-created')
+    // Focus lands somewhere real and operable, not dropped to <body> — the composer's own
+    // launcher, which the shared overlay/panel-close convention already returns focus to.
+    expect(document.activeElement).not.toBe(document.body)
+    expect(document.activeElement).toBe(createTrigger)
+  })
 })
 
 describe('SignalRecordHost — related Task read failure', () => {

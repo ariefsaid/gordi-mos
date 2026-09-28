@@ -127,9 +127,11 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
     expect(within(row).queryByText('Investigating the grinder.')).not.toBeInTheDocument()
   })
 
-  // AC-074: a legacy row (no `actor` in metadata — every mention notification written before
-  // #774's migration) keeps the honest frozen title rather than rendering "null mentioned you".
-  it('keeps the frozen fallback title on a legacy mention row with no actor metadata (AC-074)', () => {
+  // #774 does NOT implement AC-074's legacy-author resolution (deferred — it would need a batch
+  // Signal-author lookup, not a per-row one). This only pins the honest degradation for a legacy
+  // row (no `actor` in metadata — every mention notification written before #774's migration):
+  // it keeps the frozen fallback title rather than rendering "null mentioned you".
+  it('keeps the frozen fallback title on a legacy mention row with no actor metadata (pending AC-074)', () => {
     renderTriage({ rows: [trow('signal-legacy', {
       title: 'You were mentioned in a Signal',
       body: 'The freezer alarm went off',

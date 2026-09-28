@@ -2,12 +2,10 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-/**
- * AC-049 (doc-grep) — #775's DESIGN.md amendment ships verbatim: § Sanctioned empty-state
- * archetypes gains the Denied archetype (a viewer-inaccessible record renders `blank` + one
- * `Back`, never a retriable ErrorState). Mirrors the #770 doc-grep pattern
- * (design-amendment-p1-p2.test.ts) — a pinning test, not a rendering assertion.
- */
+// AC-049 (doc-grep) — #775's DESIGN.md amendment: § Sanctioned empty-state archetypes gains the
+// Denied archetype (a viewer-inaccessible record renders `blank` + one `Back`, never a retriable
+// ErrorState). Mirrors the #770 doc-grep pattern (design-amendment-p1-p2.test.ts) — a pinning
+// test, not a rendering assertion.
 const DESIGN = readFileSync(resolve(process.cwd(), '..', 'DESIGN.md'), 'utf8')
 
 function archetypesSection(): string {
