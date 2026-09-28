@@ -48,11 +48,12 @@ Updates + per-Activity ops + reference data + money follow-ups. Ships at
   - owner observations: `feedback`, into issues before anything is built;
   - fog and decisions: `wayfinder`, `grilling`, `domain-modeling`, `research`, `prototype`;
   - spec and tickets: `to-spec`, `to-tickets`, `triage`; goals and briefs: `writing-agent-goals`;
-  - build: `implement` with `tdd`, `codebase-design`, `diagnosing-bugs`; ponytail's ladder first
-    (vendor before build) and `ponytail-review` on the diff;
-  - UI: `impeccable` (Operate first-look, then its critique, layout, clarify, adapt, harden, audit
-    and polish references), `ui-ux-pro-max` search, `taste`;
-  - review: `code-review` (three lenses); the rendered pass uses the calibrated reviewer.
+  - build: `drive` and the factory for ordinary tickets (Workflow below); `implement` with `tdd` in
+    hands-on lanes; `codebase-design`, `diagnosing-bugs`; ponytail's ladder first (vendor before
+    build) and `ponytail-review` on the diff;
+  - UI: `impeccable` (`operate` first, then its critique, layout, clarify, adapt, harden, audit and
+    polish references), `ui-ux-pro-max` search, `taste`;
+  - review: `code-review`; rendered judgment per the Test pyramid.
 - Every brief names its skills plan: which skill, which phase, what evidence it leaves. Naming a
   skill is not evidence it ran.
 - Vendor before build: a proven library (MIT, Apache-2.0 or MPL-2.0 only) over a hand-built
