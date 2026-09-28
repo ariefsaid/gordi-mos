@@ -43,14 +43,15 @@ Updates + per-Activity ops + reference data + money follow-ups. Ships at
 
 ## Standing principles (owner)
 
-- Route work through the skills; unsure which, `/ask-matt`. Owner observations go through
-  `/feedback` into issues before anything is built. Every brief names its skills plan: which skill,
-  which phase, what evidence it leaves. Naming a skill is not running it.
-- Vendor before build: a proven library (MIT, Apache-2.0 or MPL-2.0; never AGPL/GPL) over a
-  hand-built control, behind a MOS-owned interface.
-- A record is typed fields plus an authored block document (OD-REDESIGN-16, ADR-0052).
-- UI review is exhaustive: every route, width and control state, each finding searched for as a
-  class. Never a top-N pass.
+- Route work through the skills; unsure which, read and follow `ask-matt`. Owner observations go
+  through `feedback` (read and follow its SKILL.md) into issues before anything is built. Every brief
+  names its skills plan: which skill, which phase, what evidence it leaves.
+- Vendor before build: a proven library (MIT, Apache-2.0 or MPL-2.0 only) over a hand-built
+  control, behind a MOS-owned interface.
+- A record is typed fields plus an authored block document (OD-REDESIGN-16).
+- A milestone or final rendered UI review is exhaustive: every route, width and control state, each
+  finding searched for as a class, never a top-N pass. Ordinary tickets still check only their
+  touched and connected surfaces.
 
 ## UI review and improvement tasks
 
