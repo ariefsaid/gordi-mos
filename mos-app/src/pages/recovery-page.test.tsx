@@ -151,7 +151,7 @@ describe('RecoveryPage', () => {
     await user.click(screen.getByRole('button', { name: /save password/i }))
 
     await waitFor(() => {
-      expect(screen.getByText(/password should contain/i)).toBeInTheDocument()
+      expect(screen.getByText(/not strong enough/i)).toBeInTheDocument()
     })
     expect(screen.queryByText(/that link has expired/i)).not.toBeInTheDocument()
   })

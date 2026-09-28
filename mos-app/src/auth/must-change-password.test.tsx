@@ -109,6 +109,23 @@ describe('must_change_password gate', () => {
     expect(mockUpdateUser).toHaveBeenCalledWith({ password: 'correct horse battery' })
   })
 
+  it.each([
+    ['same_password', /that is your current password/i],
+    ['over_request_rate_limit', /too many attempts/i],
+    ['unexpected_failure', /couldn't set that password/i],
+  ])('names the refusal the sign-in service gave (%s)', async (code, message) => {
+    authed(true)
+    mockUpdateUser.mockResolvedValue({ data: { user: null }, error: { code, message: 'refused' } } as never)
+    renderApp()
+
+    await userEvent.type(screen.getByLabelText(/new password/i), 'Password1')
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'Password1')
+    await userEvent.click(screen.getByRole('button', { name: /save password/i }))
+
+    expect(await screen.findByText(message)).toBeInTheDocument()
+    expect(location.reload).not.toHaveBeenCalled()
+  })
+
   it('leaves the gate up when Auth rejects the password', async () => {
     authed(true)
     mockUpdateUser.mockResolvedValue({
@@ -123,7 +140,7 @@ describe('must_change_password gate', () => {
     await userEvent.type(screen.getByLabelText(/confirm password/i), 'password1')
     await userEvent.click(screen.getByRole('button', { name: /save password/i }))
 
-    expect(await screen.findByText(/too weak/i)).toBeInTheDocument()
+    expect(await screen.findByText(/not strong enough/i)).toBeInTheDocument()
     expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
     expect(location.reload).not.toHaveBeenCalled()
   })
