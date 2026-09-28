@@ -143,8 +143,16 @@
    popover trigger's "label value" copy ("Current status Active …" needs more) — a Tasks filter
    that genuinely needs that narrower budget re-asserts its own width via a more specific
    `[data-filter-id=…] .collection-toolbar__select` rule, so exempting the base class here does
-   not reopen that intentional ellipsis-with-title contraction. */
+   not reopen that intentional ellipsis-with-title contraction.
+   #956: a host renders BOTH classes on one element (`className="collection-toolbar__select
+   collection-toolbar__choice"`, above). Two single-class rules of equal specificity are a
+   stylesheet-order trap — `.collection-toolbar__select`'s cap happened to win because it is
+   declared later in this file, silently reopening the 180px budget this comment already says
+   should not apply. The compound selector below outranks it on SPECIFICITY, so the exemption
+   holds regardless of where either rule is declared (owner repro: Projects & Processes → Current
+   status → tick Include archived — "Active + archived" ran past the button under the chevron). */
 .collection-toolbar__choice { position: relative; max-width: none; }
+.collection-toolbar__select.collection-toolbar__choice { max-width: none; }
 .collection-toolbar__choice-trigger {
   display: flex;
   align-items: center;
@@ -178,7 +186,12 @@
   font-size: var(--font-size-label);
   white-space: nowrap;
 }
-/* The value reads whole — the trigger sizes to it (above) instead of clipping it. */
+/* The value reads whole — the trigger sizes to it (above) instead of clipping it. Ratified by
+   collection-toolbar.css.test.ts ("the base choice trigger sizes to its value instead of clipping
+   it"): this element must never carry `overflow: hidden` / `text-overflow: ellipsis` — #956's fix
+   is the specificity correction above (`.collection-toolbar__select.collection-toolbar__choice`),
+   which is what actually let this rule's own `min-width: 0` shrink the box below its content in
+   the first place; ellipsizing the symptom here would fight that ruling, not honour it. */
 .collection-toolbar__choice-value {
   min-width: 0;
   white-space: nowrap;
