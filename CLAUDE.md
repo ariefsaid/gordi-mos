@@ -41,6 +41,28 @@ Updates + per-Activity ops + reference data + money follow-ups. Ships at
 
 **Usability and speed beat model completeness.**
 
+## Standing principles (owner)
+
+- Route every phase through its skills, reading each SKILL.md and following its flow (owner-typed
+  ones included); unsure which, `ask-matt`:
+  - owner observations: `feedback`, into issues before anything is built;
+  - fog and decisions: `wayfinder`, `grilling`, `domain-modeling`, `research`, `prototype`;
+  - spec and tickets: `to-spec`, `to-tickets`, `triage`; goals and briefs: `writing-agent-goals`;
+  - build: `drive` and the factory for ordinary tickets (Workflow below); `implement` with `tdd` in
+    hands-on lanes; `codebase-design`, `diagnosing-bugs`; ponytail's ladder first (vendor before
+    build) and `ponytail-review` on the diff;
+  - UI: `impeccable` (`operate` first, then its critique, layout, clarify, adapt, harden, audit and
+    polish references), `ui-ux-pro-max` search, `taste`;
+  - review: `code-review`; rendered judgment per the Test pyramid.
+- Every brief names its skills plan: which skill, which phase, what evidence it leaves. Naming a
+  skill is not evidence it ran.
+- Vendor before build: a proven library (MIT, Apache-2.0 or MPL-2.0 only) over a hand-built
+  control, behind a MOS-owned interface.
+- A record is typed fields plus an authored block document (OD-REDESIGN-16).
+- A milestone or final rendered UI review is exhaustive: every route, width and control state, each
+  finding searched for as a class, never a top-N pass. Ordinary tickets still check only their
+  touched and connected surfaces.
+
 ## UI review and improvement tasks
 
 For every UI/UX/IA/IxD iteration, use `docs/takeover/mvp-ui-continuation.md` in the main checkout
@@ -183,8 +205,9 @@ Under OD-REDESIGN-88, understood seams may use test-with against the current beh
 visual placement assertions change when the owner-authorized workflow changes;
 retain red-first for bug fixes, uncertain logic and protected interaction-contract changes.
 Automatic UI guards and changed-surface browser checks run per change. Deep rendered judgment
-covers touched and connected surfaces at a signed milestone boundary, or when the ticket's
-contract explicitly requires it; ordinary tickets do not repeat the whole-product assessment.
+covers every route at a signed milestone boundary (see Standing principles), and touched and
+connected surfaces when the ticket's contract explicitly requires it; ordinary tickets do not
+repeat the whole-product assessment.
 Initial visual critique runs before fixes and is independent of detector findings; final rendered
 confirmation follows fixes. Rendered visual judgment belongs to an independent image-capable reviewer: `fe_reviewer` qualifies only
 after a real image-transport and candidate-binding probe succeeds, otherwise use a separate
