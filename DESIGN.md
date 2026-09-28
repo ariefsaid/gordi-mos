@@ -777,7 +777,7 @@ outside the single "View & filters" door; the door never carries the surface pri
   destination roots only (≤6, never children at rest — children match by typed name); **ACT** with
   the three universal actions. Phone palette: search only — navigation is the tab bar, actions are
   the launcher.
-- **Record panel:** the collection click target is a wide right-side panel on desktop, sized to the shared `--record-panel-w` (`clamp(440px, 40%, 640px)`), not a centered record popup. It retains the collection, uses the RecordViewer anatomy, and becomes full-screen on phone.
+- **Record panel:** the collection click target is a wide right-side panel on desktop, sized to the shared `--record-panel-w` (`clamp(440px, 40%, 640px)`), not a centered record popup. It retains the collection, uses the RecordViewer anatomy, and becomes full-screen on phone. A follow-up create action (for example `Create task` from a Signal) pushes a compact frame onto the SAME panel stack and pops back to the record on save — it never navigates the record away to a different collection's route. Phone and the ≥1300 page regime stack the same frame over the record page.
 - **Menus, confirmations, and feedback:** menus/pickers stay anchored to their trigger; destructive confirmation is one centered blocking dialog; toasts are brief status feedback and never a second navigation surface. Every real overlay owns focus entry, Escape/close, and focus return.
 
 ### Metric summary rule (v4, 2026-07-27)
