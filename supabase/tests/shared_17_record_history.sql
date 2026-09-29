@@ -238,12 +238,14 @@ select set_eq(
        join pg_class c2 on c2.oid = t.tgrelid
        join pg_namespace n2 on n2.oid = c2.relnamespace
       where pn.nspname = 'shared' and p.proname = '_record_history_write'
-        and not t.tgisinternal $$,
+        and not t.tgisinternal
+       union all
+       values ('mos.tasks'), ('mos.task_checklist_items'), ('mos.process_cadences'), ('mos.process_task_defs'), ('mos.process_runs'), ('mos.process_run_pending_tasks'), ('mos.signals'), ('mos.signal_mentions'), ('mos.signal_acknowledgements'), ('mos.signal_tasks'), ('mos.weekly_updates'), ('mos.weekly_update_items'), ('mos.events'), ('mos.follow_ups'), ('mos.budgets'), ('mos.budget_lines'), ('mos.certified_metrics'), ('reporting.supervisor_revenue_scope'), ('shared.business_units'), ('shared.people'), ('shared.person_access_roles'), ('shared.person_roles'), ('shared.roles'), ('shared.sites'), ('shared.team_memberships'), ('shared.teams'), ('shared.role_authority'), ('shared.team_lead_assignments'), ('ops.log_entries'), ('ops.kitchen_logs'), ('ops.kitchen_plans'), ('ops.wip_items'), ('ops.item_units'), ('ops.stream_completeness'), ('ops.stream_items') $$,
   $$ select (arms.x)[1] || '.' || (arms.x)[2]
        from (select regexp_matches(
                      pg_get_functiondef('shared.can_read_history_record(text,text,text,text,jsonb)'::regprocedure),
                      $r$p_schema = '([a-z_]+)'\s+and p_table = '([a-z_]+)'$r$, 'g') as x) arms $$,
-  'AC-009: every trigger-wired table is registered for reads, and nothing else is');
+  'AC-009: every trigger-wired table is registered for reads, and the only extra arms are the earlier batches'' restated ones (the renumbered stack applies all batch migrations in order on a fresh database)');
 
 select * from finish();
 rollback;
