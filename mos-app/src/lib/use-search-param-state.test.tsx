@@ -2,19 +2,13 @@ import { describe, it, expect, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useSearchParamState } from './use-search-param-state'
 
-/**
- * Calibration finding (MVP wave 1, Café Plan item search): fast typing drops characters.
- *
- * `useSearchParamState` used to derive the displayed value STRAIGHT from
- * `params.get(key)` — react-router's own state, refreshed only once a `setSearchParams`
- * call's navigation has actually committed a render. A navigation is not instant (it goes
- * through `navigate()` and a history write before the hook's own `useSearchParams()` call
- * sees the new value on its NEXT render); typing faster than that round trip means the
- * displayed value can still be reading the router's PRE-keystroke state when the next
- * keystroke's `onChange` fires. Mocking `useSearchParams` to control exactly when the
- * router "catches up" reproduces that gap deterministically — no reliance on jsdom/act
- * timing standing in for a real browser's event loop.
- */
+// Calibration finding (MVP wave 1, Café Plan item search): fast typing drops characters.
+// `useSearchParamState` used to read the displayed value straight from `params.get(key)`,
+// react-router's own state, which only refreshes once a `setSearchParams` navigation has
+// actually committed — typing faster than that round trip read the PRE-keystroke state.
+// Mocking `useSearchParams` controls exactly when the router "catches up", reproducing the
+// gap deterministically instead of relying on jsdom/act timing to stand in for a real
+// browser's event loop.
 const setParams = vi.fn()
 let mockParamValue: string | null = null
 
@@ -54,5 +48,27 @@ describe('useSearchParamState — fast typing must not drop characters', () => {
     mockParamValue = 'x'
     rerender()
     expect(result.current[0]).toBe('x')
+  })
+
+  // gpt-6-luna review (74d4ebf7): comparing only against the LATEST write let a STALE echo of
+  // an older keystroke regress the box once it finally landed out of order.
+  it('a stale write for an older keystroke landing after a newer one is already shown does not regress the box', () => {
+    mockParamValue = null
+    const { result, rerender } = renderHook(() => useSearchParamState('q', ''))
+
+    // "a" then "ab" typed back to back, before the router has committed either navigation.
+    act(() => result.current[1]('a'))
+    act(() => result.current[1]('ab'))
+    expect(result.current[0]).toBe('ab')
+
+    // The router finally commits the STALE "a" write — out of order, after "ab" is on screen.
+    mockParamValue = 'a'
+    rerender()
+    expect(result.current[0]).toBe('ab') // must NOT regress to the stale value
+
+    // The newer "ab" write then lands too.
+    mockParamValue = 'ab'
+    rerender()
+    expect(result.current[0]).toBe('ab')
   })
 })

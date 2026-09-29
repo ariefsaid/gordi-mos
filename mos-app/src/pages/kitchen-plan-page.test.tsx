@@ -56,6 +56,7 @@ vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
 // "Your Team" tagging (myStreamKeys) — empty by default here; tests that care override it.
 vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn().mockResolvedValue([]) }))
 import { fetchDefaultStream } from '@/lib/db/default-stream'
+import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 
 vi.mock('@/lib/db/kitchen-plans', () => ({
   listKitchenPlans: vi.fn(),
@@ -663,6 +664,39 @@ describe('KitchenPlanPage — stream supervisor editor (#784 AC-057)', () => {
     fireEvent.blur(input)
     await waitFor(() => expect(mockUpsert).toHaveBeenCalled())
     expect(mockUpsert.mock.calls[0][0].qty_porsi).toBe(20)
+  })
+
+  // gpt-6-luna review (74d4ebf7): the gate above was ROLE-only — any supervisor got the
+  // editor for whatever stream she happened to be viewing, and RLS (ops.is_stream_reviewer)
+  // rejects a write on a stream she doesn't hold. The field itself must check the SELECTED
+  // stream, not only the role.
+  it("issue 783/784 hardening: her field disables on a stream she does not hold, even though her role opened the editor face", async () => {
+    mockPlans.mockResolvedValue(PLAN_CELLS)
+    render(<KitchenPlanPage />, { wrapper })
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toBeEnabled()
+
+    // Same branch, a DIFFERENT stream (bar, not her kitchen home) — she holds no membership
+    // on it at all (the default listCafeViewerTeams mock resolves []).
+    chooseStream('Rumah Rames · Bar')
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toBeDisabled()
+  })
+
+  it('issue 783/784 hardening: an OPEN-ENDED membership on that other stream keeps it writable', async () => {
+    mockPlans.mockResolvedValue(PLAN_CELLS)
+    vi.mocked(listCafeViewerTeams).mockResolvedValue([
+      {
+        id: 'team-rrs-bar', name: 'Rumah Rames Bar', business_unit_id: 'bu-1', site_id: null,
+        is_primary: false, branch_id: BRANCHES[0].id, activity: 'bar', effective_to: null,
+      },
+    ])
+    render(<KitchenPlanPage />, { wrapper })
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+
+    chooseStream('Rumah Rames · Bar')
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toBeEnabled()
   })
 })
 

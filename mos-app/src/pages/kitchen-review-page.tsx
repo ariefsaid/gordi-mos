@@ -34,6 +34,8 @@ import { listActiveBranches } from '@/lib/db/branches'
 // #783 (DB half #778): a supervisor reviews every stream she holds a LIVE MEMBERSHIP on, not
 // only her primary — the same read useCafeStream already runs for "Your Team" tagging.
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
+import type { CafeViewerTeam } from '@/lib/db/cafe-opening'
+import { isReviewerEligibleTeam } from '@/lib/kitchen-gates'
 import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 import { deriveActionLabel, movementKey, streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import type { Translate } from '@/i18n/use-t'
@@ -217,8 +219,9 @@ function KitchenReviewDecision({
     // #783 AC-052 (DB half #778): a reviewer note is required only when the row is off-plan
     // AND the submitter left none — the submitter's own note already accounts for the
     // variance, so asking a reviewer to restate it in a second box was a redundant blocking
-    // prompt on every off-plan approval, not a real safeguard.
-    if (!offPlan || log.notes) {
+    // prompt on every off-plan approval, not a real safeguard. Trimmed, matching the DB's own
+    // `nullif(btrim(notes),'')` — a whitespace-only note is not an explanation.
+    if (!offPlan || log.notes?.trim()) {
       onApprove(log.id, null)
       return
     }
@@ -459,7 +462,7 @@ function KitchenReviewPageForViewer() {
         // streams, never the surface (matches useCafeStream's own handling of this read).
         isSupervisor && viewerId
           ? listCafeViewerTeams(viewerId).catch(() => [])
-          : Promise.resolve([]),
+          : Promise.resolve<CafeViewerTeam[]>([]),
       ])
       const ownStream = await fetchDefaultStream(branchRows)
       // Fetch the plan baseline for every DISTINCT (branch, activity) stream present in
@@ -480,12 +483,12 @@ function KitchenReviewPageForViewer() {
       if (gen !== requestGen.current) return
       const ownKey = ownStream ? streamKey(ownStream.branch.id, ownStream.activity) : null
       const catalog = streamCatalogFrom(pairs, branchRows)
-      // #783 AC-051: every stream Team she is a CURRENT member of, plus her primary — the
-      // binding rule (a secondary membership never becomes the default) is about `stream`
-      // choice, not about decide rights, which #778 widened to any live membership.
+      // #783 AC-051: every stream Team she holds an OPEN-ENDED membership on, plus her
+      // primary — matches ops.is_stream_reviewer exactly (isReviewerEligibleTeam); a
+      // finite-end membership is current for display elsewhere but not a decide right here.
       const teamKeys = myTeams
-        .filter((team) => team.branch_id !== null && team.activity !== null)
-        .map((team) => streamKey(team.branch_id as string, team.activity!))
+        .filter(isReviewerEligibleTeam)
+        .map((team) => streamKey(team.branch_id, team.activity))
       const myKeys = new Set(teamKeys)
       if (ownKey) myKeys.add(ownKey)
       setLogs(rows)

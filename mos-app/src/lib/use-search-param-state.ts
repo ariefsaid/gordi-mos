@@ -12,12 +12,11 @@
 // The displayed value is a LOCAL echo, not `params.get(key)` read straight — calibration finding,
 // MVP wave 1: fast typing in Café Plan's item search dropped characters. A `setSearchParams` call
 // goes through `navigate()` and a history write before this hook's own `useSearchParams()` reports
-// the new value on its NEXT render; a keystroke landing before that round trip completes was
-// reading the router's PRE-keystroke state, so the box could visibly regress mid-typing. `local`
-// updates synchronously with every `setValue` call, so the box always shows what was just typed
-// regardless of how long the URL write takes to land. It only adopts a URL value when that value
-// did NOT come from this hook's own last write — i.e. an external change (back/forward, a shared
-// reset) — so the two never fight over which is authoritative.
+// the new value on its NEXT render, so a keystroke landing before that round trip completes was
+// reading the router's PRE-keystroke state. `local` updates synchronously with every `setValue`
+// call instead. Only a urlValue this hook did NOT itself write is adopted as an external change
+// (back/forward, a shared reset) — see `pendingWrites` below for how a same-hook write is told
+// apart from one.
 import { useCallback, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
@@ -29,27 +28,28 @@ export function useSearchParamState(
   const urlValue = params.get(key) ?? defaultValue
 
   const [local, setLocal] = useState(urlValue)
-  const lastWritten = useRef(urlValue)
-  // What the URL read as of the PREVIOUS render — the only way to tell "the router is still
-  // catching up to what we just wrote" (urlValue unchanged since last render, lastWritten has
-  // moved on) apart from "something else navigated" (urlValue itself changed). Gating on
-  // `lastWritten` alone cannot tell these apart: a write that hasn't landed yet leaves urlValue
-  // permanently behind lastWritten, which would misread as an external change every render
-  // until the navigation lands — regressing `local` back to the stale value mid-typing, the
-  // exact defect this hook exists to fix.
+  // FIFO of values THIS hook wrote that the URL hasn't echoed back yet. Typing "a" then "ab"
+  // before the first navigation commits queues both; if the router delivers them out of order
+  // (the stale "a" landing AFTER "ab" is already on screen), matching against the queue — not
+  // just the latest write — lets that stale echo be dropped instead of regressing `local` back
+  // to "a". A urlValue that matches nothing in the queue is a genuine external change.
+  const pendingWrites = useRef<string[]>([])
   const prevUrlValue = useRef(urlValue)
   if (urlValue !== prevUrlValue.current) {
     prevUrlValue.current = urlValue
-    if (urlValue !== lastWritten.current) {
-      lastWritten.current = urlValue
+    const idx = pendingWrites.current.indexOf(urlValue)
+    if (idx === -1) {
+      pendingWrites.current = []
       setLocal(urlValue)
+    } else {
+      pendingWrites.current = pendingWrites.current.slice(idx + 1)
     }
   }
 
   const setValue = useCallback(
     (next: string) => {
       const normalized = !next || next === defaultValue ? defaultValue : next
-      lastWritten.current = normalized
+      pendingWrites.current.push(normalized)
       setLocal(normalized)
       setParams(
         (prev) => {

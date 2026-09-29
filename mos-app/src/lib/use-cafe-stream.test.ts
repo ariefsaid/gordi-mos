@@ -121,11 +121,11 @@ describe('useCafeStream — the shared Café bootstrap', () => {
     vi.mocked(listCafeViewerTeams).mockResolvedValue([
       {
         id: 'team-office', name: 'Ops Office', business_unit_id: 'bu-1', site_id: null,
-        is_primary: true, branch_id: null, activity: null,
+        is_primary: true, branch_id: null, activity: null, effective_to: null,
       },
       {
         id: 'team-rr-kitchen', name: 'Rumah Rames Kitchen', business_unit_id: 'bu-1', site_id: null,
-        is_primary: false, branch_id: BRANCH_RR.id, activity: 'kitchen',
+        is_primary: false, branch_id: BRANCH_RR.id, activity: 'kitchen', effective_to: null,
       },
     ])
 

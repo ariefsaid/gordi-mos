@@ -28,7 +28,10 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useSearchParamState } from '@/lib/use-search-param-state'
 import { isItemNotOnStreamError, listActiveWipItems, listStreamItemIds } from '@/lib/db/kitchen-logs'
 import { useCafeStream } from '@/lib/use-cafe-stream'
-import { canEditCafePlan } from '@/lib/kitchen-gates'
+import { canEditCafePlan, isReviewerEligibleTeam } from '@/lib/kitchen-gates'
+import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
+import type { CafeViewerTeam } from '@/lib/db/cafe-opening'
+import { streamKey } from '@/lib/kitchen-action-label'
 import { listKitchenPlans, listPesanan, upsertKitchenPlan } from '@/lib/db/kitchen-plans'
 import type {
   KitchenMovement,
@@ -127,6 +130,15 @@ function PlanEditor() {
   const t = useT()
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
   const [logDate] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
+  // #784 AC-057 hardening (gpt-6-luna review): canEditCafePlan only picked the FACE — every
+  // supervisor got the editor regardless of stream, and RLS (ops.is_stream_reviewer) rejects
+  // a write against a stream she doesn't hold. isLeadOrAdmin writes everywhere (matches the
+  // DB's unconditional OR); a supervisor needs the SELECTED stream itself checked below.
+  const auth = useAuth()
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
+  const isLeadOrAdmin = auth.status === 'authenticated'
+    && (auth.viewer.accessRoles.includes('ops_lead') || auth.viewer.accessRoles.includes('admin'))
+  const [reviewerStreamKeys, setReviewerStreamKeys] = useState<ReadonlySet<string>>(new Set())
   // The enumerable stream catalog (FR-005) — the head picker's options (#440). The branch
   // catalog comes with it: the MOVEMENT control derives its destinations from the producing
   // stream catalog, which is a different question from which stream this plan belongs to.
@@ -141,6 +153,15 @@ function PlanEditor() {
   const streamNonProducing = stream !== null && !streamCanProduce
   const planWriteClosed = streamMissing || streamNonProducing
   const movementOptions = stream ? movementsForStream(stream, streamOptions) : []
+  // Her own/current default stream is always writable (same trust the Review queue places in
+  // it — issue 783); any OTHER stream needs an open-ended membership matching the DB's own
+  // ops.is_stream_reviewer check (reviewerStreamKeys, isReviewerEligibleTeam).
+  const homeKey = homeStream ? streamKey(homeStream.branch.id, homeStream.activity) : null
+  const currentStreamKey = stream ? streamKey(stream.branch.id, stream.activity) : null
+  const canWriteStream = isLeadOrAdmin || (
+    currentStreamKey !== null
+    && (currentStreamKey === homeKey || reviewerStreamKeys.has(currentStreamKey))
+  )
   const receivingOnlyNotice = (
     <section className="kp-receiving-only" role="status" aria-labelledby="kp-receiving-only-title">
       <div className="kp-receiving-only-copy">
@@ -200,7 +221,16 @@ function PlanEditor() {
     const gen = ++requestGen.current
     setLoad({ kind: 'loading' })
     try {
-      const [itemRows, catalog] = await Promise.all([listActiveWipItems(), resolveStream()])
+      const [itemRows, catalog, myTeams] = await Promise.all([
+        listActiveWipItems(),
+        resolveStream(),
+        // Only a supervisor's per-stream write authority depends on this; ops_lead/admin
+        // already write everywhere. Display only: a failure drops the extra streams, never
+        // the surface (matches useCafeStream's own handling of this read).
+        isLeadOrAdmin || !viewerId
+          ? Promise.resolve<CafeViewerTeam[]>([])
+          : listCafeViewerTeams(viewerId).catch(() => []),
+      ])
       const [planCells, offered] = catalog.stream
         ? await Promise.all([listKitchenPlans(logDate, catalog.stream), listStreamItemIds(catalog.stream)])
         : [[], null]
@@ -211,11 +241,14 @@ function PlanEditor() {
       adoptStream(catalog)
       setMovement(PRODUCE)
       setCells(planCells)
+      setReviewerStreamKeys(new Set(
+        myTeams.filter(isReviewerEligibleTeam).map((team) => streamKey(team.branch_id, team.activity)),
+      ))
       setLoad({ kind: 'ready' })
     } catch {
       if (gen === requestGen.current) setLoad({ kind: 'error' })
     }
-  }, [logDate, resolveStream, adoptStream])
+  }, [logDate, resolveStream, adoptStream, isLeadOrAdmin, viewerId])
 
   useEffect(() => { fetchEditor() }, [fetchEditor, retryKey])
 
@@ -269,6 +302,9 @@ function PlanEditor() {
       setSaveError(t('kitchen.plan.stream.nonProducing'))
       return
     }
+    // #784 AC-057 hardening: the field is already disabled when !canWriteStream, but re-check
+    // here too — same defense-in-depth as the stream/producer checks above it.
+    if (!canWriteStream) return
     const current = qtyOf(wipItemId)
     if (!canPlan(wipItemId)) return
     if (nextQty === current) return
@@ -376,7 +412,7 @@ function PlanEditor() {
               // #548 FR-006: a missing or receiving-only stream keeps the committed value
               // readable but closes the field; offline also pre-disables it. Commit state
               // renders beside the field at the page.
-              disabled={!isOnline || planWriteClosed || !canPlan(item.id)}
+              disabled={!isOnline || planWriteClosed || !canWriteStream || !canPlan(item.id)}
               onSave={next => saveCell(item.id, next)}
               dense={isDesktop}
             />
@@ -423,7 +459,7 @@ function PlanEditor() {
           <PlanQtyField
             itemName={item.name}
             qty={qtyOf(item.id)}
-            disabled={!isOnline || planWriteClosed || !canPlan(item.id)}
+            disabled={!isOnline || planWriteClosed || !canWriteStream || !canPlan(item.id)}
             onSave={next => saveCell(item.id, next)}
           />
         </div>

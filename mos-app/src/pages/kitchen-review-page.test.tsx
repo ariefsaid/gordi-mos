@@ -435,6 +435,26 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     expect(screen.queryByRole('textbox', { name: /approve note/i })).toBeNull()
     await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', null))
   })
+
+  // gpt-6-luna review (74d4ebf7): the DB requires `nullif(btrim(old.notes),'') is null` — a
+  // whitespace-only submitter note is not a real explanation of the variance. The frontend's
+  // truthiness check (`log.notes`) let '   ' skip the gate, so Approve would call the RPC
+  // with no reviewer note and the DB itself would raise "an off-plan approval requires a
+  // reviewer note".
+  it('issue 783 AC-052: a WHITESPACE-ONLY submitter note still opens the reviewer-note gate', async () => {
+    mockList.mockResolvedValue([{ ...PROD_LOG, notes: '   ' }])
+    mockPlan.mockResolvedValue({ w1: { produce: 12 } }) // plan 12 → off-plan
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-012' })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
+    // first click reveals the note gate — a blank submitter note is not an explanation
+    expect(mockApprove).not.toHaveBeenCalled()
+    const note = screen.getByRole('textbox', { name: /approve note for nasi goreng/i })
+    fireEvent.change(note, { target: { value: 'short on stock' } })
+    fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', 'short on stock'))
+  })
 })
 
 describe('KitchenReviewPage — reject (FR-041, AC-041)', () => {
@@ -724,7 +744,7 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     vi.mocked(listCafeViewerTeams).mockResolvedValue([
       {
         id: 'team-radiant-bar', name: 'Radiant Bar', business_unit_id: 'bu-1', site_id: null,
-        is_primary: false, branch_id: RADIANT_ID, activity: 'bar',
+        is_primary: false, branch_id: RADIANT_ID, activity: 'bar', effective_to: null,
       },
     ])
     mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
@@ -736,6 +756,32 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     expect(screen.getByRole('button', { name: /approve nasi goreng/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /approve es kopi/i })).toBeInTheDocument()
     expect(screen.queryByText('Ops lead decides')).not.toBeInTheDocument()
+  })
+
+  // gpt-6-luna review (74d4ebf7): `ops.is_stream_reviewer` (the RPC's own authority check)
+  // admits only an OPEN-ENDED membership. `listCafeViewerTeams` also returns a membership with
+  // a finite end date — current for "Your Team" display — and the page was treating that the
+  // same as an open-ended one, offering decide controls the RPC would then refuse.
+  it("issue 783 AC-051: a FINITE-END second-stream membership does NOT grant decide rights (the DB would refuse it)", async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' }) // primary: RRS · kitchen
+    // A membership on Radiant · bar that is CURRENT but ends on a known date — not the
+    // open-ended membership ops.is_stream_reviewer requires.
+    vi.mocked(listCafeViewerTeams).mockResolvedValue([
+      {
+        id: 'team-radiant-bar', name: 'Radiant Bar', business_unit_id: 'bu-1', site_id: null,
+        is_primary: false, branch_id: RADIANT_ID, activity: 'bar', effective_to: '2026-12-31',
+      },
+    ])
+    mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    chooseStream('All streams')
+    await screen.findByText('Es Kopi')
+    // her primary stream still decides; the finite-end stream reads "Ops lead decides".
+    expect(screen.getByRole('button', { name: /approve nasi goreng/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /approve es kopi/i })).toBeNull()
+    expect(screen.getAllByText('Ops lead decides').length).toBeGreaterThan(0)
   })
 
   it('FR-043: the production-first gate is PER STREAM — another stream\'s pending production does not lock this one\'s transfer', async () => {
