@@ -13,12 +13,18 @@
 // The isNew draft does not bend this row's columns into a form: it renders TaskCreateForm
 // (task-create-form.tsx) inside a single full-width colSpan row, the SAME component the phone
 // card path renders (mobile-grouped-cards.tsx TaskCard).
-import type { Ref } from 'react'
+//
+// #997: the row's <td> chain is derived from the ONE column list (task-columns.tsx) — the
+// same array the <thead> renders — filtered by the shared `taskColumnIsVisible` mapping
+// against `visibleFields`. Per-column CONTENT dispatches through an exhaustive
+// `Record<TaskColumnId, …>`; the inline editors and their wiring are unchanged.
+import type { ReactNode, Ref } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
 import '@/components/collection-grammar.css'
 import { Link } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { dueStatus, isOverdue } from '@/lib/due-status'
+import type { TaskCollectionVisibleField } from '@/lib/record-collection/collection-view-spec'
+import { isOverdue } from '@/lib/due-status'
 import { useInlineCommit } from '@/components/ui/use-inline-commit'
 import { StatusPill } from './status-pill'
 import { statusTone } from './status-tone'
@@ -28,6 +34,8 @@ import { formatDate, formatAge } from './task-formatters'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { TaskCreateForm } from './task-create-form'
+import { visibleTaskColumnDefs, taskColumnTdClass } from './task-columns'
+import { TASK_DECISION_FIELDS, type TaskColumnId } from './task-collection-query'
 
 export type TaskTeamOption = {
   id: string
@@ -82,14 +90,12 @@ export type TaskRowProps = {
   /** Draft-only independent Supervisor control. */
   onEditSupervisor?: (taskId: string, personId: string) => Promise<void>
   teamOptions?: readonly TaskTeamOption[]
-  showBusinessUnit?: boolean
-  /** AC-006 (#743): each Fields-chooser column renders a real cell when checked. The names are
-   * resolved by the caller through the same catalogs the group headers use. */
-  showWorkline?: boolean
+  /** AC-006 (#743) / #997: the query's visible Fields — each checked field renders its column
+   * (column set and order come from task-columns.tsx). Display names resolve through the same
+   * catalogs the group headers use. */
+  visibleFields?: readonly TaskCollectionVisibleField[]
   workLineName?: string
-  showObjective?: boolean
   objectiveName?: string
-  showActivity?: boolean
   isNew?: boolean
   onDiscardNewTask?: () => void
   createError?: boolean
@@ -116,19 +122,16 @@ export function TaskRow({
   task, now, condensed, isSelected, isCursor, justCreated = false, leafIndex, cursorRowRef,
   ownerName, onOpen,
   supervisorName = '', businessUnitName = '', recordSearch = '', provenanceRoleName,
-  onEditTitle, onEditStatus, onEditDue, onEditPic, personOptions = [], showBusinessUnit = false,
+  onEditTitle, onEditStatus, onEditDue, onEditPic, personOptions = [],
   supervisorOptions = [], onEditTeam, onEditSupervisor, teamOptions = [],
-  showWorkline = false, workLineName = '', showObjective = false, objectiveName = '',
-  showActivity = false, isNew = false, onDiscardNewTask, createError = false, onRetryCreate,
+  visibleFields = TASK_DECISION_FIELDS, workLineName = '', objectiveName = '',
+  isNew = false, onDiscardNewTask, createError = false, onRetryCreate,
   columnSpan, viewerHasNoDownline = false,
 }: TaskRowProps) {
   const t = useT()
   const { locale } = useI18n()
   const titleEditKeyhintId = useId()
-  const ds = dueStatus(task.due_date, now)
   const taskOverdue = isOverdue(task, now)
-  // C1: only genuinely-overdue (non-Done, non-archived) rows get the red class.
-  const dueClass = taskOverdue ? 'due-overdue' : ds === 'soon' ? 'due-soon' : 'due-calm'
   const dueText = task.due_date
     ? (taskOverdue
       // The full table shows the "Overdue · <date>" label (both text and color carry the state).
@@ -368,25 +371,14 @@ export function TaskRow({
     )
   }
 
-  return (
-    <tr
-      ref={isCursor ? cursorRowRef : undefined}
-      className={`task-row${isSelected ? ' row-selected' : ''}${isCursor ? ' kfocus' : ''}${justCreated ? ' row-just-created' : ''}`}
-      // I7 (cohesion-debt 2026-07-19): the rail/breadcrumb own aria-current="page";
-      // a row's open/cursor state is a SELECTION, so expose aria-selected — never a
-      // second aria-current on the page (interaction-contract I7 "exactly one").
-      aria-selected={isSelected || isCursor ? true : undefined}
-      data-leaf-index={leafIndex}
-      onClick={() => {
-        // I2 (issue #379): a click anywhere on the row makes the ROW the invoking control, but a
-        // click on a non-focusable cell leaves DOM focus on <body> — the shared panel then captured
-        // body as its opener and Escape returned focus to the page, not the row. Focus the row's
-        // opener link first so close returns focus to the invoking element.
-        titleLinkRef.current?.focus()
-        onOpen(task.id)
-      }}
-    >
-      <td className="td-main">
+  // #997: per-column CONTENT, dispatched exhaustively by column id (Record<TaskColumnId, …> —
+  // adding a column to task-columns.tsx without content here is a compile error, so the two
+  // cannot drift). The <td> wrappers themselves (order, hook classes, visibility) come from
+  // the column defs below. Every entry is the exact JSX this row rendered before the
+  // column-model swap; the inline editors are unchanged.
+  const cellBodies: Record<TaskColumnId, ReactNode> = {
+    task: (
+      <>
         {editing ? (
           // Edit mode: the title text is replaced in place by a bound input (no nested anchor).
           // The onClick stopPropagation keeps a click inside the field from bubbling to the row
@@ -475,92 +467,106 @@ export function TaskRow({
         {liveMessage && (
           <span role="status" aria-live="polite" className="sr-only">{liveMessage}</span>
         )}
-      </td>
-      <td className="td-cell td-status td-nowrap">
-        {onEditStatus ? (statusEditing ? (
-          <span className={`inline-status-editor inline-status-editor--${statusTone(statusInline.draft)}`} onClick={(event) => event.stopPropagation()}>
-            <Picker
-              autoFocus
-              hideLabel
-              label="Edit task status"
-              value={statusInline.draft}
-              disabled={statusInline.pending}
-              busy={statusInline.pending}
-              triggerClassName="inline-picker-trigger"
-              options={(['Open', 'In Progress', 'Blocked', 'Done'] as const).map((status) => ({ value: status, label: status }))}
-              onChange={(value) => {
-                const next = value as TaskListRow['status']
-                statusCommitPending.current = true
-                statusInline.commit(next)
-                if (next === task.status) setStatusEditing(false)
-              }}
-              onKeyDown={(event) => {
-                event.stopPropagation()
-                if (event.key === 'Escape') setStatusEditing(false)
-              }}
-              onOpenChange={(_, reason) => { if (reason === 'escape') setStatusEditing(false) }}
-            />
-            <InlineCommitFeedback {...statusInline} />
-          </span>
-        ) : <button type="button" className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setStatusEditing(true) }}><StatusPill status={statusInline.draft} /></button>) : <StatusPill status={task.status} />}
-      </td>
-      <td className="td-cell td-owner">
-        {onEditPic ? (picEditing ? (
-          <span className="inline-editor-control" onClick={(event) => event.stopPropagation()}>
-            <Picker
-              autoFocus
-              hideLabel
-              label="Edit task PIC"
-              value={picInline.draft}
-              disabled={picInline.pending}
-              busy={picInline.pending}
-              triggerClassName="inline-picker-trigger"
-              options={[
-                ...(personOptions.some((person) => person.id === task.responsible_person_id)
-                  ? []
-                  : [{ value: task.responsible_person_id, label: ownerName }]),
-                ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
-              ]}
-              onChange={(value) => { picInline.commit(value) }}
-              onKeyDown={(event) => {
-                event.stopPropagation()
-                if (event.key === 'Escape') setPicEditing(false)
-              }}
-              onOpenChange={(_, reason) => { if (reason === 'escape') setPicEditing(false) }}
-            />
-            <InlineCommitFeedback {...picInline} />
-          </span>
-        ) : <button type="button" className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setPicEditing(true) }}><PicCell fullName={ownerName} provenance={provenanceRoleName} /></button>) : <PicCell fullName={ownerName} provenance={provenanceRoleName} />}
-      </td>
-      {/* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop row's DEFAULT is only
-          the decision columns — Task · Status · PIC · Supervisor · Due. The Fields chooser
-          (AC-006, #743) opts IN to real Business unit · Project/Process · Objective · Last
-          activity columns here; this is column PRIORITY, not data removal. */}
-      <td className="td-cell td-supervisor">
-        {/* A2 person cell: one grammar for both person columns (AC-021) — the avatar + first
-            name, never the full-name text (that lives in the record and in pickers). */}
-        {supervisorName ? <PersonCell fullName={supervisorName} /> : <span className="td-empty">—</span>}
-      </td>
-      {showBusinessUnit ? <td className="td-cell td-business-unit">{businessUnitName || <span className="td-empty">—</span>}</td> : null}
-      {showWorkline ? <td className="td-cell td-workline">{workLineName || <span className="td-empty">—</span>}</td> : null}
-      {showObjective ? <td className="td-cell td-objective">{objectiveName || <span className="td-empty">—</span>}</td> : null}
-      {showActivity ? (
-        <td className="td-cell td-activity td-nowrap">
-          {/* The feed's compact age grammar, as a title-carrying absolute fallback. */}
-          <span className="tabular-nums" title={task.last_activity_at}>{formatAge(task.last_activity_at, now, locale)}</span>
-        </td>
-      ) : null}
-      <td className={`td-cell td-due td-nowrap tabular-nums ${dueClass}`}>
-        {onEditDue ? (dueEditing ? (
-          <span className="inline-editor-control inline-editor-control--due" onClick={(event) => event.stopPropagation()}>
-            <input autoFocus type="date" aria-label="Due date" value={dueTyped} readOnly={dueInline.pending} aria-busy={dueInline.pending || undefined}
-              aria-invalid={dueInline.error || undefined}
-              onChange={(event) => { setDueTyped(event.target.value); dueInline.setDraft(event.target.value) }} onKeyDown={onDueKeyDown} onBlur={onDueBlur} />
-            <InlineCommitFeedback {...dueInline} />
-          </span>
-        ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label="Edit task due date" onClick={(event) => { event.stopPropagation(); setDueTyped(dueInline.draft); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText}
+      </>
+    ),
+    status: onEditStatus ? (statusEditing ? (
+      <span className={`inline-status-editor inline-status-editor--${statusTone(statusInline.draft)}`} onClick={(event) => event.stopPropagation()}>
+        <Picker
+          autoFocus
+          hideLabel
+          label="Edit task status"
+          value={statusInline.draft}
+          disabled={statusInline.pending}
+          busy={statusInline.pending}
+          triggerClassName="inline-picker-trigger"
+          options={(['Open', 'In Progress', 'Blocked', 'Done'] as const).map((status) => ({ value: status, label: status }))}
+          onChange={(value) => {
+            const next = value as TaskListRow['status']
+            statusCommitPending.current = true
+            statusInline.commit(next)
+            if (next === task.status) setStatusEditing(false)
+          }}
+          onKeyDown={(event) => {
+            event.stopPropagation()
+            if (event.key === 'Escape') setStatusEditing(false)
+          }}
+          onOpenChange={(_, reason) => { if (reason === 'escape') setStatusEditing(false) }}
+        />
+        <InlineCommitFeedback {...statusInline} />
+      </span>
+    ) : <button type="button" className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setStatusEditing(true) }}><StatusPill status={statusInline.draft} /></button>) : <StatusPill status={task.status} />,
+    owner: onEditPic ? (picEditing ? (
+      <span className="inline-editor-control" onClick={(event) => event.stopPropagation()}>
+        <Picker
+          autoFocus
+          hideLabel
+          label="Edit task PIC"
+          value={picInline.draft}
+          disabled={picInline.pending}
+          busy={picInline.pending}
+          triggerClassName="inline-picker-trigger"
+          options={[
+            ...(personOptions.some((person) => person.id === task.responsible_person_id)
+              ? []
+              : [{ value: task.responsible_person_id, label: ownerName }]),
+            ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
+          ]}
+          onChange={(value) => { picInline.commit(value) }}
+          onKeyDown={(event) => {
+            event.stopPropagation()
+            if (event.key === 'Escape') setPicEditing(false)
+          }}
+          onOpenChange={(_, reason) => { if (reason === 'escape') setPicEditing(false) }}
+        />
+        <InlineCommitFeedback {...picInline} />
+      </span>
+    ) : <button type="button" className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setPicEditing(true) }}><PicCell fullName={ownerName} provenance={provenanceRoleName} /></button>) : <PicCell fullName={ownerName} provenance={provenanceRoleName} />,
+    // A2 person cell: one grammar for both person columns (AC-021) — the avatar + first
+    // name, never the full-name text (that lives in the record and in pickers).
+    supervisor: supervisorName ? <PersonCell fullName={supervisorName} /> : <span className="td-empty">—</span>,
+    businessUnit: businessUnitName || <span className="td-empty">—</span>,
+    workline: workLineName || <span className="td-empty">—</span>,
+    objective: objectiveName || <span className="td-empty">—</span>,
+    // The feed's compact age grammar, as a title-carrying absolute fallback.
+    activity: (
+      <span className="tabular-nums" title={task.last_activity_at}>{formatAge(task.last_activity_at, now, locale)}</span>
+    ),
+    due: onEditDue ? (dueEditing ? (
+      <span className="inline-editor-control inline-editor-control--due" onClick={(event) => event.stopPropagation()}>
+        <input autoFocus type="date" aria-label="Due date" value={dueTyped} readOnly={dueInline.pending} aria-busy={dueInline.pending || undefined}
+          aria-invalid={dueInline.error || undefined}
+          onChange={(event) => { setDueTyped(event.target.value); dueInline.setDraft(event.target.value) }} onKeyDown={onDueKeyDown} onBlur={onDueBlur} />
+        <InlineCommitFeedback {...dueInline} />
+      </span>
+    ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label="Edit task due date" onClick={(event) => { event.stopPropagation(); setDueTyped(dueInline.draft); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText,
+  }
 
-      </td>
+  return (
+    <tr
+      ref={isCursor ? cursorRowRef : undefined}
+      className={`task-row${isSelected ? ' row-selected' : ''}${isCursor ? ' kfocus' : ''}${justCreated ? ' row-just-created' : ''}`}
+      // I7 (cohesion-debt 2026-07-19): the rail/breadcrumb own aria-current="page";
+      // a row's open/cursor state is a SELECTION, so expose aria-selected — never a
+      // second aria-current on the page (interaction-contract I7 "exactly one").
+      aria-selected={isSelected || isCursor ? true : undefined}
+      data-leaf-index={leafIndex}
+      onClick={() => {
+        // I2 (issue #379): a click anywhere on the row makes the ROW the invoking control, but a
+        // click on a non-focusable cell leaves DOM focus on <body> — the shared panel then captured
+        // body as its opener and Escape returned focus to the page, not the row. Focus the row's
+        // opener link first so close returns focus to the invoking element.
+        titleLinkRef.current?.focus()
+        onOpen(task.id)
+      }}
+    >
+      {/* #997: the <td> chain IS the column list — one source (task-columns.tsx) for both
+          this row and the <thead>. Order and hook classes come from the defs; visibility
+          from the one shared mapping over `visibleFields`. */}
+      {visibleTaskColumnDefs(visibleFields).map((column) => (
+        <td key={column.id} className={taskColumnTdClass(column, task, now)}>
+          {cellBodies[column.id]}
+        </td>
+      ))}
     </tr>
   )
 }

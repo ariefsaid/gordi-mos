@@ -2,14 +2,24 @@
 // renders the trailing ⋯ menu (RowMenu). The name cell is a real
 // <a href="/work/tasks/:id"> Chip-link; status is a soft StatusPill that
 // never wraps; body rows consume the shared collection measure.
+//
+// Issue 997: the row's column set is the ONE TanStack column-definition array
+// (task-columns.tsx) shared with the <thead>. The column-model assertions below assert the
+// rendered <td> chain against the defs / visible-leaf derivation (spec AC-001/002/003) —
+// the observable behaviour the old show*-prop tests pinned, at the new seam.
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { TaskRow } from './task-row'
 import type { TaskRowProps } from './task-row'
+import { visibleTaskColumnDefs, TASK_COLUMN_DEFS, taskColumnVisibilityState } from './task-columns'
+import { TASK_DECISION_FIELDS, taskTableColumnSpan } from './task-collection-query'
+import type { TaskColumnId } from './task-collection-query'
+import type { TaskCollectionVisibleField } from '@/lib/record-collection/collection-view-spec'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
 const NOW = new Date('2026-06-19T00:00:00Z')
@@ -38,6 +48,7 @@ const baseProps = (overrides: Partial<TaskRowProps> = {}): TaskRowProps => ({
   ownerName: 'Rina Lestari',
   onOpen: () => {},
   recordSearch: '',
+  visibleFields: TASK_DECISION_FIELDS,
   ...overrides,
 })
 
@@ -55,6 +66,103 @@ function installTaskStyles() {
   document.head.append(style)
   return () => style.remove()
 }
+
+// ── Issue 997: the ONE column list (spec AC-001/002/003) ─────────────────────────────
+// The rendered <td> chain, the TanStack visible-leaf derivation and taskTableColumnSpan
+// must all agree for EVERY Fields combination — this is the regression guard for the old
+// two-hand-kept-lists drift (the hard-coded colSpan fallback that already disagreed once).
+
+const TD_HOOK: Record<TaskColumnId, string> = {
+  task: 'td-main',
+  status: 'td-status',
+  owner: 'td-owner',
+  supervisor: 'td-supervisor',
+  businessUnit: 'td-business-unit',
+  workline: 'td-workline',
+  objective: 'td-objective',
+  activity: 'td-activity',
+  due: 'td-due',
+}
+
+const OPTIONAL_FIELDS: readonly TaskCollectionVisibleField[] = ['businessUnit', 'workline', 'objective', 'activity']
+
+/** Every combination of the four Fields-chooser-optional fields (16 total). */
+function fieldsCombinations(): TaskCollectionVisibleField[][] {
+  const combos: TaskCollectionVisibleField[][] = []
+  for (let mask = 0; mask < 1 << OPTIONAL_FIELDS.length; mask += 1) {
+    combos.push([
+      ...TASK_DECISION_FIELDS,
+      ...OPTIONAL_FIELDS.filter((_, bit) => (mask & (1 << bit)) !== 0),
+    ])
+  }
+  return combos
+}
+
+/** A stand-in for the presentation's useReactTable call (same defs, same visibility state)
+ * exposing the visible-leaf column ids the thead and pad/group colSpan derive from. */
+function LeafColumnProbe({ visibleFields }: { visibleFields: readonly TaskCollectionVisibleField[] }) {
+  const table = useReactTable({
+    data: [] as TaskListRow[],
+    columns: TASK_COLUMN_DEFS,
+    state: { columnVisibility: taskColumnVisibilityState(visibleFields) },
+    getCoreRowModel: getCoreRowModel(),
+  })
+  return <tr data-testid="leaf-columns">{table.getVisibleLeafColumns().map((column) => column.id).join(',')}</tr>
+}
+
+function renderProbe(visibleFields: readonly TaskCollectionVisibleField[]) {
+  return render(
+    <table><tbody><LeafColumnProbe visibleFields={visibleFields} /></tbody></table>,
+  )
+}
+
+describe('TaskRow — the column list is the one TanStack column-definition array (issue 997)', () => {
+  const renderedColumnIds = () => {
+    const cells = Array.from(document.querySelectorAll('tr.task-row > td'))
+    return cells.map((cell) => {
+      const entry = Object.entries(TD_HOOK).find(([, hook]) => cell.classList.contains(hook))
+      expect(entry, `a rendered td matches no column hook: className="${cell.className}"`).toBeDefined()
+      return entry![0]
+    })
+  }
+
+  it('AC-001: with no optional Fields checked, exactly the 5 decision columns render in order', () => {
+    renderRow()
+    const cells = document.querySelectorAll('tr.task-row > td')
+    expect(cells).toHaveLength(5)
+    expect(renderedColumnIds()).toEqual(['task', 'status', 'owner', 'supervisor', 'due'])
+  })
+
+  it('AC-002: Business unit + Objective checked render 7 columns — optional ones inserted before Due', () => {
+    renderRow({ visibleFields: [...TASK_DECISION_FIELDS, 'businessUnit', 'objective'] })
+    const cells = document.querySelectorAll('tr.task-row > td')
+    expect(cells).toHaveLength(7)
+    expect(renderedColumnIds()).toEqual(['task', 'status', 'owner', 'supervisor', 'businessUnit', 'objective', 'due'])
+  })
+
+  it('the row renders exactly the defs-derived visible columns for every Fields combination', () => {
+    for (const visibleFields of fieldsCombinations()) {
+      const { unmount } = renderRow({ visibleFields, workLineName: 'Cold Brew line', objectiveName: 'Q3 quality', businessUnitName: 'Café Ops' })
+      const expected = visibleTaskColumnDefs(visibleFields).map((column) => column.id)
+      expect(renderedColumnIds(), `fields=[${visibleFields.join(',')}]`).toEqual(expected)
+      unmount()
+    }
+  })
+
+  it('AC-003: for every combination, the table-visible leaf count matches taskTableColumnSpan and the row chain', () => {
+    expect(TASK_COLUMN_DEFS.map((column) => column.id)).toEqual([
+      'task', 'status', 'owner', 'supervisor', 'businessUnit', 'workline', 'objective', 'activity', 'due',
+    ])
+    for (const visibleFields of fieldsCombinations()) {
+      const expectedIds = visibleTaskColumnDefs(visibleFields).map((column) => column.id)
+      const { unmount } = renderProbe(visibleFields)
+      const probe = screen.getByTestId('leaf-columns')
+      expect(probe.textContent, `fields=[${visibleFields.join(',')}]`).toBe(expectedIds.join(','))
+      expect(expectedIds.length, `fields=[${visibleFields.join(',')}]`).toBe(taskTableColumnSpan(visibleFields))
+      unmount()
+    }
+  })
+})
 
 describe('TaskRow — shared title + metadata cell grammar', () => {
   it('renders the E7 title and typed Business Unit metadata in one identity cell', () => {
