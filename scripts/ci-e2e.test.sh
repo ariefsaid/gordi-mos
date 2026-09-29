@@ -19,21 +19,29 @@ args=" $* "
 [ ! -e "$FAKE/fail-list" ] || { echo "boom" >&2; exit 1; }
 repo=mos; case "$args" in *" -R ariefsaid/PMO "*) repo=pmo ;; esac
 case "$1 $2" in
-  "workflow run") printf '%s\n' "$*" >> "$FAKE/dispatch-calls"; exit 0 ;;
+  "workflow run")
+    [ ! -e "$FAKE/dispatch-sleep" ] || sleep "$(cat "$FAKE/dispatch-sleep")"
+    printf '%s\n' "$*" >> "$FAKE/dispatch-calls"
+    # once dispatched, the run shows as in progress (what a concurrent invocation would see)
+    [ ! -e "$FAKE/dispatch-visible" ] || echo "https://x/mos/new feat/x" >> "$FAKE/mos-in_progress"
+    exit 0 ;;
   "run list")
     for s in in_progress queued; do
       case "$args" in *" --status $s "*) cat "$FAKE/$repo-$s" 2>/dev/null; exit 0 ;; esac
     done
     case "$args" in
       *createdAt*) cat "$FAKE/$repo-created" 2>/dev/null ;;
-      *" --branch "*) cat "$FAKE/$repo-url" 2>/dev/null ;;
+      *" --limit 1 "*) cat "$FAKE/$repo-url" 2>/dev/null ;;
+      *" --branch "*)
+        [ ! -e "$FAKE/fail-branch" ] || { echo "boom" >&2; exit 1; }
+        cat "$FAKE/$repo-branchruns" 2>/dev/null ;;
     esac
     exit 0 ;;
 esac
 exit 0
 EOF
 chmod +x "$tmp/bin/gh"
-export FAKE PATH="$tmp/bin:$PATH" CI_E2E_LOG="$tmp/ci-e2e.log" CI_E2E_URL_WAIT=0
+export FAKE PATH="$tmp/bin:$PATH" CI_E2E_LOG="$tmp/ci-e2e.log" CI_E2E_URL_WAIT=0 CI_E2E_LOCK="$tmp/ci-e2e.lock"
 
 reset() { rm -f "$FAKE"/* "$CI_E2E_LOG"; }
 run() { bash "$SCRIPT" "$@" >"$tmp/out" 2>&1; }   # rc in $?
@@ -91,6 +99,51 @@ reset; printf '2020-01-01T00:00:00Z\tmos\tfeat/x#12\tnormal\t-\n' > "$CI_E2E_LOG
 run feat/x 12 --owner-ok "yes rerun it"; [ $? -eq 0 ] && ok "--owner-ok allows the second run" || bad "--owner-ok did not allow the second run"
 reset; printf '2020-01-01T00:00:00Z\tmos\tfeat/x#11\tnormal\t-\n2020-01-01T00:00:00Z\tpmo\tfeat/x#12\tnormal\t-\n' > "$CI_E2E_LOG"
 run feat/x 12; [ $? -eq 0 ] && ok "another PR's, or PMO's, dispatch does not block this PR" || bad "unrelated log lines blocked the dispatch"
+
+# ── 3b. prior runs are counted from GitHub too (missing/lost local log, other machine)
+reset; echo "https://x/mos/5 feat/x" > "$FAKE/mos-branchruns"
+refuses "GitHub-visible prior run with NO local log refuses" 1 feat/x 12
+grep -q 'bugfix-proof' "$tmp/out" && ok "GitHub-only refusal names the bugfix-proof route" || bad "GitHub-only refusal does not name --bugfix-proof"
+run feat/x 12 --bugfix-proof "fix changed app code"; [ $? -eq 0 ] && ok "--bugfix-proof allows the follow-up after a GitHub-only prior run" || bad "--bugfix-proof refused after one GitHub-only prior run"
+reset; touch "$FAKE/fail-branch"
+refuses "unreadable per-branch history refuses (fails closed)" 1 feat/x 12
+reset; touch "$FAKE/fail-branch"
+refuses "unreadable per-branch history refuses even with --bugfix-proof" 1 feat/x 12 --bugfix-proof "x"
+reset; printf 'https://x/mos/5 feat/x\nhttps://x/mos/6 feat/x\n' > "$FAKE/mos-branchruns"
+refuses "two GitHub-visible prior runs, no log: --bugfix-proof refuses" 1 feat/x 12 --bugfix-proof "x"
+reset; echo "https://x/mos/5 feat/x" > "$FAKE/mos-branchruns"; printf '2020-01-01T00:00:00Z\tmos\tfeat/x#12\tnormal\t-\n2020-01-02T00:00:00Z\tmos\tfeat/x#12\tbugfix-proof\tw\n' > "$CI_E2E_LOG"
+refuses "prior = max(GitHub, log): log shows two, GitHub one, --bugfix-proof refuses" 1 feat/x 12 --bugfix-proof "x"
+reset; printf 'https://x/mos/5 feat/x\nhttps://x/mos/6 feat/x\nhttps://x/mos/7 feat/x\n' > "$FAKE/mos-branchruns"
+run feat/x 12 --owner-ok "yes, a fourth"; [ $? -eq 0 ] && ok "--owner-ok allows a run past the second" || bad "--owner-ok refused past the second run"
+
+# ── 3c. --bugfix-proof covers exactly ONE follow-up
+reset; printf '2020-01-01T00:00:00Z\tmos\tfeat/x#12\tnormal\t-\n2020-01-02T00:00:00Z\tmos\tfeat/x#12\tbugfix-proof\tfirst fix\n' > "$CI_E2E_LOG"
+refuses "third run refused with only --bugfix-proof" 1 feat/x 12 --bugfix-proof "another fix"
+grep -q 'owner' "$tmp/out" && ok "third-run refusal names the owner-OK route" || bad "third-run refusal does not mention --owner-ok"
+refuses "third run refused with no flag" 1 feat/x 12
+run feat/x 12 --owner-ok "yes, a third"; [ $? -eq 0 ] && ok "--owner-ok allows the third run" || bad "--owner-ok refused the third run"
+
+# ── 4. check -> dispatch -> log is serialized under one lock
+reset; touch "$FAKE/dispatch-visible"; echo 1 > "$FAKE/dispatch-sleep"
+( bash "$SCRIPT" feat/x 12 >"$tmp/out-a" 2>&1; echo $? > "$tmp/rc-a" ) &
+( bash "$SCRIPT" feat/y 13 >"$tmp/out-b" 2>&1; echo $? > "$tmp/rc-b" ) &
+wait
+rcs="$(sort "$tmp/rc-a" "$tmp/rc-b" | tr '\n' ' ')"
+[ "$(dispatches)" = 1 ] && [ "$rcs" = "0 1 " ] && ok "two concurrent invocations: exactly one dispatches, the other is refused" \
+  || bad "concurrent invocations: dispatches=$(dispatches) rcs=$rcs"
+[ "$(loglines)" = 1 ] && ok "concurrent invocations: one log line" || bad "concurrent invocations: $(loglines) log lines"
+rm -f "$tmp/rc-a" "$tmp/rc-b"
+
+# a held lock refuses the second invocation (exit 75) instead of running unserialized
+reset
+bash "$(pwd)/scripts/lib/flock-run.sh" hold "$CI_E2E_LOCK" 0 HELD_X "test hold" -- sleep 5 >/dev/null 2>&1 &
+holder=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ -s "$CI_E2E_LOCK" ] && break; sleep 0.3; done
+CI_E2E_LOCK_TIMEOUT=1 refuses "invocation refused (75) while the lock is held" 75 feat/x 12
+grep -q 'gave up' "$tmp/out" && ok "lock-timeout refusal says it gave up waiting" || bad "lock-timeout refusal message missing"
+kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null
+sleep 0.5
+run feat/x 12; [ $? -eq 0 ] && ok "dispatches once the lock is free" || bad "still refused after the lock was released"
 
 # ── happy path + log line
 reset; echo "https://x/mos/9 feat/x" > "$FAKE/mos-url"

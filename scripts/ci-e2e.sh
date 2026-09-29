@@ -7,16 +7,22 @@
 #   1. never while a dispatched run is queued or in progress in EITHER repo (never queue a second)
 #   2. at most 3 MOS dispatches per UTC day, unless --owner-ok "<the owner's quoted words>"
 #   3. at most one dispatch per branch#PR, unless --bugfix-proof "<bug, app change>" (the first
-#      run found a real app bug and the fix changed app code) or --owner-ok
+#      run found a real app bug and the fix changed app code). That lifts the limit for exactly
+#      ONE follow-up (valid only when one run exists); a third run needs --owner-ok
 #
 # usage: scripts/ci-e2e.sh <branch> <pr-number> [--bugfix-proof "<why>"] [--owner-ok "<words>"]
 #
+# Prior runs on a branch = max(runs GitHub lists for it, lines in the log). A failed read refuses.
 # Every dispatch appends ONE tab-separated line to the log shared with PMO ($HOME/.ci-e2e.log):
 #   <UTC ISO date-time> <repo> <branch>#<pr> <normal|bugfix-proof|owner-ok> <quoted words | ->
-# Reads use raw `gh`; the single write is the dispatch itself.
+# Reads use raw `gh`; the single write is the dispatch itself. Check, dispatch and log run under
+# one machine-wide lock, so two concurrent invocations cannot both pass the checks (single
+# machine only; no cross-machine coordination).
 #
-#   CI_E2E_LOG       override the shared log path
-#   CI_E2E_URL_WAIT  seconds to wait for the run URL to appear after dispatch (default 6)
+#   CI_E2E_LOG           override the shared log path
+#   CI_E2E_LOCK          override the lock file (default $HOME/.ci-e2e.lock)
+#   CI_E2E_LOCK_TIMEOUT  seconds to wait for the lock before refusing (default 60)
+#   CI_E2E_URL_WAIT      seconds to wait for the run URL to appear after dispatch (default 6)
 # Self-test: scripts/ci-e2e.test.sh
 set -uo pipefail
 
@@ -33,13 +39,22 @@ branch="$1"; pr="$2"; shift 2
 case "$pr" in ''|*[!0-9]*) usage ;; esac
 [ -n "$branch" ] || usage
 bugfix="" ownerok=""
+_orig=("$branch" "$pr")
 while [ $# -gt 0 ]; do
   case "$1" in
-    --bugfix-proof) [ $# -ge 2 ] && [ -n "$2" ] || usage; bugfix="$2"; shift 2 ;;
-    --owner-ok)     [ $# -ge 2 ] && [ -n "$2" ] || usage; ownerok="$2"; shift 2 ;;
+    --bugfix-proof) [ $# -ge 2 ] && [ -n "$2" ] || usage; bugfix="$2"; _orig+=("$1" "$2"); shift 2 ;;
+    --owner-ok)     [ $# -ge 2 ] && [ -n "$2" ] || usage; ownerok="$2"; _orig+=("$1" "$2"); shift 2 ;;
     *) usage ;;
   esac
 done
+
+# Serialize check -> dispatch -> log: re-run this script under the machine lock (exit 75 if the
+# lock cannot be had in time). CI_E2E_LOCK_HELD marks the locked re-run.
+if [ "${CI_E2E_LOCK_HELD:-}" != 1 ]; then
+  exec bash "$(cd "$(dirname "$0")" && pwd)/lib/flock-run.sh" ci-e2e "${CI_E2E_LOCK:-$HOME/.ci-e2e.lock}" \
+    "${CI_E2E_LOCK_TIMEOUT:-60}" CI_E2E_LOCK_HELD "another ci-e2e dispatch" -- \
+    bash "$(cd "$(dirname "$0")" && pwd)/ci-e2e.sh" "${_orig[@]}"
+fi
 
 # One line per run: "<url> <branch>". A failed read is a refusal — an unverifiable queue is not empty.
 active_runs() { # $1 repo · $2 workflow · $3 status
@@ -72,10 +87,18 @@ fi
 
 # ── 3. One run per branch#PR.
 key="${branch}#${pr}"
-n_prior=0
-[ ! -f "$LOG" ] || n_prior="$(awk -F'\t' -v k="$key" '$2=="mos" && $3==k {n++} END{print n+0}' "$LOG")"
-if [ "$n_prior" -ge 1 ] && [ -z "$bugfix" ] && [ -z "$ownerok" ]; then
-  die "$key already had $n_prior e2e dispatch(es). A second run needs --bugfix-proof \"<what bug, which app change>\" (first run found a real app bug and the fix changed app code) or the owner's explicit --owner-ok \"<words>\""
+n_log=0
+[ ! -f "$LOG" ] || n_log="$(awk -F'\t' -v k="$key" '$2=="mos" && $3==k {n++} END{print n+0}' "$LOG")"
+gh_runs="$(gh run list -R "$MOS_REPO" --workflow "$MOS_WF" --event workflow_dispatch --branch "$branch" --limit 100 \
+  --json url -q '.[].url')" || die "cannot list prior $MOS_WF dispatches on $branch — refusing (cannot prove this PR has had none)"
+n_gh="$(printf '%s\n' "$gh_runs" | grep -c . || true)"
+n_prior=$(( n_gh > n_log ? n_gh : n_log ))
+if [ "$n_prior" -ge 1 ] && [ -z "$ownerok" ]; then
+  if [ "$n_prior" -ge 2 ]; then
+    die "$key already had $n_prior e2e dispatches (GitHub: $n_gh, log: $n_log). A third run needs the owner's explicit --owner-ok \"<words>\" — --bugfix-proof covers only the second"
+  elif [ -z "$bugfix" ]; then
+    die "$key already had $n_prior e2e dispatch (GitHub: $n_gh, log: $n_log). A second run needs --bugfix-proof \"<what bug, which app change>\" (first run found a real app bug and the fix changed app code) or the owner's explicit --owner-ok \"<words>\""
+  fi
 fi
 
 mode=normal; why="-"
