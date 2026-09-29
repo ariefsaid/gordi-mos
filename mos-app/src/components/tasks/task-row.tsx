@@ -25,7 +25,6 @@ import { statusTone } from './status-tone'
 import { Picker } from '@/components/ui/picker'
 import { PicCell, PersonCell } from './pic-cell'
 import { formatDate, formatAge } from './task-formatters'
-import { DateField } from '@/components/ui/date-field'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { TaskCreateForm } from './task-create-form'
@@ -551,9 +550,9 @@ export function TaskRow({
       <td className={`td-cell td-due td-nowrap tabular-nums ${dueClass}`}>
         {onEditDue ? (dueEditing ? (
           <span className="inline-editor-control inline-editor-control--due" onClick={(event) => event.stopPropagation()}>
-            <DateField autoFocus aria-label="Due date" value={dueInline.draft} onChange={dueInline.setDraft}
-              disabled={dueInline.pending} aria-busy={dueInline.pending || undefined} error={dueInline.error}
-              onKeyDown={onDueKeyDown} onBlur={onDueBlur} />
+            <input autoFocus type="date" aria-label="Due date" value={dueInline.draft} disabled={dueInline.pending} aria-busy={dueInline.pending || undefined}
+              aria-invalid={dueInline.error || undefined}
+              onChange={(event) => dueInline.setDraft(event.target.value)} onKeyDown={onDueKeyDown} onBlur={onDueBlur} />
             <InlineCommitFeedback {...dueInline} />
           </span>
         ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label="Edit task due date" onClick={(event) => { event.stopPropagation(); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText}

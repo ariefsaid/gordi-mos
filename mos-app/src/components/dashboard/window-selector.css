@@ -47,29 +47,35 @@
   box-sizing: border-box;
 }
 
-/* The chip shell already draws the border: the shared DateField sits flat inside it, label beside value. */
 .window-selector-field {
-  flex-direction: row;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
 }
-.window-selector-field .mk-date__label {
+
+.window-selector-field-label {
   /* typeset: was 11.5px off-ramp — dense metadata label, matches DESIGN.md's `label` role. */
   font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
-.window-selector-field .mk-date__box {
-  height: auto;
-  padding: 2px 0;
+
+.window-selector-field input[type='date'] {
   border: none;
   background: transparent;
+  font: inherit;
   font-size: var(--font-size-mono);
+  color: var(--foreground);
   font-variant-numeric: tabular-nums; /* Tabular-Numbers Rule on dates */
+  padding: 2px 0;
+  cursor: pointer;
 }
-.window-selector-field .mk-date__box:focus-within {
-  box-shadow: none;
+.window-selector-field input[type='date']:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
+}
+.window-selector-field input[type='date']:disabled {
+  background: var(--secondary);
+  cursor: not-allowed;
 }
 
 /* The deferred Range tab's disclosure chevron (the ONE shared icon) sits beside its label. */

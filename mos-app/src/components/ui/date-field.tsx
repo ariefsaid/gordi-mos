@@ -26,8 +26,6 @@ export interface DateFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   placeholder?: string
 }
 
-const FOUR_DIGIT_YEAR_DATE = /^\d{4}-\d{2}-\d{2}$/
-
 function CalendarGlyph() {
   return (
     <svg className="mk-date__icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -68,12 +66,7 @@ export const DateField = forwardRef<HTMLInputElement, DateFieldProps>(function D
           value={value}
           disabled={disabled}
           aria-invalid={error || undefined}
-          onChange={(e) => {
-            // Segment typing in the wrong order yields a 5-6 digit year ("061005-02-02"); only a
-            // cleared field or a four-digit-year date is a value the caller can save.
-            const next = e.target.value
-            if (next === '' || FOUR_DIGIT_YEAR_DATE.test(next)) onChange(next)
-          }}
+          onChange={(e) => onChange(e.target.value)}
           {...rest}
         />
       </div>
