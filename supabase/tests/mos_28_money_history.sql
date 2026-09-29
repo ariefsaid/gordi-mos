@@ -15,7 +15,7 @@
 -- org B's admin and the negative control.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(45);
+select plan(47);
 
 select shared._test_seed_directory();
 
@@ -61,6 +61,25 @@ select is((select count(*)::int from shared.record_history
            where schema_name = 'mos' and table_name = 'certified_metrics'
              and record_key = '00000000-0000-0000-0000-0000000000a1:cogs.test_metric'),
   1, 'an INSERT into mos.certified_metrics appends exactly one history row, keyed org:key (DA-1)');
+
+-- The registry has no runtime CRUD and holds no UPDATE grant for any application role: a
+-- revision is a service/migration write. It is audited all the same — actor NULL (FR-005).
+reset role;
+set local request.jwt.claims = '';
+update mos.certified_metrics set meaning = 'A test-only certified definition, revised'
+ where org_id = '00000000-0000-0000-0000-0000000000a1' and key = 'cogs.test_metric';
+select is((select count(*)::int from shared.record_history
+           where schema_name = 'mos' and table_name = 'certified_metrics'
+             and record_key = '00000000-0000-0000-0000-0000000000a1:cogs.test_metric'
+             and action = 'update' and field_name = 'meaning'),
+  1, 'a certified-metric update appends its meaning row under the composite key');
+select is((select actor_person_id is null from shared.record_history
+           where schema_name = 'mos' and table_name = 'certified_metrics'
+             and record_key = '00000000-0000-0000-0000-0000000000a1:cogs.test_metric'
+             and action = 'update'),
+  true, 'the service-seeded registry write records no actor (FR-005)');
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
 select is((select count(*)::int from shared.record_history
            where schema_name = 'mos' and table_name = 'budgets'
              and record_key = '00000000-0000-0000-0000-000000009961'),
@@ -187,7 +206,7 @@ select is((select count(*)::int from shared.record_history
 select is((select count(*)::int from shared.record_history
            where schema_name = 'mos' and table_name = 'certified_metrics'
              and record_key = '00000000-0000-0000-0000-0000000000a1:cogs.test_metric'),
-  1, 'AC-007: an admin reads the certified metric''s history through the composite-key arm');
+  2, 'AC-007: an admin reads the certified metric''s insert + revision rows through the composite-key arm');
 
 -- ── the scope grant: the admin's INSERT through the real write path stamps the claim ─────────
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
