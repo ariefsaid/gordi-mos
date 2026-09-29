@@ -19,7 +19,7 @@
 -- substrate the composite-key rows and the delete proof hang from.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(57);
+select plan(60);
 
 select shared._test_seed_directory();
 
@@ -378,6 +378,25 @@ select is((select count(*)::int from shared.record_history
              and record_key = '00000000-0000-0000-0000-0000000000a1:00000000-0000-0000-0000-000000009971'
              and action = 'delete'),
   1, 'the admin still reads the cleared designation''s delete row through the snapshot arm');
+
+-- The renumbered batch stack applies 11, 12, 13, then 14 on a fresh database, and this
+-- migration's create-or-replace restates the WHOLE dispatch body — so it must carry every
+-- earlier batch's arms or those tables write history nobody can read (review of #989's slot).
+select ok(
+  (select position('mos.process_run_pending_tasks' in prosrc) > 0 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'shared' and p.proname = 'can_read_history_record' limit 1),
+  'the ...0014 dispatch body still carries the ...0011 task-cascade arms');
+select ok(
+  (select position('p_table = ''follow_ups''' in prosrc) > 0 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'shared' and p.proname = 'can_read_history_record' limit 1),
+  '...the ...0012 signal-worklog arms (e.g. follow_ups)');
+select ok(
+  (select position('certified_metrics' in prosrc) > 0 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'shared' and p.proname = 'can_read_history_record' limit 1),
+  '...and the ...0013 money arms (e.g. certified_metrics, with its composite key)');
 
 select * from finish();
 rollback;
