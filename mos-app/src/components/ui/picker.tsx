@@ -58,6 +58,10 @@ function focusableElements(exclude: HTMLElement | null) {
   })
 }
 
+// cmdk replaces an empty item value with its text, so a '' placeholder option could never be the
+// active item; every option gets an index key instead, mapped back to its value on select.
+const keyOf = (index: number) => `option-${index}`
+
 export function Picker({
   id,
   label,
@@ -87,8 +91,9 @@ export function Picker({
   const triggerId = id ?? autoId
   const [open, setOpen] = useState(false)
   const initialActive = useCallback(() => {
-    const selectable = options.filter((option) => !option.disabled)
-    return selectable.find((option) => option.value === value)?.value ?? selectable[0]?.value ?? ''
+    const selectable = options.map((option, index) => ({ option, index })).filter(({ option }) => !option.disabled)
+    const current = selectable.find(({ option }) => option.value === value) ?? selectable[0]
+    return current ? keyOf(current.index) : ''
   }, [options, value])
   const [active, setActive] = useState(initialActive)
   const [search, setSearch] = useState('')
@@ -143,8 +148,8 @@ export function Picker({
   }
 
   // Typed text ranks prefix matches first; hover never moves the highlight (disablePointerSelection).
-  const filter = useCallback((optionValue: string, query: string) => {
-    const text = options.find((option) => option.value === optionValue)?.label.toLocaleLowerCase() ?? ''
+  const filter = useCallback((optionKey: string, query: string) => {
+    const text = options.find((_, index) => keyOf(index) === optionKey)?.label.toLocaleLowerCase() ?? ''
     const needle = query.trim().toLocaleLowerCase()
     if (!needle) return 1
     if (text.startsWith(needle)) return 1
@@ -240,10 +245,10 @@ export function Picker({
               />
               <Command.List className="picker__list" label={label}>
                 <Command.Empty className="picker__empty">{t('ui.picker.noMatches')}</Command.Empty>
-                {options.map((option) => (
+                {options.map((option, index) => (
                   <Command.Item
-                    key={option.value}
-                    value={option.value}
+                    key={keyOf(index)}
+                    value={keyOf(index)}
                     disabled={option.disabled}
                     className={['picker__option', optionClassName].filter(Boolean).join(' ')}
                     data-checked={option.value === value || undefined}

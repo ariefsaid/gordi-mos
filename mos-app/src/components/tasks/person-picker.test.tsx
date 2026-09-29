@@ -140,12 +140,18 @@ describe('PersonPicker mention use', () => {
     expect(alan).toHaveAttribute('aria-selected', 'true')
     expect(box).toHaveFocus()
     // Focus stays in the textarea, so it carries the listbox relationship for assistive tech.
+    expect(box).toHaveAttribute('role', 'combobox')
+    expect(box).toHaveAttribute('aria-autocomplete', 'list')
     expect(box).toHaveAttribute('aria-expanded', 'true')
     expect(box).toHaveAttribute('aria-controls', screen.getByRole('listbox').id)
     expect(box).toHaveAttribute('aria-activedescendant', alan.id)
+    // The record panel host ignores an Escape whose target sits in a nested layer.
+    expect(box.closest('[data-escape-layer="nested"]')).toBe(box)
     await user.keyboard('{Enter}')
-    expect(box).not.toHaveAttribute('aria-activedescendant')
-    expect(box).toHaveAttribute('aria-expanded', 'false')
+    for (const name of ['role', 'aria-autocomplete', 'aria-expanded', 'aria-controls', 'aria-activedescendant', 'data-escape-layer']) {
+      expect(box).not.toHaveAttribute(name)
+    }
+    expect(box).toHaveFocus()
     expect(box).toHaveValue('@alan ')
     expect(box).toHaveFocus()
   })

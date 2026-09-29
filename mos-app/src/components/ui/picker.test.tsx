@@ -33,6 +33,22 @@ describe('Picker', () => {
     expect(onChange).toHaveBeenCalledWith('blocked')
   })
 
+  it('with an empty-value placeholder option first, arrows and Enter still select a person', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    renderPicker({
+      label: 'Supervisor',
+      value: '',
+      options: [{ value: '', label: 'Select supervisor…' }, { value: 'p1', label: 'Ada' }, { value: 'p2', label: 'Alan' }],
+      onChange,
+    })
+    screen.getByRole('combobox', { name: 'Supervisor' }).focus()
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('option', { name: 'Select supervisor…' })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(onChange).toHaveBeenCalledWith('p1')
+  })
+
   it('opens as an anchored listbox and selects with arrows, then returns focus', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

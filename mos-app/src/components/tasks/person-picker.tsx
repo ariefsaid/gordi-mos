@@ -88,16 +88,23 @@ export function PersonPicker({ people, onSelect, onClose, exclude = [], anchorRe
       if (option) anchor.setAttribute('aria-activedescendant', option.id)
       else anchor.removeAttribute('aria-activedescendant')
     }
+    // While open, the anchor is the combobox and a nested Escape layer: focus never leaves it, so an
+    // overlay host that checks the Escape target must see the layer on the anchor, not the popup.
+    const previousRole = anchor.getAttribute('role')
+    anchor.setAttribute('role', 'combobox')
     anchor.setAttribute('aria-autocomplete', 'list')
     anchor.setAttribute('aria-expanded', 'true')
+    anchor.setAttribute('data-escape-layer', 'nested')
     sync()
     const observer = new MutationObserver(sync)
     observer.observe(content, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-selected'] })
     return () => {
       observer.disconnect()
-      anchor.setAttribute('aria-expanded', 'false')
-      anchor.removeAttribute('aria-activedescendant')
-      anchor.removeAttribute('aria-controls')
+      if (previousRole === null) anchor.removeAttribute('role')
+      else anchor.setAttribute('role', previousRole)
+      for (const name of ['aria-autocomplete', 'aria-expanded', 'aria-activedescendant', 'aria-controls', 'data-escape-layer']) {
+        anchor.removeAttribute(name)
+      }
     }
   }, [attached, anchorRef, content])
 
