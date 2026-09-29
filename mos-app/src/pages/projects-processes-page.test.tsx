@@ -338,7 +338,7 @@ describe('page help defines the domain terms', () => {
     const panel = screen.getByRole('note')
     expect(panel).toHaveTextContent('Projects and Processes are the work that drives your Objectives.')
     expect(panel).toHaveTextContent('Responsible is the one person doing the work')
-    expect(panel).toHaveTextContent('Business Unit')
+    expect(panel).toHaveTextContent('Business Unit is the team it belongs to')
   })
 
   it('ID: the localized help states the same terms', async () => {
@@ -348,6 +348,6 @@ describe('page help defines the domain terms', () => {
     const panel = screen.getByRole('note')
     expect(panel).toHaveTextContent('Proyek dan Proses adalah kerja yang mendorong Objective Anda.')
     expect(panel).toHaveTextContent('Responsible adalah satu orang yang mengerjakan')
-    expect(panel).toHaveTextContent('Business Unit')
+    expect(panel).toHaveTextContent('Business Unit adalah tim tempat pekerjaan ini berada')
   })
 })
