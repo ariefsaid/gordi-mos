@@ -190,6 +190,7 @@ describe('Projects & Processes collection-first contract', () => {
     fireEvent.submit(form)
     expect(await screen.findByRole('alert')).toHaveTextContent('Temporary save failure')
     expect(name).toHaveValue('Weekly stock opname')
+    await waitFor(() => expect(name).toHaveFocus())
     expect(within(form).getByRole('combobox', { name: 'Type' })).toHaveTextContent('Process')
     fireEvent.submit(form)
     await waitFor(() => expect(createWorkLine).toHaveBeenNthCalledWith(2, 'Weekly stock opname', 'process'))

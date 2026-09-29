@@ -127,6 +127,7 @@ describe('Objectives collection-first contract', () => {
     fireEvent.submit(form)
     expect(await screen.findByRole('alert')).toHaveTextContent('Temporary save failure')
     expect(name).toHaveValue('Delight guests')
+    await waitFor(() => expect(name).toHaveFocus())
     fireEvent.submit(form)
     await waitFor(() => expect(createObjective).toHaveBeenNthCalledWith(2, 'Delight guests'))
     await waitFor(() => expect(screen.queryByRole('form', { name: 'Create objective' })).toBeNull())
