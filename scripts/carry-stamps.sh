@@ -46,10 +46,10 @@ done <<< "$rd"
 
 gitdir="$(git rev-parse --git-dir)"
 carried=0
-for f in pre-pr-verify-ok independent-review-spec-ok independent-review-code-quality-ok independent-review-security-ok; do
+for f in pre-pr-verify-ok pre-pr-verify-dev-ok independent-review-spec-ok independent-review-code-quality-ok independent-review-security-ok; do
   [ -f "$gitdir/$f" ] || continue
   case "$f" in
-    pre-pr-verify-ok) [ "$(cat "$gitdir/$f")" = "$old" ] || continue; printf '%s' "$new" > "$gitdir/$f" ;;
+    pre-pr-verify-ok|pre-pr-verify-dev-ok) [ "$(cat "$gitdir/$f")" = "$old" ] || continue; printf '%s' "$new" > "$gitdir/$f" ;;
     *) [ "$(awk '{print $1}' "$gitdir/$f")" = "$old" ] || continue
        rest="$(cut -d' ' -f2- "$gitdir/$f")"; printf '%s %s\n' "$new" "$rest" > "$gitdir/$f" ;;
   esac
