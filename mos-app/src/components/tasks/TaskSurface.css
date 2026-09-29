@@ -212,13 +212,16 @@
   display: flex; align-items: center; gap: 8px; padding: 6px 8px;
   border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-body-lg);
 }
-.person-picker-option:hover, .person-picker-option:focus-visible {
-  background: var(--surface-tertiary);
+.person-picker-option:hover,
+.person-picker-option[data-selected='true'] { background: var(--surface-tertiary); }
+.person-picker-search {
+  box-sizing: border-box; width: 100%; min-height: 32px; margin-bottom: 4px; padding: 5px 10px;
+  border: 1px solid var(--input); border-radius: var(--radius-sm);
+  background: var(--background); color: var(--foreground);
+  font: inherit; font-size: var(--font-size-control);
 }
-/* GAP-8 (OD-91 #13): the shared listbox keyboard cursor (aria-activedescendant) — the active
-   option reads highlighted even though DOM focus stays on the listbox container. */
-.person-picker-option.is-active { background: var(--surface-tertiary); }
-.person-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } /* item #6: normalized to +2 (menu option has room) */
+.person-picker-search:focus-visible { border-color: var(--primary); outline: 2px solid var(--ring); outline-offset: 1px; }
+.person-picker-empty { padding: 6px 8px; color: var(--muted-foreground); font-size: var(--font-size-body-lg); }
 
 /* ── Checklist ── */
 .checklist-count { font-size: var(--font-size-body-lg); font-weight: 400; color: var(--muted-foreground); }
