@@ -17,7 +17,7 @@
 --   ForeignMgr …0b4 org B            — cross-org negative control
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(88);
+select plan(90);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -371,6 +371,14 @@ select throws_ok($$
    where id = '00000000-0000-0000-0000-0000000009e2'
 $$, '42501', null,
   'a row''s identity is not editable in place — default-deny, no tier owns it');
+select throws_ok($$
+  update mos.objectives set name = name where id = '00000000-0000-0000-0000-0000000009e2'
+$$, '42501', null,
+  'a value-identical UPDATE is refused — it must not advance the clock under member authority');
+select is((select count(*)::int from shared.record_history
+           where record_key = '00000000-0000-0000-0000-0000000009e2' and field_name = 'name'
+             and old_value = new_value),
+  0, 'the refused write left no name history row — the refusal happened before any change');
 
 -- A key-result removal keeps its history, readable through the org-wide predicate over the
 -- snapshot columns (the registered delete arm).

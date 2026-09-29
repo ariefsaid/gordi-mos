@@ -193,6 +193,16 @@ begin
   end if;
 
   if tg_op = 'UPDATE' and current_user = 'authenticated' then
+    -- A write that changes no column is refused for a writer with no tier here: this guard runs
+    -- before the clock trigger (name order), so a value-identical UPDATE cannot quietly advance
+    -- updated_at under member authority (review round 3 of #992). A writer holding structural or
+    -- content authority may re-save identical content — a deliberate idle save must not fail.
+    if new is not distinct from old
+       and not shared.can('objective.manage')
+       and not mos.can_edit_objective_content(new.id) then
+      raise exception 'the update changes no column the writer has authority for'
+        using errcode = '42501';
+    end if;
     -- Default-deny column split (review round 1 of #992): the row policy admits any org member,
     -- so this guard — not the policy — is what makes every column answer to a tier. A column no
     -- tier owns (the org seam, the row identity, creation metadata) is refused outright, so a
@@ -298,6 +308,14 @@ begin
   end if;
 
   if tg_op = 'UPDATE' and current_user = 'authenticated' then
+    -- Value-identical UPDATEs are refused for a writer with no tier here, same shape and reason
+    -- as the parent Objective's guard (review round 3 of #992).
+    if new is not distinct from old
+       and not shared.can('objective.manage')
+       and not mos.can_edit_objective_content(old.objective_id) then
+      raise exception 'the update changes no column the writer has authority for'
+        using errcode = '42501';
+    end if;
     -- Default-deny, same shape as the parent Objective's guard: columns no tier owns are not
     -- editable in place (review round 1 of #992).
     if new.org_id      is distinct from old.org_id
