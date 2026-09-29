@@ -17,7 +17,7 @@
 --   ForeignMgr …0b4 org B            — cross-org negative control
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(92);
+select plan(94);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -383,6 +383,15 @@ select throws_ok($$
   update mos.objectives set updated_at = now() + interval '1 hour' where id = '00000000-0000-0000-0000-0000000009e2'
 $$, '42501', null,
   'the clock is server-owned — a caller-supplied updated_at is refused, so it cannot ride past the value-identical check');
+select throws_ok($$
+  update mos.objectives set write_up = '[{"type":"paragraph","content":[]}]'::jsonb
+   where id = '00000000-0000-0000-0000-0000000009e2'
+$$, '42501', null,
+  'a plain member holds no content tier — the write-up is refused for them');
+select throws_ok($$
+  update mos.objective_key_results set current_value = 41 where id = '00000000-0000-0000-0000-0000000009e6'
+$$, '42501', null,
+  '...and the same content wall holds on a key result''s current_value');
 select throws_ok($$
   update mos.objective_key_results set updated_at = now() + interval '1 hour' where id = '00000000-0000-0000-0000-0000000009e6'
 $$, '42501', null, 'the same server-owned clock hold on a key result');
