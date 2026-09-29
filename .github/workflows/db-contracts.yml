@@ -117,6 +117,10 @@ jobs:
         if: steps.scope.outputs.render == 'true'
         run: bash scripts/api-reference.sh --check
 
+      - name: MCP tool catalog matches the database
+        if: steps.scope.outputs.render == 'true'
+        run: bash scripts/mcp-catalog.sh --check
+
       - name: pgTAP suite
         if: steps.scope.outputs.render == 'true'
         run: supabase test db
