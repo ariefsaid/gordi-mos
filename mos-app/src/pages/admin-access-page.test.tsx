@@ -28,6 +28,7 @@ const SCOPE_BY_ACTION: Record<string, RoleAuthorityRow['scope']> = {
   'signal.retract': 'own',
   'process.start': 'own_team',
   'process.close': 'own',
+  'agent.connect': 'none',
 }
 
 function authorityRows(): RoleAuthorityRow[] {

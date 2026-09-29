@@ -96,3 +96,43 @@ Supply mail credentials through the deployment secret configuration. Keep secret
 Sanity check after deploy: trigger a password-reset from the prod login page and confirm delivery +
 that the link lands on `https://ops.gordi.id/mos/recovery` (proves the SMTP path specifically). Rate limits: Resend free tier (~3k/mo,
 100/day) is ~10× MOS's worst case.
+
+## Agent access to the data API
+
+Outside AI agents sign in through the auth server's OAuth flow and call the `api_v1` schema. Every
+data-API request that carries a `client_id` passes a pre-request fence
+(`api_private.check_request`, set on the `authenticator` role by migration):
+
+- only the `api_v1` schema is reachable;
+- the client must be enabled in `shared.trusted_agent_clients` for the person's org, and the token's
+  session must still exist (revoking the session ends access at once);
+- the person must hold the `agent.connect` authority (Admin Settings, default: admins only).
+
+The app's own tokens and anonymous requests carry no `client_id` and pass unchanged. The Edge Functions (`agent-chat`,
+`compose-view`) refuse `client_id` tokens.
+
+Setup per environment, as an admin/SQL operator (placeholders only):
+
+```sql
+-- the resource identifier the agent's token is issued for
+update shared.agent_access_settings set mcp_resource = '<resource-identifier>';
+-- register a client; it starts switched off
+insert into shared.trusted_agent_clients (org_id, client_id, display_name)
+  values ('<org-id>', '<client-id>', '<display name>');
+update shared.trusted_agent_clients set enabled = true where client_id = '<client-id>';
+```
+
+The OAuth server itself is switched on only in the environment's auth configuration, never in
+`supabase/config.toml`.
+
+### Request time limit
+
+Both token kinds run as `authenticated`, so its `statement_timeout` bounds every data-API request.
+Verify it on an environment (read-only; the caller supplies the connection string, which the script hands to psql through
+the `PG*` environment variables so it never appears in a process listing):
+
+```bash
+DATABASE_URL='<connection-string>' bash scripts/check-statement-timeout.sh   # MAX_MS=8000 to tighten
+```
+
+Exit 0 = set and within the ceiling (default 30 s); 1 = unset, unlimited or too high; 2 = unreadable.

@@ -166,3 +166,5 @@ jobs:
         run: bash scripts/ci-e2e.test.sh
       - name: API docs freshness self-test
         run: bash scripts/api-reference.test.sh
+      - name: statement-timeout check self-test
+        run: bash scripts/check-statement-timeout.test.sh

@@ -133,6 +133,8 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // The Edge Function entry points import the package from outside mos-app/; Deno resolves it there.
+    alias: { '@supabase/supabase-js': fileURLToPath(new URL('./node_modules/@supabase/supabase-js', import.meta.url)) },
     globals: true,
     // VITEST_MAX_THREADS caps workers on shared machines; unset keeps Vitest's default.
     maxWorkers: Number(process.env.VITEST_MAX_THREADS) || undefined,

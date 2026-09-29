@@ -60,8 +60,8 @@ select is(
 select is(
   (select array_agg(p.proname::text order by p.proname)
      from pg_proc p where p.pronamespace = to_regnamespace('api_private') and p.prosecdef),
-  array['begin_write','log_write'],
-  'NFR-002: only the two write-log helpers in api_private are SECURITY DEFINER');
+  array['_agent_fence','begin_write','log_write'],
+  'NFR-002: only the agent-fence helper and the two write-log helpers in api_private are SECURITY DEFINER');
 
 select is(
   (select count(*)::int from pg_proc p
@@ -74,16 +74,16 @@ select is(
     where p.pronamespace = to_regnamespace('api_private')
       and (p.proacl is null
            or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0 and a.privilege_type = 'EXECUTE')
-           or has_function_privilege('anon', p.oid, 'execute')
+           or (has_function_privilege('anon', p.oid, 'execute') and p.proname <> 'check_request')
            or not has_function_privilege('authenticated', p.oid, 'execute'))),
-  0, 'AC-026: api_private EXECUTE is held by authenticated only, never public or anon');
+  0, 'AC-026: api_private EXECUTE is held by authenticated, never public; anon holds only check_request');
 
 select is(
   (select count(*)::int from pg_namespace n
     where n.nspname in ('api_v1','api_private')
-      and (has_schema_privilege('anon', n.oid, 'usage')
+      and ((has_schema_privilege('anon', n.oid, 'usage') and n.nspname = 'api_v1')
            or not has_schema_privilege('authenticated', n.oid, 'usage'))),
-  0, 'both schemas grant USAGE to authenticated and not to anon');
+  0, 'both schemas grant USAGE to authenticated; anon has it on api_private only, for the pre-request check');
 
 -- ── AC-030: the recorded v1 signature snapshot ───────────────────────────────────────────────
 -- A recorded signature must still exist; a later defaulted parameter only extends the tail.
