@@ -134,6 +134,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // VITEST_MAX_THREADS caps workers on shared machines; unset keeps Vitest's default.
+    maxWorkers: Number(process.env.VITEST_MAX_THREADS) || undefined,
     setupFiles: './src/test/setup.ts',
     // css:false — Vitest must NOT parse/inject the 51 imported stylesheets into every
     // jsdom environment. That CSS injection is pure overhead here: this suite asserts on
