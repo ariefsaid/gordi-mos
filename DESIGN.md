@@ -726,6 +726,8 @@ The darkened-AA text values for the four non-neutral pill variants are defined a
 
 > **Module children collapse (shell judgment #738).** A Module's child rows render only while that Module is the current destination or the viewer is affiliated with its Business Unit; otherwise the Module renders as its root row alone, with the shared `Chevron` pointing right. The icon-only compact rail never renders children — roots only. The phone More drawer follows the same rule. A viewer's phone tab set equals their rail's visible destination roots for that viewer (Rule 9): the two surfaces never disagree on whether a Module is present for them.
 
+> **Module root is the module's capture job.** A Module's root route renders the work its members do most — the capture list for Café — never a menu of doors. Secondary journeys (an opening, a review queue) are door rows inside that root or rail children, and a door row is a `.btn-outline`-weight row: eyebrow · state · one verb, whose click opens the record that holds the work. A Module never has a screen whose only content is context selectors.
+
 > **Rail counts are the viewer's own.** A trailing count badge states the viewer's count (my open tasks, my unread) — never an org total. A destination with no personal count carries no badge.
 - **Rail collapse is the user's, not only the viewport's (#442).** The icon-only rendering above was reachable only by shrinking the window into the 920–1099.98px band — at the widths where the rail is most worth trading for content, the user had no say. A **collapse toggle** now sits at the rail's top edge and turns that SAME compact rendering on. There is exactly one collapsed style; this is the switch, not a second look.
 
@@ -768,6 +770,7 @@ outside the single "View & filters" door; the door never carries the surface pri
   **The rule is met.** `dashboard/cut-toggle.css` and `dashboard/window-selector.css` both `@import` it, and the shared file carries BOTH class families in one declaration block per rule — so the 32px track, `--secondary`, 3px padding, 4px gap, `--radius-sm`, the `calc(var(--radius-sm) - 2px)` inner corner and the `0 1px 2px` lift exist once. The two render *directly beside each other* on Money's toolbar (`7d / 30d / 60d / Custom` next to Branch/Activity), which is the adjacency the extraction exists to protect: a change to the grammar now reaches both or neither. Each file keeps only its own concerns — CutToggle's and WindowSelector's per-option phone min-width floors, and WindowSelector's custom date-pair chip. Pinned by `window-selector.css.test.ts` (#283, 2026-08-25; WindowSelector re-authored the whole grammar until then).
   The `role="tablist"`/`"tab"`/`aria-selected` view-switcher (`CutToggle` — Money's Branch/Activity tabs, stage filters) uses roving-tabindex arrow-key navigation. The second ARIA shape this grammar also served — a `role="radiogroup"`/`"radio"` persistent-setting form using `.is-active` instead of `aria-selected` — was the Home region-order toggle (`HomeOrderToggle`, OD-REDESIGN-18 / RI-1); **that control and its Personal-profile setting are RETIRED (OD-V4-10)** and both the component and its `.home-order-seg` / `.home-order-seg-opt` selectors are gone — no removal debt remains, and `guard-od-v4-10-retirement.test.ts` scans `src/` to keep them gone. The radiogroup shape stays documented because it remains the correct contract if a persistent segmented *setting* returns: two genuinely different ARIA contracts may share one visual grammar file, but never one component. Lives in `src/styles/` rather than `src/components/ui/` because its inner-corner radius is the DESIGN.md-sanctioned `calc(var(--radius-sm) - 2px)` nested idiom (see §Shapes), and the `ui/` kit directory's own vocabulary guard (`kit-vocab.test.ts`) is stricter — exact whole radius tokens only, no `calc()` composition — a boundary this pattern would otherwise trip.
 - **Large segmented (layout switcher):** 40px sticky bar (`abc-seg`), 34px buttons with a letter chip; "on" → white pill + lift, letter chip flips to `primary`. Sticky with a `backdrop-filter` blur over the `secondary/35%` page.
+- **Derived scope strips.** A segmented strip whose options come from data (Café movements) renders only the options valid for the current scope, labelled `→ Destination`; it never enumerates a catalog. Above five options the strip is wrong and the derivation is fixed, not the layout.
 
 ### Overlays
 - **Share Signal composer.** One modal for every entry point (centered on desktop, full-screen sheet on phone). Anatomy in order: body textarea; a pill row — Location (derived), Occurred (`Just now`, tap to change), Attention (`FYI ▾` → popover with the three levels and a one-line meaning each); the implicit line `Owning Team: X · Author: Y` (a `Owning Team ▾` select only when more than one Team is eligible); the visibility line; a footer with the attach slot (rendered only when storage exists), the category note and `Share Signal`. Closing with a typed body asks before discarding. The sheet pins the footer to its bottom edge on phone.
@@ -786,6 +789,8 @@ inline (`label` at label size in `muted-foreground`, value at body-lg/600 `tabul
 ~22px, closed by a single 1px `border` hairline underneath. No card, no shadow, no radius, no width
 branch — the same rule renders at every breakpoint. A delta renders **only** when it carries a state
 worth acting on (`destructive` / `success`); neutral deltas and restating captions are omitted.
+
+**Summary lines are true.** A summary rule's qualifier (`on plan`, `all on plan`) renders only when the figures it summarises make it true; with any off-plan quantity the qualifier is the off-plan count. On a capture surface the summary rule is the only aggregate — the KPI tile row is never rendered there (see Don'ts).
 
 KPI **tiles** remain correct where the job is *reading* figures (dashboards, Money) and keep their
 Soft-Elevation treatment there. Choose by the surface's job, not by habit.
@@ -839,8 +844,8 @@ applies belongs with that primitive, not with whichever page happened to author 
 
 **The control is a typed field, not a stepper.** Amounts in this domain are 10–20+, so `−`/`+` meant
 ~20 taps per row. Use a right-aligned numeric input: `inputmode="decimal"`, `enterkeyhint="next"`,
-**blank at rest with the expected value echoed as a greyed placeholder anchor**, and `font-size: 16px`
-so mobile Safari does not zoom the viewport on focus. Reserve steppers for genuinely small counts
+`font-size: 16px` so mobile Safari does not zoom the viewport on focus, and
+**blank at rest with the expected value echoed as a greyed placeholder anchor** — the anchor is the plan only while nothing has been logged for that row today; once a quantity is recorded the field is blank and a `sudah N` badge carries the recorded total (the kitchen app's idiom). A greyed number must never be readable as a value already entered. Reserve steppers for genuinely small counts
 (0–5). *(Owner-corrected; the pattern is the one the live kitchen app already uses on this job.)*
 
 **Validation that demands typing reveals on `blur`, never per keystroke.** A required note that
@@ -852,6 +857,8 @@ user has entered something to diverge from expectation.
 
 *When to use it:* the surface's phone job is high-frequency capture across many rows. The default
 `<dl>` card stays correct for **reading** a record, where labelled field/value pairs are the point.
+
+**Scope is a statement, not a control.** The books a capture surface writes into (Café: the production stream) render as text in the page head — `Rumah Rames · Dapur` — derived from the person's primary Team. A switch, where the person is allowed one, is a text link beside the statement that opens a picker of the streams they may read. A receiving-only stream opens a clear Stock state with no production form, and a placeholder such as "Choose stream…" never renders. A person with no stream sees the `blank` empty state and no form.
 
 ### Row status as text (v4, 2026-07-27)
 In a dense collection where a status applies to **every** row at rest, render it as toned text
@@ -1096,6 +1103,7 @@ regardless of state. See § Operations event tokens for the side-stripe exceptio
   desktop row and ~180px per phone card, and pushed the list off the screen. (v4)
 - **Don't** ship the generic `<dl>` record card on a surface whose phone job is running a long
   capture list — supply a compact row through `renderCard` instead. (v4)
+- **Don't** render a `?` help tip on a capture surface. If the placeholder and the group label do not explain the field, fix them.
 
 ---
 
