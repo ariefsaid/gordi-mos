@@ -105,6 +105,13 @@ independent review → PR → auto-merge to dev → next. Its machinery binds ou
    posting policy lives in local `docs/`, per the banner above. One carve-out: `gh pr merge`
    stays raw (no prose leaves through a merge).
 
+CI fair use (shared free-tier minutes): a PR into `dev` uses GitHub CI as the full-suite gate — locally
+run only `bash scripts/pre-pr-verify.sh --dev` (typecheck, lint, tests of touched files); a PR into
+`main` keeps the full local gate. Run CI e2e at most once per PR, only for shared-code or milestone
+PRs, via `bash scripts/ci-e2e.sh` (raw dispatch and rerun are hook-denied). A second e2e run on a PR
+(except `--bugfix-proof`), a flake re-run, more than 3 dispatches per repo per day, or anything
+scheduled or looping needs the owner's OK. One heavy local job at a time, all sessions and repos.
+
 Escalate **only**: money or a promise · irreversible outside a signed brief · scope-vs-time that
 changes what ships · a fact only the owner holds. Within delegated scope, decide the rest and state
 the reasoning. The owner's explicit current-task direction supersedes a project default for that
