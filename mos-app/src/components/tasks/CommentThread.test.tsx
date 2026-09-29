@@ -119,18 +119,21 @@ describe('CommentThread — leave-guard + Escape isolation (D-B2)', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('text typed while a post is pending survives the post succeeding', async () => {
-    let resolve!: () => void
-    const onPost = vi.fn(() => new Promise<void>((r) => { resolve = r }))
+  it('the field is read-only while posting, so a failed post still holds exactly the submitted text', async () => {
+    let reject!: (e: Error) => void
+    const onPost = vi.fn(() => new Promise<void>((_, r) => { reject = r }))
     render(<CommentThread comments={[]} people={people} canPost onPost={onPost} />)
     const box = screen.getByRole('textbox', { name: /comment/i })
 
     fireEvent.change(box, { target: { value: 'First' } })
     fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
-    fireEvent.change(box, { target: { value: 'Second thought' } })
-    resolve()
+    expect(box).toHaveAttribute('readonly')
+    fireEvent.change(box, { target: { value: 'Second' } })
+    reject(new Error('offline'))
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /post comment/i })).toBeEnabled())
-    expect(box).toHaveValue('Second thought')
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be posted/i)
+    expect(box).toHaveValue('First')
+    expect(box).not.toHaveAttribute('readonly')
+    expect(box).toHaveFocus()
   })
 })

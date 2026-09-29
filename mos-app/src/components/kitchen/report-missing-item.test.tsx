@@ -71,7 +71,7 @@ describe('ReportMissingItem (AC-013)', () => {
   })
 
   it('a failed send keeps the typed name and focus; a retry files it once', async () => {
-    mockAddLogEntry.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined as never)
+    mockAddLogEntry.mockRejectedValueOnce(new Error('offline')).mockResolvedValue('entry-1')
     const user = userEvent.setup()
     render(<ReportMissingItem businessUnitId={BU_ID} />)
 

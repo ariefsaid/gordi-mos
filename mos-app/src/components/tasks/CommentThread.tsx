@@ -70,8 +70,6 @@ export function CommentThread({
   const [posting, setPosting] = useState(false)
   const [postError, setPostError] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const draftRef = useRef(draft)
-  draftRef.current = draft
   // Escape dismisses the mention picker without losing the draft; a fresh keystroke re-opens it.
   const [pickerDismissed, setPickerDismissed] = useState(false)
   const showMentionPicker = canPost && !pickerDismissed && /(^|\s)@[a-z0-9_.-]*$/i.test(draft)
@@ -86,8 +84,7 @@ export function CommentThread({
     setPostError(false)
     try {
       await onPost(body)
-      // Text typed while the post was pending is a new draft, not the posted one.
-      if (draftRef.current.trim() === body) updateDraft('')
+      updateDraft('')
     } catch {
       setPostError(true)
       textareaRef.current?.focus()
@@ -138,7 +135,8 @@ export function CommentThread({
             ref={textareaRef}
             aria-label={t('tasks.comment.label')}
             value={draft}
-            onChange={(event) => { updateDraft(event.target.value); setPickerDismissed(false); setPostError(false) }}
+            readOnly={posting}
+            onChange={(event) => { if (posting) return; updateDraft(event.target.value); setPickerDismissed(false); setPostError(false) }}
             onKeyDown={(event) => {
               // D-B2 isolation: while the mention picker is open, Escape dismisses the PICKER only
               // and is consumed here — it must not bubble to the record panel host and close the
