@@ -233,6 +233,8 @@ describe('TaskSurface — view mode', () => {
       expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument()
     })
     // Status/action stay in the compact header; the full work path and context remain in one view.
+    // The title's edit control must carry a localized accessible name, never the raw field key.
+    expect(screen.getByRole('button', { name: 'Edit Title' })).toBeInTheDocument()
     expect(screen.getByText('Open')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
     const ownership = document.querySelector('[data-content-slot="ownership"]') as HTMLElement
@@ -271,6 +273,7 @@ describe('TaskSurface — view mode', () => {
     renderIndonesianSurface()
 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Ubah Judul' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Detail tugas' })).toBeInTheDocument()
     expect(screen.getByText('Kepemilikan tugas')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
@@ -655,6 +658,25 @@ describe('TaskSurface — live region (AC-111)', () => {
     fireEvent.change(input, { target: { value: 'Buy beans' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/checklist item added/i))
+  })
+
+  // Luna review (23dcf7e6, finding 1): the Retry button called the parent's closure directly,
+  // bypassing ChecklistCard's own draft-clearing — a successful retry added the item but left the
+  // typed text in the field, so a further Enter would re-add it as a duplicate.
+  it('Ticket #965: a successful Retry (after a rejected add) clears the draft — no stale duplicate', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    const { addChecklistItem } = await import('@/lib/db/tasks')
+    vi.mocked(addChecklistItem)
+      .mockRejectedValueOnce(new Error('write failed'))
+      .mockResolvedValueOnce()
+    renderDrawer()
+    const input = await screen.findByLabelText(/add checklist item/i)
+    fireEvent.change(input, { target: { value: 'Buy beans' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.click(await screen.findByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(screen.getAllByText('Buy beans')).toHaveLength(1))
+    expect(input).toHaveValue('')
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('AC-111: a failed checklist toggle reverts AND announces the rollback', async () => {

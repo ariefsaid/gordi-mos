@@ -116,7 +116,7 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
     expect(screen.getByTestId('record-details').querySelector('.record-field__pill')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Edit title' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit Title' })).toBeInTheDocument()
     expect(screen.getByTestId('record-details').querySelector('[data-field-key="source"]')).toBeNull()
     expect(screen.getByTestId('record-details').querySelector('[data-field-key="projectProcess"]')).toHaveTextContent('Today opening')
     expect(within(screen.getByTestId('record-details').querySelector('[data-content-slot="ownership"]') as HTMLElement).getByText('PIC')).toBeInTheDocument()

@@ -497,6 +497,35 @@ describe('teamOwnershipField — honest Team model and viewer-scoped options', (
   })
 })
 
+// AC-039/FR-029 (OD-REDESIGN-41): the Supervisor field shows a quiet "inherited from <name>"
+// subline exactly when its value equals the parent Project/Process's Accountable — never a
+// separate control, never a hint when there is no such match.
+describe('createTaskRecordAdapter — AC-039: Supervisor inheritance hint', () => {
+  it('shows "inherited from <Project/Process>" when Supervisor equals the parent Accountable', () => {
+    const task = makeTask({ work_line_id: 'wl-1', accountable_person_id: SUPERVISOR })
+    const adapter = createTaskRecordAdapter(makeInput({
+      detail: makeDetail(task),
+      workLines: [{ id: 'wl-1', name: 'Today opening', type: 'process', accountable_person_id: SUPERVISOR }],
+    }))
+    expect(fieldByKey(adapter, 'supervisor').subline).toBe('inherited from Today opening')
+  })
+
+  it('shows no hint when Supervisor differs from the parent Accountable', () => {
+    const task = makeTask({ work_line_id: 'wl-1', accountable_person_id: SUPERVISOR })
+    const adapter = createTaskRecordAdapter(makeInput({
+      detail: makeDetail(task),
+      workLines: [{ id: 'wl-1', name: 'Today opening', type: 'process', accountable_person_id: PIC }],
+    }))
+    expect(fieldByKey(adapter, 'supervisor').subline).toBeUndefined()
+  })
+
+  it('shows no hint on an Ad hoc task (no Project/Process at all)', () => {
+    const task = makeTask({ work_line_id: null, accountable_person_id: SUPERVISOR })
+    const adapter = createTaskRecordAdapter(makeInput({ detail: makeDetail(task) }))
+    expect(fieldByKey(adapter, 'supervisor').subline).toBeUndefined()
+  })
+})
+
 describe('createTaskFieldCommit — AC-V3-008: domain-facing keys reach the right DAL callback', () => {
   it('routes status through onUpdateStatus and other keys through onUpdateField', async () => {
     const onUpdateField = vi.fn(async () => {})
