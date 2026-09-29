@@ -19,7 +19,7 @@
 -- substrate the composite-key rows and the delete proof hang from.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(49);
+select plan(57);
 
 select shared._test_seed_directory();
 
@@ -105,6 +105,22 @@ select is((select actor_person_id::text from shared.record_history
            where schema_name = 'shared' and table_name = 'person_access_roles'
              and record_key = '00000000-0000-0000-0000-000000009976'),
   '00000000-0000-0000-0000-0000000000d3', 'the access-role grant stamps the granting admin');
+
+-- A soft revoke is an UPDATE (revoked_at), not a delete: the granting admin revokes the same
+-- grant and the trail records who revoked, when, and what changed.
+update shared.person_access_roles set revoked_at = now()
+ where id = '00000000-0000-0000-0000-000000009976';
+select is((select count(*)::int from shared.record_history
+           where schema_name = 'shared' and table_name = 'person_access_roles'
+             and record_key = '00000000-0000-0000-0000-000000009976'
+             and field_name = 'revoked_at'),
+  1, 'the soft revoke appends its revoked_at row on the same grant');
+select is((select actor_person_id::text from shared.record_history
+           where schema_name = 'shared' and table_name = 'person_access_roles'
+             and record_key = '00000000-0000-0000-0000-000000009976'
+             and field_name = 'revoked_at'),
+  '00000000-0000-0000-0000-0000000000d3', 'the revoke stamps the revoking admin');
+
 select is((select count(*)::int from shared.record_history
            where schema_name = 'shared' and table_name = 'team_memberships'
              and record_key = '00000000-0000-0000-0000-000000009977'),
@@ -189,7 +205,8 @@ values ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000
         '00000000-0000-0000-0000-0000000000d4');
 
 select is((select record_key from shared.record_history
-           where schema_name = 'shared' and table_name = 'team_lead_assignments'),
+           where schema_name = 'shared' and table_name = 'team_lead_assignments'
+             and action = 'insert'),
   '00000000-0000-0000-0000-0000000000a1:00000000-0000-0000-0000-000000009971',
   'DA-1: the team_lead_assignments record_key is (org_id, team_id) colon-joined in PK order');
 
@@ -209,6 +226,20 @@ select is((select new_value from shared.record_history
            where record_key = '00000000-0000-0000-0000-0000000000a1:00000000-0000-0000-0000-000000009971'
              and field_name = 'lead_person_id'),
   '00000000-0000-0000-0000-0000000000d7', 'the lead change records the incoming lead');
+
+-- The people arm carries BOTH halves of people's read predicate: org-wide, or self — the self
+-- half is what still resolves while the password-rotation gate holds current_org_id() at NULL.
+-- No live rotation gate is simulated here (the directory fixture has no linked login for this
+-- person); the arm's self half is proven directly through the predicate function.
+-- No org_id in the claim: current_org_id() resolves NULL (the rotation-gate posture), the org
+-- half is dead, and the self half is the only thing that can admit the read.
+set local request.jwt.claims = '{"person_id":"00000000-0000-0000-0000-000000009975","access_roles":["member"]}';
+select is(shared.can_read_history_record('shared', 'people',
+           '00000000-0000-0000-0000-000000009975', 'insert', null),
+  true, 'a person reads their own row''s history through the arm''s self half');
+select is(shared.can_read_history_record('shared', 'people',
+           '00000000-0000-0000-0000-0000000000d1', 'insert', null),
+  false, '...and not another person''s history — the self half stops at the own row');
 
 -- ── the composite history is read-gated: same org AND the admin tier ──────────────────────────
 -- The settings RPCs these tables expose are admin-only SECURITY DEFINER reads; their history
@@ -316,6 +347,33 @@ select is((select count(*)::int from shared.record_history
            where schema_name = 'shared' and table_name = 'people'
              and record_key = '00000000-0000-0000-0000-0000000000b4'),
   1, 'org B''s admin reads their own org''s person history');
+
+-- The team-lead DESIGNATION goes through its admin RPC, not a bare table write: clearing it
+-- hard-deletes the row, and the RPC caller's claim is the delete actor.
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared.save_team_lead_assignment('00000000-0000-0000-0000-000000009971',
+                                        '00000000-0000-0000-0000-0000000000d4');
+select ok((select count(*)::int from shared.record_history
+           where schema_name = 'shared' and table_name = 'team_lead_assignments'
+             and record_key = '00000000-0000-0000-0000-0000000000a1:00000000-0000-0000-0000-000000009971') >= 3,
+  'the RPC designation write is recorded on the composite key beside the earlier bare writes');
+select shared.save_team_lead_assignment('00000000-0000-0000-0000-000000009971', null);
+select is((select count(*)::int from shared.record_history
+           where schema_name = 'shared' and table_name = 'team_lead_assignments'
+             and record_key = '00000000-0000-0000-0000-0000000000a1:00000000-0000-0000-0000-000000009971'
+             and action = 'delete'),
+  1, 'clearing the designation through the RPC appends exactly one delete row');
+select is((select actor_person_id::text from shared.record_history
+           where schema_name = 'shared' and table_name = 'team_lead_assignments'
+             and record_key = '00000000-0000-0000-0000-0000000000a1:00000000-0000-0000-0000-000000009971'
+             and action = 'delete'),
+  '00000000-0000-0000-0000-0000000000d3', 'the clear stamps the clearing admin''s claim as the delete actor');
+select is((select count(*)::int from shared.record_history
+           where schema_name = 'shared' and table_name = 'team_lead_assignments'
+             and record_key = '00000000-0000-0000-0000-0000000000a1:00000000-0000-0000-0000-000000009971'
+             and action = 'delete'),
+  1, 'the admin still reads the cleared designation''s delete row through the snapshot arm');
 
 select * from finish();
 rollback;

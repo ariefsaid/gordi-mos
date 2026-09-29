@@ -194,11 +194,16 @@ begin
             and bu.id = p_record_key::uuid
             and bu.org_id = shared.current_org_id());
       when p_schema = 'shared' and p_table = 'people' then
+        -- people's own SELECT policy is org-wide OR self (the self half is what still resolves
+        -- while the password-rotation gate holds current_org_id() at NULL) — the history arm
+        -- reuses both halves, so a person reads their own row's history exactly when they read
+        -- the row.
         return exists (
           select 1 from shared.people pe
           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
             and pe.id = p_record_key::uuid
-            and pe.org_id = shared.current_org_id());
+            and (pe.org_id = shared.current_org_id()
+                 or pe.id = shared.current_person_id()));
       when p_schema = 'shared' and p_table = 'person_access_roles' then
         return exists (
           select 1 from shared.person_access_roles par
@@ -264,6 +269,12 @@ begin
     case
       when p_schema = 'shared' and p_table = 'person_roles' then
         return (p_snapshot ->> 'org_id')::uuid = shared.current_org_id();
+      -- Clearing a Team-lead designation is save_team_lead_assignment's NULL write: the row is
+      -- hard-removed by the admin settings RPC, so its delete row is readable through the same
+      -- admin authority over the snapshot's org (the key's first registered component).
+      when p_schema = 'shared' and p_table = 'team_lead_assignments' then
+        return (p_snapshot ->> 'org_id')::uuid = shared.current_org_id()
+           and shared.has_access_role('admin');
       else
         return false;
     end case;
