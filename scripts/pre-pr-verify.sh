@@ -191,6 +191,17 @@ else
   echo "── every changed path proven inert — npm lane skipped (CI verify applies the same polarity)"
 fi
 
+# A change under scripts/ runs the guard self-tests CI's guards job runs (the list in guards.yml).
+# The marker keeps a self-test that drives this script from recursing.
+if [ -n "$base" ] && [ -z "${MOS_GUARD_SELFTESTS_RUNNING:-}" ] \
+   && [ -n "$(git diff --name-only "$base"...HEAD -- scripts/)" ] && [ -f .github/workflows/guards.yml ]; then
+  while IFS= read -r _t; do
+    [ -f "$_t" ] || continue
+    echo "── guard self-test: $_t"
+    MOS_GUARD_SELFTESTS_RUNNING=1 bash "$_t" >/dev/null 2>&1 || { echo "✗ $_t failed — run it for details" >&2; exit 1; }
+  done < <(grep -oE 'bash scripts/[A-Za-z0-9_.-]+\.test\.sh' .github/workflows/guards.yml | awk '{print $2}' | sort -u)
+fi
+
 if [ "$(git rev-parse HEAD)" != "$head" ] || [ -n "$(git status --porcelain)" ]; then
   echo "✗ checkout changed during verification — rerun on the final clean commit" >&2
   exit 1

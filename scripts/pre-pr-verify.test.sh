@@ -15,6 +15,9 @@ ok()   { pass=$((pass+1)); printf '  ok    %s\n' "$1"; }
 bad()  { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 
 # Scratch repo shaped like this one: scripts/ + mos-app/, npm stubbed on PATH.
+# Guard self-tests stay off except in the cases that test them: the scratch repo holds every
+# script, so a case that edits one would otherwise run that script's whole suite nested.
+export MOS_GUARD_SELFTESTS_RUNNING=1
 git init -q "$tmp/repo"
 git -C "$tmp/repo" config user.email t@t && git -C "$tmp/repo" config user.name t
 mkdir -p "$tmp/repo/scripts" "$tmp/repo/mos-app/src" "$tmp/bin"
@@ -469,6 +472,21 @@ chmod +x "$tmp/bin/npm"
 if run; then bad "checkout changed during verification must refuse"
 else ok "checkout changed during verification refuses"; fi
 [ ! -f "$STAMP" ] && ok "no stamp after in-flight checkout change" || bad "stamp written after in-flight checkout change"
+
+# A scripts/ change runs the guard self-tests guards.yml lists: red refuses the stamp, green allows it.
+G reset -q --hard; G clean -fdq; printf '#!/bin/sh\nexit 0\n' > "$tmp/bin/npm"; chmod +x "$tmp/bin/npm"
+mkdir -p "$tmp/repo/.github/workflows"
+printf 'jobs:\n  g:\n    steps:\n      - run: bash scripts/demo-guard.test.sh\n' > "$tmp/repo/.github/workflows/guards.yml"
+G add .github; G commit -qm "guards list for the guard self-test case"
+G update-ref refs/remotes/origin/lightbase "$(G rev-parse HEAD)"
+printf '#!/bin/sh\nexit 0\n' > "$tmp/repo/scripts/demo-guard.sh"
+printf '#!/bin/sh\nexit 1\n' > "$tmp/repo/scripts/demo-guard.test.sh"
+G add scripts/demo-guard.sh scripts/demo-guard.test.sh; G commit -qm "light: a guard and its red self-test"
+rm -f "$tmp/repo/.git/pre-pr-verify-dev-ok"
+if (unset MOS_GUARD_SELFTESTS_RUNNING; run_dev --dev); then bad "--dev with a red guard self-test must refuse"; else ok "--dev runs the listed guard self-tests and refuses on red"; fi
+[ ! -e "$tmp/repo/.git/pre-pr-verify-dev-ok" ] && ok "no stamp over a red guard self-test" || bad "stamp written over a red guard self-test"
+printf '#!/bin/sh\nexit 0\n' > "$tmp/repo/scripts/demo-guard.test.sh"; G add scripts/demo-guard.test.sh; G commit -qm "light: guard self-test green"
+if (unset MOS_GUARD_SELFTESTS_RUNNING; run_dev --dev); then ok "--dev passes once the guard self-test is green"; else bad "--dev refused a green guard self-test"; fi
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
