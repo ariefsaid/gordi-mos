@@ -27,17 +27,28 @@ select substring(cfg from '^statement_timeout=(.*)$')
  order by s.setdatabase desc
  limit 1
 SQL
-url_re='^postgres(ql)?://([^:@/]*)(:([^@]*))?@([^:/?]*)(:([0-9]+))?/([^?]*)(\?(.*))?$'
+url_re='^postgres(ql)?://([^:@/]*)(:([^@]*))?@(\[[^]]*\]|[^:/?]*)(:([0-9]+))?/([^?]*)(\?(.*))?$'
 if ! [[ "$DATABASE_URL" =~ $url_re ]]; then
-  echo "DATABASE_URL must look like postgresql://user:password@host:port/database" >&2; exit 2
+  echo "DATABASE_URL must look like postgresql://user:password@host:port/database[?sslmode|sslrootcert|sslcert|sslkey|connect_timeout=...]" >&2; exit 2
 fi
 decode() { printf '%b' "${1//%/\\x}"; }
 export PGUSER PGPASSWORD PGHOST PGDATABASE
 PGUSER=$(decode "${BASH_REMATCH[2]}"); PGPASSWORD=$(decode "${BASH_REMATCH[4]}")
-PGHOST=${BASH_REMATCH[5]}; PGDATABASE=$(decode "${BASH_REMATCH[8]}")
+PGHOST=${BASH_REMATCH[5]#[}; PGHOST=${PGHOST%]}; PGDATABASE=$(decode "${BASH_REMATCH[8]}")
 [ -n "${BASH_REMATCH[7]}" ] && export PGPORT=${BASH_REMATCH[7]}
 query=${BASH_REMATCH[10]}
-[[ "$query" =~ (^|&)sslmode=([a-z-]+) ]] && export PGSSLMODE=${BASH_REMATCH[2]}
+# Query options become the matching PG* variables; anything else is refused rather than dropped.
+IFS='&' read -ra opts <<< "$query"
+for opt in ${opts[@]+"${opts[@]}"}; do
+  case "${opt%%=*}" in
+    sslmode) export PGSSLMODE=$(decode "${opt#*=}") ;;
+    sslrootcert) export PGSSLROOTCERT=$(decode "${opt#*=}") ;;
+    sslcert) export PGSSLCERT=$(decode "${opt#*=}") ;;
+    sslkey) export PGSSLKEY=$(decode "${opt#*=}") ;;
+    connect_timeout) export PGCONNECT_TIMEOUT=$(decode "${opt#*=}") ;;
+    *) echo "unsupported DATABASE_URL option: ${opt%%=*}" >&2; exit 2 ;;
+  esac
+done
 raw=$("$PSQL" -X -A -t -v ON_ERROR_STOP=1 -c "$SQL") \
   || { echo "cannot read the role settings" >&2; exit 2; }
 raw=$(printf '%s' "$raw" | tr -d '[:space:]')
