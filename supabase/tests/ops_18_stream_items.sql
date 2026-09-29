@@ -19,8 +19,6 @@ begin
   return n;
 end;
 $f$;
--- The owner default no longer grants PUBLIC execute, so the session-local helpers are granted.
-grant execute on all functions in schema pg_temp to public;
 
 -- Two items of this suite's own, so the fixture's offer-everything lists never answer for them.
 -- c801 is offered at HQ Bar only; c802 is on no list.

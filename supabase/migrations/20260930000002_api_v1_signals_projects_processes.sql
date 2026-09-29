@@ -1,6 +1,5 @@
 -- Shared operation layer, slice (b): Signals and Projects/Processes in `api_v1`, a 200-character cap on
--- every `q` search input, and no implicit PUBLIC execute on functions created later in api_v1 and
--- api_private (integration-operation-layer.spec.md, ADR-0060).
+-- every `q` search input (integration-operation-layer.spec.md, ADR-0060).
 --
 -- Rules this migration keeps (same as slice (a)):
 --   * Every api_v1 function is SECURITY INVOKER with an empty search_path, executable by
@@ -17,10 +16,7 @@
 --   drop function api_private.signal_json(mos.signals), api_private.signal_detail(uuid),
 --     api_private.work_line_json(mos.work_lines), api_private.work_line_detail(uuid);
 --   re-create api_v1.list_people, list_teams and list_tasks from 20260930000001 (the only change
---     here is the `q` line: `nullif(btrim(<fn>.q), '')`);
---   alter default privileges for role postgres grant execute on functions to public;
---   and drop the per-schema entries: alter default privileges for role postgres in schema <s>
---     revoke execute on functions from public; for every schema except api_v1 and api_private.
+--     here is the `q` line: `nullif(btrim(<fn>.q), '')`.
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- api_private: record shapes
@@ -140,6 +136,9 @@ declare
   v_items jsonb; v_has_more boolean; v_last_key timestamptz; v_last_id uuid;
   v_sqlstate text; v_message text; v_detail text; v_hint text; v_column_name text;
 begin
+  if v_attention is not null and cardinality(v_attention) > 50 then
+    perform api_private.invalid('attention', 'attention holds at most 50 entries.');
+  end if;
   if v_attention is not null and exists (
        select 1 from unnest(v_attention) a where a is null or a <> all (array['FYI', 'Needs attention', 'Urgent'])) then
     perform api_private.invalid('attention', 'attention must hold only FYI, Needs attention, Urgent.');
@@ -685,30 +684,10 @@ end
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- Hardening 2: a function created later in api_v1 or api_private is not executable by public
--- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- A schema-level revoke changes nothing: the implicit PUBLIC execute comes from the owner's global
--- default. So the global default drops it, and every other existing schema gets it back explicitly,
--- which leaves them exactly as before. New functions in api_v1 and api_private then start closed.
-alter default privileges for role postgres revoke execute on functions from public;
-do $$
-declare
-  r record;
-begin
-  for r in
-    select n.nspname from pg_namespace n
-     where n.nspname not like 'pg\_%' and n.nspname not in ('information_schema', 'api_v1', 'api_private')
-  loop
-    execute format('alter default privileges for role postgres in schema %I grant execute on functions to public', r.nspname);
-  end loop;
-end
-$$;
-
--- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- Function comments (the source of the generated reference)
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 comment on function api_v1.list_signals(text[], uuid, timestamptz, timestamptz, uuid, timestamptz, text, boolean, text, integer) is
-  'Purpose: Signals the caller can read, newest occurred_at first. Inputs: attention (list of FYI, Needs attention, Urgent), author_id (a filter, never an actor), occurred_from, occurred_to, linked_task_id, updated_since, q (body contains, at most 200 characters), include_retracted (default false), cursor, limit (default 50, at most 100). Returns: {items [Signal], next_cursor}. Errors: invalid_input (attention, q, cursor, limit).';
+  'Purpose: Signals the caller can read, newest occurred_at first. Inputs: attention (at most 50 of FYI, Needs attention, Urgent), author_id (a filter, never an actor), occurred_from, occurred_to, linked_task_id, updated_since, q (body contains, at most 200 characters), include_retracted (default false), cursor, limit (default 50, at most 100). Returns: {items [Signal], next_cursor}. Errors: invalid_input (attention, q, cursor, limit).';
 comment on function api_v1.get_signal(uuid) is
   'Purpose: one Signal with its active mentions [{kind person, team or business_unit; id}], latest 50 comments, acknowledged_by_me and linked Task ids. Inputs: id. Returns: {item}. Errors: not_found (missing or not readable), invalid_input (id).';
 comment on function api_v1.create_signal(text, timestamptz, text, jsonb, uuid[], text) is

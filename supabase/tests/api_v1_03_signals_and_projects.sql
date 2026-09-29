@@ -8,7 +8,7 @@
 --   d5 report (under d1 and d4)   d7 (probed with finance)   b4 member of another org.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(131);
+select plan(133);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -109,8 +109,6 @@ begin
   end loop;
   return v;
 end $f$;
--- The owner default no longer grants PUBLIC execute, so the session-local helpers are granted.
-grant execute on all functions in schema pg_temp to public;
 
 set local role authenticated;
 
@@ -139,6 +137,9 @@ select is(
          cursor => api_v1.list_signals("limit" => 1) ->> 'next_cursor') -> 'items')) x),
   2, 'list_signals cursor continues without repeats');
 select alike(pg_temp.err($q$ select api_v1.list_signals(attention => array['Nope']) $q$), 'PT400|invalid_input|attention|%', 'an unknown attention is invalid_input naming the field');
+select is(pg_temp.err($q$ select api_v1.list_signals(attention => array_fill('FYI'::text, array[51])) $q$),
+  'PT400|invalid_input|attention|attention holds at most 50 entries.', 'an attention list over 50 entries is invalid_input');
+select is(jsonb_array_length(api_v1.list_signals(attention => array_fill('Needs attention'::text, array[50])) -> 'items'), 1, 'an attention list of exactly 50 entries is accepted');
 select alike(pg_temp.err($q$ select api_v1.list_signals(cursor => 'not-a-cursor') $q$), 'PT400|invalid_input|cursor|%', 'a malformed Signal cursor is invalid_input');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
 select is(jsonb_array_length(api_v1.list_signals() -> 'items'), 3, 'an author also reads their own Team-audience Signal');

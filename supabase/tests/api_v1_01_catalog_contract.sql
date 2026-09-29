@@ -3,7 +3,7 @@
 -- ACL), AC-030 (v1 signature snapshot), plus a COMMENT on every function and the definer allow-list.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(13);
 
 select ok(
   exists (select 1 from pg_namespace where nspname = 'api_v1')
@@ -122,22 +122,6 @@ select is(
     where p.pronamespace = to_regnamespace('api_v1')
       and p.prorettype <> 'jsonb'::regtype),
   0, 'every api_v1 function returns one jsonb value');
-
--- ── Hardening 2: a function created later in these schemas is not executable by public or anon ─
-create function api_v1._probe() returns int language sql as 'select 1';
-create function api_private._probe() returns int language sql as 'select 1';
-select is(
-  (select count(*)::int from pg_proc p
-    where p.proname = '_probe' and p.pronamespace in (to_regnamespace('api_v1'), to_regnamespace('api_private'))
-      and (has_function_privilege('anon', p.oid, 'execute')
-           or exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
-                       where a.grantee = 0 and a.privilege_type = 'EXECUTE'))),
-  0, 'a function created later in api_v1 or api_private is not executable by public or anon');
-create function shared._probe() returns int language sql as 'select 1';
-select is(
-  (select has_function_privilege('anon', p.oid, 'execute')
-     from pg_proc p where p.proname = '_probe' and p.pronamespace = to_regnamespace('shared')),
-  true, 'a function created later in another schema keeps its default execute grant');
 
 select * from finish();
 rollback;
