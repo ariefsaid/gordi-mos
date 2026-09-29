@@ -828,6 +828,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
         reason={retractReason}
         onReasonChange={setRetractReason}
         reasonRequired
+        reasonMaxLength={500}
         tone="destructive"
         onConfirm={handleRetract}
         onCancel={() => { setRetractOpen(false); setRetractReason('') }}
