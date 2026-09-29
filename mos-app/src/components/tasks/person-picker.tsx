@@ -1,45 +1,169 @@
+import { useEffect, useRef, useState, type RefObject } from 'react'
+import { Command } from 'cmdk'
+import * as Popover from '@radix-ui/react-popover'
 import type { PersonOption } from '@/lib/db/directory'
-import { initials } from './task-formatters'
 import { useT } from '@/i18n/use-t'
-import { useListboxPopover } from '@/components/ui/use-listbox-popover'
+import { initials } from './task-formatters'
 
-// ── Person picker (listbox overlay) ──────────────────────────────────────────
+// ── Person picker (filterable listbox overlay) ───────────────────────────────
 export type PersonPickerProps = {
   people: PersonOption[]
   onSelect: (id: string) => void
   onClose: () => void
   exclude?: string[]
+  // The element the picker serves (e.g. the composer textarea); without one it anchors where it renders.
+  anchorRef?: RefObject<HTMLElement | null>
+  // Attached mode: the anchor element keeps DOM focus and its text drives the filter; ArrowUp/Down,
+  // Home/End and Enter typed there move and pick. Without it the picker owns a search input.
+  query?: string
 }
 
-export function PersonPicker({ people, onSelect, onClose, exclude = [] }: PersonPickerProps) {
+export function PersonPicker({ people, onSelect, onClose, exclude = [], anchorRef, query }: PersonPickerProps) {
   const t = useT()
-  const available = people.filter(p => !exclude.includes(p.id))
-  // GAP-8 (OD-91 #13): the shared listbox keyboard contract — arrows/Home/End move the virtual
-  // cursor (aria-activedescendant), Enter/Space picks it, Escape dismisses locally + returns focus.
-  const { listboxProps, getOptionProps, activeIndex } = useListboxPopover({
-    itemCount: available.length,
-    onSelect: (index) => { const p = available[index]; if (p) { onSelect(p.id); onClose() } },
-    onClose,
-  })
+  const available = people.filter(person => !exclude.includes(person.id))
+  // Captured during the first render, before the search input takes focus.
+  const openerRef = useRef<Element | null>(null)
+  if (openerRef.current === null && typeof document !== 'undefined') openerRef.current = document.activeElement
+  const restoreFocus = () => {
+    const opener = openerRef.current
+    if (opener instanceof HTMLElement && opener !== document.body) opener.focus()
+  }
+  const attached = query !== undefined
+  const [active, setActive] = useState('')
+  const [typed, setTyped] = useState('')
+  const needle = (attached ? query : typed).trim().toLocaleLowerCase()
+
+  // Prefix matches rank first; hover never moves the highlight (disablePointerSelection).
+  const visible = available
+    .map(person => {
+      const name = person.full_name.toLocaleLowerCase()
+      return { person, score: !needle || name.startsWith(needle) ? 1 : name.includes(needle) ? 0.5 : 0 }
+    })
+    .filter(entry => entry.score > 0)
+    .sort((x, y) => y.score - x.score)
+    .map(entry => entry.person)
+  const activeId = visible.some(person => person.id === active) ? active : visible[0]?.id ?? ''
+
+  const closeWithFocus = () => { restoreFocus(); onClose() }
+
+  const keyState = useRef({ visible, activeId })
+  keyState.current = { visible, activeId }
+  const pickRef = useRef((id: string) => { onSelect(id); closeWithFocus() })
+  pickRef.current = (id: string) => { onSelect(id); closeWithFocus() }
+  useEffect(() => {
+    const anchor = attached ? anchorRef?.current : null
+    if (!anchor) return
+    const onKey = (event: KeyboardEvent) => {
+      const { visible: list, activeId: current } = keyState.current
+      if (list.length === 0) return
+      const index = list.findIndex(person => person.id === current)
+      let next = -1
+      if (event.key === 'ArrowDown') next = (index + 1) % list.length
+      else if (event.key === 'ArrowUp') next = (index - 1 + list.length) % list.length
+      else if (event.key === 'Home') next = 0
+      else if (event.key === 'End') next = list.length - 1
+      else if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+        event.preventDefault()
+        pickRef.current(current)
+        return
+      } else return
+      event.preventDefault()
+      setActive(list[next].id)
+    }
+    anchor.addEventListener('keydown', onKey)
+    return () => anchor.removeEventListener('keydown', onKey)
+  }, [attached, anchorRef])
+
+  // Attached mode keeps focus in the anchor, so the anchor carries the combobox relationship
+  // (list + highlighted option) that cmdk puts on its own list.
+  // cmdk marks the highlighted item after its own render, so mirror it by observing the list.
+  const [content, setContent] = useState<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const anchor = attached ? anchorRef?.current : null
+    if (!anchor || !content) return
+    const sync = () => {
+      const list = content.querySelector('[cmdk-list]')
+      const option = content.querySelector('[cmdk-item][aria-selected="true"]')
+      if (list) anchor.setAttribute('aria-controls', list.id)
+      if (option) anchor.setAttribute('aria-activedescendant', option.id)
+      else anchor.removeAttribute('aria-activedescendant')
+    }
+    // While open, the anchor is the combobox and a nested Escape layer: focus never leaves it, so an
+    // overlay host that checks the Escape target must see the layer on the anchor, not the popup.
+    const previousRole = anchor.getAttribute('role')
+    anchor.setAttribute('role', 'combobox')
+    anchor.setAttribute('aria-autocomplete', 'list')
+    anchor.setAttribute('aria-expanded', 'true')
+    anchor.setAttribute('data-escape-layer', 'nested')
+    sync()
+    const observer = new MutationObserver(sync)
+    observer.observe(content, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-selected'] })
+    return () => {
+      observer.disconnect()
+      if (previousRole === null) anchor.removeAttribute('role')
+      else anchor.setAttribute('role', previousRole)
+      for (const name of ['aria-autocomplete', 'aria-expanded', 'aria-activedescendant', 'aria-controls', 'data-escape-layer']) {
+        anchor.removeAttribute(name)
+      }
+    }
+  }, [attached, anchorRef, content])
 
   return (
-    <div
-      {...listboxProps}
-      aria-label={t('tasks.people.select')}
-      className="person-picker"
-    >
-      {available.map((p, index) => (
-        <div
-          key={p.id}
-          {...getOptionProps(index)}
-          aria-selected={index === activeIndex}
-          className={`person-picker-option${index === activeIndex ? ' is-active' : ''}`}
-          onClick={() => { onSelect(p.id); onClose() }}
+    <Popover.Root open onOpenChange={(next) => { if (!next) onClose() }}>
+      {anchorRef ? <Popover.Anchor virtualRef={anchorRef} /> : <Popover.Anchor className="person-picker-anchor" />}
+      <Popover.Portal>
+        <Popover.Content
+          ref={setContent}
+          side="bottom"
+          align="start"
+          sideOffset={6}
+          collisionPadding={12}
+          data-escape-layer="nested"
+          className="person-picker"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          onCloseAutoFocus={(event) => event.preventDefault()}
+          onEscapeKeyDown={(event) => event.preventDefault()}
         >
-          <span className="person-av" aria-hidden="true">{initials(p.full_name)}</span>
-          <span>{p.full_name}</span>
-        </div>
-      ))}
-    </div>
+          <Command
+            label={t('tasks.people.select')}
+            className="person-picker__command"
+            shouldFilter={false}
+            value={activeId}
+            onValueChange={setActive}
+            disablePointerSelection
+            loop
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape') return
+              event.stopPropagation()
+              closeWithFocus()
+            }}
+          >
+            {!attached && (
+              <Command.Input
+                className="person-picker-search"
+                autoFocus
+                value={typed}
+                onValueChange={setTyped}
+                aria-label={t('tasks.people.select')}
+              />
+            )}
+            <Command.List className="person-picker-list" label={t('tasks.people.select')}>
+              <Command.Empty className="person-picker-empty">{t('tasks.people.none')}</Command.Empty>
+              {visible.map(person => (
+                <Command.Item
+                  key={person.id}
+                  value={person.id}
+                  className="person-picker-option"
+                  onSelect={() => { onSelect(person.id); closeWithFocus() }}
+                >
+                  <span className="person-av" aria-hidden="true">{initials(person.full_name)}</span>
+                  <span className="person-picker-label">{person.full_name}</span>
+                </Command.Item>
+              ))}
+            </Command.List>
+          </Command>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   )
 }

@@ -202,23 +202,33 @@
 
 /* ── Person picker ── */
 .person-picker {
-  position: absolute; z-index: var(--z-popover); background: var(--card);
+  z-index: var(--z-popover); background: var(--card); box-sizing: border-box;
   border: 1px solid var(--border); border-radius: var(--radius-lg); /* 12px — overlay/popover, OD-P3-10 */
-  padding: 4px;
-  min-width: 200px; max-height: 200px; overflow-y: auto;
+  padding: 4px; display: flex; flex-direction: column;
+  min-width: 200px; max-width: min(320px, calc(100vw - 24px));
+  max-height: min(280px, var(--radix-popover-content-available-height, 280px));
   box-shadow: 0 4px 16px color-mix(in srgb, var(--foreground) 10%, transparent);
 }
+.person-picker__command { display: flex; flex-direction: column; min-height: 0; }
+.person-picker-list { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.person-picker-anchor { display: block; height: 0; }
 .person-picker-option {
   display: flex; align-items: center; gap: 8px; padding: 6px 8px;
   border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-body-lg);
 }
-.person-picker-option:hover, .person-picker-option:focus-visible {
-  background: var(--surface-tertiary);
+.person-picker-option[data-selected='true'] { background: var(--surface-tertiary); box-shadow: inset 3px 0 0 var(--primary); }
+.person-picker-option:hover:not([data-selected='true']) {
+  background: color-mix(in srgb, var(--surface-tertiary) 45%, transparent);
 }
-/* GAP-8 (OD-91 #13): the shared listbox keyboard cursor (aria-activedescendant) — the active
-   option reads highlighted even though DOM focus stays on the listbox container. */
-.person-picker-option.is-active { background: var(--surface-tertiary); }
-.person-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } /* item #6: normalized to +2 (menu option has room) */
+.person-picker-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-picker-search {
+  box-sizing: border-box; width: 100%; min-height: 32px; margin-bottom: 4px; padding: 5px 10px;
+  border: 1px solid var(--input); border-radius: var(--radius-sm);
+  background: var(--background); color: var(--foreground);
+  font: inherit; font-size: var(--font-size-control);
+}
+.person-picker-search:focus-visible { border-color: var(--primary); outline: 2px solid var(--ring); outline-offset: 1px; }
+.person-picker-empty { padding: 6px 8px; color: var(--muted-foreground); font-size: var(--font-size-body-lg); }
 
 /* ── Checklist ── */
 .checklist-count { font-size: var(--font-size-body-lg); font-weight: 400; color: var(--muted-foreground); }

@@ -22,6 +22,45 @@ function renderPicker(overrides: Partial<React.ComponentProps<typeof Picker>> = 
 }
 
 describe('Picker', () => {
+  it('an unset field activates the first option so ArrowDown then Enter selects immediately', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    renderPicker({ value: '', onChange })
+    screen.getByRole('combobox', { name: 'Status' }).focus()
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('option', { name: 'Open' })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(onChange).toHaveBeenCalledWith('blocked')
+  })
+
+  it('with an empty-value placeholder option first, arrows and Enter still select a person', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    renderPicker({
+      label: 'Supervisor',
+      value: '',
+      options: [{ value: '', label: 'Select supervisor…' }, { value: 'p1', label: 'Ada' }, { value: 'p2', label: 'Alan' }],
+      onChange,
+    })
+    screen.getByRole('combobox', { name: 'Supervisor' }).focus()
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('option', { name: 'Select supervisor…' })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(onChange).toHaveBeenCalledWith('p1')
+  })
+
+  it('keeps the highlighted option when the options reorder while the list is open', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const { rerender } = renderPicker({ onChange })
+    screen.getByRole('combobox', { name: 'Status' }).focus()
+    await user.keyboard('{ArrowDown}{ArrowDown}')
+    expect(screen.getByRole('option', { name: 'Blocked' })).toHaveAttribute('aria-selected', 'true')
+    rerender(<Picker label="Status" value="open" options={[...options.slice(1), options[0]]} onChange={onChange} />)
+    await user.keyboard('{Enter}')
+    expect(onChange).toHaveBeenCalledWith('blocked')
+  })
+
   it('opens as an anchored listbox and selects with arrows, then returns focus', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
@@ -30,7 +69,8 @@ describe('Picker', () => {
     const trigger = screen.getByRole('combobox', { name: 'Status' })
     await user.click(trigger)
     const listbox = screen.getByRole('listbox', { name: 'Status' })
-    expect(listbox).toHaveFocus()
+    expect(screen.getByRole('combobox', { name: 'Filter Status' })).toHaveFocus()
+    expect(listbox).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Open' })).toHaveAttribute('aria-selected', 'true')
 
     await user.keyboard('{ArrowDown}{Enter}')
@@ -40,7 +80,7 @@ describe('Picker', () => {
     expect(trigger).toHaveFocus()
   })
 
-  it('supports Home, End, repeated-character typeahead, and local Escape', async () => {
+  it('supports Home, End, typed filtering, and local Escape', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     const hostEscape = vi.fn()
@@ -56,13 +96,13 @@ describe('Picker', () => {
     )
 
     await user.click(screen.getByRole('combobox', { name: 'Status' }))
-    const listbox = screen.getByRole('listbox', { name: 'Status' })
     await user.keyboard('{End}')
-    expect(listbox).toHaveAttribute('aria-activedescendant', screen.getByRole('option', { name: 'Supervisor' }).id)
+    expect(screen.getByRole('option', { name: 'Supervisor' })).toHaveAttribute('aria-selected', 'true')
     await user.keyboard('{Home}')
-    expect(listbox).toHaveAttribute('aria-activedescendant', screen.getByRole('option', { name: 'Open' }).id)
-    await user.keyboard('ss')
-    expect(listbox).toHaveAttribute('aria-activedescendant', screen.getByRole('option', { name: 'Supervisor' }).id)
+    expect(screen.getByRole('option', { name: 'Open' })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('su')
+    expect(screen.getByRole('option', { name: 'Supervisor' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('option', { name: 'Blocked' })).not.toBeInTheDocument()
     await user.keyboard('{Escape}')
 
     expect(onChange).not.toHaveBeenCalled()
@@ -137,5 +177,60 @@ describe('Picker', () => {
     await user.click(trigger)
     expect(screen.getByRole('option', { name: 'Done' })).toHaveTextContent('Done')
     expect(screen.queryByRole('option', { name: 'Group: Done' })).not.toBeInTheDocument()
+  })
+
+  it('shows the typed filter and Enter selects the match, not the option under a resting pointer', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    renderPicker({
+      onChange,
+      options: [
+        { value: 'ada', label: 'Ada Lovelace' },
+        { value: 'alan', label: 'Alan Turing' },
+        { value: 'grace', label: 'Grace Hopper' },
+      ],
+    })
+
+    await user.click(screen.getByRole('combobox', { name: 'Status' }))
+    await user.hover(screen.getByRole('option', { name: 'Ada Lovelace' }))
+    await user.keyboard('gra')
+
+    expect(screen.getByRole('combobox', { name: 'Filter Status' })).toHaveValue('gra')
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+    await user.keyboard('{Enter}')
+
+    expect(onChange).toHaveBeenCalledWith('grace')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Status' })).toHaveFocus()
+  })
+
+  it('shows an empty-result line when nothing matches and Enter selects nothing', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    renderPicker({ onChange })
+
+    await user.click(screen.getByRole('combobox', { name: 'Status' }))
+    await user.keyboard('zzz{Enter}')
+
+    expect(screen.getByText('No matches')).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('opens from the keyboard', async () => {
+    const user = userEvent.setup()
+    renderPicker()
+    await user.tab()
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('combobox', { name: 'Filter Status' })).toHaveFocus()
+  })
+
+  it('marks a 200-character unbroken label for single-line truncation', async () => {
+    const user = userEvent.setup()
+    const long = 'x'.repeat(200)
+    renderPicker({ options: [{ value: 'long', label: long }], value: 'long' })
+    await user.click(screen.getByRole('combobox', { name: 'Status' }))
+    const label = screen.getByRole('option', { name: long }).querySelector('.picker__option-label')
+    expect(label).toHaveTextContent(long)
+    expect(label).toHaveClass('picker__option-label')
   })
 })
