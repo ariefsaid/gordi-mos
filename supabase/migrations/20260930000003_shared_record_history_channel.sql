@@ -18,6 +18,7 @@
 --
 -- DOWN (order matters):
 --   drop function api_v1.get_record_history(text, uuid, text, integer);
+--   drop index shared.record_history_record_keyset_idx;
 --   drop trigger record_history_stamp_channel on shared.record_history;
 --   drop function shared._record_history_stamp_channel();
 --   alter table shared.record_history drop constraint record_history_agent_client_pairing,
@@ -139,6 +140,10 @@ alter table shared.record_history
 -- Existing rows took 'app' from the default above; a new row must be stamped by the trigger below.
 alter table shared.record_history alter column channel drop default;
 
+-- Serves get_record_history's (occurred_at desc, id desc) keyset order; the older index ends at occurred_at.
+create index record_history_record_keyset_idx
+  on shared.record_history (org_id, schema_name, table_name, record_key, occurred_at desc, id desc);
+
 comment on column shared.record_history.channel is
   'app, api or agent (ADR-0060 D10), derived by shared._record_history_stamp_channel from the writing session and never supplied: agent when the token carries a client_id, else api when the write ran inside an api_v1 function, else app.';
 comment on column shared.record_history.agent_client_id is
@@ -203,6 +208,9 @@ begin
   if v_cursor is not null then
     begin
       v_cursor_at := (v_cursor ->> 0)::timestamptz;
+      if v_cursor_at is null or (v_cursor ->> 1) is null then
+        raise exception 'null cursor key';
+      end if;
     exception when others then
       perform api_private.invalid('cursor', 'cursor is not valid.');
     end;

@@ -11,7 +11,7 @@
 -- Objectives and Projects/Processes) in org a1; b4 is a member of another org (b1).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(36);
+select plan(38);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -174,6 +174,8 @@ select is(
 select is(
   api_v1.get_record_history(record_type => 'task', id => '00000000-0000-0000-0000-0000000000f1'),
   '{"items": [], "next_cursor": null}'::jsonb, 'a record type whose history is not yet recorded returns no items');
+select has_index('shared', 'record_history', 'record_history_record_keyset_idx',
+  'the keyset order of get_record_history has a supporting index');
 select throws_ok(
   $$ select api_v1.get_record_history(record_type => 'thing', id => '00000000-0000-0000-0000-000000009b01') $$,
   'PT400', null, 'an unknown record_type is invalid_input');
@@ -183,6 +185,9 @@ select throws_ok(
 select throws_ok(
   $$ select api_v1.get_record_history(record_type => 'objective', id => '00000000-0000-0000-0000-000000009a01', cursor => 'zz') $$,
   'PT400', null, 'a bad cursor is invalid_input');
+select throws_ok(
+  $$ select api_v1.get_record_history(record_type => 'objective', id => '00000000-0000-0000-0000-000000009a01', cursor => encode(convert_to('[null,null]', 'UTF8'), 'hex')) $$,
+  'PT400', null, 'a cursor with null key parts is invalid_input, not an empty page');
 select throws_ok(
   $$ select api_v1.get_record_history(record_type => 'objective', id => '00000000-0000-0000-0000-000000009a01', "limit" => 0) $$,
   'PT400', null, 'a limit below 1 is invalid_input');
