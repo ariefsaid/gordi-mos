@@ -27,13 +27,13 @@
 -- A new ordinary column on an audited table needs no trigger change (FR-010): the JSONB diff sees
 -- it automatically.
 --
--- DOWN:
+-- DOWN (order matters: the policy depends on the dispatch function, so it goes first):
+--   drop policy record_history_select on shared.record_history;
 --   drop trigger record_history_work_lines on mos.work_lines;
 --   drop trigger record_history_objectives on mos.objectives;
 --   drop function shared.can_read_history_record(text, text, text, text, jsonb);
 --   drop function shared._record_history_write();
 --   drop function shared._record_history_key(jsonb, text[]);
---   drop policy record_history_select on shared.record_history;
 --   revoke select on shared.record_history from authenticated;
 --   drop table shared.record_history;
 
