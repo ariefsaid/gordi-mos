@@ -859,7 +859,7 @@ user has entered something to diverge from expectation.
 *When to use it:* the surface's phone job is high-frequency capture across many rows. The default
 `<dl>` card stays correct for **reading** a record, where labelled field/value pairs are the point.
 
-**Scope is a statement, not a control.** The books a capture surface writes into (Café: the production stream) render as text in the page head — `Rumah Rames · Dapur` — derived from the person's primary Team. A switch, where the person is allowed one, is a text link beside the statement that opens a picker of the streams they may read. A receiving-only stream opens a clear Stock state with no production form, and a placeholder such as "Choose stream…" never renders. With no resolved stream the page shows a `next-step` empty state offering one-click stream choices and no capture form; with no streams to offer it shows plain copy. `blank` is reserved for placeholder/unbuilt surfaces.
+**Scope is a statement, not a control.** The books a capture surface writes into (Café: the production stream) render as text in the page head — `Rumah Rames · Dapur` — derived from the person's primary Team. A switch, where the person is allowed one, is a text link beside the statement that opens a picker of the streams they may read. A receiving-only stream opens a clear Stock state with no production form, and a placeholder such as "Choose stream…" never renders. On the capture Log, no resolved stream shows a `next-step` empty state offering one-click stream choices and no capture form; with no streams to offer it shows plain copy. The Café root's no-process and no-team states stay `blank`.
 
 ### Row status as text (v4, 2026-07-27)
 In a dense collection where a status applies to **every** row at rest, render it as toned text
@@ -1042,8 +1042,9 @@ The row carries no controls: its whole surface opens the record, and `Create tas
 `Acknowledge` live on the record alone. The meta line is plain text — author · Team · occurred
 (`dd Mon HH:MM`) · category when set — never bordered chips, and never a visibility sentence.
 
-**Inbox row.** A mention row titles with the actor's name (`<name> mentioned you`); the legacy mention fallback and other source-specific titles are pending. Home
-and the archive render the same component; a difference between them is a defect.
+Home and the archive render the same component; a difference between them is a defect.
+
+**Inbox row.** A mention row titles with the actor's name (`<name> mentioned you`); the legacy mention fallback and other source-specific titles are pending.
 
 The feed's toolbar is a search field plus a **`+ Signal` button in the shared `.btn-outline`
 secondary variant**. It is deliberately *not* the action blue: this is a door in an **ambient** tail,
@@ -1410,7 +1411,7 @@ Supported inline edits use the same direct-edit lifecycle:
 
 - **Desktop (≥1280px):** rail, header, page frame, collection, and the shared `clamp(440px, 40%, 640px)` record panel (`--record-panel-w`) fit without clipping. The **readable** content measure remains 1180px or less; a **wide operating surface** (the four Work collections — Tasks, Signals, Projects & Processes, Objectives — and Home) takes the 1760px measure instead — see § Layout → The Two-Measure Rule. The panel preserves enough collection context to understand the opened record.
 - **Intermediate (768–1279px):** the frame contracts, tool rails wrap or become a coherent selector stack, and the record panel remains usable without forcing horizontal page overflow.
-- **Phone (390px and ≤767px):** work appears before configuration; selectors stack; collection rows/cards retain meaning; the record viewer is full-screen; bottom navigation carries the viewer's destination roots (see § Navigation → Bottom tab bar); every required tap target is at least 44×44px; no horizontal page overflow is allowed.
+- **Phone (390px and ≤767px):** work appears before configuration; selectors stack; collection rows/cards retain meaning (a Tasks card shows title, status, Team, PIC and due; never Supervisor); the record viewer is full-screen; bottom navigation carries the viewer's destination roots (see § Navigation → Bottom tab bar); every required tap target is at least 44×44px; no horizontal page overflow is allowed.
 - **Very narrow devices:** at 390px and below, controls may wrap or stack but must not shrink below the tap-target contract. Avoid permanent horizontal scroll as a substitute for responsive layout.
 
 Responsive behavior preserves meaning, not just pixels: a collection adapter may change from table to cards, but the record identity, status, actions, query state, and Back/Close path remain understandable and reachable.
