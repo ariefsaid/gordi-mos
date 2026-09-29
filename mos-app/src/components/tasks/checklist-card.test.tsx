@@ -97,6 +97,28 @@ describe('ChecklistCard', () => {
     await waitFor(() => expect(input).toHaveValue(''))
   })
 
+  // gpt-6-luna review (85c78fa6): a successful Retry cleared the draft unconditionally, so text
+  // typed WHILE the retry was in flight got wiped along with the stale text that was actually
+  // resent. Only clear when the field still holds exactly what was resent.
+  it('Ticket #965: text typed during a pending Retry survives the retry\'s success', async () => {
+    const onRetry = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ChecklistCard items={[]} canEdit taskId="t" viewerId="v"
+        onAdd={() => {}} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}}
+        saveError={{ message: "Couldn't save — try again.", onRetry }} />,
+    )
+    const input = screen.getByLabelText(/add checklist item/i)
+    fireEvent.change(input, { target: { value: 'Buy beans' } })
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+    // onRetry() is already resolved, but its continuation hasn't run yet — this still executes
+    // in the same tick, before that continuation gets a turn on the microtask queue.
+    fireEvent.change(input, { target: { value: 'Milk' } })
+    await waitFor(() => expect(onRetry).toHaveBeenCalledTimes(1))
+    // Flush every pending microtask (a macrotask boundary always runs after them) before asserting.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(input).toHaveValue('Milk')
+  })
+
   it('disables the checkbox when canEdit=false', () => {
     render(
       <ChecklistCard items={items(['Step A'])} canEdit={false} taskId="t" viewerId="v"

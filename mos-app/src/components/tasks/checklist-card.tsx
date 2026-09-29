@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ChecklistItemRow } from '@/lib/db/tasks.types'
 import { useT } from '@/i18n/use-t'
 
@@ -23,15 +23,23 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
   const [draft, setDraft] = useState('')
   const [posting, setPosting] = useState(false)
   const done = items.filter(i => i.is_done).length
+  // Live draft, read after an await — `draft` itself is a stale closure by then. Lets a commit
+  // tell "still the text I sent" from "the person typed something new while it was in flight".
+  const draftRef = useRef('')
+  function changeDraft(value: string) {
+    draftRef.current = value
+    setDraft(value)
+  }
 
-  // #965: clear the draft only once the write resolves; a rejection leaves the text and focus.
+  // #965: clear the draft only once the write resolves AND it still holds what was sent — a
+  // rejection, or new text typed meanwhile, both keep whatever is in the field now.
   async function submit() {
     const label = draft.trim()
     if (!label || posting) return
     setPosting(true)
     try {
       await onAdd(label)
-      setDraft('')
+      if (draftRef.current.trim() === label) changeDraft('')
     } catch {
       // saveError (below) already surfaces the visible error + Retry; this just keeps the draft.
     } finally {
@@ -45,14 +53,14 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
     }
   }
 
-  // #965: Retry re-runs the SAME failed write, so it must clear the draft on the same terms as a
-  // fresh submit — otherwise a successful retry leaves stale text a next Enter would re-add.
+  // #965: Retry re-runs the SAME failed write, so it clears on the same terms as a fresh submit.
   async function retry() {
     if (!saveError || posting) return
+    const label = draft.trim()
     setPosting(true)
     try {
       await saveError.onRetry()
-      setDraft('')
+      if (draftRef.current.trim() === label) changeDraft('')
     } catch {
       // stays failed; the parent re-sets saveError with a fresh retry closure.
     } finally {
@@ -141,7 +149,7 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
           className="checklist-add-input"
           placeholder={t('tasks.checklist.addPlaceholder')}
           value={draft}
-          onChange={e => setDraft(e.target.value)}
+          onChange={e => changeDraft(e.target.value)}
           onKeyDown={handleKeyDown}
           aria-label={t('tasks.checklist.addAria')}
         />
