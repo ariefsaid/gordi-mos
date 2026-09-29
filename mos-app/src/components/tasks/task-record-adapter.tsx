@@ -17,10 +17,10 @@ import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
 import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
-import { canEdit, canArchive, picOptions } from './task-permissions'
 import { isOverdue } from '@/lib/due-status'
-import { RecordFieldList } from '@/components/records/record-viewer'
 import { interpolate } from '@/i18n/use-t'
+import { RecordFieldList } from '@/components/records/record-viewer'
+import { canEdit, canArchive, picOptions } from './task-permissions'
 import type {
   RecordAction,
   RecordContentSlot,
@@ -151,6 +151,7 @@ function editableSpec(
  *  createTaskRecordAdapter and the adapter's own unit tests keep their literals; the LIVE
  *  TaskSurface passes locale-resolved strings (LocaleParityContract). */
 export interface TaskFieldLabels {
+  title: string
   businessUnit: string
   pic: string
   supervisor: string
@@ -160,8 +161,8 @@ export interface TaskFieldLabels {
   teamMigration: string
   dueDate: string
   createdBy: string
-  /** AC-039/FR-029 (OD-REDESIGN-41): the Supervisor subline when its value equals the parent
-   *  Project/Process's Accountable — `${name}` interpolates the parent's name. */
+  // AC-039/FR-029 (OD-REDESIGN-41): Supervisor's subline when it equals the parent's Accountable;
+  // `${name}` interpolates the parent's name.
   supervisorInheritedFrom: string
 }
 
@@ -237,6 +238,7 @@ const DEFAULT_TASK_RECORD_LABELS: TaskRecordLabels = {
 }
 
 const DEFAULT_TASK_FIELD_LABELS: TaskFieldLabels = {
+  title: 'Title',
   businessUnit: 'Business Unit',
   pic: 'Person in charge (PIC)',
   supervisor: 'Supervisor',
@@ -293,8 +295,7 @@ function ownershipFields(
   completedAt: string | null,
   completedAtLabel: string,
   labels: TaskFieldLabels = DEFAULT_TASK_FIELD_LABELS,
-  /** AC-039: the resolved parent Project/Process, or null/undefined for an Ad hoc task — the
-   *  Supervisor subline compares against its accountable_person_id. */
+  // AC-039: the resolved parent Project/Process, or null for an Ad hoc task.
   workLine?: WorkLineRow | null,
 ): RecordFieldSpec[] {
   const inheritsSupervisor = Boolean(
@@ -444,7 +445,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
   //    relationships follow once the immediate work is in view.
   const titleField = editSpec({
     key: 'title',
-    label: 'title',
+    label: labels.title,
     control: 'text',
     value: task.title,
     displayValue: task.title,

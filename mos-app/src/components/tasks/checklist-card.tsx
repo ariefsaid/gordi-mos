@@ -8,21 +8,14 @@ export type ChecklistCardProps = {
   canEdit: boolean
   taskId: string
   viewerId: string
-  /**
-   * #965: the add input owns clearing its own draft, so it MUST see whether the write actually
-   * succeeded. A rejection (or a rejected returned Promise) keeps the typed text; only a
-   * resolved add clears it — same contract as CommentThread's composer.
-   */
+  // #965: the input clears its draft only once this resolves — same contract as CommentThread.
   onAdd: (label: string) => void | Promise<void>
   onToggle: (id: string, isDone: boolean) => void
   onReorder: (id: string, direction: 'up' | 'down') => void
   onDelete: (id: string) => void
-  /**
-   * OD-REDESIGN-22 (D-C1): when the last optimistic checklist write FAILED, the owner passes a
-   * visible error message + a retry that re-runs it. `null` (default) = no error. The optimistic
-   * rollback already reverts the row visually; this adds the clickable Retry a sighted user needs.
-   */
-  saveError?: { message: string; onRetry: () => void } | null
+  // OD-REDESIGN-22 (D-C1): the last FAILED write, as a visible message + a retry that re-runs it.
+  // null (default) = no error.
+  saveError?: { message: string; onRetry: () => void | Promise<void> } | null
 }
 
 export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReorder, onDelete, saveError = null }: ChecklistCardProps) {
@@ -31,8 +24,7 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
   const [posting, setPosting] = useState(false)
   const done = items.filter(i => i.is_done).length
 
-  // #965: clear the draft ONLY once the write resolves. A rejection leaves the text (and focus,
-  // since the input is never blurred) so the person can hit Retry instead of retyping the step.
+  // #965: clear the draft only once the write resolves; a rejection leaves the text and focus.
   async function submit() {
     const label = draft.trim()
     if (!label || posting) return
@@ -41,7 +33,7 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
       await onAdd(label)
       setDraft('')
     } catch {
-      // The parent already surfaces a visible error + Retry (saveError prop); this keeps the draft.
+      // saveError (below) already surfaces the visible error + Retry; this just keeps the draft.
     } finally {
       setPosting(false)
     }
@@ -50,6 +42,21 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter' && draft.trim()) {
       void submit()
+    }
+  }
+
+  // #965: Retry re-runs the SAME failed write, so it must clear the draft on the same terms as a
+  // fresh submit — otherwise a successful retry leaves stale text a next Enter would re-add.
+  async function retry() {
+    if (!saveError || posting) return
+    setPosting(true)
+    try {
+      await saveError.onRetry()
+      setDraft('')
+    } catch {
+      // stays failed; the parent re-sets saveError with a fresh retry closure.
+    } finally {
+      setPosting(false)
     }
   }
 
@@ -122,7 +129,7 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
       {saveError && (
         <p role="alert" className="checklist-save-error">
           {saveError.message}
-          <button type="button" className="checklist-retry" onClick={saveError.onRetry}>
+          <button type="button" className="checklist-retry" onClick={() => void retry()}>
             {t('record.field.retry')}
           </button>
         </p>
