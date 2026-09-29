@@ -49,6 +49,18 @@ describe('Picker', () => {
     expect(onChange).toHaveBeenCalledWith('p1')
   })
 
+  it('keeps the highlighted option when the options reorder while the list is open', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const { rerender } = renderPicker({ onChange })
+    screen.getByRole('combobox', { name: 'Status' }).focus()
+    await user.keyboard('{ArrowDown}{ArrowDown}')
+    expect(screen.getByRole('option', { name: 'Blocked' })).toHaveAttribute('aria-selected', 'true')
+    rerender(<Picker label="Status" value="open" options={[...options.slice(1), options[0]]} onChange={onChange} />)
+    await user.keyboard('{Enter}')
+    expect(onChange).toHaveBeenCalledWith('blocked')
+  })
+
   it('opens as an anchored listbox and selects with arrows, then returns focus', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
