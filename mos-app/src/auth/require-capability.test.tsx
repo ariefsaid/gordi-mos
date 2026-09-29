@@ -76,15 +76,22 @@ describe('RequireCapability', () => {
     expect(screen.getByTestId('protected')).toBeInTheDocument()
   })
 
-  // OD-V4-1 (supabase/migrations/20260805000006_mos_access_control.sql, already in the squashed
-  // baseline): ops_lead's shared.role_capabilities seed grants objective.manage — write at lead
-  // level, not admin-only (capabilities.ts mirrors this; see lib/capabilities.test.ts). This case
-  // used to pin ops_lead as the "lacks it" example, which pinned a stale mirror rather than the
-  // shipped contract. `member` genuinely lacks objective.manage, so it keeps this synthetic-path
-  // guard-redirect case honest.
-  it('AC-302: allows ops_lead into /work/objectives with objective.manage (OD-V4-1)', () => {
+  // REWRITE at the behavior level (#992, OD-OBJ-1). This case used to pin ops_lead as ADMITTED
+  // with objective.manage ("OD-V4-1 moved the write to lead level; this case used to pin ops_lead
+  // as the 'lacks it' example"). OD-OBJ-1 narrows it again: ops_lead loses objective.manage and
+  // holds only objective.edit_content, so the SAME capability now closes the boundary for an ops
+  // lead, and admission flips to the narrower grant. `member` keeps the honest lacks-it example
+  // below either way.
+  it('AC-302: holds ops_lead out of /work/objectives with objective.manage (#992)', () => {
     mockUseAuth.mockReturnValue(authed(['ops_lead']))
     renderGuard('/work/objectives', 'objective.manage')
+    expect(screen.queryByTestId('protected')).not.toBeInTheDocument()
+    expectAccessBoundaryInPlace('Objectives')
+  })
+
+  it('AC-302: allows ops_lead into /work/objectives with objective.edit_content (#992)', () => {
+    mockUseAuth.mockReturnValue(authed(['ops_lead']))
+    renderGuard('/work/objectives', 'objective.edit_content')
     expect(screen.getByTestId('protected')).toBeInTheDocument()
   })
 

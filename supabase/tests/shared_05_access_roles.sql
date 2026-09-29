@@ -2,7 +2,7 @@
 -- grant guard, provenance, soft revoke, capabilities, and the no-lockout floor.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(53);
+select plan(55);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -84,19 +84,22 @@ select ok(shared.can('objective.manage'), 'can(objective.manage) is true for adm
 select ok(shared.can('workline.manage'),  'can(workline.manage) is true for admin');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","access_roles":["ops_lead"]}';
--- Inverted by #182, and worth naming rather than editing quietly: this line encoded the SAME
--- superseded admin-only contract the pgTAP triage found in the four cascade files, and it was green
--- here only because the authorising grant had not landed yet. `OD-V4-1` (owner, 2026-07-27) makes
--- Objectives writeable at LEAD level; the `mos` baseline registers ops_lead -> objective.manage, and
--- this assertion follows the ruling with it. The triage's disposition list was drawn from the four
--- files that were RED at the time, so it could not have named this one — same class, ninth instance.
-select ok(shared.can('objective.manage'),
-  'can(objective.manage) is TRUE for ops_lead — OD-V4-1 supersedes the admin-only catalog, and the grant is registered by the mos baseline');
+-- Flipped twice at the behavior level, and worth naming rather than editing quietly. This line
+-- first encoded the admin-only contract the pgTAP triage found (#180), then OD-V4-1 (owner,
+-- 2026-07-27) flipped it to TRUE and this assertion followed. OD-OBJ-1 (#992, 2026-09-29) now
+-- narrows the grant again: ops_lead LOSES objective.manage and holds only the narrower
+-- objective.edit_content — the write-up/current-value tier — so this assertion follows the
+-- newest ruling. Same class as the triage's ninth instance: one ruling, one grant row, one flip.
+select ok(not shared.can('objective.manage'),
+  'can(objective.manage) is FALSE for ops_lead — OD-OBJ-1 narrows the OD-V4-1 grant (#992)');
+select ok(shared.can('objective.edit_content'),
+  'can(objective.edit_content) is TRUE for ops_lead — the narrowed content grant (#992)');
 select ok(shared.can('workline.manage'),      'can(workline.manage) is true for ops_lead');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","access_roles":["member"]}';
 select ok(not shared.can('workline.manage'),   'can(workline.manage) is false for member');
-select ok(not shared.can('objective.manage'),  'can(objective.manage) is false for member — the ruling moved the write to lead level, not to everyone');
+select ok(not shared.can('objective.manage'),  'can(objective.manage) is false for member — the write is admin-level again, not for everyone');
+select ok(not shared.can('objective.edit_content'), 'can(objective.edit_content) is false for member — content authority starts at ops_lead');
 
 set local request.jwt.claims = '{}';
 select ok(not shared.can('objective.manage'),

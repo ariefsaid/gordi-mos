@@ -11,32 +11,37 @@ import {
 } from './capabilities'
 
 describe('can', () => {
-  it('grants admin both manage capabilities', () => {
+  it('grants admin both Objective tiers', () => {
     expect(can(['admin'], 'objective.manage')).toBe(true)
+    expect(can(['admin'], 'objective.edit_content')).toBe(true)
     expect(can(['admin'], 'workline.manage')).toBe(true)
   })
 
-  // OD-V4-1 (supabase/migrations/20260805000006_mos_access_control.sql): ops_lead's
-  // shared.role_capabilities seed already grants objective.manage — write at lead level, not
-  // admin-only. This client mirror was stale relative to that DB-authoritative seed; the old
-  // "ops_lead only workline.manage" assertion pinned the STALE mirror, not the shipped contract.
-  it('grants ops_lead workline.manage and objective.manage (OD-V4-1)', () => {
+  // OD-OBJ-1 (#992) narrows OD-V4-1: ops_lead LOSES objective.manage — structural authority is
+  // admin-only — and gains the content tier objective.edit_content (an Objective's write-up and a
+  // key result's current value). The mirror changed in the same slice as the database grant; the
+  // previous assertion here pinned the now-superseded lead-level write, flipped at the behavior
+  // level rather than relaxed.
+  it('grants ops_lead workline.manage and objective.edit_content, NOT objective.manage (#992)', () => {
     expect(can(['ops_lead'], 'workline.manage')).toBe(true)
-    expect(can(['ops_lead'], 'objective.manage')).toBe(true)
+    expect(can(['ops_lead'], 'objective.edit_content')).toBe(true)
+    expect(can(['ops_lead'], 'objective.manage')).toBe(false)
   })
 
   it('denies member capabilities by default', () => {
     expect(can(['member'], 'objective.manage')).toBe(false)
+    expect(can(['member'], 'objective.edit_content')).toBe(false)
     expect(can(['member'], 'workline.manage')).toBe(false)
   })
 
   it('denies empty and unknown role sets', () => {
     expect(can([], 'objective.manage')).toBe(false)
+    expect(can([], 'objective.edit_content')).toBe(false)
     expect(can(['unknown-role'], 'workline.manage')).toBe(false)
   })
 
   it('uses union semantics across multiple roles', () => {
-    expect(can(['ops_lead', 'admin'], 'objective.manage')).toBe(true)
+    expect(can(['ops_lead', 'admin'], 'objective.edit_content')).toBe(true)
     expect(can(['ops_lead', 'admin'], 'workline.manage')).toBe(true)
   })
 

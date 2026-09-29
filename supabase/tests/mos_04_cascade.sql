@@ -28,7 +28,7 @@
 -- negative subject; the member proof covers the derived baseline category separately.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(53);
+select plan(56);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────────────────────
 -- Orgs  A ...00ca / B ...00cb · BUs ...ca01 / ...cb01
@@ -77,10 +77,15 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca"
 select is(shared.can('objective.manage'), true,  'admin can(objective.manage) = true');
 select is(shared.can('workline.manage'),  true,  'admin can(workline.manage) = true');
 
--- REWRITE (was 72 test 3, expected false). OD-V4-1: Objectives are writeable at lead level.
+-- REWRITE TWICE, each time at the behavior level. This line encoded OD-C-2's admin-only catalog,
+-- was flipped to TRUE by OD-V4-1 (owner 2026-07-27), and OD-OBJ-1 (#992, 2026-09-29) narrows it
+-- back: ops_lead loses objective.manage and gains the narrower objective.edit_content. The grant
+-- rows are migration-owned, so each flip is one row either way — the assertion follows the ruling.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca11","access_roles":["ops_lead"]}';
-select is(shared.can('objective.manage'), true,
-  'ops_lead can(objective.manage) = TRUE — OD-V4-1 supersedes the admin-only catalog of OD-C-2');
+select is(shared.can('objective.manage'), false,
+  'ops_lead can(objective.manage) = FALSE — OD-OBJ-1 narrows the OD-V4-1 grant (#992)');
+select is(shared.can('objective.edit_content'), true,
+  'ops_lead can(objective.edit_content) = TRUE — the narrowed content grant (#992)');
 select is(shared.can('workline.manage'),  true,  'ops_lead can(workline.manage) = true');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca10","access_roles":["member"]}';
@@ -125,7 +130,8 @@ select is((select count(*)::int from mos.work_lines where id = '00000000-0000-00
   'the org-B work_line is invisible to an org-A member');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- 3. Write gates — member denied, ops_lead now admitted on BOTH catalogs, admin admitted
+-- 3. Write gates — member denied on both catalogs; ops_lead writes Projects & Processes and the
+--    Objective write-up but NO Objective structural field (#992); admin admitted everywhere
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 select throws_ok($$
   insert into mos.objectives (name) values ('Member Objective')
@@ -148,17 +154,27 @@ select throws_ok($$
   values ('00000000-0000-0000-0000-0000000000cb','Spoofed WL','project')
 $$, '42501', null, 'a client-supplied foreign org_id is rejected on work_lines');
 
--- REWRITE (was 51 test 9 and 73 test 12, both expecting 42501).
+-- REWRITE at the behavior level (#992, OD-OBJ-1). Both cases below used to prove ops_lead could
+-- create and rename an Objective ("OD-V4-1 moved the write to lead level"). Structural authority
+-- — create, rename, archive, re-home — is admin-only now, so the same actors are refused with
+-- 42501; the write-up tier is what ops leads keep, and the lives_ok below pins that retained half.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca11","access_roles":["ops_lead"]}';
-select lives_ok($$
+select throws_ok($$
   insert into mos.objectives (name) values ('Ops Lead Objective')
 $$,
-  'ops_lead CAN create an Objective — OD-V4-1 moved the write to lead level, and the policy needed no change because it consults can()');
--- REWRITE (was 58 test 6 and 73 test 13, both expecting 42501).
-select lives_ok($$
+  '42501', null,
+  'ops_lead CANNOT create an Objective — structural authority is admin-only (#992)');
+select throws_ok($$
   update mos.objectives set name = 'Ops Lead Rename' where id = '00000000-0000-0000-0000-0000000000b1'
 $$,
-  'ops_lead CAN rename an Objective — same ruling, the UPDATE path');
+  '42501', null,
+  'ops_lead CANNOT rename an Objective — the structural/content split refuses it loudly (#992)');
+select lives_ok($$
+  update mos.objectives
+     set write_up = '[{"type":"paragraph","content":[{"type":"text","text":"still ours"}]}]'::jsonb
+   where id = '00000000-0000-0000-0000-0000000000b1'
+$$,
+  'ops_lead CAN still write the Objective write-up — the narrowed content grant (#992)');
 select lives_ok($$
   insert into mos.work_lines (name, type) values ('Ops Lead Work Line', 'project')
 $$, 'ops_lead can create a Project/Process');
@@ -170,6 +186,12 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca"
 select lives_ok($$
   insert into mos.objectives (name) values ('Admin Objective')
 $$, 'admin can create an Objective');
+
+-- The roll-up assertion below reads a RENAMED parent Objective through its child. Renaming is
+-- structural authority now, so the admin performs it — same edge, authorized writer (#992).
+select lives_ok($$
+  update mos.objectives set name = 'Admin Rename' where id = '00000000-0000-0000-0000-0000000000b1'
+$$, 'admin CAN rename an Objective — the structural grant the split keeps (#992)');
 
 -- Org stamping: the client never sends org_id, and what lands is the session's org.
 insert into mos.objectives (name) values ('Stamped Objective');
@@ -338,7 +360,7 @@ select is(
   (select o.name from mos.objectives o
     join mos.work_lines w on w.objective_id = o.id
    where w.id = '00000000-0000-0000-0001-00000000000a'),
-  'Ops Lead Rename',
+  'Admin Rename',
   'OD-WAY-32 roll-up: a Project/Process can name its parent Objective in one hop');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -347,16 +369,18 @@ select is(
 -- This is the assertion that makes the tenant-local indirection worth having. It fails under a
 -- role-hardcoded policy and passes only when the catalog policy consumes the effective matrix.
 --
--- REWRITE (was 73 test 22, subject ops_lead). The old global capability table is no longer the MOS
--- catalog write seam. An admin saves the current org override, then the finance role exercises it.
+-- REWRITE again at the behavior level (#992, OD-OBJ-1). Objectives no longer consult the matrix:
+-- their write seam is the capability row (admin-only after the narrowing), so the finance matrix
+-- grant OPENS NOTHING on this catalog. The work_lines case below keeps the original property for
+-- Projects & Processes, which the ruling left untouched.
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca12","access_roles":["admin"]}';
 select shared.save_role_authority('[{"action":"objective.manage","role":"finance","scope":"org"}]'::jsonb);
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca13","access_roles":["finance"]}';
-select lives_ok($$
+select throws_ok($$
   insert into mos.objectives (name) values ('Finance Now Can')
-$$,
-  'granting finance objective.manage in the tenant matrix OPENS the write it was denied above — the policy consults authority, not a role name');
+$$, '42501', null,
+  'granting finance objective.manage in the tenant matrix opens NO Objective write — #992 moved the catalog seam to the capability row');
 
 -- REWRITE (was 73 test 23). The member category is live-org membership, and the admin RPC can grant
 -- it a tenant-local workline scope without changing the unrelated global capability vocabulary.

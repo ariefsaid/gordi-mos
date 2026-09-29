@@ -18,7 +18,9 @@ export function canReviewCafeFailedChecks(viewer: Pick<HomeViewerScope, 'affilia
 
 /**
  * Objectives belong on the Home cockpit when the viewer can steer a scope: an actual reporting
- * line, a root/director role, the objective/work-line management grants, or a BU apex role.
+ * line, a root/director role, the Objective structural or content grant (an ops lead keeps the
+ * cockpit through `objective.edit_content` — OD-OBJ-1 took `objective.manage` away but left the
+ * write-up/current-value tier), the work-line management grant, or a BU apex role.
  * The route's read visibility is broader; this is only the Home composition decision.
  */
 export function holdsHomeCockpitScope(
@@ -29,6 +31,7 @@ export function holdsHomeCockpitScope(
   return viewer.isManager
     || isOwnerDirector(heldRoles)
     || can(viewer.accessRoles, 'objective.manage')
+    || can(viewer.accessRoles, 'objective.edit_content')
     || can(viewer.accessRoles, 'workline.manage')
     || buHeadsForViewer(heldRoles, [...orgRoles]).length > 0
 }
