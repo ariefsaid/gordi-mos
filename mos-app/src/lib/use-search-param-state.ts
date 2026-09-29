@@ -16,7 +16,8 @@
 // synchronously with every `setValue` call instead.
 //
 // A urlValue change is either the router's echo of THIS hook's own write (ignore: local is already
-// ahead) or an external change — back/forward, "Clear filters", a link (adopt). Every own write is
+// ahead) or an external change — back/forward, "Clear filters", a link (adopt). Every new
+// back/forward entry is adopted, whatever its value. Every own write is
 // tagged in navigation state (`__sps[key] = token`) and the tag is read back off the location, so
 // the two are told apart by what wrote the URL, never by its value or age.
 import { useCallback, useId, useRef, useState } from 'react'
@@ -53,8 +54,13 @@ export function useSearchParamState(
   const token = useId()
   const navigationType = useNavigationType()
 
+  // A new POP entry (its `location.key` differs) is adopted even when its value equals the URL's
+  // current one: a keystroke's own write may still be pending, so `local` can be ahead of it.
   const prevUrlValue = useRef(urlValue)
-  if (urlValue !== prevUrlValue.current) {
+  const prevLocationKey = useRef(location.key)
+  const newPopEntry = navigationType === 'POP' && location.key !== prevLocationKey.current
+  prevLocationKey.current = location.key
+  if (newPopEntry || urlValue !== prevUrlValue.current) {
     prevUrlValue.current = urlValue
     if (navigationType === 'POP' || readTag(location.state, key) !== token) setLocal(urlValue)
   }

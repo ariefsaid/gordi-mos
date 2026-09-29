@@ -1,7 +1,7 @@
 import './TasksWorkspace.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
 import type { To } from 'react-router-dom'
 import { useIsNarrow } from '@/shell/use-is-narrow'
 import { useIsDesktop } from '@/shell/use-is-desktop'
@@ -289,6 +289,21 @@ export function TasksWorkspace({
     if (patch.view !== undefined) viewChosenRef.current = true
     controller.setQuery({ ...controller.state.query, ...patch })
   }, [controller])
+
+  // The collection owns `q` and mirrors it into the URL with its own untagged REPLACE writes, which
+  // the shared echo hook (useSearchParamState) would read as outside changes and adopt over
+  // newer keystrokes. So the box follows the URL the way that hook does for outside changes: a
+  // NEW history entry (sidebar link, Back/Forward) is an outside change and its q is adopted;
+  // REPLACE writes are the collection's own and are ignored.
+  const navigationType = useNavigationType()
+  const seenLocationKey = useRef(location.key)
+  useEffect(() => {
+    if (seenLocationKey.current === location.key) return
+    seenLocationKey.current = location.key
+    if (navigationType === 'REPLACE') return
+    const urlQ = new URLSearchParams(location.search).get('q') ?? ''
+    if (urlQ !== controller.state.query.q) controller.setQuery({ ...controller.state.query, q: urlQ })
+  }, [controller, location.key, location.search, navigationType])
 
   // AR Follow-ups is a retired finance surface (OD-WAY-34, #743): old links land on the All
   // view — the parser aliases view=followups to All, and this only strips the stale param from
