@@ -103,7 +103,7 @@ describe('verifyAgentToken', () => {
     const failing = (async () => { attempts++; throw new Error('down') }) as typeof fetch
     const keys = await makeKeys()
     const token = await signJwt(keys, goodClaims())
-    for (let i = 0; i < 5; i++) expect((await verifyAgentToken(token, cfgFor(failing))).ok).toBe(false)
+    for (let attempt = 0; attempt < 5; attempt++) expect((await verifyAgentToken(token, cfgFor(failing))).ok).toBe(false)
     expect(attempts).toBe(1)
   })
 
@@ -112,8 +112,8 @@ describe('verifyAgentToken', () => {
     const kit = makeFetch(keys)
     const token = await signJwt(keys, goodClaims())
     const verdicts = await Promise.all(Array.from({ length: 6 }, () => verifyAgentToken(token, cfgFor(kit.fetchFn))))
-    expect(verdicts.every((v) => v.ok)).toBe(true)
-    expect(kit.calls.filter((c) => c.url === JWKS_URL)).toHaveLength(1)
+    expect(verdicts.every((verdict) => verdict.ok)).toBe(true)
+    expect(kit.calls.filter((call) => call.url === JWKS_URL)).toHaveLength(1)
   })
 
   describe('with a key endpoint that never answers', () => {

@@ -29,12 +29,9 @@ const json = (body: unknown, status = 200, headers: Record<string, string> = {})
 const rpcResult = (id: unknown, result: unknown) => json({ jsonrpc: '2.0', id, result })
 const rpcError = (id: unknown, code: number, message: string) => json({ jsonrpc: '2.0', id: id ?? null, error: { code, message } })
 
-// RFC 9728: the well-known segment sits between the host and the resource path.
-function metadataUrl(resource: string): string {
-  const url = new URL(resource)
-  const path = url.pathname.replace(/\/$/, '')
-  return `${url.origin}${METADATA_PATH}${path}`
-}
+// The challenge names a URL this function answers on its own, so discovery needs no gateway route.
+// (RFC 9728 lets `resource_metadata` be any URL; the root-path form is also served when routed.)
+const metadataUrl = (resource: string): string => `${resource.replace(/\/$/, '')}${METADATA_PATH}`
 
 function challenge(deps: McpDeps, invalid: boolean): Response {
   const pointer = `resource_metadata="${metadataUrl(deps.resource)}"`

@@ -8,9 +8,9 @@ the `api_v1` profile. The function holds no authority and never reads a table.
   that service, unexpired, `aud` contains this resource, and `client_id`, `person_id`, `org_id` present.
   Anything else is `401` with `WWW-Authenticate: Bearer resource_metadata="…"`. An app session token has no
   `client_id` and no MCP audience, so it never passes.
-- **Discovery:** the challenge points at the RFC 9728 URL, `<origin>/.well-known/oauth-protected-resource<resource path>`.
-  The function answers that document wherever its path contains `/.well-known/oauth-protected-resource`, so
-  the platform gateway must route the canonical path to it (the function-prefixed form works without routing).
+- **Discovery:** the challenge points at `<resource>/.well-known/oauth-protected-resource`, which this function
+  answers itself. The RFC 9728 root-path form (`<origin>/.well-known/oauth-protected-resource<resource path>`,
+  what a client derives when a challenge carries no pointer) is served too, but only where the gateway routes it.
 - **Browser origins:** refused (`403`) unless listed in `MCP_ALLOWED_ORIGINS`; a listed origin gets CORS
   headers and its preflight is answered. Native and server clients send no `Origin`.
 - **Key fetch:** the login service's key set is cached per isolate; one fetch at most every 30 s (success or

@@ -7,9 +7,9 @@ import { mcpHandler, type McpDeps } from './../../../../supabase/functions/mcp/h
 import { TOOLS } from './../../../../supabase/functions/mcp/tools.ts'
 import { ANON_KEY, DATA_API, goodClaims, headerOf, ISSUER, JWKS_URL, makeFetch, makeKeys, NOW, omit, RESOURCE, signJwt } from './testKit.ts'
 
-// RFC 9728: the well-known segment goes between the host and the resource path.
-const METADATA_URL = 'https://mos.test/.well-known/oauth-protected-resource/functions/v1/mcp'
-const METADATA_UNDER_FUNCTION = `${RESOURCE}/.well-known/oauth-protected-resource`
+// The challenge points here (reachable with no gateway route); the RFC 9728 root-path form is also served.
+const METADATA_URL = `${RESOURCE}/.well-known/oauth-protected-resource`
+const METADATA_ROOT_URL = 'https://mos.test/.well-known/oauth-protected-resource/functions/v1/mcp'
 
 async function setup(dataResponse?: (init: RequestInit) => Response | Promise<Response>, over: Partial<McpDeps> = {}) {
   resetJwksCache()
@@ -40,9 +40,9 @@ describe('protected resource metadata', () => {
     expect(kit.calls).toHaveLength(0)
   })
 
-  it('is also served under the function path, where the platform routes it', async () => {
+  it('is also served at the RFC 9728 root-path form when the gateway routes it', async () => {
     const { deps } = await setup()
-    const res = await mcpHandler(new Request(METADATA_UNDER_FUNCTION), deps)
+    const res = await mcpHandler(new Request(METADATA_ROOT_URL), deps)
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ resource: RESOURCE })
   })
@@ -55,6 +55,16 @@ describe('protected resource metadata', () => {
 })
 
 describe('authentication', () => {
+  it('challenges with a metadata URL that this handler itself answers', async () => {
+    const { rpc, deps } = await setup()
+    const challenged = await rpc('tools/list', undefined, 1, null)
+    const advertised = /resource_metadata="([^"]+)"/.exec(challenged.headers.get('WWW-Authenticate') ?? '')?.[1]
+    expect(advertised).toBeDefined()
+    const doc = await mcpHandler(new Request(advertised!), deps)
+    expect(doc.status).toBe(200)
+    expect(await doc.json()).toMatchObject({ resource: RESOURCE })
+  })
+
   it('challenges a missing token with the metadata pointer and calls nothing', async () => {
     const { rpc, kit } = await setup()
     const res = await rpc('tools/list', undefined, 1, null)
@@ -116,12 +126,12 @@ describe('authentication', () => {
     expect(ok.headers.get('Vary')).toContain('Origin')
     expect((await post('https://evil.test')).headers.get('Access-Control-Allow-Origin')).toBeNull()
 
-    const pre = await mcpHandler(new Request(RESOURCE, { method: 'OPTIONS', headers: { Origin: 'https://app.test', 'Access-Control-Request-Method': 'POST' } }), deps)
-    expect(pre.status).toBe(204)
-    expect(pre.headers.get('Access-Control-Allow-Origin')).toBe('https://app.test')
-    expect(pre.headers.get('Access-Control-Allow-Headers')?.toLowerCase()).toContain('authorization')
-    const badPre = await mcpHandler(new Request(RESOURCE, { method: 'OPTIONS', headers: { Origin: 'https://evil.test' } }), deps)
-    expect(badPre.status).toBe(403)
+    const preflight = await mcpHandler(new Request(RESOURCE, { method: 'OPTIONS', headers: { Origin: 'https://app.test', 'Access-Control-Request-Method': 'POST' } }), deps)
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get('Access-Control-Allow-Origin')).toBe('https://app.test')
+    expect(preflight.headers.get('Access-Control-Allow-Headers')?.toLowerCase()).toContain('authorization')
+    const foreignPreflight = await mcpHandler(new Request(RESOURCE, { method: 'OPTIONS', headers: { Origin: 'https://evil.test' } }), deps)
+    expect(foreignPreflight.status).toBe(403)
   })
 
   it('exposes the challenge header to an allow-listed origin', async () => {

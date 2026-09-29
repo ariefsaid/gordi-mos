@@ -63,7 +63,13 @@ describe('MCP tool list', () => {
 
   it('advertises mentions as an array of {kind, id}, the shape the function accepts', () => {
     const mentions = TOOLS_BY_NAME.get('create_signal')!.inputSchema.properties.mentions
-    expect(mentions).toMatchObject({ type: 'array', maxItems: 50, items: { type: 'object', required: ['kind', 'id'] } })
+    expect(mentions).toMatchObject({ type: 'array', maxItems: 50, items: {
+        type: 'object',
+        properties: { kind: { type: 'string', enum: ['person', 'team', 'business_unit'] }, id: { type: 'string', format: 'uuid' } },
+        required: ['kind', 'id'],
+        additionalProperties: false,
+      },
+    })
   })
 
   it.each(['edit_project_process', 'edit_signal', 'edit_task'])('advertises %s changes as an object', (name) => {
