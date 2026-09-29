@@ -74,11 +74,39 @@ export function PersonPicker({ people, onSelect, onClose, exclude = [], anchorRe
     return () => anchor.removeEventListener('keydown', onKey)
   }, [attached, anchorRef])
 
+  // Attached mode keeps focus in the anchor, so the anchor carries the combobox relationship
+  // (list + highlighted option) that cmdk puts on its own list.
+  // cmdk marks the highlighted item after its own render, so mirror it by observing the list.
+  const [content, setContent] = useState<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const anchor = attached ? anchorRef?.current : null
+    if (!anchor || !content) return
+    const sync = () => {
+      const list = content.querySelector('[cmdk-list]')
+      const option = content.querySelector('[cmdk-item][aria-selected="true"]')
+      if (list) anchor.setAttribute('aria-controls', list.id)
+      if (option) anchor.setAttribute('aria-activedescendant', option.id)
+      else anchor.removeAttribute('aria-activedescendant')
+    }
+    anchor.setAttribute('aria-autocomplete', 'list')
+    anchor.setAttribute('aria-expanded', 'true')
+    sync()
+    const observer = new MutationObserver(sync)
+    observer.observe(content, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-selected'] })
+    return () => {
+      observer.disconnect()
+      anchor.setAttribute('aria-expanded', 'false')
+      anchor.removeAttribute('aria-activedescendant')
+      anchor.removeAttribute('aria-controls')
+    }
+  }, [attached, anchorRef, content])
+
   return (
     <Popover.Root open onOpenChange={(next) => { if (!next) onClose() }}>
       {anchorRef ? <Popover.Anchor virtualRef={anchorRef} /> : <Popover.Anchor className="person-picker-anchor" />}
       <Popover.Portal>
         <Popover.Content
+          ref={setContent}
           side="bottom"
           align="start"
           sideOffset={6}
