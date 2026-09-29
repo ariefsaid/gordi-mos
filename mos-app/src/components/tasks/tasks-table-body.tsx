@@ -95,7 +95,6 @@ export type TasksTableBodyProps = {
   recordSearch: string
   now: Date
   buMap: Map<string, string>
-  /** #760 AC-048: threaded through to MobileGroupedCards' phone-card Team line. */
   teamMap: Map<string, string>
   personMap: Map<string, string>
   isCollapsed: (key: string) => boolean

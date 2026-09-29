@@ -1287,7 +1287,9 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       // head's primary drops to `.btn-outline` — one blue per screen." The door stays reachable
       // (Create task is still a real, common action with a record open); it just stops competing
       // with the record's own filled primary action.
-      mockListTasks.mockResolvedValue([makeTask({ id: 'task-addr', title: 'Addressable task' })])
+      const openTask = makeTask({ id: 'task-addr', title: 'Addressable task' })
+      mockGetTask.mockResolvedValue({ task: openTask, checklist: [], events: [] })
+      mockListTasks.mockResolvedValue([openTask])
       renderAt(['/work/tasks'])
       await waitFor(() => screen.getByText('Addressable task'))
       const createButton = screen.getByRole('button', { name: '+ Create task' })
@@ -1302,6 +1304,10 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       const createButtonWithRecordOpen = screen.getByRole('button', { name: '+ Create task' })
       expect(createButtonWithRecordOpen).toHaveClass('btn-outline')
       expect(createButtonWithRecordOpen).not.toHaveClass('btn-primary')
+      // The record's own action is the page's single enabled filled primary (the empty comment
+      // composer's submit is disabled).
+      await waitFor(() => screen.getByRole('button', { name: 'Mark complete' }))
+      expect(document.body.querySelectorAll('.btn-primary:not(:disabled)')).toHaveLength(1)
     })
 
     it('bookmark/refresh: rendering at /work/tasks?record=<id> restores the open task drawer', async () => {
