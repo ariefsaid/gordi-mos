@@ -1999,6 +1999,7 @@ describe('Ticket #958 — the head "?" opens the purpose sentence + PIC/Supervis
     expect(panel).toHaveTextContent('PIC (Responsible)')
     expect(panel).toHaveTextContent('Supervisor (Accountable)')
     expect(panel).toHaveTextContent('Saved views')
+    expect(panel).toHaveTextContent('Business Unit is the team the task belongs to')
   })
 
   it('ID: states the localized purpose sentence and glossary', async () => {
@@ -2012,6 +2013,7 @@ describe('Ticket #958 — the head "?" opens the purpose sentence + PIC/Supervis
     expect(panel).toHaveTextContent('PIC (Responsible)')
     expect(panel).toHaveTextContent('Supervisor (Accountable)')
     expect(panel).toHaveTextContent('Tampilan tersimpan')
+    expect(panel).toHaveTextContent('Business Unit adalah tim tempat tugas ini berada')
   })
 })
 

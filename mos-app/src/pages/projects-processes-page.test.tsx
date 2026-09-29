@@ -54,9 +54,9 @@ function task(id: string, objectiveId: string | null, workLineId: string | null,
   }
 }
 
-function renderPage(entry = "/") {
+function renderPage(entry = "/", locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={[entry]}>
         <ProjectsProcessesPage />
       </MemoryRouter>
@@ -327,5 +327,27 @@ describe('one create entry per width', () => {
     // The form's own submit may share the label; no button of that name sits outside the form.
     const outside = screen.queryAllByRole('button', { name: 'Create project or process' }).filter((button) => !form.contains(button))
     expect(outside).toHaveLength(0)
+  })
+})
+
+describe('page help defines the domain terms', () => {
+  it('EN: the head "?" states the purpose sentence and Responsible terms', async () => {
+    renderPage()
+    await screen.findByText('Menu launch')
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }))
+    const panel = screen.getByRole('note')
+    expect(panel).toHaveTextContent('Projects and Processes are the work that drives your Objectives.')
+    expect(panel).toHaveTextContent('Responsible is the one person doing the work')
+    expect(panel).toHaveTextContent('Business Unit is the team it belongs to')
+  })
+
+  it('ID: the localized help states the same terms', async () => {
+    renderPage('/', 'id')
+    await screen.findByText('Menu launch')
+    fireEvent.click(screen.getByRole('button', { name: 'Bantuan' }))
+    const panel = screen.getByRole('note')
+    expect(panel).toHaveTextContent('Proyek dan Proses adalah kerja yang mendorong Objective Anda.')
+    expect(panel).toHaveTextContent('Responsible adalah satu orang yang mengerjakan')
+    expect(panel).toHaveTextContent('Business Unit adalah tim tempat pekerjaan ini berada')
   })
 })
