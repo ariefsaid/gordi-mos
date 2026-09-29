@@ -4,12 +4,14 @@
    stacks to one column — the same floor the app's other forms already use (task-create-form.css
    `.tcf-row`, record-viewer.css's task-ownership fields), generalised here for callers that had
    no such rule yet (admin dialogs).
+   The grid is bounded to one readable column (40rem) so a short field never spans a wide page.
    Field-span API: wrap fields in `.form-grid`, each field in `.form-grid__field` (default: half
    the row, two up), add `--full` to span the whole row. */
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px 20px;
+  max-width: 40rem;
 }
 .form-grid__field { min-width: 0; }
 .form-grid__field--full { grid-column: 1 / -1; }

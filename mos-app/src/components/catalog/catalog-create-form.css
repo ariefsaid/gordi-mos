@@ -3,10 +3,6 @@
    TaskCreateForm's grammar (task-create-form.css) so every collection's create flow reads as one
    system. Tokens only — see DESIGN.md / index.css. */
 .ccf {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
   padding: 16px;
 }
 .ccf-field {
@@ -27,16 +23,6 @@
   margin: 0;
   font-size: var(--font-size-label);
   color: var(--field-error-text);
-}
-/* Secondary decisions (Type · Objective · Business Unit): a row on a wide track, one column on a
-   narrow one — no separate phone-only markup to drift out of sync. */
-.ccf-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-}
-@media (max-width: 767.98px) {
-  .ccf-row { grid-template-columns: 1fr; }
 }
 .ccf-foot {
   display: flex;
