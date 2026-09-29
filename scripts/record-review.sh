@@ -69,6 +69,10 @@ if printf '%s\n' "$verdict_lines" | grep -q 'DO NOT MERGE'; then
   die "the '$lens' lens verdict is DO NOT MERGE; its stamp was cleared (other lens stamps are unchanged)"
 fi
 
+verdict_count="$(printf '%s\n' "$verdict_lines" | awk 'END { print NR }')"
+[ "$verdict_count" -eq 1 ] \
+  || die "the '$lens' section must carry exactly one 'Verdict:' line (found $verdict_count)"
+
 verdict="$(printf '%s\n' "$verdict_lines" | sed -E 's/^[Vv]erdict:[[:space:]]*//' | head -1)"
 printf '%s\n' "$verdict" | grep -qE '^MERGE( WITH CHANGES)?$' \
   || die "the '$lens' section's verdict is not machine-readable (MERGE | MERGE WITH CHANGES): '$verdict'"
