@@ -26,6 +26,7 @@ import { TasksLayout } from './pages/tasks-layout'
 import { TaskDrawer } from './components/tasks/task-drawer'
 import { SignalsArchivePage, SignalRecordPage } from './pages/signals-archive-page'
 import { ProfilePage } from './pages/profile-page'
+import { OAuthConsentPage } from './pages/oauth-consent-page'
 import { EventsWorkspacePage } from './pages/events-workspace-page'
 import { FollowUpsPage } from './pages/follow-ups-page'
 import { ObjectivesPage } from './pages/objectives-page'
@@ -165,6 +166,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   // component throughout — while this row asserted the stub. Routed in #269; it carries the only
   // locale control in the app, so the stub left the Indonesian catalog unreachable.
   ['/profile', ProfilePage, 'v4'],
+  ['/oauth/consent', OAuthConsentPage, 'redesign'],
   ['/admin/people', AdminUsersPage, 'dev'],
   ['/admin/teams', AdminTeamsPage, 'redesign'],
   ['/admin/access', AdminAccessPage, 'redesign'],

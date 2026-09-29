@@ -1,0 +1,72 @@
+/* OAuthConsentPage — one bounded card, read top to bottom: who, what, then the answer. */
+.consent {
+  box-sizing: border-box;
+  max-width: 560px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--shadow-rest);
+}
+
+.consent__heading {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.consent__heading:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: var(--radius-xs); }
+
+.consent__tag {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--status-lost-text) 40%, var(--border));
+  border-radius: var(--radius-sm);
+  color: var(--status-lost-text);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+}
+
+.consent__line {
+  margin: 0 0 8px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.consent__host { color: var(--foreground); font-weight: 600; }
+
+.consent__lists { display: grid; gap: 16px; margin: 20px 0; }
+.consent__subheading {
+  margin: 0 0 6px;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.consent__list { margin: 0; padding-left: 18px; list-style: disc; font-size: var(--font-size-body); line-height: 1.5; }
+.consent__list li + li { margin-top: 4px; }
+
+.consent__reason {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--muted);
+  font-size: var(--font-size-body);
+}
+
+.consent .error-state { margin: 0 0 16px; padding: 10px 12px; }
+
+.consent__actions { display: flex; gap: 8px; }
+
+@media (max-width: 480px) {
+  .consent { padding: 16px; }
+  .consent__actions { flex-direction: column; }
+  .consent__actions .btn { width: 100%; height: 44px; }
+}
