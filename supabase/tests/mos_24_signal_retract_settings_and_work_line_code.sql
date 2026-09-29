@@ -2,21 +2,13 @@
 -- (mos.can_retract_signal / shared.role_authority), not the separate capability table shared.can()
 -- reads — and mos.work_lines.code is a stable, server-assigned state once a row exists.
 --
--- mos.can_retract_signal itself (every role x scope combination, both audiences) is already
--- exhaustively covered by mos_18_authority_contract.sql and is unchanged by this migration. The
--- UPDATE policy's USING clause already calls that same predicate, so an unauthorized non-owner
--- (member/finance/manager/a lead outside their own team or unit) is filtered before the row is even
--- matched — a zero-row UPDATE, not a raised exception, both before and after this fix. Those cases
--- below assert zero rows changed, as a defense-in-depth confirmation, not as the regression proof.
---
--- The actual regression is a false DENIAL: a scope the RLS policy (correctly, via
--- mos.can_retract_signal) already admits was then rejected inside the trigger, which read the
--- separate, non-configurable shared.role_capabilities table instead. The admin-override case below
--- (grant "manager" an org retraction scope, then have a manager retract) proves it directly — RLS
--- admits the row, and only the trigger's authority check decides whether the UPDATE actually lives.
--- Restore-refused and reason-immutable are enforced once, by the untouched
--- mos._guard_signal_retraction_attribution trigger; the two assertions here are an integration
--- sanity check on the new code path, not a re-proof of that trigger's own suite.
+-- mos.can_retract_signal itself (every role x scope combination, both audiences) is covered by
+-- mos_18_authority_contract.sql. The UPDATE policy's USING clause calls the same predicate, so an
+-- unauthorized non-owner is filtered before the row matches (a zero-row UPDATE); those cases assert
+-- zero rows changed. The trigger's own authority check is what decides the cases RLS admits: an
+-- admin override (a manager granted an org retraction scope) and an author whose own scope is set to
+-- none. Reason rules (only written by the retracting UPDATE, blank incl. Unicode spaces refused, never
+-- rewritten afterwards) are enforced once, in mos._guard_signal_retraction_attribution.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(64);
@@ -100,7 +92,7 @@ create temp table t1010 (
 insert into t1010 default values;
 grant select, update on t1010 to authenticated;
 
--- ── All Teams (org) rows: the regression + the admin-override integration ───────────────────────
+-- ── All Teams (org) rows: configured scopes + the admin-override integration ───────────────────────
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
 update t1010 set target_signal = mos.create_signal_with_mentions(
