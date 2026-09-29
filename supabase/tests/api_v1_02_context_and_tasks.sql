@@ -8,7 +8,7 @@
 --   d5 report   d7 (probed with finance)   b4 member of another org.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(106);
+select plan(108);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -450,11 +450,28 @@ select lives_ok($q$ select api_v1.create_task(title => 'other person', team_id =
   responsible_person_id => shared.current_person_id(), accountable_person_id => shared.current_person_id()) $q$,
   'AC-012: another person''s write still succeeds');
 
--- The 100-item cap holds once a Task is full.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+-- The 100-item cap: a Task reaches exactly 100 items, and the next one is refused.
+reset role;
 insert into mos.task_checklist_items (task_id, label, position)
-  select '00000000-0000-0000-0000-0000000000f1', 'fill ' || n, n + 10 from generate_series(1, 100) n;
-select is(pg_temp.err($q$ select api_v1.add_checklist_item(task_id => '00000000-0000-0000-0000-0000000000f1', label => 'one too many') $q$) ~ '^PT400\|invalid_input\|task_id\|', true, 'a full Task refuses the 101st checklist item');
+  select '00000000-0000-0000-0000-0000000000f1', 'fill ' || n, n + 10
+    from generate_series(1, 99 - (select count(*)::int from mos.task_checklist_items where task_id = '00000000-0000-0000-0000-0000000000f1')) n;
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+select is(jsonb_array_length(api_v1.add_checklist_item(task_id => '00000000-0000-0000-0000-0000000000f1', label => 'the hundredth') -> 'item' -> 'checklist'), 100, 'the 100th checklist item is accepted');
+select is(pg_temp.err($q$ select api_v1.add_checklist_item(task_id => '00000000-0000-0000-0000-0000000000f1', label => 'one too many') $q$) ~ '^PT400\|invalid_input\|task_id\|', true, 'the 101st checklist item is refused');
+
+-- get_task returns every linked Signal id, however many there are.
+reset role;
+insert into mos.signals (id, org_id, author_id, audience, occurred_at, body)
+  select ('00000000-0000-0000-0000-00000009' || lpad(n::text, 4, '0'))::uuid, '00000000-0000-0000-0000-0000000000a1',
+         '00000000-0000-0000-0000-0000000000d1', 'org', now(), 'linked ' || n
+    from generate_series(1, 105) n;
+insert into mos.signal_tasks (signal_id, task_id, created_by)
+  select ('00000000-0000-0000-0000-00000009' || lpad(n::text, 4, '0'))::uuid, '00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000d1'
+    from generate_series(1, 105) n;
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+select is(jsonb_array_length(api_v1.get_task('00000000-0000-0000-0000-0000000000f1') -> 'item' -> 'signal_ids'), 105, 'get_task returns all linked Signal ids');
 
 select * from finish();
 rollback;
