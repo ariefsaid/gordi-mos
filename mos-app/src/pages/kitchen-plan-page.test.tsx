@@ -357,6 +357,17 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(mockUpsert).toHaveBeenCalledOnce()
     // the edited row must still be on screen — no navigation on error
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+    // #979: the same input is still mounted and still holds the typed amount after the rejection
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toBe(input)
+    expect(input).toBeInTheDocument()
+    expect(input).toHaveValue(15)
+    // retry (Enter on the still-typed amount) succeeds: that amount is what gets persisted
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledTimes(2))
+    expect(mockUpsert.mock.calls[1][0].qty_porsi).toBe(15)
+    expect(mockUpsert.mock.calls[1][0].wip_item_id).toBe('w1')
+    expect(await screen.findByText(/saved/i)).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(15)
   })
 
   it('(#981) editor search keeps real typing intact, the URL follows, and clearing empties both', async () => {
