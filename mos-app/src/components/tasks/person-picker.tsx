@@ -1,4 +1,4 @@
-import { useRef, useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Command } from 'cmdk'
 import * as Popover from '@radix-ui/react-popover'
 import type { PersonOption } from '@/lib/db/directory'
@@ -13,9 +13,12 @@ export type PersonPickerProps = {
   exclude?: string[]
   // The element the picker serves (e.g. the composer textarea); without one it anchors where it renders.
   anchorRef?: RefObject<HTMLElement | null>
+  // Attached mode: the anchor element keeps DOM focus and its text drives the filter; ArrowUp/Down,
+  // Home/End and Enter typed there move and pick. Without it the picker owns a search input.
+  query?: string
 }
 
-export function PersonPicker({ people, onSelect, onClose, exclude = [], anchorRef }: PersonPickerProps) {
+export function PersonPicker({ people, onSelect, onClose, exclude = [], anchorRef, query }: PersonPickerProps) {
   const t = useT()
   const available = people.filter(person => !exclude.includes(person.id))
   // Captured during the first render, before the search input takes focus.
@@ -25,17 +28,51 @@ export function PersonPicker({ people, onSelect, onClose, exclude = [], anchorRe
     const opener = openerRef.current
     if (opener instanceof HTMLElement && opener !== document.body) opener.focus()
   }
-  const [active, setActive] = useState(available[0]?.id ?? '')
+  const attached = query !== undefined
+  const [active, setActive] = useState('')
+  const [typed, setTyped] = useState('')
+  const needle = (attached ? query : typed).trim().toLocaleLowerCase()
 
-  // Typed text ranks prefix matches first; hover never moves the highlight (disablePointerSelection).
-  const filter = (id: string, query: string) => {
-    const name = available.find(person => person.id === id)?.full_name.toLocaleLowerCase() ?? ''
-    const needle = query.trim().toLocaleLowerCase()
-    if (!needle || name.startsWith(needle)) return 1
-    return name.includes(needle) ? 0.5 : 0
-  }
+  // Prefix matches rank first; hover never moves the highlight (disablePointerSelection).
+  const visible = available
+    .map(person => {
+      const name = person.full_name.toLocaleLowerCase()
+      return { person, score: !needle || name.startsWith(needle) ? 1 : name.includes(needle) ? 0.5 : 0 }
+    })
+    .filter(entry => entry.score > 0)
+    .sort((x, y) => y.score - x.score)
+    .map(entry => entry.person)
+  const activeId = visible.some(person => person.id === active) ? active : visible[0]?.id ?? ''
 
   const closeWithFocus = () => { restoreFocus(); onClose() }
+
+  const keyState = useRef({ visible, activeId })
+  keyState.current = { visible, activeId }
+  const pickRef = useRef((id: string) => { onSelect(id); closeWithFocus() })
+  pickRef.current = (id: string) => { onSelect(id); closeWithFocus() }
+  useEffect(() => {
+    const anchor = attached ? anchorRef?.current : null
+    if (!anchor) return
+    const onKey = (event: KeyboardEvent) => {
+      const { visible: list, activeId: current } = keyState.current
+      if (list.length === 0) return
+      const index = list.findIndex(person => person.id === current)
+      let next = -1
+      if (event.key === 'ArrowDown') next = (index + 1) % list.length
+      else if (event.key === 'ArrowUp') next = (index - 1 + list.length) % list.length
+      else if (event.key === 'Home') next = 0
+      else if (event.key === 'End') next = list.length - 1
+      else if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+        event.preventDefault()
+        pickRef.current(current)
+        return
+      } else return
+      event.preventDefault()
+      setActive(list[next].id)
+    }
+    anchor.addEventListener('keydown', onKey)
+    return () => anchor.removeEventListener('keydown', onKey)
+  }, [attached, anchorRef])
 
   return (
     <Popover.Root open onOpenChange={(next) => { if (!next) onClose() }}>
@@ -55,8 +92,8 @@ export function PersonPicker({ people, onSelect, onClose, exclude = [], anchorRe
           <Command
             label={t('tasks.people.select')}
             className="person-picker__command"
-            filter={filter}
-            value={active}
+            shouldFilter={false}
+            value={activeId}
             onValueChange={setActive}
             disablePointerSelection
             loop
@@ -66,10 +103,18 @@ export function PersonPicker({ people, onSelect, onClose, exclude = [], anchorRe
               closeWithFocus()
             }}
           >
-            <Command.Input className="person-picker-search" autoFocus aria-label={t('tasks.people.select')} />
+            {!attached && (
+              <Command.Input
+                className="person-picker-search"
+                autoFocus
+                value={typed}
+                onValueChange={setTyped}
+                aria-label={t('tasks.people.select')}
+              />
+            )}
             <Command.List className="person-picker-list" label={t('tasks.people.select')}>
               <Command.Empty className="person-picker-empty">{t('tasks.people.none')}</Command.Empty>
-              {available.map(person => (
+              {visible.map(person => (
                 <Command.Item
                   key={person.id}
                   value={person.id}

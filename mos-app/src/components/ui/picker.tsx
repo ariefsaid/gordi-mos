@@ -86,7 +86,11 @@ export function Picker({
   const autoId = useId()
   const triggerId = id ?? autoId
   const [open, setOpen] = useState(false)
-  const [active, setActive] = useState(value)
+  const initialActive = useCallback(() => {
+    const selectable = options.filter((option) => !option.disabled)
+    return selectable.find((option) => option.value === value)?.value ?? selectable[0]?.value ?? ''
+  }, [options, value])
+  const [active, setActive] = useState(initialActive)
   const [search, setSearch] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -101,11 +105,11 @@ export function Picker({
 
   const openPicker = useCallback(() => {
     if (disabled || busy || open) return
-    setActive(value)
+    setActive(initialActive())
     setSearch('')
     setOpen(true)
     onOpenChange?.(true, undefined)
-  }, [busy, disabled, onOpenChange, open, value])
+  }, [busy, disabled, initialActive, onOpenChange, open])
 
   const togglePicker = useCallback(() => {
     if (disabled || busy) return

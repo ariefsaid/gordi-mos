@@ -156,6 +156,7 @@ export function CommentThread({
             <PersonPicker
               people={people}
               anchorRef={textareaRef}
+              query={/(?:^|\s)@([a-z0-9_.-]*)$/i.exec(draft)?.[1] ?? ''}
               onSelect={insertMention}
               onClose={() => setPickerDismissed(true)}
             />

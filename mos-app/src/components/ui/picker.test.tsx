@@ -22,13 +22,15 @@ function renderPicker(overrides: Partial<React.ComponentProps<typeof Picker>> = 
 }
 
 describe('Picker', () => {
-  it('renders the options as the popover list', async () => {
+  it('an unset field activates the first option so ArrowDown then Enter selects immediately', async () => {
     const user = userEvent.setup()
-    renderPicker()
-    await user.click(screen.getByRole('combobox', { name: 'Status' }))
-    const content = screen.getByRole('listbox', { name: 'Status' }).closest('.picker__menu')
-    expect(content).not.toBeNull()
-    expect(screen.getByRole('listbox', { name: 'Status' })).toHaveClass('picker__list')
+    const onChange = vi.fn()
+    renderPicker({ value: '', onChange })
+    screen.getByRole('combobox', { name: 'Status' }).focus()
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('option', { name: 'Open' })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(onChange).toHaveBeenCalledWith('blocked')
   })
 
   it('opens as an anchored listbox and selects with arrows, then returns focus', async () => {

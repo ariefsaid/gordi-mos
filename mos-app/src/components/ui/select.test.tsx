@@ -159,6 +159,16 @@ describe('Select (primitive)', () => {
     expect(trigger).toHaveFocus()
   })
 
+  it('an unset value still lets ArrowDown then Enter choose from the keyboard', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<Select label="Choose fruit" value="" onChange={onChange}>{options}</Select>)
+    screen.getByRole('combobox', { name: 'Choose fruit' }).focus()
+    await user.keyboard('{ArrowDown}')
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
   it('dismisses on outside click without changing the selected value', async () => {
     // Radix blocks pointer events on the page while open; an outside press still dismisses.
     const user = userEvent.setup({ pointerEventsCheck: 0 })
