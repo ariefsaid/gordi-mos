@@ -1,5 +1,5 @@
 -- Change history batch 2b — Signals & work items (#987, Slice 4 of the change-history rollout on
--- the ADR-0059 mechanism from 20260929000001). Attaches the one generic trigger to the eight
+-- the ADR-0059 mechanism from 20260929000010). Attaches the one generic trigger to the eight
 -- Signal-family and work-log tables and registers their read arms in
 -- shared.can_read_history_record. No shape changes: the mechanism, its grants and its policy are
 -- Slice 1's and are not restated here.
