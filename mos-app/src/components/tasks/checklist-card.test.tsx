@@ -146,12 +146,12 @@ describe('ChecklistCard', () => {
   it('Ticket #969: an edit made while a deferred Retry is unresolved survives its resolution (red-first)', async () => {
     const { view, props, input } = await failAdd('Buy beans')
     let resolve!: () => void
-    const onRetry = vi.fn(() => new Promise<void>((r) => { resolve = r }))
+    const onRetry = vi.fn(() => new Promise<void>((settle) => { resolve = settle }))
     view.rerender(<ChecklistCard {...props} saveError={{ message: 'Could not save', onRetry }} />)
     fireEvent.click(screen.getByRole('button', { name: /retry/i }))
     fireEvent.change(input, { target: { value: 'Milk' } })
     resolve()
-    await new Promise((r) => setTimeout(r, 0))
+    await new Promise((settle) => setTimeout(settle, 0))
     expect(input).toHaveValue('Milk')
   })
 
