@@ -100,6 +100,8 @@ begin
   end loop;
   return v;
 end $f$;
+-- The owner default no longer grants PUBLIC execute, so the session-local helpers are granted.
+grant execute on all functions in schema pg_temp to public;
 
 set local role authenticated;
 

@@ -3,7 +3,7 @@
 -- ACL), AC-030 (v1 signature snapshot), plus a COMMENT on every function and the definer allow-list.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(13);
+select plan(15);
 
 select ok(
   exists (select 1 from pg_namespace where nspname = 'api_v1')
@@ -13,9 +13,11 @@ select ok(
 select is(
   (select array_agg(p.proname::text order by p.proname)
      from pg_proc p where p.pronamespace = to_regnamespace('api_v1')),
-  array['add_checklist_item','create_task','edit_task','get_task','list_business_units','list_people',
-        'list_tasks','list_teams','refused_action','set_checklist_item','whoami'],
-  'api_v1 holds exactly the slice-(a) operations');
+  array['add_checklist_item','create_project_process','create_signal','create_task','edit_project_process',
+        'edit_signal','edit_task','get_project_process','get_signal','get_task','link_signal_task',
+        'list_business_units','list_people','list_projects_processes','list_signals','list_tasks','list_teams',
+        'refused_action','set_checklist_item','whoami'],
+  'api_v1 holds exactly the slice-(a) and slice-(b) operations');
 
 -- ── AC-002 ───────────────────────────────────────────────────────────────────────────────────
 select is(
@@ -43,8 +45,9 @@ select is(
   (select count(*)::int
      from pg_proc p, unnest(coalesce(p.proargnames, '{}')) as n(name)
     where p.pronamespace = to_regnamespace('api_v1')
-      and n.name ~ '^(actor|actor_person_id|author|author_id|creator|created_by|org|org_id|channel|client_id|person_id)$'),
-  0, 'AC-003: no api_v1 parameter names an actor, author, creator, org or channel');
+      and n.name ~ '^(actor|actor_person_id|author|author_id|creator|created_by|org|org_id|channel|client_id|person_id)$'
+      and not (p.proname = 'list_signals' and n.name = 'author_id')),
+  0, 'AC-003: no api_v1 parameter names an actor, author, creator, org or channel (list_signals filters by author)');
 
 -- ── COMMENT on every function ────────────────────────────────────────────────────────────────
 select is(
@@ -96,7 +99,16 @@ select is_empty($snap$
     'edit_task(id uuid, changes jsonb, expected_updated_at timestamp with time zone)',
     'add_checklist_item(task_id uuid, label text, "position" integer)',
     'set_checklist_item(item_id uuid, label text, is_done boolean)',
-    'refused_action(action text, record_type text, id uuid)'
+    'refused_action(action text, record_type text, id uuid)',
+    'list_signals(attention text[], author_id uuid, occurred_from timestamp with time zone, occurred_to timestamp with time zone, linked_task_id uuid, updated_since timestamp with time zone, q text, include_retracted boolean, cursor text, "limit" integer)',
+    'get_signal(id uuid)',
+    'create_signal(body text, occurred_at timestamp with time zone, attention text, mentions jsonb, link_task_ids uuid[], idempotency_key text)',
+    'edit_signal(id uuid, changes jsonb, expected_updated_at timestamp with time zone)',
+    'link_signal_task(signal_id uuid, task_id uuid)',
+    'list_projects_processes(type text, business_unit_id uuid, updated_since timestamp with time zone, q text, include_archived boolean, cursor text, "limit" integer)',
+    'get_project_process(id uuid)',
+    'create_project_process(name text, type text, business_unit_id uuid, objective_id uuid, accountable_person_id uuid, responsible_person_id uuid, idempotency_key text)',
+    'edit_project_process(id uuid, changes jsonb, expected_updated_at timestamp with time zone)'
   ]) as r(sig)
   where not exists (
     select 1 from pg_proc p
@@ -110,6 +122,24 @@ select is(
     where p.pronamespace = to_regnamespace('api_v1')
       and p.prorettype <> 'jsonb'::regtype),
   0, 'every api_v1 function returns one jsonb value');
+
+-- ── Hardening 2: a function created later in these schemas is not executable by public or anon ─
+create function api_v1._probe() returns int language sql as 'select 1';
+create function api_private._probe() returns int language sql as 'select 1';
+select is(
+  (select count(*)::int from pg_proc p
+    where p.proname = '_probe' and p.pronamespace in (to_regnamespace('api_v1'), to_regnamespace('api_private'))
+      and (has_function_privilege('anon', p.oid, 'execute')
+           or exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
+                       where a.grantee = 0 and a.privilege_type = 'EXECUTE'))),
+  0, 'a function created later in api_v1 or api_private is not executable by public or anon');
+select is(
+  (select count(*)::int from pg_proc p
+    where p.proname = 'current_person_id' and p.pronamespace = to_regnamespace('shared')
+      and has_function_privilege('anon', p.oid, 'execute')),
+  (select count(*)::int from pg_proc p
+    where p.proname = 'current_person_id' and p.pronamespace = to_regnamespace('shared')),
+  'other schemas keep their default execute grant');
 
 select * from finish();
 rollback;

@@ -260,6 +260,8 @@ begin
              where ((i >> (b - 1)) & 1) = 1)
       from generate_series(0::bigint, (1::bigint << n) - 1) i;
 end $fn$;
+-- The owner default no longer grants PUBLIC execute, so the session-local helpers are granted.
+grant execute on all functions in schema pg_temp to public;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- A. AC-005 — RLS posture, over the catalog
