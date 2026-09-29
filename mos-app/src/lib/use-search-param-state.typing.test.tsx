@@ -62,7 +62,31 @@ describe('useSearchParamState — real typing', () => {
     expect(box).toHaveValue('ab')
   })
 
-  it('"Clear filters" (useSearchParamReset) empties a field the user just typed in', async () => {
+  it('"Clear filters" (useSearchParamReset) empties a field the user just typed in (data router)', async () => {
+    const user = userEvent.setup({ delay: null })
+    const router = createMemoryRouter([{ path: '/', element: <Box /> }])
+    render(<RouterProvider router={router} />)
+    const box = screen.getByRole('textbox', { name: 'box' })
+    await user.type(box, 'ab')
+    await user.click(screen.getByRole('button', { name: 'clear' }))
+    expect(box).toHaveValue('')
+    expect(router.state.location.search).toBe('')
+  })
+
+  it('Back onto an older entry this hook wrote is adopted (data router)', async () => {
+    const user = userEvent.setup({ delay: null })
+    const router = createMemoryRouter([{ path: '/', element: <Box /> }])
+    render(<RouterProvider router={router} />)
+    const box = screen.getByRole('textbox', { name: 'box' })
+    await user.type(box, 'ab')
+    await act(() => router.navigate('/?q=zzz')) // a link pushes a new entry
+    expect(box).toHaveValue('zzz')
+    await act(() => router.navigate(-1)) // Back onto the entry carrying this hook's tag
+    expect(box).toHaveValue('ab')
+    expect(router.state.location.search).toBe('?q=ab')
+  })
+
+  it('Clear filters and typing still work under a plain MemoryRouter', async () => {
     const user = userEvent.setup({ delay: null })
     render(<MemoryRouter><Box /></MemoryRouter>)
     const box = screen.getByRole('textbox', { name: 'box' })

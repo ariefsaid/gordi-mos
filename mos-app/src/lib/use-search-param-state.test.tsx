@@ -12,6 +12,7 @@ import { useSearchParamState } from './use-search-param-state'
 const setParams = vi.fn()
 let mockParamValue: string | null = null
 let mockState: unknown = null
+let mockNavType = 'REPLACE'
 
 vi.mock('react-router-dom', () => ({
   useSearchParams: () => [
@@ -19,12 +20,14 @@ vi.mock('react-router-dom', () => ({
     setParams,
   ],
   useLocation: () => ({ state: mockState }),
+  useNavigationType: () => mockNavType,
 }))
 
 beforeEach(() => {
   setParams.mockClear()
   mockParamValue = null
   mockState = null
+  mockNavType = 'REPLACE'
 })
 
 // The router echoing one of the hook's own writes: the URL value plus the navigation state the
@@ -33,10 +36,12 @@ const ownState = () => (setParams.mock.calls.at(-1)?.[1] as { state: unknown }).
 const echoOwnWrite = (value: string | null) => {
   mockParamValue = value
   mockState = ownState()
+  mockNavType = 'REPLACE'
 }
 const navigateExternally = (value: string | null) => {
   mockParamValue = value
   mockState = null
+  mockNavType = 'PUSH'
 }
 
 describe('useSearchParamState — fast typing must not drop characters', () => {
@@ -85,21 +90,23 @@ describe('useSearchParamState — fast typing must not drop characters', () => {
     expect(result.current[0]).toBe('a')
   })
 
-  it('an old history entry that still carries this hook\'s tag is adopted after an external change', () => {
+  it('a late echo of an earlier own write, after an external change was adopted, stays suppressed', () => {
     const { result, rerender } = renderHook(() => useSearchParamState('q', ''))
+    act(() => result.current[1]('a'))
+    const lateEchoState = ownState()
     act(() => result.current[1]('ab'))
-    const staleState = ownState()
     echoOwnWrite('ab')
     rerender()
 
-    navigateExternally('zzz') // a link pushes another entry
+    navigateExternally('x') // a link lands while older echoes are still in flight
     rerender()
-    expect(result.current[0]).toBe('zzz')
+    expect(result.current[0]).toBe('x')
 
-    mockParamValue = 'ab' // back onto the entry this hook once wrote
-    mockState = staleState
+    mockParamValue = 'a' // the delayed echo of the earlier write
+    mockState = lateEchoState
+    mockNavType = 'REPLACE'
     rerender()
-    expect(result.current[0]).toBe('ab')
+    expect(result.current[0]).toBe('x')
   })
 
   it('keeps unrelated navigation state and other keys\' tags when it writes', () => {

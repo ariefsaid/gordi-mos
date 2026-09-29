@@ -20,7 +20,7 @@
 // tagged in navigation state (`__sps[key] = token`) and the tag is read back off the location, so
 // the two are told apart by what wrote the URL, never by its value or age.
 import { useCallback, useId, useRef, useState } from 'react'
-import { useLocation, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigationType, useSearchParams } from 'react-router-dom'
 
 const STATE_KEY = '__sps'
 
@@ -48,21 +48,15 @@ export function useSearchParamState(
   const latestState = useRef<unknown>(location.state)
   latestState.current = location.state
 
-  // This instance's write tag. The generation is bumped whenever an external change is adopted,
-  // so a tag left in an older history entry (back onto an entry this hook once wrote) never
-  // matches again.
-  const instanceId = useId()
-  const generation = useRef(0)
-  const tokenRef = useRef('')
-  tokenRef.current = `${instanceId}:${generation.current}`
+  // This instance's write tag. A history traversal (POP: Back/Forward onto any entry, tagged or
+  // not) is always external; otherwise a matching tag is our own echo, early or late.
+  const token = useId()
+  const navigationType = useNavigationType()
 
   const prevUrlValue = useRef(urlValue)
   if (urlValue !== prevUrlValue.current) {
     prevUrlValue.current = urlValue
-    if (readTag(location.state, key) !== tokenRef.current) {
-      generation.current += 1
-      setLocal(urlValue)
-    }
+    if (navigationType === 'POP' || readTag(location.state, key) !== token) setLocal(urlValue)
   }
 
   const setValue = useCallback(
@@ -79,11 +73,11 @@ export function useSearchParamState(
         },
         {
           replace: true,
-          state: { ...state, [STATE_KEY]: { ...asRecord(state[STATE_KEY]), [key]: tokenRef.current } },
+          state: { ...state, [STATE_KEY]: { ...asRecord(state[STATE_KEY]), [key]: token } },
         },
       )
     },
-    [key, defaultValue, setParams],
+    [key, defaultValue, setParams, token],
   )
 
   return [local, setValue]
