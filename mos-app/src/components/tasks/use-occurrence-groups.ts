@@ -14,7 +14,7 @@ import { listRunRollups, listPendingTasks, listTaskDefs } from '@/lib/db/process
 import { listRoleNames } from '@/lib/db/directory'
 import type { ProcessRunRollup, PendingTaskRow } from '@/lib/db/processes.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import type { TasksGroupBy } from './use-tasks-view-pref'
+import type { TaskCollectionGroup } from './task-collection-query'
 
 export interface UseOccurrenceGroupsResult {
   runRollups: Map<string, ProcessRunRollup>
@@ -37,7 +37,7 @@ export interface UseOccurrenceGroupsResult {
 
 export function useOccurrenceGroups(
   allTasks: TaskListRow[],
-  groupBy: TasksGroupBy,
+  groupBy: TaskCollectionGroup,
   load: () => void,
 ): UseOccurrenceGroupsResult {
   const [runRollups, setRunRollups] = useState<Map<string, ProcessRunRollup>>(new Map())

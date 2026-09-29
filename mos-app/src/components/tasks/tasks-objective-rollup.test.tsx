@@ -12,7 +12,6 @@ import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
 import { isShipGated } from '@/lib/ship-gate'
 
 vi.mock('@/lib/db/tasks', () => ({
@@ -119,7 +118,6 @@ function branch(label: string): HTMLElement {
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
-  __resetTasksViewPrefForTests()
   stubPhone()
   vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-1', name: 'Retail Ops' }])
   vi.mocked(getPeople).mockResolvedValue([
