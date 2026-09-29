@@ -1,5 +1,5 @@
 -- Change history batch 2c — Money (#988, Slice 5 of the change-history rollout on the ADR-0059
--- mechanism from 20260929000001). Attaches the one generic trigger to the four money tables and
+-- mechanism from 20260929000010). Attaches the one generic trigger to the four money tables and
 -- registers their read arms in shared.can_read_history_record. No shape changes: the mechanism,
 -- its grants and its policy are Slice 1's and are not restated here.
 --
