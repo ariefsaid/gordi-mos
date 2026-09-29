@@ -390,21 +390,6 @@ export const messages = {
     'kitchen.category.meat': 'Meat',
     'kitchen.category.seafood': 'Seafood',
     'kitchen.category.vegTempeTofu': 'Veg/Tempe/Tofu',
-    'kitchen.kpi.today': 'Today',
-    'kitchen.kpi.planned': 'planned',
-    'kitchen.kpi.portions': 'portions',
-    'kitchen.kpi.items': 'items',
-    'kitchen.kpi.onPlan': 'on plan',
-    'kitchen.kpi.noPlan': 'no plan set',
-    'kitchen.kpi.offPlan': 'off-plan',
-    'kitchen.kpi.of': 'of',
-    'kitchen.kpi.target': 'of target',
-    'kitchen.kpi.ofPlan': 'of plan',
-    'kitchen.kpi.unitsShort': 'units short',
-    'kitchen.kpi.vsPlan': 'vs plan',
-    'kitchen.kpi.made': 'Made so far',
-    'kitchen.kpi.complete': '% complete',
-    'kitchen.kpi.remaining': 'Items remaining',
     // Weekly update placeholder (audit D7 fix)
     // ---- v4 shell chrome (#188) ----
     // Every string the ported app-shell chrome renders: destination + nav labels for the v4
@@ -1629,30 +1614,14 @@ export const messages = {
     // copy, never re-translated. Scope rule: only keys with a LIVE dev call site, so the
     // orphan guard (#206) stays green. v4 keys dev does not render stay behind.
     //
-    // Café · Stock — the KPI strip (lib/kitchen-stock-kpis.ts), the surface kitchen staff
-    // read daily. `t` is injected into the pure compute so it stays unit-testable.
+    // Café · Stock — the one summary line (kitchen-stock-page.tsx's inline MetricSummaryRule).
+    // #788: the 4-tile KPI strip these keys used to feed (lib/kitchen-stock-kpis.ts,
+    // components/kitchen/kitchen-kpi-strip.tsx) is retired; only the labels the summary
+    // line itself still reads survive here.
     'kitchen.stock.kpi.ariaLabel': 'Stock summary',
-    'kitchen.stock.kpi.phoneLabel': 'Stock',
-    'kitchen.stock.kpi.itemCount': '${count} items',
-    'kitchen.stock.kpi.availableCount': '${count} available',
     'kitchen.stock.kpi.onHand': 'Total on-hand',
-    // The UNIT of the headline number (Σ qty_porsi), not a qualifier — it is the only place
-    // the tile says what it is counting (#411).
-    'kitchen.stock.kpi.onHand.sub': 'portions',
-    'kitchen.stock.kpi.inStock': 'Items in stock',
-    'kitchen.stock.kpi.inStock.delta': '${count} empty/negative',
-    'kitchen.stock.kpi.inStock.sub': 'with usable stock',
     'kitchen.stock.kpi.negative': 'Negative balances',
-    'kitchen.stock.kpi.negative.review': 'needs review',
-    'kitchen.stock.kpi.negative.clear': 'clear',
-    'kitchen.stock.kpi.negative.noData': 'no stock data yet',
     'kitchen.stock.kpi.available': 'Available total',
-    // `availableTotal` is Σ row.tersedia across items for the SELECTED DATE — a cross-item
-    // total for one day, never a running one. It said 'read-only' / 'transfer-ready' before
-    // the port and says the same two things now (#411): a translation may not change what a
-    // number means.
-    'kitchen.stock.kpi.available.delta': 'read-only',
-    'kitchen.stock.kpi.available.sub': 'transfer-ready',
     // Café · Review — the per-row approve/reject decision flow, its outcome banners and its
     // action errors. The confirm buttons NAME THE OBJECT (v4 clarify) — a destructive
     // confirm never says only "Confirm reject". It keeps the word "Confirm" all the same
@@ -2267,21 +2236,6 @@ export const messages = {
     'kitchen.category.meat': 'Daging',
     'kitchen.category.seafood': 'Makanan Laut',
     'kitchen.category.vegTempeTofu': 'Sayur/Tempe/Tahu',
-    'kitchen.kpi.today': 'Hari ini',
-    'kitchen.kpi.planned': 'direncanakan',
-    'kitchen.kpi.portions': 'porsi',
-    'kitchen.kpi.items': 'item',
-    'kitchen.kpi.onPlan': 'sesuai rencana',
-    'kitchen.kpi.noPlan': 'belum ada rencana',
-    'kitchen.kpi.offPlan': 'di luar rencana',
-    'kitchen.kpi.of': 'dari',
-    'kitchen.kpi.target': 'dari target',
-    'kitchen.kpi.ofPlan': 'dari rencana',
-    'kitchen.kpi.unitsShort': 'kurang dari rencana',
-    'kitchen.kpi.vsPlan': 'vs rencana',
-    'kitchen.kpi.made': 'Sudah dibuat',
-    'kitchen.kpi.complete': '% selesai',
-    'kitchen.kpi.remaining': 'Item tersisa',
     'kitchen.actionType.transferTo': 'Transfer ke ${branch}',
     'kitchen.actionType.transferTo.fallback': 'cabang lain',
     'kitchen.actionType.transferTo.short': '→ ${branch}',
@@ -3231,23 +3185,11 @@ export const messages = {
     'admin.reveal.clipboardBlocked': 'Pilih lalu salin manual — akses clipboard tidak tersedia.',
     'admin.reveal.done': 'Selesai',
     // ── i18n port sweep (#400, first slice of #290) — verbatim dari katalog v4 ───────────
-    // Café · Stock — pita KPI (lib/kitchen-stock-kpis.ts).
+    // Café · Stock — satu baris ringkasan (#788; pita KPI 4-ubin lama sudah dipensiunkan).
     'kitchen.stock.kpi.ariaLabel': 'Ringkasan stok',
-    'kitchen.stock.kpi.phoneLabel': 'Stok',
-    'kitchen.stock.kpi.itemCount': '${count} item',
-    'kitchen.stock.kpi.availableCount': '${count} tersedia',
     'kitchen.stock.kpi.onHand': 'Total stok fisik',
-    'kitchen.stock.kpi.onHand.sub': 'porsi',
-    'kitchen.stock.kpi.inStock': 'Item bersisa stok',
-    'kitchen.stock.kpi.inStock.delta': '${count} kosong/minus',
-    'kitchen.stock.kpi.inStock.sub': 'masih bisa dipakai',
     'kitchen.stock.kpi.negative': 'Saldo minus',
-    'kitchen.stock.kpi.negative.review': 'perlu ditinjau',
-    'kitchen.stock.kpi.negative.clear': 'aman',
-    'kitchen.stock.kpi.negative.noData': 'belum ada data stok',
     'kitchen.stock.kpi.available': 'Total tersedia',
-    'kitchen.stock.kpi.available.delta': 'hanya baca',
-    'kitchen.stock.kpi.available.sub': 'siap ditransfer',
     // Café · Review — alur keputusan setujui/tolak per baris + banner hasilnya.
     'kitchen.review.approve': 'Setujui',
     'kitchen.review.reject': 'Tolak',
