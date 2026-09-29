@@ -34,7 +34,7 @@ Returns: {items [{id, name, code}] (at most 100), next_cursor: null}.
 
 Errors: none expected.
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 {}
@@ -60,7 +60,7 @@ Returns: {items [{id, full_name, email, teams [{team_id, name}]}], next_cursor}.
 
 Errors: invalid_input (q over 200 characters, cursor, limit).
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 {}
@@ -85,7 +85,7 @@ Returns: {items [{id, name, code, business_unit_id, business_unit_name, site_id}
 
 Errors: invalid_input (q over 200 characters, cursor, limit).
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 {}
@@ -105,7 +105,7 @@ Returns: {person {id, full_name, email}, org_id, access_roles, teams [{team_id, 
 
 Errors: none expected.
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 {}
@@ -131,7 +131,7 @@ Returns: {item} (the Task as get_task returns it).
 
 Errors: invalid_input, not_found (task_id), forbidden, rate_limited.
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 { "task_id": "<uuid>", "label": "<text>" }
@@ -165,7 +165,7 @@ Returns: {item, replayed}.
 
 Errors: invalid_input, not_found (team_id), forbidden (a rule such as who may be person in charge), rate_limited (60 writes a minute per person).
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 { "title": "<text>", "team_id": "<uuid>", "responsible_person_id": "<uuid>", "accountable_person_id": "<uuid>" }
@@ -189,7 +189,7 @@ Returns: {item}.
 
 Errors: invalid_input (unknown key or bad value), refused.archive, not_found, forbidden, conflict, rate_limited.
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 { "id": "<uuid>", "changes": {} }
@@ -211,7 +211,7 @@ Returns: {item}.
 
 Errors: not_found (missing or not readable), invalid_input (id).
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 { "id": "<uuid>" }
@@ -246,7 +246,7 @@ Returns: {items [Task], next_cursor}.
 
 Errors: invalid_input (q over 200 characters, status, cursor, limit).
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 {}
@@ -270,7 +270,7 @@ Returns: {item} (the Task as get_task returns it).
 
 Errors: invalid_input, not_found (item_id), forbidden, rate_limited.
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 { "item_id": "<uuid>" }
@@ -299,7 +299,7 @@ Returns: {item, replayed}.
 
 Errors: invalid_input, not_found (link_task_ids), forbidden (posting or mention rules), rate_limited (60 writes a minute per person).
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 { "body": "<text>" }
@@ -323,7 +323,7 @@ Returns: {item} (the Signal as get_signal returns it).
 
 Errors: invalid_input (unknown key or bad value), refused.permissions, refused.archive, not_found, forbidden, conflict, rate_limited.
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 { "id": "<uuid>", "changes": {} }
@@ -345,7 +345,7 @@ Returns: {item}.
 
 Errors: not_found (missing or not readable), invalid_input (id).
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 { "id": "<uuid>" }
@@ -368,7 +368,7 @@ Returns: {item} (the Signal as get_signal returns it).
 
 Errors: invalid_input, not_found (signal_id or task_id), forbidden, rate_limited.
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 { "signal_id": "<uuid>", "task_id": "<uuid>" }
@@ -399,7 +399,7 @@ Returns: {items [Signal], next_cursor}.
 
 Errors: invalid_input (attention, q, cursor, limit).
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 {}
@@ -429,7 +429,7 @@ Returns: {item, replayed}.
 
 Errors: invalid_input, not_found (business_unit_id), forbidden (only a person who manages that unit's definitions), rate_limited (60 writes a minute per person).
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 { "name": "<text>", "type": "<text>" }
@@ -453,7 +453,7 @@ Returns: {item}.
 
 Errors: invalid_input, refused.archive, not_found, forbidden, conflict, rate_limited.
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 { "id": "<uuid>", "changes": {} }
@@ -475,7 +475,7 @@ Returns: {item}.
 
 Errors: not_found, invalid_input (id).
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 { "id": "<uuid>" }
@@ -504,7 +504,7 @@ Returns: {items [Project/Process], next_cursor}.
 
 Errors: invalid_input (type, q, cursor, limit).
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 {}
@@ -528,7 +528,7 @@ Inputs: action (archive, restore, retract, delete, change_objective, change_targ
 
 Always raises: refused.archive, refused.delete, refused.targets, refused.permissions or refused.money; invalid_input for an unknown action.
 
-Minimal body:
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
 { "action": "<text>" }

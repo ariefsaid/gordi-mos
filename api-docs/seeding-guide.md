@@ -20,12 +20,13 @@ do only what they can do in the app. Read [README.md](README.md) once for the co
 
 ## 1. Set up and sign in
 
-Needs `curl` and `jq`. Set the two placeholders from the person's environment, load the helper, and
+Needs `curl` and `jq`. Set the placeholders from the person's environment and request (the last line is used in step 2), load the helper, and
 have the person sign in (the password prompt hides what they type):
 
 ```sh
 export MOS_API_URL='<SUPABASE_URL>'
 export MOS_ANON_KEY='<ANON_KEY>'
+export TEAM_NAME='<Team name>' BU_CODE='<Business Unit code>' OWNER_NAME='<name of the Task owner>'   # from the person
 source api-docs/mos-session.sh
 mos_signin            # the person types their email and password here
 ```
@@ -44,16 +45,20 @@ ME=$(mos_call whoami 2>/dev/null | jq -r '.person.id')
 ```
 
 `teams` lists the person's Teams; `authority` says whether they can post Signals and which Work
-records they may manage. Then resolve names. Each lookup must match exactly one record:
+records they may manage. Then resolve the names the person gave you. Each lookup must match exactly one record:
 
 ```bash
-mos_call list_business_units | jq -c '.items[] | {id, name, code}'
-mos_call list_teams '{"q":"HQ Operations"}' | jq -c '.items[] | {id, name, business_unit_name}'
-mos_call list_people '{"q":"cahya"}' | jq -c '.items[] | {id, full_name}'
+: "${TEAM_NAME:?set TEAM_NAME to the Team the person named}"
+: "${BU_CODE:?set BU_CODE to the Business Unit code, from the list below}"
+: "${OWNER_NAME:?set OWNER_NAME to the name of the person who will own the Task}"
 
-TEAM=$(mos_call list_teams '{"q":"HQ Operations"}' 2>/dev/null | mos_one_id team)
-BU=$(mos_call list_business_units 2>/dev/null | jq -er '.items[] | select(.code == "retail_ops") | .id')
-OWNER=$(mos_call list_people '{"q":"cahya"}' 2>/dev/null | mos_one_id person)
+mos_call list_business_units | jq -c '.items[] | {id, name, code}'
+mos_call list_teams "$(jq -n --arg q "$TEAM_NAME" '{q:$q}')" | jq -c '.items[] | {id, name, business_unit_name}'
+mos_call list_people "$(jq -n --arg q "$OWNER_NAME" '{q:$q}')" | jq -c '.items[] | {id, full_name}'
+
+TEAM=$(mos_call list_teams "$(jq -n --arg q "$TEAM_NAME" '{q:$q}')" 2>/dev/null | mos_one_id team)
+BU=$(mos_call list_business_units 2>/dev/null | jq -er --arg c "$BU_CODE" '.items[] | select(.code == $c) | .id')
+OWNER=$(mos_call list_people "$(jq -n --arg q "$OWNER_NAME" '{q:$q}')" 2>/dev/null | mos_one_id person)
 ```
 
 `q` is a "contains" match on name (people also match email). Lists page by 50; see Pagination in the

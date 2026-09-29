@@ -83,5 +83,30 @@ fi
 # 6. The helper parses.
 if bash -n api-docs/mos-session.sh; then ok "mos-session.sh parses"; else bad "mos-session.sh does not parse"; fi
 
+# 7. The helper never puts a password or token in any command's arguments (argv is visible to the
+# same user's process list). curl and jq are wrapped to log their argv; curl also fakes a session.
+mkdir -p "$tmp/bin"
+real_jq=$(command -v jq)
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s/argv"\nexec "%s" "$@"\n' "$tmp" "$real_jq" > "$tmp/bin/jq"
+cat > "$tmp/bin/curl" <<SH
+#!/bin/sh
+printf '%s\n' "\$*" >> "$tmp/argv"
+cat > /dev/null
+printf '{"access_token":"tok-SENTINEL-access","refresh_token":"tok-SENTINEL-refresh"}'
+case "\$*" in *" -w "*) printf '\n200' ;; esac
+SH
+chmod +x "$tmp/bin/jq" "$tmp/bin/curl"
+: > "$tmp/argv"
+if PATH="$tmp/bin:$PATH" MOS_API_URL=http://api.invalid MOS_ANON_KEY=anon bash -c '
+     source api-docs/mos-session.sh
+     mos_signin someone@example.test <<< "pw-SENTINEL-secret"
+     mos_refresh
+     mos_call whoami' > /dev/null 2>&1 \
+   && [ -s "$tmp/argv" ] && ! grep -q 'SENTINEL' "$tmp/argv"; then
+  ok "mos-session.sh keeps the password and tokens out of curl and jq arguments"
+else
+  bad "a password or token reached a command's arguments (or the helper did not run):"; sed 's/^/        /' "$tmp/argv"
+fi
+
 echo "api-reference: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

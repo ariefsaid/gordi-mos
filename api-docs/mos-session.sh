@@ -10,7 +10,8 @@
 #   mos_call create_task '{"title":"Order oat milk","team_id":"<uuid>", ...}'
 #   mos_signout
 #
-# The password is read once, sent to the sign-in endpoint on stdin, and never stored. The session
+# The password is read once, sent to the sign-in endpoint on stdin (never in a command's arguments),
+# and never stored. The session
 # token and refresh token live only in this shell's memory (plain variables, not exported, so child
 # processes do not inherit them); nothing is written to a file. `mos_signout` clears them.
 # Needs curl and jq.
@@ -37,6 +38,17 @@ _mos_read_secret() {
   printf '%s' "$value"
 }
 
+# _mos_json_body k1 v1 [k2 v2] — prints {"k1":v1,...}. Values go to jq on stdin (printf is a shell
+# builtin), so a password or token never appears in any process's argument list.
+_mos_json_body() {
+  local out="{" sep="" k v
+  while [ "$#" -ge 2 ]; do
+    k="$1"; v="$(printf '%s' "$2" | jq -Rs .)"
+    out="$out$sep\"$k\":$v"; sep=","; shift 2
+  done
+  printf '%s}' "$out"
+}
+
 _mos_store_session() {
   local body="$1" token refresh
   token="$(printf '%s' "$body" | jq -r '.access_token // empty')"
@@ -54,7 +66,7 @@ mos_signin() {
     if [ -t 0 ]; then printf 'Email: ' >&2; IFS= read -r email; else IFS= read -r email; fi
   fi
   password="$(_mos_read_secret 'Password: ')"
-  reply="$(jq -n --arg e "$email" --arg p "$password" '{email:$e,password:$p}' \
+  reply="$(_mos_json_body email "$email" password "$password" \
     | curl -sS -X POST "$MOS_API_URL/auth/v1/token?grant_type=password" \
         -H "apikey: $MOS_ANON_KEY" -H 'Content-Type: application/json' --data-binary @-)"
   password=""
@@ -71,7 +83,7 @@ mos_refresh() {
   _mos_need || return 1
   [ -n "${MOS_REFRESH_TOKEN:-}" ] || { echo "mos-session: not signed in" >&2; return 1; }
   local reply
-  reply="$(jq -n --arg r "$MOS_REFRESH_TOKEN" '{refresh_token:$r}' \
+  reply="$(_mos_json_body refresh_token "$MOS_REFRESH_TOKEN" \
     | curl -sS -X POST "$MOS_API_URL/auth/v1/token?grant_type=refresh_token" \
         -H "apikey: $MOS_ANON_KEY" -H 'Content-Type: application/json' --data-binary @-)"
   _mos_store_session "$reply" || { echo "mos-session: refresh failed; run mos_signin again" >&2; return 1; }

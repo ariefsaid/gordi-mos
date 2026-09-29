@@ -99,7 +99,7 @@ def section($f):
     + (if $p.returns != null then "Returns: \($p.returns)\n\n" else "" end)
     + (if $p.errors != null then "Errors: \($p.errors)\n\n"
        else "Always raises: \($p.raises)\n\n" end)
-    + "Minimal body:\n\n```json\n"
+    + "Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):\n\n```json\n"
     + (if ($fn.args | map(select(.required)) | length) == 0 then "{}"
        else "{ " + ($fn.args | map(select(.required)) | map("\"\(.name)\": \(placeholder)") | join(", ")) + " }" end)
     + "\n```\n";
