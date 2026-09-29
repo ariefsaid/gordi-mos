@@ -4,6 +4,12 @@
 -- shared.can_read_history_record. No shape changes: the mechanism, its grants and its policy are
 -- Slice 1's and are not restated here.
 --
+-- MERGE-ORDER CONTRACT for every batch migration: the CREATE OR REPLACE of
+-- shared.can_read_history_record must restate ALL arms landed by every earlier batch, and each
+-- batch's DOWN restores only that batch's own prior body. A batch rebased after a sibling merged
+-- unions the sibling's arms into both bodies; landing a batch whose body drops an earlier batch's
+-- arms leaves those tables writing history nobody can read.
+--
 --   mos.signals                  — '-edited_at': the mechanical clock mos._guard_signals stamps
 --                                  whenever a content edit lands is the companion of that edit's
 --                                  own recorded rows (body / occurred_at / category / attention),

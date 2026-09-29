@@ -13,7 +13,7 @@
 -- about the read gates, not about tenancy.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(60);
+select plan(64);
 
 select set_config('app.allow_test_seeds', 'on', true);
 -- mos._test_seed_signal_tree performs the shared directory itself (orgs/roles/people + the
@@ -137,6 +137,16 @@ update mos.follow_ups set notes = 'Called the shop'
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009951'),
   3, 'an UPDATE that changes no column appends no row');
+
+-- ── an assignment change records the directory reference by value ─────────────────────────────
+update mos.follow_ups set assigned_to = '00000000-0000-0000-0000-0000000000d4'
+ where id = '00000000-0000-0000-0000-000000009951';
+select is((select count(*)::int from shared.record_history
+           where record_key = '00000000-0000-0000-0000-000000009951'),
+  4, 'an assignment change appends its row');
+select is((select new_value from shared.record_history
+           where record_key = '00000000-0000-0000-0000-000000009951' and field_name = 'assigned_to'),
+  '00000000-0000-0000-0000-0000000000d4', 'the assignment records the person id text');
 update mos.events set note = null
  where id = '00000000-0000-0000-0000-000000009950';
 select is((select count(*)::int from shared.record_history
@@ -305,6 +315,12 @@ select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009941'),
   0, 'the Signal read wall extends to the mention''s history');
 select is((select count(*)::int from shared.record_history
+           where record_key = '00000000-0000-0000-0000-000000009942'),
+  0, 'the Signal read wall extends to the acknowledgement''s history');
+select is((select count(*)::int from shared.record_history
+           where record_key = '00000000-0000-0000-0000-000000009944'),
+  0, 'the Signal read wall extends to the signal-to-task link''s history');
+select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009945'),
   0, 'a same-org non-manager reads none of the weekly update''s history');
 select is((select count(*)::int from shared.record_history
@@ -325,7 +341,7 @@ select is((select count(*)::int from shared.record_history
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-000000000d11","access_roles":["member"]}';
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009951'),
-  3, 'the retail-lane chaser reads the retail follow-up''s history');
+  4, 'the retail-lane chaser reads the retail follow-up''s history');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-000000000d10","access_roles":["member"]}';
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009951'),
