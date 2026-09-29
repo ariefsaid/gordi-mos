@@ -1174,11 +1174,15 @@ else
   bad "the fingerprint SQL looks like comments only ($FP_CODE_LINES lines)"
 fi
 
-if grep -qF "r.rel = 'mos.task_team_rehome_ledger'" "$FP_SQL" \
+# Every content exception must (a) name its relations EXACTLY — never a pattern, so a copied
+# marker cannot hide an unnamed table's contents — and (b) require the explicit marker. Admitting
+# a new relation to the exception means editing THIS check with it: the guard is the deliberate,
+# reviewed door. #985 added shared.record_history alongside the original ledger.
+if grep -qF "r.rel in ('mos.task_team_rehome_ledger', 'shared.record_history')" "$FP_SQL" \
   && grep -qF "[applied-path-content: history-dependent]" "$FP_SQL"; then
-  ok "the history-content exception requires both its exact relation and explicit marker"
+  ok "the history-content exception names its exact relations and requires the explicit marker"
 else
-  bad "the history-content exception is not bound to its exact marked relation"
+  bad "the history-content exception is not bound to its exact marked relations"
 fi
 
 # Control: this check must actually be able to fail, or it is decoration. A file truncated
