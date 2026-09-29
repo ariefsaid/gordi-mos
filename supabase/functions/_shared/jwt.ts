@@ -33,19 +33,14 @@ export function decodeJwtClaims(
   }
 }
 
-/**
- * carriesClientId — true when the token's payload has a `client_id` claim, i.e. it was issued to a
- * third-party agent client through the OAuth server. Those tokens reach the data API's api_v1
- * schema only; the Edge Functions serve the app's own sessions, so they refuse them (ADR-0060 D5).
- * Decode-only like decodeJwtClaims; an unreadable token returns false and fails the caller's own
- * `auth.getUser` check.
- */
+// True when the payload has a client_id claim (a token issued to an agent client). Decode-only; an
+// unreadable token returns false and fails the caller's own auth.getUser check.
 export function carriesClientId(jwt: string): boolean {
   try {
     const payload = jwt.split('.')[1]
     if (!payload) return false
-    const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>
-    return json !== null && typeof json === 'object' && 'client_id' in json
+    const json: unknown = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
+    return typeof json === 'object' && json !== null && 'client_id' in json
   } catch {
     return false
   }
