@@ -1,4 +1,4 @@
-/** The seven authority controls the admin surface is allowed to edit. */
+/** The eight authority controls the admin surface is allowed to edit. */
 export const AUTHORITY_ACTIONS = [
   'workline.manage',
   'objective.manage',
@@ -7,6 +7,7 @@ export const AUTHORITY_ACTIONS = [
   'signal.retract',
   'process.start',
   'process.close',
+  'agent.connect',
 ] as const
 
 export type AuthorityAction = typeof AUTHORITY_ACTIONS[number]
@@ -54,6 +55,7 @@ const ALLOWED_SCOPES_BY_ACTION: Record<AuthorityAction, readonly AuthorityScope[
   'signal.retract': ['none', 'own', 'own_team', 'own_bu', 'org'],
   'process.start': ['none', 'own_team', 'org'],
   'process.close': ['none', 'own', 'own_team', 'org'],
+  'agent.connect': ['none', 'org'],
 }
 
 export function getAllowedScopes(action: AuthorityAction): readonly AuthorityScope[] {

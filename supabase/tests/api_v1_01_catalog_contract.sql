@@ -13,9 +13,11 @@ select ok(
 select is(
   (select array_agg(p.proname::text order by p.proname)
      from pg_proc p where p.pronamespace = to_regnamespace('api_v1')),
-  array['add_checklist_item','create_task','edit_task','get_task','list_business_units','list_people',
-        'list_tasks','list_teams','refused_action','set_checklist_item','whoami'],
-  'api_v1 holds exactly the slice-(a) operations');
+  array['add_checklist_item','create_project_process','create_signal','create_task','edit_project_process',
+        'edit_signal','edit_task','get_project_process','get_record_history','get_signal','get_task','link_signal_task',
+        'list_business_units','list_people','list_projects_processes','list_signals','list_tasks','list_teams',
+        'refused_action','set_checklist_item','whoami'],
+  'api_v1 holds exactly the slice-(a), slice-(b) and history operations');
 
 -- ── AC-002 ───────────────────────────────────────────────────────────────────────────────────
 select is(
@@ -43,8 +45,9 @@ select is(
   (select count(*)::int
      from pg_proc p, unnest(coalesce(p.proargnames, '{}')) as n(name)
     where p.pronamespace = to_regnamespace('api_v1')
-      and n.name ~ '^(actor|actor_person_id|author|author_id|creator|created_by|org|org_id|channel|client_id|person_id)$'),
-  0, 'AC-003: no api_v1 parameter names an actor, author, creator, org or channel');
+      and n.name ~ '^(actor|actor_person_id|author|author_id|creator|created_by|org|org_id|channel|client_id|person_id)$'
+      and not (p.proname = 'list_signals' and n.name = 'author_id')),
+  0, 'AC-003: no api_v1 parameter names an actor, author, creator, org or channel (list_signals filters by author)');
 
 -- ── COMMENT on every function ────────────────────────────────────────────────────────────────
 select is(
@@ -57,8 +60,8 @@ select is(
 select is(
   (select array_agg(p.proname::text order by p.proname)
      from pg_proc p where p.pronamespace = to_regnamespace('api_private') and p.prosecdef),
-  array['begin_write','log_write'],
-  'NFR-002: only the two write-log helpers in api_private are SECURITY DEFINER');
+  array['_agent_fence','begin_write','log_write'],
+  'NFR-002: only the agent-fence helper and the two write-log helpers in api_private are SECURITY DEFINER');
 
 select is(
   (select count(*)::int from pg_proc p
@@ -71,16 +74,16 @@ select is(
     where p.pronamespace = to_regnamespace('api_private')
       and (p.proacl is null
            or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0 and a.privilege_type = 'EXECUTE')
-           or has_function_privilege('anon', p.oid, 'execute')
+           or (has_function_privilege('anon', p.oid, 'execute') and p.proname <> 'check_request')
            or not has_function_privilege('authenticated', p.oid, 'execute'))),
-  0, 'AC-026: api_private EXECUTE is held by authenticated only, never public or anon');
+  0, 'AC-026: api_private EXECUTE is held by authenticated, never public; anon holds only check_request');
 
 select is(
   (select count(*)::int from pg_namespace n
     where n.nspname in ('api_v1','api_private')
-      and (has_schema_privilege('anon', n.oid, 'usage')
+      and ((has_schema_privilege('anon', n.oid, 'usage') and n.nspname = 'api_v1')
            or not has_schema_privilege('authenticated', n.oid, 'usage'))),
-  0, 'both schemas grant USAGE to authenticated and not to anon');
+  0, 'both schemas grant USAGE to authenticated; anon has it on api_private only, for the pre-request check');
 
 -- ── AC-030: the recorded v1 signature snapshot ───────────────────────────────────────────────
 -- A recorded signature must still exist; a later defaulted parameter only extends the tail.
@@ -96,7 +99,17 @@ select is_empty($snap$
     'edit_task(id uuid, changes jsonb, expected_updated_at timestamp with time zone)',
     'add_checklist_item(task_id uuid, label text, "position" integer)',
     'set_checklist_item(item_id uuid, label text, is_done boolean)',
-    'refused_action(action text, record_type text, id uuid)'
+    'refused_action(action text, record_type text, id uuid)',
+    'list_signals(attention text[], author_id uuid, occurred_from timestamp with time zone, occurred_to timestamp with time zone, linked_task_id uuid, updated_since timestamp with time zone, q text, include_retracted boolean, cursor text, "limit" integer)',
+    'get_signal(id uuid)',
+    'create_signal(body text, occurred_at timestamp with time zone, attention text, mentions jsonb, link_task_ids uuid[], idempotency_key text)',
+    'edit_signal(id uuid, changes jsonb, expected_updated_at timestamp with time zone)',
+    'link_signal_task(signal_id uuid, task_id uuid)',
+    'list_projects_processes(type text, objective_id uuid, business_unit_id uuid, updated_since timestamp with time zone, q text, include_archived boolean, cursor text, "limit" integer)',
+    'get_project_process(id uuid)',
+    'create_project_process(name text, type text, business_unit_id uuid, objective_id uuid, accountable_person_id uuid, responsible_person_id uuid, idempotency_key text)',
+    'edit_project_process(id uuid, changes jsonb, expected_updated_at timestamp with time zone)',
+    'get_record_history(record_type text, id uuid, cursor text, "limit" integer)'
   ]) as r(sig)
   where not exists (
     select 1 from pg_proc p
