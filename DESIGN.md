@@ -777,7 +777,7 @@ outside the single "View & filters" door; the door never carries the surface pri
   destination roots only (≤6, never children at rest — children match by typed name); **ACT** with
   the three universal actions. Phone palette: search only — navigation is the tab bar, actions are
   the launcher.
-- **Record panel:** the collection click target is a wide right-side panel on desktop, sized to the shared `--record-panel-w` (`clamp(440px, 40%, 640px)`), not a centered record popup. It retains the collection, uses the RecordViewer anatomy, and becomes full-screen on phone.
+- **Record panel:** the collection click target is a wide right-side panel on desktop, sized to the shared `--record-panel-w` (`clamp(440px, 40%, 640px)`), not a centered record popup. It retains the collection, uses the RecordViewer anatomy, and becomes full-screen on phone. A follow-up create action (for example `Create task` from a Signal) pushes a compact frame onto the SAME panel stack and pops back to the record on save — it never navigates the record away to a different collection's route. Phone and the ≥1300 page regime stack the same frame over the record page.
 - **Menus, confirmations, and feedback:** menus/pickers stay anchored to their trigger; destructive confirmation is one centered blocking dialog; toasts are brief status feedback and never a second navigation surface. Every real overlay owns focus entry, Escape/close, and focus return.
 
 ### Metric summary rule (v4, 2026-07-27)
@@ -954,6 +954,11 @@ heading, a bespoke card, or two CTAs for one empty is out of grammar.
 - **`blank`** — empty by design: a placeholder route, an unbuilt slice. Deliberately the quietest of
   the four, with **no accent tint**, so it never reads as an earned all-clear (`quiet`) or as
   pending work (`awaiting`).
+- **Denied** — a record the viewer may not read. Renders the `blank` archetype (no accent tint) with
+  one `Back`, never `ErrorState`'s Retry: a denied read is not transient, and retrying re-fires the
+  same denied request. RLS makes "retracted/deleted" and "you may not read this" indistinguishable
+  at the wire, so a well-formed id that resolves to no row gets the same treatment as an explicit
+  permission error — one honest answer instead of a guess at which case it was.
 
 **Rule.** One route, one empty frame, one action maximum. The archetypes vary only the message and
 whether the single action slot is absent or populated; spacing, type, icon treatment and body

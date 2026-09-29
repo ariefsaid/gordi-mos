@@ -1,7 +1,7 @@
 -- The BU mention write gate and its synchronous delivery path consume one authority matrix.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(7);
+select plan(9);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_signal_tree();
@@ -41,6 +41,19 @@ select is((select count(*)::int from mos.notifications
             where metadata ->> 'source' = 'signal_mention'
               and metadata #>> '{entity,id}' = (select signal_id::text from mention_ids)), 5,
   'the permitted BU mention creates one notification per eligible recipient');
+-- #774: every mention notification's metadata now carries `actor` — the Signal author (the
+-- fixture author is d1/'Author') — the SAME shape mos.signal_retraction already proves, so
+-- the Inbox can render "<Actor> mentioned you" instead of the one frozen fallback title.
+select is((select metadata->'actor'->>'id' from mos.notifications
+            where metadata ->> 'source' = 'signal_mention'
+              and metadata #>> '{entity,id}' = (select signal_id::text from mention_ids)
+            limit 1), '00000000-0000-0000-0000-0000000000d1',
+  'a mention notification''s metadata carries the Signal author as actor.id (#774)');
+select is((select metadata->'actor'->>'name' from mos.notifications
+            where metadata ->> 'source' = 'signal_mention'
+              and metadata #>> '{entity,id}' = (select signal_id::text from mention_ids)
+            limit 1), 'Author',
+  'a mention notification''s metadata carries the Signal author''s name as actor.name (#774)');
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
