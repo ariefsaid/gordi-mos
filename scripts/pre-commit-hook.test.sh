@@ -63,7 +63,7 @@ mkdir -p "$tmp/repo/mos-app/node_modules" "$tmp/repo/mos-app/src"
 echo "export const a = 1" > "$tmp/repo/mos-app/src/one.ts"
 echo "export const b = 2" > "$tmp/repo/mos-app/src/two.ts"
 git -C "$tmp/repo" add mos-app/src/one.ts mos-app/src/two.ts
-export NPX_ARGV_LOG="$tmp/npx-argv.log"
+export NPX_ARGV_LOG="$tmp/npx-argv.log" MOS_TEST_LOCK="$tmp/test.lock"
 : > "$NPX_ARGV_LOG"
 (cd "$tmp/repo" && PATH="$stub:$PATH" bash "$HOOK") >/dev/null 2>&1
 vitest_argv="$(grep '^vitest' "$NPX_ARGV_LOG" || true)"
@@ -73,6 +73,11 @@ elif [[ "$vitest_argv" == *"related"* ]]; then
   fail=$((fail+1)); printf '  FAIL  vitest lane uses the no-op multi-file `related` form: %s\n' "$vitest_argv"
 else
   pass=$((pass+1)); printf '  ok    two staged sources invoke a vitest form that runs tests\n'
+fi
+if [ -e "$tmp/test.lock" ]; then
+  pass=$((pass+1)); printf '  ok    vitest lane runs under the shared heavy-test lock\n'
+else
+  fail=$((fail+1)); printf '  FAIL  vitest lane ran outside the shared heavy-test lock\n'
 fi
 git -C "$tmp/repo" reset -q
 
