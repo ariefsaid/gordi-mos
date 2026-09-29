@@ -138,7 +138,7 @@ $$;
 
 -- Maps whatever a function's body raised to the stable error contract; always raises.
 create function api_private.raise_mapped(
-  p_state text, p_message text, p_detail text, p_hint text, p_column text, p_constraint text)
+  p_state text, p_message text, p_detail text, p_hint text, p_column text)
 returns void
 language plpgsql
 set search_path = ''
@@ -411,8 +411,7 @@ as $$
                order by k.created_at desc, k.id desc limit 50) m), '[]'::jsonb),
     'signal_ids', coalesce((
       select jsonb_agg(s.signal_id order by s.created_at, s.signal_id)
-        from (select * from mos.signal_tasks z where z.task_id = t.id
-               order by z.created_at, z.signal_id limit 100) s), '[]'::jsonb))
+        from mos.signal_tasks s where s.task_id = t.id), '[]'::jsonb))
   from mos.tasks t
   where t.id = p_id
 $$;
@@ -432,7 +431,7 @@ as $$
 declare
   v_person uuid := shared.current_person_id();
   v_org    uuid := shared.current_org_id();
-  v_prior  uuid;
+  v_prior_record_id  uuid;
   v_used   integer;
 begin
   if v_person is null or v_org is null then
@@ -448,7 +447,7 @@ begin
   perform pg_advisory_xact_lock(hashtextextended('api_write:' || v_person::text, 0));
 
   if p_idempotency_key is not null then
-    select l.record_id into v_prior
+    select l.record_id into v_prior_record_id
       from shared.api_write_log l
      where l.person_id = v_person
        and l.org_id = v_org
@@ -457,8 +456,8 @@ begin
        and l.created_at > clock_timestamp() - interval '24 hours'
      order by l.created_at desc
      limit 1;
-    if v_prior is not null then
-      return v_prior;
+    if v_prior_record_id is not null then
+      return v_prior_record_id;
     end if;
   end if;
 
@@ -505,7 +504,7 @@ set search_path = ''
 as $fn$
 #variable_conflict use_column
 declare
-  v_state text; v_msg text; v_detail text; v_hint text; v_col text; v_con text;
+  v_sqlstate text; v_message text; v_detail text; v_hint text; v_column_name text;
 begin
   return jsonb_build_object(
     'person', (select jsonb_build_object('id', p.id, 'full_name', p.full_name, 'email', p.email)
@@ -526,9 +525,9 @@ begin
       'signal', (select to_jsonb(s) from mos.get_signal_post_authority() s),
       'work', (select to_jsonb(w) from mos.get_work_write_scopes() w)));
 exception when others then
-  get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text, v_detail = pg_exception_detail,
-    v_hint = pg_exception_hint, v_col = column_name, v_con = constraint_name;
-  perform api_private.raise_mapped(v_state, v_msg, v_detail, v_hint, v_col, v_con);
+  get stacked diagnostics v_sqlstate = returned_sqlstate, v_message = message_text, v_detail = pg_exception_detail,
+    v_hint = pg_exception_hint, v_column_name = column_name;
+  perform api_private.raise_mapped(v_sqlstate, v_message, v_detail, v_hint, v_column_name);
   return null;
 end
 $fn$;
@@ -544,19 +543,19 @@ set search_path = ''
 as $fn$
 #variable_conflict use_column
 declare
-  v_q      text := nullif(btrim(list_people.q), '');
-  v_team   uuid := list_people.team_id;
-  v_arch   boolean := coalesce(list_people.include_archived, false);
-  v_lim    integer := api_private.page_limit(list_people."limit");
-  v_cur    jsonb := api_private.decode_cursor(list_people.cursor);
-  v_items  jsonb; v_more boolean; v_ck text; v_cid uuid;
-  v_state text; v_msg text; v_detail text; v_hint text; v_col text; v_con text;
+  v_query      text := nullif(btrim(list_people.q), '');
+  v_team_id   uuid := list_people.team_id;
+  v_include_archived   boolean := coalesce(list_people.include_archived, false);
+  v_page_size    integer := api_private.page_limit(list_people."limit");
+  v_cursor    jsonb := api_private.decode_cursor(list_people.cursor);
+  v_items  jsonb; v_has_more boolean; v_last_key text; v_last_id uuid;
+  v_sqlstate text; v_message text; v_detail text; v_hint text; v_column_name text;
 begin
-  select coalesce(jsonb_agg(r.item order by r.rn) filter (where r.rn <= v_lim), '[]'::jsonb),
-         coalesce(max(r.rn) > v_lim, false),
-         (array_agg(r.full_name order by r.rn) filter (where r.rn = v_lim))[1],
-         (array_agg(r.id order by r.rn) filter (where r.rn = v_lim))[1]
-    into v_items, v_more, v_ck, v_cid
+  select coalesce(jsonb_agg(r.item order by r.rn) filter (where r.rn <= v_page_size), '[]'::jsonb),
+         coalesce(max(r.rn) > v_page_size, false),
+         (array_agg(r.full_name order by r.rn) filter (where r.rn = v_page_size))[1],
+         (array_agg(r.id order by r.rn) filter (where r.rn = v_page_size))[1]
+    into v_items, v_has_more, v_last_key, v_last_id
     from (
       select p.id, p.full_name,
              row_number() over (order by p.full_name, p.id) as rn,
@@ -569,21 +568,21 @@ begin
                     and t.archived_at is null), '[]'::jsonb)) as item
         from shared.people p
        where p.org_id = shared.current_org_id()
-         and (v_arch or p.archived_at is null)
-         and (v_q is null or p.full_name ilike api_private.like_pattern(v_q) or p.email ilike api_private.like_pattern(v_q))
-         and (v_team is null or exists (
+         and (v_include_archived or p.archived_at is null)
+         and (v_query is null or p.full_name ilike api_private.like_pattern(v_query) or p.email ilike api_private.like_pattern(v_query))
+         and (v_team_id is null or exists (
                select 1 from shared.team_memberships tm
-                where tm.person_id = p.id and tm.team_id = v_team and tm.effective_from <= current_date
+                where tm.person_id = p.id and tm.team_id = v_team_id and tm.effective_from <= current_date
                   and (tm.effective_to is null or tm.effective_to >= current_date)))
-         and (v_cur is null or (p.full_name, p.id) > (v_cur ->> 0, (v_cur ->> 1)::uuid))
+         and (v_cursor is null or (p.full_name, p.id) > (v_cursor ->> 0, (v_cursor ->> 1)::uuid))
        order by p.full_name, p.id
-       limit v_lim + 1) r;
+       limit v_page_size + 1) r;
   return jsonb_build_object('items', v_items,
-    'next_cursor', case when v_more then api_private.encode_cursor(v_ck, v_cid) end);
+    'next_cursor', case when v_has_more then api_private.encode_cursor(v_last_key, v_last_id) end);
 exception when others then
-  get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text, v_detail = pg_exception_detail,
-    v_hint = pg_exception_hint, v_col = column_name, v_con = constraint_name;
-  perform api_private.raise_mapped(v_state, v_msg, v_detail, v_hint, v_col, v_con);
+  get stacked diagnostics v_sqlstate = returned_sqlstate, v_message = message_text, v_detail = pg_exception_detail,
+    v_hint = pg_exception_hint, v_column_name = column_name;
+  perform api_private.raise_mapped(v_sqlstate, v_message, v_detail, v_hint, v_column_name);
   return null;
 end
 $fn$;
@@ -598,18 +597,18 @@ set search_path = ''
 as $fn$
 #variable_conflict use_column
 declare
-  v_q      text := nullif(btrim(list_teams.q), '');
-  v_bu     uuid := list_teams.business_unit_id;
-  v_lim    integer := api_private.page_limit(list_teams."limit");
-  v_cur    jsonb := api_private.decode_cursor(list_teams.cursor);
-  v_items  jsonb; v_more boolean; v_ck text; v_cid uuid;
-  v_state text; v_msg text; v_detail text; v_hint text; v_col text; v_con text;
+  v_query      text := nullif(btrim(list_teams.q), '');
+  v_business_unit_id     uuid := list_teams.business_unit_id;
+  v_page_size    integer := api_private.page_limit(list_teams."limit");
+  v_cursor    jsonb := api_private.decode_cursor(list_teams.cursor);
+  v_items  jsonb; v_has_more boolean; v_last_key text; v_last_id uuid;
+  v_sqlstate text; v_message text; v_detail text; v_hint text; v_column_name text;
 begin
-  select coalesce(jsonb_agg(r.item order by r.rn) filter (where r.rn <= v_lim), '[]'::jsonb),
-         coalesce(max(r.rn) > v_lim, false),
-         (array_agg(r.name order by r.rn) filter (where r.rn = v_lim))[1],
-         (array_agg(r.id order by r.rn) filter (where r.rn = v_lim))[1]
-    into v_items, v_more, v_ck, v_cid
+  select coalesce(jsonb_agg(r.item order by r.rn) filter (where r.rn <= v_page_size), '[]'::jsonb),
+         coalesce(max(r.rn) > v_page_size, false),
+         (array_agg(r.name order by r.rn) filter (where r.rn = v_page_size))[1],
+         (array_agg(r.id order by r.rn) filter (where r.rn = v_page_size))[1]
+    into v_items, v_has_more, v_last_key, v_last_id
     from (
       select t.id, t.name,
              row_number() over (order by t.name, t.id) as rn,
@@ -619,17 +618,17 @@ begin
         join shared.business_units b on b.id = t.business_unit_id
        where t.org_id = shared.current_org_id()
          and t.archived_at is null
-         and (v_q is null or t.name ilike api_private.like_pattern(v_q) or t.code ilike api_private.like_pattern(v_q))
-         and (v_bu is null or t.business_unit_id = v_bu)
-         and (v_cur is null or (t.name, t.id) > (v_cur ->> 0, (v_cur ->> 1)::uuid))
+         and (v_query is null or t.name ilike api_private.like_pattern(v_query) or t.code ilike api_private.like_pattern(v_query))
+         and (v_business_unit_id is null or t.business_unit_id = v_business_unit_id)
+         and (v_cursor is null or (t.name, t.id) > (v_cursor ->> 0, (v_cursor ->> 1)::uuid))
        order by t.name, t.id
-       limit v_lim + 1) r;
+       limit v_page_size + 1) r;
   return jsonb_build_object('items', v_items,
-    'next_cursor', case when v_more then api_private.encode_cursor(v_ck, v_cid) end);
+    'next_cursor', case when v_has_more then api_private.encode_cursor(v_last_key, v_last_id) end);
 exception when others then
-  get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text, v_detail = pg_exception_detail,
-    v_hint = pg_exception_hint, v_col = column_name, v_con = constraint_name;
-  perform api_private.raise_mapped(v_state, v_msg, v_detail, v_hint, v_col, v_con);
+  get stacked diagnostics v_sqlstate = returned_sqlstate, v_message = message_text, v_detail = pg_exception_detail,
+    v_hint = pg_exception_hint, v_column_name = column_name;
+  perform api_private.raise_mapped(v_sqlstate, v_message, v_detail, v_hint, v_column_name);
   return null;
 end
 $fn$;
@@ -643,7 +642,7 @@ set search_path = ''
 as $fn$
 #variable_conflict use_column
 declare
-  v_state text; v_msg text; v_detail text; v_hint text; v_col text; v_con text;
+  v_sqlstate text; v_message text; v_detail text; v_hint text; v_column_name text;
 begin
   return jsonb_build_object(
     'items', coalesce((
@@ -653,9 +652,9 @@ begin
                order by u.name, u.id limit 100) b), '[]'::jsonb),
     'next_cursor', null);
 exception when others then
-  get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text, v_detail = pg_exception_detail,
-    v_hint = pg_exception_hint, v_col = column_name, v_con = constraint_name;
-  perform api_private.raise_mapped(v_state, v_msg, v_detail, v_hint, v_col, v_con);
+  get stacked diagnostics v_sqlstate = returned_sqlstate, v_message = message_text, v_detail = pg_exception_detail,
+    v_hint = pg_exception_hint, v_column_name = column_name;
+  perform api_private.raise_mapped(v_sqlstate, v_message, v_detail, v_hint, v_column_name);
   return null;
 end
 $fn$;
@@ -679,68 +678,68 @@ as $fn$
 #variable_conflict use_column
 declare
   v_status text[] := list_tasks.status;
-  v_team   uuid := list_tasks.team_id;
-  v_bu     uuid := list_tasks.business_unit_id;
-  v_resp   uuid := list_tasks.responsible_person_id;
-  v_acc    uuid := list_tasks.accountable_person_id;
-  v_obj    uuid := list_tasks.objective_id;
-  v_wl     uuid := list_tasks.work_line_id;
-  v_from   date := list_tasks.due_from;
-  v_to     date := list_tasks.due_to;
-  v_since  timestamptz := list_tasks.updated_since;
-  v_q      text := nullif(btrim(list_tasks.q), '');
-  v_arch   boolean := coalesce(list_tasks.include_archived, false);
-  v_lim    integer := api_private.page_limit(list_tasks."limit");
-  v_cur    jsonb := api_private.decode_cursor(list_tasks.cursor);
-  v_cur_ts timestamptz;
-  v_items  jsonb; v_more boolean; v_ck timestamptz; v_cid uuid;
-  v_state text; v_msg text; v_detail text; v_hint text; v_col text; v_con text;
+  v_team_id   uuid := list_tasks.team_id;
+  v_business_unit_id     uuid := list_tasks.business_unit_id;
+  v_responsible_id   uuid := list_tasks.responsible_person_id;
+  v_accountable_id    uuid := list_tasks.accountable_person_id;
+  v_objective_id    uuid := list_tasks.objective_id;
+  v_work_line_id     uuid := list_tasks.work_line_id;
+  v_due_from   date := list_tasks.due_from;
+  v_due_to     date := list_tasks.due_to;
+  v_updated_since  timestamptz := list_tasks.updated_since;
+  v_query      text := nullif(btrim(list_tasks.q), '');
+  v_include_archived   boolean := coalesce(list_tasks.include_archived, false);
+  v_page_size    integer := api_private.page_limit(list_tasks."limit");
+  v_cursor    jsonb := api_private.decode_cursor(list_tasks.cursor);
+  v_cursor_updated_at timestamptz;
+  v_items  jsonb; v_has_more boolean; v_last_key timestamptz; v_last_id uuid;
+  v_sqlstate text; v_message text; v_detail text; v_hint text; v_column_name text;
 begin
   if v_status is not null and exists (
        select 1 from unnest(v_status) s where s is null or s <> all (array['Open', 'In Progress', 'Blocked', 'Done'])) then
     perform api_private.invalid('status', 'status must hold only Open, In Progress, Blocked, Done.');
   end if;
-  if v_cur is not null then
+  if v_cursor is not null then
     begin
-      v_cur_ts := (v_cur ->> 0)::timestamptz;
+      v_cursor_updated_at := (v_cursor ->> 0)::timestamptz;
     exception when others then
       perform api_private.invalid('cursor', 'cursor is not valid.');
     end;
   end if;
 
-  select coalesce(jsonb_agg(r.item order by r.rn) filter (where r.rn <= v_lim), '[]'::jsonb),
-         coalesce(max(r.rn) > v_lim, false),
-         (array_agg(r.updated_at order by r.rn) filter (where r.rn = v_lim))[1],
-         (array_agg(r.id order by r.rn) filter (where r.rn = v_lim))[1]
-    into v_items, v_more, v_ck, v_cid
+  select coalesce(jsonb_agg(r.item order by r.rn) filter (where r.rn <= v_page_size), '[]'::jsonb),
+         coalesce(max(r.rn) > v_page_size, false),
+         (array_agg(r.updated_at order by r.rn) filter (where r.rn = v_page_size))[1],
+         (array_agg(r.id order by r.rn) filter (where r.rn = v_page_size))[1]
+    into v_items, v_has_more, v_last_key, v_last_id
     from (
       select t.id, t.updated_at,
              row_number() over (order by t.updated_at desc, t.id desc) as rn,
              api_private.task_json(t) as item
         from mos.tasks t
        where t.org_id = shared.current_org_id()
-         and (v_arch or t.archived_at is null)
+         and (v_include_archived or t.archived_at is null)
          and (v_status is null or t.status = any (v_status))
-         and (v_team is null or t.team_id = v_team)
-         and (v_bu is null or t.business_unit_id = v_bu)
-         and (v_resp is null or t.responsible_person_id = v_resp)
-         and (v_acc is null or t.accountable_person_id = v_acc)
-         and (v_obj is null or t.objective_id = v_obj)
-         and (v_wl is null or t.work_line_id = v_wl)
-         and (v_from is null or t.due_date >= v_from)
-         and (v_to is null or t.due_date <= v_to)
-         and (v_since is null or t.updated_at >= v_since)
-         and (v_q is null or t.title ilike api_private.like_pattern(v_q))
-         and (v_cur is null or (t.updated_at, t.id) < (v_cur_ts, (v_cur ->> 1)::uuid))
+         and (v_team_id is null or t.team_id = v_team_id)
+         and (v_business_unit_id is null or t.business_unit_id = v_business_unit_id)
+         and (v_responsible_id is null or t.responsible_person_id = v_responsible_id)
+         and (v_accountable_id is null or t.accountable_person_id = v_accountable_id)
+         and (v_objective_id is null or t.objective_id = v_objective_id)
+         and (v_work_line_id is null or t.work_line_id = v_work_line_id)
+         and (v_due_from is null or t.due_date >= v_due_from)
+         and (v_due_to is null or t.due_date <= v_due_to)
+         and (v_updated_since is null or t.updated_at >= v_updated_since)
+         and (v_query is null or t.title ilike api_private.like_pattern(v_query))
+         and (v_cursor is null or (t.updated_at, t.id) < (v_cursor_updated_at, (v_cursor ->> 1)::uuid))
        order by t.updated_at desc, t.id desc
-       limit v_lim + 1) r;
+       limit v_page_size + 1) r;
   return jsonb_build_object('items', v_items,
-    'next_cursor', case when v_more then api_private.encode_cursor(
-      to_char(v_ck at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'), v_cid) end);
+    'next_cursor', case when v_has_more then api_private.encode_cursor(
+      to_char(v_last_key at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'), v_last_id) end);
 exception when others then
-  get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text, v_detail = pg_exception_detail,
-    v_hint = pg_exception_hint, v_col = column_name, v_con = constraint_name;
-  perform api_private.raise_mapped(v_state, v_msg, v_detail, v_hint, v_col, v_con);
+  get stacked diagnostics v_sqlstate = returned_sqlstate, v_message = message_text, v_detail = pg_exception_detail,
+    v_hint = pg_exception_hint, v_column_name = column_name;
+  perform api_private.raise_mapped(v_sqlstate, v_message, v_detail, v_hint, v_column_name);
   return null;
 end
 $fn$;
@@ -756,7 +755,7 @@ as $fn$
 declare
   v_id     uuid := get_task.id;
   v_item   jsonb;
-  v_state text; v_msg text; v_detail text; v_hint text; v_col text; v_con text;
+  v_sqlstate text; v_message text; v_detail text; v_hint text; v_column_name text;
 begin
   if v_id is null then
     perform api_private.invalid('id', 'id is required.');
@@ -767,9 +766,9 @@ begin
   end if;
   return jsonb_build_object('item', v_item);
 exception when others then
-  get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text, v_detail = pg_exception_detail,
-    v_hint = pg_exception_hint, v_col = column_name, v_con = constraint_name;
-  perform api_private.raise_mapped(v_state, v_msg, v_detail, v_hint, v_col, v_con);
+  get stacked diagnostics v_sqlstate = returned_sqlstate, v_message = message_text, v_detail = pg_exception_detail,
+    v_hint = pg_exception_hint, v_column_name = column_name;
+  perform api_private.raise_mapped(v_sqlstate, v_message, v_detail, v_hint, v_column_name);
   return null;
 end
 $fn$;
@@ -791,26 +790,26 @@ as $fn$
 #variable_conflict use_column
 declare
   v_title  text := api_private.text_arg(create_task.title, 'title', 300, true);
-  v_desc   text := api_private.text_arg(create_task.description, 'description', 2000, false);
+  v_description   text := api_private.text_arg(create_task.description, 'description', 2000, false);
   v_status text := api_private.status_arg(coalesce(create_task.status, 'Open'));
-  v_team   uuid := create_task.team_id;
-  v_resp   uuid := create_task.responsible_person_id;
-  v_acc    uuid := create_task.accountable_person_id;
-  v_cons   uuid[] := api_private.json_uuid_array(coalesce(to_jsonb(create_task.consulted_person_ids), '[]'::jsonb), 'consulted_person_ids');
-  v_inf    uuid[] := api_private.json_uuid_array(coalesce(to_jsonb(create_task.informed_person_ids), '[]'::jsonb), 'informed_person_ids');
+  v_team_id   uuid := create_task.team_id;
+  v_responsible_id   uuid := create_task.responsible_person_id;
+  v_accountable_id    uuid := create_task.accountable_person_id;
+  v_consulted_ids   uuid[] := api_private.json_uuid_array(coalesce(to_jsonb(create_task.consulted_person_ids), '[]'::jsonb), 'consulted_person_ids');
+  v_informed_ids    uuid[] := api_private.json_uuid_array(coalesce(to_jsonb(create_task.informed_person_ids), '[]'::jsonb), 'informed_person_ids');
   v_key    text := create_task.idempotency_key;
   v_labels text[] := '{}';
   v_label  text;
-  v_bu     uuid;
-  v_prior  uuid;
+  v_business_unit_id     uuid;
+  v_prior_record_id  uuid;
   v_item   jsonb;
   v_id     uuid := gen_random_uuid();
-  v_me     uuid := shared.current_person_id();
-  v_state text; v_msg text; v_detail text; v_hint text; v_col text; v_con text;
+  v_caller_id     uuid := shared.current_person_id();
+  v_sqlstate text; v_message text; v_detail text; v_hint text; v_column_name text;
 begin
-  if v_team is null then perform api_private.invalid('team_id', 'team_id is required.'); end if;
-  if v_resp is null then perform api_private.invalid('responsible_person_id', 'responsible_person_id is required.'); end if;
-  if v_acc is null then perform api_private.invalid('accountable_person_id', 'accountable_person_id is required.'); end if;
+  if v_team_id is null then perform api_private.invalid('team_id', 'team_id is required.'); end if;
+  if v_responsible_id is null then perform api_private.invalid('responsible_person_id', 'responsible_person_id is required.'); end if;
+  if v_accountable_id is null then perform api_private.invalid('accountable_person_id', 'accountable_person_id is required.'); end if;
   if create_task.checklist is not null then
     if cardinality(create_task.checklist) > 50 then
       perform api_private.invalid('checklist', 'checklist holds at most 50 labels.');
@@ -820,15 +819,15 @@ begin
     end loop;
   end if;
 
-  v_prior := api_private.begin_write('create_task', v_key);
-  if v_prior is not null then
-    v_item := api_private.task_detail(v_prior);
+  v_prior_record_id := api_private.begin_write('create_task', v_key);
+  if v_prior_record_id is not null then
+    v_item := api_private.task_detail(v_prior_record_id);
     if v_item is not null then
       return jsonb_build_object('item', v_item, 'replayed', true);
     end if;
   end if;
 
-  select t.business_unit_id into v_bu from shared.teams t where t.id = v_team and t.archived_at is null;
+  select t.business_unit_id into v_business_unit_id from shared.teams t where t.id = v_team_id and t.archived_at is null;
   if not found then
     perform api_private.not_found('Team', 'team_id');
   end if;
@@ -836,18 +835,18 @@ begin
   insert into mos.tasks (id, title, description, status, business_unit_id, team_id, responsible_person_id,
                          accountable_person_id, consulted_person_ids, informed_person_ids, due_date,
                          objective_id, work_line_id, created_by)
-  values (v_id, v_title, v_desc, v_status, v_bu, v_team, v_resp, v_acc, v_cons, v_inf,
-          create_task.due_date, create_task.objective_id, create_task.work_line_id, v_me);
-  insert into mos.task_events (task_id, actor_person_id, event_type) values (v_id, v_me, 'created');
+  values (v_id, v_title, v_description, v_status, v_business_unit_id, v_team_id, v_responsible_id, v_accountable_id, v_consulted_ids, v_informed_ids,
+          create_task.due_date, create_task.objective_id, create_task.work_line_id, v_caller_id);
+  insert into mos.task_events (task_id, actor_person_id, event_type) values (v_id, v_caller_id, 'created');
   insert into mos.task_checklist_items (task_id, label, position)
   select v_id, l.label, l.ord - 1 from unnest(v_labels) with ordinality as l(label, ord);
 
   perform api_private.log_write('create_task', 'task', v_id, v_key);
   return jsonb_build_object('item', api_private.task_detail(v_id), 'replayed', false);
 exception when others then
-  get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text, v_detail = pg_exception_detail,
-    v_hint = pg_exception_hint, v_col = column_name, v_con = constraint_name;
-  perform api_private.raise_mapped(v_state, v_msg, v_detail, v_hint, v_col, v_con);
+  get stacked diagnostics v_sqlstate = returned_sqlstate, v_message = message_text, v_detail = pg_exception_detail,
+    v_hint = pg_exception_hint, v_column_name = column_name;
+  perform api_private.raise_mapped(v_sqlstate, v_message, v_detail, v_hint, v_column_name);
   return null;
 end
 $fn$;
@@ -862,17 +861,17 @@ as $fn$
 declare
   v_id       uuid := edit_task.id;
   v_changes  jsonb := edit_task.changes;
-  v_expected timestamptz := edit_task.expected_updated_at;
-  v_me       uuid := shared.current_person_id();
+  v_expected_updated_at timestamptz := edit_task.expected_updated_at;
+  v_caller_id       uuid := shared.current_person_id();
   v_key      text;
-  v_val      jsonb;
+  v_value      jsonb;
   v_old      mos.tasks;
   v_new      mos.tasks;
-  v_team     uuid;
-  v_bu       uuid;
-  v_ev       record;
-  v_rows     integer;
-  v_state text; v_msg text; v_detail text; v_hint text; v_col text; v_con text;
+  v_team_id     uuid;
+  v_business_unit_id       uuid;
+  v_field_change       record;
+  v_row_count     integer;
+  v_sqlstate text; v_message text; v_detail text; v_hint text; v_column_name text;
 begin
   if v_id is null then perform api_private.invalid('id', 'id is required.'); end if;
   if v_changes is null or jsonb_typeof(v_changes) <> 'object' or v_changes = '{}'::jsonb then
@@ -900,32 +899,32 @@ begin
     raise exception using errcode = 'PT403', detail = 'forbidden',
       message = 'You don''t have permission to do this in MOS.';
   end if;
-  if v_expected is not null and v_old.updated_at is distinct from v_expected then
+  if v_expected_updated_at is not null and v_old.updated_at is distinct from v_expected_updated_at then
     raise exception using errcode = 'PT409', detail = 'conflict',
       message = 'This Task changed since you read it. Read it again and retry.';
   end if;
 
   v_new := v_old;
-  for v_key, v_val in select k, x from jsonb_each(v_changes) as e(k, x) loop
+  for v_key, v_value in select k, x from jsonb_each(v_changes) as e(k, x) loop
     case v_key
-      when 'title' then v_new.title := api_private.json_text(v_val, 'title', 300, true);
-      when 'description' then v_new.description := api_private.json_text(v_val, 'description', 2000, false);
-      when 'due_date' then v_new.due_date := api_private.json_date(v_val, 'due_date');
-      when 'status' then v_new.status := api_private.status_arg(api_private.json_text(v_val, 'status', 20, true));
+      when 'title' then v_new.title := api_private.json_text(v_value, 'title', 300, true);
+      when 'description' then v_new.description := api_private.json_text(v_value, 'description', 2000, false);
+      when 'due_date' then v_new.due_date := api_private.json_date(v_value, 'due_date');
+      when 'status' then v_new.status := api_private.status_arg(api_private.json_text(v_value, 'status', 20, true));
       when 'team_id' then
-        v_team := api_private.json_uuid(v_val, 'team_id', false);
-        select t.business_unit_id into v_bu from shared.teams t where t.id = v_team and t.archived_at is null;
+        v_team_id := api_private.json_uuid(v_value, 'team_id', false);
+        select t.business_unit_id into v_business_unit_id from shared.teams t where t.id = v_team_id and t.archived_at is null;
         if not found then
           perform api_private.not_found('Team', 'team_id');
         end if;
-        v_new.team_id := v_team;
-        v_new.business_unit_id := v_bu;
-      when 'responsible_person_id' then v_new.responsible_person_id := api_private.json_uuid(v_val, 'responsible_person_id', false);
-      when 'accountable_person_id' then v_new.accountable_person_id := api_private.json_uuid(v_val, 'accountable_person_id', false);
-      when 'consulted_person_ids' then v_new.consulted_person_ids := api_private.json_uuid_array(v_val, 'consulted_person_ids');
-      when 'informed_person_ids' then v_new.informed_person_ids := api_private.json_uuid_array(v_val, 'informed_person_ids');
-      when 'objective_id' then v_new.objective_id := api_private.json_uuid(v_val, 'objective_id', true);
-      when 'work_line_id' then v_new.work_line_id := api_private.json_uuid(v_val, 'work_line_id', true);
+        v_new.team_id := v_team_id;
+        v_new.business_unit_id := v_business_unit_id;
+      when 'responsible_person_id' then v_new.responsible_person_id := api_private.json_uuid(v_value, 'responsible_person_id', false);
+      when 'accountable_person_id' then v_new.accountable_person_id := api_private.json_uuid(v_value, 'accountable_person_id', false);
+      when 'consulted_person_ids' then v_new.consulted_person_ids := api_private.json_uuid_array(v_value, 'consulted_person_ids');
+      when 'informed_person_ids' then v_new.informed_person_ids := api_private.json_uuid_array(v_value, 'informed_person_ids');
+      when 'objective_id' then v_new.objective_id := api_private.json_uuid(v_value, 'objective_id', true);
+      when 'work_line_id' then v_new.work_line_id := api_private.json_uuid(v_value, 'work_line_id', true);
     end case;
   end loop;
 
@@ -936,9 +935,9 @@ begin
   -- Events first: an editor who hands the Task away may stop being an editor once the row changes.
   if v_new.status is distinct from v_old.status then
     insert into mos.task_events (task_id, actor_person_id, event_type, from_value, to_value)
-    values (v_id, v_me, 'status_changed', v_old.status, v_new.status);
+    values (v_id, v_caller_id, 'status_changed', v_old.status, v_new.status);
   end if;
-  for v_ev in
+  for v_field_change in
     select f.old_v, f.new_v
       from (values
         (v_old.title, v_new.title),
@@ -952,11 +951,11 @@ begin
      where f.old_v is distinct from f.new_v
   loop
     insert into mos.task_events (task_id, actor_person_id, event_type, from_value, to_value)
-    values (v_id, v_me, 'field_edited', v_ev.old_v, v_ev.new_v);
+    values (v_id, v_caller_id, 'field_edited', v_field_change.old_v, v_field_change.new_v);
   end loop;
   if v_new.consulted_person_ids is distinct from v_old.consulted_person_ids
      or v_new.informed_person_ids is distinct from v_old.informed_person_ids then
-    insert into mos.task_events (task_id, actor_person_id, event_type) values (v_id, v_me, 'raci_edited');
+    insert into mos.task_events (task_id, actor_person_id, event_type) values (v_id, v_caller_id, 'raci_edited');
   end if;
 
   update mos.tasks t set
@@ -966,8 +965,8 @@ begin
     consulted_person_ids = v_new.consulted_person_ids, informed_person_ids = v_new.informed_person_ids,
     objective_id = v_new.objective_id, work_line_id = v_new.work_line_id
   where t.id = v_id;
-  get diagnostics v_rows = row_count;
-  if v_rows = 0 then
+  get diagnostics v_row_count = row_count;
+  if v_row_count = 0 then
     raise exception using errcode = 'PT403', detail = 'forbidden',
       message = 'You don''t have permission to do this in MOS.';
   end if;
@@ -975,9 +974,9 @@ begin
   perform api_private.log_write('edit_task', 'task', v_id, null);
   return jsonb_build_object('item', api_private.task_detail(v_id));
 exception when others then
-  get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text, v_detail = pg_exception_detail,
-    v_hint = pg_exception_hint, v_col = column_name, v_con = constraint_name;
-  perform api_private.raise_mapped(v_state, v_msg, v_detail, v_hint, v_col, v_con);
+  get stacked diagnostics v_sqlstate = returned_sqlstate, v_message = message_text, v_detail = pg_exception_detail,
+    v_hint = pg_exception_hint, v_column_name = column_name;
+  perform api_private.raise_mapped(v_sqlstate, v_message, v_detail, v_hint, v_column_name);
   return null;
 end
 $fn$;
@@ -990,38 +989,43 @@ set search_path = ''
 as $fn$
 #variable_conflict use_column
 declare
-  v_task   uuid := add_checklist_item.task_id;
+  v_task_id   uuid := add_checklist_item.task_id;
   v_label  text := api_private.text_arg(add_checklist_item.label, 'label', 300, true);
-  v_pos    integer := add_checklist_item."position";
+  v_position    integer := add_checklist_item."position";
   v_count  integer;
-  v_me     uuid := shared.current_person_id();
-  v_state text; v_msg text; v_detail text; v_hint text; v_col text; v_con text;
+  v_caller_id     uuid := shared.current_person_id();
+  v_sqlstate text; v_message text; v_detail text; v_hint text; v_column_name text;
 begin
-  if v_task is null then perform api_private.invalid('task_id', 'task_id is required.'); end if;
-  if v_pos is not null and v_pos < 0 then
+  if v_task_id is null then perform api_private.invalid('task_id', 'task_id is required.'); end if;
+  if v_position is not null and v_position < 0 then
     perform api_private.invalid('position', 'position must be 0 or more.');
   end if;
 
   perform api_private.begin_write('add_checklist_item', null);
 
-  perform 1 from mos.tasks t where t.id = v_task;
+  perform 1 from mos.tasks t where t.id = v_task_id;
   if not found then
     perform api_private.not_found('Task', 'task_id');
   end if;
-  select count(*) into v_count from mos.task_checklist_items c where c.task_id = v_task;
+  perform 1 from mos.tasks t where t.id = v_task_id for update;
+  if not found then
+    raise exception using errcode = 'PT403', detail = 'forbidden',
+      message = 'You don''t have permission to do this in MOS.';
+  end if;
+  select count(*) into v_count from mos.task_checklist_items c where c.task_id = v_task_id;
   if v_count >= 100 then
     perform api_private.invalid('task_id', 'A Task holds at most 100 checklist items.');
   end if;
 
-  insert into mos.task_checklist_items (task_id, label, position) values (v_task, v_label, coalesce(v_pos, v_count));
-  insert into mos.task_events (task_id, actor_person_id, event_type) values (v_task, v_me, 'field_edited');
+  insert into mos.task_checklist_items (task_id, label, position) values (v_task_id, v_label, coalesce(v_position, v_count));
+  insert into mos.task_events (task_id, actor_person_id, event_type) values (v_task_id, v_caller_id, 'field_edited');
 
-  perform api_private.log_write('add_checklist_item', 'task', v_task, null);
-  return jsonb_build_object('item', api_private.task_detail(v_task));
+  perform api_private.log_write('add_checklist_item', 'task', v_task_id, null);
+  return jsonb_build_object('item', api_private.task_detail(v_task_id));
 exception when others then
-  get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text, v_detail = pg_exception_detail,
-    v_hint = pg_exception_hint, v_col = column_name, v_con = constraint_name;
-  perform api_private.raise_mapped(v_state, v_msg, v_detail, v_hint, v_col, v_con);
+  get stacked diagnostics v_sqlstate = returned_sqlstate, v_message = message_text, v_detail = pg_exception_detail,
+    v_hint = pg_exception_hint, v_column_name = column_name;
+  perform api_private.raise_mapped(v_sqlstate, v_message, v_detail, v_hint, v_column_name);
   return null;
 end
 $fn$;
@@ -1034,44 +1038,44 @@ set search_path = ''
 as $fn$
 #variable_conflict use_column
 declare
-  v_item   uuid := set_checklist_item.item_id;
+  v_item_id   uuid := set_checklist_item.item_id;
   v_label  text := api_private.text_arg(set_checklist_item.label, 'label', 300, false);
-  v_done   boolean := set_checklist_item.is_done;
-  v_task   uuid;
-  v_rows   integer;
-  v_me     uuid := shared.current_person_id();
-  v_state text; v_msg text; v_detail text; v_hint text; v_col text; v_con text;
+  v_is_done   boolean := set_checklist_item.is_done;
+  v_task_id   uuid;
+  v_row_count   integer;
+  v_caller_id     uuid := shared.current_person_id();
+  v_sqlstate text; v_message text; v_detail text; v_hint text; v_column_name text;
 begin
-  if v_item is null then perform api_private.invalid('item_id', 'item_id is required.'); end if;
+  if v_item_id is null then perform api_private.invalid('item_id', 'item_id is required.'); end if;
   if set_checklist_item.label is not null and v_label is null then
     perform api_private.invalid('label', 'label must not be blank.');
   end if;
-  if v_label is null and v_done is null then
+  if v_label is null and v_is_done is null then
     perform api_private.invalid('label', 'Give a label, is_done, or both.');
   end if;
 
   perform api_private.begin_write('set_checklist_item', null);
 
-  select c.task_id into v_task from mos.task_checklist_items c where c.id = v_item;
+  select c.task_id into v_task_id from mos.task_checklist_items c where c.id = v_item_id;
   if not found then
     perform api_private.not_found('Checklist item', 'item_id');
   end if;
   update mos.task_checklist_items c
-     set label = coalesce(v_label, c.label), is_done = coalesce(v_done, c.is_done)
-   where c.id = v_item;
-  get diagnostics v_rows = row_count;
-  if v_rows = 0 then
+     set label = coalesce(v_label, c.label), is_done = coalesce(v_is_done, c.is_done)
+   where c.id = v_item_id;
+  get diagnostics v_row_count = row_count;
+  if v_row_count = 0 then
     raise exception using errcode = 'PT403', detail = 'forbidden',
       message = 'You don''t have permission to do this in MOS.';
   end if;
-  insert into mos.task_events (task_id, actor_person_id, event_type) values (v_task, v_me, 'field_edited');
+  insert into mos.task_events (task_id, actor_person_id, event_type) values (v_task_id, v_caller_id, 'field_edited');
 
-  perform api_private.log_write('set_checklist_item', 'task', v_task, null);
-  return jsonb_build_object('item', api_private.task_detail(v_task));
+  perform api_private.log_write('set_checklist_item', 'task', v_task_id, null);
+  return jsonb_build_object('item', api_private.task_detail(v_task_id));
 exception when others then
-  get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text, v_detail = pg_exception_detail,
-    v_hint = pg_exception_hint, v_col = column_name, v_con = constraint_name;
-  perform api_private.raise_mapped(v_state, v_msg, v_detail, v_hint, v_col, v_con);
+  get stacked diagnostics v_sqlstate = returned_sqlstate, v_message = message_text, v_detail = pg_exception_detail,
+    v_hint = pg_exception_hint, v_column_name = column_name;
+  perform api_private.raise_mapped(v_sqlstate, v_message, v_detail, v_hint, v_column_name);
   return null;
 end
 $fn$;
@@ -1089,7 +1093,7 @@ as $fn$
 #variable_conflict use_column
 declare
   v_action text := refused_action.action;
-  v_state text; v_msg text; v_detail text; v_hint text; v_col text; v_con text;
+  v_sqlstate text; v_message text; v_detail text; v_hint text; v_column_name text;
 begin
   if v_action is null or v_action <> all (array['archive', 'restore', 'retract', 'delete', 'change_objective',
                                                 'change_target', 'change_permissions', 'money']) then
@@ -1107,9 +1111,9 @@ begin
   end);
   return null;
 exception when others then
-  get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text, v_detail = pg_exception_detail,
-    v_hint = pg_exception_hint, v_col = column_name, v_con = constraint_name;
-  perform api_private.raise_mapped(v_state, v_msg, v_detail, v_hint, v_col, v_con);
+  get stacked diagnostics v_sqlstate = returned_sqlstate, v_message = message_text, v_detail = pg_exception_detail,
+    v_hint = pg_exception_hint, v_column_name = column_name;
+  perform api_private.raise_mapped(v_sqlstate, v_message, v_detail, v_hint, v_column_name);
   return null;
 end
 $fn$;
@@ -1128,7 +1132,7 @@ comment on function api_v1.list_business_units() is
 comment on function api_v1.list_tasks(text[], uuid, uuid, uuid, uuid, uuid, uuid, date, date, timestamptz, text, boolean, text, integer) is
   'Purpose: Tasks the caller can read, newest updated_at first. Inputs: status (list of Open, In Progress, Blocked, Done), team_id, business_unit_id, responsible_person_id, accountable_person_id, objective_id, work_line_id, due_from, due_to, updated_since, q (title contains), include_archived (default false), cursor, limit (default 50, at most 100). Returns: {items [Task], next_cursor}. Errors: invalid_input (status, cursor, limit).';
 comment on function api_v1.get_task(uuid) is
-  'Purpose: one Task with its checklist (at most 100), latest 50 events, latest 50 comments and linked Signal ids. Inputs: id. Returns: {item}. Errors: not_found (missing or not readable), invalid_input (id).';
+  'Purpose: one Task with its checklist (at most 100), latest 50 events, latest 50 comments and all linked Signal ids. Inputs: id. Returns: {item}. Errors: not_found (missing or not readable), invalid_input (id).';
 comment on function api_v1.create_task(text, uuid, uuid, uuid, text, date, text, uuid[], uuid[], uuid, uuid, text[], text) is
   'Purpose: create a Task; the Business Unit comes from the Team and the created event is written with it. Inputs: title (at most 300 characters), team_id, responsible_person_id, accountable_person_id, description (at most 2000), due_date, status (default Open), consulted_person_ids and informed_person_ids (at most 50 each), objective_id, work_line_id, checklist (at most 50 labels of at most 300 characters), idempotency_key (1 to 200 characters; the same person repeating it within 24 hours gets the same Task back with replayed true). Returns: {item, replayed}. Errors: invalid_input, not_found (team_id), forbidden (a rule such as who may be person in charge), rate_limited (60 writes a minute per person).';
 comment on function api_v1.edit_task(uuid, jsonb, timestamptz) is
@@ -1146,7 +1150,7 @@ comment on function api_private.raise_api(text, text, text, text) is 'Helper: ra
 comment on function api_private.invalid(text, text) is 'Helper: raises invalid_input (PT400) naming the offending field.';
 comment on function api_private.not_found(text, text) is 'Helper: raises not_found (PT404); the same answer for a missing and an unreadable record.';
 comment on function api_private.refuse(text) is 'Helper: raises the fixed refusal (PT403) for a refused.* code.';
-comment on function api_private.raise_mapped(text, text, text, text, text, text) is 'Helper: maps any error a function body raised to the stable error contract (PT4xx code, DETAIL machine code, HINT field) and re-raises it.';
+comment on function api_private.raise_mapped(text, text, text, text, text) is 'Helper: maps any error a function body raised to the stable error contract (PT4xx code, DETAIL machine code, HINT field) and re-raises it.';
 comment on function api_private.page_limit(integer) is 'Helper: page size, default 50, clamped to 100; below 1 is invalid_input.';
 comment on function api_private.encode_cursor(text, uuid) is 'Helper: opaque keyset cursor from a sort key and an id.';
 comment on function api_private.decode_cursor(text) is 'Helper: reads a cursor made by encode_cursor; anything else is invalid_input (cursor).';
@@ -1158,7 +1162,7 @@ comment on function api_private.json_uuid_array(jsonb, text) is 'Helper: a list 
 comment on function api_private.json_date(jsonb, text) is 'Helper: a date (or null) from a changes object.';
 comment on function api_private.status_arg(text) is 'Helper: a Task status, one of Open, In Progress, Blocked, Done.';
 comment on function api_private.task_json(mos.tasks) is 'Helper: the Task record shape returned by every Task read and write.';
-comment on function api_private.task_detail(uuid) is 'Helper: the Task record plus checklist, latest events, latest comments and linked Signal ids; null when the caller cannot read it.';
+comment on function api_private.task_detail(uuid) is 'Helper: the Task record plus checklist, latest events, latest comments and all linked Signal ids; null when the caller cannot read it.';
 comment on function api_private.begin_write(text, text) is 'SECURITY DEFINER, touches only the write log: marks the transaction as an API write, takes the caller''s advisory lock, returns the record id of an earlier write with the same idempotency key (24 hours), else spends one unit of the 60-per-minute write budget (rate_limited when spent).';
 comment on function api_private.log_write(text, text, uuid, text) is 'SECURITY DEFINER, touches only the write log: records a successful API or agent write; person, org, channel and client come from the claims.';
 

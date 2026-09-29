@@ -8,7 +8,7 @@
 --   d5 report   d7 (probed with finance)   b4 member of another org.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(105);
+select plan(106);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -449,6 +449,12 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select lives_ok($q$ select api_v1.create_task(title => 'other person', team_id => '00000000-0000-0000-0000-0000000000c1',
   responsible_person_id => shared.current_person_id(), accountable_person_id => shared.current_person_id()) $q$,
   'AC-012: another person''s write still succeeds');
+
+-- The 100-item cap holds once a Task is full.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+insert into mos.task_checklist_items (task_id, label, position)
+  select '00000000-0000-0000-0000-0000000000f1', 'fill ' || n, n + 10 from generate_series(1, 100) n;
+select is(pg_temp.err($q$ select api_v1.add_checklist_item(task_id => '00000000-0000-0000-0000-0000000000f1', label => 'one too many') $q$) ~ '^PT400\|invalid_input\|task_id\|', true, 'a full Task refuses the 101st checklist item');
 
 select * from finish();
 rollback;
