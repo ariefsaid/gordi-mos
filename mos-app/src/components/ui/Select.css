@@ -63,10 +63,11 @@
 /* Portaled so an overflow-hidden table/panel cannot clip it. It outranks drawer sheets while
    remaining below centered modal/confirm chrome in the shared overlay ladder. */
 .mk-select__menu {
-  position: fixed;
   z-index: calc(var(--z-drawer) + 1);
   box-sizing: border-box;
+  width: max(var(--radix-select-trigger-width, 220px), 220px);
   max-width: calc(100vw - 24px);
+  max-height: min(320px, var(--radix-select-content-available-height, 320px));
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 5px;
@@ -88,9 +89,9 @@
   min-width: 0; overflow-wrap: anywhere; white-space: normal;
 }
 .mk-select__option > svg { flex: none; margin-top: 2px; }
-.mk-select__option[data-active='true'] { background: var(--secondary); }
-.mk-select__option[aria-selected='true'] { color: var(--primary); font-weight: 600; }
-.mk-select__option[aria-disabled='true'] {
+.mk-select__option[data-highlighted] { background: var(--secondary); outline: none; }
+.mk-select__option[data-state='checked'] { color: var(--primary); font-weight: 600; }
+.mk-select__option[data-disabled] {
   color: var(--muted-foreground); cursor: not-allowed; opacity: .56;
 }
 

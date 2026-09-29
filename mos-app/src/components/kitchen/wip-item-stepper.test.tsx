@@ -114,7 +114,7 @@ describe('WipItemStepper — fixed unit + change-unit affordance (FR-020/021, AC
     await user.click(screen.getByRole('button', { name: /change unit for nasi goreng/i }))
     const picker = screen.getByRole('combobox', { name: /unit for nasi goreng/i })
     await user.click(picker)
-    fireEvent.click(screen.getByRole('option', { name: 'botol' }))
+    await user.click(screen.getByRole('option', { name: 'botol' }))
     expect(onUnitChange).toHaveBeenCalledWith('u-botol')
     expect(
       screen.queryByRole('combobox', { name: /unit for nasi goreng/i }),

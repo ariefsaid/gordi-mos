@@ -960,8 +960,8 @@ describe('FR-021/022: "change unit" re-binds the row to the chosen item-unit', (
       fireEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
       await Promise.resolve()
     })
-    fireEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
-    fireEvent.click(await screen.findByRole('option', { name: 'botol' }))
+    await userEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
+    await userEvent.click(await screen.findByRole('option', { name: 'botol' }))
 
     // w1: plan 20, stok 3 → effective target 17; log 17 (on-target, no note gate).
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
