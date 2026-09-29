@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react'
 import { ChecklistCard } from './checklist-card'
 import type { ChecklistItemRow } from '@/lib/db/tasks.types'
 
@@ -11,7 +11,7 @@ function items(labels: string[]): ChecklistItemRow[] {
 }
 
 describe('ChecklistCard', () => {
-  it('AC-074 (component): typing a label + Enter calls onAdd', () => {
+  it('AC-074 (component): typing a label + Enter calls onAdd', async () => {
     const onAdd = vi.fn()
     render(
       <ChecklistCard items={[]} canEdit taskId="t" viewerId="v"
@@ -20,7 +20,7 @@ describe('ChecklistCard', () => {
     const input = screen.getByLabelText(/add checklist item/i)
     fireEvent.change(input, { target: { value: 'Buy beans' } })
     fireEvent.keyDown(input, { key: 'Enter' })
-    expect(onAdd).toHaveBeenCalledWith('Buy beans')
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith('Buy beans'))
   })
 
   // OD-REDESIGN-22 (D-C1): a failed checklist write surfaces a VISIBLE error + Retry — not a
@@ -65,6 +65,58 @@ describe('ChecklistCard', () => {
         onAdd={() => {}} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}} />,
     )
     expect(screen.getByText(/no steps yet\./i)).toBeInTheDocument()
+  })
+
+  // #965: a rejected save must never wipe what the person typed — the field keeps the text and
+  // focus so they can hit Retry rather than retype the whole step from memory.
+  it('Ticket #965: a REJECTED add keeps the typed text and focus in the input (red-first)', async () => {
+    const onAdd = vi.fn().mockRejectedValue(new Error('save failed'))
+    render(
+      <ChecklistCard items={[]} canEdit taskId="t" viewerId="v"
+        onAdd={onAdd} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}} />,
+    )
+    const input = screen.getByLabelText(/add checklist item/i)
+    input.focus()
+    fireEvent.change(input, { target: { value: 'Buy beans' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(onAdd).toHaveBeenCalledWith('Buy beans'))
+    // The rejection resolves asynchronously; assert the input is NOT cleared once it settles.
+    await waitFor(() => expect(input).toHaveValue('Buy beans'))
+    expect(input).toHaveFocus()
+  })
+
+  it('Ticket #965: a SUCCESSFUL add clears the typed text', async () => {
+    const onAdd = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ChecklistCard items={[]} canEdit taskId="t" viewerId="v"
+        onAdd={onAdd} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}} />,
+    )
+    const input = screen.getByLabelText(/add checklist item/i)
+    fireEvent.change(input, { target: { value: 'Buy beans' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(input).toHaveValue(''))
+  })
+
+  // gpt-6-luna review (85c78fa6): a successful Retry cleared the draft unconditionally, so text
+  // typed WHILE the retry was in flight got wiped along with the stale text that was actually
+  // resent. Only clear when the field still holds exactly what was resent.
+  it('Ticket #965: text typed during a pending Retry survives the retry\'s success', async () => {
+    const onRetry = vi.fn().mockResolvedValue(undefined)
+    render(
+      <ChecklistCard items={[]} canEdit taskId="t" viewerId="v"
+        onAdd={() => {}} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}}
+        saveError={{ message: "Couldn't save — try again.", onRetry }} />,
+    )
+    const input = screen.getByLabelText(/add checklist item/i)
+    fireEvent.change(input, { target: { value: 'Buy beans' } })
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+    // onRetry() is already resolved, but its continuation hasn't run yet — this still executes
+    // in the same tick, before that continuation gets a turn on the microtask queue.
+    fireEvent.change(input, { target: { value: 'Milk' } })
+    await waitFor(() => expect(onRetry).toHaveBeenCalledTimes(1))
+    // Flush every pending microtask (a macrotask boundary always runs after them) before asserting.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(input).toHaveValue('Milk')
   })
 
   it('disables the checkbox when canEdit=false', () => {

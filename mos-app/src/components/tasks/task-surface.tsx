@@ -202,7 +202,7 @@ function ViewSurface({
   // OD-REDESIGN-22 (D-C1): the last FAILED checklist write, held so RecordFeed/ChecklistCard can
   // render a VISIBLE error + Retry (the optimistic rollback reverts the row, but a sighted user
   // still needs a clickable way to re-send). The closure re-runs the exact failed operation.
-  const [checklistError, setChecklistError] = useState<(() => void) | null>(null)
+  const [checklistError, setChecklistError] = useState<(() => void | Promise<void>) | null>(null)
 
   const now = useMemo(() => new Date(), [data]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -486,6 +486,7 @@ function ViewSurface({
       formatAge: (iso) => formatAge(iso, now, locale),
       now,
       labels: {
+        title: t('tasks.field.title'),
         businessUnit: t('tasks.field.businessUnit'),
         pic: t('tasks.pic'),
         supervisor: t('tasks.supervisor'),
@@ -495,6 +496,7 @@ function ViewSurface({
         teamMigration: t('tasks.field.teamMigration'),
         dueDate: t('tasks.dueLabel'),
         createdBy: t('tasks.field.createdBy'),
+        supervisorInheritedFrom: t('tasks.field.supervisorInheritedFrom'),
       },
       recordLabels: {
         typeLabel: t('tasks.label.task'),
@@ -617,10 +619,13 @@ function ViewSurface({
       await addChecklistItem(localTask.id, label, position, viewerId)
       await refetchEvents(localTask.id)
       announce(t('tasks.feedback.checklistAdded'))
-    } catch {
+    } catch (error) {
       setLocalChecklist(prev => prev.filter(i => i.id !== newItem.id))
       announce(ROLLBACK_MSG)
-      setChecklistError(() => () => { void handleAddChecklist(label) })
+      // Rethrow so the caller — the add input on first submit, ChecklistCard's Retry button on a
+      // retry — can tell success from failure and only clear its draft once the write lands.
+      setChecklistError(() => () => handleAddChecklist(label))
+      throw error
     }
   }
 
