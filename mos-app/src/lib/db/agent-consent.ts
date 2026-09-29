@@ -32,9 +32,8 @@ function fail(action: string, error: unknown): Error {
 }
 
 function statusOf(error: unknown): number | undefined {
-  return typeof error === 'object' && error !== null && 'status' in error
-    ? (error as { status?: number }).status
-    : undefined
+  if (typeof error !== 'object' || error === null || !('status' in error)) return undefined
+  return typeof error.status === 'number' ? error.status : undefined
 }
 
 export async function loadConsentRequest(authorizationId: string): Promise<ConsentLoad> {

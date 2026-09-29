@@ -6,6 +6,7 @@ describe('isSafeAgentRedirect', () => {
     'https://agent.example.test/callback?code=abc&state=xyz',
     'http://127.0.0.1:33418/callback?code=abc',
     'cursor://anysphere.cursor-mcp/oauth/callback?code=abc',
+    'vscode://vscode.mcp/oauth/callback?code=abc',
   ])('accepts %s', (url) => expect(isSafeAgentRedirect(url)).toBe(true))
 
   it.each([

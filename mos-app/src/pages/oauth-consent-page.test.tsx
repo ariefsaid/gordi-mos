@@ -267,11 +267,14 @@ describe('OAuthConsentPage', () => {
 
   it('refuses to follow a redirect that is not a normal web or app address', async () => {
     const user = userEvent.setup()
-    mocks.approve.mockResolvedValue({ data: { redirect_url: 'javascript:alert(1)' }, error: null })
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    mocks.approve.mockResolvedValue({ data: { redirect_url: 'javascript:alert(1)//code=SENTINEL-CODE&state=SENTINEL-STATE' }, error: null })
     renderPage()
     await user.click(await screen.findByRole('button', { name: 'Allow' }))
     expect(await screen.findByRole('alert')).toBeInTheDocument()
     expect(mocks.redirect).not.toHaveBeenCalled()
+    expect(JSON.stringify(logged.mock.calls)).not.toMatch(/SENTINEL|javascript/)
+    logged.mockRestore()
   })
 
   it('renders Indonesian copy', async () => {
