@@ -2589,7 +2589,7 @@ describe('Tasks search follows outside URL changes (#1024)', () => {
     const router = createMemoryRouter(
       [{
         path: '/work/tasks',
-        loader: () => new Promise((r) => setTimeout(() => r(null), 25)),
+        loader: () => new Promise((resolveLoader) => setTimeout(() => resolveLoader(null), 25)),
         element: <OverlayHostProvider><TasksWorkspace /></OverlayHostProvider>,
       }],
       { initialEntries: ['/work/tasks'] },
@@ -2603,9 +2603,35 @@ describe('Tasks search follows outside URL changes (#1024)', () => {
     )
     await waitFor(() => screen.getByText('Alpha task'), { timeout: 5000 })
     await user.type(box(), 'Alpha')
-    await new Promise((r) => setTimeout(r, 150))
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 150))
     expect(box()).toHaveValue('Alpha')
     await waitFor(() => expect(router.state.location.search).toContain('q=Alpha'))
+  })
+
+  it('opening a task before the typed search reaches the URL keeps the full typed text', async () => {
+    const user = userEvent.setup({ delay: null })
+    const router = createMemoryRouter(
+      [{
+        path: '/work/tasks',
+        loader: () => new Promise((resolveLoader) => setTimeout(() => resolveLoader(null), 200)),
+        element: <OverlayHostProvider><TasksWorkspace /></OverlayHostProvider>,
+      }],
+      { initialEntries: ['/work/tasks'] },
+    )
+    render(
+      <I18nProvider>
+        <AuthContext.Provider value={DEWI}>
+          <RouterProvider router={router} />
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+    await waitFor(() => screen.getByText('Alpha task'), { timeout: 5000 })
+    await user.type(box(), 'Alpha')
+    fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
+    await waitFor(() => expect(router.state.location.search).toContain('record='), { timeout: 5000 })
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 400))
+    expect(box()).toHaveValue('Alpha')
+    expect(router.state.location.search).toContain('q=Alpha')
   })
 
   it('typing still lands every character, filters the list and writes the URL', async () => {

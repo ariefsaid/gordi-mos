@@ -301,8 +301,8 @@ export function TasksWorkspace({
     if (seenLocationKey.current === location.key) return
     seenLocationKey.current = location.key
     if (navigationType === 'REPLACE') return
-    const urlQ = new URLSearchParams(location.search).get('q') ?? ''
-    if (urlQ !== controller.state.query.q) controller.setQuery({ ...controller.state.query, q: urlQ })
+    const urlQuery = new URLSearchParams(location.search).get('q') ?? ''
+    if (urlQuery !== controller.state.query.q) controller.setQuery({ ...controller.state.query, q: urlQuery })
   }, [controller, location.key, location.search, navigationType])
 
   // AR Follow-ups is a retired finance surface (OD-WAY-34, #743): old links land on the All
@@ -347,6 +347,16 @@ export function TasksWorkspace({
   // OverlayHost session (route marker) supplies the focus/Back/leave-guard. This mirrors the Signals
   // archive seam exactly (signals-archive-page.tsx).
   const [params, setParams] = useSearchParams()
+  // The collection's REPLACE of a just-typed q can still be pending, so `params` may hold an older
+  // q. Every internal PUSH builds its URL from this copy, whose q is the live query's, so the
+  // search-following effect never adopts a stale q.
+  const liveQuery = controller.state.query.q
+  const liveParams = useMemo(() => {
+    const next = new URLSearchParams(params)
+    if (liveQuery) next.set('q', liveQuery)
+    else next.delete('q')
+    return next
+  }, [params, liveQuery])
   // Strips a `view=` nobody chose (viewChosenRef). It reacts to `params` rather than writing at
   // mount so it always sees the settled URL, never a snapshot from before the engine's own sync.
   useEffect(() => {
@@ -392,17 +402,17 @@ export function TasksWorkspace({
   // The list search minus ?record= — shared by the panel's "Open full page" escalation so the
   // collection's query (view/filter/sort) survives the jump onto the canonical page.
   const pageSearch = useCallback(() => {
-    const next = new URLSearchParams(params)
+    const next = new URLSearchParams(liveParams)
     next.delete('record')
     const s = next.toString()
     return s ? `?${s}` : ''
-  }, [params])
+  }, [liveParams])
 
   // Collection contract onOpenTask — write ?record= before the host pushes its route marker, so one
   // Back step lands on the prior collection URL (identical to Signals' onOpenRecord).
   const onOpenTask = useCallback((taskId: string) => {
     if (!splitLayout) {
-      const next = new URLSearchParams(params)
+      const next = new URLSearchParams(liveParams)
       next.delete('record')
       const search = next.toString()
       navigate({ pathname: `/work/tasks/${taskId}`, search: search ? `?${search}` : '' }, { state: { taskSurface: 'page' } })
@@ -418,10 +428,10 @@ export function TasksWorkspace({
     openedRecordRef.current = null
     suppressNextOpen.current = false
     hadTaskSession.current = false
-    const next = new URLSearchParams(params)
+    const next = new URLSearchParams(liveParams)
     next.set('record', taskId)
     setParams(next)
-  }, [navigate, params, setParams, splitLayout])
+  }, [liveParams, navigate, setParams, splitLayout])
 
   const taskEntry = useMemo<OverlayEntry | null>(() => {
     if (!recordId) return null
@@ -880,7 +890,7 @@ export function TasksWorkspace({
     onOverdueFilter: () => setQuery({ overdueOnly: true }),
       onClearOverdue: () => setQuery({ overdueOnly: false }),
     createHref: (() => {
-      const next = new URLSearchParams(params)
+      const next = new URLSearchParams(liveParams)
       next.set('create', '1')
       return { pathname: '/work/tasks', search: `?${next.toString()}` }
     })(),
@@ -891,7 +901,7 @@ export function TasksWorkspace({
     },
   }), [
     currentSearch, recordOpen, draftTask, host.session, isDesktop, onAddTask,
-    params,
+    liveParams,
     onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onNewTask, onOpenTask, onClearFilters, onSort,
     processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink, viewerTeams,
   ])
@@ -963,13 +973,13 @@ export function TasksWorkspace({
               empty={{
                 title: emptyTitle,
                 copy: emptyCopy,
-                create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(params); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
+                create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
               }}
               filteredEmpty={{
                 title: t('tasks.empty.filteredTitle'),
                 copy: t('tasks.empty.filteredCopy'),
                 clear: onClearFilters,
-                create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(params); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
+                create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
               }}
               error={{ message: t('tasks.error.load'), retry }}
               loadingLabel={t('tasks.loading')}

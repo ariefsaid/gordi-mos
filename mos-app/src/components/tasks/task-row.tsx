@@ -101,7 +101,14 @@ export type TaskRowProps = {
   viewerHasNoDownline?: boolean
 }
 
-function InlineCommitFeedback({ error, retry, liveMessage, errorId }: { error: boolean; retry: () => void; liveMessage: string; errorId?: string }) {
+interface InlineCommitFeedbackProps {
+  error: boolean
+  retry: () => void
+  liveMessage: string
+  errorId?: string
+}
+
+function InlineCommitFeedback({ error, retry, liveMessage, errorId }: InlineCommitFeedbackProps) {
   const t = useT()
   return <>
     {error && <span id={errorId} role="alert" className="task-row-save-error">
