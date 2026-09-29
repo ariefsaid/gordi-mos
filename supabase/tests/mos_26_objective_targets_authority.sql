@@ -17,7 +17,7 @@
 --   ForeignMgr …0b4 org B            — cross-org negative control
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(87);
+select plan(88);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -90,14 +90,17 @@ select is((select (is_company_wide, business_unit_id)::text from mos.objectives
 -- ═══ AC-004 — the period quarter admits only Q1–Q4 ══════════════════════════════════════════
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
 select lives_ok($$
-  update mos.objectives set period_quarter = 4 where id = '00000000-0000-0000-0000-0000000009e2'
-$$, 'AC-004: an admin sets a Q1–Q4 quarter');
+  update mos.objectives set period_year = 2027, period_quarter = 4 where id = '00000000-0000-0000-0000-0000000009e2'
+$$, 'AC-004: an admin sets a year and a Q1–Q4 quarter alongside it');
 select throws_ok($$
   update mos.objectives set period_quarter = 5 where id = '00000000-0000-0000-0000-0000000009e2'
 $$, '23514', null, 'AC-004: quarter 5 is a CHECK rejection');
 select throws_ok($$
   insert into mos.objectives (name, period_quarter) values ('Zero Quarter', 0)
 $$, '23514', null, 'AC-004: quarter 0 is a CHECK rejection on insert too');
+select throws_ok($$
+  update mos.objectives set period_year = null, period_quarter = 2 where id = '00000000-0000-0000-0000-0000000009e2'
+$$, '23514', null, 'AC-004: a quarter without its year is a CHECK rejection — the quarter rides the year');
 
 -- ═══ AC-005..007 — ops_lead: no structural writes, write-up yes ══════════════════════════════
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
@@ -116,7 +119,7 @@ select throws_ok($$
   where id = '00000000-0000-0000-0000-0000000009e2'
 $$, '42501', null, 'AC-006: ops_lead cannot re-home the Business Unit');
 select throws_ok($$
-  update mos.objectives set period_year = 2027 where id = '00000000-0000-0000-0000-0000000009e2'
+  update mos.objectives set period_year = 2028 where id = '00000000-0000-0000-0000-0000000009e2'
 $$, '42501', null, 'AC-006: ops_lead cannot re-period the year');
 select throws_ok($$
   update mos.objectives set period_quarter = 2 where id = '00000000-0000-0000-0000-0000000009e2'

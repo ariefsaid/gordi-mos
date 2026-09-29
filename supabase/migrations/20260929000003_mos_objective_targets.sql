@@ -111,6 +111,9 @@ alter table mos.objectives add constraint objectives_company_wide_exclusive
   check ((is_company_wide = false) or (business_unit_id is null));
 alter table mos.objectives add constraint objectives_period_quarter_range
   check (period_quarter is null or period_quarter between 1 and 4);
+-- A quarter is "alongside its year" (OD-OBJ-1): a quarter without a year is an ambiguous period.
+alter table mos.objectives add constraint objectives_period_quarter_needs_year
+  check (period_quarter is null or period_year is not null);
 alter table mos.objectives add constraint objectives_write_up_is_array
   check (write_up is null or jsonb_typeof(write_up) = 'array');
 alter table mos.objectives add constraint objectives_write_up_size_limit
@@ -269,7 +272,6 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_obj_org uuid;
   v_own_org uuid;
 begin
   -- Removal is admin authority. It lives in the guard, not the DELETE policy, because a policy

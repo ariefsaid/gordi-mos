@@ -85,11 +85,11 @@ select ok(shared.can('workline.manage'),  'can(workline.manage) is true for admi
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","access_roles":["ops_lead"]}';
 -- Flipped twice at the behavior level, and worth naming rather than editing quietly. This line
--- first encoded the admin-only contract the pgTAP triage found (#180), then OD-V4-1 (owner,
--- 2026-07-27) flipped it to TRUE and this assertion followed. OD-OBJ-1 (#992, 2026-09-29) now
--- narrows the grant again: ops_lead LOSES objective.manage and holds only the narrower
--- objective.edit_content — the write-up/current-value tier — so this assertion follows the
--- newest ruling. Same class as the triage's ninth instance: one ruling, one grant row, one flip.
+-- first encoded the admin-only contract the pgTAP triage found (#180), OD-V4-1 flipped it to TRUE,
+-- and OD-OBJ-1 now narrows the grant again: ops_lead LOSES objective.manage and holds only the
+-- narrower objective.edit_content — the write-up/current-value tier — so this assertion follows
+-- the newest ruling. Same class as the triage's ninth instance: one ruling, one grant row, one
+-- flip.
 select ok(not shared.can('objective.manage'),
   'can(objective.manage) is FALSE for ops_lead — OD-OBJ-1 narrows the OD-V4-1 grant (#992)');
 select ok(shared.can('objective.edit_content'),

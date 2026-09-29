@@ -13,11 +13,12 @@
 --   CARRY    everything else — the type CHECK, cross-org isolation, member denial, org stamping,
 --            the no-DELETE posture, the same-org task-reference guard, the task round-trip.
 --
--- WHY the five inversions. `OD-V4-1` (owner, 2026-07-27) rules that Objectives are visible to
--- everyone and writeable at LEAD level, superseding `OD-C-2`'s admin-only catalog. The current MOS
--- policies consume the tenant-local role_authority matrix, so the write proof in section 6 uses the
--- admin settings RPC rather than the legacy global shared.role_capabilities vocabulary. Those five
--- assertions encoded the superseded contract and
+-- WHY the five inversions. `OD-V4-1` rules that Objectives are visible to everyone and writeable
+-- at LEAD level, superseding `OD-C-2`'s admin-only catalog; `OD-OBJ-1` narrows it again —
+-- structural authority is admin-only. The current MOS policies consume the tenant-local
+-- role_authority matrix, so the write proof in section 6 uses the admin settings RPC rather than
+-- the legacy global shared.role_capabilities vocabulary. Those five assertions encoded the
+-- superseded contract and
 -- were never updated, which is the entire cause of the five reds measured on the v4 line
 -- (`DD-WAY-23`) — one ruling, five symptoms. Nothing here was reshaped for the three-level model;
 -- the shape work is section 7.
@@ -78,9 +79,9 @@ select is(shared.can('objective.manage'), true,  'admin can(objective.manage) = 
 select is(shared.can('workline.manage'),  true,  'admin can(workline.manage) = true');
 
 -- REWRITE TWICE, each time at the behavior level. This line encoded OD-C-2's admin-only catalog,
--- was flipped to TRUE by OD-V4-1 (owner 2026-07-27), and OD-OBJ-1 (#992, 2026-09-29) narrows it
--- back: ops_lead loses objective.manage and gains the narrower objective.edit_content. The grant
--- rows are migration-owned, so each flip is one row either way — the assertion follows the ruling.
+-- OD-V4-1 flipped it to TRUE, and OD-OBJ-1 narrows it back: ops_lead loses objective.manage and
+-- gains the narrower objective.edit_content. The grant rows are migration-owned, so each flip is
+-- one row either way — the assertion follows the ruling.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca11","access_roles":["ops_lead"]}';
 select is(shared.can('objective.manage'), false,
   'ops_lead can(objective.manage) = FALSE — OD-OBJ-1 narrows the OD-V4-1 grant (#992)');
