@@ -15,7 +15,7 @@
 -- org B's admin and the negative control.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(47);
+select plan(49);
 
 select shared._test_seed_directory();
 
@@ -259,6 +259,9 @@ select is((select new_value from shared.record_history
 select is((select old_row_snapshot ->> 'person_id' from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009965'),
   '00000000-0000-0000-0000-0000000000d4', 'the delete row''s snapshot carries person_id');
+select is((select actor_person_id::text from shared.record_history
+           where record_key = '00000000-0000-0000-0000-000000009965'),
+  '00000000-0000-0000-0000-0000000000d3', 'the authenticated revoke stamps the revoking admin''s claim as the delete actor');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
 select is((select count(*)::int from shared.record_history
@@ -301,6 +304,10 @@ select is((select count(*)::int from shared.record_history
 reset role;
 set local request.jwt.claims = '';
 delete from mos.budget_lines where id = '00000000-0000-0000-0000-000000009962';
+select is((select count(*)::int from shared.record_history
+           where record_key = '00000000-0000-0000-0000-000000009962'
+             and action = 'delete' and actor_person_id is null),
+  1, 'the claimless service delete appends its delete row with no actor (FR-012/FR-005)');
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
