@@ -1,5 +1,5 @@
 -- Change history batch 2d — Directory & authority (#989, the rollout on the ADR-0059 mechanism
--- from 20260929000001). Attaches the one generic trigger to the ten directory/authority tables and
+-- from 20260929000010). Attaches the one generic trigger to the ten directory/authority tables and
 -- registers their read arms in shared.can_read_history_record. No shape changes: the mechanism,
 -- its grants and its policy are Slice 1's and are not restated here.
 --
@@ -27,7 +27,7 @@
 -- trigger hardcodes the history row's org as (row ->> 'org_id')::uuid into record_history.org_id
 -- (NOT NULL, FK to shared.orgs). Attaching the trigger would turn every org insert into a not-null
 -- violation, starting with the test seed. Wiring it needs a mechanism change, and this batch does
--- not touch 20260929000001; orgs stays unnamed in the dispatch and fails closed.
+-- not touch 20260929000010; orgs stays unnamed in the dispatch and fails closed.
 --
 -- The batch's one hard-DELETE with a wired arm: shared.person_roles — the schema's only
 -- authenticated DELETE grant (person_roles_delete_admin, org-scoped admin; the Jabatan assignment
