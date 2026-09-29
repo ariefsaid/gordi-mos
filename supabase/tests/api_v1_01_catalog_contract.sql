@@ -60,8 +60,8 @@ select is(
 select is(
   (select array_agg(p.proname::text order by p.proname)
      from pg_proc p where p.pronamespace = to_regnamespace('api_private') and p.prosecdef),
-  array['begin_write','channel','log_write'],
-  'NFR-002: only the two write-log helpers and the read-only channel helper in api_private are SECURITY DEFINER');
+  array['begin_write','log_write'],
+  'NFR-002: only the two write-log helpers in api_private are SECURITY DEFINER');
 
 select is(
   (select count(*)::int from pg_proc p

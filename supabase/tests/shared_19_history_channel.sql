@@ -11,7 +11,7 @@
 -- Objectives and Projects/Processes) in org a1; b4 is a member of another org (b1).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(35);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -28,11 +28,6 @@ select is(
     where t.tgrelid = 'shared.record_history'::regclass and not t.tgisinternal),
   array['_record_history_stamp_channel'],
   'one trigger stamps the channel on every history row');
-select is(
-  (select c.relrowsecurity and not has_table_privilege('authenticated', c.oid, 'select')
-                            and not has_table_privilege('anon', c.oid, 'select')
-     from pg_class c where c.oid = 'api_private.channel_secret'::regclass),
-  true, 'the marker secret is unreadable to application roles');
 
 -- ── fixtures (as postgres: a service write carries no claims, so it reads as app) ────────────
 insert into mos.objectives (id, org_id, name)
@@ -56,15 +51,7 @@ select is(
     where record_key = '00000000-0000-0000-0000-000000009a01' and field_name = 'name' and new_value = 'App edit'),
   'app|-', 'AC-027: a direct write stamps app');
 
--- ── spoofing: nothing a session can set changes the label ────────────────────────────────────
-select set_config('api.channel', 'api', true);
-update mos.objectives set name = 'Spoofed marker' where id = '00000000-0000-0000-0000-000000009a01';
-select is(
-  (select channel from shared.record_history
-    where record_key = '00000000-0000-0000-0000-000000009a01' and field_name = 'name' and new_value = 'Spoofed marker'),
-  'app', 'setting the transaction marker by hand outside an api_v1 function does not label a write api');
-select is(api_private.channel(), 'app', 'the channel helper agrees: a hand-set marker reads as app');
-
+-- ── no writer names a channel ────────────────────────────────────────────────────────────────
 select throws_ok(
   $$ insert into shared.record_history (org_id, schema_name, table_name, record_key, action, channel)
      values ('00000000-0000-0000-0000-0000000000a1', 'mos', 'objectives', 'x', 'insert', 'agent') $$,

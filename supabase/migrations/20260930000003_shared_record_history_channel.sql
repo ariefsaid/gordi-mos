@@ -7,11 +7,12 @@
 -- columns from the session, so the generic history trigger (shared._record_history_write) is
 -- unchanged and every table it is wired to is stamped the same way.
 --
--- The "api" marker is a per-transaction token, not a flag. api_private.begin_write sets it to a hash of
--- a database-local secret and the transaction id; api_private.channel() recomputes the hash and
--- compares. A session that writes the marker setting itself, in a transaction that never entered an
--- api_v1 function, cannot produce the token, so the row reads `app`. The secret lives in a table no
--- application role can read.
+-- Trust boundary for the "api" label: api_private is not in the data API's exposed schemas, one request
+-- runs one RPC or one table operation in its own transaction, and a client can set only request.*
+-- settings. So a data-API client cannot open the api.channel marker (set by api_private.begin_write) and
+-- then write a table. A raw SQL session as `authenticated` can call begin_write itself; that is
+-- outside the model, the same boundary as app.reporting_org, and the actor on the row stays exact.
+-- `agent` comes from the client_id claim of an auth-issued token.
 --
 -- Existing rows read `app`: the label they carry is the one ADR-0060 D10 gives every write that did not
 -- come through an api_v1 function, and no earlier row can be attributed more precisely.
@@ -23,115 +24,9 @@
 --   drop function shared._record_history_stamp_channel();
 --   alter table shared.record_history drop constraint record_history_agent_client_pairing,
 --     drop column agent_client_id, drop column channel;
---   restore api_private.begin_write and api_private.channel from 20260930000001_api_v1_operation_layer.sql;
---   drop function shared._api_channel_token();
---   drop table api_private.channel_secret;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- 1. The per-database marker secret and the token derived from it
--- ═══════════════════════════════════════════════════════════════════════════════════════════════
-create table api_private.channel_secret (
-  id     boolean primary key default true check (id),
-  secret text    not null default (gen_random_uuid()::text || gen_random_uuid()::text)
-);
-insert into api_private.channel_secret default values;
-revoke all on api_private.channel_secret from public, anon, authenticated, service_role;
-alter table api_private.channel_secret enable row level security;
-comment on table api_private.channel_secret is
-  'One row: the database-local secret behind the api channel marker. No application role holds any grant, so only the SECURITY DEFINER helpers (owner) read it.';
-
--- Invoker on purpose, with EXECUTE closed to every application role: it is called only from the
--- definer helpers below, which run as the owner and so can read the secret. Never granted to
--- authenticated, because the token it returns is what proves "this transaction opened an API write".
-create function shared._api_channel_token()
-returns text
-language sql
-stable
-set search_path = ''
-as $$
-  select encode(sha256(convert_to(
-    (select s.secret from api_private.channel_secret s) || ':' || pg_current_xact_id()::text, 'UTF8')), 'hex')
-$$;
-revoke execute on function shared._api_channel_token() from public, anon, authenticated;
-comment on function shared._api_channel_token() is
-  'The current transaction''s api-channel token: a hash of the database secret and the transaction id. Callable only from the definer helpers api_private.begin_write and api_private.channel.';
-
--- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- 2. The two api_private helpers that touch the marker
--- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- begin_write is 20260930000001's body with one line changed: the marker is the token, not a flag.
-create or replace function api_private.begin_write(p_operation text, p_idempotency_key text default null)
-returns uuid
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_person uuid := shared.current_person_id();
-  v_org    uuid := shared.current_org_id();
-  v_prior_record_id  uuid;
-  v_used   integer;
-begin
-  if v_person is null or v_org is null then
-    raise exception using errcode = 'PT403', detail = 'forbidden',
-      message = 'You don''t have permission to do this in MOS.';
-  end if;
-  if p_idempotency_key is not null and (btrim(p_idempotency_key) = '' or length(p_idempotency_key) > 200) then
-    raise exception using errcode = 'PT400', detail = 'invalid_input', hint = 'idempotency_key',
-      message = 'idempotency_key must be 1 to 200 characters.';
-  end if;
-
-  perform set_config('api.channel', shared._api_channel_token(), true);
-  perform pg_advisory_xact_lock(hashtextextended('api_write:' || v_person::text, 0));
-
-  if p_idempotency_key is not null then
-    select l.record_id into v_prior_record_id
-      from shared.api_write_log l
-     where l.person_id = v_person
-       and l.org_id = v_org
-       and l.operation = p_operation
-       and l.idempotency_key = p_idempotency_key
-       and l.created_at > clock_timestamp() - interval '24 hours'
-     order by l.created_at desc
-     limit 1;
-    if v_prior_record_id is not null then
-      return v_prior_record_id;
-    end if;
-  end if;
-
-  select count(*) into v_used
-    from shared.api_write_log l
-   where l.person_id = v_person
-     and l.created_at > clock_timestamp() - interval '60 seconds';
-  if v_used >= 60 then
-    raise exception using errcode = 'PT429', detail = 'rate_limited',
-      message = 'Too many changes in the last minute. Wait a moment and try again.';
-  end if;
-  return null;
-end
-$$;
-
--- channel() becomes SECURITY DEFINER so it can compare the marker with the token; it reads and
--- returns nothing else.
-create or replace function api_private.channel()
-returns text
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select case
-    when api_private.claim_client_id() is not null then 'agent'
-    when current_setting('api.channel', true) = shared._api_channel_token() then 'api'
-    else 'app'
-  end
-$$;
-
-comment on function api_private.begin_write(text, text) is 'SECURITY DEFINER, touches only the write log and the channel marker: marks the transaction as an API write, takes the caller''s advisory lock, returns the record id of an earlier write with the same idempotency key (24 hours), else spends one unit of the 60-per-minute write budget (rate_limited when spent).';
-comment on function api_private.channel() is 'SECURITY DEFINER, read-only: agent when the claims carry a client_id, api when this transaction opened an API write (the marker matches its token), otherwise app.';
-
--- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- 3. The history row carries the channel and the agent client id
+-- 1. The history row carries the channel and the agent client id
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 alter table shared.record_history
   add column channel         text not null default 'app' check (channel in ('app', 'api', 'agent')),
@@ -169,7 +64,7 @@ create trigger record_history_stamp_channel
   for each row execute function shared._record_history_stamp_channel();
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- 4. api_v1.get_record_history
+-- 2. api_v1.get_record_history
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- Invoker: the read goes through shared.record_history's own policy, so a caller sees exactly the
 -- history rows the app shows them, each with its channel. A record type whose history is not yet
