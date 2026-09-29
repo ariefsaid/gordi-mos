@@ -10,7 +10,7 @@ function Box() {
   return (
     <>
       <input aria-label="box" value={q} onChange={(e) => setQ(e.target.value)} />
-      <output data-testid="url">{search}</output>
+      <output aria-label="url">{search}</output>
     </>
   )
 }
@@ -23,7 +23,7 @@ describe('useSearchParamState — real typing', () => {
     const box = screen.getByRole('textbox', { name: 'box' })
     await user.type(box, 'Cahya Cafe')
     expect(box).toHaveValue('Cahya Cafe')
-    expect(screen.getByTestId('url')).toHaveTextContent('?q=Cahya+Cafe')
+    expect(screen.getByRole('status', { name: 'url' })).toHaveTextContent('?q=Cahya+Cafe')
   })
 
   it('select-all + Delete clears the field and the URL', async () => {
@@ -33,7 +33,7 @@ describe('useSearchParamState — real typing', () => {
     await user.click(box)
     await user.keyboard('{Control>}a{/Control}{Delete}')
     expect(box).toHaveValue('')
-    expect(screen.getByTestId('url')).toHaveTextContent(/^$/)
+    expect(screen.getByRole('status', { name: 'url' })).toHaveTextContent(/^$/)
   })
 
   it('a data router (the app\'s router kind) keeps every key typed with no delay', async () => {

@@ -40,7 +40,8 @@ export function useFocusRestore<T extends HTMLElement = HTMLElement>(busy: boole
     const field = lastTextField.current
     if (!containerRef.current?.contains(field)) return
     const lost = !document.activeElement || document.activeElement === document.body
-    if (!lost || !field || !field.isConnected || (field as HTMLInputElement).disabled) return
+    if (!lost || !field || !field.isConnected) return
+    if ((field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) && field.disabled) return
     field.focus()
   }, [busy, failed])
 
