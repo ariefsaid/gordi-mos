@@ -9,7 +9,7 @@
 // needs_attention, filed under the same Café BU as the capture itself — the cheapest existing
 // in-app mechanism that already reaches the reviewer surfaces (no new table, no new channel).
 
-import { useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { addLogEntry } from '@/lib/db/ops-log'
 import { TextInput } from '@/components/ui/text-input'
@@ -28,6 +28,12 @@ export function ReportMissingItem({ businessUnitId, streamLabel }: ReportMissing
   const t = useT()
   const [state, setState] = useState<ReportState>('idle')
   const [itemName, setItemName] = useState('')
+
+  const inputId = useId()
+  // The field is disabled while sending, which drops focus; a failed send hands it back.
+  useEffect(() => {
+    if (state === 'error') document.getElementById(inputId)?.focus()
+  }, [state, inputId])
 
   async function send() {
     const name = itemName.trim()
@@ -77,6 +83,7 @@ export function ReportMissingItem({ businessUnitId, streamLabel }: ReportMissing
         <p className="kl-missing-error" role="alert">{t('kitchen.log.missing.error')}</p>
       )}
       <TextInput
+        id={inputId}
         label={t('kitchen.log.missing.label')}
         value={itemName}
         onChange={e => setItemName(e.target.value)}

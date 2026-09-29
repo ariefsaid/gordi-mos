@@ -3,7 +3,7 @@
 // headers. Same component, same anatomy (label above control, error under its control, footer
 // row) on desktop and phone, mirroring TaskCreateForm's grammar so every collection's create
 // flow reads as one system.
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Picker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,13 @@ export function CatalogCreateForm({ draft }: { draft: CatalogCreateDraft }) {
   const businessUnitErrorId = `${formId}-bu-error`
   const [attempted, setAttempted] = useState(false)
   const businessUnitFieldId = useRef(`${formId}-bu`).current
+
+  // The name field is disabled while saving, which drops focus; a failed save hands it back.
+  const wasAdding = useRef(false)
+  useEffect(() => {
+    if (wasAdding.current && !draft.adding && draft.error) document.getElementById(nameId)?.focus()
+    wasAdding.current = draft.adding
+  }, [draft.adding, draft.error, nameId])
 
   const label = draft.kind === 'objective' ? t('catalog.objectives.add') : t('catalog.projects.add')
   const nameMissing = attempted && !draft.name.trim()

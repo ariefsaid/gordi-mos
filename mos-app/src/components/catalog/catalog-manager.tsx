@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useId } from 'react'
+import { useState, useEffect, useCallback, useId, useRef } from 'react'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { Button } from '@/components/ui/button'
@@ -86,6 +86,13 @@ export function CatalogManager({
   }, [load])
 
   useEffect(() => { void refresh() }, [refresh])
+
+  // The name field is disabled while saving, which drops focus; a failed save hands it back.
+  const wasAdding = useRef(false)
+  useEffect(() => {
+    if (wasAdding.current && !adding && addError) document.getElementById(nameInputId)?.focus()
+    wasAdding.current = adding
+  }, [adding, addError, nameInputId])
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()

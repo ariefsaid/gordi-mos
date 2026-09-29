@@ -63,6 +63,22 @@ describe('CatalogManager', () => {
     expect(load).toHaveBeenCalledTimes(2) // mount + after-create refresh
   })
 
+  it('a failed add keeps the typed name and focus; a retry creates once', async () => {
+    const user = userEvent.setup()
+    setup({ create: vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue({}) })
+    await screen.findByText('No objectives yet')
+    await user.type(screen.getByLabelText('Name'), 'Q4 Push')
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+
+    expect(await screen.findByText('offline')).toBeInTheDocument()
+    const field = screen.getByLabelText('Name')
+    await waitFor(() => expect(field).toHaveFocus())
+    expect(field).toHaveValue('Q4 Push')
+
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await waitFor(() => expect(field).toHaveValue(''))
+  })
+
   it('AC-006: rename success persists; failure surfaces an error and stays editing', async () => {
     const user = userEvent.setup()
     const load = vi.fn<() => Promise<CatalogItem[]>>().mockResolvedValue([
