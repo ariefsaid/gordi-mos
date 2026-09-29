@@ -76,7 +76,7 @@ select is((select array_agg(name) from storage.objects where bucket_id = 'signal
   array[:'live' || '/00000000-0000-0000-0000-0000000210f1.jpg'],
   'the agent session neither renamed nor removed the photo, and added none');
 
--- ── an app session whose claims carry no client_id at all, and one with an empty org ─────────
+-- ── an app session whose claims carry other claims but no client_id ─────────────────────────
 select set_config('request.jwt.claims',
   '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"],"role":"authenticated"}', true);
 select is((select count(*)::int from storage.objects where bucket_id = 'signal-photos'), 1,
