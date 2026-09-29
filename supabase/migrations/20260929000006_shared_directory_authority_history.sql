@@ -35,8 +35,7 @@
 -- through the SNAPSHOT arm: the org-wide person_roles_select_org predicate (no role gate)
 -- evaluated over the captured columns, because the row itself is gone.
 -- shared.team_lead_assignments is also hard-deletable (the settings RPC clears a designation with
--- NULL), but per this batch's scope a delete row there — if one ever exists — fails closed until
--- its arm is wired.
+-- NULL) and its delete row reads through the admin tier over the snapshot's org.
 --
 -- DOWN (restore the pre-batch shape; the mechanism itself stays):
 --   drop trigger record_history_business_units on shared.business_units;
@@ -102,8 +101,8 @@
 -- theirs. Eight tables take the bare default (single uuid id); the two settings tables register
 -- their composite PKs (DA-1) — org_id first in both, so every record_key opens with its org uuid.
 -- org_id is on the mechanism's built-in exclude list, so it still never appears as a field diff.
--- The DELETE branch of the person_roles trigger is live: it is the schema's one authenticated
--- hard-delete. On team_lead_assignments the branch only records; no snapshot arm reads it yet.
+-- The DELETE branches of person_roles and team_lead_assignments are live: person_roles is the
+-- schema's one authenticated hard-delete; team_lead_assignments is cleared through the admin RPC.
 create trigger record_history_business_units
   after insert or update or delete on shared.business_units
   for each row execute function shared._record_history_write();
@@ -263,8 +262,7 @@ begin
   -- is evaluated against the captured snapshot columns. This batch names the schema's one
   -- authenticated hard-delete: person_roles (person_roles_delete_admin), whose read gate is the
   -- org-wide person_roles_select_org predicate — no role gate — over the snapshot. Every other
-  -- table in this batch stays fail closed on deletes (FR-013, NFR-007), including
-  -- team_lead_assignments' RPC-clear path until an arm is wired for it.
+  -- other tables in this batch stay fail closed on deletes (FR-013, NFR-007).
   if p_action = 'delete' then
     case
       when p_schema = 'shared' and p_table = 'person_roles' then

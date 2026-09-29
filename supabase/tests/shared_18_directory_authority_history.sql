@@ -232,14 +232,18 @@ select is((select new_value from shared.record_history
 -- No live rotation gate is simulated here (the directory fixture has no linked login for this
 -- person); the arm's self half is proven directly through the predicate function.
 -- No org_id in the claim: current_org_id() resolves NULL (the rotation-gate posture), the org
--- half is dead, and the self half is the only thing that can admit the read.
+-- half is dead, and the self half is the only thing that can admit the read — proven through the
+-- table's own RLS as the authenticated person, not by calling the predicate as the test owner.
+set local role authenticated;
 set local request.jwt.claims = '{"person_id":"00000000-0000-0000-0000-000000009975","access_roles":["member"]}';
-select is(shared.can_read_history_record('shared', 'people',
-           '00000000-0000-0000-0000-000000009975', 'insert', null),
-  true, 'a person reads their own row''s history through the arm''s self half');
-select is(shared.can_read_history_record('shared', 'people',
-           '00000000-0000-0000-0000-0000000000d1', 'insert', null),
-  false, '...and not another person''s history — the self half stops at the own row');
+select ok((select count(*)::int from shared.record_history
+           where schema_name = 'shared' and table_name = 'people'
+             and record_key = '00000000-0000-0000-0000-000000009975') >= 1,
+  'a person reads their own row''s history through RLS on the self half alone');
+select is((select count(*)::int from shared.record_history
+           where schema_name = 'shared' and table_name = 'people'
+             and record_key = '00000000-0000-0000-0000-0000000000d1'),
+  0, '...and not another person''s history — the self half stops at the own row');
 
 -- ── the composite history is read-gated: same org AND the admin tier ──────────────────────────
 -- The settings RPCs these tables expose are admin-only SECURITY DEFINER reads; their history
