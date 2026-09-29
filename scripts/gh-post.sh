@@ -12,7 +12,9 @@
 # reword the text or take it to the owner. Rationale: docs/decisions.md (2026-08-27).
 #
 # PR stamps checked on `pr create` (FOUR, OD-WAY-83):
-#   <git-dir>/pre-pr-verify-ok                    HEAD sha    (scripts/pre-pr-verify.sh)
+#   <git-dir>/pre-pr-verify-ok                    HEAD sha    (scripts/pre-pr-verify.sh; a PR with
+#                                                             --base dev may carry pre-pr-verify-dev-ok
+#                                                             from scripts/pre-pr-verify.sh --dev)
 #   <git-dir>/independent-review-<lens>-ok  ×3    per lens    (scripts/record-review.sh --lens …)
 #
 # Self-test: scripts/gh-post.test.sh
@@ -132,7 +134,12 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   [ "$base_val" = "staging" ] && [ "$(git branch --show-current)" = "main" ] && exec_promotion=1
   if [ "$exec_promotion" = 0 ]; then
   v="$(cat "$gitdir/pre-pr-verify-ok" 2>/dev/null || true)"
-  [ "$v" = "$head" ] || die "no verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh"
+  vd="$(cat "$gitdir/pre-pr-verify-dev-ok" 2>/dev/null || true)"
+  # The light stamp (scripts/pre-pr-verify.sh --dev) certifies a PR into dev only, where CI is the
+  # full-suite gate; any other base — main included, or none named — needs the full stamp.
+  if [ "$v" != "$head" ] && ! { [ "$base_val" = "dev" ] && [ "$vd" = "$head" ]; }; then
+    die "no verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh (a PR with --base dev may use: bash scripts/pre-pr-verify.sh --dev)"
+  fi
   # OD-WAY-83: three explicit lens records, each its own stamp on this exact HEAD.
   for lens in spec code-quality security; do
     r="$(awk '{print $1}' "$gitdir/independent-review-$lens-ok" 2>/dev/null || true)"
