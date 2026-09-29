@@ -16,7 +16,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -356,6 +356,29 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     // Once the error alert is shown the save has fired exactly once — now a deterministic check.
     expect(mockUpsert).toHaveBeenCalledOnce()
     // the edited row must still be on screen — no navigation on error
+    expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+  })
+
+  it('(#981) editor search keeps real typing intact, the URL follows, and clearing empties both', async () => {
+    const user = userEvent.setup({ delay: null })
+    function Probe() {
+      return <output aria-label="url">{useLocation().search}</output>
+    }
+    render(
+      <MemoryRouter initialEntries={['/cafe/plan']}>
+        <I18nProvider><KitchenPlanPage /><Probe /></I18nProvider>
+      </MemoryRouter>,
+    )
+    await screen.findByText('Ayam Bakar')
+    const box = screen.getByRole('searchbox', { name: /find an item to plan/i })
+    await user.type(box, 'nasi goreng')
+    expect(box).toHaveValue('nasi goreng')
+    expect(screen.getByRole('status', { name: 'url' })).toHaveTextContent('?q=nasi+goreng')
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+    await user.click(box)
+    await user.keyboard('{Control>}a{/Control}{Delete}')
+    expect(box).toHaveValue('')
+    expect(screen.getByRole('status', { name: 'url' })).toHaveTextContent(/^$/)
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
   })
 
