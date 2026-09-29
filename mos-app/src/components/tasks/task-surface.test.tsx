@@ -988,6 +988,9 @@ describe('TaskSurface — create mode', () => {
       fireEvent.focus(title)
       fireEvent.change(title, { target: { value: 'Doomed task' } })
       choosePickerOption('Supervisor', 'Cahya Cafe')
+      // The picker returns focus to its trigger once it closes; let that settle before the user
+      // moves on to the title, or it would steal focus back after the failed create.
+      await waitFor(() => expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveFocus())
       title.focus()
       fireEvent.click(screen.getByRole('button', { name: /create task/i }))
       await screen.findByRole('alert')
