@@ -162,3 +162,5 @@ jobs:
         run: bash scripts/worktree-npm-seed.test.sh
       - name: SECURITY DEFINER revoke lint self-test
         run: bash scripts/lint-security-definer.test.sh
+      - name: ci-e2e fair-use dispatch door self-test
+        run: bash scripts/ci-e2e.test.sh

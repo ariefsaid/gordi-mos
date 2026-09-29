@@ -3,6 +3,11 @@ name: integration
 on:
   push:
     branches: [main]
+  # On-demand full `db` run for any branch, dispatched ONLY through scripts/ci-e2e.sh (it enforces
+  # the fair-use rule: one dispatch at a time across repos, a per-day cap, one run per PR).
+  # Trade-off: a dispatch runs the BRANCH's code with this job's secrets, so only collaborators
+  # with write access can dispatch — the same trust as pushing a branch here.
+  workflow_dispatch:
   # integration is PR→main ONLY (PMO convention: dev/feature PRs run just `verify` + `db-contracts`;
   # the heavy full-stack gate belongs to the dev→main promotion PR + the post-merge push-to-main
   # smoke). On main-targeted PRs the job still runs ONLY when something it validates changes — DB/
@@ -34,6 +39,7 @@ on:
 #             rendered-geometry guards among it. Authoritative gate, and the only tier that
 #             renders a page.
 # push main   `verify` + `db`       — post-merge smoke.
+# dispatch    `db` alone            — on-demand full suite for one branch (scripts/ci-e2e.sh).
 #
 # HISTORY. Until now gordi had no DB test on dev PRs at all: `integration` was PR→main only, so
 # PRs #113–#117 ran `verify` alone and the 637 pgTAP tests — including every assertion written for
@@ -65,8 +71,8 @@ jobs:
   db:
     # Gated on base_ref rather than the trigger's branch list, so this job's condition alone
     # decides whether the expensive browser tier runs — it cannot accidentally start on a
-    # PR → dev, whatever branches the trigger above lists.
-    if: github.event_name == 'push' || github.base_ref == 'main'
+    # PR → dev, whatever branches the trigger above lists. A dispatch is an explicit request.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

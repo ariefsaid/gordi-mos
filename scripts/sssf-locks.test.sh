@@ -48,5 +48,12 @@ for w in db test; do
                  || bad "$w: expected 75 with guard stripped, got $rc"
 done
 
+# default path: with no override the test lock is the one shared with the sibling repo, under $HOME
+mkdir -p "$tmp/home"
+env -u MOS_TEST_LOCK -u MOS_TEST_LOCK_HELD HOME="$tmp/home" scripts/with-test-lock.sh true >/dev/null 2>&1
+[ -e "$tmp/home/.pmo-test.lock" ] && [ "$(ls -A "$tmp/home")" = ".pmo-test.lock" ] \
+  && ok "test: default lock (MOS_TEST_LOCK unset) is \$HOME/.pmo-test.lock" \
+  || bad "test: default lock is not \$HOME/.pmo-test.lock (found: $(ls -A "$tmp/home" | tr '\n' ' '))"
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

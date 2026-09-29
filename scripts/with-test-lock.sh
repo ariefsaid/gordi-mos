@@ -13,18 +13,18 @@
 # This serialises the test SUITE only. It is INDEPENDENT of the db lock (which
 # serialises DB work) — the unit suite is mocked and needs no stack, but two
 # suites hammering the same CPU/RAM is the contention. Cooperative: it only
-# works if ALL agents route heavy test runs through it. Scoped to this project
-# (own lock file), so sibling projects on this host are unaffected.
+# works if ALL agents route heavy test runs through it. The default path is shared with the
+# sibling repo (one heavy job at a time across both repos on this host).
 #
 # ── ACQUISITION ORDER (outermost first): db -> test ──────────────────────────
 # This is the INNERMOST lock — acquire it LAST (only after db if a command needs
 # both). See scripts/lib/flock-run.sh.
 #
-#   MOS_TEST_LOCK          override the lock path (default ~/.mos-test.lock)
+#   MOS_TEST_LOCK          override the lock path (default ~/.pmo-test.lock)
 #   MOS_TEST_LOCK_TIMEOUT  seconds to wait before giving up (default: wait forever)
 set -euo pipefail
 
-LOCK="${MOS_TEST_LOCK:-$HOME/.mos-test.lock}"
+LOCK="${MOS_TEST_LOCK:-$HOME/.pmo-test.lock}"
 TIMEOUT="${MOS_TEST_LOCK_TIMEOUT:-0}"
 
 if [ "$#" -eq 0 ]; then

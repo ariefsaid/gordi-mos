@@ -12,7 +12,19 @@
 # It never alters the verification exit status, and ledger append failures never fail that result.
 # Explicit exact-commit evidence: DESIGN_AUDIT_MODE=change-gate DESIGN_AUDIT_EVIDENCE_DIR=<dir>
 # bash scripts/pre-pr-verify.sh. Unset DESIGN_AUDIT_MODE for ordinary checks.
+#
+# --dev: the light battery for a PR into dev, where CI is the full-suite gate — typecheck, lint
+# and only the tests related to files changed vs the base. It writes pre-pr-verify-dev-ok, which
+# scripts/gh-post.sh accepts for `--base dev` only. The default full battery (pre-pr-verify-ok) is
+# what a PR into main needs.
 set -euo pipefail
+light=0
+for _a in "$@"; do
+  case "$_a" in
+    --dev) light=1 ;;
+    *) echo "usage: scripts/pre-pr-verify.sh [--dev]" >&2; exit 2 ;;
+  esac
+done
 script_root="$(cd "$(dirname "$0")/.." && pwd -P)"
 caller_root="$(git rev-parse --show-toplevel 2>/dev/null || :)"
 if [ -z "$caller_root" ] || [ "$(cd "$caller_root" && pwd -P)" != "$script_root" ]; then
@@ -26,6 +38,7 @@ gitdir="$(git rev-parse --git-dir)"
 ledger_dir="$(git rev-parse --path-format=absolute --git-common-dir)"
 started_at="$(date +%s)"
 mode=full
+[ "$light" = 1 ] && mode=light
 record_ledger() {
   local status=$? ended_at duration
   [ "$status" -eq 0 ] || mode=refused
@@ -45,17 +58,17 @@ audit_mode="${DESIGN_AUDIT_MODE:-ordinary}"
 case "$audit_mode" in
   ordinary|change-gate) ;;
   *)
-    rm -f "$gitdir/pre-pr-verify-ok"
+    rm -f "$gitdir/pre-pr-verify-ok" "$gitdir/pre-pr-verify-dev-ok"
     echo "✗ unknown DESIGN_AUDIT_MODE '$audit_mode' — unset it for ordinary checks or use change-gate" >&2
     exit 1
     ;;
 esac
 if [ "$audit_mode" = ordinary ] && [ -n "${DESIGN_AUDIT_EVIDENCE_DIR:-}" ]; then
-  rm -f "$gitdir/pre-pr-verify-ok"
+  rm -f "$gitdir/pre-pr-verify-ok" "$gitdir/pre-pr-verify-dev-ok"
   echo "✗ DESIGN_AUDIT_EVIDENCE_DIR requires DESIGN_AUDIT_MODE=change-gate" >&2
   exit 1
 fi
-rm -f "$gitdir/pre-pr-verify-ok"
+rm -f "$gitdir/pre-pr-verify-ok" "$gitdir/pre-pr-verify-dev-ok"
 echo "── pre-pr-verify @ ${head:0:8} ($(git rev-parse --abbrev-ref HEAD))"
 
 if [ -n "$(git status --porcelain)" ]; then
@@ -151,8 +164,21 @@ if [ "$app_touched" = 1 ]; then
   fi
   # The heavy section runs under the machine-global test lock: two concurrent batteries starve
   # each other into moving false REDs — and two full vitest pools OOM'd this host once already.
-  bash scripts/with-test-lock.sh bash -c \
-    'cd mos-app && npm run typecheck && npm run lint && npm run test:coverage && npm run build'
+  if [ "$light" = 1 ]; then
+    # Tests related to the changed app files only (deleted files cannot be passed). Changes
+    # outside mos-app/src (config, dependencies) are CI's to catch on a dev PR.
+    related=()
+    while IFS= read -r _f; do
+      [ -n "$_f" ] && related+=("${_f#mos-app/}")
+    done < <(git diff --name-only --diff-filter=d "$base"...HEAD -- 'mos-app/src/*.ts' 'mos-app/src/*.tsx')
+    echo "── light (--dev): typecheck, lint, tests related to ${#related[@]} changed file(s)"
+    bash scripts/with-test-lock.sh bash -c \
+      'cd mos-app && npm run typecheck && npm run lint && { [ "$#" -eq 0 ] || npm exec -- vitest related "$@" --run --passWithNoTests; }' \
+      _ ${related[@]+"${related[@]}"}
+  else
+    bash scripts/with-test-lock.sh bash -c \
+      'cd mos-app && npm run typecheck && npm run lint && npm run test:coverage && npm run build'
+  fi
 else
   mode=skipped
   echo "── every changed path proven inert — npm lane skipped (CI verify applies the same polarity)"
@@ -163,5 +189,6 @@ if [ "$(git rev-parse HEAD)" != "$head" ] || [ -n "$(git status --porcelain)" ];
   exit 1
 fi
 
-printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
-echo "✓ ALL GREEN — stamped ${head:0:8}"
+stamp=pre-pr-verify-ok; [ "$light" = 1 ] && stamp=pre-pr-verify-dev-ok
+printf '%s' "$head" > "$gitdir/$stamp"
+echo "✓ ALL GREEN — stamped ${head:0:8} ($stamp)"

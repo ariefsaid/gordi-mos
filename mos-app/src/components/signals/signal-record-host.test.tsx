@@ -264,6 +264,7 @@ describe('SignalRecordHost — retract and repost (P-22/OD-45, AC-412)', () => {
     // The dialog's accessible name comes from its own heading.
     const dialog = screen.getByRole('dialog', { name: /retract this signal/i })
     expect(within(dialog).getByRole('textbox', { name: /reason/i })).toBeRequired()
+    expect(within(dialog).getByRole('textbox', { name: /reason/i })).toHaveAttribute('maxlength', '500')
     expect(within(dialog).getByRole('button', { name: /retract/i })).toBeDisabled()
     await userEvent.type(within(dialog).getByRole('textbox', { name: /reason/i }), 'Wrong provenance')
     mockGetSignal.mockResolvedValueOnce({

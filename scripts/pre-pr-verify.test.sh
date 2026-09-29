@@ -8,6 +8,8 @@ SCRIPT="$(pwd)/scripts/pre-pr-verify.sh"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 pass=0; fail=0
+# Own lock file: the stubbed battery must never queue behind a real suite holding the machine lock.
+export MOS_TEST_LOCK="$tmp/test.lock"
 
 ok()   { pass=$((pass+1)); printf '  ok    %s\n' "$1"; }
 bad()  { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
@@ -232,6 +234,52 @@ scope_case "docs/scripts-only diff skips the npm lane" "scripts/some-guard.sh" n
 scope_case "mos-app diff runs the npm lane" "mos-app/vite.config.ts" yes
 scope_case "supabase diff runs the npm lane" "supabase/migrations/x.sql" yes
 scope_case "UNRECOGNIZED path runs the lane (allowlist polarity, rename-out class)" "shared/mod.ts" yes
+
+# ── --dev: the light battery for a PR into dev. Its own base ref (MOS_PR_BASE=lightbase) keeps
+# the origin/dev the later cases read untouched. npm records its argv so what ran is observable.
+light_log="$tmp/npm-light-argv.log"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s"\ncase "$*" in *"run typecheck"*) [ -e "%s/red-typecheck" ] && exit 1;; esac\nexit 0\n' "$light_log" "$tmp" > "$tmp/bin/npm"
+chmod +x "$tmp/bin/npm"
+DEV_STAMP="$tmp/repo/.git/pre-pr-verify-dev-ok"
+run_dev() { (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" MOS_PR_BASE=lightbase bash scripts/pre-pr-verify.sh "$@") >/dev/null 2>&1; }
+run_full_lb() { (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" MOS_PR_BASE=lightbase bash scripts/pre-pr-verify.sh) >/dev/null 2>&1; }
+G update-ref refs/remotes/origin/lightbase "$(G rev-parse HEAD)"
+mkdir -p "$tmp/repo/mos-app/src"
+echo "export const a = 1" > "$tmp/repo/mos-app/src/light-a.ts"
+echo "export {}" > "$tmp/repo/mos-app/src/light-a.test.ts"
+G add mos-app/src/light-a.ts mos-app/src/light-a.test.ts; G commit -qm "light: app source + its test"
+: > "$light_log"; rm -f "$STAMP" "$DEV_STAMP"
+if run_dev --dev; then ok "--dev battery passes"; else bad "--dev battery must pass"; fi
+[ "$(cat "$DEV_STAMP" 2>/dev/null)" = "$(G rev-parse HEAD)" ] && ok "--dev stamps pre-pr-verify-dev-ok with HEAD" || bad "--dev wrote no dev stamp for HEAD"
+[ ! -e "$STAMP" ] && ok "--dev does NOT write the full stamp" || bad "--dev wrote the full stamp — a light run would satisfy a PR into main"
+grep -q '^run typecheck' "$light_log" && grep -q '^run lint' "$light_log" && ok "--dev runs typecheck and lint" || bad "--dev skipped typecheck or lint"
+grep -q 'exec -- vitest related .*src/light-a\.ts' "$light_log" && grep -q 'exec -- vitest related .*src/light-a\.test\.ts' "$light_log" \
+  && ok "--dev runs vitest related on the changed source and test files" || bad "--dev did not run vitest related on the changed files: $(grep vitest "$light_log")"
+! grep -q -e 'test:coverage' -e '^run build' "$light_log" && ok "--dev runs neither the coverage suite nor the build" || bad "--dev ran the full suite or the build"
+[ "$(tail -n 1 "$tmp/repo/.git/verify-ledger.log" | cut -f3)" = light ] && ok "--dev records ledger mode light" || bad "--dev ledger mode is not light"
+
+: > "$light_log"
+if run_full_lb; then ok "full battery still passes after a light run"; else bad "full battery must pass"; fi
+[ "$(cat "$STAMP" 2>/dev/null)" = "$(G rev-parse HEAD)" ] && [ ! -e "$DEV_STAMP" ] && ok "a full run writes the full stamp and clears the light one" || bad "full run left stamps wrong (full=$([ -e "$STAMP" ] && echo yes || echo no) dev=$([ -e "$DEV_STAMP" ] && echo yes || echo no))"
+grep -q '^run test:coverage' "$light_log" && grep -q '^run build' "$light_log" && ok "the default mode still runs coverage and build" || bad "default mode lost coverage/build"
+run_dev --dev
+[ ! -e "$STAMP" ] && [ -e "$DEV_STAMP" ] && ok "a light run clears the full stamp (never both)" || bad "light run left a stale full stamp"
+
+touch "$tmp/red-typecheck"; rm -f "$DEV_STAMP"
+if run_dev --dev; then bad "--dev with a red typecheck must refuse"; else ok "--dev with a red typecheck refuses"; fi
+[ ! -e "$DEV_STAMP" ] && [ ! -e "$STAMP" ] && ok "no stamp after a red --dev battery" || bad "stamp written over a red --dev battery"
+rm -f "$tmp/red-typecheck"
+
+G update-ref refs/remotes/origin/lightbase "$(G rev-parse HEAD)"
+echo "// cfg $RANDOM" >> "$tmp/repo/mos-app/vite.config.ts"; G add mos-app/vite.config.ts; G commit -qm "light: config-only change"
+: > "$light_log"; rm -f "$DEV_STAMP"
+run_dev --dev
+grep -q '^run typecheck' "$light_log" && ! grep -q 'vitest' "$light_log" && [ -e "$DEV_STAMP" ] \
+  && ok "--dev with no related source files runs no tests and still stamps" || bad "--dev config-only case wrong: $(cat "$light_log")"
+
+if (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" bash scripts/pre-pr-verify.sh --nope) >/dev/null 2>&1; then bad "unknown flag must refuse"; else ok "unknown flag refuses"; fi
+printf '#!/bin/sh\necho called >> "%s/npm-calls"\nexit 0\n' "$tmp" > "$tmp/bin/npm"; chmod +x "$tmp/bin/npm"
+rm -f "$STAMP" "$DEV_STAMP"
 
 # Ordinary production UI changes still run Impeccable and the normal app battery, but do not
 # require the full exact-commit evidence directory. An explicit audit mode is tested separately
