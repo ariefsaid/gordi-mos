@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { PersonPicker } from './person-picker'
 import type { PersonOption } from '@/lib/db/directory'
 
@@ -11,6 +13,18 @@ const people: PersonOption[] = [
 ]
 
 describe('PersonPicker', () => {
+  it('renders in a portaled popover layer with a height-capped, list-only scroll', () => {
+    render(<div data-testid="host"><PersonPicker people={people} onSelect={vi.fn()} onClose={vi.fn()} /></div>)
+    const content = screen.getByRole('listbox').closest('.person-picker')
+    expect(content).not.toBeNull()
+    expect(screen.getByTestId('host')).not.toContainElement(content as HTMLElement)
+    expect(content?.closest('[data-radix-popper-content-wrapper]')).not.toBeNull()
+    const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TaskSurface.css'), 'utf8')
+    expect(css).toMatch(/\.person-picker \{[^}]*flex-direction: column;[^}]*max-height: [^;]*--radix-popover-content-available-height/)
+    expect(css).toMatch(/\.person-picker-list \{[^}]*min-height: 0;[^}]*overflow-y: auto/)
+    expect(css).not.toMatch(/\.person-picker \{[^}]*position: absolute/)
+  })
+
   it('lists selectable people and excludes the given ids', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()

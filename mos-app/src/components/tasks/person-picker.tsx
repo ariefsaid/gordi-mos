@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type RefObject } from 'react'
 import { Command } from 'cmdk'
+import * as Popover from '@radix-ui/react-popover'
 import type { PersonOption } from '@/lib/db/directory'
 import { useT } from '@/i18n/use-t'
 import { initials } from './task-formatters'
@@ -10,9 +11,11 @@ export type PersonPickerProps = {
   onSelect: (id: string) => void
   onClose: () => void
   exclude?: string[]
+  // The element the picker serves (e.g. the composer textarea); without one it anchors where it renders.
+  anchorRef?: RefObject<HTMLElement | null>
 }
 
-export function PersonPicker({ people, onSelect, onClose, exclude = [] }: PersonPickerProps) {
+export function PersonPicker({ people, onSelect, onClose, exclude = [], anchorRef }: PersonPickerProps) {
   const t = useT()
   const available = people.filter(person => !exclude.includes(person.id))
   // Captured during the first render, before the search input takes focus.
@@ -32,37 +35,55 @@ export function PersonPicker({ people, onSelect, onClose, exclude = [] }: Person
     return name.includes(needle) ? 0.5 : 0
   }
 
+  const closeWithFocus = () => { restoreFocus(); onClose() }
+
   return (
-    <Command
-      label={t('tasks.people.select')}
-      className="person-picker"
-      filter={filter}
-      value={active}
-      onValueChange={setActive}
-      disablePointerSelection
-      loop
-      onKeyDown={(event) => {
-        if (event.key !== 'Escape') return
-        event.stopPropagation()
-        restoreFocus()
-        onClose()
-      }}
-    >
-      <Command.Input className="person-picker-search" autoFocus aria-label={t('tasks.people.select')} />
-      <Command.List label={t('tasks.people.select')}>
-        <Command.Empty className="person-picker-empty">{t('tasks.people.none')}</Command.Empty>
-        {available.map(person => (
-          <Command.Item
-            key={person.id}
-            value={person.id}
-            className="person-picker-option"
-            onSelect={() => { onSelect(person.id); restoreFocus(); onClose() }}
+    <Popover.Root open onOpenChange={(next) => { if (!next) onClose() }}>
+      {anchorRef ? <Popover.Anchor virtualRef={anchorRef} /> : <Popover.Anchor className="person-picker-anchor" />}
+      <Popover.Portal>
+        <Popover.Content
+          side="bottom"
+          align="start"
+          sideOffset={6}
+          collisionPadding={12}
+          data-escape-layer="nested"
+          className="person-picker"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          onCloseAutoFocus={(event) => event.preventDefault()}
+          onEscapeKeyDown={(event) => event.preventDefault()}
+        >
+          <Command
+            label={t('tasks.people.select')}
+            className="person-picker__command"
+            filter={filter}
+            value={active}
+            onValueChange={setActive}
+            disablePointerSelection
+            loop
+            onKeyDown={(event) => {
+              if (event.key !== 'Escape') return
+              event.stopPropagation()
+              closeWithFocus()
+            }}
           >
-            <span className="person-av" aria-hidden="true">{initials(person.full_name)}</span>
-            <span className="person-picker-label">{person.full_name}</span>
-          </Command.Item>
-        ))}
-      </Command.List>
-    </Command>
+            <Command.Input className="person-picker-search" autoFocus aria-label={t('tasks.people.select')} />
+            <Command.List className="person-picker-list" label={t('tasks.people.select')}>
+              <Command.Empty className="person-picker-empty">{t('tasks.people.none')}</Command.Empty>
+              {available.map(person => (
+                <Command.Item
+                  key={person.id}
+                  value={person.id}
+                  className="person-picker-option"
+                  onSelect={() => { onSelect(person.id); closeWithFocus() }}
+                >
+                  <span className="person-av" aria-hidden="true">{initials(person.full_name)}</span>
+                  <span className="person-picker-label">{person.full_name}</span>
+                </Command.Item>
+              ))}
+            </Command.List>
+          </Command>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   )
 }

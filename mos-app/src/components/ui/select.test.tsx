@@ -16,6 +16,26 @@ function openSelect() {
 }
 
 describe('Select (primitive)', () => {
+  it('writes the exact value of an option that equals a reserved-looking key', async () => {
+    const user = userEvent.setup()
+    let changedValue = ''
+    const onChange = vi.fn((event: React.ChangeEvent<HTMLSelectElement>) => { changedValue = event.target.value })
+    render(
+      <Select label="Pick" value="apple" onChange={onChange}>
+        <option value="apple">Apple</option>
+        <option value="">None</option>
+        <option value="__mk-select-empty__">Sentinel lookalike</option>
+        <option value="none">Literal none</option>
+        <option value="1">Numeric</option>
+      </Select>,
+    )
+    for (const [name, expected] of [['Sentinel lookalike', '__mk-select-empty__'], ['Literal none', 'none'], ['Numeric', '1']]) {
+      await openSelect()
+      await user.click(screen.getByRole('option', { name }))
+      expect(changedValue).toBe(expected)
+    }
+  })
+
   it('renders a designed combobox and exposes its options through an anchored listbox', async () => {
     render(
       <Select value="apple" aria-label="Choose fruit" data-testid="select">

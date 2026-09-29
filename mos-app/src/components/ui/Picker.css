@@ -50,7 +50,11 @@
   font-family: var(--font-sans);
   font-size: var(--font-size-body);
   outline: none;
+  display: flex;
+  flex-direction: column;
+  max-height: min(360px, var(--radix-popover-content-available-height, 360px));
 }
+.picker__command { display: flex; flex-direction: column; min-height: 0; }
 .picker__search {
   box-sizing: border-box;
   width: 100%;
@@ -66,7 +70,7 @@
 }
 .picker__search:focus-visible { border-color: var(--primary); outline: 2px solid var(--ring); outline-offset: 1px; }
 .picker__list {
-  max-height: min(280px, var(--radix-popover-content-available-height, 280px));
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
 }

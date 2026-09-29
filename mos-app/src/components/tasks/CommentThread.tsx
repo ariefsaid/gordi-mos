@@ -155,6 +155,7 @@ export function CommentThread({
           {showMentionPicker && (
             <PersonPicker
               people={people}
+              anchorRef={textareaRef}
               onSelect={insertMention}
               onClose={() => setPickerDismissed(true)}
             />

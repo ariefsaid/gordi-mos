@@ -221,6 +221,7 @@ export function Picker({
             }}
           >
             <Command
+              className="picker__command"
               label={t('ui.picker.filter', { label })}
               filter={filter}
               value={active}

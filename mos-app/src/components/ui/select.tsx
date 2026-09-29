@@ -118,10 +118,14 @@ function setNativeSelectValue(select: HTMLSelectElement, value: string) {
   select.dispatchEvent(new Event('change', { bubbles: true }))
 }
 
-// Radix items cannot carry an empty value, so the "no choice" option travels under a sentinel.
-const EMPTY = '__mk-select-empty__'
-const encode = (value: string) => (value === '' ? EMPTY : value)
-const decode = (value: string) => (value === EMPTY ? '' : value)
+// Radix items cannot carry an empty value, and option values are free text, so every option
+// travels under its index; a value with no option maps to a non-numeric key no index can equal.
+const NO_OPTION = 'none'
+const encodeValue = (options: readonly ParsedOption[], value: string) => {
+  const index = options.findIndex((option) => option.value === value)
+  return index < 0 ? NO_OPTION : String(index)
+}
+const decodeValue = (options: readonly ParsedOption[], key: string) => options[Number(key)]?.value ?? ''
 
 export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select(
   {
@@ -237,8 +241,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
       {label && <label className="mk-select__label" htmlFor={selectId}>{label}</label>}
       <div className="mk-select__box">
         <RadixSelect.Root
-          value={encode(selectedValue)}
-          onValueChange={(next) => selectValue(decode(next))}
+          value={encodeValue(options, selectedValue)}
+          onValueChange={(next) => selectValue(decodeValue(options, next))}
           disabled={disabled}
           onOpenChange={(next) => { menuOpen.current = next }}
         >
@@ -294,7 +298,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                   return (
                     <RadixSelect.Item
                       key={`${option.value}-${index}`}
-                      value={encode(option.value)}
+                      value={String(index)}
                       disabled={option.disabled}
                       textValue={option.label}
                       className="mk-select__option"
