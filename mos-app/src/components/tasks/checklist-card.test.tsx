@@ -119,6 +119,50 @@ describe('ChecklistCard', () => {
     expect(input).toHaveValue('Milk')
   })
 
+  // #969: Retry re-sends the FAILED label; editing the field before clicking it must not lose the edit.
+  async function failAdd(label: string) {
+    const onAdd = vi.fn().mockRejectedValue(new Error('save failed'))
+    const props = { items: [], canEdit: true, taskId: 't', viewerId: 'v', onAdd, onToggle: () => {}, onReorder: () => {}, onDelete: () => {} }
+    const view = render(<ChecklistCard {...props} />)
+    const input = screen.getByLabelText(/add checklist item/i)
+    fireEvent.change(input, { target: { value: label } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(onAdd).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    return { view, props, input }
+  }
+
+  it('Ticket #969: an edit made after the failure survives a successful Retry (red-first)', async () => {
+    const { view, props, input } = await failAdd('Buy beans')
+    const onRetry = vi.fn().mockResolvedValue(undefined)
+    view.rerender(<ChecklistCard {...props} saveError={{ message: 'Could not save', onRetry }} />)
+    fireEvent.change(input, { target: { value: 'Milk' } })
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(onRetry).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(input).toHaveValue('Milk')
+  })
+
+  it('Ticket #969: an edit made while a deferred Retry is unresolved survives its resolution (red-first)', async () => {
+    const { view, props, input } = await failAdd('Buy beans')
+    let resolve!: () => void
+    const onRetry = vi.fn(() => new Promise<void>((r) => { resolve = r }))
+    view.rerender(<ChecklistCard {...props} saveError={{ message: 'Could not save', onRetry }} />)
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+    fireEvent.change(input, { target: { value: 'Milk' } })
+    resolve()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(input).toHaveValue('Milk')
+  })
+
+  it('Ticket #969: a successful Retry still clears the field when it holds the failed label', async () => {
+    const { view, props, input } = await failAdd('Buy beans')
+    const onRetry = vi.fn().mockResolvedValue(undefined)
+    view.rerender(<ChecklistCard {...props} saveError={{ message: 'Could not save', onRetry }} />)
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(input).toHaveValue(''))
+  })
+
   it('disables the checkbox when canEdit=false', () => {
     render(
       <ChecklistCard items={items(['Step A'])} canEdit={false} taskId="t" viewerId="v"
