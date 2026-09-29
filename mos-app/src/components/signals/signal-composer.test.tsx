@@ -220,6 +220,7 @@ describe('SignalComposer — safe retry after a failed post (CQ IMPORTANT-1)', (
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/fan-out exceeds cap/i)
     expect(body).toHaveValue('The freezer alarm went off')
+    expect(body).toHaveFocus()
     expect(shareButton).toBeEnabled()
 
     mockCreateSignal.mockResolvedValueOnce('signal-new')
