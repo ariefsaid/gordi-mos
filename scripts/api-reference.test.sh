@@ -57,8 +57,9 @@ cat > "$tmp/catalog.json" <<'JSON'
  {"name":"create_task","comment":"Purpose: make a task. Inputs: title. Returns: {item, replayed}. Errors: invalid_input.","args":[{"name":"title","type":"text","required":true},{"name":"note","type":"text","required":false}]}]
 JSON
 MOS_API_CATALOG_JSON="$tmp/catalog.json" bash scripts/api-reference.sh --out "$tmp/out.md" > /dev/null
-if grep -q '^### `create_task`' "$tmp/out.md" && grep -q '"title": "<text>"' "$tmp/out.md" && ! grep -q '"note"' "$tmp/out.md"; then
-  ok "generator renders sections and the minimal body (required parameters only)"
+if grep -q '^### `create_task`' "$tmp/out.md" && grep -q 'Required parameters as a JSON skeleton' "$tmp/out.md" \
+   && grep -q '"title": "<text>"' "$tmp/out.md" && ! grep -q '"note"' "$tmp/out.md"; then
+  ok "generator renders sections and the required-parameter skeleton"
 else
   bad "generator output for the fixture is wrong"
 fi
