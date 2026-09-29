@@ -3,7 +3,7 @@
 -- register (or a delete row before its snapshot arm exists) is unreadable by everyone.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(8);
+select plan(9);
 
 select shared._test_seed_directory();
 
@@ -58,6 +58,18 @@ select is((select count(*)::int from shared.record_history where table_name = 'w
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
 select is((select count(*)::int from shared.record_history where table_name = 'weekly_updates'),
   0, 'AC-008: an unregistered table''s history row is unreadable (fail closed, admin)');
+
+-- ── an archived record's history stays readable by its org (the row still exists) ────────────
+reset role;
+set local request.jwt.claims = '';
+update mos.objectives set archived_at = now()
+where id = '00000000-0000-0000-0000-000000009905';
+
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select is((select count(*)::int from shared.record_history
+           where record_key = '00000000-0000-0000-0000-000000009905'),
+  2, 'an org member reads an archived Objective''s insert and archive rows');
 
 -- ── NFR-007: a delete row is unreadable until its snapshot arm is registered ─────────────────
 reset role;

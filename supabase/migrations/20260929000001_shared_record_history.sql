@@ -205,15 +205,22 @@ as $$
 begin
   if p_action in ('insert', 'update') then
     case
+      -- The registered key of every arm below is a bare uuid (DA-1's id::text shape), so the
+      -- stored key is cast BACK to uuid against the PK — index-preserving, per the review of
+      -- this migration. The shape test keeps a malformed stored key fail-closed (no row) instead
+      -- of erroring the whole policy query. A future composite-key table (DA-1) whose key is not
+      -- one uuid registers a plain text-comparison arm instead.
       when p_schema = 'mos' and p_table = 'objectives' then
         return exists (
           select 1 from mos.objectives o
-          where o.id::text = p_record_key
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and o.id = p_record_key::uuid
             and o.org_id = shared.current_org_id());
       when p_schema = 'mos' and p_table = 'work_lines' then
         return exists (
           select 1 from mos.work_lines w
-          where w.id::text = p_record_key
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and w.id = p_record_key::uuid
             and w.org_id = shared.current_org_id());
       else
         return false;

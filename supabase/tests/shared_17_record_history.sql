@@ -4,7 +4,7 @@
 -- mos_24_objective_worklines_history's file.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(47);
+select plan(51);
 
 select shared._test_seed_directory();
 
@@ -114,6 +114,31 @@ select is((select old_value from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009901'
              and field_name = 'name' and new_value = '00000000-0000-0000-0000-0000000000d1'),
   'Beta', 'the person-id-shaped value rode the changed field, not the actor column');
+
+-- ── authenticated CREATE and ARCHIVE (the seed path alone is not the contract) ───────────────
+insert into mos.objectives (id, org_id, name)
+values ('00000000-0000-0000-0000-000000009904', '00000000-0000-0000-0000-0000000000a1', 'Made By Admin');
+select is((select actor_person_id::text from shared.record_history
+           where record_key = '00000000-0000-0000-0000-000000009904' and action = 'insert'),
+  '00000000-0000-0000-0000-0000000000d3',
+  'an authenticated CREATE stamps the session''s person claim as the actor');
+insert into mos.work_lines (id, org_id, name, type, objective_id)
+values ('00000000-0000-0000-0000-000000009908', '00000000-0000-0000-0000-0000000000a1', 'Made By Admin Line', 'project',
+        '00000000-0000-0000-0000-000000009901');
+select is((select actor_person_id::text from shared.record_history
+           where record_key = '00000000-0000-0000-0000-000000009908' and action = 'insert'),
+  '00000000-0000-0000-0000-0000000000d3',
+  'an authenticated Project/Process CREATE stamps the same claim');
+update mos.objectives set archived_at = now()
+where id = '00000000-0000-0000-0000-000000009904';
+select is((select (old_value is null and new_value is not null) from shared.record_history
+           where record_key = '00000000-0000-0000-0000-000000009904' and field_name = 'archived_at'),
+  true, 'archiving an Objective appends one archived_at row, null → timestamp');
+update mos.work_lines set archived_at = now()
+where id = '00000000-0000-0000-0000-000000009908';
+select is((select (old_value is null and new_value is not null) from shared.record_history
+           where record_key = '00000000-0000-0000-0000-000000009908' and field_name = 'archived_at'),
+  true, 'archiving a Project/Process appends the same archived_at row');
 
 -- ── FR-006/NFR-003: append-only by grant shape — no role writes history directly ─────────────
 select throws_ok($$
