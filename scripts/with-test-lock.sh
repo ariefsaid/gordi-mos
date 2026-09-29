@@ -21,11 +21,11 @@
 # both). See scripts/lib/flock-run.sh.
 #
 #   MOS_TEST_LOCK          override the lock path (default ~/.pmo-test.lock)
-#   MOS_TEST_LOCK_TIMEOUT  seconds to wait before giving up (default: wait forever)
+#   MOS_TEST_LOCK_TIMEOUT  seconds to wait before giving up (default 2700 = 45 min; 0 = forever)
 set -euo pipefail
 
 LOCK="${MOS_TEST_LOCK:-$HOME/.pmo-test.lock}"
-TIMEOUT="${MOS_TEST_LOCK_TIMEOUT:-0}"
+TIMEOUT="${MOS_TEST_LOCK_TIMEOUT:-2700}"
 
 if [ "$#" -eq 0 ]; then
   echo "usage: $0 <command...>   (wraps a heavy test-suite command in the shared lock)" >&2
