@@ -580,9 +580,11 @@ describe('SignalRecordHost — Create follow-up Task (canonical Task composer, P
     await waitFor(() => expect(screen.queryByRole('button', { name: /retry link/i })).not.toBeInTheDocument())
   })
 
-  // AC-051: the success path — Create pops the composer back to the Signal (never navigates to
-  // /work/tasks), and the new Task appears under Linked work with its status.
-  it('AC-051: a successful create pops back to the Signal with the new Task under Linked work', async () => {
+  // AC-051: the success path, driven through the REAL overlay-host panel stack (not the
+  // no-host local-composer fallback `renderHost()` exercises) — Create pushes onto that stack
+  // and `host.back()` pops it back to the Signal, never navigating to /work/tasks, and the new
+  // Task appears under Linked work with its status.
+  it('AC-051: a successful create pops back to the Signal (via the real overlay-host stack) with the new Task under Linked work', async () => {
     mockGetPersonTeams.mockResolvedValue([{
       id: TEAM_ID,
       name: 'HQ Operations',
@@ -590,19 +592,41 @@ describe('SignalRecordHost — Create follow-up Task (canonical Task composer, P
       siteId: 'site-1',
       orgId: 'org-1',
     }])
-    mockLinkSignalTask.mockResolvedValue(undefined)
-    // refreshTaskProjection's re-read of the Signal after a successful link — the created Task
-    // is now under signal_tasks; readTaskTitlesByIds resolves it in the same follow-up read.
-    mockGetSignal.mockResolvedValueOnce({
-      signal: baseSignal, mentions: [], acknowledgements: [], tasks: [],
-    }).mockResolvedValueOnce({
-      signal: baseSignal, mentions: [], acknowledgements: [],
-      tasks: [{ id: 'st-new', signal_id: SIGNAL_ID, task_id: 'task-created', created_by: VIEWER_ID }],
+    let linked = false
+    mockLinkSignalTask.mockImplementation(async () => { linked = true })
+    // The real overlay-host stack (unlike the no-host local-composer fallback) can re-mount the
+    // Signal frame on pop, issuing more `getSignal` reads than a single push/pop would — key the
+    // fixture off whether the link has actually happened yet, rather than a brittle call count,
+    // so the assertion holds regardless of exactly how many reads the host's own pop triggers.
+    mockGetSignal.mockImplementation(async () => linked
+      ? {
+        signal: baseSignal, mentions: [], acknowledgements: [],
+        tasks: [{ id: 'st-new', signal_id: SIGNAL_ID, task_id: 'task-created', created_by: VIEWER_ID }],
+      }
+      : { signal: baseSignal, mentions: [], acknowledgements: [], tasks: [] })
+    mockGetTaskTitlesByIds.mockImplementation(async (ids: readonly string[]) => ids.includes('task-created')
+      ? [{ id: 'task-created', title: 'The freezer alarm went off', status: 'Open' }]
+      : [])
+
+    let api: OverlayHostApi | null = null
+    function Archive() { api = useOverlayHost(); return <><h1>Signals</h1><OverlayHostSlot owner="signals" floating /></> }
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/work/signals']}>
+          <OverlayHostProvider>
+            <Routes><Route path="/work/signals" element={<Archive />} /></Routes>
+            <LocationProbe />
+          </OverlayHostProvider>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    await act(async () => {
+      await api!.openRoot({
+        key: 'signal:signal-1', owner: 'signals', tenant: 'record', label: 'Signal', title: 'Signal',
+        pageTo: '/work/signals/signal-1',
+        content: <SignalRecordHost signalId={SIGNAL_ID} mode="panel" />,
+      }, 'route')
     })
-    mockGetTaskTitlesByIds.mockResolvedValueOnce([
-      { id: 'task-created', title: 'The freezer alarm went off', status: 'Open' },
-    ])
-    renderHost()
     await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
 
     const createTrigger = screen.getByRole('button', { name: /create task/i })
@@ -616,15 +640,21 @@ describe('SignalRecordHost — Create follow-up Task (canonical Task composer, P
     await waitFor(() => expect(mockLinkSignalTask).toHaveBeenCalledWith(SIGNAL_ID, 'task-created'))
     // Never navigates to the Tasks collection — the composer just pops off the Signal.
     expect(screen.getByTestId('location')).not.toHaveTextContent('/work/tasks')
-    // Back on the Signal: the composer is gone, the new Task reads as a Linked-work row.
+    // Back on the Signal (popped off the overlay stack, not a local-composer unmount): the
+    // composer is gone, the new Task reads as a Linked-work row.
     await waitFor(() => expect(screen.queryByRole('textbox', { name: /^title$/i })).not.toBeInTheDocument())
+    expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument()
     const reach = document.querySelector('[data-signal-region="reach"]') as HTMLElement
     const newRow = await within(reach).findByRole('link', { name: /The freezer alarm went off.*Open/i })
     expect(newRow).toHaveAttribute('href', '/work/tasks/task-created')
-    // Focus lands somewhere real and operable, not dropped to <body> — the composer's own
-    // launcher, which the shared overlay/panel-close convention already returns focus to.
+    // Honest current behavior, not the AC's ideal (focus on the new row): popping the real
+    // overlay-host stack back to the top-level Signal frame lands focus on the panel's own
+    // Close control — the shared RecordPanelHost's pop convention, not something this host
+    // chooses. Landing focus on the newly linked row instead would need a row-ref map plus an
+    // effect racing that shared convention — more than a small change, so it stays deferred
+    // rather than silently asserted as done.
     expect(document.activeElement).not.toBe(document.body)
-    expect(document.activeElement).toBe(createTrigger)
+    expect(document.activeElement).toHaveAttribute('aria-label', 'Close')
   })
 })
 
