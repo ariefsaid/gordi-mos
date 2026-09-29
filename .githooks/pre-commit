@@ -63,8 +63,11 @@ else
   # `--changed HEAD` is the one form that takes the whole set in a single invocation; it
   # spans working-tree edits too, which is a superset of what is staged.
   SRC_FILES="$(echo "$STAGED" | grep -E '^mos-app/src/.*\.(ts|tsx)$' || true)"
+  # Under the machine-wide heavy-test lock with a worker cap: commits in parallel worktrees
+  # (and the sibling repo) otherwise run full-width suites at once and time each other out.
   if [ -n "$SRC_FILES" ]; then
-    if (cd mos-app && npx vitest --run --changed HEAD); then
+    if VITEST_MAX_THREADS="${VITEST_MAX_THREADS:-2}" bash "$(dirname "$0")/../scripts/with-test-lock.sh" \
+      bash -c 'cd mos-app && npx vitest --run --changed HEAD'; then
       ok "vitest: tests for changed sources pass"
     else
       note "tests for changed sources FAIL — a task is not done until they pass"
