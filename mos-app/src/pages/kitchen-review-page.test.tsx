@@ -58,6 +58,12 @@ import { fetchDefaultStream } from '@/lib/db/default-stream'
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
 import { getPeople } from '@/lib/db/directory'
 
+// #783 AC-051: canDecide/canConfirmSelected now read a supervisor's FULL current stream-Team
+// membership (not only her primary) — same read useCafeStream already runs for "Your Team".
+// Empty by default; tests proving multi-stream decide rights override it.
+vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn() }))
+import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
+
 // resolveDefaultCaptureStream (OD-WAY-28) reads the live branch catalog to resolve the
 // stream the plan read is scoped to (kitchen-review-page.tsx fetchQueue) — un-mocked, it
 // hits Supabase for real and every fetch lands in the error state. Same fixture shape as
@@ -177,6 +183,9 @@ beforeEach(() => {
   ])
   // #238: no stream has been confirmed complete unless a test says so.
   mockCompleteness.mockResolvedValue([])
+  // #783 AC-051: no extra current-membership streams unless a test says so — her primary
+  // (mockDefaultStream) alone still decides for her, matching every existing supervisor test.
+  vi.mocked(listCafeViewerTeams).mockResolvedValue([])
 })
 
 describe('KitchenReviewPage — role gate (FR-003/044)', () => {
@@ -391,22 +400,40 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     // re-fetched the queue (now empty)
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2))
   })
-  it('AC-040: off-plan approve reveals a required note + blocks until filled', async () => {
-    // folded from the retired kitchen-review-row suite (the page now owns the row)
-    mockList.mockResolvedValue([PROD_LOG]) // qty 8
-    mockPlan.mockResolvedValue({ w1: { produce: 12 } }) // plan 12 → off-plan
+  it('AC-040/issue 783 AC-052: off-plan + the submitter left NO note → approve reveals a required note + blocks until filled', async () => {
+    // folded from the retired kitchen-review-row suite (the page now owns the row); XFER_LOG's
+    // own `notes` is null, so this is the case a reviewer note is genuinely the only account of
+    // why the row differs from plan.
+    mockList.mockResolvedValue([XFER_LOG]) // qty 42, no submitter note
+    mockPlan.mockResolvedValue({ w2: { [`transfer:${RADIANT_ID}`]: 30 } }) // plan 30 → off-plan
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-010' })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Cold Brew')
+    fireEvent.click(screen.getByRole('button', { name: /approve cold brew/i }))
+    // first click reveals the note gate, does NOT approve
+    expect(mockApprove).not.toHaveBeenCalled()
+    const note = screen.getByRole('textbox', { name: /approve note for cold brew/i })
+    fireEvent.change(note, { target: { value: 'short on stock' } })
+    // #400 v4 copy: the confirm names the OBJECT ("Approve Cold Brew"), never a bare
+    // "Confirm approve" — same matcher as the idle button because the gate replaces it.
+    fireEvent.click(screen.getByRole('button', { name: /approve cold brew/i }))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-xfer', 'short on stock'))
+  })
+
+  // #783 AC-052 (DB half #778): the submitter's OWN note already accounts for the variance —
+  // a second, reviewer-authored note repeating the same fact was a redundant blocking prompt
+  // on every off-plan approval, not a real safeguard. PROD_LOG's fixture note ('kurang bahan')
+  // is exactly this case.
+  it('issue 783 AC-052: off-plan + the submitter LEFT a note → approve commits immediately, no prompt', async () => {
+    mockList.mockResolvedValue([PROD_LOG]) // qty 8, submitter note 'kurang bahan'
+    mockPlan.mockResolvedValue({ w1: { produce: 12 } }) // plan 12 → off-plan
+    mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-011' })
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
-    // first click reveals the note gate, does NOT approve
-    expect(mockApprove).not.toHaveBeenCalled()
-    const note = screen.getByRole('textbox', { name: /approve note for nasi goreng/i })
-    fireEvent.change(note, { target: { value: 'short on stock' } })
-    // #400 v4 copy: the confirm names the OBJECT ("Approve Nasi Goreng"), never a bare
-    // "Confirm approve" — same matcher as the idle button because the gate replaces it.
-    fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', 'short on stock'))
+    // no note gate — the submitter's own note already explains the variance
+    expect(screen.queryByRole('textbox', { name: /approve note/i })).toBeNull()
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', null))
   })
 })
 
@@ -683,6 +710,32 @@ describe('KitchenReviewPage — per-stream review (#236, FR-040/041)', () => {
     expect(screen.queryByRole('button', { name: /approve es kopi/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /reject es kopi/i })).not.toBeInTheDocument()
     expect(screen.getByText('Ops lead decides')).toBeInTheDocument()
+  })
+
+  // #783 AC-051 (DB half #778): the DB widened stream-reviewer rights to ANY live membership,
+  // not only the primary — a supervisor of two streams decides both. Before this fix the page
+  // mirrored only `ownStreamKey` (her primary), so her SECOND stream's rows rendered the
+  // "Ops lead decides" marker even though the RPC would have accepted her decision.
+  it('issue 783 AC-051: a supervisor who is a CURRENT member of a second stream (not her primary) decides its rows too', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' }) // primary: RRS · kitchen
+    // She also holds a LIVE (non-primary) membership on Radiant · bar — the stream
+    // XFER_OTHER_STREAM belongs to.
+    vi.mocked(listCafeViewerTeams).mockResolvedValue([
+      {
+        id: 'team-radiant-bar', name: 'Radiant Bar', business_unit_id: 'bu-1', site_id: null,
+        is_primary: false, branch_id: RADIANT_ID, activity: 'bar',
+      },
+    ])
+    mockList.mockResolvedValue([PROD_LOG, XFER_OTHER_STREAM])
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    chooseStream('All streams')
+    await screen.findByText('Es Kopi')
+    // both streams now carry decision controls — neither reads "Ops lead decides".
+    expect(screen.getByRole('button', { name: /approve nasi goreng/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /approve es kopi/i })).toBeInTheDocument()
+    expect(screen.queryByText('Ops lead decides')).not.toBeInTheDocument()
   })
 
   it('FR-043: the production-first gate is PER STREAM — another stream\'s pending production does not lock this one\'s transfer', async () => {
@@ -1005,6 +1058,11 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
   })
 
   it('approve flow (off-plan): note gate + outcome banner in Indonesian', async () => {
+    // #783 AC-052: the gate exists for a row with NOTHING already explaining the variance.
+    // PROD_LOG (this block's beforeEach) carries its own submitter note, so it no longer
+    // opens the gate under that rule — this test needs a submitter-note-less copy to still
+    // exercise it.
+    mockList.mockResolvedValue([{ ...PROD_LOG, notes: null }])
     mockPlan.mockResolvedValue({ w1: { produce: 12 } }) // 8 ≠ 12 → off-plan → note gate
     mockApprove.mockResolvedValue({ batch_id: 'PR-20260620-010' })
     render(<KitchenReviewPage />, { wrapper: idWrapper })
