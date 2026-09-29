@@ -778,11 +778,12 @@ export function TasksWorkspace({
   // (below 920px), so the labelled header button yields to it there; above that the header
   // button is the door.
   // A record is open in either of two ways — the `drawerOpen` prop, or an overlay session this
-  // surface owns. The split class and the collection runtime already read both; this door read
-  // only the prop, so opening a row from the table left the create door standing beside the
-  // record's own primary action, two solid blues competing across one page.
+  // surface owns. Create task stays reachable with a record open (#751 AC-033, DESIGN.md
+  // § RecordViewer "While a record panel is open, the page head's primary drops to .btn-outline
+  // — one blue per screen") — it restyles to outline rather than disappearing, so the record's
+  // own action keeps the one filled primary without hiding a common door.
   const recordOpen = drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks'
-  const showNewTask = !recordOpen && state.status === 'ready' && !isNarrow
+  const showNewTask = state.status === 'ready' && !isNarrow
   const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
   const emptyTitle = query.includeArchived
     ? t('tasks.empty.archivedTitle')
@@ -910,7 +911,14 @@ export function TasksWorkspace({
       headClassName="tasks-page-head"
       state={frameState}
       action={showNewTask ? (
-        <button ref={(node) => { createControlRef.current = node }} type="button" className="btn btn-primary" onClick={() => onNewTask()}>{t('tasks.new')}</button>
+        <button
+          ref={(node) => { createControlRef.current = node }}
+          type="button"
+          className={`btn ${recordOpen ? 'btn-outline' : 'btn-primary'}`}
+          onClick={() => onNewTask()}
+        >
+          {t('tasks.new')}
+        </button>
       ) : undefined}
       meta={
         // OD-REDESIGN-91 #17 (F2): counts are OPEN everywhere — the head meta reads

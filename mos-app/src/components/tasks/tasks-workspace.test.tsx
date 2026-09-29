@@ -1282,20 +1282,26 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       ).toBeTruthy()
     })
 
-    it('opening a record closes the create door, so one solid primary is on screen at a time', async () => {
-      // The split class and the collection runtime both read "a record is open" as the prop OR an
-      // overlay session this surface owns; this door read only the prop. Opening a row from the
-      // table therefore left "+ Create task" standing beside the record's own primary action.
+    it('AC-033 (#751): opening a record restyles the create door to outline, so one FILLED primary is on screen at a time', async () => {
+      // DESIGN.md § RecordViewer, Identity and type: "While a record panel is open, the page
+      // head's primary drops to `.btn-outline` — one blue per screen." The door stays reachable
+      // (Create task is still a real, common action with a record open); it just stops competing
+      // with the record's own filled primary action.
       mockListTasks.mockResolvedValue([makeTask({ id: 'task-addr', title: 'Addressable task' })])
       renderAt(['/work/tasks'])
       await waitFor(() => screen.getByText('Addressable task'))
-      expect(screen.getByRole('button', { name: '+ Create task' })).toBeInTheDocument()
+      const createButton = screen.getByRole('button', { name: '+ Create task' })
+      expect(createButton).toHaveClass('btn-primary')
+      expect(createButton).not.toHaveClass('btn-outline')
 
       fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
       await waitFor(() =>
         expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy(),
       )
-      expect(screen.queryByRole('button', { name: '+ Create task' })).toBeNull()
+      // Still present and clickable — restyled, not removed.
+      const createButtonWithRecordOpen = screen.getByRole('button', { name: '+ Create task' })
+      expect(createButtonWithRecordOpen).toHaveClass('btn-outline')
+      expect(createButtonWithRecordOpen).not.toHaveClass('btn-primary')
     })
 
     it('bookmark/refresh: rendering at /work/tasks?record=<id> restores the open task drawer', async () => {
