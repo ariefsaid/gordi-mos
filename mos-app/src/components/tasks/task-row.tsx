@@ -25,6 +25,7 @@ import { statusTone } from './status-tone'
 import { Picker } from '@/components/ui/picker'
 import { PicCell, PersonCell } from './pic-cell'
 import { formatDate, formatAge } from './task-formatters'
+import { DateField } from '@/components/ui/date-field'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { TaskCreateForm } from './task-create-form'
@@ -200,6 +201,45 @@ export function TaskRow({
     onCommit: (next) => (onEditDue ? onEditDue(task.id, next || null) : undefined),
     rollbackMessage: t('tasks.feedback.rollback'),
   })
+
+  // The editor stays open while a save is in flight and after a failure (so the typed date and the
+  // error stay visible); it closes once a save lands. Enter hands focus back to the row's trigger.
+  const dueTriggerRef = useRef<HTMLButtonElement>(null)
+  const dueCommitPending = useRef(false)
+  const dueRefocus = useRef(false)
+  useEffect(() => {
+    if (dueInline.pending) dueCommitPending.current = true
+    else if (dueCommitPending.current) {
+      dueCommitPending.current = false
+      if (!dueInline.error) setDueEditing(false)
+    }
+  }, [dueInline.error, dueInline.pending])
+  useEffect(() => {
+    if (!dueEditing && dueRefocus.current) {
+      dueRefocus.current = false
+      dueTriggerRef.current?.focus()
+    }
+  }, [dueEditing])
+  const commitDue = () => {
+    if (dueInline.draft === (task.due_date ?? '')) { dueInline.cancel(); setDueEditing(false); return }
+    dueInline.commit()
+  }
+  const onDueKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      // Same isolation as the title editor: the workspace keyboard layer must not read this Enter as "open the row".
+      e.preventDefault()
+      e.stopPropagation()
+      dueRefocus.current = true
+      commitDue()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      dueRefocus.current = true
+      dueInline.cancel()
+      setDueEditing(false)
+    }
+  }
+  const onDueBlur = () => { if (!dueInline.pending && !dueInline.error) commitDue() }
 
   useEffect(() => {
     if (editing) {
@@ -510,12 +550,13 @@ export function TaskRow({
       ) : null}
       <td className={`td-cell td-due td-nowrap tabular-nums ${dueClass}`}>
         {onEditDue ? (dueEditing ? (
-          <span className="inline-editor-control" onClick={(event) => event.stopPropagation()}>
-            <input autoFocus type="date" aria-label="Due date" value={dueInline.draft} disabled={dueInline.pending} aria-busy={dueInline.pending || undefined}
-              onChange={(event) => dueInline.setDraft(event.target.value)} onKeyDown={(event) => { dueInline.onKeyDown(event); if (event.key === 'Escape') setDueEditing(false) }} onBlur={() => { dueInline.onBlur(); setDueEditing(false) }} />
+          <span className="inline-editor-control inline-editor-control--due" onClick={(event) => event.stopPropagation()}>
+            <DateField autoFocus aria-label="Due date" value={dueInline.draft} onChange={dueInline.setDraft}
+              disabled={dueInline.pending} aria-busy={dueInline.pending || undefined} error={dueInline.error}
+              onKeyDown={onDueKeyDown} onBlur={onDueBlur} />
             <InlineCommitFeedback {...dueInline} />
           </span>
-        ) : <button type="button" className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label="Edit task due date" onClick={(event) => { event.stopPropagation(); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText}
+        ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label="Edit task due date" onClick={(event) => { event.stopPropagation(); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText}
 
       </td>
     </tr>

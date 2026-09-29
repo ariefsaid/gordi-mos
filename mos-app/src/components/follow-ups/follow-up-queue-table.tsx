@@ -11,6 +11,7 @@ import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { Button } from '@/components/ui/button'
+import { DateField } from '@/components/ui/date-field'
 import { TextInput } from '@/components/ui/text-input'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { StatusPill, type TaskStatus } from '@/components/tasks/status-pill'
@@ -53,11 +54,10 @@ export function FollowUpQueueTable({
     return (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {verb === 'promise' ? (
-          <TextInput
+          <DateField
             label={t('followUps.promiseDate')}
-            type="date"
             value={form.promise_date}
-            onChange={(e) => setForm({ ...form, promise_date: e.target.value })}
+            onChange={(promise_date) => setForm({ ...form, promise_date })}
           />
         ) : (
           <>
@@ -67,11 +67,10 @@ export function FollowUpQueueTable({
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
             />
-            <TextInput
+            <DateField
               label={t('followUps.cashInDate')}
-              type="date"
               value={form.cash_in_date}
-              onChange={(e) => setForm({ ...form, cash_in_date: e.target.value })}
+              onChange={(cash_in_date) => setForm({ ...form, cash_in_date })}
             />
             <TextInput
               label={t('followUps.evidence')}

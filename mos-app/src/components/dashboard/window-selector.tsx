@@ -6,6 +6,7 @@
 // Selecting a preset emits {kind:'preset', days:N}; changing a date emits
 // {kind:'custom', from, to}. Reuses the `seg` grammar (CutToggle's tablist shape).
 import { useRef, type KeyboardEvent } from 'react'
+import { DateField } from '@/components/ui/date-field'
 import type { WindowSpec } from '@/lib/dashboard'
 import { seedBoundsRange } from '@/lib/trailing-window'
 import { useT } from '@/i18n/use-t'
@@ -148,36 +149,26 @@ export function WindowRangeFields({
   const max = bounds?.latest
   return (
     <div className="window-selector-range">
-      <label className="window-selector-field">
-        <span className="window-selector-field-label">{t('money.window.from')}</span>
-        <input
-          type="date"
-          value={value.kind === 'custom' ? value.from : ''}
-          min={min}
-          max={max}
-          aria-label={t('money.window.from')}
-          onChange={e => {
-            if (value.kind === 'custom') {
-              onChange({ kind: 'custom', from: e.target.value, to: value.to })
-            }
-          }}
-        />
-      </label>
-      <label className="window-selector-field">
-        <span className="window-selector-field-label">{t('money.window.to')}</span>
-        <input
-          type="date"
-          value={value.kind === 'custom' ? value.to : ''}
-          min={min}
-          max={max}
-          aria-label={t('money.window.to')}
-          onChange={e => {
-            if (value.kind === 'custom') {
-              onChange({ kind: 'custom', from: value.from, to: e.target.value })
-            }
-          }}
-        />
-      </label>
+      <DateField
+        className="window-selector-field"
+        label={t('money.window.from')}
+        value={value.kind === 'custom' ? value.from : ''}
+        min={min}
+        max={max}
+        onChange={(from) => {
+          if (value.kind === 'custom') onChange({ kind: 'custom', from, to: value.to })
+        }}
+      />
+      <DateField
+        className="window-selector-field"
+        label={t('money.window.to')}
+        value={value.kind === 'custom' ? value.to : ''}
+        min={min}
+        max={max}
+        onChange={(to) => {
+          if (value.kind === 'custom') onChange({ kind: 'custom', from: value.from, to })
+        }}
+      />
     </div>
   )
 }

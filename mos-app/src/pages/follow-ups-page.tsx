@@ -11,6 +11,7 @@ import { canWorkAnyLane } from '@/lib/follow-up-lanes'
 import { listFollowUps, transitionFollowUp, isOverdue, type FollowUpRow, type FollowUpState, type FollowUpTransition } from '@/lib/db/follow-ups'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { Button } from '@/components/ui/button'
+import { DateField } from '@/components/ui/date-field'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { StatusPill, type TaskStatus } from '@/components/tasks/status-pill'
 
@@ -102,11 +103,10 @@ export function FollowUpsPage() {
     return (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {verb === 'promise' ? (
-          <input
+          <DateField
             aria-label={t('followUps.promiseDate')}
-            type="date"
             value={form.promise_date}
-            onChange={(e) => setForm({ ...form, promise_date: e.target.value })}
+            onChange={(promise_date) => setForm({ ...form, promise_date })}
           />
         ) : (
           <>
@@ -116,11 +116,10 @@ export function FollowUpsPage() {
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
             />
-            <input
+            <DateField
               aria-label={t('followUps.cashInDate')}
-              type="date"
               value={form.cash_in_date}
-              onChange={(e) => setForm({ ...form, cash_in_date: e.target.value })}
+              onChange={(cash_in_date) => setForm({ ...form, cash_in_date })}
             />
             <input
               aria-label={t('followUps.evidence')}

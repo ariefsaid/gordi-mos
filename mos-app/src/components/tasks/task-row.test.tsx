@@ -4,6 +4,7 @@
 // never wraps; body rows consume the shared collection measure.
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -639,5 +640,56 @@ describe('TaskRow — owner-eyes item 3: condensed Due never carries the clip-pr
     // no "Overdue ·" prefix in the narrow split track (no mid-word clipping)
     expect(due.textContent).not.toMatch(/Overdue/)
     expect(due.textContent).toMatch(/Fri 12 Jun/)
+  })
+})
+
+describe('TaskRow — inline due date is typed, not garbled (#982)', () => {
+  const openEditor = () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Edit task due date' }))
+    return screen.getByLabelText('Due date') as HTMLInputElement
+  }
+
+  it('typing a date then Enter saves that date once, does not reach the row-open key layer, and returns focus to the row', async () => {
+    const user = userEvent.setup({ delay: null })
+    const onEditDue = vi.fn().mockResolvedValue(undefined)
+    const windowKey = vi.fn()
+    window.addEventListener('keydown', windowKey)
+    renderRow({ onEditDue })
+    const input = openEditor()
+    await user.clear(input)
+    await user.type(input, '2026-10-05')
+    expect(input).toHaveValue('2026-10-05')
+    windowKey.mockClear()
+    await user.keyboard('{Enter}')
+    window.removeEventListener('keydown', windowKey)
+    expect(onEditDue).toHaveBeenCalledTimes(1)
+    expect(onEditDue).toHaveBeenCalledWith('task-7', '2026-10-05')
+    expect(windowKey).not.toHaveBeenCalled()
+    const trigger = await screen.findByRole('button', { name: 'Edit task due date' })
+    await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
+  it('a failed save keeps the editor open with a readable error; Retry re-sends the typed date and closes on success', async () => {
+    const user = userEvent.setup({ delay: null })
+    const onEditDue = vi.fn().mockRejectedValueOnce(new Error('nope')).mockResolvedValue(undefined)
+    renderRow({ onEditDue })
+    const input = openEditor()
+    await user.clear(input)
+    await user.type(input, '2026-10-05{Enter}')
+    expect(await screen.findByRole('alert')).toHaveTextContent(/retry/i)
+    expect(screen.getByLabelText('Due date')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(screen.queryByLabelText('Due date')).toBeNull())
+    expect(onEditDue).toHaveBeenCalledTimes(2)
+    expect(onEditDue).toHaveBeenLastCalledWith('task-7', '2026-10-05')
+  })
+
+  it('a wrong-order segment entry (six-digit year) is never saved', () => {
+    const onEditDue = vi.fn().mockResolvedValue(undefined)
+    renderRow({ onEditDue })
+    const input = openEditor()
+    fireEvent.change(input, { target: { value: '061005-02-02' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onEditDue).not.toHaveBeenCalled()
   })
 })
