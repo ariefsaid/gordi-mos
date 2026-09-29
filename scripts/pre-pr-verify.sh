@@ -171,6 +171,13 @@ if [ "$app_touched" = 1 ]; then
     while IFS= read -r _f; do
       [ -n "$_f" ] && related+=("${_f#mos-app/}")
     done < <(git diff --name-only --diff-filter=d "$base"...HEAD -- 'mos-app/src/*.ts' 'mos-app/src/*.tsx')
+    # A supabase/ change has no import edge into mos-app, but some unit tests read those files
+    # from disk: run them too.
+    if [ -n "$(git diff --name-only "$base"...HEAD -- supabase/)" ]; then
+      while IFS= read -r _f; do
+        [ -n "$_f" ] && related+=("${_f#mos-app/}")
+      done < <(git grep -l "'supabase'" -- 'mos-app/src/*.test.ts' 'mos-app/src/*.test.tsx')
+    fi
     echo "── light (--dev): typecheck, lint, tests related to ${#related[@]} changed file(s)"
     bash scripts/with-test-lock.sh bash -c \
       'cd mos-app && npm run typecheck && npm run lint && { [ "$#" -eq 0 ] || npm exec -- vitest related "$@" --run --passWithNoTests; }' \
