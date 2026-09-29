@@ -10,8 +10,10 @@ import {
   effectiveTarget,
   needsVarianceNote,
   transferExceedsAvailable,
+  isReviewerEligibleTeam,
 } from './kitchen-gates'
 import type { KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
+import type { CafeViewerTeam } from '@/lib/db/cafe-opening'
 
 // The gates took the three label literals on v4. The squashed baseline stores no
 // action_type (DD-WAY-13), so they take the MOVEMENT the labels are derived from. Every
@@ -110,5 +112,27 @@ describe('transferExceedsAvailable — FR-023 / AC-022 (reject, not cap)', () =>
   })
   it('Production is never gated by tersedia (it makes stock)', () => {
     expect(transferExceedsAvailable(line({ qty_porsi: 999, tersedia: 0 }), PRODUCE)).toBe(false)
+  })
+})
+
+// gpt-6-luna review (74d4ebf7): the DB (ops.is_stream_reviewer) admits only an OPEN-ENDED
+// membership; #783/#784 code was treating any CURRENT membership (finite-end included, which
+// `listCafeViewerTeams` also returns for "Your Team" display) as reviewer/write authority.
+describe('isReviewerEligibleTeam — mirrors ops.is_stream_reviewer exactly', () => {
+  function team(over: Partial<CafeViewerTeam>): CafeViewerTeam {
+    return {
+      id: 't1', name: 'RRS Kitchen', business_unit_id: 'bu-1', site_id: null,
+      is_primary: false, branch_id: 'branch-rrs', activity: 'kitchen', effective_to: null,
+      ...over,
+    }
+  }
+  it('an open-ended (effective_to null) stream membership is eligible', () => {
+    expect(isReviewerEligibleTeam(team({ effective_to: null }))).toBe(true)
+  })
+  it('a FINITE-END membership is NOT eligible, even though it is currently active', () => {
+    expect(isReviewerEligibleTeam(team({ effective_to: '2026-12-31' }))).toBe(false)
+  })
+  it('an office Team (no branch/activity) is never eligible', () => {
+    expect(isReviewerEligibleTeam(team({ branch_id: null, activity: null }))).toBe(false)
   })
 })

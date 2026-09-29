@@ -1698,11 +1698,11 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     mockListCafeViewerTeams.mockResolvedValue([
       {
         id: 'team-office', name: 'Ops Office', business_unit_id: 'bu-1', site_id: null,
-        is_primary: true, branch_id: null, activity: null,
+        is_primary: true, branch_id: null, activity: null, effective_to: null,
       },
       {
         id: 'team-ghq-kitchen', name: 'Gordi HQ Kitchen', business_unit_id: 'bu-1', site_id: null,
-        is_primary: false, branch_id: BRANCH_GORDI_HQ.id, activity: 'kitchen',
+        is_primary: false, branch_id: BRANCH_GORDI_HQ.id, activity: 'kitchen', effective_to: null,
       },
     ])
     await renderPage()

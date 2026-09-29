@@ -157,7 +157,6 @@ export function useCafeStream(): CafeStreamState {
   const adopt = useCallback((next: CafeStreamCatalog) => setCatalog(next), [])
 
   const setStream = useCallback((next: ProductionStream) => {
-    setCatalog(prev => ({ ...prev, stream: next }))
     // A person who opens Plan or Stock first — no Café root, no chosen location, and no own stream
     // to derive one from — is offered the whole catalog because nothing has claimed a location yet.
     // Their first deliberate choice IS that claim: it names the branch they are working at, so
@@ -170,6 +169,16 @@ export function useCafeStream(): CafeStreamState {
     }
     // Every Café surface AT THIS LOCATION follows the choice (#440), and no other location does.
     rememberStream(next, viewerId, branchId)
+    // #868: the claim narrows THIS mount's picker too, not only the next surface's bootstrap read.
+    // Without this, `locationOptions` kept the pre-claim (wider) list until the surface remounted
+    // and re-ran resolve() — so a second pick, in the same session, could still offer another
+    // branch's streams.
+    setCatalog(prev => ({
+      ...prev,
+      stream: next,
+      branchId,
+      locationOptions: prev.options.filter(option => option.branch.id === branchId),
+    }))
   }, [activeBranchId, catalog.branchId, viewerId])
 
   return { ...catalog, resolve, adopt, setStream }

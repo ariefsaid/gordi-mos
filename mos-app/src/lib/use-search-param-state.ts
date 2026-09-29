@@ -8,7 +8,16 @@
 // the live view state, so a refresh or a copied link reproduces exactly what the user sees. Writing
 // the default value (or an empty string) DELETES the key, so a reset URL stays clean (?status=all is
 // never left dangling). Other query keys on the URL are preserved untouched.
-import { useCallback } from 'react'
+//
+// The displayed value is a LOCAL echo, not `params.get(key)` read straight — calibration finding,
+// MVP wave 1: fast typing in Café Plan's item search dropped characters. A `setSearchParams` call
+// goes through `navigate()` and a history write before this hook's own `useSearchParams()` reports
+// the new value on its NEXT render, so a keystroke landing before that round trip completes was
+// reading the router's PRE-keystroke state. `local` updates synchronously with every `setValue`
+// call instead. Only a urlValue this hook did NOT itself write is adopted as an external change
+// (back/forward, a shared reset) — see `pendingWrites` below for how a same-hook write is told
+// apart from one.
+import { useCallback, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 export function useSearchParamState(
@@ -16,10 +25,32 @@ export function useSearchParamState(
   defaultValue = '',
 ): [string, (next: string) => void] {
   const [params, setParams] = useSearchParams()
-  const value = params.get(key) ?? defaultValue
+  const urlValue = params.get(key) ?? defaultValue
+
+  const [local, setLocal] = useState(urlValue)
+  // FIFO of values THIS hook wrote that the URL hasn't echoed back yet. Typing "a" then "ab"
+  // before the first navigation commits queues both; if the router delivers them out of order
+  // (the stale "a" landing AFTER "ab" is already on screen), matching against the queue — not
+  // just the latest write — lets that stale echo be dropped instead of regressing `local` back
+  // to "a". A urlValue that matches nothing in the queue is a genuine external change.
+  const pendingWrites = useRef<string[]>([])
+  const prevUrlValue = useRef(urlValue)
+  if (urlValue !== prevUrlValue.current) {
+    prevUrlValue.current = urlValue
+    const idx = pendingWrites.current.indexOf(urlValue)
+    if (idx === -1) {
+      pendingWrites.current = []
+      setLocal(urlValue)
+    } else {
+      pendingWrites.current = pendingWrites.current.slice(idx + 1)
+    }
+  }
 
   const setValue = useCallback(
     (next: string) => {
+      const normalized = !next || next === defaultValue ? defaultValue : next
+      pendingWrites.current.push(normalized)
+      setLocal(normalized)
       setParams(
         (prev) => {
           const updated = new URLSearchParams(prev)
@@ -33,7 +64,7 @@ export function useSearchParamState(
     [key, defaultValue, setParams],
   )
 
-  return [value, setValue]
+  return [local, setValue]
 }
 
 // Multi-key reset in ONE history replace. Two useSearchParamState setters called in the same
