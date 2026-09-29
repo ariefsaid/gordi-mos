@@ -5,12 +5,13 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthContext, type AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
-const h = vi.hoisted(() => ({
+const mocks = vi.hoisted(() => ({
   getDetails: vi.fn(),
   approve: vi.fn(),
   deny: vi.fn(),
   rpc: vi.fn(),
   maybeSingle: vi.fn(),
+  eq: vi.fn(),
   redirect: vi.fn(),
 }))
 
@@ -18,21 +19,24 @@ vi.mock('@/lib/supabase', () => ({
   supabase: {
     auth: {
       oauth: {
-        getAuthorizationDetails: h.getDetails,
-        approveAuthorization: h.approve,
-        denyAuthorization: h.deny,
+        getAuthorizationDetails: mocks.getDetails,
+        approveAuthorization: mocks.approve,
+        denyAuthorization: mocks.deny,
       },
     },
     schema: () => ({
-      rpc: h.rpc,
-      from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: h.maybeSingle }) }) }) }),
+      rpc: mocks.rpc,
+      from: () => {
+        const query = { eq: (column: string, value: unknown) => (mocks.eq(column, value), query), maybeSingle: mocks.maybeSingle }
+        return { select: () => query }
+      },
     }),
   },
 }))
 
-vi.mock('@/lib/agent-redirect', async (orig) => ({
-  ...(await orig<typeof import('@/lib/agent-redirect')>()),
-  redirectToAgent: h.redirect,
+vi.mock('@/lib/agent-redirect', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/agent-redirect')>()),
+  redirectToAgent: mocks.redirect,
 }))
 
 import { OAuthConsentPage } from './oauth-consent-page'
@@ -74,11 +78,11 @@ function renderPage(url = `/oauth/consent?authorization_id=${AUTH_ID}`, locale: 
 }
 
 function readyToConsent() {
-  h.getDetails.mockResolvedValue({ data: DETAILS, error: null })
-  h.rpc.mockResolvedValue({ data: true, error: null })
-  h.maybeSingle.mockResolvedValue({ data: { display_name: 'Claude Desktop' }, error: null })
-  h.approve.mockResolvedValue({ data: { redirect_url: AGENT_URL }, error: null })
-  h.deny.mockResolvedValue({ data: { redirect_url: 'https://agent.example.test/callback?error=access_denied' }, error: null })
+  mocks.getDetails.mockResolvedValue({ data: DETAILS, error: null })
+  mocks.rpc.mockResolvedValue({ data: true, error: null })
+  mocks.maybeSingle.mockResolvedValue({ data: { display_name: 'Claude Desktop' }, error: null })
+  mocks.approve.mockResolvedValue({ data: { redirect_url: AGENT_URL }, error: null })
+  mocks.deny.mockResolvedValue({ data: { redirect_url: 'https://agent.example.test/callback?error=access_denied' }, error: null })
 }
 
 beforeEach(() => {
@@ -89,7 +93,7 @@ beforeEach(() => {
 
 describe('OAuthConsentPage', () => {
   it('shows a loading state while the request resolves', () => {
-    h.getDetails.mockReturnValue(new Promise(() => {}))
+    mocks.getDetails.mockReturnValue(new Promise(() => {}))
     renderPage()
     expect(screen.getByRole('status')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Allow' })).not.toBeInTheDocument()
@@ -104,7 +108,7 @@ describe('OAuthConsentPage', () => {
     expect(screen.getByText('agent.example.test')).toBeInTheDocument()
     expect(screen.getByText(/Read your Work records and the directory/)).toBeInTheDocument()
     expect(screen.getByText(/Create and edit Tasks, Signals, Projects & Processes/)).toBeInTheDocument()
-    expect(screen.getByText(/Update Objective write-ups and progress/)).toBeInTheDocument()
+    expect(screen.getByText(/Update Objective write-ups and key-result progress/)).toBeInTheDocument()
     expect(screen.getByText(/Archive or delete anything, change targets or permissions, or touch money/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Allow' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Deny' })).toBeEnabled()
@@ -128,9 +132,9 @@ describe('OAuthConsentPage', () => {
     const user = userEvent.setup()
     renderPage()
     await user.click(await screen.findByRole('button', { name: 'Allow' }))
-    await waitFor(() => expect(h.redirect).toHaveBeenCalledWith(AGENT_URL))
-    expect(h.approve).toHaveBeenCalledWith(AUTH_ID, { skipBrowserRedirect: true })
-    expect(h.deny).not.toHaveBeenCalled()
+    await waitFor(() => expect(mocks.redirect).toHaveBeenCalledWith(AGENT_URL))
+    expect(mocks.approve).toHaveBeenCalledWith(AUTH_ID, { skipBrowserRedirect: true })
+    expect(mocks.deny).not.toHaveBeenCalled()
   })
 
   it('Enter on the focused Allow approves', async () => {
@@ -139,7 +143,7 @@ describe('OAuthConsentPage', () => {
     await screen.findByRole('button', { name: 'Allow' })
     await user.tab()
     await user.keyboard('{Enter}')
-    await waitFor(() => expect(h.approve).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(mocks.approve).toHaveBeenCalledTimes(1))
   })
 
   it('Deny denies and returns to the agent', async () => {
@@ -147,10 +151,10 @@ describe('OAuthConsentPage', () => {
     renderPage()
     await user.click(await screen.findByRole('button', { name: 'Deny' }))
     await waitFor(() =>
-      expect(h.redirect).toHaveBeenCalledWith('https://agent.example.test/callback?error=access_denied'),
+      expect(mocks.redirect).toHaveBeenCalledWith('https://agent.example.test/callback?error=access_denied'),
     )
-    expect(h.deny).toHaveBeenCalledWith(AUTH_ID, { skipBrowserRedirect: true })
-    expect(h.approve).not.toHaveBeenCalled()
+    expect(mocks.deny).toHaveBeenCalledWith(AUTH_ID, { skipBrowserRedirect: true })
+    expect(mocks.approve).not.toHaveBeenCalled()
   })
 
   it('Escape does nothing', async () => {
@@ -158,32 +162,32 @@ describe('OAuthConsentPage', () => {
     renderPage()
     await screen.findByRole('button', { name: 'Allow' })
     await user.keyboard('{Escape}')
-    expect(h.approve).not.toHaveBeenCalled()
-    expect(h.deny).not.toHaveBeenCalled()
-    expect(h.redirect).not.toHaveBeenCalled()
+    expect(mocks.approve).not.toHaveBeenCalled()
+    expect(mocks.deny).not.toHaveBeenCalled()
+    expect(mocks.redirect).not.toHaveBeenCalled()
   })
 
   it('disables both buttons while a decision is in flight and cannot double-submit', async () => {
     const user = userEvent.setup()
-    h.approve.mockReturnValue(new Promise(() => {}))
+    mocks.approve.mockReturnValue(new Promise(() => {}))
     renderPage()
     const allow = await screen.findByRole('button', { name: 'Allow' })
     await user.click(allow)
     await user.click(allow)
-    expect(h.approve).toHaveBeenCalledTimes(1)
+    expect(mocks.approve).toHaveBeenCalledTimes(1)
     expect(screen.getByRole('button', { name: 'Deny' })).toBeDisabled()
   })
 
   it('an already-approved request goes straight back to the agent with no buttons', async () => {
-    h.getDetails.mockResolvedValue({ data: { redirect_url: AGENT_URL }, error: null })
+    mocks.getDetails.mockResolvedValue({ data: { redirect_url: AGENT_URL }, error: null })
     renderPage()
-    await waitFor(() => expect(h.redirect).toHaveBeenCalledWith(AGENT_URL))
+    await waitFor(() => expect(mocks.redirect).toHaveBeenCalledWith(AGENT_URL))
     expect(screen.queryByRole('button', { name: 'Allow' })).not.toBeInTheDocument()
-    expect(h.approve).not.toHaveBeenCalled()
+    expect(mocks.approve).not.toHaveBeenCalled()
   })
 
   it('an expired or unknown request says so, with no Allow', async () => {
-    h.getDetails.mockResolvedValue({ data: null, error: { name: 'AuthApiError', status: 404, message: 'not found' } })
+    mocks.getDetails.mockResolvedValue({ data: null, error: { name: 'AuthApiError', status: 404, message: 'not found' } })
     renderPage()
     expect(await screen.findByRole('heading', { name: /expired or isn.t valid/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Allow' })).not.toBeInTheDocument()
@@ -193,11 +197,11 @@ describe('OAuthConsentPage', () => {
   it('a link with no authorization id is unknown without calling the auth API', async () => {
     renderPage('/oauth/consent')
     expect(await screen.findByRole('heading', { name: /expired or isn.t valid/i })).toBeInTheDocument()
-    expect(h.getDetails).not.toHaveBeenCalled()
+    expect(mocks.getDetails).not.toHaveBeenCalled()
   })
 
   it('a viewer without agent.connect sees the reason and a disabled Allow', async () => {
-    h.rpc.mockResolvedValue({ data: false, error: null })
+    mocks.rpc.mockResolvedValue({ data: false, error: null })
     renderPage()
     expect(await screen.findByText('Ask an admin to let you connect agents.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Allow' })).toBeDisabled()
@@ -207,55 +211,73 @@ describe('OAuthConsentPage', () => {
   it('asks the authority function for agent.connect', async () => {
     renderPage()
     await screen.findByRole('button', { name: 'Allow' })
-    expect(h.rpc).toHaveBeenCalledWith('role_authority_allows', { p_action: 'agent.connect' })
+    expect(mocks.rpc).toHaveBeenCalledWith('role_authority_allows', { p_action: 'agent.connect' })
   })
 
-  it('an agent app not on the allow-list shows its registered name as not yet trusted, Allow disabled', async () => {
-    h.maybeSingle.mockResolvedValue({ data: null, error: null })
+  it('an agent app not on the allow-list gets a neutral label, never its self-declared name, and Allow is disabled', async () => {
+    mocks.maybeSingle.mockResolvedValue({ data: null, error: null })
     renderPage()
-    const heading = await screen.findByRole('heading', { name: /Registered Name/ })
-    expect(heading).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Allow this agent app to connect?' })).toBeInTheDocument()
+    expect(screen.queryByText(/Registered Name/)).not.toBeInTheDocument()
     expect(screen.getByText(/not yet trusted/i)).toBeInTheDocument()
     expect(screen.getByText(/An admin has to trust this agent app before it can connect/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Allow' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Deny' })).toBeEnabled()
   })
 
+  it('looks the agent app up by this request\'s client and only among enabled entries', async () => {
+    renderPage()
+    await screen.findByRole('button', { name: 'Allow' })
+    expect(mocks.eq).toHaveBeenCalledWith('client_id', 'client-1')
+    expect(mocks.eq).toHaveBeenCalledWith('enabled', true)
+  })
+
+  it('inside a frame it loads nothing and shows nothing', () => {
+    const top = vi.spyOn(window, 'top', 'get').mockReturnValue({} as Window)
+    try {
+      const { container } = renderPage()
+      expect(mocks.getDetails).not.toHaveBeenCalled()
+      expect(container).toBeEmptyDOMElement()
+    } finally {
+      top.mockRestore()
+    }
+  })
+
   it('a load error shows an alert with Retry that reloads', async () => {
     const user = userEvent.setup()
-    h.getDetails.mockResolvedValueOnce({ data: null, error: { name: 'AuthRetryableFetchError', status: 0, message: 'net' } })
+    mocks.getDetails.mockResolvedValueOnce({ data: null, error: { name: 'AuthRetryableFetchError', status: 0, message: 'net' } })
     renderPage()
     const alert = await screen.findByRole('alert')
     await user.click(within(alert).getByRole('button', { name: /retry|try again/i }))
     expect(await screen.findByRole('button', { name: 'Allow' })).toBeEnabled()
-    expect(h.getDetails).toHaveBeenCalledTimes(2)
+    expect(mocks.getDetails).toHaveBeenCalledTimes(2)
   })
 
   it('a failed decision stays on the request with an alert and lets the viewer try again', async () => {
     const user = userEvent.setup()
-    h.approve.mockResolvedValueOnce({ data: null, error: { name: 'AuthApiError', status: 500, message: 'boom' } })
+    mocks.approve.mockResolvedValueOnce({ data: null, error: { name: 'AuthApiError', status: 500, message: 'boom' } })
     renderPage()
     await user.click(await screen.findByRole('button', { name: 'Allow' }))
     expect(await screen.findByRole('alert')).toBeInTheDocument()
-    expect(h.redirect).not.toHaveBeenCalled()
+    expect(mocks.redirect).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.getByRole('button', { name: 'Allow' })).toBeEnabled())
     await user.click(screen.getByRole('button', { name: 'Allow' }))
-    await waitFor(() => expect(h.redirect).toHaveBeenCalledWith(AGENT_URL))
+    await waitFor(() => expect(mocks.redirect).toHaveBeenCalledWith(AGENT_URL))
   })
 
   it('refuses to follow a redirect that is not a normal web or app address', async () => {
     const user = userEvent.setup()
-    h.approve.mockResolvedValue({ data: { redirect_url: 'javascript:alert(1)' }, error: null })
+    mocks.approve.mockResolvedValue({ data: { redirect_url: 'javascript:alert(1)' }, error: null })
     renderPage()
     await user.click(await screen.findByRole('button', { name: 'Allow' }))
     expect(await screen.findByRole('alert')).toBeInTheDocument()
-    expect(h.redirect).not.toHaveBeenCalled()
+    expect(mocks.redirect).not.toHaveBeenCalled()
   })
 
   it('renders Indonesian copy', async () => {
     renderPage(`/oauth/consent?authorization_id=${AUTH_ID}`, 'id')
     expect(await screen.findByRole('button', { name: 'Izinkan' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Tolak' })).toBeEnabled()
-    expect(screen.getByText(/Memperbarui uraian dan progres Sasaran/)).toBeInTheDocument()
+    expect(screen.getByText(/Memperbarui uraian Sasaran dan progres hasil kunci/)).toBeInTheDocument()
   })
 })

@@ -4,7 +4,7 @@
 //
 // Hiding Allow is an affordance only: the database refuses an untrusted agent app or a person
 // without `agent.connect` regardless of this page (D5). The page never touches a code or token.
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { Button } from '@/components/ui/button'
@@ -36,8 +36,10 @@ export function OAuthConsentPage() {
   const [view, setView] = useState<View>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
   useDocumentTitle(`${t('consent.title')} — Gordi MOS`)
+  const framed = window.self !== window.top
 
   useEffect(() => {
+    if (framed) return // a page inside someone else's frame never loads the request
     let live = true
     const settle = (next: View) => live && setView(next)
     settle({ kind: 'loading' })
@@ -63,9 +65,10 @@ export function OAuthConsentPage() {
       }
     })()
     return () => { live = false }
-  }, [authorizationId, attempt])
+  }, [authorizationId, attempt, framed])
 
-  const retry = useCallback(() => setAttempt((n) => n + 1), [])
+  const retry = () => setAttempt((count) => count + 1)
+  if (framed) return null
   const title = t('consent.title')
   const frame = (state: 'default' | 'loading' | 'empty' | 'error' | 'permission', body: React.ReactNode) => (
     <PageFamilyFrame family="management" title={title} state={state}>
@@ -105,7 +108,7 @@ function ConsentCard({ request, gate, onDone }: { request: ConsentRequest; gate:
 
   useEffect(() => { headingRef.current?.focus() }, [])
 
-  const name = gate.trustedName ?? request.clientName
+  const name = gate.trustedName ?? t('consent.unnamedAgent')
   const person = auth.status === 'authenticated' ? auth.viewer.person.full_name : request.userEmail
   const reason = !gate.canConnect ? t('consent.noPermission') : !gate.trustedName ? t('consent.untrusted') : null
 

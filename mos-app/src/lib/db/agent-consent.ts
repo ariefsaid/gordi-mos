@@ -8,7 +8,6 @@ import { isSafeAgentRedirect } from '@/lib/agent-redirect'
 export interface ConsentRequest {
   authorizationId: string
   clientId: string
-  clientName: string
   redirectUri: string
   userEmail: string
 }
@@ -53,7 +52,6 @@ export async function loadConsentRequest(authorizationId: string): Promise<Conse
     request: {
       authorizationId: data.authorization_id,
       clientId: data.client.id,
-      clientName: data.client.name,
       redirectUri: data.redirect_uri,
       userEmail: data.user.email,
     },
@@ -67,9 +65,10 @@ export async function loadConsentGate(clientId: string): Promise<ConsentGate> {
   ])
   if (allowed.error) throw fail('check your access', allowed.error)
   if (trusted.error) throw fail('check the agent app', trusted.error)
+  const row: { display_name?: unknown } | null = trusted.data
   return {
     canConnect: allowed.data === true,
-    trustedName: (trusted.data as { display_name: string } | null)?.display_name ?? null,
+    trustedName: typeof row?.display_name === 'string' ? row.display_name : null,
   }
 }
 
@@ -81,6 +80,6 @@ export async function decideConsent(authorizationId: string, decision: 'approve'
       ? await oauth().approveAuthorization(authorizationId, options)
       : await oauth().denyAuthorization(authorizationId, options)
   if (error || !data) throw fail(decision === 'approve' ? 'allow this agent' : 'deny this request', error)
-  if (!isSafeAgentRedirect(data.redirect_url)) throw fail('follow the agent’s return address', data.redirect_url)
+  if (!isSafeAgentRedirect(data.redirect_url)) throw fail('follow the agent’s return address', 'return address refused')
   return data.redirect_url
 }
