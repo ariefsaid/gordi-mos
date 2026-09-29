@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, within, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, within, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ModalShell } from '@/components/ui/modal-shell'
@@ -367,6 +367,45 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     const posting = await screen.findByRole('button', { name: /sharing/i })
     expect(posting).toHaveAttribute('aria-busy', 'true')
     resolvePost('signal-new')
+  })
+
+  it('issue 979: the body is read-only while a post is in flight; a failed post keeps it, editable and focused', async () => {
+    let rejectPost: (e: Error) => void = () => {}
+    mockCreateSignal.mockReturnValueOnce(new Promise<string>((_, reject) => { rejectPost = reject }))
+    renderComposer()
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'The freezer alarm went off')
+    await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
+    await screen.findByRole('button', { name: /sharing/i })
+
+    expect(body).toHaveAttribute('readonly')
+    await userEvent.type(body, ' extra')
+    expect(body).toHaveValue('The freezer alarm went off')
+
+    await act(async () => { rejectPost(new Error('offline')) })
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(body).not.toHaveAttribute('readonly')
+    expect(body).toHaveValue('The freezer alarm went off')
+    expect(body).toHaveFocus()
+    expect(mockCreateSignal).toHaveBeenCalledTimes(1)
+  })
+
+  it('issue 979: a successful post clears the body once, after it was read-only in flight', async () => {
+    let resolvePost: (id: string) => void = () => {}
+    mockCreateSignal.mockReturnValueOnce(new Promise<string>((r) => { resolvePost = r }))
+    renderComposer()
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'Delivery arrived early')
+    await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
+    await screen.findByRole('button', { name: /sharing/i })
+    expect(body).toHaveAttribute('readonly')
+
+    await act(async () => { resolvePost('signal-new') })
+    await waitFor(() => expect(body).toHaveValue(''))
+    expect(body).not.toHaveAttribute('readonly')
+    expect(mockCreateSignal).toHaveBeenCalledTimes(1)
   })
 
   it('selecting a mention option inserts an @Name chip in the body and stages the mention', async () => {

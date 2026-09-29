@@ -113,6 +113,7 @@ export function SignalComposer({
     : t('signals.composer.shareAll', { name: authorName })
 
   function handleBodyChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    if (posting) return
     const value = e.target.value
     setBody(value)
     onDirtyChange?.(Boolean(value.trim()))
@@ -230,7 +231,7 @@ export function SignalComposer({
             }
           }}
           rows={3}
-          readOnly={!!sharedId}
+          readOnly={!!sharedId || posting}
         />
         {mentionToken && (
           <SignalMentionPicker
