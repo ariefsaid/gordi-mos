@@ -29,8 +29,8 @@ values ('00000000-0000-0000-0000-0000000000a1',
 -- Settings APIs are admin-only, but the viewer predicates are available to ordinary members.
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
-select is((select count(*)::int from shared.list_role_authority()), 56,
-  'the admin matrix lists all seven actions across the eight editable authority categories');
+select is((select count(*)::int from shared.list_role_authority()), 64,
+  'the admin matrix lists all eight actions across the eight editable authority categories');
 select is((select scope from shared.list_role_authority()
             where action = 'workline.manage' and role = 'bu_head'), 'own_bu',
   'BU-head definition authority defaults to own_bu');

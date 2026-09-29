@@ -57,6 +57,7 @@ export const AUTHORITY_ACTION_LABEL_KEYS: Record<AuthorityAction, MessageKey> = 
   'signal.retract': 'admin.access.action.signal.retract',
   'process.start': 'admin.access.action.process.start',
   'process.close': 'admin.access.action.process.close',
+  'agent.connect': 'admin.access.action.agent.connect',
 }
 
 export const AUTHORITY_SCOPE_LABEL_KEYS: Record<AuthorityScope, MessageKey> = {
