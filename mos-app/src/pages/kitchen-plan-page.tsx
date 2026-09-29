@@ -28,6 +28,7 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useSearchParamState } from '@/lib/use-search-param-state'
 import { isItemNotOnStreamError, listActiveWipItems, listStreamItemIds } from '@/lib/db/kitchen-logs'
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { canEditCafePlan } from '@/lib/kitchen-gates'
 import { listKitchenPlans, listPesanan, upsertKitchenPlan } from '@/lib/db/kitchen-plans'
 import type {
   KitchenMovement,
@@ -83,8 +84,10 @@ export function KitchenPlanPage() {
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
 
   // Role split (member-read / lead-edit). RLS is the authority; this picks the face.
+  // #784 AC-057: the stream's own supervisor edits too, not only ops_lead/admin (#778
+  // widened plan-row writes on the database side to match Review's reviewer predicate).
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
-  const canEdit = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
+  const canEdit = canEditCafePlan(accessRoles)
 
   if (auth.status === 'loading') {
     return (

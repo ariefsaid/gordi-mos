@@ -645,6 +645,27 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
 })
 
 // ── member → read-only pesanan (AC-024) ───────────────────────────────────────
+// #784 AC-057: the DB half (#778, closed) widened plan-row writes to the stream's own
+// supervisor, not only ops_lead/admin — a supervisor's Approve/Reject rights on Review
+// already worked this way (kitchen-gates.ts canReviewCafe). The frontend face-picker here
+// had not caught up: a supervisor still landed on the read-only pesanan horizon with no
+// path to the editor the database would now accept their writes through.
+describe('KitchenPlanPage — stream supervisor editor (#784 AC-057)', () => {
+  beforeEach(() => mockUseAuth.mockReturnValue(viewer(['supervisor'])))
+
+  it('a stream supervisor gets the same editable grid as ops_lead, and can save', async () => {
+    mockPlans.mockResolvedValue(PLAN_CELLS)
+    render(<KitchenPlanPage />, { wrapper })
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    expect(input).toHaveValue(12)
+    fireEvent.change(input, { target: { value: '20' } })
+    fireEvent.blur(input)
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalled())
+    expect(mockUpsert.mock.calls[0][0].qty_porsi).toBe(20)
+  })
+})
+
 describe('KitchenPlanPage — member pesanan (AC-024)', () => {
   beforeEach(() => mockUseAuth.mockReturnValue(viewer(['member'])))
 

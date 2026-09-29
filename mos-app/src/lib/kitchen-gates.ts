@@ -22,6 +22,17 @@ export function canReviewCafe(accessRoles: readonly string[]): boolean {
   return accessRoles.includes('ops_lead') || accessRoles.includes('admin') || accessRoles.includes('supervisor')
 }
 
+/**
+ * Café Plan editor access (#784 AC-057, DB half #778). Plan rows are written by ops_lead,
+ * admin, and the stream's own supervisor — the same widened set Review already admits
+ * (canReviewCafe above). A `supervisor` account used to land on the read-only pesanan
+ * horizon with no path to the editor the database would accept their writes through; this
+ * predicate is what picks the face (RLS remains the write authority per row/stream).
+ */
+export function canEditCafePlan(accessRoles: readonly string[]): boolean {
+  return canReviewCafe(accessRoles)
+}
+
 /** The Café Pushes route is intentionally narrower than Review (FR-040 / #236). */
 export function canPushCafe(accessRoles: readonly string[]): boolean {
   return accessRoles.includes('ops_lead') || accessRoles.includes('admin')
