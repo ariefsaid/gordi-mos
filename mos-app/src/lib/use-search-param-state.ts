@@ -15,10 +15,12 @@
 // the new value on its NEXT render, so a keystroke landing before that round trip completes was
 // reading the router's PRE-keystroke state. `local` updates synchronously with every `setValue`
 // call instead. Only a urlValue this hook did NOT itself write is adopted as an external change
-// (back/forward, a shared reset) — see `pendingWrites` below for how a same-hook write is told
+// (back/forward, a shared reset) — see `ownWrites` below for how a same-hook write is told
 // apart from one.
 import { useCallback, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+
+const OWN_ECHO_WINDOW_MS = 5000
 
 export function useSearchParamState(
   key: string,
@@ -28,28 +30,27 @@ export function useSearchParamState(
   const urlValue = params.get(key) ?? defaultValue
 
   const [local, setLocal] = useState(urlValue)
-  // FIFO of values THIS hook wrote that the URL hasn't echoed back yet. Typing "a" then "ab"
-  // before the first navigation commits queues both; if the router delivers them out of order
-  // (the stale "a" landing AFTER "ab" is already on screen), matching against the queue — not
-  // just the latest write — lets that stale echo be dropped instead of regressing `local` back
-  // to "a". A urlValue that matches nothing in the queue is a genuine external change.
-  const pendingWrites = useRef<string[]>([])
+  // Values THIS hook wrote recently, with the time of the write. The router echoes each write
+  // back on its own schedule, and under load echoes land late and out of order; an echo is never
+  // consumed, so any recent one (in any order, more than once) is recognised as our own and cannot
+  // overwrite newer typed text. A urlValue matching no write inside OWN_ECHO_WINDOW_MS is a genuine
+  // external change (back/forward, a reset, a deep link) and replaces local state.
+  const ownWrites = useRef<{ value: string; at: number }[]>([])
   const prevUrlValue = useRef(urlValue)
   if (urlValue !== prevUrlValue.current) {
     prevUrlValue.current = urlValue
-    const idx = pendingWrites.current.indexOf(urlValue)
-    if (idx === -1) {
-      pendingWrites.current = []
+    const now = Date.now()
+    ownWrites.current = ownWrites.current.filter((w) => now - w.at < OWN_ECHO_WINDOW_MS)
+    if (!ownWrites.current.some((w) => w.value === urlValue)) {
+      ownWrites.current = []
       setLocal(urlValue)
-    } else {
-      pendingWrites.current = pendingWrites.current.slice(idx + 1)
     }
   }
 
   const setValue = useCallback(
     (next: string) => {
       const normalized = !next || next === defaultValue ? defaultValue : next
-      pendingWrites.current.push(normalized)
+      ownWrites.current.push({ value: normalized, at: Date.now() })
       setLocal(normalized)
       setParams(
         (prev) => {

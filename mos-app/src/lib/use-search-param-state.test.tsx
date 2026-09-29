@@ -72,3 +72,41 @@ describe('useSearchParamState — fast typing must not drop characters', () => {
     expect(result.current[0]).toBe('ab')
   })
 })
+
+describe('useSearchParamState — delayed, reordered echoes under load', () => {
+  it('own echoes landing late and out of order never overwrite newer typed text; an external reset still does', () => {
+    vi.useFakeTimers()
+    try {
+      mockParamValue = null
+      const { result, rerender } = renderHook(() => useSearchParamState('q', ''))
+      const typed = ['C', 'Ca', 'Cah', 'Cahy', 'Cahya', 'Cahya ', 'Cahya C', 'Cahya Ca', 'Cahya Caf', 'Cahya Cafe']
+      for (const v of typed) {
+        act(() => result.current[1](v))
+        vi.advanceTimersByTime(5)
+      }
+      // Echoes arrive after typing finished: in-order, then a stale one AFTER newer ones (already
+      // consumed once), then the same value again.
+      for (const echo of ['Cahya Ca', 'Cah', 'Cahya Caf', 'Cahya', 'Cahya Cafe', 'Cahya C', 'Cahya Cafe']) {
+        mockParamValue = echo
+        rerender()
+        expect(result.current[0]).toBe('Cahya Cafe')
+      }
+      // Typing continues on top of the full string, not a stale one.
+      act(() => result.current[1]('Cahya Cafes'))
+      expect(result.current[0]).toBe('Cahya Cafes')
+
+      // External reset (Clear filters) is adopted.
+      vi.advanceTimersByTime(60_000)
+      mockParamValue = null
+      rerender()
+      expect(result.current[0]).toBe('')
+
+      // External back to an old value, long after it was typed, is adopted too.
+      mockParamValue = 'Cahya'
+      rerender()
+      expect(result.current[0]).toBe('Cahya')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
