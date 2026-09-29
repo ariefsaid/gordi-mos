@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, RouterProvider, createMemoryRouter, useLocation } from 'react-router-dom'
 import { useSearchParamReset, useSearchParamState } from './use-search-param-state'
@@ -84,6 +84,24 @@ describe('useSearchParamState — real typing', () => {
     await act(() => router.navigate(-1)) // Back onto the entry carrying this hook's tag
     expect(box).toHaveValue('ab')
     expect(router.state.location.search).toBe('?q=ab')
+  })
+
+  // #1024: Back onto an entry whose value equals the URL's current value, while a keystroke's own
+  // write has not landed yet, is still an external navigation and must replace the typed text.
+  it('Back onto an entry with the same value, with a keystroke\'s write still pending, resyncs the field (data router)', async () => {
+    const router = createMemoryRouter([{ path: '/', element: <Box /> }], {
+      initialEntries: ['/?q=a', '/?q=a'],
+      initialIndex: 1,
+    })
+    render(<RouterProvider router={router} />)
+    const box = screen.getByRole('textbox', { name: 'box' })
+    expect(box).toHaveValue('a')
+    await act(async () => {
+      fireEvent.change(box, { target: { value: 'ab' } })
+      void router.navigate(-1)
+    })
+    expect(router.state.location.search).toBe('?q=a')
+    expect(box).toHaveValue('a')
   })
 
   it('Clear filters and typing still work under a plain MemoryRouter', async () => {

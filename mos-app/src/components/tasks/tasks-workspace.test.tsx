@@ -9,7 +9,8 @@ import { useState } from 'react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { render, screen, waitFor, fireEvent, act, within, cleanup } from '@testing-library/react'
-import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, RouterProvider, createMemoryRouter, useLocation, useNavigate } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -1306,6 +1307,13 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       // composer's submit is disabled).
       await waitFor(() => screen.getByRole('button', { name: 'Mark complete' }))
       expect(document.body.querySelectorAll('.btn-primary:not(:disabled)')).toHaveLength(1)
+
+      // Typing a comment enables Post; it must not become a second filled primary (#974).
+      fireEvent.change(screen.getByLabelText('Comment'), { target: { value: 'Looks good' } })
+      const post = screen.getByRole('button', { name: 'Post comment' })
+      expect(post).toBeEnabled()
+      expect(document.body.querySelectorAll('.btn-primary:not(:disabled)')).toHaveLength(1)
+      expect(screen.getByRole('button', { name: 'Mark complete' })).toHaveClass('btn-primary')
     })
 
     it('bookmark/refresh: rendering at /work/tasks?record=<id> restores the open task drawer', async () => {
@@ -2518,5 +2526,121 @@ describe('Issue #749 — Tasks opens on your own work (AC-011/AC-013)', () => {
     await waitFor(() => screen.getByText('Landing task'))
     expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('searchbox', { name: 'Search tasks' })).toHaveValue('Landing')
+  })
+})
+
+// #1024: the search box shows the URL's q, including when something OUTSIDE the box changes it.
+describe('Tasks search follows outside URL changes (#1024)', () => {
+  function renderRouted(entries: string[], initialIndex?: number) {
+    const router = createMemoryRouter(
+      [{ path: '/work/tasks', element: <OverlayHostProvider><TasksWorkspace /></OverlayHostProvider> }],
+      { initialEntries: entries, initialIndex },
+    )
+    render(
+      <I18nProvider>
+        <AuthContext.Provider value={DEWI}>
+          <RouterProvider router={router} />
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+    return router
+  }
+  const box = () => screen.getByRole('searchbox', { name: 'Search tasks' })
+
+  beforeEach(() => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'a', title: 'Alpha task' }),
+      makeTask({ id: 'b', title: 'Beta task' }),
+    ])
+  })
+
+  it('the sidebar Tasks link (a plain /work/tasks) empties the box and shows every task again', async () => {
+    const router = renderRouted(['/work/tasks?q=Alpha'])
+    await waitFor(() => screen.getByText('Alpha task'))
+    expect(box()).toHaveValue('Alpha')
+    expect(screen.queryByText('Beta task')).toBeNull()
+    await act(() => router.navigate('/work/tasks'))
+    await waitFor(() => expect(box()).toHaveValue(''))
+    expect(screen.getByText('Beta task')).toBeInTheDocument()
+  })
+
+  it('Back and Forward carry the box between entries', async () => {
+    const router = renderRouted(['/work/tasks?q=Alpha', '/work/tasks?q=Beta'], 1)
+    await waitFor(() => screen.getByText('Beta task'))
+    expect(box()).toHaveValue('Beta')
+    await act(() => router.navigate(-1))
+    await waitFor(() => expect(box()).toHaveValue('Alpha'))
+    expect(screen.queryByText('Beta task')).toBeNull()
+    await act(() => router.navigate(1))
+    await waitFor(() => expect(box()).toHaveValue('Beta'))
+    expect(screen.queryByText('Alpha task')).toBeNull()
+  })
+
+  it('Clear filters empties the box', async () => {
+    renderRouted(['/work/tasks?q=zzz-no-match'])
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0))
+    fireEvent.click(screen.getAllByRole('button', { name: /clear filters/i })[0])
+    await waitFor(() => expect(box()).toHaveValue(''))
+    expect(screen.getByText('Alpha task')).toBeInTheDocument()
+  })
+
+  it('typing under a slow router keeps every character', async () => {
+    const user = userEvent.setup({ delay: 1 })
+    const router = createMemoryRouter(
+      [{
+        path: '/work/tasks',
+        loader: () => new Promise((resolveLoader) => setTimeout(() => resolveLoader(null), 25)),
+        element: <OverlayHostProvider><TasksWorkspace /></OverlayHostProvider>,
+      }],
+      { initialEntries: ['/work/tasks'] },
+    )
+    render(
+      <I18nProvider>
+        <AuthContext.Provider value={DEWI}>
+          <RouterProvider router={router} />
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+    await waitFor(() => screen.getByText('Alpha task'), { timeout: 5000 })
+    await user.type(box(), 'Alpha')
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 150))
+    expect(box()).toHaveValue('Alpha')
+    await waitFor(() => expect(router.state.location.search).toContain('q=Alpha'))
+  })
+
+  it('opening a task before the typed search reaches the URL keeps the full typed text', async () => {
+    const user = userEvent.setup({ delay: null })
+    const router = createMemoryRouter(
+      [{
+        path: '/work/tasks',
+        loader: () => new Promise((resolveLoader) => setTimeout(() => resolveLoader(null), 200)),
+        element: <OverlayHostProvider><TasksWorkspace /></OverlayHostProvider>,
+      }],
+      { initialEntries: ['/work/tasks'] },
+    )
+    render(
+      <I18nProvider>
+        <AuthContext.Provider value={DEWI}>
+          <RouterProvider router={router} />
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+    await waitFor(() => screen.getByText('Alpha task'), { timeout: 5000 })
+    await user.type(box(), 'Alpha')
+    fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
+    await waitFor(() => expect(router.state.location.search).toContain('record='), { timeout: 5000 })
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 400))
+    expect(box()).toHaveValue('Alpha')
+    expect(router.state.location.search).toContain('q=Alpha')
+  })
+
+  it('typing still lands every character, filters the list and writes the URL', async () => {
+    const user = userEvent.setup({ delay: null })
+    const router = renderRouted(['/work/tasks'])
+    await waitFor(() => screen.getByText('Alpha task'))
+    await user.type(box(), 'Alpha')
+    expect(box()).toHaveValue('Alpha')
+    await waitFor(() => expect(router.state.location.search).toContain('q=Alpha'))
+    expect(screen.queryByText('Beta task')).toBeNull()
   })
 })

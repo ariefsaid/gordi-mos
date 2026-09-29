@@ -165,7 +165,7 @@ export function CommentThread({
           <div className="comment-composer__actions">
             <button
               type="submit"
-              className="btn btn-primary"
+              className="btn btn-outline"
               disabled={!draft.trim() || posting}
             >
               {t('tasks.comment.post')}
