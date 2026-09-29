@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { API_V1_CATALOG } from './../../../../supabase/functions/mcp/catalog.ts'
-import { TOOLS, TOOLS_BY_NAME } from './../../../../supabase/functions/mcp/tools.ts'
+import { TOOLS, TOOLS_BY_NAME, toTool } from './../../../../supabase/functions/mcp/tools.ts'
 
 const MIGRATIONS = join(__dirname, '../../../../supabase/migrations')
 
@@ -59,5 +59,19 @@ describe('MCP tool list', () => {
 
   it('takes no arguments for whoami', () => {
     expect(TOOLS_BY_NAME.get('whoami')!.inputSchema).toEqual({ type: 'object', properties: {}, additionalProperties: false })
+  })
+
+  it('advertises mentions as an array of {kind, id}, the shape the function accepts', () => {
+    const mentions = TOOLS_BY_NAME.get('create_signal')!.inputSchema.properties.mentions
+    expect(mentions).toMatchObject({ type: 'array', maxItems: 50, items: { type: 'object', required: ['kind', 'id'] } })
+  })
+
+  it.each(['edit_project_process', 'edit_signal', 'edit_task'])('advertises %s changes as an object', (name) => {
+    expect(TOOLS_BY_NAME.get(name)!.inputSchema.properties.changes).toMatchObject({ type: 'object' })
+  })
+
+  it('refuses to build a tool from a JSON argument with no declared shape', () => {
+    const op = { name: 'x_op', purpose: 'p.', inputs: 'i.', errors: 'e.', args: [{ name: 'blob', type: 'jsonb', required: false }] }
+    expect(() => toTool(op)).toThrow(/x_op\.blob/)
   })
 })

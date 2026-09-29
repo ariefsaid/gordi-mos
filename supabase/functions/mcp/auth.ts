@@ -1,14 +1,12 @@
-/**
- * Bearer-token validation for the MCP server. Pure (WebCrypto + injected fetch), so it runs in
- * Deno and in Vitest.
- *
- * A token is accepted only when ALL hold: an asymmetric signature (ES256 or RS256) verifies against
- * the login service's published keys; `iss` is that service; the token is unexpired; `aud` contains
- * this server's resource identifier; and `client_id`, `person_id` and `org_id` are present. An app
- * session token (no MCP audience, no client_id) therefore never passes. HMAC and `none` algorithms
- * are refused, so a shared secret is never needed here.
- */
-export interface AgentClaims {
+// Bearer-token validation for the MCP server. Pure (WebCrypto + injected fetch), so it runs in
+// Deno and in Vitest.
+//
+// A token is accepted only when ALL hold: an asymmetric signature (ES256 or RS256) verifies against
+// the login service's published keys; `iss` is that service; the token is unexpired; `aud` contains
+// this server's resource identifier; and `client_id`, `person_id` and `org_id` are present. An app
+// session token (no MCP audience, no client_id) therefore never passes. HMAC and `none` algorithms
+// are refused, so a shared secret is never needed here.
+export type AgentClaims = {
   sub: string
   client_id: string
   person_id: string
@@ -17,7 +15,7 @@ export interface AgentClaims {
 
 export type TokenVerdict = { ok: true; claims: AgentClaims } | { ok: false; reason: string }
 
-export interface AuthConfig {
+export type AuthConfig = {
   resource: string
   issuer: string
   jwksUrl: string
@@ -25,7 +23,7 @@ export interface AuthConfig {
   now: () => number // seconds
 }
 
-interface Jwk extends JsonWebKey { kid?: string }
+type Jwk = JsonWebKey & { kid?: string }
 
 const KEY_ALGS: Record<string, { import: RsaHashedImportParams | EcKeyImportParams; verify: AlgorithmIdentifier | EcdsaParams | RsaPssParams; kty: string }> = {
   ES256: { import: { name: 'ECDSA', namedCurve: 'P-256' }, verify: { name: 'ECDSA', hash: 'SHA-256' }, kty: 'EC' },
@@ -33,46 +31,83 @@ const KEY_ALGS: Record<string, { import: RsaHashedImportParams | EcKeyImportPara
 }
 
 const JWKS_TTL_MS = 10 * 60_000
-const JWKS_REFETCH_MIN_MS = 30_000
-// ponytail: per-isolate key cache; a rotation is picked up by the unknown-kid refetch (at most once per 30 s).
+const JWKS_ATTEMPT_MIN_MS = 30_000
+const JWKS_FETCH_TIMEOUT_MS = 5_000
+
+// ponytail: per-isolate key cache. At most one key fetch per 30 s (success or failure), concurrent
+// misses share one fetch, and each fetch is bounded; a rotation is picked up by the next attempt.
 let jwksCache: { url: string; keys: Jwk[]; fetchedAt: number } | null = null
+let lastAttempt: { url: string; at: number } | null = null
+let inflight: { url: string; promise: Promise<Jwk[]> } | null = null
 
-export function resetJwksCache(): void { jwksCache = null }
-
-async function loadKeys(cfg: AuthConfig, forceRefresh: boolean): Promise<Jwk[]> {
-  const nowMs = cfg.now() * 1000
-  if (jwksCache && jwksCache.url === cfg.jwksUrl) {
-    const age = nowMs - jwksCache.fetchedAt
-    if (!forceRefresh && age < JWKS_TTL_MS) return jwksCache.keys
-    if (forceRefresh && age < JWKS_REFETCH_MIN_MS) return jwksCache.keys
-  }
-  const res = await cfg.fetch(cfg.jwksUrl, { headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`jwks ${res.status}`)
-  const body = (await res.json()) as { keys?: Jwk[] }
-  const keys = Array.isArray(body.keys) ? body.keys : []
-  jwksCache = { url: cfg.jwksUrl, keys, fetchedAt: nowMs }
-  return keys
+export function resetJwksCache(): void {
+  jwksCache = null
+  lastAttempt = null
+  inflight = null
 }
 
-function b64urlToBytes(s: string): Uint8Array<ArrayBuffer> {
-  const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/'))
+async function fetchKeys(config: AuthConfig, nowMs: number): Promise<Jwk[]> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), JWKS_FETCH_TIMEOUT_MS)
+  // The abort signal ends a cooperative fetch; the race bounds one that ignores it.
+  const timedOut = new Promise<never>((_, reject) => {
+    controller.signal.addEventListener('abort', () => reject(new Error('jwks timeout')))
+  })
+  try {
+    const response = await Promise.race([
+      config.fetch(config.jwksUrl, { headers: { Accept: 'application/json' }, signal: controller.signal }),
+      timedOut,
+    ])
+    if (!response.ok) throw new Error(`jwks ${response.status}`)
+    const body = (await Promise.race([response.json(), timedOut])) as { keys?: Jwk[] }
+    const keys = Array.isArray(body.keys) ? body.keys : []
+    jwksCache = { url: config.jwksUrl, keys, fetchedAt: nowMs }
+    return keys
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function loadKeys(config: AuthConfig, forceRefresh: boolean): Promise<Jwk[]> {
+  const nowMs = config.now() * 1000
+  const cached = jwksCache && jwksCache.url === config.jwksUrl ? jwksCache : null
+  const fresh = cached !== null && nowMs - cached.fetchedAt < JWKS_TTL_MS
+  if (fresh && !forceRefresh) return cached.keys
+  if (inflight && inflight.url === config.jwksUrl) return inflight.promise
+  const recentlyTried = lastAttempt !== null && lastAttempt.url === config.jwksUrl && nowMs - lastAttempt.at < JWKS_ATTEMPT_MIN_MS
+  if (recentlyTried) {
+    if (fresh) return cached.keys
+    throw new Error('jwks unavailable')
+  }
+  lastAttempt = { url: config.jwksUrl, at: nowMs }
+  const promise = fetchKeys(config, nowMs)
+  inflight = { url: config.jwksUrl, promise }
+  try {
+    return await promise
+  } finally {
+    if (inflight?.promise === promise) inflight = null
+  }
+}
+
+function b64urlToBytes(encoded: string): Uint8Array<ArrayBuffer> {
+  const bin = atob(encoded.replace(/-/g, '+').replace(/_/g, '/'))
   const out = new Uint8Array(new ArrayBuffer(bin.length))
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
   return out
 }
 
-function parseSegment(s: string): Record<string, unknown> | null {
+function parseSegment(segment: string): Record<string, unknown> | null {
   try {
-    const v: unknown = JSON.parse(new TextDecoder().decode(b64urlToBytes(s)))
-    return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null
+    const value: unknown = JSON.parse(new TextDecoder().decode(b64urlToBytes(segment)))
+    return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null
   } catch {
     return null
   }
 }
 
-const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
+const nonEmpty = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null)
 
-export async function verifyAgentToken(token: string, cfg: AuthConfig): Promise<TokenVerdict> {
+export async function verifyAgentToken(token: string, config: AuthConfig): Promise<TokenVerdict> {
   const parts = token.split('.')
   if (parts.length !== 3) return { ok: false, reason: 'malformed' }
   const header = parseSegment(parts[0])
@@ -85,30 +120,30 @@ export async function verifyAgentToken(token: string, cfg: AuthConfig): Promise<
   let verified = false
   try {
     const signed = new TextEncoder().encode(`${parts[0]}.${parts[1]}`)
-    const sig = b64urlToBytes(parts[2])
-    const kid = str(header.kid)
+    const signature = b64urlToBytes(parts[2])
+    const kid = nonEmpty(header.kid)
     const findKey = (keys: Jwk[]) =>
-      keys.find((k) => k.kty === alg.kty && (kid === null || k.kid === kid))
-    let key = findKey(await loadKeys(cfg, false))
-    if (!key) key = findKey(await loadKeys(cfg, true))
+      keys.find((candidate) => candidate.kty === alg.kty && (kid === null || candidate.kid === kid))
+    let key = findKey(await loadKeys(config, false))
+    if (!key) key = findKey(await loadKeys(config, true))
     if (!key) return { ok: false, reason: 'unknown_key' }
     const cryptoKey = await crypto.subtle.importKey('jwk', key, alg.import, false, ['verify'])
-    verified = await crypto.subtle.verify(alg.verify, cryptoKey, sig, signed)
+    verified = await crypto.subtle.verify(alg.verify, cryptoKey, signature, signed)
   } catch {
     return { ok: false, reason: 'signature' }
   }
   if (!verified) return { ok: false, reason: 'signature' }
 
-  if (payload.iss !== cfg.issuer) return { ok: false, reason: 'iss' }
-  if (typeof payload.exp !== 'number' || payload.exp <= cfg.now()) return { ok: false, reason: 'exp' }
-  if (typeof payload.nbf === 'number' && payload.nbf > cfg.now()) return { ok: false, reason: 'nbf' }
+  if (payload.iss !== config.issuer) return { ok: false, reason: 'iss' }
+  if (typeof payload.exp !== 'number' || payload.exp <= config.now()) return { ok: false, reason: 'exp' }
+  if (typeof payload.nbf === 'number' && payload.nbf > config.now()) return { ok: false, reason: 'nbf' }
   const aud = Array.isArray(payload.aud) ? payload.aud : [payload.aud]
-  if (!aud.includes(cfg.resource)) return { ok: false, reason: 'aud' }
+  if (!aud.includes(config.resource)) return { ok: false, reason: 'aud' }
 
-  const client_id = str(payload.client_id)
-  const person_id = str(payload.person_id)
-  const org_id = str(payload.org_id)
-  const sub = str(payload.sub)
+  const client_id = nonEmpty(payload.client_id)
+  const person_id = nonEmpty(payload.person_id)
+  const org_id = nonEmpty(payload.org_id)
+  const sub = nonEmpty(payload.sub)
   if (!client_id) return { ok: false, reason: 'client_id' }
   if (!person_id || !org_id || !sub) return { ok: false, reason: 'claims' }
   return { ok: true, claims: { sub, client_id, person_id, org_id } }

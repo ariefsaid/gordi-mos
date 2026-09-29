@@ -1,14 +1,12 @@
-/**
- * MCP server (Streamable HTTP, stateless, JSON responses): a thin adapter from MCP tool calls to the
- * api_v1 operations. It holds no authority: the caller's own token goes to the data API and
- * nowhere else, so the database (RLS, the agent fence, the operation's own rules) answers every call.
- *
- * Pure (fetch and clock injected) so it runs in Deno and in Vitest; index.ts wires the environment.
- */
+// MCP server (Streamable HTTP, stateless, JSON responses): a thin adapter from MCP tool calls to the
+// api_v1 operations. It holds no authority: the caller's own token goes to the data API and
+// nowhere else, so the database (RLS, the agent fence, the operation's own rules) answers every call.
+//
+// Pure (fetch and clock injected) so it runs in Deno and in Vitest; index.ts wires the environment.
 import { verifyAgentToken, type AgentClaims } from './auth.ts'
 import { TOOLS, TOOLS_BY_NAME } from './tools.ts'
 
-export interface McpDeps {
+export type McpDeps = {
   resource: string
   issuer: string
   jwksUrl: string
@@ -31,8 +29,15 @@ const json = (body: unknown, status = 200, headers: Record<string, string> = {})
 const rpcResult = (id: unknown, result: unknown) => json({ jsonrpc: '2.0', id, result })
 const rpcError = (id: unknown, code: number, message: string) => json({ jsonrpc: '2.0', id: id ?? null, error: { code, message } })
 
+// RFC 9728: the well-known segment sits between the host and the resource path.
+function metadataUrl(resource: string): string {
+  const url = new URL(resource)
+  const path = url.pathname.replace(/\/$/, '')
+  return `${url.origin}${METADATA_PATH}${path}`
+}
+
 function challenge(deps: McpDeps, invalid: boolean): Response {
-  const pointer = `resource_metadata="${deps.resource.replace(/\/$/, '')}${METADATA_PATH}"`
+  const pointer = `resource_metadata="${metadataUrl(deps.resource)}"`
   return json(
     { error: 'unauthorized' },
     401,
@@ -40,7 +45,7 @@ function challenge(deps: McpDeps, invalid: boolean): Response {
   )
 }
 
-interface ToolFailure { code: string; message: string; field: string | null }
+type ToolFailure = { code: string; message: string; field: string | null }
 
 const toolError = (f: ToolFailure) => ({
   isError: true,
@@ -55,18 +60,18 @@ function toolSuccess(value: unknown) {
 
 const clip = (s: string) => (s.length > MAX_MESSAGE ? `${s.slice(0, MAX_MESSAGE)}...` : s)
 
-/** Maps a data-API error body to the structured tool error: {code: details, message, field: hint}. */
+// Maps a data-API error body to the structured tool error: {code: details, message, field: hint}.
 async function failureFrom(res: Response): Promise<ToolFailure> {
   let body: Record<string, unknown> = {}
   try {
     const parsed: unknown = JSON.parse(await res.text())
     if (typeof parsed === 'object' && parsed !== null) body = parsed as Record<string, unknown>
   } catch { /* a non-JSON body gets the generic failure below */ }
-  const s = (v: unknown) => (typeof v === 'string' && v !== '' ? v : null)
+  const text = (value: unknown) => (typeof value === 'string' && value !== '' ? value : null)
   return {
-    code: s(body.details) ?? s(body.code) ?? `http_${res.status}`,
-    message: clip(s(body.message) ?? 'The request could not be completed.'),
-    field: s(body.hint),
+    code: text(body.details) ?? text(body.code) ?? `http_${res.status}`,
+    message: clip(text(body.message) ?? 'The request could not be completed.'),
+    field: text(body.hint),
   }
 }
 
@@ -129,9 +134,10 @@ function metadata(deps: McpDeps): Response {
   )
 }
 
-export async function mcpHandler(req: Request, deps: McpDeps): Promise<Response> {
+async function handle(req: Request, deps: McpDeps): Promise<Response> {
   const url = new URL(req.url)
-  const isMetadata = url.pathname.endsWith(METADATA_PATH)
+  // Served at the canonical path and wherever the platform routes it under the function.
+  const isMetadata = url.pathname.includes(METADATA_PATH)
 
   if (isMetadata) {
     if (req.method === 'OPTIONS') {
@@ -145,6 +151,7 @@ export async function mcpHandler(req: Request, deps: McpDeps): Promise<Response>
   // Browser-origin requests are refused unless listed: an MCP endpoint is called by agent apps, not pages.
   const origin = req.headers.get('Origin')
   if (origin && !deps.allowedOrigins.includes(origin)) return json({ error: 'origin_not_allowed' }, 403)
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204 })
 
   const header = req.headers.get('Authorization') ?? ''
   const bearer = /^Bearer (.+)$/i.exec(header)
@@ -202,4 +209,22 @@ export async function mcpHandler(req: Request, deps: McpDeps): Promise<Response>
     default:
       return rpcError(id, -32601, 'Method not found.')
   }
+}
+
+// CORS only for allow-listed origins (a disallowed one is refused inside handle); the wrapper adds
+// the headers to whatever handle returns, including the 401 challenge a browser client must read.
+export async function mcpHandler(req: Request, deps: McpDeps): Promise<Response> {
+  const res = await handle(req, deps)
+  const origin = req.headers.get('Origin')
+  if (!origin || !deps.allowedOrigins.includes(origin) || new URL(req.url).pathname.includes(METADATA_PATH)) return res
+  const headers = new Headers(res.headers)
+  headers.set('Access-Control-Allow-Origin', origin)
+  headers.append('Vary', 'Origin')
+  headers.set('Access-Control-Expose-Headers', 'WWW-Authenticate')
+  if (req.method === 'OPTIONS') {
+    headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS')
+    headers.set('Access-Control-Allow-Headers', 'Authorization, Content-Type, MCP-Protocol-Version')
+    headers.set('Access-Control-Max-Age', '600')
+  }
+  return new Response(res.body, { status: res.status, headers })
 }

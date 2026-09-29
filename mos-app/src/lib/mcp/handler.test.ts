@@ -7,7 +7,9 @@ import { mcpHandler, type McpDeps } from './../../../../supabase/functions/mcp/h
 import { TOOLS } from './../../../../supabase/functions/mcp/tools.ts'
 import { ANON_KEY, DATA_API, goodClaims, headerOf, ISSUER, JWKS_URL, makeFetch, makeKeys, NOW, omit, RESOURCE, signJwt } from './testKit.ts'
 
-const METADATA_URL = `${RESOURCE}/.well-known/oauth-protected-resource`
+// RFC 9728: the well-known segment goes between the host and the resource path.
+const METADATA_URL = 'https://mos.test/.well-known/oauth-protected-resource/functions/v1/mcp'
+const METADATA_UNDER_FUNCTION = `${RESOURCE}/.well-known/oauth-protected-resource`
 
 async function setup(dataResponse?: (init: RequestInit) => Response | Promise<Response>, over: Partial<McpDeps> = {}) {
   resetJwksCache()
@@ -36,6 +38,13 @@ describe('protected resource metadata', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ resource: RESOURCE, authorization_servers: [ISSUER], bearer_methods_supported: ['header'] })
     expect(kit.calls).toHaveLength(0)
+  })
+
+  it('is also served under the function path, where the platform routes it', async () => {
+    const { deps } = await setup()
+    const res = await mcpHandler(new Request(METADATA_UNDER_FUNCTION), deps)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ resource: RESOURCE })
   })
 
   it('answers the preflight for the metadata document', async () => {
@@ -94,6 +103,32 @@ describe('authentication', () => {
     }), { ...deps, allowedOrigins: ['https://app.test'] })
     expect((await req('https://evil.test')).status).toBe(403)
     expect((await req('https://app.test')).status).toBe(200)
+  })
+
+  it('gives an allow-listed origin CORS headers on answers and on the preflight, and no other origin', async () => {
+    const { deps, token } = await setup(undefined, { allowedOrigins: ['https://app.test'] })
+    const post = (origin: string) => mcpHandler(new Request(RESOURCE, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+    }), deps)
+    const ok = await post('https://app.test')
+    expect(ok.headers.get('Access-Control-Allow-Origin')).toBe('https://app.test')
+    expect(ok.headers.get('Vary')).toContain('Origin')
+    expect((await post('https://evil.test')).headers.get('Access-Control-Allow-Origin')).toBeNull()
+
+    const pre = await mcpHandler(new Request(RESOURCE, { method: 'OPTIONS', headers: { Origin: 'https://app.test', 'Access-Control-Request-Method': 'POST' } }), deps)
+    expect(pre.status).toBe(204)
+    expect(pre.headers.get('Access-Control-Allow-Origin')).toBe('https://app.test')
+    expect(pre.headers.get('Access-Control-Allow-Headers')?.toLowerCase()).toContain('authorization')
+    const badPre = await mcpHandler(new Request(RESOURCE, { method: 'OPTIONS', headers: { Origin: 'https://evil.test' } }), deps)
+    expect(badPre.status).toBe(403)
+  })
+
+  it('exposes the challenge header to an allow-listed origin', async () => {
+    const { deps } = await setup(undefined, { allowedOrigins: ['https://app.test'] })
+    const res = await mcpHandler(new Request(RESOURCE, { method: 'POST', headers: { Origin: 'https://app.test' }, body: '{}' }), deps)
+    expect(res.status).toBe(401)
+    expect(res.headers.get('Access-Control-Expose-Headers')).toContain('WWW-Authenticate')
   })
 })
 

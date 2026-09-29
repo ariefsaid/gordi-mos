@@ -8,6 +8,13 @@ the `api_v1` profile. The function holds no authority and never reads a table.
   that service, unexpired, `aud` contains this resource, and `client_id`, `person_id`, `org_id` present.
   Anything else is `401` with `WWW-Authenticate: Bearer resource_metadata="…"`. An app session token has no
   `client_id` and no MCP audience, so it never passes.
+- **Discovery:** the challenge points at the RFC 9728 URL, `<origin>/.well-known/oauth-protected-resource<resource path>`.
+  The function answers that document wherever its path contains `/.well-known/oauth-protected-resource`, so
+  the platform gateway must route the canonical path to it (the function-prefixed form works without routing).
+- **Browser origins:** refused (`403`) unless listed in `MCP_ALLOWED_ORIGINS`; a listed origin gets CORS
+  headers and its preflight is answered. Native and server clients send no `Origin`.
+- **Key fetch:** the login service's key set is cached per isolate; one fetch at most every 30 s (success or
+  failure), concurrent misses share it, and each is cut off at 5 s.
 - **No client_id refusal here:** `agent-chat` and `compose-view` refuse tokens carrying `client_id`; this
   function is the one that requires them, so `_shared/jwt.ts`'s `carriesClientId` is not used.
 - **No passthrough:** the token goes only to the data API on the same instance. A `401` from the data API

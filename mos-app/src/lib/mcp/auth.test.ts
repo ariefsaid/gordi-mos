@@ -1,6 +1,6 @@
 // @vitest-environment node
 // AC-029 token validation seam: every refusal reason, and the accepted shape.
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetJwksCache, verifyAgentToken } from './../../../../supabase/functions/mcp/auth.ts'
 import { goodClaims, ISSUER, JWKS_URL, makeFetch, makeKeys, NOW, omit, RESOURCE, signJwt } from './testKit.ts'
 
@@ -96,5 +96,36 @@ describe('verifyAgentToken', () => {
     const failing = (async () => { throw new Error('down') }) as typeof fetch
     const keys = await makeKeys()
     expect((await verifyAgentToken(await signJwt(keys, goodClaims()), cfgFor(failing))).ok).toBe(false)
+  })
+
+  it('backs off after a failed key fetch: repeated tokens do not each cause an outbound call', async () => {
+    let attempts = 0
+    const failing = (async () => { attempts++; throw new Error('down') }) as typeof fetch
+    const keys = await makeKeys()
+    const token = await signJwt(keys, goodClaims())
+    for (let i = 0; i < 5; i++) expect((await verifyAgentToken(token, cfgFor(failing))).ok).toBe(false)
+    expect(attempts).toBe(1)
+  })
+
+  it('shares one key fetch between concurrent tokens', async () => {
+    const keys = await makeKeys()
+    const kit = makeFetch(keys)
+    const token = await signJwt(keys, goodClaims())
+    const verdicts = await Promise.all(Array.from({ length: 6 }, () => verifyAgentToken(token, cfgFor(kit.fetchFn))))
+    expect(verdicts.every((v) => v.ok)).toBe(true)
+    expect(kit.calls.filter((c) => c.url === JWKS_URL)).toHaveLength(1)
+  })
+
+  describe('with a key endpoint that never answers', () => {
+    beforeEach(() => { vi.useFakeTimers() })
+    afterEach(() => { vi.useRealTimers() })
+
+    it('gives up after the fetch timeout and refuses the token', async () => {
+      const hanging = (() => new Promise<Response>(() => {})) as typeof fetch
+      const keys = await makeKeys()
+      const pending = verifyAgentToken(await signJwt(keys, goodClaims()), cfgFor(hanging))
+      await vi.advanceTimersByTimeAsync(6_000)
+      expect(await pending).toEqual({ ok: false, reason: 'signature' })
+    })
   })
 })
