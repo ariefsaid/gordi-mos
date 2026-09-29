@@ -92,7 +92,7 @@ describe('RequireCapability', () => {
   it('AC-302: allows ops_lead into /work/objectives with objective.edit_content (#992)', () => {
     mockUseAuth.mockReturnValue(authed(['ops_lead']))
     renderGuard('/work/objectives', 'objective.edit_content')
-    expect(screen.getByTestId('protected')).toBeInTheDocument()
+    expect(screen.getByText('Objectives')).toBeInTheDocument()
   })
 
   it('AC-302: holds member out of /work/objectives without objective.manage', () => {

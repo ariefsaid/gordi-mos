@@ -209,8 +209,11 @@ begin
     -- change outside both tiers is a loud 42501, never a silent pass-through.
     if new.org_id      is distinct from old.org_id
        or new.id       is distinct from old.id
-       or new.created_at is distinct from old.created_at then
-      raise exception 'the objective''s org, identity and creation metadata are not editable in place'
+       or new.created_at is distinct from old.created_at
+       -- The clock is server-owned: a caller-supplied updated_at would otherwise ride past the
+       -- value-identical check below (it differs, so no tier fires) and still advance the clock.
+       or new.updated_at is distinct from old.updated_at then
+      raise exception 'the objective''s org, identity, creation metadata and clock are not editable in place'
         using errcode = '42501';
     end if;
     -- Structural tier: admin alone renames, re-homes, flips Company-wide, re-periods, archives,
@@ -320,8 +323,9 @@ begin
     -- editable in place (review round 1 of #992).
     if new.org_id      is distinct from old.org_id
        or new.id       is distinct from old.id
-       or new.created_at is distinct from old.created_at then
-      raise exception 'a key result''s org, identity and creation metadata are not editable in place'
+       or new.created_at is distinct from old.created_at
+       or new.updated_at is distinct from old.updated_at then
+      raise exception 'a key result''s org, identity, creation metadata and clock are not editable in place'
         using errcode = '42501';
     end if;
     -- Structural tier: what, the target fields, the owner, and which Objective carries the row.
