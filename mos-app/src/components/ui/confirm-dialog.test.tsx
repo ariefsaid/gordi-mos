@@ -167,3 +167,41 @@ describe('ConfirmDialog — button emphasis by tone', () => {
     expect(screen.getByRole('button', { name: 'Reset password' })).toHaveClass('btn-primary')
   })
 })
+
+describe('ConfirmDialog reason cap', () => {
+  it('limits the reason field to reasonMaxLength characters', () => {
+    render(
+      <ConfirmDialog
+        open
+        title="Retract?"
+        body="This cannot be undone."
+        confirmLabel="Retract"
+        reasonLabel="Reason"
+        reason=""
+        onReasonChange={() => {}}
+        reasonRequired
+        reasonMaxLength={500}
+        onConfirm={vi.fn().mockResolvedValue(undefined)}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.getByLabelText(/reason/i)).toHaveAttribute('maxlength', '500')
+  })
+
+  it('leaves the reason field uncapped when no limit is given', () => {
+    render(
+      <ConfirmDialog
+        open
+        title="Archive?"
+        body="Hidden from lists."
+        confirmLabel="Archive"
+        reasonLabel="Reason"
+        reason=""
+        onReasonChange={() => {}}
+        onConfirm={vi.fn().mockResolvedValue(undefined)}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.getByLabelText(/reason/i)).not.toHaveAttribute('maxlength')
+  })
+})
