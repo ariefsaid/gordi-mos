@@ -174,4 +174,30 @@ describe('useCafeStream — the shared Café bootstrap', () => {
     // ...and the unscoped slot every branch would read is NOT what was written.
     expect(rememberedStreamKey()).toBeNull()
   })
+
+  // #868: a mount with no claimed location gets the WHOLE catalog in `locationOptions` (nothing
+  // to narrow by yet). The first deliberate choice IS the claim (setStream's own comment says so),
+  // but until this fix only the module-level remembered slot picked it up — the `locationOptions`
+  // this same mount's picker reads stayed the wide pre-claim list until the surface remounted and
+  // re-ran resolve(). A person picking a second stream in the SAME session then saw every branch's
+  // streams, not just the one they just claimed.
+  it('issue 868: after the first claim, locationOptions narrows in this same mount — no remount needed', async () => {
+    // No own default and no active location: the catalog starts wide, exactly the "first surface,
+    // nothing claimed yet" case the ticket describes.
+    vi.mocked(fetchDefaultStream).mockResolvedValue(null)
+    const { result } = renderHook(() => useCafeStream())
+    const resolved = await act(async () => result.current.resolve())
+    act(() => result.current.adopt(resolved))
+    await waitFor(() => expect(result.current.options).toHaveLength(4))
+    // Before the claim: unbounded, both branches present.
+    expect(result.current.locationOptions).toHaveLength(4)
+
+    const BRANCH_RR_KITCHEN = { branch: BRANCH_RR, activity: 'kitchen' as const, produces: true }
+    act(() => result.current.setStream(BRANCH_RR_KITCHEN))
+
+    // The claim narrows this SAME mount's options to the claimed branch, with no second resolve().
+    expect(result.current.branchId).toBe(BRANCH_RR.id)
+    expect(result.current.locationOptions).toHaveLength(2)
+    expect(result.current.locationOptions.every(option => option.branch.id === BRANCH_RR.id)).toBe(true)
+  })
 })
