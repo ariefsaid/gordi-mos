@@ -1952,6 +1952,38 @@ describe('#17 — Tasks head meta is "N open · M in view" (open excludes Done)'
   })
 })
 
+// #958 (review r1): the previous tests only mounted an arbitrary <span> as titleHelp; none opened
+// the REAL HelpTip on a populated page or read its copy — a caller could drop the prop entirely
+// and every existing test would still pass. This mounts the actual TasksWorkspace, clicks the
+// real "?" glyph, and asserts the rendered panel text in both locales.
+describe('Ticket #958 — the head "?" opens the purpose sentence + PIC/Supervisor/Saved views glossary', () => {
+  it('EN: states the purpose sentence and defines PIC, Supervisor and Saved views', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Existing task'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }))
+    const panel = screen.getByRole('note')
+    expect(panel).toHaveTextContent('Find and update the work in this view.')
+    expect(panel).toHaveTextContent('PIC (Responsible)')
+    expect(panel).toHaveTextContent('Supervisor (Accountable)')
+    expect(panel).toHaveTextContent('Saved views')
+  })
+
+  it('ID: states the localized purpose sentence and glossary', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Pekerjaan pertama' })])
+    renderTable({}, authedState, undefined, 'id')
+    await waitFor(() => screen.getByText('Pekerjaan pertama'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bantuan' }))
+    const panel = screen.getByRole('note')
+    expect(panel).toHaveTextContent('Temukan dan perbarui pekerjaan di tampilan ini.')
+    expect(panel).toHaveTextContent('PIC (Responsible)')
+    expect(panel).toHaveTextContent('Supervisor (Accountable)')
+    expect(panel).toHaveTextContent('Tampilan tersimpan')
+  })
+})
+
 // ── F3 (design review): one overdue token everywhere, no density-dependent glyph ──
 describe('F3 — overdue label stays consistent across densities (no bare "!" glyph)', () => {
   it('F3: in condensed split-view, overdue keeps a dated label with the overdue treatment — never a bare "!" and never clipped (owner-eyes item 3: the "Overdue ·" prefix yields at condensed width; color + full label at normal density carry it)', async () => {

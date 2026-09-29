@@ -164,6 +164,17 @@ describe('AdminUsersPage (AC-060)', () => {
     expect(screen.queryByText('Budi Santoso')).not.toBeInTheDocument()
   })
 
+  // #957: the `.admin-people-collection` marker (shell/page-families.css) is what opts this page
+  // into DESIGN.md's wide operating measure, and it must render unconditionally — same reasoning
+  // as the Work collections' `.work-collection`, capping width only while a panel happens to be
+  // open is a dead-gutter defect too. Asserted before any panel opens, so a regression that makes
+  // the marker conditional on `openPerson` cannot hide behind a test that only checks the split.
+  it('AC-957: always carries the wide-measure marker, panel open or not', () => {
+    mockListAdminPeople.mockReturnValue(new Promise(() => {}))
+    const { container } = renderPage()
+    expect(container.querySelector('.admin-people-collection')).toBeInTheDocument()
+  })
+
   // AC-043 (#803): a load is not a reason to blank the controls. The head and the toolbar are
   // chrome the admin can already act on; only the LIST is unknown, so only the list is skeleton.
   it('AC-043: the head and the toolbar stay rendered while the list loads — only the list is skeleton', () => {

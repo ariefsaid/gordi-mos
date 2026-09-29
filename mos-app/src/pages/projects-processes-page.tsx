@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { HelpTip } from '@/components/ui/help-tip'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useSearchParams } from 'react-router-dom'
 import { useIsDesktop } from '@/shell/use-is-desktop'
@@ -284,6 +285,9 @@ export function ProjectsProcessesPage() {
       family="management"
       title={t('nav.work.projects')}
       jobSentence={t('job.projects')}
+      // #958: repeats the sentence above (desktop-only, page-head.css hides it under 768px)
+      // ahead of the glossary, so phone gets purpose + terms from one glyph.
+      titleHelp={<HelpTip label={`${t('job.projects')} ${t('job.projectsHelp')}`} />}
       action={canManage && !isNarrow ? <Button ref={createButtonRef} variant="primary" onClick={openDraft}>{t('catalog.projects.add')}</Button> : undefined}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>

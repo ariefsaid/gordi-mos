@@ -13,6 +13,7 @@ import { useSetCollectionLeaf } from '@/shell/breadcrumb-title'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import type { PageFamilyState } from '@/shell/page-families'
+import { HelpTip } from '@/components/ui/help-tip'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { createRecordRouteAdapter } from '@/shell/overlay-navigation'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
@@ -901,6 +902,9 @@ export function TasksWorkspace({
       family="workspace"
       title={t('tasks.title')}
       jobSentence={t('job.tasks')}
+      // #958: the sentence above is desktop-only (page-head.css hides it under 768px), so the
+      // HelpTip repeats it ahead of the glossary — phone gets purpose + terms from one glyph.
+      titleHelp={<HelpTip label={`${t('job.tasks')} ${t('job.tasksHelp')}`} />}
       headClassName="tasks-page-head"
       state={frameState}
       action={showNewTask ? (

@@ -283,8 +283,12 @@ export function AdminUsersPage() {
           coarse pointer) the person cards carry their own card chrome — the outer
           container drops its border/shadow/bg so cards never nest inside a card. The
           container card exists for the table presentation only. */}
-      {/* The split sits around list + panel only while the panel is open beside it. */}
-      <div className={openPerson && isSplit ? 'record-split admin-people-split' : undefined}>
+      {/* #957: `admin-people-collection` is a stable marker (always rendered, panel open or not —
+          same reasoning as the Work collections' `.work-collection`: capping width only while a
+          panel is open is a dead-gutter defect too, just a briefer one) that opts this list+panel
+          surface into DESIGN.md's wide operating measure. `record-split`/`admin-people-split`
+          still only apply while the panel is actually open beside the list. */}
+      <div className={`admin-people-collection${openPerson && isSplit ? ' record-split admin-people-split' : ''}`}>
         <div
           data-testid="people-list-container"
           className="mb-6 rounded-lg overflow-hidden"

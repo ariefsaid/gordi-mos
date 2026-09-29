@@ -471,6 +471,19 @@ is** — not by who authored it, and not per-page taste.
    Signals aside, so the readable cap stopped the header rule, the arrangement and the Signals column
    ~250px short of the content area and stranded a gutter to their right (*"why is the container for
    home got cut mid screen horizontally?"* — owner, ~1730px window).
+3. **Admin → People** — `shell/page-families.css`, scoped
+   `.page-frame--v3 .page-frame__content:has(.admin-people-collection)`. It is a list-plus-panel
+   master/detail surface by the same test as the Work collections, so it takes the same measure via
+   its own always-rendered marker (owner: Admin sat narrower than Work at the same viewport, a width
+   jump between two route families with no documented reason). **Admin → Teams and Admin → Access are
+   NOT instances** — both are single-column settings surfaces (a reference table, a read-then-toggle
+   grid) with no second dimension, so they render no marker and stay at the 1180px default like any
+   other settings page.
+
+Every other route family not named above — Money, Signals/Tasks/Objectives record pages opened full-
+page, every settings and reference surface — is the 1180px default. A route earns the wide measure
+only by bringing the same evidence the next-instance rule below requires: a genuine second dimension
+and a measured dead gutter, never "it looks narrow."
 
 Every instance takes the **same** 1760px on purpose, so every wide surface's right edge lands in the
 same place; a different number would be a *second* wide measure, not a reuse of this one. Three
