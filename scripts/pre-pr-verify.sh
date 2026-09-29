@@ -195,11 +195,11 @@ fi
 # The marker keeps a self-test that drives this script from recursing.
 if [ -n "$base" ] && [ -z "${MOS_GUARD_SELFTESTS_RUNNING:-}" ] \
    && [ -n "$(git diff --name-only "$base"...HEAD -- scripts/)" ] && [ -f .github/workflows/guards.yml ]; then
-  while IFS= read -r _t; do
-    [ -f "$_t" ] || continue
-    echo "── guard self-test: $_t"
-    MOS_GUARD_SELFTESTS_RUNNING=1 bash "$_t" >/dev/null 2>&1 || { echo "✗ $_t failed — run it for details" >&2; exit 1; }
-  done < <(grep -oE 'bash scripts/[A-Za-z0-9_.-]+\.test\.sh' .github/workflows/guards.yml | awk '{print $2}' | sort -u)
+  # Every self-test command guards.yml runs (bash or node), exactly as CI writes it.
+  while IFS= read -r _cmd; do
+    echo "── guard self-test: $_cmd"
+    MOS_GUARD_SELFTESTS_RUNNING=1 bash -c "$_cmd" >/dev/null 2>&1 || { echo "✗ $_cmd failed — run it for details" >&2; exit 1; }
+  done < <(sed -nE 's/^[[:space:]]*(-[[:space:]]+)?run:[[:space:]]*([^#]*\.test\.[^#]*).*$/\2/p' .github/workflows/guards.yml)
 fi
 
 if [ "$(git rev-parse HEAD)" != "$head" ] || [ -n "$(git status --porcelain)" ]; then

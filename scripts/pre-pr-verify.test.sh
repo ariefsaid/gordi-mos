@@ -476,7 +476,7 @@ else ok "checkout changed during verification refuses"; fi
 # A scripts/ change runs the guard self-tests guards.yml lists: red refuses the stamp, green allows it.
 G reset -q --hard; G clean -fdq; printf '#!/bin/sh\nexit 0\n' > "$tmp/bin/npm"; chmod +x "$tmp/bin/npm"
 mkdir -p "$tmp/repo/.github/workflows"
-printf 'jobs:\n  g:\n    steps:\n      - run: bash scripts/demo-guard.test.sh\n' > "$tmp/repo/.github/workflows/guards.yml"
+printf 'jobs:\n  g:\n    steps:\n      - run: sh scripts/demo-guard.test.sh   # any runner, as CI writes it\n' > "$tmp/repo/.github/workflows/guards.yml"
 G add .github; G commit -qm "guards list for the guard self-test case"
 G update-ref refs/remotes/origin/lightbase "$(G rev-parse HEAD)"
 printf '#!/bin/sh\nexit 0\n' > "$tmp/repo/scripts/demo-guard.sh"
