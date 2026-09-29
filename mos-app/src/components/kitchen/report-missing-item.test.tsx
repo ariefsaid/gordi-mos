@@ -69,4 +69,23 @@ describe('ReportMissingItem (AC-013)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not send/i)
     expect(screen.getByLabelText(/item name/i)).toBeInTheDocument()
   })
+
+  it('a failed send keeps the typed name and focus; a retry files it once', async () => {
+    mockAddLogEntry.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined as never)
+    const user = userEvent.setup()
+    render(<ReportMissingItem businessUnitId={BU_ID} />)
+
+    await user.click(screen.getByRole('button', { name: /report it/i }))
+    const field = screen.getByLabelText(/item name/i)
+    await user.type(field, 'Es Kopi Susu')
+    await user.click(screen.getByRole('button', { name: /send report/i }))
+
+    await screen.findByRole('alert')
+    expect(screen.getByLabelText(/item name/i)).toHaveValue('Es Kopi Susu')
+    expect(screen.getByLabelText(/item name/i)).toHaveFocus()
+
+    await user.click(screen.getByRole('button', { name: /send report/i }))
+    await waitFor(() => expect(mockAddLogEntry).toHaveBeenCalledTimes(2))
+    expect(await screen.findByRole('status')).toBeInTheDocument()
+  })
 })
