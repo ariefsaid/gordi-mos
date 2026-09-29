@@ -15,7 +15,7 @@
 -- org B's admin and the negative control.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(49);
+select plan(51);
 
 select shared._test_seed_directory();
 
@@ -318,6 +318,20 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009962'),
   0, 'the same fail-closed hold for the admin tier');
+
+-- The renumbered batch stack applies 11, 12, then 13 on a fresh database, and this migration's
+-- create-or-replace restates the WHOLE dispatch body — so it must carry every earlier batch's
+-- arms or those tables write history nobody can read (review of #988's slot).
+select ok(
+  (select position('mos.process_run_pending_tasks' in prosrc) > 0 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'shared' and p.proname = 'can_read_history_record' limit 1),
+  'the ...0013 dispatch body still carries the ...0011 task-cascade arms');
+select ok(
+  (select position('p_table = ''follow_ups''' in prosrc) > 0 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'shared' and p.proname = 'can_read_history_record' limit 1),
+  '...and the ...0012 signal-worklog arms (e.g. follow_ups)');
 
 select * from finish();
 rollback;

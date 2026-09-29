@@ -36,7 +36,12 @@
 --   drop trigger record_history_certified_metrics on mos.certified_metrics;
 --   drop trigger record_history_supervisor_revenue_scope on reporting.supervisor_revenue_scope;
 --   -- then create or replace function shared.can_read_history_record(text, text, text, text, jsonb)
---   -- back to its pre-batch body (Slice 1's arms only, as of 808aa13b):
+--   -- back to its pre-batch body: Slice 1's arms PLUS the 20260929000011 task-cascade arms
+--   -- (tasks, task_checklist_items, process_cadences, process_task_defs, process_runs,
+--   -- process_run_pending_tasks) PLUS the 20260929000012 signal-worklog arms (signals,
+--   -- signal_mentions, signal_acknowledgements, signal_tasks, weekly_updates,
+--   -- weekly_update_items, events, follow_ups — live; weekly_update_items on delete), i.e. this
+--   -- migration's own four arms removed from the body above:
 --   --   create or replace function shared.can_read_history_record(
 --   --     p_schema     text,
 --   --     p_table      text,
@@ -70,6 +75,90 @@
 --   --             where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 --   --               and w.id = p_record_key::uuid
 --   --               and w.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'tasks' then
+--   --         return exists (
+--   --           select 1 from mos.tasks t
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and t.id = p_record_key::uuid
+--   --             and t.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'task_checklist_items' then
+--   --         return exists (
+--   --           select 1 from mos.task_checklist_items c
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and c.id = p_record_key::uuid
+--   --             and c.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'process_cadences' then
+--   --         return exists (
+--   --           select 1 from mos.process_cadences pc
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and pc.id = p_record_key::uuid
+--   --             and pc.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'process_task_defs' then
+--   --         return exists (
+--   --           select 1 from mos.process_task_defs pd
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and pd.id = p_record_key::uuid
+--   --             and pd.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'process_runs' then
+--   --         return exists (
+--   --           select 1 from mos.process_runs pr
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and pr.id = p_record_key::uuid
+--   --             and pr.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'process_run_pending_tasks' then
+--   --         return exists (
+--   --           select 1 from mos.process_run_pending_tasks pp
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and pp.id = p_record_key::uuid
+--   --             and pp.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'signals' then
+--   --         return exists (
+--   --           select 1 from mos.signals s
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and s.id = p_record_key::uuid
+--   --             and s.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'signal_mentions' then
+--   --         return exists (
+--   --           select 1 from mos.signal_mentions m
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and m.id = p_record_key::uuid
+--   --             and m.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'signal_acknowledgements' then
+--   --         return exists (
+--   --           select 1 from mos.signal_acknowledgements a
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and a.id = p_record_key::uuid
+--   --             and a.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'signal_tasks' then
+--   --         return exists (
+--   --           select 1 from mos.signal_tasks st
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and st.id = p_record_key::uuid
+--   --             and st.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'weekly_updates' then
+--   --         return exists (
+--   --           select 1 from mos.weekly_updates wu
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and wu.id = p_record_key::uuid
+--   --             and wu.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'weekly_update_items' then
+--   --         return exists (
+--   --           select 1 from mos.weekly_update_items wi
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and wi.id = p_record_key::uuid
+--   --             and wi.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'events' then
+--   --         return exists (
+--   --           select 1 from mos.events e
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and e.id = p_record_key::uuid
+--   --             and e.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'follow_ups' then
+--   --         return exists (
+--   --           select 1 from mos.follow_ups fu
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and fu.id = p_record_key::uuid
+--   --             and fu.org_id = shared.current_org_id());
 --   --         else
 --   --           return false;
 --   --       end case;
@@ -143,6 +232,94 @@ begin
           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
             and w.id = p_record_key::uuid
             and w.org_id = shared.current_org_id());
+      -- ── 20260929000011 (batch 2a) task-cascade arms, restated: the renumbered stack applies
+      -- 11 then 12 then 13 on a fresh database, so this create-or-replace must carry them or the
+      -- task-cascade tables write history nobody can read.
+      when p_schema = 'mos' and p_table = 'tasks' then
+        return exists (
+          select 1 from mos.tasks t
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and t.id = p_record_key::uuid
+            and t.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'task_checklist_items' then
+        return exists (
+          select 1 from mos.task_checklist_items c
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and c.id = p_record_key::uuid
+            and c.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'process_cadences' then
+        return exists (
+          select 1 from mos.process_cadences pc
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and pc.id = p_record_key::uuid
+            and pc.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'process_task_defs' then
+        return exists (
+          select 1 from mos.process_task_defs pd
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and pd.id = p_record_key::uuid
+            and pd.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'process_runs' then
+        return exists (
+          select 1 from mos.process_runs pr
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and pr.id = p_record_key::uuid
+            and pr.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'process_run_pending_tasks' then
+        return exists (
+          select 1 from mos.process_run_pending_tasks pp
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and pp.id = p_record_key::uuid
+            and pp.org_id = shared.current_org_id());
+      -- ── 20260929000012 (batch 2b) signal-worklog arms, restated for the same reason ──────────
+      when p_schema = 'mos' and p_table = 'signals' then
+        return exists (
+          select 1 from mos.signals s
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and s.id = p_record_key::uuid
+            and s.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'signal_mentions' then
+        return exists (
+          select 1 from mos.signal_mentions m
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and m.id = p_record_key::uuid
+            and m.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'signal_acknowledgements' then
+        return exists (
+          select 1 from mos.signal_acknowledgements a
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and a.id = p_record_key::uuid
+            and a.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'signal_tasks' then
+        return exists (
+          select 1 from mos.signal_tasks st
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and st.id = p_record_key::uuid
+            and st.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'weekly_updates' then
+        return exists (
+          select 1 from mos.weekly_updates wu
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and wu.id = p_record_key::uuid
+            and wu.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'weekly_update_items' then
+        return exists (
+          select 1 from mos.weekly_update_items wi
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and wi.id = p_record_key::uuid
+            and wi.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'events' then
+        return exists (
+          select 1 from mos.events e
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and e.id = p_record_key::uuid
+            and e.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'follow_ups' then
+        return exists (
+          select 1 from mos.follow_ups fu
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and fu.id = p_record_key::uuid
+            and fu.org_id = shared.current_org_id());
       when p_schema = 'mos' and p_table = 'budgets' then
         return exists (
           select 1 from mos.budgets b
@@ -183,6 +360,13 @@ begin
   -- batch — stays fail closed (FR-013, NFR-007).
   if p_action = 'delete' then
     case
+      -- 20260929000012 (batch 2b): the weekly_update_items snapshot arm, restated
+      when p_schema = 'mos' and p_table = 'weekly_update_items' then
+        return (p_snapshot ->> 'org_id')::uuid = shared.current_org_id()
+          and exists (
+            select 1 from mos.weekly_updates w
+            where w.id = (p_snapshot ->> 'weekly_update_id')::uuid
+              and mos.can_read_weekly_update(w.person_id));
       when p_schema = 'reporting' and p_table = 'supervisor_revenue_scope' then
         return (p_snapshot ->> 'org_id')::uuid = shared.current_org_id()
           and (shared.has_access_role('admin')
