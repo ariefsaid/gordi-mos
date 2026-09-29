@@ -75,4 +75,31 @@ describe('PersonPicker', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(hostEscape).not.toHaveBeenCalled()
   })
+
+  it('marks a 200-character unbroken name for single-line truncation', () => {
+    const long = 'y'.repeat(200)
+    render(<PersonPicker people={[{ id: 'p9', full_name: long }]} onSelect={vi.fn()} onClose={vi.fn()} />)
+    expect(screen.getByText(long)).toHaveClass('person-picker-label')
+  })
+
+  it('returns focus to the opener after Escape', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<button>opener</button>)
+    const opener = screen.getByRole('button', { name: 'opener' })
+    opener.focus()
+    rerender(<><button>opener</button><PersonPicker people={people} onSelect={vi.fn()} onClose={vi.fn()} /></>)
+    expect(screen.getByRole('combobox')).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(opener).toHaveFocus()
+  })
+
+  it('returns focus to the opener after a selection', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(<button>opener</button>)
+    const opener = screen.getByRole('button', { name: 'opener' })
+    opener.focus()
+    rerender(<><button>opener</button><PersonPicker people={people} onSelect={vi.fn()} onClose={vi.fn()} /></>)
+    await user.click(screen.getAllByRole('option')[0])
+    expect(opener).toHaveFocus()
+  })
 })

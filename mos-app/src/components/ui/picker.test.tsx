@@ -184,4 +184,14 @@ describe('Picker', () => {
     await user.keyboard('{ArrowDown}')
     expect(screen.getByRole('combobox', { name: 'Filter Status' })).toHaveFocus()
   })
+
+  it('marks a 200-character unbroken label for single-line truncation', async () => {
+    const user = userEvent.setup()
+    const long = 'x'.repeat(200)
+    renderPicker({ options: [{ value: 'long', label: long }], value: 'long' })
+    await user.click(screen.getByRole('combobox', { name: 'Status' }))
+    const label = screen.getByRole('option', { name: long }).querySelector('.picker__option-label')
+    expect(label).toHaveTextContent(long)
+    expect(label).toHaveClass('picker__option-label')
+  })
 })

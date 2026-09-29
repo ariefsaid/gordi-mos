@@ -247,7 +247,7 @@ export function Picker({
                       close('select')
                     }}
                   >
-                    <span>{option.label}</span>
+                    <span className="picker__option-label">{option.label}</span>
                     {option.value === value && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>}
                   </Command.Item>
                 ))}
