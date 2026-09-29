@@ -43,7 +43,6 @@ export interface ConfirmDialogProps {
   reason?: string
   onReasonChange?: (reason: string) => void
   reasonRequired?: boolean
-  /** Optional cap on the reason's length (characters typed or pasted). */
   reasonMaxLength?: number
   /** Async action fired on confirm click. Throw to surface an error state. */
   onConfirm: () => Promise<void>
