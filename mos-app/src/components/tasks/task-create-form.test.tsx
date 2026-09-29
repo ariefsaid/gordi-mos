@@ -6,7 +6,8 @@
 // side of the delegation.
 import type { ComponentProps } from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { TaskCreateForm } from './task-create-form'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
@@ -150,5 +151,23 @@ describe('TaskCreateForm — discard, busy and retry', () => {
     fireEvent.click(retry)
     await screen.findByRole('button', { name: 'Create task' })
     expect(onCreate).toHaveBeenCalledTimes(2)
+  })
+
+  it('issue 979: a failed save hands focus back to the title with its text, and one retry creates once', async () => {
+    const restore = installDisabledBlur()
+    try {
+      const onCreate = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
+      renderForm({ task: makeDraft({ title: 'Ship the launch' }), onCreate })
+      const title = screen.getByRole('textbox', { name: 'Title' })
+      title.focus()
+      fireEvent.keyDown(title, { key: 'Enter' })
+      await screen.findByRole('button', { name: /retry/i })
+      expect(onCreate).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(title).toHaveFocus())
+      expect(title).toHaveValue('Ship the launch')
+      fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+      await screen.findByRole('button', { name: 'Create task' })
+      expect(onCreate).toHaveBeenCalledTimes(2)
+    } finally { restore() }
   })
 })

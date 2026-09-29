@@ -199,9 +199,14 @@
   max-height: var(--control-height);
   align-items: center;
 }
-.inline-editor-control input[type="date"] {
-  height: var(--control-height);
-  max-height: var(--control-height);
+/* The due editor carries its save error beside it, so it grows (wraps) instead of clipping it. */
+.inline-editor-control--due {
+  height: auto;
+  max-height: none;
+  min-height: var(--control-height);
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  white-space: normal;
 }
 
 .tasks-inline-edit-hint {

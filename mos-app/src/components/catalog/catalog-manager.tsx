@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useId, useRef } from 'react'
+import { useState, useEffect, useCallback, useId } from 'react'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { Button } from '@/components/ui/button'
+import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { TextInput } from '@/components/ui/text-input'
 import { Tag } from '@/components/ui/tag'
 import { ErrorState, EmptyState, SkeletonRows } from '@/components/ui/state-kit'
@@ -87,12 +88,9 @@ export function CatalogManager({
 
   useEffect(() => { void refresh() }, [refresh])
 
-  // The name field is disabled while saving, which drops focus; a failed save hands it back.
-  const wasAdding = useRef(false)
-  useEffect(() => {
-    if (wasAdding.current && !adding && addError) document.getElementById(nameInputId)?.focus()
-    wasAdding.current = adding
-  }, [adding, addError, nameInputId])
+  // The fields disable while saving, which drops focus; a failed save hands it back.
+  const addFormRef = useFocusRestore<HTMLFormElement>(adding, !!addError)
+  const listRef = useFocusRestore<HTMLUListElement>(savingId !== null, !!editError)
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -166,7 +164,7 @@ export function CatalogManager({
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
 
       {/* Add form */}
-      <form onSubmit={handleAdd} aria-label={`Add ${noun}`} className="mb-6 flex flex-wrap items-end gap-3">
+      <form ref={addFormRef} onSubmit={handleAdd} aria-label={`Add ${noun}`} className="mb-6 flex flex-wrap items-end gap-3">
         <div className="grow" style={{ minWidth: 220 }}>
           <TextInput
             id={nameInputId}
@@ -218,7 +216,7 @@ export function CatalogManager({
           <EmptyState title={`No ${plural} yet`} copy={`Add your first ${noun} above.`} />
         ) : (
           <>
-            <ul className="flex flex-col gap-1" aria-label={plural}>
+            <ul ref={listRef} className="flex flex-col gap-1" aria-label={plural}>
               {active.map((item) => (
                 <li key={item.id}
                   className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border px-3 py-2"

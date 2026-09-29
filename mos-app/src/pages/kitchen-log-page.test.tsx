@@ -12,6 +12,7 @@ import { resolve } from 'node:path'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { MemoryRouter, Route, Routes, createMemoryRouter, RouterProvider, Link } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 
@@ -1022,6 +1023,32 @@ describe('issue 222: capture offers the stream\'s own item list', () => {
     )
   })
 
+  it('issue 979: a failed submit gives focus back to the quantity being typed and keeps it; one retry saves once', async () => {
+    const restore = installDisabledBlur()
+    try {
+      mockInsertKitchenLogBatch.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(['log-1'])
+      await renderPage()
+      await waitFor(() => screen.getByText('Ayam Bakar'))
+      const ayam = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+      ayam.focus()
+      fireEvent.change(ayam, { target: { value: '17' } })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+        await Promise.resolve()
+      })
+      await screen.findByRole('alert')
+      expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(ayam).toHaveFocus())
+      expect(ayam).toHaveValue(17)
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+        await Promise.resolve()
+      })
+      await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(2))
+    } finally { restore() }
+  })
+
   it('a line refused as off-list keeps the draft, is marked, and says what to do; clearing it lets Submit through', async () => {
     mockInsertKitchenLogBatch.mockRejectedValueOnce(NOT_ON_LIST).mockResolvedValueOnce(['log-1'])
     // The list changed while the form was open: Nasi Goreng is still listed, Ayam Bakar is not.
@@ -1370,6 +1397,15 @@ describe('OD-K-5: search-mini filters', () => {
     // only Nasi Goreng remains
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
+  })
+
+  it('keeps fast typing intact: "nasi goreng" typed with no delay is exactly what the box shows (#981)', async () => {
+    setDesktopMatchMedia(true)
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    const box = screen.getByRole('searchbox', { name: /find an item/i })
+    await userEvent.setup({ delay: null }).type(box, 'nasi goreng')
+    expect(box).toHaveValue('nasi goreng')
   })
 
   it('I7 / D-E1: hydrates the search from ?q= on load (a refreshed/shared link reproduces the filtered view)', async () => {

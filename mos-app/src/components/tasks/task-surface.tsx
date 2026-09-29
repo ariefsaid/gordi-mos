@@ -36,6 +36,7 @@ import { Picker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
 import { DateField } from '@/components/ui/date-field'
 import { Button } from '@/components/ui/button'
+import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { LoadingShell, EmptyState, ErrorState } from '@/components/ui/state-kit'
 
 type DirectoryTeamOption = {
@@ -1058,6 +1059,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   // ── Submit state ──────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const formRef = useFocusRestore<HTMLFormElement>(submitting, !!submitError)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -1203,6 +1205,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   // the primary CTA is always reachable regardless of form length or viewport height.
   const formMarkup = (
       <form
+        ref={formRef}
         onSubmit={handleSubmit}
         noValidate
         aria-label={t('tasks.create.form')}

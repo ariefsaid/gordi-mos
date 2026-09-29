@@ -1,3 +1,4 @@
+import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -173,6 +174,22 @@ describe('RecordField', () => {
     // leave-guard listener — the field draft is cancelled first, in isolation.
     expect(hostLeave).not.toHaveBeenCalled()
     expect(onCommit).not.toHaveBeenCalled()
+  })
+
+  it('issue 979: a failed save hands focus back to the field with its draft', async () => {
+    const restore = installDisabledBlur()
+    try {
+      const onCommit = vi.fn<(v: RecordValue) => Promise<void>>().mockRejectedValueOnce(new Error('nope'))
+      renderField(textSpec, { onCommit })
+      activate('Title')
+      const input = screen.getByLabelText('Title') as HTMLInputElement
+      input.focus()
+      fireEvent.change(input, { target: { value: 'kept draft' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+      expect(await screen.findByRole('alert')).toBeInTheDocument()
+      await waitFor(() => expect(input).toHaveFocus())
+      expect(input.value).toBe('kept draft')
+    } finally { restore() }
   })
 
   it('FieldErrorRetryContract: a rejected save preserves the draft and exposes retry plus an error message', async () => {

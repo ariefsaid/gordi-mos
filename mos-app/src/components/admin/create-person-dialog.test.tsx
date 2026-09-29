@@ -4,6 +4,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
@@ -307,6 +308,30 @@ describe('CreatePersonDialog (AC-011)', () => {
     await user.click(screen.getByRole('button', { name: /create person/i }))
 
     await screen.findByText(/couldn't create/i)
+  })
+
+  it('issue 979: a failed create returns focus to the field being typed in, and one retry creates once', async () => {
+    const restore = installDisabledBlur()
+    try {
+      const user = userEvent.setup()
+      mockCreatePerson.mockReset()
+      mockCreatePerson.mockRejectedValueOnce(new Error('rls denied')).mockResolvedValue('new-person-id')
+      renderDialog()
+
+      const name = screen.getByLabelText(/full name/i)
+      await user.type(name, 'Budi Santoso')
+      await user.type(screen.getByLabelText('Email'), 'budi@example.test')
+      await user.click(screen.getByRole('button', { name: /create person/i }))
+
+      await screen.findByText(/couldn't create/i)
+      expect(mockCreatePerson).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(screen.getByLabelText('Email')).toHaveFocus())
+      expect(name).toHaveValue('Budi Santoso')
+      expect(screen.getByLabelText('Email')).toHaveValue('budi@example.test')
+
+      await user.click(screen.getByRole('button', { name: /create person/i }))
+      await waitFor(() => expect(mockCreatePerson).toHaveBeenCalledTimes(2))
+    } finally { restore() }
   })
 
   // ── JQ-3: the "Create a login now" intent must never be silently lost ─────────

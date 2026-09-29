@@ -16,7 +16,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -356,6 +356,40 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     // Once the error alert is shown the save has fired exactly once — now a deterministic check.
     expect(mockUpsert).toHaveBeenCalledOnce()
     // the edited row must still be on screen — no navigation on error
+    expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+    // #979: the same input is still mounted and still holds the typed amount after the rejection
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toBe(input)
+    expect(input).toBeInTheDocument()
+    expect(input).toHaveValue(15)
+    // retry (Enter on the still-typed amount) succeeds: that amount is what gets persisted
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledTimes(2))
+    expect(mockUpsert.mock.calls[1][0].qty_porsi).toBe(15)
+    expect(mockUpsert.mock.calls[1][0].wip_item_id).toBe('w1')
+    expect(await screen.findByText(/saved/i)).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(15)
+  })
+
+  it('(#981) editor search keeps real typing intact, the URL follows, and clearing empties both', async () => {
+    const user = userEvent.setup({ delay: null })
+    function Probe() {
+      return <output aria-label="url">{useLocation().search}</output>
+    }
+    render(
+      <MemoryRouter initialEntries={['/cafe/plan']}>
+        <I18nProvider><KitchenPlanPage /><Probe /></I18nProvider>
+      </MemoryRouter>,
+    )
+    await screen.findByText('Ayam Bakar')
+    const box = screen.getByRole('searchbox', { name: /find an item to plan/i })
+    await user.type(box, 'nasi goreng')
+    expect(box).toHaveValue('nasi goreng')
+    expect(screen.getByRole('status', { name: 'url' })).toHaveTextContent('?q=nasi+goreng')
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+    await user.click(box)
+    await user.keyboard('{Control>}a{/Control}{Delete}')
+    expect(box).toHaveValue('')
+    expect(screen.getByRole('status', { name: 'url' })).toHaveTextContent(/^$/)
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
   })
 
@@ -767,6 +801,15 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     )
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
+  })
+
+  it('(#981) pesanan search keeps fast typing intact', async () => {
+    mockPesanan.mockResolvedValue(PESANAN)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const box = screen.getByRole('searchbox', { name: /find an item in the plan/i })
+    await userEvent.setup({ delay: null }).type(box, 'nasi goreng')
+    expect(box).toHaveValue('nasi goreng')
   })
 
   it('(#401/I7) hydrates the pesanan search from ?q= on load (a refreshed/shared link reproduces the filtered view)', async () => {

@@ -4,6 +4,7 @@
 // never wraps; body rows consume the shared collection measure.
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -639,5 +640,113 @@ describe('TaskRow — owner-eyes item 3: condensed Due never carries the clip-pr
     // no "Overdue ·" prefix in the narrow split track (no mid-word clipping)
     expect(due.textContent).not.toMatch(/Overdue/)
     expect(due.textContent).toMatch(/Fri 12 Jun/)
+  })
+})
+
+describe('TaskRow — inline due date commit, cancel and failure (#982)', () => {
+  const openEditor = () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Edit task due date' }))
+    return screen.getByLabelText('Due date') as HTMLInputElement
+  }
+
+  it('the editor is a visible native date input', () => {
+    renderRow({ onEditDue: vi.fn() })
+    const input = openEditor()
+    expect(input.tagName).toBe('INPUT')
+    expect(input).toHaveAttribute('type', 'date')
+    expect(input).toBeVisible()
+  })
+
+  it('Enter commits the typed date once, does not open the record, and returns focus to the due cell', async () => {
+    const user = userEvent.setup({ delay: null })
+    const onEditDue = vi.fn().mockResolvedValue(undefined)
+    const onOpen = vi.fn()
+    const windowKey = vi.fn()
+    window.addEventListener('keydown', windowKey)
+    renderRow({ onEditDue, onOpen })
+    const input = openEditor()
+    await user.clear(input)
+    await user.type(input, '2026-10-05')
+    windowKey.mockClear()
+    await user.keyboard('{Enter}')
+    window.removeEventListener('keydown', windowKey)
+    expect(onEditDue).toHaveBeenCalledTimes(1)
+    expect(onEditDue).toHaveBeenCalledWith('task-7', '2026-10-05')
+    expect(onOpen).not.toHaveBeenCalled()
+    expect(windowKey).not.toHaveBeenCalled()
+    const trigger = await screen.findByRole('button', { name: 'Edit task due date' })
+    await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
+  it('Escape cancels without saving and returns focus to the due cell', async () => {
+    const onEditDue = vi.fn().mockResolvedValue(undefined)
+    renderRow({ onEditDue })
+    const input = openEditor()
+    fireEvent.change(input, { target: { value: '2026-10-05' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(onEditDue).not.toHaveBeenCalled()
+    const trigger = await screen.findByRole('button', { name: 'Edit task due date' })
+    await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
+  it('a failed save keeps the editor open with a readable, unclipped error; Retry re-sends the date and closes on success', async () => {
+    const removeStyles = installTaskStyles()
+    try {
+      const user = userEvent.setup({ delay: null })
+      const onEditDue = vi.fn().mockRejectedValueOnce(new Error('nope')).mockResolvedValue(undefined)
+      renderRow({ onEditDue })
+      const input = openEditor()
+      await user.clear(input)
+      await user.type(input, '2026-10-05{Enter}')
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(/retry/i)
+      expect(alert).toBeVisible()
+      const editor = alert.parentElement as HTMLElement
+      const editorStyle = getComputedStyle(editor)
+      expect(editorStyle.whiteSpace).toBe('normal')
+      expect(editorStyle.flexWrap).toBe('wrap')
+      expect(editorStyle.height).toBe('auto')
+      expect(editorStyle.overflow).not.toBe('hidden')
+      expect(screen.getByLabelText('Due date')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /retry/i }))
+      await waitFor(() => expect(screen.queryByLabelText('Due date')).toBeNull())
+      expect(onEditDue).toHaveBeenCalledTimes(2)
+      expect(onEditDue).toHaveBeenLastCalledWith('task-7', '2026-10-05')
+    } finally {
+      removeStyles()
+    }
+  })
+  it('keeps focus in the editor while the save is pending (readOnly + aria-busy, never disabled)', async () => {
+    let settle!: () => void
+    const onEditDue = vi.fn().mockReturnValue(new Promise<void>((r) => { settle = r }))
+    renderRow({ onEditDue })
+    const input = openEditor()
+    fireEvent.change(input, { target: { value: '2026-10-05' } })
+    input.focus()
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(input).toHaveAttribute('aria-busy', 'true'))
+    expect(input).not.toBeDisabled()
+    expect(input).toHaveAttribute('readonly')
+    expect(input).toHaveFocus()
+    settle()
+    const trigger = await screen.findByRole('button', { name: 'Edit task due date' })
+    await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
+  it('after a failed save the input still shows the typed date with focus in it, and Escape closes the editor', async () => {
+    const user = userEvent.setup({ delay: null })
+    const onEditDue = vi.fn().mockRejectedValue(new Error('nope'))
+    renderRow({ onEditDue })
+    const input = openEditor()
+    await user.clear(input)
+    await user.type(input, '2026-10-05{Enter}')
+    await screen.findByRole('alert')
+    expect(input).toHaveValue('2026-10-05')
+    expect(input).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByLabelText('Due date')).toBeNull()
+    const trigger = await screen.findByRole('button', { name: 'Edit task due date' })
+    await waitFor(() => expect(trigger).toHaveFocus())
+    expect(onEditDue).toHaveBeenCalledTimes(1)
   })
 })
