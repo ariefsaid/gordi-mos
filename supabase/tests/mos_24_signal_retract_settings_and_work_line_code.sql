@@ -19,7 +19,7 @@
 -- sanity check on the new code path, not a re-proof of that trigger's own suite.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(37);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
@@ -84,6 +84,7 @@ create temp table t1010 (
   live_signal        uuid,
   tab_reason_signal  uuid,
   newline_reason_signal uuid,
+  v_reason_signal    uuid,
   team_own           uuid,
   team_same_bu       uuid,
   team_other_bu      uuid,
@@ -110,6 +111,8 @@ update t1010 set tab_reason_signal = mos.create_signal_with_mentions(
   'Tab-reason target', now(), '[]'::jsonb);
 update t1010 set newline_reason_signal = mos.create_signal_with_mentions(
   'Newline-reason target', now(), '[]'::jsonb);
+update t1010 set v_reason_signal = mos.create_signal_with_mentions(
+  'V-reason target', now(), '[]'::jsonb);
 
 -- A same-org member with no special access role cannot retract another author's Signal: RLS admits
 -- zero rows, so the UPDATE lives but changes nothing.
@@ -174,11 +177,17 @@ select lives_ok($$
   update mos.signals set retracted_at = now(), retract_reason = 'Ops lead retraction'
    where id = (select ops_lead_signal from t1010)
 $$, 'an ops lead can retract another author''s org Signal through the actual UPDATE path');
+select is((select retracted_at is not null from mos.signals
+            where id = (select ops_lead_signal from t1010)), true,
+  'the ops lead retraction actually tombstoned the row, not a zero-row RLS pass-through');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
 select lives_ok($$
   update mos.signals set retracted_at = now(), retract_reason = 'Admin retraction'
    where id = (select admin_signal from t1010)
 $$, 'an admin can retract another author''s org Signal through the actual UPDATE path');
+select is((select retracted_at is not null from mos.signals
+            where id = (select admin_signal from t1010)), true,
+  'the admin retraction actually tombstoned the row, not a zero-row RLS pass-through');
 
 -- Self-retraction: author-own succeeds and draws no notification (the actor already knows).
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
@@ -186,6 +195,9 @@ select lives_ok($$
   update mos.signals set retracted_at = now(), retract_reason = 'Withdrawn by author'
    where id = (select self_signal from t1010)
 $$, 'the author retracts their own Signal without any special access role');
+select is((select retracted_at is not null from mos.signals
+            where id = (select self_signal from t1010)), true,
+  'the self-retraction actually tombstoned the row, not a zero-row RLS pass-through');
 reset role;
 select is((select count(*)::int from mos.notifications
             where owner_id = '00000000-0000-0000-0000-0000000000d1'
@@ -214,6 +226,16 @@ select throws_ok($$
   update mos.signals set retracted_at = now(), retract_reason = E'\n\n'
    where id = (select newline_reason_signal from t1010)
 $$, '23514', null, 'a newline-only reason does not satisfy the reason requirement');
+-- E'' string literals do not recognise \v as an escape — it becomes the literal letter v — so a
+-- character-set argument spelled with \v would strip that LETTER off a reason's ends. Neither
+-- boundary here is whitespace, so the stored value must come back byte-identical.
+select lives_ok($$
+  update mos.signals set retracted_at = now(), retract_reason = 'v Correction of a vendor note v'
+   where id = (select v_reason_signal from t1010)
+$$, 'a reason starting and ending with the letter v retracts successfully');
+select is((select retract_reason from mos.signals where id = (select v_reason_signal from t1010)),
+  'v Correction of a vendor note v',
+  'a reason starting and ending with the letter v is stored byte-identical, not stripped as whitespace');
 
 -- Restore-refused and reason-immutable are the unchanged mos._guard_signal_retraction_attribution
 -- trigger (20260909000008), which runs before this guard — confirmed here only as an integration
@@ -261,10 +283,16 @@ select lives_ok($$
   update mos.signals set retracted_at = now(), retract_reason = 'Team lead retraction'
    where id = (select team_own from t1010)
 $$, 'the designated Team lead retracts a historical row owned by their own Team');
+select is((select retracted_at is not null from mos.signals
+            where id = (select team_own from t1010)), true,
+  'the Team-lead retraction actually tombstoned the row, not a zero-row RLS pass-through');
 select lives_ok($$
   update mos.signals set retracted_at = now(), retract_reason = 'BU head retraction'
    where id = (select team_same_bu from t1010)
 $$, 'the BU head retracts a historical row owned by a DIFFERENT Team in the same headed unit');
+select is((select retracted_at is not null from mos.signals
+            where id = (select team_same_bu from t1010)), true,
+  'the BU-head retraction actually tombstoned the row, not a zero-row RLS pass-through');
 update mos.signals set retracted_at = now(), retract_reason = 'Cross-BU attempt'
  where id = (select team_other_bu from t1010);
 select is((select retracted_at from mos.signals where id = (select team_other_bu from t1010)),
@@ -278,6 +306,9 @@ select lives_ok($$
   update mos.signals set retracted_at = now(), retract_reason = 'Team-lead-only retraction'
    where id = (select team_led_only_own from t1010)
 $$, 'a team lead with no BU-head grant retracts a historical row owned by their own Team (own_team alone)');
+select is((select retracted_at is not null from mos.signals
+            where id = (select team_led_only_own from t1010)), true,
+  'the team-lead-only retraction actually tombstoned the row, not a zero-row RLS pass-through');
 update mos.signals set retracted_at = now(), retract_reason = 'Team-lead-only cross-team attempt'
  where id = (select team_led_only_denied from t1010);
 select is((select retracted_at from mos.signals where id = (select team_led_only_denied from t1010)),

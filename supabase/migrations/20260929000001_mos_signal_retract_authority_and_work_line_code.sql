@@ -88,11 +88,13 @@ begin
     -- btrim(text) with no character-set argument strips SPACE only, so a tab/newline/CR-only
     -- reason would pass this check and be stored verbatim. Trim the full whitespace class here and
     -- reuse the identical expression for storage below, so validation and storage never disagree.
+    -- NOTE: E'' string literals do not recognise \v — it becomes the literal letter v, which would
+    -- strip that letter off every reason's ends. chr(11) (vertical tab) is spelled out instead.
     if new.retracted_at is not null
-       and btrim(coalesce(new.retract_reason, ''), E' \t\n\r\v\f') = '' then
+       and btrim(coalesce(new.retract_reason, ''), E' \t\n\r\f' || chr(11)) = '' then
       raise exception 'retraction requires a reason' using errcode = '23514';
     end if;
-    new.retract_reason := btrim(new.retract_reason, E' \t\n\r\v\f');
+    new.retract_reason := btrim(new.retract_reason, E' \t\n\r\f' || chr(11));
     -- Notify the author when someone else retracts their Signal. A self-retraction is silent — the
     -- actor already knows. A missing/archived author (historical rows) has nobody to notify.
     if old.author_id is distinct from shared.current_person_id()
