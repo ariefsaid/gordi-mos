@@ -7,7 +7,8 @@
 #   MAX_MS=8000 ... to tighten the ceiling.
 #
 # Exit 0 = set and within the ceiling; 1 = unset, unparsable or too high; 2 = cannot read.
-# The connection string never appears in output. PSQL overrides the client (the self-test does).
+# The connection string never appears in output or in the client's arguments: it is split into the
+# standard PG* environment variables. PSQL overrides the client (the self-test does).
 set -euo pipefail
 
 : "${DATABASE_URL:?set DATABASE_URL to the target connection string}"
@@ -26,7 +27,18 @@ select substring(cfg from '^statement_timeout=(.*)$')
  order by s.setdatabase desc
  limit 1
 SQL
-raw=$("$PSQL" "$DATABASE_URL" -X -A -t -v ON_ERROR_STOP=1 -c "$SQL") \
+url_re='^postgres(ql)?://([^:@/]*)(:([^@]*))?@([^:/?]*)(:([0-9]+))?/([^?]*)(\?(.*))?$'
+if ! [[ "$DATABASE_URL" =~ $url_re ]]; then
+  echo "DATABASE_URL must look like postgresql://user:password@host:port/database" >&2; exit 2
+fi
+decode() { printf '%b' "${1//%/\\x}"; }
+export PGUSER PGPASSWORD PGHOST PGDATABASE
+PGUSER=$(decode "${BASH_REMATCH[2]}"); PGPASSWORD=$(decode "${BASH_REMATCH[4]}")
+PGHOST=${BASH_REMATCH[5]}; PGDATABASE=$(decode "${BASH_REMATCH[8]}")
+[ -n "${BASH_REMATCH[7]}" ] && export PGPORT=${BASH_REMATCH[7]}
+query=${BASH_REMATCH[10]}
+[[ "$query" =~ (^|&)sslmode=([a-z-]+) ]] && export PGSSLMODE=${BASH_REMATCH[2]}
+raw=$("$PSQL" -X -A -t -v ON_ERROR_STOP=1 -c "$SQL") \
   || { echo "cannot read the role settings" >&2; exit 2; }
 raw=$(printf '%s' "$raw" | tr -d '[:space:]')
 

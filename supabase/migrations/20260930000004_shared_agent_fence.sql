@@ -14,7 +14,7 @@
 --
 -- DOWN (manual, in order):
 --   alter role authenticator reset pgrst.db_pre_request; notify pgrst, 'reload config';
---   revoke usage on schema api_private from service_role;
+--   revoke usage on schema api_private from anon, service_role;
 --   drop function api_private.check_request(); drop function api_private._agent_fence(text);
 --   -- restore shared.custom_access_token_hook and shared._role_authority_defaults() from the
 --   -- migrations that defined them (20260805000002, 20260918000001);
@@ -311,12 +311,14 @@ comment on function api_private.check_request() is
   'The data API''s pre-request function (pgrst.db_pre_request on the authenticator role). Returns '
   'immediately for any request without a client_id claim; otherwise refuses unless the agent fence '
   'passes. SECURITY INVOKER with no search_path of its own so it can read the request schema. '
-  'Executable by authenticated and service_role only (both hold USAGE on api_private): PostgREST runs it as the request role, and an '
-  'anon request is refused at the door because anon has no data-API grants.';
+  'Executable by anon, authenticated and service_role (each holds USAGE on api_private): PostgREST runs it as the request role, and an '
+  'anonymous request passes untouched.';
 revoke execute on function api_private.check_request() from public, anon, authenticated;
-grant  execute on function api_private.check_request() to authenticated, service_role;
--- Resolving the pre-request function also needs the schema; authenticated already has it.
-grant usage on schema api_private to service_role;
+-- All three request roles run it: PostgREST resolves the pre-request function as the request role,
+-- which needs the schema too. Anonymous requests carry no client_id and return on the first line.
+-- Nothing else in api_private is executable by anon or service_role.
+grant  execute on function api_private.check_request() to anon, authenticated, service_role;
+grant usage on schema api_private to anon, service_role;
 
 alter role authenticator set pgrst.db_pre_request = 'api_private.check_request';
 notify pgrst, 'reload config';

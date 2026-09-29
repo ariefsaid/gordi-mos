@@ -108,7 +108,7 @@ data-API request that carries a `client_id` passes a pre-request fence
   session must still exist (revoking the session ends access at once);
 - the person must hold the `agent.connect` authority (Admin Settings, default: admins only).
 
-The app's own tokens carry no `client_id` and pass unchanged. The Edge Functions (`agent-chat`,
+The app's own tokens and anonymous requests carry no `client_id` and pass unchanged. The Edge Functions (`agent-chat`,
 `compose-view`) refuse `client_id` tokens.
 
 Setup per environment, as an admin/SQL operator (placeholders only):
@@ -128,7 +128,8 @@ The OAuth server itself is switched on only in the environment's auth configurat
 ### Request time limit
 
 Both token kinds run as `authenticated`, so its `statement_timeout` bounds every data-API request.
-Verify it on an environment (read-only; the caller supplies the connection string):
+Verify it on an environment (read-only; the caller supplies the connection string, which the script hands to psql through
+the `PG*` environment variables so it never appears in a process listing):
 
 ```bash
 DATABASE_URL='<connection-string>' bash scripts/check-statement-timeout.sh   # MAX_MS=8000 to tighten

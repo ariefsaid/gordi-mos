@@ -8,8 +8,8 @@ vi.mock('@supabase/supabase-js', () => ({ createClient }))
 type Serve = (req: Request) => Promise<Response>
 
 function makeJwt(payload: object): string {
-  const b = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
-  return `${b({ alg: 'HS256', typ: 'JWT' })}.${b(payload)}.sig`
+  const encodeBase64Url = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+  return `${encodeBase64Url({ alg: 'HS256', typ: 'JWT' })}.${encodeBase64Url(payload)}.sig`
 }
 
 async function loadServe(load: () => Promise<unknown>): Promise<Serve> {

@@ -11,7 +11,7 @@
 -- Org b1 has its own person b4 and its own allow-list rows.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(75);
+select plan(77);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -81,14 +81,19 @@ select is(
      select r.rolname::text as g from pg_roles r
       where has_function_privilege(r.oid, 'api_private.check_request()'::regprocedure, 'execute')
         and r.rolname in ('anon', 'authenticated', 'service_role', 'supabase_auth_admin')) x),
-  array['authenticated', 'service_role'],
-  'AC-026: the fence is executable by authenticated and service_role and never by anon');
+  array['anon', 'authenticated', 'service_role'],
+  'AC-026: the fence is executable by the three request roles (anon passes untouched) and nobody else');
 select is(
   (select array_agg(r.rolname::text order by r.rolname) from pg_roles r
     where r.rolname in ('anon', 'authenticated', 'service_role')
       and has_schema_privilege(r.oid, 'api_private', 'usage')),
-  array['authenticated', 'service_role'],
-  'the data API can resolve the fence: authenticated and service_role hold USAGE on api_private, anon does not');
+  array['anon', 'authenticated', 'service_role'],
+  'the data API can resolve the fence: the three request roles hold USAGE on api_private');
+select is(
+  (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'api_private' and p.oid <> 'api_private.check_request()'::regprocedure
+      and has_function_privilege('anon', p.oid, 'execute')),
+  0, 'anon can execute nothing else in api_private');
 select is(
   (select count(*)::int from aclexplode((select proacl from pg_proc
      where oid = 'api_private.check_request()'::regprocedure)) a where a.grantee = 0),
@@ -102,10 +107,17 @@ select set_config('request.jwt.claims',
 select lives_ok($$ select api_private.check_request() $$, 'AC-020: app claims, mos schema -> passes');
 select public._t_schema('shared');
 select lives_ok($$ select api_private.check_request() $$, 'AC-020: app claims, shared schema -> passes');
-select set_config('request.jwt.claims', '', true);
-select lives_ok($$ select api_private.check_request() $$, 'AC-020: empty claims (anonymous) -> passes');
 select set_config('request.jwt.claims', null, true);
 select lives_ok($$ select api_private.check_request() $$, 'AC-020: no claims setting at all -> passes');
+reset role;
+set local role anon;
+select public._t_schema('mos');
+select set_config('request.jwt.claims', '{"role":"anon"}', true);
+select lives_ok($$ select api_private.check_request() $$, 'AC-020: an anon request with anon claims runs as anon and passes');
+select set_config('request.jwt.claims', '', true);
+select lives_ok($$ select api_private.check_request() $$, 'AC-020: an anon request with empty claims passes');
+reset role;
+set local role authenticated;
 select set_config('request.jwt.claims', '{"role":"authenticated","client_id":null}', true);
 select throws_ok($$ select api_private.check_request() $$, 'PT403', null,
   'a null client_id claim is still an agent shape and is refused, never waved through');
