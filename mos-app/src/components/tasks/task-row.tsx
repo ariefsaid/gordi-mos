@@ -219,9 +219,12 @@ export function TaskRow({
       dueTriggerRef.current?.focus()
     }
   }, [dueEditing])
+  // The date the person typed. A rejected save rolls the hook's draft back to the saved date, but
+  // the editor keeps showing (and Retry keeps sending) what was typed.
+  const [dueTyped, setDueTyped] = useState('')
   const commitDue = () => {
-    if (dueInline.draft === (task.due_date ?? '')) { dueInline.cancel(); setDueEditing(false); return }
-    dueInline.commit()
+    if (dueTyped === (task.due_date ?? '')) { dueInline.cancel(); setDueEditing(false); return }
+    dueInline.commit(dueTyped)
   }
   const onDueKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -550,12 +553,12 @@ export function TaskRow({
       <td className={`td-cell td-due td-nowrap tabular-nums ${dueClass}`}>
         {onEditDue ? (dueEditing ? (
           <span className="inline-editor-control inline-editor-control--due" onClick={(event) => event.stopPropagation()}>
-            <input autoFocus type="date" aria-label="Due date" value={dueInline.draft} disabled={dueInline.pending} aria-busy={dueInline.pending || undefined}
+            <input autoFocus type="date" aria-label="Due date" value={dueTyped} readOnly={dueInline.pending} aria-busy={dueInline.pending || undefined}
               aria-invalid={dueInline.error || undefined}
-              onChange={(event) => dueInline.setDraft(event.target.value)} onKeyDown={onDueKeyDown} onBlur={onDueBlur} />
+              onChange={(event) => { setDueTyped(event.target.value); dueInline.setDraft(event.target.value) }} onKeyDown={onDueKeyDown} onBlur={onDueBlur} />
             <InlineCommitFeedback {...dueInline} />
           </span>
-        ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label="Edit task due date" onClick={(event) => { event.stopPropagation(); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText}
+        ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label="Edit task due date" onClick={(event) => { event.stopPropagation(); setDueTyped(dueInline.draft); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText}
 
       </td>
     </tr>
