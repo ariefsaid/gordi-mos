@@ -13,7 +13,7 @@
 -- about the read gates, not about tenancy.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(64);
+select plan(66);
 
 select set_config('app.allow_test_seeds', 'on', true);
 -- mos._test_seed_signal_tree performs the shared directory itself (orgs/roles/people + the
@@ -369,6 +369,20 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009951'),
   0, 'a hard-deleted follow-up''s rows — delete row included — are unreadable while no delete arm is registered');
+
+-- The renumbered batch stack applies 11 then 12 on a fresh database, and this migration's
+-- create-or-replace restates the WHOLE dispatch body — so it must carry the 20260929000011
+-- task-cascade arms or those tables write history nobody can read (review of #987).
+select ok(
+  (select position('mos.process_run_pending_tasks' in prosrc) > 0 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'shared' and p.proname = 'can_read_history_record' limit 1),
+  'the ...0012 dispatch body still carries the ...0011 task-cascade arms (e.g. process_run_pending_tasks)');
+select ok(
+  (select position('p_table = ''tasks''' in prosrc) > 0 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'shared' and p.proname = 'can_read_history_record' limit 1),
+  '...and the tasks arm itself, not just a mention');
 
 select * from finish();
 rollback;

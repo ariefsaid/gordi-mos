@@ -48,7 +48,10 @@
 --   drop trigger record_history_events on mos.events;
 --   drop trigger record_history_follow_ups on mos.follow_ups;
 --   -- then create or replace function shared.can_read_history_record(text, text, text, text, jsonb)
---   -- back to its pre-batch body (Slice 1's arms only, as of 808aa13b):
+--   -- back to its pre-batch body: Slice 1's arms PLUS the 20260929000011 task-cascade arms
+--   -- (tasks, task_checklist_items, process_cadences, process_task_defs, process_runs,
+--   -- process_run_pending_tasks — the cumulative body as of ...0011), i.e. this migration's own
+--   -- eight arms removed from the body above and the delete branch back to fail-closed:
 --   --   create or replace function shared.can_read_history_record(
 --   --     p_schema     text,
 --   --     p_table      text,
@@ -82,6 +85,45 @@
 --   --             where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 --   --               and w.id = p_record_key::uuid
 --   --               and w.org_id = shared.current_org_id());
+--   --       -- ── 20260929000011 (batch 2a) task-cascade arms, restated: the renumbered stack applies
+--   --       -- 11 then 12 on a fresh database, so this create-or-replace must carry them or the
+--   --       -- task-cascade tables write history nobody can read (review of #987).
+--   --       when p_schema = 'mos' and p_table = 'tasks' then
+--   --         return exists (
+--   --           select 1 from mos.tasks t
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and t.id = p_record_key::uuid
+--   --             and t.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'task_checklist_items' then
+--   --         return exists (
+--   --           select 1 from mos.task_checklist_items c
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and c.id = p_record_key::uuid
+--   --             and c.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'process_cadences' then
+--   --         return exists (
+--   --           select 1 from mos.process_cadences pc
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and pc.id = p_record_key::uuid
+--   --             and pc.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'process_task_defs' then
+--   --         return exists (
+--   --           select 1 from mos.process_task_defs pd
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and pd.id = p_record_key::uuid
+--   --             and pd.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'process_runs' then
+--   --         return exists (
+--   --           select 1 from mos.process_runs pr
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and pr.id = p_record_key::uuid
+--   --             and pr.org_id = shared.current_org_id());
+--   --       when p_schema = 'mos' and p_table = 'process_run_pending_tasks' then
+--   --         return exists (
+--   --           select 1 from mos.process_run_pending_tasks pp
+--   --           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--   --             and pp.id = p_record_key::uuid
+--   --             and pp.org_id = shared.current_org_id());
 --   --         else
 --   --           return false;
 --   --       end case;
@@ -168,6 +210,45 @@ begin
           where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
             and w.id = p_record_key::uuid
             and w.org_id = shared.current_org_id());
+      -- ── 20260929000011 (batch 2a) task-cascade arms, restated: the renumbered stack applies
+      -- 11 then 12 on a fresh database, so this create-or-replace must carry them or the
+      -- task-cascade tables write history nobody can read (review of #987).
+      when p_schema = 'mos' and p_table = 'tasks' then
+        return exists (
+          select 1 from mos.tasks t
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and t.id = p_record_key::uuid
+            and t.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'task_checklist_items' then
+        return exists (
+          select 1 from mos.task_checklist_items c
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and c.id = p_record_key::uuid
+            and c.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'process_cadences' then
+        return exists (
+          select 1 from mos.process_cadences pc
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and pc.id = p_record_key::uuid
+            and pc.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'process_task_defs' then
+        return exists (
+          select 1 from mos.process_task_defs pd
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and pd.id = p_record_key::uuid
+            and pd.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'process_runs' then
+        return exists (
+          select 1 from mos.process_runs pr
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and pr.id = p_record_key::uuid
+            and pr.org_id = shared.current_org_id());
+      when p_schema = 'mos' and p_table = 'process_run_pending_tasks' then
+        return exists (
+          select 1 from mos.process_run_pending_tasks pp
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and pp.id = p_record_key::uuid
+            and pp.org_id = shared.current_org_id());
       when p_schema = 'mos' and p_table = 'signals' then
         return exists (
           select 1 from mos.signals s
