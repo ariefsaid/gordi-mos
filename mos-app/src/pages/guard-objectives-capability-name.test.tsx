@@ -16,7 +16,7 @@ vi.mock('@/lib/db/work-lines', () => ({ listWorkLinesAll: vi.fn() }))
 vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
 vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
 vi.mock('@/lib/db/work-authority', () => ({
-  emptyWorkWriteScopes: () => ({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [] }),
+  emptyWorkWriteScopes: () => ({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [], objective_content_org: false, objective_content_bu_ids: [] }),
   getWorkWriteScopes: vi.fn(),
 }))
 
@@ -37,6 +37,8 @@ beforeEach(() => {
     objective_org: true,
     workline_bu_ids: [],
     objective_bu_ids: [],
+    objective_content_org: false,
+    objective_content_bu_ids: [],
   })
   vi.mocked(useAuth).mockReturnValue({
     status: 'authenticated',
@@ -79,6 +81,8 @@ describe('GUARD-OBJECTIVE-CAP: Objectives gates writes on effective objective au
       objective_org: true,
       workline_bu_ids: [],
       objective_bu_ids: [],
+      objective_content_org: false,
+      objective_content_bu_ids: [],
     })
     await renderObjectives()
     for (const affordance of writeAffordances()) expect(affordance).toBeInTheDocument()
@@ -90,6 +94,8 @@ describe('GUARD-OBJECTIVE-CAP: Objectives gates writes on effective objective au
       objective_org: false,
       workline_bu_ids: [],
       objective_bu_ids: [],
+      objective_content_org: false,
+      objective_content_bu_ids: [],
     })
     await renderObjectives()
     for (const affordance of writeAffordances()) expect(affordance).toBeNull()

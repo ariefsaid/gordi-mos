@@ -17,7 +17,7 @@
 --   ForeignMgr …0b4 org B            — cross-org negative control
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(96);
+select plan(100);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -187,6 +187,21 @@ select throws_ok($$
   update mos.objective_key_results set what = 'Replaced by the head' where id = '00000000-0000-0000-0000-0000000009e6'
 $$, '42501', null,
   'AC-011: ...nor rewrite what the key result measures');
+select throws_ok($$
+  update mos.objective_key_results set unit = 'cases' where id = '00000000-0000-0000-0000-0000000009e6'
+$$, '42501', null, 'AC-011: the BU head cannot change the unit');
+select throws_ok($$
+  update mos.objective_key_results set due_date = date '2026-12-31'
+  where id = '00000000-0000-0000-0000-0000000009e6'
+$$, '42501', null, 'AC-011: the BU head cannot change the due date');
+select throws_ok($$
+  update mos.objective_key_results set owner_person_id = '00000000-0000-0000-0000-0000000000d1'
+  where id = '00000000-0000-0000-0000-0000000009e6'
+$$, '42501', null, 'AC-011: the BU head cannot change the owner');
+select throws_ok($$
+  update mos.objective_key_results set objective_id = '00000000-0000-0000-0000-0000000009e2'
+  where id = '00000000-0000-0000-0000-0000000009e6'
+$$, '42501', null, 'AC-011: the BU head cannot move a key result to another Objective');
 select throws_ok($$
   update mos.objectives set archived_at = now() where id = '00000000-0000-0000-0000-0000000009e3'
 $$, '42501', null, 'AC-008: the BU head cannot archive');

@@ -84,9 +84,13 @@
 --   alter table mos.objectives
 --     drop constraint objectives_write_up_size_limit,
 --     drop constraint objectives_write_up_is_array,
+--     drop constraint objectives_period_quarter_needs_year,
 --     drop constraint objectives_period_quarter_range,
 --     drop constraint objectives_company_wide_exclusive,
 --     drop column write_up, drop column period_quarter, drop column is_company_wide;
+--
+--   (objectives_period_quarter_needs_year must go before `drop column period_quarter`: Postgres
+--   refuses to drop a column a CHECK still references.)
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 1. New Objective columns — Company-wide, quarter, write-up

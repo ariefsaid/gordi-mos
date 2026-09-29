@@ -15,7 +15,7 @@ vi.mock('@/lib/db/objectives', () => ({ listObjectivesAll: vi.fn() }))
 vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
 vi.mock('@/lib/db/work-records', () => ({ listProcessCollectionFacts: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/work-authority', () => ({
-  emptyWorkWriteScopes: () => ({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [] }),
+  emptyWorkWriteScopes: () => ({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [], objective_content_org: false, objective_content_bu_ids: [] }),
   getWorkWriteScopes: vi.fn(),
 }))
 vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
@@ -85,6 +85,8 @@ beforeEach(() => {
     objective_org: true,
     workline_bu_ids: [],
     objective_bu_ids: [],
+    objective_content_org: false,
+    objective_content_bu_ids: [],
   })
   vi.mocked(createWorkLine).mockResolvedValue({ id: 'wl-new', name: 'New', type: 'project', archived_at: null })
 })
@@ -285,7 +287,7 @@ describe('R5 denied write authority', () => {
     if (auth.status !== 'authenticated') throw new Error('Expected authenticated fixture')
     auth.viewer.accessRoles = ['member']
     vi.mocked(useAuth).mockReturnValue(auth)
-    vi.mocked(getWorkWriteScopes).mockResolvedValue({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [] })
+    vi.mocked(getWorkWriteScopes).mockResolvedValue({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [], objective_content_org: false, objective_content_bu_ids: [] })
     renderPage()
     expect(await screen.findByRole('link', { name: 'Menu launch' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Daily prep' })).toBeInTheDocument()

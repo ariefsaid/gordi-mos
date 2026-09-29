@@ -85,6 +85,9 @@ describe('RequireCapability', () => {
   it('AC-302: holds ops_lead out of /work/objectives with objective.manage (#992)', () => {
     mockUseAuth.mockReturnValue(authed(['ops_lead']))
     renderGuard('/work/objectives', 'objective.manage')
+    // The boundary chrome keeps the destination title (<h1>Objectives</h1>) on screen, so the
+    // stub's visible text cannot discriminate admitted from denied — the testid is the honest
+    // assertion that the protected content itself stayed unmounted.
     expect(screen.queryByTestId('protected')).not.toBeInTheDocument()
     expectAccessBoundaryInPlace('Objectives')
   })
