@@ -4,6 +4,7 @@
 // (mobile-grouped-cards.tsx). One component, one validation contract, one a11y contract.
 import { useEffect, useId, useRef, useState } from 'react'
 import { Picker } from '@/components/ui/picker'
+import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { picLockMessage } from './task-permissions'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -93,6 +94,8 @@ export function TaskCreateForm({
     ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
   ]
 
+  const formRef = useFocusRestore<HTMLFormElement>(pending, saveError)
+
   const trySubmit = () => {
     setAttempted(true)
     const trimmed = title.trim()
@@ -110,6 +113,7 @@ export function TaskCreateForm({
 
   return (
     <form
+      ref={formRef}
       className="tcf"
       aria-label={t('tasks.create.form')}
       onSubmit={(event) => { event.preventDefault(); trySubmit() }}

@@ -1,8 +1,9 @@
 // CatalogManager tests (OD-C-2 / spec cascade-catalog AC-004..007).
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CatalogManager, type CatalogItem } from './catalog-manager'
+import { installDisabledBlur } from '@/test/browser-focus-fixup'
 
 function setup(overrides: Partial<Parameters<typeof CatalogManager>[0]> = {}) {
   const load = vi.fn<() => Promise<CatalogItem[]>>().mockResolvedValue([])
@@ -17,7 +18,10 @@ function setup(overrides: Partial<Parameters<typeof CatalogManager>[0]> = {}) {
   return { load, create, rename, setArchived }
 }
 
-beforeEach(() => vi.clearAllMocks())
+// A browser drops focus from a control that becomes disabled; jsdom does not.
+let removeDisabledBlur = () => {}
+beforeEach(() => { vi.clearAllMocks(); removeDisabledBlur = installDisabledBlur() })
+afterEach(() => removeDisabledBlur())
 
 describe('CatalogManager', () => {
   it('shows the empty state when there are no items', async () => {
@@ -65,7 +69,8 @@ describe('CatalogManager', () => {
 
   it('a failed add keeps the typed name and focus; a retry creates once', async () => {
     const user = userEvent.setup()
-    setup({ create: vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue({}) })
+    const create = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue({})
+    setup({ create })
     await screen.findByText('No objectives yet')
     await user.type(screen.getByLabelText('Name'), 'Q4 Push')
     await user.click(screen.getByRole('button', { name: 'Add' }))
@@ -74,9 +79,12 @@ describe('CatalogManager', () => {
     const field = screen.getByLabelText('Name')
     await waitFor(() => expect(field).toHaveFocus())
     expect(field).toHaveValue('Q4 Push')
+    expect(create).toHaveBeenCalledTimes(1)
 
     await user.click(screen.getByRole('button', { name: 'Add' }))
     await waitFor(() => expect(field).toHaveValue(''))
+    expect(create).toHaveBeenCalledTimes(2)
+    expect(create).toHaveBeenLastCalledWith('Q4 Push', undefined)
   })
 
   it('AC-006: rename success persists; failure surfaces an error and stays editing', async () => {
@@ -94,10 +102,16 @@ describe('CatalogManager', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }))
     // first attempt fails → error shown, still in edit mode
     expect(await screen.findByText('denied')).toBeInTheDocument()
-    expect(screen.getByLabelText('Rename Old Name')).toBeInTheDocument()
-    // retry succeeds
+    expect(rename).toHaveBeenCalledTimes(1)
+    expect(rename).toHaveBeenLastCalledWith('1', 'New Name')
+    // the text and the focus survive the failed attempt
+    await waitFor(() => expect(screen.getByLabelText('Rename Old Name')).toHaveFocus())
+    expect(screen.getByLabelText('Rename Old Name')).toHaveValue('New Name')
+    // exactly one retry, and it succeeds
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    await waitFor(() => expect(rename).toHaveBeenCalledWith('1', 'New Name'))
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Rename Old Name' })).toBeNull())
+    expect(rename).toHaveBeenCalledTimes(2)
+    expect(rename).toHaveBeenLastCalledWith('1', 'New Name')
   })
 
   it('archives an active item', async () => {

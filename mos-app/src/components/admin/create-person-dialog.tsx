@@ -17,6 +17,7 @@ import { TextInput } from '@/components/ui/text-input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Toggle } from '@/components/ui/toggle'
 import { Button } from '@/components/ui/button'
+import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { ErrorState } from '@/components/ui/state-kit'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { PasswordReveal } from './password-reveal'
@@ -83,6 +84,8 @@ export function CreatePersonDialog({
       setRevealData(null)
     }
   }, [open])
+
+  const formRef = useFocusRestore<HTMLFormElement>(phase === 'submitting', !!submitError)
 
   if (!open) return null
 
@@ -186,7 +189,7 @@ export function CreatePersonDialog({
           />
         </div>
       ) : (
-          <form onSubmit={handleSubmit} noValidate>
+          <form ref={formRef} onSubmit={handleSubmit} noValidate>
             {/* Header — considered title + caption, hairline divider seams it to the body */}
             <div className="px-6 pt-6 pb-4">
               <h2

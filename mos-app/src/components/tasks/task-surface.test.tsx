@@ -8,6 +8,7 @@ import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow, ChecklistItemRow, TaskEventRow } from '@/lib/db/tasks.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { installDisabledBlur } from '@/test/browser-focus-fixup'
 
 // ── Mock the data layer ──────────────────────────────────────────────────────
 vi.mock('../../lib/db/tasks', () => ({
@@ -975,6 +976,27 @@ describe('TaskSurface — create mode', () => {
     expect(alert).toHaveTextContent(/couldn.t be created/i)
     expect(alert).toHaveTextContent(/try again/i)
     expect(alert).not.toHaveTextContent(/something went wrong/i)
+  })
+
+  it('issue 979: a failed create keeps the typed title, hands focus back to it, and one retry creates once', async () => {
+    const restore = installDisabledBlur()
+    try {
+      mockCreateTask.mockReset()
+      mockCreateTask.mockRejectedValueOnce(new Error('boom')).mockResolvedValue('new-task-id')
+      renderCreate()
+      const title = await screen.findByLabelText(/title/i)
+      fireEvent.focus(title)
+      fireEvent.change(title, { target: { value: 'Doomed task' } })
+      choosePickerOption('Supervisor', 'Cahya Cafe')
+      title.focus()
+      fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+      await screen.findByRole('alert')
+      expect(mockCreateTask).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(title).toHaveFocus())
+      expect(title).toHaveValue('Doomed task')
+      fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+      await waitFor(() => expect(mockCreateTask).toHaveBeenCalledTimes(2))
+    } finally { restore() }
   })
 
   it('AC-107 (create drawer): at drawer width renders a "Create task" bar with no double card frame', async () => {

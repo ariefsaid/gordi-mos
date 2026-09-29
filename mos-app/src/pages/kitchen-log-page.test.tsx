@@ -12,6 +12,7 @@ import { resolve } from 'node:path'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { MemoryRouter, Route, Routes, createMemoryRouter, RouterProvider, Link } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 
@@ -1020,6 +1021,32 @@ describe('issue 222: capture offers the stream\'s own item list', () => {
     expect(mockListCaptureFormItems).toHaveBeenLastCalledWith(
       expect.objectContaining({ branch: BRANCH_GORDI_HQ, activity: 'kitchen' }),
     )
+  })
+
+  it('issue 979: a failed submit gives focus back to the quantity being typed and keeps it; one retry saves once', async () => {
+    const restore = installDisabledBlur()
+    try {
+      mockInsertKitchenLogBatch.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(['log-1'])
+      await renderPage()
+      await waitFor(() => screen.getByText('Ayam Bakar'))
+      const ayam = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+      ayam.focus()
+      fireEvent.change(ayam, { target: { value: '17' } })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+        await Promise.resolve()
+      })
+      await screen.findByRole('alert')
+      expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(ayam).toHaveFocus())
+      expect(ayam).toHaveValue(17)
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+        await Promise.resolve()
+      })
+      await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(2))
+    } finally { restore() }
   })
 
   it('a line refused as off-list keeps the draft, is marked, and says what to do; clearing it lets Submit through', async () => {
