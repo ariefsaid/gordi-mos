@@ -4,7 +4,7 @@
 //
 // Attach the returned ref to the form (or dialog body). It remembers the last text-entry element
 // focused inside; when `busy` falls back to false and `failed` is set, that element gets focus again
-// (only if it is still mounted, enabled, and focus is not already somewhere useful).
+// (only if it is inside the container, still mounted, enabled, and focus is not already somewhere useful).
 import { useEffect, useRef, type RefObject } from 'react'
 
 const TEXT_ENTRY = 'input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=file]), textarea, [contenteditable=""], [contenteditable="true"]'
@@ -14,11 +14,13 @@ export function useFocusRestore<T extends HTMLElement = HTMLElement>(busy: boole
   const lastTextField = useRef<HTMLElement | null>(null)
   const wasBusy = useRef(false)
 
-  // Listen on the document: the container may mount after this hook does (a list that loads later).
+  // Listen on the document: the container may mount after this hook does (a list that loads later),
+  // and an autofocused field can fire focusin before its container's ref is attached. Membership is
+  // checked when focus is restored.
   useEffect(() => {
     const remember = (event: FocusEvent) => {
       const target = event.target
-      if (target instanceof HTMLElement && containerRef.current?.contains(target) && target.matches(TEXT_ENTRY)) {
+      if (target instanceof HTMLElement && target.matches(TEXT_ENTRY)) {
         lastTextField.current = target
       }
     }
@@ -36,6 +38,7 @@ export function useFocusRestore<T extends HTMLElement = HTMLElement>(busy: boole
     wasBusy.current = busy
     if (!finished || !failed) return
     const field = lastTextField.current
+    if (!containerRef.current?.contains(field)) return
     const lost = !document.activeElement || document.activeElement === document.body
     if (!lost || !field || !field.isConnected || (field as HTMLInputElement).disabled) return
     field.focus()

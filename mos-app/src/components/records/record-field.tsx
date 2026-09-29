@@ -48,6 +48,7 @@ import { Button } from '@/components/ui/button'
 import { Picker } from '@/components/ui/picker'
 import { Link, useInRouterContext } from 'react-router-dom'
 import { DateField } from '@/components/ui/date-field'
+import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import type { RecordFieldControl, RecordFieldSpec, RecordValue } from './record-viewer.types'
 import './record-viewer.css'
 
@@ -100,6 +101,9 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
   // Synchronous draft mirror read by the native Escape-isolation listener.
   const draftRef = useRef(draft)
   draftRef.current = draft
+
+  // The control disables while saving; a failed save hands focus back to it with the draft.
+  const editRootRef = useFocusRestore<HTMLDivElement>(status === 'saving', status === 'error')
 
   const editButtonRef = useRef<HTMLButtonElement | null>(null)
   // When an edit session ends via the keyboard (Enter/Escape), focus returns to the value
@@ -304,7 +308,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
 
   // ── Edit mode: the existing control, focused; commit/Escape return to the value view ─────
   return (
-    <div className="record-field" data-field-key={spec.key} data-editable="true" data-mode="edit" data-status={status}>
+    <div ref={editRootRef} className="record-field" data-field-key={spec.key} data-editable="true" data-mode="edit" data-status={status}>
       <label className="record-field__label" id={labelId} htmlFor={controlId}>
         {spec.label}
         {spec.required ? <span aria-hidden="true"> *</span> : null}
