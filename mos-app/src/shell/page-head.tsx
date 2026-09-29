@@ -6,14 +6,9 @@ export interface PageHeadProps {
   title: string
   subtitle?: string
   jobSentence?: string
-  /**
-   * #958: a compact, always-visible (desktop AND phone) companion to `jobSentence` — the page
-   * purpose sentence itself is a desktop-only affordance (below, `.page-head-job` is
-   * screen-reader-only under 768px so it does not push page content down a phone viewport), so a
-   * page whose terms need to stay reachable at every width passes its existing `HelpTip` here
-   * instead of inventing a new disclosure. Renders immediately after the title in both variants;
-   * omitted, nothing changes (every existing caller is unaffected).
-   */
+  // #958: compact, always-visible companion to jobSentence, which is desktop-only (.page-head-job
+  // below is screen-reader-only under 768px). Renders beside the title in both variants; omitted,
+  // nothing changes.
   titleHelp?: ReactNode
   /**
    * Count/meta slot that sits on the title's baseline, immediately after it

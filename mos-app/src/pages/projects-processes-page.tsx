@@ -285,7 +285,9 @@ export function ProjectsProcessesPage() {
       family="management"
       title={t('nav.work.projects')}
       jobSentence={t('job.projects')}
-      titleHelp={<HelpTip label={t('job.projectsHelp')} />}
+      // #958: repeats the sentence above (desktop-only, page-head.css hides it under 768px)
+      // ahead of the glossary, so phone gets purpose + terms from one glyph.
+      titleHelp={<HelpTip label={`${t('job.projects')} ${t('job.projectsHelp')}`} />}
       action={canManage && !isNarrow ? <Button ref={createButtonRef} variant="primary" onClick={openDraft}>{t('catalog.projects.add')}</Button> : undefined}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>

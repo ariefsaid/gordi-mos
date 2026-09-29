@@ -902,9 +902,9 @@ export function TasksWorkspace({
       family="workspace"
       title={t('tasks.title')}
       jobSentence={t('job.tasks')}
-      // #958: PIC/Supervisor stay reachable at every width (the job sentence above is
-      // desktop-only) — smallest possible diff on this shared surface, see LEDGER.md.
-      titleHelp={<HelpTip label={t('job.tasksHelp')} />}
+      // #958: the sentence above is desktop-only (page-head.css hides it under 768px), so the
+      // HelpTip repeats it ahead of the glossary — phone gets purpose + terms from one glyph.
+      titleHelp={<HelpTip label={`${t('job.tasks')} ${t('job.tasksHelp')}`} />}
       headClassName="tasks-page-head"
       state={frameState}
       action={showNewTask ? (
