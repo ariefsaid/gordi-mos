@@ -1202,6 +1202,25 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
       expect(screen.getByText('Alpha task')).toBeInTheDocument()
     })
   })
+
+  // Calibration finding (#749 lane): a viewer with nothing assigned lands on an empty My work.
+  // Its own Clear filters button left ?view=my-work standing, so clicking it did nothing — a dead
+  // button next to copy that promises "Clear filters to see all tasks."
+  it('calibration: Clear filters on an empty My work view actually broadens scope to All', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'other', title: 'Someone else’s task', responsible_person_id: 'other-person', accountable_person_id: 'other-person' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'My work' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true'))
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0))
+    fireEvent.click(screen.getAllByRole('button', { name: /clear filters/i })[0])
+    await waitFor(() => expect(screen.getByText('Someone else’s task')).toBeInTheDocument())
+    // Broadened scope means the chip state itself moved off My work, not just the row list.
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+  })
 })
 
 // ── PR-3 — TanStack refactor + group-by engine + group headers ────────────────
@@ -1263,20 +1282,32 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       ).toBeTruthy()
     })
 
-    it('opening a record closes the create door, so one solid primary is on screen at a time', async () => {
-      // The split class and the collection runtime both read "a record is open" as the prop OR an
-      // overlay session this surface owns; this door read only the prop. Opening a row from the
-      // table therefore left "+ Create task" standing beside the record's own primary action.
-      mockListTasks.mockResolvedValue([makeTask({ id: 'task-addr', title: 'Addressable task' })])
+    it('AC-033 (#751): opening a record restyles the create door to outline, so one FILLED primary is on screen at a time', async () => {
+      // DESIGN.md § RecordViewer, Identity and type: "While a record panel is open, the page
+      // head's primary drops to `.btn-outline` — one blue per screen." The door stays reachable
+      // (Create task is still a real, common action with a record open); it just stops competing
+      // with the record's own filled primary action.
+      const openTask = makeTask({ id: 'task-addr', title: 'Addressable task' })
+      mockGetTask.mockResolvedValue({ task: openTask, checklist: [], events: [] })
+      mockListTasks.mockResolvedValue([openTask])
       renderAt(['/work/tasks'])
       await waitFor(() => screen.getByText('Addressable task'))
-      expect(screen.getByRole('button', { name: '+ Create task' })).toBeInTheDocument()
+      const createButton = screen.getByRole('button', { name: '+ Create task' })
+      expect(createButton).toHaveClass('btn-primary')
+      expect(createButton).not.toHaveClass('btn-outline')
 
       fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
       await waitFor(() =>
         expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy(),
       )
-      expect(screen.queryByRole('button', { name: '+ Create task' })).toBeNull()
+      // Still present and clickable — restyled, not removed.
+      const createButtonWithRecordOpen = screen.getByRole('button', { name: '+ Create task' })
+      expect(createButtonWithRecordOpen).toHaveClass('btn-outline')
+      expect(createButtonWithRecordOpen).not.toHaveClass('btn-primary')
+      // The record's own action is the page's single enabled filled primary (the empty comment
+      // composer's submit is disabled).
+      await waitFor(() => screen.getByRole('button', { name: 'Mark complete' }))
+      expect(document.body.querySelectorAll('.btn-primary:not(:disabled)')).toHaveLength(1)
     })
 
     it('bookmark/refresh: rendering at /work/tasks?record=<id> restores the open task drawer', async () => {

@@ -484,6 +484,9 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   const canResolvePendingForRun = runtime.canResolvePendingForRun ?? (() => runtime.canResolvePending)
   const personMap = useMemo(() => new Map(context.personNamesById), [context.personNamesById])
   const buMap = useMemo(() => new Map(context.businessUnitNamesById), [context.businessUnitNamesById])
+  // #760 AC-048: the phone card's Team line — the canonical owning field (OD-WAY-94 (9)), not the
+  // display-only BU. Empty when the loader has none (context.teamNamesById is optional).
+  const teamMap = useMemo(() => new Map(context.teamNamesById ?? []), [context.teamNamesById])
   const workLineMap = useMemo(() => new Map(context.workLinesById), [context.workLinesById])
   const objectiveMap = useMemo(() => new Map(context.objectivesById), [context.objectivesById])
   const workloadSummary = useMemo(
@@ -613,6 +616,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         recordSearch={runtime.recordSearch}
         now={context.now}
         buMap={buMap}
+        teamMap={teamMap}
         personMap={personMap}
         isCollapsed={isCollapsedPreference}
         toggleCollapsed={(groupId) => { toggleCollapsed(groupId); onToggleGroup(groupId) }}

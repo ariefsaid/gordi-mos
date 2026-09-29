@@ -95,6 +95,7 @@ export type TasksTableBodyProps = {
   recordSearch: string
   now: Date
   buMap: Map<string, string>
+  teamMap: Map<string, string>
   personMap: Map<string, string>
   isCollapsed: (key: string) => boolean
   toggleCollapsed: (key: string) => void
@@ -136,7 +137,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     showWorkline = false, showObjective = false, showActivity = false, columnSpan,
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     onOpenTask,
-    groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
+    groups, recordSearch, now, buMap, teamMap, personMap, isCollapsed, toggleCollapsed,
     openAddTask, setOverdueOnly,
     workLineMap, objectiveMap, workloadSummary, createHref, onAssignPending, provenanceByTaskDefId,
     onEditTitle, onEditPic, onEditTeam, onEditSupervisor,
@@ -198,6 +199,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
         onOpenTask={onOpenTask}
         now={now}
         buMap={buMap}
+        teamMap={teamMap}
         personMap={personMap}
         isCollapsed={isCollapsed}
         toggleCollapsed={toggleCollapsed}

@@ -4,7 +4,7 @@
 -- the subject is the seed itself. begin;...rollback; keeps it read-only.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(30);
 
 -- The seed admin row exists despite the admin-only RLS rule AND the self-escalation guard: the seed
 -- runs under a connection that bypasses RLS, and the guard's self-assign check is keyed on
@@ -228,6 +228,19 @@ select is(
                       'Draft Q3 OKRs for cafe team', 'Refit cold brew taps', 'Migrate POS to v4')
       and t.last_activity_at < t.created_at),
   0, 'no seeded Task claims activity before its creation');
+
+-- #752 AC-016: My work / Team work hide a Done task 7 days after completion, All shows everything.
+-- The two seeded Done tasks straddle that window so the rule is visible on dev, not just in tests.
+select ok(
+  (select completed_at < now() - interval '7 days' from mos.tasks t
+    where t.org_id = '10000000-0000-0000-0000-000000000001'
+      and t.title = 'Refit cold brew taps'),
+  '#752: one seeded Done task completed more than 7 days ago (hidden from My work / Team work)');
+select ok(
+  (select completed_at >= now() - interval '7 days' from mos.tasks t
+    where t.org_id = '10000000-0000-0000-0000-000000000001'
+      and t.title = 'Migrate POS to v4'),
+  '#752: one seeded Done task completed within 7 days (visible in every view)');
 
 select is(
   (select w.name from mos.tasks t join mos.work_lines w on w.id = t.work_line_id

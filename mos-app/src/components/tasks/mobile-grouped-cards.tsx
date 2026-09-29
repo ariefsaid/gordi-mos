@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { PicCell, PersonCell } from './pic-cell'
+import { PicCell } from './pic-cell'
 import { StatusPill } from './status-pill'
 import { Chevron } from '@/shell/icons'
 import { Tag } from '@/components/ui/tag'
@@ -60,6 +60,9 @@ export type MobileGroupedCardsProps = {
   onOpenTask?: (taskId: string) => void
   now: Date
   buMap: Map<string, string>
+  /** #760 AC-048: the canonical owning Team, id → name — the card shows Team, not the retired
+   *  Business unit line (BU stays display-only per OD-WAY-94 (9)). */
+  teamMap: Map<string, string>
   personMap: Map<string, string>
   isCollapsed: (key: string) => boolean
   toggleCollapsed: (key: string) => void
@@ -97,8 +100,15 @@ export type MobileGroupedCardsProps = {
 type TaskCardProps = {
   task: TaskListRow
   now: Date
+  /** Draft-only: TaskCreateForm still shows the derived Business unit while Team is being chosen. */
   buName: string
+  /** #760 AC-048: resolved Team name for the read card; '—' when the task carries no team_id
+   *  (an honest legacy/repair state, never a fabricated Team). The draft form asks for Team via
+   *  its own picker — this prop only feeds the persisted card's display line. */
+  teamName: string
   rName: string
+  /** Draft-only: TaskCreateForm's Supervisor picker display value. The persisted card no longer
+   *  shows Supervisor (#760 AC-048 — it moved to the record, one tap away). */
   supervisorName: string
   recordSearch?: string
   onOpenTask: (taskId: string) => void
@@ -119,7 +129,7 @@ type TaskCardProps = {
 }
 
 function TaskCard({
-  task, now, buName, rName, supervisorName, recordSearch = '', provenanceRoleName, onOpenTask,
+  task, now, buName, teamName, rName, supervisorName, recordSearch = '', provenanceRoleName, onOpenTask,
   onEditTitle, onEditPic, onEditTeam, onEditSupervisor, personOptions = [], supervisorOptions = [],
   teamOptions = [], isNew = false, onDiscardNewTask, viewerHasNoDownline = false,
 }: TaskCardProps) {
@@ -167,23 +177,18 @@ function TaskCard({
           <span className={isArchived ? 'task-name task-name-archived collection-grammar-title' : 'task-name collection-grammar-title'}>{task.title}</span>
           <StatusPill status={task.status} />
         </div>
-        <span className="task-bu">{buName}</span>
-        {/* v4 distill (layout.md/distill.md): PIC + Supervisor + Due are the decision-relevant
-            fields for weekly triage (WHAT GOOD LOOKS LIKE) — the same set the desktop row already
-            settled on (Wave 2c, OD-REDESIGN-61..64). Project/Process, Objective, Source, and the
-            recency "Updated" line were restated metadata that rendered an empty "—" line for every
-            task with no project/objective — noise wearing information's clothes (distill.md
-            "remove redundancy"). Cuts a phone card from ~230px toward ~100px, more than doubling
-            rows visible without scrolling. Full typed metadata still lives one tap away on the
-            record (DESIGN.md "Progressive disclosure"). */}
+        <span className="task-team">{teamName || '—'}</span>
+        {/* v4 distill (layout.md/distill.md) narrowed this to PIC + Due (Wave 2c,
+            OD-REDESIGN-61..64); #760 AC-048 removes Supervisor too — it is a decision field for
+            the record, not the weekly-triage card, and now lives one tap away there. Project/
+            Process, Objective, Source, and the recency "Updated" line stay off the card for the
+            same reason (distill.md "remove redundancy"): a phone card near ~100-120px shows more
+            rows without scrolling, and full typed metadata is still one tap away on the record
+            (DESIGN.md "Progressive disclosure"). */}
         <dl className="task-card-meta collection-grammar-card-details">
           <div className="task-card-meta-pair">
             <dt>{t('tasks.pic')}</dt>
             <dd><PicCell fullName={rName} provenance={provenanceRoleName} /></dd>
-          </div>
-          <div className="task-card-meta-pair task-card-meta-pair--supervisor">
-            <dt>{t('tasks.supervisor')}</dt>
-            <dd>{supervisorName ? <PersonCell fullName={supervisorName} /> : '—'}</dd>
           </div>
           <div className="task-card-meta-pair">
             <dt>{t('tasks.dueLabel')}</dt>
@@ -223,7 +228,7 @@ function TaskCard({
  * CSS: uses the existing .mgc-* classes from TasksWorkspace.css.
  */
 export function MobileGroupedCards({
-  groups, recordSearch = '', now, buMap, personMap,
+  groups, recordSearch = '', now, buMap, teamMap, personMap,
   isCollapsed, toggleCollapsed, openAddTask, setOverdueOnly,
   onAssignPending, provenanceByTaskDefId, onOpenTask, onEditTitle, draftTaskId, onDiscardNewTask,
   onEditPic, onEditTeam, onEditSupervisor, personOptions, supervisorOptions,
@@ -247,6 +252,7 @@ export function MobileGroupedCards({
               task={task}
               now={now}
               buName={buMap.get(task.business_unit_id) ?? ''}
+              teamName={teamMap.get(task.team_id ?? '') ?? ''}
               rName={personMap.get(task.responsible_person_id) ?? ''}
               supervisorName={personMap.get(task.accountable_person_id) ?? ''}
               recordSearch={recordSearch}
@@ -353,6 +359,7 @@ export function MobileGroupedCards({
                 task={task}
                 now={now}
                 buName={buMap.get(task.business_unit_id) ?? ''}
+                teamName={teamMap.get(task.team_id ?? '') ?? ''}
                 rName={personMap.get(task.responsible_person_id) ?? ''}
                 supervisorName={personMap.get(task.accountable_person_id) ?? ''}
                 recordSearch={recordSearch}

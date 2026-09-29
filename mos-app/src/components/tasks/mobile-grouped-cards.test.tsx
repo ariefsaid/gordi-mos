@@ -47,6 +47,7 @@ const BASE_PROPS: MobileGroupedCardsProps = {
   ],
   now: new Date('2026-06-16'),
   buMap: new Map([['bu-1', 'Kitchen']]),
+  teamMap: new Map([['team-1', 'Retail Ops']]),
   personMap: new Map([['person-1', 'Arief Said']]),
   isCollapsed: () => false,
   toggleCollapsed: () => {},
@@ -278,6 +279,30 @@ describe('MobileGroupedCards', () => {
     renderCards()
     expect(screen.queryByText('Activity')).toBeNull()
     expect(screen.queryByText('Updated')).toBeNull()
+  })
+
+  // #760 AC-048: the phone card is title · status · Team · PIC · Due — Supervisor moves to the
+  // record (one tap away), and the retired BU line is replaced by the canonical owning Team.
+  it('AC-048 (#760): shows the Team, not Supervisor or Business unit', () => {
+    renderCards({
+      groups: [{
+        key: 'Open', label: 'Open', overdue: 0, prefillParam: '',
+        rows: [makeTask({ id: 't1', title: 'Task A', team_id: 'team-1' })],
+      }],
+    })
+    expect(screen.getByText('Retail Ops')).toBeInTheDocument()
+    expect(screen.queryByText('Kitchen')).toBeNull()
+    expect(screen.queryByText('Supervisor')).toBeNull()
+  })
+
+  it('AC-048 (#760): a legacy task with no Team shows an honest placeholder, not a fabricated one', () => {
+    renderCards({
+      groups: [{
+        key: 'Open', label: 'Open', overdue: 0, prefillParam: '',
+        rows: [makeTask({ id: 't1', title: 'Task A', team_id: null })],
+      }],
+    })
+    expect(document.querySelector('.task-team')).toHaveTextContent('—')
   })
 
   it('role="list" on the container and role="listitem" on each card wrapper (a11y)', () => {

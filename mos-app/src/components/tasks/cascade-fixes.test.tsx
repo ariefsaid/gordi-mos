@@ -306,6 +306,7 @@ describe('RI-1 — Mobile grouped header renders work-line type tag', () => {
           groups={groups}
           now={new Date('2026-06-24')}
           buMap={new Map([['bu-1', 'Kitchen']])}
+          teamMap={new Map()}
           personMap={new Map([[VIEWER_ID, 'Arief Said']])}
           isCollapsed={() => false}
           toggleCollapsed={() => {}}
@@ -339,6 +340,7 @@ describe('RI-1 — Mobile grouped header renders work-line type tag', () => {
           groups={groups}
           now={new Date('2026-06-24')}
           buMap={new Map([['bu-1', 'Kitchen']])}
+          teamMap={new Map()}
           personMap={new Map([[VIEWER_ID, 'Arief Said']])}
           isCollapsed={() => false}
           toggleCollapsed={() => {}}
@@ -370,6 +372,7 @@ describe('RI-1 — Mobile grouped header renders work-line type tag', () => {
           groups={groups}
           now={new Date('2026-06-24')}
           buMap={new Map([['bu-1', 'Kitchen']])}
+          teamMap={new Map()}
           personMap={new Map([[VIEWER_ID, 'Arief Said']])}
           isCollapsed={() => false}
           toggleCollapsed={() => {}}
@@ -501,12 +504,11 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 
 describe('Fix-5 — Mobile card dt labels are visible', () => {
   // Ported for #192: mobile-grouped-cards.tsx's TaskCard dropped Work-line/Objective from the
-  // card body (v4 distill, .claude/skills/impeccable distill.md "remove redundancy" — PIC +
-  // Supervisor + Due are the decision-relevant fields; full metadata is one tap away on the
-  // record). Fix-5's actual claim — every rendered dt label is visible, not sr-only — still
-  // holds; it's re-pinned against the CURRENT field set (PIC/Supervisor/Due) rather than the
-  // pre-distill one (Work-line/Project-Process).
-  it('Fix-5: PIC/Supervisor/Due dt labels are visible (not sr-only) in mobile task card', () => {
+  // card body (v4 distill, .claude/skills/impeccable distill.md "remove redundancy"). Fix-5's
+  // actual claim — every rendered dt label is visible, not sr-only — still holds; it's re-pinned
+  // against the CURRENT field set. #760 AC-048 moved Supervisor off the card onto the record and
+  // put Team in its place (title/status head, then Team, PIC, Due).
+  it('Fix-5: PIC/Due dt labels (and the Team line) are visible (not sr-only) in mobile task card', () => {
     const taskWithWl = makeTask({ id: 't1', work_line_id: 'wl-project' })
     render(
       <MemoryRouter>
@@ -520,6 +522,7 @@ describe('Fix-5 — Mobile card dt labels are visible', () => {
           }]}
           now={new Date('2026-06-24')}
           buMap={new Map([['bu-1', 'Kitchen']])}
+          teamMap={new Map()}
           personMap={new Map([[VIEWER_ID, 'Arief Said']])}
           isCollapsed={() => false}
           toggleCollapsed={() => {}}
@@ -535,11 +538,13 @@ describe('Fix-5 — Mobile card dt labels are visible', () => {
     const srOnlyDts = dts.filter(dt => dt.classList.contains('sr-only'))
     // After fix: 0 dt elements may be sr-only (all are visible label:value)
     expect(srOnlyDts.length).toBe(0)
-    // The dt text content is readable — the current field set is PIC/Supervisor/Due.
+    // The dt text content is readable — the current field set is PIC/Due (Team has its own
+    // standalone line, not a dt/dd pair; Supervisor moved to the record, #760 AC-048).
     const dtTexts = dts.map(dt => dt.textContent)
     expect(dtTexts.some(t => /^pic$/i.test(t ?? ''))).toBe(true)
-    expect(dtTexts.some(t => /supervisor/i.test(t ?? ''))).toBe(true)
     expect(dtTexts.some(t => /due/i.test(t ?? ''))).toBe(true)
+    expect(dtTexts.some(t => /supervisor/i.test(t ?? ''))).toBe(false)
+    expect(document.querySelector('.task-team')).toBeTruthy()
   })
 
   it('Fix-5: task-card-meta dt elements are not display:none or visually hidden', () => {
