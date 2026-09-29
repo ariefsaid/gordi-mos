@@ -19,7 +19,7 @@
 -- sanity check on the new code path, not a re-proof of that trigger's own suite.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(37);
+select plan(64);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
@@ -85,6 +85,12 @@ create temp table t1010 (
   tab_reason_signal  uuid,
   newline_reason_signal uuid,
   v_reason_signal    uuid,
+  revoked_self_signal   uuid,
+  preset_author_signal  uuid,
+  preset_ops_signal     uuid,
+  unicode_signal        uuid,
+  padded_signal         uuid,
+  inner_signal          uuid,
   team_own           uuid,
   team_same_bu       uuid,
   team_other_bu      uuid,
@@ -113,6 +119,18 @@ update t1010 set newline_reason_signal = mos.create_signal_with_mentions(
   'Newline-reason target', now(), '[]'::jsonb);
 update t1010 set v_reason_signal = mos.create_signal_with_mentions(
   'V-reason target', now(), '[]'::jsonb);
+update t1010 set revoked_self_signal = mos.create_signal_with_mentions(
+  'Revoked self-scope target', now(), '[]'::jsonb);
+update t1010 set preset_author_signal = mos.create_signal_with_mentions(
+  'Author pre-set reason target', now(), '[]'::jsonb);
+update t1010 set preset_ops_signal = mos.create_signal_with_mentions(
+  'Ops lead pre-set reason target', now(), '[]'::jsonb);
+update t1010 set unicode_signal = mos.create_signal_with_mentions(
+  'Unicode-blank reason target', now(), '[]'::jsonb);
+update t1010 set padded_signal = mos.create_signal_with_mentions(
+  'Unicode-padded reason target', now(), '[]'::jsonb);
+update t1010 set inner_signal = mos.create_signal_with_mentions(
+  'Inner-spaces reason target', now(), '[]'::jsonb);
 
 -- A same-org member with no special access role cannot retract another author's Signal: RLS admits
 -- zero rows, so the UPDATE lives but changes nothing.
@@ -226,9 +244,8 @@ select throws_ok($$
   update mos.signals set retracted_at = now(), retract_reason = E'\n\n'
    where id = (select newline_reason_signal from t1010)
 $$, '23514', null, 'a newline-only reason does not satisfy the reason requirement');
--- E'' string literals do not recognise \v as an escape — it becomes the literal letter v — so a
--- character-set argument spelled with \v would strip that LETTER off a reason's ends. Neither
--- boundary here is whitespace, so the stored value must come back byte-identical.
+-- A reason whose ends are the ordinary letter v (not whitespace) must come back byte-identical:
+-- the trim removes whitespace only, never letters.
 select lives_ok($$
   update mos.signals set retracted_at = now(), retract_reason = 'v Correction of a vendor note v'
    where id = (select v_reason_signal from t1010)
@@ -237,8 +254,115 @@ select is((select retract_reason from mos.signals where id = (select v_reason_si
   'v Correction of a vendor note v',
   'a reason starting and ending with the letter v is stored byte-identical, not stripped as whitespace');
 
--- Restore-refused and reason-immutable are the unchanged mos._guard_signal_retraction_attribution
--- trigger (20260909000008), which runs before this guard — confirmed here only as an integration
+-- Unicode space characters are blank too: NBSP, zero-width space, ideographic space, line/paragraph
+-- separators and vertical tab alone never satisfy the reason requirement; the same normalisation
+-- is what gets stored.
+select throws_ok($$
+  update mos.signals set retracted_at = now(), retract_reason = E'  '
+   where id = (select unicode_signal from t1010)
+$$, '23514', null, 'an NBSP-only reason does not satisfy the reason requirement');
+select throws_ok($$
+  update mos.signals set retracted_at = now(), retract_reason = E'​​'
+   where id = (select unicode_signal from t1010)
+$$, '23514', null, 'a zero-width-space-only reason does not satisfy the reason requirement');
+select throws_ok($$
+  update mos.signals set retracted_at = now(), retract_reason = E'　　'
+   where id = (select unicode_signal from t1010)
+$$, '23514', null, 'an ideographic-space-only reason does not satisfy the reason requirement');
+select throws_ok($$
+  update mos.signals set retracted_at = now(), retract_reason = E'  '
+   where id = (select unicode_signal from t1010)
+$$, '23514', null, 'a line/paragraph-separator-only reason does not satisfy the reason requirement');
+select throws_ok($$
+  update mos.signals set retracted_at = now(), retract_reason = chr(11) || chr(11)
+   where id = (select unicode_signal from t1010)
+$$, '23514', null, 'a vertical-tab-only reason does not satisfy the reason requirement');
+select throws_ok($$
+  update mos.signals set retracted_at = now(),
+         retract_reason = ' ' || E' ​　\t' || chr(11)
+   where id = (select unicode_signal from t1010)
+$$, '23514', null, 'a reason mixing ASCII and Unicode space characters only is refused');
+select lives_ok($$
+  update mos.signals set retracted_at = now(),
+         retract_reason = E' 　 Padded reason ​ '
+   where id = (select padded_signal from t1010)
+$$, 'a reason padded with Unicode spaces retracts successfully');
+select is((select retract_reason from mos.signals where id = (select padded_signal from t1010)),
+  'Padded reason',
+  'the stored reason is trimmed of the Unicode padding');
+select lives_ok($$
+  update mos.signals set retracted_at = now(), retract_reason = 'Reason with  inner   spaces'
+   where id = (select inner_signal from t1010)
+$$, 'a reason with inner spaces retracts successfully');
+select is((select retract_reason from mos.signals where id = (select inner_signal from t1010)),
+  'Reason with  inner   spaces',
+  'inner spaces are stored unchanged');
+
+-- The retraction authority is decided by the configured scope: once an admin sets the member
+-- scope to none, even the author can no longer retract their own Signal (RLS still admits the
+-- author's row; only the trigger's authority check refuses).
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared.save_role_authority('[{"action":"signal.retract","role":"member","scope":"none"}]'::jsonb);
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select throws_ok($$
+  update mos.signals set retracted_at = now(), retract_reason = 'Author after scope revoked'
+   where id = (select revoked_self_signal from t1010)
+$$, '42501', null, 'an author whose retraction scope is configured to none cannot retract their own Signal');
+select is((select retracted_at from mos.signals where id = (select revoked_self_signal from t1010)),
+  null::timestamptz,
+  'the author''s Signal stays live when their retraction scope is none');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared.save_role_authority('[{"action":"signal.retract","role":"member","scope":"own"}]'::jsonb);
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select lives_ok($$
+  update mos.signals set retracted_at = now(), retract_reason = 'Author after scope restored'
+   where id = (select revoked_self_signal from t1010)
+$$, 'the same author retracts once the member own scope is restored');
+select is((select retracted_at is not null from mos.signals
+            where id = (select revoked_self_signal from t1010)), true,
+  'the restored-scope retraction actually tombstoned the row');
+
+-- retract_reason is writable only in the UPDATE that sets retracted_at.
+select throws_ok($$
+  update mos.signals set retract_reason = 'Pre-set by the author'
+   where id = (select preset_author_signal from t1010)
+$$, '42501', null, 'an author cannot pre-set a retraction reason on a live Signal');
+select is((select retract_reason from mos.signals where id = (select preset_author_signal from t1010)),
+  null::text, 'the refused author pre-set left the reason empty');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}';
+select throws_ok($$
+  update mos.signals set retract_reason = 'Pre-set by an ops lead'
+   where id = (select preset_ops_signal from t1010)
+$$, '42501', null, 'an ops lead cannot pre-set a retraction reason on another author''s live Signal');
+select is((select retract_reason from mos.signals where id = (select preset_ops_signal from t1010)),
+  null::text, 'the refused ops lead pre-set left the reason empty');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select throws_ok($$
+  update mos.signals set retracted_at = now()
+   where id = (select preset_author_signal from t1010)
+$$, '23514', null, 'a retraction that omits its reason after a refused pre-set is refused');
+select is((select retracted_at from mos.signals where id = (select preset_author_signal from t1010)),
+  null::timestamptz, 'the reasonless retraction left the Signal live');
+
+-- A Signal is always created live: a client INSERT cannot carry a tombstone or a reason.
+select lives_ok($$
+  insert into mos.signals (org_id, author_id, source, audience, occurred_at, body)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d1',
+          'human','org', now(), 'Live insert control')
+$$, 'a client inserts a live All Teams Signal');
+select throws_ok($$
+  insert into mos.signals (org_id, author_id, source, audience, occurred_at, body, retracted_at)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d1',
+          'human','org', now(), 'Born retracted', now())
+$$, '42501', null, 'a client cannot insert a Signal that is already retracted');
+select throws_ok($$
+  insert into mos.signals (org_id, author_id, source, audience, occurred_at, body, retract_reason)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000d1',
+          'human','org', now(), 'Born with a reason', 'Pre-set reason')
+$$, '42501', null, 'a client cannot insert a Signal that already carries a retraction reason');
+
+-- Restore-refused and reason-immutable are enforced by mos._guard_signal_retraction_attribution,
+-- which runs before this guard — confirmed here only as an integration
 -- check on a row retracted through the new authority path, not a re-proof of that trigger's suite.
 select throws_ok($$
   update mos.signals set retracted_at = null
@@ -339,6 +463,23 @@ select throws_ok($$
   update mos.work_lines set code = 'cafe_opening'
    where id = '00000000-0000-0000-0000-00000000c001'
 $$, '42501', null, 'an ops lead cannot change code on an existing Project/Process definition-work row either');
+
+-- The server/migration path may still assign a non-default code; a client can then never move it.
+reset role;
+select lives_ok($$
+  update mos.work_lines set code = 'cafe_opening'
+   where id = '00000000-0000-0000-0000-00000000c001'
+$$, 'the server path (postgres) can assign code on an existing row');
+select is((select code from mos.work_lines where id = '00000000-0000-0000-0000-00000000c001'),
+  'cafe_opening', 'the server-path code assignment is stored');
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select throws_ok($$
+  update mos.work_lines set code = 'standard'
+   where id = '00000000-0000-0000-0000-00000000c001'
+$$, '42501', null, 'a client cannot downgrade a cafe_opening row to standard');
+select is((select code from mos.work_lines where id = '00000000-0000-0000-0000-00000000c001'),
+  'cafe_opening', 'the refused downgrade left code as cafe_opening');
 
 select * from finish();
 rollback;
