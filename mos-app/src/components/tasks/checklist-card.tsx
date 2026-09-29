@@ -26,6 +26,8 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
   // Live draft, read after an await — `draft` itself is a stale closure by then. Lets a commit
   // tell "still the text I sent" from "the person typed something new while it was in flight".
   const draftRef = useRef('')
+  // #969: the label of the last failed add — what Retry actually re-sends, whatever the field holds now.
+  const failedLabelRef = useRef<string | null>(null)
   function changeDraft(value: string) {
     draftRef.current = value
     setDraft(value)
@@ -39,8 +41,10 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
     setPosting(true)
     try {
       await onAdd(label)
+      failedLabelRef.current = null
       if (draftRef.current.trim() === label) changeDraft('')
     } catch {
+      failedLabelRef.current = label
       // saveError (below) already surfaces the visible error + Retry; this just keeps the draft.
     } finally {
       setPosting(false)
@@ -53,14 +57,15 @@ export function ChecklistCard({ items, canEdit: editable, onAdd, onToggle, onReo
     }
   }
 
-  // #965: Retry re-runs the SAME failed write, so it clears on the same terms as a fresh submit.
+  // #965/#969: Retry re-sends the failed label, so it clears the field only while it still holds that label.
   async function retry() {
     if (!saveError || posting) return
-    const label = draft.trim()
+    const label = failedLabelRef.current
     setPosting(true)
     try {
       await saveError.onRetry()
-      if (draftRef.current.trim() === label) changeDraft('')
+      failedLabelRef.current = null
+      if (label !== null && draftRef.current.trim() === label) changeDraft('')
     } catch {
       // stays failed; the parent re-sets saveError with a fresh retry closure.
     } finally {
