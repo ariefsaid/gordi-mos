@@ -21,7 +21,6 @@ import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
 import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 
 // ── Mock data layer ──────────────────────────────────────────────────────────
@@ -163,7 +162,6 @@ function renderWorkspace(props: Partial<React.ComponentProps<typeof TasksWorkspa
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
-  __resetTasksViewPrefForTests()
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
