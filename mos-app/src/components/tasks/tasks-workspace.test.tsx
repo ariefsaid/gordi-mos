@@ -18,7 +18,6 @@ import { OverlayHostProvider } from '@/shell/overlay-host'
 import { BreadcrumbTitleProvider } from '@/shell/breadcrumb-title'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
 import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 
 // ── Mock data layer ──────────────────────────────────────────────────────────
@@ -227,7 +226,6 @@ beforeEach(() => {
   vi.mocked(getPersonTeams).mockResolvedValue(VIEWER_TEAMS)
   vi.mocked(getTeamsByIds).mockResolvedValue([])
   localStorage.clear()
-  __resetTasksViewPrefForTests()
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)

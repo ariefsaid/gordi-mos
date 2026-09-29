@@ -68,7 +68,6 @@ import { getBusinessUnits, getPeople, getPersonTeams, getDownlinePersonIds } fro
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksWorkspace } from './tasks-workspace'
-import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
 
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
@@ -137,7 +136,6 @@ function renderWorkspace() {
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
-  __resetTasksViewPrefForTests()
   stubMatchMedia()
   vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-1', name: 'Kitchen' }])
   vi.mocked(getPeople).mockResolvedValue([{ id: VIEWER_ID, full_name: 'Arief Said' }])
