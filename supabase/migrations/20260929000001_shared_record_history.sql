@@ -69,7 +69,8 @@ comment on table shared.record_history is
   'shared._record_history_write(); there is no INSERT, UPDATE or DELETE grant to any application '
   'role, so no one — admin included — can forge, edit or remove an entry. Read visibility reuses '
   'each source table''s own read predicate through shared.can_read_history_record; a table or '
-  'action the dispatch does not name is unreadable (fail closed).';
+  'action the dispatch does not name is unreadable (fail closed). '
+  '[applied-path-content: history-dependent]';
 comment on column shared.record_history.record_key is
   'The source row''s key as text: id::text, or the registered composite key joined with '':'' '
   '(change-history DA-1).';
