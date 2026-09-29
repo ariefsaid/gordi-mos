@@ -769,6 +769,15 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
 
+  it('(#981) pesanan search keeps fast typing intact', async () => {
+    mockPesanan.mockResolvedValue(PESANAN)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const box = screen.getByRole('searchbox', { name: /find an item in the plan/i })
+    await userEvent.setup({ delay: null }).type(box, 'nasi goreng')
+    expect(box).toHaveValue('nasi goreng')
+  })
+
   it('(#401/I7) hydrates the pesanan search from ?q= on load (a refreshed/shared link reproduces the filtered view)', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(

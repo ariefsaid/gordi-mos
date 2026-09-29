@@ -737,6 +737,26 @@ describe('the row opens the person', () => {
   })
 })
 
+describe('search keeps fast typing intact (#981)', () => {
+  it('"Cahya Cafe" typed with no delay leaves exactly that text and the URL follows', async () => {
+    const user = userEvent.setup({ delay: null })
+    let search = ''
+    render(
+      <MemoryRouter initialEntries={['/admin/people']}>
+        <UserTable people={[ACTIVE_ADMIN, ACTIVE_MEMBER]} viewerPersonId="viewer-id" onAction={vi.fn()} onAddPerson={vi.fn()} />
+        <LocationSearchProbe onChange={(s) => { search = s }} />
+      </MemoryRouter>,
+    )
+    const box = screen.getByRole('searchbox', { name: /search people/i })
+    await user.type(box, 'Cahya Cafe')
+    expect(box).toHaveValue('Cahya Cafe')
+    expect(search).toBe('?q=Cahya+Cafe')
+    await user.keyboard('{Control>}a{/Control}{Delete}')
+    expect(box).toHaveValue('')
+    expect(search).toBe('')
+  })
+})
+
 describe('search matches every typed word, in any order', () => {
   it('"barista bayu" finds Bayu Barista; a word that matches nothing finds nobody', async () => {
     const user = userEvent.setup()

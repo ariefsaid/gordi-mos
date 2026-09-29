@@ -1372,6 +1372,15 @@ describe('OD-K-5: search-mini filters', () => {
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
 
+  it('keeps fast typing intact: "nasi goreng" typed with no delay is exactly what the box shows (#981)', async () => {
+    setDesktopMatchMedia(true)
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    const box = screen.getByRole('searchbox', { name: /find an item/i })
+    await userEvent.setup({ delay: null }).type(box, 'nasi goreng')
+    expect(box).toHaveValue('nasi goreng')
+  })
+
   it('I7 / D-E1: hydrates the search from ?q= on load (a refreshed/shared link reproduces the filtered view)', async () => {
     setDesktopMatchMedia(true)
     await renderPage(VIEWER_MEMBER, '/mos/kitchen/log?q=nasi')
