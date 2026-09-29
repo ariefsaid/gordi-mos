@@ -218,7 +218,7 @@ describe('SignalComposer — safe retry after a failed post (CQ IMPORTANT-1)', (
     const shareButton = screen.getByRole('button', { name: /share signal/i })
     await userEvent.click(shareButton)
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/fan-out exceeds cap/i)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Signal could not be shared. Try again.')
     expect(body).toHaveValue('The freezer alarm went off')
     expect(body).toHaveFocus()
     expect(shareButton).toBeEnabled()
@@ -227,6 +227,19 @@ describe('SignalComposer — safe retry after a failed post (CQ IMPORTANT-1)', (
     await userEvent.click(shareButton)
     await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(body).toHaveValue(''))
+  })
+})
+
+describe('SignalComposer — post failure never shows raw exception text', () => {
+  it('a network failure shows the localized post error, not the technical message', async () => {
+    mockCreateSignal.mockRejectedValueOnce(new Error('createSignal failed — TypeError: Failed to fetch'))
+    renderComposer()
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
+    await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), 'The freezer alarm went off')
+    await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Signal could not be shared. Try again.')
+    expect(alert).not.toHaveTextContent(/createSignal|TypeError|Failed to fetch/)
   })
 })
 

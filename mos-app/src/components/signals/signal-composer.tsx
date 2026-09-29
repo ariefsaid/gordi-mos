@@ -184,7 +184,7 @@ export function SignalComposer({
       const message = err instanceof Error ? err.message : String(err)
       setError(/permission|not authorized|42501|row-level security/i.test(message)
         ? t('signals.composer.permissionError')
-        : message || t('signals.composer.postError'))
+        : t('signals.composer.postError'))
       textareaRef.current?.focus()
     } finally {
       setPosting(false)
