@@ -54,7 +54,7 @@ check "missing node_modules skips lint instead of blocking" 0
 stub="$tmp/stub"; mkdir -p "$stub"
 cat > "$stub/npx" <<'STUB'
 #!/usr/bin/env bash
-printf '%s\n' "$*" >> "$NPX_ARGV_LOG"
+printf '%s held=%s cap=%s\n' "$*" "${MOS_TEST_LOCK_HELD:-}" "${VITEST_MAX_THREADS:-}" >> "$NPX_ARGV_LOG"
 exit 0
 STUB
 chmod +x "$stub/npx"
@@ -65,7 +65,7 @@ echo "export const b = 2" > "$tmp/repo/mos-app/src/two.ts"
 git -C "$tmp/repo" add mos-app/src/one.ts mos-app/src/two.ts
 export NPX_ARGV_LOG="$tmp/npx-argv.log" MOS_TEST_LOCK="$tmp/test.lock"
 : > "$NPX_ARGV_LOG"
-(cd "$tmp/repo" && PATH="$stub:$PATH" bash "$HOOK") >/dev/null 2>&1
+(cd "$tmp/repo" && env -u VITEST_MAX_THREADS -u MOS_TEST_LOCK_HELD PATH="$stub:$PATH" bash "$HOOK") >/dev/null 2>&1
 vitest_argv="$(grep '^vitest' "$NPX_ARGV_LOG" || true)"
 if [ -z "$vitest_argv" ]; then
   fail=$((fail+1)); printf '  FAIL  two staged sources invoke vitest — nothing was invoked\n'
@@ -74,10 +74,10 @@ elif [[ "$vitest_argv" == *"related"* ]]; then
 else
   pass=$((pass+1)); printf '  ok    two staged sources invoke a vitest form that runs tests\n'
 fi
-if [ -e "$tmp/test.lock" ]; then
-  pass=$((pass+1)); printf '  ok    vitest lane runs under the shared heavy-test lock\n'
+if [[ "$vitest_argv" == *"held=1 cap=2"* ]]; then
+  pass=$((pass+1)); printf '  ok    vitest lane runs while holding the shared heavy-test lock, 2 workers\n'
 else
-  fail=$((fail+1)); printf '  FAIL  vitest lane ran outside the shared heavy-test lock\n'
+  fail=$((fail+1)); printf '  FAIL  vitest lane not under the heavy-test lock with a 2-worker cap: %s\n' "$vitest_argv"
 fi
 git -C "$tmp/repo" reset -q
 
