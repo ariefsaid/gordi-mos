@@ -105,7 +105,7 @@ select is_empty($snap$
     'create_signal(body text, occurred_at timestamp with time zone, attention text, mentions jsonb, link_task_ids uuid[], idempotency_key text)',
     'edit_signal(id uuid, changes jsonb, expected_updated_at timestamp with time zone)',
     'link_signal_task(signal_id uuid, task_id uuid)',
-    'list_projects_processes(type text, business_unit_id uuid, updated_since timestamp with time zone, q text, include_archived boolean, cursor text, "limit" integer)',
+    'list_projects_processes(type text, objective_id uuid, business_unit_id uuid, updated_since timestamp with time zone, q text, include_archived boolean, cursor text, "limit" integer)',
     'get_project_process(id uuid)',
     'create_project_process(name text, type text, business_unit_id uuid, objective_id uuid, accountable_person_id uuid, responsible_person_id uuid, idempotency_key text)',
     'edit_project_process(id uuid, changes jsonb, expected_updated_at timestamp with time zone)'
@@ -133,13 +133,11 @@ select is(
            or exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
                        where a.grantee = 0 and a.privilege_type = 'EXECUTE'))),
   0, 'a function created later in api_v1 or api_private is not executable by public or anon');
+create function shared._probe() returns int language sql as 'select 1';
 select is(
-  (select count(*)::int from pg_proc p
-    where p.proname = 'current_person_id' and p.pronamespace = to_regnamespace('shared')
-      and has_function_privilege('anon', p.oid, 'execute')),
-  (select count(*)::int from pg_proc p
-    where p.proname = 'current_person_id' and p.pronamespace = to_regnamespace('shared')),
-  'other schemas keep their default execute grant');
+  (select has_function_privilege('anon', p.oid, 'execute')
+     from pg_proc p where p.proname = '_probe' and p.pronamespace = to_regnamespace('shared')),
+  true, 'a function created later in another schema keeps its default execute grant');
 
 select * from finish();
 rollback;

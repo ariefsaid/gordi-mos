@@ -8,7 +8,7 @@
 --   d5 report (under d1 and d4)   d7 (probed with finance)   b4 member of another org.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(130);
+select plan(131);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -51,6 +51,10 @@ insert into mos.work_lines (id, org_id, name, type, business_unit_id, accountabl
   ('00000000-0000-0000-0000-0000000006a3','00000000-0000-0000-0000-0000000000a1','Gamma process','process','00000000-0000-0000-0000-0000000000a3',null);
 insert into mos.work_lines (id, org_id, name, type, business_unit_id, archived_at) values
   ('00000000-0000-0000-0000-0000000006a2','00000000-0000-0000-0000-0000000000a1','Beta archived','project','00000000-0000-0000-0000-0000000000a2', now());
+
+insert into mos.objectives (id, org_id, name) values
+  ('00000000-0000-0000-0000-0000000007a1','00000000-0000-0000-0000-0000000000a1','Fixture objective');
+update mos.work_lines set objective_id = '00000000-0000-0000-0000-0000000007a1' where id = '00000000-0000-0000-0000-0000000006a3';
 
 -- ── helpers (session-local) ──────────────────────────────────────────────────────────────────
 create temp table ctx (k text primary key, v text);
@@ -167,6 +171,7 @@ select is((select array_agg(e ->> 'name' order by ord) from jsonb_array_elements
 select is(jsonb_array_length(api_v1.list_projects_processes(include_archived => true) -> 'items'), 3, 'include_archived returns the archived one too');
 select is((api_v1.list_projects_processes(type => 'process') -> 'items' -> 0) ->> 'name', 'Gamma process', 'list_projects_processes filters by type');
 select is((api_v1.list_projects_processes(business_unit_id => '00000000-0000-0000-0000-0000000000a2') -> 'items' -> 0) ->> 'name', 'Alpha project', 'list_projects_processes filters by Business Unit');
+select is((api_v1.list_projects_processes(objective_id => '00000000-0000-0000-0000-0000000007a1') -> 'items' -> 0) ->> 'name', 'Gamma process', 'list_projects_processes filters by Objective');
 select is((api_v1.list_projects_processes(q => 'GAMMA') -> 'items' -> 0) ->> 'id', '00000000-0000-0000-0000-0000000006a3', 'list_projects_processes q matches the name, case-insensitively');
 select is(jsonb_array_length(api_v1.list_projects_processes(updated_since => now() + interval '1 hour') -> 'items'), 0, 'list_projects_processes filters by updated_since');
 select is(

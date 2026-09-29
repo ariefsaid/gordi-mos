@@ -10,6 +10,7 @@
 --     author-only and revision writing to the existing guard.
 --
 -- DOWN (manual, before production):
+--   drop index mos.work_lines_org_name_id_idx;
 --   drop function api_v1.list_signals, api_v1.get_signal, api_v1.create_signal, api_v1.edit_signal,
 --     api_v1.link_signal_task, api_v1.list_projects_processes, api_v1.get_project_process,
 --     api_v1.create_project_process, api_v1.edit_project_process (each with its argument list);
@@ -24,6 +25,9 @@
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- api_private: record shapes
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- Serves list_projects_processes' by-name order within an org.
+create index work_lines_org_name_id_idx on mos.work_lines (org_id, name, id);
+
 create function api_private.signal_json(s mos.signals)
 returns jsonb
 language sql
@@ -431,7 +435,8 @@ $fn$;
 -- api_v1: Project/Process reads and writes
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 create function api_v1.list_projects_processes(
-  type text default null, business_unit_id uuid default null, updated_since timestamptz default null,
+  type text default null, objective_id uuid default null, business_unit_id uuid default null,
+  updated_since timestamptz default null,
   q text default null, include_archived boolean default false,
   cursor text default null, "limit" integer default null)
 returns jsonb
@@ -443,6 +448,7 @@ as $fn$
 #variable_conflict use_column
 declare
   v_type   text := list_projects_processes.type;
+  v_objective_id uuid := list_projects_processes.objective_id;
   v_business_unit_id uuid := list_projects_processes.business_unit_id;
   v_updated_since timestamptz := list_projects_processes.updated_since;
   v_query  text := api_private.text_arg(list_projects_processes.q, 'q', 200, false);
@@ -469,6 +475,7 @@ begin
        where w.org_id = shared.current_org_id()
          and (v_include_archived or w.archived_at is null)
          and (v_type is null or w.type = v_type)
+         and (v_objective_id is null or w.objective_id = v_objective_id)
          and (v_business_unit_id is null or w.business_unit_id = v_business_unit_id)
          and (v_updated_since is null or w.updated_at >= v_updated_since)
          and (v_query is null or w.name ilike api_private.like_pattern(v_query))
@@ -710,8 +717,8 @@ comment on function api_v1.edit_signal(uuid, jsonb, timestamptz) is
   'Purpose: change a Signal''s content; only its author may. Inputs: id; changes, an object holding any of body, occurred_at, category (or null), attention; expected_updated_at (the updated_at you read; a newer one is a conflict). The guard records each changed field as a revision. Audience, owning-team and mention keys are refused.permissions; retraction and archive keys are refused.archive. Returns: {item} (the Signal as get_signal returns it). Errors: invalid_input (unknown key or bad value), refused.permissions, refused.archive, not_found, forbidden, conflict, rate_limited.';
 comment on function api_v1.link_signal_task(uuid, uuid) is
   'Purpose: link a Signal to a Task; an existing link is success. Inputs: signal_id, task_id. Returns: {item} (the Signal as get_signal returns it). Errors: invalid_input, not_found (signal_id or task_id), forbidden, rate_limited.';
-comment on function api_v1.list_projects_processes(text, uuid, timestamptz, text, boolean, text, integer) is
-  'Purpose: Projects and Processes in the caller''s org by name. Inputs: type (project or process), business_unit_id, updated_since, q (name contains, at most 200 characters), include_archived (default false), cursor, limit (default 50, at most 100). Returns: {items [Project/Process], next_cursor}. Errors: invalid_input (type, q, cursor, limit).';
+comment on function api_v1.list_projects_processes(text, uuid, uuid, timestamptz, text, boolean, text, integer) is
+  'Purpose: Projects and Processes in the caller''s org by name. Inputs: type (project or process), objective_id, business_unit_id, updated_since, q (name contains, at most 200 characters), include_archived (default false), cursor, limit (default 50, at most 100). Returns: {items [Project/Process], next_cursor}. Errors: invalid_input (type, q, cursor, limit).';
 comment on function api_v1.get_project_process(uuid) is
   'Purpose: one Project or Process. Inputs: id. Returns: {item}. Errors: not_found, invalid_input (id).';
 comment on function api_v1.create_project_process(text, text, uuid, uuid, uuid, uuid, text) is
