@@ -1,7 +1,11 @@
-/** The eight authority controls the admin surface is allowed to edit. */
+/**
+ * The authority controls the admin surface is allowed to edit. Objective structure is NOT among
+ * them: since the OD-OBJ-1 policy switch, Objective writes read the objective.manage capability
+ * grant (admin's, migration-owned) and not the tenant matrix, so a saved objective.manage scope
+ * would do nothing — the control is retired rather than left as a lever that moves nothing.
+ */
 export const AUTHORITY_ACTIONS = [
   'workline.manage',
-  'objective.manage',
   'signal.post',
   'signal.tag',
   'signal.retract',

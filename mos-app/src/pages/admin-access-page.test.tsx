@@ -22,7 +22,6 @@ const mockUseIsDesktop = vi.mocked(useIsDesktop)
 
 const SCOPE_BY_ACTION: Record<string, RoleAuthorityRow['scope']> = {
   'workline.manage': 'own_bu',
-  'objective.manage': 'own_bu',
   'signal.post': 'org',
   'signal.tag': 'org',
   'signal.retract': 'own',

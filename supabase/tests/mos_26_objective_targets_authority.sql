@@ -17,7 +17,7 @@
 --   ForeignMgr …0b4 org B            — cross-org negative control
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(94);
+select plan(96);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -179,6 +179,14 @@ $$, '42501', null, 'AC-008: the BU head cannot set the year');
 select throws_ok($$
   update mos.objectives set period_quarter = 1 where id = '00000000-0000-0000-0000-0000000009e3'
 $$, '42501', null, 'AC-008: the BU head cannot set the quarter');
+select throws_ok($$
+  update mos.objective_key_results set target_value = 99 where id = '00000000-0000-0000-0000-0000000009e6'
+$$, '42501', null,
+  'AC-011: the BU head cannot retarget a key result — the target is structural authority');
+select throws_ok($$
+  update mos.objective_key_results set what = 'Replaced by the head' where id = '00000000-0000-0000-0000-0000000009e6'
+$$, '42501', null,
+  'AC-011: ...nor rewrite what the key result measures');
 select throws_ok($$
   update mos.objectives set archived_at = now() where id = '00000000-0000-0000-0000-0000000009e3'
 $$, '42501', null, 'AC-008: the BU head cannot archive');
