@@ -113,6 +113,10 @@ jobs:
         if: steps.scope.outputs.render == 'true'
         run: bash scripts/lint-security-definer.sh
 
+      - name: API reference matches the database
+        if: steps.scope.outputs.render == 'true'
+        run: bash scripts/api-reference.sh --check
+
       - name: pgTAP suite
         if: steps.scope.outputs.render == 'true'
         run: supabase test db
