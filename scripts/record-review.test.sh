@@ -24,6 +24,7 @@ check() { # $1 name · $2 expected rc · args…
 # One multi-lens artifact, three tagged sections — the shape /drive step 7 produces.
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\nnone\n\n## code-quality\nReviewer: zai/glm-5.3-flash (code-quality)\nVerdict: MERGE WITH CHANGES\nCommit: %s\nnone\n\n## security\nReviewer: claude-opus-5 (security)\nVerdict: MERGE\nCommit: %s\nnone\n' "$head" "$head" "$head" > "$tmp/repo/review.md"
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n\n## security\nReviewer: gpt-5.6-luna (security)\nVerdict: DO NOT MERGE\nCommit: %s\n' "$head" "$head" > "$tmp/repo/mixed.md"
+printf '## security\nReviewer: gpt-5.6-luna (security)\nVerdict: MERGE\nVerdict: typo\nCommit: %s\n' "$head" > "$tmp/repo/malformed.md"
 printf '## spec\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/noreviewer.md"
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nCommit: %s\nlooks fine to me\n' "$head" > "$tmp/repo/noverdict.md"
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: 0123456789abcdef\n' > "$tmp/repo/stale.md"
@@ -52,7 +53,11 @@ check "substring collision refused ('## special'/'(specialist)' is not spec)" 1 
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/lacking.md"
 check "missing lens section refused (spec-only artifact, security requested)" 1 --lens security --reviewer gpt-5.6-luna --artifact lacking.md
 check "another section's MERGE cannot stamp a DNM lens" 1 --lens security --reviewer gpt-5.6-luna --artifact mixed.md
-check "DNM anywhere poisons even the MERGE section" 1 --lens spec --reviewer gpt-5.6-luna --artifact mixed.md
+check "duplicate verdict lines are refused" 1 --lens security --reviewer gpt-5.6-luna --artifact malformed.md
+if [ ! -e "$gitdir/independent-review-security-ok" ]; then
+  pass=$((pass+1)); printf '  ok    malformed verdicts do not create a security stamp\n'
+else fail=$((fail+1)); printf '  FAIL  malformed verdicts created a security stamp\n'; fi
+check "a DNM in another lens does not block this lens's MERGE" 0 --lens spec --reviewer gpt-5.6-luna --artifact mixed.md
 
 check "reviewer not named by the section refused" 1 --lens spec --reviewer zai/glm-5.3-flash --artifact review.md
 printf '## spec\nReviewer: gpt-5.6-luna-fake (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/spoof.md"
@@ -66,6 +71,17 @@ check "security lens stamps (opus fallback)" 0 --lens security --reviewer claude
 n="$(ls "$gitdir"/independent-review-*-ok 2>/dev/null | wc -l | tr -d ' ')"
 if [ "$n" = "3" ]; then pass=$((pass+1)); printf '  ok    three separate lens stamps exist\n'
 else fail=$((fail+1)); printf '  FAIL  expected 3 lens stamps, found %s\n' "$n"; fi
+
+spec_stamp_before="$(cat "$gitdir/independent-review-spec-ok")"
+quality_stamp_before="$(cat "$gitdir/independent-review-code-quality-ok")"
+check "security DNM refuses and clears only its own stamp" 1 --lens security --reviewer gpt-5.6-luna --artifact mixed.md
+if [ ! -e "$gitdir/independent-review-security-ok" ]; then
+  pass=$((pass+1)); printf '  ok    security DNM clears the security stamp\n'
+else fail=$((fail+1)); printf '  FAIL  security DNM left its passing stamp in place\n'; fi
+if [ "$(cat "$gitdir/independent-review-spec-ok" 2>/dev/null)" = "$spec_stamp_before" ] \
+  && [ "$(cat "$gitdir/independent-review-code-quality-ok" 2>/dev/null)" = "$quality_stamp_before" ]; then
+  pass=$((pass+1)); printf '  ok    other exact-HEAD lens stamps remain unchanged after security DNM\n'
+else fail=$((fail+1)); printf '  FAIL  security DNM changed another lens stamp\n'; fi
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
