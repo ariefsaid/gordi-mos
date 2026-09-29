@@ -1,9 +1,7 @@
-/**
- * The authority controls the admin surface is allowed to edit. Objective structure is NOT among
- * them: since the OD-OBJ-1 policy switch, Objective writes read the objective.manage capability
- * grant (admin's, migration-owned) and not the tenant matrix, so a saved objective.manage scope
- * would do nothing — the control is retired rather than left as a lever that moves nothing.
- */
+// The authority controls the admin surface is allowed to edit. Objective structure is NOT among
+// them: since the OD-OBJ-1 policy switch, Objective writes read the objective.manage capability
+// grant (admin's, migration-owned) and not the tenant matrix, so a saved objective.manage scope
+// would do nothing — the control is retired rather than left as a lever that moves nothing.
 export const AUTHORITY_ACTIONS = [
   'workline.manage',
   'signal.post',
@@ -53,7 +51,6 @@ export interface TeamLeadCandidate {
 
 const ALLOWED_SCOPES_BY_ACTION: Record<AuthorityAction, readonly AuthorityScope[]> = {
   'workline.manage': ['none', 'own_bu', 'org'],
-  'objective.manage': ['none', 'own_bu', 'org'],
   'signal.post': ['none', 'org'],
   'signal.tag': ['none', 'org'],
   'signal.retract': ['none', 'own', 'own_team', 'own_bu', 'org'],
@@ -79,18 +76,26 @@ function isAuthorityScope(value: string): value is AuthorityScope {
 }
 
 /**
- * Validate the complete authority matrix returned by the settings RPC and return it in the
- * stable UI order. Missing or duplicate rows are a load failure, not an invitation to invent a
- * safe-looking `none` grant: defaulting here could silently wipe real authority on save.
+ * Validate the authority matrix returned by the settings RPC and return it in the stable UI
+ * order. The RPC still returns the retired objective.manage row (its grant is migration-owned
+ * now); it is dropped here before the completeness check, so the edit surface only ever sees
+ * actions it can actually save. Missing or duplicate rows are a load failure, not an invitation
+ * to invent a safe-looking `none` grant: defaulting here could silently wipe real authority on
+ * save.
  */
 export function normalizeAuthorityRows(rows: RoleAuthorityRow[]): RoleAuthorityRow[] {
   const byKey = new Map<string, AuthorityScope>()
+  const retired = rows.filter((row) => (row.action as string) === 'objective.manage')
+  const active = rows.filter((row) => (row.action as string) !== 'objective.manage')
   const expectedLength = AUTHORITY_ACTIONS.length * AUTHORITY_ROLES.length
-  if (rows.length !== expectedLength) {
+  if (retired.length > AUTHORITY_ROLES.length) {
+    throw new Error('Invalid role authority row')
+  }
+  if (active.length !== expectedLength) {
     throw new Error('Incomplete role authority matrix')
   }
 
-  for (const row of rows) {
+  for (const row of active) {
     if (!isAuthorityAction(row.action) || !isAuthorityRole(row.role) || !isAuthorityScope(row.scope)) {
       throw new Error('Invalid role authority row')
     }

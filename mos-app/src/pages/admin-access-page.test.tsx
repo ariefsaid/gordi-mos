@@ -31,13 +31,16 @@ const SCOPE_BY_ACTION: Record<string, RoleAuthorityRow['scope']> = {
 }
 
 function authorityRows(): RoleAuthorityRow[] {
-  return AUTHORITY_ACTIONS.flatMap((action) =>
+  // The RPC still returns the retired objective.manage row; the page must load past it.
+  const retired = (['objective.manage'] as const).flatMap((action) =>
+    AUTHORITY_ROLES.map((role) => ({ action, role, scope: 'none' as const })))
+  return retired.concat(AUTHORITY_ACTIONS.flatMap((action) =>
     AUTHORITY_ROLES.map((role) => ({
       action,
       role,
       scope: role === 'admin' ? 'org' : role === 'member' ? SCOPE_BY_ACTION[action] : 'none',
     })),
-  )
+  ))
 }
 
 async function selectPicker(user: ReturnType<typeof userEvent.setup>, label: string, option: string) {
