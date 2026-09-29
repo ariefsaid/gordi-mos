@@ -733,6 +733,22 @@ describe('TaskRow — inline due date commit, cancel and failure (#982)', () => 
     await waitFor(() => expect(trigger).toHaveFocus())
   })
 
+  it('a failed save links the error to the input and announces that the typed date is kept, not reverted (#1024)', async () => {
+    const user = userEvent.setup({ delay: null })
+    renderRow({ onEditDue: vi.fn().mockRejectedValue(new Error('nope')) })
+    const input = openEditor()
+    expect(input).not.toHaveAttribute('aria-describedby')
+    await user.clear(input)
+    await user.type(input, '2026-10-05{Enter}')
+    const alert = await screen.findByRole('alert')
+    expect(input).toHaveAccessibleDescription(/couldn't save/i)
+    expect(input).toHaveAttribute('aria-describedby', alert.id)
+    const status = await screen.findByRole('status')
+    await waitFor(() => expect(status).toHaveTextContent(/kept/i))
+    expect(status).not.toHaveTextContent(/revert/i)
+    expect(input).toHaveValue('2026-10-05')
+  })
+
   it('after a failed save the input still shows the typed date with focus in it, and Escape closes the editor', async () => {
     const user = userEvent.setup({ delay: null })
     const onEditDue = vi.fn().mockRejectedValue(new Error('nope'))

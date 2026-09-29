@@ -101,10 +101,17 @@ export type TaskRowProps = {
   viewerHasNoDownline?: boolean
 }
 
-function InlineCommitFeedback({ error, retry, liveMessage }: { error: boolean; retry: () => void; liveMessage: string }) {
+interface InlineCommitFeedbackProps {
+  error: boolean
+  retry: () => void
+  liveMessage: string
+  errorId?: string
+}
+
+function InlineCommitFeedback({ error, retry, liveMessage, errorId }: InlineCommitFeedbackProps) {
   const t = useT()
   return <>
-    {error && <span role="alert" className="task-row-save-error">
+    {error && <span id={errorId} role="alert" className="task-row-save-error">
       {t('record.field.saveError')}
       <button type="button" className="task-row-retry" onClick={(event) => { event.stopPropagation(); retry() }}>{t('record.field.retry')}</button>
     </span>}
@@ -198,8 +205,10 @@ export function TaskRow({
   const dueInline = useInlineCommit<string>({
     value: task.due_date ?? '',
     onCommit: (next) => (onEditDue ? onEditDue(task.id, next || null) : undefined),
-    rollbackMessage: t('tasks.feedback.rollback'),
+    // The editor keeps the typed date for Retry (below), so the status must not say "reverted".
+    rollbackMessage: t('tasks.feedback.dueKept'),
   })
+  const dueErrorId = useId()
 
   // The editor stays open while a save is in flight and after a failure (so the typed date and the
   // error stay visible); it closes once a save lands. Enter hands focus back to the row's trigger.
@@ -554,9 +563,9 @@ export function TaskRow({
         {onEditDue ? (dueEditing ? (
           <span className="inline-editor-control inline-editor-control--due" onClick={(event) => event.stopPropagation()}>
             <input autoFocus type="date" aria-label="Due date" value={dueTyped} readOnly={dueInline.pending} aria-busy={dueInline.pending || undefined}
-              aria-invalid={dueInline.error || undefined}
+              aria-invalid={dueInline.error || undefined} aria-describedby={dueInline.error ? dueErrorId : undefined}
               onChange={(event) => { setDueTyped(event.target.value); dueInline.setDraft(event.target.value) }} onKeyDown={onDueKeyDown} onBlur={onDueBlur} />
-            <InlineCommitFeedback {...dueInline} />
+            <InlineCommitFeedback {...dueInline} errorId={dueErrorId} />
           </span>
         ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label="Edit task due date" onClick={(event) => { event.stopPropagation(); setDueTyped(dueInline.draft); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText}
 
