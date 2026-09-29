@@ -19,7 +19,7 @@
 -- sanity check on the new code path, not a re-proof of that trigger's own suite.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(29);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
@@ -55,15 +55,40 @@ values ('00000000-0000-0000-0000-000000005b04',
         '00000000-0000-0000-0000-0000000000a3',
         'Unit-2 Team', 'unit2_team');
 
+-- A fourth Team, "LedOnly", also in Unit-1 (...0a2) but led by d7 (Lead2Holder) instead of d2. d7's
+-- own root-in-BU role is Lead 2, rooted in Unit-2 (...0a3) — shared.is_business_unit_head(a2, d7) is
+-- false — so d7 carries own_team for LedOnly and NO own_bu anywhere in Unit-1. d2 is deliberately
+-- both team lead and BU head at once (mirrors mos_18's fixture); d7 isolates the team_lead branch
+-- with no BU-head grant standing behind it.
+reset role;
+insert into shared.teams (id, org_id, business_unit_id, name, code)
+values ('00000000-0000-0000-0000-000000005b05',
+        '00000000-0000-0000-0000-0000000000a1',
+        '00000000-0000-0000-0000-0000000000a2',
+        'LedOnly Team', 'led_only_team');
+insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
+values ('00000000-0000-0000-0000-0000000000a1',
+        '00000000-0000-0000-0000-0000000000d7',
+        '00000000-0000-0000-0000-000000005b05', false);
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared.save_team_lead_assignment('00000000-0000-0000-0000-000000005b05','00000000-0000-0000-0000-0000000000d7');
+set local request.jwt.claims = '{}';
+reset role;
+
 create temp table t1010 (
-  target_signal    uuid,
-  self_signal      uuid,
-  ops_lead_signal  uuid,
-  admin_signal     uuid,
-  live_signal      uuid,
-  team_own         uuid,
-  team_same_bu     uuid,
-  team_other_bu    uuid
+  target_signal      uuid,
+  self_signal        uuid,
+  ops_lead_signal    uuid,
+  admin_signal       uuid,
+  live_signal        uuid,
+  tab_reason_signal  uuid,
+  newline_reason_signal uuid,
+  team_own           uuid,
+  team_same_bu       uuid,
+  team_other_bu      uuid,
+  team_led_only_own    uuid,
+  team_led_only_denied uuid
 ) on commit drop;
 insert into t1010 default values;
 grant select, update on t1010 to authenticated;
@@ -81,6 +106,10 @@ update t1010 set admin_signal = mos.create_signal_with_mentions(
   'Admin target', now(), '[]'::jsonb);
 update t1010 set live_signal = mos.create_signal_with_mentions(
   'Reason-required target', now(), '[]'::jsonb);
+update t1010 set tab_reason_signal = mos.create_signal_with_mentions(
+  'Tab-reason target', now(), '[]'::jsonb);
+update t1010 set newline_reason_signal = mos.create_signal_with_mentions(
+  'Newline-reason target', now(), '[]'::jsonb);
 
 -- A same-org member with no special access role cannot retract another author's Signal: RLS admits
 -- zero rows, so the UPDATE lives but changes nothing.
@@ -175,6 +204,16 @@ select throws_ok($$
   update mos.signals set retracted_at = now(), retract_reason = '   '
    where id = (select live_signal from t1010)
 $$, '23514', null, 'a whitespace-only reason does not satisfy the reason requirement');
+-- btrim(text) with no character-set argument strips spaces only, so a tab- or newline-only reason
+-- must be checked with the same character class the storage trim uses, not the space-only default.
+select throws_ok($$
+  update mos.signals set retracted_at = now(), retract_reason = E'\t\t'
+   where id = (select tab_reason_signal from t1010)
+$$, '23514', null, 'a tab-only reason does not satisfy the reason requirement');
+select throws_ok($$
+  update mos.signals set retracted_at = now(), retract_reason = E'\n\n'
+   where id = (select newline_reason_signal from t1010)
+$$, '23514', null, 'a newline-only reason does not satisfy the reason requirement');
 
 -- Restore-refused and reason-immutable are the unchanged mos._guard_signal_retraction_attribution
 -- trigger (20260909000008), which runs before this guard — confirmed here only as an integration
@@ -205,6 +244,16 @@ insert into mos.signals (id, org_id, author_id, audience, owning_team_id, occurr
 values ('00000000-0000-0000-0000-000000009103','00000000-0000-0000-0000-0000000000a1',
         '00000000-0000-0000-0000-0000000000d4','team','00000000-0000-0000-0000-000000005b04',
         now(), 'Unit-2 historical signal');
+update t1010 set team_led_only_own = '00000000-0000-0000-0000-000000009105'::uuid;
+insert into mos.signals (id, org_id, author_id, audience, owning_team_id, occurred_at, body)
+values ('00000000-0000-0000-0000-000000009105','00000000-0000-0000-0000-0000000000a1',
+        '00000000-0000-0000-0000-0000000000d4','team','00000000-0000-0000-0000-000000005b05',
+        now(), 'LedOnly historical signal');
+update t1010 set team_led_only_denied = '00000000-0000-0000-0000-000000009106'::uuid;
+insert into mos.signals (id, org_id, author_id, audience, owning_team_id, occurred_at, body)
+values ('00000000-0000-0000-0000-000000009106','00000000-0000-0000-0000-0000000000a1',
+        '00000000-0000-0000-0000-0000000000d4','team','00000000-0000-0000-0000-000000005b02',
+        now(), 'SiblingTeam historical signal (second row, for the team-lead-only denial)');
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}';
@@ -221,6 +270,19 @@ update mos.signals set retracted_at = now(), retract_reason = 'Cross-BU attempt'
 select is((select retracted_at from mos.signals where id = (select team_other_bu from t1010)),
   null::timestamptz,
   'neither the own-Team nor the own-BU scope reaches a historical row owned by a different unit');
+
+-- d7 is team lead of LedOnly ONLY — not a BU head anywhere in Unit-1 — so these two isolate the
+-- own_team branch on its own, unlike the d2 case above where own_team and own_bu both hold.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select lives_ok($$
+  update mos.signals set retracted_at = now(), retract_reason = 'Team-lead-only retraction'
+   where id = (select team_led_only_own from t1010)
+$$, 'a team lead with no BU-head grant retracts a historical row owned by their own Team (own_team alone)');
+update mos.signals set retracted_at = now(), retract_reason = 'Team-lead-only cross-team attempt'
+ where id = (select team_led_only_denied from t1010);
+select is((select retracted_at from mos.signals where id = (select team_led_only_denied from t1010)),
+  null::timestamptz,
+  'the same team lead, with no BU-head grant, cannot retract a historical row owned by a different Team in the same BU');
 
 -- ── mos.work_lines.code: stable, server-assigned state (#1010) ───────────────────────────────────
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';

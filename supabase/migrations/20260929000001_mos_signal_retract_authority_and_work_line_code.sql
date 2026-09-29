@@ -85,10 +85,14 @@ begin
     if not mos.can_retract_signal(old.id) then
       raise exception 'retraction requires the effective signal.retract authority' using errcode = '42501';
     end if;
-    if new.retracted_at is not null and btrim(coalesce(new.retract_reason, '')) = '' then
+    -- btrim(text) with no character-set argument strips SPACE only, so a tab/newline/CR-only
+    -- reason would pass this check and be stored verbatim. Trim the full whitespace class here and
+    -- reuse the identical expression for storage below, so validation and storage never disagree.
+    if new.retracted_at is not null
+       and btrim(coalesce(new.retract_reason, ''), E' \t\n\r\v\f') = '' then
       raise exception 'retraction requires a reason' using errcode = '23514';
     end if;
-    new.retract_reason := btrim(new.retract_reason);
+    new.retract_reason := btrim(new.retract_reason, E' \t\n\r\v\f');
     -- Notify the author when someone else retracts their Signal. A self-retraction is silent — the
     -- actor already knows. A missing/archived author (historical rows) has nobody to notify.
     if old.author_id is distinct from shared.current_person_id()
