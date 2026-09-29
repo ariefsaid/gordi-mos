@@ -18,6 +18,8 @@ Every operation is `POST <SUPABASE_URL>/rest/v1/rpc/<name>` with a JSON object o
 
 **Refusals:** [`refused_action`](#refused_action)
 
+**Other operations:** [`get_record_history`](#get_record_history)
+
 ## Session and directory
 
 ### `list_business_units`
@@ -532,4 +534,31 @@ Required parameters as a JSON skeleton (the Inputs line says what else a call ne
 
 ```json
 { "action": "<text>" }
+```
+
+## Other operations
+
+### `get_record_history`
+
+The change history of one record, newest first, read through the same visibility rule as the app.
+
+`POST <SUPABASE_URL>/rest/v1/rpc/get_record_history`
+
+| Parameter | Type | Required |
+|---|---|---|
+| `record_type` | `text` | yes |
+| `id` | `uuid` | yes |
+| `cursor` | `text` | no |
+| `limit` | `integer` | no |
+
+Inputs: record_type (task, signal, project_process or objective), id, cursor (opaque, from next_cursor), limit (default 50, at most 100).
+
+Returns: {items [{id, action (insert, update or delete), field, old_value, new_value, actor_person_id, actor_name, channel (app, api or agent), agent_client_id, occurred_at}], next_cursor}. A record type whose history is not yet recorded, or a record the caller cannot read, returns no items.
+
+Errors: invalid_input (record_type, id, cursor, limit).
+
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
+
+```json
+{ "record_type": "<text>", "id": "<uuid>" }
 ```
