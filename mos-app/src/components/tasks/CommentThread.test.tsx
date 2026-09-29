@@ -46,6 +46,15 @@ describe('CommentThread (T28, AC-P3-CM-004)', () => {
 
     expect(screen.getByRole('textbox', { name: /comment/i })).toHaveValue('Please ask @riri ')
   })
+
+  it('returns focus to the composer after a mention is picked', () => {
+    render(<CommentThread comments={[]} people={people} canPost onPost={vi.fn()} />)
+    const box = screen.getByRole('textbox', { name: /comment/i })
+    box.focus()
+    fireEvent.change(box, { target: { value: 'Please ask @' } })
+    fireEvent.click(screen.getByRole('option', { name: /riri kitchen/i }))
+    expect(box).toHaveFocus()
+  })
 })
 
 // D-B2 (I5 / OD-83.1): a typed comment is unsaved work — it must feed the host leave-guard, and

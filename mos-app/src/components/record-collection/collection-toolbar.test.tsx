@@ -504,7 +504,7 @@ describe('CollectionToolbar — desktop keyboard and nested save behavior', () =
     const picker = screen.getByRole('combobox', { name: 'Team' })
     const save = screen.getByRole('button', { name: /save view/i })
     picker.focus(); await userEvent.keyboard('{ArrowDown}')
-    expect(screen.getByRole('listbox', { name: 'Team' })).toHaveFocus()
+    expect(screen.getByRole('combobox', { name: 'Filter Team' })).toHaveFocus()
     await userEvent.keyboard('{Escape}')
     save.focus(); await userEvent.keyboard('{ArrowUp}'); expect(picker).toHaveFocus()
   })

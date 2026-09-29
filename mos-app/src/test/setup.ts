@@ -128,3 +128,11 @@ vi.mock('@/lib/db/signal-photos', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/db/signal-photos')>()),
   listSignalPhotos: vi.fn(async () => []),
 }))
+
+// jsdom lacks the layout APIs cmdk and the Radix popovers call on open.
+if (typeof window !== 'undefined') {
+  window.HTMLElement.prototype.scrollIntoView ??= () => {}
+  window.HTMLElement.prototype.hasPointerCapture ??= () => false
+  window.HTMLElement.prototype.releasePointerCapture ??= () => {}
+  window.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} }
+}

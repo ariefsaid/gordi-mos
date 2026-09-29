@@ -3,7 +3,6 @@ import {
   Fragment,
   forwardRef,
   isValidElement,
-  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -12,22 +11,18 @@ import {
   useState,
   type ChangeEvent,
   type FocusEventHandler,
-  type FocusEvent,
-  type KeyboardEvent as ReactKeyboardEvent,
   type KeyboardEventHandler,
   type MouseEventHandler,
   type ReactNode,
   type SelectHTMLAttributes,
 } from 'react'
-import { createPortal } from 'react-dom'
-import { useListboxPopover } from './use-listbox-popover'
-import { usePopoverReflow } from './use-popover-reflow'
+import * as RadixSelect from '@radix-ui/react-select'
 import './Select.css'
 
 /**
  * Select — a designed combobox/listbox with a hidden native form bridge.
  *
- * The visible trigger owns the keyboard, focus, and popup experience. The native select remains
+ * Radix Select owns the trigger keyboard, typeahead, focus, and popup experience. The native select remains
  * in the form so existing `name`, `required`, `form`, controlled/uncontrolled, and native-shaped
  * `onChange` callers keep their contract without exposing the browser's own popup chrome.
  */
@@ -118,14 +113,19 @@ function initialValue(
   return options.find((option) => option.selected)?.value ?? options[0]?.value ?? ''
 }
 
-function optionIsDisabled(options: readonly ParsedOption[], index: number): boolean {
-  return Boolean(options[index]?.disabled)
-}
-
 function setNativeSelectValue(select: HTMLSelectElement, value: string) {
   select.value = value
   select.dispatchEvent(new Event('change', { bubbles: true }))
 }
+
+// Radix items cannot carry an empty value, and option values are free text, so every option
+// travels under its index; a value with no option maps to a non-numeric key no index can equal.
+const NO_OPTION = 'none'
+const encodeValue = (options: readonly ParsedOption[], value: string) => {
+  const index = options.findIndex((option) => option.value === value)
+  return index < 0 ? NO_OPTION : String(index)
+}
+const decodeValue = (options: readonly ParsedOption[], key: string) => options[Number(key)]?.value ?? ''
 
 export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select(
   {
@@ -156,17 +156,13 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
 ) {
   const autoId = useId()
   const selectId = id ?? autoId
-  const menuId = `${selectId}-listbox`
   const nativeRef = useRef<HTMLSelectElement>(null)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const typed = useRef({ text: '', time: 0 })
+  const menuOpen = useRef(false)
   const controlled = value !== undefined
   const options = useMemo(() => parseOptions(children), [children])
   const [uncontrolledValue, setUncontrolledValue] = useState(() => initialValue(value, defaultValue, options))
   const selectedValue = controlled ? normalizeValue(value) : uncontrolledValue
-  const selectedIndex = options.findIndex((option) => option.value === selectedValue)
-  const selectedLabel = selectedIndex >= 0 ? options[selectedIndex]?.label : undefined
+  const selectedLabel = options.find((option) => option.value === selectedValue)?.label
   const restRecord = rest as Record<string, unknown>
   const accessibleLabel = restRecord['aria-label'] as string | undefined
   const labelledBy = restRecord['aria-labelledby'] as string | undefined
@@ -181,7 +177,6 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
   Object.keys(nativeRest).forEach((key) => {
     if (key.startsWith('data-') || key.startsWith('aria-') || key === 'title') delete nativeRest[key]
   })
-  const [open, setOpen] = useState(false)
   const [associatedLabel, setAssociatedLabel] = useState<string>()
 
   // Callers may keep the field label outside this component (`<label htmlFor=...>`). Discover it
@@ -195,70 +190,13 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     setAssociatedLabel((current) => current === nextLabel ? current : nextLabel)
   }, [accessibleLabel, children, label, labelledBy, selectId])
 
-  const isDisabled = useCallback((index: number) => optionIsDisabled(options, index), [options])
-  const firstEnabled = useCallback(() => options.findIndex((option) => !option.disabled), [options])
-  const selectActiveIndex = useCallback(() => {
-    if (selectedIndex >= 0 && !isDisabled(selectedIndex)) return selectedIndex
-    return firstEnabled()
-  }, [firstEnabled, isDisabled, selectedIndex])
-
-  const close = useCallback((restoreFocus: boolean) => {
-    setOpen(false)
-    if (restoreFocus) triggerRef.current?.focus()
-  }, [])
-
-  const selectIndex = useCallback((index: number) => {
-    const option = options[index]
-    if (!option || option.disabled || disabled) return
-    if (!controlled) setUncontrolledValue(option.value)
-    if (nativeRef.current && nativeRef.current.value !== option.value) {
-      setNativeSelectValue(nativeRef.current, option.value)
+  const selectValue = (next: string) => {
+    if (disabled) return
+    if (!controlled) setUncontrolledValue(next)
+    if (nativeRef.current && nativeRef.current.value !== next) {
+      setNativeSelectValue(nativeRef.current, next)
     }
-    close(true)
-  }, [close, controlled, disabled, options])
-
-  const {
-    listboxProps,
-    getOptionProps,
-    activeIndex,
-    setActiveIndex,
-    optionId,
-  } = useListboxPopover<HTMLDivElement>({
-    itemCount: options.length,
-    initialActive: Math.max(0, selectedIndex),
-    isDisabled,
-    onSelect: selectIndex,
-    onClose: () => close(true),
-    manageFocus: false,
-  })
-
-  const [position, setPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 320 })
-  const place = useCallback(() => {
-    const rect = triggerRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const gap = 6
-    const margin = 12
-    const viewportWidth = Math.max(window.innerWidth, margin * 2)
-    const width = Math.min(Math.max(rect.width, 220), viewportWidth - margin * 2)
-    const below = window.innerHeight - rect.bottom - margin - gap
-    const above = rect.top - margin - gap
-    const contentHeight = Math.min(320, Math.max(44, options.length * 44 + 12))
-    const flip = below < contentHeight && above > below
-    const maxHeight = Math.max(44, Math.min(contentHeight, flip ? above : below))
-    setPosition({
-      top: flip ? rect.top - gap - maxHeight : rect.bottom + gap,
-      left: Math.max(margin, Math.min(rect.left, viewportWidth - width - margin)),
-      width,
-      maxHeight,
-    })
-  }, [options.length])
-
-  useLayoutEffect(() => {
-    if (!open) return
-    setActiveIndex(selectActiveIndex())
-    place()
-  }, [open, place, selectActiveIndex, setActiveIndex])
-  usePopoverReflow(open, place)
+  }
 
   useLayoutEffect(() => {
     if (controlled || !nativeRef.current) return
@@ -282,87 +220,9 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     return () => form.removeEventListener('reset', handleReset)
   }, [controlled, children])
 
-  const setMenuRef = useCallback((node: HTMLDivElement | null) => {
-    menuRef.current = node
-    listboxProps.ref(node)
-  }, [listboxProps])
-
-  useEffect(() => {
-    if (!open) return
-    const outside = (event: PointerEvent) => {
-      if (!(event.target instanceof Node)) return
-      if (!menuRef.current?.contains(event.target) && !triggerRef.current?.contains(event.target)) {
-        close(false)
-      }
-    }
-    document.addEventListener('pointerdown', outside)
-    return () => document.removeEventListener('pointerdown', outside)
-  }, [close, open])
-
-  useEffect(() => {
-    if (!open || activeIndex < 0) return
-    document.getElementById(optionId(activeIndex))?.scrollIntoView?.({ block: 'nearest' })
-  }, [activeIndex, open, optionId])
-
-  const openSelect = useCallback(() => {
-    if (disabled || open) return
-    setActiveIndex(selectActiveIndex())
-    setOpen(true)
-  }, [disabled, open, selectActiveIndex, setActiveIndex])
-
-  const toggleSelect = useCallback(() => {
-    if (disabled) return
-    if (open) close(true)
-    else openSelect()
-  }, [close, disabled, open, openSelect])
-
-  const handleBridgeChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+  const handleBridgeChange = (event: ChangeEvent<HTMLSelectElement>) => {
     if (!controlled) setUncontrolledValue(event.target.value)
     onChange?.(event)
-  }, [controlled, onChange])
-
-  const handleTypeahead = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>) => {
-    if (!open || event.key.length !== 1 || event.key === ' ' || event.ctrlKey || event.metaKey || event.altKey || options.length === 0) return
-    const now = Date.now()
-    const repeated = now - typed.current.time < 700 ? typed.current.text + event.key : event.key
-    typed.current = { text: repeated, time: now }
-    const query = repeated.toLocaleLowerCase()
-    const search = [...query].every((character) => character === query[0]) ? query[0] : query
-    const start = search.length === 1 ? activeIndex + 1 : Math.max(0, activeIndex)
-    for (let offset = 0; offset < options.length; offset += 1) {
-      const index = (Math.max(0, start) + offset) % options.length
-      if (!options[index]?.disabled && options[index]?.label.toLocaleLowerCase().startsWith(search)) {
-        setActiveIndex(index)
-        event.preventDefault()
-        break
-      }
-    }
-  }, [activeIndex, open, options, setActiveIndex])
-
-  const handleTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
-    onKeyDown?.(event)
-    if (event.defaultPrevented || disabled) return
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault()
-      if (!open) openSelect()
-      else listboxProps.onKeyDown(event)
-      return
-    }
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      if (!open) openSelect()
-      else listboxProps.onKeyDown(event)
-      return
-    }
-    if (open) {
-      listboxProps.onKeyDown(event)
-      if (!event.defaultPrevented) handleTypeahead(event)
-    }
-  }
-
-  const handleTriggerBlur = (event: FocusEvent<HTMLButtonElement>) => {
-    if (open && !(event.relatedTarget instanceof Node && menuRef.current?.contains(event.relatedTarget))) close(false)
-    onBlur?.(event)
   }
 
   const rootClassName = [
@@ -380,49 +240,80 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     <div className={rootClassName}>
       {label && <label className="mk-select__label" htmlFor={selectId}>{label}</label>}
       <div className="mk-select__box">
-        <button
-          {...dataAttributes}
-          ref={(node) => {
-            triggerRef.current = node
-            if (typeof ref === 'function') ref(node)
-            else if (ref) ref.current = node
-          }}
-          id={selectId}
-          type="button"
-          role="combobox"
-          aria-label={accessibleLabel ?? associatedLabel}
-          aria-labelledby={labelledBy}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-controls={open ? menuId : undefined}
-          aria-activedescendant={open && activeIndex >= 0 ? optionId(activeIndex) : undefined}
-          aria-describedby={describedBy}
-          aria-errormessage={errorMessage}
-          aria-invalid={triggerAriaInvalid}
-          aria-required={triggerAriaRequired}
-          className="mk-select__field"
+        <RadixSelect.Root
+          value={encodeValue(options, selectedValue)}
+          onValueChange={(next) => selectValue(decodeValue(options, next))}
           disabled={disabled}
-          autoFocus={autoFocus}
-          style={style}
-          tabIndex={tabIndex}
-          onBlur={handleTriggerBlur}
-          onFocus={(event) => onFocus?.(event)}
-          onClick={(event) => {
-            onClick?.(event)
-            if (!event.defaultPrevented) toggleSelect()
-          }}
-          onMouseDown={(event) => onMouseDown?.(event)}
-          onMouseUp={(event) => onMouseUp?.(event)}
-          onKeyDown={handleTriggerKeyDown}
-          onKeyUp={(event) => onKeyUp?.(event)}
+          onOpenChange={(next) => { menuOpen.current = next }}
         >
-          <span className={selectedLabel == null ? 'mk-select__placeholder' : undefined}>
-            {selectedLabel ?? triggerLabel ?? ''}
-          </span>
-          <svg className="mk-select__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </button>
+          <RadixSelect.Trigger
+            {...dataAttributes}
+            ref={ref}
+            id={selectId}
+            aria-label={accessibleLabel ?? associatedLabel}
+            aria-labelledby={labelledBy}
+            aria-describedby={describedBy}
+            aria-errormessage={errorMessage}
+            aria-invalid={triggerAriaInvalid}
+            aria-required={triggerAriaRequired}
+            className="mk-select__field"
+            autoFocus={autoFocus}
+            style={style}
+            tabIndex={tabIndex}
+            // Focus moves into the open menu; that is not the field losing focus.
+            onBlur={(event) => { if (!menuOpen.current) onBlur?.(event) }}
+            onFocus={onFocus}
+            onClick={onClick}
+            onMouseDown={onMouseDown}
+            onMouseUp={onMouseUp}
+            onKeyDown={onKeyDown}
+            onKeyUp={onKeyUp}
+          >
+            <span className={selectedLabel == null ? 'mk-select__placeholder' : undefined}>
+              {selectedLabel ?? triggerLabel ?? ''}
+            </span>
+            <svg className="mk-select__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </RadixSelect.Trigger>
+          <RadixSelect.Portal>
+            <RadixSelect.Content
+              position="popper"
+              side="bottom"
+              align="start"
+              sideOffset={6}
+              collisionPadding={12}
+              aria-label={labelledBy ? undefined : triggerLabel}
+              aria-labelledby={labelledBy}
+              className="mk-select__menu"
+              onEscapeKeyDown={(event) => event.stopPropagation()}
+            >
+              <RadixSelect.Viewport className="mk-select__viewport">
+                {options.map((option, index) => {
+                  // A disabled empty-value option is the placeholder prompt (the pattern every
+                  // caller uses to hold "no choice yet" — e.g. cafe-stream-bar's "Choose stream…").
+                  // It is not a choosable value, so the open list omits it entirely; the closed
+                  // trigger still reads its label via `selectedLabel`.
+                  if (option.disabled && option.value === '') return null
+                  return (
+                    <RadixSelect.Item
+                      key={`${option.value}-${index}`}
+                      value={String(index)}
+                      disabled={option.disabled}
+                      textValue={option.label}
+                      className="mk-select__option"
+                    >
+                      <RadixSelect.ItemText>{option.label}</RadixSelect.ItemText>
+                      <RadixSelect.ItemIndicator>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>
+                      </RadixSelect.ItemIndicator>
+                    </RadixSelect.Item>
+                  )
+                })}
+              </RadixSelect.Viewport>
+            </RadixSelect.Content>
+          </RadixSelect.Portal>
+        </RadixSelect.Root>
         <select
           {...nativeRest}
           ref={nativeRef}
@@ -440,42 +331,6 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
           {children}
         </select>
       </div>
-      {open && createPortal(
-        <div
-          {...listboxProps}
-          ref={setMenuRef}
-          id={menuId}
-          aria-label={labelledBy ? undefined : triggerLabel}
-          aria-labelledby={labelledBy}
-          className="mk-select__menu"
-          style={position}
-          tabIndex={-1}
-        >
-          {options.map((option, index) => {
-            // A disabled empty-value option is the placeholder prompt (the pattern every
-            // caller uses to hold "no choice yet" — e.g. cafe-stream-bar's "Choose stream…").
-            // It is not a choosable value, so the open list omits it entirely rather than
-            // showing it as a checked, selectable row; the closed trigger still reads its
-            // label via `selectedLabel` below, which is unaffected by this list filter.
-            if (option.disabled && option.value === '') return null
-            return (
-              <div
-                {...getOptionProps(index)}
-                key={`${option.value}-${index}`}
-                aria-selected={option.value === selectedValue}
-                aria-disabled={option.disabled || undefined}
-                className="mk-select__option"
-                onPointerMove={() => { if (!option.disabled) setActiveIndex(index) }}
-                onClick={(event) => { event.stopPropagation(); selectIndex(index) }}
-              >
-                <span>{option.label}</span>
-                {option.value === selectedValue && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>}
-              </div>
-            )
-          })}
-        </div>,
-        document.body,
-      )}
     </div>
   )
 })
