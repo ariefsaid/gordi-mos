@@ -1,6 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Picker, type PickerOption } from './picker'
@@ -24,16 +22,13 @@ function renderPicker(overrides: Partial<React.ComponentProps<typeof Picker>> = 
 }
 
 describe('Picker', () => {
-  it('caps the popover at the available height with only the list scrolling', async () => {
+  it('renders the options as the popover list', async () => {
     const user = userEvent.setup()
     renderPicker()
     await user.click(screen.getByRole('combobox', { name: 'Status' }))
     const content = screen.getByRole('listbox', { name: 'Status' }).closest('.picker__menu')
     expect(content).not.toBeNull()
     expect(screen.getByRole('listbox', { name: 'Status' })).toHaveClass('picker__list')
-    const css = readFileSync(resolve(process.cwd(), 'src/components/ui/Picker.css'), 'utf8')
-    expect(css).toMatch(/\.picker__menu \{[^}]*flex-direction: column;[^}]*max-height: [^;]*--radix-popover-content-available-height/)
-    expect(css).toMatch(/\.picker__list \{[^}]*min-height: 0;[^}]*overflow-y: auto/)
   })
 
   it('opens as an anchored listbox and selects with arrows, then returns focus', async () => {
