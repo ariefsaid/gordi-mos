@@ -190,13 +190,25 @@ begin
   end if;
 
   if tg_op = 'UPDATE' and current_user = 'authenticated' then
-    -- Structural tier: admin alone renames, re-homes, flips Company-wide, re-periods, archives.
+    -- Default-deny column split (review round 1 of #992): the row policy admits any org member,
+    -- so this guard — not the policy — is what makes every column answer to a tier. A column no
+    -- tier owns (the org seam, the row identity, creation metadata) is refused outright, so a
+    -- change outside both tiers is a loud 42501, never a silent pass-through.
+    if new.org_id      is distinct from old.org_id
+       or new.id       is distinct from old.id
+       or new.created_at is distinct from old.created_at then
+      raise exception 'the objective''s org, identity and creation metadata are not editable in place'
+        using errcode = '42501';
+    end if;
+    -- Structural tier: admin alone renames, re-homes, flips Company-wide, re-periods, archives,
+    -- and re-points the Accountable owner.
     if (new.name            is distinct from old.name
         or new.business_unit_id is distinct from old.business_unit_id
         or new.is_company_wide  is distinct from old.is_company_wide
         or new.period_year      is distinct from old.period_year
         or new.period_quarter   is distinct from old.period_quarter
-        or new.archived_at      is distinct from old.archived_at)
+        or new.archived_at      is distinct from old.archived_at
+        or new.accountable_person_id is distinct from old.accountable_person_id)
        and not shared.can('objective.manage') then
       raise exception 'objective structural fields require the objective.manage authority'
         using errcode = '42501';
@@ -213,8 +225,9 @@ end;
 $$;
 comment on function mos._guard_objectives() is
   'The ONE guard on mos.objectives (#992): references stay same-org (42501), and a direct UPDATE '
-  'splits by tier — structural fields (name, unit/Company-wide, period, archive) require the '
-  'org-wide objective.manage authority, write_up requires mos.can_edit_objective_content. '
+  'splits by tier, default-deny — org/identity/creation columns are not editable in place at all; '
+  'structural fields (name, unit/Company-wide, period, archive, the Accountable owner) require '
+  'the org-wide objective.manage authority; write_up requires mos.can_edit_objective_content. '
   'SECURITY INVOKER.';
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -245,6 +258,9 @@ comment on column mos.objective_key_results.what is
 comment on column mos.objective_key_results.unit is
   'Free label ("orders", "%") — deliberately not a controlled vocabulary; key results carry '
   'heterogeneous units, so no combined attainment figure is derived from them.';
+
+create index objective_key_results_org_obj_idx
+  on mos.objective_key_results (org_id, objective_id);
 
 create or replace function mos._guard_objective_key_results()
 returns trigger
@@ -280,6 +296,14 @@ begin
   end if;
 
   if tg_op = 'UPDATE' and current_user = 'authenticated' then
+    -- Default-deny, same shape as the parent Objective's guard: columns no tier owns are not
+    -- editable in place (review round 1 of #992).
+    if new.org_id      is distinct from old.org_id
+       or new.id       is distinct from old.id
+       or new.created_at is distinct from old.created_at then
+      raise exception 'a key result''s org, identity and creation metadata are not editable in place'
+        using errcode = '42501';
+    end if;
     -- Structural tier: what, the target fields, the owner, and which Objective carries the row.
     if (new.what            is distinct from old.what
         or new.target_value    is distinct from old.target_value
@@ -472,10 +496,13 @@ as $$
 begin
   if p_action in ('insert', 'update') then
     case
+      -- UUID-key arms cast the stored key back to uuid against the PK — index-preserving and
+      -- shape-guarded so a malformed stored key fails closed (the 808aa13b arm shape).
       when p_schema = 'mos' and p_table = 'objectives' then
         return exists (
           select 1 from mos.objectives o
-          where o.id::text = p_record_key
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and o.id = p_record_key::uuid
             and o.org_id = shared.current_org_id());
       when p_schema = 'mos' and p_table = 'objective_key_results' then
         return exists (
@@ -486,16 +513,20 @@ begin
       when p_schema = 'mos' and p_table = 'work_lines' then
         return exists (
           select 1 from mos.work_lines w
-          where w.id::text = p_record_key
+          where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            and w.id = p_record_key::uuid
             and w.org_id = shared.current_org_id());
       else
         return false;
     end case;
   end if;
-  -- p_action = 'delete' (or anything unrecognized): the snapshot arm registers hard-deletable
-  -- tables as their batches wire them. objective_key_results is hard-deletable (admin removes
-  -- rows), but its delete rows stay unreadable until a snapshot arm names it — the same
-  -- deliberate fail-closed posture 20260929000001 shipped (FR-013, NFR-007).
+  -- p_action = 'delete' (or anything unrecognized): only hard-deleting audited tables get a
+  -- snapshot arm, evaluated over the captured columns because the row is gone.
+  -- objective_key_results is the one this slice wires: an admin's removal stays readable through
+  -- the table's own org-wide read predicate over the snapshot (FR-011/FR-013).
+  if p_schema = 'mos' and p_table = 'objective_key_results' then
+    return (p_snapshot ->> 'org_id')::uuid = shared.current_org_id();
+  end if;
   return false;
 end;
 $$;

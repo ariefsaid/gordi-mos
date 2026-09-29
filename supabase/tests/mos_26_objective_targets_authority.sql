@@ -17,7 +17,7 @@
 --   ForeignMgr …0b4 org B            — cross-org negative control
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(82);
+select plan(87);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -354,6 +354,37 @@ select is((
      and action = 'update' and field_name = 'write_up'
      and old_value is null and new_value is null),
   1, 'a write-up save records one summary-only history row — never the content (change-history DA-2)');
+
+-- ═══ Review round 1 — the guard is default-deny, and a removal keeps readable history ════════
+-- The row policy admits any org member, so the guard is what refuses columns no tier owns.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select throws_ok($$
+  update mos.objectives set accountable_person_id = '00000000-0000-0000-0000-0000000000d4'
+   where id = '00000000-0000-0000-0000-0000000009e2'
+$$, '42501', null,
+  'a plain member cannot re-point an Objective''s Accountable owner — structural authority');
+select throws_ok($$
+  update mos.objectives set id = '00000000-0000-0000-0000-0000000009f1'
+   where id = '00000000-0000-0000-0000-0000000009e2'
+$$, '42501', null,
+  'a row''s identity is not editable in place — default-deny, no tier owns it');
+
+-- A key-result removal keeps its history, readable through the org-wide predicate over the
+-- snapshot columns (the registered delete arm).
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+delete from mos.objective_key_results where id = '00000000-0000-0000-0000-0000000009e9';
+select is((select count(*)::int from shared.record_history
+           where schema_name = 'mos' and table_name = 'objective_key_results'
+             and record_key = '00000000-0000-0000-0000-0000000009e9' and action = 'delete'),
+  1, 'an admin key-result removal appends exactly one delete row with the whole-row snapshot');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select is((select count(*)::int from shared.record_history
+           where record_key = '00000000-0000-0000-0000-0000000009e9' and action = 'delete'),
+  1, 'an org member reads the removed key result''s delete row (org-wide read over the snapshot)');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select is((select count(*)::int from shared.record_history
+           where record_key = '00000000-0000-0000-0000-0000000009e9'),
+  0, 'another org reads none of it');
 
 select * from finish();
 rollback;
