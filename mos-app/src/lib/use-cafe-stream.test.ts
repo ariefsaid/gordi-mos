@@ -18,7 +18,7 @@ import { listStreamPairs } from '@/lib/db/kitchen-logs'
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import { useAuth } from '@/auth/use-auth'
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
-import { resetCafeLocations } from '@/lib/cafe-opening-location'
+import { rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
 import { streamKey } from '@/lib/kitchen-action-label'
 import { useCafeStream } from './use-cafe-stream'
 
@@ -141,6 +141,32 @@ describe('useCafeStream — the shared Café bootstrap', () => {
     expect(resolved.myStreamKeys.has(streamKey(BRANCH_RR.id, 'kitchen'))).toBe(true)
     // The office Team contributes nothing — it carries no (branch, activity) to key by.
     expect(resolved.myStreamKeys.size).toBe(1)
+  })
+
+  // #1142: Plan's sole-team fallback is inferred, not chosen — it must not seed the shared session
+  // slot, or Log and Stock would open on a secondary membership (home-Team-only default).
+  it('issue 1142: Plan opening on the only Café team leaves Log and Stock without a default', async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      status: 'authenticated',
+      viewer: { person: { id: 'p-lead' } },
+    } as ReturnType<typeof useAuth>)
+    vi.mocked(fetchDefaultStream).mockResolvedValue(null)
+    vi.mocked(listCafeViewerTeams).mockResolvedValue([{
+      id: 'team-rr-kitchen', name: 'Rumah Rames Kitchen', business_unit_id: 'bu-1', site_id: null,
+      is_primary: false, branch_id: BRANCH_RR.id, activity: 'kitchen', effective_to: null,
+    }])
+
+    // The Café root has recorded the working location, so Log and Stock read that location's slot.
+    rememberCafeLocation('p-lead', { branchId: BRANCH_RR.id, branchName: BRANCH_RR.name })
+
+    const plan = renderHook(() => useCafeStream())
+    const onPlan = await act(async () => plan.result.current.resolve({ soleTeamDefault: true }))
+    expect(onPlan.stream).toEqual({ branch: BRANCH_RR, activity: 'kitchen', produces: true })
+
+    // Log / Stock resolve without the flag, in a fresh mount, as when the person walks there.
+    const other = renderHook(() => useCafeStream())
+    const onLog = await act(async () => other.result.current.resolve())
+    expect(onLog.stream).toBeNull()
   })
 
   it('a failed Team-membership read drops the "Your Team" tags, never the surface', async () => {
