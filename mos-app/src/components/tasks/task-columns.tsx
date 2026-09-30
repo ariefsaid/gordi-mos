@@ -10,6 +10,7 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { TaskCollectionVisibleField } from '@/lib/record-collection/collection-view-spec'
 import type { MessageKey } from '@/i18n/messages'
 import type { TaskCollectionSort, TaskColumnId } from './task-collection-query'
+import type { TaskTreeNode } from './task-group-tree'
 
 declare module '@tanstack/react-table' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- TanStack's interface shape fixes the generics; the augmentation carries only data.
@@ -68,8 +69,15 @@ function dueCellClass(task: TaskListRow, now: Date): string {
 
 // The Tasks table's column definition: a TanStack column def whose `id` is the typed
 // TaskColumnId union (not a bare string), so consumers like the per-row content dispatch
-// are exhaustive-checked against the column list.
-export type TaskColumnDef = ColumnDef<TaskListRow> & { id: TaskColumnId }
+// are exhaustive-checked against the column list. The data generic is wide: the table's rows
+// are tree nodes (group headers with task sub-rows), and a bare task row is accepted too.
+export type TaskColumnDef = ColumnDef<TaskListRow | TaskTreeNode> & { id: TaskColumnId }
+
+// The task a table row stands for; a group-header row has none.
+function taskOf(row: TaskListRow | TaskTreeNode): TaskListRow | null {
+  if (!('kind' in row)) return row
+  return row.kind === 'leaf' ? row.task : null
+}
 
 // The desktop Tasks table's single column list, in rendered order: the five decision
 // columns (Task · Status · PIC · Supervisor · Due) with each Fields-chooser-optional column
@@ -78,17 +86,17 @@ export type TaskColumnDef = ColumnDef<TaskListRow> & { id: TaskColumnId }
 export const TASK_COLUMN_DEFS: TaskColumnDef[] = [
   {
     id: 'task',
-    accessorFn: (task) => task.title,
+    accessorFn: (row) => taskOf(row)?.title,
     meta: { labelKey: 'tasks.label.task', thClass: 'th-task', tdClass: 'td-main' },
   },
   {
     id: 'status',
-    accessorFn: (task) => task.status,
+    accessorFn: (row) => taskOf(row)?.status,
     meta: { labelKey: 'tasks.filter.status', thClass: 'th-status', tdClass: 'td-cell td-status td-nowrap' },
   },
   {
     id: 'owner',
-    accessorFn: (task) => task.responsible_person_id,
+    accessorFn: (row) => taskOf(row)?.responsible_person_id,
     meta: { labelKey: 'tasks.pic', thClass: 'th-owner', tdClass: 'td-cell td-owner' },
   },
   {
@@ -125,7 +133,7 @@ export const TASK_COLUMN_DEFS: TaskColumnDef[] = [
   },
   {
     id: 'due',
-    accessorFn: (task) => task.due_date,
+    accessorFn: (row) => taskOf(row)?.due_date,
     meta: { labelKey: 'tasks.dueLabel', thClass: 'th-due', tdClass: dueCellClass },
   },
 ]

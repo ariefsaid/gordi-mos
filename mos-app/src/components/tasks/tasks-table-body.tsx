@@ -12,22 +12,18 @@
 import type { ReactNode, Ref } from 'react'
 import type { To } from 'react-router-dom'
 import { Link } from 'react-router-dom'
-import type { Table } from '@tanstack/react-table'
+import type { Row, Table } from '@tanstack/react-table'
 import type { Virtualizer } from '@tanstack/react-virtual'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { ErrorState, EmptyState } from '@/components/ui/state-kit'
 import { MobileGroupedCards } from './mobile-grouped-cards'
 import type { TaskTeamOption } from './task-row'
 import type { RenderGroup } from './tasks-grouping'
+import type { TaskTreeNode } from './task-group-tree'
 import type { WorkloadSummary } from './workload-caption'
 import { WorkloadCaption } from './workload-caption'
 import { useT } from '@/i18n/use-t'
 
-// Flat visible-row model (group headers + expanded-group leaf rows) — the shape
-// the plain + virtualized bodies iterate over.
-export type FlatRow =
-  | { kind: 'header'; group: RenderGroup }
-  | { kind: 'leaf'; task: TaskListRow; leafIndex: number }
 
 // ── Skeleton row ──────────────────────────────────────────────────────────────
 // Wave 2c + AC-020 (#750): matches the 5-column decision row (Task + Status + PIC +
@@ -66,10 +62,13 @@ export type TasksTableBodyProps = {
    * array (getHeaderGroups), pad-row colSpan and the `.tasks-table--extended` class derive
    * from `table.getVisibleLeafColumns()` (FR-002) — never a hand-written fallback. Header
    * sorting reads and toggles the table's sort state (#998). */
-  table: Table<TaskListRow>
+  table: Table<TaskTreeNode>
 
   // ── Body row windowing + rendering ────────────────────────────────────────
-  flatRows: FlatRow[]
+  /** The table's expanded row model: group headers and the leaf rows of expanded groups. */
+  flatRows: Row<TaskTreeNode>[]
+  /** Position of each visible leaf row among the visible leaves (keyed by row id). */
+  leafIndexByRowId: ReadonlyMap<string, number>
   virtualize: boolean
   scrollRef: Ref<HTMLDivElement>
   rowVirtualizer: Virtualizer<HTMLDivElement, Element>
@@ -122,7 +121,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     loading, error, leafTasks, hasActiveFilter, isDesktop,
     onRetry, onClearFilters, emptyTitle, emptyCopy,
     table,
-    flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
+    flatRows, leafIndexByRowId, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     onOpenTask,
     groups, recordSearch, now, buMap, teamMap, personMap, isCollapsed, toggleCollapsed,
     openAddTask, setOverdueOnly,
@@ -278,10 +277,10 @@ export function TasksTableBody(props: TasksTableBodyProps) {
               <tbody>
                 {padTop > 0 && <tr aria-hidden="true" style={{ height: padTop }}><td colSpan={colSpan} /></tr>}
                 {items.map(vi => {
-                  const fr = flatRows[vi.index]
-                  return fr.kind === 'header'
-                    ? renderGroupHeader(fr.group)
-                    : renderRow(fr.task, fr.leafIndex)
+                  const node = flatRows[vi.index].original
+                  return node.kind === 'group'
+                    ? renderGroupHeader(node.group)
+                    : renderRow(node.task, leafIndexByRowId.get(flatRows[vi.index].id)!)
                 })}
                 {padBottom > 0 && <tr aria-hidden="true" style={{ height: padBottom }}><td colSpan={colSpan} /></tr>}
               </tbody>
@@ -289,10 +288,10 @@ export function TasksTableBody(props: TasksTableBodyProps) {
           })()
         ) : (
           <tbody>
-            {flatRows.map(fr =>
-              fr.kind === 'header'
-                ? renderGroupHeader(fr.group)
-                : renderRow(fr.task, fr.leafIndex))}
+            {flatRows.map(({ id, original: node }) =>
+              node.kind === 'group'
+                ? renderGroupHeader(node.group)
+                : renderRow(node.task, leafIndexByRowId.get(id)!))}
           </tbody>
         )}
       </table>
