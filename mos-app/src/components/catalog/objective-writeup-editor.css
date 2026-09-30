@@ -102,6 +102,16 @@
   font-size: var(--font-size-overline);
 }
 
+/* Keyboard shortcuts do not apply on touch or phone widths. */
+@media (hover: none), (max-width: 767.98px) {
+  .objective-writeup__hint { display: none; }
+}
+
+.objective-writeup__format .btn[aria-pressed='true'] {
+  background: var(--surface-tertiary);
+  color: var(--foreground);
+}
+
 /* The editor's own placeholder is too faint on the card surface; restate it in the secondary text token. */
 .objective-writeup .objective-writeup__editor .bn-block-content:has(.ProseMirror-trailingBreak:only-child):after {
   color: var(--muted-foreground);

@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
 const fake = vi.hoisted(() => ({
@@ -9,6 +11,8 @@ const fake = vi.hoisted(() => ({
   updateBlock: vi.fn(),
   block: { id: 'b1', type: 'paragraph', props: {} } as { id: string; type: string; props: Record<string, unknown> },
   getTextCursorPosition() { return { block: fake.block } },
+  selectionListener: undefined as undefined | (() => void),
+  onSelectionChange(listener: () => void) { fake.selectionListener = listener; return () => { fake.selectionListener = undefined } },
 }))
 
 vi.mock('@blocknote/react', () => ({
@@ -188,6 +192,21 @@ describe('ObjectiveWriteupEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Bulleted list' }))
     expect(fake.updateBlock).toHaveBeenLastCalledWith(fake.block, { type: 'paragraph' })
     expect(fake.focus).toHaveBeenCalled()
+  })
+
+  it('marks the format button of the block under the caret as pressed', async () => {
+    await mount()
+    const bullets = screen.getByRole('button', { name: 'Bulleted list' })
+    expect(bullets).toHaveAttribute('aria-pressed', 'false')
+    fake.block = { id: 'b1', type: 'bulletListItem', props: {} }
+    act(() => { fake.selectionListener?.() })
+    expect(bullets).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Heading' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('hides the keyboard hint on touch and phone widths', () => {
+    const css = readFileSync(resolve(__dirname, 'objective-writeup-editor.css'), 'utf8')
+    expect(css).toMatch(/@media \(hover: none\), \(max-width: 767\.98px\) \{\s*\.objective-writeup__hint \{ display: none; \}/)
   })
 
   it('offers no formatting controls to a read-only reader', async () => {

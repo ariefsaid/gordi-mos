@@ -158,16 +158,23 @@ function WriteUpSurface({
   // Leaving with unsaved text is decided by the leave guard; Discard must not save it.
   useEffect(() => () => { window.clearTimeout(timerRef.current) }, [])
 
-  // Escape hands focus to the bar's primary control; a menu that consumed the key is left alone.
+  // Escape hands focus to the bar's primary control. It runs in the capture phase because the editor
+  // handles Escape itself (blurs and marks the event handled), so a bubbling handler never sees it.
   const leaveEditor = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Escape' || event.defaultPrevented) return
+    if (event.key !== 'Escape') return
+    event.stopPropagation()
     saveRef.current?.focus()
   }
+
+  // The block type under the caret, so the format buttons can show which one is active.
+  const [activeType, setActiveType] = useState<string | null>(null)
+  useEffect(() => editor.onSelectionChange(() => { setActiveType(editor.getTextCursorPosition().block.type) }), [editor])
 
   const formatBlock = (type: 'heading' | 'bulletListItem' | 'numberedListItem') => {
     const { block } = editor.getTextCursorPosition()
     if (block.type === type) editor.updateBlock(block, { type: 'paragraph' })
     else editor.updateBlock(block, type === 'heading' ? { type, props: { level: 2 } } : { type })
+    setActiveType(editor.getTextCursorPosition().block.type)
     editor.focus()
   }
 
@@ -185,13 +192,13 @@ function WriteUpSurface({
       {!editable ? <p className="record-viewer__permission-note" role="note">{t('objective.writeUp.readOnly')}</p> : null}
       {editable ? (
         <div className="objective-writeup__format" role="toolbar" aria-label={t('objective.writeUp.format')}>
-          <Button variant="ghost" onClick={() => formatBlock('heading')}>{t('objective.writeUp.heading')}</Button>
-          <Button variant="ghost" onClick={() => formatBlock('bulletListItem')}>{t('objective.writeUp.bulletList')}</Button>
-          <Button variant="ghost" onClick={() => formatBlock('numberedListItem')}>{t('objective.writeUp.numberedList')}</Button>
+          <Button variant="ghost" aria-pressed={activeType === 'heading'} onClick={() => formatBlock('heading')}>{t('objective.writeUp.heading')}</Button>
+          <Button variant="ghost" aria-pressed={activeType === 'bulletListItem'} onClick={() => formatBlock('bulletListItem')}>{t('objective.writeUp.bulletList')}</Button>
+          <Button variant="ghost" aria-pressed={activeType === 'numberedListItem'} onClick={() => formatBlock('numberedListItem')}>{t('objective.writeUp.numberedList')}</Button>
         </div>
       ) : null}
       {empty ? <p className="objective-writeup__empty">{t('objective.writeUp.empty')}</p> : (
-        <div onKeyDown={editable ? leaveEditor : undefined}>
+        <div onKeyDownCapture={editable ? leaveEditor : undefined}>
         <BlockNoteViewRaw
           editor={editor}
           editable={editable}
