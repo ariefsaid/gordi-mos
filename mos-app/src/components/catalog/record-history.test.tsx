@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const loadMock = vi.hoisted(() => vi.fn())
@@ -235,6 +235,11 @@ describe('RecordHistory', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Show older changes' }))
     await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(52))
     await waitFor(() => expect(screen.getAllByRole('listitem')[50]).toHaveFocus())
+    // A browser blurs an element that stops being focusable, so after the renders that follow the
+    // focus call the entry must still carry tabindex -1 (jsdom never blurs, hence the attribute).
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getAllByRole('listitem')[50]).toHaveAttribute('tabindex', '-1')
+    expect(screen.getAllByRole('listitem')[50]).toHaveFocus()
   })
 
   it('focus moves to Try again when the older page fails', async () => {

@@ -90,17 +90,16 @@ type ItemProps = {
   t: Translate
   locale: 'en' | 'id'
   clock: Date
-  focusRef?: (el: HTMLLIElement | null) => void
 }
 
-function HistoryItem({ entry, names, t, locale, clock, focusRef }: ItemProps) {
+function HistoryItem({ entry, names, t, locale, clock }: ItemProps) {
   const [full, setFull] = useState(false)
   const [showExact, setShowExact] = useState(false)
   const exact = formatWibDateTime(entry.occurredAt, locale)
   const long = entry.field !== null && entry.action === 'update'
     && (isLong(entry.field, entry.oldValue, names, t) || isLong(entry.field, entry.newValue, names, t))
   return (
-    <li ref={focusRef} tabIndex={focusRef ? -1 : undefined} className="catalog-record-history__item">
+    <li tabIndex={-1} data-entry-id={entry.id} className="catalog-record-history__item">
       <div className="catalog-record-history__meta">
         <span className="catalog-record-history__who">{entry.actorName ?? t('tasks.people.someone')}</span>
         <button type="button" className="catalog-record-history__when-toggle" aria-expanded={showExact} onClick={() => setShowExact((v) => !v)}>
@@ -145,7 +144,11 @@ export function RecordHistory({ table, recordId, headingLevel = 2, now }: Record
   // After an older page resolves the trigger button is gone: keep focus in the section by moving it
   // to the first new entry, or to the retry button when the page failed.
   const [focusId, setFocusId] = useState<string | null>(null)
-  const focusItem = (el: HTMLLIElement | null) => { el?.focus(); if (el) setFocusId(null) }
+  // Every entry is focusable (tabindex -1, never in the tab order), so focus stays put across later renders.
+  useEffect(() => {
+    if (!focusId) return
+    Array.from(sectionRef.current?.querySelectorAll<HTMLElement>('[data-entry-id]') ?? []).find((el) => el.dataset.entryId === focusId)?.focus()
+  }, [focusId])
   const Heading = headingLevel === 1 ? 'h2' : 'h3'
 
   useEffect(() => {
@@ -199,7 +202,6 @@ export function RecordHistory({ table, recordId, headingLevel = 2, now }: Record
                 t={t}
                 locale={locale}
                 clock={clock}
-                focusRef={entry.id === focusId ? focusItem : undefined}
               />
             ))}
           </ol>
