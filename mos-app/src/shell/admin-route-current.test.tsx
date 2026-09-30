@@ -60,15 +60,15 @@ function renderAdminRoute(path: string) {
 }
 
 // One current-page marker per route: the active Admin tab. The rail's Admin link is the section
-// the tab lives in, so it says `true` (a location), never a second "page" (breadcrumb.tsx, Rule 5).
+// the tab lives in, so it says `location`, never a second "page" (breadcrumb.tsx, Rule 5).
 describe('Admin routes carry exactly one aria-current="page"', () => {
-  it.each(Object.entries(TAB_FOR))('at %s the active tab is the only page marker and the rail Admin link is "true"', (path, tab) => {
+  it.each(Object.entries(TAB_FOR))('at %s the active tab is the only page marker and the rail Admin link is "location"', (path, tab) => {
     const { container } = renderAdminRoute(path)
     const pages = container.querySelectorAll('[aria-current="page"]')
     expect(pages).toHaveLength(1)
     expect(pages[0]).toBe(within(screen.getByRole('navigation', { name: 'Admin settings sections' })).getByRole('link', { name: tab }))
     const railAdmin = within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: /Admin Settings/ })
-    expect(railAdmin).toHaveAttribute('aria-current', 'true')
+    expect(railAdmin).toHaveAttribute('aria-current', 'location')
     expect(railAdmin).toHaveClass('rail-item--active')
   })
 })

@@ -101,7 +101,7 @@ function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parent
         onClick={onNavigate}
         aria-label={compact ? label : undefined}
         // The section, not the page: the active tab inside it carries "page" (Rule 5).
-        aria-current={ownsPath ? 'true' : undefined}
+        aria-current={ownsPath ? 'location' : undefined}
         data-label={compact ? label : undefined}
         className={itemBase(ownsPath, compact)}
       >
