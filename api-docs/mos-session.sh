@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # mos-session.sh — sign in to MOS as yourself and call api_v1 operations from this shell.
+# The recommended path is scripts/mos.mjs (`mos login`, then `mos call`); this helper remains for
+# machines that cannot run it (no macOS keychain or Node).
 #
 #   export MOS_API_URL='<SUPABASE_URL>'   # the data API base, no trailing slash
 #   export MOS_ANON_KEY='<ANON_KEY>'      # the project's public anon key (not a secret)
