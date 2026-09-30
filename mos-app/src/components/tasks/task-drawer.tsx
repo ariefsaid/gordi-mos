@@ -17,7 +17,7 @@ export type TaskDrawerOutletContext = {
   onTaskCreated?: (id: string) => void
   /** I3: lets the surface tell the table to refetch after an archive. */
   onTaskArchived?: (id: string) => void
-  /** The Tasks search box's live text, so drawer navigations carry it rather than the URL's. */
+  // The Tasks search box's live text, so drawer navigations carry it rather than the URL's.
   liveQueryRef?: LiveTasksQueryRef
 }
 
@@ -199,9 +199,9 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
   const openRelated = useCallback<NonNullable<TaskSurfaceProps['onOpenRelated']>>(
     ({ kind, id }) => guardedClose(() => navigate({
       pathname: kind === 'objective' ? `/work/objectives/${id}` : `/work/projects/${id}`,
-      search: location.search,
+      search: liveTasksSearch(location.search, liveQueryRef),
     })),
-    [guardedClose, navigate, location.search],
+    [guardedClose, navigate, location.search, liveQueryRef],
   )
   // Record-scoped "Ask Deputy" is the only tenant action in the host's actions slot. Close stays
   // in the shared host so every TaskDrawer regime has exactly one dismiss control; the task's

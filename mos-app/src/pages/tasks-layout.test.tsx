@@ -620,16 +620,20 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       }
     }
 
-    const renderDrawerRoute = async (child: ReactElement, pending: ReturnType<typeof gate>) => {
-      mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
-      mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
+    const renderDrawerRoute = async (
+      child: ReactElement,
+      pending: ReturnType<typeof gate>,
+      task = makeTask({ id: 'task-1', title: 'Open one' }),
+    ) => {
+      mockListTasks.mockResolvedValue([task])
+      mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
       const router = createMemoryRouter(
         [{
           path: '/work/tasks',
           loader: pending.loader,
           element: <OverlayHostProvider><TasksLayout /></OverlayHostProvider>,
           children: [{ path: ':taskId', element: child }],
-        }],
+        }, { path: '/work/objectives/:id', element: <p>Objective page</p> }],
         { initialEntries: ['/work/tasks/task-1'] },
       )
       render(
@@ -660,6 +664,24 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       pending.release()
       await waitFor(() => expect(router.state.location.pathname).toBe('/work/tasks'), { timeout: 5000 })
       expect(router.state.location.search).toBe('?q=Open')
+    })
+
+    it('opening the Task\'s Objective', async () => {
+      vi.mocked(listObjectives).mockResolvedValue([{ id: 'objective-1', name: 'Annual Goal' }])
+      const pending = gate()
+      const router = await renderDrawerRoute(
+        <TaskDrawer mode="view" />,
+        pending,
+        makeTask({ id: 'task-1', title: 'Open one', objective_id: 'objective-1' }),
+      )
+      const objectiveOpens: string[] = []
+      router.subscribe(({ location }) => {
+        if (location.pathname === '/work/objectives/objective-1') objectiveOpens.push(location.search)
+      })
+      fireEvent.click(await screen.findByRole('link', { name: 'Annual Goal' }))
+      pending.release()
+      await waitFor(() => expect(objectiveOpens.length).toBeGreaterThan(0), { timeout: 5000 })
+      expect(objectiveOpens[0]).toBe('?q=Open')
     })
 
     it('Open full page', async () => {

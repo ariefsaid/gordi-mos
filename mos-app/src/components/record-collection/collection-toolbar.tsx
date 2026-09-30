@@ -242,8 +242,7 @@ export function CollectionToolbar<
   useEffect(() => {
     if (!openPopoverId) return
     const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Element | null
-      if (!target?.closest?.(`[data-filter-id="${openPopoverId}"]`)) setOpenPopoverId(null)
+      if (!(event.target instanceof Element) || !event.target.closest(`[data-filter-id="${openPopoverId}"]`)) setOpenPopoverId(null)
     }
     document.addEventListener('pointerdown', onPointerDown, true)
     return () => document.removeEventListener('pointerdown', onPointerDown, true)

@@ -3,7 +3,7 @@ import { Outlet, useParams, useMatch, useLocation, useNavigate, useNavigationTyp
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
-import { searchString, tasksSearchWithLiveQuery } from '@/components/tasks/tasks-navigation'
+import { liveTasksSearch, searchString, tasksSearchWithLiveQuery, type LiveTasksQueryRef } from '@/components/tasks/tasks-navigation'
 import { useIsSplitWidth } from '@/shell/use-is-split-width'
 import { isTaskPageMode } from '@/components/tasks/task-page-mode'
 import { TaskSurface } from '@/components/tasks/task-surface'
@@ -105,7 +105,7 @@ export function TasksLayout() {
   // the e2e proves the real-browser direct-open branch). All hooks run above so this
   // branch is a plain conditional return, not a conditional hook.
   if (pageMode && taskId) {
-    return <TaskRecordPage taskId={taskId} />
+    return <TaskRecordPage taskId={taskId} liveQueryRef={liveQueryRef} />
   }
 
   const drawerOpen = Boolean(taskId) || Boolean(isNew)
@@ -134,7 +134,7 @@ export function TasksLayout() {
  * BreadcrumbTitleSync). Reachable only by a direct/new-tab/refresh of
  * `/work/tasks/:id` or the drawer's "Open full page" escalation.
  */
-function TaskRecordPage({ taskId }: { taskId: string }) {
+function TaskRecordPage({ taskId, liveQueryRef }: { taskId: string; liveQueryRef: LiveTasksQueryRef }) {
   const t = useT()
   const isSplit = useIsSplitWidth()
   const navigate = useNavigate()
@@ -158,7 +158,7 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
   // over the table by navigating to the same URL with the panel page-state (isTaskPageMode → false),
   // preserving the collection's query string. A PUSH, so browser Back from the drawer still works.
   const proceedToSplit = () => navigate(
-    { pathname: `/work/tasks/${taskId}`, search: location.search },
+    { pathname: `/work/tasks/${taskId}`, search: liveTasksSearch(location.search, liveQueryRef) },
     { state: { taskSurface: 'panel' } },
   )
   const collapseToSplit = () => {
@@ -237,6 +237,7 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
         onDirtyChange={handleDirtyChange}
         onCollapseToSplit={collapseToSplit}
         identityHeadingLevel={1}
+        liveQueryRef={liveQueryRef}
       />
     </PageFamilyFrame>
   )

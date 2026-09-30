@@ -93,7 +93,7 @@ export type TasksTableProps = {
   onTaskChanged?: (task: import('@/lib/db/tasks.types').TaskListRow) => void
   /** Collection callback to refetch after an archive. */
   onTaskArchived?: (id: string) => void
-  /** Receives the search box's live text so an ancestor that navigates (resize promotion) never reads a stale URL. */
+  // Receives the search box's live text so an ancestor that navigates never reads a stale URL.
   liveQueryRef?: LiveTasksQueryRef
 }
 
@@ -356,7 +356,10 @@ export function TasksWorkspace({
   const liveQuery = controller.state.query.q
   const liveParams = useMemo(() => tasksSearchWithLiveQuery(params, liveQuery), [params, liveQuery])
   useEffect(() => {
-    if (liveQueryRef) liveQueryRef.current = liveQuery
+    if (!liveQueryRef) return
+    liveQueryRef.current = liveQuery
+    // Unmounted (record page mode): no search box exists, so the URL is the only truth.
+    return () => { liveQueryRef.current = null }
   }, [liveQueryRef, liveQuery])
   // Strips a `view=` nobody chose (viewChosenRef). It reacts to `params` rather than writing at
   // mount so it always sees the settled URL, never a snapshot from before the engine's own sync.

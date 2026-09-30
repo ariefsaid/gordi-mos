@@ -25,7 +25,11 @@ export function searchString(params: URLSearchParams): string {
   return text ? `?${text}` : ''
 }
 
-// `location.search` with the live query applied; `location.search` as-is when no ref is supplied.
-export function liveTasksSearch(locationSearch: string, liveQueryRef?: LiveTasksQueryRef): string {
-  return searchString(tasksSearchWithLiveQuery(locationSearch, liveQueryRef?.current ?? null))
+// A search string with the live query applied and `drop` removed; as-is when no ref is supplied.
+export function liveTasksSearch(
+  base: URLSearchParams | string,
+  liveQueryRef?: LiveTasksQueryRef,
+  drop: readonly string[] = [],
+): string {
+  return searchString(tasksSearchWithLiveQuery(base, liveQueryRef?.current ?? null, drop))
 }

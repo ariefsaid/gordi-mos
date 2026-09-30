@@ -116,7 +116,7 @@ export type TaskSurfaceProps = {
   // Heading level for the full-width record identity. Defaults to 1; the V3
   // focused-record page passes 2 because its PageFamilyFrame owns the shell h1.
   identityHeadingLevel?: 1 | 2
-  /** The Tasks search box's live text: the view surface's own navigations carry it, not the URL's. */
+  // The Tasks search box's live text: the surface's own navigations carry it, not the URL's.
   liveQueryRef?: LiveTasksQueryRef
 }
 
@@ -955,7 +955,7 @@ function ViewSurface({
 }
 
 // ── Create mode ────────────────────────────────────────────────────────────────
-function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, showPanelUtility = true, createInitialValues, createRedirect }: TaskSurfaceProps) {
+function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, showPanelUtility = true, createInitialValues, createRedirect, liveQueryRef }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const auth = useAuth()
   const t = useT()
@@ -970,11 +970,8 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   const prefillR = createInitialValues?.responsiblePersonId ?? searchParams.get('createPic') ?? searchParams.get('r') ?? ''
   const prefillBu = createInitialValues?.businessUnitId ?? searchParams.get('createBu') ?? searchParams.get('bu') ?? ''
   const prefillTitle = createInitialValues?.title ?? searchParams.get('createTitle') ?? ''
-  const collectionParams = new URLSearchParams(searchParams)
-  collectionParams.delete('r')
-  collectionParams.delete('bu')
-  const collectionSearch = collectionParams.toString()
-  const collectionSearchString = collectionSearch ? `?${collectionSearch}` : ''
+  // The collection's search on leaving: the create pre-fill params dropped, the live query applied.
+  const collectionSearchNow = () => liveTasksSearch(searchParams, liveQueryRef, ['r', 'bu'])
 
   // Viewer details
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
@@ -1122,7 +1119,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
       // new row highlighted (a brief accent that fades) — Tasks changes to match the app-wide rule
       // (it used to open the new record in the drawer). The `?highlight=<id>` param tells the
       // collection which row to flash; it preserves the collection's view query.
-      const highlightParams = new URLSearchParams(collectionSearchString)
+      const highlightParams = new URLSearchParams(collectionSearchNow())
       highlightParams.set('highlight', newId)
       if (createRedirect !== undefined) {
         if (createRedirect !== null) navigate(createRedirect)
@@ -1137,7 +1134,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
 
   // GAP-2 (OD-91 #7): expand-in-place is retired — create mode holds a fixed width too, so the
   // chrome bar carries only the title + the one ✕ (no width toggle).
-  const closeToCollection = () => navigate({ pathname: '/work/tasks', search: collectionSearchString })
+  const closeToCollection = () => navigate({ pathname: '/work/tasks', search: collectionSearchNow() })
   // D-B1: the create form's own leave controls (chrome ✕ / Cancel) defer to the host leave-guard
   // when one is present (TaskDrawer), so a typed draft prompts a discard confirm instead of
   // vanishing. Standalone (no host) the leave runs directly, unchanged.
