@@ -60,3 +60,6 @@ $$;
 
 comment on function shared.admin_set_login_enabled(uuid, boolean) is
   'ADR-0016 provisioning: disable (banned_until = now()+100y, far-future finite) / enable (NULL) a login (admin + org gated). Disabling also ends the person''s agent connections in the same transaction; enabling revives none. No-lockout: the last active admin cannot be disabled (FR-041). SECURITY DEFINER.';
+
+revoke execute on function shared.admin_set_login_enabled(uuid, boolean) from public, anon;
+grant  execute on function shared.admin_set_login_enabled(uuid, boolean) to authenticated;
