@@ -63,6 +63,17 @@ describe('Objective labels have real Indonesian values', () => {
   })
 })
 
+describe('Indonesian Objective and list wording', () => {
+  it('the non-admin Objective note names the Accountable field as the field reads', () => {
+    expect(id['catalog.record.objectiveReadOnly']).toContain('Accountable')
+    expect(id['catalog.record.objectiveReadOnly']).not.toMatch(/penanggung jawab/i)
+  })
+
+  it('the Objectives and Projects & Processes search placeholder is short enough for a 390px toolbar', () => {
+    expect(id['catalog.searchPlaceholder'].length).toBeLessThanOrEqual(12)
+  })
+})
+
 describe('retired capability label', () => {
   it('the objective.manage admin-access label is gone (the control is retired; no surface renders it)', () => {
     for (const locale of [en, id]) expect('admin.access.action.objective.manage' in locale).toBe(false)

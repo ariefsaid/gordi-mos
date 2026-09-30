@@ -13,6 +13,9 @@
   text-transform: uppercase;
 }
 
+/* The shared error row's own inset would push it off the section's left edge. */
+.objective-key-results > .error-state { padding-inline: 0; }
+
 .objective-key-results__list {
   display: grid;
   gap: 12px;

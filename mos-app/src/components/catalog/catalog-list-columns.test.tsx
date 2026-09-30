@@ -58,11 +58,11 @@ const table = () => screen.getByRole('table')
 const metaCells = (row: HTMLElement) =>
   Array.from(row.querySelector('.catalog-collection__metadata')!.children).map((c) => c.className)
 
-const REL = 'catalog-collection__header-cell--relation'
-const OWN = 'catalog-collection__header-cell--owner'
-const CAD = 'catalog-collection__header-cell--cadence'
-const PRG = 'catalog-collection__header-cell--progress'
-const ACT = 'catalog-collection__header-cell--activity'
+const RELATION_HEADER = 'catalog-collection__header-cell--relation'
+const OWNER_HEADER = 'catalog-collection__header-cell--owner'
+const CADENCE_HEADER = 'catalog-collection__header-cell--cadence'
+const PROGRESS_HEADER = 'catalog-collection__header-cell--progress'
+const ACTIVITY_HEADER = 'catalog-collection__header-cell--activity'
 
 // One row per fact, so each of the three optional columns can be switched on independently.
 const relationRow: CatalogRow = { id: 'r', name: 'Has objective', archived_at: null, type: 'project' }
@@ -75,39 +75,39 @@ const direct: Relation = {
 }
 
 const COMBOS = [
-  { rel: true, own: true, cad: true },
-  { rel: true, own: true, cad: false },
-  { rel: true, own: false, cad: true },
-  { rel: true, own: false, cad: false },
-  { rel: false, own: true, cad: true },
-  { rel: false, own: true, cad: false },
-  { rel: false, own: false, cad: true },
-  { rel: false, own: false, cad: false },
+  { relation: true, owner: true, cadence: true },
+  { relation: true, owner: true, cadence: false },
+  { relation: true, owner: false, cadence: true },
+  { relation: true, owner: false, cadence: false },
+  { relation: false, owner: true, cadence: true },
+  { relation: false, owner: true, cadence: false },
+  { relation: false, owner: false, cadence: true },
+  { relation: false, owner: false, cadence: false },
 ]
 
 describe('catalog list column structure — Projects & Processes', () => {
-  it.each(COMBOS)('headers and cells for relation=$rel owner=$own cadence=$cad', ({ rel, own, cad }) => {
-    const rows = [bareRow, ...(rel ? [relationRow] : []), ...(own ? [ownerRow] : []), ...(cad ? [cadenceRow] : [])]
-    renderList(rows, rel ? [['r', direct]] : [])
+  it.each(COMBOS)('headers and cells for relation=$relation owner=$owner cadence=$cadence', ({ relation, owner, cadence }) => {
+    const rows = [bareRow, ...(relation ? [relationRow] : []), ...(owner ? [ownerRow] : []), ...(cadence ? [cadenceRow] : [])]
+    renderList(rows, relation ? [['r', direct]] : [])
 
     const expected: string[][] = [['Name', '']]
-    if (rel) expected.push(['Objective', REL])
-    if (own) expected.push(['Accountable', OWN])
-    if (cad) expected.push(['Cadence · due', CAD])
-    expected.push(['Progress', PRG], ['Last activity', ACT])
+    if (relation) expected.push(['Objective', RELATION_HEADER])
+    if (owner) expected.push(['Accountable', OWNER_HEADER])
+    if (cadence) expected.push(['Cadence · due', CADENCE_HEADER])
+    expected.push(['Progress', PROGRESS_HEADER], ['Last activity', ACTIVITY_HEADER])
     expect(headers()).toEqual(expected)
 
     expect(table().className).toBe(
       'catalog-collection__table catalog-collection__table--work_line'
-      + (rel ? '' : ' catalog-collection__table--no-relation')
-      + (own ? '' : ' catalog-collection__table--no-owner')
-      + (cad ? '' : ' catalog-collection__table--no-cadence'),
+      + (relation ? '' : ' catalog-collection__table--no-relation')
+      + (owner ? '' : ' catalog-collection__table--no-owner')
+      + (cadence ? '' : ' catalog-collection__table--no-cadence'),
     )
 
     const cellClasses = [
-      ...(rel ? ['catalog-collection__cell catalog-collection__cell--relation'] : []),
-      ...(own ? ['catalog-collection__cell catalog-collection__cell--owner'] : []),
-      ...(cad ? ['catalog-collection__cell catalog-collection__cell--cadence'] : []),
+      ...(relation ? ['catalog-collection__cell catalog-collection__cell--relation'] : []),
+      ...(owner ? ['catalog-collection__cell catalog-collection__cell--owner'] : []),
+      ...(cadence ? ['catalog-collection__cell catalog-collection__cell--cadence'] : []),
       'catalog-collection__cell catalog-collection__cell--progress',
       'catalog-collection__cell catalog-collection__cell--activity',
     ]
@@ -122,7 +122,7 @@ describe('catalog list column structure — Projects & Processes', () => {
   it('keeps every header, in order, when there are no rows', () => {
     renderList([])
     expect(headers()).toEqual([
-      ['Name', ''], ['Objective', REL], ['Accountable', OWN], ['Cadence · due', CAD], ['Progress', PRG], ['Last activity', ACT],
+      ['Name', ''], ['Objective', RELATION_HEADER], ['Accountable', OWNER_HEADER], ['Cadence · due', CADENCE_HEADER], ['Progress', PROGRESS_HEADER], ['Last activity', ACTIVITY_HEADER],
     ])
     expect(table().className).toBe('catalog-collection__table catalog-collection__table--work_line')
     expect(screen.queryAllByRole('link')).toHaveLength(0)
@@ -142,7 +142,7 @@ describe('catalog list column structure — Projects & Processes', () => {
 
 describe('catalog list column structure — Objectives', () => {
   const objective = { relationsKind: 'objective' as const }
-  const withBu: CatalogRow = { id: 'b1', name: 'Has unit', archived_at: null, businessUnitId: 'bu-1' }
+  const withBusinessUnit: CatalogRow = { id: 'b1', name: 'Has unit', archived_at: null, businessUnitId: 'bu-1' }
   const withOwner: CatalogRow = { id: 'b2', name: 'Has owner', archived_at: null, accountablePersonId: 'person-a' }
   const withWork: CatalogRow = { id: 'b3', name: 'Has work', archived_at: null }
   const bare: CatalogRow = { id: 'b4', name: 'Bare', archived_at: null }
@@ -151,23 +151,23 @@ describe('catalog list column structure — Objectives', () => {
     tasks: [],
   }
 
-  it.each(COMBOS)('headers and cells for unit=$rel owner=$own work=$cad', ({ rel, own, cad }) => {
-    const rows = [bare, ...(rel ? [withBu] : []), ...(own ? [withOwner] : []), ...(cad ? [withWork] : [])]
-    renderList(rows, cad ? [['b3', work]] : [], objective)
+  it.each(COMBOS)('headers and cells for unit=$relation owner=$owner work=$cadence', ({ relation, owner, cadence }) => {
+    const rows = [bare, ...(relation ? [withBusinessUnit] : []), ...(owner ? [withOwner] : []), ...(cadence ? [withWork] : [])]
+    renderList(rows, cadence ? [['b3', work]] : [], objective)
 
     const expected: string[][] = [['Name', '']]
-    if (rel) expected.push(['Business Unit', REL])
-    if (own) expected.push(['Accountable', OWN])
-    if (cad) expected.push(['Projects & Processes', CAD])
-    expected.push(['Progress', PRG], ['Last activity', ACT])
+    if (relation) expected.push(['Business Unit', RELATION_HEADER])
+    if (owner) expected.push(['Accountable', OWNER_HEADER])
+    if (cadence) expected.push(['Projects & Processes', CADENCE_HEADER])
+    expected.push(['Progress', PROGRESS_HEADER], ['Last activity', ACTIVITY_HEADER])
     expect(headers()).toEqual(expected)
     expect(table().className).toBe(
       'catalog-collection__table catalog-collection__table--objective'
-      + (rel ? '' : ' catalog-collection__table--no-relation')
-      + (own ? '' : ' catalog-collection__table--no-owner')
-      + (cad ? '' : ' catalog-collection__table--no-cadence'),
+      + (relation ? '' : ' catalog-collection__table--no-relation')
+      + (owner ? '' : ' catalog-collection__table--no-owner')
+      + (cadence ? '' : ' catalog-collection__table--no-cadence'),
     )
-    const count = 2 + [rel, own, cad].filter(Boolean).length
+    const count = 2 + [relation, owner, cadence].filter(Boolean).length
     for (const link of screen.getAllByRole('link')) {
       expect(metaCells(link.closest('li') as HTMLElement)).toHaveLength(count)
       expect(link.closest('li')!.querySelectorAll('[role="cell"]')).toHaveLength(1 + count)

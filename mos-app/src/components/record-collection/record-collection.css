@@ -154,3 +154,6 @@
   color: var(--muted-foreground);
   font-size: var(--font-size-mono);
 }
+
+/* A long translated empty-state sentence wraps instead of clipping. */
+.record-collection .empty-copy { overflow-wrap: anywhere; }

@@ -93,7 +93,7 @@ function WriteUpSurface({
     schema,
     initialContent: stored.length > 0 ? (stored as never) : undefined,
     links: { isValidLink: isSafeWriteUpLink },
-    domAttributes: { editor: { 'aria-label': t('objective.writeUp.label'), 'aria-describedby': keysHintId } },
+    domAttributes: { editor: { 'aria-label': t('objective.writeUp.label') } },
     // No slash menu exists here, and a read-only reader never sees an editor hint.
     placeholders: {
       default: t('objective.writeUp.placeholder'),
@@ -169,6 +169,12 @@ function WriteUpSurface({
   // The block type under the caret, so the format buttons can show which one is active.
   const [activeType, setActiveType] = useState<string | null>(null)
   useEffect(() => editor.onSelectionChange(() => { setActiveType(editor.getTextCursorPosition().block.type) }), [editor])
+
+  // The editor points at the key hint only while the hint renders; editability can change without a remount.
+  useEffect(() => {
+    if (editable) editor.domElement?.setAttribute('aria-describedby', keysHintId)
+    else editor.domElement?.removeAttribute('aria-describedby')
+  }, [editor, editable, keysHintId])
 
   const formatBlock = (type: 'heading' | 'bulletListItem' | 'numberedListItem') => {
     const { block } = editor.getTextCursorPosition()
