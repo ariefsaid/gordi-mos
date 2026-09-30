@@ -974,8 +974,8 @@ export function TasksWorkspace({
       ) : undefined}
       meta={
         // OD-REDESIGN-91 #17 (F2): counts are OPEN everywhere — the head meta reads
-        // "9 open · 11 total" (the rail badge already carries the open-count; the head now
-        // agrees). ONE muted meta sentence in the E7 grammar, a single font size (the body
+        // "9 open in this view · 11 incl. done" (the view's own count, labelled as such; the rail
+        // badge is the viewer's own open tasks, #1129). ONE muted meta sentence in the E7 grammar, a single font size (the body
         // token), every number followed by its noun (the naked-numbers guard). Live counts;
         // "—" while loading or on error. The "?" help tip is retired (#743 AC-009): its
         // sentence lives in the true-empty copy now.

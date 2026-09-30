@@ -817,9 +817,9 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     // The draft row mounts with its editor focused.
     const titleInput = await screen.findByLabelText('Title')
     // Initially the table is empty. The count reads inside the ONE muted meta sentence
-    // ("N open · M in view") — the content-header count pill was removed.
+    // ("N open in this view · M incl. done") — the content-header count pill was removed.
     await waitFor(() => {
-      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('0 open · 0 in view')
+      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('0 open in this view · 0 incl. done')
     })
 
     // Type the title and press Enter — the draft commits through the same createTask path.
@@ -846,7 +846,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(screen.getByText('Freshly created')).toBeInTheDocument()
     })
     await waitFor(() => {
-      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open · 1 in view')
+      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open in this view · 1 incl. done')
     })
     // Inline create never navigates — the draft was already on the table — so there is no
     // ?highlight= flash (that belonged to the retired create-form door).
@@ -1004,7 +1004,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockArchiveTask.mockResolvedValue()
     renderAt('/work/tasks/task-2')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
-    await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 open · 2 in view'))
+    await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 open in this view · 2 incl. done'))
 
     // Archive is grouped with the record's other secondary actions.
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
@@ -1024,7 +1024,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(screen.queryByText('Archive me')).toBeNull()
     }, { timeout: 4000 })
     expect(screen.getByText('Keep me')).toBeInTheDocument()
-    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open · 1 in view')
+    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open in this view · 1 incl. done')
   }, 10_000)
 })
 

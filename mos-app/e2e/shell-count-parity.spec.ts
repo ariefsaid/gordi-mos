@@ -12,16 +12,26 @@ for (const [name, actor, view] of [
   ['Café member', BAR_MEMBER, 'My work'], ['lead', VIEWER, 'Team work'],
   ['director', MANAGER, 'All'], ['admin', ADMIN, 'All'],
 ] as const) {
-  test(`R1 ${name}: Tasks badge equals open records in real default view`, async ({ page }, info) => {
+  // #1129: the rail badge and Home are ONE number — the viewer's own open tasks — for every role.
+  // The Tasks head is the current view's own count and is labelled as such, so it may differ.
+  test(`R1 ${name}: Tasks badge equals Home's open count; the head counts the traversed view`, async ({ page }, info) => {
     const countRead = page.waitForResponse(r => r.request().method() === 'HEAD' && /\/rest\/v1\/tasks\?/.test(r.url()))
     await loginAs(page, actor.email, actor.password)
     expect((await countRead).ok()).toBe(true)
     const link = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: /^Tasks(,|$)/ })
+    // Home's open figure: the "N shown · M open" door (behind the My open work tab when tabbed).
+    const personalTab = page.getByRole('tab', { name: /^My open work/ })
+    if (await personalTab.count()) await personalTab.click()
+    const homeDoor = page.getByRole('link', { name: /\d+ shown · \d+ open/ }).first()
+    await expect(homeDoor).toBeVisible()
+    const homeOpen = Number(/(\d+) open/.exec((await homeDoor.textContent()) ?? '')?.[1])
+    expect(Number.isInteger(homeOpen), 'Home states its open count').toBe(true)
+    await expect(link).toHaveAccessibleName(homeOpen ? `Tasks, ${homeOpen} open tasks` : 'Tasks')
     await link.click()
     await expect(taskViewsGroup(page).getByRole('button', { name: view, exact: true })).toHaveAttribute('aria-pressed', 'true')
-    // tasks.meta.totalCount reads "N in view" (messages.ts:1040-1041): a filtered view holding
-    // zero of a larger workspace must never say "0 total", so the noun is scoped to the view.
-    await expect(page.getByText(/^\d+ open · \d+ in view$/)).toBeVisible()
+    // The head scopes its own nouns to the view ("N open in this view · M incl. done"), so it
+    // cannot be mistaken for the rail badge's own-tasks count.
+    await expect(page.getByText(/^\d+ open in this view · \d+ incl\. done$/)).toBeVisible()
     await expect(page.getByRole('status', { name: 'Loading tasks' })).toHaveCount(0)
     // Read the actual rendered default queue, including virtual rows as they enter view.
     const open = new Set<string>()
@@ -45,10 +55,11 @@ for (const [name, actor, view] of [
     await expect.poll(
       () => page.getByTestId('tasks-count-line').textContent(),
       { message: 'count line settles to the traversed open total' },
-    ).toMatch(new RegExp(`^${open.size} open · \\d+ in view$`))
-    await expect(link).toHaveAccessibleName(open.size ? `Tasks, ${open.size} open tasks` : 'Tasks')
+    ).toMatch(new RegExp(`^${open.size} open in this view · \\d+ incl\\. done$`))
+    // The badge is still Home's number after traversing a view that may hold more or fewer.
+    await expect(link).toHaveAccessibleName(homeOpen ? `Tasks, ${homeOpen} open tasks` : 'Tasks')
     await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Signals', exact: true })).not.toHaveAttribute('aria-label')
-    await info.attach('default-count', { body: JSON.stringify({ name, view, open: open.size, recordUrls: [...open] }, null, 2), contentType: 'application/json' })
+    await info.attach('default-count', { body: JSON.stringify({ name, view, homeOpen, viewOpen: open.size, recordUrls: [...open] }, null, 2), contentType: 'application/json' })
     await page.screenshot({ path: info.outputPath('default-count.png'), animations: 'disabled' })
   })
 }
