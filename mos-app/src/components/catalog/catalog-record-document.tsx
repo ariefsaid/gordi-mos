@@ -22,6 +22,7 @@ import { updateWorkLine } from '@/lib/db/work-lines'
 import type { ProcessRecordData } from '@/lib/db/work-records'
 import { ProcessOccurrenceControls } from '@/components/processes/process-occurrence-controls'
 import {
+  COMPANY_WIDE_OPTION,
   objectivesCatalogActions,
   projectsProcessesCatalogActions,
   type CatalogCollectionContext,
@@ -121,6 +122,24 @@ function directoryName(
 ): string {
   if (!id) return t('catalog.notSet')
   return names?.get(id) ?? t('catalog.notAvailable')
+}
+
+function businessUnitLabel(
+  row: Pick<CatalogRow, 'businessUnitId' | 'isCompanyWide'>,
+  names: ReadonlyMap<string, string> | undefined,
+  t: ReturnType<typeof useT>,
+): string {
+  if (row.isCompanyWide) return t('catalog.companyWide')
+  return directoryName(row.businessUnitId, names, t)
+}
+
+function periodQuarterLabel(quarter: number | null | undefined, year: number | null | undefined, t: ReturnType<typeof useT>): string {
+  if (year == null) return t('catalog.notSet')
+  if (quarter === 1) return t('catalog.period.q1')
+  if (quarter === 2) return t('catalog.period.q2')
+  if (quarter === 3) return t('catalog.period.q3')
+  if (quarter === 4) return t('catalog.period.q4')
+  return t('catalog.period.wholeYear')
 }
 
 function processOwner(
@@ -336,13 +355,21 @@ export function CatalogRecordDocument({
     const common = { businessUnit: 'business_unit_id', accountable: 'accountable_person_id' } as const
     setMutationError('')
     try {
-      if (key in common) {
+      if (kind === 'objective' && key === 'businessUnit') {
+        // One of: a unit, Company-wide, or neither. Picking one clears the other.
+        await updateObjective(id, text === COMPANY_WIDE_OPTION
+          ? { is_company_wide: true, business_unit_id: null }
+          : { business_unit_id: text, is_company_wide: false })
+      } else if (key in common) {
         const column = common[key as keyof typeof common]
         if (kind === 'objective') await updateObjective(id, { [column]: text })
         else await updateWorkLine(id, { [column]: text })
       } else if (kind === 'objective' && key === 'period') {
         if (text !== null && !/^\d{4}$/.test(text)) throw new Error(t('catalog.record.periodInvalid'))
-        await updateObjective(id, { period_year: text === null ? null : Number(text) })
+        // A quarter needs a year, so clearing the year clears the quarter in the same write.
+        await updateObjective(id, text === null ? { period_year: null, period_quarter: null } : { period_year: Number(text) })
+      } else if (kind === 'objective' && key === 'periodQuarter') {
+        await updateObjective(id, { period_quarter: text === null ? null : Number(text) })
       } else if (kind === 'work-line' && key === 'objective') {
         await updateWorkLine(id, { objective_id: text })
       } else if (kind === 'work-line' && key === 'responsible') {
@@ -393,8 +420,9 @@ export function CatalogRecordDocument({
       .filter(([value]) => allowedBuIds === null || allowedBuIds.includes(value))
       .map(([value, label]) => ({ value, label }))
     const emptyOption = { value: '', label: t('catalog.notSet') }
+    const companyWideOption = { value: COMPANY_WIDE_OPTION, label: t('catalog.companyWide') }
     const businessUnitEditOptions = allowedBuIds === null
-      ? [emptyOption, ...businessUnitOptions]
+      ? [emptyOption, ...(kind === 'objective' ? [companyWideOption] : []), ...businessUnitOptions]
       : businessUnitOptions
     const allRelationGroups = context.relationsById.get(id)?.groups ?? []
     const relationGroups = allRelationGroups.filter((group) => !group.synthetic)
@@ -403,9 +431,10 @@ export function CatalogRecordDocument({
     const relationTasks = context.relationsById.get(id)?.tasks ?? []
     const fields: RecordFieldSpec[] = kind === 'objective'
       ? [
-          { key: 'businessUnit', label: t('catalog.record.businessUnit'), control: 'relation', value: row.businessUnitId ?? null, displayValue: directoryName(row.businessUnitId, businessUnitsById, t), editable: false },
+          { key: 'businessUnit', label: t('catalog.record.businessUnit'), control: 'relation', value: row.isCompanyWide ? COMPANY_WIDE_OPTION : row.businessUnitId ?? null, displayValue: businessUnitLabel(row, businessUnitsById, t), editable: false },
           { key: 'accountable', label: t('catalog.record.accountable'), control: 'person', value: row.accountablePersonId ?? null, displayValue: directoryName(row.accountablePersonId, allPeopleById, t), editable: false },
           { key: 'period', label: t('catalog.record.period'), control: 'text', value: row.periodYear ?? null, displayValue: row.periodYear == null ? t('catalog.notSet') : String(row.periodYear), editable: false },
+          { key: 'periodQuarter', label: t('catalog.record.periodQuarter'), control: 'select', value: row.periodQuarter == null ? null : String(row.periodQuarter), displayValue: periodQuarterLabel(row.periodQuarter, row.periodYear, t), editable: false },
         ]
       : [
           {
@@ -424,8 +453,18 @@ export function CatalogRecordDocument({
 
     for (const field of fields) {
       if (field.key === 'cadence' || field.key === 'owningTeam') continue
-      field.editable = canManage && row.archived_at === null && (field.key === 'period' || editDirectory !== null)
-      if (canManage && field.key !== 'period' && !editDirectory) field.readOnlyReason = t(editDirectoryError ? 'catalog.record.editChoicesError' : 'catalog.record.editChoicesLoading')
+      const needsDirectory = field.key !== 'period' && field.key !== 'periodQuarter'
+      const quarterNeedsYear = field.key === 'periodQuarter' && row.periodYear == null
+      field.editable = canManage && row.archived_at === null && !quarterNeedsYear && (!needsDirectory || editDirectory !== null)
+      if (canManage && quarterNeedsYear) field.readOnlyReason = t('catalog.record.periodQuarterNeedsYear')
+      if (field.key === 'periodQuarter') field.options = [
+        { value: '', label: t('catalog.period.wholeYear') },
+        { value: '1', label: t('catalog.period.q1') },
+        { value: '2', label: t('catalog.period.q2') },
+        { value: '3', label: t('catalog.period.q3') },
+        { value: '4', label: t('catalog.period.q4') },
+      ]
+      if (canManage && needsDirectory && !editDirectory) field.readOnlyReason = t(editDirectoryError ? 'catalog.record.editChoicesError' : 'catalog.record.editChoicesLoading')
       if (field.key === 'businessUnit') field.options = businessUnitEditOptions
       if (field.key === 'accountable' || field.key === 'responsible') field.options = [emptyOption, ...[...allPeopleById].map(([value, label]) => ({ value, label }))]
       if (field.key === 'objective') field.options = [emptyOption, ...objectiveOptions]

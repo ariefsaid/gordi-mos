@@ -208,7 +208,7 @@ describe('TaskSurface — view mode', () => {
     vi.mocked(listObjectives).mockResolvedValue([{ id: 'active-objective', name: 'Current Objective' }])
     vi.mocked(readObjective).mockResolvedValue({
       id: 'archived-objective', name: 'Archived Objective', archived_at: '2026-07-01T00:00:00Z',
-      business_unit_id: null, accountable_person_id: null, period_year: null, updated_at: '',
+      business_unit_id: null, is_company_wide: false, accountable_person_id: null, period_year: null, period_quarter: null, updated_at: '',
     })
     renderSurface()
     expect((await screen.findAllByRole('link', { name: 'Archived Objective' }))[0]).toHaveAttribute('href', '/work/objectives/archived-objective')

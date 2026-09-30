@@ -15,15 +15,20 @@ export interface ObjectiveRow {
   period_year?: number | null
 }
 
-/** Ownership an Objective carries (#801): unit, owner, and year — each optional. */
+/**
+ * Ownership an Objective carries: unit or Company-wide (never both), owner, year and quarter —
+ * each optional. A quarter needs a year.
+ */
 export interface ObjectiveOwnership {
   business_unit_id?: string | null
+  is_company_wide?: boolean
   accountable_person_id?: string | null
   period_year?: number | null
+  period_quarter?: number | null
 }
 
 const ACTIVE_COLUMNS = 'id,name,business_unit_id,accountable_person_id,period_year'
-const ADMIN_COLUMNS = 'id,name,archived_at,business_unit_id,accountable_person_id,period_year'
+const ADMIN_COLUMNS = 'id,name,archived_at,business_unit_id,is_company_wide,accountable_person_id,period_year,period_quarter'
 
 /** List active (non-archived) objectives ordered by name (org-readable via RLS). */
 export async function listObjectives(): Promise<ObjectiveRow[]> {
@@ -43,8 +48,10 @@ export interface ObjectiveAdminRow {
   name: string
   archived_at: string | null
   business_unit_id?: string | null
+  is_company_wide?: boolean
   accountable_person_id?: string | null
   period_year?: number | null
+  period_quarter?: number | null
 }
 
 /** List ALL objectives (active + archived) for the management surface — active first, then by name. */
@@ -95,13 +102,15 @@ export interface ObjectiveRecord {
   name: string
   archived_at: string | null
   business_unit_id: string | null
+  is_company_wide: boolean
   accountable_person_id: string | null
   period_year: number | null
+  period_quarter: number | null
   updated_at: string
 }
 
 const RECORD_COLUMNS =
-  'id,name,archived_at,business_unit_id,accountable_person_id,period_year,updated_at'
+  'id,name,archived_at,business_unit_id,is_company_wide,accountable_person_id,period_year,period_quarter,updated_at'
 
 /** Read one Objective; null means no visible row, not a transport error. */
 export async function readObjective(id: string): Promise<ObjectiveRecord | null> {
@@ -118,8 +127,10 @@ export async function readObjective(id: string): Promise<ObjectiveRecord | null>
 export interface ObjectivePatch {
   name?: string
   business_unit_id?: string | null
+  is_company_wide?: boolean
   accountable_person_id?: string | null
   period_year?: number | null
+  period_quarter?: number | null
 }
 
 export async function updateObjective(id: string, patch: ObjectivePatch): Promise<void> {
