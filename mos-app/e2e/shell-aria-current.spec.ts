@@ -43,8 +43,9 @@ test.describe('shell aria-current', () => {
     test.use({ viewport: { width: 390, height: 844 } })
 
     test('AC-008: on phone, primary destinations mark their tab and non-primary destinations mark More', async ({ page }) => {
-      // OD-68: café is a MODULE tab, promoted only for a café-affiliated viewer. The admin's
-      // fixed primaries are Home/Work/Inbox; café/log is checked below under Cahya (café role).
+      // The admin's fixed primaries are Home/Work/Inbox. Café is a MODULE tab promoted for a
+      // café-affiliated viewer (AC-008b) or, for anyone else, while they stand on a Café page
+      // (covered at the end of this test).
       const primaryCases = [
         { path: '', label: 'Home' },
         { path: 'work/tasks', label: 'Work' },
@@ -68,7 +69,7 @@ test.describe('shell aria-current', () => {
       // exists per route; here we additionally prove it's on the breadcrumb, not on More.
       // 'money' was here until issue 444 gated it — a gated path forwards to Home, which IS a
       // primary tab, so it can no longer stand for "a destination the bottom bar does not cover".
-      const nonPrimaryCases = ['cafe/log', 'profile'].filter((path) => !isShipGated(`/${path}`))
+      const nonPrimaryCases = ['profile'].filter((path) => !isShipGated(`/${path}`))
       for (const path of nonPrimaryCases) {
         await page.goto(path)
         await expect.poll(() => pageCurrentCount(page)).toBe(1)
@@ -76,6 +77,19 @@ test.describe('shell aria-current', () => {
         await expect(
           page.getByRole('navigation', { name: 'Breadcrumb' }).locator('[aria-current="page"]'),
         ).toHaveCount(1)
+      }
+
+      // destinations.tsx phoneModuleForViewer: a viewer who works no module line still sees the
+      // admitted module whose pages they are on as the bar's module tab, so that tab owns
+      // aria-current and the breadcrumb leaf does not (breadcrumb.tsx leafCarriesCurrent).
+      if (!isShipGated('/cafe/log')) {
+        await page.goto('cafe/log')
+        await expect.poll(() => pageCurrentCount(page)).toBe(1)
+        await expect(primaryNav.getByRole('link', { name: 'Café', exact: true })).toHaveAttribute('aria-current', 'page')
+        await expect(page.getByRole('button', { name: 'More' })).not.toHaveAttribute('aria-current', 'page')
+        await expect(
+          page.getByRole('navigation', { name: 'Breadcrumb' }).locator('[aria-current="page"]'),
+        ).toHaveCount(0)
       }
     })
 

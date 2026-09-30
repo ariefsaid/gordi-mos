@@ -12,12 +12,11 @@ export const SIGNAL_CELL_INPUTS = [
   ['signals-compose-phone-en-light', {
     area: 'signals', journey: 'signals-compose', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'composer', status: 'covered', primary: true,
-    // Share Signal has no phone head door (the head action is desktop-only): the shell's `+`
-    // Action Launcher owns it there.
+    // The page head's "Share Signal" is the one create door at every width; the shell's `+`
+    // launcher yields on this route.
     stateContract: {
       setup: [
-        { action: 'click', selector: '.mobile-action-launcher' },
-        { action: 'click', selector: '#a-signal' },
+        { action: 'click', selector: '[data-testid="page-head"] .ch-action button' },
       ],
       assertion: { selector: '[data-testid="signal-composer"] textarea' },
       // The composer's other face — no eligible Team — renders an EmptyState and no body field.
