@@ -2,7 +2,6 @@ import { Link, NavLink, useLocation } from 'react-router-dom'
 import { DESTINATIONS, navUtility, isLive, modulesByBU, moduleChildrenForViewer, destinationForPath, type Destination } from './destinations'
 import { sectionHasPrefixChild, visibleSections, type Section } from './sections'
 import type { MessageKey } from '@/i18n/messages'
-import type { RailCounts } from '@/lib/db/rail-counts'
 import { UserChip } from './user-chip'
 import { Chevron } from './icons'
 import { useAuth } from '@/auth/use-auth'
@@ -16,22 +15,20 @@ import './rail-nav.css'
 // listed the same five items in two different orders, and a nav list is worth most when muscle
 // memory carries it. One declared order, every surface, asserted by `work-child-order.test.tsx`.
 //
-// Per-item counts (E7's `.e7-count` badges) are wired for Tasks (viewer-owned open count) from
-// ONE cheap shell-level aggregate (rail.tsx → useRailCounts,
-// a single mount-time fetch, no polling). Every other child omits its badge: they have no
-// already-loaded source, and the owner-artifact note forbids a query per item.
+// The Tasks badge (E7's `.e7-count`) is the viewer's own open-task count, the same number Home
+// shows (rail.tsx → useMyOpenTaskCount, a single mount-time fetch, no polling). Every other child
+// omits its badge: they have no already-loaded source, and the owner-artifact note forbids a
+// query per item.
 
 // The ONE render seam for the rail count badges: which path shows which count (undefined → no badge).
-function badgeCountFor(path: string, counts?: RailCounts | null): number | undefined {
-  if (!counts) return undefined
-  if (path === '/work/tasks') return counts.openTasks
+function badgeCountFor(path: string, openTasks?: number | null): number | undefined {
+  if (path === '/work/tasks') return openTasks ?? undefined
   return undefined
 }
 
 // DO-18(d) (census-sweep R2 tasks FINDING5, a11y half): the badge's accessible NAME — a naked
 // aria-hidden number told screen-reader users nothing. The label states what the count counts
-// (what the code fetches: open Tasks / needs-attention Signals); the rail-vs-page count
-// reconciliation stays FLAG-2 (owner ruling pending).
+// (the viewer's own open Tasks).
 function badgeLabelKeyFor(path: string): MessageKey | undefined {
   if (path === '/work/tasks') return 'rail.badge.openTasks'
   return undefined
@@ -39,8 +36,8 @@ function badgeLabelKeyFor(path: string): MessageKey | undefined {
 
 type RailNavProps = {
   onNavigate?: () => void
-  /** Rail badge counts (viewer-owned Tasks). Undefined/null → no badges. */
-  counts?: RailCounts | null
+  /** The viewer's own open-task count for the Tasks badge. Undefined/null → no badge. */
+  openTasks?: number | null
   /** OD-REDESIGN-84.2 (P1-1): the 920–1099.98px icon-only regime. Default false (full-width rail). */
   compact?: boolean
 }
@@ -234,7 +231,7 @@ function WorkChild({ section, onNavigate, badge, badgeLabelKey, compact = false,
   )
 }
 
-export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
+export function RailNav({ onNavigate, openTasks, compact = false }: RailNavProps) {
   const auth = useAuth()
   const t = useT()
   // #225: the Work parent link used to target the BARE `/work` — a route-table redirect entry
@@ -315,7 +312,7 @@ export function RailNav({ onNavigate, counts, compact = false }: RailNavProps) {
                       from `children` by the time it gets here. */}
                   <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list rail-item-children'}>
                     {children.map((c) => (
-                      <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, counts)} badgeLabelKey={badgeLabelKeyFor(c.path)} compact={compact} />
+                      <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, openTasks)} badgeLabelKey={badgeLabelKeyFor(c.path)} compact={compact} />
                     ))}
                   </div>
                 </div>

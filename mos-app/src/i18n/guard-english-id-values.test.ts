@@ -64,7 +64,6 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'tasks.filter.sortPic', // PIC A–Z
   'tasks.filter.sortStatus', // Status
   'tasks.filter.status', // Status
-  'tasks.meta.totalCount', // ${count} total
   // Objectives and Projects & Processes name their roles Responsible / Accountable in both
   // locales; the Indonesian gloss for Responsible collided with PIC's ("Penanggung Jawab").
   'catalog.column.accountable', // Accountable

@@ -36,6 +36,10 @@ import { listSalesMarginDaily } from '@/lib/db/reporting-margin'
 const mockListMargin = vi.mocked(listSalesMarginDaily)
 
 vi.mock('../lib/db/tasks', () => ({ listTasks: vi.fn() }))
+
+// Home's "N open" is the ONE open-task count the rail badge also reads (#1129).
+const sharedCount = vi.hoisted(() => ({ value: null as number | null }))
+vi.mock('../hooks/useMyOpenTaskCount', () => ({ useMyOpenTaskCount: () => sharedCount.value }))
 import { listTasks } from '@/lib/db/tasks'
 const mockListTasks = vi.mocked(listTasks)
 
@@ -233,6 +237,7 @@ function overdueTaskRow(viewerId: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  sharedCount.value = null
   window.localStorage.clear()
   mockListTasks.mockResolvedValue([])
   mockGetBUs.mockResolvedValue([])
@@ -569,12 +574,14 @@ describe('Home task regions preserve decision context and collection doors', () 
       status: 'Open' as const,
     }
     mockListTasks.mockResolvedValue([normalTask, secondTask])
+    // Two rows are listed; the open figure is the shared count, not a recount of those rows (#1129).
+    sharedCount.value = 7
     await renderHome(financeViewer)
     await userEvent.setup().click(await screen.findByRole('tab', { name: /^My open work/ }))
     const myWork = await screen.findByRole('tabpanel', { name: /^My open work/ })
     expect(within(myWork).getByText('Prep beans')).toBeInTheDocument()
     expect(within(myWork).getByText('Clean grinder')).toBeInTheDocument()
-    expect(within(myWork).getByRole('link', { name: /2 shown · 2 open/i }))
+    expect(within(myWork).getByRole('link', { name: /2 shown · 7 open/i }))
       .toHaveAttribute('href', '/work/tasks?view=my-work')
   })
 
