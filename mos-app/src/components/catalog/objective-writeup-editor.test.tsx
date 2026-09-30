@@ -2,15 +2,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
-const fake = vi.hoisted(() => ({ document: [] as unknown[] }))
+const fake = vi.hoisted(() => ({ document: [] as unknown[], crash: false }))
 
 vi.mock('@blocknote/react', () => ({
   useCreateBlockNote: () => fake,
-  BlockNoteViewRaw: ({ onChange, editable }: { onChange?: () => void; editable?: boolean }) => (
+  BlockNoteViewRaw: ({ onChange, editable }: { onChange?: () => void; editable?: boolean }) => {
+    if (fake.crash) throw new Error('malformed document')
+    return (
     <div data-testid="bn" data-editable={String(editable)}>
       <button type="button" onClick={() => { fake.document = [...fake.document, { type: 'paragraph' }]; onChange?.() }}>type</button>
     </div>
-  ),
+    )
+  },
 }))
 
 vi.mock('@/lib/db/objective-writeup', async (importOriginal) => ({
@@ -39,6 +42,7 @@ const typeOnce = () => fireEvent.click(screen.getByText('type'))
 beforeEach(() => {
   vi.useFakeTimers()
   fake.document = []
+  fake.crash = false
   read.mockResolvedValue({ writeUp: [], updatedAt: 't1' })
   save.mockResolvedValue('t2')
 })
@@ -58,6 +62,21 @@ describe('ObjectiveWriteupEditor', () => {
     b.unmount()
     await mount({ archived: true })
     expect(screen.getByTestId('bn').dataset.editable).toBe('false')
+  })
+
+  it('shows a calm unreadable state when the editor cannot render the document, leaving the page intact', async () => {
+    fake.crash = true
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    render(
+      <I18nProvider>
+        <ObjectiveWriteupEditor objectiveId="o1" canEdit archived={false} />
+        <p>rest of the page</p>
+      </I18nProvider>,
+    )
+    await act(async () => { await Promise.resolve() })
+    spy.mockRestore()
+    expect(screen.getByRole('alert').textContent).toContain("Couldn't display this write-up")
+    expect(screen.getByText('rest of the page')).toBeTruthy()
   })
 
   it('does not save per keystroke; saves once after the idle debounce', async () => {

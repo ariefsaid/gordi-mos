@@ -1,15 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BlockNoteSchema, defaultBlockSpecs } from '@blocknote/core'
 import { BlockNoteViewRaw, useCreateBlockNote } from '@blocknote/react'
 import '@blocknote/core/style.css'
 import '@blocknote/react/style.css'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import {
   isSafeWriteUpLink,
-  plainTextUnsafeLinks,
   readWriteUp,
+  sanitizeWriteUp,
   saveWriteUp,
   WriteUpConflictError,
   WriteUpTooLargeError,
@@ -58,14 +59,15 @@ export function ObjectiveWriteupEditor({ objectiveId, canEdit, archived, onDirty
   if (status === 'loading') return <LoadingShell label={t('objective.writeUp.loading')} />
   if (status === 'error' || !loaded) return <ErrorState message={t('objective.writeUp.loadError')} onRetry={() => setReloadNonce((n) => n + 1)} />
   return (
-    <WriteUpSurface
-      key={`${objectiveId}:${reloadNonce}`}
-      objectiveId={objectiveId}
-      initial={loaded}
-      editable={canEdit && !archived}
-      onDirtyChange={onDirtyChange}
-      onReload={() => setReloadNonce((n) => n + 1)}
-    />
+    <ErrorBoundary key={`${objectiveId}:${reloadNonce}`} fallback={<ErrorState message={t('objective.writeUp.unreadable')} />}>
+      <WriteUpSurface
+        objectiveId={objectiveId}
+        initial={loaded}
+        editable={canEdit && !archived}
+        onDirtyChange={onDirtyChange}
+        onReload={() => setReloadNonce((n) => n + 1)}
+      />
+    </ErrorBoundary>
   )
 }
 
@@ -83,9 +85,10 @@ function WriteUpSurface({
   onReload: () => void
 }) {
   const t = useT()
+  const stored = useMemo(() => sanitizeWriteUp(initial.writeUp), [initial.writeUp])
   const editor = useCreateBlockNote({
     schema,
-    initialContent: initial.writeUp && initial.writeUp.length > 0 ? (plainTextUnsafeLinks(initial.writeUp) as never) : undefined,
+    initialContent: stored.length > 0 ? (stored as never) : undefined,
     links: { isValidLink: isSafeWriteUpLink },
     domAttributes: { editor: { 'aria-label': t('objective.writeUp.label') } },
   }, [])
@@ -149,7 +152,7 @@ function WriteUpSurface({
     : saveState === 'tooLarge' ? t('objective.writeUp.tooLarge')
     : saveState === 'conflict' ? t('objective.writeUp.conflict')
     : ''
-  const empty = !editable && (!initial.writeUp || initial.writeUp.length === 0)
+  const empty = !editable && stored.length === 0
 
   return (
     <div className="objective-writeup" onBlur={editable ? () => { void flush() } : undefined}>
