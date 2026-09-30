@@ -295,7 +295,7 @@ describe('CatalogListPresentation Objective Work cell', () => {
   it('names work reached only through Tasks without the Linked-through-a-Task phrasing', () => {
     const rows = [objective('o1', 'Grow revenue')]
     renderRows(rows, withGroups(rows, { o1: [group('w1', 'Menu launch', 'contribution')] }))
-    expect(workCell('Grow revenue')).toHaveAccessibleName('Projects & Processes: Not set')
+    expect(workCell('Grow revenue')).toHaveAccessibleName('Projects & Processes: Not set. Through Tasks: Menu launch')
     expect(workCell('Grow revenue')).toHaveTextContent('Through Tasks: Menu launch')
     expect(workCell('Grow revenue')).not.toHaveTextContent('Linked through')
   })
@@ -303,7 +303,7 @@ describe('CatalogListPresentation Objective Work cell', () => {
   it('lists direct work and, beside it, the work reached through Tasks', () => {
     const rows = [objective('o1', 'Grow revenue')]
     renderRows(rows, withGroups(rows, { o1: [group('w1', 'Menu launch', 'direct'), group('w2', 'Daily prep', 'contribution')] }))
-    expect(workCell('Grow revenue')).toHaveAccessibleName('Projects & Processes: Menu launch')
+    expect(workCell('Grow revenue')).toHaveAccessibleName('Projects & Processes: Menu launch. Also through Tasks: Daily prep')
     expect(workCell('Grow revenue')).toHaveTextContent('Also through Tasks: Daily prep')
   })
 

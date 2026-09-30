@@ -176,6 +176,9 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
           const contributions = relationGroups.filter((group) => group.relationship === 'contribution' && !group.synthetic)
           const directWork = relationGroups.filter((group) => group.relationship === 'direct' && group.entity === 'work-line' && !group.synthetic)
           const workLabel = directWork.length > 0 ? directWork.map((group) => group.name).join(', ') : t('catalog.notSet')
+          const workViaTasksNote = contributions.length > 0
+            ? t(directWork.length > 0 ? 'catalog.relations.workAlsoViaTasks' : 'catalog.relations.workViaTasks', { names: contributions.map((group) => group.name).join(', ') })
+            : null
           const progress = context.progressById.get(row.id)
           const relationLabel = relation
             ? relation.relationship === 'contribution'
@@ -260,18 +263,14 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
                     <span
                       className="catalog-collection__cell catalog-collection__cell--cadence"
                       role="cell"
-                      aria-label={`${context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}: ${context.relationsKind === 'objective' ? workLabel : cadenceDueLabel}`}
+                      aria-label={`${context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}: ${context.relationsKind === 'objective' ? [workLabel, workViaTasksNote].filter(Boolean).join('. ') : cadenceDueLabel}`}
                     >
                       <span className="catalog-collection__cell-label">{context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}</span>
                       <span className={(context.relationsKind === 'objective' ? directWork.length === 0 : cadenceDue.missing) ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value'}>
                         {visualCellValue(context.relationsKind === 'objective' ? workLabel : cadenceDueLabel, context.relationsKind === 'objective' ? directWork.length === 0 : cadenceDue.missing)}
                       </span>
                       {context.relationsKind === 'objective' ? (
-                        contributions.length > 0 ? (
-                          <span className="catalog-collection__cell-note">
-                            {t(directWork.length > 0 ? 'catalog.relations.workAlsoViaTasks' : 'catalog.relations.workViaTasks', { names: contributions.map((group) => group.name).join(', ') })}
-                          </span>
-                        ) : null
+                        workViaTasksNote ? <span className="catalog-collection__cell-note">{workViaTasksNote}</span> : null
                       ) : contributions.length > 0 ? (
                         <span className="catalog-collection__cell-note">
                           {t(relation ? 'catalog.relations.alsoContributes' : 'catalog.relations.taskContributions', { names: contributions.map((group) => group.name).join(', ') })}
