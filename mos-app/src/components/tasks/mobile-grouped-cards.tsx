@@ -300,58 +300,61 @@ export function MobileGroupedCards({
               )}
               <span className="mgc-label">{group.label}</span>
             </span>
-            {/* RI-1: work-line type tag — text always present, never color-only (WCAG 1.4.1) */}
-            {group.workLineType != null && (
-              <MobileWorkLineTypeTag type={group.workLineType} />
-            )}
-            {/* Design fix wave item 3 — occurrence groups supersede the plain count with the
-                roll-up summary, mirroring desktop's GroupHeaderRow (Rule 9 parity). Design fix
-                wave item 6 (MINOR — "1 to assign" stutter): the same drop-clause-when-a-button-
-                also-renders / neutral-"unassigned"-otherwise logic as GroupHeaderRow. */}
-            {group.occurrenceRollup ? (
-              <span className="mgc-count tabular-nums">
-                {t(
-                  group.occurrenceRollup.pendingUnresolved === 0
-                    ? 'processes.rollup.summary'
-                    : onAssignPending
-                      ? 'processes.rollup.summaryNoAssign'
-                      : 'processes.rollup.summaryUnassigned',
-                  {
-                    done: group.occurrenceRollup.done, total: group.occurrenceRollup.total,
-                    overdue: group.occurrenceRollup.overdue, pending: group.occurrenceRollup.pendingUnresolved,
-                  },
-                )}
-              </span>
-            ) : (
-              <span className="mgc-count tabular-nums">{group.rows.length}</span>
-            )}
-            {group.occurrenceRollup && group.occurrenceRollup.pendingUnresolved > 0 && onAssignPending && (
+            {/* Phone: the tag, count, overdue and add sit on a second line so the title keeps the full row. */}
+            <span className="mgc-group-meta">
+              {/* RI-1: work-line type tag — text always present, never color-only (WCAG 1.4.1) */}
+              {group.workLineType != null && (
+                <MobileWorkLineTypeTag type={group.workLineType} />
+              )}
+              {/* Design fix wave item 3 — occurrence groups supersede the plain count with the
+                  roll-up summary, mirroring desktop's GroupHeaderRow (Rule 9 parity). Design fix
+                  wave item 6 (MINOR — "1 to assign" stutter): the same drop-clause-when-a-button-
+                  also-renders / neutral-"unassigned"-otherwise logic as GroupHeaderRow. */}
+              {group.occurrenceRollup ? (
+                <span className="mgc-count tabular-nums">
+                  {t(
+                    group.occurrenceRollup.pendingUnresolved === 0
+                      ? 'processes.rollup.summary'
+                      : onAssignPending
+                        ? 'processes.rollup.summaryNoAssign'
+                        : 'processes.rollup.summaryUnassigned',
+                    {
+                      done: group.occurrenceRollup.done, total: group.occurrenceRollup.total,
+                      overdue: group.occurrenceRollup.overdue, pending: group.occurrenceRollup.pendingUnresolved,
+                    },
+                  )}
+                </span>
+              ) : (
+                <span className="mgc-count tabular-nums">{group.rows.length}</span>
+              )}
+              {group.occurrenceRollup && group.occurrenceRollup.pendingUnresolved > 0 && onAssignPending && (
+                <button
+                  type="button"
+                  className="mgc-sub mgc-sub-pending"
+                  onClick={() => onAssignPending(group.key)}
+                >
+                  {t('processes.pending.assignCount', { count: group.occurrenceRollup.pendingUnresolved })}
+                </button>
+              )}
+              {!group.occurrenceRollup && group.overdue > 0 && (
+                <button
+                  type="button"
+                  className="mgc-sub"
+                  aria-label={t('tasks.filter.overdueAria', { count: group.overdue })}
+                  onClick={() => setOverdueOnly(true)}
+                >
+                  · {t('tasks.filter.overdueCount', { count: group.overdue })}
+                </button>
+              )}
               <button
                 type="button"
-                className="mgc-sub mgc-sub-pending"
-                onClick={() => onAssignPending(group.key)}
+                className="mgc-add"
+                aria-label={t('tasks.group.add', { label: group.label })}
+                onClick={() => openAddTask(group.prefillParam)}
               >
-                {t('processes.pending.assignCount', { count: group.occurrenceRollup.pendingUnresolved })}
+                {t('tasks.add')}
               </button>
-            )}
-            {!group.occurrenceRollup && group.overdue > 0 && (
-              <button
-                type="button"
-                className="mgc-sub"
-                aria-label={t('tasks.filter.overdueAria', { count: group.overdue })}
-                onClick={() => setOverdueOnly(true)}
-              >
-                · {t('tasks.filter.overdueCount', { count: group.overdue })}
-              </button>
-            )}
-            <button
-              type="button"
-              className="mgc-add"
-              aria-label={t('tasks.group.add', { label: group.label })}
-              onClick={() => openAddTask(group.prefillParam)}
-            >
-              {t('tasks.add')}
-            </button>
+            </span>
           </div>
           {!isCollapsed(group.key) && group.rows.map(task => (
             <div key={task.id} role="listitem">

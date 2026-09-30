@@ -673,6 +673,7 @@ tr.grp td { padding: 0; }
   background: transparent; border: 0; padding: 0; font: inherit; font-size: var(--font-size-label); font-weight: 600;
   color: var(--status-lost-text); cursor: pointer;
 }
+.mgc-group-meta { display: contents; }
 .mgc-add {
   margin-left: auto; flex: none; white-space: nowrap; background: transparent; border: 0; padding: 0 4px; font: inherit;
   font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); cursor: pointer;
@@ -686,6 +687,19 @@ tr.grp td { padding: 0; }
     width: 44px;
     height: 44px;
   }
+  /* Title first: it takes the whole row beside the caret (two lines, then an ellipsis); the tag,
+     count, overdue and add share a second line beneath it. */
+  .mgc-group-head { flex-wrap: wrap; row-gap: 0; }
+  .mgc-group-headings { flex: 1 1 0; }
+  .mgc-label {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+    white-space: normal; overflow-wrap: anywhere;
+  }
+  .mgc-group-meta {
+    display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: 0 8px;
+    min-width: 0; padding-inline-start: 52px;
+  }
+  .mgc-sub { white-space: nowrap; }
   .mgc-sub,
   .mgc-add {
     min-width: 44px;

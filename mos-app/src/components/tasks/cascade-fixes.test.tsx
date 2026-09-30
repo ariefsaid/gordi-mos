@@ -659,3 +659,43 @@ describe('Issue 1105 — phone group header keeps the title truncated and the ac
     expect(rule('.mgc-add')).toMatch(/flex:\s*none/)
   })
 })
+
+describe('Issue 1105 — phone group header gives the title the full row', () => {
+  const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+  const phone = css.slice(css.indexOf('@media (max-width: 767.98px) {\n  .mgc-caret'))
+
+  it('puts tag, count, overdue and add in one meta group, apart from the title', () => {
+    const groups: MobileGroupedCardsProps['groups'] = [{
+      key: 'wl-project', label: 'Beverage Program Launch', rows: [makeTask({ id: 't1', work_line_id: 'wl-project' })],
+      overdue: 1, prefillParam: '', workLineType: 'project',
+    }]
+    render(
+      <MemoryRouter>
+        <MobileGroupedCards
+          groups={groups} now={new Date('2026-06-24')} buMap={new Map([['bu-1', 'Kitchen']])} teamMap={new Map()}
+          personMap={new Map([[VIEWER_ID, 'Arief Said']])} isCollapsed={() => false} toggleCollapsed={() => {}}
+          openAddTask={() => {}} setOverdueOnly={() => {}} workLineMap={new Map()} objectiveMap={new Map()}
+        />
+      </MemoryRouter>,
+    )
+    const head = document.querySelector('.mgc-group-head')!
+    const meta = head.querySelector('.mgc-group-meta')!
+    expect(meta.parentElement).toBe(head)
+    expect(meta.querySelector('.mgc-count')).toBeTruthy()
+    expect(meta.querySelector('.mgc-sub')).toBeTruthy()
+    expect(meta.querySelector('.mgc-add')).toBeTruthy()
+    expect(head.querySelector('.mgc-group-headings .mgc-label')).toBeTruthy()
+    expect(meta.contains(head.querySelector('.mgc-label'))).toBe(false)
+  })
+
+  it('phone rules: title wraps to two lines, meta takes its own line, overdue stays whole', () => {
+    expect(phone).toMatch(/\.mgc-group-head\s*\{[^}]*flex-wrap:\s*wrap/)
+    expect(phone).toMatch(/\.mgc-label\s*\{[^}]*-webkit-line-clamp:\s*2[^}]*white-space:\s*normal/)
+    expect(phone).toMatch(/\.mgc-group-meta\s*\{[^}]*flex:\s*1 1 100%/)
+    expect(phone).toMatch(/\.mgc-sub\s*\{\s*white-space:\s*nowrap/)
+  })
+
+  it('the meta group adds no box above the phone breakpoint', () => {
+    expect(css).toMatch(/^\.mgc-group-meta\s*\{\s*display:\s*contents/m)
+  })
+})

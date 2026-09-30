@@ -148,4 +148,8 @@ describe('CollectionToolbar — Indonesian search field (issue 1109)', () => {
     const minWidth = /html:lang\(id\) \.collection-toolbar__search \{\s*min-width:\s*(\d+)px/.exec(css)
     expect(Number(minWidth?.[1])).toBeGreaterThanOrEqual(220)
   })
+
+  it('applies the floor only from 768px up, so the phone row keeps the filter trigger clear', () => {
+    expect(css).toMatch(/@media \(min-width: 768px\) \{\s*html:lang\(id\) \.collection-toolbar__search \{\s*min-width:\s*220px/)
+  })
 })
