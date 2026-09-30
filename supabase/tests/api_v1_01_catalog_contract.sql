@@ -13,11 +13,12 @@ select ok(
 select is(
   (select array_agg(p.proname::text order by p.proname)
      from pg_proc p where p.pronamespace = to_regnamespace('api_v1')),
-  array['add_checklist_item','create_project_process','create_signal','create_task','edit_project_process',
-        'edit_signal','edit_task','get_project_process','get_record_history','get_signal','get_task','link_signal_task',
-        'list_business_units','list_people','list_projects_processes','list_signals','list_tasks','list_teams',
-        'refused_action','set_checklist_item','whoami'],
-  'api_v1 holds exactly the slice-(a), slice-(b) and history operations');
+  array['add_checklist_item','create_project_process','create_signal','create_task','edit_objective_write_up',
+        'edit_project_process','edit_signal','edit_task','get_objective','get_project_process','get_record_history',
+        'get_signal','get_task','link_signal_task','list_business_units','list_objectives','list_people',
+        'list_projects_processes','list_signals','list_tasks','list_teams','refused_action','set_checklist_item',
+        'set_key_result_current_value','whoami'],
+  'api_v1 holds exactly the slice-(a), slice-(b), Objective and history operations');
 
 -- ── AC-002 ───────────────────────────────────────────────────────────────────────────────────
 select is(
@@ -109,7 +110,11 @@ select is_empty($snap$
     'get_project_process(id uuid)',
     'create_project_process(name text, type text, business_unit_id uuid, objective_id uuid, accountable_person_id uuid, responsible_person_id uuid, idempotency_key text)',
     'edit_project_process(id uuid, changes jsonb, expected_updated_at timestamp with time zone)',
-    'get_record_history(record_type text, id uuid, cursor text, "limit" integer)'
+    'get_record_history(record_type text, id uuid, cursor text, "limit" integer)',
+    'list_objectives(business_unit_id uuid, company_wide boolean, period_year integer, period_quarter integer, q text, include_archived boolean, cursor text, "limit" integer)',
+    'get_objective(id uuid)',
+    'edit_objective_write_up(id uuid, write_up jsonb, expected_updated_at timestamp with time zone)',
+    'set_key_result_current_value(key_result_id uuid, current_value numeric, expected_updated_at timestamp with time zone)'
   ]) as r(sig)
   where not exists (
     select 1 from pg_proc p
