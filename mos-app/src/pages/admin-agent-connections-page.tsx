@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useT } from '@/i18n/use-t'
+import { UserFacingError } from '@/lib/save-error'
 import { useI18n } from '@/i18n/I18nProvider'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -132,7 +133,7 @@ export function AdminAgentConnectionsPage() {
         }
       }
     } catch {
-      throw new Error(t('agentConnections.admin.actionError'))
+      throw new UserFacingError(t('agentConnections.admin.actionError'))
     }
     setPending(null)
     await load()
