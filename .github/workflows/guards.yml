@@ -88,6 +88,8 @@ jobs:
         run: bash scripts/agent-git-shim.test.sh
       - name: pre-pr-verify self-test
         run: bash scripts/pre-pr-verify.test.sh
+      - name: migration order guard self-test (#1110)
+        run: bash scripts/check-migration-order.test.sh
       - name: review read-only and served-preview self-tests
         run: node --test scripts/review-read-only.test.mjs scripts/preview-preflight.test.mjs scripts/check-chunk-cycles.test.mjs
       - name: MVP handoff preflight self-test
