@@ -112,7 +112,12 @@ export default defineConfig({
         // persona on intermittent connectivity — a browser/CDN cache hit on `vendor-*` means
         // only the small app chunk needs to be re-fetched after a deploy, not the whole bundle.
         manualChunks(id) {
+          // Vite's dynamic-import helper must stay in an eager chunk, not follow a lazy one.
+          if (id.includes('vite/preload-helper')) return 'vendor'
           if (!id.includes('node_modules')) return undefined
+          // The write-up editor's stack loads only with the Write-up tab: its own chunk keeps it out of
+          // every eager vendor chunk.
+          if (/@blocknote|@tiptap|prosemirror|emoji-mart|linkifyjs|orderedmap|rope-sequence|w3c-keyname|crelt/.test(id)) return 'vendor-editor'
           if (/react-dom|\/react\/|scheduler/.test(id)) return 'vendor-react'
           if (/react-router/.test(id)) return 'vendor-router'
           if (/@supabase/.test(id)) return 'vendor-supabase'

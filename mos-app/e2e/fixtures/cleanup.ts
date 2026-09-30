@@ -100,6 +100,7 @@ export function notificationCleanupSql(
 /** Every Playwright data writer has an explicit cleanup contract recorded here. */
 export const E2E_CLEANUP_REGISTRY = {
   'AC-014-bar-capture-journey.spec.ts': 'fixed-item-id',
+  'AC-018-objective-writeup.spec.ts': 'fixed-objective-id',
   'AC-020-catalog.spec.ts': 'captured-objective-id-and-fixed-task-id',
   'AC-090-kitchen-log-approve.spec.ts': 'fixed-item-id',
   'AC-134.spec.ts': 'fixed-task-ids',

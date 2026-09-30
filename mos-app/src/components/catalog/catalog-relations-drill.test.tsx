@@ -34,6 +34,7 @@ vi.mock('./use-work-write-authority', () => ({
     const buIds = kind === 'work-line' ? scopes.workline_bu_ids : scopes.objective_bu_ids
     return org || (businessUnitId !== null && businessUnitId !== undefined && buIds.includes(businessUnitId))
   },
+  canEditObjectiveContentForScope: () => false,
 }))
 
 import { updateObjective } from '@/lib/db/objectives'
