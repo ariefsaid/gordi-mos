@@ -51,6 +51,7 @@ test.describe('AC-204: Objective roll-up and drill', () => {
     await expect(row).not.toContainText('%')
     await expect(row.getByRole('cell', { name: new RegExp(`^Projects & Processes: ${AC204.launch.name}`) })).toBeVisible()
     await expect(row).toContainText(AC204.launch.name)
+    await expect(row).not.toContainText(/Projects & Processes: \d/)
 
     // Level 2 — the Objective's own canonical page lists a real door to the child record under
     // its Work tab's linked work.
