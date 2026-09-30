@@ -16,10 +16,10 @@ vi.mock('../lib/db/directory', () => ({
   getPersonTeams: vi.fn(),
   getTeamsByIds: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getMyTeamLeads: vi.fn(),
 }))
 vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
-vi.mock('@/lib/db/admin-access', () => ({ listTeamLeadAssignments: vi.fn() }))
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async (importOriginal) => {
   const mod = await importOriginal<typeof import('react-router-dom')>()
@@ -31,7 +31,6 @@ import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/dire
 import * as directoryApi from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
-import { listTeamLeadAssignments } from '@/lib/db/admin-access'
 // Re-homed from the deleted TaskCreate host onto the LIVE create surface (TaskSurface
 // create mode, width="full" — identical to what the host rendered). AC-080 (prefills) +
 // AC-081 (validation) now run against the real component.
@@ -43,9 +42,11 @@ const mockGetPeople = vi.mocked(getPeople)
 const directoryMocks = directoryApi as unknown as {
   getPersonTeams: ReturnType<typeof vi.fn>
   getTeamsByIds: ReturnType<typeof vi.fn>
+  getMyTeamLeads: ReturnType<typeof vi.fn>
 }
 const mockGetPersonTeams = directoryMocks.getPersonTeams
 const mockGetTeamsByIds = directoryMocks.getTeamsByIds
+const mockGetMyTeamLeads = directoryMocks.getMyTeamLeads
 const mockListObjectives = vi.mocked(listObjectives)
 const mockListWorkLines = vi.mocked(listWorkLines)
 
@@ -225,21 +226,19 @@ describe('create surface — Project/Process context and Supervisor default (#10
     })))
   })
 
-  it('an admin creator gets the home Team lead as Supervisor, PIC stays self', async () => {
+  it('a member gets the home Team lead as Supervisor, PIC stays self', async () => {
     mockListWorkLines.mockResolvedValue([])
-    vi.mocked(listTeamLeadAssignments).mockResolvedValue([
-      { team_id: 'team-cafe', team_name: 'Cafe Team', business_unit_id: 'bu-1', lead_person_id: 'other-id', lead_name: 'Other Person' },
-    ])
-    renderCreate({ ...authedState, viewer: { ...authedState.viewer, accessRoles: ['admin'] } })
+    mockGetMyTeamLeads.mockResolvedValue([{ team_id: 'team-cafe', lead_person_id: 'other-id' }])
+    renderCreate()
     await waitFor(() => expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Other Person'))
-    expect(screen.getByRole('combobox', { name: 'PIC' })).toHaveTextContent('Cahya Cafe')
+    expect(screen.getByRole('combobox', { name: 'PIC' })).toHaveTextContent(mockPerson.full_name)
   })
 
-  it('a non-admin creator keeps an empty Supervisor and never reads Team leads', async () => {
+  it('keeps an empty Supervisor when the home Team has no lead', async () => {
+    mockGetMyTeamLeads.mockResolvedValue([{ team_id: 'team-cafe', lead_person_id: null }])
     renderCreate()
     await waitFor(() => expect(screen.getByRole('combobox', { name: 'Team' })).toHaveTextContent('Cafe Team'))
     expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent(/select supervisor/i)
-    expect(listTeamLeadAssignments).not.toHaveBeenCalled()
   })
 })
 

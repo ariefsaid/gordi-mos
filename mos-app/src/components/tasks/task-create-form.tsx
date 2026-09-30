@@ -102,9 +102,9 @@ export function TaskCreateForm({
 
   const workLinePickerOptions = [
     { value: '', label: t('tasks.create.none') },
-    ...workLineOptions.map((wl) => ({
-      value: wl.id,
-      label: `${wl.name} (${wl.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})`,
+    ...workLineOptions.map((workLine) => ({
+      value: workLine.id,
+      label: `${workLine.name} (${workLine.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})`,
     })),
   ]
 

@@ -203,9 +203,8 @@ export function TasksWorkspace({
   // result and must never be replaced with a BU/first-row guess.
   const [viewerTeams, setViewerTeams] = useState<readonly TeamOption[] | null>(null)
   // The creator's home Team lead, resolved together with viewerTeams so a draft never opens
-  // between the two. Only an admin can read Team leads; anyone else gets null (blank Supervisor).
+  // between the two. Null (no lead, or the creator leads) leaves Supervisor blank.
   const [homeLeadId, setHomeLeadId] = useState<string | null>(null)
-  const canReadTeamLeads = accessRoles.includes('admin')
   const [processStartTeamIds, setProcessStartTeamIds] = useState<Set<string>>(new Set())
   const [announcement, setAnnouncement] = useState('')
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
@@ -238,7 +237,7 @@ export function TasksWorkspace({
     }
     setViewerTeams(null)
     getPersonTeams(viewerId).then(async (teams) => {
-      const leadId = await loadHomeLeadId(teams, viewerId, canReadTeamLeads)
+      const leadId = await loadHomeLeadId(teams, viewerId)
       if (!active) return
       setHomeLeadId(leadId)
       setViewerTeams(teams)
@@ -248,7 +247,7 @@ export function TasksWorkspace({
       if (active) setViewerTeams([])
     })
     return () => { active = false }
-  }, [viewerId, canReadTeamLeads])
+  }, [viewerId])
 
   const controller = useRecordCollection({
     descriptor: taskCollectionDescriptor,

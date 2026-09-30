@@ -1,10 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 
-vi.mock('@/lib/db/admin-access', () => ({ listTeamLeadAssignments: vi.fn() }))
+vi.mock('@/lib/db/directory', () => ({ getMyTeamLeads: vi.fn() }))
 
-import { listTeamLeadAssignments } from '@/lib/db/admin-access'
+import { getMyTeamLeads, type TeamOption } from '@/lib/db/directory'
 import { defaultSupervisorId, homeTeamId, loadHomeLeadId } from './default-supervisor'
-import type { TeamOption } from '@/lib/db/directory'
 
 const team = (id: string, isPrimary?: boolean): TeamOption =>
   ({ id, name: id, businessUnitId: 'bu', siteId: null, orgId: 'o', ...(isPrimary === undefined ? {} : { isPrimary }) })
@@ -32,12 +31,16 @@ describe('home Team supervisor default', () => {
     expect(defaultSupervisorId(LEADS, null, 'viewer')).toBeNull()
   })
 
-  it('loads only for a viewer allowed to read leads, and swallows a failed read', async () => {
-    vi.mocked(listTeamLeadAssignments).mockReset().mockResolvedValue(LEADS as never)
-    expect(await loadHomeLeadId([team('hq', true)], 'viewer', true)).toBe('lead-hq')
-    expect(await loadHomeLeadId([team('hq', true)], 'viewer', false)).toBeNull()
-    expect(listTeamLeadAssignments).toHaveBeenCalledTimes(1)
-    vi.mocked(listTeamLeadAssignments).mockRejectedValue(new Error('denied'))
-    expect(await loadHomeLeadId([team('hq', true)], 'viewer', true)).toBeNull()
+  it('loads the home Team lead for any viewer, and swallows a failed read', async () => {
+    vi.mocked(getMyTeamLeads).mockReset().mockResolvedValue(LEADS)
+    expect(await loadHomeLeadId([team('hq', true)], 'viewer')).toBe('lead-hq')
+    vi.mocked(getMyTeamLeads).mockRejectedValue(new Error('denied'))
+    expect(await loadHomeLeadId([team('hq', true)], 'viewer')).toBeNull()
+  })
+
+  it('reads nothing when the viewer has no home Team', async () => {
+    vi.mocked(getMyTeamLeads).mockReset().mockResolvedValue(LEADS)
+    expect(await loadHomeLeadId([team('hq', false), team('bar', false)], 'viewer')).toBeNull()
+    expect(getMyTeamLeads).not.toHaveBeenCalled()
   })
 })

@@ -7,7 +7,7 @@ export type TaskWorkLineOption = { id: string; name: string; type: 'project' | '
 export type TaskCreateContextValue = {
   workLineOptions: readonly TaskWorkLineOption[]
   onEditDue: (taskId: string, dueDate: string | null) => Promise<void>
-  /** Sets the draft's Project/Process; the workspace derives the Objective from it. */
+  // Sets the draft's Project/Process; the workspace derives the Objective from it.
   onEditWorkLine: (taskId: string, workLineId: string | null) => Promise<void>
 }
 

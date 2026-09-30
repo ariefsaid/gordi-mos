@@ -977,7 +977,6 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   const [dirLoading, setDirLoading] = useState(true)
   const [workLinesDir, setWorkLinesDir] = useState<WorkLineRow[]>([])
   const prefillTeamId = searchParams.get('team') ?? ''
-  const canReadTeamLeads = auth.status === 'authenticated' && auth.viewer.accessRoles.includes('admin')
 
   useEffect(() => {
     let live = true
@@ -987,14 +986,14 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
       setTeamDirectory(teams)
       setDirLoading(false)
       // Supervisor defaults to the creator's home Team lead; a choice made meanwhile wins.
-      void loadHomeLeadId(teams, viewerId, canReadTeamLeads).then((leadId) => {
+      void loadHomeLeadId(teams, viewerId).then((leadId) => {
         if (live && leadId) setAccountablePersonId((chosen) => chosen || leadId)
       })
     }).catch(() => setDirLoading(false))
     // Non-blocking catalog load — a slow catalog must never block the form.
     listWorkLines().then(setWorkLinesDir).catch(() => {})
     return () => { live = false }
-  }, [viewerId, canReadTeamLeads])
+  }, [viewerId])
 
   // ── Form state ────────────────────────────────────────────────────────────
   // Pre-fill from the group "+ Add task" deep-link (AC-125) takes precedence over
@@ -1095,7 +1094,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
         description: description.trim() || undefined,
         dueDate: dueDate || null,
         workLineId: workLineId || null,
-        objectiveId: workLinesDir.find(w => w.id === workLineId)?.objective_id ?? null,
+        objectiveId: workLinesDir.find((workLine) => workLine.id === workLineId)?.objective_id ?? null,
       } as CreateTaskInput & { teamId?: string | null }
       const newId = await createTask(input)
       // The create succeeded: this is no longer an unsaved draft, so the destination record must
@@ -1389,9 +1388,9 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
               value={workLineId}
               options={[
                 { value: '', label: t('tasks.create.none') },
-                ...workLinesDir.map(wl => ({
-                  value: wl.id,
-                  label: `${wl.name} (${wl.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})`,
+                ...workLinesDir.map(workLine => ({
+                  value: workLine.id,
+                  label: `${workLine.name} (${workLine.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})`,
                 })),
               ]}
               onChange={value => { setWorkLineId(value); markDirty() }}

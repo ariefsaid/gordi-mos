@@ -4,11 +4,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import type { AuthState } from '@/auth/context'
-import { AuthContext } from '@/auth/context'
+import { AuthContext, type AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { OverlayHostProvider } from '@/shell/overlay-host'
-import type { PeopleRow, RolesRow } from '@/lib/database.types'
+import { type PeopleRow, type RolesRow } from '@/lib/database.types'
 import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 
 vi.mock('../../lib/db/tasks', () => ({
@@ -20,48 +19,45 @@ vi.mock('../../lib/db/tasks', () => ({
 vi.mock('../../lib/db/signals', () => ({ linkSignalTask: vi.fn() }))
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(), getPeople: vi.fn(), getPersonTeams: vi.fn(),
-  getTeamsByIds: vi.fn(), getDownlinePersonIds: vi.fn(),
+  getTeamsByIds: vi.fn(), getDownlinePersonIds: vi.fn(), getMyTeamLeads: vi.fn(),
 }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
 vi.mock('@/lib/db/processes', () => ({ canStartProcessForTeam: vi.fn() }))
-vi.mock('@/lib/db/admin-access', () => ({ listTeamLeadAssignments: vi.fn() }))
 vi.mock('@/lib/db/user-views-collection', () => ({
   listCollectionViews: vi.fn(), getCollectionView: vi.fn(), createCollectionView: vi.fn(),
   renameCollectionView: vi.fn(), archiveCollectionView: vi.fn(),
 }))
 
 import { listTasks, createTask } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams, getTeamsByIds } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams, getTeamsByIds, getMyTeamLeads } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { canStartProcessForTeam } from '@/lib/db/processes'
-import { listTeamLeadAssignments } from '@/lib/db/admin-access'
 import { listCollectionViews } from '@/lib/db/user-views-collection'
 import { TasksWorkspace } from './tasks-workspace'
 
 const VIEWER_ID = 'viewer-id'
 const LEAD_ID = 'lead-id'
 const PERSON: PeopleRow = {
-  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Test Viewer',
+  email: 'viewer@example.test', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const ROLE: RolesRow = {
-  id: 'role-1', org_id: 'org', business_unit_id: 'bu-1', name: 'CEO',
+  id: 'role-1', org_id: 'org', business_unit_id: 'bu-1', name: 'Test Role',
   reports_to_role_id: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
-const authAs = (accessRoles: string[]): AuthState => ({
+// A plain member: the lead read is a member-scoped read, not an admin one.
+const MEMBER: AuthState = {
   status: 'authenticated',
-  viewer: { person: PERSON, roles: [ROLE], isManager: false, accessRoles, affiliated: [] },
+  viewer: { person: PERSON, roles: [ROLE], isManager: false, accessRoles: ['member'], affiliated: [] },
   signOut: async () => {},
-})
-const ADMIN = authAs(['admin'])
-const MEMBER = authAs(['member'])
+}
 
 const PEOPLE = [
-  { id: VIEWER_ID, full_name: 'Arief Said' },
-  { id: LEAD_ID, full_name: 'Lina Lead' },
+  { id: VIEWER_ID, full_name: 'Test Viewer' },
+  { id: LEAD_ID, full_name: 'Test Lead' },
 ]
 const TEAMS = [
   { id: 'team-1', name: 'Café team', businessUnitId: 'bu-1', siteId: null, orgId: 'org', isPrimary: true },
@@ -103,17 +99,17 @@ beforeEach(() => {
     archived_at: null, created_by: VIEWER_ID,
     created_at: '2026-06-11T00:00:00Z', updated_at: '2026-06-11T00:00:00Z',
   }])
-  vi.mocked(listTeamLeadAssignments).mockResolvedValue([
-    { team_id: 'team-1', team_name: 'Café team', business_unit_id: 'bu-1', lead_person_id: LEAD_ID, lead_name: 'Lina Lead' },
-    { team_id: 'team-2', team_name: 'Retail team', business_unit_id: 'bu-1', lead_person_id: VIEWER_ID, lead_name: 'Arief Said' },
+  vi.mocked(getMyTeamLeads).mockResolvedValue([
+    { team_id: 'team-1', lead_person_id: LEAD_ID },
+    { team_id: 'team-2', lead_person_id: VIEWER_ID },
   ])
   vi.mocked(createTask).mockResolvedValue('created-task')
 })
 
-async function openDraft(auth: AuthState) {
+async function openDraft() {
   render(
     <I18nProvider initialLocale="en">
-      <AuthContext.Provider value={auth}>
+      <AuthContext.Provider value={MEMBER}>
         <MemoryRouter initialEntries={['/work/tasks?view=all']}>
           <OverlayHostProvider>
             <TasksWorkspace savedView={{ view: 'all', activeChip: null, segment: 'all', overdueOnly: false, search: '' }} onSavedViewChange={() => {}} />
@@ -134,9 +130,9 @@ async function pick(form: HTMLElement, combobox: string, option: RegExp) {
 }
 
 describe('create draft — Supervisor defaults to the home Team lead', () => {
-  it('pre-fills the home Team lead and creates with them, PIC stays the creator', async () => {
-    const form = await openDraft(ADMIN)
-    await waitFor(() => expect(within(form).getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Lina Lead'))
+  it('a member gets the home Team lead pre-filled and creates with them, PIC stays the creator', async () => {
+    const form = await openDraft()
+    await waitFor(() => expect(within(form).getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Test Lead'))
     fireEvent.keyDown(within(form).getByRole('textbox', { name: 'Title' }), { key: 'Enter' })
     await waitFor(() => expect(createTask).toHaveBeenCalled())
     expect(vi.mocked(createTask).mock.calls[0][0]).toMatchObject({
@@ -146,36 +142,27 @@ describe('create draft — Supervisor defaults to the home Team lead', () => {
 
   it('leaves Supervisor blank when the creator is the home Team lead', async () => {
     vi.mocked(getPersonTeams).mockResolvedValue([TEAMS[1]])
-    const form = await openDraft(ADMIN)
+    const form = await openDraft()
     expect(within(form).getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent(/select supervisor/i)
     expect(createTask).not.toHaveBeenCalled()
   })
 
   it('leaves Supervisor blank when the home Team has no lead', async () => {
-    vi.mocked(listTeamLeadAssignments).mockResolvedValue([
-      { team_id: 'team-1', team_name: 'Café team', business_unit_id: 'bu-1', lead_person_id: null, lead_name: null },
-    ])
-    const form = await openDraft(ADMIN)
+    vi.mocked(getMyTeamLeads).mockResolvedValue([{ team_id: 'team-1', lead_person_id: null }])
+    const form = await openDraft()
     expect(within(form).getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent(/select supervisor/i)
-  })
-
-  it('a viewer who cannot read Team leads never asks and keeps a blank Supervisor', async () => {
-    const form = await openDraft(MEMBER)
-    expect(within(form).getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent(/select supervisor/i)
-    expect(listTeamLeadAssignments).not.toHaveBeenCalled()
   })
 
   it('a failed lead read still opens the draft with a blank Supervisor', async () => {
-    vi.mocked(listTeamLeadAssignments).mockRejectedValue(new Error('denied'))
-    const form = await openDraft(ADMIN)
+    vi.mocked(getMyTeamLeads).mockRejectedValue(new Error('denied'))
+    const form = await openDraft()
     expect(within(form).getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent(/select supervisor/i)
   })
 })
 
 describe('create draft — Due date and Project/Process reach the write', () => {
   it('writes the Due date and Project/Process, and takes the Objective from the Project', async () => {
-    const form = await openDraft(MEMBER)
-    await pick(form, 'Supervisor', /Lina Lead/)
+    const form = await openDraft()
     fireEvent.change(within(form).getByLabelText('Due date'), { target: { value: '2026-11-05' } })
     await pick(form, 'Project/Process', /Q4 Launch/)
     fireEvent.keyDown(within(form).getByRole('textbox', { name: 'Title' }), { key: 'Enter' })
@@ -186,8 +173,7 @@ describe('create draft — Due date and Project/Process reach the write', () => 
   })
 
   it('a Project/Process with no Objective writes no Objective', async () => {
-    const form = await openDraft(MEMBER)
-    await pick(form, 'Supervisor', /Lina Lead/)
+    const form = await openDraft()
     await pick(form, 'Project/Process', /Daily Open/)
     fireEvent.keyDown(within(form).getByRole('textbox', { name: 'Title' }), { key: 'Enter' })
     await waitFor(() => expect(createTask).toHaveBeenCalled())
@@ -196,8 +182,7 @@ describe('create draft — Due date and Project/Process reach the write', () => 
   })
 
   it('choosing None after a Project clears the Project and its Objective', async () => {
-    const form = await openDraft(MEMBER)
-    await pick(form, 'Supervisor', /Lina Lead/)
+    const form = await openDraft()
     await pick(form, 'Project/Process', /Q4 Launch/)
     await pick(form, 'Project/Process', /None/)
     fireEvent.keyDown(within(form).getByRole('textbox', { name: 'Title' }), { key: 'Enter' })
