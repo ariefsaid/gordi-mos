@@ -186,6 +186,30 @@ export const API_V1_CATALOG: readonly ApiV1Operation[] = [
     ]
   },
   {
+    "name": "edit_objective_write_up",
+    "purpose": "replace an Objective's write-up; allowed for an ops lead, an admin, and the head of the Objective's own Business Unit.",
+    "inputs": "id; write_up (a list of at most 256 KB of blocks, each an object with a text type; use an empty list to clear); expected_updated_at (required; the updated_at you read, a newer one is a conflict).",
+    "returns": "{item} (the Objective as get_objective returns it).",
+    "errors": "invalid_input (write_up, expected_updated_at), not_found, forbidden, conflict, rate_limited. An Objective's name, unit, period, owner and key-result targets can't be changed here: refused.targets.",
+    "args": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true
+      },
+      {
+        "name": "write_up",
+        "type": "jsonb",
+        "required": true
+      },
+      {
+        "name": "expected_updated_at",
+        "type": "timestamp with time zone",
+        "required": true
+      }
+    ]
+  },
+  {
     "name": "edit_project_process",
     "purpose": "change a Project or Process.",
     "inputs": "id; changes, an object holding any of name, objective_id, business_unit_id, accountable_person_id, responsible_person_id (type and the internal code are never accepted: invalid_input); expected_updated_at (the updated_at you read; a newer one is a conflict). Archive keys are refused.",
@@ -254,6 +278,20 @@ export const API_V1_CATALOG: readonly ApiV1Operation[] = [
         "name": "expected_updated_at",
         "type": "timestamp with time zone",
         "required": false
+      }
+    ]
+  },
+  {
+    "name": "get_objective",
+    "purpose": "one Objective with its key results and its write-up (a list of blocks, or null).",
+    "inputs": "id.",
+    "returns": "{item} (the list_objectives shape plus write_up).",
+    "errors": "not_found, invalid_input (id).",
+    "args": [
+      {
+        "name": "id",
+        "type": "uuid",
+        "required": true
       }
     ]
   },
@@ -354,6 +392,55 @@ export const API_V1_CATALOG: readonly ApiV1Operation[] = [
     "returns": "{items [{id, name, code}] (at most 100), next_cursor: null}.",
     "errors": "none expected.",
     "args": []
+  },
+  {
+    "name": "list_objectives",
+    "purpose": "Objectives in the caller's org, newest period first (the whole year before its quarters, then by name).",
+    "inputs": "business_unit_id, company_wide (true for Company-wide Objectives only, false to exclude them), period_year, period_quarter (1 to 4), q (name contains, at most 200 characters), include_archived (default false), cursor, limit (default 50, at most 100).",
+    "returns": "{items [Objective: id, name, business_unit_id, is_company_wide, period_year, period_quarter, accountable_person_id, progress {done, total} or null, key_results [{id, what, target_value, current_value, unit, due_date, owner_person_id, updated_at}], archived_at, created_at, updated_at], next_cursor}.",
+    "errors": "invalid_input (period_quarter, q, cursor, limit).",
+    "args": [
+      {
+        "name": "business_unit_id",
+        "type": "uuid",
+        "required": false
+      },
+      {
+        "name": "company_wide",
+        "type": "boolean",
+        "required": false
+      },
+      {
+        "name": "period_year",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "period_quarter",
+        "type": "integer",
+        "required": false
+      },
+      {
+        "name": "q",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "include_archived",
+        "type": "boolean",
+        "required": false
+      },
+      {
+        "name": "cursor",
+        "type": "text",
+        "required": false
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false
+      }
+    ]
   },
   {
     "name": "list_people",
@@ -648,6 +735,30 @@ export const API_V1_CATALOG: readonly ApiV1Operation[] = [
       {
         "name": "is_done",
         "type": "boolean",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "set_key_result_current_value",
+    "purpose": "record where a key result stands; allowed for an ops lead, an admin, and the head of the Objective's own Business Unit.",
+    "inputs": "key_result_id; current_value (a finite number, or null to clear); expected_updated_at (optional; a newer one is a conflict).",
+    "returns": "{item} (the key result plus objective_id).",
+    "errors": "invalid_input (current_value), not_found, forbidden, conflict, rate_limited. Targets, units, due dates, owners and adding or removing key results can't be changed here: refused.targets.",
+    "args": [
+      {
+        "name": "key_result_id",
+        "type": "uuid",
+        "required": true
+      },
+      {
+        "name": "current_value",
+        "type": "numeric",
+        "required": true
+      },
+      {
+        "name": "expected_updated_at",
+        "type": "timestamp with time zone",
         "required": false
       }
     ]

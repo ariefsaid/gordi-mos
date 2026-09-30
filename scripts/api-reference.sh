@@ -52,9 +52,10 @@ def area:
   elif . == "refused_action" then "Refusals"
   elif test("signal") then "Signals"
   elif test("project.*process") then "Projects and Processes"
+  elif test("objective|key_result") then "Objectives"
   elif test("task|checklist_item") then "Tasks"
   else "Other operations" end;
-def areas: ["Session and directory","Tasks","Signals","Projects and Processes","Refusals","Other operations"];
+def areas: ["Session and directory","Tasks","Signals","Projects and Processes","Objectives","Refusals","Other operations"];
 def placeholder:
   if .type == "uuid" then "\"<uuid>\""
   elif .type == "uuid[]" then "[\"<uuid>\"]"
@@ -62,9 +63,10 @@ def placeholder:
   elif .type == "text" then "\"<text>\""
   elif .type == "date" then "\"YYYY-MM-DD\""
   elif .type == "timestamp with time zone" then "\"<timestamp>\""
+  elif .name == "write_up" then "[]"
   elif .type == "jsonb" then "{}"
   elif .type == "boolean" then "true"
-  elif .type == "integer" then "0"
+  elif .type == "integer" or .type == "numeric" then "0"
   else "null" end;
 def parse:
   (.comment // "") as $c

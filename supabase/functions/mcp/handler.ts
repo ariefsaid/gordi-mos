@@ -81,7 +81,12 @@ async function callTool(
   const known = Object.keys(tool.inputSchema.properties)
   const unknownKey = Object.keys(args).find((k) => !known.includes(k))
   if (unknownKey) return { result: toolError(invalidInput(`Unknown input "${unknownKey}".`, unknownKey)), outcome: 'invalid_input' }
-  const missing = (tool.inputSchema.required ?? []).find((k) => args[k] === undefined || args[k] === null)
+  // A required argument may be null only when its schema admits null (a numeric value that clears).
+  const admitsNull = (argumentName: string) => {
+    const type = tool.inputSchema.properties[argumentName]?.type
+    return Array.isArray(type) && type.includes('null')
+  }
+  const missing = (tool.inputSchema.required ?? []).find((k) => args[k] === undefined || (args[k] === null && !admitsNull(k)))
   if (missing) return { result: toolError(invalidInput(`"${missing}" is required.`, missing)), outcome: 'invalid_input' }
 
   let res: Response

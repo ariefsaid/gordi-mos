@@ -249,6 +249,19 @@ describe('tools/call', () => {
     expect(kit.dataCalls()).toHaveLength(0)
   })
 
+  it('lets a required argument that admits null be sent as null, and still requires it to be present', async () => {
+    const { rpc, kit } = await setup(() => Response.json({ item: { id: 'k1' } }))
+    const keyResultId = 'a5c1ae7f-3b3e-4e4b-8d35-7f0d0a5f9d11'
+    const cleared = await (await rpc('tools/call', call('set_key_result_current_value', { key_result_id: keyResultId, current_value: null }))).json()
+    expect(cleared.result.isError).toBeUndefined()
+    expect(JSON.parse(String(kit.dataCalls()[0].init.body))).toEqual({ key_result_id: keyResultId, current_value: null })
+    const absent = await (await rpc('tools/call', call('set_key_result_current_value', { key_result_id: keyResultId }))).json()
+    expect(absent.result.structuredContent).toMatchObject({ code: 'invalid_input', field: 'current_value' })
+    const nullId = await (await rpc('tools/call', call('set_key_result_current_value', { key_result_id: null, current_value: 1 }))).json()
+    expect(nullId.result.structuredContent).toMatchObject({ code: 'invalid_input', field: 'key_result_id' })
+    expect(kit.dataCalls()).toHaveLength(1)
+  })
+
   it('maps a function error to isError with {code: details, message, field: hint}', async () => {
     const { rpc } = await setup(() => Response.json(
       { code: 'PT404', message: 'Task not found.', details: 'not_found', hint: 'id' }, { status: 404 }))
