@@ -7,7 +7,7 @@
 --
 -- DOWN (manual, before production):
 --   drop policy team_lead_assignments_select_own_team on shared.team_lead_assignments;
---   revoke select on shared.team_lead_assignments from authenticated;
+--   revoke select (org_id, team_id, lead_person_id) on shared.team_lead_assignments from authenticated;
 
 grant select (org_id, team_id, lead_person_id) on shared.team_lead_assignments to authenticated;
 

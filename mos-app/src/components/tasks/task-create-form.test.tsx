@@ -1,6 +1,6 @@
 // TaskCreateForm — the ONE task-creation form: Title (full width, visible
 // label) → Team/PIC/Supervisor (each with a visible label; Team + Supervisor required) →
-// derived Business unit → footer (Create task / Cancel). Field-level validation only —
+// Due date + Project/Process (both optional) → derived Business unit → footer (Create task / Cancel). Field-level validation only —
 // TaskRow (desktop, colSpan row) and MobileGroupedCards' TaskCard (phone, single column) both
 // render this SAME component; see task-row.test.tsx / mobile-grouped-cards.test.tsx for their
 // side of the delegation.

@@ -127,11 +127,8 @@ describe('AC-080 — create form prefills', () => {
     const picPicker = screen.getByRole('combobox', { name: 'PIC' })
     expect(picPicker).toHaveTextContent('Cahya Cafe')
 
-    // Supervisor starts EMPTY — a deliberate v4 product decision (OD-REDESIGN-3/14/41,
-    // task-surface.tsx accountablePersonId comment): PIC and Supervisor are distinct
-    // accountable roles, and auto-collapsing Supervisor to the creator/PIC defeats that model.
-    // CONTEXT.md's real resolution order (PIC's manager, etc.) needs a directory lookup this
-    // surface doesn't have, so Supervisor is a required, explicit choice instead of a guess.
+    // Supervisor is never the creator/PIC: it stays empty (a required, explicit choice) unless the
+    // home Team has a lead other than the creator (see the Supervisor default tests below).
     const supervisorPicker = screen.getByRole('combobox', { name: 'Supervisor' })
     expect(supervisorPicker).toHaveTextContent(/select supervisor/i)
 

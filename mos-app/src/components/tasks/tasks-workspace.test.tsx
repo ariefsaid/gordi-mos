@@ -318,19 +318,36 @@ describe('D3e — Tasks create is an inline title row', () => {
     })
   })
 
-  it('carries Project Create-task work-line and objective context into the inline create payload', async () => {
+  async function createFromUrl(url: string) {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
-    mockCreateTask.mockResolvedValue('created-project-task')
-    renderTable({}, authedState, ['/work/tasks?create=1&work_line=wl-1&objective_id=obj-1'])
-
+    mockCreateTask.mockResolvedValue('created-context-task')
+    renderTable({}, authedState, [url])
     const title = await screen.findByRole('textbox', { name: /title/i })
-    fireEvent.change(title, { target: { value: 'Project task' } })
+    fireEvent.change(title, { target: { value: 'Context task' } })
     await chooseDraftSupervisor()
     fireEvent.keyDown(title, { key: 'Enter' })
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalled())
-    expect(mockCreateTask.mock.calls[0][0]).toMatchObject({
-      title: 'Project task', workLineId: 'wl-1', objectiveId: 'obj-1', teamId: 'team-1', businessUnitId: 'bu-1',
+    return mockCreateTask.mock.calls[0][0]
+  }
+
+  it('carries a Project/Process into the create payload with that Project/Process\'s own Objective', async () => {
+    vi.mocked(listWorkLines).mockResolvedValue([{ id: 'wl-1', name: 'Delivery', type: 'project', objective_id: 'obj-1' }])
+    expect(await createFromUrl('/work/tasks?create=1&work_line=wl-1')).toMatchObject({
+      workLineId: 'wl-1', objectiveId: 'obj-1', teamId: 'team-1', businessUnitId: 'bu-1',
     })
+  })
+
+  it('ignores an Objective that disagrees with the chosen Project/Process', async () => {
+    vi.mocked(listWorkLines).mockResolvedValue([{ id: 'wl-1', name: 'Delivery', type: 'project', objective_id: 'obj-1' }])
+    expect(await createFromUrl('/work/tasks?create=1&work_line=wl-1&objective_id=obj-other')).toMatchObject({
+      workLineId: 'wl-1', objectiveId: 'obj-1',
+    })
+  })
+
+  it('an objective-only prefill creates a Task with no Objective', async () => {
+    const input = await createFromUrl('/work/tasks?create=1&objective_id=obj-1')
+    expect(input.workLineId ?? null).toBeNull()
+    expect(input.objectiveId ?? null).toBeNull()
   })
 
   // #900: a viewer whose role-aware default view (getTaskDefaultView) is NOT 'all' hits the SAME

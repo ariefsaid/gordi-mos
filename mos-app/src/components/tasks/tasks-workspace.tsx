@@ -696,9 +696,8 @@ export function TasksWorkspace({
         : undefined)
     const workLineId = firstCreateParam(prefill, ['work_line_id', 'work_line', 'workLineId'])
       ?? firstCreateParam(urlPrefill, ['work_line_id', 'work_line', 'workLineId'])
-    const objectiveId = firstCreateParam(prefill, ['objective_id', 'objective', 'objectiveId'])
-      ?? firstCreateParam(urlPrefill, ['objective_id', 'objective', 'objectiveId'])
-      ?? (workLineId ? dataContext.workLineObjectiveById?.get(workLineId) ?? null : null)
+    // An Objective is only ever the chosen Project/Process's own; an objective-only prefill is ignored.
+    const objectiveId = workLineId ? dataContext.workLineObjectiveById?.get(workLineId) ?? null : null
     const sourceSignal = firstCreateParam(urlPrefill, ['sourceSignal'])
     const supervisorId = firstCreateParam(prefill, ['supervisor', 'supervisorId'])
       ?? firstCreateParam(urlPrefill, ['createSupervisor', 'supervisor', 'supervisorId'])
