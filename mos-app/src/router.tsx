@@ -127,6 +127,7 @@ const SliceStubPage = lazyPage(() => import('./pages/slice-stub-page').then((m) 
 const ProfilePage = lazyPage(() => import('./pages/profile-page').then((m) => ({ default: m.ProfilePage })))
 const EventsWorkspacePage = lazyPage(() => import('./pages/events-workspace-page').then((m) => ({ default: m.EventsWorkspacePage })))
 const NotFoundPage = lazyPage(() => import('./pages/not-found-page').then((m) => ({ default: m.NotFoundPage })))
+const OAuthConsentPage = lazyPage(() => import('./pages/oauth-consent-page').then((m) => ({ default: m.OAuthConsentPage })))
 const RecoveryPage = lazyPage(() => import('./pages/recovery-page').then((m) => ({ default: m.RecoveryPage })))
 const UiGallery = lazyPage(() => import('./pages/ui-gallery').then((m) => ({ default: m.UiGallery })))
 const DevViewsPage = lazyPage(() => import('./pages/dev-views-page').then((m) => ({ default: m.DevViewsPage })))
@@ -490,6 +491,14 @@ const routeTable: RouteObject[] = [
           {
             path: ROUTE_PATHS.profile,
             element: withSuspense(<ProfilePage />),
+            handle: pageHandle('management'),
+          },
+          // Where the sign-in service sends a person to approve an AI agent (ADR-0060 D7). Inside
+          // the shell and behind sign-in: a signed-out visit signs in, then returns here with the
+          // request id intact. Not a rail destination — it is only reached from the agent's flow.
+          {
+            path: ROUTE_PATHS.oauthConsent,
+            element: withSuspense(<OAuthConsentPage />),
             handle: pageHandle('management'),
           },
 

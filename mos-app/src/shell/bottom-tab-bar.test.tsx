@@ -263,3 +263,11 @@ describe('a11y: every tab icon is aria-hidden', () => {
     svgs.forEach((svg) => expect(svg).toHaveAttribute('aria-hidden', 'true'))
   })
 })
+
+describe('a focused decision route', () => {
+  it('shows no tab bar and no + launcher on the agent consent page', () => {
+    renderTabBar('/oauth/consent?authorization_id=abc')
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /open|action|create/i })).toBeNull()
+  })
+})

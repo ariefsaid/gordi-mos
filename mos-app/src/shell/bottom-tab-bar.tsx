@@ -34,6 +34,9 @@ const INBOX: PrimaryTab = { id: 'inbox', labelKey: 'dest.inbox', href: '/inbox',
 // leads the list and /cafe/log is its redirect alias. Hidden there, and ONLY there.
 const CAPTURE_SURFACE_PATHS = ['/cafe', '/cafe/plan', '/cafe/stock', '/cafe/review']
 
+// A decision the person must make in one place: no tabs to wander off to, no "+" beside Allow.
+const FOCUSED_DECISION_PATHS = ['/oauth/consent']
+
 function isCaptureSurface(pathname: string): boolean {
   return CAPTURE_SURFACE_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
 }
@@ -93,7 +96,7 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
 
   const primaryTabs: PrimaryTab[] = moduleTab ? [HOME, WORK, moduleTab, INBOX] : [HOME, WORK, INBOX]
 
-  if (!isNarrow) return null
+  if (!isNarrow || FOCUSED_DECISION_PATHS.includes(pathname)) return null
 
   const showLauncher = !isCaptureSurface(pathname)
 

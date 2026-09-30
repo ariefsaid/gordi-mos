@@ -247,6 +247,7 @@ function allReachable(): { rail: Set<string>; phone: Set<string> } {
 const NO_NAV_ENTRY_BY_DESIGN: Record<string, string> = {
   '/admin/teams': 'Admin Settings tab — linked from every Admin Settings page through AdminSettingsNav; the People page test proves the rendered tabs before data loads',
   '/admin/access': 'Admin Settings tab — linked from every Admin Settings page through AdminSettingsNav; the People page test proves the rendered tabs before data loads',
+  '/oauth/consent': "an agent's consent step — reached only from the sign-in service's redirect, never from nav",
   '/work/objectives/:objectiveId': 'record door — opened from Objectives or a related record',
   '/work/projects/:workLineId': 'record door — opened from Projects & Processes or a related record',
   '/work/signals/:signalId': 'record door — opened from the Signals list or a deep link, never from nav',

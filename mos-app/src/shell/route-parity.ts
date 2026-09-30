@@ -22,10 +22,11 @@ export const ROUTE_PATHS = {
   adminTeams: 'admin/teams',
   adminAccess: 'admin/access',
   profile: 'profile',
+  oauthConsent: 'oauth/consent',
 } as const
 
 type RouteParityKind = 'visible-root' | 'child' | 'utility'
-type RouteParityOwner = 'breadcrumb' | 'admin-settings'
+type RouteParityOwner = 'breadcrumb' | 'admin-settings' | 'agent-consent'
 export type RouteParityId =
   | 'home'
   | 'workTasks'
@@ -42,6 +43,7 @@ export type RouteParityId =
   | 'adminTeams'
   | 'adminAccess'
   | 'profile'
+  | 'oauthConsent'
 
 export interface RouteParityEntry {
   id: RouteParityId
@@ -72,4 +74,6 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'adminTeams', path: absolutePath(ROUTE_PATHS.adminTeams), kind: 'utility', owner: 'admin-settings' },
   { id: 'adminAccess', path: absolutePath(ROUTE_PATHS.adminAccess), kind: 'utility', owner: 'admin-settings' },
   { id: 'profile', path: absolutePath(ROUTE_PATHS.profile), kind: 'utility', owner: 'breadcrumb' },
+  // Reached only from the sign-in service's redirect, never from navigation.
+  { id: 'oauthConsent', path: absolutePath(ROUTE_PATHS.oauthConsent), kind: 'utility', owner: 'agent-consent' },
 ]

@@ -79,6 +79,7 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
   { path: '/inbox', family: 'workspace', sourceFile: 'pages/inbox-page.tsx', symbol: 'InboxPage' },
   { path: '/work/events', family: 'workspace', sourceFile: 'pages/events-workspace-page.tsx', symbol: 'EventsWorkspacePage' },
   { path: '/profile', family: 'management', sourceFile: 'pages/profile-page.tsx', symbol: 'ProfilePage' },
+  { path: '/oauth/consent', family: 'management', sourceFile: 'pages/oauth-consent-page.tsx', symbol: 'OAuthConsentPage' },
 
   // ── Money ─────────────────────────────────────────────────────────────────────────────────
   { path: '/money', family: 'workspace', sourceFile: 'pages/dashboard-page.tsx', symbol: 'DashboardPage' },
