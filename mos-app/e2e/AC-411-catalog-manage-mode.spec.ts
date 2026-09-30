@@ -96,9 +96,10 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
     const trace = page.getByRole('row', { name: 'E2E Trace Objective', exact: true })
     await expect(trace).toBeVisible({ timeout: 10_000 })
     await expect(trace).toContainText('E2E Trace Work Line')
-    // catalog.childCount (i18n/messages.ts): "N linked" is retired for the naked-numbers-guard
-    // shape "Projects & Processes: N".
-    await expect(trace).toContainText('Projects & Processes: 1')
+    // The Work cell names its direct Projects & Processes (catalog-list-presentation.tsx); the
+    // count string is retired, so the cell's whole accessible name is the label and the child's name.
+    await expect(trace.getByRole('cell', { name: 'Projects & Processes: E2E Trace Work Line', exact: true })).toBeVisible()
+    await expect(trace).not.toContainText(/Projects & Processes: \d/)
     await expect(trace).toContainText('0 / 2 done')
     await trace.getByRole('link', { name: 'E2E Trace Objective', exact: true }).click()
     const objective = page.getByRole('region', { name: 'E2E Trace Objective', exact: true })
@@ -120,12 +121,16 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
   })
 })
 
+const READ_ONLY_NOTE = 'You can view this, but not edit it.'
+// An Objective's structure (name, Business Unit, period, accountable) is set by an admin.
+const OBJECTIVE_READ_ONLY_NOTE = 'You can view this. An admin sets the name, Business Unit, period and accountable person.'
+
 /** What separates a member from a catalog manager on the same record: no record actions, and a
  *  Details tab that says it is read-only and offers no field edits. */
-async function expectMemberReadOnly(page: Page) {
+async function expectMemberReadOnly(page: Page, note: string) {
   await page.getByRole('tab', { name: 'Details', exact: true }).click()
   const details = page.getByRole('tabpanel', { name: 'Details', exact: true })
-  await expect(details.getByRole('note')).toHaveText('You can view this, but not edit it.')
+  await expect(details.getByRole('note')).toHaveText(note)
   await expect(details.getByRole('button', { name: /^Edit / })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'More actions', exact: true })).toHaveCount(0)
 }
@@ -137,14 +142,14 @@ for (const width of [390, 1440]) {
     await page.goto('work/projects')
     await expect(page.getByRole('link', { name: 'E2E Trace Process', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Create project or process', exact: true })).toHaveCount(0)
-    for (const [path, title] of [
-      [`work/projects/${TRACE_WL}`, 'E2E Trace Work Line'],
-      [`work/projects/${TRACE_PROCESS}`, 'E2E Trace Process'],
-      [`work/objectives/${TRACE_OBJ}`, 'E2E Trace Objective'],
+    for (const [path, title, note] of [
+      [`work/projects/${TRACE_WL}`, 'E2E Trace Work Line', READ_ONLY_NOTE],
+      [`work/projects/${TRACE_PROCESS}`, 'E2E Trace Process', READ_ONLY_NOTE],
+      [`work/objectives/${TRACE_OBJ}`, 'E2E Trace Objective', OBJECTIVE_READ_ONLY_NOTE],
     ]) {
       await page.goto(path)
       await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible()
-      await expectMemberReadOnly(page)
+      await expectMemberReadOnly(page, note)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
       await page.reload()
       await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible()
