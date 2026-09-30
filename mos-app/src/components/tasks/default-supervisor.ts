@@ -1,5 +1,5 @@
 // Supervisor default for a new Task: the creator's home Team's designated lead.
-import { getMyTeamLeads, type TeamLeadRow, type TeamOption } from '@/lib/db/directory'
+import { getMyTeamLeads, getPeople, type TeamLeadRow, type TeamOption } from '@/lib/db/directory'
 
 // Home Team = the primary membership; a viewer with exactly one Team has that one.
 export function homeTeamId(teams: readonly TeamOption[]): string | null {
@@ -16,12 +16,15 @@ export function defaultSupervisorId(
   return leadId && leadId !== viewerId ? leadId : null
 }
 
-// Best effort: a failed read leaves Supervisor a blank explicit choice.
+// Best effort: a failed read leaves Supervisor a blank explicit choice. getPeople lists active
+// people only, so an archived lead is never offered.
 export async function loadHomeLeadId(teams: readonly TeamOption[], viewerId: string): Promise<string | null> {
   const homeId = homeTeamId(teams)
   if (!homeId) return null
   try {
-    return defaultSupervisorId(await getMyTeamLeads(), homeId, viewerId)
+    const [leadRows, activePeople] = await Promise.all([getMyTeamLeads(), getPeople()])
+    const leadId = defaultSupervisorId(leadRows, homeId, viewerId)
+    return activePeople.some((person) => person.id === leadId) ? leadId : null
   } catch {
     return null
   }
