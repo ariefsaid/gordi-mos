@@ -94,6 +94,15 @@ export async function getPersonTeams(personId: string, today = wibToday()): Prom
   return ((teams ?? []) as RawTeamRow[]).map((team) => toTeamOption(team, primaryByTeamId.get(team.id) ?? false))
 }
 
+export type TeamLeadRow = { team_id: string; lead_person_id: string | null }
+
+// RLS limits this to the Teams the viewer is an active member of.
+export async function getMyTeamLeads(): Promise<TeamLeadRow[]> {
+  const { data, error } = await shared().from('team_lead_assignments').select('team_id,lead_person_id')
+  if (error) throw new Error(`getMyTeamLeads failed — ${error.message}`)
+  return (data ?? []) as TeamLeadRow[]
+}
+
 /** Load real Team identity for Task ownership/display. Empty input never performs a network read. */
 export async function getTeamsByIds(teamIds: readonly string[]): Promise<TeamOption[]> {
   const ids = [...new Set(teamIds.filter(Boolean))]
