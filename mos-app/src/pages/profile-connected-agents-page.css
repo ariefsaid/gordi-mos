@@ -24,7 +24,8 @@
 }
 
 .agent-connections-self__next-request {
-  border-left: 3px solid var(--primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   padding: 8px 12px;
   background: color-mix(in srgb, var(--primary) 5%, var(--card));
 }
