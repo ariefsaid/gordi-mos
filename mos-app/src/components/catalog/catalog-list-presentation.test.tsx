@@ -274,3 +274,43 @@ describe('CatalogListPresentation Objective Business Unit cell', () => {
     expect(cell('Unset').querySelector('.catalog-collection__cell-value--muted')).not.toBeNull()
   })
 })
+
+describe('CatalogListPresentation Objective Work cell', () => {
+  const group = (id: string, name: string, relationship: 'direct' | 'contribution') =>
+    ({ id, name, relationship, entity: 'work-line' as const, taskCount: 1, done: 0, total: 1 })
+  const workCell = (name: string) => within(screen.getByRole('link', { name })).getByRole('cell', { name: /^Projects & Processes:/ })
+  const objective = (id: string, name: string): CatalogRow => ({ id, name, archived_at: null })
+  const withGroups = (rows: CatalogRow[], own: Record<string, ReturnType<typeof group>[]>) => ({
+    relationsKind: 'objective' as const,
+    relationsById: new Map(rows.map((row): [string, Relation] => [row.id, { groups: own[row.id] ?? [], tasks: [] }])),
+  })
+
+  it('names the direct Projects and Processes instead of counting them', () => {
+    const rows = [objective('o1', 'Grow revenue')]
+    renderRows(rows, withGroups(rows, { o1: [group('w1', 'Menu launch', 'direct'), group('w2', 'Daily prep', 'direct')] }))
+    expect(workCell('Grow revenue')).toHaveAccessibleName('Projects & Processes: Menu launch, Daily prep')
+    expect(workCell('Grow revenue')).not.toHaveTextContent(/Direct Projects|contributing/)
+  })
+
+  it('names work reached only through Tasks without the Linked-through-a-Task phrasing', () => {
+    const rows = [objective('o1', 'Grow revenue')]
+    renderRows(rows, withGroups(rows, { o1: [group('w1', 'Menu launch', 'contribution')] }))
+    expect(workCell('Grow revenue')).toHaveAccessibleName('Projects & Processes: Not set. Through Tasks: Menu launch')
+    expect(workCell('Grow revenue')).toHaveTextContent('Through Tasks: Menu launch')
+    expect(workCell('Grow revenue')).not.toHaveTextContent('Linked through')
+  })
+
+  it('lists direct work and, beside it, the work reached through Tasks', () => {
+    const rows = [objective('o1', 'Grow revenue')]
+    renderRows(rows, withGroups(rows, { o1: [group('w1', 'Menu launch', 'direct'), group('w2', 'Daily prep', 'contribution')] }))
+    expect(workCell('Grow revenue')).toHaveAccessibleName('Projects & Processes: Menu launch. Also through Tasks: Daily prep')
+    expect(workCell('Grow revenue')).toHaveTextContent('Also through Tasks: Daily prep')
+  })
+
+  it('reads Not set with no note for an Objective with no work', () => {
+    const rows = [objective('o1', 'Grow revenue'), objective('o2', 'Empty')]
+    renderRows(rows, withGroups(rows, { o1: [group('w1', 'Menu launch', 'direct')] }))
+    expect(workCell('Empty')).toHaveAccessibleName('Projects & Processes: Not set')
+    expect(workCell('Empty')).not.toHaveTextContent(/\d/)
+  })
+})
