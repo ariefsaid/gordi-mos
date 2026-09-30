@@ -803,6 +803,39 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(document.querySelectorAll('tbody tr.task-row').length).toBe(10)
   })
 
+  // #997 slice 1 (spec AC-002/003/004): one column list drives thead, group headers and pad
+  // rows. Expectations are literals (independent of the column list under test).
+  const COLUMN_CASES: readonly (readonly [string, readonly string[], boolean])[] = [
+    ['', ['th-task', 'th-status', 'th-owner', 'th-supervisor', 'th-due'], false],
+    ['?fields=businessUnit', ['th-task', 'th-status', 'th-owner', 'th-supervisor', 'th-business-unit', 'th-due'], true],
+    ['?fields=objective,businessUnit',
+      ['th-task', 'th-status', 'th-owner', 'th-supervisor', 'th-business-unit', 'th-objective', 'th-due'], true],
+    ['?fields=activity,workline,objective,businessUnit',
+      ['th-task', 'th-status', 'th-owner', 'th-supervisor', 'th-business-unit', 'th-workline', 'th-objective', 'th-activity', 'th-due'], true],
+    // `source` is offered by the query but has no table column: it must add no cell.
+    ['?fields=source', ['th-task', 'th-status', 'th-owner', 'th-supervisor', 'th-due'], false],
+  ]
+
+  it.each(COLUMN_CASES)('issue 997 AC-002/003/004: fields%s -> header order, group-header + pad-row colSpan, extended class', async (queryString, expected, extended) => {
+    stubViewportHeight()
+    mockListTasks.mockResolvedValue(Array.from({ length: 60 }, (_, i) =>
+      makeTask({ id: `task-${i}`, title: `Task number ${i}` })))
+    renderAt(`/work/tasks${queryString ? `${queryString}&` : '?'}group=status`)
+    await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
+    const table = document.querySelector('table.tasks-table')!
+    const ths = Array.from(table.querySelectorAll('thead th'))
+    expect(ths.map(header => (header.className.match(/th-(?!cell|sort)[a-z-]+/) ?? [''])[0])).toEqual(expected)
+    const columnCount = expected.length
+    const headerCells = Array.from(table.querySelectorAll('tbody td[colspan]')).filter(cell => !cell.closest('tr[aria-hidden="true"]'))
+    expect(headerCells.length).toBeGreaterThan(0)
+    for (const cell of headerCells) expect(cell.getAttribute('colspan')).toBe(String(columnCount))
+    const pads = table.querySelectorAll('tbody tr[aria-hidden="true"] td')
+    expect(pads.length).toBeGreaterThan(0)
+    for (const cell of pads) expect(cell.getAttribute('colspan')).toBe(String(columnCount))
+    expect(table.classList.contains('tasks-table--extended')).toBe(extended)
+    expect(table.querySelector('tr.task-row')!.querySelectorAll('td')).toHaveLength(columnCount)
+  })
+
   // RI-3 (I3): archiving from the drawer must remove the row from the default
   // list + decrement the count without a reload.
   it('RI-3: archiving from the drawer removes the row from the default list + decrements the count (no reload)', async () => {
