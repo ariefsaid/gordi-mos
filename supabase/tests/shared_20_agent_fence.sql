@@ -91,9 +91,10 @@ select is(
   'the data API can resolve the fence: the three request roles hold USAGE on api_private');
 select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'api_private' and p.oid <> 'api_private.check_request()'::regprocedure
+    where n.nspname = 'api_private'
+      and p.oid not in ('api_private.check_request()'::regprocedure, 'api_private.claims_carry_client_id()'::regprocedure)
       and has_function_privilege('anon', p.oid, 'execute')),
-  0, 'anon can execute nothing else in api_private');
+  0, 'anon can execute nothing else in api_private but the fence and the claim rule it calls');
 select is(
   (select count(*)::int from aclexplode((select proacl from pg_proc
      where oid = 'api_private.check_request()'::regprocedure)) a where a.grantee = 0),

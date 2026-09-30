@@ -29,5 +29,17 @@ echo '[]' > "$tmp/empty.json"
 MOS_API_CATALOG_JSON="$tmp/empty.json" bash scripts/mcp-catalog.sh --out "$tmp/empty.ts" > /dev/null 2>&1 \
   && bad "wrote an empty catalog" || ok "refuses an empty catalog"
 
+# The db-contracts lane must run the catalog freshness checks when only a catalog script changes.
+re=$(sed -n "s/^ *CATALOG_INPUTS_RE='\(.*\)'$/\1/p" .github/workflows/db-contracts.yml)
+[ -n "$re" ] || bad "db-contracts.yml names no catalog-script path pattern"
+for path in scripts/mcp-catalog.sh scripts/api-reference.sh scripts/lib/api-catalog.sql; do
+  printf '%s\n' "$path" | grep -Eq "$re" && ok "db-contracts runs the catalog checks when $path changes" \
+    || bad "db-contracts ignores a change to only $path"
+done
+printf '%s\n' scripts/other.sh | grep -Eq "$re" && bad "the catalog pattern matches an unrelated script" \
+  || ok "an unrelated script change does not trigger the catalog checks"
+grep -q 'CATALOG_INPUTS" \]' .github/workflows/db-contracts.yml \
+  && ok "the scope step boots the stack on a catalog-script change" || bad "the scope step does not use the catalog-script match"
+
 echo "mcp-catalog: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

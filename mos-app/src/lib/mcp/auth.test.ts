@@ -32,6 +32,9 @@ describe('verifyAgentToken', () => {
     ['no person_id', 'claims', (c) => omit(c, 'person_id')],
     ['no org_id', 'claims', (c) => omit(c, 'org_id')],
     ['not yet valid', 'nbf', (c) => ({ ...c, nbf: NOW + 60 })],
+    ['a service role token', 'role', (c) => ({ ...c, role: 'service_role' })],
+    ['an anonymous role token', 'role', (c) => ({ ...c, role: 'anon' })],
+    ['no role', 'role', (c) => omit(c, 'role')],
   ]
   it.each(refusals)('refuses %s', async (_label, reason, mutate) => {
     const keys = await makeKeys()
@@ -58,6 +61,43 @@ describe('verifyAgentToken', () => {
     const v = await verifyAgentToken(await signJwt(keys, goodClaims(), { alg, kid: 'k1' }), cfgFor(kit.fetchFn))
     expect(v).toEqual({ ok: false, reason: 'alg' })
     expect(kit.calls).toHaveLength(0)
+  })
+
+  it.each(['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf'])(
+    'refuses the inherited object property %j as an algorithm without fetching any key', async (alg) => {
+      const keys = await makeKeys()
+      const kit = makeFetch(keys)
+      const v = await verifyAgentToken(await signJwt(keys, goodClaims(), { alg, kid: 'k1' }), cfgFor(kit.fetchFn))
+      expect(v).toEqual({ ok: false, reason: 'alg' })
+      expect(kit.calls).toHaveLength(0)
+    })
+
+  describe('key selection honours what each published key declares', () => {
+    const verdictWith = async (declare: (key: Record<string, unknown>) => void) => {
+      const keys = await makeKeys()
+      declare(keys.jwks.keys[0] as Record<string, unknown>)
+      return verifyAgentToken(await signJwt(keys, goodClaims()), cfgFor(makeFetch(keys).fetchFn))
+    }
+    it('accepts a key that declares signature use, verify operations and the token algorithm', async () => {
+      expect((await verdictWith((k) => { k.use = 'sig'; k.alg = 'ES256'; k.key_ops = ['verify'] })).ok).toBe(true)
+    })
+    it('accepts a key that declares none of them', async () => {
+      expect((await verdictWith((k) => { delete k.use; delete k.alg })).ok).toBe(true)
+    })
+    it.each([
+      ['an encryption key', (k: Record<string, unknown>) => { k.use = 'enc' }],
+      ['a key declared for another algorithm', (k: Record<string, unknown>) => { k.alg = 'RS256' }],
+      ['a key whose operations exclude verify', (k: Record<string, unknown>) => { k.key_ops = ['sign'] }],
+    ])('does not verify with %s', async (_label, declare) => {
+      expect(await verdictWith(declare)).toEqual({ ok: false, reason: 'unknown_key' })
+    })
+    it('skips an ineligible key and verifies with the eligible one', async () => {
+      const keys = await makeKeys('k1')
+      const decoy = { ...keys.jwks.keys[0], use: 'enc' }
+      keys.jwks.keys.unshift(decoy)
+      const v = await verifyAgentToken(await signJwt(keys, goodClaims()), cfgFor(makeFetch(keys).fetchFn))
+      expect(v.ok).toBe(true)
+    })
   })
 
   it.each(['', 'abc', 'a.b', 'a.b.c.d', 'x.y.z'])('refuses the malformed token %j', async (t) => {

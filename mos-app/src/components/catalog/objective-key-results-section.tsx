@@ -33,12 +33,16 @@ export interface ObjectiveKeyResultsSectionProps {
 type Translate = ReturnType<typeof useT>
 type SaveState = 'idle' | 'saving' | 'saved' | 'failed'
 
-/** Empty text is null (never zero); anything not a finite number is rejected before it is sent. */
+/**
+ * Empty text is null (never zero). A value the database would refuse is rejected before it is sent:
+ * not a finite number, 1e15 or larger in size, or more than 6 decimal places.
+ */
 function parseNumber(raw: string): number | null {
   const text = raw.trim()
   if (text === '') return null
   const value = Number(text)
   if (!Number.isFinite(value)) throw new Error('not a finite number')
+  if (Math.abs(value) >= 1e15 || !/^-?\d+(\.\d{1,6})?$/.test(String(value))) throw new Error('number out of range')
   return value
 }
 
@@ -105,8 +109,14 @@ function CommitField({ label, saved, onCommit, inputMode }: {
   inputMode?: 'decimal'
 }) {
   const [draft, setDraft] = useState(saved)
+  const [seen, setSeen] = useState(saved)
   const { state, run, retry } = useCommitStatus()
-  useEffect(() => { setDraft(saved) }, [saved])
+  // A new saved value replaces the draft during render; an effect would also run after the first
+  // paint and overwrite text typed in the meantime.
+  if (seen !== saved) {
+    setSeen(saved)
+    setDraft(saved)
+  }
   const commit = () => { if (draft !== saved) void run(() => onCommit(draft)) }
   return (
     <div className="form-grid__field objective-key-results__field">
