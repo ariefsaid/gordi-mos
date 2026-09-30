@@ -51,6 +51,10 @@ import type { AdminPersonRow, RoleOption, RevenueScopeOption, TeamOption } from 
 
 type LoadState = 'loading' | 'loaded' | 'error'
 
+// Start a load inside a promise, resolving the loader lazily: one that throws before returning (or
+// is missing) must not leave the loads already started with nobody subscribed to their rejection.
+const start = <T,>(load: () => Promise<T>) => Promise.resolve().then(load)
+
 type RevealContext = {
   password: string
   personName: string
@@ -141,7 +145,7 @@ export function AdminUsersPage() {
     setAuthorityState('loading')
     try {
       const [rows, leads, tree, units] = await Promise.all([
-        listRoleAuthority(), listTeamLeadAssignments(), getRoles(), getBusinessUnits(),
+        start(() => listRoleAuthority()), start(() => listTeamLeadAssignments()), start(() => getRoles()), start(() => getBusinessUnits()),
       ])
       setAuthorityRows(normalizeAuthorityRows(rows))
       setTeamLeads(leads)

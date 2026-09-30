@@ -497,6 +497,26 @@ describe('AdminUsersPage — find and open a person', () => {
     expect(screen.queryByRole('dialog', { name: 'Manage Budi Santoso' })).toBeNull()
   })
 
+  it('a failed authority load is handled: the panel says so, and every started load is observed', async () => {
+    // A rejection nobody subscribed to is what Node reports as an unhandled rejection; a thenable
+    // records whether anyone subscribed, which a vi.fn promise result (observed by the spy) cannot.
+    const subscribed: string[] = []
+    const failing = (name: string, message: string) => ({
+      then: (_ok: unknown, fail: (reason: Error) => void) => { subscribed.push(name); fail(new Error(message)) },
+    }) as unknown as Promise<never>
+    const user = userEvent.setup()
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    vi.mocked(listRoleAuthority).mockImplementation(() => failing('rules', "Couldn't load access rules. Try again."))
+    vi.mocked(listTeamLeadAssignments).mockImplementation(() => failing('leads', "Couldn't load Team leads. Try again."))
+    // A loader that throws before it returns a promise must not strand the loads started before it.
+    vi.mocked(getRoles).mockImplementation(() => { throw new Error('not a function') })
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: PEOPLE_ALL_STATES[1].full_name }))
+    const panel = await screen.findByRole('dialog')
+    expect(await within(panel).findByText("Couldn't load what they can do.")).toBeInTheDocument()
+    expect(subscribed.sort()).toEqual(['leads', 'rules'])
+  })
+
   it('a person who holds the top Position of a Business Unit is shown as its head', async () => {
     const user = userEvent.setup()
     mockListAdminPeople.mockResolvedValue([
