@@ -47,37 +47,31 @@ echo "const x:number=1" > "$tmp/repo/mos-app/src/f.ts"
 git -C "$tmp/repo" add mos-app/src/f.ts
 check "missing node_modules skips lint instead of blocking" 0
 
-# The vitest lane ran nothing for months: `vitest related a.ts b.ts` reads everything
-# after the first file as a FILENAME FILTER, matches no test file, and exits 0. The lane
-# is too heavy to run for real here, so this pins the INVOCATION SHAPE instead — a stub
-# `npx` records argv and the assertion refuses the silently-empty form.
+# A commit lints what is staged and never runs the test suite: tests run once, at pre-PR verify and
+# in CI. A stub `npx` records every invocation so both halves are observable.
 stub="$tmp/stub"; mkdir -p "$stub"
 cat > "$stub/npx" <<'STUB'
 #!/usr/bin/env bash
-printf '%s held=%s cap=%s\n' "$*" "${MOS_TEST_LOCK_HELD:-}" "${VITEST_MAX_THREADS:-}" >> "$NPX_ARGV_LOG"
+printf '%s\n' "$*" >> "$NPX_ARGV_LOG"
 exit 0
 STUB
 chmod +x "$stub/npx"
 
 mkdir -p "$tmp/repo/mos-app/node_modules" "$tmp/repo/mos-app/src"
 echo "export const a = 1" > "$tmp/repo/mos-app/src/one.ts"
-echo "export const b = 2" > "$tmp/repo/mos-app/src/two.ts"
-git -C "$tmp/repo" add mos-app/src/one.ts mos-app/src/two.ts
-export NPX_ARGV_LOG="$tmp/npx-argv.log" MOS_TEST_LOCK="$tmp/test.lock"
+git -C "$tmp/repo" add mos-app/src/one.ts
+export NPX_ARGV_LOG="$tmp/npx-argv.log"
 : > "$NPX_ARGV_LOG"
-(cd "$tmp/repo" && env -u VITEST_MAX_THREADS -u MOS_TEST_LOCK_HELD PATH="$stub:$PATH" bash "$HOOK") >/dev/null 2>&1
-vitest_argv="$(grep '^vitest' "$NPX_ARGV_LOG" || true)"
-if [ -z "$vitest_argv" ]; then
-  fail=$((fail+1)); printf '  FAIL  two staged sources invoke vitest — nothing was invoked\n'
-elif [[ "$vitest_argv" == *"related"* ]]; then
-  fail=$((fail+1)); printf '  FAIL  vitest lane uses the no-op multi-file `related` form: %s\n' "$vitest_argv"
+(cd "$tmp/repo" && PATH="$stub:$PATH" bash "$HOOK") >/dev/null 2>&1
+if grep -q '^eslint .*src/one\.ts' "$NPX_ARGV_LOG"; then
+  pass=$((pass+1)); printf '  ok    a staged source is linted\n'
 else
-  pass=$((pass+1)); printf '  ok    two staged sources invoke a vitest form that runs tests\n'
+  fail=$((fail+1)); printf '  FAIL  a staged source was not linted: %s\n' "$(cat "$NPX_ARGV_LOG")"
 fi
-if [[ "$vitest_argv" == *"held=1 cap=2"* ]]; then
-  pass=$((pass+1)); printf '  ok    vitest lane runs while holding the shared heavy-test lock, 2 workers\n'
+if grep -q '^vitest' "$NPX_ARGV_LOG"; then
+  fail=$((fail+1)); printf '  FAIL  commit ran the test suite: %s\n' "$(grep '^vitest' "$NPX_ARGV_LOG")"
 else
-  fail=$((fail+1)); printf '  FAIL  vitest lane not under the heavy-test lock with a 2-worker cap: %s\n' "$vitest_argv"
+  pass=$((pass+1)); printf '  ok    commit never runs the test suite\n'
 fi
 git -C "$tmp/repo" reset -q
 
