@@ -1,0 +1,91 @@
+/* Change history under a record's Details (#991). It sits inside the Details section's own frame
+   (no second padding); only the divider and list rhythm live here. Values wrap, never scroll: a long old/new value must stay readable at 390. */
+.catalog-record-history__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.catalog-record-history__item {
+  min-width: 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--row-divider);
+}
+
+.catalog-record-history__item:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.catalog-record-history__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+}
+
+.catalog-record-history__who {
+  min-width: 0;
+  color: var(--foreground);
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.catalog-record-history__when {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.catalog-record-history__channel {
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 18px;
+}
+
+.catalog-record-history__change {
+  margin: 2px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  overflow-wrap: anywhere;
+}
+
+.catalog-record-history__field {
+  color: var(--foreground);
+}
+
+.catalog-record-history__value {
+  color: var(--foreground);
+  white-space: pre-wrap;
+}
+
+.catalog-record-history__empty {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+}
+
+.catalog-record-history__more {
+  align-self: flex-start;
+}
+
+@media (max-width: 767.98px) {
+  .catalog-record-history__more {
+    min-height: 44px;
+  }
+}
+
+.catalog-record-history {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
