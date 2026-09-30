@@ -30,6 +30,10 @@ const JSON_SHAPES: Record<string, Record<string, unknown>> = {
       additionalProperties: false,
     },
   },
+  'edit_objective_write_up.write_up': {
+    type: 'array',
+    items: { type: 'object', properties: { type: { type: 'string' } }, required: ['type'] },
+  },
   'edit_project_process.changes': OBJECT,
   'edit_signal.changes': OBJECT,
   'edit_task.changes': OBJECT,
@@ -40,6 +44,8 @@ function schemaFor(pgType: string, operation: string, argument: string): Record<
     case 'uuid': return { type: 'string', format: 'uuid' }
     case 'text': return { type: 'string' }
     case 'integer': return { type: 'integer' }
+    // Null is a value here (it clears a key result's current value), so the schema admits it.
+    case 'numeric': return { type: ['number', 'null'] }
     case 'boolean': return { type: 'boolean' }
     case 'date': return { type: 'string', format: 'date' }
     case 'timestamp with time zone': return { type: 'string', format: 'date-time' }
