@@ -5,7 +5,7 @@
 -- All Auth rows are transactional fixtures and roll back.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(33);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -185,6 +185,46 @@ update shared.people set full_name = full_name where id = '00000000-0000-0000-00
 select is((select count(*)::int from auth.oauth_consents
             where user_id = '00000000-0000-0000-0000-00000000aa04' and revoked_at is null), 1,
   'a write that does not archive a person ends no connection');
+
+-- ── disabling a login ────────────────────────────────────────────────────────────────────────
+-- d1 connects again (a fresh consent, session and refresh token), then an admin disables and
+-- re-enables d1's login.
+update auth.oauth_consents set revoked_at = null
+ where user_id = '00000000-0000-0000-0000-00000000aa01' and client_id = '33333333-3333-4333-8333-333333333333';
+insert into auth.sessions (id, user_id, oauth_client_id) values
+  ('5a020000-0000-4000-8000-000000000007', '00000000-0000-0000-0000-00000000aa01', '33333333-3333-4333-8333-333333333333');
+insert into auth.refresh_tokens (session_id, token, user_id, revoked) values
+  ('5a020000-0000-4000-8000-000000000007', 'lifecycle-rt-7', '00000000-0000-0000-0000-00000000aa01', false);
+insert into auth.users (id) values ('00000000-0000-0000-0000-00000000aa01') on conflict (id) do nothing;
+set local role authenticated;
+select is(public._t_fence('5a020000-0000-4000-8000-000000000007', '33333333-3333-4333-8333-333333333333'), 'passes',
+  'a live agent session passes the fence before the login is disabled');
+select set_config('request.jwt.claims',
+  '{"role":"authenticated","sub":"00000000-0000-0000-0000-00000000aa03","org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}', true);
+select lives_ok($$ select shared.admin_set_login_enabled('00000000-0000-0000-0000-0000000000d1', false) $$,
+  'an admin disables the person''s login');
+reset role;
+select is((select count(*)::int from auth.oauth_consents
+            where user_id = '00000000-0000-0000-0000-00000000aa01' and revoked_at is null), 0,
+  'disabling the login revokes every agent consent the person holds');
+select is((select count(*)::int from auth.sessions
+            where user_id = '00000000-0000-0000-0000-00000000aa01' and oauth_client_id is not null), 0,
+  'disabling the login deletes their agent sessions');
+select is((select count(*)::int from auth.refresh_tokens where token = 'lifecycle-rt-7'), 0,
+  'disabling the login deletes their agent refresh tokens');
+select is((select count(*)::int from auth.sessions where id = '5a020000-0000-4000-8000-000000000004'), 1,
+  'the person''s app session is left to Auth''s own ban handling');
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"role":"authenticated","sub":"00000000-0000-0000-0000-00000000aa03","org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}', true);
+select lives_ok($$ select shared.admin_set_login_enabled('00000000-0000-0000-0000-0000000000d1', true) $$,
+  'an admin enables the login again');
+select is(public._t_fence('5a020000-0000-4000-8000-000000000007', '33333333-3333-4333-8333-333333333333'), 'PT401',
+  'after re-enabling, the old agent session is refused by the fence');
+reset role;
+select is((select count(*)::int from auth.oauth_consents
+            where user_id = '00000000-0000-0000-0000-00000000aa01' and revoked_at is null), 0,
+  're-enabling the login revives no consent');
 
 select * from finish();
 rollback;
