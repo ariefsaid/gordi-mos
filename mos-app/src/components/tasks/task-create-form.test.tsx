@@ -7,6 +7,8 @@
 import type { ComponentProps } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { TaskCreateForm } from './task-create-form'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -169,5 +171,16 @@ describe('TaskCreateForm — discard, busy and retry', () => {
       await screen.findByRole('button', { name: 'Create task' })
       expect(onCreate).toHaveBeenCalledTimes(2)
     } finally { restore() }
+  })
+})
+
+describe('TaskCreateForm — title length (#1034)', () => {
+  it('stops the Title at the shared limit when a long text is pasted', async () => {
+    const user = userEvent.setup()
+    renderForm()
+    const title = screen.getByRole('textbox', { name: 'Title' }) as HTMLTextAreaElement
+    await user.click(title)
+    await user.paste('x'.repeat(TASK_TITLE_MAX_LENGTH + 50))
+    expect(title.value).toHaveLength(TASK_TITLE_MAX_LENGTH)
   })
 })

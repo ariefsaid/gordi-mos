@@ -1202,6 +1202,20 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     })
   })
 
+  // #1031: an empty My work with no filter set is a scope, not a filter — it must not claim
+  // "No tasks match these filters". A real filter still gets the filtered wording.
+  it('empty My work with no filters says nothing is assigned, not that filters matched nothing', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'other', title: 'Someone else’s task', responsible_person_id: 'other-person', accountable_person_id: 'other-person' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'My work' }))
+    await waitFor(() => expect(screen.getByText('No tasks assigned to you')).toBeInTheDocument())
+    expect(screen.queryByText(/match these filters/i)).not.toBeInTheDocument()
+  })
+
   // Calibration finding (#749 lane): a viewer with nothing assigned lands on an empty My work.
   // Its own Clear filters button left ?view=my-work standing, so clicking it did nothing — a dead
   // button next to copy that promises "Clear filters to see all tasks."
@@ -2386,8 +2400,7 @@ describe('Ticket #750 — AC-022 in-row PIC/Due edit follows the permission rule
     const picTrigger = document.querySelector('td.td-owner button.inline-cell-trigger') as HTMLButtonElement
     expect(picTrigger, 'PIC cell is editable for the manager above the PIC').toBeTruthy()
     fireEvent.click(picTrigger)
-    const picSelect = screen.getByRole('combobox', { name: 'Edit task PIC' })
-    fireEvent.click(picSelect)
+    expect(screen.getByRole('combobox', { name: 'Edit task PIC' })).toHaveAttribute('aria-expanded', 'true')
     const optionLabels = screen.getAllByRole('option').map((option) => option.textContent)
     expect(optionLabels).toEqual(['Arief Said', 'Rina Barista'])
     // Saves in place through the same updateTaskFields path the record editor uses.

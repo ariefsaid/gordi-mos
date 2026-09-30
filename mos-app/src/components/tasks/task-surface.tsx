@@ -30,7 +30,7 @@ import { TaskActivity } from './task-activity'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
-import { formatDate, formatAge } from './task-formatters'
+import { formatDate, formatAge, TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { CloseIcon, BackIcon } from '@/shell/icons'
 import { Picker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
@@ -1230,6 +1230,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
             fullWidth
             error={Boolean(titleError)}
             value={title}
+            maxLength={TASK_TITLE_MAX_LENGTH}
             onChange={e => { setTitle(e.target.value); markDirty(); if (titleError) setTitleError('') }}
             onBlur={validateTitleOnBlur}
             aria-required="true"
