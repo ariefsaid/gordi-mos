@@ -107,7 +107,9 @@ independent review → PR → auto-merge to dev → next. Its machinery binds ou
 
 CI fair use (shared free-tier minutes): a PR into `dev` uses GitHub CI as the full-suite gate — locally
 run only `bash scripts/pre-pr-verify.sh --dev` (typecheck, lint, tests of touched files); a PR into
-`main` keeps the full local gate. Run CI e2e at most once per PR, only for shared-code or milestone
+`main` keeps the full local gate.
+Locally, pgTAP runs only the test files your change touches (`scripts/with-db-lock.sh bash -c 'supabase migration up && supabase test db <files>'`; the local DB is shared, so no reset just to test); CI runs the full suite. The DB lock wraps database commands only, never pre-pr-verify. A pure rebase (proven by `scripts/carry-stamps.sh`) carries the verify and review stamps to the new HEAD in place of a mechanical-confirmation round.
+Run CI e2e at most once per PR, only for shared-code or milestone
 PRs, via `bash scripts/ci-e2e.sh` (raw dispatch and rerun are hook-denied). A second e2e run on a PR
 (except one `--bugfix-proof` follow-up), a flake re-run, more than 3 dispatches per repo per day, or anything
 scheduled or looping needs the owner's OK. One heavy local job at a time, all sessions and repos.
@@ -138,7 +140,7 @@ Findings in a separate comment, never the PR body. Records certify the exact HEA
 staleifies every record. Round 1 is a full independent pass; later rounds are delta-only for named
 fixes or genuinely new risk. Formatting/whitespace-only changes, or mechanical artifact refreshes
 with no new authored behavior, do not start a substantive review round; if they move HEAD, the
-independent reviewer must issue an exact-HEAD mechanical confirmation, never edit or reuse a stale
+independent reviewer must issue an exact-HEAD mechanical confirmation (a pure rebase carries stamps instead; see CI fair use), never edit or reuse a stale
 record.
 
 ## Repo layout
