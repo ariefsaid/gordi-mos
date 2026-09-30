@@ -147,6 +147,7 @@
 /* An Objective's relation sentence has no length bound, so it wraps here instead of clipping
    mid-word. Scoped to the objective table only — Projects & Processes' shorter value in the
    same slot keeps a one-line ellipsis. */
+.catalog-collection__table--objective .catalog-collection__cell--relation .catalog-collection__cell-value,
 .catalog-collection__table--objective .catalog-collection__cell--cadence .catalog-collection__cell-value {
   overflow: visible;
   overflow-wrap: anywhere;
