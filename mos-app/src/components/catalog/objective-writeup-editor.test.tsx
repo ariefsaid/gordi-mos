@@ -8,6 +8,7 @@ const fake = vi.hoisted(() => ({
   document: [] as unknown[],
   crash: false,
   focus: vi.fn(),
+  options: undefined as undefined | { domAttributes?: { editor?: Record<string, string> } },
   updateBlock: vi.fn(),
   block: { id: 'b1', type: 'paragraph', props: {} } as { id: string; type: string; props: Record<string, unknown> },
   getTextCursorPosition() { return { block: fake.block } },
@@ -16,7 +17,7 @@ const fake = vi.hoisted(() => ({
 }))
 
 vi.mock('@blocknote/react', () => ({
-  useCreateBlockNote: () => fake,
+  useCreateBlockNote: (options: typeof fake.options) => { fake.options = options; return fake },
   BlockNoteViewRaw: ({ onChange, editable }: { onChange?: () => void; editable?: boolean }) => {
     if (fake.crash) throw new Error('malformed document')
     return (
@@ -207,6 +208,17 @@ describe('ObjectiveWriteupEditor', () => {
   it('hides the keyboard hint on touch and phone widths', () => {
     const css = readFileSync(resolve(__dirname, 'objective-writeup-editor.css'), 'utf8')
     expect(css).toMatch(/@media \(hover: none\), \(max-width: 767\.98px\) \{\s*\.objective-writeup__hint \{ display: none; \}/)
+  })
+
+  it('points the editor at the key hint only while the hint is rendered', async () => {
+    const a = await mount()
+    const hint = screen.getByText(/press/i, { selector: '.objective-writeup__hint' })
+    expect(fake.options?.domAttributes?.editor?.['aria-describedby']).toBe(hint.id)
+    a.unmount()
+    read.mockResolvedValue({ writeUp: [{ type: 'paragraph' }], updatedAt: 't1' })
+    await mount({ canEdit: false })
+    expect(document.querySelector('.objective-writeup__hint')).toBeNull()
+    expect(fake.options?.domAttributes?.editor).not.toHaveProperty('aria-describedby')
   })
 
   it('offers no formatting controls to a read-only reader', async () => {

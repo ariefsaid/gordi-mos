@@ -93,7 +93,7 @@ function WriteUpSurface({
     schema,
     initialContent: stored.length > 0 ? (stored as never) : undefined,
     links: { isValidLink: isSafeWriteUpLink },
-    domAttributes: { editor: { 'aria-label': t('objective.writeUp.label'), 'aria-describedby': keysHintId } },
+    domAttributes: { editor: { 'aria-label': t('objective.writeUp.label'), ...(editable ? { 'aria-describedby': keysHintId } : {}) } },
     // No slash menu exists here, and a read-only reader never sees an editor hint.
     placeholders: {
       default: t('objective.writeUp.placeholder'),
