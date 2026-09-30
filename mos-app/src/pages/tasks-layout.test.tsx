@@ -624,9 +624,11 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       child: ReactElement,
       pending: ReturnType<typeof gate>,
       task = makeTask({ id: 'task-1', title: 'Open one' }),
+      missing = false,
     ) => {
       mockListTasks.mockResolvedValue([task])
-      mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+      if (missing) mockGetTask.mockRejectedValue(Object.assign(new Error('getTask failed'), { code: 'PGRST116' }))
+      else mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
       const router = createMemoryRouter(
         [{
           path: '/work/tasks',
@@ -641,7 +643,9 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
           <RouterProvider router={router} />
         </AuthContext.Provider>,
       )
-      await screen.findByRole('button', { name: /open full page/i }, { timeout: 5000 })
+      await (missing
+        ? screen.findByRole('link', { name: /all tasks/i }, { timeout: 5000 })
+        : screen.findByRole('button', { name: /open full page/i }, { timeout: 5000 }))
       pending.hold()
       fireEvent.change(screen.getByRole('searchbox', { name: 'Search tasks' }), { target: { value: 'Open' } })
       return router
@@ -661,6 +665,15 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       const pending = gate()
       const router = await renderDrawerRoute(<TaskDrawer mode="view" />, pending)
       fireEvent.click(within(screen.getByRole('complementary', { name: /task detail/i })).getByRole('button', { name: /close/i }))
+      pending.release()
+      await waitFor(() => expect(router.state.location.pathname).toBe('/work/tasks'), { timeout: 5000 })
+      expect(router.state.location.search).toBe('?q=Open')
+    })
+
+    it('the not-found panel\'s All tasks link', async () => {
+      const pending = gate()
+      const router = await renderDrawerRoute(<TaskDrawer mode="view" />, pending, undefined, true)
+      fireEvent.click(screen.getByRole('link', { name: /all tasks/i }))
       pending.release()
       await waitFor(() => expect(router.state.location.pathname).toBe('/work/tasks'), { timeout: 5000 })
       expect(router.state.location.search).toBe('?q=Open')

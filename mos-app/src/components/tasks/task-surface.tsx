@@ -752,7 +752,16 @@ function ViewSurface({
         title={t('tasks.notFound.title')}
         copy={t('tasks.notFound.copy')}
       >
-        <Link to={{ pathname: '/work/tasks', search: location.search }} className="btn btn-outline">{t('tasks.all')}</Link>
+        <Link
+          to={{ pathname: '/work/tasks', search: location.search }}
+          className="btn btn-outline"
+          // A plain click reads the live query at click time; the href stays for new-tab opens.
+          onClick={(event) => {
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+            event.preventDefault()
+            navigate({ pathname: '/work/tasks', search: liveTasksSearch(location.search, liveQueryRef) })
+          }}
+        >{t('tasks.all')}</Link>
       </EmptyState>
     )
   }

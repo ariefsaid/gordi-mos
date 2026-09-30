@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useParams, useNavigate, useOutletContext } from 'react-router-dom'
 import { TaskSurface, type TaskSurfaceProps } from './task-surface'
-import { liveTasksSearch, type LiveTasksQueryRef } from './tasks-navigation'
 import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
 import { RecordPanelHost } from '@/shell/record-panel-host'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -9,6 +8,7 @@ import { useT } from '@/i18n/use-t'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { OverlayLeaveDecision, OverlayLeaveGuard, OverlayLeaveIntent } from '@/shell/overlay-navigation'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
+import { liveTasksSearch, type LiveTasksQueryRef } from './tasks-navigation'
 
 export type TaskDrawerOutletContext = {
   /** Lets the open surface sync optimistic row changes back into the table. */

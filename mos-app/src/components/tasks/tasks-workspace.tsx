@@ -42,11 +42,11 @@ import { useCatalogRecordEntryFactory } from '@/components/catalog/use-catalog-r
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
 import { getActiveTaskView } from './task-collection-view'
-import { searchString, tasksSearchWithLiveQuery, type LiveTasksQueryRef } from './tasks-navigation'
 import { isOwnerDirector } from '@/lib/role-scope'
 import { getTaskDefaultView } from '@/lib/task-default-view'
 import { resolveTeamContext } from '@/lib/team-context'
 import { isOverdue } from '@/lib/due-status'
+import { searchString, tasksSearchWithLiveQuery, type LiveTasksQueryRef } from './tasks-navigation'
 
 // D-A1 (fix work-order item 4): the Task record door is URL-addressable via the ?record= query
 // seam — the SAME grammar Signals uses (backlog R6(b) "unify on ?record="), built from the shared
