@@ -134,11 +134,11 @@ async function openDetailsTab() {
 
 /** What separates a member from a catalog manager on the same record: no record actions, and a
  *  Details tab that says it is read-only and offers no field edits. */
-async function expectMemberReadOnly() {
+async function expectMemberReadOnly(note = 'You can view this, but not edit it.') {
   expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull()
   await openDetailsTab()
   const details = screen.getByRole('tabpanel', { name: 'Details' })
-  expect(within(details).getByRole('note')).toHaveTextContent('You can view this, but not edit it.')
+  expect(within(details).getByRole('note')).toHaveTextContent(note)
   expect(within(details).queryAllByRole('button', { name: /^Edit / })).toHaveLength(0)
 }
 
@@ -412,7 +412,7 @@ it('keeps Objectives readable by members through the shared record renderer', as
     <CatalogRecordDocument kind="objective" id="obj-1" mode="panel" />
   </MemoryRouter></I18nProvider></AuthContext.Provider>)
   expect(await screen.findByRole('heading', { name: 'Grow revenue' })).toBeInTheDocument()
-  await expectMemberReadOnly()
+  await expectMemberReadOnly('You can view this. An admin sets the name, Business Unit, period and accountable person.')
 })
 
 
