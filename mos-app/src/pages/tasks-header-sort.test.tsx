@@ -58,18 +58,18 @@ function stubDesktop() {
 }
 
 const VIEWER_ID = 'viewer-person-id'
-const P_BUDI = 'budi-person-id'
-const P_SARI = 'sari-person-id'
-const P_IMAN = 'iman-person-id'
+const P_BEN = 'ben-person-id'
+const P_DEE = 'dee-person-id'
+const P_CY = 'cy-person-id'
 
 const mockPerson: PeopleRow = {
-  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Ada Viewer',
+  email: 'viewer@example.test', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const mockRole: RolesRow = {
   id: 'role-1', org_id: 'org', business_unit_id: 'bu-1',
-  name: 'CEO', reports_to_role_id: null,
+  name: 'Analyst', reports_to_role_id: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const authedState: AuthState = {
@@ -96,20 +96,20 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   }
 }
 
-// Every sort key orders these four differently (PIC names: Arief Said < Budi Setiawan < Iman
-// Observer < Sari Support).
+// Every sort key orders these four differently (PIC names: Ada Viewer < Ben Tester < Cy
+// Observer < Dee Support).
 const FOUR_TASKS: TaskListRow[] = [
-  makeTask({ id: 't-bravo', title: 'Bravo', status: 'Open', responsible_person_id: P_SARI, due_date: '2030-01-10' }),
-  makeTask({ id: 't-alpha', title: 'Alpha', status: 'Blocked', responsible_person_id: P_IMAN, due_date: '2030-03-01' }),
+  makeTask({ id: 't-bravo', title: 'Bravo', status: 'Open', responsible_person_id: P_DEE, due_date: '2030-01-10' }),
+  makeTask({ id: 't-alpha', title: 'Alpha', status: 'Blocked', responsible_person_id: P_CY, due_date: '2030-03-01' }),
   makeTask({ id: 't-delta', title: 'Delta', status: 'In Progress', responsible_person_id: VIEWER_ID, due_date: null }),
-  makeTask({ id: 't-charlie', title: 'Charlie', status: 'Done', responsible_person_id: P_BUDI, due_date: '2030-02-01' }),
+  makeTask({ id: 't-charlie', title: 'Charlie', status: 'Done', responsible_person_id: P_BEN, due_date: '2030-02-01' }),
 ]
 
 const PEOPLE = [
-  { id: VIEWER_ID, full_name: 'Arief Said' },
-  { id: P_BUDI, full_name: 'Budi Setiawan' },
-  { id: P_SARI, full_name: 'Sari Support' },
-  { id: P_IMAN, full_name: 'Iman Observer' },
+  { id: VIEWER_ID, full_name: 'Ada Viewer' },
+  { id: P_BEN, full_name: 'Ben Tester' },
+  { id: P_DEE, full_name: 'Dee Support' },
+  { id: P_CY, full_name: 'Cy Observer' },
 ]
 
 let capturedLocation: ReturnType<typeof useLocation> | null = null

@@ -16,7 +16,7 @@ import {
 const NOW = new Date('2026-07-21T03:00:00Z')
 const P_ADI = 'p-adi'
 const P_RAKA = 'p-raka'
-const P_SARI = 'p-sari'
+const P_SOL = 'p-sol'
 // Not in the people directory: its display name resolves to ''.
 const P_UNNAMED = 'p-unnamed'
 
@@ -28,7 +28,7 @@ function rawTask(over: Partial<TaskListRow> & Pick<TaskListRow, 'id' | 'title'>)
     business_unit_id: 'bu-cafe',
     status: over.status ?? 'Open',
     responsible_person_id: over.responsible_person_id ?? P_RAKA,
-    accountable_person_id: over.accountable_person_id ?? P_SARI,
+    accountable_person_id: over.accountable_person_id ?? P_SOL,
     consulted_person_ids: [],
     informed_person_ids: [],
     description: null,
@@ -37,7 +37,7 @@ function rawTask(over: Partial<TaskListRow> & Pick<TaskListRow, 'id' | 'title'>)
     work_line_id: null,
     last_activity_at: over.last_activity_at ?? '2026-07-01T00:00:00Z',
     archived_at: over.archived_at ?? null,
-    created_by: P_SARI,
+    created_by: P_SOL,
     created_at: '2026-07-01T00:00:00Z',
     updated_at: '2026-07-01T00:00:00Z',
     team_id: null,
@@ -49,19 +49,19 @@ function rawTask(over: Partial<TaskListRow> & Pick<TaskListRow, 'id' | 'title'>)
 
 // Input order is a, b, c, d, e, f, g — ties keep it (stable sort, direction never reverses ties).
 const ROWS: TaskListRow[] = [
-  rawTask({ id: 'a', title: 'Banana', status: 'Open', responsible_person_id: P_RAKA, accountable_person_id: P_SARI, due_date: '2026-07-10', last_activity_at: '2026-07-01T00:00:00Z' }),
+  rawTask({ id: 'a', title: 'Banana', status: 'Open', responsible_person_id: P_RAKA, accountable_person_id: P_SOL, due_date: '2026-07-10', last_activity_at: '2026-07-01T00:00:00Z' }),
   rawTask({ id: 'b', title: 'apple', status: 'In Progress', responsible_person_id: P_ADI, accountable_person_id: P_RAKA, due_date: '2026-07-20', last_activity_at: '2026-07-05T00:00:00Z' }),
   rawTask({ id: 'c', title: 'Cherry', status: 'Blocked', responsible_person_id: P_UNNAMED, accountable_person_id: P_ADI, due_date: null, last_activity_at: '2026-07-03T00:00:00Z' }),
-  rawTask({ id: 'd', title: 'Durian', status: 'Done', responsible_person_id: P_SARI, accountable_person_id: P_UNNAMED, due_date: '2026-07-01', last_activity_at: '2026-07-09T00:00:00Z' }),
+  rawTask({ id: 'd', title: 'Durian', status: 'Done', responsible_person_id: P_SOL, accountable_person_id: P_UNNAMED, due_date: '2026-07-01', last_activity_at: '2026-07-09T00:00:00Z' }),
   rawTask({ id: 'e', title: 'Elder', status: 'Open', responsible_person_id: P_RAKA, accountable_person_id: P_RAKA, due_date: '2026-07-15', archived_at: '2026-07-18T00:00:00Z', last_activity_at: '2026-07-02T00:00:00Z' }),
-  rawTask({ id: 'f', title: 'fig', status: 'Done', responsible_person_id: P_ADI, accountable_person_id: P_SARI, due_date: null, last_activity_at: '2026-07-04T00:00:00Z' }),
-  rawTask({ id: 'g', title: 'Grape', status: 'Open', responsible_person_id: P_SARI, accountable_person_id: P_ADI, due_date: '2026-07-12', last_activity_at: '2026-07-06T00:00:00Z' }),
+  rawTask({ id: 'f', title: 'fig', status: 'Done', responsible_person_id: P_ADI, accountable_person_id: P_SOL, due_date: null, last_activity_at: '2026-07-04T00:00:00Z' }),
+  rawTask({ id: 'g', title: 'Grape', status: 'Open', responsible_person_id: P_SOL, accountable_person_id: P_ADI, due_date: '2026-07-12', last_activity_at: '2026-07-06T00:00:00Z' }),
 ]
 
 const PEOPLE = [
   { id: P_ADI, full_name: 'Adi' },
   { id: P_RAKA, full_name: 'Raka' },
-  { id: P_SARI, full_name: 'Sari' },
+  { id: P_SOL, full_name: 'Sol' },
 ]
 
 function makeData(): CollectionData<TaskCollectionRecord, TaskCollectionContext> {
