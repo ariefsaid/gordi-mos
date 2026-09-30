@@ -103,6 +103,11 @@ export interface CafeStreamBarProps {
   onAllStreams?: () => void
   disabled?: boolean
   /**
+   * Plan: the stream IS the page's subject, so it reads as a heading with a "Change" link — no
+   * "Stream" label, no "Switch". Everything else (menu, "Back to", keyboard) is the same.
+   */
+  heading?: boolean
+  /**
    * The person's own stream (issue 456's `useCafeStream().homeStream`), independent of whatever a
    * session switch is currently showing. Drives the "Your Team" tag in the Switch menu and the
    * "Back to <home>" action (item 3, B4) once a switch has moved the view away from it. Omitted on
@@ -124,6 +129,7 @@ export function CafeStreamBar({
   allStreams = false,
   onAllStreams,
   disabled = false,
+  heading = false,
   homeStream = null,
   myStreamKeys = EMPTY_STREAM_KEYS,
 }: CafeStreamBarProps) {
@@ -155,9 +161,15 @@ export function CafeStreamBar({
     : null
 
   return (
-    <div className="cafe-stream" data-testid="cafe-stream">
-      <span className="cafe-stream__label">{t('cafe.stream.label')}</span>
-      <span className="cafe-stream__value">{valueLabel}</span>
+    <div className={heading ? 'cafe-stream cafe-stream--heading' : 'cafe-stream'} data-testid="cafe-stream">
+      {heading ? (
+        <h2 className="cafe-stream__value cafe-stream__value--heading">{valueLabel}</h2>
+      ) : (
+        <>
+          <span className="cafe-stream__label">{t('cafe.stream.label')}</span>
+          <span className="cafe-stream__value">{valueLabel}</span>
+        </>
+      )}
       {backTarget && (
         <button
           type="button"
@@ -177,6 +189,8 @@ export function CafeStreamBar({
           onAllStreams={allStreams ? undefined : onAllStreams}
           disabled={disabled}
           onChange={onChange}
+          label={heading ? t('cafe.stream.change') : undefined}
+          ariaLabel={heading ? t('cafe.stream.changeAria') : undefined}
         />
       )}
     </div>
@@ -200,9 +214,12 @@ interface StreamSwitchMenuProps {
   onAllStreams?: () => void
   disabled: boolean
   onChange: (next: ProductionStream) => void
+  /** Trigger text and accessible name; the default reads "Switch". */
+  label?: string
+  ariaLabel?: string
 }
 
-function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, onAllStreams, disabled, onChange }: StreamSwitchMenuProps) {
+function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, onAllStreams, disabled, onChange, label, ariaLabel }: StreamSwitchMenuProps) {
   const t = useT()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -302,6 +319,7 @@ function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, onAllStreams,
         id={id}
         ref={triggerRef}
         type="button"
+        aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? `${id}-listbox` : undefined}
@@ -315,7 +333,7 @@ function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, onAllStreams,
           }
         }}
       >
-        {t('cafe.stream.switch')}
+        {label ?? t('cafe.stream.switch')}
       </button>
       {open && createPortal(
         <div

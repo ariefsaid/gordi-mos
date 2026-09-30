@@ -487,6 +487,7 @@ function PlanEditor() {
          other): which books a planned quantity lands in is what the number means. */
       statusRow={
         <CafeStreamBar
+          heading
           options={locationOptions}
           stream={stream}
           homeStream={homeStream}
@@ -592,16 +593,18 @@ function PlanEditor() {
               {t('kitchen.plan.group.log')}
             </Link>
           </p>
-          <DataTable
-            columns={streamNonProducing ? receivingPlanColumns : planColumns}
-            rows={visible}
-            groups={planGroups}
-            renderCard={streamNonProducing ? undefined : renderPlanCard}
-            isDesktop={isDesktop}
-            state={visible.length > 0 ? 'ready' : 'empty'}
-            emptyLabel={t('kitchen.filter.noMatch')}
-            caption={streamNonProducing ? t('kitchen.stream.receivingOnly.planCaption') : t('kitchen.plan.caption')}
-          />
+          <div className="kp-list">
+            <DataTable
+              columns={streamNonProducing ? receivingPlanColumns : planColumns}
+              rows={visible}
+              groups={planGroups}
+              renderCard={streamNonProducing ? undefined : renderPlanCard}
+              isDesktop={isDesktop}
+              state={visible.length > 0 ? 'ready' : 'empty'}
+              emptyLabel={t('kitchen.filter.noMatch')}
+              caption={streamNonProducing ? t('kitchen.stream.receivingOnly.planCaption') : t('kitchen.plan.caption')}
+            />
+          </div>
         </div>
       )}
     </PageFamilyFrame>
@@ -727,6 +730,7 @@ function PesananView() {
       title={pageTitle}
       statusRow={
         <CafeStreamBar
+          heading
           options={locationOptions}
           stream={stream}
           homeStream={homeStream}

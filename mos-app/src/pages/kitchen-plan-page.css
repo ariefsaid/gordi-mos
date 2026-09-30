@@ -15,6 +15,12 @@
   box-sizing: border-box;
 }
 
+/* The plan list is a two-column job (item, planned qty): capped so the quantity sits beside the
+   name at any desktop width rather than a screen away from it. */
+.kp-list {
+  max-width: 520px;
+}
+
 .kp-date {
   font-size: var(--font-size-control);
   color: var(--muted-foreground);
