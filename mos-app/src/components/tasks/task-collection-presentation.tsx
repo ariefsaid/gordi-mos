@@ -11,6 +11,7 @@ import {
 import type { To } from 'react-router-dom'
 import { useSearchParams } from 'react-router-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { listPendingTasks } from '@/lib/db/processes'
 import type { PendingTaskRow } from '@/lib/db/processes.types'
 import type { TaskStatus, TaskListRow } from '@/lib/db/tasks.types'
@@ -31,7 +32,7 @@ import type {
   CollectionPresentationProps,
   CollectionProjection,
 } from '@/lib/record-collection/types'
-import { taskTableColumnSpan } from './task-collection-query'
+import { TASK_COLUMN_DEFS, taskColumnVisibilityState } from './task-columns'
 import { STATUS_ORDER } from './task-formatters'
 import { isOverdue } from '@/lib/due-status'
 import type {
@@ -407,6 +408,22 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     () => buildFlatRows(groups, query.groupBy, isCollapsedPreference),
     [groups, isCollapsedPreference, query.groupBy],
   )
+  // #997 (spec FR-001/FR-002): the desktop table's column model. The ONE column-definition
+  // array (task-columns.tsx) feeds useReactTable; `columnVisibility` is derived from
+  // `query.visibleFields` through the shared mapping, so `table.getVisibleLeafColumns()` is
+  // exactly the columns the thead and every TaskRow render. Domain filtering/grouping stays
+  // in the projector (FR-008) — the table owns only the column model in this slice.
+  const columnVisibility = useMemo(
+    () => taskColumnVisibilityState(query.visibleFields),
+    [query.visibleFields],
+  )
+  const table = useReactTable({
+    data: leafTasks,
+    columns: TASK_COLUMN_DEFS,
+    state: { columnVisibility },
+    getCoreRowModel: getCoreRowModel(),
+  })
+  const columnSpan = table.getVisibleLeafColumns().length
   const [cursor, setCursor] = useState(-1)
   const cursorRowRef = useRef<HTMLTableRowElement | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -540,14 +557,11 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         teamOptions={isNew ? runtime.teamOptions : []}
         onEditTeam={isNew ? runtime.onEditTeam : undefined}
         onEditSupervisor={isNew ? runtime.onEditSupervisor : undefined}
-        showBusinessUnit={query.visibleFields.includes('businessUnit')}
-        // AC-006 (#743): every field the Fields chooser offers renders a real column when checked.
-        // The names resolve through the same catalogs the group headers use (id → display name).
-        showWorkline={query.visibleFields.includes('workline')}
+        // #997: the row derives its columns from the shared defs against the same
+        // `query.visibleFields` the table instance's columnVisibility state uses.
+        visibleFields={query.visibleFields}
         workLineName={workLineMap.get(task.work_line_id ?? '') ?? ''}
-        showObjective={query.visibleFields.includes('objective')}
         objectiveName={objectiveMap.get(task.objective_id ?? '') ?? ''}
-        showActivity={query.visibleFields.includes('activity')}
         isNew={isNew}
         onDiscardNewTask={runtime.onDiscardNewTask}
         createError={isNew && runtime.draftLinkError}
@@ -557,7 +571,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         provenanceRoleName={task.generated_from_task_def_id
           ? context.provenanceByTaskDefId.get(task.generated_from_task_def_id)
           : undefined}
-        columnSpan={taskTableColumnSpan(query.visibleFields)}
+        columnSpan={columnSpan}
         viewerHasNoDownline={(context.downlinePersonIds?.length ?? 0) === 0}
       />
     )
@@ -569,7 +583,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       count={group.rows.length}
       overdue={group.overdue}
       collapsed={isCollapsedPreference(group.key)}
-      colSpan={taskTableColumnSpan(query.visibleFields)}
+      colSpan={columnSpan}
       prefill={group.prefillParam}
       controlsId={`grp-rows-${group.key}`}
       workLineType={group.workLineType}
@@ -589,11 +603,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       <TasksTableBody
         loading={false}
         error={null}
-        showBusinessUnit={query.visibleFields.includes('businessUnit')}
-        showWorkline={query.visibleFields.includes('workline')}
-        showObjective={query.visibleFields.includes('objective')}
-        showActivity={query.visibleFields.includes('activity')}
-        columnSpan={taskTableColumnSpan(query.visibleFields)}
+        table={table}
         leafTasks={leafTasks}
         hasActiveFilter={projection.visibleRecordsAreFiltered}
         isDesktop={desktopLayout}
