@@ -30,7 +30,7 @@ const SUPERVISOR = 'p-sup'
 const STRANGER = 'p-stranger'
 
 const people: PersonOption[] = [
-  { id: PIC, full_name: 'Riri' },
+  { id: PIC, full_name: 'Nico' },
   { id: SUPERVISOR, full_name: 'Wayan Kusuma' },
   { id: STRANGER, full_name: 'Made Santika' },
 ]

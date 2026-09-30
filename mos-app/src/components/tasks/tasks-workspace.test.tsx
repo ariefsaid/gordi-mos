@@ -79,8 +79,8 @@ const mockCanStartProcessForTeam = vi.mocked(canStartProcessForTeam)
 
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
-  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arden Sample',
+  email: 'arden.sample@example.test', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const mockRole: RolesRow = {
@@ -124,7 +124,7 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 
 const BUS = [{ id: 'bu-1', name: 'Kitchen' }]
 const PEOPLE = [
-  { id: VIEWER_ID, full_name: 'Arief Said' },
+  { id: VIEWER_ID, full_name: 'Arden Sample' },
   { id: 'other-id', full_name: 'Budi Setiawan' },
 ]
 const VIEWER_TEAMS = [{
@@ -1914,11 +1914,11 @@ describe('Task 19 — "+ Create task" pre-fill (AC-125)', () => {
     chooseFilterOption(groupSelect, 'PIC')
     await waitFor(() => {
       const groups = Array.from(container.querySelectorAll('tr.grp .glabel'))
-      expect(groups.some(g => g.textContent?.includes('Arief'))).toBe(true)
+      expect(groups.some(g => g.textContent?.includes('Arden'))).toBe(true)
     })
     const groups = Array.from(container.querySelectorAll('tr.grp'))
-    const ariefHeader = groups.find(g => g.querySelector('.glabel')?.textContent?.includes('Arief'))!
-    const addBtn = ariefHeader.querySelector('button.gadd') as HTMLButtonElement
+    const ownerHeader = groups.find(g => g.querySelector('.glabel')?.textContent?.includes('Arden'))!
+    const addBtn = ownerHeader.querySelector('button.gadd') as HTMLButtonElement
     expect(addBtn).toBeTruthy()
     // The add affordance carries the pre-fill target person as its data attribute
     expect(addBtn.getAttribute('data-prefill')).toBe(`r=${VIEWER_ID}`)
@@ -2423,9 +2423,9 @@ describe('Ticket #750 — AC-022 in-row PIC/Due edit follows the permission rule
     fireEvent.click(picTrigger)
     expect(screen.getByRole('combobox', { name: 'Edit task PIC' })).toHaveAttribute('aria-expanded', 'true')
     const optionLabels = screen.getAllByRole('option').map((option) => option.textContent)
-    expect(optionLabels).toEqual(['Arief Said', 'Rina Barista'])
+    expect(optionLabels).toEqual(['Arden Sample', 'Rina Barista'])
     // Saves in place through the same updateTaskFields path the record editor uses.
-    fireEvent.click(screen.getByRole('option', { name: 'Arief Said' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Arden Sample' }))
     await waitFor(() => expect(mockUpdateTaskFields).toHaveBeenCalledWith(
       'bar-task', { responsible_person_id: VIEWER_ID }, VIEWER_ID, DOWNLINE_ID,
     ))

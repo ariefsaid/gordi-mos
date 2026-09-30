@@ -5,9 +5,9 @@ import { PicCell } from './pic-cell'
 
 describe('PicCell', () => {
   it('renders avatar initials and the PIC first name', () => {
-    const { container } = render(<PicCell fullName="Arief Said" />)
+    const { container } = render(<PicCell fullName="Arden Sample" />)
     expect(container.querySelector('.ownav')?.textContent).toBe('AS')
-    expect(screen.getByText('Arief')).toBeTruthy()
+    expect(screen.getByText('Arden')).toBeTruthy()
     expect(screen.queryByText(/^\+/)).toBeNull()
   })
 
