@@ -474,7 +474,7 @@
 
 .collection-toolbar__search input::placeholder { color: var(--muted-foreground); }
 /* Indonesian search labels are longer; the field sizes to its own placeholder instead of clipping it. */
-html:lang(id) .collection-toolbar__search { min-width: 190px; }
+html:lang(id) .collection-toolbar__search { min-width: 220px; }
 
 .collection-toolbar__toggle {
   display: inline-flex;
