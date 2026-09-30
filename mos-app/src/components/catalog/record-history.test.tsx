@@ -145,4 +145,18 @@ describe('RecordHistory', () => {
     await userEvent.click(screen.getByRole('button', { name: /try again/i }))
     await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(51))
   })
+
+  it('a second click while an older page is loading does not fetch or append it twice', async () => {
+    const full = Array.from({ length: 50 }, (_, i) => entry({ id: `h${i}` }))
+    let release: (v: unknown) => void = () => {}
+    loadMock.mockResolvedValueOnce(result(full)).mockReturnValueOnce(new Promise((r) => { release = r }))
+    show()
+    const more = await screen.findByRole('button', { name: 'Show older changes' })
+    await userEvent.click(more)
+    await userEvent.click(more)
+    expect(loadMock).toHaveBeenCalledTimes(2)
+    expect(more).toBeDisabled()
+    release(result([entry({ id: 'older' })]))
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(51))
+  })
 })

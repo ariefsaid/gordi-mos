@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useT, type Translate } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -79,6 +79,8 @@ export function RecordHistory({ table, recordId, headingLevel = 2, now }: Record
   const [failed, setFailed] = useState(false)
   const [moreFailed, setMoreFailed] = useState(false)
   const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const inFlight = useRef(false)
   const Heading = headingLevel === 1 ? 'h2' : 'h3'
 
   useEffect(() => {
@@ -94,7 +96,9 @@ export function RecordHistory({ table, recordId, headingLevel = 2, now }: Record
 
   function showOlder() {
     const last = data?.entries.at(-1)
-    if (!data || !last) return
+    if (!data || !last || inFlight.current) return
+    inFlight.current = true
+    setLoadingMore(true)
     setMoreFailed(false)
     loadRecordHistory(table, recordId, { occurredAt: last.occurredAt, id: last.id }).then(
       (page) => {
@@ -102,7 +106,7 @@ export function RecordHistory({ table, recordId, headingLevel = 2, now }: Record
         setHasMore(page.entries.length >= HISTORY_PAGE)
       },
       () => setMoreFailed(true),
-    )
+    ).finally(() => { inFlight.current = false; setLoadingMore(false) })
   }
 
   const clock = now ?? new Date()
@@ -137,7 +141,7 @@ export function RecordHistory({ table, recordId, headingLevel = 2, now }: Record
           </ol>
           {moreFailed ? <ErrorState message={t('catalog.history.error')} onRetry={showOlder} /> : null}
           {hasMore && !moreFailed ? (
-            <Button variant="outline" className="catalog-record-history__more" onClick={showOlder}>
+            <Button variant="outline" className="catalog-record-history__more" onClick={showOlder} disabled={loadingMore}>
               {t('catalog.history.showMore')}
             </Button>
           ) : null}
