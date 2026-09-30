@@ -179,12 +179,32 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
     const businessUnitTrigger = screen.getByRole('combobox', { name: /business unit/i })
     const personTrigger = screen.getByRole('combobox', { name: /person/i })
     const statusTrigger = screen.getByRole('button', { name: /^status$/i })
-    expect(businessUnitTrigger).toHaveAttribute('data-full-value', businessUnit)
+    expect(businessUnitTrigger).toHaveAttribute('data-full-value', `Business unit: ${businessUnit}`)
     expect(businessUnitTrigger).toHaveTextContent(businessUnit)
-    expect(personTrigger).toHaveAttribute('data-full-value', person)
+    expect(personTrigger).toHaveAttribute('data-full-value', `Person: ${person}`)
     expect(personTrigger).toHaveTextContent(person)
     expect(statusTrigger).toHaveAttribute('data-full-value', 'In Progress')
     expect(statusTrigger).toHaveTextContent('In Progress')
+  })
+
+  // #1030: an opened control that shows only its value ("Anyone", "All units", "Due soonest") is
+  // unlabeled for a sighted reader; every dropdown in the door names what it filters or orders.
+  it('names every control in the View & filters door with a visible label, in both locales', () => {
+    const expected = {
+      en: { businessUnit: 'Business unit', person: 'Person', sort: 'Sort', status: 'Status', group: 'Group' },
+      id: { businessUnit: 'Unit bisnis', person: 'Orang', sort: 'Urutkan', status: 'Status', group: 'Kelompok' },
+    }
+    for (const locale of ['en', 'id'] as const) {
+      const { unmount } = renderToolbar(makeProps(), locale)
+      fireEvent.click(screen.getByRole('button', { name: locale === 'en' ? /^view & filters/i : /^tampilan & filter/i }))
+      const label = expected[locale]
+      expect(screen.getByRole('combobox', { name: label.businessUnit })).toHaveTextContent(`${label.businessUnit}:`)
+      expect(screen.getByRole('combobox', { name: label.person })).toHaveTextContent(`${label.person}:`)
+      expect(screen.getByRole('combobox', { name: label.sort })).toHaveTextContent(`${label.sort}:`)
+      expect(screen.getByRole('combobox', { name: label.group })).toHaveTextContent(`${label.group}:`)
+      expect(screen.getByRole('button', { name: label.status })).toHaveTextContent(label.status)
+      unmount()
+    }
   })
 
   it('offers a compact clear action when an active subset is selected', () => {

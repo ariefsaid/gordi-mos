@@ -417,6 +417,23 @@
   }
   html:lang(id) .tasks-collection-toolbar .collection-toolbar__fields { margin-inline: 3px; }
 }
+/* Inside the View & filters door each control names itself ("Sort: Due soonest"), so it sizes to
+   that text and the panel wraps. The fixed boxes above were budgeted for an exposed one-line band
+   that the door replaced. */
+@media (min-width: 768px) {
+  html .tasks-collection-toolbar .collection-toolbar__desktop-door-panel .collection-toolbar__options {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-inline: 0;
+  }
+  html .tasks-collection-toolbar .collection-toolbar__desktop-door-panel [data-filter-id],
+  html .tasks-collection-toolbar .collection-toolbar__desktop-door-panel [data-filter-id] .collection-toolbar__select {
+    flex: 0 0 auto;
+    width: auto;
+    max-width: none;
+  }
+  html .tasks-collection-toolbar .collection-toolbar__desktop-door-panel [data-filter-id='status'] .collection-toolbar__choice-label { display: inline; }
+}
 .collection-toolbar__option-field--group .collection-toolbar__picker-trigger {
   background: color-mix(in srgb, var(--brand-navy) 6%, var(--background));
   border-color: var(--brand-navy);

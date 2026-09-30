@@ -11,12 +11,13 @@
 // never renders a confirmation dialog. Field commits route through onCommitField;
 // dirty state forwards to onDirtyChange so the tenant can attach the Issue 4
 // OverlayEntry.leaveGuard. Related links call onOpenRelated (or their href).
-import { useMemo, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useMemo, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Link, useInRouterContext } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { formatWibDateTime } from '@/lib/wib-time'
 import { reportError } from '@/lib/telemetry'
+import { useMenuPopover } from '@/lib/use-menu-popover'
 import { Button, type ButtonVariant } from '@/components/ui/button'
 import { LoadingShell, EmptyState, ErrorState } from '@/components/ui/state-kit'
 import { RecordField } from './record-field'
@@ -118,24 +119,17 @@ function RecordOverflowMenu({
   const menuRef = useRef<HTMLDivElement>(null)
   const wasOpen = useRef(false)
 
+  // The shared menu contract: focus enters the first item, Arrow/Home/End walk the items, and a
+  // pointer outside closes. Escape stays with this menu's own nested-layer handlers below.
+  const close = useCallback(() => setOpen(false), [])
+  useMenuPopover(open, close, menuRef, triggerRef)
+
   useEffect(() => {
-    if (open) {
-      menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus()
-      wasOpen.current = true
-    } else if (wasOpen.current) {
+    if (open) wasOpen.current = true
+    else if (wasOpen.current) {
       wasOpen.current = false
       triggerRef.current?.focus()
     }
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    const outside = (event: PointerEvent) => {
-      if (!(event.target instanceof Node)) return
-      if (!menuRef.current?.contains(event.target) && !triggerRef.current?.contains(event.target)) setOpen(false)
-    }
-    document.addEventListener('pointerdown', outside)
-    return () => document.removeEventListener('pointerdown', outside)
   }, [open])
 
   const run = (action: RecordAction) => {

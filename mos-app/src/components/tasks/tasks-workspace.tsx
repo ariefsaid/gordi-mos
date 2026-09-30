@@ -48,6 +48,7 @@ import { isOwnerDirector } from '@/lib/role-scope'
 import { getTaskDefaultView } from '@/lib/task-default-view'
 import { resolveTeamContext } from '@/lib/team-context'
 import { isOverdue } from '@/lib/due-status'
+import { isOpenTask } from '@/lib/task-open'
 import { searchString, tasksSearchWithLiveQuery, type LiveTasksQueryRef } from './tasks-navigation'
 
 // D-A1 (fix work-order item 4): the Task record door is URL-addressable via the ?record= query
@@ -806,9 +807,7 @@ export function TasksWorkspace({
         const attentionTaskIds = new Set([...blockedTaskIds, ...overdueTaskIds])
         return {
           total: recordsForStats.length,
-          // OD-REDESIGN-91 #17: "open" mirrors the rail badge's open-count definition
-          // (lib/db/rail-counts: not archived AND not Done) so the head and the rail agree.
-          open: recordsForStats.filter((record) => record.status !== 'Done' && record.archivedAt === null).length,
+          open: recordsForStats.filter((record) => isOpenTask({ status: record.status, archived_at: record.archivedAt })).length,
           blocked: blockedTaskIds.size,
           overdue: overdueTaskIds.size,
           attentionTotal: attentionTaskIds.size,
