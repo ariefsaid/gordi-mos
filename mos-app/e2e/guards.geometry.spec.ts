@@ -371,11 +371,13 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
     await expect(attentionTrigger).toBeVisible()
 
     await attentionTrigger.click()
-    const attentionMenu = page.locator('.picker__menu[aria-label*="tasks need attention"]')
+    const attentionMenuId = await attentionTrigger.getAttribute('aria-controls')
+    expect(attentionMenuId, 'the open attention trigger names its popup').toBeTruthy()
+    const attentionMenu = page.locator(`[id="${attentionMenuId}"]`)
     await expect(attentionMenu).toBeVisible()
     const attentionOptions = attentionMenu.getByRole('option')
     expect(await attentionOptions.count(), 'Tasks filter panel #667: Attention options must be present').toBe(2)
-    await assertTapFloor(page, '.picker__menu[aria-label*="tasks need attention"] .picker__option', 'Tasks attention options #667', { axes: 'both', noOverflow: true })
+    await assertTapFloor(page, `[id="${attentionMenuId}"] .picker__option`, 'Tasks attention options #667', { axes: 'both', noOverflow: true })
     await page.keyboard.press('Escape')
 
     const saveViewTrigger = tasksToolbar.getByRole('button', { name: /^save view$/i })
