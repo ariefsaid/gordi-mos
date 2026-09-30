@@ -116,7 +116,7 @@ export interface EmptyStateProps {
 function defaultEmptyGlyph(variant: EmptyStateVariant) {
   switch (variant) {
     case 'next-step':
-      return '+'
+      return null // the action below is the invitation; a "+" disc reads as a button that does nothing
     case 'awaiting':
       return '↻' // a real data source exists and will fill this
     case 'blank':
@@ -142,6 +142,7 @@ export function EmptyState({
 }: EmptyStateProps) {
   const titleId = useId()
   const Heading = `h${headingLevel}` as const
+  const glyph = icon ?? defaultEmptyGlyph(variant)
   const headingRef = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
     if (autoFocus) headingRef.current?.focus()
@@ -160,9 +161,11 @@ export function EmptyState({
       className={`empty-state empty-state--${variant}${className ? ` ${className}` : ''}`}
     >
       <div className="empty-state-frame">
-        <div className="empty-state-icon" aria-hidden="true">
-          <span className="empty-state-glyph">{icon ?? defaultEmptyGlyph(variant)}</span>
-        </div>
+        {glyph && (
+          <div className="empty-state-icon" aria-hidden="true">
+            <span className="empty-state-glyph">{glyph}</span>
+          </div>
+        )}
         <div className="empty-state-body">
           <Heading id={titleId} ref={headingRef} tabIndex={autoFocus ? -1 : undefined} className="empty-title">{title}</Heading>
           {copy && <p className="empty-copy">{copy}</p>}

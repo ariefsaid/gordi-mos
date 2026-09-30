@@ -34,6 +34,10 @@ const INBOX: PrimaryTab = { id: 'inbox', labelKey: 'dest.inbox', href: '/inbox',
 // leads the list and /cafe/log is its redirect alias. Hidden there, and ONLY there.
 const CAPTURE_SURFACE_PATHS = ['/cafe', '/cafe/plan', '/cafe/stock', '/cafe/review']
 
+// The collections whose page head carries its own create button (Tasks, Signals): one create door
+// on phone, so the + launcher yields there. Exact paths only — a record page has no head create.
+const IN_PAGE_CREATE_PATHS = ['/work/tasks', '/work/signals']
+
 // A decision the person must make in one place: no tabs to wander off to, no "+" beside Allow.
 const FOCUSED_DECISION_PATHS = ['/oauth/consent']
 
@@ -96,7 +100,7 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
 
   if (!isNarrow || FOCUSED_DECISION_PATHS.includes(pathname)) return null
 
-  const showLauncher = !isCaptureSurface(pathname)
+  const showLauncher = !isCaptureSurface(pathname) && !IN_PAGE_CREATE_PATHS.includes(pathname.replace(/\/+$/, ''))
   // More is a door, but on a page no tab covers it is also where the viewer stands: mark it (the
   // breadcrumb leaf still owns aria-current).
   const onPrimaryTab = primaryTabs.some((tab) => {

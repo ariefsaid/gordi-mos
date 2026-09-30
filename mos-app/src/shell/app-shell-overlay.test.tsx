@@ -130,3 +130,38 @@ describe('AppShell — the overlay host is ambient', () => {
     expect(document.activeElement).toBe(opener)
   })
 })
+
+describe('AppShell — a docked panel reserves its track', () => {
+  const main = () => document.querySelector('[data-shell-main]') as HTMLElement
+
+  it('a shell-owned panel narrows the main region while open and releases it on close', async () => {
+    let api!: OverlayHostApi
+    renderShell(<Page onReady={(value) => { api = value }} />)
+    expect(main()).not.toHaveAttribute('data-panel-docked')
+
+    await act(() => api.openRoot({
+      key: 'quick:1', owner: 'shell', tenant: 'quick', label: 'Quick surface',
+      title: 'Quick surface', content: <button type="button">quick control</button>,
+    }, 'ephemeral'))
+    await waitFor(() => expect(main()).toHaveAttribute('data-panel-docked', 'shell'))
+
+    await act(() => api.close('escape'))
+    await waitFor(() => expect(main()).not.toHaveAttribute('data-panel-docked'))
+  })
+
+  it('a standalone Deputy narrows the main region while open', async () => {
+    renderShell(<Page />)
+    await act(async () => { screen.getByRole('button', { name: /open deputy/i }).click() })
+    await waitFor(() => expect(main()).toHaveAttribute('data-panel-docked', 'deputy'))
+  })
+
+  it('a collection-owned record does not narrow the shell main region (it has its own split)', async () => {
+    let api!: OverlayHostApi
+    renderShell(<Page onReady={(value) => { api = value }} />)
+    await act(() => api.openRoot({
+      key: 'signal:1', owner: 'signals', tenant: 'record', label: 'Signal record',
+      title: 'Signal record', content: <span>signal</span>,
+    }, 'route'))
+    expect(main()).not.toHaveAttribute('data-panel-docked')
+  })
+})
