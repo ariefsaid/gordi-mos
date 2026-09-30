@@ -6,6 +6,7 @@
 // per-row action clusters and relation accordions.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
+import { saveErrorMessage } from '@/lib/save-error'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { HelpTip } from '@/components/ui/help-tip'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -128,7 +129,7 @@ export function ProjectsProcessesPage() {
       controller.setQuery({ ...query, view: 'active', q: '', type: 'all' })
       controller.retry()
     } catch (error) {
-      setAddError(error instanceof Error ? error.message : t('catalog.addFailed'))
+      setAddError(saveErrorMessage(error, t))
     } finally {
       setAdding(false)
     }

@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router-dom'
 import { sectionForPath } from './sections'
-import { destinationForPath, allModules, primaryModuleForViewer } from './destinations'
+import { destinationForPath, allModules, phoneModuleForViewer } from './destinations'
 import { useBreadcrumbTitle, useCollectionLeaf, useBoundaryLabel } from './breadcrumb-title'
 import { useIsNarrow } from './use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
@@ -37,7 +37,7 @@ export function Breadcrumb() {
     // door, not a location — it no longer claims aria-current (that was the Rule-5 defect this
     // rebuild fixes). Every other live destination (Signals, Money, Admin, Profile, a
     // non-promoted module) has no tab, so the breadcrumb leaf owns it.
-    const promoted = viewer ? primaryModuleForViewer(viewer.affiliated, viewer.accessRoles) : null
+    const promoted = viewer ? phoneModuleForViewer(viewer.affiliated, viewer.accessRoles, pathname) : null
     const tabIds = new Set(['home', 'work', 'inbox', ...(promoted ? [promoted.id] : [])])
     leafCarriesCurrent = !tabIds.has(destination.id)
   } else {

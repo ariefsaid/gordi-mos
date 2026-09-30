@@ -322,6 +322,30 @@ describe('PersonPanel — Access roles', () => {
     expect(mockRevokeRole).not.toHaveBeenCalled()
   })
 
+  it('granting Ops Lead asks first: Cancel writes nothing', async () => {
+    const user = userEvent.setup()
+    renderPanel({ ...BAYU, access_roles: ['member'] })
+    await user.click(screen.getByRole('checkbox', { name: 'Ops Lead' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Make Bayu Barista an Ops Lead?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Make Bayu Barista an Ops Lead?' })).toBeNull()
+    expect(mockGrantRole).not.toHaveBeenCalled()
+    expect(screen.getByRole('checkbox', { name: 'Ops Lead' })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('granting Ops Lead asks first: Confirm writes exactly once', async () => {
+    const user = userEvent.setup()
+    renderPanel({ ...BAYU, access_roles: ['member'] })
+    await user.click(screen.getByRole('checkbox', { name: 'Ops Lead' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Make Bayu Barista an Ops Lead?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Make Ops Lead' }))
+
+    await waitFor(() => expect(mockGrantRole).toHaveBeenCalledTimes(1))
+    expect(mockGrantRole).toHaveBeenCalledWith('bayu-id', 'ops_lead')
+  })
+
   it('other grants never ask', async () => {
     const user = userEvent.setup()
     renderPanel()
