@@ -6,6 +6,11 @@ export interface WorkWriteScopes {
   objective_org: boolean
   workline_bu_ids: string[]
   objective_bu_ids: string[]
+  // The write-up / key-result current-value tier (#992): org-wide for ops leads, an Objective's
+  // own BU for its head. The Objective UI slices consume these; the fields ride the RPC from
+  // their schema slice so one read serves both tiers.
+  objective_content_org: boolean
+  objective_content_bu_ids: string[]
 }
 
 const mos = () => supabase.schema('mos')
@@ -15,6 +20,8 @@ const EMPTY_SCOPES: WorkWriteScopes = {
   objective_org: false,
   workline_bu_ids: [],
   objective_bu_ids: [],
+  objective_content_org: false,
+  objective_content_bu_ids: [],
 }
 
 function authorityRow(data: unknown): Record<string, unknown> {
@@ -43,10 +50,12 @@ export async function getWorkWriteScopes(): Promise<WorkWriteScopes> {
     objective_org: row.objective_org === true,
     workline_bu_ids: stringIds(row.workline_bu_ids),
     objective_bu_ids: stringIds(row.objective_bu_ids),
+    objective_content_org: row.objective_content_org === true,
+    objective_content_bu_ids: stringIds(row.objective_content_bu_ids),
   }
 }
 
 /** A safe empty value for UI callers that need to initialize before an authority read settles. */
 export function emptyWorkWriteScopes(): WorkWriteScopes {
-  return { ...EMPTY_SCOPES, workline_bu_ids: [], objective_bu_ids: [] }
+  return { ...EMPTY_SCOPES, workline_bu_ids: [], objective_bu_ids: [], objective_content_bu_ids: [] }
 }

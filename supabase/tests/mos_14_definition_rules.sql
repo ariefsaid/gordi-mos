@@ -1,8 +1,11 @@
 -- mos — the work-systems definition rules (#801, OD-WAY-97): who reads and who writes the two
 -- definition catalogs (Projects & Processes, Objectives) and a Process's cadence and step
--- definitions. Everyone in the org reads; admin and ops_lead write anywhere; a LEAD writes in a
--- unit they belong to; type locks once an occurrence exists; an Objective carries unit, owner
--- and year.
+-- definitions. Everyone in the org reads. Projects & Processes keep the #801 shape: admin and
+-- ops_lead write anywhere; a LEAD writes in a unit they belong to; type locks once an occurrence
+-- exists. Objectives are narrowed by #992 (OD-OBJ-1): every structural write — create, archive,
+-- rename, re-home, re-period — is admin-only at the database layer; ops leads and a unit's apex
+-- head hold only the write-up/content tier (mos_26 pins that split). An Objective carries unit,
+-- owner and year.
 --
 -- Read against the committed dev seed (supabase/seed.sql), the way shared_10_dev_seed.sql does,
 -- because the rule under test is about the SHAPE of a real org — a lead with reports, a lead who
@@ -151,21 +154,24 @@ select lives_ok($$
 $$, 'AC-003: Cahya (ops_lead) creates a definition with no unit');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- AC-004 — Objectives follow the same rule
+-- AC-004 — Objectives are created by admin ALONE (#992, OD-OBJ-1). This block used to assert the
+-- opposite — that a lead (Krishna via reports, Maya via heading a unit) could create one, per the
+-- OD-V4-1-era rule. The owner took that grant back; the assertions follow the ruling, they were
+-- not relaxed.
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 set local request.jwt.claims = '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000002","access_roles":["member"]}';
-select lives_ok($$
+select throws_ok($$
   insert into mos.objectives (name, business_unit_id, period_year)
   values ('Kitchen Consistency', '20000000-0000-0000-0000-000000000014', 2026)
-$$, 'AC-004: Krishna creates a Retail Ops Objective');
+$$, '42501', null, 'AC-004: Krishna cannot create a Retail Ops Objective — holding reports is no longer enough (#992)');
 select throws_ok($$
   insert into mos.objectives (name, business_unit_id) values ('Krishna Marketing', '20000000-0000-0000-0000-000000000011')
 $$, '42501', null, 'AC-004: Krishna cannot create a Marketing Objective');
 
 set local request.jwt.claims = '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-00000000001a","access_roles":["manager"]}';
-select lives_ok($$
+select throws_ok($$
   insert into mos.objectives (name, business_unit_id) values ('Brand Reach', '20000000-0000-0000-0000-000000000011')
-$$, 'AC-004: Maya creates a Marketing Objective — heading a unit is enough, reports are not required');
+$$, '42501', null, 'AC-004: Maya cannot create a Marketing Objective — heading a unit no longer creates Objectives (#992)');
 
 set local request.jwt.claims = '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000007","access_roles":["member"]}';
 select throws_ok($$

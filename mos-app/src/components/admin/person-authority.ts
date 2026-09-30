@@ -51,7 +51,6 @@ export function personAuthority(rows: readonly RoleAuthorityRow[], held: readonl
 
 export const AUTHORITY_ACTION_LABEL_KEYS: Record<AuthorityAction, MessageKey> = {
   'workline.manage': 'admin.access.action.workline.manage',
-  'objective.manage': 'admin.access.action.objective.manage',
   'signal.post': 'admin.access.action.signal.post',
   'signal.tag': 'admin.access.action.signal.tag',
   'signal.retract': 'admin.access.action.signal.retract',
