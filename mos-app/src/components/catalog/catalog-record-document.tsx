@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useHref } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -33,7 +33,9 @@ import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogReco
 import './catalog-record-document.css'
 import { ObjectiveKeyResultsSection } from './objective-key-results-section'
 import { RecordHistory } from './record-history'
-import { allowedBusinessUnitIds, canManageForScope, useWorkWriteAuthority } from './use-work-write-authority'
+import { allowedBusinessUnitIds, canEditObjectiveContentForScope, canManageForScope, useWorkWriteAuthority } from './use-work-write-authority'
+
+const ObjectiveWriteupEditor = lazy(() => import('./objective-writeup-editor').then((m) => ({ default: m.ObjectiveWriteupEditor })))
 
 export type CatalogRecordKind = 'work-line' | 'objective'
 export type CatalogRelatedKind = CatalogRecordKind | 'task'
@@ -481,6 +483,7 @@ export function CatalogRecordDocument({
       { id: 'work', label: t('catalog.record.tabs.work') },
       { id: 'facts', label: t('catalog.record.tabs.details') },
       ...(row.type === 'process' ? [{ id: 'steps', label: t('catalog.record.tabs.steps') }] : []),
+      ...(kind === 'objective' ? [{ id: 'writeup', label: t('objective.writeUp.tab') }] : []),
     ]
 
     const actions: RecordAction[] = canManage ? [{
@@ -560,6 +563,20 @@ export function CatalogRecordDocument({
                 </ol>
               ) : <p className="catalog-record-document__muted">{t('catalog.record.noSteps')}</p>}
             </div>
+          ),
+        }] : []),
+        ...(kind === 'objective' ? [{
+          id: 'writeup',
+          label: t('objective.writeUp.tab'),
+          render: (slotContext: { onDirtyChange?: (dirty: boolean) => void }) => (
+            <Suspense fallback={<LoadingShell label={t('objective.writeUp.loading')} />}>
+              <ObjectiveWriteupEditor
+                objectiveId={id}
+                canEdit={canEditObjectiveContentForScope(row, scopes)}
+                archived={row.archived_at !== null}
+                onDirtyChange={slotContext.onDirtyChange}
+              />
+            </Suspense>
           ),
         }] : []),
         {
