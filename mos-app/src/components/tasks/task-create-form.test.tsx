@@ -235,6 +235,17 @@ describe('TaskCreateForm — Due date + Project/Process (#1029)', () => {
     expect(onEditWorkLine).toHaveBeenCalledWith('new-task-1', null)
   })
 
+  it('a failed Signal link locks every draft field so no edit is lost by the link-only retry (#1116)', () => {
+    const { onEditDue, onEditWorkLine } = renderWithContext({ linkError: true, onRetryLink: vi.fn() })
+    expect(screen.getByRole('alert')).toHaveTextContent('Retry')
+    for (const name of ['Team', 'PIC', 'Supervisor', 'Project/Process']) {
+      expect(screen.getByRole('combobox', { name })).toBeDisabled()
+    }
+    expect(screen.getByLabelText('Due date')).toBeDisabled()
+    expect(onEditDue).not.toHaveBeenCalled()
+    expect(onEditWorkLine).not.toHaveBeenCalled()
+  })
+
   it('has no separate Objective field; the Objective comes from the Project/Process', () => {
     renderWithContext()
     expect(screen.queryByRole('combobox', { name: /objective/i })).not.toBeInTheDocument()
