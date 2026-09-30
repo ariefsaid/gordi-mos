@@ -1,7 +1,8 @@
 /**
  * useMenuPopover — the ONE popover interaction contract (convention audit 2026-07-18,
  * "four overlays, four dismissal contracts" — Nielsen #4). Every menu-style popover gets:
- *   - outside-pointerdown close
+ *   - outside-pointerdown close, and close when focus moves to anything outside the menu and its
+ *     trigger (so a menu is never open while focus is elsewhere)
  *   - Escape close (with focus returned to the trigger by the caller's `close`)
  *   - WAI-ARIA menu keyboard: focus moves to the first menuitem on open;
  *     ArrowDown/ArrowUp cycle; Home/End jump.
@@ -27,16 +28,12 @@ export function useMenuPopover(
     // WAI-ARIA menu button pattern: focus enters the menu on open.
     items()[0]?.focus()
 
-    // Escape closes only this menu. It is taken in the capture phase so a host listening for
-    // Escape (a record panel, a modal) never sees it, wherever focus is while the menu is open.
-    const onEscape = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      e.preventDefault()
-      e.stopPropagation()
-      close()
-    }
-
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        close()
+        return
+      }
       const list = items()
       if (list.length === 0) return
       const idx = list.indexOf(document.activeElement as HTMLElement)
@@ -62,11 +59,19 @@ export function useMenuPopover(
       close()
     }
 
-    document.addEventListener('keydown', onEscape, true)
+    const onFocusOut = (e: FocusEvent) => {
+      const next = e.relatedTarget as Node | null
+      // A null target is a click on a non-focusable area or a window blur; the pointer handler owns those.
+      if (!next || menuRef.current?.contains(next) || triggerRef.current?.contains(next)) return
+      close()
+    }
+
+    const menu = menuRef.current
+    menu?.addEventListener('focusout', onFocusOut)
     document.addEventListener('keydown', onKeyDown)
     document.addEventListener('mousedown', onPointerDown)
     return () => {
-      document.removeEventListener('keydown', onEscape, true)
+      menu?.removeEventListener('focusout', onFocusOut)
     document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('mousedown', onPointerDown)
     }

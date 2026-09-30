@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { RecordPanelHost } from '@/shell/record-panel-host'
@@ -111,17 +111,17 @@ describe('RecordViewer interaction boundary', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('OverflowEscapeContract: with focus moved off the open menu, Escape closes only the menu, not the record', () => {
+  it('OverflowFocusContract: moving focus off the open menu closes it and leaves the record open', () => {
     const onClose = vi.fn()
     renderInHost({ onClose, onOpenPage: vi.fn() })
 
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
     expect(screen.getByRole('menu', { name: 'More actions' })).toBeInTheDocument()
     const elsewhere = screen.getByRole('button', { name: 'Edit Title' })
-    elsewhere.focus()
-    fireEvent.keyDown(elsewhere, { key: 'Escape' })
+    act(() => elsewhere.focus())
 
     expect(screen.queryByRole('menu', { name: 'More actions' })).not.toBeInTheDocument()
+    expect(elsewhere).toHaveFocus()
     expect(onClose).not.toHaveBeenCalled()
   })
 
