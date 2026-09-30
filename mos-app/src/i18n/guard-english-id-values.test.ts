@@ -70,6 +70,7 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'catalog.column.accountable', // Accountable
   'catalog.record.accountable', // Accountable
   'catalog.record.responsible', // Responsible
+  'objective.keyResults.responsible', // Responsible — same word as the record field
   'tasks.pic', // PIC
   'tasks.status.label', // Status
   'tasks.supervisor', // Supervisor
