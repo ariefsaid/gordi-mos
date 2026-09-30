@@ -363,6 +363,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
             aria-busy={busy || undefined}
             aria-required={spec.required || undefined}
             maxLength={spec.maxLength}
+            placeholder={spec.placeholder}
             onChange={(e) => {
               setDraft(e.target.value)
               reportDirty(e.target.value)
@@ -417,6 +418,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
             aria-busy={busy || undefined}
             aria-required={spec.required || undefined}
             maxLength={spec.maxLength}
+            placeholder={spec.placeholder}
             onChange={(e) => {
               setDraft(e.target.value)
               reportDirty(e.target.value)

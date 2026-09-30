@@ -445,7 +445,7 @@ export function CatalogRecordDocument({
       ? [
           { key: 'businessUnit', label: t('catalog.record.businessUnit'), control: 'relation', value: row.isCompanyWide ? COMPANY_WIDE_OPTION : row.businessUnitId ?? null, displayValue: businessUnitLabel(row, businessUnitsById, t), editable: false },
           { key: 'accountable', label: t('catalog.record.accountable'), control: 'person', value: row.accountablePersonId ?? null, displayValue: directoryName(row.accountablePersonId, allPeopleById, t), editable: false },
-          { key: 'period', label: t('catalog.record.period'), control: 'text', value: row.periodYear ?? null, displayValue: row.periodYear == null ? t('catalog.notSet') : String(row.periodYear), editable: false },
+          { key: 'period', label: t('catalog.record.period'), control: 'text', value: row.periodYear ?? null, placeholder: t('catalog.record.periodPlaceholder'), displayValue: row.periodYear == null ? t('catalog.notSet') : String(row.periodYear), editable: false },
           { key: 'periodQuarter', label: t('catalog.record.periodQuarter'), control: 'select', value: row.periodQuarter == null ? null : String(row.periodQuarter), displayValue: periodQuarterLabel(row.periodQuarter, row.periodYear, t), editable: false },
         ]
       : [

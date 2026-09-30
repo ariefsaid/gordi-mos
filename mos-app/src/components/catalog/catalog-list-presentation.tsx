@@ -174,11 +174,12 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
           const relation = primaryRelation(context, row)
           const relationGroups = context.relationsById.get(row.id)?.groups ?? []
           const contributions = relationGroups.filter((group) => group.relationship === 'contribution' && !group.synthetic)
-          const directChildren = relationGroups.filter((group) => group.relationship === 'direct' && group.entity === 'work-line')
+          const directWork = relationGroups.filter((group) => group.relationship === 'direct' && group.entity === 'work-line' && !group.synthetic)
+          const workLabel = directWork.length > 0 ? directWork.map((group) => group.name).join(', ') : t('catalog.notSet')
           const progress = context.progressById.get(row.id)
           const relationLabel = relation
             ? relation.relationship === 'contribution'
-              ? t(context.relationsKind === 'work_line' ? 'catalog.relations.contributesTo' : 'catalog.relations.viaTask', { name: relation.name })
+              ? t('catalog.relations.contributesTo', { name: relation.name })
               : relation.name
             : t('catalog.notSet')
           const progressLabel = rowProgressText(row, progress, t)
@@ -259,17 +260,18 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
                     <span
                       className="catalog-collection__cell catalog-collection__cell--cadence"
                       role="cell"
-                      aria-label={`${context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}: ${context.relationsKind === 'objective' ? relationLabel : cadenceDueLabel}`}
+                      aria-label={`${context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}: ${context.relationsKind === 'objective' ? workLabel : cadenceDueLabel}`}
                     >
                       <span className="catalog-collection__cell-label">{context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}</span>
-                      <span className={(context.relationsKind === 'objective' ? !relation : cadenceDue.missing) ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value'}>
-                        {visualCellValue(context.relationsKind === 'objective' ? relationLabel : cadenceDueLabel, context.relationsKind === 'objective' ? !relation : cadenceDue.missing)}
+                      <span className={(context.relationsKind === 'objective' ? directWork.length === 0 : cadenceDue.missing) ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value'}>
+                        {visualCellValue(context.relationsKind === 'objective' ? workLabel : cadenceDueLabel, context.relationsKind === 'objective' ? directWork.length === 0 : cadenceDue.missing)}
                       </span>
                       {context.relationsKind === 'objective' ? (
-                        <span className="catalog-collection__cell-note">
-                          {t('catalog.childCount', { count: String(directChildren.length) })}
-                          {contributions.length > 0 ? ` · ${t('catalog.contributionCount', { count: String(contributions.length) })}` : ''}
-                        </span>
+                        contributions.length > 0 ? (
+                          <span className="catalog-collection__cell-note">
+                            {t(directWork.length > 0 ? 'catalog.relations.workAlsoViaTasks' : 'catalog.relations.workViaTasks', { names: contributions.map((group) => group.name).join(', ') })}
+                          </span>
+                        ) : null
                       ) : contributions.length > 0 ? (
                         <span className="catalog-collection__cell-note">
                           {t(relation ? 'catalog.relations.alsoContributes' : 'catalog.relations.taskContributions', { names: contributions.map((group) => group.name).join(', ') })}

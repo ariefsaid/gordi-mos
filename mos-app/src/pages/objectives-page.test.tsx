@@ -98,7 +98,7 @@ describe('Objectives collection-first contract', () => {
     const { container } = renderPage()
     await screen.findByText('Grow revenue')
     expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives/obj-1')
-    expect(screen.getByText('Direct Projects & Processes: 0 · 2 contributing')).toBeInTheDocument()
+    expect(screen.getByText('Through Tasks: Daily prep, Menu launch')).toBeInTheDocument()
     expect(screen.getByText('1 / 2 done')).toBeInTheDocument()
     expect(screen.getByText('07 Jul 2026, 07:00 WIB')).toBeInTheDocument()
     expect(container.querySelector('.catalog-collection__disclosure')).toBeNull()

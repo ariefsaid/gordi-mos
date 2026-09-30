@@ -279,6 +279,14 @@ describe('Objective structural pickers (admin)', () => {
     expect(details.querySelector('[data-field-key="periodQuarter"]')).toHaveTextContent('Set a year first to choose a quarter.')
   })
 
+  it('shows a year hint in the Period input while no year is set', async () => {
+    current = baseRow({ periodYear: null, periodQuarter: null })
+    renderObjective()
+    const details = await openDetails()
+    fireEvent.click(await within(details).findByRole('button', { name: 'Edit Period' }))
+    expect(screen.getByRole('textbox', { name: 'Period' })).toHaveAttribute('placeholder', 'Year, e.g. 2026')
+  })
+
   it('clears the quarter in the same patch when the year is cleared', async () => {
     renderObjective()
     const details = await openDetails()
