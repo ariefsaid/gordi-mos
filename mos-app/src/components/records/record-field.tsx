@@ -109,6 +109,8 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
   // When an edit session ends via the keyboard (Enter/Escape), focus returns to the value
   // activation control so keyboard users keep their place (focus-return contract).
   const returnFocusRef = useRef(false)
+  // True when the picker's last key was Enter, so choosing with it returns focus like a text field's Enter.
+  const pickedByEnterRef = useRef(false)
   // Synchronous mirrors so the upstream-sync effect can read the CURRENT edit state without
   // adding them to its dependency list (it must run on spec.value changes only).
   const editingRef = useRef(editing)
@@ -318,7 +320,12 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
         {isOption ? (
           // The wrapper carries the native capture Escape isolation for the picker (a select has
           // no draft to retype, so its Escape simply returns to the value view, shielded from host).
-          <div ref={attachFieldEscapeIsolation} className="record-field__select-wrap">
+          <div
+            ref={attachFieldEscapeIsolation}
+            className="record-field__select-wrap"
+            onKeyDownCapture={(e) => { pickedByEnterRef.current = e.key === 'Enter' }}
+            onPointerDownCapture={() => { pickedByEnterRef.current = false }}
+          >
             <Picker
               id={controlId}
               className="record-field__picker"
@@ -334,7 +341,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
               required={spec.required}
               onChange={(next) => {
                 setDraft(next)
-                void commit(next, false)
+                void commit(next, pickedByEnterRef.current)
               }}
               onOpenChange={(open, reason) => {
                 if (open || reason === 'select') return
@@ -356,6 +363,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
             aria-busy={busy || undefined}
             aria-required={spec.required || undefined}
             maxLength={spec.maxLength}
+            placeholder={spec.placeholder}
             onChange={(e) => {
               setDraft(e.target.value)
               reportDirty(e.target.value)
@@ -410,6 +418,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
             aria-busy={busy || undefined}
             aria-required={spec.required || undefined}
             maxLength={spec.maxLength}
+            placeholder={spec.placeholder}
             onChange={(e) => {
               setDraft(e.target.value)
               reportDirty(e.target.value)
