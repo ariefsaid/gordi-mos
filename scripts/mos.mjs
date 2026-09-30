@@ -45,6 +45,10 @@ export class CliError extends Error {
 }
 const usage = (message) => new CliError(message, { exit: 2 });
 
+// The only part of a low-level error the CLI prints: a plain code such as ECONNREFUSED. Its message
+// can quote request headers, so it never reaches output.
+const errorCode = (e) => (typeof e?.code === 'string' && /^[A-Z0-9_]{1,40}$/.test(e.code) ? e.code : null);
+
 // ── target: URL + key ────────────────────────────────────────────────────────────────────────────
 
 /** The normalized Supabase URL. https only, except the loopback host for a local stack. */
@@ -95,14 +99,14 @@ function runSecurity(spawnFn, args, input) {
     try {
       child = spawnFn('security', args, { stdio: ['pipe', 'pipe', 'pipe'] });
     } catch (e) {
-      reject(new CliError(`Could not run the macOS \`security\` tool (${e.code ?? e.message})`));
+      reject(new CliError(`Could not run the macOS \`security\` tool (${errorCode(e) ?? 'unknown error'})`));
       return;
     }
     let stdout = '';
     let stderr = '';
     child.stdout?.on('data', (d) => (stdout += d));
     child.stderr?.on('data', (d) => (stderr += d));
-    child.on('error', (e) => reject(new CliError(`Could not run the macOS \`security\` tool (${e.code ?? e.message})`)));
+    child.on('error', (e) => reject(new CliError(`Could not run the macOS \`security\` tool (${errorCode(e) ?? 'unknown error'})`)));
     child.on('close', (code) => resolve({ code, stdout, stderr }));
     child.stdin?.on('error', () => {});
     child.stdin?.end(input ?? '');
@@ -180,7 +184,7 @@ async function send(ctx, method, pathAndQuery, { headers = {}, body } = {}) {
     if (/redirect/i.test(String(e?.cause?.message ?? e?.message ?? ''))) {
       throw new CliError('Refused to follow a redirect from the Supabase URL. Check MOS_SUPABASE_URL.');
     }
-    throw new CliError(`Could not reach the Supabase URL (${e?.cause?.code ?? e?.message})`);
+    throw new CliError(`Could not reach the Supabase URL (${errorCode(e?.cause) ?? errorCode(e) ?? 'network error'})`);
   }
   const text = await res.text();
   let data = null;
@@ -404,7 +408,7 @@ async function readBody(ctx, arg) {
     try {
       text = fs.readFileSync(arg.slice(1), 'utf8');
     } catch (e) {
-      throw usage(`Could not read ${arg.slice(1)}: ${e.code ?? e.message}`);
+      throw usage(`Could not read ${arg.slice(1)}: ${errorCode(e) ?? 'unknown error'}`);
     }
   } else {
     text = arg;
@@ -518,7 +522,7 @@ export async function run(argv, io = {}) {
     stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return 0;
   } catch (e) {
-    return fail(e instanceof CliError ? e : new CliError(e?.message ?? String(e)));
+    return fail(e instanceof CliError ? e : new CliError(`Unexpected error${errorCode(e) ? ` (${errorCode(e)})` : ''}`));
   }
 }
 
