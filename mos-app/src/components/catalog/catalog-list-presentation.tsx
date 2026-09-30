@@ -3,7 +3,9 @@
 // A catalog row is a record door. Mutations live on the record's overflow/action area, so the
 // collection stays scannable: one primary identity, a few facts, and one activation target. The
 // same DOM reflows from a dense desktop table into a phone card without inventing a second IA.
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { Tag } from '@/components/ui/tag'
 import { PersonCell } from '@/components/tasks/pic-cell'
 import { useT } from '@/i18n/use-t'
@@ -17,6 +19,7 @@ import type {
   CatalogRenderGroup,
   CatalogRow,
 } from './catalog-collection-adapter'
+import { CATALOG_COLUMN_DEFS, type CatalogColumnId } from './catalog-columns'
 import '@/components/collection-grammar.css'
 import './catalog-collection.css'
 
@@ -154,6 +157,15 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
     showCadence ? '' : ' catalog-collection__table--no-cadence',
   ].join('')
 
+  const table = useReactTable({
+    data: rows as CatalogRow[],
+    columns: CATALOG_COLUMN_DEFS,
+    state: { columnVisibility: { relation: showRelation, owner: showOwner, cadence: showCadence } },
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (row) => row.id,
+  })
+  const metadataColumns = table.getVisibleLeafColumns().filter((column) => column.id !== 'name')
+
   return (
     <div
       className={`catalog-collection__table catalog-collection__table--${context.relationsKind}${hiddenClasses}`}
@@ -161,12 +173,15 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
       aria-label={viewLabel}
     >
       <div className="catalog-collection__header" role="row">
-        <span role="columnheader">{t('catalog.column.name')}</span>
-        {showRelation ? <span role="columnheader" className="catalog-collection__header-cell--relation">{isObjective ? t('catalog.column.businessUnit') : t('catalog.column.objective')}</span> : null}
-        {showOwner ? <span role="columnheader" className="catalog-collection__header-cell--owner">{t('catalog.column.accountable')}</span> : null}
-        {showCadence ? <span role="columnheader" className="catalog-collection__header-cell--cadence">{isObjective ? t('catalog.column.work') : t('catalog.column.cadenceDue')}</span> : null}
-        <span role="columnheader" className="catalog-collection__header-cell--progress">{t('catalog.column.progress')}</span>
-        <span role="columnheader" className="catalog-collection__header-cell--activity">{t('catalog.column.activity')}</span>
+        {table.getHeaderGroups()[0]?.headers.map((header) => {
+          const meta = header.column.columnDef.meta!
+          const labelKey = isObjective && meta.objectiveLabelKey ? meta.objectiveLabelKey : meta.labelKey
+          return (
+            <span key={header.id} role="columnheader" className={meta.thClass || undefined}>
+              {t(labelKey)}
+            </span>
+          )
+        })}
       </div>
       <ul className="catalog-collection__list" aria-label={viewLabel}>
         {rows.map((row) => {
@@ -174,11 +189,15 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
           const relation = primaryRelation(context, row)
           const relationGroups = context.relationsById.get(row.id)?.groups ?? []
           const contributions = relationGroups.filter((group) => group.relationship === 'contribution' && !group.synthetic)
-          const directChildren = relationGroups.filter((group) => group.relationship === 'direct' && group.entity === 'work-line')
+          const directWork = relationGroups.filter((group) => group.relationship === 'direct' && group.entity === 'work-line' && !group.synthetic)
+          const workLabel = directWork.length > 0 ? directWork.map((group) => group.name).join(', ') : t('catalog.notSet')
+          const workViaTasksNote = contributions.length > 0
+            ? t(directWork.length > 0 ? 'catalog.relations.workAlsoViaTasks' : 'catalog.relations.workViaTasks', { names: contributions.map((group) => group.name).join(', ') })
+            : null
           const progress = context.progressById.get(row.id)
           const relationLabel = relation
             ? relation.relationship === 'contribution'
-              ? t(context.relationsKind === 'work_line' ? 'catalog.relations.contributesTo' : 'catalog.relations.viaTask', { name: relation.name })
+              ? t('catalog.relations.contributesTo', { name: relation.name })
               : relation.name
             : t('catalog.notSet')
           const progressLabel = rowProgressText(row, progress, t)
@@ -197,6 +216,66 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
               {t(row.type === 'project' ? 'catalog.tag.project' : 'catalog.tag.process')}
             </Tag>
           ) : null
+
+          const cells: Record<Exclude<CatalogColumnId, 'name'>, ReactNode> = {
+            relation: (
+              <span key="relation"
+                className="catalog-collection__cell catalog-collection__cell--relation"
+                role="cell"
+                aria-label={`${context.relationsKind === 'objective' ? t('catalog.column.businessUnit') : t('catalog.column.objective')}: ${context.relationsKind === 'objective' ? businessUnitLabel : relationLabel}`}
+              >
+                <span className="catalog-collection__cell-label">{context.relationsKind === 'objective' ? t('catalog.column.businessUnit') : t('catalog.column.objective')}</span>
+                <span className={context.relationsKind === 'objective' ? (businessUnitMissing ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value') : (relation ? 'catalog-collection__cell-value' : 'catalog-collection__cell-value catalog-collection__cell-value--muted')}>
+                  {visualCellValue(context.relationsKind === 'objective' ? businessUnitLabel : relationLabel, context.relationsKind === 'objective' ? businessUnitMissing : !relation)}
+                </span>
+                {context.relationsKind === 'objective' && periodNote ? (
+                  <span className="catalog-collection__cell-note">{periodNote}</span>
+                ) : null}
+              </span>
+            ),
+            owner: (
+              <div key="owner"
+                className="catalog-collection__cell catalog-collection__cell--owner"
+                role="cell"
+                aria-label={`${t('catalog.column.accountable')}: ${ownerLabel}`}
+                title={ownerLabel}
+              >
+                <span className="catalog-collection__cell-label">{t('catalog.column.accountable')}</span>
+                {ownerCellValue(row.accountablePersonId, context.peopleById, t)}
+              </div>
+            ),
+            cadence: (
+              <span key="cadence"
+                className="catalog-collection__cell catalog-collection__cell--cadence"
+                role="cell"
+                aria-label={`${context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}: ${context.relationsKind === 'objective' ? [workLabel, workViaTasksNote].filter(Boolean).join('. ') : cadenceDueLabel}`}
+              >
+                <span className="catalog-collection__cell-label">{context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}</span>
+                <span className={(context.relationsKind === 'objective' ? directWork.length === 0 : cadenceDue.missing) ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value'}>
+                  {visualCellValue(context.relationsKind === 'objective' ? workLabel : cadenceDueLabel, context.relationsKind === 'objective' ? directWork.length === 0 : cadenceDue.missing)}
+                </span>
+                {context.relationsKind === 'objective' ? (
+                  workViaTasksNote ? <span className="catalog-collection__cell-note">{workViaTasksNote}</span> : null
+                ) : contributions.length > 0 ? (
+                  <span className="catalog-collection__cell-note">
+                    {t(relation ? 'catalog.relations.alsoContributes' : 'catalog.relations.taskContributions', { names: contributions.map((group) => group.name).join(', ') })}
+                  </span>
+                ) : null}
+              </span>
+            ),
+            progress: (
+              <span key="progress" className="catalog-collection__cell catalog-collection__cell--progress" role="cell">
+                <span className="catalog-collection__cell-label">{t('catalog.column.progress')}</span>
+                <span className="catalog-collection__cell-value tabular-nums" data-testid="catalog-progress">{progressLabel}</span>
+              </span>
+            ),
+            activity: (
+              <span key="activity" className="catalog-collection__cell catalog-collection__cell--activity" role="cell">
+                <span className="catalog-collection__cell-label">{t('catalog.column.activity')}</span>
+                <span className="catalog-collection__cell-value">{activityLabel}</span>
+              </span>
+            ),
+          }
 
           return (
             <li
@@ -229,62 +308,7 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
                   {t('common.view')}
                 </span>
                 <div className="catalog-collection__metadata" role="presentation">
-                  {showRelation ? (
-                    <span
-                      className="catalog-collection__cell catalog-collection__cell--relation"
-                      role="cell"
-                      aria-label={`${context.relationsKind === 'objective' ? t('catalog.column.businessUnit') : t('catalog.column.objective')}: ${context.relationsKind === 'objective' ? businessUnitLabel : relationLabel}`}
-                    >
-                      <span className="catalog-collection__cell-label">{context.relationsKind === 'objective' ? t('catalog.column.businessUnit') : t('catalog.column.objective')}</span>
-                      <span className={context.relationsKind === 'objective' ? (businessUnitMissing ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value') : (relation ? 'catalog-collection__cell-value' : 'catalog-collection__cell-value catalog-collection__cell-value--muted')}>
-                        {visualCellValue(context.relationsKind === 'objective' ? businessUnitLabel : relationLabel, context.relationsKind === 'objective' ? businessUnitMissing : !relation)}
-                      </span>
-                      {context.relationsKind === 'objective' && periodNote ? (
-                        <span className="catalog-collection__cell-note">{periodNote}</span>
-                      ) : null}
-                    </span>
-                  ) : null}
-                  {showOwner ? (
-                    <div
-                      className="catalog-collection__cell catalog-collection__cell--owner"
-                      role="cell"
-                      aria-label={`${t('catalog.column.accountable')}: ${ownerLabel}`}
-                      title={ownerLabel}
-                    >
-                      <span className="catalog-collection__cell-label">{t('catalog.column.accountable')}</span>
-                      {ownerCellValue(row.accountablePersonId, context.peopleById, t)}
-                    </div>
-                  ) : null}
-                  {showCadence ? (
-                    <span
-                      className="catalog-collection__cell catalog-collection__cell--cadence"
-                      role="cell"
-                      aria-label={`${context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}: ${context.relationsKind === 'objective' ? relationLabel : cadenceDueLabel}`}
-                    >
-                      <span className="catalog-collection__cell-label">{context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}</span>
-                      <span className={(context.relationsKind === 'objective' ? !relation : cadenceDue.missing) ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value'}>
-                        {visualCellValue(context.relationsKind === 'objective' ? relationLabel : cadenceDueLabel, context.relationsKind === 'objective' ? !relation : cadenceDue.missing)}
-                      </span>
-                      {context.relationsKind === 'objective' ? (
-                        <span className="catalog-collection__cell-note">
-                          {t('catalog.childCount', { count: String(directChildren.length) })}
-                          {contributions.length > 0 ? ` · ${t('catalog.contributionCount', { count: String(contributions.length) })}` : ''}
-                        </span>
-                      ) : contributions.length > 0 ? (
-                        <span className="catalog-collection__cell-note">
-                          {t(relation ? 'catalog.relations.alsoContributes' : 'catalog.relations.taskContributions', { names: contributions.map((group) => group.name).join(', ') })}
-                        </span>
-                      ) : null}
-                    </span>
-                  ) : null}
-                  <span className="catalog-collection__cell catalog-collection__cell--progress" role="cell">
-                    <span className="catalog-collection__cell-label">{t('catalog.column.progress')}</span>
-                    <span className="catalog-collection__cell-value tabular-nums" data-testid="catalog-progress">{progressLabel}</span>
-                  </span>
-                  <span className="catalog-collection__cell catalog-collection__cell--activity" role="cell">
-                    <span className="catalog-collection__cell-label">{t('catalog.column.activity')}</span>
-                    <span className="catalog-collection__cell-value">{activityLabel}</span>
-                  </span>
+                  {metadataColumns.map((column) => cells[column.id as Exclude<CatalogColumnId, 'name'>])}
                 </div>
               </Link>
             </li>

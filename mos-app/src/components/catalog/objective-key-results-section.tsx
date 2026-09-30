@@ -28,6 +28,9 @@ export interface ObjectiveKeyResultsSectionProps {
   isCompanyWide?: boolean
   archived: boolean
   scopes: WorkWriteScopes
+  /** Where the viewer's write-scope lookup stands; a person who may edit is never shown the read-only note while it is unknown. */
+  scopesStatus?: 'loading' | 'ready' | 'error'
+  onRetryScopes?: () => void
 }
 
 type Translate = ReturnType<typeof useT>
@@ -291,7 +294,7 @@ function KeyResultItem({ row, people, canManage, canContent, onChange, onRemove 
  * the Objective's own unit) update only the current value; everyone else reads. Each row shows its
  * own figures — nothing is summed across rows.
  */
-export function ObjectiveKeyResultsSection({ objectiveId, businessUnitId, isCompanyWide, archived, scopes }: ObjectiveKeyResultsSectionProps) {
+export function ObjectiveKeyResultsSection({ objectiveId, businessUnitId, isCompanyWide, archived, scopes, scopesStatus = 'ready', onRetryScopes }: ObjectiveKeyResultsSectionProps) {
   const t = useT()
   const [rows, setRows] = useState<KeyResultRow[]>([])
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -343,7 +346,7 @@ export function ObjectiveKeyResultsSection({ objectiveId, businessUnitId, isComp
     }
   }
 
-  const note = !canManage && !canContent
+  const note = scopesStatus !== 'ready' ? null : !canManage && !canContent
     ? t('objective.keyResults.readOnly')
     : !canManage ? t('objective.keyResults.currentOnly') : null
 
@@ -351,6 +354,7 @@ export function ObjectiveKeyResultsSection({ objectiveId, businessUnitId, isComp
     <section className="objective-key-results" aria-labelledby={`kr-title-${objectiveId}`}>
       <h3 id={`kr-title-${objectiveId}`}>{t('objective.keyResults.title')}</h3>
       {note ? <p className="record-viewer__permission-note" role="note">{note}</p> : null}
+      {scopesStatus === 'error' ? <ErrorState message={t('objective.keyResults.permissionsError')} onRetry={onRetryScopes} /> : null}
       {status === 'loading' ? <LoadingShell label={t('catalog.record.loading')} count={1} /> : null}
       {status === 'error' ? <ErrorState message={t('objective.keyResults.loadError')} onRetry={() => setReload((n) => n + 1)} /> : null}
       {peopleFailed ? <ErrorState message={t('objective.keyResults.peopleError')} onRetry={() => setPeopleReload((n) => n + 1)} /> : null}
