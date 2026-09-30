@@ -48,6 +48,7 @@ import { isOwnerDirector } from '@/lib/role-scope'
 import { getTaskDefaultView } from '@/lib/task-default-view'
 import { resolveTeamContext } from '@/lib/team-context'
 import { isOverdue } from '@/lib/due-status'
+import { searchString, tasksSearchWithLiveQuery, type LiveTasksQueryRef } from './tasks-navigation'
 
 // D-A1 (fix work-order item 4): the Task record door is URL-addressable via the ?record= query
 // seam — the SAME grammar Signals uses (backlog R6(b) "unify on ?record="), built from the shared
@@ -94,6 +95,8 @@ export type TasksTableProps = {
   onTaskChanged?: (task: import('@/lib/db/tasks.types').TaskListRow) => void
   /** Collection callback to refetch after an archive. */
   onTaskArchived?: (id: string) => void
+  // Receives the search box's live text so an ancestor that navigates never reads a stale URL.
+  liveQueryRef?: LiveTasksQueryRef
 }
 
 function queryFromLegacySavedView(savedView: LegacySavedView | undefined): TaskCollectionQuery | undefined {
@@ -168,6 +171,7 @@ export function TasksWorkspace({
   drawerSlot,
   onTaskChanged,
   onTaskArchived,
+  liveQueryRef,
 }: TasksTableProps) {
   const t = useT()
   const navigate = useNavigate()
@@ -180,7 +184,6 @@ export function TasksWorkspace({
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const viewerOrgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
-  const currentSearch = location.search
   const initialQuery = useMemo(() => {
     const legacy = queryFromLegacySavedView(savedView)
     // The savedView prop is a compatibility bridge for URL-less embedders. Any URL state belongs
@@ -359,12 +362,13 @@ export function TasksWorkspace({
   // q. Every internal PUSH builds its URL from this copy, whose q is the live query's, so the
   // search-following effect never adopts a stale q.
   const liveQuery = controller.state.query.q
-  const liveParams = useMemo(() => {
-    const next = new URLSearchParams(params)
-    if (liveQuery) next.set('q', liveQuery)
-    else next.delete('q')
-    return next
-  }, [params, liveQuery])
+  const liveParams = useMemo(() => tasksSearchWithLiveQuery(params, liveQuery), [params, liveQuery])
+  useEffect(() => {
+    if (!liveQueryRef) return
+    liveQueryRef.current = liveQuery
+    // Unmounted (record page mode): no search box exists, so the URL is the only truth.
+    return () => { liveQueryRef.current = null }
+  }, [liveQueryRef, liveQuery])
   // Strips a `view=` nobody chose (viewChosenRef). It reacts to `params` rather than writing at
   // mount so it always sees the settled URL, never a snapshot from before the engine's own sync.
   useEffect(() => {
@@ -409,21 +413,16 @@ export function TasksWorkspace({
 
   // The list search minus ?record= — shared by the panel's "Open full page" escalation so the
   // collection's query (view/filter/sort) survives the jump onto the canonical page.
-  const pageSearch = useCallback(() => {
-    const next = new URLSearchParams(liveParams)
-    next.delete('record')
-    const s = next.toString()
-    return s ? `?${s}` : ''
-  }, [liveParams])
+  const pageSearch = useCallback(
+    () => searchString(tasksSearchWithLiveQuery(params, liveQuery, ['record'])),
+    [params, liveQuery],
+  )
 
   // Collection contract onOpenTask — write ?record= before the host pushes its route marker, so one
   // Back step lands on the prior collection URL (identical to Signals' onOpenRecord).
   const onOpenTask = useCallback((taskId: string) => {
     if (!splitLayout) {
-      const next = new URLSearchParams(liveParams)
-      next.delete('record')
-      const search = next.toString()
-      navigate({ pathname: `/work/tasks/${taskId}`, search: search ? `?${search}` : '' }, { state: { taskSurface: 'page' } })
+      navigate({ pathname: `/work/tasks/${taskId}`, search: pageSearch() }, { state: { taskSurface: 'page' } })
       return
     }
     // An explicit open is the user's intent, so it clears every "this record is closing" memory
@@ -439,7 +438,7 @@ export function TasksWorkspace({
     const next = new URLSearchParams(liveParams)
     next.set('record', taskId)
     setParams(next)
-  }, [liveParams, navigate, setParams, splitLayout])
+  }, [liveParams, navigate, pageSearch, setParams, splitLayout])
 
   const taskEntry = useMemo<OverlayEntry | null>(() => {
     if (!recordId) return null
@@ -652,8 +651,8 @@ export function TasksWorkspace({
       void host.close()
       return
     }
-    if (drawerOpen) navigate({ pathname: '/work/tasks', search: currentSearch })
-  }, [currentSearch, drawerOpen, host, navigate])
+    if (drawerOpen) navigate({ pathname: '/work/tasks', search: searchString(tasksSearchWithLiveQuery(params, liveQuery)) })
+  }, [drawerOpen, host, liveQuery, navigate, params])
   // Opens the draft. It never looks at the record panel: callers decide whether one has to close
   // first, so a continuation after a close cannot find a stale "panel still open" and ask again.
   const beginNewTask = useCallback((prefillParam = '') => {
@@ -891,7 +890,7 @@ export function TasksWorkspace({
     drawerOpen: recordOpen,
     splitLayout,
     isDesktop,
-    recordSearch: currentSearch,
+    recordSearch: searchString(liveParams),
     statusOverrides: runtimeStatusOverrides,
     onOpenTask,
     onEditTitle,
@@ -924,7 +923,7 @@ export function TasksWorkspace({
       return teamId !== null && teamId !== undefined && processStartTeamIds.has(teamId)
     },
   }), [
-    currentSearch, recordOpen, draftTask, host.session, isDesktop, onAddTask,
+    recordOpen, draftTask, host.session, isDesktop, onAddTask,
     liveParams,
     onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onNewTask, onOpenTask, onClearFilters, onSortChange,
     processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink, viewerTeams,

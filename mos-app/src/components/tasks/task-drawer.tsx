@@ -8,6 +8,7 @@ import { useT } from '@/i18n/use-t'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { OverlayLeaveDecision, OverlayLeaveGuard, OverlayLeaveIntent } from '@/shell/overlay-navigation'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
+import { liveTasksSearch, type LiveTasksQueryRef } from './tasks-navigation'
 
 export type TaskDrawerOutletContext = {
   /** Lets the open surface sync optimistic row changes back into the table. */
@@ -16,6 +17,8 @@ export type TaskDrawerOutletContext = {
   onTaskCreated?: (id: string) => void
   /** I3: lets the surface tell the table to refetch after an archive. */
   onTaskArchived?: (id: string) => void
+  // The Tasks search box's live text, so drawer navigations carry it rather than the URL's.
+  liveQueryRef?: LiveTasksQueryRef
 }
 
 export type TaskDrawerProps = {
@@ -180,21 +183,25 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
     proceed?.()
   }, [])
 
+  const liveQueryRef = ctx?.liveQueryRef
   const leaveToList = useCallback(
-    () => navigate({ pathname: '/work/tasks', search: location.search }),
-    [navigate, location.search],
+    () => navigate({ pathname: '/work/tasks', search: liveTasksSearch(location.search, liveQueryRef) }),
+    [navigate, location.search, liveQueryRef],
   )
   const close = () => guardedClose(leaveToList)
   const label = mode === 'create' ? t('tasks.create.new') : t('tasks.detail.title')
   const openPage = mode === 'view' && taskId
-    ? () => guardedClose(() => navigate({ pathname: `/work/tasks/${taskId}`, search: location.search }, { state: { taskSurface: 'page' } }))
+    ? () => guardedClose(() => navigate(
+      { pathname: `/work/tasks/${taskId}`, search: liveTasksSearch(location.search, liveQueryRef) },
+      { state: { taskSurface: 'page' } },
+    ))
     : undefined
   const openRelated = useCallback<NonNullable<TaskSurfaceProps['onOpenRelated']>>(
     ({ kind, id }) => guardedClose(() => navigate({
       pathname: kind === 'objective' ? `/work/objectives/${id}` : `/work/projects/${id}`,
-      search: location.search,
+      search: liveTasksSearch(location.search, liveQueryRef),
     })),
-    [guardedClose, navigate, location.search],
+    [guardedClose, navigate, location.search, liveQueryRef],
   )
   // Record-scoped "Ask Deputy" is the only tenant action in the host's actions slot. Close stays
   // in the shared host so every TaskDrawer regime has exactly one dismiss control; the task's
@@ -219,6 +226,7 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
         onTaskChanged={ctx?.onTaskChanged}
         onTaskCreated={ctx?.onTaskCreated}
         onTaskArchived={ctx?.onTaskArchived}
+        liveQueryRef={liveQueryRef}
         onTitleResolved={setResolvedTitle}
         showPanelUtility={false}
         // D-B1: view-mode RecordField draft state and create-mode form leave both feed the guard.

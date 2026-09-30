@@ -35,6 +35,7 @@ import { listWorkLines } from '@/lib/db/work-lines'
 // create mode, width="full" — identical to what the host rendered). AC-080 (prefills) +
 // AC-081 (validation) now run against the real component.
 import { TaskSurface } from '@/components/tasks/task-surface'
+import type { LiveTasksQueryRef } from '@/components/tasks/tasks-navigation'
 
 const mockCreateTask = vi.mocked(createTask)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
@@ -89,12 +90,12 @@ function chooseCreateOption(label: string, option: string) {
   fireEvent.click(screen.getByRole('option', { name: option }))
 }
 
-function renderCreate(auth: AuthState = authedState) {
+function renderCreate(auth: AuthState = authedState, search = '', liveQueryRef?: LiveTasksQueryRef) {
   return render(
     <AuthContext.Provider value={auth}>
-      <MemoryRouter initialEntries={['/tasks/new']}>
+      <MemoryRouter initialEntries={[`/tasks/new${search}`]}>
         {/* Re-homed: TaskSurface create mode at full width (was the TaskCreate host's render). */}
-        <TaskSurface taskId={null} mode="create" width="full" onClose={() => {}} />
+        <TaskSurface taskId={null} mode="create" width="full" onClose={() => {}} liveQueryRef={liveQueryRef} />
       </MemoryRouter>
     </AuthContext.Provider>,
   )
@@ -324,5 +325,29 @@ describe('AC-081 — create form validation', () => {
       // GAP-6: after-create returns to the collection with ?highlight=<new id> (not the drawer).
       expect(mockNavigate).toHaveBeenCalledWith({ pathname: '/work/tasks', search: '?highlight=new-task-id' })
     })
+  })
+})
+
+// The URL's `q` can lag the search box (its write is still pending), so the create surface's
+// two exits take the live query from the ref, not the URL, and still drop the pre-fill params.
+describe('create surface exits carry the live search text', () => {
+  const staleUrl = '?q=Old&view=all&r=other-id&bu=bu-2'
+
+  it('post-create', async () => {
+    renderCreate(authedState, staleUrl, { current: 'Open' })
+    await waitFor(() => screen.getByLabelText(/title/i))
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'New Task Alpha' } })
+    chooseCreateOption('Supervisor', 'Cahya Cafe')
+    fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({ pathname: '/work/tasks', search: '?q=Open&view=all&highlight=new-task-id' })
+    })
+  })
+
+  it('Cancel', async () => {
+    renderCreate(authedState, staleUrl, { current: 'Open' })
+    await waitFor(() => screen.getByLabelText(/title/i))
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    expect(mockNavigate).toHaveBeenCalledWith({ pathname: '/work/tasks', search: '?q=Open&view=all' })
   })
 })

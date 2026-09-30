@@ -61,6 +61,8 @@ function renderRow(props: Partial<TaskRowProps> = {}) {
   )
 }
 
+const picTrigger = () => screen.getByRole('button', { name: /Rina/ })
+
 function installTaskStyles() {
   const style = document.createElement('style')
   style.textContent = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
@@ -557,7 +559,6 @@ describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)',
 describe('TaskRow — inline Status/PIC editors open on the first activation and return focus (#1027, #979)', () => {
   const people = [{ id: 'p-1', full_name: 'Rina Lestari' }, { id: 'p-2', full_name: 'Dewi Santoso' }]
   const statusTrigger = () => screen.getByRole('button', { name: /Blocked/ })
-  const picTrigger = () => document.querySelector('.td-owner .inline-cell-trigger') as HTMLElement
 
   it('a single click on Status opens the options list', async () => {
     renderRow({ onEditStatus: vi.fn() })
@@ -604,6 +605,77 @@ describe('TaskRow — inline Status/PIC editors open on the first activation and
   })
 })
 
+describe('TaskRow — one tab stop per row, cells reached by arrow keys (#1027)', () => {
+  const people = [{ id: 'p-1', full_name: 'Rina Lestari' }, { id: 'p-2', full_name: 'Dewi Santoso' }]
+  const editableRow = () => render(
+    <MemoryRouter>
+      <button type="button">before</button>
+      <table><tbody><TaskRow {...baseProps({
+        onEditTitle: vi.fn(), onEditStatus: vi.fn(), onEditPic: vi.fn(), onEditDue: vi.fn(), personOptions: people,
+      })} /></tbody></table>
+      <button type="button">after</button>
+    </MemoryRouter>,
+  )
+
+  it('Tab crosses an editable row in exactly one stop', async () => {
+    const user = userEvent.setup()
+    editableRow()
+    screen.getByRole('button', { name: 'before' }).focus()
+    let stops = 0
+    for (let step = 0; step < 10; step += 1) {
+      await user.tab()
+      if (document.activeElement === screen.getByRole('button', { name: 'after' })) break
+      stops += 1
+    }
+    expect(stops).toBe(1)
+  })
+
+  it('the row stop is the title link; Arrow keys walk Status, PIC and Due and back', async () => {
+    const user = userEvent.setup()
+    editableRow()
+    screen.getByRole('button', { name: 'before' }).focus()
+    await user.tab()
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: /Finalise Q3/ }))
+    await user.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Blocked/ }))
+    await user.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(picTrigger())
+    await user.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit task due date' }))
+    await user.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit task due date' }))
+    await user.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}')
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: /Finalise Q3/ }))
+  })
+
+  it('a cell the narrowed list hides is skipped: Right from the title lands on PIC, never on hidden Status', async () => {
+    // The container rules hide cells by display; jsdom has no container queries, so the
+    // stylesheet states the outcome for a list narrow enough to drop Status.
+    const style = document.createElement('style')
+    style.textContent = '.td-status { display: none; }'
+    document.head.appendChild(style)
+    try {
+      const user = userEvent.setup()
+      editableRow()
+      screen.getByRole('link', { name: /Finalise Q3/ }).focus()
+      await user.keyboard('{ArrowRight}')
+      expect(document.activeElement).toBe(picTrigger())
+      await user.keyboard('{ArrowLeft}')
+      expect(document.activeElement).toBe(screen.getByRole('link', { name: /Finalise Q3/ }))
+    } finally {
+      style.remove()
+    }
+  })
+
+  it('Enter on the arrow-reached Status cell opens its options', async () => {
+    const user = userEvent.setup()
+    editableRow()
+    screen.getByRole('link', { name: /Finalise Q3/ }).focus()
+    await user.keyboard('{ArrowRight}{Enter}')
+    expect(await screen.findByRole('option', { name: 'Done' })).toBeInTheDocument()
+  })
+})
+
 describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
   it('routes status and PIC picks through the shared commit contract', async () => {
     const onEditStatus = vi.fn().mockResolvedValue(undefined)
@@ -613,7 +685,7 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Done' }))
     await waitFor(() => expect(onEditStatus).toHaveBeenCalledWith('task-7', 'Done'))
     await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Edit task status' })).toBeNull())
-    fireEvent.click(document.querySelector('.td-owner .inline-cell-trigger') as HTMLElement)
+    fireEvent.click(picTrigger())
     fireEvent.click(screen.getByRole('option', { name: 'Dewi Santoso' }))
     await waitFor(() => expect(onEditPic).toHaveBeenCalledWith('task-7', 'p-2'))
     await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Edit task PIC' })).toBeNull())
@@ -642,7 +714,7 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
   it('a rejected PIC write rolls back and announces the revert', async () => {
     const onEditPic = vi.fn().mockRejectedValue(new Error('write failed'))
     renderRow({ onEditPic, personOptions: [{ id: 'p-1', full_name: 'Rina Lestari' }, { id: 'p-2', full_name: 'Dewi Santoso' }] })
-    fireEvent.click(document.querySelector('.td-owner .inline-cell-trigger') as HTMLElement)
+    fireEvent.click(picTrigger())
     fireEvent.click(screen.getByRole('option', { name: 'Dewi Santoso' }))
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/reverted/i))
     expect(screen.getByRole('alert')).toHaveTextContent(/retry/i)

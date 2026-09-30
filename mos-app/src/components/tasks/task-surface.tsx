@@ -23,6 +23,7 @@ import type { WorkLineRow } from '@/lib/db/work-lines'
 import { ConfirmArchive } from './confirm-archive'
 import { loadHomeLeadId } from './default-supervisor'
 import { canEdit } from './task-permissions'
+import { liveTasksSearch, type LiveTasksQueryRef } from './tasks-navigation'
 import { createTaskRecordAdapter, createTaskFieldCommit, type TaskTeamView, type TaskRelatedRecord, type TaskViewerFieldKey } from './task-record-adapter'
 import { RecordViewer } from '@/components/records/record-viewer'
 import type { RecordContentSlot, RecordViewerAdapter } from '@/components/records/record-viewer.types'
@@ -116,6 +117,8 @@ export type TaskSurfaceProps = {
   // Heading level for the full-width record identity. Defaults to 1; the V3
   // focused-record page passes 2 because its PageFamilyFrame owns the shell h1.
   identityHeadingLevel?: 1 | 2
+  // The Tasks search box's live text: the surface's own navigations carry it, not the URL's.
+  liveQueryRef?: LiveTasksQueryRef
 }
 
 // ── Skeleton ─────────────────────────────────────────────────────────────────
@@ -148,6 +151,7 @@ function ViewSurface({
   showPanelUtility = true,
   identityHeadingLevel,
   fieldCommitsFrozen,
+  liveQueryRef,
 }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const canonicalHref = useHref(taskId ? `/work/tasks/${taskId}` : '/work/tasks')
@@ -695,7 +699,7 @@ function ViewSurface({
       await archiveTask(localTask.id, viewerId)
       onTaskArchived?.(localTask.id)  // I3: let the table drop the row + decrement the count
       if (onClose) onClose()
-      else navigate({ pathname: '/work/tasks', search: location.search })
+      else navigate({ pathname: '/work/tasks', search: liveTasksSearch(location.search, liveQueryRef) })
     } catch { setArchiveFailure('archive') }
   }
   async function handleUnarchive() {
@@ -749,7 +753,16 @@ function ViewSurface({
         title={t('tasks.notFound.title')}
         copy={t('tasks.notFound.copy')}
       >
-        <Link to={{ pathname: '/work/tasks', search: location.search }} className="btn btn-outline">{t('tasks.all')}</Link>
+        <Link
+          to={{ pathname: '/work/tasks', search: location.search }}
+          className="btn btn-outline"
+          // A plain click reads the live query at click time; the href stays for new-tab opens.
+          onClick={(event) => {
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+            event.preventDefault()
+            navigate({ pathname: '/work/tasks', search: liveTasksSearch(location.search, liveQueryRef) })
+          }}
+        >{t('tasks.all')}</Link>
       </EmptyState>
     )
   }
@@ -779,9 +792,14 @@ function ViewSurface({
   // OverlayHostSlot) supplies it explicitly. In panel mode without an explicit callback we fall
   // back to the canonical task page route. GAP-2 (OD-91 #7): "Open full page" is the ONE escalation.
   const openPageTarget = presentation === 'panel'
-    ? (onOpenPage ?? (() => navigate({ pathname: `/work/tasks/${task.id}`, search: location.search }, { state: { taskSurface: 'page' } })))
+    ? (onOpenPage ?? (() => navigate(
+      { pathname: `/work/tasks/${task.id}`, search: liveTasksSearch(location.search, liveQueryRef) },
+      { state: { taskSurface: 'page' } },
+    )))
     : undefined
-  const closeTarget = () => (onClose ? onClose() : navigate({ pathname: '/work/tasks', search: location.search }))
+  const closeTarget = () => (onClose
+    ? onClose()
+    : navigate({ pathname: '/work/tasks', search: liveTasksSearch(location.search, liveQueryRef) }))
 
   // ── Drawer width: the shared RecordViewer owns identity, metadata, content and actions ──
   if (width === 'drawer') {
@@ -947,7 +965,7 @@ function ViewSurface({
 }
 
 // ── Create mode ────────────────────────────────────────────────────────────────
-function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, showPanelUtility = true, createInitialValues, createRedirect }: TaskSurfaceProps) {
+function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, showPanelUtility = true, createInitialValues, createRedirect, liveQueryRef }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const auth = useAuth()
   const t = useT()
@@ -962,11 +980,8 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   const prefillR = createInitialValues?.responsiblePersonId ?? searchParams.get('createPic') ?? searchParams.get('r') ?? ''
   const prefillBu = createInitialValues?.businessUnitId ?? searchParams.get('createBu') ?? searchParams.get('bu') ?? ''
   const prefillTitle = createInitialValues?.title ?? searchParams.get('createTitle') ?? ''
-  const collectionParams = new URLSearchParams(searchParams)
-  collectionParams.delete('r')
-  collectionParams.delete('bu')
-  const collectionSearch = collectionParams.toString()
-  const collectionSearchString = collectionSearch ? `?${collectionSearch}` : ''
+  // The collection's search on leaving: the create pre-fill params dropped, the live query applied.
+  const collectionSearchNow = () => liveTasksSearch(searchParams, liveQueryRef, ['r', 'bu'])
 
   // Viewer details
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
@@ -1109,7 +1124,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
       // new row highlighted (a brief accent that fades) — Tasks changes to match the app-wide rule
       // (it used to open the new record in the drawer). The `?highlight=<id>` param tells the
       // collection which row to flash; it preserves the collection's view query.
-      const highlightParams = new URLSearchParams(collectionSearchString)
+      const highlightParams = new URLSearchParams(collectionSearchNow())
       highlightParams.set('highlight', newId)
       if (createRedirect !== undefined) {
         if (createRedirect !== null) navigate(createRedirect)
@@ -1124,7 +1139,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
 
   // GAP-2 (OD-91 #7): expand-in-place is retired — create mode holds a fixed width too, so the
   // chrome bar carries only the title + the one ✕ (no width toggle).
-  const closeToCollection = () => navigate({ pathname: '/work/tasks', search: collectionSearchString })
+  const closeToCollection = () => navigate({ pathname: '/work/tasks', search: collectionSearchNow() })
   // D-B1: the create form's own leave controls (chrome ✕ / Cancel) defer to the host leave-guard
   // when one is present (TaskDrawer), so a typed draft prompts a discard confirm instead of
   // vanishing. Standalone (no host) the leave runs directly, unchanged.
