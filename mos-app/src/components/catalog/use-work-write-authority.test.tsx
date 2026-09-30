@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
@@ -17,7 +17,7 @@ vi.mock('@/lib/db/work-authority', () => ({
 
 import { useAuth } from '@/auth/use-auth'
 import { emptyWorkWriteScopes, getWorkWriteScopes, type WorkWriteScopes } from '@/lib/db/work-authority'
-import { canEditObjectiveContentForScope, useWorkWriteAuthority } from './use-work-write-authority'
+import { canEditObjectiveContentForScope, useWorkWriteAuthority, WORK_AUTHORITY_TIMEOUT_MS } from './use-work-write-authority'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockGetWorkWriteScopes = vi.mocked(getWorkWriteScopes)
@@ -80,6 +80,30 @@ describe('useWorkWriteAuthority', () => {
 
     await waitFor(() => expect(view.result.current.scopes).toEqual(scopesB))
     expect(mockGetWorkWriteScopes).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('useWorkWriteAuthority lookup failure', () => {
+  it('reports an error for a rejected lookup and recovers on retry', async () => {
+    mockGetWorkWriteScopes.mockRejectedValueOnce(new Error('down'))
+    const view = renderHook(() => useWorkWriteAuthority())
+    await waitFor(() => expect(view.result.current.error).toBe(true))
+    act(() => view.result.current.retry())
+    await waitFor(() => expect(view.result.current.scopes).toEqual(scopesA))
+    expect(view.result.current.error).toBe(false)
+  })
+
+  it('reports an error when the lookup never answers', async () => {
+    vi.useFakeTimers()
+    try {
+      mockGetWorkWriteScopes.mockReturnValueOnce(new Promise(() => {}))
+      const view = renderHook(() => useWorkWriteAuthority())
+      await act(async () => { await vi.advanceTimersByTimeAsync(WORK_AUTHORITY_TIMEOUT_MS) })
+      expect(view.result.current.error).toBe(true)
+      expect(view.result.current.loading).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
