@@ -43,6 +43,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      # A migration added by this PR must sort after every migration already on the base branch
+      # (#1110). Runs before the scope step so an inert-path skip cannot bypass it.
+      - name: Migration order — new versions must be newer than the base's latest
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --quiet --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          bash scripts/check-migration-order.sh "origin/${BASE_REF}"
+
       # FAIL-CLOSED BY CONSTRUCTION, copied from verify.yml's reasoning: skip only when EVERY
       # changed path is on the inert allowlist. Anything unrecognised — including any new
       # top-level directory — boots the stack. An out-of-date allowlist costs a wasted run, never
