@@ -486,7 +486,7 @@ function RecordBody({
   const visibleSlots = activeTab === undefined
     ? adapter.contentSlots
     : activeTab === 'details'
-      ? adapter.contentSlots.filter((slot) => slot.id !== 'checklist' && slot.id !== 'activity' && slot.id !== 'tasks' && slot.id !== 'steps' && slot.id !== 'occurrences')
+      ? adapter.contentSlots.filter((slot) => slot.id !== 'checklist' && slot.id !== 'activity' && slot.id !== 'tasks' && slot.id !== 'steps' && slot.id !== 'occurrences' && slot.id !== 'writeup')
       : adapter.contentSlots.filter((slot) => slot.id === activeTab)
 
   return (
