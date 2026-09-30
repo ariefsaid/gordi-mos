@@ -673,7 +673,7 @@ describe('Issue 1105 — phone group header gives the title the full row', () =>
       <MemoryRouter>
         <MobileGroupedCards
           groups={groups} now={new Date('2026-06-24')} buMap={new Map([['bu-1', 'Kitchen']])} teamMap={new Map()}
-          personMap={new Map([[VIEWER_ID, 'Arief Said']])} isCollapsed={() => false} toggleCollapsed={() => {}}
+          personMap={new Map([[VIEWER_ID, 'Test Person']])} isCollapsed={() => false} toggleCollapsed={() => {}}
           openAddTask={() => {}} setOverdueOnly={() => {}} workLineMap={new Map()} objectiveMap={new Map()}
         />
       </MemoryRouter>,
