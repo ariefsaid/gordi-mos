@@ -2964,7 +2964,7 @@ export const messages = {
     'catalog.view.activeAndArchived': 'Aktif + arsip',
     'catalog.view.archivedOnly': 'Hanya arsip',
     'catalog.viewAndFilters': 'Tampilan & filter',
-    'catalog.searchLabel': 'Cari berdasarkan nama',
+    'catalog.searchLabel': 'Cari nama',
     'catalog.searchPlaceholder': 'Cari nama…',
     'catalog.filter.type': 'Tipe',
     'catalog.filter.status': 'Status saat ini',

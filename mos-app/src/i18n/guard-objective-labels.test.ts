@@ -69,8 +69,9 @@ describe('Indonesian Objective and list wording', () => {
     expect(id['catalog.record.objectiveReadOnly']).not.toMatch(/penanggung jawab/i)
   })
 
-  it('the Objectives and Projects & Processes search placeholder is short enough for a 390px toolbar', () => {
-    expect(id['catalog.searchPlaceholder'].length).toBeLessThanOrEqual(12)
+  // CollectionToolbar renders the label as the visible placeholder; the placeholder key is only the hover title.
+  it('the Objectives and Projects & Processes search label, which renders in the box, is short enough for a 390px toolbar', () => {
+    expect(id['catalog.searchLabel'].length).toBeLessThanOrEqual(12)
   })
 })
 
