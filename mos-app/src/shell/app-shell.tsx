@@ -206,6 +206,7 @@ function ShellContent() {
         {/* Main — grid-area: main, row 2 col 2; owns scroll; each page provides its own <main> */}
         <div
           className="flex min-w-0 flex-col min-h-0"
+          data-shell-main
           style={{ gridArea: 'main', overflow: 'hidden' }}
         >
           {/* Region 2 — context row (scope + route job sentence). Above the content Outlet. */}

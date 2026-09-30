@@ -1026,6 +1026,22 @@ describe('issue #770 — Save view, phone door, and empty states (AC-028/029/030
     expect(within(door).queryByRole('tab')).not.toBeInTheDocument()
   })
 
+  it('issue 1032: 390 — the page head carries the Share Signal door outside the View & filters door, and a viewer who cannot post gets none', async () => {
+    desktopState.value = false
+    mockListReadableSignals.mockResolvedValue(sevenRows())
+    const { unmount } = renderPage()
+    await waitFor(() => expect(screen.getAllByTestId('signal-feed').length).toBeGreaterThan(0))
+    const share = screen.getByRole('button', { name: 'Share Signal' })
+    expect(share.closest('.collection-mobile-options-panel')).toBeNull()
+    expect(share.closest('[data-testid="page-head"]')).not.toBeNull()
+    unmount()
+
+    composerCanPost.value = false
+    renderPage()
+    await waitFor(() => expect(screen.getAllByTestId('signal-feed').length).toBeGreaterThan(0))
+    expect(screen.queryByRole('button', { name: 'Share Signal' })).not.toBeInTheDocument()
+  })
+
   it('AC-030: a viewer who cannot post reads true-empty "No Signals yet." with no door; a poster also gets "Share the first one"', async () => {
     mockListReadableSignals.mockResolvedValue([])
     composerCanPost.value = false

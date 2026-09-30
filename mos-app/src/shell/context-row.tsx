@@ -73,7 +73,9 @@ export function ContextRow() {
       aria-label="Context"
       data-anatomy="context-row"
       className="ctx-row flex items-center gap-3 px-4"
-      style={{ height: headOwnsContext ? 0 : 'var(--ctx-row-h, 40px)', flex: 'none', overflow: 'hidden' }}
+      style={headOwnsContext
+        ? { height: 0, flex: 'none', overflow: 'hidden' }
+        : { minHeight: 'var(--ctx-row-h, 40px)', flex: 'none', overflow: 'hidden' }}
     >
       {/* money-1: the scope crumb is a flex-none block with a maxWidth ceiling — its shrink
           factor is 0 so it never gives up width to the job sentence (was: a bare flex child
@@ -91,8 +93,8 @@ export function ContextRow() {
       )}
       {!headOwnsContext && (
         <b
-          className="ctx-job truncate text-foreground"
-          style={{ fontSize: 13, fontWeight: 500, flex: '1 1 auto', minWidth: 0 }}
+          className="ctx-job text-foreground"
+          style={{ fontSize: 13, fontWeight: 500, flex: '1 1 auto', minWidth: 0, paddingBlock: 4 }}
         >
           {t(jobKey)}
         </b>
