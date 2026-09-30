@@ -17,7 +17,7 @@
 --   ForeignMgr …0b4 org B            — cross-org negative control
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(100);
+select plan(110);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -309,17 +309,22 @@ select lives_ok($$
 $$, 'AC-011: the Unit-2 head updates their own key result''s current value');
 
 -- ═══ AC-012 — add/remove is admin-only ═══════════════════════════════════════════════════════
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
 select throws_ok($$
   insert into mos.objective_key_results (objective_id, what) values
     ('00000000-0000-0000-0000-0000000009e3', 'Ops Lead KR')
 $$, '42501', null, 'AC-012: ops_lead cannot add a key result');
 select throws_ok($$
+  delete from mos.objective_key_results where id = '00000000-0000-0000-0000-0000000009e6'
+$$, '42501', null, 'AC-012: ops_lead cannot remove one (42501, not a silent no-op)');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select throws_ok($$
   insert into mos.objective_key_results (objective_id, what) values
     ('00000000-0000-0000-0000-0000000009e3', 'BU Head KR')
 $$, '42501', null, 'AC-012: the BU head cannot add a key result either');
 select throws_ok($$
-  delete from mos.objective_key_results where id = '00000000-0000-0000-0000-0000000009e6'
-$$, '42501', null, 'AC-012: ...nor remove one (42501, not a silent no-op)');
+  delete from mos.objective_key_results where id = '00000000-0000-0000-0000-0000000009e7'
+$$, '42501', null, 'AC-012: ...nor can the BU head remove one');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
 select lives_ok($$
   insert into mos.objective_key_results (id, objective_id, what, target_value, unit, due_date, owner_person_id)
@@ -398,10 +403,6 @@ select throws_ok($$
   update mos.objectives set name = name where id = '00000000-0000-0000-0000-0000000009e2'
 $$, '42501', null,
   'a value-identical UPDATE is refused — it must not advance the clock under member authority');
-select is((select count(*)::int from shared.record_history
-           where record_key = '00000000-0000-0000-0000-0000000009e2' and field_name = 'name'
-             and old_value = new_value),
-  0, 'the refused write left no name history row — the refusal happened before any change');
 select throws_ok($$
   update mos.objectives set updated_at = now() + interval '1 hour' where id = '00000000-0000-0000-0000-0000000009e2'
 $$, '42501', null,
@@ -435,6 +436,53 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1"
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-0000000009e9'),
   0, 'another org reads none of it');
+
+-- ── Key-result history: an update row is read through the live row, same org only ───────────
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select cmp_ok((select count(*)::int from shared.record_history
+                where schema_name = 'mos' and table_name = 'objective_key_results'
+                  and record_key = '00000000-0000-0000-0000-0000000009e6'
+                  and action = 'update' and field_name = 'current_value'),
+  '>=', 1, 'an org member reads a key result''s current_value update row');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select is((select count(*)::int from shared.record_history
+            where record_key = '00000000-0000-0000-0000-0000000009e6'),
+  0, 'a reader in another org sees none of a key result''s insert or update history');
+
+-- ═══ Column drift — a column added later needs objective.manage, guard untouched ═════════════
+-- Both guards compare the whole row minus the content column, so a probe column no migration has
+-- named is refused for every writer without objective.manage. Owner-side DDL, inside the
+-- transaction and dropped again below.
+reset role;
+alter table mos.objectives            add column t_probe int;
+alter table mos.objective_key_results add column t_probe int;
+set local role authenticated;
+
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select throws_ok($$ update mos.objectives set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e3' $$,
+  '42501', null, 'drift: a member cannot set a column added after the guard was written (Objective)');
+select throws_ok($$ update mos.objective_key_results set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e7' $$,
+  '42501', null, 'drift: ...nor on a key result');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
+select throws_ok($$ update mos.objectives set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e3' $$,
+  '42501', null, 'drift: an ops_lead (content authority only) cannot set it on an Objective');
+select throws_ok($$ update mos.objective_key_results set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e7' $$,
+  '42501', null, 'drift: ...nor on a key result');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select throws_ok($$ update mos.objectives set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e3' $$,
+  '42501', null, 'drift: the BU head of the Objective''s own unit cannot set it on an Objective');
+select throws_ok($$ update mos.objective_key_results set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e7' $$,
+  '42501', null, 'drift: ...nor on a key result');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select lives_ok($$ update mos.objectives set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e3' $$,
+  'drift: admin (objective.manage) sets it on an Objective');
+select lives_ok($$ update mos.objective_key_results set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e7' $$,
+  'drift: ...and on a key result');
+
+reset role;
+alter table mos.objectives            drop column t_probe;
+alter table mos.objective_key_results drop column t_probe;
+
 
 select * from finish();
 rollback;

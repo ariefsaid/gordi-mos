@@ -247,7 +247,7 @@ begin
   if tg_op = 'UPDATE' and current_user = 'authenticated' then
     -- A write that changes no column is refused for a writer with no tier here: this guard runs
     -- before the clock trigger (name order), so a value-identical UPDATE cannot quietly advance
-    -- updated_at under member authority (review round 3 of #992). A writer holding structural or
+    -- updated_at under member authority. A writer holding structural or
     -- content authority may re-save identical content — a deliberate idle save must not fail.
     if new is not distinct from old
        and not shared.can('objective.manage')
@@ -255,30 +255,24 @@ begin
       raise exception 'the update changes no column the writer has authority for'
         using errcode = '42501';
     end if;
-    -- Default-deny column split (review round 1 of #992): the row policy admits any org member,
-    -- so this guard — not the policy — is what makes every column answer to a tier. A column no
-    -- tier owns (the org seam, the row identity, creation metadata) is refused outright, so a
-    -- change outside both tiers is a loud 42501, never a silent pass-through.
+    -- The row policy admits any org member, so this guard — not the policy — decides who may
+    -- write which column. Row identity, the org seam, creation metadata and the clock are
+    -- server-owned: no writer changes them in place, so a change is a loud 42501.
     if new.org_id      is distinct from old.org_id
        or new.id       is distinct from old.id
        or new.created_at is distinct from old.created_at
        -- The clock is server-owned: a caller-supplied updated_at would otherwise ride past the
-       -- value-identical check below (it differs, so no tier fires) and still advance the clock.
+       -- value-identical check above and still advance the clock.
        or new.updated_at is distinct from old.updated_at then
       raise exception 'the objective''s org, identity, creation metadata and clock are not editable in place'
         using errcode = '42501';
     end if;
-    -- Structural tier: admin alone renames, re-homes, flips Company-wide, re-periods, archives,
-    -- and re-points the Accountable owner.
-    if (new.name            is distinct from old.name
-        or new.business_unit_id is distinct from old.business_unit_id
-        or new.is_company_wide  is distinct from old.is_company_wide
-        or new.period_year      is distinct from old.period_year
-        or new.period_quarter   is distinct from old.period_quarter
-        or new.archived_at      is distinct from old.archived_at
-        or new.accountable_person_id is distinct from old.accountable_person_id)
+    -- Allow-list: write_up is the only column a writer without objective.manage may change. The
+    -- comparison is over the whole row minus that column, so a column added later needs
+    -- objective.manage without touching this guard.
+    if (to_jsonb(new) - '{write_up}'::text[]) is distinct from (to_jsonb(old) - '{write_up}'::text[])
        and not shared.can('objective.manage') then
-      raise exception 'objective structural fields require the objective.manage authority'
+      raise exception 'only the write-up is editable without the objective.manage authority'
         using errcode = '42501';
     end if;
     -- Content tier: ops leads and the Objective's own BU apex head keep the write-up.
@@ -292,11 +286,11 @@ begin
 end;
 $$;
 comment on function mos._guard_objectives() is
-  'The ONE guard on mos.objectives (#992): references stay same-org (42501), and a direct UPDATE '
-  'splits by tier, default-deny — org/identity/creation columns are not editable in place at all; '
-  'structural fields (name, unit/Company-wide, period, archive, the Accountable owner) require '
-  'the org-wide objective.manage authority; write_up requires mos.can_edit_objective_content. '
-  'SECURITY INVOKER.';
+  'The ONE guard on mos.objectives (#992): references stay same-org (42501). A direct UPDATE '
+  'leaves org/identity/creation columns and the clock untouched for every writer; without the '
+  'org-wide objective.manage authority the only column that may differ is write_up (every other '
+  'column, including one added later, is refused), and changing write_up requires '
+  'mos.can_edit_objective_content. SECURITY INVOKER.';
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 5. Key results — the optional child table, same seam, same split
@@ -364,15 +358,15 @@ begin
 
   if tg_op = 'UPDATE' and current_user = 'authenticated' then
     -- Value-identical UPDATEs are refused for a writer with no tier here, same shape and reason
-    -- as the parent Objective's guard (review round 3 of #992).
+    -- as the parent Objective's guard.
     if new is not distinct from old
        and not shared.can('objective.manage')
        and not mos.can_edit_objective_content(old.objective_id) then
       raise exception 'the update changes no column the writer has authority for'
         using errcode = '42501';
     end if;
-    -- Default-deny, same shape as the parent Objective's guard: columns no tier owns are not
-    -- editable in place (review round 1 of #992).
+    -- Same shape as the parent Objective's guard: identity, org seam, creation metadata and the
+    -- clock are server-owned for every writer.
     if new.org_id      is distinct from old.org_id
        or new.id       is distinct from old.id
        or new.created_at is distinct from old.created_at
@@ -380,15 +374,11 @@ begin
       raise exception 'a key result''s org, identity, creation metadata and clock are not editable in place'
         using errcode = '42501';
     end if;
-    -- Structural tier: what, the target fields, the owner, and which Objective carries the row.
-    if (new.what            is distinct from old.what
-        or new.target_value    is distinct from old.target_value
-        or new.unit            is distinct from old.unit
-        or new.due_date        is distinct from old.due_date
-        or new.owner_person_id is distinct from old.owner_person_id
-        or new.objective_id    is distinct from old.objective_id)
+    -- Allow-list: current_value is the only column a writer without objective.manage may change;
+    -- every other column, including one added later, needs objective.manage.
+    if (to_jsonb(new) - '{current_value}'::text[]) is distinct from (to_jsonb(old) - '{current_value}'::text[])
        and not shared.can('objective.manage') then
-      raise exception 'key-result target fields require the objective.manage authority'
+      raise exception 'only current_value is editable without the objective.manage authority'
         using errcode = '42501';
     end if;
     -- Content tier: progress only, and only over a key result of an Objective the writer
@@ -403,10 +393,12 @@ begin
 end;
 $$;
 comment on function mos._guard_objective_key_results() is
-  'The ONE guard on mos.objective_key_results (#995): objective_id and owner_person_id stay '
-  'same-org (42501); add/remove requires the org-wide objective.manage authority; on UPDATE the '
-  'target fields require objective.manage while current_value requires '
-  'mos.can_edit_objective_content of the parent Objective. SECURITY INVOKER.';
+  'The ONE guard on mos.objective_key_results (#992): objective_id and owner_person_id stay '
+  'same-org (42501); add/remove requires the org-wide objective.manage authority; on UPDATE '
+  'org/identity/creation columns and the clock are untouched for every writer, and without '
+  'objective.manage the only column that may differ is current_value (any other column, '
+  'including one added later, is refused), which requires mos.can_edit_objective_content of '
+  'the parent Objective. SECURITY INVOKER.';
 
 create trigger objective_key_results_guard
   before insert or update or delete on mos.objective_key_results
