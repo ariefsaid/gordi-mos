@@ -102,10 +102,7 @@ export interface CafeStreamBarProps {
   /** Offer "All streams" as a choice. Review only — the one surface with a cross-stream job. */
   onAllStreams?: () => void
   disabled?: boolean
-  /**
-   * Plan: the stream IS the page's subject, so it reads as a heading with a "Change" link — no
-   * "Stream" label, no "Switch". Everything else (menu, "Back to", keyboard) is the same.
-   */
+  // Plan: the stream reads as a heading with a "Change" link, no "Stream" label, no "Switch".
   heading?: boolean
   /**
    * The person's own stream (issue 456's `useCafeStream().homeStream`), independent of whatever a
@@ -214,7 +211,7 @@ interface StreamSwitchMenuProps {
   onAllStreams?: () => void
   disabled: boolean
   onChange: (next: ProductionStream) => void
-  /** Trigger text and accessible name; the default reads "Switch". */
+  // Trigger text and accessible name; the default reads "Switch".
   label?: string
   ariaLabel?: string
 }
