@@ -167,7 +167,7 @@ describe('AdminAccessPage', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Peran & izin' })).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Bagian pengaturan admin' })
-    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Orang', 'Tim', 'Peran & izin'])
+    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Orang', 'Tim', 'Peran & izin', 'Agen terhubung'])
     expect(screen.getByRole('link', { name: 'Dari kepemimpinan Tim' })).toBeInTheDocument()
   })
 

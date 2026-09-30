@@ -1,0 +1,214 @@
+.agent-connections-admin {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.agent-connections-admin__intro,
+.agent-connections-admin__next-request {
+  max-width: 780px;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+}
+
+.agent-connections-admin__next-request {
+  border-left: 3px solid var(--primary);
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--primary) 5%, var(--card));
+}
+
+.agent-connections-admin__panel,
+.agent-connections-admin__app {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+}
+
+.agent-connections-admin__panel-head,
+.agent-connections-admin__app-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+}
+
+.agent-connections-admin__panel-head h2,
+.agent-connections-admin__app-title h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.agent-connections-admin__panel-head p {
+  max-width: 760px;
+  margin: 6px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.45;
+}
+
+.agent-connections-admin__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding: 16px;
+}
+
+.agent-connections-admin__form .mk-textinput {
+  min-width: 0;
+}
+
+.agent-connections-admin__field-help {
+  grid-column: 1;
+  grid-row: 2;
+  margin: -8px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.4;
+}
+
+.agent-connections-admin__error {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--status-lost-text);
+  font-size: var(--font-size-label);
+}
+
+.agent-connections-admin__form .btn,
+.agent-connections-admin__app-head .btn,
+.agent-connections-admin__connection .btn {
+  min-height: 44px;
+}
+
+.agent-connections-admin__apps {
+  display: grid;
+  gap: 12px;
+}
+
+.agent-connections-admin__app-head {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.agent-connections-admin__app-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.agent-connections-admin__app-title h2 {
+  overflow-wrap: anywhere;
+}
+
+.agent-connections-admin__status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+}
+
+.agent-connections-admin__status--trusted {
+  border-color: color-mix(in srgb, var(--success) 35%, var(--border));
+  color: var(--status-won-text);
+  background: color-mix(in srgb, var(--success) 8%, var(--card));
+}
+
+.agent-connections-admin__connections {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-connections-admin__connection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 68px;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+}
+
+.agent-connections-admin__connection:last-child {
+  border-bottom: 0;
+}
+
+.agent-connections-admin__person {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+
+.agent-connections-admin__date,
+.agent-connections-admin__no-connections {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.agent-connections-admin__no-connections {
+  padding: 14px 16px;
+}
+
+.agent-connections-admin__archived {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .agent-connections-admin {
+    padding: 12px;
+  }
+
+  .agent-connections-admin__form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .agent-connections-admin__field-help {
+    grid-column: 1;
+    grid-row: auto;
+    margin-top: -8px;
+  }
+
+  .agent-connections-admin__app-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .agent-connections-admin__app-head .btn {
+    width: 100%;
+  }
+
+  .agent-connections-admin__connection {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .agent-connections-admin__connection .btn {
+    width: 100%;
+  }
+}

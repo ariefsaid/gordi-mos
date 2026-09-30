@@ -123,8 +123,10 @@ const PricingPage = lazyPage(() => import('./pages/pricing-page').then((m) => ({
 const AdminUsersPage = lazyPage(() => import('./pages/admin-users-page').then((m) => ({ default: m.AdminUsersPage })))
 const AdminTeamsPage = lazyPage(() => import('./pages/admin-teams-page').then((m) => ({ default: m.AdminTeamsPage })))
 const AdminAccessPage = lazyPage(() => import('./pages/admin-access-page').then((m) => ({ default: m.AdminAccessPage })))
+const AdminAgentConnectionsPage = lazyPage(() => import('./pages/admin-agent-connections-page').then((m) => ({ default: m.AdminAgentConnectionsPage })))
 const SliceStubPage = lazyPage(() => import('./pages/slice-stub-page').then((m) => ({ default: m.SliceStubPage })))
 const ProfilePage = lazyPage(() => import('./pages/profile-page').then((m) => ({ default: m.ProfilePage })))
+const ProfileConnectedAgentsPage = lazyPage(() => import('./pages/profile-connected-agents-page').then((m) => ({ default: m.ProfileConnectedAgentsPage })))
 const EventsWorkspacePage = lazyPage(() => import('./pages/events-workspace-page').then((m) => ({ default: m.EventsWorkspacePage })))
 const NotFoundPage = lazyPage(() => import('./pages/not-found-page').then((m) => ({ default: m.NotFoundPage })))
 const OAuthConsentPage = lazyPage(() => import('./pages/oauth-consent-page').then((m) => ({ default: m.OAuthConsentPage })))
@@ -501,6 +503,11 @@ const routeTable: RouteObject[] = [
             element: withSuspense(<OAuthConsentPage />),
             handle: pageHandle('management'),
           },
+          {
+            path: ROUTE_PATHS.profileConnectedAgents,
+            element: withSuspense(<ProfileConnectedAgentsPage />),
+            handle: pageHandle('management'),
+          },
 
           // ── Admin ───────────────────────────────────────────────────────────────────────
           // RLS / RPC authz is the real security boundary (ADR-0011 D5); AdminRoute is affordance.
@@ -521,6 +528,11 @@ const routeTable: RouteObject[] = [
               {
                 path: ROUTE_PATHS.adminAccess,
                 element: withSuspense(<AdminAccessPage />),
+                handle: pageHandle('management'),
+              },
+              {
+                path: ROUTE_PATHS.adminAgents,
+                element: withSuspense(<AdminAgentConnectionsPage />),
                 handle: pageHandle('management'),
               },
               { path: 'admin', element: <RouteRedirect to="/admin/people" />, handle: redirectHandle('/admin/people') },
