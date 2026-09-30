@@ -3018,7 +3018,7 @@ export const messages = {
     'catalog.record.tabs.details': 'Detail',
     'catalog.record.tabs.steps': 'Langkah',
     'objective.writeUp.tab': 'Uraian',
-    'objective.writeUp.label': 'Uraian Sasaran',
+    'objective.writeUp.label': 'Uraian Tujuan',
     'objective.writeUp.loading': 'Memuat uraian…',
     'objective.writeUp.loadError': 'Tidak dapat memuat uraian.',
     'objective.writeUp.empty': 'Belum ada uraian.',

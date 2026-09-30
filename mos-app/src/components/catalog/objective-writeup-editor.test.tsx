@@ -129,6 +129,23 @@ describe('ObjectiveWriteupEditor', () => {
     expect(screen.getByRole('status').textContent).toContain('too long')
   })
 
+  it('does not save on unmount: Discard after a failed save, or with an idle save pending, leaves the text unsaved', async () => {
+    save.mockRejectedValueOnce(new Error('boom'))
+    const failed = await mount()
+    typeOnce()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
+    expect(save).toHaveBeenCalledTimes(1)
+    failed.unmount()
+    await act(async () => { vi.advanceTimersByTime(10000) })
+    expect(save).toHaveBeenCalledTimes(1)
+
+    const pending = await mount()
+    typeOnce()
+    pending.unmount()
+    await act(async () => { vi.advanceTimersByTime(10000) })
+    expect(save).toHaveBeenCalledTimes(1)
+  })
+
   it('reports dirtiness for the leave guard until the save lands', async () => {
     const onDirtyChange = vi.fn()
     await mount({ onDirtyChange })

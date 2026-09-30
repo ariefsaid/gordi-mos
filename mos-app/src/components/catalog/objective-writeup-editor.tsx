@@ -139,10 +139,8 @@ function WriteUpSurface({
     timerRef.current = window.setTimeout(() => { void flushRef.current() }, IDLE_SAVE_MS)
   }, [editable, saveState, setDirty])
 
-  useEffect(() => () => {
-    window.clearTimeout(timerRef.current)
-    if (dirtyRef.current && !conflictRef.current) void flushRef.current()
-  }, [])
+  // Leaving with unsaved text is decided by the leave guard; Discard must not save it.
+  useEffect(() => () => { window.clearTimeout(timerRef.current) }, [])
 
   const message =
     saveState === 'saving' ? t('objective.writeUp.saving')
