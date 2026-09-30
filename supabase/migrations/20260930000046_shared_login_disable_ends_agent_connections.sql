@@ -3,7 +3,8 @@
 -- shared.admin_set_login_enabled(person, false) blocks the login through auth.users.banned_until.
 -- It now also revokes every agent consent the person holds and deletes their agent sessions and
 -- refresh tokens (api_private._end_agent_connections), in the same transaction. Enabling the login
--- again revives no connection. It is the only path in the schema that sets banned_until.
+-- again revives no connection, and a null flag is refused. It is the only path in the schema that
+-- sets banned_until.
 --
 -- DOWN (manual): restore shared.admin_set_login_enabled from
 -- 20260805000003_shared_admin_provisioning.sql.
@@ -21,6 +22,9 @@ declare
 begin
   if not shared.has_access_role('admin') then
     raise exception 'admin access role required' using errcode = '42501';
+  end if;
+  if p_enabled is null then
+    raise exception 'p_enabled is required' using errcode = '22023';
   end if;
   select * into v_target from shared.people where id = p_person;
   if v_target.id is null or v_target.org_id is distinct from v_org then

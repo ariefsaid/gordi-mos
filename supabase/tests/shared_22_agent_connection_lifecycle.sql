@@ -5,7 +5,7 @@
 -- All Auth rows are transactional fixtures and roll back.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(34);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -201,6 +201,8 @@ select is(public._t_fence('5a020000-0000-4000-8000-000000000007', '33333333-3333
   'a live agent session passes the fence before the login is disabled');
 select set_config('request.jwt.claims',
   '{"role":"authenticated","sub":"00000000-0000-0000-0000-00000000aa03","org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}', true);
+select throws_ok($$ select shared.admin_set_login_enabled('00000000-0000-0000-0000-0000000000d1', null) $$,
+  '22023', 'p_enabled is required', 'a null enabled flag is refused rather than banning the login');
 select lives_ok($$ select shared.admin_set_login_enabled('00000000-0000-0000-0000-0000000000d1', false) $$,
   'an admin disables the person''s login');
 reset role;
