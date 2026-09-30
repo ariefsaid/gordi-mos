@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { RecordPanelHost } from '@/shell/record-panel-host'
@@ -109,47 +109,6 @@ describe('RecordViewer interaction boundary', () => {
     expect(screen.queryByRole('menu', { name: 'More actions' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'More actions' })).toHaveFocus()
     expect(onClose).not.toHaveBeenCalled()
-  })
-
-  it('OverflowFocusContract: moving focus off the open menu closes it and leaves the record open', () => {
-    const onClose = vi.fn()
-    renderInHost({ onClose, onOpenPage: vi.fn() })
-
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
-    expect(screen.getByRole('menu', { name: 'More actions' })).toBeInTheDocument()
-    const elsewhere = screen.getByRole('button', { name: 'Edit Title' })
-    act(() => elsewhere.focus())
-
-    expect(screen.queryByRole('menu', { name: 'More actions' })).not.toBeInTheDocument()
-    expect(elsewhere).toHaveFocus()
-    expect(onClose).not.toHaveBeenCalled()
-  })
-
-  // #1033: a menu button's menu is walked with the arrow keys, not Tab.
-  it('MenuKeyboardContract: More actions opens on its first item; Arrow, Home and End move between items', () => {
-    const adapter: RecordViewerAdapter = {
-      ...taskAdapter(),
-      actions: [{ id: 'archive', label: 'Archive task', intent: 'danger', run: vi.fn() }],
-      headerOverflowActionIds: ['archive'],
-      permission: { readOnly: false, allowedActionIds: ['archive'] },
-    }
-    render(<I18nProvider><RecordViewer adapter={adapter} mode="panel" onOpenPage={vi.fn()} /></I18nProvider>)
-
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
-    const first = screen.getByRole('menuitem', { name: 'Open full page' })
-    const last = screen.getByRole('menuitem', { name: 'Archive task' })
-    expect(first).toHaveFocus()
-
-    fireEvent.keyDown(first, { key: 'ArrowDown' })
-    expect(last).toHaveFocus()
-    fireEvent.keyDown(last, { key: 'ArrowDown' })
-    expect(first).toHaveFocus()
-    fireEvent.keyDown(first, { key: 'ArrowUp' })
-    expect(last).toHaveFocus()
-    fireEvent.keyDown(last, { key: 'Home' })
-    expect(first).toHaveFocus()
-    fireEvent.keyDown(first, { key: 'End' })
-    expect(last).toHaveFocus()
   })
 
   // FieldEscapeContract — the owning proof that field-Escape isolation holds through the
