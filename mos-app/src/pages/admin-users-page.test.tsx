@@ -152,12 +152,13 @@ describe('AdminUsersPage (AC-060)', () => {
     renderPage()
     // Page heading should be present immediately
     expect(screen.getByRole('heading', { name: /People/i })).toBeInTheDocument()
-    // The three Admin Settings tabs render before any data does.
+    // Admin Settings tabs render before any data does.
     const tabs = within(screen.getByRole('navigation', { name: 'Admin settings sections' })).getAllByRole('link')
     expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('href')])).toEqual([
       ['People', '/admin/people'],
       ['Teams', '/admin/teams'],
       ['Roles & permissions', '/admin/access'],
+      ['Connected agents', '/admin/agents'],
     ])
     // Loading state — SkeletonRows uses aria-hidden, so check for the page head
     // and that no person names render yet
