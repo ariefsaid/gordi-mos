@@ -55,5 +55,17 @@ env -u MOS_TEST_LOCK -u MOS_TEST_LOCK_HELD HOME="$tmp/home" scripts/with-test-lo
   && ok "test: default lock (MOS_TEST_LOCK unset) is \$HOME/.pmo-test.lock" \
   || bad "test: default lock is not \$HOME/.pmo-test.lock (found: $(ls -A "$tmp/home" | tr '\n' ' '))"
 
+# Default wait: 2700 s (45 min) unless the *_TIMEOUT env var says otherwise; 0 still means forever.
+# A copy of each wrapper runs over a stub flock-run.sh that records the timeout it was handed.
+mkdir -p "$tmp/stub/lib"
+printf '#!/bin/sh\necho "$3" > "%s/timeout-arg"\n' "$tmp" > "$tmp/stub/lib/flock-run.sh"; chmod +x "$tmp/stub/lib/flock-run.sh"
+for w in db test; do
+  cp "scripts/with-${w}-lock.sh" "$tmp/stub/"; VAR="MOS_$(echo "$w" | tr a-z A-Z)_LOCK"
+  env -u "${VAR}_TIMEOUT" -u "${VAR}_HELD" "$VAR=$tmp/$w.lock" bash "$tmp/stub/with-${w}-lock.sh" true >/dev/null 2>&1
+  [ "$(cat "$tmp/timeout-arg" 2>/dev/null)" = 2700 ] && ok "$w: default wait is 2700 s" || bad "$w: default wait is not 2700 s ($(cat "$tmp/timeout-arg" 2>/dev/null))"
+  env -u "${VAR}_HELD" "${VAR}_TIMEOUT=0" "$VAR=$tmp/$w.lock" bash "$tmp/stub/with-${w}-lock.sh" true >/dev/null 2>&1
+  [ "$(cat "$tmp/timeout-arg" 2>/dev/null)" = 0 ] && ok "$w: ${VAR}_TIMEOUT=0 still waits forever" || bad "$w: the 0 override was not passed through"
+done
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

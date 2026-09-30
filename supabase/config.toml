@@ -429,6 +429,8 @@ deno_version = 2
 verify_jwt = false   # handler verifies JWT to return a typed 401 + stream a typed terminal status
 [functions.compose-view]
 verify_jwt = false   # handler verifies JWT to return a typed 401/400/422
+[functions.mcp]
+verify_jwt = false   # handler validates the agent token itself (aud, client_id, JWKS) and answers 401 + resource metadata
 
 [analytics]
 enabled = true
