@@ -31,7 +31,9 @@ describe('EmptyState', () => {
 
     const emptyState = screen.getByTestId('empty-state')
     expect(emptyState).toHaveAttribute('data-empty-variant', 'next-step')
-    expect(emptyState.querySelectorAll('.empty-state-icon, .empty-title, .empty-copy, .empty-actions')).toHaveLength(4)
+    // The action is the invitation: no "+" badge that looks pressable (#1050), so no icon disc.
+    expect(emptyState.querySelector('.empty-state-icon')).toBeNull()
+    expect(emptyState.querySelectorAll('.empty-title, .empty-copy, .empty-actions')).toHaveLength(3)
     expect(screen.getAllByRole('button')).toHaveLength(1)
   })
 

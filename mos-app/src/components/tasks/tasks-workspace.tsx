@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
 import type { To } from 'react-router-dom'
-import { useIsNarrow } from '@/shell/use-is-narrow'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
@@ -180,7 +179,6 @@ export function TasksWorkspace({
   const { buildEntry: buildRelatedEntry } = useCatalogRecordEntryFactory({ owner: 'tasks' })
   const auth = useAuth()
   const isDesktop = useIsDesktop()
-  const isNarrow = useIsNarrow()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const viewerOrgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
@@ -816,16 +814,15 @@ export function TasksWorkspace({
       })()
   // Census R2 DO-6's reserved placeholder state is gone with the AR Follow-ups view (#743):
   // every view now renders the live collection body.
-  // One create door per width. The global + launcher renders whenever the rail is collapsed
-  // (below 920px), so the labelled header button yields to it there; above that the header
-  // button is the door.
+  // The labelled header button is the in-page create door at every width (#1032); the shell's +
+  // launcher is the global one.
   // A record is open in either of two ways — the `drawerOpen` prop, or an overlay session this
   // surface owns. Create task stays reachable with a record open (#751 AC-033, DESIGN.md
   // § RecordViewer "While a record panel is open, the page head's primary drops to .btn-outline
   // — one blue per screen") — it restyles to outline rather than disappearing, so the record's
   // own action keeps the one filled primary without hiding a common door.
   const recordOpen = drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks'
-  const showNewTask = state.status === 'ready' && !isNarrow
+  const showNewTask = state.status === 'ready'
   const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
   // A saved-view scope (My work etc.) is not a filter: only a set field filter earns the
   // "match these filters" wording.

@@ -720,36 +720,18 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     expect(screen.getByText('Overdue mobile work')).toBeInTheDocument()
   })
 
-  // RATIFY-BEFORE-MERGE: Luna 390 audit (d) — one create door. The header "+ Create task" is the
-  // DESKTOP door; on phone the single door is the global Action Launcher FAB (DESIGN.md one-launcher
-  // rule), so the in-page header create button is hidden at phone width to kill the duplicate door.
-  it('AC-W1-D (Luna 390): desktop shows the header "+ Create task" door; phone hides it (single FAB door)', async () => {
+  // One in-page create door at every width (#1032): the header "+ Create task" stays on the page
+  // at phone and in the 768–919 band, beside the shell's + launcher, so phone matches desktop.
+  it('AC-W1-D: the header "+ Create task" door is on the page at desktop, in the 768–919 band and on phone', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Only work item' })])
 
-    // Desktop: the header create door is present.
-    stubMatchMedia(true, true)
-    const desktop = renderTable()
-    await waitFor(() => screen.getByText('Only work item'))
-    expect(screen.getByRole('button', { name: '+ Create task' })).toBeInTheDocument()
-    desktop.unmount()
-
-    // Phone: no in-page header create button — the single phone create door is the global FAB
-    // (rendered by the app shell, not this component).
-    stubMatchMedia(false, false)
-    renderTable()
-    await waitFor(() => screen.getByText('Only work item'))
-    expect(screen.queryByRole('button', { name: '+ Create task' })).toBeNull()
-  })
-
-  // DO-17 (census-sweep R2 tasks FINDING2): the shell's Action Launcher FAB exists whenever the
-  // rail is collapsed (isNarrow, <920) — so in the 768–919 band (desktop by useIsDesktop, but
-  // narrow by useIsNarrow) the header door must hide too, or BOTH create doors co-exist.
-  it('DO-17: the 768–919 band hides the header create door (FAB owns it while the rail is collapsed)', async () => {
-    mockListTasks.mockResolvedValue([makeTask({ title: 'Only work item' })])
-    stubMatchMedia(false, true, true) // not split, ≥768, but rail collapsed (<920)
-    renderTable()
-    await waitFor(() => screen.getByText('Only work item'))
-    expect(screen.queryByRole('button', { name: '+ Create task' })).toBeNull()
+    for (const [split, desktop, narrow] of [[true, true, false], [false, true, true], [false, false, true]] as const) {
+      stubMatchMedia(split, desktop, narrow)
+      const view = renderTable()
+      await waitFor(() => screen.getByText('Only work item'))
+      expect(screen.getByRole('button', { name: '+ Create task' })).toBeInTheDocument()
+      view.unmount()
+    }
   })
 
   it('AC-I-TASK: Indonesian locale translates the member disclosure and typed filter grammar', async () => {
