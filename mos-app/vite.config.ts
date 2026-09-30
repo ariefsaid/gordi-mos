@@ -113,7 +113,9 @@ export default defineConfig({
         // only the small app chunk needs to be re-fetched after a deploy, not the whole bundle.
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined
-          if (/react-dom|\/react\/|scheduler/.test(id)) return 'vendor-react'
+          // Anchored to the package directory: a substring match also catches @floating-ui/react-dom,
+          // whose @floating-ui/dom dependency sits in `vendor`, making vendor and vendor-react import each other.
+          if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'vendor-react'
           if (/react-router/.test(id)) return 'vendor-router'
           if (/@supabase/.test(id)) return 'vendor-supabase'
           if (/@tanstack/.test(id)) return 'vendor-tanstack'
