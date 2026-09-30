@@ -99,7 +99,9 @@ describe('Projects & Processes collection-first contract', () => {
     await screen.findByText('Menu launch')
     expect(screen.getByRole('link', { name: 'Menu launch' })).toHaveAttribute('href', '/work/projects/wl-1')
     const menuLaunch = screen.getByRole('link', { name: 'Menu launch' })
-    expect(within(menuLaunch).getByRole('cell', { name: 'Objective: Not set' })).toBeInTheDocument()
+    // No row here has a direct Objective, so that column is left out rather than printing Not set.
+    expect(within(menuLaunch).queryByRole('cell', { name: /^Objective:/ })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: 'Objective' })).toBeNull()
     expect(within(menuLaunch).getByText('Contributes through Tasks to: Grow revenue')).toBeInTheDocument()
     expect(screen.getByText('1 / 2 done')).toBeInTheDocument()
     expect(screen.getByText('07 Jul 2026, 07:00 WIB')).toBeInTheDocument()
