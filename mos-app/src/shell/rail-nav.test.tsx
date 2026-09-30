@@ -374,15 +374,17 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
     expect(within(nav).getByRole('link', { name: 'Café' })).toHaveAttribute('aria-current', 'location')
   })
 
-  it.each(['/admin/people', '/admin/teams', '/admin/access', '/admin/agents'])('at %s, Admin Settings link page and active, exactly one page', (path) => {
+  // The Admin tabs (not the rail) carry "page" on these routes; the rail link marks the section.
+  it.each(['/admin/people', '/admin/teams', '/admin/access', '/admin/agents'])('at %s, Admin Settings link is the current section ("location") and active, never "page"', (path) => {
     setAuthAs(['admin'])
     renderRailNav(path)
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
-    expect(pageLinks).toHaveLength(1)
-    expect(pageLinks[0]).toHaveAccessibleName(/Admin Settings/)
-    expect(pageLinks[0]).toHaveClass('rail-item--active')
-    expect(pageLinks[0]).toHaveAttribute('href', '/admin/people')
+    expect(pageLinks).toHaveLength(0)
+    const admin = within(nav).getByRole('link', { name: /Admin Settings/ })
+    expect(admin).toHaveAttribute('aria-current', 'location')
+    expect(admin).toHaveClass('rail-item--active')
+    expect(admin).toHaveAttribute('href', '/admin/people')
   })
 })
 
