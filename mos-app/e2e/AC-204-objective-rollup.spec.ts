@@ -49,7 +49,7 @@ test.describe('AC-204: Objective roll-up and drill', () => {
     const { done, total } = AC204.counts.all
     await expect(row.getByTestId('catalog-progress')).toHaveText(`${done} / ${total} done`)
     await expect(row).not.toContainText('%')
-    await expect(row.getByRole('cell', { name: new RegExp(`^Projects & Processes: ${AC204.launch.name}`) })).toBeVisible()
+    await expect(row.getByRole('cell', { name: `Projects & Processes: ${AC204.launch.name}`, exact: true })).toBeVisible()
     await expect(row).toContainText(AC204.launch.name)
     await expect(row).not.toContainText(/Projects & Processes: \d/)
 

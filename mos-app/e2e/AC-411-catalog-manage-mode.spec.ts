@@ -97,8 +97,8 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
     await expect(trace).toBeVisible({ timeout: 10_000 })
     await expect(trace).toContainText('E2E Trace Work Line')
     // The Work cell names its direct Projects & Processes (catalog-list-presentation.tsx); the
-    // count string is retired, so the cell's accessible name carries the child's name.
-    await expect(trace.getByRole('cell', { name: /^Projects & Processes: E2E Trace Work Line/ })).toBeVisible()
+    // count string is retired, so the cell's whole accessible name is the label and the child's name.
+    await expect(trace.getByRole('cell', { name: 'Projects & Processes: E2E Trace Work Line', exact: true })).toBeVisible()
     await expect(trace).not.toContainText(/Projects & Processes: \d/)
     await expect(trace).toContainText('0 / 2 done')
     await trace.getByRole('link', { name: 'E2E Trace Objective', exact: true }).click()
