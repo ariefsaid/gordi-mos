@@ -22,6 +22,7 @@ import {
   type CollectionToolbarSearch,
 } from '@/components/record-collection/collection-toolbar'
 import {
+  COMPANY_WIDE_OPTION,
   objectivesCollectionDescriptor,
   objectivesCatalogActions,
   type CatalogCollectionQuery,
@@ -113,7 +114,8 @@ export function ObjectivesPage() {
     setAdding(true)
     setAddError('')
     try {
-      if (newBusinessUnitId) await objectivesCatalogActions.create(name, newBusinessUnitId)
+      if (newBusinessUnitId === COMPANY_WIDE_OPTION) await objectivesCatalogActions.create(name, null, true)
+      else if (newBusinessUnitId) await objectivesCatalogActions.create(name, newBusinessUnitId)
       else await objectivesCatalogActions.create(name)
       setDraftOpen(false)
       createButtonRef.current?.focus()
@@ -149,7 +151,11 @@ export function ObjectivesPage() {
     open: draftOpen,
     name: newName,
     businessUnitId: newBusinessUnitId,
-    businessUnitOptions: businessUnitOptions.map((unit) => ({ value: unit.id, label: unit.name })),
+    businessUnitOptions: [
+      // Company-wide is an org-level choice: only a viewer who may create without a unit sees it.
+      ...(businessUnitRequired ? [] : [{ value: COMPANY_WIDE_OPTION, label: t('catalog.companyWide') }]),
+      ...businessUnitOptions.map((unit) => ({ value: unit.id, label: unit.name })),
+    ],
     businessUnitRequired,
     adding,
     error: addError,

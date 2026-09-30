@@ -8,11 +8,11 @@
 --
 -- The DELETE assertion belongs here rather than in a per-feature file because it is a property of
 -- the schema as a whole (NFR-002 / FR-053): removal is an archive or a soft revoke everywhere except
--- two places where a real delete is the correct verb, and those two are named. A DELETE grant that
--- appears anywhere else fails this file.
+-- three places where a real delete is the correct verb, and those three are named. A DELETE grant
+-- that appears anywhere else fails this file.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(6);
+select plan(7);
 
 -- AC-005 — no table in `mos` may lack RLS. Zero, not "all the ones we remembered".
 select is(
@@ -42,19 +42,25 @@ select ok(
 --   feature, and the line submit-lock closes it the moment the update is submitted.
 -- mos.push_subscriptions: a browser unsubscribing. Keeping a dead endpoint forever would be a bug,
 --   not an audit trail.
+-- mos.objective_key_results (#992): an admin removing a wrongly-added key result — the row is
+--   optional measurement scaffolding, not an audited business record; its history keeps the
+--   whole-row DELETE snapshot, so removal stays attributable. Content writers cannot delete at
+--   all (the guard raises 42501); the grant is what lets the admin arm exist at all.
 select is(
   (select coalesce(array_agg(c.relname order by c.relname), '{}')
      from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'mos' and c.relkind = 'r'
       and has_table_privilege('authenticated', c.oid, 'DELETE')
-      and c.relname not in ('weekly_update_items','push_subscriptions')),
+      and c.relname not in ('weekly_update_items','push_subscriptions','objective_key_results')),
   '{}'::name[],
-  'NFR-002: authenticated holds DELETE on NO mos table except the two where deletion is the correct verb');
+  'NFR-002: authenticated holds DELETE on NO mos table except the three where deletion is the correct verb');
 
 select ok(has_table_privilege('authenticated','mos.weekly_update_items','DELETE'),
   'NFR-002: ...and weekly_update_items DOES grant DELETE — removing a line from your own draft is the feature');
 select ok(has_table_privilege('authenticated','mos.push_subscriptions','DELETE'),
   'NFR-002: ...and push_subscriptions DOES grant DELETE — a browser must be able to unsubscribe');
+select ok(has_table_privilege('authenticated','mos.objective_key_results','DELETE'),
+  'NFR-002: ...and objective_key_results DOES grant DELETE — admin removal of a key result is the verb (#992)');
 
 select * from finish();
 rollback;
