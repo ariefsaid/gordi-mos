@@ -62,7 +62,7 @@ export function TaskCreateForm({
   const [title, setTitle] = useState(task.title)
   const [attempted, setAttempted] = useState(false)
   const [pending, setPending] = useState(false)
-  // A link retry only links the already-created Task; draft edits would never be saved.
+  // A link retry only links the already-created Task; draft edits, Title included, would never be saved.
   const fieldsLocked = pending || linkError
   const [saveError, setSaveError] = useState(false)
   const titleRef = useRef<HTMLTextAreaElement | null>(null)
@@ -144,7 +144,7 @@ export function TaskCreateForm({
           maxLength={TASK_TITLE_MAX_LENGTH}
           value={title}
           placeholder={t('tasks.create.titlePlaceholder')}
-          disabled={pending}
+          disabled={fieldsLocked}
           aria-invalid={titleError ? true : undefined}
           aria-describedby={titleError ? titleErrorId : undefined}
           onChange={(event) => setTitle(event.target.value)}
