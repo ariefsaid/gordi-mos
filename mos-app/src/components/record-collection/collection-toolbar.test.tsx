@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
-import { render, screen, within, fireEvent } from '@testing-library/react'
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
@@ -372,6 +372,45 @@ describe('Ticket #743 toolbar acceptance', () => {
     expect(row.querySelectorAll('input[type="checkbox"]')).toHaveLength(0)
   })
 
+  // The popover closes like every other menu: Escape (focus back on its trigger) or a pointer
+  // landing outside it.
+  describe('popover filter dismissal', () => {
+    const renderPopover = () => {
+      stubDesktop()
+      render(<I18nProvider>
+        <button type="button">outside</button>
+        <CollectionToolbar
+          presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
+          views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+          filters={[{
+            id: 'status', label: 'Current status', display: 'Any',
+            popover: { choices: [{ key: 'blocked', label: 'Blocked', checked: false, onChange: vi.fn() }] },
+          }]}
+        />
+      </I18nProvider>)
+      return screen.getByRole('button', { name: 'Current status' })
+    }
+
+    it('Escape closes the menu and returns focus to its trigger', async () => {
+      const trigger = renderPopover()
+      await userEvent.click(trigger)
+      screen.getByRole('checkbox', { name: 'Blocked' }).focus()
+      await userEvent.keyboard('{Escape}')
+      expect(screen.queryByRole('group', { name: 'Current status' })).not.toBeInTheDocument()
+      expect(trigger).toHaveAttribute('aria-expanded', 'false')
+      expect(document.activeElement).toBe(trigger)
+    })
+
+    it('a pointer outside the menu closes it; a pointer inside does not', async () => {
+      const trigger = renderPopover()
+      await userEvent.click(trigger)
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Blocked' }))
+      expect(screen.getByRole('group', { name: 'Current status' })).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'outside' }))
+      expect(screen.queryByRole('group', { name: 'Current status' })).not.toBeInTheDocument()
+    })
+  })
+
   it('keeps a clipped choice value available through the full-value presentation', () => {
     stubDesktop()
     const display = 'Gordi HQ Retail Operations and Customer Experience'
@@ -467,6 +506,31 @@ describe('Ticket #743 toolbar acceptance', () => {
     fireEvent.keyDown(screen.getByRole('textbox', { name: /view name/i }), { key: 'Escape' })
     expect(screen.queryByRole('textbox', { name: /view name/i })).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
+  })
+
+  it('a failed saved-view save keeps the typed name; one retry saves once and clears it', async () => {
+    stubDesktop()
+    const onSave = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
+    render(<I18nProvider><CollectionToolbar
+      presentation={{ label: 'Presentation', value: 'table', options: [{ value: 'table', label: 'Table' }], onChange: vi.fn() }}
+      views={{ label: 'Views', value: 'all', options: [{ value: 'all', label: 'All' }], onChange: vi.fn() }}
+      savedViews={{ label: 'Saved views', selectedId: null, operation: 'idle', items: [], onApply: vi.fn(), onSave }}
+      filters={[{ id: 'status', label: 'Status', value: '', options: [{ value: '', label: 'Any' }], onChange: vi.fn() }]}
+    /></I18nProvider>)
+    const trigger = screen.getByRole('button', { name: /save view/i })
+    await userEvent.click(trigger)
+    await userEvent.type(screen.getByRole('textbox', { name: /view name/i }), 'Overdue mine')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('textbox', { name: /view name/i })).toHaveValue('Overdue mine')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: /view name/i })).not.toBeInTheDocument())
+    expect(onSave).toHaveBeenCalledTimes(2)
+    expect(onSave).toHaveBeenLastCalledWith('Overdue mine')
+    // Reopened, the name starts empty: the success cleared it once.
+    await userEvent.click(trigger)
+    expect(screen.getByRole('textbox', { name: /view name/i })).toHaveValue('')
   })
 })
 

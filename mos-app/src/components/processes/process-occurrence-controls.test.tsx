@@ -335,6 +335,23 @@ describe('ProcessOccurrenceControls', () => {
     expect(mockCancelRun).toHaveBeenCalledWith(RUN_ID, 'Merged into the event.')
   })
 
+  it('a failed cancellation keeps the typed reason; one retry cancels once and closes the dialog', async () => {
+    mockCancelRun.mockRejectedValueOnce(new Error('offline'))
+    renderControls()
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancel occurrence' }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Cancel this occurrence?' })
+    await userEvent.type(screen.getByRole('textbox', { name: 'Reason for cancellation' }), 'Merged into the event.')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel occurrence' }))
+    await waitFor(() => expect(mockCancelRun).toHaveBeenCalledTimes(1))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Reason for cancellation' })).toHaveValue('Merged into the event.')
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel occurrence' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(mockCancelRun).toHaveBeenCalledTimes(2)
+    expect(mockCancelRun).toHaveBeenLastCalledWith(RUN_ID, 'Merged into the event.')
+  })
+
   it('confirms completion and calls the existing complete RPC without changing generated Tasks', async () => {
     renderControls()
     await userEvent.click(await screen.findByRole('button', { name: 'Complete occurrence' }))

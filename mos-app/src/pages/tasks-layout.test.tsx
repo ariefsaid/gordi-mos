@@ -575,6 +575,33 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(currentPath).not.toContain('record')
   })
 
+  it('DD-WAY-53: a resize promotion before the typed search reaches the URL keeps the full typed text', async () => {
+    const widths = stubDynamicSplitWidth()
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
+    const router = createMemoryRouter(
+      [{
+        // A slow loader keeps the search box's own URL write pending while the viewport resizes.
+        path: '/work/tasks',
+        loader: () => new Promise((resolveLoader) => setTimeout(() => resolveLoader(null), 200)),
+        element: <OverlayHostProvider><TasksLayout /></OverlayHostProvider>,
+        children: [{ path: ':taskId', element: <TaskDrawer mode="view" /> }],
+      }],
+      { initialEntries: ['/work/tasks?record=task-1'] },
+    )
+    render(
+      <AuthContext.Provider value={authedState}>
+        <RouterProvider router={router} />
+      </AuthContext.Provider>,
+    )
+    await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }), { timeout: 5000 })
+    const search = screen.getByRole('searchbox', { name: 'Search tasks' })
+    fireEvent.change(search, { target: { value: 'Open' } })
+    act(() => widths.setSplit(false))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/work/tasks/task-1'), { timeout: 5000 })
+    expect(router.state.location.search).toBe('?q=Open')
+  })
+
   // AC-017 (ticket #750): a single pointer click on the title opens the record — the drawer
   // regime at 1440, the page regime below the split threshold (1300) — and never the editor.
   it('AC-017: a single click on the title opens the record (drawer at 1440, page at 1300), no editor', async () => {

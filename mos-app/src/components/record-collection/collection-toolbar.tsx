@@ -238,6 +238,17 @@ export function CollectionToolbar<
     return () => document.removeEventListener('pointerdown', onPointerDown, true)
   }, [desktopOptionsOpen])
 
+  // The popover filter closes on a pointer outside its own field, like the desktop door above.
+  useEffect(() => {
+    if (!openPopoverId) return
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Element | null
+      if (!target?.closest?.(`[data-filter-id="${openPopoverId}"]`)) setOpenPopoverId(null)
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    return () => document.removeEventListener('pointerdown', onPointerDown, true)
+  }, [openPopoverId])
+
   const saving = savedViews?.operation === 'saving'
   const canSave = Boolean(viewName.trim()) && !saving
   // Desktop shows secondary controls inline; phones render this row inside the host's single
@@ -293,7 +304,16 @@ export function CollectionToolbar<
             >
               {!isDesktop ? <span>{filter.label}</span> : null}
               {/* Filter choices stay in the anchored popover until the user opens them. */}
-              <div className="collection-toolbar__select collection-toolbar__choice">
+              <div
+                className="collection-toolbar__select collection-toolbar__choice"
+                onKeyDown={(event) => {
+                  if (event.key !== 'Escape' || openPopoverId !== filter.id) return
+                  // Only this menu closes; the host's own Escape handling waits for the next press.
+                  event.stopPropagation()
+                  setOpenPopoverId(null)
+                  event.currentTarget.querySelector<HTMLElement>('.collection-toolbar__choice-trigger')?.focus()
+                }}
+              >
                 <button
                   type="button"
                   className="collection-toolbar__choice-trigger"

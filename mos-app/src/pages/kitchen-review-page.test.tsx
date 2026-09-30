@@ -472,6 +472,25 @@ describe('KitchenReviewPage — reject (FR-041, AC-041)', () => {
     await waitFor(() => expect(mockReject).toHaveBeenCalledWith('log-prod', 'wrong item'))
     await waitFor(() => expect(screen.queryByText('Nasi Goreng')).not.toBeInTheDocument())
   })
+
+  it('a failed reject keeps the typed note; one retry rejects once and removes the row', async () => {
+    mockList.mockResolvedValue([PROD_LOG])
+    mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+    mockReject.mockRejectedValueOnce(new KitchenRpcError('XX000', 'db down')).mockResolvedValue(undefined)
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Nasi Goreng')
+    fireEvent.click(screen.getByRole('button', { name: /reject nasi goreng/i }))
+    const note = screen.getByRole('textbox', { name: /reject note for nasi goreng/i })
+    fireEvent.change(note, { target: { value: 'wrong item' } })
+    fireEvent.click(screen.getByRole('button', { name: /reject nasi goreng/i }))
+    await waitFor(() => expect(mockReject).toHaveBeenCalledTimes(1))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: /reject note for nasi goreng/i })).toHaveValue('wrong item')
+    fireEvent.click(screen.getByRole('button', { name: /reject nasi goreng/i }))
+    await waitFor(() => expect(screen.queryByText('Nasi Goreng')).not.toBeInTheDocument())
+    expect(mockReject).toHaveBeenCalledTimes(2)
+    expect(mockReject).toHaveBeenLastCalledWith('log-prod', 'wrong item')
+  })
 })
 
 describe('KitchenReviewPage — production-first gate (FR-042, AC-042)', () => {

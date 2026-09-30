@@ -84,7 +84,8 @@ describe('CatalogManager', () => {
     await user.click(screen.getByRole('button', { name: 'Add' }))
     await waitFor(() => expect(field).toHaveValue(''))
     expect(create).toHaveBeenCalledTimes(2)
-    expect(create).toHaveBeenLastCalledWith('Q4 Push', undefined)
+    expect(create).toHaveBeenNthCalledWith(1, 'Q4 Push', undefined)
+    expect(create).toHaveBeenNthCalledWith(2, 'Q4 Push', undefined)
   })
 
   it('AC-006: rename success persists; failure surfaces an error and stays editing', async () => {

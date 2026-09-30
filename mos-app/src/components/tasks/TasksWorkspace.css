@@ -211,6 +211,7 @@
 
 .tasks-inline-edit-hint {
   margin: 8px 12px 0;
+  font-size: var(--font-size-body);
 }
 
 .task-title-edit-keyhint {

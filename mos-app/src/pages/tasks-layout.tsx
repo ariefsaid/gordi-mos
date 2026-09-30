@@ -3,6 +3,7 @@ import { Outlet, useParams, useMatch, useLocation, useNavigate, useNavigationTyp
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
+import { searchString, tasksSearchWithLiveQuery } from '@/components/tasks/tasks-navigation'
 import { useIsSplitWidth } from '@/shell/use-is-split-width'
 import { isTaskPageMode } from '@/components/tasks/task-page-mode'
 import { TaskSurface } from '@/components/tasks/task-surface'
@@ -62,13 +63,13 @@ export function TasksLayout() {
   // collection's other query params and dropping `record` (the panel-open marker some Tasks doors
   // use).
   const navigate = useNavigate()
+  // The workspace publishes the search box's live text here; the promotion carries it, not the URL's.
+  const liveQueryRef = useRef<string | null>(null)
   useEffect(() => {
     if (isSplit || pageMode || !openRecordId || isNew) return
-    const next = new URLSearchParams(location.search)
-    next.delete('record')
-    const search = next.toString()
+    const search = searchString(tasksSearchWithLiveQuery(location.search, liveQueryRef.current, ['record']))
     navigate(
-      { pathname: `/work/tasks/${openRecordId}`, search: search ? `?${search}` : '' },
+      { pathname: `/work/tasks/${openRecordId}`, search },
       // Carry the origin through the promotion, or the page would render the collection Back
       // for a viewer who arrived from Home.
       { state: fromHome ? { taskSurface: 'page', from: 'home' } : { taskSurface: 'page' } },
@@ -119,6 +120,7 @@ export function TasksLayout() {
       statusOverrides={statusOverrides}
       refreshKey={refreshKey}
       onTaskChanged={onTaskChanged}
+      liveQueryRef={liveQueryRef}
       drawerSlot={<Outlet context={outletContext} />}
     />
   )

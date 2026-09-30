@@ -305,6 +305,28 @@ describe('SignalRecordHost — retract and repost (P-22/OD-45, AC-412)', () => {
     await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1))
   })
 
+  it('a failed retract keeps the typed reason; one retry retracts once', async () => {
+    mockUseAuth.mockReturnValue(authedViewer('person-dewi'))
+    mockCanRetractSignal.mockResolvedValue(true)
+    mockGetSignal.mockResolvedValue({ signal: { ...baseSignal, author_id: 'person-dewi' }, mentions: [], acknowledgements: [], tasks: [] })
+    mockRetractSignal.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
+    renderHost()
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /more signal actions/i }))
+    await userEvent.click(screen.getByRole('menuitem', { name: /^retract$/i }))
+    const dialog = screen.getByRole('dialog', { name: /retract this signal/i })
+    await userEvent.type(within(dialog).getByRole('textbox', { name: /reason/i }), 'Duplicate')
+    await userEvent.click(within(dialog).getByRole('button', { name: /retract/i }))
+    await waitFor(() => expect(mockRetractSignal).toHaveBeenCalledTimes(1))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(within(dialog).getByRole('textbox', { name: /reason/i })).toHaveValue('Duplicate')
+
+    await userEvent.click(within(dialog).getByRole('button', { name: /retract/i }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /retract this signal/i })).not.toBeInTheDocument())
+    expect(mockRetractSignal).toHaveBeenCalledTimes(2)
+    expect(mockRetractSignal).toHaveBeenLastCalledWith(SIGNAL_ID, 'Duplicate')
+  })
+
   it('hides retract from a plain viewer', async () => {
     renderHost()
     await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
@@ -703,6 +725,28 @@ describe('SignalRecordHost — Link existing Task (linkSignalTask, FR-413)', () 
     expect(mockLinkSignalTask).toHaveBeenCalledWith(SIGNAL_ID, 'task-a')
     expect(mockSearchTasksByTitle).toHaveBeenCalledWith('Repair freezer')
     await waitFor(() => expect(mockGetTaskTitlesByIds).toHaveBeenCalledWith(['task-a'], { includeArchived: false }))
+  })
+
+  it('a failed link keeps the search text and the chosen Task; one retry links once', async () => {
+    mockSearchTasksByTitle.mockResolvedValue([{ id: 'task-a', title: 'Repair freezer', status: 'Open' }])
+    mockLinkSignalTask.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
+    renderHost()
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /more signal actions/i }))
+    await userEvent.click(screen.getByRole('menuitem', { name: /link existing task/i }))
+    await userEvent.type(screen.getByRole('searchbox', { name: /search tasks/i }), 'Repair freezer')
+    await userEvent.click(await screen.findByRole('combobox', { name: /existing task/i }))
+    await userEvent.click(screen.getByRole('option', { name: 'Repair freezer' }))
+    await userEvent.click(screen.getByRole('button', { name: /^link$/i }))
+    await waitFor(() => expect(mockLinkSignalTask).toHaveBeenCalledTimes(1))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: /search tasks/i })).toHaveValue('Repair freezer')
+    expect(screen.getByRole('combobox', { name: /existing task/i })).toHaveTextContent('Repair freezer')
+
+    await userEvent.click(screen.getByRole('button', { name: /^link$/i }))
+    await waitFor(() => expect(screen.queryByRole('searchbox', { name: /search tasks/i })).not.toBeInTheDocument())
+    expect(mockLinkSignalTask).toHaveBeenCalledTimes(2)
+    expect(mockLinkSignalTask).toHaveBeenLastCalledWith(SIGNAL_ID, 'task-a')
   })
 
   it('keeps candidate search retryable when the demand-driven Task search fails', async () => {
