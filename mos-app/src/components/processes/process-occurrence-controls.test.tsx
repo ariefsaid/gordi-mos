@@ -176,7 +176,7 @@ describe('ProcessOccurrenceControls', () => {
     expect(screen.queryByRole('button', { name: 'Start · Finance' })).not.toBeInTheDocument()
   })
 
-  it('keeps the server list when the viewer holds none of the offered Teams (admin or ops lead)', async () => {
+  it('keeps the server list when the viewer holds none of the offered Teams', async () => {
     mockListStartable.mockResolvedValue([
       DUE,
       { ...DUE, owning_team_id: 'team-2', team_name: 'Marketing' },

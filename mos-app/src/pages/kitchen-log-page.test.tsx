@@ -753,6 +753,38 @@ describe('F3b: disabled Submit shows a note-missing pointer when a variance note
       expect(screen.queryByRole('button', { name: /note missing/i })).toBeNull()
     })
   })
+
+  // An empty note is skipped by Tab, so the pointer must stay reachable by keyboard even while a
+  // stock-cap error also blocks Submit.
+  it('a keyboard user can reach the missing note when a stock-cap error is also showing', async () => {
+    mockFetchPlanMap.mockResolvedValue({})
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+      await Promise.resolve()
+    })
+    const user = userEvent.setup()
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    await user.click(qtyInput)
+    await user.type(qtyInput, '10') // above the 9 available: a stock-cap error, and off plan
+    await waitFor(() => {
+      expect(screen.getByText(/insufficient stock — produce first/i)).toBeInTheDocument()
+    })
+
+    let pointer: HTMLElement | null = null
+    for (let i = 0; i < 40 && !pointer; i += 1) {
+      await user.tab()
+      const active = document.activeElement as HTMLElement
+      if (active.getAttribute('aria-label')?.match(/^note for ayam bakar$/i)) break
+      if (/note missing/i.test(active.textContent ?? '')) pointer = active
+    }
+    const note = screen.getByRole('textbox', { name: /^note for ayam bakar$/i })
+    if (pointer) {
+      await user.keyboard('{Enter}')
+    }
+    expect(note).toHaveFocus()
+  })
 })
 
 // ── AC-022: transfer over-availability REJECTS the submit (FR-023) ─────────────

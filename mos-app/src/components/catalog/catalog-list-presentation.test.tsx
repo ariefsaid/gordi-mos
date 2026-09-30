@@ -211,6 +211,32 @@ describe('CatalogListPresentation owner-cell grammar', () => {
     expect(screen.getAllByRole('cell', { name: /^Accountable:/ })).toHaveLength(2)
   })
 
+  it('Objectives: leaves out Business Unit and Accountable when no row has one', () => {
+    const rows: CatalogRow[] = [
+      { id: 'o1', name: 'Grow revenue', archived_at: null, businessUnitId: null, accountablePersonId: null },
+      { id: 'o2', name: 'Cut waste', archived_at: null, businessUnitId: null, accountablePersonId: null },
+    ]
+    renderRows(rows, { relationsKind: 'objective' })
+
+    expect(screen.queryByRole('columnheader', { name: 'Business Unit' })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: 'Accountable' })).toBeNull()
+    expect(screen.queryByRole('cell', { name: /^Business Unit:/ })).toBeNull()
+    expect(screen.queryByRole('cell', { name: /^Accountable:/ })).toBeNull()
+  })
+
+  it('Objectives: keeps Business Unit and Accountable for every row once any row has one', () => {
+    const rows: CatalogRow[] = [
+      { id: 'o1', name: 'Grow revenue', archived_at: null, businessUnitId: 'bu-1', accountablePersonId: 'person-1' },
+      { id: 'o2', name: 'Cut waste', archived_at: null, businessUnitId: null, accountablePersonId: null },
+    ]
+    renderRows(rows, { relationsKind: 'objective' })
+
+    expect(screen.getByRole('columnheader', { name: 'Business Unit' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Accountable' })).toBeInTheDocument()
+    expect(screen.getAllByRole('cell', { name: /^Business Unit:/ })).toHaveLength(2)
+    expect(screen.getAllByRole('cell', { name: /^Accountable:/ })).toHaveLength(2)
+  })
+
   it('keeps the headers when there are no rows to judge', () => {
     renderRows([])
 
