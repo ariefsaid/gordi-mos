@@ -39,7 +39,7 @@
   /* A docked shell panel takes its track from the main region instead of covering it, so the page
      beside it (Home, Tasks, ...) reflows to the remaining width and no status pill or column sits
      under the panel. */
-  body:has(.drawer-shell-split) [data-shell-main] { padding-right: var(--shell-panel-w); }
+  [data-shell-main][data-panel-docked='shell'] { padding-right: var(--shell-panel-w); }
   .drawer-shell-split {
     position: fixed;
     /* TB-1 / OD-P4-9: the shell panel floats over MAIN content, but the top-bar is in normal
@@ -69,7 +69,7 @@
 @media (min-width: 920px) {
   /* The standalone companion (no record open) docks like the shell panel: the main region gives up
      its track. Beside a record the companion floats inside the record's own frame and pads nothing. */
-  body:has(.overlay-companion-host--standalone) [data-shell-main] { padding-right: min(var(--assistant-w), 100vw); }
+  [data-shell-main][data-panel-docked='deputy'] { padding-right: min(var(--assistant-w), 100vw); }
   .drawer.overlay-companion-host {
     position: fixed;
     right: 0;

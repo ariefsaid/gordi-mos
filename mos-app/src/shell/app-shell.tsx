@@ -12,9 +12,9 @@ import { CommandMenu } from '@/components/command/command-menu'
 import { useCommandMenu } from '@/components/command/use-command-menu'
 import { BreadcrumbTitleProvider } from './breadcrumb-title'
 import { SHOW_ASSISTANT } from '@/config/features'
-import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
+import { AgentRuntimeProvider, useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { AssistantPanel } from '@/components/assistant/AssistantPanel'
-import { OverlayHostProvider, OverlayHostSlot, type OverlayHistoryDriver } from './overlay-host'
+import { OverlayHostProvider, OverlayHostSlot, useOptionalOverlayHost, type OverlayHistoryDriver } from './overlay-host'
 import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
 import { createRecordDeepLinkResolver, RECORD_KINDS } from './record-deep-link-resolver'
 import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
@@ -144,6 +144,14 @@ function ShellContent() {
   // Collection-owner records live inside the page grid and are untouched by it.
   useDeputyOverlayCoexistence()
 
+  // Which right-edge panel, if any, takes its track out of the main region (drawer.css narrows the
+  // region while this is set, at the widths where the panel is docked rather than modal). A shell
+  // overlay docks; Deputy docks only when no record is open (beside a record it floats in the
+  // record's own frame). Collection-owned records have their own split and never dock here.
+  const overlayTop = useOptionalOverlayHost()?.session?.frames.at(-1)?.entry
+  const deputyOpen = useAgentRuntime().open
+  const dockedPanel = overlayTop?.owner === 'shell' ? 'shell' : deputyOpen && overlayTop?.tenant !== 'record' ? 'deputy' : undefined
+
   return (
     // BreadcrumbTitleProvider wraps the full shell so both TopBar (Breadcrumb reader) and the
     // Outlet (TaskSurface title writer, Tasks-workspace collection-leaf writer) share the
@@ -207,6 +215,7 @@ function ShellContent() {
         <div
           className="flex min-w-0 flex-col min-h-0"
           data-shell-main
+          data-panel-docked={dockedPanel}
           style={{ gridArea: 'main', overflow: 'hidden' }}
         >
           {/* Region 2 — context row (scope + route job sentence). Above the content Outlet. */}
