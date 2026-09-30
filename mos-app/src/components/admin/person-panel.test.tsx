@@ -93,14 +93,14 @@ const SELF: AdminPersonRow = {
 const OTHER_ADMIN: AdminPersonRow = { ...BAYU, id: 'other-admin', full_name: 'Other Admin', access_roles: ['admin'] }
 
 /** A small authority table: Member posts org-wide, Ops lead manages Projects org-wide, Team lead
- *  closes runs for its own Team, BU head manages Objectives in its BU; everything else none. */
+ *  closes runs for its own Team, BU head manages Projects in its BU; everything else none. */
 function authorityRows(): RoleAuthorityRow[] {
   const grant: Record<string, RoleAuthorityRow['scope']> = {
     'signal.post:member': 'org',
     'workline.manage:ops_lead': 'org',
+    'workline.manage:bu_head': 'own_bu',
     'process.close:member': 'own',
     'process.close:team_lead': 'own_team',
-    'objective.manage:bu_head': 'own_bu',
   }
   return AUTHORITY_ACTIONS.flatMap((action) => AUTHORITY_ROLES.map((role) => ({
     action,
@@ -189,7 +189,9 @@ describe('PersonPanel — read first', () => {
     // Leading HQ Operations lifts Close process runs from Member's own record to the Team.
     expect(rowFor('Close process runs')).toHaveTextContent('Own Team')
     expect(rowFor('Close process runs')).toHaveTextContent('via Team lead')
-    expect(rowFor('Manage Objectives')).toHaveTextContent('Not allowed')
+    // Objective structure is not an editable authority any more: the action's row is retired
+    // from "what they can do" along with the control (#992).
+    expect(within(list).queryByText('Manage Objectives')).not.toBeInTheDocument()
     // BU head authority comes from a Position this screen cannot see — said, not guessed.
     expect(screen.getByText(/A Business Unit head can get more from their Position/)).toBeInTheDocument()
   })

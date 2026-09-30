@@ -49,12 +49,16 @@ const scopesA = {
   objective_org: false,
   workline_bu_ids: [],
   objective_bu_ids: ['bu-a'],
+  objective_content_org: false,
+  objective_content_bu_ids: [],
 }
 const scopesB = {
   workline_org: false,
   objective_org: true,
   workline_bu_ids: ['bu-b'],
   objective_bu_ids: [],
+  objective_content_org: false,
+  objective_content_bu_ids: [],
 }
 
 beforeEach(() => {

@@ -16,11 +16,9 @@ export function canReviewCafeFailedChecks(viewer: Pick<HomeViewerScope, 'affilia
   return viewer.affiliated.includes('cafe') || viewer.accessRoles.includes('admin')
 }
 
-/**
- * Objectives belong on the Home cockpit when the viewer can steer a scope: an actual reporting
- * line, a root/director role, the objective/work-line management grants, or a BU apex role.
- * The route's read visibility is broader; this is only the Home composition decision.
- */
+// Objectives belong on the Home cockpit when the viewer can steer a scope: an actual reporting
+// line, a root/director role, an Objective or work-line management grant, or a BU apex role.
+// The route's read visibility is broader; this is only the Home composition decision.
 export function holdsHomeCockpitScope(
   viewer: HomeViewerScope,
   orgRoles: readonly RoleScopeNode[],
