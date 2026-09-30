@@ -170,7 +170,8 @@ export function RecordHistory({ table, recordId, headingLevel = 2, now }: Record
     setMoreFailed(false)
     loadRecordHistory(table, recordId, { occurredAt: last.occurredAt, id: last.id }).then(
       (page) => {
-        if (page.entries.length > 0) setFocusId(page.entries[0].id)
+        // An empty page removes the button too: keep focus on the last entry already shown.
+        setFocusId(page.entries[0]?.id ?? last.id)
         setData((cur) => cur && { entries: [...cur.entries, ...page.entries], names: new Map([...cur.names, ...page.names]) })
         setHasMore(page.entries.length >= HISTORY_PAGE)
       },

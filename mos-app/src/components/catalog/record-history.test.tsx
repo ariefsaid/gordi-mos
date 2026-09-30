@@ -242,6 +242,15 @@ describe('RecordHistory', () => {
     expect(screen.getAllByRole('listitem')[50]).toHaveFocus()
   })
 
+  it('focus stays on the last shown entry when the older page is empty', async () => {
+    const full = Array.from({ length: 50 }, (_, i) => entry({ id: `h${i}` }))
+    loadMock.mockResolvedValueOnce(result(full)).mockResolvedValueOnce(result([]))
+    show()
+    await userEvent.click(await screen.findByRole('button', { name: 'Show older changes' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Show older changes' })).toBeNull())
+    await waitFor(() => expect(screen.getAllByRole('listitem')[49]).toHaveFocus())
+  })
+
   it('focus moves to Try again when the older page fails', async () => {
     const full = Array.from({ length: 50 }, (_, i) => entry({ id: `h${i}` }))
     loadMock.mockResolvedValueOnce(result(full)).mockRejectedValueOnce(new Error('x'))
