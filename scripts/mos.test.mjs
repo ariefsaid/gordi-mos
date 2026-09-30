@@ -284,6 +284,13 @@ describe('logout', () => {
     assert.equal(h.keychain.store.size, 0);
   });
 
+  it('keeps the credential and fails when the pre-logout refresh is refused for any other reason', async () => {
+    const h = harness({ stored: creds({ expires_at: NOW_S }), handlers: [() => json(400, { code: 400, error_code: 'validation_failed', msg: 'bad request' })] });
+    assert.equal(await run(['logout'], h.io), 1);
+    assert.equal(h.keychain.store.size, 1);
+    assert.equal(h.calls.length, 1);
+  });
+
   it('is a success when nothing is stored', async () => {
     const h = harness();
     assert.equal(await run(['logout'], h.io), 0);

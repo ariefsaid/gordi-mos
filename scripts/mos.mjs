@@ -194,7 +194,7 @@ function apiError(r) {
   const d = r.data && typeof r.data === 'object' ? r.data : {};
   const message =
     d.message ?? d.msg ?? d.error_description ?? (typeof d.error === 'string' ? d.error : null) ?? (typeof r.data === 'string' && r.data) ?? `HTTP ${r.status}`;
-  const code = typeof d.code === 'string' || typeof d.code === 'number' ? String(d.code) : (d.error_code ?? undefined);
+  const code = d.error_code ?? (typeof d.code === 'string' || typeof d.code === 'number' ? String(d.code) : undefined);
   return new CliError(message, {
     status: r.status,
     code,
@@ -231,6 +231,9 @@ async function refresh(ctx, creds) {
   await writeCreds(ctx, next);
   return next;
 }
+
+// Refresh refusals that state the session no longer exists on the server; any other failure keeps the credential.
+const SESSION_ENDED = new Set(['refresh_token_not_found', 'refresh_token_already_used', 'session_not_found', 'session_expired']);
 
 const expiring = (ctx, creds) => Number(creds.expires_at ?? 0) - REFRESH_SKEW_S <= nowSeconds(ctx);
 
@@ -317,8 +320,8 @@ async function login(ctx, flags) {
 /**
  * End this session on the server, then forget it locally. An expired access token is refreshed first
  * so the revoke is authenticated. If the server does not confirm, the credential is KEPT so the
- * command can be run again. A refresh the server refuses with 400 means the session has already
- * ended there, so only the local copy is removed.
+ * command can be run again. A refresh refused with an explicit session-ended code means
+ * the session is already gone there, so only the local copy is removed.
  */
 async function logout(ctx) {
   let creds = await readCreds(ctx);
@@ -327,7 +330,7 @@ async function logout(ctx) {
     try {
       creds = await refresh(ctx, creds);
     } catch (e) {
-      if (e.status === 400) {
+      if (SESSION_ENDED.has(e.code)) {
         await ctx.keychain.delete(ctx.supabaseUrl);
         return { signed_out: true, already_ended: true };
       }
