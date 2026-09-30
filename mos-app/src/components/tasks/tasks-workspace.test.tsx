@@ -2383,8 +2383,8 @@ describe('AC-W2C — desktop density: Due in-frame, optional cols in drawer', ()
 // ── Ticket #750 — rows/body judgment wave (AC-019 · AC-022 · AC-024) ─────────
 
 describe('Ticket #750 — AC-019 footer legend states the click grammar', () => {
-  const EN_LEGEND = 'Click a row to open it · ✎ or F2 edits the title · Enter saves · Esc discards'
-  const ID_LEGEND = 'Klik baris untuk membukanya · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan'
+  const EN_LEGEND = 'Click a row to open it · ← → move between cells · ✎ or F2 edits the title · Enter saves · Esc discards'
+  const ID_LEGEND = 'Klik baris untuk membukanya · ← → pindah antar sel · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan'
 
   it('AC-019: the legend under the table reads the new grammar in EN and in ID', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Legend task' })])
@@ -2659,8 +2659,35 @@ describe('Tasks search follows outside URL changes (#1024)', () => {
     )
     await waitFor(() => screen.getByText('Alpha task'), { timeout: 5000 })
     await user.type(box(), 'Alpha')
-    fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
+    fireEvent.click(screen.getByRole('row', { name: /Alpha task/ }))
     await waitFor(() => expect(router.state.location.search).toContain('record='), { timeout: 5000 })
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 400))
+    expect(box()).toHaveValue('Alpha')
+    expect(router.state.location.search).toContain('q=Alpha')
+  })
+
+  it('closing the drawer before the typed search reaches the URL keeps the full typed text', async () => {
+    const user = userEvent.setup({ delay: null })
+    const router = createMemoryRouter(
+      [{
+        path: '/work/tasks',
+        loader: () => new Promise((resolveLoader) => setTimeout(() => resolveLoader(null), 200)),
+        element: <OverlayHostProvider><TasksWorkspace drawerOpen /></OverlayHostProvider>,
+      }],
+      { initialEntries: ['/work/tasks'] },
+    )
+    render(
+      <I18nProvider>
+        <AuthContext.Provider value={DEWI}>
+          <RouterProvider router={router} />
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+    await waitFor(() => screen.getByText('Alpha task'), { timeout: 5000 })
+    await user.type(box(), 'Alpha')
+    act(() => box().blur())
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    await waitFor(() => expect(router.state.location.search).toContain('q=Alpha'), { timeout: 5000 })
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 400))
     expect(box()).toHaveValue('Alpha')
     expect(router.state.location.search).toContain('q=Alpha')

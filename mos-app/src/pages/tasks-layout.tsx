@@ -3,6 +3,7 @@ import { Outlet, useParams, useMatch, useLocation, useNavigate, useNavigationTyp
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
+import { liveTasksSearch, searchString, tasksSearchWithLiveQuery, type LiveTasksQueryRef } from '@/components/tasks/tasks-navigation'
 import { useIsSplitWidth } from '@/shell/use-is-split-width'
 import { isTaskPageMode } from '@/components/tasks/task-page-mode'
 import { TaskSurface } from '@/components/tasks/task-surface'
@@ -62,13 +63,13 @@ export function TasksLayout() {
   // collection's other query params and dropping `record` (the panel-open marker some Tasks doors
   // use).
   const navigate = useNavigate()
+  // The workspace publishes the search box's live text here; the promotion carries it, not the URL's.
+  const liveQueryRef = useRef<string | null>(null)
   useEffect(() => {
     if (isSplit || pageMode || !openRecordId || isNew) return
-    const next = new URLSearchParams(location.search)
-    next.delete('record')
-    const search = next.toString()
+    const search = searchString(tasksSearchWithLiveQuery(location.search, liveQueryRef.current, ['record']))
     navigate(
-      { pathname: `/work/tasks/${openRecordId}`, search: search ? `?${search}` : '' },
+      { pathname: `/work/tasks/${openRecordId}`, search },
       // Carry the origin through the promotion, or the page would render the collection Back
       // for a viewer who arrived from Home.
       { state: fromHome ? { taskSurface: 'page', from: 'home' } : { taskSurface: 'page' } },
@@ -94,7 +95,7 @@ export function TasksLayout() {
   const [refreshKey, setRefreshKey] = useState(0)
   const onTaskCreated = useCallback(() => setRefreshKey(k => k + 1), [])
   const onTaskArchived = useCallback(() => setRefreshKey(k => k + 1), [])
-  const outletContext: TaskDrawerOutletContext = { onTaskChanged, onTaskCreated, onTaskArchived }
+  const outletContext: TaskDrawerOutletContext = { onTaskChanged, onTaskCreated, onTaskArchived, liveQueryRef }
 
   // OD-63 / Rule 4: a direct/new-tab/refresh (or the explicit "Open full page"
   // escalation) renders the SAME record as a standalone full canonical page — NOT
@@ -104,7 +105,7 @@ export function TasksLayout() {
   // the e2e proves the real-browser direct-open branch). All hooks run above so this
   // branch is a plain conditional return, not a conditional hook.
   if (pageMode && taskId) {
-    return <TaskRecordPage taskId={taskId} />
+    return <TaskRecordPage taskId={taskId} liveQueryRef={liveQueryRef} />
   }
 
   const drawerOpen = Boolean(taskId) || Boolean(isNew)
@@ -119,6 +120,7 @@ export function TasksLayout() {
       statusOverrides={statusOverrides}
       refreshKey={refreshKey}
       onTaskChanged={onTaskChanged}
+      liveQueryRef={liveQueryRef}
       drawerSlot={<Outlet context={outletContext} />}
     />
   )
@@ -132,7 +134,7 @@ export function TasksLayout() {
  * BreadcrumbTitleSync). Reachable only by a direct/new-tab/refresh of
  * `/work/tasks/:id` or the drawer's "Open full page" escalation.
  */
-function TaskRecordPage({ taskId }: { taskId: string }) {
+function TaskRecordPage({ taskId, liveQueryRef }: { taskId: string; liveQueryRef: LiveTasksQueryRef }) {
   const t = useT()
   const isSplit = useIsSplitWidth()
   const navigate = useNavigate()
@@ -156,7 +158,7 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
   // over the table by navigating to the same URL with the panel page-state (isTaskPageMode → false),
   // preserving the collection's query string. A PUSH, so browser Back from the drawer still works.
   const proceedToSplit = () => navigate(
-    { pathname: `/work/tasks/${taskId}`, search: location.search },
+    { pathname: `/work/tasks/${taskId}`, search: liveTasksSearch(location.search, liveQueryRef) },
     { state: { taskSurface: 'panel' } },
   )
   const collapseToSplit = () => {
@@ -235,6 +237,7 @@ function TaskRecordPage({ taskId }: { taskId: string }) {
         onDirtyChange={handleDirtyChange}
         onCollapseToSplit={collapseToSplit}
         identityHeadingLevel={1}
+        liveQueryRef={liveQueryRef}
       />
     </PageFamilyFrame>
   )

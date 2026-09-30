@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { ReactElement } from 'react'
 import { render, screen, waitFor, fireEvent, within, act } from '@testing-library/react'
-import { createMemoryRouter, MemoryRouter, Outlet, RouterProvider, Routes, Route, useLocation, type RouteObject } from 'react-router-dom'
+import { createMemoryRouter, MemoryRouter, Outlet, RouterProvider, Routes, Route, useLocation, useOutletContext, type RouteObject } from 'react-router-dom'
 import { RouteRedirect } from '@/shell/route-redirect'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -47,7 +48,8 @@ import { listWorkLines } from '@/lib/db/work-lines'
 import { listComments, postComment } from '@/lib/comments/postComment'
 import { TasksLayout } from './tasks-layout'
 import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
-import { TaskDrawer } from '@/components/tasks/task-drawer'
+import { TaskDrawer, type TaskDrawerOutletContext } from '@/components/tasks/task-drawer'
+import { TaskSurface } from '@/components/tasks/task-surface'
 import { routeConfig } from '@/router'
 import { OverlayHostProvider } from '@/shell/overlay-host'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
@@ -573,6 +575,151 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
 
     await waitFor(() => expect(currentPath).toBe('/work/tasks/task-1'))
     expect(currentPath).not.toContain('record')
+  })
+
+  it('DD-WAY-53: a resize promotion before the typed search reaches the URL keeps the full typed text', async () => {
+    const widths = stubDynamicSplitWidth()
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Open one' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open one' }), checklist: [], events: [] })
+    const router = createMemoryRouter(
+      [{
+        // A slow loader keeps the search box's own URL write pending while the viewport resizes.
+        path: '/work/tasks',
+        loader: () => new Promise((resolveLoader) => setTimeout(() => resolveLoader(null), 200)),
+        element: <OverlayHostProvider><TasksLayout /></OverlayHostProvider>,
+        children: [{ path: ':taskId', element: <TaskDrawer mode="view" /> }],
+      }],
+      { initialEntries: ['/work/tasks?record=task-1'] },
+    )
+    render(
+      <AuthContext.Provider value={authedState}>
+        <RouterProvider router={router} />
+      </AuthContext.Provider>,
+    )
+    await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }), { timeout: 5000 })
+    const search = screen.getByRole('searchbox', { name: 'Search tasks' })
+    fireEvent.change(search, { target: { value: 'Open' } })
+    act(() => widths.setSplit(false))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/work/tasks/task-1'), { timeout: 5000 })
+    expect(router.state.location.search).toBe('?q=Open')
+  })
+
+  describe('a route drawer navigation before the typed search reaches the URL keeps the full typed text', () => {
+    beforeEach(() => { stubDynamicSplitWidth() })
+
+    // Once `hold()` is called every navigation stays pending, so the search box's own URL write
+    // has not landed when the drawer navigates. `release()` lets them all finish.
+    const gate = () => {
+      let holding = false
+      let open = () => {}
+      const held = new Promise<null>((resolveHeld) => { open = () => resolveHeld(null) })
+      return {
+        loader: () => (holding ? held : null),
+        hold: () => { holding = true },
+        release: () => { holding = false; open() },
+      }
+    }
+
+    const renderDrawerRoute = async (
+      child: ReactElement,
+      pending: ReturnType<typeof gate>,
+      task = makeTask({ id: 'task-1', title: 'Open one' }),
+      missing = false,
+    ) => {
+      mockListTasks.mockResolvedValue([task])
+      if (missing) mockGetTask.mockRejectedValue(Object.assign(new Error('getTask failed'), { code: 'PGRST116' }))
+      else mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+      const router = createMemoryRouter(
+        [{
+          path: '/work/tasks',
+          loader: pending.loader,
+          element: <OverlayHostProvider><TasksLayout /></OverlayHostProvider>,
+          children: [{ path: ':taskId', element: child }],
+        }, { path: '/work/objectives/:id', element: <p>Objective page</p> }],
+        { initialEntries: ['/work/tasks/task-1'] },
+      )
+      render(
+        <AuthContext.Provider value={authedState}>
+          <RouterProvider router={router} />
+        </AuthContext.Provider>,
+      )
+      await (missing
+        ? screen.findByRole('link', { name: /all tasks/i }, { timeout: 5000 })
+        : screen.findByRole('button', { name: /open full page/i }, { timeout: 5000 }))
+      pending.hold()
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Search tasks' }), { target: { value: 'Open' } })
+      return router
+    }
+
+    // Records the first location that opens the record page, so a search write landing after the
+    // push cannot mask the search the push itself carried.
+    const recordPageOpens = (router: ReturnType<typeof createMemoryRouter>) => {
+      const opens: string[] = []
+      router.subscribe(({ location }) => {
+        if ((location.state as { taskSurface?: string } | null)?.taskSurface === 'page') opens.push(location.search)
+      })
+      return opens
+    }
+
+    it('closing the drawer', async () => {
+      const pending = gate()
+      const router = await renderDrawerRoute(<TaskDrawer mode="view" />, pending)
+      fireEvent.click(within(screen.getByRole('complementary', { name: /task detail/i })).getByRole('button', { name: /close/i }))
+      pending.release()
+      await waitFor(() => expect(router.state.location.pathname).toBe('/work/tasks'), { timeout: 5000 })
+      expect(router.state.location.search).toBe('?q=Open')
+    })
+
+    it('the not-found panel\'s All tasks link', async () => {
+      const pending = gate()
+      const router = await renderDrawerRoute(<TaskDrawer mode="view" />, pending, undefined, true)
+      fireEvent.click(screen.getByRole('link', { name: /all tasks/i }))
+      pending.release()
+      await waitFor(() => expect(router.state.location.pathname).toBe('/work/tasks'), { timeout: 5000 })
+      expect(router.state.location.search).toBe('?q=Open')
+    })
+
+    it('opening the Task\'s Objective', async () => {
+      vi.mocked(listObjectives).mockResolvedValue([{ id: 'objective-1', name: 'Annual Goal' }])
+      const pending = gate()
+      const router = await renderDrawerRoute(
+        <TaskDrawer mode="view" />,
+        pending,
+        makeTask({ id: 'task-1', title: 'Open one', objective_id: 'objective-1' }),
+      )
+      const objectiveOpens: string[] = []
+      router.subscribe(({ location }) => {
+        if (location.pathname === '/work/objectives/objective-1') objectiveOpens.push(location.search)
+      })
+      fireEvent.click(await screen.findByRole('link', { name: 'Annual Goal' }))
+      pending.release()
+      await waitFor(() => expect(objectiveOpens.length).toBeGreaterThan(0), { timeout: 5000 })
+      expect(objectiveOpens[0]).toBe('?q=Open')
+    })
+
+    it('Open full page', async () => {
+      const pending = gate()
+      const router = await renderDrawerRoute(<TaskDrawer mode="view" />, pending)
+      const opens = recordPageOpens(router)
+      fireEvent.click(screen.getByRole('button', { name: /open full page/i }))
+      pending.release()
+      await waitFor(() => expect(opens.length).toBeGreaterThan(0), { timeout: 5000 })
+      expect(opens[0]).toBe('?q=Open')
+    })
+
+    it('a TaskSurface panel with no host callback: its own Open full page', async () => {
+      const Host = () => {
+        const ctx = useOutletContext<TaskDrawerOutletContext>()
+        return <TaskSurface taskId="task-1" mode="view" width="drawer" liveQueryRef={ctx.liveQueryRef} />
+      }
+      const pending = gate()
+      const router = await renderDrawerRoute(<Host />, pending)
+      const opens = recordPageOpens(router)
+      fireEvent.click(screen.getByRole('button', { name: /open full page/i }))
+      pending.release()
+      await waitFor(() => expect(opens.length).toBeGreaterThan(0), { timeout: 5000 })
+      expect(opens[0]).toBe('?q=Open')
+    })
   })
 
   // AC-017 (ticket #750): a single pointer click on the title opens the record — the drawer

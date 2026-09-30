@@ -120,7 +120,7 @@ export type TaskRowProps = {
   viewerHasNoDownline?: boolean
 }
 
-interface InlineCommitFeedbackProps {
+type InlineCommitFeedbackProps = {
   error: boolean
   retry: () => void
   liveMessage: string
@@ -369,6 +369,23 @@ export function TaskRow({
     beginEdit()
   }
 
+  // One tab stop per row (the title link). Arrow keys move along the row's cells (title, Status,
+  // PIC, Due) and Enter/Space on a cell opens its editor; F2 renames from the title.
+  const onRowKeyDown = (event: React.KeyboardEvent<HTMLTableRowElement>) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+    const from = event.target
+    if (!(from instanceof HTMLElement) || !from.hasAttribute('data-row-stop')) return
+    // Cells the list's responsive rules hide (display: none) are not stops; the browser's own
+    // computed display decides, so no breakpoint is repeated here.
+    const stops = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[data-row-stop]'))
+      .filter((stop) => getComputedStyle(stop.closest('td') ?? stop).display !== 'none')
+    const to = stops[stops.indexOf(from) + (event.key === 'ArrowRight' ? 1 : -1)]
+    if (!to) return
+    event.preventDefault()
+    to.focus()
+  }
+
   // The draft is ONE full-width create form, not a bent row. It occupies every column the
   // table currently renders (columnSpan) so it never inherits a column's narrow width.
   if (isNew) {
@@ -440,6 +457,7 @@ export function TaskRow({
               className="task-row-link name-chip collection-grammar-title-cell"
               title={task.title}
               tabIndex={0}
+              data-row-stop=""
               // Double-click renames, F2 renames from the keyboard (the E7 collection promise).
               // aria-keyshortcuts exposes F2 without hijacking the truncation-hover `title` tooltip;
               // the quiet under-table hint carries the visible discovery. Only wired when editable.
@@ -463,6 +481,7 @@ export function TaskRow({
               <button
                 type="button"
                 className="task-row-pencil"
+                tabIndex={-1}
                 aria-label={t('tasks.inlineEdit.pencil')}
                 title={t('tasks.inlineEdit.pencil')}
                 onClick={(event) => { event.preventDefault(); event.stopPropagation(); beginEdit() }}
@@ -522,7 +541,7 @@ export function TaskRow({
         />
         <InlineCommitFeedback {...statusInline} />
       </span>
-    ) : <button type="button" ref={statusTriggerRef} className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setStatusEditing(true) }}><StatusPill status={statusInline.draft} /></button>) : <StatusPill status={task.status} />,
+    ) : <button type="button" ref={statusTriggerRef} className="inline-cell-trigger" tabIndex={-1} data-row-stop="" onClick={(event) => { event.stopPropagation(); setStatusEditing(true) }}><StatusPill status={statusInline.draft} /></button>) : <StatusPill status={task.status} />,
     owner: onEditPic ? (picEditing ? (
       <span className="inline-editor-control" onClick={(event) => event.stopPropagation()}>
         <Picker
@@ -549,7 +568,7 @@ export function TaskRow({
         />
         <InlineCommitFeedback {...picInline} />
       </span>
-    ) : <button type="button" ref={picTriggerRef} className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setPicEditing(true) }}><PicCell fullName={ownerName} provenance={provenanceRoleName} /></button>) : <PicCell fullName={ownerName} provenance={provenanceRoleName} />,
+    ) : <button type="button" ref={picTriggerRef} className="inline-cell-trigger" tabIndex={-1} data-row-stop="" onClick={(event) => { event.stopPropagation(); setPicEditing(true) }}><PicCell fullName={ownerName} provenance={provenanceRoleName} /></button>) : <PicCell fullName={ownerName} provenance={provenanceRoleName} />,
     // A2 person cell: one grammar for both person columns (AC-021) — the avatar + first
     // name, never the full-name text (that lives in the record and in pickers).
     supervisor: supervisorName ? <PersonCell fullName={supervisorName} /> : <span className="td-empty">—</span>,
@@ -567,7 +586,7 @@ export function TaskRow({
           onChange={(event) => { setDueTyped(event.target.value); dueInline.setDraft(event.target.value) }} onKeyDown={onDueKeyDown} onBlur={onDueBlur} />
         <InlineCommitFeedback {...dueInline} errorId={dueErrorId} />
       </span>
-    ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label="Edit task due date" onClick={(event) => { event.stopPropagation(); setDueTyped(dueInline.draft); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText,
+    ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label="Edit task due date" tabIndex={-1} data-row-stop="" onClick={(event) => { event.stopPropagation(); setDueTyped(dueInline.draft); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText,
   }
 
   return (
@@ -579,6 +598,7 @@ export function TaskRow({
       // second aria-current on the page (interaction-contract I7 "exactly one").
       aria-selected={isSelected || isCursor ? true : undefined}
       data-leaf-index={leafIndex}
+      onKeyDown={onRowKeyDown}
       onClick={() => {
         // I2 (issue #379): a click anywhere on the row makes the ROW the invoking control, but a
         // click on a non-focusable cell leaves DOM focus on <body> — the shared panel then captured
