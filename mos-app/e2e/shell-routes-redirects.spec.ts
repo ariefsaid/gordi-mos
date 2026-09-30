@@ -169,7 +169,9 @@ test('R7: canonical Objective and Project IDs survive direct load and reload; un
     await page.goto(path)
     await expect(page).toHaveURL(new RegExp(`${path}$`))
     if (collection === 'signals') {
-      await expect(page.getByRole('alert')).toContainText('That Signal no longer exists.')
+      // A Signal the viewer cannot read (retracted, deleted or withheld) is one answer, with one way back.
+      await expect(page.getByRole('heading', { name: 'Signal is outside your access', exact: true })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible()
     } else {
       await expect(page.getByRole('heading', { name: 'This record is no longer available.', exact: true })).toBeVisible()
       await expect(page.getByRole('link', { name: /^Back to/ })).toBeVisible()
