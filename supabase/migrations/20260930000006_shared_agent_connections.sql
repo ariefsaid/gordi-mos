@@ -210,7 +210,7 @@ end;
 $$;
 comment on function shared.admin_list_agent_connections() is
   'Lists this organization''s trusted agent apps and their active OAuth connections for admins only. Names come from the trusted allow-list and directory, never OAuth client metadata.';
-revoke all on function shared.admin_list_agent_connections() from public, anon, service_role;
+revoke execute on function shared.admin_list_agent_connections() from public, anon, service_role;
 grant execute on function shared.admin_list_agent_connections() to authenticated;
 
 create or replace function shared.admin_revoke_agent_connection(p_person_id uuid, p_client_id text)
@@ -270,5 +270,5 @@ end;
 $$;
 comment on function shared.admin_revoke_agent_connection(uuid, text) is
   'Admin-only exact user+OAuth-client revoke. Mirrors Supabase Auth v2.189.0: revokes the consent, deletes matching sessions (and cascading refresh tokens), and appends a private audit event atomically. The api_v1 fence rejects a deleted session on its next request.';
-revoke all on function shared.admin_revoke_agent_connection(uuid, text) from public, anon, service_role;
+revoke execute on function shared.admin_revoke_agent_connection(uuid, text) from public, anon, service_role;
 grant execute on function shared.admin_revoke_agent_connection(uuid, text) to authenticated;
