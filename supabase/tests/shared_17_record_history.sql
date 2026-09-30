@@ -4,7 +4,7 @@
 -- mos_24_objective_worklines_history's file.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(51);
+select plan(53);
 
 select shared._test_seed_directory();
 
@@ -228,7 +228,8 @@ select throws_ok($$ delete from shared.record_history
                    where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'anon cannot delete history');
 
--- ── AC-009: the write registry (triggers) and the read registry (dispatch arms) agree ────────
+-- ── AC-009: the write registry (triggers) and the read registry (shared.record_history_readers)
+--    agree, and the registry mechanism keeps its shape — a generic contract, no function body read
 set local role authenticated;
 select set_eq(
   $$ select n2.nspname || '.' || c2.relname
@@ -239,11 +240,23 @@ select set_eq(
        join pg_namespace n2 on n2.oid = c2.relnamespace
       where pn.nspname = 'shared' and p.proname = '_record_history_write'
         and not t.tgisinternal $$,
-  $$ select (arms.x)[1] || '.' || (arms.x)[2]
-       from (select regexp_matches(
-                     pg_get_functiondef('shared.can_read_history_record(text,text,text,text,jsonb)'::regprocedure),
-                     $r$p_schema = '([a-z_]+)'\s+and p_table = '([a-z_]+)'$r$, 'g') as x) arms $$,
-  'AC-009: every trigger-wired table is registered for reads, and nothing else is');
+  $$ select schema_name || '.' || table_name from shared.record_history_readers $$,
+  'AC-009: the trigger-wired table set equals the registry table set, in both directions');
+select is(
+  (select count(*)::int from shared.record_history_readers r
+    join pg_proc p on p.oid = r.reader
+   where p.prosecdef
+      or p.prorettype <> 'boolean'::regtype
+      or array_to_string(p.proargtypes::oid[]::regtype[], ',') <> 'text,text,jsonb'
+      or p.provolatile <> 's'
+      or coalesce(p.proconfig, '{}') <> array['search_path=""']),
+  0, 'AC-009: every registered reader is a stable SECURITY INVOKER (text, text, jsonb) -> boolean with search_path pinned to empty');
+select is(
+  (select count(*)::int
+     from (values ('anon'), ('authenticated')) roles(r),
+          (values ('insert'), ('update'), ('delete'), ('truncate')) privs(p)
+    where has_table_privilege(roles.r, 'shared.record_history_readers', privs.p)),
+  0, 'AC-009: neither anon nor authenticated holds a write privilege on the registry');
 
 select * from finish();
 rollback;
