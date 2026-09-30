@@ -8,6 +8,7 @@ const fake = vi.hoisted(() => ({
   document: [] as unknown[],
   crash: false,
   focus: vi.fn(),
+  domElement: undefined as undefined | HTMLElement,
   updateBlock: vi.fn(),
   block: { id: 'b1', type: 'paragraph', props: {} } as { id: string; type: string; props: Record<string, unknown> },
   getTextCursorPosition() { return { block: fake.block } },
@@ -55,6 +56,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   fake.document = []
   fake.crash = false
+  fake.domElement = document.createElement('div')
   fake.block = { id: 'b1', type: 'paragraph', props: {} }
   read.mockResolvedValue({ writeUp: [], updatedAt: 't1' })
   save.mockResolvedValue('t2')
@@ -207,6 +209,24 @@ describe('ObjectiveWriteupEditor', () => {
   it('hides the keyboard hint on touch and phone widths', () => {
     const css = readFileSync(resolve(__dirname, 'objective-writeup-editor.css'), 'utf8')
     expect(css).toMatch(/@media \(hover: none\), \(max-width: 767\.98px\) \{\s*\.objective-writeup__hint \{ display: none; \}/)
+  })
+
+  it('points the editor at the key hint only while the hint is rendered, across editability changes', async () => {
+    read.mockResolvedValue({ writeUp: [{ type: 'paragraph' }], updatedAt: 't1' })
+    const ui = (canEdit: boolean) => (
+      <I18nProvider><ObjectiveWriteupEditor objectiveId="o1" canEdit={canEdit} archived={false} /></I18nProvider>
+    )
+    const view = render(ui(false))
+    await act(async () => { await Promise.resolve() })
+    expect(document.querySelector('.objective-writeup__hint')).toBeNull()
+    expect(fake.domElement!.hasAttribute('aria-describedby')).toBe(false)
+
+    view.rerender(ui(true))
+    const hint = document.querySelector('.objective-writeup__hint')!
+    expect(fake.domElement!.getAttribute('aria-describedby')).toBe(hint.id)
+
+    view.rerender(ui(false))
+    expect(fake.domElement!.hasAttribute('aria-describedby')).toBe(false)
   })
 
   it('offers no formatting controls to a read-only reader', async () => {

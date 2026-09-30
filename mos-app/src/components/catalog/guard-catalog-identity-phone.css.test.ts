@@ -61,7 +61,7 @@ describe('Objectives list wraps longer translated text (issue 1109)', () => {
   })
 
   it('empty-state copy wraps instead of clipping', () => {
-    const cardHead = readFileSync(resolve(process.cwd(), 'src/components/ui/CardHead.css'), 'utf8')
-    expect(cardHead).toMatch(/\.empty-copy\s*\{[^}]*overflow-wrap:\s*anywhere/)
+    const recordCollection = readFileSync(resolve(process.cwd(), 'src/components/record-collection/record-collection.css'), 'utf8')
+    expect(recordCollection).toMatch(/\.record-collection \.empty-copy\s*\{[^}]*overflow-wrap:\s*anywhere/)
   })
 })

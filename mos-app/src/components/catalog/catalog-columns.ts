@@ -16,42 +16,41 @@ declare module '@tanstack/react-table' {
 export type CatalogColumnId = 'name' | 'relation' | 'owner' | 'cadence' | 'progress' | 'activity'
 export type CatalogColumnDef = ColumnDef<CatalogRow> & { id: CatalogColumnId }
 
-// `tdClass` is the row cell's hook class; the Name cell is the row's identity, not a metadata cell.
 export const CATALOG_COLUMN_DEFS: CatalogColumnDef[] = [
-  { id: 'name', meta: { labelKey: 'catalog.column.name', thClass: '', tdClass: '' } },
+  { id: 'name', meta: { labelKey: 'catalog.column.name', thClass: '' } },
   {
     id: 'relation',
     meta: {
       labelKey: 'catalog.column.objective', objectiveLabelKey: 'catalog.column.businessUnit',
-      thClass: 'catalog-collection__header-cell--relation', tdClass: 'catalog-collection__cell--relation',
+      thClass: 'catalog-collection__header-cell--relation',
     },
   },
   {
     id: 'owner',
     meta: {
       labelKey: 'catalog.column.accountable',
-      thClass: 'catalog-collection__header-cell--owner', tdClass: 'catalog-collection__cell--owner',
+      thClass: 'catalog-collection__header-cell--owner',
     },
   },
   {
     id: 'cadence',
     meta: {
       labelKey: 'catalog.column.cadenceDue', objectiveLabelKey: 'catalog.column.work',
-      thClass: 'catalog-collection__header-cell--cadence', tdClass: 'catalog-collection__cell--cadence',
+      thClass: 'catalog-collection__header-cell--cadence',
     },
   },
   {
     id: 'progress',
     meta: {
       labelKey: 'catalog.column.progress',
-      thClass: 'catalog-collection__header-cell--progress', tdClass: 'catalog-collection__cell--progress',
+      thClass: 'catalog-collection__header-cell--progress',
     },
   },
   {
     id: 'activity',
     meta: {
       labelKey: 'catalog.column.activity',
-      thClass: 'catalog-collection__header-cell--activity', tdClass: 'catalog-collection__cell--activity',
+      thClass: 'catalog-collection__header-cell--activity',
     },
   },
 ]
