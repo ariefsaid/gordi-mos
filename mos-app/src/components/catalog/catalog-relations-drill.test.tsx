@@ -15,6 +15,8 @@ vi.mock('@/components/processes/process-occurrence-controls', () => ({
   ),
 }))
 vi.mock('./catalog-record-loader', () => ({ loadCatalogRecordData: vi.fn(), loadCatalogRecordEditDirectory: vi.fn() }))
+const historyLoad = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/db/record-history', async (orig) => ({ ...(await orig<typeof import('@/lib/db/record-history')>()), loadRecordHistory: historyLoad }))
 const runtimeAuthority = vi.hoisted(() => ({
   scopes: {
     workline_org: true,
@@ -139,6 +141,10 @@ async function expectMemberReadOnly() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  historyLoad.mockResolvedValue({
+    entries: [{ id: 'h1', action: 'update', field: 'name', oldValue: 'Old name', newValue: 'Grow revenue', occurredAt: '2026-09-30T02:00:00Z', channel: 'app', actorName: 'Test Viewer' }],
+    names: new Map(),
+  })
   runtimeAuthority.scopes = {
     workline_org: true,
     objective_org: true,
@@ -185,6 +191,20 @@ describe('record relationship grammar', () => {
     expect(within(details).queryByRole('link', { name: 'Print the menus' })).not.toBeInTheDocument()
     expect(document.body.textContent?.toLowerCase()).not.toContain('cascade')
   })
+
+  it.each([['objective', 'objectives'], ['work-line', 'work_lines']] as const)(
+    'shows the %s change history under Details, read from its own table',
+    async (kind, table) => {
+      renderRecord(kind, kind === 'objective' ? 'obj-1' : 'wl-1')
+      await screen.findByRole('heading', { name: kind === 'objective' ? 'Grow revenue' : 'Menu launch' })
+      await openDetailsTab()
+      const details = screen.getByRole('tabpanel')
+      const history = await within(details).findByRole('region', { name: 'History' })
+      expect(within(history).getByText('Test Viewer')).toBeInTheDocument()
+      expect(history).toHaveTextContent('Old name → Grow revenue')
+      expect(historyLoad).toHaveBeenCalledWith(table, kind === 'objective' ? 'obj-1' : 'wl-1', 50)
+    },
+  )
 
   it('shows the direct parent and Task contribution in Work without a duplicate Details link', async () => {
     renderRecord('work-line', 'wl-1')

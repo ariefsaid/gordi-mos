@@ -30,6 +30,7 @@ import {
 } from './catalog-collection-adapter'
 import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogRecordEditDirectory } from './catalog-record-loader'
 import './catalog-record-document.css'
+import { RecordHistory } from './record-history'
 import { allowedBusinessUnitIds, canManageForScope, useWorkWriteAuthority } from './use-work-write-authority'
 
 export type CatalogRecordKind = 'work-line' | 'objective'
@@ -251,6 +252,8 @@ export function CatalogRecordDocument({
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameDraft, setRenameDraft] = useState('')
   const [reloadNonce, setReloadNonce] = useState(0)
+  // Bumped after every successful write so the History section re-reads the row the trigger just added.
+  const [historyVersion, setHistoryVersion] = useState(0)
   const [editDirectory, setEditDirectory] = useState<CatalogRecordEditDirectory | null>(null)
   const [editDirectoryError, setEditDirectoryError] = useState(false)
   const [editDirectoryRetry, setEditDirectoryRetry] = useState(0)
@@ -319,6 +322,7 @@ export function CatalogRecordDocument({
       if (kind === 'objective') await objectivesCatalogActions.rename(id, name)
       else await projectsProcessesCatalogActions.rename(id, name)
       setState((current) => current ? { ...current, row: { ...current.row, name } } : current)
+      setHistoryVersion((v) => v + 1)
       onChanged?.()
     } catch (error) {
       const message = error instanceof Error ? error.message : t('catalog.saveFailed')
@@ -350,6 +354,7 @@ export function CatalogRecordDocument({
       } else throw new Error(t('catalog.saveFailed'))
       const refreshed = await recordDataFor(kind, id, viewerId)
       if (refreshed) setState(refreshed)
+      setHistoryVersion((v) => v + 1)
       onChanged?.()
     } catch (error) {
       setMutationError(t('catalog.saveFailed'))
@@ -368,6 +373,7 @@ export function CatalogRecordDocument({
         ...current,
         row: { ...current.row, archived_at: archived ? new Date().toISOString() : null },
       } : current)
+      setHistoryVersion((v) => v + 1)
       onChanged?.()
     } catch (error) {
       const message = error instanceof Error ? error.message : t('catalog.saveFailed')
@@ -517,6 +523,12 @@ export function CatalogRecordDocument({
                 fieldCommitsFrozen={slotContext.fieldCommitsFrozen}
                 headingLevel={slotContext.headingLevel}
               />
+              <RecordHistory
+                key={historyVersion}
+                table={kind === 'objective' ? 'objectives' : 'work_lines'}
+                recordId={id}
+                headingLevel={slotContext.headingLevel}
+              />
             </>
           ),
         },
@@ -531,7 +543,7 @@ export function CatalogRecordDocument({
       },
       state: 'ready',
     } satisfies RecordViewerAdapter
-  }, [busy, canManage, editDirectory, editDirectoryError, id, kind, onChanged, onCreateTask, onOpenRelated, scopes, setArchived, state, t])
+  }, [busy, canManage, editDirectory, editDirectoryError, historyVersion, id, kind, onChanged, onCreateTask, onOpenRelated, scopes, setArchived, state, t])
 
   const discardAndLeave = useCallback(async () => {
     resolverRef.current?.({ decision: 'allow' })
