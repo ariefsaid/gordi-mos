@@ -12,12 +12,11 @@ export const TASK_CELL_INPUTS = [
   ['tasks-create-phone-en-light', {
     area: 'tasks', journey: 'tasks-create', route: '/mos/work/tasks', fixture: 'VIEWER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'create-draft', status: 'covered', primary: true,
-    // The phone head has no create door (`showNewTask` is gated on `!isNarrow`): the shell's
-    // `+` Action Launcher owns Create task below 920px, so the door is the launcher's row.
+    // The page head's "+ Create task" is the one create door at every width (`showNewTask`); the
+    // shell's `+` launcher yields on this route.
     stateContract: {
       setup: [
-        { action: 'click', selector: '.mobile-action-launcher' },
-        { action: 'click', selector: '#a-task' },
+        { action: 'click', selector: '[data-testid="page-head"] .ch-action button' },
       ],
       assertion: { selector: '.task-card-draft' },
       // The draft is PREPENDED to the first group, so the first card's body stops being the
