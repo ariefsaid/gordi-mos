@@ -5,13 +5,13 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Picker } from '@/components/ui/picker'
 import { DateField } from '@/components/ui/date-field'
-import { useTaskCreateContext } from './task-create-context'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
-import { picLockMessage } from './task-permissions'
-import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
+import { useTaskCreateContext } from './task-create-context'
+import { picLockMessage } from './task-permissions'
+import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import type { TaskTeamOption } from './task-row'
 import './task-create-form.css'
 
@@ -62,6 +62,8 @@ export function TaskCreateForm({
   const [title, setTitle] = useState(task.title)
   const [attempted, setAttempted] = useState(false)
   const [pending, setPending] = useState(false)
+  // A link retry only links the already-created Task; draft edits, Title included, would never be saved.
+  const fieldsLocked = pending || linkError
   const [saveError, setSaveError] = useState(false)
   const titleRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -142,7 +144,7 @@ export function TaskCreateForm({
           maxLength={TASK_TITLE_MAX_LENGTH}
           value={title}
           placeholder={t('tasks.create.titlePlaceholder')}
-          disabled={pending}
+          disabled={fieldsLocked}
           aria-invalid={titleError ? true : undefined}
           aria-describedby={titleError ? titleErrorId : undefined}
           onChange={(event) => setTitle(event.target.value)}
@@ -174,7 +176,7 @@ export function TaskCreateForm({
             value={task.team_id ?? ''}
             options={teamPickerOptions}
             placeholder={t('tasks.create.teamPlaceholder')}
-            disabled={pending || teamOptions.length === 0}
+            disabled={fieldsLocked || teamOptions.length === 0}
             required
             error={Boolean(teamError)}
             describedBy={teamError ? teamErrorId : undefined}
@@ -193,7 +195,7 @@ export function TaskCreateForm({
             hideLabel
             value={task.responsible_person_id}
             options={picPickerOptions}
-            disabled={pending}
+            disabled={fieldsLocked}
             onChange={(value) => { void onEditPic(task.id, value) }}
           />
           {lockMessage && <p className="tcf-hint">{lockMessage}</p>}
@@ -209,7 +211,7 @@ export function TaskCreateForm({
             value={task.accountable_person_id}
             options={supervisorPickerOptions}
             placeholder={t('tasks.create.supervisorPlaceholder')}
-            disabled={pending}
+            disabled={fieldsLocked}
             required
             error={Boolean(supervisorError)}
             describedBy={supervisorError ? supervisorErrorId : undefined}
@@ -226,7 +228,7 @@ export function TaskCreateForm({
             id={dueFieldId}
             fullWidth
             value={task.due_date ?? ''}
-            disabled={pending}
+            disabled={fieldsLocked}
             onChange={(value) => { void onEditDue(task.id, value || null) }}
           />
         </div>
@@ -239,7 +241,7 @@ export function TaskCreateForm({
               hideLabel
               value={task.work_line_id ?? ''}
               options={workLinePickerOptions}
-              disabled={pending}
+              disabled={fieldsLocked}
               onChange={(value) => { void onEditWorkLine(task.id, value || null) }}
             />
           </div>
