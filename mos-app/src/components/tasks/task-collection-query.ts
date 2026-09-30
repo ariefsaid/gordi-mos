@@ -93,8 +93,8 @@ const SLUG_BY_STATUS: Readonly<Record<TaskStatus, string>> = {
 export const TASK_DECISION_FIELDS: readonly TaskCollectionVisibleField[] = ['title', 'pic', 'supervisor', 'status', 'due']
 
 /** UI column ids of the desktop Tasks table's single column list (task-columns.tsx, #997).
- * The listed order is the rendered column order; the ids that carry a `sortCol` double as
- * the header sort vocabulary. Column SET and ORDER live in TASK_COLUMN_DEFS — this union is
+ * The listed order is the rendered column order; the column-id to URL sort-key map lives in
+ * task-columns.tsx. Column SET and ORDER live in TASK_COLUMN_DEFS — this union is
  * their type-level echo, exhaustive-checked by the per-row content dispatch in task-row.tsx. */
 export type TaskColumnId =
   | 'task' | 'status' | 'owner' | 'supervisor'
