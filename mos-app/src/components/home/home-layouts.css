@@ -84,6 +84,7 @@
   cursor: pointer;
   font: inherit;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .home-tab:hover { color: var(--foreground); }
@@ -132,11 +133,10 @@
 
 @container home (max-width: 620px) {
   .home-layout { gap: 8px; }
-  .home-tabs {
-    flex-wrap: wrap;
-    overflow-x: visible;
-    overflow-y: visible;
-  }
+  /* One row on phone: the strip keeps its base scroll grammar, so a long label (Indonesian) is
+     never wrapped or truncated — the next tab simply runs off the edge. */
+  .home-tabs { gap: 0; scrollbar-width: none; }
+  .home-tab { padding-inline: 6px; }
   .home-bento { grid-template-columns: minmax(0, 1fr); }
   .home-tile[data-weight] { grid-column: span 1; }
 }

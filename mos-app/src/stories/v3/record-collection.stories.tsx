@@ -76,7 +76,7 @@ const ROWS: readonly StoryTask[] = [
   { id: 't-1', title: 'Confirm Roastery calibration notes', pic: 'Aisyah Rahman', status: 'In Progress' },
   { id: 't-2', title: 'Reconcile Café dispatch quantities', pic: 'Putri Lestari', status: 'Open' },
   { id: 't-3', title: 'Review weekly cash position', pic: 'Budi Santoso', status: 'Blocked' },
-  { id: 't-4', title: 'SOP stock opname mingguan', pic: 'Ibnu Hakim', status: 'Done' },
+  { id: 't-4', title: 'SOP stock opname mingguan', pic: 'Iris Hale', status: 'Done' },
 ]
 
 const storyQuerySchema: CollectionQuerySchema<StoryQuery> = {

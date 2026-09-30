@@ -24,9 +24,17 @@ import type {
 } from '@/components/records/record-viewer.types'
 import type { Attention } from '@/lib/db/signals.types'
 
-/** The record's identity name = the body's first line, UNTRUNCATED (OD-REDESIGN-90 / F2). */
 export function firstLine(body: string): string {
   return body.trim().split(/\r?\n/)[0] ?? ''
+}
+
+/** Longest first line the record heading and the Ask Deputy seed show whole. */
+export const SIGNAL_TITLE_MAX = 72
+
+/** A Signal has no title: its identity is the first line, cut at SIGNAL_TITLE_MAX with an ellipsis. */
+export function signalTitle(body: string): string {
+  const line = firstLine(body)
+  return line.length > SIGNAL_TITLE_MAX ? `${line.slice(0, SIGNAL_TITLE_MAX).trimEnd()}…` : line
 }
 
 function remainingBody(body: string): string {
@@ -75,7 +83,9 @@ export function wrapSignalRecord(input: WrapSignalRecordInput): RecordViewerAdap
   } = input
   const signal = detail.signal
   const retracted = signal.retracted_at !== null
-  const title = retracted ? tombstoneLabel : firstLine(signal.body)
+  const title = retracted ? tombstoneLabel : signalTitle(signal.body)
+  // A cut heading leaves the full text to the message body; an intact one owns the first line.
+  const headingIsCut = !retracted && title !== firstLine(signal.body)
 
   const message: RecordContentSlot = {
     id: 'message',
@@ -83,9 +93,9 @@ export function wrapSignalRecord(input: WrapSignalRecordInput): RecordViewerAdap
     render: () => (
       <SignalMessage
         signalId={signal.id}
-        // Live identity owns the first line; retracted identity must retain the original line in
-        // the tombstone, so only the live branch receives the continuation here.
-        body={retracted ? signal.body : remainingBody(signal.body)}
+        // Live identity owns the first line unless it was cut; retracted identity must retain the
+        // original line in the tombstone, so only the live branch receives the continuation here.
+        body={retracted || headingIsCut ? signal.body : remainingBody(signal.body)}
         attention={signal.attention}
         occurredLabel={occurredLabel}
         canEditAttention={!!input.onAttentionChange}

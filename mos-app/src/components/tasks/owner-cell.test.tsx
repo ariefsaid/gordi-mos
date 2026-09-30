@@ -6,10 +6,10 @@ import { OwnerCell } from './owner-cell'
 describe('OwnerCell', () => {
   it('renders avatar initials and first name', () => {
     const { container } = render(
-      <OwnerCell fullName="Arief Said" otherCount={0} />
+      <OwnerCell fullName="Arden Sample" otherCount={0} />
     )
     expect(container.querySelector('.ownav')?.textContent).toBe('AS')
-    expect(screen.getByText('Arief')).toBeTruthy()
+    expect(screen.getByText('Arden')).toBeTruthy()
     expect(screen.queryByText(/^\+/)).toBeNull()
   })
 
@@ -24,9 +24,9 @@ describe('OwnerCell', () => {
   })
 
   it('handles A=R (single-person RACI) — otherCount 0 shows no badge', () => {
-    render(<OwnerCell fullName="Arief Said" otherCount={0} />)
+    render(<OwnerCell fullName="Arden Sample" otherCount={0} />)
     expect(screen.queryByText(/^\+/)).toBeNull()
-    expect(screen.getByText('Arief')).toBeTruthy()
+    expect(screen.getByText('Arden')).toBeTruthy()
   })
 
   it('single-word name produces single-char initials', () => {

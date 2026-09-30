@@ -49,6 +49,12 @@
   .signal-collection-table td:nth-child(4) { display: none; }
 }
 
+/* A wrapped Message (2-line clamp + meta line) is taller than the shared 52px row's content
+   box, so it sat flush on the row dividers: give the cells a vertical inset on the 8px step. */
+.record-collection-view .collection-grammar-table.signal-collection-table tbody tr:not(.dt-group-row) td {
+  padding-block: 8px;
+}
+
 /* The empty trailing cell repeats each row's own divider, hover, fill and cursor so the row
    reads as one band across the card. */
 .signal-collection-table tr::after {

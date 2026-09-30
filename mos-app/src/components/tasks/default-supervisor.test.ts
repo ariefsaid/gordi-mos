@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 
-vi.mock('@/lib/db/directory', () => ({ getMyTeamLeads: vi.fn() }))
+vi.mock('@/lib/db/directory', () => ({ getMyTeamLeads: vi.fn(), getPeople: vi.fn() }))
 
-import { getMyTeamLeads, type TeamOption } from '@/lib/db/directory'
+import { getMyTeamLeads, getPeople, type TeamOption } from '@/lib/db/directory'
 import { defaultSupervisorId, homeTeamId, loadHomeLeadId } from './default-supervisor'
 
 const team = (id: string, isPrimary?: boolean): TeamOption =>
@@ -11,6 +11,10 @@ const LEADS = [
   { team_id: 'hq', lead_person_id: 'lead-hq' },
   { team_id: 'bar', lead_person_id: 'lead-bar' },
   { team_id: 'nolead', lead_person_id: null },
+]
+const ACTIVE = [
+  { id: 'viewer', full_name: 'Viewer' },
+  { id: 'lead-hq', full_name: 'Lead HQ' },
 ]
 
 describe('home Team supervisor default', () => {
@@ -33,8 +37,21 @@ describe('home Team supervisor default', () => {
 
   it('loads the home Team lead for any viewer, and swallows a failed read', async () => {
     vi.mocked(getMyTeamLeads).mockReset().mockResolvedValue(LEADS)
+    vi.mocked(getPeople).mockReset().mockResolvedValue(ACTIVE)
     expect(await loadHomeLeadId([team('hq', true)], 'viewer')).toBe('lead-hq')
     vi.mocked(getMyTeamLeads).mockRejectedValue(new Error('denied'))
+    expect(await loadHomeLeadId([team('hq', true)], 'viewer')).toBeNull()
+  })
+
+  it('never offers an archived lead: Supervisor stays blank', async () => {
+    vi.mocked(getMyTeamLeads).mockReset().mockResolvedValue(LEADS)
+    vi.mocked(getPeople).mockReset().mockResolvedValue([{ id: 'viewer', full_name: 'Viewer' }])
+    expect(await loadHomeLeadId([team('hq', true)], 'viewer')).toBeNull()
+  })
+
+  it('stays blank when the active-people read fails', async () => {
+    vi.mocked(getMyTeamLeads).mockReset().mockResolvedValue(LEADS)
+    vi.mocked(getPeople).mockReset().mockRejectedValue(new Error('denied'))
     expect(await loadHomeLeadId([team('hq', true)], 'viewer')).toBeNull()
   })
 

@@ -196,7 +196,7 @@ export function SignalOverflowMenu({
         aria-label={t('signals.record.moreActions')}
         onClick={() => setOpen((wasOpen) => !wasOpen)}
       >
-        <span aria-hidden="true">•••</span>
+        <span aria-hidden="true">⋯</span>
       </button>
       {open && (
         <div

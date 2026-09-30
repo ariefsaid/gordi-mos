@@ -9,7 +9,7 @@ describe('WorkloadCaption locale grammar', () => {
       <I18nProvider initialLocale="id">
         <WorkloadCaption summary={{
           isSelf: true,
-          firstName: 'Arief',
+          firstName: 'Arden',
           projectCount: 1,
           dailyCount: 2,
           unassignedCount: 1,

@@ -328,6 +328,31 @@ describe('RecordField', () => {
     await waitFor(() => expect(onCommit).toHaveBeenCalledWith('done'))
   })
 
+  // #1028: a long person list (PIC, Supervisor) is searched by typing, not scrolled.
+  it('narrows a person picker as the reader types and commits the typed match on Enter', async () => {
+    const user = userEvent.setup()
+    const onCommit = vi.fn(async () => {})
+    const people = ['Ada Lovelace', 'Alan Turing', 'Grace Hopper', 'Wayan Kusuma']
+    const spec: RecordFieldSpec = {
+      key: 'pic',
+      label: 'PIC',
+      control: 'person',
+      value: 'p-0',
+      displayValue: 'Ada Lovelace',
+      editable: true,
+      options: people.map((name, index) => ({ value: `p-${index}`, label: name })),
+    }
+    renderField(spec, { onCommit })
+
+    activate('PIC')
+    await user.click(screen.getByRole('combobox', { name: 'PIC' }))
+    await user.keyboard('kus')
+
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(onCommit).toHaveBeenCalledWith('p-3'))
+  })
+
   // F4 fix: an unpopulated relation row (e.g. Task Project/Process or Objective) is exposed as
   // `data-empty` on the row so a scoped CSS rule can de-emphasize it (record-viewer.css) without
   // touching its edit affordance or its text content.

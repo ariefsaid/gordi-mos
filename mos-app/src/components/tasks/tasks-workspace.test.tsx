@@ -79,8 +79,8 @@ const mockCanStartProcessForTeam = vi.mocked(canStartProcessForTeam)
 
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
-  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arden Sample',
+  email: 'arden.sample@example.test', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const mockRole: RolesRow = {
@@ -124,7 +124,7 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 
 const BUS = [{ id: 'bu-1', name: 'Kitchen' }]
 const PEOPLE = [
-  { id: VIEWER_ID, full_name: 'Arief Said' },
+  { id: VIEWER_ID, full_name: 'Arden Sample' },
   { id: 'other-id', full_name: 'Budi Setiawan' },
 ]
 const VIEWER_TEAMS = [{
@@ -446,7 +446,7 @@ describe('Create from Signal convergence', () => {
     expect(screen.getByRole('textbox', { name: /title/i })).toHaveValue('Original')
     const edited = await screen.findByRole('textbox', { name: /title/i })
     fireEvent.change(edited, { target: { value: 'Edited after failure' } })
-    fireEvent.keyDown(edited, { key: 'Enter' })
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
     await waitFor(() => expect(mockLinkSignalTask).toHaveBeenCalledTimes(2))
     expect(mockCreateTask).toHaveBeenCalledTimes(1)
     expect(mockUpdateTaskFields).toHaveBeenCalledWith('created-retry', { title: 'Edited after failure' }, VIEWER_ID)
@@ -720,36 +720,18 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     expect(screen.getByText('Overdue mobile work')).toBeInTheDocument()
   })
 
-  // RATIFY-BEFORE-MERGE: Luna 390 audit (d) — one create door. The header "+ Create task" is the
-  // DESKTOP door; on phone the single door is the global Action Launcher FAB (DESIGN.md one-launcher
-  // rule), so the in-page header create button is hidden at phone width to kill the duplicate door.
-  it('AC-W1-D (Luna 390): desktop shows the header "+ Create task" door; phone hides it (single FAB door)', async () => {
+  // One in-page create door at every width (#1032): the header "+ Create task" stays on the page
+  // at phone and in the 768–919 band, beside the shell's + launcher, so phone matches desktop.
+  it('AC-W1-D: the header "+ Create task" door is on the page at desktop, in the 768–919 band and on phone', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Only work item' })])
 
-    // Desktop: the header create door is present.
-    stubMatchMedia(true, true)
-    const desktop = renderTable()
-    await waitFor(() => screen.getByText('Only work item'))
-    expect(screen.getByRole('button', { name: '+ Create task' })).toBeInTheDocument()
-    desktop.unmount()
-
-    // Phone: no in-page header create button — the single phone create door is the global FAB
-    // (rendered by the app shell, not this component).
-    stubMatchMedia(false, false)
-    renderTable()
-    await waitFor(() => screen.getByText('Only work item'))
-    expect(screen.queryByRole('button', { name: '+ Create task' })).toBeNull()
-  })
-
-  // DO-17 (census-sweep R2 tasks FINDING2): the shell's Action Launcher FAB exists whenever the
-  // rail is collapsed (isNarrow, <920) — so in the 768–919 band (desktop by useIsDesktop, but
-  // narrow by useIsNarrow) the header door must hide too, or BOTH create doors co-exist.
-  it('DO-17: the 768–919 band hides the header create door (FAB owns it while the rail is collapsed)', async () => {
-    mockListTasks.mockResolvedValue([makeTask({ title: 'Only work item' })])
-    stubMatchMedia(false, true, true) // not split, ≥768, but rail collapsed (<920)
-    renderTable()
-    await waitFor(() => screen.getByText('Only work item'))
-    expect(screen.queryByRole('button', { name: '+ Create task' })).toBeNull()
+    for (const [split, desktop, narrow] of [[true, true, false], [false, true, true], [false, false, true]] as const) {
+      stubMatchMedia(split, desktop, narrow)
+      const view = renderTable()
+      await waitFor(() => screen.getByText('Only work item'))
+      expect(screen.getByRole('button', { name: '+ Create task' })).toBeInTheDocument()
+      view.unmount()
+    }
   })
 
   it('AC-I-TASK: Indonesian locale translates the member disclosure and typed filter grammar', async () => {
@@ -1932,11 +1914,11 @@ describe('Task 19 — "+ Create task" pre-fill (AC-125)', () => {
     chooseFilterOption(groupSelect, 'PIC')
     await waitFor(() => {
       const groups = Array.from(container.querySelectorAll('tr.grp .glabel'))
-      expect(groups.some(g => g.textContent?.includes('Arief'))).toBe(true)
+      expect(groups.some(g => g.textContent?.includes('Arden'))).toBe(true)
     })
     const groups = Array.from(container.querySelectorAll('tr.grp'))
-    const ariefHeader = groups.find(g => g.querySelector('.glabel')?.textContent?.includes('Arief'))!
-    const addBtn = ariefHeader.querySelector('button.gadd') as HTMLButtonElement
+    const ownerHeader = groups.find(g => g.querySelector('.glabel')?.textContent?.includes('Arden'))!
+    const addBtn = ownerHeader.querySelector('button.gadd') as HTMLButtonElement
     expect(addBtn).toBeTruthy()
     // The add affordance carries the pre-fill target person as its data attribute
     expect(addBtn.getAttribute('data-prefill')).toBe(`r=${VIEWER_ID}`)
@@ -2422,7 +2404,7 @@ describe('Ticket #750 — AC-019 footer legend states the click grammar', () => 
 
 describe('Ticket #750 — AC-022 in-row PIC/Due edit follows the permission rules', () => {
   const DOWNLINE_ID = 'barista-id'
-  const DOWNLINE_PERSON = { id: DOWNLINE_ID, full_name: 'Rina Barista' }
+  const DOWNLINE_PERSON = { id: DOWNLINE_ID, full_name: 'Sample Barista' }
 
   it('AC-022: Cahya (manager above the PIC) gets a self+downline PIC picker and Due editor that save in place', async () => {
     // Cahya = the viewer; the row's PIC sits in his downline → the DB lets him edit.
@@ -2436,14 +2418,13 @@ describe('Ticket #750 — AC-022 in-row PIC/Due edit follows the permission rule
     await waitFor(() => screen.getByText('Bar team task'))
 
     // PIC cell: an inline trigger opens the picker, offering self + downline.
-    const picTrigger = document.querySelector('td.td-owner button.inline-cell-trigger') as HTMLButtonElement
-    expect(picTrigger, 'PIC cell is editable for the manager above the PIC').toBeTruthy()
+    const picTrigger = within(screen.getByText('Bar team task').closest('tr')!).getByRole('button', { name: /Sample Barista/ })
     fireEvent.click(picTrigger)
     expect(screen.getByRole('combobox', { name: 'Edit task PIC' })).toHaveAttribute('aria-expanded', 'true')
     const optionLabels = screen.getAllByRole('option').map((option) => option.textContent)
-    expect(optionLabels).toEqual(['Arief Said', 'Rina Barista'])
+    expect(optionLabels).toEqual(['Arden Sample', 'Sample Barista'])
     // Saves in place through the same updateTaskFields path the record editor uses.
-    fireEvent.click(screen.getByRole('option', { name: 'Arief Said' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Arden Sample' }))
     await waitFor(() => expect(mockUpdateTaskFields).toHaveBeenCalledWith(
       'bar-task', { responsible_person_id: VIEWER_ID }, VIEWER_ID, DOWNLINE_ID,
     ))
