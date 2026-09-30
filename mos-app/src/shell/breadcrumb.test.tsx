@@ -215,6 +215,7 @@ function renderBCNarrow(path: string, dynamicTitle?: string, locale: 'en' | 'id'
               path="*"
               element={
                 <>
+                  <TestCollectionChrome />
                   {dynamicTitle && <TitleSetter title={dynamicTitle} />}
                   <Breadcrumb />
                 </>
@@ -245,6 +246,16 @@ describe('AC-020: below rail-collapse the breadcrumb is the leaf title only (A-3
     const separators = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
       .filter((el) => el.textContent === '·')
     expect(separators).toHaveLength(0)
+  })
+
+  it('issue 1032: a saved view never renames the phone header — it keeps the page H1 ("Tasks" / "Tugas")', () => {
+    const { unmount } = renderBCNarrow('/work/tasks?view=mine')
+    expect(screen.getByText('Tasks')).toBeInTheDocument()
+    expect(screen.queryByText('My work')).toBeNull()
+    unmount()
+    renderBCNarrow('/work/tasks?view=overdue', undefined, 'id')
+    expect(screen.getByText('Tugas')).toBeInTheDocument()
+    expect(screen.queryByText('Terlambat')).toBeNull()
   })
 
   it('the leaf is never empty: an unresolved record title falls back to the collection leaf', () => {

@@ -126,6 +126,8 @@ export function TasksToolbar({
     return t('tasks.filter.occurrence')
   }
 
+  // On a phone every control already sits under its own visible label; on desktop the door has none,
+  // so the trigger text carries it.
   const filters: CollectionToolbarFilter[] = [
     {
       id: 'group',
@@ -142,6 +144,7 @@ export function TasksToolbar({
     {
       id: 'business-unit',
       label: t('tasks.filter.businessUnit'),
+      triggerPrefix: isDesktop ? t('tasks.filter.businessUnit') : undefined,
       value: query.businessUnitId ?? '',
       options: [
         { value: '', label: t('tasks.filter.anyBusinessUnit') },
@@ -173,6 +176,7 @@ export function TasksToolbar({
     {
       id: 'person',
       label: t('tasks.filter.person'),
+      triggerPrefix: isDesktop ? t('tasks.filter.person') : undefined,
       value: query.personId ?? '',
       options: [
         { value: '', label: t('tasks.filter.anyone') },
@@ -183,6 +187,7 @@ export function TasksToolbar({
     {
       id: 'sort',
       label: t('tasks.filter.sort'),
+      triggerPrefix: isDesktop ? t('tasks.filter.sort') : undefined,
       value: `${query.sort}:${query.direction}`,
       options: [
         { value: 'due:ascending', label: t('tasks.filter.sortDueSoonest') },

@@ -139,7 +139,7 @@ function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parent
             <d.Icon />
           </span>
           {!compact && <span>{label}</span>}
-          {showChevron && <Chevron className="rail-module-chevron" />}
+          {showChevron && !compact && <Chevron className="rail-module-chevron" />}
           <RailCountBadge count={badge} label={badgeLabel} compact={compact} />
         </>
       )}

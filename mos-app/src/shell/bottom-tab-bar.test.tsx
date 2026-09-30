@@ -293,6 +293,22 @@ describe('a11y: every tab icon is aria-hidden', () => {
   })
 })
 
+describe('issue 1032: one create entry on phone', () => {
+  it.each(['/work/tasks', '/work/signals', '/work/tasks/', '/work/signals/'])('%s carries its own in-page create, so the + launcher yields', (path) => {
+    renderTabBar(path)
+    expect(screen.queryByRole('button', { name: /open actions/i })).toBeNull()
+    expect(screen.getByRole('navigation', { name: 'Primary' })).not.toHaveClass('bottom-tab-bar--with-launcher')
+  })
+
+  it.each(['/', '/work/projects', '/work/objectives', '/work/tasks/abc-123', '/inbox'])(
+    '%s has no in-page create, so the + launcher stays',
+    (path) => {
+      renderTabBar(path)
+      expect(screen.getByRole('button', { name: /open actions/i })).toBeInTheDocument()
+    },
+  )
+})
+
 describe('a focused decision route', () => {
   it('shows no tab bar and no + launcher on the agent consent page', () => {
     renderTabBar('/oauth/consent?authorization_id=abc')

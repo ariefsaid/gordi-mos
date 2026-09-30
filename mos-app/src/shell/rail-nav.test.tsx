@@ -654,6 +654,16 @@ describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
     expect(badge.className).toMatch(/rail-count-badge--compact/)
   })
 
+  it('issue 1047: the Café row keeps its disclosure chevron at full width and drops it in compact, so its icon shares the rail axis', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    const { container, unmount } = renderRailNav('/work/tasks', { compact: false })
+    expect(container.querySelector('.rail-module-chevron')).not.toBeNull()
+    unmount()
+    const compact = renderRailNav('/work/tasks', { compact: true })
+    expect(screen.getByRole('link', { name: /Café/ })).toBeInTheDocument()
+    expect(compact.container.querySelector('.rail-module-chevron')).toBeNull()
+  })
+
   it('the account chip collapses to the avatar only (no visible name text)', () => {
     setAuthAs(['admin'], 'Managing Director')
     renderRailNav('/work/tasks', { compact: true })
