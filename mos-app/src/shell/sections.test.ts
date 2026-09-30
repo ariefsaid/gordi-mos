@@ -64,6 +64,14 @@ describe('T5: ADMIN_SECTIONS — kept (People)', () => {
     expect(ADMIN_SECTIONS.some((s) => s.path === '/admin/people')).toBe(true)
     expect(sectionForPath('/admin/people')!.label).toBe('People')
   })
+
+  it('resolves the connected-agents tab with its localized label key', () => {
+    expect(sectionForPath('/admin/agents')).toMatchObject({
+      path: '/admin/agents',
+      label: 'Connected agents',
+      labelKey: 'admin.settings.nav.agents',
+    })
+  })
 })
 
 describe('T5: new destination sections resolve', () => {

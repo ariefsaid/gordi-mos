@@ -151,7 +151,12 @@ export function AdminAgentConnectionsPage() {
         <p className="agent-connections-admin__intro">{t('agentConnections.admin.copy')}</p>
         <p className="agent-connections-admin__next-request" role="note">{t('agentConnections.admin.nextRequest')}</p>
         {actionNotice && (
-          <p className="agent-connections-admin__error" role={actionNotice.role}>{actionNotice.message}</p>
+          <p
+            className={actionNotice.role === 'status' ? 'agent-connections-admin__notice' : 'agent-connections-admin__error'}
+            role={actionNotice.role}
+          >
+            {actionNotice.message}
+          </p>
         )}
 
         <section className="agent-connections-admin__panel" aria-labelledby="agent-connections-add-title">

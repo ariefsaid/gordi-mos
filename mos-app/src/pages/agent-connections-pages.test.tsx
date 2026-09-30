@@ -205,7 +205,10 @@ describe('connected agent pages', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Revoke Ari Example’s access to Northstar?' })
     await user.click(within(dialog).getByRole('button', { name: 'Revoke connection' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('This connection was no longer active. The list has been refreshed.')
+    const notice = await screen.findByRole('status')
+    expect(notice).toHaveTextContent('This connection was no longer active. The list has been refreshed.')
+    expect(notice).toHaveClass('agent-connections-admin__notice')
+    expect(notice).not.toHaveClass('agent-connections-admin__error')
     expect(screen.queryByRole('dialog', { name: 'Revoke Ari Example’s access to Northstar?' })).not.toBeInTheDocument()
     expect(mockListAdmin).toHaveBeenCalledTimes(2)
   })

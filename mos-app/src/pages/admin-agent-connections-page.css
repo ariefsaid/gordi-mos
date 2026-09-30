@@ -85,6 +85,13 @@
   font-size: var(--font-size-label);
 }
 
+.agent-connections-admin__notice {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
 .agent-connections-admin__form .btn,
 .agent-connections-admin__app-head .btn,
 .agent-connections-admin__connection .btn {
