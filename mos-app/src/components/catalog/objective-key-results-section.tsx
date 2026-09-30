@@ -109,8 +109,14 @@ function CommitField({ label, saved, onCommit, inputMode }: {
   inputMode?: 'decimal'
 }) {
   const [draft, setDraft] = useState(saved)
+  const [seen, setSeen] = useState(saved)
   const { state, run, retry } = useCommitStatus()
-  useEffect(() => { setDraft(saved) }, [saved])
+  // A new saved value replaces the draft during render; an effect would also run after the first
+  // paint and overwrite text typed in the meantime.
+  if (seen !== saved) {
+    setSeen(saved)
+    setDraft(saved)
+  }
   const commit = () => { if (draft !== saved) void run(() => onCommit(draft)) }
   return (
     <div className="form-grid__field objective-key-results__field">
