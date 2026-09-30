@@ -80,8 +80,8 @@ describe('i18n messages catalog', () => {
   })
 
   it('interpolate() replaces ${name} placeholders with the provided vars', () => {
-    expect(interpolate('Hello ${name}, you have ${count} tasks', { name: 'Arief', count: 3 })).toBe(
-      'Hello Arief, you have 3 tasks'
+    expect(interpolate('Hello ${name}, you have ${count} tasks', { name: 'Arden', count: 3 })).toBe(
+      'Hello Arden, you have 3 tasks'
     )
   })
 

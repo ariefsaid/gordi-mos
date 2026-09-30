@@ -71,8 +71,8 @@ import { TasksWorkspace } from './tasks-workspace'
 
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
-  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arden Sample',
+  email: 'arden.sample@example.test', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const role: RolesRow = {
@@ -138,7 +138,7 @@ beforeEach(() => {
   localStorage.clear()
   stubMatchMedia()
   vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-1', name: 'Kitchen' }])
-  vi.mocked(getPeople).mockResolvedValue([{ id: VIEWER_ID, full_name: 'Arief Said' }])
+  vi.mocked(getPeople).mockResolvedValue([{ id: VIEWER_ID, full_name: 'Arden Sample' }])
   vi.mocked(getPersonTeams).mockResolvedValue([])
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue([])

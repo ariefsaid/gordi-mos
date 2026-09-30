@@ -138,8 +138,8 @@ function stubWidths({ split, desktop = true }: { split: boolean; desktop?: boole
 const VIEWER_ID = 'viewer-person-id'
 const SUPERVISOR_ID = 'supervisor-person-id'
 const mockPerson: PeopleRow = {
-  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arden Sample',
+  email: 'arden.sample@example.test', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const mockRole: RolesRow = {
@@ -170,7 +170,7 @@ function makeTask(overrides: Partial<TaskListRow> & { team_id?: string | null } 
 
 const BUS = [{ id: 'bu-1', name: 'Kitchen' }]
 const PEOPLE = [
-  { id: VIEWER_ID, full_name: 'Arief Said' },
+  { id: VIEWER_ID, full_name: 'Arden Sample' },
   { id: SUPERVISOR_ID, full_name: 'Supervisor Person' },
 ]
 const TEAMS = [{ id: 'team-kitchen', name: 'Kitchen Team', businessUnitId: 'bu-1', siteId: null, orgId: 'org', isPrimary: true }]

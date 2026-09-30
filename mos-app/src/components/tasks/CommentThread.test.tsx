@@ -4,8 +4,8 @@ import { CommentThread, type TaskComment } from './CommentThread'
 import type { PersonOption } from '@/lib/db/directory'
 
 const people: PersonOption[] = [
-  { id: 'p1', full_name: 'Arief Said' },
-  { id: 'p2', full_name: 'Riri Kitchen' },
+  { id: 'p1', full_name: 'Arden Sample' },
+  { id: 'p2', full_name: 'Nico Kitchen' },
 ]
 
 const comments: TaskComment[] = [
@@ -17,7 +17,7 @@ describe('CommentThread (T28, AC-P3-CM-004)', () => {
     render(<CommentThread comments={comments} people={people} canPost onPost={vi.fn()} />)
 
     expect(screen.getByRole('region', { name: /comments/i })).toBeInTheDocument()
-    expect(screen.getByText('Arief Said')).toBeInTheDocument()
+    expect(screen.getByText('Arden Sample')).toBeInTheDocument()
     expect(screen.getByText('Please check this')).toBeInTheDocument()
   })
 
@@ -42,9 +42,9 @@ describe('CommentThread (T28, AC-P3-CM-004)', () => {
     })
 
     expect(screen.getByRole('listbox', { name: /select person/i })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('option', { name: /riri kitchen/i }))
+    fireEvent.click(screen.getByRole('option', { name: /nico kitchen/i }))
 
-    expect(screen.getByRole('textbox', { name: /comment/i })).toHaveValue('Please ask @riri ')
+    expect(screen.getByRole('textbox', { name: /comment/i })).toHaveValue('Please ask @nico ')
   })
 
   it('returns focus to the composer after a mention is picked', () => {
@@ -52,7 +52,7 @@ describe('CommentThread (T28, AC-P3-CM-004)', () => {
     const box = screen.getByRole('textbox', { name: /comment/i })
     box.focus()
     fireEvent.change(box, { target: { value: 'Please ask @' } })
-    fireEvent.click(screen.getByRole('option', { name: /riri kitchen/i }))
+    fireEvent.click(screen.getByRole('option', { name: /nico kitchen/i }))
     expect(box).toHaveFocus()
   })
 })
