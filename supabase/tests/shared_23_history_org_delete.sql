@@ -4,7 +4,7 @@
 -- grant posture still holds.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(12);
 
 -- Two fresh orgs, each with history-registered children (an objective and a work line).
 insert into shared.orgs (id, name, slug) values
@@ -30,6 +30,32 @@ select is((select count(*)::int from shared.record_history
   1, 'a work-line delete under a live org records its delete snapshot');
 insert into mos.work_lines (id, org_id, name, type, business_unit_id)
 values ('00000000-0000-0000-0000-00000000c1a4', '00000000-0000-0000-0000-00000000c1a1', 'X project', 'project', '00000000-0000-0000-0000-00000000c1a2');
+
+-- A live-org UPDATE records its change: the guard never skips an org that still exists.
+update mos.objectives set name = 'X objective renamed' where id = '00000000-0000-0000-0000-00000000c1a3';
+select is((select count(*)::int from shared.record_history
+           where org_id = '00000000-0000-0000-0000-00000000c1a1' and table_name = 'objectives'
+             and action = 'update' and field_name = 'name' and new_value = 'X objective renamed'),
+  1, 'an objective update under a live org records its change');
+
+-- The guard leans on one invariant: every history-wired table's org column has a foreign key to
+-- shared.orgs, so a dangling org can never be written by a table the writer would skip. The
+-- organisation table itself is the root and takes its org from its own id.
+select is_empty(
+  $$ select n.nspname || '.' || c.relname
+       from pg_trigger t
+       join pg_proc p  on p.oid = t.tgfoid
+       join pg_namespace pn on pn.oid = p.pronamespace
+       join pg_class c on c.oid = t.tgrelid
+       join pg_namespace n on n.oid = c.relnamespace
+      where pn.nspname = 'shared' and p.proname = '_record_history_write' and not t.tgisinternal
+        and n.nspname || '.' || c.relname <> 'shared.orgs'
+        and not exists (
+          select 1 from pg_constraint k
+            join pg_attribute a on a.attrelid = k.conrelid and a.attnum = k.conkey[1]
+           where k.contype = 'f' and k.conrelid = c.oid and k.confrelid = 'shared.orgs'::regclass
+             and array_length(k.conkey, 1) = 1 and a.attname = 'org_id') $$,
+  'every history-wired table (bar the organisation table) has a foreign key from org_id to shared.orgs');
 
 create temp table y_before as
   select * from shared.record_history where org_id = '00000000-0000-0000-0000-00000000c1b1';
