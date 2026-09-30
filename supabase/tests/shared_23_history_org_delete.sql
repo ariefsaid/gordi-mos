@@ -32,8 +32,7 @@ insert into mos.work_lines (id, org_id, name, type, business_unit_id)
 values ('00000000-0000-0000-0000-00000000c1a4', '00000000-0000-0000-0000-00000000c1a1', 'X project', 'project', '00000000-0000-0000-0000-00000000c1a2');
 
 create temp table y_before as
-  select table_name, record_key, action, field_name, occurred_at
-  from shared.record_history where org_id = '00000000-0000-0000-0000-00000000c1b1';
+  select * from shared.record_history where org_id = '00000000-0000-0000-0000-00000000c1b1';
 
 select lives_ok($$ delete from shared.orgs where id = '00000000-0000-0000-0000-00000000c1a1' $$,
   'deleting an org with history-registered children succeeds');
@@ -45,10 +44,12 @@ select is((select count(*)::int from mos.work_lines where org_id = '00000000-000
 select is((select count(*)::int from shared.record_history where org_id = '00000000-0000-0000-0000-00000000c1b1'),
   (select count(*)::int from y_before), 'another org''s history row count is unchanged');
 select is((select count(*)::int from (
-    select table_name, record_key, action, field_name, occurred_at from shared.record_history
-    where org_id = '00000000-0000-0000-0000-00000000c1b1'
-    except select * from y_before) d),
-  0, 'another org''s history rows are byte-for-byte the ones it had before');
+    (select * from shared.record_history where org_id = '00000000-0000-0000-0000-00000000c1b1'
+     except select * from y_before)
+    union all
+    (select * from y_before
+     except select * from shared.record_history where org_id = '00000000-0000-0000-0000-00000000c1b1')) d),
+  0, 'another org''s history rows are identical, field for field, to the ones it had before');
 
 -- Append-only for every application role: the cascade is the only removal path.
 select is((select count(*)::int from information_schema.role_table_grants
