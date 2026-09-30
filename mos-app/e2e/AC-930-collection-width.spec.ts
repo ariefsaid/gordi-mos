@@ -41,7 +41,7 @@ type Collection = {
   identityContentSized: boolean
   /** Narrowest viewport at which a record opens beside the list. */
   splitMinWidth: number
-  /** The visible fact headers at 1300px with no record open (the catalog kept all of them before). */
+  /** The visible fact headers at 1300px with no record open. A fact empty on every seeded row is left out (#1036). */
   expectedHeadersAt1300?: string[]
 }
 
@@ -112,7 +112,8 @@ const COLLECTIONS: Collection[] = [
     rowBoxSelector: '.catalog-collection__row-link',
     identityContentSized: true,
     splitMinWidth: 1100,
-    expectedHeadersAt1300: ['Name', 'Business Unit', 'Accountable', 'Projects & Processes', 'Progress', 'Last activity'],
+    // The seeded Objectives carry no Business Unit and no Accountable, so both columns are dropped.
+    expectedHeadersAt1300: ['Name', 'Projects & Processes', 'Progress', 'Last activity'],
   },
 ]
 
