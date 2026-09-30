@@ -185,8 +185,8 @@ select is(
   api_v1.get_record_history(record_type => 'project_process', id => '00000000-0000-0000-0000-000000009b01'),
   '{"items": [], "next_cursor": null}'::jsonb, 'a person in another org reads no history rows, so sees no channel');
 select is(
-  (select count(*)::int from shared.record_history),
-  0, 'and the table itself shows them nothing');
+  (select count(*)::int from shared.record_history where org_id = '00000000-0000-0000-0000-0000000000a1'),
+  0, 'and the table itself shows them nothing of the other org''s records (their own org''s wired history, if any, is theirs to read)');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
 select is(
