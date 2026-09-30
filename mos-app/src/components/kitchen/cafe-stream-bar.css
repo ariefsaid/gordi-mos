@@ -30,6 +30,14 @@
   overflow-wrap: anywhere;
 }
 
+/* Heading variant (Plan): the stream is the page's subject, so the value takes the
+   sub-section heading size and the "Change" link sits beside it. */
+.cafe-stream__value--heading {
+  margin: 0;
+  font-size: var(--font-size-subheading);
+  line-height: 1.3;
+}
+
 /* "Switch" / "Back to …" — quiet text actions, never a bordered field: the stream is already
    named by `.cafe-stream__value` beside them, so neither one repeats it. Underline is the only
    affordance at rest; the shared focus ring covers keyboard/`:focus-visible`. */

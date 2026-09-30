@@ -95,7 +95,7 @@ const OWN_STREAM = { branch: BRANCHES[0], activity: 'kitchen' as const, produces
 const RADIANT_KITCHEN = { branch: BRANCHES[1], activity: 'kitchen' as const, produces: false }
 const OWN_STREAM_BAR = { branch: BRANCHES[0], activity: 'bar' as const, produces: true }
 const RADIANT_BAR = { branch: BRANCHES[1], activity: 'bar' as const, produces: true }
-// #781: CafeStreamBar states a resolved stream as text with a quiet "Switch" beside it (opens a
+// #781: CafeStreamBar states a resolved stream as text with a quiet "Change" beside it on Plan (opens a
 // portaled listbox) — or, with no default resolved at all, offers the location's streams as
 // direct one-click buttons (CafeStreamChoices), no separate open step. `startsWith` rather than
 // an exact match because an option carries an appended tag ("— Your Team" / "— Receiving only")
@@ -105,7 +105,7 @@ function startsWith(label: string) {
 }
 
 function chooseStream(optionName: string) {
-  const switchButton = screen.queryByRole('button', { name: /^switch$/i })
+  const switchButton = screen.queryByRole('button', { name: /^change/i })
   if (switchButton) {
     fireEvent.click(switchButton)
     fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
@@ -213,6 +213,18 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
     expect(mockPlans.mock.calls[0][1]).toEqual(RADIANT_BAR)
   })
 
+  it('Plan opens straight on its stream as a heading, with a Change link and no "Stream" label', async () => {
+    mockDefaultStream.mockResolvedValue(OWN_STREAM)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.getByRole('heading', { level: 2, name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
+    expect(screen.queryByText(/^stream$/i)).toBeNull()
+    expect(screen.getByRole('button', { name: /^change/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^switch/i })).toBeNull()
+    // No chooser first: the stream is already resolved, so no stream buttons precede the list.
+    expect(screen.queryByText(/choose a production stream/i)).toBeNull()
+  })
+
   it('switching the stream in the head re-reads THAT stream\'s plan', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
@@ -227,7 +239,7 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
   it('offers only the streams of the branch the viewer is working at', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    fireEvent.click(screen.getByRole('button', { name: /^switch$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^change/i }))
     const offered = screen.getAllByRole('option').map(o => o.textContent?.trim() ?? '')
 
     // A plan row is keyed on (org, date, item, branch, activity): it belongs to ONE branch's books.

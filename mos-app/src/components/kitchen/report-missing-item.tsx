@@ -30,9 +30,11 @@ export function ReportMissingItem({ businessUnitId, streamLabel }: ReportMissing
   const [itemName, setItemName] = useState('')
 
   const inputId = useId()
-  // The field is disabled while sending, which drops focus; a failed send hands it back.
+  // Opening puts the field in focus, so the page scrolls it clear of the pinned footer (the form
+  // opens at the end of the list, under it). The field is disabled while sending, which drops
+  // focus; a failed send hands it back.
   useEffect(() => {
-    if (state === 'error') document.getElementById(inputId)?.focus()
+    if (state === 'open' || state === 'error') document.getElementById(inputId)?.focus()
   }, [state, inputId])
 
   async function send() {
