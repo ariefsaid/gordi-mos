@@ -113,6 +113,7 @@ export const ADMIN_SECTIONS: Section[] = [
   { path: '/admin/people', label: 'People', labelKey: 'nav.admin.people', Icon: PeopleIcon },
   { path: '/admin/teams', label: 'Teams', labelKey: 'nav.admin.teams', Icon: PeopleIcon },
   { path: '/admin/access', label: 'Roles & permissions', labelKey: 'nav.admin.roles', Icon: ShieldIcon },
+  { path: '/admin/agents', label: 'Connected agents', labelKey: 'admin.settings.nav.agents', Icon: ShieldIcon },
 ]
 
 /**

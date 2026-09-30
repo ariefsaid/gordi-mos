@@ -111,6 +111,11 @@ describe('PORT-024: ProfilePage', () => {
     expect(screen.getByRole('radio', { name: /focused/i })).toBeChecked()
   })
 
+  it('links to the signed-in person’s connected-agent settings', async () => {
+    await renderPage()
+    expect(screen.getByRole('link', { name: 'Manage connected agents' })).toHaveAttribute('href', '/profile/connected-agents')
+  })
+
   it('FR-921: selecting Overview persists the choice and applies it on a fresh Profile mount', async () => {
     const user = userEvent.setup()
     await renderPage()
