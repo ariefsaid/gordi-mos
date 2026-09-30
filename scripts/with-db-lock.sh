@@ -28,11 +28,11 @@
 # it; see scripts/lib/flock-run.sh.)
 #
 #   MOS_DB_LOCK          override the lock path (default ~/.mos-supabase-db.lock)
-#   MOS_DB_LOCK_TIMEOUT  seconds to wait before giving up (default: wait forever)
+#   MOS_DB_LOCK_TIMEOUT  seconds to wait before giving up (default 2700 = 45 min; 0 = forever)
 set -euo pipefail
 
 LOCK="${MOS_DB_LOCK:-$HOME/.mos-supabase-db.lock}"
-TIMEOUT="${MOS_DB_LOCK_TIMEOUT:-0}"
+TIMEOUT="${MOS_DB_LOCK_TIMEOUT:-2700}"
 
 if [ "$#" -eq 0 ]; then
   echo "usage: $0 <command...>   (wraps a DB-driving command in the shared lock)" >&2
