@@ -38,7 +38,6 @@ export interface UseFollowUpQueueOptions {
 export interface FollowUpQueueState {
   rows: FollowUpRow[]
   state: FollowUpFetchState
-  error: string | null
   overdueCount: number
   canConfirm: boolean
   canChase: boolean
@@ -64,15 +63,13 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
   const [state, setState] = useState<FollowUpFetchState>('loading')
   const [active, setActive] = useState<{ id: string; verb: FollowUpTransition } | null>(null)
   const [form, setForm] = useState<FollowUpTransitionForm>(EMPTY_FORM)
-  const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(() => {
     let cancelled = false
     setState('loading')
-    setError(null)
     listFollowUps({ overdue: params.get('filter') === 'overdue' })
       .then((data) => { if (!cancelled) { setRows(data); setState('ready') } })
-      .catch((err: unknown) => { if (!cancelled) { setError(err instanceof Error ? err.message : String(err)); setState('error') } })
+      .catch(() => { if (!cancelled) setState('error') })
     return () => { cancelled = true }
   }, [params])
 
@@ -112,5 +109,5 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
 
   const detailRow = rows.find((row) => row.id === (active?.id ?? detailId)) ?? null
 
-  return { rows, state, error, overdueCount, canConfirm, canChase, active, form, detailRow, setForm, load, run, submit }
+  return { rows, state, overdueCount, canConfirm, canChase, active, form, detailRow, setForm, load, run, submit }
 }

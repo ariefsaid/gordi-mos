@@ -179,7 +179,8 @@ describe.each(VIEWERS)('Objective structural fields for $name', ({ scopes, edita
       expect(screen.getByRole('button', { name: 'More actions' })).toBeInTheDocument()
       return
     }
-    expect(within(details).getByRole('note')).toHaveTextContent('You can view this, but not edit it.')
+    expect(within(details).getByRole('note'))
+      .toHaveTextContent('You can view this. An admin sets the name, Business Unit, period and accountable person.')
     expect(within(details).queryAllByRole('button', { name: /^Edit / })).toHaveLength(0)
     expect(within(details).queryAllByRole('combobox')).toHaveLength(0)
     expect(fieldValue(details, 'businessUnit')).toBe('Retail Ops')
@@ -278,6 +279,14 @@ describe('Objective structural pickers (admin)', () => {
     expect(details.querySelector('[data-field-key="periodQuarter"]')).toHaveTextContent('Set a year first to choose a quarter.')
   })
 
+  it('shows a year hint in the Period input while no year is set', async () => {
+    current = baseRow({ periodYear: null, periodQuarter: null })
+    renderObjective()
+    const details = await openDetails()
+    fireEvent.click(await within(details).findByRole('button', { name: 'Edit Period' }))
+    expect(screen.getByRole('textbox', { name: 'Period' })).toHaveAttribute('placeholder', 'Year, e.g. 2026')
+  })
+
   it('clears the quarter in the same patch when the year is cleared', async () => {
     renderObjective()
     const details = await openDetails()
@@ -318,5 +327,16 @@ describe('Objective structural pickers (admin)', () => {
     await user.keyboard('{Enter}{ArrowUp}{Enter}')
     await waitFor(() => expect(updateObjective).toHaveBeenCalledTimes(1))
     expect(updateObjective).toHaveBeenCalledWith('obj-1', { is_company_wide: true, business_unit_id: null })
+  })
+
+  it.each(['Business Unit', 'Quarter'])('keeps focus on the %s edit control after choosing with Enter', async (name) => {
+    const user = userEvent.setup()
+    renderObjective()
+    const details = await openDetails()
+    await user.click(await within(details).findByRole('button', { name: `Edit ${name}` }))
+    await screen.findByRole('combobox', { name })
+    await user.keyboard('{Enter}{ArrowUp}{Enter}')
+    await waitFor(() => expect(updateObjective).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByRole('button', { name: `Edit ${name}` })).toHaveFocus())
   })
 })

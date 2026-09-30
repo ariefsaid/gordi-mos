@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Link, useHref } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { saveErrorMessage } from '@/lib/save-error'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -265,7 +266,7 @@ export function CatalogRecordDocument({
   const canonicalHref = useHref(relatedPath(kind, id))
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
-  const { scopes } = useWorkWriteAuthority()
+  const { scopes, loading: scopesLoading, error: scopesError, retry: retryScopes } = useWorkWriteAuthority()
   const canRead = auth.status === 'authenticated'
   const [state, setState] = useState<CatalogRecordState | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'not-found'>('loading')
@@ -308,10 +309,13 @@ export function CatalogRecordDocument({
     return () => { live = false }
   }, [id, kind, onTitleResolved, viewerId, reloadNonce, canRead])
 
+  // The choices load once per record: a save refreshes `state` but must not blank them, or the
+  // field a keyboard user just edited is unmounted and focus falls to the page.
+  const hasState = state !== null
   useEffect(() => {
     setEditDirectory(null)
     setEditDirectoryError(false)
-    if (!canRead || !canManage || !state) return
+    if (!canRead || !canManage || !hasState) return
     let live = true
     void loadCatalogRecordEditDirectory(kind)
       .then((directory) => {
@@ -319,7 +323,7 @@ export function CatalogRecordDocument({
       })
       .catch(() => { if (live) setEditDirectoryError(true) })
     return () => { live = false }
-  }, [canManage, canRead, id, kind, state, editDirectoryRetry])
+  }, [canManage, canRead, id, kind, hasState, editDirectoryRetry])
 
   const dirtyRef = useRef(false)
   dirtyRef.current = fieldDirty
@@ -347,8 +351,7 @@ export function CatalogRecordDocument({
       setHistoryVersion((v) => v + 1)
       onChanged?.()
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('catalog.saveFailed')
-      setMutationError(message)
+      setMutationError(saveErrorMessage(error, t))
       throw error
     } finally {
       setBusy(false)
@@ -406,8 +409,7 @@ export function CatalogRecordDocument({
       setHistoryVersion((v) => v + 1)
       onChanged?.()
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('catalog.saveFailed')
-      setMutationError(message)
+      setMutationError(saveErrorMessage(error, t))
       throw error
     } finally {
       setBusy(false)
@@ -442,7 +444,7 @@ export function CatalogRecordDocument({
       ? [
           { key: 'businessUnit', label: t('catalog.record.businessUnit'), control: 'relation', value: row.isCompanyWide ? COMPANY_WIDE_OPTION : row.businessUnitId ?? null, displayValue: businessUnitLabel(row, businessUnitsById, t), editable: false },
           { key: 'accountable', label: t('catalog.record.accountable'), control: 'person', value: row.accountablePersonId ?? null, displayValue: directoryName(row.accountablePersonId, allPeopleById, t), editable: false },
-          { key: 'period', label: t('catalog.record.period'), control: 'text', value: row.periodYear ?? null, displayValue: row.periodYear == null ? t('catalog.notSet') : String(row.periodYear), editable: false },
+          { key: 'period', label: t('catalog.record.period'), control: 'text', value: row.periodYear ?? null, placeholder: t('catalog.record.periodPlaceholder'), displayValue: row.periodYear == null ? t('catalog.notSet') : String(row.periodYear), editable: false },
           { key: 'periodQuarter', label: t('catalog.record.periodQuarter'), control: 'select', value: row.periodQuarter == null ? null : String(row.periodQuarter), displayValue: periodQuarterLabel(row.periodQuarter, row.periodYear, t), editable: false },
         ]
       : [
@@ -478,6 +480,8 @@ export function CatalogRecordDocument({
       if (field.key === 'accountable' || field.key === 'responsible') field.options = [emptyOption, ...[...allPeopleById].map(([value, label]) => ({ value, label }))]
       if (field.key === 'objective') field.options = [emptyOption, ...objectiveOptions]
       }
+
+    const readOnlyNote = t(kind === 'objective' ? 'catalog.record.objectiveReadOnly' : 'catalog.record.readOnly')
 
     const tabs: RecordViewerTab[] = [
       { id: 'work', label: t('catalog.record.tabs.work') },
@@ -525,6 +529,8 @@ export function CatalogRecordDocument({
                   isCompanyWide={row.isCompanyWide}
                   archived={row.archived_at !== null}
                   scopes={scopes}
+                  scopesStatus={scopesError ? 'error' : scopesLoading ? 'loading' : 'ready'}
+                  onRetryScopes={retryScopes}
                 />
               ) : null}
             </>
@@ -585,7 +591,7 @@ export function CatalogRecordDocument({
           section: { id: 'facts', label: t('catalog.record.details'), fields },
           render: (slotContext) => (
             <>
-              {!canManage ? <p className="record-viewer__permission-note" role="note">{t('catalog.record.readOnly')}</p> : null}
+              {!canManage ? <p className="record-viewer__permission-note" role="note">{readOnlyNote}</p> : null}
               <RecordFieldList
                 section={{ id: 'facts', label: t('catalog.record.details'), fields }}
                 onCommitField={slotContext.onCommitField}
@@ -608,12 +614,12 @@ export function CatalogRecordDocument({
       headerOverflowActionIds: canManage ? ['rename', 'archive'] : [],
       permission: {
         readOnly: !canManage,
-        reason: canManage ? undefined : t('catalog.record.readOnly'),
+        reason: canManage ? undefined : readOnlyNote,
         allowedActionIds: actions.map((action) => action.id),
       },
       state: 'ready',
     } satisfies RecordViewerAdapter
-  }, [busy, canManage, editDirectory, editDirectoryError, historyVersion, id, kind, onChanged, onCreateTask, onOpenRelated, scopes, setArchived, state, t])
+  }, [busy, canManage, editDirectory, editDirectoryError, historyVersion, id, kind, onChanged, onCreateTask, onOpenRelated, retryScopes, scopes, scopesError, scopesLoading, setArchived, state, t])
 
   const discardAndLeave = useCallback(async () => {
     resolverRef.current?.({ decision: 'allow' })

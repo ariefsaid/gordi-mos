@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
+import { UserFacingError } from '@/lib/save-error'
 import { useI18n } from '@/i18n/I18nProvider'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -49,7 +50,7 @@ export function ProfileConnectedAgentsPage() {
       setPending(null)
       await load()
     } catch {
-      throw new Error(t('agentConnections.self.revokeError'))
+      throw new UserFacingError(t('agentConnections.self.revokeError'))
     }
   }
 

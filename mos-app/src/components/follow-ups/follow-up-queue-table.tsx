@@ -42,7 +42,7 @@ export function FollowUpQueueTable({
 }) {
   const t = useT()
   const isDesktop = useIsDesktop()
-  const { rows, state, error, canConfirm, canChase, active, form, detailRow, setForm, load, run, submit } = queue
+  const { rows, state, canConfirm, canChase, active, form, detailRow, setForm, load, run, submit } = queue
 
   function renderTransitionForm(row: FollowUpRow, verb: FollowUpTransition) {
     if (verb === 'chase' || verb === 'confirm') return null
@@ -164,7 +164,7 @@ export function FollowUpQueueTable({
     <>
       {state === 'loading' && <LoadingShell count={5} label={t('followUps.loading')} />}
       {state === 'error' && (
-        <ErrorState message={error ?? t('followUps.error')} onRetry={() => { load() }} />
+        <ErrorState message={t('followUps.error')} onRetry={() => { load() }} />
       )}
       {state === 'ready' && rows.length === 0 && <EmptyState title={t('followUps.empty')} />}
       {state === 'ready' && rows.length > 0 && (
