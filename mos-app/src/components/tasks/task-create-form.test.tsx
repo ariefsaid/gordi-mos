@@ -235,6 +235,35 @@ describe('TaskCreateForm — Due date + Project/Process (#1029)', () => {
     expect(onEditWorkLine).toHaveBeenCalledWith('new-task-1', null)
   })
 
+  it('a failed Signal link locks every draft field so no edit is lost by the link-only retry (#1116)', () => {
+    const { onEditDue, onEditWorkLine } = renderWithContext({ linkError: true, onRetryLink: vi.fn() })
+    expect(screen.getByRole('alert')).toHaveTextContent('Retry')
+    for (const name of ['Team', 'PIC', 'Supervisor', 'Project/Process']) {
+      expect(screen.getByRole('combobox', { name })).toBeDisabled()
+    }
+    expect(screen.getByRole('textbox', { name: 'Title' })).toBeDisabled()
+    expect(screen.getByLabelText('Due date')).toBeDisabled()
+    expect(onEditDue).not.toHaveBeenCalled()
+    expect(onEditWorkLine).not.toHaveBeenCalled()
+  })
+
+  it('edit attempts during a link failure change nothing, and the Retry button links with the original values (#1116)', async () => {
+    const user = userEvent.setup()
+    const onRetryLink = vi.fn()
+    const { onCreate } = renderWithContext({
+      task: makeDraft({ title: 'Ship the launch', due_date: '2026-11-05' }),
+      linkError: true,
+      onRetryLink,
+    })
+    const title = screen.getByRole('textbox', { name: 'Title' })
+    await user.type(title, ' edited')
+    expect(title).toHaveValue('Ship the launch')
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(onRetryLink).toHaveBeenCalledTimes(1)
+    expect(title).toHaveValue('Ship the launch')
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+
   it('has no separate Objective field; the Objective comes from the Project/Process', () => {
     renderWithContext()
     expect(screen.queryByRole('combobox', { name: /objective/i })).not.toBeInTheDocument()
