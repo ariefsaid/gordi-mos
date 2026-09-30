@@ -160,12 +160,12 @@ function OwnerField({ row, people, onPatch }: {
     : t('catalog.notSet')
   return (
     <div className="form-grid__field objective-key-results__field">
-      <span className="objective-key-results__label">{t('objective.keyResults.owner')}</span>
+      <span className="objective-key-results__label">{t('objective.keyResults.responsible')}</span>
       <div className="objective-key-results__owner">
         <Button type="button" variant="outline" onClick={() => setOpen(true)}>{name}</Button>
         {row.owner_person_id ? (
           <Button type="button" variant="ghost" onClick={() => { void run(() => onPatch({ owner_person_id: null })) }}>
-            {t('objective.keyResults.clearOwner')}
+            {t('objective.keyResults.clearResponsible')}
           </Button>
         ) : null}
       </div>
@@ -212,7 +212,7 @@ function ReadOnlyFacts({ row, people }: { row: KeyResultRow; people: PersonOptio
     : null
   const facts = [
     row.due_date ? `${t('objective.keyResults.due')} ${formatDayMonthYear(row.due_date)}` : null,
-    owner ? `${t('objective.keyResults.owner')} ${owner}` : null,
+    owner ? `${t('objective.keyResults.responsible')} ${owner}` : null,
   ].filter(Boolean)
   return facts.length ? <p className="objective-key-results__facts">{facts.join(' · ')}</p> : null
 }
@@ -280,7 +280,9 @@ export function ObjectiveKeyResultsSection({ objectiveId, businessUnitId, isComp
   const [rows, setRows] = useState<KeyResultRow[]>([])
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [people, setPeople] = useState<PersonOption[]>([])
+  const [peopleFailed, setPeopleFailed] = useState(false)
   const [reload, setReload] = useState(0)
+  const [peopleReload, setPeopleReload] = useState(0)
   const [newWhat, setNewWhat] = useState('')
   const [addError, setAddError] = useState(false)
   const [adding, setAdding] = useState(false)
@@ -300,9 +302,12 @@ export function ObjectiveKeyResultsSection({ objectiveId, businessUnitId, isComp
 
   useEffect(() => {
     let live = true
-    getPeople().then((next) => { if (live) setPeople(next) }).catch(() => {})
+    setPeopleFailed(false)
+    getPeople()
+      .then((next) => { if (live) setPeople(next) })
+      .catch(() => { if (live) setPeopleFailed(true) })
     return () => { live = false }
-  }, [])
+  }, [peopleReload])
 
   const replaceRow = (next: KeyResultRow) => setRows((current) => current.map((row) => (row.id === next.id ? next : row)))
 
@@ -332,6 +337,7 @@ export function ObjectiveKeyResultsSection({ objectiveId, businessUnitId, isComp
       {note ? <p className="record-viewer__permission-note" role="note">{note}</p> : null}
       {status === 'loading' ? <LoadingShell label={t('catalog.record.loading')} count={1} /> : null}
       {status === 'error' ? <ErrorState message={t('objective.keyResults.loadError')} onRetry={() => setReload((n) => n + 1)} /> : null}
+      {peopleFailed ? <ErrorState message={t('objective.keyResults.peopleError')} onRetry={() => setPeopleReload((n) => n + 1)} /> : null}
       {status === 'ready' ? (
         rows.length > 0 ? (
           <ul className="objective-key-results__list">

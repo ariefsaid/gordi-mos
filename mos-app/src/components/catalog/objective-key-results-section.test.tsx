@@ -107,7 +107,7 @@ describe('key results authority', () => {
       expect(screen.getByRole('textbox', { name })).toBeEnabled()
     }
     expect(screen.getByLabelText('Due')).toBeInTheDocument()
-    expect(screen.getByText('Owner')).toBeInTheDocument()
+    expect(screen.getByText('Responsible')).toBeInTheDocument()
   })
 })
 
@@ -160,6 +160,20 @@ describe('key result progress', () => {
     const rows = screen.getAllByTestId('key-result-progress')
     expect(rows.map((r) => r.textContent)).toEqual(['42 / 60 orders', '3 / 10 kg'])
     expect(screen.getAllByRole('progressbar')).toHaveLength(2)
+  })
+})
+
+describe('key result people directory', () => {
+  it('shows a retryable error when the people list fails and reloads it on Retry', async () => {
+    const user = userEvent.setup()
+    vi.mocked(getPeople).mockRejectedValueOnce(new Error('down'))
+    renderSection(ADMIN)
+    await screen.findByDisplayValue('Ship orders')
+    await screen.findByText("Couldn't load the people list.")
+    vi.mocked(getPeople).mockResolvedValueOnce([{ id: 'p-1', full_name: 'Sari' }])
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(screen.queryByText("Couldn't load the people list.")).toBeNull())
+    expect(getPeople).toHaveBeenCalledTimes(2)
   })
 })
 
