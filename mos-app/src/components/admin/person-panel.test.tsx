@@ -115,6 +115,11 @@ function authority(overrides: Partial<PersonAuthoritySource> = {}): PersonAuthor
     rows: authorityRows(),
     leads: [{ team_id: 't-hq', team_name: 'HQ Operations', business_unit_id: null, lead_person_id: 'bayu-id', lead_name: 'Bayu Barista' }],
     retry: vi.fn(),
+    roleTree: [
+      { id: 'r-head', business_unit_id: 'bu-retail', reports_to_role_id: null },
+      { id: 'r-staff', business_unit_id: 'bu-retail', reports_to_role_id: 'r-head' },
+    ],
+    businessUnits: [{ id: 'bu-retail', name: 'Retail' }],
     ...overrides,
   }
 }
@@ -192,8 +197,38 @@ describe('PersonPanel — read first', () => {
     // Objective structure is not an editable authority any more: the action's row is retired
     // from "what they can do" along with the control (#992).
     expect(within(list).queryByText('Manage Objectives')).not.toBeInTheDocument()
-    // BU head authority comes from a Position this screen cannot see — said, not guessed.
-    expect(screen.getByText(/A Business Unit head can get more from their Position/)).toBeInTheDocument()
+    // No Position given: the old "not shown here" footnote is gone.
+    expect(screen.queryByText(/isn't shown here/)).toBeNull()
+  })
+
+  it('heading a Business Unit through a Position adds what a BU head gets, named as BU head', () => {
+    const head = { ...BAYU, jabatan: [{ role_id: 'r-head', role_name: 'Head of Retail' }] }
+    renderPanel(head)
+    const list = document.querySelector('.admin-person-cando') as HTMLElement
+    const manage = within(list).getByText('Manage Projects & Processes').closest('li') as HTMLElement
+    // Ops Lead already gives the widest scope here; BU head shows once it is the widest source.
+    expect(manage).toHaveTextContent('Organization')
+    const summary = screen.getByRole('region', { name: 'Summary' })
+    expect(within(summary).getByText('Head of Retail')).toBeInTheDocument()
+    expect(within(summary).getByText('Heads Retail')).toBeInTheDocument()
+  })
+
+  it('a BU head with no wider role is granted the BU-scoped authority via BU head', () => {
+    const head = { ...BAYU, access_roles: ['member'], jabatan: [{ role_id: 'r-head', role_name: 'Head of Retail' }] }
+    renderPanel(head, { authority: authority({ leads: [] }) })
+    const list = document.querySelector('.admin-person-cando') as HTMLElement
+    const manage = within(list).getByText('Manage Projects & Processes').closest('li') as HTMLElement
+    expect(manage).toHaveTextContent('Own Business Unit')
+    expect(manage).toHaveTextContent('via BU head')
+  })
+
+  it('a Position below the top of its Business Unit gives no BU head authority', () => {
+    const staff = { ...BAYU, access_roles: ['member'], jabatan: [{ role_id: 'r-staff', role_name: 'Retail staff' }] }
+    renderPanel(staff, { authority: authority({ leads: [] }) })
+    const list = document.querySelector('.admin-person-cando') as HTMLElement
+    const manage = within(list).getByText('Manage Projects & Processes').closest('li') as HTMLElement
+    expect(manage).toHaveTextContent('Not allowed')
+    expect(within(screen.getByRole('region', { name: 'Summary' })).queryByText(/^Heads /)).toBeNull()
   })
 
   it('a person who leads nothing gets only what their roles give', () => {
