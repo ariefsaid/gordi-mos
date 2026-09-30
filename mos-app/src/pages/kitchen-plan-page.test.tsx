@@ -941,6 +941,37 @@ describe('issue 455: document title', () => {
   })
 })
 
+// #1142: a person with no primary stream who belongs to exactly one Café team opens on it.
+describe('KitchenPlanPage — no primary stream (#1142)', () => {
+  const cafeTeam = (id: string, branchIdx: number, activity: 'kitchen' | 'bar') => ({
+    id, name: id, business_unit_id: 'bu-1', site_id: null, is_primary: false,
+    branch_id: BRANCHES[branchIdx].id, activity, effective_to: null,
+  })
+
+  it('one Café team, not primary: Plan opens on its stream, with the Change link', async () => {
+    mockDefaultStream.mockResolvedValue(null)
+    vi.mocked(listCafeViewerTeams).mockResolvedValue([cafeTeam('t-rr-kitchen', 0, 'kitchen')])
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.getByRole('heading', { level: 2, name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
+    expect(screen.queryByText(/choose a production stream/i)).toBeNull()
+    expect(screen.getByRole('button', { name: /^change/i })).toBeInTheDocument()
+    expect(mockPlans.mock.calls[0][1]).toEqual(OWN_STREAM)
+  })
+
+  it('several Café teams, none primary: Plan shows the chooser', async () => {
+    mockDefaultStream.mockResolvedValue(null)
+    vi.mocked(listCafeViewerTeams).mockResolvedValue([
+      cafeTeam('t-rr-kitchen', 0, 'kitchen'), cafeTeam('t-rr-bar', 0, 'bar'),
+    ])
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^change/i })).toBeNull()
+    expect(mockPlans).not.toHaveBeenCalled()
+  })
+})
+
 // ── #548 FR-006/AC-006: the stream precondition is quiet at rest, alerts on attempt ──
 describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar', () => {
   it('AC-006: no stream → read-only fields and a muted hint; no commit attempt is possible', async () => {
