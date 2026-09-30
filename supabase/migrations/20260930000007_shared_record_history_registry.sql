@@ -19,13 +19,14 @@
 --                          oid never comes from caller input, only from the migration-seeded
 --                          registry.
 --
--- The two Slice-1 arms (mos.objectives, mos.work_lines) become readers and rows here,
+-- The three arms on dev (mos.objectives, mos.work_lines, and #992's mos.objective_key_results with its
+-- delete snapshot arm) become readers and rows here,
 -- behaviour-identical to the CASE arms they replace. shared._record_history_write() and the
 -- record_history table, policy and triggers are untouched: the trigger side never consulted the
 -- dispatch, so the conversion does not need it.
 --
--- DOWN (restore the CASE dispatch first — the policy calls it — then drop the registry):
---   create or replace function shared.can_read_history_record  -- back to 20260929000010's body:
+-- DOWN (restore the CASE dispatch first — the policy calls it — then drop the registry;
+-- body below is 20260930000006_mos_objective_targets.sql's, i.e. dev before this migration):
 --   create or replace function shared.can_read_history_record(
 --     p_schema     text,
 --     p_table      text,
@@ -53,6 +54,12 @@
 --             where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 --               and o.id = p_record_key::uuid
 --               and o.org_id = shared.current_org_id());
+--         when p_schema = 'mos' and p_table = 'objective_key_results' then
+--           return exists (
+--             select 1 from mos.objective_key_results k
+--             where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+--               and k.id = p_record_key::uuid
+--               and k.org_id = shared.current_org_id());
 --         when p_schema = 'mos' and p_table = 'work_lines' then
 --           return exists (
 --             select 1 from mos.work_lines w
@@ -63,15 +70,29 @@
 --           return false;
 --       end case;
 --     end if;
---     -- p_action = 'delete' (or anything unrecognized): the snapshot arm registers hard-deletable
---     -- tables as their batches wire them. No audited table hard-deletes yet, so nothing is named
---     -- here and every delete row fails closed (FR-013, NFR-007).
+--     -- p_action = 'delete': objective_key_results is the one hard-deleting audited table, read
+--     -- through the table's own org-wide predicate over the captured snapshot because the row is
+--     -- gone (FR-011/FR-013). Anything else, or an unrecognized action, fails closed.
+--     if p_action = 'delete' then
+--       case
+--         when p_schema = 'mos' and p_table = 'objective_key_results' then
+--           return (p_snapshot ->> 'org_id')::uuid = shared.current_org_id();
+--         else
+--           return false;
+--       end case;
+--     end if;
 --     return false;
 --   end;
 --   $$;
+--   comment on function shared.can_read_history_record(text, text, text, text, jsonb) is
+--     'Read dispatch for shared.record_history (#983 FR-007/008/013, NFR-007; +mos_26): each audited '
+--     'table is named explicitly and read through its own predicate — live row for insert/update, '
+--     'captured snapshot columns for delete. Anything unnamed returns false, so a trigger wired '
+--     'without a matching arm exposes nothing.';
 --   delete from shared.record_history_readers;
 --   drop function shared._history_reader_mos_objectives(text, text, jsonb);
 --   drop function shared._history_reader_mos_work_lines(text, text, jsonb);
+--   drop function shared._history_reader_mos_objective_key_results(text, text, jsonb);
 --   drop table shared.record_history_readers;
 -- (a later batch's DOWN must run first; it removes its own rows and readers.)
 
@@ -103,7 +124,7 @@ comment on policy record_history_readers_select on shared.record_history_readers
   'The registry is metadata, not tenant data: any signed-in caller may read which reader guards a table.';
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- 2. The two Slice-1 readers, ported from the CASE arms
+-- 2. The readers on dev today, ported from the CASE arms
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 
 create or replace function shared._history_reader_mos_objectives(
@@ -160,10 +181,44 @@ comment on function shared._history_reader_mos_work_lines(text, text, jsonb) is
   'for insert/update rows. '
   'Dispatched only through shared.record_history_readers; false for any other action.';
 
+create or replace function shared._history_reader_mos_objective_key_results(
+  p_record_key text,
+  p_action     text,
+  p_snapshot   jsonb
+)
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  if p_action in ('insert', 'update') then
+    return exists (
+      select 1 from mos.objective_key_results k
+      where p_record_key ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        and k.id = p_record_key::uuid
+        and k.org_id = shared.current_org_id());
+  end if;
+  -- delete: the one hard-deleting audited table of Slice 1, read through the table's own org-wide
+  -- predicate over the captured snapshot because the row is gone (FR-011/FR-013).
+  if p_action = 'delete' then
+    return (p_snapshot ->> 'org_id')::uuid = shared.current_org_id();
+  end if;
+  return false;
+end;
+$$;
+comment on function shared._history_reader_mos_objective_key_results(text, text, jsonb) is
+  'History read predicate for mos.objective_key_results (#992, #983): same-org live row for insert/update, '
+  'the captured snapshot''s org for delete. '
+  'Dispatched only through shared.record_history_readers; false for any other action.';
+
 revoke execute on function shared._history_reader_mos_objectives(text, text, jsonb) from public, anon;
 grant  execute on function shared._history_reader_mos_objectives(text, text, jsonb) to authenticated;
 revoke execute on function shared._history_reader_mos_work_lines(text, text, jsonb) from public, anon;
 grant  execute on function shared._history_reader_mos_work_lines(text, text, jsonb) to authenticated;
+revoke execute on function shared._history_reader_mos_objective_key_results(text, text, jsonb) from public, anon;
+grant  execute on function shared._history_reader_mos_objective_key_results(text, text, jsonb) to authenticated;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 3. The dispatch — registry lookup, fail closed
@@ -204,8 +259,9 @@ comment on function shared.can_read_history_record(text, text, text, text, jsonb
   'in shared.record_history_readers and runs its reader. No row, or a NULL answer, is false.';
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- 4. Registry rows for the Slice-1 tables
+-- 4. Registry rows for the tables on dev today
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 insert into shared.record_history_readers (schema_name, table_name, reader) values
   ('mos', 'objectives', 'shared._history_reader_mos_objectives(text, text, jsonb)'::regprocedure),
-  ('mos', 'work_lines', 'shared._history_reader_mos_work_lines(text, text, jsonb)'::regprocedure);
+  ('mos', 'work_lines', 'shared._history_reader_mos_work_lines(text, text, jsonb)'::regprocedure),
+  ('mos', 'objective_key_results', 'shared._history_reader_mos_objective_key_results(text, text, jsonb)'::regprocedure);

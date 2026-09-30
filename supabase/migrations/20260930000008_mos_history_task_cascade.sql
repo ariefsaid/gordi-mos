@@ -1,4 +1,4 @@
--- Change history batch 2a — the task cascade (#986), on the registry mechanism of 20260930000006_shared_record_history_registry.sql
+-- Change history batch 2a — the task cascade (#986), on the registry mechanism of 20260930000007_shared_record_history_registry.sql
 -- (ADR-0059, DA-3). This migration ONLY creates the batch's reader functions, registers them in
 -- shared.record_history_readers and attaches the one generic trigger; it does not replace the
 -- read dispatch, so batches are order-independent and none can drop another's arms.

@@ -4,7 +4,7 @@
 -- mos_24_objective_worklines_history's file.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(53);
+select plan(55);
 
 select shared._test_seed_directory();
 
@@ -257,6 +257,48 @@ select is(
           (values ('insert'), ('update'), ('delete'), ('truncate')) privs(p)
     where has_table_privilege(roles.r, 'shared.record_history_readers', privs.p)),
   0, 'AC-009: neither anon nor authenticated holds a write privilege on the registry');
+
+-- ── AC-018: delete coverage cannot drift. G = ALL tables in the application schemas on which
+--    authenticated holds DELETE, derived from the catalog and not from the registry, so a table that
+--    gains a delete grant without any history wiring is seen. Every such table must carry a
+--    DELETE-firing generic trigger AND a registered snapshot-read rule, else the test names it. The
+--    generic trigger fires on delete for every audited table, so soft-delete tables sit in the
+--    trigger/registry sets without a delete grant; the guard is that G is covered, and (next
+--    assert) that the trigger set stays inside the registry. The one exemption is not a business
+--    record: mos.push_subscriptions (a device's own push endpoint, deleted on sign-out, no audited
+--    content); a new exemption is a reviewed edit here.
+select is_empty(
+  $$ select n.nspname || '.' || c.relname
+       from pg_class c
+       join pg_namespace n on n.oid = c.relnamespace
+      where c.relkind in ('r', 'p')
+        and n.nspname !~ '^(pg_|information_schema$|auth$|storage$|extensions$|vault$|realtime$|graphql|supabase_|net$|cron$|pgsodium|_)'
+        and has_table_privilege('authenticated', c.oid, 'delete')
+        and n.nspname || '.' || c.relname not in ('mos.push_subscriptions')
+     except
+     select n2.nspname || '.' || c2.relname
+       from pg_trigger t
+       join pg_proc p  on p.oid = t.tgfoid
+       join pg_namespace pn on pn.oid = p.pronamespace
+       join pg_class c2 on c2.oid = t.tgrelid
+       join pg_namespace n2 on n2.oid = c2.relnamespace
+       join shared.record_history_readers r
+         on r.schema_name = n2.nspname and r.table_name = c2.relname
+      where pn.nspname = 'shared' and p.proname = '_record_history_write'
+        and not t.tgisinternal and (t.tgtype & 8) <> 0 $$,
+  'AC-018: every table with an authenticated DELETE grant (bar the reviewed exemption) has a DELETE-firing generic history trigger and a registered snapshot-read rule');
+select is_empty(
+  $$ select n2.nspname || '.' || c2.relname
+       from pg_trigger t
+       join pg_proc p  on p.oid = t.tgfoid
+       join pg_namespace pn on pn.oid = p.pronamespace
+       join pg_class c2 on c2.oid = t.tgrelid
+       join pg_namespace n2 on n2.oid = c2.relnamespace
+      where pn.nspname = 'shared' and p.proname = '_record_history_write'
+        and not t.tgisinternal and (t.tgtype & 8) <> 0
+     except
+     select schema_name || '.' || table_name from shared.record_history_readers $$,
+  'AC-018: every DELETE-firing generic trigger sits on a table with a registered snapshot-read rule');
 
 select * from finish();
 rollback;
