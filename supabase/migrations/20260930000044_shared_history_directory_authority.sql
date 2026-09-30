@@ -1,4 +1,4 @@
--- Change history batch 2d — Directory & authority (#989), on the registry mechanism of 20260930000007_shared_record_history_registry.sql
+-- Change history batch 2d — Directory & authority (#989), on the registry mechanism of 20260930000040_shared_record_history_registry.sql
 -- (ADR-0059, DA-3). This migration ONLY creates the batch's reader functions, registers them in
 -- shared.record_history_readers and attaches the one generic trigger; it does not replace the
 -- read dispatch, so batches are order-independent and none can drop another's arms.
@@ -370,16 +370,16 @@ grant  execute on function shared._history_reader_shared_team_lead_assignments(t
 -- 2. Registry rows
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 insert into shared.record_history_readers (schema_name, table_name, reader) values
-  ('shared', 'business_units', 'shared._history_reader_shared_business_units(text, text, jsonb)'::regprocedure),
-  ('shared', 'people', 'shared._history_reader_shared_people(text, text, jsonb)'::regprocedure),
-  ('shared', 'person_access_roles', 'shared._history_reader_shared_person_access_roles(text, text, jsonb)'::regprocedure),
-  ('shared', 'person_roles', 'shared._history_reader_shared_person_roles(text, text, jsonb)'::regprocedure),
-  ('shared', 'roles', 'shared._history_reader_shared_roles(text, text, jsonb)'::regprocedure),
-  ('shared', 'sites', 'shared._history_reader_shared_sites(text, text, jsonb)'::regprocedure),
-  ('shared', 'team_memberships', 'shared._history_reader_shared_team_memberships(text, text, jsonb)'::regprocedure),
-  ('shared', 'teams', 'shared._history_reader_shared_teams(text, text, jsonb)'::regprocedure),
-  ('shared', 'role_authority', 'shared._history_reader_shared_role_authority(text, text, jsonb)'::regprocedure),
-  ('shared', 'team_lead_assignments', 'shared._history_reader_shared_team_lead_assignments(text, text, jsonb)'::regprocedure);
+  ('shared', 'business_units', 'shared._history_reader_shared_business_units(text, text, jsonb)'),
+  ('shared', 'people', 'shared._history_reader_shared_people(text, text, jsonb)'),
+  ('shared', 'person_access_roles', 'shared._history_reader_shared_person_access_roles(text, text, jsonb)'),
+  ('shared', 'person_roles', 'shared._history_reader_shared_person_roles(text, text, jsonb)'),
+  ('shared', 'roles', 'shared._history_reader_shared_roles(text, text, jsonb)'),
+  ('shared', 'sites', 'shared._history_reader_shared_sites(text, text, jsonb)'),
+  ('shared', 'team_memberships', 'shared._history_reader_shared_team_memberships(text, text, jsonb)'),
+  ('shared', 'teams', 'shared._history_reader_shared_teams(text, text, jsonb)'),
+  ('shared', 'role_authority', 'shared._history_reader_shared_role_authority(text, text, jsonb)'),
+  ('shared', 'team_lead_assignments', 'shared._history_reader_shared_team_lead_assignments(text, text, jsonb)');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 3. Wire the observer triggers

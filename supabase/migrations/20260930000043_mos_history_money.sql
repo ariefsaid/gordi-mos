@@ -1,4 +1,4 @@
--- Change history batch 2c — Money (#988), on the registry mechanism of 20260930000007_shared_record_history_registry.sql
+-- Change history batch 2c — Money (#988), on the registry mechanism of 20260930000040_shared_record_history_registry.sql
 -- (ADR-0059, DA-3). This migration ONLY creates the batch's reader functions, registers them in
 -- shared.record_history_readers and attaches the one generic trigger; it does not replace the
 -- read dispatch, so batches are order-independent and none can drop another's arms.
@@ -176,10 +176,10 @@ grant  execute on function shared._history_reader_reporting_supervisor_revenue_s
 -- 2. Registry rows
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 insert into shared.record_history_readers (schema_name, table_name, reader) values
-  ('mos', 'budgets', 'shared._history_reader_mos_budgets(text, text, jsonb)'::regprocedure),
-  ('mos', 'budget_lines', 'shared._history_reader_mos_budget_lines(text, text, jsonb)'::regprocedure),
-  ('mos', 'certified_metrics', 'shared._history_reader_mos_certified_metrics(text, text, jsonb)'::regprocedure),
-  ('reporting', 'supervisor_revenue_scope', 'shared._history_reader_reporting_supervisor_revenue_scope(text, text, jsonb)'::regprocedure);
+  ('mos', 'budgets', 'shared._history_reader_mos_budgets(text, text, jsonb)'),
+  ('mos', 'budget_lines', 'shared._history_reader_mos_budget_lines(text, text, jsonb)'),
+  ('mos', 'certified_metrics', 'shared._history_reader_mos_certified_metrics(text, text, jsonb)'),
+  ('reporting', 'supervisor_revenue_scope', 'shared._history_reader_reporting_supervisor_revenue_scope(text, text, jsonb)');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 3. Wire the observer triggers

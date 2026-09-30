@@ -244,8 +244,9 @@ select set_eq(
   'AC-009: the trigger-wired table set equals the registry table set, in both directions');
 select is(
   (select count(*)::int from shared.record_history_readers r
-    join pg_proc p on p.oid = r.reader
-   where p.prosecdef
+    left join pg_proc p on p.oid = to_regprocedure(r.reader)::oid
+   where p.oid is null
+      or p.prosecdef
       or p.prorettype <> 'boolean'::regtype
       or array_to_string(p.proargtypes::oid[]::regtype[], ',') <> 'text,text,jsonb'
       or p.provolatile <> 's'

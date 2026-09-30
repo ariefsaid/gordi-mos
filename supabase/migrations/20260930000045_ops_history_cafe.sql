@@ -1,4 +1,4 @@
--- Change history batch 2e — Café / kitchen (#990), on the registry mechanism of 20260930000007_shared_record_history_registry.sql
+-- Change history batch 2e — Café / kitchen (#990), on the registry mechanism of 20260930000040_shared_record_history_registry.sql
 -- (ADR-0059, DA-3). This migration ONLY creates the batch's reader functions, registers them in
 -- shared.record_history_readers and attaches the one generic trigger; it does not replace the
 -- read dispatch, so batches are order-independent and none can drop another's arms.
@@ -277,13 +277,13 @@ grant  execute on function shared._history_reader_ops_stream_items(text, text, j
 -- 2. Registry rows
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 insert into shared.record_history_readers (schema_name, table_name, reader) values
-  ('ops', 'log_entries', 'shared._history_reader_ops_log_entries(text, text, jsonb)'::regprocedure),
-  ('ops', 'kitchen_logs', 'shared._history_reader_ops_kitchen_logs(text, text, jsonb)'::regprocedure),
-  ('ops', 'kitchen_plans', 'shared._history_reader_ops_kitchen_plans(text, text, jsonb)'::regprocedure),
-  ('ops', 'wip_items', 'shared._history_reader_ops_wip_items(text, text, jsonb)'::regprocedure),
-  ('ops', 'item_units', 'shared._history_reader_ops_item_units(text, text, jsonb)'::regprocedure),
-  ('ops', 'stream_completeness', 'shared._history_reader_ops_stream_completeness(text, text, jsonb)'::regprocedure),
-  ('ops', 'stream_items', 'shared._history_reader_ops_stream_items(text, text, jsonb)'::regprocedure);
+  ('ops', 'log_entries', 'shared._history_reader_ops_log_entries(text, text, jsonb)'),
+  ('ops', 'kitchen_logs', 'shared._history_reader_ops_kitchen_logs(text, text, jsonb)'),
+  ('ops', 'kitchen_plans', 'shared._history_reader_ops_kitchen_plans(text, text, jsonb)'),
+  ('ops', 'wip_items', 'shared._history_reader_ops_wip_items(text, text, jsonb)'),
+  ('ops', 'item_units', 'shared._history_reader_ops_item_units(text, text, jsonb)'),
+  ('ops', 'stream_completeness', 'shared._history_reader_ops_stream_completeness(text, text, jsonb)'),
+  ('ops', 'stream_items', 'shared._history_reader_ops_stream_items(text, text, jsonb)');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 3. Wire the observer triggers

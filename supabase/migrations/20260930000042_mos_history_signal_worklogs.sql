@@ -1,4 +1,4 @@
--- Change history batch 2b — Signals & work items (#987), on the registry mechanism of 20260930000007_shared_record_history_registry.sql
+-- Change history batch 2b — Signals & work items (#987), on the registry mechanism of 20260930000040_shared_record_history_registry.sql
 -- (ADR-0059, DA-3). This migration ONLY creates the batch's reader functions, registers them in
 -- shared.record_history_readers and attaches the one generic trigger; it does not replace the
 -- read dispatch, so batches are order-independent and none can drop another's arms.
@@ -300,14 +300,14 @@ grant  execute on function shared._history_reader_mos_follow_ups(text, text, jso
 -- 2. Registry rows
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 insert into shared.record_history_readers (schema_name, table_name, reader) values
-  ('mos', 'signals', 'shared._history_reader_mos_signals(text, text, jsonb)'::regprocedure),
-  ('mos', 'signal_mentions', 'shared._history_reader_mos_signal_mentions(text, text, jsonb)'::regprocedure),
-  ('mos', 'signal_acknowledgements', 'shared._history_reader_mos_signal_acknowledgements(text, text, jsonb)'::regprocedure),
-  ('mos', 'signal_tasks', 'shared._history_reader_mos_signal_tasks(text, text, jsonb)'::regprocedure),
-  ('mos', 'weekly_updates', 'shared._history_reader_mos_weekly_updates(text, text, jsonb)'::regprocedure),
-  ('mos', 'weekly_update_items', 'shared._history_reader_mos_weekly_update_items(text, text, jsonb)'::regprocedure),
-  ('mos', 'events', 'shared._history_reader_mos_events(text, text, jsonb)'::regprocedure),
-  ('mos', 'follow_ups', 'shared._history_reader_mos_follow_ups(text, text, jsonb)'::regprocedure);
+  ('mos', 'signals', 'shared._history_reader_mos_signals(text, text, jsonb)'),
+  ('mos', 'signal_mentions', 'shared._history_reader_mos_signal_mentions(text, text, jsonb)'),
+  ('mos', 'signal_acknowledgements', 'shared._history_reader_mos_signal_acknowledgements(text, text, jsonb)'),
+  ('mos', 'signal_tasks', 'shared._history_reader_mos_signal_tasks(text, text, jsonb)'),
+  ('mos', 'weekly_updates', 'shared._history_reader_mos_weekly_updates(text, text, jsonb)'),
+  ('mos', 'weekly_update_items', 'shared._history_reader_mos_weekly_update_items(text, text, jsonb)'),
+  ('mos', 'events', 'shared._history_reader_mos_events(text, text, jsonb)'),
+  ('mos', 'follow_ups', 'shared._history_reader_mos_follow_ups(text, text, jsonb)');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 3. Wire the observer triggers

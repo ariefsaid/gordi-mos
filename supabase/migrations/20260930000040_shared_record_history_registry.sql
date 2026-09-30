@@ -4,7 +4,8 @@
 -- shared.record_history_readers; every later batch creates its own reader function, inserts its
 -- registry row and attaches its trigger, and never touches the dispatch again.
 --
---   shared.record_history_readers — (schema_name, table_name) -> reader regprocedure. RLS on,
+--   shared.record_history_readers — (schema_name, table_name) -> reader, the function's
+--                          schema-qualified signature as TEXT (a reg* column would block pg_upgrade). RLS on,
 --                          readable by authenticated, no write grant to anon/authenticated: rows
 --                          arrive only through migrations, so no session can register a reader.
 --   reader                 — SECURITY INVOKER, stable, search_path pinned, signature
@@ -14,10 +15,11 @@
 --                          this history row" is the answer to "can you read the row it describes",
 --                          under the caller's own RLS.
 --   dispatch               — no registry row: false (fail closed, spec NFR-007). Reader returns
---                          NULL: false. Otherwise the reader's answer. Execution is dynamic
---                          (format + EXECUTE on the regprocedure's own quoted name); the reader
---                          oid never comes from caller input, only from the migration-seeded
---                          registry.
+--                          NULL, or a reader that no longer resolves (to_regprocedure at read time):
+--                          false. Otherwise the reader's answer. Execution is dynamic (format +
+--                          EXECUTE on the resolved function's own quoted name); the reader never
+--                          comes from caller input, only from the migration-seeded registry, and
+--                          a CHECK refuses a row that names no function at registration.
 --
 -- The three arms on dev (mos.objectives, mos.work_lines, and #992's mos.objective_key_results with its
 -- delete snapshot arm) become readers and rows here,
@@ -102,7 +104,8 @@
 create table shared.record_history_readers (
   schema_name text not null,
   table_name  text not null,
-  reader      regprocedure not null,
+  reader      text not null
+    constraint record_history_readers_reader_resolves check (to_regprocedure(reader) is not null),
   primary key (schema_name, table_name)
 );
 comment on table shared.record_history_readers is
@@ -241,11 +244,11 @@ declare
   v_reader regprocedure;
   v_ok     boolean;
 begin
-  select r.reader into v_reader
+  select to_regprocedure(r.reader) into v_reader
   from shared.record_history_readers r
   where r.schema_name = p_schema and r.table_name = p_table;
   if v_reader is null then
-    return false;
+    return false;  -- no row, or a row whose reader no longer resolves
   end if;
   -- %s of a regproc is the schema-qualified, correctly quoted name; nothing caller-supplied is
   -- interpolated (the record key, action and snapshot travel as bind parameters).
@@ -256,12 +259,12 @@ end;
 $$;
 comment on function shared.can_read_history_record(text, text, text, text, jsonb) is
   'Read dispatch for shared.record_history (#983 FR-007/008/013, NFR-007, DA-3): looks the table up '
-  'in shared.record_history_readers and runs its reader. No row, or a NULL answer, is false.';
+  'in shared.record_history_readers and runs its reader. No row, an unresolvable reader, or a NULL answer is false.';
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 4. Registry rows for the tables on dev today
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 insert into shared.record_history_readers (schema_name, table_name, reader) values
-  ('mos', 'objectives', 'shared._history_reader_mos_objectives(text, text, jsonb)'::regprocedure),
-  ('mos', 'work_lines', 'shared._history_reader_mos_work_lines(text, text, jsonb)'::regprocedure),
-  ('mos', 'objective_key_results', 'shared._history_reader_mos_objective_key_results(text, text, jsonb)'::regprocedure);
+  ('mos', 'objectives', 'shared._history_reader_mos_objectives(text, text, jsonb)'),
+  ('mos', 'work_lines', 'shared._history_reader_mos_work_lines(text, text, jsonb)'),
+  ('mos', 'objective_key_results', 'shared._history_reader_mos_objective_key_results(text, text, jsonb)');

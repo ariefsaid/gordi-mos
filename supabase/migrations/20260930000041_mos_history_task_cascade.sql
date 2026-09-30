@@ -1,4 +1,4 @@
--- Change history batch 2a — the task cascade (#986), on the registry mechanism of 20260930000007_shared_record_history_registry.sql
+-- Change history batch 2a — the task cascade (#986), on the registry mechanism of 20260930000040_shared_record_history_registry.sql
 -- (ADR-0059, DA-3). This migration ONLY creates the batch's reader functions, registers them in
 -- shared.record_history_readers and attaches the one generic trigger; it does not replace the
 -- read dispatch, so batches are order-independent and none can drop another's arms.
@@ -220,12 +220,12 @@ grant  execute on function shared._history_reader_mos_process_run_pending_tasks(
 -- 2. Registry rows
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 insert into shared.record_history_readers (schema_name, table_name, reader) values
-  ('mos', 'tasks', 'shared._history_reader_mos_tasks(text, text, jsonb)'::regprocedure),
-  ('mos', 'task_checklist_items', 'shared._history_reader_mos_task_checklist_items(text, text, jsonb)'::regprocedure),
-  ('mos', 'process_cadences', 'shared._history_reader_mos_process_cadences(text, text, jsonb)'::regprocedure),
-  ('mos', 'process_task_defs', 'shared._history_reader_mos_process_task_defs(text, text, jsonb)'::regprocedure),
-  ('mos', 'process_runs', 'shared._history_reader_mos_process_runs(text, text, jsonb)'::regprocedure),
-  ('mos', 'process_run_pending_tasks', 'shared._history_reader_mos_process_run_pending_tasks(text, text, jsonb)'::regprocedure);
+  ('mos', 'tasks', 'shared._history_reader_mos_tasks(text, text, jsonb)'),
+  ('mos', 'task_checklist_items', 'shared._history_reader_mos_task_checklist_items(text, text, jsonb)'),
+  ('mos', 'process_cadences', 'shared._history_reader_mos_process_cadences(text, text, jsonb)'),
+  ('mos', 'process_task_defs', 'shared._history_reader_mos_process_task_defs(text, text, jsonb)'),
+  ('mos', 'process_runs', 'shared._history_reader_mos_process_runs(text, text, jsonb)'),
+  ('mos', 'process_run_pending_tasks', 'shared._history_reader_mos_process_run_pending_tasks(text, text, jsonb)');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 3. Wire the observer triggers
