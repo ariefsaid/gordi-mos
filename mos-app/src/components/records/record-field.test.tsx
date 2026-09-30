@@ -46,6 +46,12 @@ it('opens plain related clicks in the record stack and retains canonical modifie
   expect(onOpen).toHaveBeenCalledTimes(1)
 })
 
+it('hints the expected input in an empty text editor through spec.placeholder', () => {
+  render(<I18nProvider><RecordField spec={{ key: 'period', label: 'Period', control: 'text', value: null, displayValue: 'Not set', placeholder: 'Year, e.g. 2026', editable: true }} onCommit={vi.fn()} /></I18nProvider>)
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Period' }))
+  expect(screen.getByRole('textbox', { name: 'Period' })).toHaveAttribute('placeholder', 'Year, e.g. 2026')
+})
+
 function renderField(spec: RecordFieldSpec, extra: {
   onCommit?: (v: RecordValue) => Promise<void>
   onCancel?: () => void

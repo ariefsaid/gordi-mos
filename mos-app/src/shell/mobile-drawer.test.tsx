@@ -36,11 +36,11 @@ function LocationDisplay() {
   return <div data-testid="location">{location.pathname}</div>
 }
 
-function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'] }: { open?: boolean; onClose?: () => void; accessRoles?: string[] } = {}) {
+function renderDrawer({ open = true, onClose = vi.fn(), accessRoles = ['admin'], locale }: { open?: boolean; onClose?: () => void; accessRoles?: string[]; locale?: 'id' } = {}) {
   setAuthAs(accessRoles)
   return render(
     <ThemeProvider>
-      <I18nProvider>
+      <I18nProvider initialLocale={locale}>
         <MemoryRouter initialEntries={['/']}>
           <Routes>
             <Route path="*" element={<><MobileDrawer open={open} onClose={onClose} /><LocationDisplay /></>} />
@@ -257,5 +257,13 @@ describe('More menu navigation + a11y', () => {
     expect(dialog.className).toMatch(/\bleft-0\b/)
     expect(dialog.className).not.toMatch(/\bright-0\b/)
     expect(dialog.className).toMatch(/\bmobile-drawer-panel\b/)
+  })
+})
+
+describe('Issue 1109: drawer accessible names are translated', () => {
+  it('in Indonesian the panel and close button use the translated names', () => {
+    renderDrawer({ locale: 'id' })
+    expect(screen.getByRole('dialog', { name: 'Lainnya' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tutup' })).toBeInTheDocument()
   })
 })

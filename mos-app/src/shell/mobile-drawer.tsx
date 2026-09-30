@@ -188,7 +188,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label="More"
+        aria-label={t('nav.more')}
         // OD-REDESIGN-91 #37: opens from the LEFT (left-0 + slide-in-from-left) to match the ☰
         // hamburger position (top-left) and the rail side — the prior right-slide was "not natural".
         className="mobile-drawer-panel fixed inset-y-0 left-0 bg-secondary flex flex-col overflow-auto"
@@ -198,7 +198,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
           <span className="font-semibold text-foreground">{t('nav.more')}</span>
           <button
             type="button"
-            aria-label="Close"
+            aria-label={t('record.close')}
             className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm hover:bg-accent"
             style={{ width: 32, height: 32 }}
             onClick={closeAndReturn}

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { WorkWriteScopes } from '@/lib/db/work-authority'
@@ -37,7 +37,10 @@ const kr = (o: Partial<KeyResultRow> = {}): KeyResultRow => ({
 
 function renderSection(
   scopes: WorkWriteScopes,
-  props: { businessUnitId?: string | null; isCompanyWide?: boolean; archived?: boolean } = {},
+  props: {
+    businessUnitId?: string | null; isCompanyWide?: boolean; archived?: boolean
+    scopesStatus?: 'loading' | 'ready' | 'error'; onRetryScopes?: () => void
+  } = {},
 ) {
   return render(
     <I18nProvider>
@@ -47,6 +50,8 @@ function renderSection(
         isCompanyWide={props.isCompanyWide ?? false}
         archived={props.archived ?? false}
         scopes={scopes}
+        scopesStatus={props.scopesStatus}
+        onRetryScopes={props.onRetryScopes}
       />
     </I18nProvider>,
   )
@@ -108,6 +113,24 @@ describe('key results authority', () => {
     }
     expect(screen.getByLabelText('Due')).toBeInTheDocument()
     expect(screen.getByText('Responsible')).toBeInTheDocument()
+  })
+})
+
+describe('key results permission lookup', () => {
+  it('offers a retry, never the read-only note, when the permission lookup failed', async () => {
+    const onRetryScopes = vi.fn()
+    renderSection(MEMBER, { scopesStatus: 'error', onRetryScopes })
+    await screen.findByText('Ship orders')
+    expect(screen.getByText("Couldn't check your permissions.")).toBeInTheDocument()
+    expect(screen.queryByText('You can view key results, but not edit them.')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(onRetryScopes).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows no read-only note while the permission lookup is still running', async () => {
+    renderSection(MEMBER, { scopesStatus: 'loading' })
+    await screen.findByText('Ship orders')
+    expect(screen.queryByRole('note')).toBeNull()
   })
 })
 
@@ -229,14 +252,13 @@ describe('key result commits', () => {
   })
 
   it('does not send a non-numeric value', async () => {
-    const user = userEvent.setup()
     renderSection(OPS_LEAD)
     await screen.findByText('Ship orders')
     const input = screen.getByRole('textbox', { name: 'Current' })
-    await user.clear(input)
-    await user.type(input, 'Infinity')
-    await user.tab()
-    await screen.findByRole('button', { name: 'Retry' })
+    fireEvent.change(input, { target: { value: 'Infinity' } })
+    // The blur starts the commit; act drains it, so the failed state is settled before any assertion.
+    await act(async () => { fireEvent.blur(input) })
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(updateKeyResultCurrentValue).not.toHaveBeenCalled()
     expect(input).toHaveValue('Infinity')
   })
