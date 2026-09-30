@@ -5,7 +5,7 @@ const mos = () => supabase.schema('mos')
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export type RailCounts = {
-  /** Open tasks owned by the viewer (R or A), matching Home's My work predicate. */
+  /** Open tasks in the viewer's default view; "open" is lib/task-open's rule, counted server-side. */
   openTasks: number
 }
 

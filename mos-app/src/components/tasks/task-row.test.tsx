@@ -11,6 +11,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
@@ -602,6 +603,32 @@ describe('TaskRow — inline Status/PIC editors open on the first activation and
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Edit task PIC' })).toBeNull())
     expect(document.activeElement).toBe(picTrigger())
+  })
+})
+
+// #1033: the inline editors' accessible names are catalog strings, not English literals.
+describe('TaskRow — inline editor names follow the locale', () => {
+  const people = [{ id: 'p-1', full_name: 'Rina Lestari' }]
+
+  it.each([
+    ['en', ['Edit task status', 'Edit task PIC', 'Edit task due date', 'Due date']],
+    ['id', ['Ubah status tugas', 'Ubah PIC tugas', 'Ubah tenggat tugas', 'Tenggat']],
+  ] as const)('%s', async (locale, [status, pic, dueTrigger, dueInput]) => {
+    render(
+      <I18nProvider initialLocale={locale}>
+        <MemoryRouter>
+          <table><tbody><TaskRow {...baseProps({ onEditStatus: vi.fn(), onEditPic: vi.fn(), onEditDue: vi.fn(), personOptions: people })} /></tbody></table>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: /Blocked|Terblokir|Diblokir/ }))
+    expect(await screen.findByRole('combobox', { name: status })).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(screen.getByRole('button', { name: /Rina/ }))
+    expect(await screen.findByRole('combobox', { name: pic })).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    fireEvent.click(screen.getByRole('button', { name: dueTrigger }))
+    expect(screen.getByLabelText(dueInput)).toBeInTheDocument()
   })
 })
 

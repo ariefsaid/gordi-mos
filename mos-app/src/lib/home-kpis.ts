@@ -1,12 +1,10 @@
 // home-kpis.ts — pure selectors for the Home KPI row (Task 4.2, AC-HK01/02).
-// Consumes SalesMarginDailyRow[] (§7a contract) + TaskListRow[]; emits display-ready
+// Consumes SalesMarginDailyRow[] (§7a contract); emits display-ready
 // primitives (strings + a DeltaDisplay) for KPITile — the tile never learns "margin"
 // or "task". No DB access, no Date.now() for reporting-period math (mirrors
 // lib/sales-dashboard.ts's trailingWindow discipline).
 
 import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
-import type { TaskListRow } from '@/lib/db/tasks.types'
-import { raciOwner } from '@/lib/raci-member'
 import { formatIDRCompact, formatDelta, type DeltaDisplay } from '@/lib/sales-dashboard'
 import { trailingSum } from '@/lib/trailing-window'
 
@@ -53,12 +51,4 @@ export function formatMarginKpi(window: MarginWindow, latestPct: number | null):
     delta: formatDelta(window),
     pctSub: latestPct == null ? '' : `${Math.round(latestPct * 1000) / 10}% margin`,
   }
-}
-
-// ── Tasks (Home "My open tasks" tile) ─────────────────────────────────────────────
-/** Count of tasks where the viewer is Responsible or Accountable and status is not
- * Done (clone of MyTasksCard's R/A filter, minus the off-track sort — Home only
- * needs the count). */
-export function openTaskCount(tasks: TaskListRow[], viewerId: string): number {
-  return tasks.filter(t => raciOwner(t, viewerId) && t.status !== 'Done').length
 }
