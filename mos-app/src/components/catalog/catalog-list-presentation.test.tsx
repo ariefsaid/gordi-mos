@@ -243,3 +243,34 @@ describe('CatalogListPresentation owner-cell grammar', () => {
     expect(screen.getByRole('columnheader', { name: 'Accountable' })).toBeInTheDocument()
   })
 })
+
+describe('CatalogListPresentation Objective Business Unit cell', () => {
+  const objectiveContext = { relationsKind: 'objective' as const, businessUnitsById: new Map([['bu-1', 'Retail Ops']]) }
+  const cell = (name: string) => within(screen.getByRole('link', { name })).getByRole('cell', { name: /^Business Unit:/ })
+
+  it('names a unit, and shows the year and quarter beside it', () => {
+    renderRows([{ id: 'o1', name: 'Named', archived_at: null, businessUnitId: 'bu-1', periodYear: 2026, periodQuarter: 3 }], objectiveContext)
+    expect(cell('Named')).toHaveAccessibleName('Business Unit: Retail Ops')
+    expect(cell('Named')).toHaveTextContent('2026 · Q3')
+  })
+
+  it('reads Company-wide, never Not set, and is not muted', () => {
+    renderRows([{ id: 'o2', name: 'Whole company', archived_at: null, businessUnitId: null, isCompanyWide: true, periodYear: 2026 }], objectiveContext)
+    expect(cell('Whole company')).toHaveAccessibleName('Business Unit: Company-wide')
+    expect(cell('Whole company').querySelector('.catalog-collection__cell-value--muted')).toBeNull()
+    expect(cell('Whole company')).toHaveTextContent('Company-wide')
+    expect(cell('Whole company')).not.toHaveTextContent('2026 ·')
+  })
+
+  it('keeps the column when the only fact is Company-wide', () => {
+    renderRows([{ id: 'o5', name: 'Alone', archived_at: null, businessUnitId: null, isCompanyWide: true }], objectiveContext)
+    expect(cell('Alone')).toHaveAccessibleName('Business Unit: Company-wide')
+  })
+
+  it('keeps an unset Objective at muted Not set', () => {
+    // a sibling with a unit keeps the column on screen (dev hides a column that is empty on every row)
+    renderRows([{ id: 'o3', name: 'Unset', archived_at: null, businessUnitId: null, isCompanyWide: false }, { id: 'o4', name: 'Named', archived_at: null, businessUnitId: 'bu-1' }], objectiveContext)
+    expect(cell('Unset')).toHaveAccessibleName('Business Unit: Not set')
+    expect(cell('Unset').querySelector('.catalog-collection__cell-value--muted')).not.toBeNull()
+  })
+})
