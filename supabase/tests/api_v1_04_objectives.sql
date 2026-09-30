@@ -78,6 +78,7 @@ $f$;
 create function pg_temp.personas() returns table (label text, org text, person text, roles text) language sql as $f$
   values ('author','a1','d1','"member"'), ('lead','a1','d2','"member"'), ('head','a1','d3','"member"'),
          ('ops_lead','a1','d4','"member","ops_lead"'), ('report','a1','d5','"member"'),
+         ('finance','a1','d1','"member","finance"'),
          ('unit2_head','a1','d7','"member"'), ('admin','a1','d3','"admin"'),
          ('other_org','b1','b4','"member"')
 $f$;
@@ -240,13 +241,13 @@ select is(pg_temp.matrix(
   $q$ select api_v1.edit_objective_write_up('00000000-0000-0000-0000-0000000008a2', '[{"type":"paragraph"}]', (select updated_at from mos.objectives where id = '00000000-0000-0000-0000-0000000008a2')) $q$,
   $q$ do $d$ begin update mos.objectives set write_up = '[{"type":"paragraph"}]' where id = '00000000-0000-0000-0000-0000000008a2';
         if not found then raise exception 'no row'; end if; end $d$ $q$),
-  'author=R/R;lead=R/R;head=R/R;ops_lead=A/A;report=R/R;unit2_head=A/A;admin=A/A;other_org=R/R;',
+  'author=R/R;lead=R/R;head=R/R;ops_lead=A/A;report=R/R;finance=R/R;unit2_head=A/A;admin=A/A;other_org=R/R;',
   'AC-001 edit_objective_write_up on a Unit-2 Objective: layer = table for every role');
 select is(pg_temp.matrix(
   $q$ select api_v1.edit_objective_write_up('00000000-0000-0000-0000-0000000008a1', '[{"type":"paragraph"}]', (select updated_at from mos.objectives where id = '00000000-0000-0000-0000-0000000008a1')) $q$,
   $q$ do $d$ begin update mos.objectives set write_up = '[{"type":"paragraph"}]' where id = '00000000-0000-0000-0000-0000000008a1';
         if not found then raise exception 'no row'; end if; end $d$ $q$),
-  'author=R/R;lead=R/R;head=A/A;ops_lead=A/A;report=R/R;unit2_head=R/R;admin=A/A;other_org=R/R;',
+  'author=R/R;lead=R/R;head=A/A;ops_lead=A/A;report=R/R;finance=R/R;unit2_head=R/R;admin=A/A;other_org=R/R;',
   'AC-001 edit_objective_write_up on a Unit-1 Objective: layer = table for every role');
 
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
@@ -300,13 +301,13 @@ select is(pg_temp.matrix(
   $q$ select api_v1.set_key_result_current_value('00000000-0000-0000-0000-0000000008c1', 3) $q$,
   $q$ do $d$ begin update mos.objective_key_results set current_value = 3 where id = '00000000-0000-0000-0000-0000000008c1';
         if not found then raise exception 'no row'; end if; end $d$ $q$),
-  'author=R/R;lead=R/R;head=R/R;ops_lead=A/A;report=R/R;unit2_head=A/A;admin=A/A;other_org=R/R;',
+  'author=R/R;lead=R/R;head=R/R;ops_lead=A/A;report=R/R;finance=R/R;unit2_head=A/A;admin=A/A;other_org=R/R;',
   'AC-001 set_key_result_current_value on a Unit-2 key result: layer = table for every role');
 select is(pg_temp.matrix(
   $q$ select api_v1.set_key_result_current_value('00000000-0000-0000-0000-0000000008c3', 3) $q$,
   $q$ do $d$ begin update mos.objective_key_results set current_value = 3 where id = '00000000-0000-0000-0000-0000000008c3';
         if not found then raise exception 'no row'; end if; end $d$ $q$),
-  'author=R/R;lead=R/R;head=A/A;ops_lead=A/A;report=R/R;unit2_head=R/R;admin=A/A;other_org=R/R;',
+  'author=R/R;lead=R/R;head=A/A;ops_lead=A/A;report=R/R;finance=R/R;unit2_head=R/R;admin=A/A;other_org=R/R;',
   'AC-001 set_key_result_current_value on a Unit-1 key result: layer = table for every role');
 
 -- ═════════════════════════════════════════════════════════════════════════════════════════════

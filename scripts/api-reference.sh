@@ -63,6 +63,7 @@ def placeholder:
   elif .type == "text" then "\"<text>\""
   elif .type == "date" then "\"YYYY-MM-DD\""
   elif .type == "timestamp with time zone" then "\"<timestamp>\""
+  elif .name == "write_up" then "[]"
   elif .type == "jsonb" then "{}"
   elif .type == "boolean" then "true"
   elif .type == "integer" or .type == "numeric" then "0"

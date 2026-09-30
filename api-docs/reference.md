@@ -537,7 +537,7 @@ Errors: invalid_input (write_up, expected_updated_at), not_found, forbidden, con
 Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
 ```json
-{ "id": "<uuid>", "write_up": {}, "expected_updated_at": "<timestamp>" }
+{ "id": "<uuid>", "write_up": [], "expected_updated_at": "<timestamp>" }
 ```
 
 ### `get_objective`
