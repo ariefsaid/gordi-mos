@@ -31,6 +31,7 @@ import {
 } from './catalog-collection-adapter'
 import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogRecordEditDirectory } from './catalog-record-loader'
 import './catalog-record-document.css'
+import { ObjectiveKeyResultsSection } from './objective-key-results-section'
 import { allowedBusinessUnitIds, canManageForScope, useWorkWriteAuthority } from './use-work-write-authority'
 
 export type CatalogRecordKind = 'work-line' | 'objective'
@@ -502,9 +503,22 @@ export function CatalogRecordDocument({
         ...(kind === 'objective' || row.type === 'project' ? [{
           id: 'work',
           label: t('catalog.record.tabs.work'),
-          render: () => linkedWorkSlot(
-            allRelationGroups, relationTasks, kind, id,
-            context.progressById.get(id) ?? { done: 0, total: 0 }, onOpenRelated, onCreateTask, t,
+          render: () => (
+            <>
+              {linkedWorkSlot(
+                allRelationGroups, relationTasks, kind, id,
+                context.progressById.get(id) ?? { done: 0, total: 0 }, onOpenRelated, onCreateTask, t,
+              )}
+              {kind === 'objective' ? (
+                <ObjectiveKeyResultsSection
+                  objectiveId={id}
+                  businessUnitId={row.businessUnitId}
+                  isCompanyWide={row.isCompanyWide}
+                  archived={row.archived_at !== null}
+                  scopes={scopes}
+                />
+              ) : null}
+            </>
           ),
         }] : []),
         ...(row.type === 'process' ? [{
