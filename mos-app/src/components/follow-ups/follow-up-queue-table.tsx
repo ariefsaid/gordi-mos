@@ -8,6 +8,7 @@
 // and carries its own bespoke table and detail aside instead. #428 owns the cutover; the rebuild
 // is deferred (OD-WAY-34).
 import { useT } from '@/i18n/use-t'
+import { saveErrorMessage } from '@/lib/save-error'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { Button } from '@/components/ui/button'
@@ -164,7 +165,7 @@ export function FollowUpQueueTable({
     <>
       {state === 'loading' && <LoadingShell count={5} label={t('followUps.loading')} />}
       {state === 'error' && (
-        <ErrorState message={error ?? t('followUps.error')} onRetry={() => { load() }} />
+        <ErrorState message={error ? saveErrorMessage(error, t) : t('followUps.error')} onRetry={() => { load() }} />
       )}
       {state === 'ready' && rows.length === 0 && <EmptyState title={t('followUps.empty')} />}
       {state === 'ready' && rows.length > 0 && (

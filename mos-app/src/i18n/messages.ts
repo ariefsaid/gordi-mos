@@ -457,7 +457,12 @@ export const messages = {
     'common.loading': 'Loading…',
     'common.cancel': 'Cancel',
     'common.working': 'Working…',
-    'common.unexpectedError': 'Something went wrong. Try again.',
+    // The words a failed save or load shows (lib/save-error.ts) — never the raw error text.
+    'error.save.network': 'You’re offline or the server can’t be reached. Check your connection and try again.',
+    'error.save.permission': 'You don’t have permission to do this.',
+    'error.save.conflict': 'This changed elsewhere or already exists. Refresh and try again.',
+    'error.save.validation': 'Some of what you entered isn’t valid. Check it and try again.',
+    'error.save.generic': 'Couldn’t save. Try again.',
     // One load-failure sentence, parameterised, so a page never hand-rolls it.
     // `common.what.*` names the noun the failure is about. `common.docTitle` is
     // NOT redeclared here — the Home port (#191) already added it above.
@@ -1212,7 +1217,6 @@ export const messages = {
     'catalog.nameLabel': 'Name',
     'catalog.namePlaceholder': 'Name…',
     'catalog.nameRequired': 'Name is required',
-    'catalog.addFailed': 'Could not add',
     'catalog.saveFailed': 'Could not save',
     'catalog.announce.added': 'Added ${name}',
     'catalog.announce.renamed': 'Renamed to ${name}',
@@ -1688,6 +1692,9 @@ export const messages = {
     'admin.roles.confirmRevoke.title': 'Remove Admin from ${name}?',
     'admin.roles.confirmRevoke.body': "They will no longer manage people, access, Team leads or the organization's access rules.",
     'admin.roles.confirmRevoke.confirm': 'Remove Admin',
+    'admin.roles.confirmOpsLead.title': 'Make ${name} an Ops Lead?',
+    'admin.roles.confirmOpsLead.body': 'Ops Leads plan and approve Café work for the streams they run.',
+    'admin.roles.confirmOpsLead.confirm': 'Make Ops Lead',
     'admin.teamsPage.title': 'Teams',
     'admin.teamsPage.job': 'See who is on each Team and choose its lead.',
     'admin.teamsPage.helper': "A lead is one of the Team's active members. Choosing one saves right away.",
@@ -1758,7 +1765,6 @@ export const messages = {
     'kitchen.review.notice.staleRefresh': 'Already reviewed by someone else — refreshing the queue…',
     'kitchen.review.notice.bulkTruth': '${approved} approved · ${failed} failed · ${stale} stale — refreshing the queue…',
     'kitchen.review.error.forbidden': 'You are not permitted to review this log.',
-    'kitchen.review.error.generic': 'Something went wrong. Please try again.',
     // The crash screen. ErrorFallback mounts ABOVE I18nProvider (top-level boundary), so it
     // resolves the catalog via translateFor(readPersistedLocale()) — never useT().
     'errorBoundary.title': 'This screen stopped working',
@@ -2267,7 +2273,11 @@ export const messages = {
     'common.loading': 'Memuat…',
     'common.cancel': 'Batal',
     'common.working': 'Memproses…',
-    'common.unexpectedError': 'Terjadi kesalahan. Coba lagi.',
+    'error.save.network': 'Anda sedang offline atau server tidak dapat dihubungi. Periksa koneksi lalu coba lagi.',
+    'error.save.permission': 'Anda tidak punya izin untuk melakukan ini.',
+    'error.save.conflict': 'Data ini berubah di tempat lain atau sudah ada. Muat ulang lalu coba lagi.',
+    'error.save.validation': 'Sebagian isian tidak valid. Periksa lalu coba lagi.',
+    'error.save.generic': 'Tidak dapat menyimpan. Coba lagi.',
     // `common.docTitle` is NOT redeclared here — the Home port (#191) already added it above.
     'common.loadFailed': 'Gagal memuat ${what}. Periksa koneksi Anda lalu coba lagi.',
     'network.error.title': 'Server tidak dapat dihubungi',
@@ -2949,7 +2959,6 @@ export const messages = {
     'catalog.nameLabel': 'Nama',
     'catalog.namePlaceholder': 'Nama…',
     'catalog.nameRequired': 'Nama wajib diisi',
-    'catalog.addFailed': 'Tidak dapat menambah',
     'catalog.saveFailed': 'Tidak dapat menyimpan',
     'catalog.announce.added': '${name} ditambahkan',
     'catalog.announce.renamed': 'Diganti menjadi ${name}',
@@ -3410,6 +3419,9 @@ export const messages = {
     'admin.roles.confirmRevoke.title': 'Cabut Admin dari ${name}?',
     'admin.roles.confirmRevoke.body': 'Mereka tidak lagi mengelola orang, akses, ketua Tim, atau aturan akses organisasi.',
     'admin.roles.confirmRevoke.confirm': 'Cabut Admin',
+    'admin.roles.confirmOpsLead.title': 'Jadikan ${name} Kepala Ops?',
+    'admin.roles.confirmOpsLead.body': 'Kepala Ops merencanakan dan menyetujui pekerjaan Café untuk stream yang mereka kelola.',
+    'admin.roles.confirmOpsLead.confirm': 'Jadikan Kepala Ops',
     'admin.teamsPage.title': 'Tim',
     'admin.teamsPage.job': 'Lihat siapa di setiap Tim dan pilih ketuanya.',
     'admin.teamsPage.helper': 'Ketua adalah salah satu anggota aktif Tim. Pilihan langsung tersimpan.',
@@ -3465,7 +3477,6 @@ export const messages = {
     'kitchen.review.notice.staleRefresh': 'Sudah ditinjau oleh orang lain — memuat ulang antrean…',
     'kitchen.review.notice.bulkTruth': '${approved} disetujui · ${failed} gagal · ${stale} kedaluwarsa — memuat ulang antrean…',
     'kitchen.review.error.forbidden': 'Anda tidak memiliki izin untuk meninjau log ini.',
-    'kitchen.review.error.generic': 'Terjadi kesalahan. Silakan coba lagi.',
     // Layar crash — dibaca langsung dari katalog, bukan lewat hook.
     'errorBoundary.title': 'Layar ini berhenti bekerja',
     'errorBoundary.copy': 'Biasanya memuat ulang sudah cukup. Kalau terus terjadi, beri tahu atasan Anda apa yang sedang Anda kerjakan — tidak ada data kesalahan ini yang terkirim otomatis ke mana pun.',

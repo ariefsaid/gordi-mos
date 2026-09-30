@@ -570,7 +570,7 @@ function DesktopTable({
             >
               <td className="px-4">
                 <div className="flex items-center gap-2 min-w-0">
-                  <Avatar placeholder={person.full_name} size="sm" />
+                  <Avatar placeholder={person.full_name} size="md" />
                   <div className="min-w-0">
                     <PersonName person={person} onOpen={open} />
                     {person.email && (
@@ -656,7 +656,7 @@ function MobileCardList({
           >
             {/* Head row: identity, status, and the card's ONE action door. */}
             <div className="flex items-center gap-2">
-              <Avatar placeholder={person.full_name} size="sm" />
+              <Avatar placeholder={person.full_name} size="lg" initials={2} />
               <div className="flex-1 min-w-0">
                 <PersonName person={person} onOpen={open} />
               </div>

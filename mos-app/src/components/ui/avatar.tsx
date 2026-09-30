@@ -39,6 +39,8 @@ export interface AvatarProps {
   placeholder?: string
   size?: AvatarSize
   type?: AvatarType
+  /** Letters shown from the name: 1 (first word) or 2 (first + last word). */
+  initials?: 1 | 2
   /** Explicit CSS color — overrides the seed text color. */
   color?: string
   /** Explicit CSS background — overrides the seed background. */
@@ -54,6 +56,7 @@ export function Avatar({
   placeholder,
   size = 'md',
   type = 'squared',
+  initials = 1,
   color,
   backgroundColor,
   Icon,
@@ -84,7 +87,9 @@ export function Avatar({
   if (showImg) {
     content = <img src={avatarUrl} alt="" onError={() => setFailedUrl(avatarUrl ?? null)} />
   } else if (placeholder && placeholder.trim()) {
-    content = placeholder.trim().charAt(0).toUpperCase()
+    const words = placeholder.trim().split(/\s+/)
+    const letters = initials === 2 && words.length > 1 ? words[0][0] + words[words.length - 1][0] : words[0][0]
+    content = letters.toUpperCase()
   } else if (Icon != null) {
     content = Icon
   }

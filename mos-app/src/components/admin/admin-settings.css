@@ -477,6 +477,13 @@
   cursor: pointer;
 }
 
+/* Card presentation (phone / coarse pointer): the name is the row's primary target — 44px floor. */
+.people-card .people-row-open {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+
 .people-row-open:hover {
   text-decoration: underline;
 }
