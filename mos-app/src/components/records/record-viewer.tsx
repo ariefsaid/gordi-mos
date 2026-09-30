@@ -120,7 +120,7 @@ function RecordOverflowMenu({
   const wasOpen = useRef(false)
 
   // The shared menu contract: focus enters the first item, Arrow/Home/End walk the items, and a
-  // pointer outside closes. Escape stays with this menu's own nested-layer handlers below.
+  // pointer or focus outside closes. Escape stays with this menu's own nested-layer handlers below.
   const close = useCallback(() => setOpen(false), [])
   useMenuPopover(open, close, menuRef, triggerRef)
 
@@ -128,7 +128,9 @@ function RecordOverflowMenu({
     if (open) wasOpen.current = true
     else if (wasOpen.current) {
       wasOpen.current = false
-      triggerRef.current?.focus()
+      // Focus returns to the trigger only when the menu took it with it; a menu closed by focus
+      // moving elsewhere leaves focus where the reader put it.
+      if (!document.activeElement || document.activeElement === document.body) triggerRef.current?.focus()
     }
   }, [open])
 
