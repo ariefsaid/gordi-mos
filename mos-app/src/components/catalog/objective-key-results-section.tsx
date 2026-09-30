@@ -142,8 +142,14 @@ function CommitField({ label, saved, onCommit, inputMode }: {
 function DueField({ row, onPatch }: { row: KeyResultRow; onPatch: (patch: KeyResultTargetsPatch) => Promise<void> }) {
   const t = useT()
   const { state, run, retry } = useCommitStatus()
-  const [draft, setDraft] = useState(row.due_date ?? '')
-  useEffect(() => { setDraft(row.due_date ?? '') }, [row.due_date])
+  const saved = row.due_date ?? ''
+  const [draft, setDraft] = useState(saved)
+  const [seen, setSeen] = useState(saved)
+  // Same render-time adoption as CommitField.
+  if (seen !== saved) {
+    setSeen(saved)
+    setDraft(saved)
+  }
   return (
     <div className="form-grid__field objective-key-results__field">
       <DateField
