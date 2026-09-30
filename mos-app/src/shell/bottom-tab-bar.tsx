@@ -102,7 +102,7 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
 
   if (!isNarrow || FOCUSED_DECISION_PATHS.includes(pathname)) return null
 
-  const showLauncher = !isCaptureSurface(pathname) && !IN_PAGE_CREATE_PATHS.includes(pathname)
+  const showLauncher = !isCaptureSurface(pathname) && !IN_PAGE_CREATE_PATHS.includes(pathname.replace(/\/+$/, ''))
 
   return (
     // FINDING 1 fix: the nav landmark now holds ONLY navigation (the tab list) — the +
