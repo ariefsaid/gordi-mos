@@ -35,7 +35,7 @@ export type TaskCreateFormProps = {
    * already exists; only the follow-up step failed. Rendered separately from an ordinary
    * create failure, which this form tracks itself. */
   linkError?: boolean
-  onRetryLink?: () => void
+  onRetryLink?: (title: string) => void
   /** #742 AC-060: the viewer has nobody reporting to them, so PIC is fixed to self. */
   viewerHasNoDownline?: boolean
 }
@@ -251,7 +251,7 @@ export function TaskCreateForm({
       {linkError && (
         <p role="alert" className="tcf-error tcf-save-error">
           {t('tasks.create.linkFailed')}
-          <button type="button" className="task-row-retry" onClick={onRetryLink}>{t('record.field.retry')}</button>
+          <button type="button" className="task-row-retry" onClick={() => onRetryLink?.(title.trim())}>{t('record.field.retry')}</button>
         </p>
       )}
       {saveError && (
