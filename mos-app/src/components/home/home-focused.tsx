@@ -46,7 +46,11 @@ export function HomeFocused({ regions, feed, leading }: HomeLayoutProps) {
                 aria-selected={selected}
                 aria-controls={panelId}
                 tabIndex={selected ? 0 : -1}
-                onClick={() => setActiveId(region.id)}
+                onClick={(event) => {
+                  setActiveId(region.id)
+                  // The phone strip is one scrolling row: bring a half-visible tab fully into view.
+                  event.currentTarget.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+                }}
                 onKeyDown={(event) => handleKeyDown(event, index)}
               >
                 {t(region.labelKey)}<RegionCount region={region} className="home-tab-count" />

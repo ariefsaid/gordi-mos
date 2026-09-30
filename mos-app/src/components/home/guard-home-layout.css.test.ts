@@ -69,11 +69,4 @@ describe('AC-932: Home layout primitives are defined once', () => {
     expect(tabs).toMatch(/overflow-x:\s*auto/)
     expect(tab).toMatch(/min-height:\s*44px/)
   })
-
-  it('AC-760: compact region tabs wrap on the phone so every choice remains discoverable', () => {
-    const css = readFileSync(join(__dirname, 'home-layouts.css'), 'utf8')
-    expect(css).toMatch(
-      /@container home\s*\(max-width:\s*620px\)[\s\S]*?\.home-tabs\s*\{[^}]*flex-wrap:\s*wrap[^}]*overflow-x:\s*visible[^}]*overflow-y:\s*visible/,
-    )
-  })
 })

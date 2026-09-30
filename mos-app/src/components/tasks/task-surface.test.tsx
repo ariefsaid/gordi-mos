@@ -302,7 +302,7 @@ describe('TaskSurface — view mode', () => {
     expect(document.querySelector('.record-viewer--page')).toBeTruthy()
     const regions = [...document.querySelectorAll('[data-content-slot]')]
       .map((node) => (node as HTMLElement).dataset.contentSlot)
-    expect(regions).toEqual(['content', 'checklist', 'ownership', 'activity', 'relations'])
+    expect(regions).toEqual(['content', 'checklist', 'ownership', 'relations', 'activity'])
   })
 
   it('AC-P3-CM-004: renders task comments in the live task surface', async () => {

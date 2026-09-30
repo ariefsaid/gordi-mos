@@ -1112,6 +1112,10 @@ export const messages = {
     // AC-019 (#750): the footer legend states the row-activation grammar (A3) verbatim.
     'tasks.inlineEdit.hint': "Click a row to open it · ← → move between cells · ✎ or F2 edits the title · Enter saves · Esc discards",
     'tasks.inlineEdit.pencil': "Edit title",
+    'tasks.inlineEdit.status': "Edit task status",
+    'tasks.inlineEdit.pic': "Edit task PIC",
+    'tasks.inlineEdit.due': "Edit task due date",
+    'tasks.inlineEdit.dueInput': "Due date",
     'tasks.label.task': "Task",
     'tasks.loadError': "Couldn't load this task.",
     'tasks.loading': "Loading tasks",
@@ -2867,6 +2871,10 @@ export const messages = {
     // AC-019 (#750): the footer legend states the row-activation grammar (A3) verbatim.
     'tasks.inlineEdit.hint': "Klik baris untuk membukanya · ← → pindah antar sel · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan",
     'tasks.inlineEdit.pencil': "Sunting judul",
+    'tasks.inlineEdit.status': "Ubah status tugas",
+    'tasks.inlineEdit.pic': "Ubah PIC tugas",
+    'tasks.inlineEdit.due': "Ubah tenggat tugas",
+    'tasks.inlineEdit.dueInput': "Tenggat",
     'tasks.label.task': "Tugas",
     'tasks.loadError': "Tugas ini tidak dapat dimuat.",
     'tasks.loading': "Memuat tugas",
