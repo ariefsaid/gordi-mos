@@ -16,6 +16,7 @@ vi.mock('../lib/db/directory', () => ({
   getPersonTeams: vi.fn(),
   getTeamsByIds: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getMyTeamLeads: vi.fn(),
 }))
 vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
@@ -41,9 +42,11 @@ const mockGetPeople = vi.mocked(getPeople)
 const directoryMocks = directoryApi as unknown as {
   getPersonTeams: ReturnType<typeof vi.fn>
   getTeamsByIds: ReturnType<typeof vi.fn>
+  getMyTeamLeads: ReturnType<typeof vi.fn>
 }
 const mockGetPersonTeams = directoryMocks.getPersonTeams
 const mockGetTeamsByIds = directoryMocks.getTeamsByIds
+const mockGetMyTeamLeads = directoryMocks.getMyTeamLeads
 const mockListObjectives = vi.mocked(listObjectives)
 const mockListWorkLines = vi.mocked(listWorkLines)
 
@@ -124,11 +127,8 @@ describe('AC-080 — create form prefills', () => {
     const picPicker = screen.getByRole('combobox', { name: 'PIC' })
     expect(picPicker).toHaveTextContent('Cahya Cafe')
 
-    // Supervisor starts EMPTY — a deliberate v4 product decision (OD-REDESIGN-3/14/41,
-    // task-surface.tsx accountablePersonId comment): PIC and Supervisor are distinct
-    // accountable roles, and auto-collapsing Supervisor to the creator/PIC defeats that model.
-    // CONTEXT.md's real resolution order (PIC's manager, etc.) needs a directory lookup this
-    // surface doesn't have, so Supervisor is a required, explicit choice instead of a guess.
+    // Supervisor is never the creator/PIC: it stays empty (a required, explicit choice) unless the
+    // home Team has a lead other than the creator (see the Supervisor default tests below).
     const supervisorPicker = screen.getByRole('combobox', { name: 'Supervisor' })
     expect(supervisorPicker).toHaveTextContent(/select supervisor/i)
 
@@ -172,21 +172,70 @@ describe('AC-080 — create form prefills', () => {
   })
 })
 
-// ── F17 (OD-91 #29): optional context pickers behind one "+ Add context" reveal ──
-describe('F17 — create-task context reveal', () => {
-  it('the Objective/Project pickers stay hidden behind "+ Add context"; the reveal shows them', async () => {
-    mockListObjectives.mockResolvedValue([
-      { id: 'obj-1', name: 'Grow retail revenue' } as never,
-    ])
+// ── #1029: Project/Process is shown directly; the Objective is derived, never picked ──
+describe('create surface — Project/Process context and Supervisor default (#1029)', () => {
+  const WORK_LINES = [
+    { id: 'wl-1', name: 'Q4 Launch', type: 'project', objective_id: 'obj-1' },
+    { id: 'wl-2', name: 'Daily Open', type: 'process', objective_id: null },
+  ] as never
+
+  it('shows Project/Process without a reveal and has no Objective picker', async () => {
+    mockListObjectives.mockResolvedValue([{ id: 'obj-1', name: 'Grow retail revenue' } as never])
+    mockListWorkLines.mockResolvedValue(WORK_LINES)
     renderCreate()
-    // The reveal appears once a context lookup arrives; the Objective picker is NOT shown yet.
-    const reveal = await screen.findByRole('button', { name: /add context/i })
-    expect(screen.queryByLabelText(/objective/i)).not.toBeInTheDocument()
-    // Opening the reveal shows the optional pickers…
-    fireEvent.click(reveal)
-    expect(await screen.findByLabelText(/objective/i)).toBeInTheDocument()
-    // …and the reveal button itself is gone (it stays open once opened).
+    expect(await screen.findByRole('combobox', { name: 'Project/Process' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add context/i })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/objective/i)).not.toBeInTheDocument()
+  })
+
+  it('the Project/Process comes after Due date in the field order', async () => {
+    mockListWorkLines.mockResolvedValue(WORK_LINES)
+    renderCreate()
+    const project = await screen.findByRole('combobox', { name: 'Project/Process' })
+    const due = screen.getByLabelText('Due date')
+    expect(due.compareDocumentPosition(project) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('writes the Objective of the chosen Project/Process, and its Due date', async () => {
+    mockListWorkLines.mockResolvedValue(WORK_LINES)
+    renderCreate()
+    await screen.findByRole('combobox', { name: 'Project/Process' })
+    chooseCreateOption('Supervisor', 'Other Person')
+    fireEvent.change(screen.getByLabelText('Due date'), { target: { value: '2026-11-05' } })
+    chooseCreateOption('Project/Process', 'Q4 Launch (Project)')
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Derived objective' } })
+    fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+    await waitFor(() => expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({
+      workLineId: 'wl-1', objectiveId: 'obj-1', dueDate: '2026-11-05',
+    })))
+  })
+
+  it('a Project/Process with no Objective writes no Objective', async () => {
+    mockListWorkLines.mockResolvedValue(WORK_LINES)
+    renderCreate()
+    await screen.findByRole('combobox', { name: 'Project/Process' })
+    chooseCreateOption('Supervisor', 'Other Person')
+    chooseCreateOption('Project/Process', 'Daily Open (Daily / ongoing)')
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'No objective' } })
+    fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+    await waitFor(() => expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({
+      workLineId: 'wl-2', objectiveId: null,
+    })))
+  })
+
+  it('a member gets the home Team lead as Supervisor, PIC stays self', async () => {
+    mockListWorkLines.mockResolvedValue([])
+    mockGetMyTeamLeads.mockResolvedValue([{ team_id: 'team-cafe', lead_person_id: 'other-id' }])
+    renderCreate()
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Other Person'))
+    expect(screen.getByRole('combobox', { name: 'PIC' })).toHaveTextContent(mockPerson.full_name)
+  })
+
+  it('keeps an empty Supervisor when the home Team has no lead', async () => {
+    mockGetMyTeamLeads.mockResolvedValue([{ team_id: 'team-cafe', lead_person_id: null }])
+    renderCreate()
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Team' })).toHaveTextContent('Cafe Team'))
+    expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent(/select supervisor/i)
   })
 })
 
