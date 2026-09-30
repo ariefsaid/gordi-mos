@@ -521,7 +521,7 @@ export function TaskRow({
           autoFocus
           defaultOpen
           hideLabel
-          label="Edit task status"
+          label={t('tasks.inlineEdit.status')}
           value={statusInline.draft}
           disabled={statusInline.pending}
           busy={statusInline.pending}
@@ -548,7 +548,7 @@ export function TaskRow({
           autoFocus
           defaultOpen
           hideLabel
-          label="Edit task PIC"
+          label={t('tasks.inlineEdit.pic')}
           value={picInline.draft}
           disabled={picInline.pending}
           busy={picInline.pending}
@@ -581,12 +581,12 @@ export function TaskRow({
     ),
     due: onEditDue ? (dueEditing ? (
       <span className="inline-editor-control inline-editor-control--due" onClick={(event) => event.stopPropagation()}>
-        <input autoFocus type="date" aria-label="Due date" value={dueTyped} readOnly={dueInline.pending} aria-busy={dueInline.pending || undefined}
+        <input autoFocus type="date" aria-label={t('tasks.inlineEdit.dueInput')} value={dueTyped} readOnly={dueInline.pending} aria-busy={dueInline.pending || undefined}
           aria-invalid={dueInline.error || undefined} aria-describedby={dueInline.error ? dueErrorId : undefined}
           onChange={(event) => { setDueTyped(event.target.value); dueInline.setDraft(event.target.value) }} onKeyDown={onDueKeyDown} onBlur={onDueBlur} />
         <InlineCommitFeedback {...dueInline} errorId={dueErrorId} />
       </span>
-    ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label="Edit task due date" tabIndex={-1} data-row-stop="" onClick={(event) => { event.stopPropagation(); setDueTyped(dueInline.draft); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText,
+    ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label={t('tasks.inlineEdit.due')} tabIndex={-1} data-row-stop="" onClick={(event) => { event.stopPropagation(); setDueTyped(dueInline.draft); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText,
   }
 
   return (

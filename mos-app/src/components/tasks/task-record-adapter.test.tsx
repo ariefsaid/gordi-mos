@@ -124,9 +124,9 @@ describe('createTaskRecordAdapter', () => {
     render(<>{checklist.render({ mode: 'panel', readOnly: false })}</>, { wrapper })
     expect(screen.getByText('Check fridge stock')).toBeInTheDocument()
 
-    // Ownership and due context follow the checklist before discussion.
+    // Ownership, due context and the parent Project/Process or Objective precede the discussion.
     expect(adapter.activity).toHaveLength(0)
-    expect(adapter.contentSlots.map((slot) => slot.id)).toEqual(['content', 'checklist', 'ownership', 'activity', 'relations'])
+    expect(adapter.contentSlots.map((slot) => slot.id)).toEqual(['content', 'checklist', 'ownership', 'relations', 'activity'])
     const activity = adapter.contentSlots.find((s) => s.id === 'activity')!
     render(<>{activity.render({ mode: 'panel', readOnly: false })}</>, { wrapper })
     expect(screen.getByText('Created')).toBeInTheDocument()
@@ -496,6 +496,22 @@ describe('teamOwnershipField — honest Team model and viewer-scoped options', (
     expect(real.value).toBe('t-1')
     expect(real.displayValue).toBe('HQ Kitchen')
     expect(real.editable).toBe(false)
+  })
+})
+
+describe('teamOwnershipField — edit options (#1033)', () => {
+  const HQ = { id: 't-1', label: 'HQ Kitchen' }
+  const OPS = { id: 't-2', label: 'Ops' }
+
+  it('offers the current team even when the viewer\'s Team list omits it', () => {
+    const field = teamOwnershipField(HQ, undefined, true, [OPS])
+    expect(field.options?.map((o) => o.value)).toContain('t-1')
+  })
+
+  it('lists Teams first and the not-assigned placeholder last, never leading with it', () => {
+    const field = teamOwnershipField(HQ, undefined, true, [HQ, OPS])
+    expect(field.options?.map((o) => o.label)).toEqual(['HQ Kitchen', 'Ops', 'Team not assigned yet (data migration)'])
+    expect(teamOwnershipField(null, undefined, true, [OPS]).options?.[0]).toEqual({ value: 't-2', label: 'Ops' })
   })
 })
 
