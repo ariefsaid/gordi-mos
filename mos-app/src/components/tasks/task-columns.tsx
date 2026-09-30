@@ -19,12 +19,12 @@
 // layer and inline editing are untouched). TaskRow dispatches content per column id through
 // an exhaustive `Record<TaskColumnId, …>`, so the compiler — not a convention — keeps the
 // dispatch and this array from drifting apart.
-import type { ColumnDef, RowData, VisibilityState } from '@tanstack/react-table'
+import type { ColumnDef, RowData, SortingState, VisibilityState } from '@tanstack/react-table'
 import { dueStatus, isOverdue } from '@/lib/due-status'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { TaskCollectionVisibleField } from '@/lib/record-collection/collection-view-spec'
 import type { MessageKey } from '@/i18n/messages'
-import type { TaskColumnId } from './task-collection-query'
+import type { TaskCollectionSort, TaskColumnId } from './task-collection-query'
 
 declare module '@tanstack/react-table' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- TanStack's interface shape fixes the generics; the augmentation carries only data.
@@ -35,8 +35,6 @@ declare module '@tanstack/react-table' {
     thClass: string
     /** The <td> hook class; a function when the class carries row state (Due's overdue tint). */
     tdClass: string | ((task: TaskListRow, now: Date) => string)
-    /** Sortable columns: the UI sort-column vocabulary the header sort UI cycles on. */
-    sortCol?: 'task' | 'status' | 'owner' | 'due'
     /** A Fields-chooser-optional column: hidden unless its query field is checked (AC-006, #743). */
     optional?: boolean
     /** The `query.visibleFields` entry that toggles this optional column. */
@@ -44,10 +42,36 @@ declare module '@tanstack/react-table' {
   }
 }
 
-/** Header sort vocabulary (the columns whose <th> is a sort button today). Lives with the
- * defs so sortability and its vocabulary cannot drift apart; tasks-table-body's sort props
- * consume it (Slice 2 moves the toggle state itself onto TanStack). */
-export type TaskSortColumn = 'task' | 'status' | 'owner' | 'due' | 'activity'
+/** The ONE column-id <-> URL sort-key map (owner is `pic`). Exhaustive over every sort key the
+ * query accepts. Supervisor and Activity are toolbar-only sorts: their columns carry no
+ * accessor, so TanStack gives them no header toggle and the table renders no header button. */
+const COLUMN_ID_BY_SORT: Record<TaskCollectionSort, TaskColumnId> = {
+  task: 'task',
+  status: 'status',
+  pic: 'owner',
+  supervisor: 'supervisor',
+  due: 'due',
+  activity: 'activity',
+}
+
+/** TanStack `sorting` state for the table, derived from the URL-bound query sort. */
+export function taskSortingState(
+  sort: TaskCollectionSort,
+  direction: 'ascending' | 'descending',
+): SortingState {
+  return [{ id: COLUMN_ID_BY_SORT[sort], desc: direction === 'descending' }]
+}
+
+/** The query sort a TanStack `sorting` state stands for; null when it names no column. */
+export function taskSortFromSorting(
+  sorting: SortingState,
+): { sort: TaskCollectionSort; direction: 'ascending' | 'descending' } | null {
+  const first = sorting[0]
+  if (!first) return null
+  const sort = (Object.keys(COLUMN_ID_BY_SORT) as TaskCollectionSort[])
+    .find((key) => COLUMN_ID_BY_SORT[key] === first.id)
+  return sort ? { sort, direction: first.desc ? 'descending' : 'ascending' } : null
+}
 
 /** Due cell's state tint: the C1 rule — only genuinely-overdue (non-Done, non-archived) rows
  * get the red class. Lives here because the class is part of the column definition. */
@@ -69,15 +93,18 @@ export type TaskColumnDef = ColumnDef<TaskListRow> & { id: TaskColumnId }
 export const TASK_COLUMN_DEFS: TaskColumnDef[] = [
   {
     id: 'task',
-    meta: { labelKey: 'tasks.label.task', thClass: 'th-task', tdClass: 'td-main', sortCol: 'task' },
+    accessorFn: (task) => task.title,
+    meta: { labelKey: 'tasks.label.task', thClass: 'th-task', tdClass: 'td-main' },
   },
   {
     id: 'status',
-    meta: { labelKey: 'tasks.filter.status', thClass: 'th-status', tdClass: 'td-cell td-status td-nowrap', sortCol: 'status' },
+    accessorFn: (task) => task.status,
+    meta: { labelKey: 'tasks.filter.status', thClass: 'th-status', tdClass: 'td-cell td-status td-nowrap' },
   },
   {
     id: 'owner',
-    meta: { labelKey: 'tasks.pic', thClass: 'th-owner', tdClass: 'td-cell td-owner', sortCol: 'owner' },
+    accessorFn: (task) => task.responsible_person_id,
+    meta: { labelKey: 'tasks.pic', thClass: 'th-owner', tdClass: 'td-cell td-owner' },
   },
   {
     id: 'supervisor',
@@ -113,7 +140,8 @@ export const TASK_COLUMN_DEFS: TaskColumnDef[] = [
   },
   {
     id: 'due',
-    meta: { labelKey: 'tasks.dueLabel', thClass: 'th-due', tdClass: dueCellClass, sortCol: 'due' },
+    accessorFn: (task) => task.due_date,
+    meta: { labelKey: 'tasks.dueLabel', thClass: 'th-due', tdClass: dueCellClass },
   },
 ]
 

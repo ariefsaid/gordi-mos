@@ -11,7 +11,12 @@ import {
 import type { To } from 'react-router-dom'
 import { useSearchParams } from 'react-router-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
+import {
+  getCoreRowModel,
+  useReactTable,
+  type SortingState,
+  type Updater,
+} from '@tanstack/react-table'
 import { listPendingTasks } from '@/lib/db/processes'
 import type { PendingTaskRow } from '@/lib/db/processes.types'
 import type { TaskStatus, TaskListRow } from '@/lib/db/tasks.types'
@@ -32,7 +37,12 @@ import type {
   CollectionPresentationProps,
   CollectionProjection,
 } from '@/lib/record-collection/types'
-import { TASK_COLUMN_DEFS, taskColumnVisibilityState } from './task-columns'
+import {
+  TASK_COLUMN_DEFS,
+  taskColumnVisibilityState,
+  taskSortFromSorting,
+  taskSortingState,
+} from './task-columns'
 import { STATUS_ORDER } from './task-formatters'
 import { isOverdue } from '@/lib/due-status'
 import type {
@@ -71,7 +81,8 @@ export interface TaskCollectionRuntime {
   onAddTask: (prefillParam: string) => void
   onRetry: () => void
   onClearFilters: () => void
-  onSort: (sort: TaskCollectionQuery['sort']) => void
+  /** Header sort change (TanStack sort state → the URL-bound sort + direction). */
+  onSortChange: (sort: TaskCollectionQuery['sort'], direction: TaskCollectionQuery['direction']) => void
   onOverdueFilter: () => void
   onClearOverdue: () => void
   createHref: To
@@ -128,7 +139,7 @@ const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
   onAddTask: () => {},
   onRetry: () => {},
   onClearFilters: () => {},
-  onSort: () => {},
+  onSortChange: () => {},
   onOverdueFilter: () => {},
   onClearOverdue: () => {},
   createHref: '/work/tasks/new',
@@ -417,10 +428,28 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     () => taskColumnVisibilityState(query.visibleFields),
     [query.visibleFields],
   )
+  // #998: header sorting runs on TanStack's sort state, bound to the URL sort/direction fields.
+  // Ordering itself stays in the projector (`manualSorting`, no sorted row model), which runs
+  // before grouping; the table only carries which column is sorted and how a header toggles it.
+  // Ascending first, never cleared, single column: the header cycle is up, down, up.
+  const sorting = useMemo(
+    () => taskSortingState(query.sort, query.direction),
+    [query.sort, query.direction],
+  )
+  const { onSortChange } = runtime
+  const onSortingChange = useCallback((updater: Updater<SortingState>) => {
+    const next = taskSortFromSorting(typeof updater === 'function' ? updater(sorting) : updater)
+    if (next) onSortChange(next.sort, next.direction)
+  }, [onSortChange, sorting])
   const table = useReactTable({
     data: leafTasks,
     columns: TASK_COLUMN_DEFS,
-    state: { columnVisibility },
+    state: { columnVisibility, sorting },
+    onSortingChange,
+    manualSorting: true,
+    enableSortingRemoval: false,
+    enableMultiSort: false,
+    sortDescFirst: false,
     getCoreRowModel: getCoreRowModel(),
   })
   const columnSpan = table.getVisibleLeafColumns().length
@@ -510,18 +539,6 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     () => buildWorkloadSummary(query, leafTasks, context),
     [context, leafTasks, query],
   )
-  const sortCol = query.sort === 'pic' ? 'owner' : query.sort === 'supervisor' ? 'task' : query.sort
-  const sortDirection = query.direction
-  const sortIndicator = (column: 'task' | 'status' | 'owner' | 'due' | 'activity'): ReactNode =>
-    sortCol === column ? (
-      <span className="collection-grammar-sort-indicator" aria-hidden="true">
-        {sortDirection === 'ascending' ? '↑' : '↓'}
-      </span>
-    ) : null
-  const onSort = (column: 'task' | 'status' | 'owner' | 'due' | 'activity') => {
-    const nextSort = column === 'owner' ? 'pic' : column
-    runtime.onSort(nextSort)
-  }
   const renderRow = (task: TaskListRow, leafIndex: number) => {
     // FR-031 / AC-022: the in-row title/PIC/Due editors render only where the viewer holds the
     // edit right — the same one gate the record surface uses (task-permissions.canEdit: the PIC,
@@ -611,10 +628,6 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         onClearFilters={runtime.onClearFilters}
         emptyTitle={t('tasks.empty.noTasksTitle')}
         emptyCopy={t('tasks.empty.noTasksCopy')}
-        sortCol={sortCol === 'owner' ? 'owner' : sortCol as 'task' | 'status' | 'due' | 'activity'}
-        onSort={onSort}
-        ariaSort={(column) => sortCol === column ? sortDirection : 'none'}
-        sortIndicator={sortIndicator}
         flatRows={flatRows}
         virtualize={virtualize}
         scrollRef={scrollRef}
