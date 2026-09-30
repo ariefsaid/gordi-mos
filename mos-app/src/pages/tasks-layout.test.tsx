@@ -816,24 +816,24 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     ['?fields=source', ['th-task', 'th-status', 'th-owner', 'th-supervisor', 'th-due'], false],
   ]
 
-  it.each(COLUMN_CASES)('issue 997 AC-002/003/004: fields%s -> header order, group-header + pad-row colSpan, extended class', async (qs, expected, extended) => {
+  it.each(COLUMN_CASES)('issue 997 AC-002/003/004: fields%s -> header order, group-header + pad-row colSpan, extended class', async (queryString, expected, extended) => {
     stubViewportHeight()
     mockListTasks.mockResolvedValue(Array.from({ length: 60 }, (_, i) =>
       makeTask({ id: `task-${i}`, title: `Task number ${i}` })))
-    renderAt(`/work/tasks${qs ? `${qs}&` : '?'}group=status`)
+    renderAt(`/work/tasks${queryString ? `${queryString}&` : '?'}group=status`)
     await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
     const table = document.querySelector('table.tasks-table')!
     const ths = Array.from(table.querySelectorAll('thead th'))
-    expect(ths.map(th => (th.className.match(/th-(?!cell|sort)[a-z-]+/) ?? [''])[0])).toEqual(expected)
-    const n = expected.length
-    const headerCells = Array.from(table.querySelectorAll('tbody td[colspan]')).filter(td => !td.closest('tr[aria-hidden="true"]'))
+    expect(ths.map(header => (header.className.match(/th-(?!cell|sort)[a-z-]+/) ?? [''])[0])).toEqual(expected)
+    const columnCount = expected.length
+    const headerCells = Array.from(table.querySelectorAll('tbody td[colspan]')).filter(cell => !cell.closest('tr[aria-hidden="true"]'))
     expect(headerCells.length).toBeGreaterThan(0)
-    for (const td of headerCells) expect(td.getAttribute('colspan')).toBe(String(n))
+    for (const cell of headerCells) expect(cell.getAttribute('colspan')).toBe(String(columnCount))
     const pads = table.querySelectorAll('tbody tr[aria-hidden="true"] td')
     expect(pads.length).toBeGreaterThan(0)
-    for (const td of pads) expect(td.getAttribute('colspan')).toBe(String(n))
+    for (const cell of pads) expect(cell.getAttribute('colspan')).toBe(String(columnCount))
     expect(table.classList.contains('tasks-table--extended')).toBe(extended)
-    expect(table.querySelector('tr.task-row')!.querySelectorAll('td')).toHaveLength(n)
+    expect(table.querySelector('tr.task-row')!.querySelectorAll('td')).toHaveLength(columnCount)
   })
 
   // RI-3 (I3): archiving from the drawer must remove the row from the default

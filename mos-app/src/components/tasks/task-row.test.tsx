@@ -108,7 +108,7 @@ function LeafColumnProbe({ visibleFields }: { visibleFields: readonly TaskCollec
     state: { columnVisibility: taskColumnVisibilityState(visibleFields) },
     getCoreRowModel: getCoreRowModel(),
   })
-  return <tr data-testid="leaf-columns">{table.getVisibleLeafColumns().map((column) => column.id).join(',')}</tr>
+  return <tr>{table.getVisibleLeafColumns().map((column) => column.id).join(',')}</tr>
 }
 
 function renderProbe(visibleFields: readonly TaskCollectionVisibleField[]) {
@@ -157,7 +157,7 @@ describe('TaskRow — the column list is the one TanStack column-definition arra
     for (const visibleFields of fieldsCombinations()) {
       const expectedIds = visibleTaskColumnDefs(visibleFields).map((column) => column.id)
       const { unmount } = renderProbe(visibleFields)
-      const probe = screen.getByTestId('leaf-columns')
+      const probe = screen.getByRole('row')
       expect(probe.textContent, `fields=[${visibleFields.join(',')}]`).toBe(expectedIds.join(','))
       expect(expectedIds.length, `fields=[${visibleFields.join(',')}]`).toBe(taskTableColumnSpan(visibleFields))
       unmount()
