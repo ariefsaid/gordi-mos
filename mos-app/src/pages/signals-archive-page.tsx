@@ -174,9 +174,8 @@ function SignalsArchiveCollection() {
   }
 
   // The page head owns the ONE Share Signal primary (#770 AC-021: the head holds the only
-  // .btn-primary — the toolbar renders no second door inside <main>). On phone the head action
-  // steps aside: the + launcher owns Share Signal there (AC-029), exactly as Tasks' head yields
-  // "New task" to the launcher (showNewTask && !isNarrow).
+  // .btn-primary — the toolbar renders no second door inside <main>). It stays on the page at
+  // phone width too (#1032), outside the View & filters door.
 
   // The list-search query minus ?record= — the panel's "Open full page" escalation keeps the
   // search state (q / retracted) across the jump.
@@ -438,8 +437,8 @@ function SignalsArchiveCollection() {
       jobSentence={t('job.signals')}
       count={projection ? projection.visibleRecords.length : null}
       // AC-021 (#770): the head holds the ONE .btn-primary on the surface — the same head-action
-      // slot Tasks uses for "New task". Desktop only; the phone launcher owns Share Signal.
-      action={canPost === false || !isDesktop ? undefined : (
+      // slot Tasks uses for "New task", at every width.
+      action={canPost === false ? undefined : (
         <Button variant="primary" onClick={() => openSignalComposer()}>
           {t('signals.action.share')}
         </Button>

@@ -272,6 +272,42 @@
   .tasks-table:not(.tasks-table--extended) .th-due,
   .tasks-table:not(.tasks-table--extended) .td-due { display: none; }
 }
+/* A record beside the list narrows it, and the record shows every fact anyway, so the list keeps all
+   five columns for as long as they fit: PIC and Supervisor read as avatars (the first name stays in
+   the accessible name, the full name is on hover). Below that, columns drop in the order Supervisor,
+   PIC, Status, Due. Above 810px the list is wide enough for the default tier. */
+@container work-list (max-width: 809.98px) {
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(th.th-status, td.td-status) { width: 116px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(th.th-owner, td.td-owner) { width: 56px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(th.th-supervisor, td.td-supervisor) { width: 96px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(th.th-due, td.td-due) { width: 136px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.td-owner, .td-supervisor) .own-name {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+}
+@container work-list (min-width: 644px) and (max-width: 809.98px) {
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 404px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-supervisor, .td-supervisor, .th-owner, .td-owner, .th-status, .td-status, .th-due, .td-due) { display: table-cell; }
+}
+@container work-list (min-width: 548px) and (max-width: 643.98px) {
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 308px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-owner, .td-owner, .th-status, .td-status, .th-due, .td-due) { display: table-cell; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-supervisor, .td-supervisor) { display: none; }
+}
+@container work-list (min-width: 492px) and (max-width: 547.98px) {
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 252px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-status, .td-status, .th-due, .td-due) { display: table-cell; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-supervisor, .td-supervisor, .th-owner, .td-owner) { display: none; }
+}
+@container work-list (min-width: 376px) and (max-width: 491.98px) {
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 136px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-due, .td-due) { display: table-cell; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-supervisor, .td-supervisor, .th-owner, .td-owner, .th-status, .td-status) { display: none; }
+}
+@container work-list (max-width: 375.98px) {
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 0px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-supervisor, .td-supervisor, .th-owner, .td-owner, .th-status, .td-status, .th-due, .td-due) { display: none; }
+}
 /* Below 1100px the extended tier hides Supervisor by class so an optional Fields column can't
    shift it out. */
 @media (max-width: 1099.98px) {

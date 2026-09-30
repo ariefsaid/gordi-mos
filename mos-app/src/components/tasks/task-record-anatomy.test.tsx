@@ -14,7 +14,7 @@ import { createTaskRecordAdapter, type TaskRecordAdapterInput } from './task-rec
 // observed === declared, and evaluates the FAIL gates F1–F5. A green mechanical guard does NOT
 // substitute for this recorded pass.
 
-const DECLARED = ['content', 'checklist', 'ownership', 'activity', 'relations'] as const
+const DECLARED = ['content', 'checklist', 'ownership', 'relations', 'activity'] as const
 
 const PIC = 'p-pic'
 const SUPERVISOR = 'p-sup'

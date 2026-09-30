@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { useEffect } from 'react'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -178,6 +178,19 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
     const tabs = screen.getAllByRole('tab')
     expect(tabs).toHaveLength(3)
     for (const tab of tabs) expect(tab.textContent).toMatch(/\d/)
+  })
+
+  it('Focused keeps every tab in the one strip and scrolls a chosen tab fully into view (phone is one scrolling row)', async () => {
+    const user = userEvent.setup()
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { value: scrollIntoView, configurable: true, writable: true })
+    renderLayout(<HomeFocused regions={regions} feed={feed} />)
+    const strip = screen.getByRole('tablist')
+    const tabs = screen.getAllByRole('tab')
+    for (const tab of tabs) expect(tab.parentElement).toBe(strip)
+    await user.click(tabs[2])
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' })
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(tabs[2])
   })
 
   it('Focused tab arrows move both selection and focus', async () => {
