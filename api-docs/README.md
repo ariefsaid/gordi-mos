@@ -9,7 +9,8 @@ settings and money are refused with "Do this in MOS.".
 |---|---|
 | [reference.md](reference.md) | Every operation, its parameters and errors. Generated from the database; do not edit. |
 | [seeding-guide.md](seeding-guide.md) | Step-by-step guide for an agent (for example Claude Cowork) that seeds Tasks, Signals and Projects & Processes. |
-| [mos-session.sh](mos-session.sh) | Shell helper: sign in with a prompt, call operations, keep the token in memory only. |
+| [../scripts/mos.mjs](../scripts/mos.mjs) | The `mos` command: sign in once in your own terminal, then `mos call <operation> '<json>'`. Session in the macOS keychain. |
+| [mos-session.sh](mos-session.sh) | Older shell helper for machines without a Mac or Node: sign in with a prompt, keep the token in shell memory only. |
 
 Placeholders used throughout: `<SUPABASE_URL>` is the data API base URL, `<ANON_KEY>` the project's
 public anon key, `<ACCESS_TOKEN>` your session token. Get the first two from whoever runs your MOS
@@ -35,19 +36,59 @@ curl -sS -X POST "<SUPABASE_URL>/rest/v1/rpc/whoami" \
 
 ## Signing in
 
-Sign in as yourself with your own email and password, once per session:
+Sign in as yourself with your own email and password, once, in your own terminal:
 
 ```sh
-curl -sS -X POST "<SUPABASE_URL>/auth/v1/token?grant_type=password" \
-  -H "apikey: <ANON_KEY>" -H "Content-Type: application/json" \
-  --data-binary @- <<< '{"email":"<EMAIL>","password":"<PASSWORD>"}'
+export MOS_SUPABASE_URL='<SUPABASE_URL>' MOS_SUPABASE_ANON_KEY='<ANON_KEY>'   # or ~/.config/mos/config.json
+node scripts/mos.mjs login
 ```
 
-Typing a password in a command line stores it in shell history, so prefer the helper below. The
-response holds `access_token` (use it as `<ACCESS_TOKEN>`, valid about an hour) and
-`refresh_token` (exchange it for a new pair with `grant_type=refresh_token`). Keep both in memory:
-never in a file, a chat message or a log. [mos-session.sh](mos-session.sh) does all of this and
-prompts for the password with hidden input.
+`login` asks for the email, then the password with hidden input. It refuses to run without a real
+terminal, so a password is never piped, passed as an argument or read from the environment, and it
+never lands in shell history. The session (`access_token`, valid about an hour, and the rotating
+`refresh_token`) is kept in the macOS keychain, one item per Supabase URL under the service name
+`mos-cli`, and is written to it through `security -i` on stdin so no token appears in a process's
+arguments. `mos` refreshes it 60 seconds before it expires, and once after a 401. There is no file
+fallback: on a machine without the macOS keychain the tool stops and says so. A remote URL must be
+https; plain http is accepted only for a local stack on the same machine, and redirects are never
+followed.
+
+Config file `~/.config/mos/config.json` (values are not secret, but keep them out of the repo):
+`{"supabase_url": "<SUPABASE_URL>", "anon_key": "<ANON_KEY>"}`. The environment variables win.
+
+Underneath it is the standard password grant:
+`POST <SUPABASE_URL>/auth/v1/token?grant_type=password` with `apikey: <ANON_KEY>` and the email and
+password as a JSON body. Do not type that password into a command line; [mos-session.sh](mos-session.sh)
+does the same with a hidden prompt for machines that cannot run `mos`.
+
+## Using the `mos` command
+
+| Command | Does |
+|---|---|
+| `mos login` | Signs in (email, then hidden password) and stores the session in the keychain. |
+| `mos whoami` | Calls the API's `whoami`: the person, roles, Teams and authority. |
+| `mos ops` | Lists every operation with its required and optional parameters, from [reference.md](reference.md). |
+| `mos call <operation> '<json>'` | POSTs to `/rest/v1/rpc/<operation>` with the `api_v1` profile headers. The body may be `@file` or `-` (stdin). |
+| `mos logout` | Revokes this session on the server, then removes it from the keychain. |
+
+(`mos` is `node scripts/mos.mjs`.) Output is JSON on stdout. An error prints
+`{"error": {"status", "code", "details", "message", "hint"}}` on stderr: branch on `details` as in
+Errors below. Exit 0 is success, 1 is a server or network failure, 2 is a refusal before anything
+was sent. For a `create_*` operation the tool adds an `idempotency_key` (or uses `--idempotency-key`,
+or the one in the body) and prints it on stderr, so a retry after a failure can reuse it.
+
+### Revoking, and what it can do
+
+- **End your own access:** `mos logout` revokes this session at the server. If the server does not
+  confirm, the keychain item is kept and the command exits non-zero, so it can be run again.
+- **An admin ends someone's access:** disabling the person's login ends their refresh token; an access
+  token already issued lives until it expires (about an hour), and it reaches only what the person
+  already reaches in the app. Archiving the person stops the next request.
+- **What the tool can do:** exactly what the signed-in person can do in the app, through the operations
+  in [reference.md](reference.md), and nothing more. It has no delete: archiving, deleting, permissions,
+  Objective settings and money are refused by MOS with "Do this in MOS.".
+- **Where the session is:** in the keychain, on that Mac, for that person. Anyone who can use that
+  keychain item can act as the person until it is revoked, so log out on a shared machine.
 
 ## Responses
 
