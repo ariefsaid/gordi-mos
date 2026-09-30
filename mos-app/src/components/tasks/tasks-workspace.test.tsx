@@ -2404,7 +2404,7 @@ describe('Ticket #750 — AC-019 footer legend states the click grammar', () => 
 
 describe('Ticket #750 — AC-022 in-row PIC/Due edit follows the permission rules', () => {
   const DOWNLINE_ID = 'barista-id'
-  const DOWNLINE_PERSON = { id: DOWNLINE_ID, full_name: 'Rina Barista' }
+  const DOWNLINE_PERSON = { id: DOWNLINE_ID, full_name: 'Sample Barista' }
 
   it('AC-022: Cahya (manager above the PIC) gets a self+downline PIC picker and Due editor that save in place', async () => {
     // Cahya = the viewer; the row's PIC sits in his downline → the DB lets him edit.
@@ -2423,7 +2423,7 @@ describe('Ticket #750 — AC-022 in-row PIC/Due edit follows the permission rule
     fireEvent.click(picTrigger)
     expect(screen.getByRole('combobox', { name: 'Edit task PIC' })).toHaveAttribute('aria-expanded', 'true')
     const optionLabels = screen.getAllByRole('option').map((option) => option.textContent)
-    expect(optionLabels).toEqual(['Arden Sample', 'Rina Barista'])
+    expect(optionLabels).toEqual(['Arden Sample', 'Sample Barista'])
     // Saves in place through the same updateTaskFields path the record editor uses.
     fireEvent.click(screen.getByRole('option', { name: 'Arden Sample' }))
     await waitFor(() => expect(mockUpdateTaskFields).toHaveBeenCalledWith(
