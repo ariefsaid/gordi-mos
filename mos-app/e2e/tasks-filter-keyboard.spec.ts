@@ -8,7 +8,7 @@ import { openViewFilters, viewFiltersDoor } from './helpers/tasks'
 // That premise is gone, but the GOAL this test protects is not: keyboard-driven filtering must
 // keep the task queue mounted (never swap it for a drawer/page) and hand focus back to the
 // trigger it came from when the interaction closes. Re-expressed on the current control: open the
-// door and the Status popover with the keyboard, toggle "Open" with Space, close with Escape.
+// door and the Status popover with the keyboard, toggle "Open" with Space, then Escape twice (popover, then door).
 test('keyboard filtering keeps the task queue in place and restores focus', async ({ page }) => {
   await loginAs(page, MANAGER.email, MANAGER.password)
   await page.goto('/mos/work/tasks')
@@ -33,11 +33,15 @@ test('keyboard filtering keeps the task queue in place and restores focus', asyn
   await page.keyboard.press('Space')
   await expect(openCheckbox).toBeChecked()
 
-  // Escape has no dedicated handler on the Status popover itself, so it bubbles to the "View &
-  // filters" door's own Escape contract (ViewOptionsDisclosure, #870): closes the whole door and
-  // returns focus to ITS trigger — confirmed live (2026-09-22), not assumed.
+  // Escape closes the innermost open thing first (collection-toolbar.tsx): the Status popover
+  // closes and focus returns to ITS trigger, with the door still open. The next Escape belongs to
+  // the "View & filters" door's own contract (ViewOptionsDisclosure, #870): it closes the door and
+  // returns focus to ITS trigger.
   await page.keyboard.press('Escape')
   await expect(openCheckbox).toHaveCount(0)
+  await expect(statusTrigger).toBeFocused()
+  await expect(door).toHaveAttribute('aria-expanded', 'true')
+  await page.keyboard.press('Escape')
   await expect(door).toBeFocused()
   await expect(door).toHaveAttribute('aria-expanded', 'false')
 
