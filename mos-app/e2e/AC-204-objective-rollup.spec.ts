@@ -45,12 +45,13 @@ test.describe('AC-204: Objective roll-up and drill', () => {
     await expect(row).toHaveCount(1)
 
     // Count roll-up only — no target, no percentage, no measure (OD-WAY-32) — and the one real
-    // child's name and count, both inline on the row now.
+    // child's name, inline in the row's Work cell (named, not counted).
     const { done, total } = AC204.counts.all
     await expect(row.getByTestId('catalog-progress')).toHaveText(`${done} / ${total} done`)
     await expect(row).not.toContainText('%')
-    await expect(row).toContainText('Projects & Processes: 1')
+    await expect(row.getByRole('cell', { name: `Projects & Processes: ${AC204.launch.name}`, exact: true })).toBeVisible()
     await expect(row).toContainText(AC204.launch.name)
+    await expect(row).not.toContainText(/Projects & Processes: \d/)
 
     // Level 2 — the Objective's own canonical page lists a real door to the child record under
     // its Work tab's linked work.

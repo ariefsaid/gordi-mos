@@ -80,7 +80,7 @@ export interface CafeStreamCatalog {
 
 export interface CafeStreamState extends CafeStreamCatalog {
   /** Read the catalog and resolve the module's stream. Pure apart from the #440 recording. */
-  resolve: () => Promise<CafeStreamCatalog>
+  resolve: (options?: { soleTeamDefault?: boolean }) => Promise<CafeStreamCatalog>
   /** Commit a resolved catalog to state — call it AFTER your own supersede guard. */
   adopt: (next: CafeStreamCatalog) => void
   /** The person switched. Records it module-wide so the next surface opens on it (#440). */
@@ -113,7 +113,7 @@ export function useCafeStream(): CafeStreamState {
     })
   }, [viewerId])
 
-  const resolve = useCallback(async (): Promise<CafeStreamCatalog> => {
+  const resolve = useCallback(async (resolveOptions?: { soleTeamDefault?: boolean }): Promise<CafeStreamCatalog> => {
     const [branches, pairs, myTeams] = await Promise.all([
       listActiveBranches(),
       listStreamPairs(),
@@ -135,19 +135,27 @@ export function useCafeStream(): CafeStreamState {
     )
     // fetchDefaultStream needs the branch catalog, so it runs after the parallel pair.
     const ownDefault = await fetchDefaultStream(branches)
+    // #1142 (Plan only): with no own stream, the person's only Café stream Team is the fallback.
+    // It is inferred, so it is never recorded in the shared session slot — only a choice is.
+    const soleKey = resolveOptions?.soleTeamDefault && !ownDefault && myStreamKeys.size === 1
+      ? [...myStreamKeys][0] : null
+    const soleStream = soleKey
+      ? options.find(option => streamKey(option.branch.id, option.activity) === soleKey) ?? null
+      : null
     // Where the viewer is working. An explicit choice from the Café root wins; with none — a fresh
     // tab opened straight onto Plan or Stock, which have no location chooser of their own — the
     // person's OWN stream names the branch, which is the profile-derived location the ruling asks
     // for. Only when neither exists is the catalog left whole, and then there is no location to be
     // wrong about: nothing has claimed one.
-    const effectiveBranchId = activeBranchId ?? ownDefault?.branch.id ?? null
+    const effectiveBranchId = activeBranchId ?? ownDefault?.branch.id ?? soleStream?.branch.id ?? null
     const locationOptions = effectiveBranchId
       ? options.filter(option => option.branch.id === effectiveBranchId)
       : options
     // Resolved against the LOCATION's catalog, so a remembered stream from elsewhere simply is not
     // found and falls through to the person's own stream, then to null — the same safe ladder a
     // stale pair already took, with no special case for "wrong branch".
-    const stream = resolveCafeStream(locationOptions, ownDefault, viewerId, effectiveBranchId)
+    const resolved = resolveCafeStream(locationOptions, ownDefault, viewerId, effectiveBranchId)
+    const stream = resolved ?? locationOptions.find(option => option === soleStream) ?? null
     return {
       branches, options, locationOptions, stream,
       homeStream: ownDefault, myStreamKeys, branchId: effectiveBranchId,

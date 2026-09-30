@@ -224,7 +224,7 @@ function PlanEditor() {
     try {
       const [itemRows, catalog, myTeams] = await Promise.all([
         listActiveWipItems(),
-        resolveStream(),
+        resolveStream({ soleTeamDefault: true }),
         // Only a supervisor's per-stream write authority depends on this; ops_lead/admin
         // already write everywhere. Display only: a failure drops the extra streams, never
         // the surface (matches useCafeStream's own handling of this read).
