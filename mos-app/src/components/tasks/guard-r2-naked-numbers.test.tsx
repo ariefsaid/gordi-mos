@@ -169,7 +169,7 @@ describe('GUARD-R2: the Tasks page head never shows a number without a label sen
     // OD-REDESIGN-91 #17: counts are OPEN — "N open · M in view" (none Done here → open === total).
     const metaLines = head.querySelectorAll('.ch-meta-line')
     expect(metaLines).toHaveLength(1)
-    expect(metaLines[0].textContent?.trim()).toBe('3 open · 3 in view')
+    expect(metaLines[0].textContent?.trim()).toBe('3 open in this view · 3 incl. done')
 
     // The size-soup pill is gone from this head — count lives inside the sentence.
     expect(head.querySelectorAll('.ch-count')).toHaveLength(0)

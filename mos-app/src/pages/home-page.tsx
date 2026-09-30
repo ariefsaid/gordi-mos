@@ -34,6 +34,7 @@
 // door is not something that needs the viewer today.
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '@/auth/use-auth'
+import { useMyOpenTaskCount } from '@/hooks/useMyOpenTaskCount'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -52,7 +53,7 @@ import { wibToday, type AttentionItem, type AttentionDirectory } from '@/lib/hom
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import {
   overdueStreamItems, dueTodayStreamItems, blockedStreamItems, failedCheckStreamItems,
-  myWorkStreamItems, openTaskCount, type StreamBand,
+  myWorkStreamItems, type StreamBand,
 } from '@/lib/home-stream'
 import { buildHomeRegions } from '@/components/home/home-regions'
 import { HomeHeadCounts, type HomeDayTally } from '@/components/home/home-day-header'
@@ -405,8 +406,9 @@ export function HomePage() {
   )
 
   // The viewer's FULL open-task count (all owned, non-Done tasks — not just the capped my-work
-  // items rendered in the region) — feeds the restored "My open tasks · N →" drill link.
-  const openCount = ready && personId ? openTaskCount(tasks, personId) : 0
+  // items rendered in the region) — feeds the "N open →" drill link. It is the same count the
+  // rail's Tasks badge shows (#1129); null (loading or failed) omits the number.
+  const openCount = useMyOpenTaskCount()
 
   // The one region model feeds the daily brief. needs-you and my-work share the ONE tasks
   // projection + retry (DIV-G5); failed-checks carries its own.
@@ -417,11 +419,11 @@ export function HomePage() {
       failedChecksAdmitted: seesCafe,
       taskState, onRetryTasks: loadTasks,
       failedChecksState: failedChecksBand.state, onRetryFailedChecks: loadFailedChecks,
-      myWorkFullCount: ready ? openCount : undefined,
+      myWorkFullCount: openCount ?? undefined,
     }),
     [
       overdue, dueToday, blocked, myWork, failedChecksBand,
-      taskState, loadTasks, loadFailedChecks, ready, openCount,
+      taskState, loadTasks, loadFailedChecks, openCount,
       seesCafe,
     ],
   )

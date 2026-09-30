@@ -12,7 +12,9 @@ vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
 
-vi.mock('./use-rail-counts', () => ({ useRailCounts: () => null }))
+// The badge reads the ONE open-task count Home also reads (#1129); a hoisted cell lets a case set it.
+const sharedCount = vi.hoisted(() => ({ value: null as number | null }))
+vi.mock('@/hooks/useMyOpenTaskCount', () => ({ useMyOpenTaskCount: () => sharedCount.value }))
 
 function setAuthAs(roleNames: string[] = ['Managing Director']) {
   mockUseAuth.mockReturnValue({
@@ -52,6 +54,7 @@ function renderRail(props: { compact?: boolean; collapsible?: boolean } = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  sharedCount.value = null
   localStorage.clear()
   // The collapse preference is a module-level store (useSyncExternalStore); clearing storage
   // alone would leave the previous case's snapshot in memory.
@@ -62,6 +65,14 @@ beforeEach(() => {
 // OD-REDESIGN-84.2 (P1-1): Rail is the desktop wrapper — this suite covers its own width-var
 // threading + compact-prop plumbing; RailNav's own compact-regime content assertions (labels
 // sr-only, overlines absent, badges present) live in rail-nav.test.tsx.
+describe('Rail — Tasks badge (#1129)', () => {
+  it("shows the shared open-task count, the same number Home shows", () => {
+    sharedCount.value = 7
+    renderRail()
+    expect(within(screen.getByRole('link', { name: /^Tasks/ })).getByText('7')).toBeInTheDocument()
+  })
+})
+
 describe('Rail — width regime (OD-REDESIGN-84.2 / P1-1)', () => {
   it('defaults to the full 232px rail width', () => {
     const { container } = renderRail()

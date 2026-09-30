@@ -493,14 +493,13 @@ describe('Locale controls (ADR-0021 seam, OD-70 placement)', () => {
 // Rail count badges (E7 `.e7-count`) — Tasks (open count) from ONE shell aggregate. Quiet rule:
 // a count that is zero or unavailable shows NO badge. The badge is
 // aria-hidden (a redundant glance cue), so the link's accessible name is unchanged.
-import type { RailCounts } from '@/lib/db/rail-counts'
-function renderRailNavWithCounts(initialPath: string, counts: RailCounts | null | undefined) {
+function renderRailNavWithCounts(initialPath: string, openTasks: number | null | undefined) {
   return render(
     <ThemeProvider>
       <I18nProvider>
         <MemoryRouter initialEntries={[initialPath]}>
           <Routes>
-            <Route path="*" element={<RailNav counts={counts} />} />
+            <Route path="*" element={<RailNav openTasks={openTasks} />} />
           </Routes>
         </MemoryRouter>
       </I18nProvider>
@@ -511,7 +510,7 @@ function renderRailNavWithCounts(initialPath: string, counts: RailCounts | null 
 describe('Rail count badges (Tasks)', () => {
   it('renders the viewer-owned open-Tasks count and no Signals badge', () => {
     setAuthAs(['admin'], 'Managing Director')
-    renderRailNavWithCounts('/work/tasks', { openTasks: 11 })
+    renderRailNavWithCounts('/work/tasks', 11)
     // DO-18(d): the badge label joins the accname, so match on the leading label.
     const tasks = screen.getByRole('link', { name: /^Tasks/ })
     const signals = screen.getByRole('link', { name: /^Signals/ })
@@ -521,7 +520,7 @@ describe('Rail count badges (Tasks)', () => {
 
   it('shows a badge ONLY on Tasks — never on any other rail item', () => {
     setAuthAs(['admin'], 'Managing Director')
-    renderRailNavWithCounts('/work/tasks', { openTasks: 11 })
+    renderRailNavWithCounts('/work/tasks', 11)
     // Was pinned on Projects & Processes / Objectives, which #444 ship-gates out of the rail.
     // Widened rather than dropped: EVERY rendered link must carry no numeric badge except the two
     // named, so a new item cannot grow one unnoticed and this cannot rot the way naming two
@@ -536,7 +535,7 @@ describe('Rail count badges (Tasks)', () => {
 
   it('omits a badge when its count is zero (E7 quiet rule)', () => {
     setAuthAs(['admin'], 'Managing Director')
-    renderRailNavWithCounts('/work/tasks', { openTasks: 0 })
+    renderRailNavWithCounts('/work/tasks', 0)
     expect(within(screen.getByRole('link', { name: 'Tasks' })).queryByText(/\d/)).toBeNull()
     expect(within(screen.getByRole('link', { name: 'Signals' })).queryByText(/\d/)).toBeNull()
   })
@@ -553,7 +552,7 @@ describe('Rail count badges (Tasks)', () => {
   // name stating what the count counts; the link's accname includes it.
   it('DO-18(d): the badge exposes an accessible name stating what the count counts', () => {
     setAuthAs(['admin'], 'Managing Director')
-    renderRailNavWithCounts('/work/tasks', { openTasks: 7 })
+    renderRailNavWithCounts('/work/tasks', 7)
     const tasks = screen.getByRole('link', { name: /^Tasks/ })
     const badge = within(tasks).getByText('7')
     expect(badge.getAttribute('aria-hidden')).not.toBe('true')
@@ -642,7 +641,7 @@ describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
         <I18nProvider>
           <MemoryRouter initialEntries={['/work/tasks']}>
             <Routes>
-              <Route path="*" element={<RailNav compact counts={{ openTasks: 4 }} />} />
+              <Route path="*" element={<RailNav compact openTasks={4} />} />
             </Routes>
           </MemoryRouter>
         </I18nProvider>

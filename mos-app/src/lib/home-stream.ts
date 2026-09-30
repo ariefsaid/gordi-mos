@@ -203,11 +203,6 @@ export function signalStreamItems(
     })
 }
 
-/** Count of the viewer's open tasks (R/A, not Done, not archived) — the "All tasks · N" figure. */
-export function openTaskCount(tasks: TaskListRow[], viewerId: string): number {
-  return tasks.filter(t => isOwnedOpen(t, viewerId)).length
-}
-
 /** Summed item count across bands — the "Needs attention · N" summary source (FR-509 parity). */
 export function bandItemCount(bands: { items: StreamItem[] }[]): number {
   return bands.reduce((sum, b) => sum + b.items.length, 0)

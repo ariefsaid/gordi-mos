@@ -1,8 +1,8 @@
 import { RailNav } from './rail-nav'
-import { useRailCounts } from './use-rail-counts'
 import { useRailCollapsePref } from './use-rail-collapse-pref'
 import { Chevron } from './icons'
 import { useT } from '@/i18n/use-t'
+import { useMyOpenTaskCount } from '@/hooks/useMyOpenTaskCount'
 import './rail-nav.css'
 
 interface RailProps {
@@ -57,9 +57,8 @@ function RailCollapseToggle({ compact }: { compact: boolean }) {
 }
 
 export function Rail({ onNavigate, compact = false, collapsible = false }: RailProps) {
-  // The rail's single count-fetch seam (once per mount, no polling). Rail is the desktop-only
-  // wrapper (app-shell renders it at ≥920px), so the aggregate is fetched exactly once.
-  const counts = useRailCounts()
+  // The Tasks badge reads the same open-task count Home does (#1129), once per mount.
+  const openTasks = useMyOpenTaskCount()
   return (
     <aside
       className="bg-secondary border-r border-border flex flex-col"
@@ -84,7 +83,7 @@ export function Rail({ onNavigate, compact = false, collapsible = false }: RailP
           <RailCollapseToggle compact={compact} />
         </div>
       )}
-      <RailNav onNavigate={onNavigate} counts={counts} compact={compact} />
+      <RailNav onNavigate={onNavigate} openTasks={openTasks} compact={compact} />
     </aside>
   )
 }
