@@ -446,7 +446,7 @@ describe('Create from Signal convergence', () => {
     expect(screen.getByRole('textbox', { name: /title/i })).toHaveValue('Original')
     const edited = await screen.findByRole('textbox', { name: /title/i })
     fireEvent.change(edited, { target: { value: 'Edited after failure' } })
-    fireEvent.keyDown(edited, { key: 'Enter' })
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
     await waitFor(() => expect(mockLinkSignalTask).toHaveBeenCalledTimes(2))
     expect(mockCreateTask).toHaveBeenCalledTimes(1)
     expect(mockUpdateTaskFields).toHaveBeenCalledWith('created-retry', { title: 'Edited after failure' }, VIEWER_ID)
@@ -2418,8 +2418,7 @@ describe('Ticket #750 — AC-022 in-row PIC/Due edit follows the permission rule
     await waitFor(() => screen.getByText('Bar team task'))
 
     // PIC cell: an inline trigger opens the picker, offering self + downline.
-    const picTrigger = document.querySelector('td.td-owner button.inline-cell-trigger') as HTMLButtonElement
-    expect(picTrigger, 'PIC cell is editable for the manager above the PIC').toBeTruthy()
+    const picTrigger = within(screen.getByText('Bar team task').closest('tr')!).getByRole('button', { name: /Sample Barista/ })
     fireEvent.click(picTrigger)
     expect(screen.getByRole('combobox', { name: 'Edit task PIC' })).toHaveAttribute('aria-expanded', 'true')
     const optionLabels = screen.getAllByRole('option').map((option) => option.textContent)

@@ -625,9 +625,9 @@ export function TasksWorkspace({
     if (!viewerId) throw new Error('inline title edit requires an authenticated viewer')
     await updateTaskFields(taskId, { title }, viewerId)
   }, [controller, draftTask, t, viewerId])
-  const onRetryDraftLink = useCallback(() => {
+  const onRetryDraftLink = useCallback((title: string) => {
     if (!draftTask) return
-    void onEditTitle(draftTask.id, draftTitleRef.current || draftTask.title)
+    void onEditTitle(draftTask.id, title || draftTitleRef.current || draftTask.title)
   }, [draftTask, onEditTitle])
   const onDiscardNewTask = useCallback(() => {
     returnFocusAfterDiscard.current = true

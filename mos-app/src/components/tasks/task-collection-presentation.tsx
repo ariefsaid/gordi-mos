@@ -77,7 +77,7 @@ export interface TaskCollectionRuntime {
   draftTask: TaskListRow | null
   onDiscardNewTask: () => void
   draftLinkError: boolean
-  onRetryDraftLink: () => void
+  onRetryDraftLink: (title: string) => void
   onCloseDrawer: () => void
   onNewTask: (prefillParam?: string) => void
   onAddTask: (prefillParam: string) => void
