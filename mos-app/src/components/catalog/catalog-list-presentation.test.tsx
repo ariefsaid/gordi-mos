@@ -262,8 +262,14 @@ describe('CatalogListPresentation Objective Business Unit cell', () => {
     expect(cell('Whole company')).not.toHaveTextContent('2026 ·')
   })
 
+  it('keeps the column when the only fact is Company-wide', () => {
+    renderRows([{ id: 'o5', name: 'Alone', archived_at: null, businessUnitId: null, isCompanyWide: true }], objectiveContext)
+    expect(cell('Alone')).toHaveAccessibleName('Business Unit: Company-wide')
+  })
+
   it('keeps an unset Objective at muted Not set', () => {
-    renderRows([{ id: 'o3', name: 'Unset', archived_at: null, businessUnitId: null, isCompanyWide: false }], objectiveContext)
+    // a sibling with a unit keeps the column on screen (dev hides a column that is empty on every row)
+    renderRows([{ id: 'o3', name: 'Unset', archived_at: null, businessUnitId: null, isCompanyWide: false }, { id: 'o4', name: 'Named', archived_at: null, businessUnitId: 'bu-1' }], objectiveContext)
     expect(cell('Unset')).toHaveAccessibleName('Business Unit: Not set')
     expect(cell('Unset').querySelector('.catalog-collection__cell-value--muted')).not.toBeNull()
   })

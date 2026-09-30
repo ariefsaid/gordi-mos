@@ -139,7 +139,7 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
   const rows = projection.visibleRecords
   const shows = (present: (row: CatalogRow) => boolean) => rows.length === 0 || rows.some(present)
   const showRelation = shows((row) => isObjective
-    ? row.businessUnitId != null || row.periodYear != null
+    ? row.businessUnitId != null || row.isCompanyWide === true || row.periodYear != null
     : primaryRelation(context, row) != null)
   const showOwner = shows((row) => row.accountablePersonId != null)
   const showCadence = shows((row) => {
