@@ -40,8 +40,11 @@ select is((select actor_person_id::text from shared.record_history
   'AC-007: the member sees WHO made the authenticated edit');
 
 -- ── AC-007: a person who cannot read the record reads none of its history ────────────────────
+-- Scoped to org A: since batch 2d (#989) wires the shared directory, an org-B member legitimately
+-- reads their OWN org's directory history — the wall this AC asserts is around org A's records.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
-select is((select count(*)::int from shared.record_history),
+select is((select count(*)::int from shared.record_history
+           where org_id = '00000000-0000-0000-0000-0000000000a1'),
   0, 'AC-007: another org''s member reads no org-A history at all');
 
 -- ── AC-008: a table the dispatch does not register fails closed ──────────────────────────────
