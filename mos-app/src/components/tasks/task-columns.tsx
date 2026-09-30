@@ -19,8 +19,8 @@ declare module '@tanstack/react-table' {
     labelKey: MessageKey
     // The <th> hook class. Widths/floors pin per class (#743 r3, #930) — never rename.
     thClass: string
-    // The <td> hook class; a function when the class carries row state (Due's overdue tint).
-    tdClass: string | ((task: TaskListRow, now: Date) => string)
+    // The <td> hook class (Tasks only); a function when the class carries row state (Due's overdue tint).
+    tdClass?: string | ((task: TaskListRow, now: Date) => string)
     // A Fields-chooser-optional column: hidden unless its query field is checked (AC-006, #743).
     optional?: boolean
     // The `query.visibleFields` entry that toggles this optional column.
