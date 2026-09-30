@@ -9,13 +9,15 @@ vi.mock('@/lib/db/work-authority', () => ({
     objective_org: false,
     workline_bu_ids: [],
     objective_bu_ids: [],
+    objective_content_org: false,
+    objective_content_bu_ids: [],
   }),
   getWorkWriteScopes: vi.fn(),
 }))
 
 import { useAuth } from '@/auth/use-auth'
-import { getWorkWriteScopes } from '@/lib/db/work-authority'
-import { useWorkWriteAuthority } from './use-work-write-authority'
+import { emptyWorkWriteScopes, getWorkWriteScopes, type WorkWriteScopes } from '@/lib/db/work-authority'
+import { canEditObjectiveContentForScope, useWorkWriteAuthority } from './use-work-write-authority'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockGetWorkWriteScopes = vi.mocked(getWorkWriteScopes)
@@ -78,5 +80,32 @@ describe('useWorkWriteAuthority', () => {
 
     await waitFor(() => expect(view.result.current.scopes).toEqual(scopesB))
     expect(mockGetWorkWriteScopes).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('canEditObjectiveContentForScope', () => {
+  const scopes = (overrides: Partial<WorkWriteScopes>): WorkWriteScopes => ({
+    ...emptyWorkWriteScopes(), ...overrides,
+  })
+  const cases: readonly {
+    name: string
+    row: { businessUnitId?: string | null; isCompanyWide?: boolean }
+    scopes: WorkWriteScopes
+    expected: boolean
+  }[] = [
+    { name: 'content org, named unit', row: { businessUnitId: 'bu-a' }, scopes: scopes({ objective_content_org: true }), expected: true },
+    { name: 'content org, Company-wide', row: { businessUnitId: null, isCompanyWide: true }, scopes: scopes({ objective_content_org: true }), expected: true },
+    { name: 'content org, unset', row: { businessUnitId: null, isCompanyWide: false }, scopes: scopes({ objective_content_org: true }), expected: true },
+    { name: 'own unit', row: { businessUnitId: 'bu-a' }, scopes: scopes({ objective_content_bu_ids: ['bu-a', 'bu-b'] }), expected: true },
+    { name: 'another unit', row: { businessUnitId: 'bu-c' }, scopes: scopes({ objective_content_bu_ids: ['bu-a', 'bu-b'] }), expected: false },
+    { name: 'unit head, Company-wide', row: { businessUnitId: null, isCompanyWide: true }, scopes: scopes({ objective_content_bu_ids: ['bu-a'] }), expected: false },
+    { name: 'unit head, Company-wide row that also names a unit in scope', row: { businessUnitId: 'bu-a', isCompanyWide: true }, scopes: scopes({ objective_content_bu_ids: ['bu-a'] }), expected: false },
+    { name: 'unit head, unset', row: { businessUnitId: null, isCompanyWide: false }, scopes: scopes({ objective_content_bu_ids: ['bu-a'] }), expected: false },
+    { name: 'unit head, flag absent and no unit', row: {}, scopes: scopes({ objective_content_bu_ids: ['bu-a'] }), expected: false },
+    { name: 'member, named unit', row: { businessUnitId: 'bu-a' }, scopes: scopes({}), expected: false },
+    { name: 'structural scope alone never opens content', row: { businessUnitId: 'bu-a' }, scopes: scopes({ objective_org: true, objective_bu_ids: ['bu-a'] }), expected: false },
+  ]
+  it.each(cases)('$name -> $expected', ({ row, scopes: given, expected }) => {
+    expect(canEditObjectiveContentForScope(row, given)).toBe(expected)
   })
 })

@@ -139,7 +139,7 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
   const rows = projection.visibleRecords
   const shows = (present: (row: CatalogRow) => boolean) => rows.length === 0 || rows.some(present)
   const showRelation = shows((row) => isObjective
-    ? row.businessUnitId != null || row.periodYear != null
+    ? row.businessUnitId != null || row.isCompanyWide === true || row.periodYear != null
     : primaryRelation(context, row) != null)
   const showOwner = shows((row) => row.accountablePersonId != null)
   const showCadence = shows((row) => {
@@ -186,7 +186,10 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
           // One word for one fact: what a reader sees in the cell is what a screen reader hears,
           // and the same word the Accountable field on the record itself uses for the same gap.
           const ownerLabel = directoryName(row.accountablePersonId, context.peopleById, t)
-          const businessUnitLabel = directoryName(row.businessUnitId, context.businessUnitsById, t)
+          const businessUnitMissing = !row.businessUnitId && !row.isCompanyWide
+          const businessUnitLabel = row.isCompanyWide ? t('catalog.companyWide') : directoryName(row.businessUnitId, context.businessUnitsById, t)
+          const quarterLabels = [t('catalog.period.q1'), t('catalog.period.q2'), t('catalog.period.q3'), t('catalog.period.q4')]
+          const periodNote = row.periodYear == null ? null : row.periodQuarter ? `${row.periodYear} · ${quarterLabels[row.periodQuarter - 1]}` : String(row.periodYear)
           const cadenceDue = dueValue(row, t)
           const cadenceDueLabel = cadenceDue.label
           const typeTag = row.type ? (
@@ -233,11 +236,11 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
                       aria-label={`${context.relationsKind === 'objective' ? t('catalog.column.businessUnit') : t('catalog.column.objective')}: ${context.relationsKind === 'objective' ? businessUnitLabel : relationLabel}`}
                     >
                       <span className="catalog-collection__cell-label">{context.relationsKind === 'objective' ? t('catalog.column.businessUnit') : t('catalog.column.objective')}</span>
-                      <span className={context.relationsKind === 'objective' ? (!row.businessUnitId ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value') : (relation ? 'catalog-collection__cell-value' : 'catalog-collection__cell-value catalog-collection__cell-value--muted')}>
-                        {visualCellValue(context.relationsKind === 'objective' ? businessUnitLabel : relationLabel, context.relationsKind === 'objective' ? !row.businessUnitId : !relation)}
+                      <span className={context.relationsKind === 'objective' ? (businessUnitMissing ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value') : (relation ? 'catalog-collection__cell-value' : 'catalog-collection__cell-value catalog-collection__cell-value--muted')}>
+                        {visualCellValue(context.relationsKind === 'objective' ? businessUnitLabel : relationLabel, context.relationsKind === 'objective' ? businessUnitMissing : !relation)}
                       </span>
-                      {context.relationsKind === 'objective' && row.periodYear != null ? (
-                        <span className="catalog-collection__cell-note">{row.periodYear}</span>
+                      {context.relationsKind === 'objective' && periodNote ? (
+                        <span className="catalog-collection__cell-note">{periodNote}</span>
                       ) : null}
                     </span>
                   ) : null}
