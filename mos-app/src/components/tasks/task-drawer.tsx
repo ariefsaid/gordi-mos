@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useParams, useNavigate, useOutletContext } from 'react-router-dom'
 import { TaskSurface, type TaskSurfaceProps } from './task-surface'
+import { liveTasksSearch, type LiveTasksQueryRef } from './tasks-navigation'
 import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
 import { RecordPanelHost } from '@/shell/record-panel-host'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -16,6 +17,8 @@ export type TaskDrawerOutletContext = {
   onTaskCreated?: (id: string) => void
   /** I3: lets the surface tell the table to refetch after an archive. */
   onTaskArchived?: (id: string) => void
+  /** The Tasks search box's live text, so drawer navigations carry it rather than the URL's. */
+  liveQueryRef?: LiveTasksQueryRef
 }
 
 export type TaskDrawerProps = {
@@ -180,14 +183,18 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
     proceed?.()
   }, [])
 
+  const liveQueryRef = ctx?.liveQueryRef
   const leaveToList = useCallback(
-    () => navigate({ pathname: '/work/tasks', search: location.search }),
-    [navigate, location.search],
+    () => navigate({ pathname: '/work/tasks', search: liveTasksSearch(location.search, liveQueryRef) }),
+    [navigate, location.search, liveQueryRef],
   )
   const close = () => guardedClose(leaveToList)
   const label = mode === 'create' ? t('tasks.create.new') : t('tasks.detail.title')
   const openPage = mode === 'view' && taskId
-    ? () => guardedClose(() => navigate({ pathname: `/work/tasks/${taskId}`, search: location.search }, { state: { taskSurface: 'page' } }))
+    ? () => guardedClose(() => navigate(
+      { pathname: `/work/tasks/${taskId}`, search: liveTasksSearch(location.search, liveQueryRef) },
+      { state: { taskSurface: 'page' } },
+    ))
     : undefined
   const openRelated = useCallback<NonNullable<TaskSurfaceProps['onOpenRelated']>>(
     ({ kind, id }) => guardedClose(() => navigate({
@@ -219,6 +226,7 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
         onTaskChanged={ctx?.onTaskChanged}
         onTaskCreated={ctx?.onTaskCreated}
         onTaskArchived={ctx?.onTaskArchived}
+        liveQueryRef={liveQueryRef}
         onTitleResolved={setResolvedTitle}
         showPanelUtility={false}
         // D-B1: view-mode RecordField draft state and create-mode form leave both feed the guard.

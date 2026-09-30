@@ -371,15 +371,18 @@ export function TaskRow({
 
   // One tab stop per row (the title link). Arrow keys move along the row's cells (title, Status,
   // PIC, Due) and Enter/Space on a cell opens its editor; F2 renames from the title.
-  const onRowKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>) => {
-    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
-    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
-    const from = e.target as HTMLElement
-    if (!from.hasAttribute('data-row-stop')) return
-    const stops = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[data-row-stop]'))
-    const to = stops[stops.indexOf(from) + (e.key === 'ArrowRight' ? 1 : -1)]
+  const onRowKeyDown = (event: React.KeyboardEvent<HTMLTableRowElement>) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+    const from = event.target
+    if (!(from instanceof HTMLElement) || !from.hasAttribute('data-row-stop')) return
+    // Cells the list's responsive rules hide (display: none) are not stops; the browser's own
+    // computed display decides, so no breakpoint is repeated here.
+    const stops = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[data-row-stop]'))
+      .filter((stop) => getComputedStyle(stop.closest('td') ?? stop).display !== 'none')
+    const to = stops[stops.indexOf(from) + (event.key === 'ArrowRight' ? 1 : -1)]
     if (!to) return
-    e.preventDefault()
+    event.preventDefault()
     to.focus()
   }
 

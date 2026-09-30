@@ -22,6 +22,7 @@ import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { ConfirmArchive } from './confirm-archive'
 import { canEdit } from './task-permissions'
+import { liveTasksSearch, type LiveTasksQueryRef } from './tasks-navigation'
 import { createTaskRecordAdapter, createTaskFieldCommit, type TaskTeamView, type TaskRelatedRecord, type TaskViewerFieldKey } from './task-record-adapter'
 import { RecordViewer } from '@/components/records/record-viewer'
 import type { RecordContentSlot, RecordViewerAdapter } from '@/components/records/record-viewer.types'
@@ -115,6 +116,8 @@ export type TaskSurfaceProps = {
   // Heading level for the full-width record identity. Defaults to 1; the V3
   // focused-record page passes 2 because its PageFamilyFrame owns the shell h1.
   identityHeadingLevel?: 1 | 2
+  /** The Tasks search box's live text: the view surface's own navigations carry it, not the URL's. */
+  liveQueryRef?: LiveTasksQueryRef
 }
 
 // ── Skeleton ─────────────────────────────────────────────────────────────────
@@ -147,6 +150,7 @@ function ViewSurface({
   showPanelUtility = true,
   identityHeadingLevel,
   fieldCommitsFrozen,
+  liveQueryRef,
 }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const canonicalHref = useHref(taskId ? `/work/tasks/${taskId}` : '/work/tasks')
@@ -694,7 +698,7 @@ function ViewSurface({
       await archiveTask(localTask.id, viewerId)
       onTaskArchived?.(localTask.id)  // I3: let the table drop the row + decrement the count
       if (onClose) onClose()
-      else navigate({ pathname: '/work/tasks', search: location.search })
+      else navigate({ pathname: '/work/tasks', search: liveTasksSearch(location.search, liveQueryRef) })
     } catch { setArchiveFailure('archive') }
   }
   async function handleUnarchive() {
@@ -778,9 +782,14 @@ function ViewSurface({
   // OverlayHostSlot) supplies it explicitly. In panel mode without an explicit callback we fall
   // back to the canonical task page route. GAP-2 (OD-91 #7): "Open full page" is the ONE escalation.
   const openPageTarget = presentation === 'panel'
-    ? (onOpenPage ?? (() => navigate({ pathname: `/work/tasks/${task.id}`, search: location.search }, { state: { taskSurface: 'page' } })))
+    ? (onOpenPage ?? (() => navigate(
+      { pathname: `/work/tasks/${task.id}`, search: liveTasksSearch(location.search, liveQueryRef) },
+      { state: { taskSurface: 'page' } },
+    )))
     : undefined
-  const closeTarget = () => (onClose ? onClose() : navigate({ pathname: '/work/tasks', search: location.search }))
+  const closeTarget = () => (onClose
+    ? onClose()
+    : navigate({ pathname: '/work/tasks', search: liveTasksSearch(location.search, liveQueryRef) }))
 
   // ── Drawer width: the shared RecordViewer owns identity, metadata, content and actions ──
   if (width === 'drawer') {

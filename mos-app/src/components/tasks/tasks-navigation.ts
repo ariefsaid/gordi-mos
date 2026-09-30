@@ -1,13 +1,11 @@
-import type { MutableRefObject } from 'react'
+import { type MutableRefObject } from 'react'
 
-/** Holds the Tasks search box's live text for ancestors that navigate on the workspace's behalf. */
+// The Tasks search box publishes its live text here for ancestors that navigate on its behalf.
 export type LiveTasksQueryRef = MutableRefObject<string | null>
 
-/**
- * The one builder for internal Tasks navigations. The search box's own URL write can still be
- * pending, so the URL's `q` may be older than the text just typed; every PUSH takes the live query
- * instead of copying the URL's. `drop` removes params the destination must not carry.
- */
+// The one builder for internal Tasks navigations. The search box's own URL write can still be
+// pending, so the URL's `q` may be older than the typed text: every PUSH takes the live query.
+// `drop` removes params the destination must not carry.
 export function tasksSearchWithLiveQuery(
   base: URLSearchParams | string,
   liveQuery: string | null,
@@ -25,4 +23,9 @@ export function tasksSearchWithLiveQuery(
 export function searchString(params: URLSearchParams): string {
   const text = params.toString()
   return text ? `?${text}` : ''
+}
+
+// `location.search` with the live query applied; `location.search` as-is when no ref is supplied.
+export function liveTasksSearch(locationSearch: string, liveQueryRef?: LiveTasksQueryRef): string {
+  return searchString(tasksSearchWithLiveQuery(locationSearch, liveQueryRef?.current ?? null))
 }

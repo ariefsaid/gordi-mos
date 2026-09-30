@@ -95,7 +95,7 @@ export function TasksLayout() {
   const [refreshKey, setRefreshKey] = useState(0)
   const onTaskCreated = useCallback(() => setRefreshKey(k => k + 1), [])
   const onTaskArchived = useCallback(() => setRefreshKey(k => k + 1), [])
-  const outletContext: TaskDrawerOutletContext = { onTaskChanged, onTaskCreated, onTaskArchived }
+  const outletContext: TaskDrawerOutletContext = { onTaskChanged, onTaskCreated, onTaskArchived, liveQueryRef }
 
   // OD-63 / Rule 4: a direct/new-tab/refresh (or the explicit "Open full page"
   // escalation) renders the SAME record as a standalone full canonical page — NOT

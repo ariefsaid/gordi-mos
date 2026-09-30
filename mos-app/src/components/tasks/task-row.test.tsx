@@ -648,6 +648,25 @@ describe('TaskRow — one tab stop per row, cells reached by arrow keys (#1027)'
     expect(document.activeElement).toBe(screen.getByRole('link', { name: /Finalise Q3/ }))
   })
 
+  it('a cell the narrowed list hides is skipped: Right from the title lands on PIC, never on hidden Status', async () => {
+    // The container rules hide cells by display; jsdom has no container queries, so the
+    // stylesheet states the outcome for a list narrow enough to drop Status.
+    const style = document.createElement('style')
+    style.textContent = '.td-status { display: none; }'
+    document.head.appendChild(style)
+    try {
+      const user = userEvent.setup()
+      editableRow()
+      screen.getByRole('link', { name: /Finalise Q3/ }).focus()
+      await user.keyboard('{ArrowRight}')
+      expect(document.activeElement).toBe(picTrigger())
+      await user.keyboard('{ArrowLeft}')
+      expect(document.activeElement).toBe(screen.getByRole('link', { name: /Finalise Q3/ }))
+    } finally {
+      style.remove()
+    }
+  })
+
   it('Enter on the arrow-reached Status cell opens its options', async () => {
     const user = userEvent.setup()
     editableRow()
