@@ -23,6 +23,8 @@ describe('getWorkWriteScopes', () => {
       objective_org: false,
       workline_bu_ids: ['bu-1'],
       objective_bu_ids: ['bu-2'],
+      objective_content_org: true,
+      objective_content_bu_ids: ['bu-3'],
     })
 
     await expect(getWorkWriteScopes()).resolves.toEqual({
@@ -30,6 +32,8 @@ describe('getWorkWriteScopes', () => {
       objective_org: false,
       workline_bu_ids: ['bu-1'],
       objective_bu_ids: ['bu-2'],
+      objective_content_org: true,
+      objective_content_bu_ids: ['bu-3'],
     })
     expect(rpc).toHaveBeenCalledWith('get_work_write_scopes')
   })
@@ -42,6 +46,8 @@ describe('getWorkWriteScopes', () => {
       objective_org: false,
       workline_bu_ids: ['bu-1'],
       objective_bu_ids: [],
+      objective_content_org: false,
+      objective_content_bu_ids: [],
     })
   })
 

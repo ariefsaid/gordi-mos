@@ -13,7 +13,7 @@ vi.mock('@/lib/db/objectives', () => ({
 vi.mock('@/lib/db/work-lines', () => ({ listWorkLinesAll: vi.fn() }))
 vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
 vi.mock('@/lib/db/work-authority', () => ({
-  emptyWorkWriteScopes: () => ({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [] }),
+  emptyWorkWriteScopes: () => ({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [], objective_content_org: false, objective_content_bu_ids: [] }),
   getWorkWriteScopes: vi.fn(),
 }))
 vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
@@ -83,6 +83,8 @@ beforeEach(() => {
     objective_org: true,
     workline_bu_ids: [],
     objective_bu_ids: [],
+    objective_content_org: false,
+    objective_content_bu_ids: [],
   })
   vi.mocked(createObjective).mockResolvedValue({ id: 'obj-new', name: 'New', archived_at: null })
 })
@@ -151,6 +153,8 @@ describe('Objectives collection-first contract', () => {
       objective_org: false,
       workline_bu_ids: [],
       objective_bu_ids: [],
+      objective_content_org: false,
+      objective_content_bu_ids: [],
     })
     renderPage()
     await screen.findByText('Grow revenue')

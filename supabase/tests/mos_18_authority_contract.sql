@@ -9,7 +9,7 @@
 -- journey: member is a baseline category derived from live org membership, not from access_roles.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(47);
+select plan(56);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
@@ -62,6 +62,40 @@ select is((select workline_bu_ids from mos.get_work_write_scopes()), '{}'::uuid[
   'definition write scopes do not enumerate a BU the member does not head');
 select is((select objective_bu_ids from mos.get_work_write_scopes()), '{}'::uuid[],
   'Objective write scopes do not enumerate a BU the member does not head');
+
+-- ── #992: the Objective structural/content split rides the same RPC ──────────────────────────
+-- objective_org moved onto the authority the policies enforce (the objective.manage capability,
+-- admin after OD-OBJ-1) and objective_bu_ids is structurally empty — no per-BU structural tier
+-- remains. The content fields mirror the shape for write-up/current-value authority.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
+select is((select objective_org from mos.get_work_write_scopes()), false,
+  'an ops lead holds NO org-wide Objective structural scope — OD-OBJ-1 narrows OD-V4-1');
+select is((select objective_content_org from mos.get_work_write_scopes()), true,
+  'an ops lead holds org-wide Objective content scope (write-up / current value)');
+select is((select objective_content_bu_ids from mos.get_work_write_scopes()), '{}'::uuid[],
+  'org-wide content scope enumerates no BUs');
+
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select is((select objective_org from mos.get_work_write_scopes()), false,
+  'a BU head holds no org-wide Objective structural scope');
+select is((select objective_bu_ids from mos.get_work_write_scopes()), '{}'::uuid[],
+  'a BU head holds no per-BU structural Objective scope at all — the unit tier is content-only');
+select is((select objective_content_org from mos.get_work_write_scopes()), false,
+  'a BU head holds no org-wide Objective content scope');
+select is((select objective_content_bu_ids from mos.get_work_write_scopes()),
+  array['00000000-0000-0000-0000-0000000000a3']::uuid[],
+  'the Unit-2 head''s content scope enumerates exactly their own unit');
+
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select is((select objective_org from mos.get_work_write_scopes()), true,
+  'admin holds the org-wide Objective structural scope');
+select is((select objective_content_org from mos.get_work_write_scopes()), true,
+  'admin holds org-wide Objective content scope');
+
+-- The scope reads above end on the admin persona; the Signal fixture below calls its poster "the
+-- author" and asserts retraction authority against that identity, so restore the member persona
+-- the original fixture was written under before posting.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
 
 -- The author posts an All Teams Signal tagging an unrelated active person + Team + BU — the
 -- explicit any-person/any-Team/any-BU control under the org-wide signal.tag grant.
@@ -214,10 +248,15 @@ select is(mos.can_manage_definition('00000000-0000-0000-0000-0000000000a3'), tru
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
 select shared.save_role_authority('[{"action":"workline.manage","role":"bu_head","scope":"own_bu"}]'::jsonb);
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}';
-select lives_ok($$
+-- REWRITE at the behavior level (#992, OD-OBJ-1): this used to prove a precise BU head could
+-- create an Objective in the headed BU. Objective creation is structural authority now —
+-- admin alone — so the same actor is refused with 42501. The Projects & Processes half above
+-- keeps the original matrix-elasticity property.
+select throws_ok($$
   insert into mos.objectives (name, business_unit_id)
   values ('BU-head objective', '00000000-0000-0000-0000-0000000000a2')
-$$, 'the precise BU head can create an Objective in the headed BU');
+$$, '42501', null,
+  'the precise BU head cannot create an Objective — structural authority is admin-only (#992)');
 select lives_ok($$
   insert into mos.work_lines (name, type, business_unit_id)
   values ('BU-head project', 'project', '00000000-0000-0000-0000-0000000000a2')
