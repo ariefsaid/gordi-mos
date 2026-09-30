@@ -48,7 +48,7 @@ const BASE_PROPS: MobileGroupedCardsProps = {
   now: new Date('2026-06-16'),
   buMap: new Map([['bu-1', 'Kitchen']]),
   teamMap: new Map([['team-1', 'Retail Ops']]),
-  personMap: new Map([['person-1', 'Arief Said']]),
+  personMap: new Map([['person-1', 'Arden Sample']]),
   isCollapsed: () => false,
   toggleCollapsed: () => {},
   openAddTask: () => {},
@@ -111,7 +111,7 @@ describe('MobileGroupedCards', () => {
           onEditPic={async (_taskId, personId) => setDraft((current) => ({ ...current, responsible_person_id: personId }))}
           onEditTeam={async (_taskId, teamId) => setDraft((current) => ({ ...current, team_id: teamId, business_unit_id: 'bu-1' }))}
           onEditSupervisor={async (_taskId, personId) => setDraft((current) => ({ ...current, accountable_person_id: personId }))}
-          personOptions={[{ id: 'person-1', full_name: 'Arief Said' }]}
+          personOptions={[{ id: 'person-1', full_name: 'Arden Sample' }]}
           supervisorOptions={[{ id: 'person-2', full_name: 'Dewi Santoso' }]}
           teamOptions={[{ id: 'team-1', name: 'Café team', businessUnitId: 'bu-1' }]}
         />
@@ -148,8 +148,8 @@ describe('MobileGroupedCards', () => {
       onEditPic: vi.fn().mockResolvedValue(undefined),
       onEditTeam: vi.fn().mockResolvedValue(undefined),
       onEditSupervisor: vi.fn().mockResolvedValue(undefined),
-      personOptions: [{ id: 'person-1', full_name: 'Arief Said' }],
-      supervisorOptions: [{ id: 'person-1', full_name: 'Arief Said' }],
+      personOptions: [{ id: 'person-1', full_name: 'Arden Sample' }],
+      supervisorOptions: [{ id: 'person-1', full_name: 'Arden Sample' }],
       teamOptions: [{ id: 'team-1', name: 'Café team', businessUnitId: 'bu-1' }],
     })
     const card = screen.getByTestId('task-card')
@@ -261,10 +261,10 @@ describe('MobileGroupedCards', () => {
   it('+ Create task button fires openAddTask with the group prefillParam', () => {
     const openAddTask = vi.fn()
     const groups = [
-      { key: 'p1', label: 'Arief Said', rows: [], overdue: 0, prefillParam: 'r=person-1' },
+      { key: 'p1', label: 'Arden Sample', rows: [], overdue: 0, prefillParam: 'r=person-1' },
     ]
     renderCards({ groups, openAddTask })
-    const addBtn = screen.getByRole('button', { name: /create task in arief said/i })
+    const addBtn = screen.getByRole('button', { name: /create task in arden sample/i })
     fireEvent.click(addBtn)
     expect(openAddTask).toHaveBeenCalledWith('r=person-1')
   })

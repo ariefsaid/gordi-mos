@@ -487,12 +487,12 @@ describe('Issue 245 / FR-928: Signals stays live, concise and honest', () => {
     mockListAllTeams.mockResolvedValue([
       { id: 'team-1', name: 'Bar Kemang', business_unit_id: 'bu-cafe', site_id: null, is_primary: false },
     ])
-    mockGetPeople.mockResolvedValue([{ id: 'author-1', full_name: 'Riri Barista' }])
+    mockGetPeople.mockResolvedValue([{ id: 'author-1', full_name: 'Nico Barista' }])
 
     await renderHome(memberViewer)
     const feed = await screen.findByRole('region', { name: /^Signals · \d+$/ })
     expect(within(feed).getByText(/grinder is jamming on the second hopper/i)).toBeInTheDocument()
-    await waitFor(() => expect(within(feed).getByText('Riri Barista')).toBeInTheDocument())
+    await waitFor(() => expect(within(feed).getByText('Nico Barista')).toBeInTheDocument())
     expect(within(feed).getByText('Bar Kemang')).toBeInTheDocument()
     expect(within(feed).queryByRole('searchbox')).toBeNull()
     expect(screen.queryByText(/isn.t available/i)).toBeNull()

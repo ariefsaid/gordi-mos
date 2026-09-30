@@ -133,6 +133,38 @@ describe('calls', () => {
     assert.equal(h.calls.length, 0);
   });
 
+  describe('error output never carries a raw fetch or spawn message', () => {
+    const SECRET = 'fake-token-9f3a7c';
+    const rejecting = (err) => harness({ stored: creds(), handlers: [() => Promise.reject(err)] });
+
+    it('reports only the cause code when the request is rejected', async () => {
+      const h = rejecting(Object.assign(new TypeError(`Invalid value "Bearer ${SECRET}" for header`), { cause: { code: 'ECONNREFUSED', message: SECRET } }));
+      assert.equal(await run(['whoami'], h.io), 1);
+      assert.doesNotMatch(h.err(), new RegExp(SECRET));
+      assert.match(h.err(), /ECONNREFUSED/);
+    });
+
+    it('reports a fixed generic message when there is no cause code', async () => {
+      const h = rejecting(new TypeError(`Bearer ${SECRET} is not a valid header value`));
+      assert.equal(await run(['whoami'], h.io), 1);
+      assert.doesNotMatch(h.err(), new RegExp(SECRET));
+      assert.match(h.err(), /network error/);
+    });
+
+    it('does not echo a failure that surfaces after the response arrives', async () => {
+      const h = harness({ stored: creds(), handlers: [() => ({ status: 200, ok: true, text: async () => Promise.reject(new Error(`body Bearer ${SECRET}`)) })] });
+      assert.equal(await run(['whoami'], h.io), 1);
+      assert.doesNotMatch(h.err(), new RegExp(SECRET));
+    });
+
+    it('does not echo a keychain spawn failure message', async () => {
+      const spawn = () => {
+        throw new Error(`spawn failed ${SECRET}`);
+      };
+      await assert.rejects(createMacKeychain({ spawn, platform: 'darwin' }).get(URL_), (e) => !e.message.includes(SECRET));
+    });
+  });
+
   it('does not follow a redirect (real socket) and never reaches the redirect target', async () => {
     let targetHits = 0;
     const target = http.createServer((_req, res) => {

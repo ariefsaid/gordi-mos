@@ -64,8 +64,8 @@ import type { MobileGroupedCardsProps } from './mobile-grouped-cards'
 
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
-  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arden Sample',
+  email: 'arden.sample@example.test', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const mockRole: RolesRow = {
@@ -93,7 +93,7 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 }
 
 const PEOPLE = [
-  { id: VIEWER_ID, full_name: 'Arief Said' },
+  { id: VIEWER_ID, full_name: 'Arden Sample' },
   { id: 'maya-id', full_name: 'Maya Rahmawati' },
 ]
 const BUS = [{ id: 'bu-1', name: 'Kitchen' }]
@@ -305,7 +305,7 @@ describe('RI-1 — Mobile grouped header renders work-line type tag', () => {
           now={new Date('2026-06-24')}
           buMap={new Map([['bu-1', 'Kitchen']])}
           teamMap={new Map()}
-          personMap={new Map([[VIEWER_ID, 'Arief Said']])}
+          personMap={new Map([[VIEWER_ID, 'Arden Sample']])}
           isCollapsed={() => false}
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
@@ -339,7 +339,7 @@ describe('RI-1 — Mobile grouped header renders work-line type tag', () => {
           now={new Date('2026-06-24')}
           buMap={new Map([['bu-1', 'Kitchen']])}
           teamMap={new Map()}
-          personMap={new Map([[VIEWER_ID, 'Arief Said']])}
+          personMap={new Map([[VIEWER_ID, 'Arden Sample']])}
           isCollapsed={() => false}
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
@@ -371,7 +371,7 @@ describe('RI-1 — Mobile grouped header renders work-line type tag', () => {
           now={new Date('2026-06-24')}
           buMap={new Map([['bu-1', 'Kitchen']])}
           teamMap={new Map()}
-          personMap={new Map([[VIEWER_ID, 'Arief Said']])}
+          personMap={new Map([[VIEWER_ID, 'Arden Sample']])}
           isCollapsed={() => false}
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
@@ -521,7 +521,7 @@ describe('Fix-5 — Mobile card dt labels are visible', () => {
           now={new Date('2026-06-24')}
           buMap={new Map([['bu-1', 'Kitchen']])}
           teamMap={new Map()}
-          personMap={new Map([[VIEWER_ID, 'Arief Said']])}
+          personMap={new Map([[VIEWER_ID, 'Arden Sample']])}
           isCollapsed={() => false}
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
