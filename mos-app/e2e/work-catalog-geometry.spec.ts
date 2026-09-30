@@ -30,8 +30,12 @@ for (const locale of ['en','id']) for (const width of [390,768,1280,1440]) {
       await expect(rows.first()).toBeFocused()
       expect(await rows.first().evaluate(el=>getComputedStyle(el).outlineStyle)).not.toBe('none')
       const controls = await page.locator('main button, main [role="combobox"]').evaluateAll(nodes => nodes.map(el => {
+        // Tap floor is measured on the hit area: the help glyph's 44x44 area is its ::before (same rule as helpers/tap-floor.ts).
         const box=el.getBoundingClientRect()
-        return {name:el.getAttribute('aria-label')||el.textContent,height:box.height,width:box.width,y:box.y}
+        const before=getComputedStyle(el,'::before')
+        const px=(value:string)=>Number.parseFloat(value)||0
+        const left=px(before.left),top=px(before.top)
+        return {name:el.getAttribute('aria-label')||el.textContent,height:Math.max(box.height,top+px(before.height))-Math.min(0,top),width:Math.max(box.width,left+px(before.width))-Math.min(0,left),y:box.y+Math.min(0,top)}
       }).filter(control => control.width>0 && control.height>0))
       for(const control of controls) {
         expect(control.name?.trim()).toBeTruthy()
