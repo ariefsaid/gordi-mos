@@ -111,6 +111,7 @@ function renderTable(
     isDesktop?: boolean
     initialPath?: string
     teams?: TeamOption[]
+    selectedId?: string
   } = {},
 ) {
   // Control desktop/mobile via the mocked useIsDesktop hook
@@ -124,6 +125,7 @@ function renderTable(
         onAction={opts.onAction ?? vi.fn()}
         onAddPerson={opts.onAddPerson ?? vi.fn()}
         teams={opts.teams}
+        selectedId={opts.selectedId}
       />
     </MemoryRouter>,
   )
@@ -714,6 +716,25 @@ describe('the row opens the person', () => {
     await user.keyboard('{Enter}')
     expect(onAction).toHaveBeenCalledTimes(1)
     expect(onAction).toHaveBeenCalledWith('manage-person', ACTIVE_MEMBER)
+  })
+
+  it('Space on the name opens that person', async () => {
+    const user = userEvent.setup()
+    const onAction = vi.fn()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { onAction })
+    screen.getByRole('button', { name: ACTIVE_MEMBER.full_name }).focus()
+    await user.keyboard(' ')
+    expect(onAction).toHaveBeenCalledTimes(1)
+    expect(onAction).toHaveBeenCalledWith('manage-person', ACTIVE_MEMBER)
+  })
+
+  it('the columns an admin scans by — Login and Position — stay while a person is open', () => {
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER], { selectedId: ACTIVE_MEMBER.id })
+    const headers = screen.getAllByRole('columnheader').map((th) => th.textContent)
+    expect(headers).toEqual(expect.arrayContaining(['Login', 'Position']))
+    const row = screen.getByText(ACTIVE_MEMBER.full_name).closest('tr') as HTMLElement
+    expect(within(row).getByText('Barista')).toBeInTheDocument()
+    expect(within(row).getByText('Active')).toBeInTheDocument()
   })
 
   it('the ⋯ menu never also opens the row', async () => {

@@ -27,6 +27,13 @@ describe('ReportMissingItem (AC-013)', () => {
     ).toBeInTheDocument()
   })
 
+  it('opening the report moves focus to the name field, so the page scrolls it clear of the pinned footer', async () => {
+    const user = userEvent.setup()
+    render(<ReportMissingItem businessUnitId={BU_ID} />)
+    await user.click(screen.getByRole('button', { name: /report it/i }))
+    expect(screen.getByLabelText(/item name/i)).toHaveFocus()
+  })
+
   it('expands to a name field and files the report as a needs-attention Daily Log entry', async () => {
     mockAddLogEntry.mockResolvedValue('entry-1')
     const user = userEvent.setup()
