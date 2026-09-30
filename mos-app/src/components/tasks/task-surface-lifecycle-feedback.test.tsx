@@ -115,7 +115,7 @@ beforeEach(() => {
   vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'team-cafe', name: 'Café Operations' }])
   vi.mocked(getPeople).mockResolvedValue([
     { id: VIEWER_ID, full_name: 'Cahya Cafe' },
-    { id: SUPERVISOR_ID, full_name: 'Arief Said' },
+    { id: SUPERVISOR_ID, full_name: 'Arden Sample' },
   ])
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listComments).mockResolvedValue([])

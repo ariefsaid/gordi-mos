@@ -38,8 +38,8 @@ function makeSb() {
         if (name === 'shared' && table === 'people') {
           return makeBuilder({
             data: [
-              { id: 'person-arief', full_name: 'Arief Said' },
-              { id: 'person-riri', full_name: 'Riri Kitchen' },
+              { id: 'person-arden', full_name: 'Arden Sample' },
+              { id: 'person-nico', full_name: 'Nico Kitchen' },
             ],
             error: null,
           }, rec)
@@ -67,8 +67,8 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
       sb: sb as unknown as CommentSupabase,
       entityType: 'task',
       entityId: 'task-1',
-      body: 'Please review @riri and @unknown',
-      actorId: 'person-arief',
+      body: 'Please review @nico and @unknown',
+      actorId: 'person-arden',
       actorName: 'Ayu',
       locale: 'en',
     })
@@ -76,7 +76,7 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
     expect(id).toBe('comment-1')
     expect(rec.schemas).toContain('mos')
     expect(rec.tables).toContain('comments')
-    expect(rec.inserts).toContainEqual({ entity_type: 'task', entity_id: 'task-1', body: 'Please review @riri and @unknown' })
+    expect(rec.inserts).toContainEqual({ entity_type: 'task', entity_id: 'task-1', body: 'Please review @nico and @unknown' })
     expect(rec.schemas).toContain('shared')
     expect(rec.tables).toContain('people')
     expect(rec.filters).toContainEqual(['archived_at', null])
@@ -85,14 +85,14 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
     // row is permanently un-recomposable at render time once written.
     expect(rec.rpcs).toEqual([
       ['create_notification', {
-        p_owner: 'person-riri',
+        p_owner: 'person-nico',
         p_severity: 'info',
         p_title: 'Ayu mentioned you in a task',
-        p_body: 'Please review @riri and @unknown',
+        p_body: 'Please review @nico and @unknown',
         p_metadata: {
           source: 'mention',
           entity: { type: 'task', id: 'task-1' },
-          actor: { id: 'person-arief', name: 'Ayu' },
+          actor: { id: 'person-arden', name: 'Ayu' },
         },
       }],
     ])
@@ -105,22 +105,22 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
       sb: sb as unknown as CommentSupabase,
       entityType: 'signal',
       entityId: 'signal-1',
-      body: 'Tolong cek @riri',
-      actorId: 'person-arief',
+      body: 'Tolong cek @nico',
+      actorId: 'person-arden',
       actorName: 'Ayu',
       locale: 'id',
     })
 
     expect(rec.rpcs).toEqual([
       ['create_notification', {
-        p_owner: 'person-riri',
+        p_owner: 'person-nico',
         p_severity: 'info',
         p_title: 'Ayu menyebut Anda dalam sebuah sinyal',
-        p_body: 'Tolong cek @riri',
+        p_body: 'Tolong cek @nico',
         p_metadata: {
           source: 'mention',
           entity: { type: 'signal', id: 'signal-1' },
-          actor: { id: 'person-arief', name: 'Ayu' },
+          actor: { id: 'person-arden', name: 'Ayu' },
         },
       }],
     ])
@@ -133,7 +133,7 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
       sb: sb as unknown as CommentSupabase,
       entityType: 'task',
       entityId: 'task-1',
-      body: 'Please review @riri',
+      body: 'Please review @nico',
       actorId: '',
       actorName: '',
       locale: 'en',
@@ -141,10 +141,10 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
 
     expect(rec.rpcs).toEqual([
       ['create_notification', {
-        p_owner: 'person-riri',
+        p_owner: 'person-nico',
         p_severity: 'info',
         p_title: 'Someone mentioned you in a task',
-        p_body: 'Please review @riri',
+        p_body: 'Please review @nico',
         p_metadata: {
           source: 'mention',
           entity: { type: 'task', id: 'task-1' },
@@ -157,7 +157,7 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
   it('does not call the definer helper when no mention resolves', async () => {
     const { sb, rec } = makeSb()
 
-    await postComment({ sb: sb as unknown as CommentSupabase, entityType: 'task', entityId: 'task-1', body: 'No mention @unknown', actorId: 'person-arief', actorName: 'Ayu', locale: 'en' })
+    await postComment({ sb: sb as unknown as CommentSupabase, entityType: 'task', entityId: 'task-1', body: 'No mention @unknown', actorId: 'person-arden', actorName: 'Ayu', locale: 'en' })
 
     expect(rec.rpcs).toEqual([])
   })
@@ -177,7 +177,7 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
     }
     const commentResult = { data: { id: 'comment-1' }, error: null }
     const peopleResult = {
-      data: [{ id: 'person-riri', full_name: 'Riri Kitchen' }],
+      data: [{ id: 'person-nico', full_name: 'Nico Kitchen' }],
       error: null,
     }
     const schema = vi.fn((name: string) => {
@@ -203,8 +203,8 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
       sb: sb as unknown as CommentSupabase,
       entityType: 'task',
       entityId: 'task-1',
-      body: 'Hey @riri',
-      actorId: 'person-arief',
+      body: 'Hey @nico',
+      actorId: 'person-arden',
       actorName: 'Ayu',
       locale: 'en',
     })
