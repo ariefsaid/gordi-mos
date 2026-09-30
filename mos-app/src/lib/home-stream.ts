@@ -203,7 +203,7 @@ export function signalStreamItems(
     })
 }
 
-/** Count of the viewer's open (R/A, non-Done) tasks — the "All tasks · N" figure. */
+/** Count of the viewer's open tasks (R/A, not Done, not archived) — the "All tasks · N" figure. */
 export function openTaskCount(tasks: TaskListRow[], viewerId: string): number {
   return tasks.filter(t => isOwnedOpen(t, viewerId)).length
 }
