@@ -25,7 +25,10 @@ const runtimeAuthority = vi.hoisted(() => ({
     objective_bu_ids: [] as string[],
   },
 }))
-vi.mock('./use-work-write-authority', () => ({
+vi.mock('@/lib/db/objective-key-results', () => ({ listKeyResults: async () => [] }))
+vi.mock('@/lib/db/directory', async (importActual) => ({ ...(await importActual<typeof import('@/lib/db/directory')>()), getPeople: async () => [] }))
+vi.mock('./use-work-write-authority', async (importActual) => ({
+  canEditObjectiveContentForScope: (await importActual<typeof import('./use-work-write-authority')>()).canEditObjectiveContentForScope,
   useWorkWriteAuthority: () => ({ scopes: runtimeAuthority.scopes, loading: false, error: false }),
   allowedBusinessUnitIds: (kind: 'work-line' | 'objective', scopes: typeof runtimeAuthority.scopes) =>
     kind === 'work-line'

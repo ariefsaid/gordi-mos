@@ -374,7 +374,7 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
     expect(within(nav).getByRole('link', { name: 'Café' })).toHaveAttribute('aria-current', 'location')
   })
 
-  it.each(['/admin/people', '/admin/teams', '/admin/access'])('at %s, Admin Settings link page and active, exactly one page', (path) => {
+  it.each(['/admin/people', '/admin/teams', '/admin/access', '/admin/agents'])('at %s, Admin Settings link page and active, exactly one page', (path) => {
     setAuthAs(['admin'])
     renderRailNav(path)
     const nav = screen.getByRole('navigation', { name: 'Primary' })

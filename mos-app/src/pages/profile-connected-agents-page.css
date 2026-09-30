@@ -1,0 +1,102 @@
+.agent-connections-self {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.agent-connections-self__back {
+  align-self: flex-start;
+  color: var(--primary);
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.agent-connections-self__intro,
+.agent-connections-self__next-request {
+  max-width: 780px;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+}
+
+.agent-connections-self__next-request {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--primary) 5%, var(--card));
+}
+
+.agent-connections-self__success {
+  margin: 0;
+  color: var(--status-won-text);
+  font-size: var(--font-size-body);
+}
+
+.agent-connections-self__list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-connections-self__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+}
+
+.agent-connections-self__details {
+  min-width: 0;
+}
+
+.agent-connections-self__details h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.agent-connections-self__details p {
+  margin: 6px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.4;
+}
+
+.agent-connections-self__client-id {
+  overflow-wrap: anywhere;
+}
+
+.agent-connections-self__item .btn {
+  min-width: 44px;
+  min-height: 44px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  .agent-connections-self {
+    padding: 12px;
+  }
+
+  .agent-connections-self__item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .agent-connections-self__item .btn {
+    width: 100%;
+  }
+}

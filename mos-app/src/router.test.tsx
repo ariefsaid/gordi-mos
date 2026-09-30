@@ -318,7 +318,7 @@ describe('router — /admin redirects from inside AdminRoute', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'admin/people'),
     )!
-    expect(gate.children!.map((c) => c.path).sort()).toEqual(['admin', 'admin/access', 'admin/people', 'admin/teams'])
+    expect(gate.children!.map((c) => c.path).sort()).toEqual(['admin', 'admin/access', 'admin/agents', 'admin/people', 'admin/teams'])
   })
 })
 
