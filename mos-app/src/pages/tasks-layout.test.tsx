@@ -648,6 +648,10 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
         : screen.findByRole('button', { name: /open full page/i }, { timeout: 5000 }))
       pending.hold()
       fireEvent.change(screen.getByRole('searchbox', { name: 'Search tasks' }), { target: { value: 'Open' } })
+      // The typed text reaches the workspace's live query, and the search's own URL write goes
+      // pending on the held gate, in a later tick than the change event. Acting before that
+      // drove the drawer navigation with an empty live query.
+      await waitFor(() => expect(router.state.navigation.state).toBe('loading'), { timeout: 5000 })
       return router
     }
 

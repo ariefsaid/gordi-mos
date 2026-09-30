@@ -620,6 +620,9 @@
      rather than wrapping or squashing a chip. */
   .collection-toolbar__presentations,
   .collection-toolbar__views { gap: 8px; }
+  /* A phone strip that scrolls hides its last chip ("Overdue" read as "O"), so the saved views
+     wrap onto a second row instead — the same shape the Signals toolbar already takes. */
+  .collection-toolbar__views { flex-wrap: wrap; overflow: visible; }
   .collection-toolbar__primary-spacer { display: none; }
   .collection-toolbar__query { justify-content: flex-start; padding: 8px; }
   .collection-toolbar__filter-group { width: 100%; }
