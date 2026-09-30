@@ -42,6 +42,9 @@ vi.mock('@/lib/db/admin-access', () => ({
 import { listRoleAuthority, listTeamLeadAssignments } from '@/lib/db/admin-access'
 import { AUTHORITY_ACTIONS, AUTHORITY_ROLES } from '@/lib/db/admin-access.types'
 
+vi.mock('@/lib/db/directory', () => ({ getRoles: vi.fn(), getBusinessUnits: vi.fn() }))
+import { getBusinessUnits, getRoles } from '@/lib/db/directory'
+
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 import { AdminUsersPage } from './admin-users-page'
 
@@ -135,6 +138,8 @@ beforeEach(() => {
     action, role, scope: role === 'admin' ? 'org' as const : 'none' as const,
   }))))
   vi.mocked(listTeamLeadAssignments).mockResolvedValue([])
+  vi.mocked(getRoles).mockResolvedValue([])
+  vi.mocked(getBusinessUnits).mockResolvedValue([])
 })
 
 function renderPage(initialPath = '/admin/people') {
@@ -490,5 +495,39 @@ describe('AdminUsersPage — find and open a person', () => {
 
     await user.click(within(panel).getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog', { name: 'Manage Budi Santoso' })).toBeNull()
+  })
+
+  it('a failed authority load is handled: the panel says so, and every started load is observed', async () => {
+    // A rejection nobody subscribed to is what Node reports as an unhandled rejection; a thenable
+    // records whether anyone subscribed, which a vi.fn promise result (observed by the spy) cannot.
+    const subscribed: string[] = []
+    const failing = (name: string, message: string) => ({
+      then: (_ok: unknown, fail: (reason: Error) => void) => { subscribed.push(name); fail(new Error(message)) },
+    }) as unknown as Promise<never>
+    const user = userEvent.setup()
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    vi.mocked(listRoleAuthority).mockImplementation(() => failing('rules', "Couldn't load access rules. Try again."))
+    vi.mocked(listTeamLeadAssignments).mockImplementation(() => failing('leads', "Couldn't load Team leads. Try again."))
+    // A loader that throws before it returns a promise must not strand the loads started before it.
+    vi.mocked(getRoles).mockImplementation(() => { throw new Error('not a function') })
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: PEOPLE_ALL_STATES[1].full_name }))
+    const panel = await screen.findByRole('dialog')
+    expect(await within(panel).findByText("Couldn't load what they can do.")).toBeInTheDocument()
+    expect(subscribed.sort()).toEqual(['leads', 'rules'])
+  })
+
+  it('a person who holds the top Position of a Business Unit is shown as its head', async () => {
+    const user = userEvent.setup()
+    mockListAdminPeople.mockResolvedValue([
+      { ...PEOPLE_ALL_STATES[1], jabatan: [{ role_id: 'r-head', role_name: 'Head of Retail' }] },
+      PEOPLE_ALL_STATES[0],
+    ])
+    vi.mocked(getRoles).mockResolvedValue([{ id: 'r-head', business_unit_id: 'bu-retail', reports_to_role_id: null }])
+    vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-retail', name: 'Retail', code: null }])
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: PEOPLE_ALL_STATES[1].full_name }))
+    const panel = await screen.findByRole('dialog')
+    expect(await within(panel).findByText('Heads Retail')).toBeInTheDocument()
   })
 })
