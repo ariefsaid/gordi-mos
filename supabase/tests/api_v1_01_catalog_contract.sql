@@ -38,7 +38,7 @@ select is(
       and (p.proacl is null
            or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0 and a.privilege_type = 'EXECUTE')
            or has_function_privilege('anon', p.oid, 'execute')
-           or (not has_function_privilege('authenticated', p.oid, 'execute') and p.proname <> '_end_agent_connections'))),
+           or not has_function_privilege('authenticated', p.oid, 'execute'))),
   0, 'AC-002: api_v1 is executable by authenticated only (never anon or public)');
 
 -- ── AC-003 ───────────────────────────────────────────────────────────────────────────────────
