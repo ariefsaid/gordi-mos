@@ -20,12 +20,12 @@ update shared.people set user_id = '00000000-0000-0000-0000-00000000aa04'
 -- OAuth client IDs are Auth UUID primary keys. The same client is explicitly trusted in both orgs
 -- and has consents on each side: no org-A admin response may reveal the foreign person's consent.
 insert into auth.oauth_clients
-  (id, client_secret_hash, registration_type, redirect_uris, grant_types, client_name)
+  (id, client_secret_hash, registration_type, redirect_uris, grant_types, client_name, token_endpoint_auth_method)
 values
   ('33333333-3333-4333-8333-333333333333', 'fixture-hash-a', 'manual',
-   'https://agent-a.example.test/callback', 'authorization_code,refresh_token', 'Untrusted Auth Metadata A'),
+   'https://agent-a.example.test/callback', 'authorization_code,refresh_token', 'Untrusted Auth Metadata A', 'client_secret_basic'),
   ('44444444-4444-4444-8444-444444444444', 'fixture-hash-b', 'manual',
-   'https://agent-b.example.test/callback', 'authorization_code,refresh_token', 'Untrusted Auth Metadata B');
+   'https://agent-b.example.test/callback', 'authorization_code,refresh_token', 'Untrusted Auth Metadata B', 'client_secret_basic');
 
 insert into shared.trusted_agent_clients (org_id, client_id, display_name, enabled) values
   ('00000000-0000-0000-0000-0000000000a1', '33333333-3333-4333-8333-333333333333', 'Verified Assistant', true),
