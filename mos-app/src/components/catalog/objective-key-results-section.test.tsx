@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { WorkWriteScopes } from '@/lib/db/work-authority'
@@ -15,7 +15,7 @@ vi.mock('@/lib/db/objective-key-results', () => ({
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
 
 import {
-  createKeyResult, deleteKeyResult, listKeyResults, updateKeyResultCurrentValue,
+  createKeyResult, deleteKeyResult, listKeyResults, updateKeyResultCurrentValue, updateKeyResultTargets,
 } from '@/lib/db/objective-key-results'
 import { getPeople } from '@/lib/db/directory'
 import { ObjectiveKeyResultsSection } from './objective-key-results-section'
@@ -178,6 +178,27 @@ describe('key result people directory', () => {
 })
 
 describe('key result commits', () => {
+  it('keeps a due date typed right after mount', async () => {
+    vi.mocked(updateKeyResultTargets).mockReturnValue(new Promise(() => {}))
+    renderSection(ADMIN)
+    await screen.findByDisplayValue('Ship orders')
+    const due = screen.getByLabelText('Due')
+    fireEvent.change(due, { target: { value: '2026-12-31' } })
+    expect(due).toHaveValue('2026-12-31')
+    await Promise.resolve()
+    expect(due).toHaveValue('2026-12-31')
+  })
+
+  it('shows the saved due date once the save returns a different one', async () => {
+    vi.mocked(updateKeyResultTargets).mockResolvedValue(kr({ due_date: '2027-01-15' }))
+    renderSection(ADMIN)
+    await screen.findByDisplayValue('Ship orders')
+    const due = screen.getByLabelText('Due')
+    fireEvent.change(due, { target: { value: '2026-12-31' } })
+    await waitFor(() => expect(due).toHaveValue('2027-01-15'))
+    expect(updateKeyResultTargets).toHaveBeenCalledWith('kr-1', { due_date: '2026-12-31' })
+  })
+
   it('keeps the typed value and offers Retry when a commit fails', async () => {
     const user = userEvent.setup()
     vi.mocked(updateKeyResultCurrentValue).mockRejectedValueOnce(new Error('nope'))
