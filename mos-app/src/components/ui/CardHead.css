@@ -50,7 +50,7 @@
 /* A heading only ever receives focus from script (tabindex -1), to move a screen reader to the
    state that just replaced the content. It is not a control, so it draws no focus ring. */
 .empty-title[tabindex='-1']:focus { outline: none; }
-.empty-copy { font-size: var(--font-size-body); color: var(--muted-foreground); margin: 0; }
+.empty-copy { font-size: var(--font-size-body); color: var(--muted-foreground); margin: 0; overflow-wrap: anywhere; }
 .empty-note { font-size: var(--font-size-label); color: var(--muted-foreground); margin: 0; }
 .empty-actions { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
 /* Pickable starter prompts (cohesion item #2 — the Assistant empty folds in here). */
