@@ -91,6 +91,15 @@ function WriteUpSurface({
     initialContent: stored.length > 0 ? (stored as never) : undefined,
     links: { isValidLink: isSafeWriteUpLink },
     domAttributes: { editor: { 'aria-label': t('objective.writeUp.label') } },
+    // No slash menu exists here, and a read-only reader never sees an editor hint.
+    placeholders: {
+      default: t('objective.writeUp.placeholder'),
+      emptyDocument: t('objective.writeUp.placeholder'),
+      heading: '',
+      bulletListItem: '',
+      numberedListItem: '',
+      checkListItem: '',
+    },
   }, [])
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const updatedAtRef = useRef(initial.updatedAt)

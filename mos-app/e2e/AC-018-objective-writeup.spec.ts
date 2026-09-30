@@ -1,6 +1,6 @@
 // AC-018 (objective write-up, e2e): an admin opens an Objective's Write-up tab for the first time,
 // writes a heading and a paragraph, saves, reloads, and the content returns through the editor.
-// The editor code loads only with that tab — the collection page never requests it.
+// The editor code loads only with that tab — neither the collection page nor the opened record requests it.
 // FR-011 / FR-013 / NFR-003. Fixtures seeded by global-setup; this spec adds its own Objective.
 import { test, expect } from '@playwright/test'
 import { readFileSync } from 'fs'
@@ -64,6 +64,9 @@ test.describe('AC-018: Objective write-up editor', () => {
     expect(editorRequests).toEqual([])
 
     await page.goto(`work/objectives/${OBJ}`)
+    await expect(page.getByRole('tab', { name: 'Write-up' })).toBeVisible({ timeout: 10_000 })
+    await page.waitForLoadState('networkidle')
+    expect(editorRequests).toEqual([])
     await page.getByRole('tab', { name: 'Write-up' }).click()
     const editor = page.getByRole('textbox', { name: 'Objective write-up' })
     await expect(editor).toBeVisible({ timeout: 15_000 })
