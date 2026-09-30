@@ -107,7 +107,9 @@ independent review → PR → auto-merge to dev → next. Its machinery binds ou
 
 CI fair use (shared free-tier minutes): a PR into `dev` uses GitHub CI as the full-suite gate — locally
 run only `bash scripts/pre-pr-verify.sh --dev` (typecheck, lint, tests of touched files); a PR into
-`main` keeps the full local gate. Run CI e2e at most once per PR, only for shared-code or milestone
+`main` keeps the full local gate.
+Locally, pgTAP runs only the test files your change touches (`scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db <files>'`); CI runs the full suite. The DB lock wraps database commands only, never pre-pr-verify. After a pure rebase, carry stamps with `scripts/carry-stamps.sh` instead of re-running checks.
+Run CI e2e at most once per PR, only for shared-code or milestone
 PRs, via `bash scripts/ci-e2e.sh` (raw dispatch and rerun are hook-denied). A second e2e run on a PR
 (except one `--bugfix-proof` follow-up), a flake re-run, more than 3 dispatches per repo per day, or anything
 scheduled or looping needs the owner's OK. One heavy local job at a time, all sessions and repos.
