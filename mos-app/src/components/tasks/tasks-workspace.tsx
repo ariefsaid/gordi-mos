@@ -810,14 +810,20 @@ export function TasksWorkspace({
   const recordOpen = drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks'
   const showNewTask = state.status === 'ready' && !isNarrow
   const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
+  // A saved-view scope (My work etc.) is not a filter: only a set field filter earns the
+  // "match these filters" wording.
+  const mineScope = query.view === 'my-work' || query.view === 'my-pic' || query.view === 'my-supervisor'
+  const fieldFilterSet = query.q !== '' || query.businessUnitId !== null || query.status !== null
+    || query.picId !== null || query.supervisorId !== null || query.personId !== null
+    || query.overdueOnly || query.view === 'overdue'
   const emptyTitle = query.includeArchived
     ? t('tasks.empty.archivedTitle')
-    : query.view === 'my-work'
+    : mineScope
       ? t('tasks.empty.mineTitle')
       : t('tasks.empty.noTasksTitle')
   const emptyCopy = query.includeArchived
     ? t('tasks.empty.archivedCopy')
-    : query.view === 'my-work'
+    : mineScope
       ? t('tasks.empty.mineCopy')
       : t('tasks.empty.noTasksCopy')
 
@@ -976,8 +982,8 @@ export function TasksWorkspace({
                 create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
               }}
               filteredEmpty={{
-                title: t('tasks.empty.filteredTitle'),
-                copy: t('tasks.empty.filteredCopy'),
+                title: fieldFilterSet ? t('tasks.empty.filteredTitle') : emptyTitle,
+                copy: fieldFilterSet ? t('tasks.empty.filteredCopy') : emptyCopy,
                 clear: onClearFilters,
                 create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
               }}

@@ -24,10 +24,23 @@ import { StatusPill } from './status-pill'
 import { statusTone } from './status-tone'
 import { Picker } from '@/components/ui/picker'
 import { PicCell, PersonCell } from './pic-cell'
-import { formatDate, formatAge } from './task-formatters'
+import { formatDate, formatAge, TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { TaskCreateForm } from './task-create-form'
+
+// An inline editor unmounts its own focus target when it closes; hand focus back to the cell
+// trigger that opened it, unless focus already moved somewhere real (Tab, outside click).
+function useRestoreFocusOnClose(editing: boolean, triggerRef: { current: HTMLElement | null }) {
+  const wasEditing = useRef(false)
+  useEffect(() => {
+    if (editing) { wasEditing.current = true; return }
+    if (!wasEditing.current) return
+    wasEditing.current = false
+    const active = document.activeElement
+    if (!active || active === document.body) triggerRef.current?.focus()
+  }, [editing, triggerRef])
+}
 
 export type TaskTeamOption = {
   id: string
@@ -172,6 +185,8 @@ export function TaskRow({
   const displayTitle = draft
 
   const [statusEditing, setStatusEditing] = useState(false)
+  const statusTriggerRef = useRef<HTMLButtonElement>(null)
+  useRestoreFocusOnClose(statusEditing, statusTriggerRef)
   const statusInline = useInlineCommit<TaskListRow['status']>({
     value: task.status,
     onCommit: (next) => (onEditStatus ? onEditStatus(task.id, next) : undefined),
@@ -187,6 +202,8 @@ export function TaskRow({
   }, [statusInline.error, statusInline.pending])
 
   const [picEditing, setPicEditing] = useState(false)
+  const picTriggerRef = useRef<HTMLButtonElement>(null)
+  useRestoreFocusOnClose(picEditing, picTriggerRef)
   const picInline = useInlineCommit<string>({
     value: task.responsible_person_id,
     onCommit: (next) => (onEditPic ? onEditPic(task.id, next) : undefined),
@@ -408,6 +425,7 @@ export function TaskRow({
               ref={inputRef}
               className="task-title-input collection-grammar-title tap-floor"
               value={draft}
+              maxLength={TASK_TITLE_MAX_LENGTH}
               disabled={pending}
               aria-busy={pending || undefined}
               aria-label={t('tasks.inlineEdit.aria')}
@@ -490,6 +508,7 @@ export function TaskRow({
           <span className={`inline-status-editor inline-status-editor--${statusTone(statusInline.draft)}`} onClick={(event) => event.stopPropagation()}>
             <Picker
               autoFocus
+              defaultOpen
               hideLabel
               label="Edit task status"
               value={statusInline.draft}
@@ -511,13 +530,14 @@ export function TaskRow({
             />
             <InlineCommitFeedback {...statusInline} />
           </span>
-        ) : <button type="button" className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setStatusEditing(true) }}><StatusPill status={statusInline.draft} /></button>) : <StatusPill status={task.status} />}
+        ) : <button type="button" ref={statusTriggerRef} className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setStatusEditing(true) }}><StatusPill status={statusInline.draft} /></button>) : <StatusPill status={task.status} />}
       </td>
       <td className="td-cell td-owner">
         {onEditPic ? (picEditing ? (
           <span className="inline-editor-control" onClick={(event) => event.stopPropagation()}>
             <Picker
               autoFocus
+              defaultOpen
               hideLabel
               label="Edit task PIC"
               value={picInline.draft}
@@ -539,7 +559,7 @@ export function TaskRow({
             />
             <InlineCommitFeedback {...picInline} />
           </span>
-        ) : <button type="button" className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setPicEditing(true) }}><PicCell fullName={ownerName} provenance={provenanceRoleName} /></button>) : <PicCell fullName={ownerName} provenance={provenanceRoleName} />}
+        ) : <button type="button" ref={picTriggerRef} className="inline-cell-trigger" onClick={(event) => { event.stopPropagation(); setPicEditing(true) }}><PicCell fullName={ownerName} provenance={provenanceRoleName} /></button>) : <PicCell fullName={ownerName} provenance={provenanceRoleName} />}
       </td>
       {/* Wave 2c (OD-REDESIGN-61..64, e7 priority columns): the desktop row's DEFAULT is only
           the decision columns — Task · Status · PIC · Supervisor · Due. The Fields chooser

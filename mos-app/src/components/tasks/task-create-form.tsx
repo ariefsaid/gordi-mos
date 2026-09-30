@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Picker } from '@/components/ui/picker'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { picLockMessage } from './task-permissions'
+import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -125,6 +126,7 @@ export function TaskCreateForm({
           ref={titleRef}
           className="tcf-title tap-floor"
           rows={1}
+          maxLength={TASK_TITLE_MAX_LENGTH}
           value={title}
           placeholder={t('tasks.create.titlePlaceholder')}
           disabled={pending}

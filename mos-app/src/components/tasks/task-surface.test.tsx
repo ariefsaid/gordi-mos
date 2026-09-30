@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useState } from 'react'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -1108,6 +1110,15 @@ describe('TaskSurface — create mode', () => {
     // aria-invalid on the input is the accessible oracle.
     expect(title.closest('.mk-textinput')).toHaveClass('mk-textinput--error')
     expect(title).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('caps the create-dialog Title at the shared limit (#1034)', async () => {
+    const user = userEvent.setup()
+    renderCreate()
+    const title = await screen.findByLabelText('Title') as HTMLInputElement
+    await user.click(title)
+    await user.paste('x'.repeat(TASK_TITLE_MAX_LENGTH + 50))
+    expect(title.value).toHaveLength(TASK_TITLE_MAX_LENGTH)
   })
 
   it('AC-108: a blur error clears once the field is filled (typing)', async () => {

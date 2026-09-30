@@ -33,6 +33,8 @@ export interface PickerProps {
   fullWidth?: boolean
   hideLabel?: boolean
   autoFocus?: boolean
+  /** Mount with the menu already open — for editors mounted by the click/key that means "open". */
+  defaultOpen?: boolean
   required?: boolean
   placeholder?: string
   /** Visible prefix for the trigger only; menu option labels stay concise. */
@@ -75,6 +77,7 @@ export function Picker({
   fullWidth = false,
   hideLabel = false,
   autoFocus = false,
+  defaultOpen = false,
   required = false,
   placeholder,
   triggerPrefix,
@@ -90,7 +93,7 @@ export function Picker({
   const t = useT()
   const autoId = useId()
   const triggerId = id ?? autoId
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
   const initialActive = useCallback(() => {
     const selectable = options.filter((option) => !option.disabled)
     const current = selectable.find((option) => option.value === value) ?? selectable[0]

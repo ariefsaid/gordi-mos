@@ -21,6 +21,7 @@ import { isOverdue } from '@/lib/due-status'
 import { interpolate } from '@/i18n/use-t'
 import { RecordFieldList } from '@/components/records/record-viewer'
 import { canEdit, canArchive, picOptions } from './task-permissions'
+import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import type {
   RecordAction,
   RecordContentSlot,
@@ -449,6 +450,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     control: 'text',
     value: task.title,
     displayValue: task.title,
+    maxLength: TASK_TITLE_MAX_LENGTH,
   })
   const due = dueField(task, editable, labels.dueDate, formatDate)
   const statusField = editSpec({

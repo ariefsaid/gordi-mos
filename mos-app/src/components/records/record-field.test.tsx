@@ -84,6 +84,16 @@ const textSpec: RecordFieldSpec = {
   editable: true,
 }
 
+it('caps a text field at the spec maxLength (#1034)', async () => {
+  const user = userEvent.setup()
+  renderField({ ...textSpec, maxLength: 5 })
+  activate('Title')
+  const input = screen.getByRole('textbox', { name: 'Title' }) as HTMLInputElement
+  await user.clear(input)
+  await user.paste('abcdefghij')
+  expect(input.value).toBe('abcde')
+})
+
 describe('RecordField', () => {
   // Required-ness is a fact about SUBMITTING a value, not about looking at one — a required
   // field that already has a value has nothing missing to flag when it is just being viewed.
