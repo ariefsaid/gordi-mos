@@ -18,13 +18,10 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import { ErrorState, EmptyState } from '@/components/ui/state-kit'
 import { MobileGroupedCards } from './mobile-grouped-cards'
 import type { TaskTeamOption } from './task-row'
-import type { TaskSortColumn } from './task-columns'
 import type { RenderGroup } from './tasks-grouping'
 import type { WorkloadSummary } from './workload-caption'
 import { WorkloadCaption } from './workload-caption'
 import { useT } from '@/i18n/use-t'
-
-type SortCol = TaskSortColumn
 
 // Flat visible-row model (group headers + expanded-group leaf rows) — the shape
 // the plain + virtualized bodies iterate over.
@@ -65,17 +62,11 @@ export type TasksTableBodyProps = {
   emptyCopy: string
 
   // ── Desktop table: thead sort + select-all ────────────────────────────────
-  sortCol: SortCol
   /** The TanStack table instance (#997): the <thead> renders from its column-definition
    * array (getHeaderGroups), pad-row colSpan and the `.tasks-table--extended` class derive
-   * from `table.getVisibleLeafColumns()` (FR-002) — never a hand-written fallback. */
+   * from `table.getVisibleLeafColumns()` (FR-002) — never a hand-written fallback. Header
+   * sorting reads and toggles the table's sort state (#998). */
   table: Table<TaskListRow>
-  /** thead column-header click → cycle the sort for that column. */
-  onSort: (col: SortCol) => void
-  /** aria-sort for a column (active col → its direction, else 'none'). */
-  ariaSort: (col: SortCol) => 'ascending' | 'descending' | 'none'
-  /** The inline sort-direction affordance for the active column (else null). */
-  sortIndicator: (col: SortCol) => ReactNode
 
   // ── Body row windowing + rendering ────────────────────────────────────────
   flatRows: FlatRow[]
@@ -130,7 +121,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
   const {
     loading, error, leafTasks, hasActiveFilter, isDesktop,
     onRetry, onClearFilters, emptyTitle, emptyCopy,
-    sortCol, table, onSort, ariaSort, sortIndicator,
+    table,
     flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     onOpenTask,
     groups, recordSearch, now, buMap, teamMap, personMap, isCollapsed, toggleCollapsed,
@@ -247,18 +238,24 @@ export function TasksTableBody(props: TasksTableBodyProps) {
               {headerGroup.headers.map((header) => {
                 const meta = header.column.columnDef.meta
                 if (!meta) return null
-                const sortableCol = meta.sortCol
+                const canSort = header.column.getCanSort()
+                const sorted = canSort && header.column.getIsSorted()
                 return (
                   <th
                     key={header.id}
                     scope="col"
-                    className={`th-cell ${meta.thClass}${sortableCol ? ' th-sortable' : ''}${sortableCol && sortCol === sortableCol ? ' th-sorted' : ''}`}
-                    aria-sort={sortableCol ? ariaSort(sortableCol) : undefined}
+                    className={`th-cell ${meta.thClass}${canSort ? ' th-sortable' : ''}${sorted ? ' th-sorted' : ''}`}
+                    aria-sort={canSort ? (sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none') : undefined}
                   >
                     {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
-                    {sortableCol ? (
-                      <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort(sortableCol)}>
-                        {t(meta.labelKey)}{sortIndicator(sortableCol)}
+                    {canSort ? (
+                      <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={header.column.getToggleSortingHandler()}>
+                        {t(meta.labelKey)}
+                        {sorted ? (
+                          <span className="collection-grammar-sort-indicator" aria-hidden="true">
+                            {sorted === 'asc' ? '↑' : '↓'}
+                          </span>
+                        ) : null}
                       </button>
                     ) : t(meta.labelKey)}
                   </th>
