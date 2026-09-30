@@ -38,7 +38,7 @@ select is(
       and (p.proacl is null
            or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0 and a.privilege_type = 'EXECUTE')
            or has_function_privilege('anon', p.oid, 'execute')
-           or not has_function_privilege('authenticated', p.oid, 'execute'))),
+           or (not has_function_privilege('authenticated', p.oid, 'execute') and p.proname <> '_end_agent_connections'))),
   0, 'AC-002: api_v1 is executable by authenticated only (never anon or public)');
 
 -- ── AC-003 ───────────────────────────────────────────────────────────────────────────────────
@@ -61,8 +61,8 @@ select is(
 select is(
   (select array_agg(p.proname::text order by p.proname)
      from pg_proc p where p.pronamespace = to_regnamespace('api_private') and p.prosecdef),
-  array['_agent_fence','begin_write','log_write'],
-  'NFR-002: only the agent-fence helper and the two write-log helpers in api_private are SECURITY DEFINER');
+  array['_agent_fence','_end_agent_connections','begin_write','log_write'],
+  'NFR-002: only the agent-fence helper, the agent-connection ender and the two write-log helpers in api_private are SECURITY DEFINER');
 
 select is(
   (select count(*)::int from pg_proc p
@@ -75,9 +75,9 @@ select is(
     where p.pronamespace = to_regnamespace('api_private')
       and (p.proacl is null
            or exists (select 1 from aclexplode(p.proacl) a where a.grantee = 0 and a.privilege_type = 'EXECUTE')
-           or (has_function_privilege('anon', p.oid, 'execute') and p.proname <> 'check_request')
-           or not has_function_privilege('authenticated', p.oid, 'execute'))),
-  0, 'AC-026: api_private EXECUTE is held by authenticated, never public; anon holds only check_request');
+           or (has_function_privilege('anon', p.oid, 'execute') and p.proname not in ('check_request', 'claims_carry_client_id'))
+           or (not has_function_privilege('authenticated', p.oid, 'execute') and p.proname <> '_end_agent_connections'))),
+  0, 'AC-026: api_private EXECUTE is held by authenticated, never public; anon holds only check_request and the claim rule it calls; the trigger-only connection ender is executable by no request role');
 
 select is(
   (select count(*)::int from pg_namespace n
