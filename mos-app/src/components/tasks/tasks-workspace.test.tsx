@@ -1820,6 +1820,24 @@ describe('Task 18 — group collapse persists (AC-132)', () => {
   })
 })
 
+describe('Issue 1105 — collapsed groups hide the row hint', () => {
+  it('the click-a-row hint shows while a group is open and is gone once every group is collapsed', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'a', title: 'Open visible', status: 'Open' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('Open visible'))
+    await switchToAll()
+    selectGroupBy('status')
+    await waitFor(() => screen.getByText('Open visible'))
+    expect(document.querySelector('.tasks-inline-edit-hint')).not.toBeNull()
+    const openHeader = Array.from(document.querySelectorAll('tr.grp')).find(g => g.textContent?.includes('Open'))!
+    fireEvent.click(openHeader.querySelector('button[aria-expanded]') as HTMLButtonElement)
+    await waitFor(() => expect(screen.queryByText('Open visible')).toBeNull())
+    expect(document.querySelector('.tasks-inline-edit-hint')).toBeNull()
+  })
+})
+
 describe('Task 18 — j/k skips group-header rows (AC-131, OBS-121)', () => {
   it('AC-131/OBS-121: j moves the leaf-row cursor and never lands on a group-header row', async () => {
     mockListTasks.mockResolvedValue([
