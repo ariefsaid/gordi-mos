@@ -15,6 +15,7 @@
 
 import { useState, useId, useEffect, useRef } from 'react'
 import { useT } from '@/i18n/use-t'
+import { saveErrorMessage } from '@/lib/save-error'
 import { ErrorState } from '@/components/ui/state-kit'
 import { TextInput } from '@/components/ui/text-input'
 import { ModalShell } from '@/components/ui/modal-shell'
@@ -122,7 +123,7 @@ export function ConfirmDialog({
       if (mountedRef.current && gen === genRef.current) setBusy(false)
     } catch (err) {
       if (mountedRef.current && gen === genRef.current) {
-        setError(err instanceof Error ? err.message : t('common.unexpectedError'))
+        setError(saveErrorMessage(err, t))
         setBusy(false)
       }
     }

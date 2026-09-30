@@ -26,6 +26,18 @@ describe('Avatar — image fallback (#359)', () => {
   })
 })
 
+describe('Avatar — two-letter initials', () => {
+  it('shows first + last initials when asked, one letter for a single word', () => {
+    expect(render(<Avatar placeholder="Bagas Barista" initials={2} />).container.textContent).toBe('BB')
+    expect(render(<Avatar placeholder="Bagas Yudha Barista" initials={2} />).container.textContent).toBe('BB')
+    expect(render(<Avatar placeholder="Riri" initials={2} />).container.textContent).toBe('R')
+  })
+
+  it('keeps the single initial by default', () => {
+    expect(render(<Avatar placeholder="Bagas Barista" />).container.textContent).toBe('B')
+  })
+})
+
 // Review finding on #443: the failure must be per-URL — a NEW url after a failure renders again.
 it('recovers when the url prop changes after a failure', () => {
   const { rerender, container } = render(<Avatar placeholder="Riri" avatarUrl="https://x/dead.png" />)

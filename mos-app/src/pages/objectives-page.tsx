@@ -5,6 +5,7 @@
 import { useCallback, useRef, useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { saveErrorMessage } from '@/lib/save-error'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { HelpTip } from '@/components/ui/help-tip'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -124,7 +125,7 @@ export function ObjectivesPage() {
       controller.setQuery({ ...query, view: 'active', q: '', coverage: 'all' })
       controller.retry()
     } catch (error) {
-      setAddError(error instanceof Error ? error.message : t('catalog.addFailed'))
+      setAddError(saveErrorMessage(error, t))
     } finally {
       setAdding(false)
     }

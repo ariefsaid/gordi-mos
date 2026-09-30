@@ -458,7 +458,7 @@ const routeTable: RouteObject[] = [
           // PUSHES stays ops_lead/admin: it is the dispatch/outbox surface, not a review queue —
           // #236 opened review per stream, and nothing about that opened posting state.
           {
-            element: <RequireAccessRole anyOf={['ops_lead', 'admin']} />,
+            element: <RequireAccessRole anyOf={['ops_lead', 'admin']} scope="link" />,
             handle: infrastructureHandle('capability'),
             children: [
               { path: ROUTE_PATHS.cafePushes, element: withSuspense(<KitchenPushesPage />), handle: pageHandle('workspace') },

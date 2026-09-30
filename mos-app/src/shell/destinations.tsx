@@ -223,6 +223,21 @@ export function primaryModuleForViewer(affiliated: string[], accessRoles: string
   return allModules(accessRoles).find((m) => affiliated.includes(m.id)) ?? null
 }
 
+/**
+ * The phone bar's module slot: the viewer's promoted module, or — for a viewer who works no module
+ * line — the admitted module whose pages they are on, so the bar names where they are. Never
+ * promoted from anywhere else.
+ */
+export function phoneModuleForViewer(affiliated: string[], accessRoles: string[], pathname: string): Destination | null {
+  return (
+    primaryModuleForViewer(affiliated, accessRoles) ??
+    allModules(accessRoles).find(
+      (m) => m.primaryPath && (pathname === m.primaryPath || pathname.startsWith(`${m.primaryPath}/`)),
+    ) ??
+    null
+  )
+}
+
 /** Module children are detail navigation, not a second set of roots. */
 export function moduleChildrenForViewer(
   module: Destination,

@@ -1,6 +1,6 @@
 import type React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { visibleModulesForViewer } from './destinations'
+import { destinationForPath, phoneModuleForViewer } from './destinations'
 import { HomeIcon, WorkIcon, InboxIcon, MoreIcon } from './icons'
 import { useIsNarrow } from './use-is-narrow'
 import { RailCountBadge } from './rail-nav'
@@ -85,9 +85,7 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
   // The line here used to say "module routes stay reachable via ⌘K / direct URL". That was false:
   // the palette held seven hardcoded entries, none of them Café. It is deleted rather than
   // replaced — under OD-WAY-51 no justification is needed, because nothing is being hidden.
-  const moduleDest = viewer
-    ? visibleModulesForViewer(viewer.accessRoles).find((m) => viewer.affiliated.includes(m.id)) ?? null
-    : null
+  const moduleDest = viewer ? phoneModuleForViewer(viewer.affiliated, viewer.accessRoles, pathname) : null
   const moduleTab: PrimaryTab | null = moduleDest
     ? {
         id: moduleDest.id,
@@ -103,6 +101,13 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
   if (!isNarrow || FOCUSED_DECISION_PATHS.includes(pathname)) return null
 
   const showLauncher = !isCaptureSurface(pathname) && !IN_PAGE_CREATE_PATHS.includes(pathname.replace(/\/+$/, ''))
+  // More is a door, but on a page no tab covers it is also where the viewer stands: mark it (the
+  // breadcrumb leaf still owns aria-current).
+  const onPrimaryTab = primaryTabs.some((tab) => {
+    const section = tab.sectionPrefix ?? tab.href
+    return tab.href === '/' ? pathname === '/' : pathname === section || pathname.startsWith(section + '/')
+  })
+  const moreIsHere = !onPrimaryTab && destinationForPath(pathname) !== null
 
   return (
     // FINDING 1 fix: the nav landmark now holds ONLY navigation (the tab list) — the +
@@ -161,7 +166,7 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
                 aria-label={t('nav.more')}
                 aria-haspopup="dialog"
                 aria-expanded={moreOpen}
-                className="bottom-tab"
+                className={moreIsHere ? 'bottom-tab bottom-tab--active' : 'bottom-tab'}
                 onClick={onOpenMore}
               >
                 <span className="bottom-tab-icon">

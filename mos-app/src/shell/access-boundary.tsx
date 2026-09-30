@@ -71,12 +71,15 @@ export function AccessBoundary({ scope = 'area' }: AccessBoundaryProps = {}) {
   // admitted to that destination's own landing route; otherwise Home.
   const owner = scope === 'link' ? destinationForPath(pathname) : null
   const ownerPath = owner?.primaryPath ?? owner?.links[0]?.path ?? null
+  // A module's pages title themselves "Module · Page"; the denied head keeps that pattern.
+  const headTitle = owner?.zone === 'modules' ? `${t(owner.labelKey)} · ${area}` : area
+
   const backToOwner =
     owner !== null && ownerPath !== null && ownerPath !== pathname &&
     viewerAdmittedToRoute(ownerPath, accessRoles)
 
   return (
-    <PageFamilyFrame family={family} state="permission" title={area}>
+    <PageFamilyFrame family={family} state="permission" title={headTitle}>
       <EmptyState
         variant="blank"
         icon={<LockGlyph />}
