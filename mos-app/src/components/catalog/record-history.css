@@ -60,6 +60,52 @@
   color: var(--foreground);
 }
 
+.catalog-record-history__label {
+  margin-right: 8px;
+  padding-right: 8px;
+  border-right: 1px solid var(--border);
+  color: var(--muted-foreground);
+}
+
+.catalog-record-history__values {
+  color: var(--foreground);
+}
+
+.catalog-record-history__when-toggle,
+.catalog-record-history__expand {
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: var(--font-size-label);
+  cursor: pointer;
+}
+
+.catalog-record-history__expand {
+  margin-top: 4px;
+  text-decoration: underline;
+}
+
+.catalog-record-history__exact {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+@media (max-width: 767.98px) {
+  .catalog-record-history__when-toggle,
+  .catalog-record-history__expand {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Loading and error rows sit on the heading's and list rows' left edge, not inset like a card. */
+.catalog-record-history .error-state {
+  padding: 0;
+}
+
 .catalog-record-history__value {
   color: var(--foreground);
   white-space: pre-wrap;
