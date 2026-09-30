@@ -261,11 +261,11 @@ export function teamOwnershipField(
   editable = false,
   teamOptions: readonly TaskTeamView[] = [],
 ): RecordFieldSpec {
+  // The current Team is always an option; "not assigned" is the last resort, never the lead.
+  const teams = team && !teamOptions.some((option) => option.id === team.id) ? [team, ...teamOptions] : teamOptions
   const options: RecordFieldOption[] = [
+    ...teams.map((option) => ({ value: option.id, label: option.label })),
     { value: '', label: labels.teamUnassigned },
-    ...teamOptions
-      .filter((option) => option.id !== team?.id)
-      .map((option) => ({ value: option.id, label: option.label })),
   ]
   const canPick = editable && teamOptions.length > 0
   return {
@@ -602,8 +602,8 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     fieldSectionSlot(content),
     { id: 'checklist', label: 'Checklist', render: () => renderChecklist(detail) },
     fieldSectionSlot(ownership),
-    { id: 'activity', label: 'Activity', render: () => renderActivity(detail) },
     fieldSectionSlot(relations),
+    { id: 'activity', label: 'Activity', render: () => renderActivity(detail) },
   ]
 
   return {

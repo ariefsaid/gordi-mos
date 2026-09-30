@@ -111,6 +111,33 @@ describe('RecordViewer interaction boundary', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  // #1033: a menu button's menu is walked with the arrow keys, not Tab.
+  it('MenuKeyboardContract: More actions opens on its first item; Arrow, Home and End move between items', () => {
+    const adapter: RecordViewerAdapter = {
+      ...taskAdapter(),
+      actions: [{ id: 'archive', label: 'Archive task', intent: 'danger', run: vi.fn() }],
+      headerOverflowActionIds: ['archive'],
+      permission: { readOnly: false, allowedActionIds: ['archive'] },
+    }
+    render(<I18nProvider><RecordViewer adapter={adapter} mode="panel" onOpenPage={vi.fn()} /></I18nProvider>)
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    const first = screen.getByRole('menuitem', { name: 'Open full page' })
+    const last = screen.getByRole('menuitem', { name: 'Archive task' })
+    expect(first).toHaveFocus()
+
+    fireEvent.keyDown(first, { key: 'ArrowDown' })
+    expect(last).toHaveFocus()
+    fireEvent.keyDown(last, { key: 'ArrowDown' })
+    expect(first).toHaveFocus()
+    fireEvent.keyDown(first, { key: 'ArrowUp' })
+    expect(last).toHaveFocus()
+    fireEvent.keyDown(last, { key: 'Home' })
+    expect(first).toHaveFocus()
+    fireEvent.keyDown(first, { key: 'End' })
+    expect(last).toHaveFocus()
+  })
+
   // FieldEscapeContract — the owning proof that field-Escape isolation holds through the
   // LIVE RecordPanelHost native listener (OD-REDESIGN-83.1 / NFR-V3-001). The host attaches
   // its Escape listener via native addEventListener on the panel, which fires in the bubble
