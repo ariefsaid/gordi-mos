@@ -7,6 +7,7 @@ import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { formatWibDateTime } from '@/lib/format/date'
 import { formatAge } from '@/components/tasks/task-formatters'
 import {
+  HISTORY_PAGE,
   HISTORY_REFERENCE_FIELDS,
   loadRecordHistory,
   type RecordHistory as RecordHistoryData,
@@ -14,7 +15,6 @@ import {
 } from '@/lib/db/record-history'
 import './record-history.css'
 
-const PAGE = 50
 const VALUE_CAP = 300
 
 const FIELD_LABELS: Record<string, MessageKey> = {
@@ -37,8 +37,8 @@ function fieldLabel(field: string, t: Translate): string {
 
 function valueText(field: string, value: string | null, names: RecordHistoryData['names'], t: Translate): string {
   if (value === null) return t('catalog.notSet')
-  if (field in HISTORY_REFERENCE_FIELDS) return names.get(value) ?? t('catalog.history.unavailable')
-  return value.length > VALUE_CAP ? `${value.slice(0, VALUE_CAP)}…` : value
+  const text = field in HISTORY_REFERENCE_FIELDS ? (names.get(value) ?? t('catalog.history.unavailable')) : value
+  return text.length > VALUE_CAP ? `${text.slice(0, VALUE_CAP)}…` : text
 }
 
 function Change({ entry, names, t }: { entry: RecordHistoryEntry; names: RecordHistoryData['names']; t: Translate }) {
@@ -63,7 +63,7 @@ function Change({ entry, names, t }: { entry: RecordHistoryEntry; names: RecordH
   )
 }
 
-export interface RecordHistoryProps {
+export type RecordHistoryProps = {
   table: 'objectives' | 'work_lines'
   recordId: string
   headingLevel?: 1 | 2
@@ -74,25 +74,40 @@ export function RecordHistory({ table, recordId, headingLevel = 2, now }: Record
   const t = useT()
   const { locale } = useI18n()
   const headingId = useId()
-  const [limit, setLimit] = useState(PAGE)
   const [nonce, setNonce] = useState(0)
   const [data, setData] = useState<RecordHistoryData | null>(null)
   const [failed, setFailed] = useState(false)
+  const [moreFailed, setMoreFailed] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
   const Heading = headingLevel === 1 ? 'h2' : 'h3'
 
   useEffect(() => {
     let live = true
     setFailed(false)
-    loadRecordHistory(table, recordId, limit).then(
-      (next) => { if (live) setData(next) },
+    setMoreFailed(false)
+    loadRecordHistory(table, recordId).then(
+      (next) => { if (live) { setData(next); setHasMore(next.entries.length >= HISTORY_PAGE) } },
       () => { if (live) setFailed(true) },
     )
     return () => { live = false }
-  }, [table, recordId, limit, nonce])
+  }, [table, recordId, nonce])
+
+  function showOlder() {
+    const last = data?.entries.at(-1)
+    if (!data || !last) return
+    setMoreFailed(false)
+    loadRecordHistory(table, recordId, { occurredAt: last.occurredAt, id: last.id }).then(
+      (page) => {
+        setData((cur) => cur && { entries: [...cur.entries, ...page.entries], names: new Map([...cur.names, ...page.names]) })
+        setHasMore(page.entries.length >= HISTORY_PAGE)
+      },
+      () => setMoreFailed(true),
+    )
+  }
 
   const clock = now ?? new Date()
   return (
-    <section className="record-viewer__section catalog-record-history" aria-labelledby={headingId}>
+    <section className="catalog-record-history" aria-labelledby={headingId}>
       <Heading id={headingId} className="record-viewer__section-title">{t('catalog.history.title')}</Heading>
       {failed ? (
         <ErrorState message={t('catalog.history.error')} onRetry={() => setNonce((n) => n + 1)} />
@@ -120,8 +135,9 @@ export function RecordHistory({ table, recordId, headingLevel = 2, now }: Record
               </li>
             ))}
           </ol>
-          {data.entries.length >= limit ? (
-            <Button variant="outline" className="catalog-record-history__more" onClick={() => setLimit((n) => n + PAGE)}>
+          {moreFailed ? <ErrorState message={t('catalog.history.error')} onRetry={showOlder} /> : null}
+          {hasMore && !moreFailed ? (
+            <Button variant="outline" className="catalog-record-history__more" onClick={showOlder}>
               {t('catalog.history.showMore')}
             </Button>
           ) : null}

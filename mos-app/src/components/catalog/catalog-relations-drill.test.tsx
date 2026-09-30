@@ -142,7 +142,7 @@ async function expectMemberReadOnly() {
 beforeEach(() => {
   vi.clearAllMocks()
   historyLoad.mockResolvedValue({
-    entries: [{ id: 'h1', action: 'update', field: 'name', oldValue: 'Old name', newValue: 'Grow revenue', occurredAt: '2026-09-30T02:00:00Z', channel: 'app', actorName: 'Test Viewer' }],
+    entries: [{ id: 'h1', action: 'update', field: 'name', oldValue: 'Old name', newValue: 'Renamed goal', occurredAt: '2026-09-30T02:00:00Z', channel: 'app', actorName: 'Test Viewer' }],
     names: new Map(),
   })
   runtimeAuthority.scopes = {
@@ -201,8 +201,8 @@ describe('record relationship grammar', () => {
       const details = screen.getByRole('tabpanel')
       const history = await within(details).findByRole('region', { name: 'History' })
       expect(within(history).getByText('Test Viewer')).toBeInTheDocument()
-      expect(history).toHaveTextContent('Old name → Grow revenue')
-      expect(historyLoad).toHaveBeenCalledWith(table, kind === 'objective' ? 'obj-1' : 'wl-1', 50)
+      expect(history).toHaveTextContent('Old name → Renamed goal')
+      expect(historyLoad).toHaveBeenCalledWith(table, kind === 'objective' ? 'obj-1' : 'wl-1')
     },
   )
 

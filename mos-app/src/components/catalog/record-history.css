@@ -1,5 +1,5 @@
-/* Change history under a record's Details (#991). Reuses the record-viewer section frame; only
-   the list rhythm lives here. Values wrap, never scroll: a long old/new value must stay readable at 390. */
+/* Change history under a record's Details (#991). It sits inside the Details section's own frame
+   (no second padding); only the divider and list rhythm live here. Values wrap, never scroll: a long old/new value must stay readable at 390. */
 .catalog-record-history__list {
   display: flex;
   flex-direction: column;
@@ -79,4 +79,13 @@
   .catalog-record-history__more {
     min-height: 44px;
   }
+}
+
+.catalog-record-history {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }

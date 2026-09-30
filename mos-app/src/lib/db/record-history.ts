@@ -1,11 +1,11 @@
 import { supabase } from '@/lib/supabase'
 
-/** Reads shared.record_history directly (RLS gates it through the source table's own read rule). */
+// Reads shared.record_history directly; RLS gates it through the source table's own read rule.
 const shared = () => supabase.schema('shared')
 
 export type HistoryChannel = 'app' | 'api' | 'agent'
 
-export interface RecordHistoryEntry {
+export type RecordHistoryEntry = {
   id: string
   action: 'insert' | 'update' | 'delete'
   field: string | null
@@ -16,13 +16,18 @@ export interface RecordHistoryEntry {
   actorName: string | null
 }
 
-export interface RecordHistory {
+export type RecordHistory = {
   entries: RecordHistoryEntry[]
-  /** id -> display name for every person / Business Unit / Objective a value points at. */
+  // id -> display name for every person / Business Unit / Objective a value points at.
   names: ReadonlyMap<string, string>
 }
 
-/** Columns whose stored value is another record's id, and where that record lives. */
+// The last entry already shown; the next page is everything strictly older.
+export type HistoryCursor = { occurredAt: string; id: string }
+
+export const HISTORY_PAGE = 50
+
+// Columns whose stored value is another record's id, and where that record lives.
 export const HISTORY_REFERENCE_FIELDS = {
   accountable_person_id: 'people',
   responsible_person_id: 'people',
@@ -59,17 +64,22 @@ async function lookupNames(
 export async function loadRecordHistory(
   table: 'objectives' | 'work_lines',
   recordId: string,
-  limit = 50,
+  before?: HistoryCursor,
 ): Promise<RecordHistory> {
-  const { data, error } = await shared()
+  let query = shared()
     .from('record_history')
     .select('id,action,field_name,old_value,new_value,occurred_at,channel,actor:people!actor_person_id(full_name)')
     .eq('schema_name', 'mos')
     .eq('table_name', table)
     .eq('record_key', recordId)
+  if (before) {
+    // Keyset, not offset or a growing limit: the API's row cap would otherwise hide older pages.
+    query = query.or(`occurred_at.lt.${before.occurredAt},and(occurred_at.eq.${before.occurredAt},id.lt.${before.id})`)
+  }
+  const { data, error } = await query
     .order('occurred_at', { ascending: false })
     .order('id', { ascending: false })
-    .limit(limit)
+    .limit(HISTORY_PAGE)
   if (error) throw new Error(`record history failed — ${error.message}`)
 
   const rows = (data ?? []) as unknown as HistoryRow[]

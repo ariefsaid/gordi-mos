@@ -5,7 +5,7 @@ vi.mock('@/lib/supabase', () => ({ supabase: { schema: schemaMock } }))
 
 import { loadRecordHistory } from './record-history'
 
-type Query = { schema: string; table: string; select?: string; filters: Array<[string, string, unknown]>; order: string[]; limit?: number }
+type Query = { schema: string; table: string; select?: string; filters: Array<[string, string, unknown]>; order: string[]; limit?: number; or?: string }
 
 function install(responses: Record<string, unknown>, queries: Query[]) {
   schemaMock.mockImplementation((schema: string) => ({
@@ -17,6 +17,7 @@ function install(responses: Record<string, unknown>, queries: Query[]) {
       b.eq = vi.fn((c: string, v: unknown) => { q.filters.push(['eq', c, v]); return b })
       b.in = vi.fn((c: string, v: unknown) => { q.filters.push(['in', c, v]); return b })
       b.order = vi.fn((c: string, o?: { ascending: boolean }) => { q.order.push(`${c}:${o?.ascending === false ? 'desc' : 'asc'}`); return b })
+      b.or = vi.fn((f: string) => { q.or = f; return b })
       b.limit = vi.fn((n: number) => { q.limit = n; return b })
       b.then = (resolve: (v: unknown) => unknown) => Promise.resolve(responses[`${schema}.${table}`] ?? { data: [], error: null }).then(resolve)
       return b
@@ -47,6 +48,14 @@ describe('loadRecordHistory', () => {
       id: 'h1', action: 'update', field: 'name', oldValue: 'A', newValue: 'B',
       occurredAt: '2026-09-30T02:00:00Z', channel: 'app', actorName: 'Dewi Director',
     }])
+  })
+
+  it('an older page is a keyset filter on (occurred_at, id), never a bigger limit', async () => {
+    const queries: Query[] = []
+    install({ 'shared.record_history': { data: [row({ id: 'h9' })], error: null } }, queries)
+    await loadRecordHistory('work_lines', 'wl-1', { occurredAt: '2026-09-29T00:00:10Z', id: 'h49' })
+    expect(queries[0].or).toBe('occurred_at.lt.2026-09-29T00:00:10Z,and(occurred_at.eq.2026-09-29T00:00:10Z,id.lt.h49)')
+    expect(queries[0].limit).toBe(50)
   })
 
   it('resolves reference values (including archived people) with one batch lookup per kind', async () => {

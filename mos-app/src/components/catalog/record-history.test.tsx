@@ -19,7 +19,7 @@ const show = (locale: 'en' | 'id' = 'en') =>
   render(<I18nProvider initialLocale={locale}><RecordHistory table="objectives" recordId="obj-1" now={NOW} /></I18nProvider>)
 
 describe('RecordHistory', () => {
-  beforeEach(() => loadMock.mockReset())
+  beforeEach(() => { loadMock.mockReset() })
 
   it('AC-010: actor name, relative time, human field label and old -> new, in the order given', async () => {
     loadMock.mockResolvedValue(result([
@@ -125,14 +125,24 @@ describe('RecordHistory', () => {
     expect(screen.getByText('Uraian diubah')).toBeInTheDocument()
   })
 
-  it('a full page offers Show older changes and loads more', async () => {
-    const page = (n: number) => Array.from({ length: n }, (_, i) => entry({ id: `h${i}` }))
-    loadMock.mockResolvedValueOnce(result(page(50))).mockResolvedValueOnce(result(page(60)))
+  it('a full page offers Show older changes; the next page is fetched from the last entry and appended', async () => {
+    const page = (from: number, n: number) => Array.from({ length: n }, (_, i) => entry({ id: `h${from + i}`, occurredAt: `2026-09-29T00:00:${String(59 - i).padStart(2, '0')}Z` }))
+    loadMock.mockResolvedValueOnce(result(page(0, 50))).mockResolvedValueOnce(result(page(50, 10)))
     show()
-    const more = await screen.findByRole('button', { name: 'Show older changes' })
-    await userEvent.click(more)
+    await userEvent.click(await screen.findByRole('button', { name: 'Show older changes' }))
     await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(60))
-    expect(loadMock).toHaveBeenLastCalledWith('objectives', 'obj-1', 100)
+    expect(loadMock).toHaveBeenLastCalledWith('objectives', 'obj-1', { occurredAt: '2026-09-29T00:00:10Z', id: 'h49' })
     expect(screen.queryByRole('button', { name: 'Show older changes' })).toBeNull()
+  })
+
+  it('a failed older page keeps what is shown and offers a retry', async () => {
+    const full = Array.from({ length: 50 }, (_, i) => entry({ id: `h${i}` }))
+    loadMock.mockResolvedValueOnce(result(full)).mockRejectedValueOnce(new Error('x')).mockResolvedValueOnce(result([entry({ id: 'older' })]))
+    show()
+    await userEvent.click(await screen.findByRole('button', { name: 'Show older changes' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t load history.')
+    expect(screen.getAllByRole('listitem')).toHaveLength(50)
+    await userEvent.click(screen.getByRole('button', { name: /try again/i }))
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(51))
   })
 })
