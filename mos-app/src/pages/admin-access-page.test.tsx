@@ -32,8 +32,9 @@ const SCOPE_BY_ACTION: Record<string, RoleAuthorityRow['scope']> = {
 
 function authorityRows(): RoleAuthorityRow[] {
   // The RPC still returns the retired objective.manage row; the page must load past it.
-  const retired = (['objective.manage'] as const).flatMap((action) =>
-    AUTHORITY_ROLES.map((role) => ({ action, role, scope: 'none' as const })))
+  const retired = AUTHORITY_ROLES.map(
+    (role) => ({ action: 'objective.manage', role, scope: 'none' }) as unknown as RoleAuthorityRow,
+  )
   return retired.concat(AUTHORITY_ACTIONS.flatMap((action) =>
     AUTHORITY_ROLES.map((role) => ({
       action,
