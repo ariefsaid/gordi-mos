@@ -4,13 +4,16 @@ A stateless MCP Streamable HTTP endpoint (JSON-RPC over POST, JSON responses). O
 operation; each call is `POST /rest/v1/rpc/<operation>` on the data API with the caller's own token and
 the `api_v1` profile. The function holds no authority and never reads a table.
 
-- **Token rule:** signature verified against the login service's published keys (ES256 or RS256), `iss` is
-  that service, unexpired, `aud` contains this resource, and `client_id`, `person_id`, `org_id` present.
+- **Token rule:** signature verified against the login service's published keys (ES256 or RS256; a key is used
+  only when its declared `use`, `alg` and `key_ops`, if any, allow verifying), `iss` is that service,
+  unexpired, `aud` contains this resource, `role` is `authenticated`, and `client_id`, `person_id`, `org_id`
+  present.
   Anything else is `401` with `WWW-Authenticate: Bearer resource_metadata="…"`. An app session token has no
   `client_id` and no MCP audience, so it never passes.
 - **Discovery:** the challenge points at `<resource>/.well-known/oauth-protected-resource`, which this function
   answers itself. The RFC 9728 root-path form (`<origin>/.well-known/oauth-protected-resource<resource path>`,
   what a client derives when a challenge carries no pointer) is served too, but only where the gateway routes it.
+- **Body size:** a signed-in request body over 1 MiB is answered `413` without being parsed.
 - **Browser origins:** refused (`403`) unless listed in `MCP_ALLOWED_ORIGINS`; a listed origin gets CORS
   headers and its preflight is answered. Native and server clients send no `Origin`.
 - **Key fetch:** the login service's key set is cached per isolate; one fetch at most every 30 s (success or

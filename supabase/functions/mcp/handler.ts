@@ -21,6 +21,7 @@ export type McpDeps = {
 
 const SUPPORTED_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05']
 const MAX_MESSAGE = 500
+const MAX_BODY_BYTES = 1_048_576
 const METADATA_PATH = '/.well-known/oauth-protected-resource'
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -40,6 +41,33 @@ function challenge(deps: McpDeps, invalid: boolean): Response {
     401,
     { 'WWW-Authenticate': `Bearer ${invalid ? 'error="invalid_token", ' : ''}${pointer}` },
   )
+}
+
+// The request body as text, or null once it exceeds MAX_BODY_BYTES (declared or actually read).
+async function readCappedBody(req: Request): Promise<string | null> {
+  const declared = Number(req.headers.get('Content-Length'))
+  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return null
+  const reader = req.body?.getReader()
+  if (!reader) return ''
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > MAX_BODY_BYTES) {
+      await reader.cancel()
+      return null
+    }
+    chunks.push(value)
+  }
+  const bytes = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return new TextDecoder().decode(bytes)
 }
 
 type ToolFailure = { code: string; message: string; field: string | null }
@@ -170,9 +198,11 @@ async function handle(req: Request, deps: McpDeps): Promise<Response> {
 
   if (req.method !== 'POST') return new Response(null, { status: 405, headers: { Allow: 'POST' } })
 
+  const text = await readCappedBody(req)
+  if (text === null) return json({ error: 'payload_too_large' }, 413)
   let message: unknown
   try {
-    message = await req.json()
+    message = JSON.parse(text)
   } catch {
     return rpcError(null, -32700, 'Parse error')
   }
