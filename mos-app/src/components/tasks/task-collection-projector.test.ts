@@ -248,6 +248,24 @@ describe('projectTaskCollection — sorting', () => {
     expect(p.visibleRecords.map((r) => r.id)).toEqual(['urgent', 'next', 'done'])
   })
 
+  const DONE_LAST_ROWS = [
+    rawTask({ id: 'done-early', title: 'Closed early', status: 'Done', due_date: '2026-09-15' }),
+    rawTask({ id: 'done-mid', title: 'Closed mid', status: 'Done', due_date: '2026-09-19' }),
+    rawTask({ id: 'open-late', title: 'Open late', status: 'Open', due_date: '2026-10-24' }),
+    rawTask({ id: 'open-soon', title: 'Open soon', status: 'In Progress', due_date: '2026-10-01' }),
+  ]
+
+  it('sort=due keeps Done last under a filter too, not just in the neutral queue', () => {
+    const p = projectTaskCollection(makeData(DONE_LAST_ROWS), q({ picId: P_RAKA }))
+    expect(p.visibleRecords.map((r) => r.id)).toEqual(['open-soon', 'open-late', 'done-early', 'done-mid'])
+  })
+
+  it('sort=due descending still keeps Done last; open work runs latest first', () => {
+    const rows = [...DONE_LAST_ROWS, rawTask({ id: 'done-future', title: 'Closed future-dated', status: 'Done', due_date: '2026-11-30' })]
+    const p = projectTaskCollection(makeData(rows), q({ direction: 'descending' }))
+    expect(p.visibleRecords.map((r) => r.id)).toEqual(['open-late', 'open-soon', 'done-future', 'done-mid', 'done-early'])
+  })
+
   it('sort=pic uses the resolved display name, not the id', () => {
     const p = projectTaskCollection(makeData(), q({ sort: 'pic', direction: 'ascending' }))
     // PIC names: Raka(t-1,t-3), Sari(t-2) → Raka before Sari.

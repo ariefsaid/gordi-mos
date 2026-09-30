@@ -20,6 +20,9 @@ export type ModalShellProps = {
    * async condition the caller doesn't control (e.g. an authority check) — the caller only needs
    * the target to already be in the DOM by the time `open` becomes true. */
   initialFocusRef?: RefObject<HTMLElement | null>
+  /** Where focus lands on close when nothing focused opened the dialog (a global shortcut leaves
+   * the invoker at <body>). A real invoker always wins. */
+  returnFocusRef?: RefObject<HTMLElement | null>
 }
 
 /**
@@ -41,6 +44,7 @@ export function ModalShell({
   phoneMode = 'centered',
   className,
   initialFocusRef,
+  returnFocusRef,
 }: ModalShellProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const invokerRef = useRef<HTMLElement | null>(null)
@@ -50,6 +54,7 @@ export function ModalShell({
   useEffect(() => {
     if (!open) return
     invokerRef.current = document.activeElement as HTMLElement | null
+    const returnTarget = returnFocusRef?.current
     const dialog = dialogRef.current
     const preferred = initialFocusRef?.current
     if (preferred) {
@@ -60,10 +65,12 @@ export function ModalShell({
     }
 
     return () => {
-      invokerRef.current?.focus?.()
+      const invoker = invokerRef.current
+      const target = invoker && invoker !== document.body ? invoker : returnTarget
+      target?.focus?.()
       invokerRef.current = null
     }
-  }, [open, initialFocusRef])
+  }, [open, initialFocusRef, returnFocusRef])
 
   useEffect(() => {
     if (!open) return

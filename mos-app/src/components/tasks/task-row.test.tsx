@@ -9,6 +9,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { TaskRow } from './task-row'
+import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import type { TaskRowProps } from './task-row'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
@@ -257,6 +258,15 @@ describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)',
     expect(document.querySelector('.task-name')).toHaveTextContent('Renamed forecast')
   })
 
+  it('caps the inline title edit at the shared limit (#1034)', async () => {
+    const user = userEvent.setup()
+    renderRow({ onEditTitle: vi.fn().mockResolvedValue(undefined) })
+    const input = openEditor()
+    await user.clear(input)
+    await user.paste('x'.repeat(TASK_TITLE_MAX_LENGTH + 50))
+    expect(input.value).toHaveLength(TASK_TITLE_MAX_LENGTH)
+  })
+
   it('Escape discards the draft — no commit, saved title restored', () => {
     const onEditTitle = vi.fn().mockResolvedValue(undefined)
     renderRow({ onEditTitle })
@@ -436,18 +446,66 @@ describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)',
   })
 })
 
+describe('TaskRow — inline Status/PIC editors open on the first activation and return focus (#1027, #979)', () => {
+  const people = [{ id: 'p-1', full_name: 'Rina Lestari' }, { id: 'p-2', full_name: 'Dewi Santoso' }]
+  const statusTrigger = () => screen.getByRole('button', { name: /Blocked/ })
+  const picTrigger = () => document.querySelector('.td-owner .inline-cell-trigger') as HTMLElement
+
+  it('a single click on Status opens the options list', async () => {
+    renderRow({ onEditStatus: vi.fn() })
+    await userEvent.click(statusTrigger())
+    expect(await screen.findByRole('option', { name: 'Done' })).toBeInTheDocument()
+  })
+
+  it.each([['Enter', '{Enter}'], ['Space', ' ']])('%s on the Status trigger opens the options list first time', async (_name, key) => {
+    renderRow({ onEditStatus: vi.fn() })
+    statusTrigger().focus()
+    await userEvent.keyboard(key)
+    expect(await screen.findByRole('option', { name: 'Done' })).toBeInTheDocument()
+  })
+
+  it('a single click on PIC opens the options list', async () => {
+    renderRow({ onEditPic: vi.fn(), personOptions: people })
+    await userEvent.click(picTrigger())
+    expect(await screen.findByRole('option', { name: 'Dewi Santoso' })).toBeInTheDocument()
+  })
+
+  it.each([['Enter', '{Enter}'], ['Space', ' ']])('%s on the PIC trigger opens the options list first time', async (_name, key) => {
+    renderRow({ onEditPic: vi.fn(), personOptions: people })
+    picTrigger().focus()
+    await userEvent.keyboard(key)
+    expect(await screen.findByRole('option', { name: 'Dewi Santoso' })).toBeInTheDocument()
+  })
+
+  it('Escape on the Status editor returns focus to the Status trigger', async () => {
+    renderRow({ onEditStatus: vi.fn() })
+    await userEvent.click(statusTrigger())
+    await screen.findByRole('option', { name: 'Done' })
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Edit task status' })).toBeNull())
+    expect(document.activeElement).toBe(statusTrigger())
+  })
+
+  it('Escape on the PIC editor returns focus to the PIC trigger', async () => {
+    renderRow({ onEditPic: vi.fn(), personOptions: people })
+    await userEvent.click(picTrigger())
+    await screen.findByRole('option', { name: 'Dewi Santoso' })
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Edit task PIC' })).toBeNull())
+    expect(document.activeElement).toBe(picTrigger())
+  })
+})
+
 describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
   it('routes status and PIC picks through the shared commit contract', async () => {
     const onEditStatus = vi.fn().mockResolvedValue(undefined)
     const onEditPic = vi.fn().mockResolvedValue(undefined)
     renderRow({ onEditStatus, onEditPic, personOptions: [{ id: 'p-1', full_name: 'Rina Lestari' }, { id: 'p-2', full_name: 'Dewi Santoso' }] })
     fireEvent.click(screen.getByRole('button', { name: /Blocked/ }))
-    fireEvent.click(screen.getByRole('combobox', { name: 'Edit task status' }))
     fireEvent.click(screen.getByRole('option', { name: 'Done' }))
     await waitFor(() => expect(onEditStatus).toHaveBeenCalledWith('task-7', 'Done'))
     await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Edit task status' })).toBeNull())
     fireEvent.click(document.querySelector('.td-owner .inline-cell-trigger') as HTMLElement)
-    fireEvent.click(screen.getByRole('combobox', { name: 'Edit task PIC' }))
     fireEvent.click(screen.getByRole('option', { name: 'Dewi Santoso' }))
     await waitFor(() => expect(onEditPic).toHaveBeenCalledWith('task-7', 'p-2'))
     await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Edit task PIC' })).toBeNull())
@@ -457,7 +515,6 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
   it('re-picking the current status closes the editor', () => {
     renderRow({ onEditStatus: vi.fn() })
     fireEvent.click(screen.getByRole('button', { name: /Blocked/ }))
-    fireEvent.click(screen.getByRole('combobox', { name: 'Edit task status' }))
     fireEvent.click(screen.getByRole('option', { name: 'Blocked' }))
     expect(screen.queryByRole('combobox', { name: 'Edit task status' })).toBeNull()
   })
@@ -478,7 +535,6 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
     const onEditPic = vi.fn().mockRejectedValue(new Error('write failed'))
     renderRow({ onEditPic, personOptions: [{ id: 'p-1', full_name: 'Rina Lestari' }, { id: 'p-2', full_name: 'Dewi Santoso' }] })
     fireEvent.click(document.querySelector('.td-owner .inline-cell-trigger') as HTMLElement)
-    fireEvent.click(screen.getByRole('combobox', { name: 'Edit task PIC' }))
     fireEvent.click(screen.getByRole('option', { name: 'Dewi Santoso' }))
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/reverted/i))
     expect(screen.getByRole('alert')).toHaveTextContent(/retry/i)

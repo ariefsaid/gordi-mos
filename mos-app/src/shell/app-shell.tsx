@@ -136,6 +136,7 @@ function ShellContent() {
   // ⌘K), the Home feed row — dispatches the SAME useSignalComposer().open().
   const { open: openSignalComposer, canPost } = useSignalComposer()
   const focusMoreRef = useRef<(() => void) | undefined>(undefined)
+  const searchTriggerRef = useRef<HTMLButtonElement>(null)
 
   // Lane B2 — reconcile the Deputy companion with any shell-owner overlay. Both consume the shell's
   // right-edge surface track, so at most one may be open. Mounted here because ShellContent sits
@@ -183,7 +184,7 @@ function ShellContent() {
         }}
       >
         {/* TopBar — grid-area: topbar, spans full width across both columns (ADR-0013 D1) */}
-        <TopBar onOpenSearch={() => openWithMode('search')} />
+        <TopBar onOpenSearch={() => openWithMode('search')} searchTriggerRef={searchTriggerRef} />
 
         {/* The offline line — one muted sentence under the header, never a banner with an action:
             there is nothing to press, and it disappears the moment the connection returns. */}
@@ -265,6 +266,7 @@ function ShellContent() {
         open={searchOpen}
         mode={searchMode}
         onClose={() => setSearchOpen(false)}
+        returnFocusRef={searchTriggerRef}
         onShareSignal={openSignalComposer}
         canShareSignal={canPost !== false}
       />

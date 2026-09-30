@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, Link, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
@@ -208,6 +209,26 @@ describe('AC-K02: AppShell mounts the command menu', () => {
     renderShell()
     fireEvent.keyDown(document, { key: 'k', metaKey: true })
     expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
+  })
+
+  it('Esc on a palette opened by ⌘K from nowhere returns focus to the Search trigger (#979)', async () => {
+    renderShell()
+    expect(document.activeElement).toBe(document.body)
+    fireEvent.keyDown(document, { key: 'k', metaKey: true })
+    expect(screen.getByRole('dialog', { name: 'Command menu' })).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Command menu' })).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Search/i }))
+  })
+
+  it('Esc on a palette opened from the Search trigger returns focus to it (#979)', async () => {
+    renderShell()
+    const trigger = screen.getByRole('button', { name: /Search/i })
+    trigger.focus()
+    fireEvent.click(trigger)
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Command menu' })).toBeNull()
+    expect(document.activeElement).toBe(trigger)
   })
 
   // #267: the shell must mount `SignalComposerHost`, because `SignalsArchivePage` calls

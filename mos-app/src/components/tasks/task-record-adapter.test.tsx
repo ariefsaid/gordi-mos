@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import type { TaskDetail } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
+import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { RecordViewer } from '@/components/records/record-viewer'
 import {
@@ -111,6 +112,7 @@ describe('createTaskRecordAdapter', () => {
     expect(adapter.typeLabel).toBe('Task')
 
     expect(fieldByKey(adapter, 'businessUnit').displayValue).toBe('Retail Ops')
+    expect(adapter.headerFields?.find((f) => f.key === 'title')?.maxLength).toBe(TASK_TITLE_MAX_LENGTH)
     expect(fieldByKey(adapter, 'pic').displayValue).toBe('Riri')
     expect(fieldByKey(adapter, 'supervisor').displayValue).toBe('Wayan Kusuma')
     expect(adapter.headerFields?.find((field) => field.key === 'status')?.displayValue).toBe('Open')

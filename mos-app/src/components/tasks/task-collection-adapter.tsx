@@ -442,32 +442,14 @@ function sortTaskRecords(
   personNamesById: ReadonlyMap<string, string>,
 ): TaskCollectionRecord[] {
   const dir = query.direction === 'descending' ? -1 : 1
-  // The neutral queue is a work surface, not an archive browser: active work leads even when a
-  // completed task has an older due date. Once a person chooses a view/filter/sort, the ordinary
-  // typed sort contract remains authoritative and this default ordering does not rewrite it.
-  const isDefaultQueue = query.view === 'all'
-    && query.q.trim() === ''
-    && query.businessUnitId === null
-    && query.status === null
-    && query.picId === null
-    && query.supervisorId === null
-    && query.personId === null
-    && query.groupBy === 'none'
-    && query.sort === 'due'
-    && query.direction === 'ascending'
-    && !query.includeArchived
-    && !query.overdueOnly
-    && query.occurrenceId === null
-    && query.savedViewId === null
+  // Due order is a work queue: completed and archived tasks trail active ones in both directions,
+  // whatever the filter, so the direction only orders the work still to do.
+  const trailsActive = query.sort === 'due'
+  const queueRank = (record: TaskCollectionRecord) => record.archivedAt !== null
+    ? 2
+    : record.status === 'Done' ? 1 : 0
   const name = (id: string) => personNamesById.get(id) ?? ''
   const cmp = (a: TaskCollectionRecord, b: TaskCollectionRecord): number => {
-    if (isDefaultQueue) {
-      const queueRank = (record: TaskCollectionRecord) => record.archivedAt !== null
-        ? 2
-        : record.status === 'Done' ? 1 : 0
-      const rankDelta = queueRank(a) - queueRank(b)
-      if (rankDelta !== 0) return rankDelta
-    }
     switch (query.sort) {
       case 'task': return a.title.localeCompare(b.title)
       case 'status': return a.status.localeCompare(b.status)
@@ -485,7 +467,13 @@ function sortTaskRecords(
       }
     }
   }
-  return [...rows].sort((a, b) => dir * cmp(a, b))
+  return [...rows].sort((a, b) => {
+    if (trailsActive) {
+      const rankDelta = queueRank(a) - queueRank(b)
+      if (rankDelta !== 0) return rankDelta
+    }
+    return dir * cmp(a, b)
+  })
 }
 
 function countOverdue(rows: readonly TaskCollectionRecord[], now: Date): number {
