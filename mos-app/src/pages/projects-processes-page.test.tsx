@@ -351,7 +351,7 @@ describe('page help defines the domain terms', () => {
     await screen.findByText('Menu launch')
     fireEvent.click(screen.getByRole('button', { name: 'Bantuan' }))
     const panel = screen.getByRole('note')
-    expect(panel).toHaveTextContent('Proyek dan Proses adalah kerja yang mendorong Objective Anda.')
+    expect(panel).toHaveTextContent('Proyek dan Proses adalah kerja yang mendorong Tujuan Anda.')
     expect(panel).toHaveTextContent('Responsible adalah satu orang yang mengerjakan')
     expect(panel).toHaveTextContent('Business Unit adalah tim tempat pekerjaan ini berada')
   })
