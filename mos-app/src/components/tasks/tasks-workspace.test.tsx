@@ -1521,9 +1521,11 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     fireEvent.keyDown(due, { key: 'Enter' })
     await screen.findByRole('alert')
 
-    // The shortcut is ignored while a field has focus, so leave the field first. Two presses
-    // while the close is pending still ask once and open at most one draft.
-    ;(document.activeElement as HTMLElement | null)?.blur()
+    // The shortcut is ignored while a field has focus, so move focus to a control. Blurring to
+    // <body> would let the field's own failed-save recovery pull focus back into it whenever the
+    // blur-commit retry settles, swallowing the shortcut. Two presses while the close is pending
+    // still ask once and open at most one draft.
+    screen.getByRole('button', { name: '+ Create task' }).focus()
     fireEvent.keyDown(window, { key: 'n' })
     fireEvent.keyDown(window, { key: 'n' })
     expect(await screen.findByRole('dialog')).toHaveTextContent(/discard unsaved changes/i)
