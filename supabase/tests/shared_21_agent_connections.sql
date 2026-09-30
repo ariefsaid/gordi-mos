@@ -62,9 +62,9 @@ select is((select prosecdef from pg_proc where oid = 'shared.admin_list_agent_co
   'the list RPC is SECURITY DEFINER');
 select is((select prosecdef from pg_proc where oid = 'shared.admin_revoke_agent_connection(uuid,text)'::regprocedure), true,
   'the revoke RPC is SECURITY DEFINER');
-select ok('search_path=""' = any((select proconfig from pg_proc where oid = 'shared.admin_list_agent_connections()'::regprocedure)),
+select ok((select proconfig from pg_proc where oid = 'shared.admin_list_agent_connections()'::regprocedure) @> array['search_path=""'],
   'the list RPC pins an empty search_path');
-select ok('search_path=""' = any((select proconfig from pg_proc where oid = 'shared.admin_revoke_agent_connection(uuid,text)'::regprocedure)),
+select ok((select proconfig from pg_proc where oid = 'shared.admin_revoke_agent_connection(uuid,text)'::regprocedure) @> array['search_path=""'],
   'the revoke RPC pins an empty search_path');
 select ok(has_function_privilege('authenticated', 'shared.admin_list_agent_connections()', 'execute'),
   'authenticated can call the admin list RPC');
@@ -122,14 +122,18 @@ select throws_ok($$ insert into shared.trusted_agent_clients (client_id, display
 -- revoke one consent, delete every session for only that user+client, cascade refresh tokens, audit.
 select is(shared.admin_revoke_agent_connection('00000000-0000-0000-0000-0000000000d1','33333333-3333-4333-8333-333333333333'), true,
   'admin revokes the selected person and client');
+-- Auth tables and the private audit table are not readable by app roles: inspect them as the owner.
+reset role;
 select ok((select revoked_at is not null from auth.oauth_consents
   where user_id = '00000000-0000-0000-0000-00000000aa01'
     and client_id = '33333333-3333-4333-8333-333333333333'),
   'selected consent is marked revoked');
+set local role authenticated;
 select is((select count(*)::int from shared.admin_list_agent_connections()
   where client_id = '33333333-3333-4333-8333-333333333333'
     and person_id = '00000000-0000-0000-0000-0000000000d1'), 0,
   'admin listing omits a consent after it is revoked');
+reset role;
 select is((select count(*)::int from auth.sessions
   where user_id = '00000000-0000-0000-0000-00000000aa01'
     and oauth_client_id = '33333333-3333-4333-8333-333333333333'), 0,
@@ -151,13 +155,16 @@ select is((select count(*)::int from auth.refresh_tokens where session_id = '5a0
   'the foreign user refresh token is untouched');
 select is((select count(*)::int from api_private.agent_connection_admin_events), 1,
   'successful admin revocation appends one private audit event');
+set local role authenticated;
 select is(shared.admin_revoke_agent_connection('00000000-0000-0000-0000-0000000000d1','33333333-3333-4333-8333-333333333333'), false,
   'repeating a completed revoke is idempotent and reports no new change');
+reset role;
 select is((select count(*)::int from api_private.agent_connection_admin_events), 1,
   'idempotent repeat does not duplicate the audit event');
 
 -- Simulate the very next data-API request from the revoked access token. D5 checks session_id in
 -- auth.sessions before authority; the deleted session fails as an invalid agent session.
+set local role authenticated;
 select set_config('request.jwt.claims',
   '{"role":"authenticated","sub":"00000000-0000-0000-0000-00000000aa01","org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"],"client_id":"33333333-3333-4333-8333-333333333333","session_id":"5a010000-0000-4000-8000-000000000001"}', true);
 select set_config('search_path', '"api_v1", "public", "extensions"', true);
