@@ -127,7 +127,7 @@ describe('Objectives collection-first contract', () => {
     const name = within(form).getByRole('textbox', { name: 'Name' })
     fireEvent.change(name, { target: { value: 'Delight guests' } })
     fireEvent.submit(form)
-    expect(await screen.findByRole('alert')).toHaveTextContent('Temporary save failure')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t save. Try again.')
     expect(name).toHaveValue('Delight guests')
     await waitFor(() => expect(name).toHaveFocus())
     fireEvent.submit(form)

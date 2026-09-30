@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useId } from 'react'
+import { useT } from '@/i18n/use-t'
+import { saveErrorMessage } from '@/lib/save-error'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { Button } from '@/components/ui/button'
@@ -53,6 +55,7 @@ type LoadState = 'loading' | 'loaded' | 'error'
 export function CatalogManager({
   title, subtitle, noun, nounPlural, load, create, rename, setArchived, typeField, traceFor,
 }: CatalogManagerProps) {
+  const t = useT()
   const plural = nounPlural ?? `${noun}s`
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [items, setItems] = useState<CatalogItem[]>([])
@@ -104,7 +107,7 @@ export function CatalogManager({
       announce(`Added ${name}`)
       await refresh()
     } catch (err) {
-      setAddError(err instanceof Error ? err.message : 'Could not add')
+      setAddError(saveErrorMessage(err, t))
     } finally {
       setAdding(false)
     }
@@ -128,7 +131,7 @@ export function CatalogManager({
       announce(`Renamed to ${name}`)
       await refresh()
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Could not save')
+      setEditError(saveErrorMessage(err, t))
     } finally {
       setSavingId(null)
     }

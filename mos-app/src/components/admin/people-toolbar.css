@@ -88,6 +88,11 @@
        basis; keep the 44px coarse floor. (Cafe's twin `.cafe-capture-link` retired with DD-MVP-17; this lane is the
        lane's fix — same root cause.) */
     flex: 0 0 auto;
+    /* 46 = 44px input + the 1px border each side, so the input itself meets the floor. */
+    min-height: 46px;
+  }
+
+  .people-search-input {
     min-height: 44px;
   }
 
@@ -112,6 +117,7 @@
     /* Content-sized, not equal-share (DO-18(b) precedent, collection-toolbar.css). */
     flex: none;
     height: 44px; /* ≥44px touch target — overrides ViewTabs' own 40px mobile height */
+    min-width: 44px;
     padding: 0 12px;
     font-size: var(--font-size-label);
     text-align: center;

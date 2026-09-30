@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Link, useHref } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { saveErrorMessage } from '@/lib/save-error'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -350,8 +351,7 @@ export function CatalogRecordDocument({
       setHistoryVersion((v) => v + 1)
       onChanged?.()
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('catalog.saveFailed')
-      setMutationError(message)
+      setMutationError(saveErrorMessage(error, t))
       throw error
     } finally {
       setBusy(false)
@@ -409,8 +409,7 @@ export function CatalogRecordDocument({
       setHistoryVersion((v) => v + 1)
       onChanged?.()
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('catalog.saveFailed')
-      setMutationError(message)
+      setMutationError(saveErrorMessage(error, t))
       throw error
     } finally {
       setBusy(false)

@@ -192,7 +192,7 @@ describe('Projects & Processes collection-first contract', () => {
     fireEvent.click(within(form).getByRole('combobox', { name: 'Type' }))
     fireEvent.click(screen.getByRole('option', { name: 'Process' }))
     fireEvent.submit(form)
-    expect(await screen.findByRole('alert')).toHaveTextContent('Temporary save failure')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t save. Try again.')
     expect(name).toHaveValue('Weekly stock opname')
     await waitFor(() => expect(name).toHaveFocus())
     expect(within(form).getByRole('combobox', { name: 'Type' })).toHaveTextContent('Process')

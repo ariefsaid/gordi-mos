@@ -69,13 +69,14 @@ describe('CatalogManager', () => {
 
   it('a failed add keeps the typed name and focus; a retry creates once', async () => {
     const user = userEvent.setup()
-    const create = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue({})
+    const create = vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValue({})
     setup({ create })
     await screen.findByText('No objectives yet')
     await user.type(screen.getByLabelText('Name'), 'Q4 Push')
     await user.click(screen.getByRole('button', { name: 'Add' }))
 
-    expect(await screen.findByText('offline')).toBeInTheDocument()
+    expect(await screen.findByText(/offline or the server can’t be reached/)).toBeInTheDocument()
+    expect(screen.queryByText(/Failed to fetch/)).toBeNull()
     const field = screen.getByLabelText('Name')
     await waitFor(() => expect(field).toHaveFocus())
     expect(field).toHaveValue('Q4 Push')
@@ -93,7 +94,7 @@ describe('CatalogManager', () => {
     const load = vi.fn<() => Promise<CatalogItem[]>>().mockResolvedValue([
       { id: '1', name: 'Old Name', archived_at: null },
     ])
-    const rename = vi.fn().mockRejectedValueOnce(new Error('denied')).mockResolvedValue(undefined)
+    const rename = vi.fn().mockRejectedValueOnce(Object.assign(new Error('denied'), { code: '42501' })).mockResolvedValue(undefined)
     setup({ load, rename })
     await screen.findByText('Old Name')
     await user.click(screen.getByRole('button', { name: 'Rename Old Name' }))
@@ -102,7 +103,7 @@ describe('CatalogManager', () => {
     await user.type(field, 'New Name')
     await user.click(screen.getByRole('button', { name: 'Save' }))
     // first attempt fails → error shown, still in edit mode
-    expect(await screen.findByText('denied')).toBeInTheDocument()
+    expect(await screen.findByText('You don’t have permission to do this.')).toBeInTheDocument()
     expect(rename).toHaveBeenCalledTimes(1)
     expect(rename).toHaveBeenLastCalledWith('1', 'New Name')
     // the text and the focus survive the failed attempt

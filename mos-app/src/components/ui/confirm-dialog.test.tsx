@@ -205,3 +205,16 @@ describe('ConfirmDialog reason cap', () => {
     expect(screen.getByLabelText(/reason/i)).not.toHaveAttribute('maxlength')
   })
 })
+
+describe('ConfirmDialog failure text', () => {
+  it('shows the app message for a failed confirm, never the raw error', async () => {
+    const user = userEvent.setup()
+    const onConfirm = vi.fn().mockRejectedValue(new Error('PGRST116: relation "ops.x" does not exist'))
+    render(
+      <ConfirmDialog open title="Archive?" body="Body" confirmLabel="Archive" onConfirm={onConfirm} onCancel={vi.fn()} />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t save. Try again.')
+    expect(screen.queryByText(/PGRST116|relation/)).not.toBeInTheDocument()
+  })
+})
