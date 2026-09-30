@@ -634,6 +634,8 @@ export const messages = {
     // #781: the quiet action beside the stated stream, and the one-step choice's own heading —
     // both read the same "choose a production stream" job, wherever the choice actually renders.
     'cafe.stream.switch': 'Switch',
+    'cafe.stream.change': 'Change',
+    'cafe.stream.changeAria': 'Change stream',
     'cafe.stream.backTo': 'Back to ${stream}',
     'cafe.stream.yourTeam': 'Your Team',
     'cafe.stream.noDefaultHint': 'The home Team decides where Café opens — an admin can set it (Admin Settings → the person → Teams).',
@@ -2415,6 +2417,8 @@ export const messages = {
     'cafe.opening.viewTasks': 'Lihat tugas pembukaan',
     'cafe.stream.label': 'Stream',
     'cafe.stream.switch': 'Ganti',
+    'cafe.stream.change': 'Ganti',
+    'cafe.stream.changeAria': 'Ganti stream',
     'cafe.stream.backTo': 'Kembali ke ${stream}',
     'cafe.stream.yourTeam': 'Tim Anda',
     'cafe.stream.noDefaultHint': 'Tim utama menentukan tempat Kafe dibuka — admin dapat mengaturnya (Pengaturan Admin → orang tersebut → Tim).',
