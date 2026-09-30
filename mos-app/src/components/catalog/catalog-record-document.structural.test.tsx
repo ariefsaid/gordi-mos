@@ -14,6 +14,11 @@ import type { ObjectivePatch } from '@/lib/db/objectives'
 vi.mock('@/lib/db/objectives', () => ({ updateObjective: vi.fn() }))
 vi.mock('@/lib/db/work-lines', () => ({ updateWorkLine: vi.fn() }))
 vi.mock('@/components/processes/process-occurrence-controls', () => ({ ProcessOccurrenceControls: () => null }))
+const editorModule = vi.hoisted(() => ({ loads: 0 }))
+vi.mock('./objective-writeup-editor', () => {
+  editorModule.loads += 1
+  return { ObjectiveWriteupEditor: () => <p>write-up editor</p> }
+})
 vi.mock('./catalog-record-loader', () => ({ loadCatalogRecordData: vi.fn(), loadCatalogRecordEditDirectory: vi.fn() }))
 vi.mock('@/lib/db/work-authority', () => ({
   emptyWorkWriteScopes: () => ({
@@ -130,6 +135,7 @@ const fieldValue = (details: HTMLElement, key: string) =>
 
 beforeEach(() => {
   vi.clearAllMocks()
+  editorModule.loads = 0
   current = baseRow()
   vi.mocked(getWorkWriteScopes).mockResolvedValue(VIEWERS[0].scopes)
   vi.mocked(loadCatalogRecordData).mockImplementation(async () => recordData(current))
@@ -139,6 +145,23 @@ beforeEach(() => {
     objectiveOptions: [],
   })
   vi.mocked(updateObjective).mockImplementation(async (_id, patch) => { applyPatch(patch) })
+})
+
+// First in the file: the module cache keeps an earlier import, which would hide an eager one.
+describe('Objective write-up editor loading', () => {
+  it('imports the editor module only when the Write-up tab is selected', async () => {
+    renderObjective()
+    await screen.findByRole('heading', { name: 'Grow revenue' })
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Work' })).toHaveAttribute('aria-selected', 'true'))
+    fireEvent.click(screen.getByRole('tab', { name: 'Details' }))
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Details' })).toHaveAttribute('aria-selected', 'true'))
+    expect(editorModule.loads).toBe(0)
+    expect(screen.queryByText('write-up editor')).toBeNull()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Write-up' }))
+    expect(await screen.findByText('write-up editor')).toBeInTheDocument()
+    expect(editorModule.loads).toBe(1)
+  })
 })
 
 describe.each(VIEWERS)('Objective structural fields for $name', ({ scopes, editable }) => {
