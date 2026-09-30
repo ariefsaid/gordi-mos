@@ -88,6 +88,16 @@ jobs:
         run: bash scripts/agent-git-shim.test.sh
       - name: pre-pr-verify self-test
         run: bash scripts/pre-pr-verify.test.sh
+      - name: migration order guard self-test (#1110)
+        run: bash scripts/check-migration-order.test.sh
+      # The real check lives here too because this job is required and db-contracts is not.
+      - name: Migration order — new versions must be newer than the base's latest (#1110)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --quiet --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          bash scripts/check-migration-order.sh "origin/${BASE_REF}"
       - name: review read-only and served-preview self-tests
         run: node --test scripts/review-read-only.test.mjs scripts/preview-preflight.test.mjs scripts/check-chunk-cycles.test.mjs
       - name: MVP handoff preflight self-test

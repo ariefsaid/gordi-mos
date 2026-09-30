@@ -2,10 +2,11 @@
 // Deno and in Vitest.
 //
 // A token is accepted only when ALL hold: an asymmetric signature (ES256 or RS256) verifies against
-// the login service's published keys; `iss` is that service; the token is unexpired; `aud` contains
-// this server's resource identifier; and `client_id`, `person_id` and `org_id` are present. An app
-// session token (no MCP audience, no client_id) therefore never passes. HMAC and `none` algorithms
-// are refused, so a shared secret is never needed here.
+// the login service's published keys, chosen by the key's declared use (`sig`) and algorithm; `iss`
+// is that service; the token is unexpired; `aud` contains this server's resource identifier; `role`
+// is the signed-in user role (`authenticated`); and `client_id`, `person_id` and `org_id` are
+// present. An app session token (no MCP audience, no client_id) therefore never passes. HMAC and
+// `none` algorithms are refused, so a shared secret is never needed here.
 export type AgentClaims = {
   sub: string
   client_id: string
@@ -105,6 +106,14 @@ function parseSegment(segment: string): Record<string, unknown> | null {
   }
 }
 
+// A key is eligible for a token when its declared use, operations and algorithm (each optional in a
+// JWK) do not rule out verifying that token's algorithm.
+const keyServes = (key: Jwk, alg: string, kty: string): boolean =>
+  key.kty === kty
+  && (key.use === undefined || key.use === 'sig')
+  && (key.alg === undefined || key.alg === alg)
+  && (key.key_ops === undefined || (Array.isArray(key.key_ops) && key.key_ops.includes('verify')))
+
 const nonEmpty = (value: unknown): string | null => (typeof value === 'string' && value !== '' ? value : null)
 
 export async function verifyAgentToken(token: string, config: AuthConfig): Promise<TokenVerdict> {
@@ -114,8 +123,9 @@ export async function verifyAgentToken(token: string, config: AuthConfig): Promi
   const payload = parseSegment(parts[1])
   if (!header || !payload) return { ok: false, reason: 'malformed' }
 
-  const alg = KEY_ALGS[String(header.alg)]
-  if (!alg) return { ok: false, reason: 'alg' }
+  const algName = typeof header.alg === 'string' ? header.alg : ''
+  if (!Object.hasOwn(KEY_ALGS, algName)) return { ok: false, reason: 'alg' }
+  const alg = KEY_ALGS[algName]
 
   let verified = false
   try {
@@ -123,7 +133,7 @@ export async function verifyAgentToken(token: string, config: AuthConfig): Promi
     const signature = b64urlToBytes(parts[2])
     const kid = nonEmpty(header.kid)
     const findKey = (keys: Jwk[]) =>
-      keys.find((candidate) => candidate.kty === alg.kty && (kid === null || candidate.kid === kid))
+      keys.find((candidate) => keyServes(candidate, algName, alg.kty) && (kid === null || candidate.kid === kid))
     let key = findKey(await loadKeys(config, false))
     if (!key) key = findKey(await loadKeys(config, true))
     if (!key) return { ok: false, reason: 'unknown_key' }
@@ -139,6 +149,8 @@ export async function verifyAgentToken(token: string, config: AuthConfig): Promi
   if (typeof payload.nbf === 'number' && payload.nbf > config.now()) return { ok: false, reason: 'nbf' }
   const aud = Array.isArray(payload.aud) ? payload.aud : [payload.aud]
   if (!aud.includes(config.resource)) return { ok: false, reason: 'aud' }
+
+  if (payload.role !== 'authenticated') return { ok: false, reason: 'role' }
 
   const client_id = nonEmpty(payload.client_id)
   const person_id = nonEmpty(payload.person_id)

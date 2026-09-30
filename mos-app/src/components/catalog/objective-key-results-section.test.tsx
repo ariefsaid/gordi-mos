@@ -220,6 +220,30 @@ describe('key result commits', () => {
     expect(input).toHaveValue('Infinity')
   })
 
+  it.each(['1000000000000000', '-1000000000000000', '1.1234567', '0.0000001'])(
+    'does not send %s, which the database refuses', async (typed) => {
+      const user = userEvent.setup()
+      renderSection(OPS_LEAD)
+      await screen.findByText('Ship orders')
+      const input = screen.getByRole('textbox', { name: 'Current' })
+      await user.clear(input)
+      await user.type(input, typed)
+      await user.tab()
+      await screen.findByRole('button', { name: 'Retry' })
+      expect(updateKeyResultCurrentValue).not.toHaveBeenCalled()
+    })
+
+  it('sends the largest value the database accepts', async () => {
+    const user = userEvent.setup()
+    renderSection(OPS_LEAD)
+    await screen.findByText('Ship orders')
+    const input = screen.getByRole('textbox', { name: 'Current' })
+    await user.clear(input)
+    await user.type(input, '12345.123456')
+    await user.tab()
+    await waitFor(() => expect(updateKeyResultCurrentValue).toHaveBeenCalledWith('kr-1', 12345.123456))
+  })
+
   it('adds a key result as admin', async () => {
     const user = userEvent.setup()
     vi.mocked(listKeyResults).mockResolvedValue([])

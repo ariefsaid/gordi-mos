@@ -13,7 +13,9 @@ import { useSearchParams } from 'react-router-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   getCoreRowModel,
+  getExpandedRowModel,
   useReactTable,
+  type ColumnDef,
   type SortingState,
   type Updater,
 } from '@tanstack/react-table'
@@ -26,11 +28,11 @@ import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useCollectionKeyboard } from '@/components/record-collection/use-collection-keyboard'
 import { TasksTableBody } from './tasks-table-body'
 import { canEdit, picOptions } from './task-permissions'
-import type { FlatRow } from './tasks-table-body'
 import type { RenderGroup } from './tasks-grouping'
 import type { WorkloadSummary } from './workload-caption'
 import { TaskRow, type TaskTeamOption } from './task-row'
 import { GroupHeaderRow } from './group-header-row'
+import { buildTaskTree, groupRowId, useTaskCollapsePreference, type TaskTreeNode } from './task-group-tree'
 import { OccurrenceAssignDialog } from './occurrence-assign-dialog'
 import './TaskQueue.css'
 import type {
@@ -144,49 +146,6 @@ const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
   onClearOverdue: () => {},
   createHref: '/work/tasks/new',
   canResolvePending: false,
-}
-
-type CollapseState = Partial<Record<TaskCollectionQuery['groupBy'], string[]>>
-const COLLAPSE_KEY = 'mos.tasks.collapsedGroups'
-
-function readCollapseState(): CollapseState {
-  try {
-    const raw = localStorage.getItem(COLLAPSE_KEY)
-    if (!raw) return {}
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
-    const result: CollapseState = {}
-    for (const key of ['none', 'status', 'pic', 'bu', 'workline', 'objective', 'occurrence'] as const) {
-      const values = (parsed as Record<string, unknown>)[key]
-      if (Array.isArray(values)) result[key] = values.filter((value): value is string => typeof value === 'string')
-    }
-    return result
-  } catch {
-    return {}
-  }
-}
-
-function useTaskCollapsePreference(groupBy: TaskCollectionQuery['groupBy']) {
-  const [collapsed, setCollapsed] = useState<CollapseState>(() => readCollapseState())
-
-  const toggleCollapsed = useCallback((groupId: string) => {
-    setCollapsed((previous) => {
-      const current = previous[groupBy] ?? []
-      const nextForGroup = current.includes(groupId)
-        ? current.filter((id) => id !== groupId)
-        : [...current, groupId]
-      const next = { ...previous, [groupBy]: nextForGroup }
-      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next)) } catch { /* storage disabled */ }
-      return next
-    })
-  }, [groupBy])
-
-  const isCollapsed = useCallback(
-    (groupId: string) => (collapsed[groupBy] ?? []).includes(groupId),
-    [collapsed, groupBy],
-  )
-
-  return { isCollapsed, toggleCollapsed }
 }
 
 type TaskPresentationProps = CollectionPresentationProps<
@@ -314,26 +273,6 @@ function buildRenderGroups(
   return query.groupBy === 'status' && statusOverrides.size > 0 ? regroupByLiveStatus(groups, context.now, t) : groups
 }
 
-function buildFlatRows(
-  groups: readonly RenderGroup[],
-  groupBy: TaskCollectionQuery['groupBy'],
-  isCollapsed: (groupId: string) => boolean,
-) {
-  const flatRows: FlatRow[] = []
-  const leafTasks: TaskListRow[] = []
-  for (const group of groups) {
-    if (groupBy !== 'none') {
-      flatRows.push({ kind: 'header', group })
-      if (isCollapsed(group.key)) continue
-    }
-    for (const task of group.rows) {
-      flatRows.push({ kind: 'leaf', task, leafIndex: leafTasks.length })
-      leafTasks.push(task)
-    }
-  }
-  return { flatRows, leafTasks }
-}
-
 function buildWorkloadSummary(
   query: TaskCollectionQuery,
   leafTasks: readonly TaskListRow[],
@@ -403,7 +342,6 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   // Task selection capability is disabled (OD-REDESIGN-83.2) — ignore selectedIds/onToggleSelected
   void selectedIds
   void onToggleSelected
-  const { isCollapsed: isCollapsedPreference, toggleCollapsed } = useTaskCollapsePreference(query.groupBy)
   const groups = useMemo<RenderGroup[]>(() => {
     const next = buildRenderGroups(projection, context, query, runtime.statusOverrides, t)
     const draft = runtime.draftTask
@@ -415,10 +353,12 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       ? { ...group, rows: [draft, ...group.rows] }
       : group)
   }, [context, projection, query, runtime.draftTask, runtime.statusOverrides, t])
-  const { flatRows, leafTasks } = useMemo(
-    () => buildFlatRows(groups, query.groupBy, isCollapsedPreference),
-    [groups, isCollapsedPreference, query.groupBy],
-  )
+  // Group headers are parent rows of the table's row tree and the persisted collapsed ids drive
+  // its `expanded` state; the visible rows are `table.getRowModel().rows`.
+  const groupKeys = useMemo(() => groups.map((group) => group.key), [groups])
+  const { expanded, isCollapsed: isCollapsedPreference, onExpandedChange } =
+    useTaskCollapsePreference(query.groupBy, groupKeys)
+  const tree = useMemo(() => buildTaskTree(groups, query.groupBy), [groups, query.groupBy])
   // #997 (spec FR-001/FR-002): the desktop table's column model. The ONE column-definition
   // array (task-columns.tsx) feeds useReactTable; `columnVisibility` is derived from
   // `query.visibleFields` through the shared mapping, so `table.getVisibleLeafColumns()` is
@@ -441,17 +381,42 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     const next = taskSortFromSorting(typeof updater === 'function' ? updater(sorting) : updater)
     if (next) onSortChange(next.sort, next.direction)
   }, [onSortChange, sorting])
-  const table = useReactTable({
-    data: leafTasks,
-    columns: TASK_COLUMN_DEFS,
-    state: { columnVisibility, sorting },
+  const table = useReactTable<TaskTreeNode>({
+    data: tree,
+    // TaskColumnDef's data generic is deliberately wider than the tree node (it also accepts a bare task).
+    columns: TASK_COLUMN_DEFS as ColumnDef<TaskTreeNode>[],
+    getRowId: (node) => node.id,
+    getSubRows: (node) => (node.kind === 'group' ? node.subRows : undefined),
+    state: { columnVisibility, sorting, expanded },
     onSortingChange,
+    onExpandedChange,
+    autoResetExpanded: false,
     manualSorting: true,
     enableSortingRemoval: false,
     enableMultiSort: false,
     sortDescFirst: false,
     getCoreRowModel: getCoreRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
   })
+  const flatRows = table.getRowModel().rows
+  const { leafTasks, leafIndexByRowId } = useMemo(() => {
+    const tasks: TaskListRow[] = []
+    const indexes = new Map<string, number>()
+    for (const row of flatRows) {
+      if (row.original.kind !== 'leaf') continue
+      indexes.set(row.id, tasks.length)
+      tasks.push(row.original.task)
+    }
+    return { leafTasks: tasks, leafIndexByRowId: indexes }
+  }, [flatRows])
+  const toggleGroup = (groupKey: string) => {
+    const id = groupRowId(groupKey)
+    table.setExpanded((old) => {
+      const open = old === true || old[id] === true
+      return { ...(old === true ? {} : old), [id]: !open }
+    })
+    onToggleGroup(groupKey)
+  }
   const columnSpan = table.getVisibleLeafColumns().length
   const [cursor, setCursor] = useState(-1)
   const cursorRowRef = useRef<HTMLTableRowElement | null>(null)
@@ -481,7 +446,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     overscan: 8,
     initialRect: { width: 0, height: 600 },
   })
-  const cursorFlatIndex = flatRows.findIndex((row) => row.kind === 'leaf' && row.leafIndex === cursor)
+  const cursorFlatIndex = flatRows.findIndex((row) => leafIndexByRowId.get(row.id) === cursor)
 
   const openTask = useCallback((taskId: string) => {
     if (providedRuntime) {
@@ -609,7 +574,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       onAssignPending={group.occurrenceRollup && canResolvePendingForRun(group.key)
         ? () => occurrence.open(group.key)
         : undefined}
-      onToggle={() => { toggleCollapsed(group.key); onToggleGroup(group.key) }}
+      onToggle={() => toggleGroup(group.key)}
       onAddTask={() => runtime.onAddTask(group.prefillParam)}
       onOverdueFilter={runtime.onOverdueFilter}
     />
@@ -621,7 +586,6 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         loading={false}
         error={null}
         table={table}
-        leafTasks={leafTasks}
         hasActiveFilter={projection.visibleRecordsAreFiltered}
         isDesktop={desktopLayout}
         onRetry={runtime.onRetry}
@@ -629,6 +593,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         emptyTitle={t('tasks.empty.noTasksTitle')}
         emptyCopy={t('tasks.empty.noTasksCopy')}
         flatRows={flatRows}
+        leafIndexByRowId={leafIndexByRowId}
         virtualize={virtualize}
         scrollRef={scrollRef}
         rowVirtualizer={rowVirtualizer}
@@ -642,7 +607,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         teamMap={teamMap}
         personMap={personMap}
         isCollapsed={isCollapsedPreference}
-        toggleCollapsed={(groupId) => { toggleCollapsed(groupId); onToggleGroup(groupId) }}
+        toggleCollapsed={toggleGroup}
         openAddTask={runtime.onAddTask}
         setOverdueOnly={(next) => next ? runtime.onOverdueFilter() : runtime.onClearOverdue()}
         workLineMap={workLineMap}
