@@ -21,7 +21,7 @@ import { Tag } from '@/components/ui/tag'
 import { Button } from '@/components/ui/button'
 import { localizedRoleMeta, type AdminPersonRow, type RevenueScopeOption, type RoleOption, type TeamOption } from '@/lib/db/admin-users.types'
 import type { RoleAuthorityRow, TeamLeadAssignment } from '@/lib/db/admin-access.types'
-import type { RoleScopeNode } from '@/lib/role-scope'
+import { type RoleScopeNode } from '@/lib/role-scope'
 import { AUTHORITY_ACTION_LABEL_KEYS, AUTHORITY_SCOPE_LABEL_KEYS, authorityRoleLabel, headedBusinessUnits, heldAuthorityRoles, personAuthority } from './person-authority'
 import { useRowCommits, type RowCommits } from './use-row-commits'
 import { TeamPicker } from './team-picker'
@@ -30,13 +30,12 @@ import { AccessRoles } from './access-roles'
 import { RevenueScopePicker } from './revenue-scope-picker'
 import './admin-settings.css'
 
-export interface PersonAuthoritySource {
+export type PersonAuthoritySource = {
   state: 'loading' | 'loaded' | 'error'
   rows: RoleAuthorityRow[]
   leads: TeamLeadAssignment[]
-  /** Every Position with its Business Unit and reporting line: what says who heads a unit. */
+  // Positions with their unit and reporting line (says who heads a unit), and the active units.
   roleTree: RoleScopeNode[]
-  /** The active Business Units. */
   businessUnits: { id: string; name: string }[]
   retry: () => void
 }
@@ -95,7 +94,7 @@ function PersonSummary({ person, teams, authority }: { person: AdminPersonRow; t
   const memberships = [...person.teams].sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
   const leads = authority.leads.filter((lead) => lead.lead_person_id === person.id)
   const hasHome = person.teams.some((m) => m.is_primary)
-  const headed = authority.state === 'loaded' ? headedBusinessUnits(person.jabatan, authority.roleTree, authority.businessUnits) : []
+  const headed = authority.state === 'loaded' ? headedBusinessUnits(person, authority.roleTree, authority.businessUnits) : []
 
   return (
     <section className="admin-person-summary" aria-label={t('admin.person.summary')}>
@@ -176,7 +175,7 @@ function CanDo({ person, authority, leadsATeam }: { person: AdminPersonRow; auth
       </div>
     )
   }
-  const headsAUnit = headedBusinessUnits(person.jabatan, authority.roleTree, authority.businessUnits).length > 0
+  const headsAUnit = headedBusinessUnits(person, authority.roleTree, authority.businessUnits).length > 0
   const grants = personAuthority(authority.rows, heldAuthorityRoles(person.access_roles, leadsATeam, headsAUnit))
   return (
     <>

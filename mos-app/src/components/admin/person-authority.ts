@@ -24,11 +24,8 @@ export interface PersonAuthority {
   sources: AuthorityRole[]
 }
 
-/**
- * Roles this person holds in the authority table's vocabulary: Member always (everyone receives
- * it), their access roles, Team lead when they lead at least one Team, and BU head when a Position
- * they hold is the top of a Business Unit.
- */
+// Roles in the authority table's vocabulary: Member always, access roles, Team lead when they lead
+// a Team, BU head when they head a Business Unit.
 export function heldAuthorityRoles(accessRoles: readonly string[], leadsATeam: boolean, headsABusinessUnit: boolean): AuthorityRole[] {
   const held = new Set<AuthorityRole>(['member'])
   for (const role of ['ops_lead', 'admin', 'finance', 'manager', 'supervisor'] as const) {
@@ -39,17 +36,15 @@ export function heldAuthorityRoles(accessRoles: readonly string[], leadsATeam: b
   return [...held]
 }
 
-/**
- * Names of the active Business Units whose top Position the person holds — the database's own
- * BU-head rule (`shared.is_business_unit_head`), read through the role tree the Home door already
- * uses. A unit missing from `units` (archived) has no head.
- */
+// The database's BU-head rule (shared.is_business_unit_head), read from the role tree the Home door
+// uses. An archived person and an archived unit (absent from `units`) have no head.
 export function headedBusinessUnits(
-  positions: readonly { role_id: string }[],
+  person: { archived_at: string | null; jabatan: readonly { role_id: string }[] },
   roleTree: readonly RoleScopeNode[],
   units: readonly { id: string; name: string }[],
 ): string[] {
-  const held = new Set(positions.map((position) => position.role_id))
+  if (person.archived_at) return []
+  const held = new Set(person.jabatan.map((position) => position.role_id))
   const names = new Map(units.map((unit) => [unit.id, unit.name]))
   return buHeadsForViewer(roleTree.filter((role) => held.has(role.id)), [...roleTree])
     .flatMap((head) => names.get(head.buId) ?? [])

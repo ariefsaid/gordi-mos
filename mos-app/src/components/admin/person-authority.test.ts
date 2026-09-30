@@ -23,14 +23,15 @@ describe('personAuthority', () => {
       { id: 'r-cross', business_unit_id: 'bu-b', reports_to_role_id: 'r-top' },
     ]
     const units = [{ id: 'bu-a', name: 'Alpha' }, { id: 'bu-b', name: 'Beta' }]
-    const held = (...ids: string[]) => ids.map((role_id) => ({ role_id, role_name: role_id }))
+    const held = (...ids: string[]) => ({ archived_at: null, jabatan: ids.map((role_id) => ({ role_id })) })
     expect(headedBusinessUnits(held('r-top'), tree, units)).toEqual(['Alpha'])
     expect(headedBusinessUnits(held('r-under'), tree, units)).toEqual([])
     // A Position under a parent in another unit is that unit's top.
     expect(headedBusinessUnits(held('r-cross'), tree, units)).toEqual(['Beta'])
     // An archived unit is not in the active list, so it has no head.
     expect(headedBusinessUnits(held('r-top', 'r-cross'), tree, [units[1]])).toEqual(['Beta'])
-    expect(headedBusinessUnits([], tree, units)).toEqual([])
+    expect(headedBusinessUnits(held(), tree, units)).toEqual([])
+    expect(headedBusinessUnits({ ...held('r-top'), archived_at: '2026-01-01T00:00:00Z' }, tree, units)).toEqual([])
   })
 
   it('takes the widest scope and names every held role that grants exactly it', () => {
