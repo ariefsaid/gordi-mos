@@ -106,6 +106,10 @@
   padding: 0;
 }
 
+.catalog-record-history .skeleton-row {
+  padding-inline: 0;
+}
+
 .catalog-record-history__value {
   color: var(--foreground);
   white-space: pre-wrap;
