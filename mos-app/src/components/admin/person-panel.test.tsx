@@ -222,6 +222,15 @@ describe('PersonPanel — read first', () => {
     expect(manage).toHaveTextContent('via BU head')
   })
 
+  it('an archived person at the top of a Business Unit is not shown as its head', () => {
+    const archived = { ...BAYU, access_roles: ['member'], archived_at: '2026-01-01T00:00:00Z', jabatan: [{ role_id: 'r-head', role_name: 'Head of Retail' }] }
+    renderPanel(archived, { authority: authority({ leads: [] }) })
+    const list = document.querySelector('.admin-person-cando') as HTMLElement
+    const manage = within(list).getByText('Manage Projects & Processes').closest('li') as HTMLElement
+    expect(manage).toHaveTextContent('Not allowed')
+    expect(within(screen.getByRole('region', { name: 'Summary' })).queryByText(/^Heads /)).toBeNull()
+  })
+
   it('a Position below the top of its Business Unit gives no BU head authority', () => {
     const staff = { ...BAYU, access_roles: ['member'], jabatan: [{ role_id: 'r-staff', role_name: 'Retail staff' }] }
     renderPanel(staff, { authority: authority({ leads: [] }) })
