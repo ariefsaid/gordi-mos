@@ -31,23 +31,23 @@ const RUN = 'run-cafe-opening'
 function task(over: Partial<TaskListRow> & Pick<TaskListRow, 'id' | 'title'>): TaskListRow {
   return {
     org_id: 'org-1', business_unit_id: 'bu-cafe', status: 'Open',
-    responsible_person_id: 'p-raka', accountable_person_id: 'p-sari',
+    responsible_person_id: 'p-a', accountable_person_id: 'p-b',
     consulted_person_ids: [], informed_person_ids: [], description: null, due_date: null,
     objective_id: null, work_line_id: null, last_activity_at: '2026-07-20T00:00:00Z',
-    archived_at: null, created_by: 'p-sari', created_at: '2026-07-01T00:00:00Z',
+    archived_at: null, created_by: 'p-b', created_at: '2026-07-01T00:00:00Z',
     updated_at: '2026-07-01T00:00:00Z', team_id: null, completed_at: null,
     process_run_id: null, generated_from_task_def_id: null, ...over,
   }
 }
 
 const ROWS: TaskListRow[] = [
-  task({ id: 'a1', title: 'Alpha one', status: 'Open', due_date: '2026-07-10', responsible_person_id: 'p-raka', business_unit_id: 'bu-cafe', work_line_id: 'wl-1', objective_id: 'o-1', process_run_id: RUN }),
-  task({ id: 'a2', title: 'Alpha two', status: 'Open', due_date: '2026-07-11', responsible_person_id: 'p-raka', business_unit_id: 'bu-cafe', work_line_id: 'wl-1', objective_id: 'o-1', process_run_id: RUN }),
-  task({ id: 'b1', title: 'Bravo one', status: 'Blocked', due_date: '2026-08-30', responsible_person_id: 'p-sari', business_unit_id: 'bu-b2b', work_line_id: 'wl-2', objective_id: null }),
-  task({ id: 'c1', title: 'Charlie one', status: 'Done', due_date: '2026-07-01', responsible_person_id: 'p-sari', business_unit_id: 'bu-b2b', work_line_id: null, objective_id: 'o-1' }),
+  task({ id: 'a1', title: 'Alpha one', status: 'Open', due_date: '2026-07-10', responsible_person_id: 'p-a', business_unit_id: 'bu-cafe', work_line_id: 'wl-1', objective_id: 'o-1', process_run_id: RUN }),
+  task({ id: 'a2', title: 'Alpha two', status: 'Open', due_date: '2026-07-11', responsible_person_id: 'p-a', business_unit_id: 'bu-cafe', work_line_id: 'wl-1', objective_id: 'o-1', process_run_id: RUN }),
+  task({ id: 'b1', title: 'Bravo one', status: 'Blocked', due_date: '2026-08-30', responsible_person_id: 'p-b', business_unit_id: 'bu-b2b', work_line_id: 'wl-2', objective_id: null }),
+  task({ id: 'c1', title: 'Charlie one', status: 'Done', due_date: '2026-07-01', responsible_person_id: 'p-b', business_unit_id: 'bu-b2b', work_line_id: null, objective_id: 'o-1' }),
 ]
 
-const PEOPLE = [{ id: 'p-raka', full_name: 'Raka' }, { id: 'p-sari', full_name: 'Sari' }]
+const PEOPLE = [{ id: 'p-a', full_name: 'Person A' }, { id: 'p-b', full_name: 'Person B' }]
 const BUS = [{ id: 'bu-cafe', name: 'Café Operations' }, { id: 'bu-b2b', name: 'B2B Sales' }]
 const ROLLUP: ProcessRunRollup = {
   process_run_id: RUN, caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17',
@@ -66,7 +66,7 @@ function context(rows: TaskListRow[], over: Partial<TaskCollectionContext> = {})
     runRollupsByRunId: new Map([[RUN, ROLLUP]]),
     provenanceByTaskDefId: new Map(),
     rowsById: new Map(rows.map((r) => [r.id, r])),
-    viewerId: 'p-raka', statusOverrides: new Map(), now: NOW, refresh: () => {}, ...over,
+    viewerId: 'p-a', statusOverrides: new Map(), now: NOW, refresh: () => {}, ...over,
   }
 }
 
@@ -160,10 +160,10 @@ describe('group output per groupBy (AC-009/010/012/014)', () => {
     mount({ groupBy: 'pic', view: 'all' })
     expect(shape()).toMatchInlineSnapshot(`
       [
-        "H|Raka|2|· 2 overdue|true",
+        "H|Person A|2|· 2 overdue|true",
         "L|Alpha one",
         "L|Alpha two",
-        "H|Sari|2||true",
+        "H|Person B|2||true",
         "L|Bravo one",
         "L|Charlie one",
       ]
@@ -328,12 +328,22 @@ describe('keyboard cursor (AC-015)', () => {
     expect(cursorTitle()).toBe('Charlie one')
   })
 
-  it('all groups collapsed: no leaves, no cursor, headers stay', () => {
+  it('all groups collapsed: no leaves, no cursor, headers stay and can reopen', () => {
     mount({ groupBy: 'status', view: 'all' })
     for (const label of ['Open', 'Blocked', 'Done']) fireEvent.click(caretOf(label))
     press('j')
     expect(cursorTitle()).toBeNull()
-    expect(shape().every((line) => line.startsWith('H'))).toBe(true)
+    expect(shape().map((line) => line.split('|')[0])).toEqual(['H', 'H', 'H'])
+    fireEvent.click(caretOf('Open'))
+    expect(screen.getByText('Alpha one')).toBeTruthy()
+  })
+
+  it('all groups collapsed at load: headers render and a group reopens', () => {
+    localStorage.setItem(KEY, JSON.stringify({ status: ['Open', 'Blocked', 'Done'] }))
+    mount({ groupBy: 'status', view: 'all' })
+    expect(shape().map((line) => line.split('|')[0])).toEqual(['H', 'H', 'H'])
+    fireEvent.click(caretOf('Done'))
+    expect(screen.getByText('Charlie one')).toBeTruthy()
   })
 })
 

@@ -46,8 +46,6 @@ export type TasksTableBodyProps = {
   // ── State branches ──────────────────────────────────────────────────────
   loading: boolean
   error: string | null
-  /** Leaf (non-header) rows currently visible — drives empty/populated branching. */
-  leafTasks: TaskListRow[]
   hasActiveFilter: boolean
   isDesktop: boolean
   /** Retry the failed load (error state). */
@@ -118,7 +116,7 @@ export type TasksTableBodyProps = {
 export function TasksTableBody(props: TasksTableBodyProps) {
   const t = useT()
   const {
-    loading, error, leafTasks, hasActiveFilter, isDesktop,
+    loading, error, hasActiveFilter, isDesktop,
     onRetry, onClearFilters, emptyTitle, emptyCopy,
     table,
     flatRows, leafIndexByRowId, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
@@ -158,7 +156,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     return <ErrorState message={t('tasks.error.load')} onRetry={onRetry} />
   }
 
-  if (leafTasks.length === 0 && hasActiveFilter) {
+  if (flatRows.length === 0 && hasActiveFilter) {
     // No-results-after-filter: distinct from empty-no-tasks (AC-133 / design-plan §3)
     return (
       <EmptyState title={t('tasks.empty.filteredTitle')} copy={t('tasks.empty.filteredCopy')}>
@@ -168,7 +166,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     )
   }
 
-  if (leafTasks.length === 0) {
+  if (flatRows.length === 0) {
     // Empty-no-tasks: no filter is active (segment-aware copy)
     return (
       <EmptyState title={emptyTitle} copy={emptyCopy}>

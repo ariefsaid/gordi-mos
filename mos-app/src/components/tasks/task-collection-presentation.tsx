@@ -586,7 +586,6 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         loading={false}
         error={null}
         table={table}
-        leafTasks={leafTasks}
         hasActiveFilter={projection.visibleRecordsAreFiltered}
         isDesktop={desktopLayout}
         onRetry={runtime.onRetry}
