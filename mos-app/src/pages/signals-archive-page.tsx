@@ -31,7 +31,7 @@ import {
   type SignalCollectionActions,
 } from '@/components/signals/signal-collection-actions'
 import { SignalRecordHost } from '@/components/signals/signal-record-host'
-import { firstLine } from '@/components/signals/signal-record-adapter'
+import { signalTitle } from '@/components/signals/signal-record-adapter'
 import { getActiveSignalView } from '@/components/signals/signal-collection-view'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import { RecordPageChrome } from '@/shell/record-page-chrome'
@@ -45,15 +45,7 @@ import './signals-archive-page.css'
 // OverlayHostSlot. The record query remains readable collection URL state; the host marker supplies
 // the shared focus/Back/leave-guard session.
 
-// A Signal has no short title — its identity is the body's first line. Compact that line to ~72
-// chars (v4's cut) so the Ask Deputy composer seed reads as a record reference, not a paste.
-const DEPUTY_SEED_MAX = 72
 type SignalSavedViewRetry = { kind: 'load' } | { kind: 'apply'; id: string } | { kind: 'save'; name: string }
-
-function deputySeed(body: string): string {
-  const line = firstLine(body)
-  return line.length > DEPUTY_SEED_MAX ? `${line.slice(0, DEPUTY_SEED_MAX).trimEnd()}…` : line
-}
 
 /**
  * OD-63 / Rule 4: a DIRECT hard load / refresh / new-tab / shared deep-link onto ?record=<id>
@@ -217,7 +209,7 @@ function SignalsArchiveCollection() {
       actions: (
         <AskDeputyAction
           draft={t('assistant.askAbout.signal', {
-            title: openSignalBody ? deputySeed(openSignalBody) : t('signals.record.title'),
+            title: openSignalBody ? signalTitle(openSignalBody) : t('signals.record.title'),
           })}
         />
       ),
@@ -541,7 +533,7 @@ export function SignalRecordPage() {
         backLabel={fromHome ? t('dest.home') : t('nav.signals')}
         // #426 (mirror of TaskRecordPage): null until the record resolves, so no Ask Deputy
         // affordance renders with a bare stub seed.
-        deputyDraft={title ? t('assistant.askAbout.signal', { title: deputySeed(title) }) : null}
+        deputyDraft={title ? t('assistant.askAbout.signal', { title: signalTitle(title) }) : null}
       />
       <SignalRecordHost signalId={signalId} mode="page" onTitleResolved={setTitle} />
     </PageFamilyFrame>

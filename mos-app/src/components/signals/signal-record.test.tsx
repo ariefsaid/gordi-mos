@@ -80,6 +80,13 @@ describe('SignalOverflowMenu — nested Escape stays inside the menu', () => {
   })
 })
 
+describe('SignalOverflowMenu — trigger glyph', () => {
+  it('uses the app-wide ⋯ overflow glyph, matching every other record menu', () => {
+    wrap(<SignalOverflowMenu onLinkExistingTask={vi.fn()} />)
+    expect(screen.getByRole('button', { name: /more signal actions/i })).toHaveTextContent('⋯')
+  })
+})
+
 describe('SignalReach — the one action register (LAW-3), no Status/PIC/Supervisor (jtbd A1/A2)', () => {
   function renderReach(props: Partial<React.ComponentProps<typeof SignalReach>> = {}) {
     return wrap(
