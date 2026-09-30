@@ -27,12 +27,16 @@ export function useMenuPopover(
     // WAI-ARIA menu button pattern: focus enters the menu on open.
     items()[0]?.focus()
 
+    // Escape closes only this menu. It is taken in the capture phase so a host listening for
+    // Escape (a record panel, a modal) never sees it, wherever focus is while the menu is open.
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      close()
+    }
+
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        close()
-        return
-      }
       const list = items()
       if (list.length === 0) return
       const idx = list.indexOf(document.activeElement as HTMLElement)
@@ -58,10 +62,12 @@ export function useMenuPopover(
       close()
     }
 
+    document.addEventListener('keydown', onEscape, true)
     document.addEventListener('keydown', onKeyDown)
     document.addEventListener('mousedown', onPointerDown)
     return () => {
-      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('keydown', onEscape, true)
+    document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('mousedown', onPointerDown)
     }
   }, [open, close, menuRef, triggerRef])

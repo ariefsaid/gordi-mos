@@ -1,6 +1,5 @@
-/** The ONE definition of an open task: not Done and not archived. Home's open count and the Tasks
- * page head both count through it; the rail badge is the same rule as a server-side count
- * (lib/db/rail-counts.ts). Only the scope differs: mine, the viewer's default view, the current view. */
+// The one open-task rule: not Done and not archived. Home's count and the Tasks head use it; the
+// rail badge applies the same rule as a server-side count (lib/db/rail-counts.ts).
 export function isOpenTask(task: { status: string; archived_at?: string | null }): boolean {
   return task.status !== 'Done' && task.archived_at == null
 }

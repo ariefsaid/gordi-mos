@@ -111,6 +111,20 @@ describe('RecordViewer interaction boundary', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('OverflowEscapeContract: with focus moved off the open menu, Escape closes only the menu, not the record', () => {
+    const onClose = vi.fn()
+    renderInHost({ onClose, onOpenPage: vi.fn() })
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menu', { name: 'More actions' })).toBeInTheDocument()
+    const elsewhere = screen.getByRole('button', { name: 'Edit Title' })
+    elsewhere.focus()
+    fireEvent.keyDown(elsewhere, { key: 'Escape' })
+
+    expect(screen.queryByRole('menu', { name: 'More actions' })).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   // #1033: a menu button's menu is walked with the arrow keys, not Tab.
   it('MenuKeyboardContract: More actions opens on its first item; Arrow, Home and End move between items', () => {
     const adapter: RecordViewerAdapter = {
