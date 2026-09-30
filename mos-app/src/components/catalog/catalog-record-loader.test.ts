@@ -52,7 +52,7 @@ function makeSchema(
 
 const objective = {
   id: 'obj-1', name: 'Grow revenue', archived_at: null,
-  business_unit_id: 'bu-1', accountable_person_id: 'person-a', period_year: 2026,
+  business_unit_id: 'bu-1', is_company_wide: false, accountable_person_id: 'person-a', period_year: 2026, period_quarter: null,
   updated_at: '2026-08-01T00:00:00Z',
 }
 
@@ -122,6 +122,24 @@ describe('loadCatalogRecordData query boundaries', () => {
       expect.objectContaining({ id: 'task-direct' }),
       expect.objectContaining({ id: 'task-1' }),
     ]))
+  })
+
+  it('maps the Company-wide flag and quarter from the Objective onto the row', async () => {
+    vi.mocked(readObjective).mockResolvedValue({
+      ...objective, business_unit_id: null, is_company_wide: true, period_quarter: 2,
+    })
+    const queries: QueryRecord[] = []
+    schemaMock
+      .mockReturnValueOnce(makeSchema('mos', {
+        'mos.work_lines': { data: [], error: null },
+        'mos.tasks': [{ data: [], error: null }, { data: [], error: null }],
+      }, queries))
+      .mockReturnValueOnce(makeSchema('shared', {
+        'shared.business_units': { data: [], error: null },
+        'shared.people': { data: [], error: null },
+      }, queries))
+    const result = await loadCatalogRecordData('objective', 'obj-1')
+    expect(result?.row).toMatchObject({ businessUnitId: null, isCompanyWide: true, periodYear: 2026, periodQuarter: 2 })
   })
 
   it('lists a Project that reaches the Objective only through the Objective\'s Tasks', async () => {

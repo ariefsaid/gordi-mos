@@ -24,6 +24,21 @@ export function canManageForScope(
   return buIds.includes(businessUnitId)
 }
 
+/**
+ * May the viewer edit an Objective's write-up and key-result current values (the content tier)?
+ * Org-wide for the content org scope; otherwise only on an Objective owned by one of the viewer's
+ * own units. A Company-wide or unit-less Objective is never in a unit scope. Structure (name,
+ * unit, period, owner) is a separate, stricter authority: see `canManageForScope`.
+ */
+export function canEditObjectiveContentForScope(
+  row: { businessUnitId?: string | null; isCompanyWide?: boolean },
+  scopes: WorkWriteScopes,
+): boolean {
+  if (scopes.objective_content_org) return true
+  if (row.isCompanyWide === true || !row.businessUnitId) return false
+  return scopes.objective_content_bu_ids.includes(row.businessUnitId)
+}
+
 export function allowedBusinessUnitIds(
   kind: 'work-line' | 'objective',
   scopes: WorkWriteScopes,

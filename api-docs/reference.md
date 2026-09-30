@@ -16,6 +16,8 @@ Every operation is `POST <SUPABASE_URL>/rest/v1/rpc/<name>` with a JSON object o
 
 **Projects and Processes:** [`create_project_process`](#create_project_process), [`edit_project_process`](#edit_project_process), [`get_project_process`](#get_project_process), [`list_projects_processes`](#list_projects_processes)
 
+**Objectives:** [`edit_objective_write_up`](#edit_objective_write_up), [`get_objective`](#get_objective), [`list_objectives`](#list_objectives), [`set_key_result_current_value`](#set_key_result_current_value)
+
 **Refusals:** [`refused_action`](#refused_action)
 
 **Other operations:** [`get_record_history`](#get_record_history)
@@ -510,6 +512,107 @@ Required parameters as a JSON skeleton (the Inputs line says what else a call ne
 
 ```json
 {}
+```
+
+## Objectives
+
+### `edit_objective_write_up`
+
+Replace an Objective's write-up; allowed for an ops lead, an admin, and the head of the Objective's own Business Unit.
+
+`POST <SUPABASE_URL>/rest/v1/rpc/edit_objective_write_up`
+
+| Parameter | Type | Required |
+|---|---|---|
+| `id` | `uuid` | yes |
+| `write_up` | `jsonb` | yes |
+| `expected_updated_at` | `timestamp with time zone` | yes |
+
+Inputs: id; write_up (a list of at most 256 KB of blocks, each an object with a text type; use an empty list to clear); expected_updated_at (required; the updated_at you read, a newer one is a conflict).
+
+Returns: {item} (the Objective as get_objective returns it).
+
+Errors: invalid_input (write_up, expected_updated_at), not_found, forbidden, conflict, rate_limited. An Objective's name, unit, period, owner and key-result targets can't be changed here: refused.targets.
+
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
+
+```json
+{ "id": "<uuid>", "write_up": [], "expected_updated_at": "<timestamp>" }
+```
+
+### `get_objective`
+
+One Objective with its key results and its write-up (a list of blocks, or null).
+
+`POST <SUPABASE_URL>/rest/v1/rpc/get_objective`
+
+| Parameter | Type | Required |
+|---|---|---|
+| `id` | `uuid` | yes |
+
+Inputs: id.
+
+Returns: {item} (the list_objectives shape plus write_up).
+
+Errors: not_found, invalid_input (id).
+
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
+
+```json
+{ "id": "<uuid>" }
+```
+
+### `list_objectives`
+
+Objectives in the caller's org, newest period first (the whole year before its quarters, then by name).
+
+`POST <SUPABASE_URL>/rest/v1/rpc/list_objectives`
+
+| Parameter | Type | Required |
+|---|---|---|
+| `business_unit_id` | `uuid` | no |
+| `company_wide` | `boolean` | no |
+| `period_year` | `integer` | no |
+| `period_quarter` | `integer` | no |
+| `q` | `text` | no |
+| `include_archived` | `boolean` | no |
+| `cursor` | `text` | no |
+| `limit` | `integer` | no |
+
+Inputs: business_unit_id, company_wide (true for Company-wide Objectives only, false to exclude them), period_year, period_quarter (1 to 4), q (name contains, at most 200 characters), include_archived (default false), cursor, limit (default 50, at most 100).
+
+Returns: {items [Objective: id, name, business_unit_id, is_company_wide, period_year, period_quarter, accountable_person_id, progress {done, total} or null, key_results [{id, what, target_value, current_value, unit, due_date, owner_person_id, updated_at}], archived_at, created_at, updated_at], next_cursor}.
+
+Errors: invalid_input (period_quarter, q, cursor, limit).
+
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
+
+```json
+{}
+```
+
+### `set_key_result_current_value`
+
+Record where a key result stands; allowed for an ops lead, an admin, and the head of the Objective's own Business Unit.
+
+`POST <SUPABASE_URL>/rest/v1/rpc/set_key_result_current_value`
+
+| Parameter | Type | Required |
+|---|---|---|
+| `key_result_id` | `uuid` | yes |
+| `current_value` | `numeric` | yes |
+| `expected_updated_at` | `timestamp with time zone` | no |
+
+Inputs: key_result_id; current_value (a finite number, or null to clear); expected_updated_at (optional; a newer one is a conflict).
+
+Returns: {item} (the key result plus objective_id).
+
+Errors: invalid_input (current_value), not_found, forbidden, conflict, rate_limited. Targets, units, due dates, owners and adding or removing key results can't be changed here: refused.targets.
+
+Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
+
+```json
+{ "key_result_id": "<uuid>", "current_value": 0 }
 ```
 
 ## Refusals

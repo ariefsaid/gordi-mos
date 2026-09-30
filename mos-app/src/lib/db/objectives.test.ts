@@ -107,7 +107,7 @@ describe('listObjectivesAll (management)', () => {
     const result = await listObjectivesAll()
 
     expect(result).toEqual(rows)
-    expect(rec.selects).toContain('id,name,archived_at,business_unit_id,accountable_person_id,period_year')
+    expect(rec.selects).toContain('id,name,archived_at,business_unit_id,is_company_wide,accountable_person_id,period_year,period_quarter')
     expect(rec.orders).toContainEqual(['archived_at', { nullsFirst: true }])
     expect(rec.orders).toContainEqual(['name', undefined])
   })
@@ -168,7 +168,7 @@ describe('readObjective (record projection)', () => {
     expect(result).toEqual(row)
     expect(rec.eqs).toContainEqual(['id', 'obj-1'])
     expect(rec.selects).toContain(
-      'id,name,archived_at,business_unit_id,accountable_person_id,period_year,updated_at',
+      'id,name,archived_at,business_unit_id,is_company_wide,accountable_person_id,period_year,period_quarter,updated_at',
     )
   })
 

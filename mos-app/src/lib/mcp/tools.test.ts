@@ -76,6 +76,16 @@ describe('MCP tool list', () => {
     expect(TOOLS_BY_NAME.get(name)!.inputSchema.properties.changes).toMatchObject({ type: 'object' })
   })
 
+  it('advertises the write-up as a list of typed blocks and a current value as a number that may be null', () => {
+    expect(TOOLS_BY_NAME.get('edit_objective_write_up')!.inputSchema.properties.write_up).toEqual({
+      type: 'array',
+      items: { type: 'object', properties: { type: { type: 'string' } }, required: ['type'] },
+    })
+    const set = TOOLS_BY_NAME.get('set_key_result_current_value')!.inputSchema
+    expect(set.properties.current_value).toEqual({ type: ['number', 'null'] })
+    expect(set.required).toEqual(['key_result_id', 'current_value'])
+  })
+
   it('refuses to build a tool from a JSON argument with no declared shape', () => {
     const op = { name: 'x_op', purpose: 'p.', inputs: 'i.', errors: 'e.', args: [{ name: 'blob', type: 'jsonb', required: false }] }
     expect(() => toTool(op)).toThrow(/x_op\.blob/)
