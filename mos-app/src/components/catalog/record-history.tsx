@@ -19,6 +19,9 @@ const VALUE_CAP = 300
 
 const FIELD_LABELS: Record<string, MessageKey> = {
   name: 'catalog.history.field.name',
+  code: 'catalog.history.field.code',
+  is_company_wide: 'catalog.companyWide',
+  period_quarter: 'catalog.record.periodQuarter',
   type: 'catalog.history.field.type',
   write_up: 'catalog.history.field.write_up',
   definition_version: 'catalog.history.field.definition_version',
@@ -35,13 +38,29 @@ function fieldLabel(field: string, t: Translate): string {
   return key ? t(key) : field.replace(/_/g, ' ')
 }
 
-function valueText(field: string, value: string | null, names: RecordHistoryData['names'], t: Translate): string {
+const QUARTER_LABELS: Record<string, MessageKey> = {
+  '1': 'catalog.period.q1', '2': 'catalog.period.q2', '3': 'catalog.period.q3', '4': 'catalog.period.q4',
+}
+const TYPE_LABELS: Record<string, MessageKey> = { project: 'catalog.tag.project', process: 'catalog.tag.process' }
+
+function rawValueText(field: string, value: string | null, names: RecordHistoryData['names'], t: Translate): string {
   if (value === null) return t('catalog.notSet')
-  const text = field in HISTORY_REFERENCE_FIELDS ? (names.get(value) ?? t('catalog.history.unavailable')) : value
-  return text.length > VALUE_CAP ? `${text.slice(0, VALUE_CAP)}…` : text
+  if (field in HISTORY_REFERENCE_FIELDS) return names.get(value) ?? t('catalog.history.unavailable')
+  if (field === 'is_company_wide') return t(value === 'true' ? 'catalog.history.yes' : 'catalog.history.no')
+  const key = field === 'period_quarter' ? QUARTER_LABELS[value] : field === 'type' ? TYPE_LABELS[value] : undefined
+  return key ? t(key) : value
 }
 
-function Change({ entry, names, t }: { entry: RecordHistoryEntry; names: RecordHistoryData['names']; t: Translate }) {
+function valueText(field: string, value: string | null, names: RecordHistoryData['names'], t: Translate, full: boolean): string {
+  const text = rawValueText(field, value, names, t)
+  return !full && text.length > VALUE_CAP ? `${text.slice(0, VALUE_CAP)}…` : text
+}
+
+function isLong(field: string, value: string | null, names: RecordHistoryData['names'], t: Translate): boolean {
+  return rawValueText(field, value, names, t).length > VALUE_CAP
+}
+
+function Change({ entry, names, t, full }: { entry: RecordHistoryEntry; names: RecordHistoryData['names']; t: Translate; full: boolean }) {
   if (entry.action === 'insert') return <span className="catalog-record-history__field">{t('catalog.history.created')}</span>
   if (entry.action === 'delete' || entry.field === null) return <span className="catalog-record-history__field">{t('catalog.history.deleted')}</span>
   const label = fieldLabel(entry.field, t)
@@ -55,11 +74,51 @@ function Change({ entry, names, t }: { entry: RecordHistoryEntry; names: RecordH
   }
   return (
     <>
-      <span className="catalog-record-history__field">{label}</span>{' '}
-      <span className="catalog-record-history__value">{valueText(entry.field, entry.oldValue, names, t)}</span>
-      {' → '}
-      <span className="catalog-record-history__value">{valueText(entry.field, entry.newValue, names, t)}</span>
+      <span className="catalog-record-history__label">{label}</span>
+      <span className="catalog-record-history__values">
+        <span className="catalog-record-history__value">{valueText(entry.field, entry.oldValue, names, t, full)}</span>
+        {' → '}
+        <span className="catalog-record-history__value">{valueText(entry.field, entry.newValue, names, t, full)}</span>
+      </span>
     </>
+  )
+}
+
+type ItemProps = {
+  entry: RecordHistoryEntry
+  names: RecordHistoryData['names']
+  t: Translate
+  locale: 'en' | 'id'
+  clock: Date
+}
+
+function HistoryItem({ entry, names, t, locale, clock }: ItemProps) {
+  const [full, setFull] = useState(false)
+  const [showExact, setShowExact] = useState(false)
+  const exact = formatWibDateTime(entry.occurredAt, locale)
+  const long = entry.field !== null && entry.action === 'update'
+    && (isLong(entry.field, entry.oldValue, names, t) || isLong(entry.field, entry.newValue, names, t))
+  return (
+    <li tabIndex={-1} data-entry-id={entry.id} className="catalog-record-history__item">
+      <div className="catalog-record-history__meta">
+        <span className="catalog-record-history__who">{entry.actorName ?? t('tasks.people.someone')}</span>
+        <button type="button" className="catalog-record-history__when-toggle" aria-expanded={showExact} onClick={() => setShowExact((v) => !v)}>
+          <time className="catalog-record-history__when tabular-nums" dateTime={entry.occurredAt}>{formatAge(entry.occurredAt, clock, locale)}</time>
+        </button>
+        {showExact ? <span className="catalog-record-history__exact tabular-nums">{exact}</span> : null}
+        {entry.channel !== 'app' ? (
+          <span className="catalog-record-history__channel">
+            {t(entry.channel === 'api' ? 'catalog.history.viaApi' : 'catalog.history.viaAgent')}
+          </span>
+        ) : null}
+      </div>
+      <p className="catalog-record-history__change"><Change entry={entry} names={names} t={t} full={full} /></p>
+      {long ? (
+        <button type="button" className="catalog-record-history__expand" aria-expanded={full} onClick={() => setFull((v) => !v)}>
+          {t(full ? 'catalog.history.showLess' : 'catalog.history.showFull')}
+        </button>
+      ) : null}
+    </li>
   )
 }
 
@@ -81,6 +140,15 @@ export function RecordHistory({ table, recordId, headingLevel = 2, now }: Record
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const inFlight = useRef(false)
+  const sectionRef = useRef<HTMLElement>(null)
+  // After an older page resolves the trigger button is gone: keep focus in the section by moving it
+  // to the first new entry, or to the retry button when the page failed.
+  const [focusId, setFocusId] = useState<string | null>(null)
+  // Every entry is focusable (tabindex -1, never in the tab order), so focus stays put across later renders.
+  useEffect(() => {
+    if (!focusId) return
+    Array.from(sectionRef.current?.querySelectorAll<HTMLElement>('[data-entry-id]') ?? []).find((el) => el.dataset.entryId === focusId)?.focus()
+  }, [focusId])
   const Heading = headingLevel === 1 ? 'h2' : 'h3'
 
   useEffect(() => {
@@ -102,16 +170,21 @@ export function RecordHistory({ table, recordId, headingLevel = 2, now }: Record
     setMoreFailed(false)
     loadRecordHistory(table, recordId, { occurredAt: last.occurredAt, id: last.id }).then(
       (page) => {
+        // An empty page removes the button too: keep focus on the last entry already shown.
+        setFocusId(page.entries[0]?.id ?? last.id)
         setData((cur) => cur && { entries: [...cur.entries, ...page.entries], names: new Map([...cur.names, ...page.names]) })
         setHasMore(page.entries.length >= HISTORY_PAGE)
       },
-      () => setMoreFailed(true),
+      () => {
+        setMoreFailed(true)
+        requestAnimationFrame(() => sectionRef.current?.querySelector<HTMLElement>('[role="alert"] button')?.focus())
+      },
     ).finally(() => { inFlight.current = false; setLoadingMore(false) })
   }
 
   const clock = now ?? new Date()
   return (
-    <section className="catalog-record-history" aria-labelledby={headingId}>
+    <section ref={sectionRef} className="catalog-record-history" aria-labelledby={headingId}>
       <Heading id={headingId} className="record-viewer__section-title">{t('catalog.history.title')}</Heading>
       {failed ? (
         <ErrorState message={t('catalog.history.error')} onRetry={() => setNonce((n) => n + 1)} />
@@ -123,20 +196,14 @@ export function RecordHistory({ table, recordId, headingLevel = 2, now }: Record
         <>
           <ol className="catalog-record-history__list">
             {data.entries.map((entry) => (
-              <li key={entry.id} className="catalog-record-history__item">
-                <div className="catalog-record-history__meta">
-                  <span className="catalog-record-history__who">{entry.actorName ?? t('tasks.people.someone')}</span>
-                  <time className="catalog-record-history__when tabular-nums" dateTime={entry.occurredAt} title={formatWibDateTime(entry.occurredAt, locale)}>
-                    {formatAge(entry.occurredAt, clock, locale)}
-                  </time>
-                  {entry.channel !== 'app' ? (
-                    <span className="catalog-record-history__channel">
-                      {t(entry.channel === 'api' ? 'catalog.history.viaApi' : 'catalog.history.viaAgent')}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="catalog-record-history__change"><Change entry={entry} names={data.names} t={t} /></p>
-              </li>
+              <HistoryItem
+                key={entry.id}
+                entry={entry}
+                names={data.names}
+                t={t}
+                locale={locale}
+                clock={clock}
+              />
             ))}
           </ol>
           {moreFailed ? <ErrorState message={t('catalog.history.error')} onRetry={showOlder} /> : null}
