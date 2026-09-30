@@ -1,9 +1,11 @@
 // TaskCreateForm — the ONE task-creation form: a real form, read top-to-bottom (Title →
-// Team/PIC/Supervisor → derived Business unit → footer actions), rendered IDENTICALLY by the
+// Team/PIC/Supervisor → Due/Project-Process → derived Business unit → footer actions), rendered IDENTICALLY by the
 // desktop table (inside a full-width colSpan row, task-row.tsx) and the phone card
 // (mobile-grouped-cards.tsx). One component, one validation contract, one a11y contract.
 import { useEffect, useId, useRef, useState } from 'react'
 import { Picker } from '@/components/ui/picker'
+import { DateField } from '@/components/ui/date-field'
+import { useTaskCreateContext } from './task-create-context'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { picLockMessage } from './task-permissions'
 import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
@@ -53,6 +55,9 @@ export function TaskCreateForm({
   const picFieldId = `${formId}-pic`
   const supervisorFieldId = `${formId}-supervisor`
   const supervisorErrorId = `${formId}-supervisor-error`
+  const dueFieldId = `${formId}-due`
+  const workLineFieldId = `${formId}-workline`
+  const { workLineOptions, onEditDue, onEditWorkLine } = useTaskCreateContext()
 
   const [title, setTitle] = useState(task.title)
   const [attempted, setAttempted] = useState(false)
@@ -93,6 +98,14 @@ export function TaskCreateForm({
       ? []
       : [{ value: task.responsible_person_id, label: ownerName || task.responsible_person_id }]),
     ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
+  ]
+
+  const workLinePickerOptions = [
+    { value: '', label: t('tasks.create.none') },
+    ...workLineOptions.map((workLine) => ({
+      value: workLine.id,
+      label: `${workLine.name} (${workLine.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})`,
+    })),
   ]
 
   const formRef = useFocusRestore<HTMLFormElement>(pending, saveError)
@@ -204,6 +217,33 @@ export function TaskCreateForm({
           />
           {supervisorError && <p id={supervisorErrorId} role="alert" className="tcf-error">{supervisorError}</p>}
         </div>
+      </div>
+
+      <div className="tcf-row tcf-row--pair">
+        <div className="tcf-field">
+          <label htmlFor={dueFieldId} className="tcf-label">{t('tasks.create.dueDate')}</label>
+          <DateField
+            id={dueFieldId}
+            fullWidth
+            value={task.due_date ?? ''}
+            disabled={pending}
+            onChange={(value) => { void onEditDue(task.id, value || null) }}
+          />
+        </div>
+        {workLineOptions.length > 0 && (
+          <div className="tcf-field">
+            <label htmlFor={workLineFieldId} className="tcf-label">{t('tasks.filter.projectProcess')}</label>
+            <Picker
+              id={workLineFieldId}
+              label={t('tasks.filter.projectProcess')}
+              hideLabel
+              value={task.work_line_id ?? ''}
+              options={workLinePickerOptions}
+              disabled={pending}
+              onChange={(value) => { void onEditWorkLine(task.id, value || null) }}
+            />
+          </div>
+        )}
       </div>
 
       {linkError && (

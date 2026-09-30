@@ -4,8 +4,8 @@
  *
  * AC coverage:
  *   FR-241: create form shows Work-line select with "— None —" + all options
- *   FR-242: create form shows Objective select with "— None —" + all options
- *   FR-243: selecting work-line / objective passes them into createTask input
+ *   FR-242: create form has no Objective select (#1029: the Objective is derived)
+ *   FR-243: selecting a work-line passes it, and its Objective, into createTask input
  *   FR-244: leaving "— None —" selected omits / nulls the fields in createTask
  *   FR-245: detail edit — changing Work-line select calls updateTaskFields with work_line_id
  *   FR-246: clearing Work-line select (back to "— None —") calls updateTaskFields with null
@@ -97,8 +97,8 @@ const OBJECTIVES = [
   { id: 'obj-2', name: 'Launch autumn menu' },
 ]
 const WORK_LINES = [
-  { id: 'wl-1', name: 'Daily IG Content', type: 'process' as const },
-  { id: 'wl-2', name: 'New Menu Design', type: 'project' as const },
+  { id: 'wl-1', name: 'Daily IG Content', type: 'process' as const, objective_id: null },
+  { id: 'wl-2', name: 'New Menu Design', type: 'project' as const, objective_id: 'obj-2' },
 ]
 
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
@@ -143,12 +143,6 @@ function renderCreate() {
   )
 }
 
-// F17 (OD-91 #29): the optional Project/Process + Objective pickers live behind the "+ Add context"
-// reveal on create — open it before asserting on those selects.
-async function revealCreateContext() {
-  fireEvent.click(await screen.findByRole('button', { name: /add context/i }))
-}
-
 function choosePickerOption(pickerName: RegExp | string, optionName: RegExp | string) {
   fireEvent.click(screen.getByRole('combobox', { name: pickerName }))
   fireEvent.click(screen.getByRole('option', { name: optionName }))
@@ -186,12 +180,11 @@ async function activateFieldByKey(key: string) {
 // CREATE FORM
 // ═══════════════════════════════════════════════════════════════════════
 
-describe('FR-241/242 — create form shows Work-line and Objective selects', () => {
+describe('FR-241/242 — create form shows a Work-line select and no Objective select', () => {
   it('FR-241: shows a Work-line select with "— None —" as the first option', async () => {
     renderCreate()
     // The form is usable before lookups arrive (non-blocking); wait for the form title
     await waitFor(() => screen.getByRole('button', { name: /create task/i }))
-    await revealCreateContext()
     // Work-line options load asynchronously — wait for them
     await screen.findByRole('combobox', { name: /project\/process/i })
     const options = pickerOptionLabels(/project\/process/i)
@@ -201,15 +194,11 @@ describe('FR-241/242 — create form shows Work-line and Objective selects', () 
     expect(options.some(o => o.includes('New Menu Design'))).toBe(true)
   })
 
-  it('FR-242: shows an Objective select with "— None —" as the first option', async () => {
+  it('FR-242: there is no Objective select and no "+ Add context" reveal', async () => {
     renderCreate()
-    await waitFor(() => screen.getByRole('button', { name: /create task/i }))
-    await revealCreateContext()
-    await screen.findByRole('combobox', { name: /objective/i })
-    const options = pickerOptionLabels(/objective/i)
-    expect(options[0]).toBe('— None —')
-    expect(options).toContain('Grow direct orders')
-    expect(options).toContain('Launch autumn menu')
+    await screen.findByRole('combobox', { name: /project\/process/i })
+    expect(screen.queryByRole('combobox', { name: /objective/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add context/i })).not.toBeInTheDocument()
   })
 
   it('FR-250: the create form is usable (shows Team/PIC/Supervisor) before Work-line/Objective lookups resolve', async () => {
@@ -223,14 +212,13 @@ describe('FR-241/242 — create form shows Work-line and Objective selects', () 
   })
 })
 
-describe('FR-243 — selecting a Work-line/Objective passes them to createTask', () => {
+describe('FR-243 — selecting a Work-line passes it, and its Objective, to createTask', () => {
   it('FR-243a: selecting a Work-line passes its id as workLineId in createTask', async () => {
     renderCreate()
     await waitFor(() => screen.getByLabelText(/title/i))
     // Fill required fields
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Task with work line' } })
     // Select a work-line
-    await revealCreateContext()
     await screen.findByRole('combobox', { name: /project\/process/i })
     choosePickerOption(/project\/process/i, /Daily IG Content/)
     // Supervisor starts empty and is required (AC-080/task-surface.tsx accountablePersonId).
@@ -244,13 +232,12 @@ describe('FR-243 — selecting a Work-line/Objective passes them to createTask',
     })
   })
 
-  it('FR-243b: selecting an Objective passes its id as objectiveId in createTask', async () => {
+  it('FR-243b: the Work-line\'s Objective is passed as objectiveId in createTask', async () => {
     renderCreate()
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Task with objective' } })
-    await revealCreateContext()
-    await screen.findByRole('combobox', { name: /objective/i })
-    choosePickerOption(/objective/i, 'Launch autumn menu')
+    await screen.findByRole('combobox', { name: /project\/process/i })
+    choosePickerOption(/project\/process/i, /New Menu Design/)
     // Supervisor starts empty and is required (AC-080/task-surface.tsx accountablePersonId).
     choosePickerOption(/^supervisor$/i, 'Cahya Cafe')
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
@@ -268,7 +255,6 @@ describe('FR-244 — leaving "— None —" omits/nulls the fields in createTask
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'No work line task' } })
     // Do not change work-line — leave at "— None —"
-    await revealCreateContext()
     await screen.findByRole('combobox', { name: /project\/process/i }) // wait for it to render
     // Supervisor starts empty and is required (AC-080/task-surface.tsx accountablePersonId).
     choosePickerOption(/^supervisor$/i, 'Cahya Cafe')
@@ -280,12 +266,11 @@ describe('FR-244 — leaving "— None —" omits/nulls the fields in createTask
     expect(wl === null || wl === undefined || wl === '').toBeTruthy()
   })
 
-  it('FR-244b: Objective left at "— None —" → objectiveId is null or undefined in createTask', async () => {
+  it('FR-244b: no Work-line → objectiveId is null or undefined in createTask', async () => {
     renderCreate()
     await waitFor(() => screen.getByLabelText(/title/i))
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'No objective task' } })
-    await revealCreateContext()
-    await screen.findByRole('combobox', { name: /objective/i })
+    await screen.findByRole('combobox', { name: /project\/process/i })
     // Supervisor starts empty and is required (AC-080/task-surface.tsx accountablePersonId).
     choosePickerOption(/^supervisor$/i, 'Cahya Cafe')
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
