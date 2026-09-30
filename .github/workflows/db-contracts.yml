@@ -80,10 +80,14 @@ jobs:
           # otherwise inert here — a change to THESE two files must still run, even though nothing
           # else in scripts/ would.
           APPLIED_PATH_INPUTS="$(printf '%s\n' "$CHANGED" | grep -E '^scripts/(applied-path-check\.sh|lib/applied-path-fingerprint\.sql|lib/sql-blank\.sh)$' || true)"
-          if [ -n "$NOT_INERT" ] || [ -n "$APPLIED_PATH_INPUTS" ]; then
+          # The catalog generators (the API reference and the MCP tool catalog) also live under
+          # scripts/: a change to only one of them must still run the freshness checks.
+          CATALOG_INPUTS_RE='^scripts/(mcp-catalog\.sh|api-reference\.sh|lib/api-catalog\.sql)$'
+          CATALOG_INPUTS="$(printf '%s\n' "$CHANGED" | grep -E "$CATALOG_INPUTS_RE" || true)"
+          if [ -n "$NOT_INERT" ] || [ -n "$APPLIED_PATH_INPUTS" ] || [ -n "$CATALOG_INPUTS" ]; then
             echo "render=true" >> "$GITHUB_OUTPUT"
             echo "Running the DB checks — these paths are not inert:"
-            printf '%s\n' "$NOT_INERT" "$APPLIED_PATH_INPUTS" | sed '/^$/d;s/^/  /'
+            printf '%s\n' "$NOT_INERT" "$APPLIED_PATH_INPUTS" "$CATALOG_INPUTS" | sed '/^$/d;s/^/  /'
           else
             echo "render=false" >> "$GITHUB_OUTPUT"
             {

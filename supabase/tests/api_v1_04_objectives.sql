@@ -8,7 +8,7 @@
 --   Unit-1 (a2)   d4 ops_lead   d5 member   d7 = apex head of Unit-2 (a3)   b4 another org.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(80);
+select plan(91);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -336,6 +336,46 @@ select is((select array_agg(p.proname::text order by p.proname) from pg_proc p
             where p.pronamespace = to_regnamespace('api_v1') and p.proname ~ 'objective|key_result'),
   array['edit_objective_write_up','get_objective','list_objectives','set_key_result_current_value'],
   'the Objective surface is the two reads and the two content writes');
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════
+-- Key-result value bounds (#1063): finite, smaller than 1e15 in size, at most 6 decimal places
+-- ═════════════════════════════════════════════════════════════════════════════════════════════
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","ops_lead"]}';
+select is(pg_temp.err($q$ select api_v1.set_key_result_current_value('00000000-0000-0000-0000-0000000008c1', 1000000000000000) $q$),
+  'PT400|invalid_input|current_value|current_value must be smaller than 1000000000000000 in size and have at most 6 decimal places.',
+  'a value of 1e15 in size is invalid_input');
+select is(pg_temp.err($q$ select api_v1.set_key_result_current_value('00000000-0000-0000-0000-0000000008c1', -1000000000000000) $q$),
+  'PT400|invalid_input|current_value|current_value must be smaller than 1000000000000000 in size and have at most 6 decimal places.',
+  'a negative value of 1e15 in size is invalid_input');
+select is(pg_temp.err($q$ select api_v1.set_key_result_current_value('00000000-0000-0000-0000-0000000008c1', 0.0000001) $q$),
+  'PT400|invalid_input|current_value|current_value must be smaller than 1000000000000000 in size and have at most 6 decimal places.',
+  'a value with 7 decimal places is invalid_input');
+select is(pg_temp.err($q$ select api_v1.set_key_result_current_value('00000000-0000-0000-0000-0000000008c1', 999999999999999.999999) $q$),
+  'no error', 'the largest allowed value is accepted');
+select throws_ok($q$ update mos.objective_key_results set current_value = 1000000000000000 where id = '00000000-0000-0000-0000-0000000008c1' $q$,
+  '23514', null, 'the table refuses a current_value of 1e15 in size for any writer');
+select throws_ok($q$ update mos.objective_key_results set current_value = 0.0000001 where id = '00000000-0000-0000-0000-0000000008c1' $q$,
+  '23514', null, 'the table refuses a current_value with 7 decimal places');
+select throws_ok($q$ update mos.objective_key_results set current_value = 'NaN' where id = '00000000-0000-0000-0000-0000000008c1' $q$,
+  '23514', null, 'the table refuses a current_value that is not a number');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select throws_ok($q$ update mos.objective_key_results set target_value = 1000000000000000 where id = '00000000-0000-0000-0000-0000000008c1' $q$,
+  '23514', null, 'the table refuses a target_value of 1e15 in size, for an admin too');
+select throws_ok($q$ insert into mos.objective_key_results (objective_id, what, target_value)
+    values ('00000000-0000-0000-0000-0000000008a1', 'Too large', 'Infinity') $q$,
+  '23514', null, 'the table refuses an infinite target_value on insert');
+
+-- ═════════════════════════════════════════════════════════════════════════════════════════════
+-- The write comments say how a target change is refused (#1063)
+-- ═════════════════════════════════════════════════════════════════════════════════════════════
+select is((select array_agg(p.proname::text order by p.proname) from pg_proc p
+            where p.pronamespace = 'api_v1'::regnamespace and p.prosrc like '%refused.targets%'),
+  array['refused_action'], 'refused_action is the only operation that returns refused.targets');
+select is((select count(*)::int from pg_proc p
+            where p.oid in ('api_v1.edit_objective_write_up(uuid,jsonb,timestamptz)'::regprocedure,
+                            'api_v1.set_key_result_current_value(uuid,numeric,timestamptz)'::regprocedure)
+              and obj_description(p.oid, 'pg_proc') like '%never returns refused.targets; only refused_action answers such a request with refused.targets.'), 2,
+  'both content writes say they never return refused.targets and name refused_action as the operation that does');
 
 select * from finish();
 rollback;
