@@ -54,3 +54,9 @@ describe('catalog row layout stays readable at phone width', () => {
     expect(css).not.toContain('catalog-collection__disclosure')
   })
 })
+
+describe('Objectives list wraps longer translated text (issue 1109)', () => {
+  it('the Business Unit value wraps instead of clipping', () => {
+    expect(css).toMatch(/--objective \.catalog-collection__cell--relation \.catalog-collection__cell-value,[\s\S]*?\{[\s\S]*?white-space:\s*normal/)
+  })
+})

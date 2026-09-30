@@ -665,16 +665,16 @@ tr.grp td { padding: 0; }
 /* Objective above, Project/Process title below — one column, so the header's remaining controls
    keep their width and neither line has to break a word to fit a 390px phone. */
 .mgc-group-headings { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
-.mgc-objective-hint { min-width: 0; color: var(--muted-foreground); font-size: var(--font-size-label); }
+.mgc-objective-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: var(--font-size-label); }
 .mgc-objective-hint a { color: var(--primary); }
-.mgc-label { min-width: 0; font-size: var(--font-size-body-lg); font-weight: 700; color: var(--brand-navy-text); }
+.mgc-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-body-lg); font-weight: 700; color: var(--brand-navy-text); }
 .mgc-count { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
 .mgc-sub {
   background: transparent; border: 0; padding: 0; font: inherit; font-size: var(--font-size-label); font-weight: 600;
   color: var(--status-lost-text); cursor: pointer;
 }
 .mgc-add {
-  margin-left: auto; background: transparent; border: 0; padding: 0 4px; font: inherit;
+  margin-left: auto; flex: none; white-space: nowrap; background: transparent; border: 0; padding: 0 4px; font: inherit;
   font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); cursor: pointer;
 }
 

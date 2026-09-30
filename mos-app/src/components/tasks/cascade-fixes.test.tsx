@@ -648,3 +648,14 @@ describe('Fix-7 — useCascadeCatalogs hook', () => {
     expect(screen.getByText('Resilient task')).toBeInTheDocument()
   })
 })
+
+describe('Issue 1105 — phone group header keeps the title truncated and the action on one line', () => {
+  it('.mgc-label truncates and .mgc-add never wraps', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+    const rule = (sel: string) => css.match(new RegExp(`^${sel.replace('.', '\\.')}\\s*\\{([^}]*)\\}`, 'm'))?.[1] ?? ''
+    expect(rule('.mgc-label')).toMatch(/text-overflow:\s*ellipsis/)
+    expect(rule('.mgc-label')).toMatch(/white-space:\s*nowrap/)
+    expect(rule('.mgc-add')).toMatch(/white-space:\s*nowrap/)
+    expect(rule('.mgc-add')).toMatch(/flex:\s*none/)
+  })
+})
