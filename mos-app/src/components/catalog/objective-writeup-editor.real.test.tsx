@@ -5,6 +5,7 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('@/lib/db/objective-writeup', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/db/objective-writeup')>()),
+  saveWriteUp: vi.fn(),
   readWriteUp: vi.fn().mockResolvedValue({
     writeUp: [
       { type: 'evil-block', content: [{ type: 'text', text: 'UNKNOWN-BLOCK', styles: {} }] },
@@ -25,6 +26,7 @@ vi.mock('@/lib/db/objective-writeup', async (importOriginal) => ({
   }),
 }))
 
+import { saveWriteUp } from '@/lib/db/objective-writeup'
 import { ObjectiveWriteupEditor } from './objective-writeup-editor'
 
 describe('ObjectiveWriteupEditor with the real editor', () => {
@@ -65,5 +67,29 @@ describe('ObjectiveWriteupEditor with the real editor', () => {
     expect(document.activeElement).toBe(box)
     await userEvent.keyboard('{Escape}')
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Save' }))
+  })
+
+  it('Escape with unsaved text keeps focus on Save through the save it triggers', async () => {
+    Range.prototype.getClientRects = () => [] as unknown as DOMRectList
+    Range.prototype.getBoundingClientRect = () => new DOMRect()
+    Element.prototype.getClientRects = () => [] as unknown as DOMRectList
+    let finish: (updatedAt: string) => void = () => {}
+    vi.mocked(saveWriteUp).mockReturnValue(new Promise<string>((resolve) => { finish = resolve }))
+    render(
+      <I18nProvider>
+        <ObjectiveWriteupEditor objectiveId="o1" canEdit archived={false} />
+      </I18nProvider>,
+    )
+    const box = await screen.findByRole('textbox', { name: 'Objective write-up' })
+    act(() => { box.focus() })
+    await userEvent.keyboard('more')
+    await userEvent.keyboard('{Escape}')
+    const save = screen.getByRole('button', { name: 'Save' })
+    await waitFor(() => expect(save).toHaveAttribute('aria-busy', 'true'))
+    // A focused button that becomes `disabled` loses focus in a browser, so it must stay enabled.
+    expect(save).not.toBeDisabled()
+    expect(document.activeElement).toBe(save)
+    await act(async () => { finish('t2') })
+    expect(document.activeElement).toBe(save)
   })
 })

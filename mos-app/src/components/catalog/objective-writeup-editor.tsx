@@ -178,6 +178,8 @@ function WriteUpSurface({
     editor.focus()
   }
 
+  // Save stays focusable while saving (aria-disabled, never `disabled`): a focused control that becomes
+  // disabled loses focus, and Escape from the editor both focuses Save and starts the save. flush() ignores repeats.
   const message =
     saveState === 'saving' ? t('objective.writeUp.saving')
     : saveState === 'saved' ? t('objective.writeUp.saved')
@@ -224,7 +226,7 @@ function WriteUpSurface({
           {saveState === 'conflict' ? (
             <Button ref={saveRef} type="button" variant="outline" onClick={onReload}>{t('objective.writeUp.reload')}</Button>
           ) : (
-            <Button ref={saveRef} type="button" variant={saveState === 'saved' ? 'outline' : 'primary'} disabled={saveState === 'saving'} onClick={() => { void flush() }}>{t('objective.writeUp.save')}</Button>
+            <Button ref={saveRef} type="button" variant={saveState === 'saved' ? 'outline' : 'primary'} aria-disabled={saveState === 'saving'} aria-busy={saveState === 'saving'} onClick={() => { void flush() }}>{t('objective.writeUp.save')}</Button>
           )}
         </div>
       ) : null}
