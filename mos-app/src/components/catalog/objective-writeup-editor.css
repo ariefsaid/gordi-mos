@@ -89,3 +89,20 @@
   color: var(--muted-foreground);
   font-size: var(--font-size-overline);
 }
+
+.objective-writeup__format {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.objective-writeup__hint {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+}
+
+/* The editor's own placeholder is too faint on the card surface; restate it in the secondary text token. */
+.objective-writeup .objective-writeup__editor .bn-block-content:has(.ProseMirror-trailingBreak:only-child):after {
+  color: var(--muted-foreground);
+}
