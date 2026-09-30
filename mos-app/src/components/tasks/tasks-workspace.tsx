@@ -776,12 +776,9 @@ export function TasksWorkspace({
       overdueOnly: false, includeArchived: false, view: 'all', savedViewId: null,
     })
   }, [setQuery])
-  const onSort = useCallback((sort: TaskCollectionSort) => {
-    const direction = query.sort === sort
-      ? query.direction === 'ascending' ? 'descending' : 'ascending'
-      : 'ascending'
+  const onSortChange = useCallback((sort: TaskCollectionSort, direction: TaskCollectionQuery['direction']) => {
     setQuery({ sort, direction })
-  }, [query.direction, query.sort, setQuery])
+  }, [setQuery])
 
   const recordsForStats = useMemo(
     () => records.map((record) => ({ ...record, status: runtimeStatusOverrides.get(record.id) ?? record.status })),
@@ -913,7 +910,7 @@ export function TasksWorkspace({
     onAddTask,
     onRetry: retry,
     onClearFilters,
-    onSort,
+    onSortChange,
     onOverdueFilter: () => setQuery({ overdueOnly: true }),
       onClearOverdue: () => setQuery({ overdueOnly: false }),
     createHref: (() => {
@@ -929,7 +926,7 @@ export function TasksWorkspace({
   }), [
     currentSearch, recordOpen, draftTask, host.session, isDesktop, onAddTask,
     liveParams,
-    onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onNewTask, onOpenTask, onClearFilters, onSort,
+    onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onNewTask, onOpenTask, onClearFilters, onSortChange,
     processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink, viewerTeams,
   ])
   // Projects & Processes the viewer can read (RLS scopes the catalog), for the create form.
