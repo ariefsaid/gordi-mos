@@ -532,7 +532,7 @@ Inputs: id; write_up (a list of at most 256 KB of blocks, each an object with a 
 
 Returns: {item} (the Objective as get_objective returns it).
 
-Errors: invalid_input (write_up, expected_updated_at), not_found, forbidden, conflict, rate_limited. An Objective's name, unit, period, owner and key-result targets can't be changed here: refused.targets.
+Errors: invalid_input (write_up, expected_updated_at), not_found, forbidden, conflict, rate_limited. This operation has no input for an Objective's name, unit, period, owner or key-result targets and never returns refused.targets; only refused_action answers such a request with refused.targets.
 
 Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 
@@ -603,11 +603,11 @@ Record where a key result stands; allowed for an ops lead, an admin, and the hea
 | `current_value` | `numeric` | yes |
 | `expected_updated_at` | `timestamp with time zone` | no |
 
-Inputs: key_result_id; current_value (a finite number, or null to clear); expected_updated_at (optional; a newer one is a conflict).
+Inputs: key_result_id; current_value (a finite number smaller than 1000000000000000 in size with at most 6 decimal places, or null to clear); expected_updated_at (optional; a newer one is a conflict).
 
 Returns: {item} (the key result plus objective_id).
 
-Errors: invalid_input (current_value), not_found, forbidden, conflict, rate_limited. Targets, units, due dates, owners and adding or removing key results can't be changed here: refused.targets.
+Errors: invalid_input (current_value), not_found, forbidden, conflict, rate_limited. This operation has no input for targets, units, due dates, owners or adding or removing key results and never returns refused.targets; only refused_action answers such a request with refused.targets.
 
 Required parameters as a JSON skeleton (the Inputs line says what else a call needs, for example a non-empty `changes`):
 

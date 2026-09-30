@@ -190,7 +190,7 @@ export const API_V1_CATALOG: readonly ApiV1Operation[] = [
     "purpose": "replace an Objective's write-up; allowed for an ops lead, an admin, and the head of the Objective's own Business Unit.",
     "inputs": "id; write_up (a list of at most 256 KB of blocks, each an object with a text type; use an empty list to clear); expected_updated_at (required; the updated_at you read, a newer one is a conflict).",
     "returns": "{item} (the Objective as get_objective returns it).",
-    "errors": "invalid_input (write_up, expected_updated_at), not_found, forbidden, conflict, rate_limited. An Objective's name, unit, period, owner and key-result targets can't be changed here: refused.targets.",
+    "errors": "invalid_input (write_up, expected_updated_at), not_found, forbidden, conflict, rate_limited. This operation has no input for an Objective's name, unit, period, owner or key-result targets and never returns refused.targets; only refused_action answers such a request with refused.targets.",
     "args": [
       {
         "name": "id",
@@ -742,9 +742,9 @@ export const API_V1_CATALOG: readonly ApiV1Operation[] = [
   {
     "name": "set_key_result_current_value",
     "purpose": "record where a key result stands; allowed for an ops lead, an admin, and the head of the Objective's own Business Unit.",
-    "inputs": "key_result_id; current_value (a finite number, or null to clear); expected_updated_at (optional; a newer one is a conflict).",
+    "inputs": "key_result_id; current_value (a finite number smaller than 1000000000000000 in size with at most 6 decimal places, or null to clear); expected_updated_at (optional; a newer one is a conflict).",
     "returns": "{item} (the key result plus objective_id).",
-    "errors": "invalid_input (current_value), not_found, forbidden, conflict, rate_limited. Targets, units, due dates, owners and adding or removing key results can't be changed here: refused.targets.",
+    "errors": "invalid_input (current_value), not_found, forbidden, conflict, rate_limited. This operation has no input for targets, units, due dates, owners or adding or removing key results and never returns refused.targets; only refused_action answers such a request with refused.targets.",
     "args": [
       {
         "name": "key_result_id",

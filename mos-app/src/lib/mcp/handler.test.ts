@@ -54,6 +54,43 @@ describe('protected resource metadata', () => {
   })
 })
 
+describe('request body cap', () => {
+  const MAX = 1_048_576
+  const post = (token: string | null, body: string, extra: Record<string, string> = {}) =>
+    new Request(RESOURCE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...extra },
+      body,
+    })
+  const padded = (bytes: number) => JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping', pad: 'x'.repeat(bytes) })
+
+  it('refuses a body over the cap with 413 and calls nothing', async () => {
+    const { deps, kit, token } = await setup()
+    const res = await mcpHandler(post(token, padded(MAX)), deps)
+    expect(res.status).toBe(413)
+    expect(kit.dataCalls()).toHaveLength(0)
+  })
+
+  it('refuses a declared length over the cap without reading the body', async () => {
+    const { deps, token } = await setup()
+    const res = await mcpHandler(post(token, '{}', { 'Content-Length': String(MAX + 1) }), deps)
+    expect(res.status).toBe(413)
+  })
+
+  it('accepts a body at the cap', async () => {
+    const { deps, token } = await setup()
+    const overhead = padded(0).length
+    const res = await mcpHandler(post(token, padded(MAX - overhead)), deps)
+    expect(res.status).toBe(200)
+  })
+
+  it('challenges an unsigned oversize request instead of answering 413', async () => {
+    const { deps } = await setup()
+    const res = await mcpHandler(post(null, padded(MAX)), deps)
+    expect(res.status).toBe(401)
+  })
+})
+
 describe('authentication', () => {
   it('challenges with a metadata URL that this handler itself answers', async () => {
     const { rpc, deps } = await setup()
