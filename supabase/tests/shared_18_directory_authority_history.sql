@@ -19,7 +19,7 @@
 -- substrate the composite-key rows and the delete proof hang from.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(60);
+select plan(62);
 
 select shared._test_seed_directory();
 
@@ -378,6 +378,20 @@ select is((select count(*)::int from shared.record_history
              and record_key = '00000000-0000-0000-0000-0000000000a1:00000000-0000-0000-0000-000000009971'
              and action = 'delete'),
   1, 'the admin still reads the cleared designation''s delete row through the snapshot arm');
+
+-- The delete arm keeps the admin tier: the row is gone, so this is the only wall left on it.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select is((select count(*)::int from shared.record_history
+           where schema_name = 'shared' and table_name = 'team_lead_assignments'
+             and record_key = '00000000-0000-0000-0000-0000000000a1:00000000-0000-0000-0000-000000009971'
+             and action = 'delete'),
+  0, 'a same-org plain member reads none of the cleared designation''s delete row (admin tier on the delete arm)');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select is((select count(*)::int from shared.record_history
+           where schema_name = 'shared' and table_name = 'team_lead_assignments'
+             and record_key = '00000000-0000-0000-0000-0000000000a1:00000000-0000-0000-0000-000000009971'
+             and action = 'delete'),
+  0, 'another org''s admin reads none of the cleared designation''s delete row');
 
 -- Batches attach readers to the registry and never restate one another's, so an earlier
 -- batch's tables must still be registered (registry rows, not a dispatch body).

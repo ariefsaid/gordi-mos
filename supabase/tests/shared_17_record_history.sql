@@ -4,7 +4,7 @@
 -- mos_24_objective_worklines_history's file.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(55);
+select plan(56);
 
 select shared._test_seed_directory();
 
@@ -300,6 +300,32 @@ select is_empty(
      except
      select schema_name || '.' || table_name from shared.record_history_readers $$,
   'AC-018: every DELETE-firing generic trigger sits on a table with a registered snapshot-read rule');
+
+-- AC-018 (delete arm): a registered rule that cannot answer for a delete row would leave the
+-- delete history of a hard-deleted table unreadable without any test noticing. H = the tables on
+-- which authenticated holds DELETE (same catalog derivation and reviewed exemption as above) plus
+-- the tables a SECURITY DEFINER RPC hard-deletes from (no grant, so the catalog cannot see them;
+-- a new entry is a reviewed edit here). Each must have a registered reader whose body (comments
+-- stripped) names the 'delete' action in a branch of its own.
+select is_empty(
+  $$ with hard_deleted(s, t) as (
+       select n.nspname, c.relname
+         from pg_class c
+         join pg_namespace n on n.oid = c.relnamespace
+        where c.relkind in ('r', 'p')
+          and n.nspname !~ '^(pg_|information_schema$|auth$|storage$|extensions$|vault$|realtime$|graphql|supabase_|net$|cron$|pgsodium|_)'
+          and has_table_privilege('authenticated', c.oid, 'delete')
+          and n.nspname || '.' || c.relname not in ('mos.push_subscriptions')
+       union
+       select 'shared', 'team_lead_assignments')
+     select h.s || '.' || h.t
+       from hard_deleted h
+       left join shared.record_history_readers r on r.schema_name = h.s and r.table_name = h.t
+       left join pg_proc p on p.oid = to_regprocedure(r.reader)::oid
+      where p.oid is null
+         or regexp_replace(p.prosrc, '--[^\n]*', '', 'g')
+              !~ $re$p_action\s*(=\s*'delete'|in\s*\([^)]*'delete')$re$ $$,
+  'AC-018: every hard-deleted table has a registered reader with a delete-action branch');
 
 select * from finish();
 rollback;
