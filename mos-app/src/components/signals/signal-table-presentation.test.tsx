@@ -157,7 +157,7 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
   // Signals are captured for All Teams, so the Team column is empty on current rows. It
   // renders only when a visible row actually carries an owning Team (historical team audiences).
   it('omits the Team column when no visible Signal has an owning Team', () => {
-    renderTable([row({ owning_team_id: null, audience: 'all' })])
+    renderTable([row({ owning_team_id: null, audience: 'org' })])
     expect(screen.getByRole('columnheader', { name: /message/i })).toBeInTheDocument()
     expect(screen.queryByRole('columnheader', { name: 'Team' })).not.toBeInTheDocument()
   })
