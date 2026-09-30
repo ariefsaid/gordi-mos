@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '@/auth/use-auth'
 import { useI18n } from '@/i18n/I18nProvider'
+import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import { getPeople, type PersonOption } from '@/lib/db/directory'
 import {
   cancelRun, canCloseProcessRun, canStartProcessForTeam, completeRun, listPendingTasks,
@@ -14,7 +16,7 @@ import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { TextInput } from '@/components/ui/text-input'
 import { OccurrenceAssignDialog } from '@/components/tasks/occurrence-assign-dialog'
-import { dueKey } from './use-due-runs'
+import { dueKey, narrowToViewerTeams } from './use-due-runs'
 import { DueRunsList } from './due-runs-list'
 import './process-occurrence-controls.css'
 
@@ -36,6 +38,8 @@ type Confirmation = { kind: 'complete' | 'cancel'; run: ProcessOccurrenceSummary
 export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false, canManageSetup = false, onViewTasks, onChanged }: ProcessOccurrenceControlsProps) {
   const t = useT()
   const { locale } = useI18n()
+  const auth = useAuth()
+  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
 
   const [state, setState] = useState<FetchState>('loading')
   const [occurrences, setOccurrences] = useState<ProcessOccurrenceSummary[]>([])
@@ -80,13 +84,14 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
     setStartableTeamIds(new Set())
     setClosableRunIds(new Set())
     try {
-      const [nextOccurrences, nextStartable] = await Promise.all([
+      const [nextOccurrences, nextStartable, viewerTeams] = await Promise.all([
         listProcessOccurrenceSummaries(workLineId),
         listStartableProcessRuns(workLineId),
+        viewerId ? listCafeViewerTeams(viewerId).catch(() => []) : Promise.resolve([]),
       ])
       if (!isCurrent()) return
       setOccurrences(nextOccurrences)
-      setStartable(nextStartable)
+      setStartable(narrowToViewerTeams(nextStartable, viewerTeams.map((team) => team.id)))
       setState('ready')
 
       // Authority calls are enrichment: readable occurrences and the server-filtered due list
@@ -111,7 +116,7 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
       if (!isCurrent()) return
       setState('error')
     }
-  }, [workLineId])
+  }, [workLineId, viewerId])
 
   useEffect(() => { void load() }, [load, retryNonce])
 

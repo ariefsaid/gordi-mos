@@ -1237,7 +1237,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
             )}
             {/* A count, not a restatement of the field's own cue — and a destination: it
                 scrolls to and focuses the first line still missing its note. */}
-            {noteUnresolved && !hasBlockingError && !streamMissing && !streamNonProducing && (
+            {noteUnresolved && !streamMissing && !streamNonProducing && (
               <button
                 type="button"
                 className="kl-submit-reason kl-note-pointer"

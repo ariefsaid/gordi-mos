@@ -14,6 +14,13 @@ export function dueKey(row: DueProcessRun): string {
   return `${row.work_line_id}:${row.owning_team_id}:${row.period_key}`
 }
 
+/** A Process has no Team of its own; a run's owning Team is chosen at start. Narrow the offered
+ * Teams to the viewer's own when they hold any of them, otherwise keep the server-filtered list. */
+export function narrowToViewerTeams(rows: DueProcessRun[], viewerTeamIds: readonly string[]): DueProcessRun[] {
+  const own = rows.filter((row) => viewerTeamIds.includes(row.owning_team_id))
+  return own.length > 0 ? own : rows
+}
+
 export interface UseDueRunsResult {
   /** Whether an authenticated viewer may receive due rows; the server filters those rows by Team. */
   capable: boolean

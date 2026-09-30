@@ -13,6 +13,7 @@ import {
   listProcessOccurrenceSummaries, listStartableProcessRuns, startRun,
 } from '@/lib/db/processes'
 import { getPeople } from '@/lib/db/directory'
+import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import { ProcessOccurrenceControls } from './process-occurrence-controls'
 
 vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
@@ -27,6 +28,7 @@ vi.mock('@/lib/db/processes', () => ({
   startRun: vi.fn(),
 }))
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
+vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn() }))
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockCancelRun = vi.mocked(cancelRun)
@@ -38,6 +40,7 @@ const mockListOccurrences = vi.mocked(listProcessOccurrenceSummaries)
 const mockListStartable = vi.mocked(listStartableProcessRuns)
 const mockStartRun = vi.mocked(startRun)
 const mockGetPeople = vi.mocked(getPeople)
+const mockViewerTeams = vi.mocked(listCafeViewerTeams)
 
 const WORK_LINE_ID = 'work-line-1'
 const RUN_ID = 'run-1'
@@ -118,6 +121,7 @@ beforeEach(() => {
   mockCanCloseProcessRun.mockResolvedValue(true)
   mockListPendingTasks.mockResolvedValue([])
   mockGetPeople.mockResolvedValue(PEOPLE)
+  mockViewerTeams.mockResolvedValue([])
   mockStartRun.mockResolvedValue({ run_id: RUN_ID, created: 0, pending: 0, idempotent: true })
   mockCompleteRun.mockResolvedValue({ ...RUN.run, status: 'completed', completed_at: '2026-07-17T10:00:00Z', completed_by: VIEWER_ID })
   mockCancelRun.mockResolvedValue({ ...RUN.run, status: 'cancelled', cancelled_at: '2026-07-17T10:00:00Z', cancelled_by: VIEWER_ID, cancel_reason: 'Merged into the event.' })
@@ -154,6 +158,33 @@ describe('ProcessOccurrenceControls', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Start · Café Operations' }))
     expect(mockStartRun).toHaveBeenCalledWith(WORK_LINE_ID, TEAM_ID, '2026-07-18')
+  })
+
+  // #805: no Process-to-Team relation exists, so the start list is narrowed to the viewer's own
+  // Teams when they have any among the offered ones; otherwise the server-filtered list stands.
+  it('offers Start only for the viewer\'s own Teams, not every Team the server allows', async () => {
+    mockListStartable.mockResolvedValue([
+      DUE,
+      { ...DUE, owning_team_id: 'team-2', team_name: 'Marketing' },
+      { ...DUE, owning_team_id: 'team-3', team_name: 'Finance' },
+    ])
+    mockViewerTeams.mockResolvedValue([{ id: TEAM_ID } as Awaited<ReturnType<typeof listCafeViewerTeams>>[number]])
+    renderControls()
+
+    expect(await screen.findByRole('button', { name: 'Start · Café Operations' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start · Marketing' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start · Finance' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the server list when the viewer holds none of the offered Teams', async () => {
+    mockListStartable.mockResolvedValue([
+      DUE,
+      { ...DUE, owning_team_id: 'team-2', team_name: 'Marketing' },
+    ])
+    renderControls()
+
+    expect(await screen.findByRole('button', { name: 'Start · Café Operations' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start · Marketing' })).toBeInTheDocument()
   })
 
   it('reuses the existing pending-resolution dialog when a capable viewer opens to-assign', async () => {

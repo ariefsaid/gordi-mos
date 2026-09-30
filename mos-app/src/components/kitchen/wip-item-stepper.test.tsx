@@ -253,6 +253,50 @@ describe('WipItemStepper — AC-020/021/022', () => {
     expect(screen.getByRole('textbox', { name: /note/i })).toBeInTheDocument()
   })
 
+  // Entry is qty -> qty down the dish list. An EMPTY required note is reached through
+  // the footer pointer (or a click), not by every Tab; a note that has content stays tabbable so
+  // it can still be edited from the keyboard.
+  it('Tab from an off-plan quantity skips the empty note to the next field', async () => {
+    render(
+      <>
+        <WipItemStepper
+          itemName="Nasi Goreng"
+          line={{ ...BASE_LINE, qty_porsi: 7, error: VARIANCE_NOTE_CUE, dirty: true }}
+          movement={PRODUCE}
+          onQtyChange={vi.fn()}
+          onNotesChange={vi.fn()}
+        />
+        <input aria-label="next item quantity" />
+      </>,
+    )
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('spinbutton', { name: /quantity/i }))
+    await user.tab()
+    expect(screen.getByRole('textbox', { name: 'next item quantity' })).toHaveFocus()
+    const note = screen.getByRole('textbox', { name: /note/i })
+    note.focus()
+    expect(note).toHaveFocus()
+  })
+
+  it('a note that already has text stays in the Tab order', async () => {
+    render(
+      <>
+        <WipItemStepper
+          itemName="Nasi Goreng"
+          line={{ ...BASE_LINE, qty_porsi: 7, notes: 'kurang bahan', dirty: true }}
+          movement={PRODUCE}
+          onQtyChange={vi.fn()}
+          onNotesChange={vi.fn()}
+        />
+        <input aria-label="next item quantity" />
+      </>,
+    )
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('spinbutton', { name: /quantity/i }))
+    await user.tab()
+    expect(screen.getByRole('textbox', { name: /note/i })).toHaveFocus()
+  })
+
   it('AC-022: shows the transfer-availability cap cue when capError is set (cafe-1: localized)', () => {
     renderStepper({
       line: { qty_porsi: 9, tersedia: 9, capError: 'Stok kurang — produksi dulu', dirty: true },

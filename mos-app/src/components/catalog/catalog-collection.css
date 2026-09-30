@@ -208,7 +208,8 @@
     grid-column: 1 / -1;
     grid-row: 2;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     gap: 12px;
     min-width: 0;
     padding-top: 8px;
@@ -298,10 +299,17 @@
 /* Wide rows (>=1100px). One grid owns the columns; the header and every row join it through
    subgrid, so Name is as wide as the longest visible name (240-640px), the facts follow it at
    fixed widths, and leftover width is one empty trailing track at the row's end. A fact's
-   leading padding is its gap from the column before it, so that empty track adds no gap. */
+   leading padding is its gap from the column before it, so that empty track adds no gap.
+   Each fact's track width is its own variable; a fact that is not rendered (empty on every row)
+   or is dropped for width sets its variable empty, which removes its track from the template. */
 @media (min-width: 1100px) {
   .catalog-collection__table {
-    --catalog-facts: 128px 136px 160px 104px 176px; /* relation, accountable, cadence, progress, activity */
+    --w-relation: 128px;
+    --w-owner: 136px;
+    --w-cadence: 160px;
+    --w-progress: 104px;
+    --w-activity: 176px;
+    --catalog-facts: var(--w-relation) var(--w-owner) var(--w-cadence) var(--w-progress) var(--w-activity);
     display: grid;
     /* 654px = the 640px Name cap plus the row's 14px leading padding, which subgrid adds to this track. */
     grid-template-columns: fit-content(654px) var(--catalog-facts) minmax(0, 1fr);
@@ -339,32 +347,37 @@
      Accountable, then Progress. Thresholds are the card's inner width: 28px row padding +
      240px Name + the kept fact tracks. The same rule serves a list narrowed by a record panel. */
   @container work-list (max-width: 971.98px) {
-    .catalog-collection__table { --catalog-facts: 128px 136px 160px 104px; }
-    .catalog-collection__header > :nth-child(6),
+    .catalog-collection__table { --w-activity: ; }
+    .catalog-collection__header-cell--activity,
     .catalog-collection__cell--activity { display: none; }
   }
 
   @container work-list (max-width: 795.98px) {
-    .catalog-collection__table { --catalog-facts: 136px 160px 104px; }
-    .catalog-collection__header > :nth-child(2),
+    .catalog-collection__table { --w-relation: ; }
+    .catalog-collection__header-cell--relation,
     .catalog-collection__cell--relation { display: none; }
   }
 
   @container work-list (max-width: 667.98px) {
-    .catalog-collection__table { --catalog-facts: 136px 104px; }
-    .catalog-collection__header > :nth-child(4),
+    .catalog-collection__table { --w-cadence: ; }
+    .catalog-collection__header-cell--cadence,
     .catalog-collection__cell--cadence { display: none; }
   }
 
   @container work-list (max-width: 507.98px) {
-    .catalog-collection__table { --catalog-facts: 104px; }
-    .catalog-collection__header > :nth-child(3),
+    .catalog-collection__table { --w-owner: ; }
+    .catalog-collection__header-cell--owner,
     .catalog-collection__cell--owner { display: none; }
   }
 
   @container work-list (max-width: 371.98px) {
     .catalog-collection__table { grid-template-columns: fit-content(654px) minmax(0, 1fr); }
-    .catalog-collection__header > :nth-child(5),
+    .catalog-collection__header-cell--progress,
     .catalog-collection__cell--progress { display: none; }
   }
+
+  /* Placed last so a fact that is empty on every row stays out at any width. */
+  .catalog-collection__table--no-relation { --w-relation: ; }
+  .catalog-collection__table--no-owner { --w-owner: ; }
+  .catalog-collection__table--no-cadence { --w-cadence: ; }
 }

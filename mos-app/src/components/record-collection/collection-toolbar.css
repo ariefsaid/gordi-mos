@@ -699,7 +699,12 @@
     border-bottom: 0;
     background: transparent;
   }
-  .record-collection > .collection-mobile-options-panel,
+  /* The panel lives INSIDE the options wrapper, so an open wrapper hands its children to the grid:
+     the trigger keeps its cell beside search and the panel takes the full row below, instead of
+     being squeezed into the trigger's column and spilling over the search field. */
+  .record-collection > .collection-mobile-options:has(> .collection-mobile-options-panel) { display: contents; }
+  .record-collection > .collection-mobile-options > .collection-mobile-options-panel { grid-column: 1 / -1; }
+  .record-collection > .collection-mobile-options > .collection-mobile-options-trigger { grid-column: 2; }
   .record-collection > .record-collection-results { grid-column: 1 / -1; }
   .record-collection > .collection-mobile-options .collection-mobile-options-trigger {
     width: auto;

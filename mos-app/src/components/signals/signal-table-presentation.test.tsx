@@ -154,6 +154,20 @@ describe('SignalTablePresentation — typed Signal archive Table (Issue 6)', () 
     expect(onSort).toHaveBeenCalledWith('attention', 'ascending')
   })
 
+  // Signals are captured for All Teams, so the Team column is empty on current rows. It
+  // renders only when a visible row actually carries an owning Team (historical team audiences).
+  it('omits the Team column when no visible Signal has an owning Team', () => {
+    renderTable([row({ owning_team_id: null, audience: 'org' })])
+    expect(screen.getByRole('columnheader', { name: /message/i })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: 'Team' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the Team column when a visible Signal has an owning Team', () => {
+    renderTable([row({ owning_team_id: 'team-hq' })])
+    expect(screen.getByRole('columnheader', { name: 'Team' })).toBeInTheDocument()
+    expect(screen.getByText('HQ Operations')).toBeInTheDocument()
+  })
+
   it('NFR-V3-001: a retracted Signal is an explicit tombstone (message + reason), not a link', () => {
     renderTable([row({ id: 's-dead', retracted_at: '2026-07-16T05:00:00Z', retract_reason: 'Duplicate' })])
     expect(screen.getByText(/this signal was retracted/i)).toBeInTheDocument()
