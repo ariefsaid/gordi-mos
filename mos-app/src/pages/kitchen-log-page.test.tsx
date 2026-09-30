@@ -775,7 +775,8 @@ describe('F3b: disabled Submit shows a note-missing pointer when a variance note
     let pointer: HTMLElement | null = null
     for (let i = 0; i < 40 && !pointer; i += 1) {
       await user.tab()
-      const active = document.activeElement as HTMLElement
+      const active = document.activeElement
+      if (!(active instanceof HTMLElement)) continue
       if (active.getAttribute('aria-label')?.match(/^note for ayam bakar$/i)) break
       if (/note missing/i.test(active.textContent ?? '')) pointer = active
     }

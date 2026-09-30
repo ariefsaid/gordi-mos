@@ -283,7 +283,8 @@ grep -q '^run typecheck' "$light_log" && ! grep -q 'vitest' "$light_log" && [ -e
 # A migration-only change must still run the unit tests that read supabase/ from disk.
 echo "const dir = join(root, 'supabase', 'migrations')" > "$tmp/repo/mos-app/src/reads-migrations.test.ts"
 echo "const seed = readFileSync('../supabase/seed.sql', 'utf8')" > "$tmp/repo/mos-app/src/reads-seed.test.ts"
-G add mos-app/src/reads-migrations.test.ts mos-app/src/reads-seed.test.ts; G commit -qm "light: a test that reads supabase/"
+echo "import { createClient } from '@supabase/supabase-js'" > "$tmp/repo/mos-app/src/imports-client.test.ts"
+G add mos-app/src/reads-migrations.test.ts mos-app/src/reads-seed.test.ts mos-app/src/imports-client.test.ts; G commit -qm "light: a test that reads supabase/"
 G update-ref refs/remotes/origin/lightbase "$(G rev-parse HEAD)"
 mkdir -p "$tmp/repo/supabase/migrations"; echo "-- m" > "$tmp/repo/supabase/migrations/20990101000001_mos_x.sql"
 G add supabase; G commit -qm "light: migration-only change"
@@ -291,6 +292,8 @@ G add supabase; G commit -qm "light: migration-only change"
 run_dev --dev
 grep -q 'exec -- vitest related .*src/reads-migrations\.test\.ts' "$light_log" && grep -q 'exec -- vitest related .*src/reads-seed\.test\.ts' "$light_log" \
   && ok "--dev with a supabase/ change runs the tests that read supabase/" || bad "--dev migration-only case ran no supabase-reading test: $(grep vitest "$light_log")"
+! grep -q 'imports-client\.test\.ts' "$light_log" \
+  && ok "--dev leaves out a test that only imports the @supabase/ client library" || bad "--dev selected a test that only imports @supabase/supabase-js: $(grep vitest "$light_log")"
 
 if (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" bash scripts/pre-pr-verify.sh --nope) >/dev/null 2>&1; then bad "unknown flag must refuse"; else ok "unknown flag refuses"; fi
 printf '#!/bin/sh\necho called >> "%s/npm-calls"\nexit 0\n' "$tmp" > "$tmp/bin/npm"; chmod +x "$tmp/bin/npm"

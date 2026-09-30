@@ -153,6 +153,12 @@ describe('create draft — Supervisor defaults to the home Team lead', () => {
     expect(within(form).getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent(/select supervisor/i)
   })
 
+  it('never offers an archived home Team lead: Supervisor stays blank', async () => {
+    vi.mocked(getPeople).mockResolvedValue([PEOPLE[0]])
+    const form = await openDraft()
+    expect(within(form).getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent(/select supervisor/i)
+  })
+
   it('a failed lead read still opens the draft with a blank Supervisor', async () => {
     vi.mocked(getMyTeamLeads).mockRejectedValue(new Error('denied'))
     const form = await openDraft()

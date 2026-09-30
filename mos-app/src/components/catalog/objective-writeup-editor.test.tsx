@@ -1,8 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
-const fake = vi.hoisted(() => ({ document: [] as unknown[], crash: false }))
+const fake = vi.hoisted(() => ({
+  document: [] as unknown[],
+  crash: false,
+  focus: vi.fn(),
+  domElement: undefined as undefined | HTMLElement,
+  updateBlock: vi.fn(),
+  block: { id: 'b1', type: 'paragraph', props: {} } as { id: string; type: string; props: Record<string, unknown> },
+  getTextCursorPosition() { return { block: fake.block } },
+  selectionListener: undefined as undefined | (() => void),
+  onSelectionChange(listener: () => void) { fake.selectionListener = listener; return () => { fake.selectionListener = undefined } },
+}))
 
 vi.mock('@blocknote/react', () => ({
   useCreateBlockNote: () => fake,
@@ -11,6 +23,7 @@ vi.mock('@blocknote/react', () => ({
     return (
     <div data-testid="bn" data-editable={String(editable)}>
       <button type="button" onClick={() => { fake.document = [...fake.document, { type: 'paragraph' }]; onChange?.() }}>type</button>
+      <div role="textbox" aria-label="pm" tabIndex={0} />
     </div>
     )
   },
@@ -43,6 +56,8 @@ beforeEach(() => {
   vi.useFakeTimers()
   fake.document = []
   fake.crash = false
+  fake.domElement = document.createElement('div')
+  fake.block = { id: 'b1', type: 'paragraph', props: {} }
   read.mockResolvedValue({ writeUp: [], updatedAt: 't1' })
   save.mockResolvedValue('t2')
 })
@@ -146,6 +161,89 @@ describe('ObjectiveWriteupEditor', () => {
     typeOnce()
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
     expect(screen.getByRole('status').textContent).toContain('too long')
+  })
+
+  it('explains the size limit on a too-long refusal and offers no Retry', async () => {
+    save.mockRejectedValueOnce(new WriteUpTooLargeError())
+    await mount()
+    typeOnce()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
+    expect(screen.getByRole('status').textContent).toContain('256 KB')
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy()
+  })
+
+  it('Escape moves focus from the editor to the Save control', async () => {
+    await mount()
+    const box = screen.getByRole('textbox', { name: 'pm' })
+    box.focus()
+    fireEvent.keyDown(box, { key: 'Escape' })
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.getByText(/Esc/).textContent).toMatch(/Tab/)
+  })
+
+  it('formats the current block from visible controls, and toggles back to a paragraph', async () => {
+    await mount()
+    fireEvent.click(screen.getByRole('button', { name: 'Heading' }))
+    expect(fake.updateBlock).toHaveBeenLastCalledWith(fake.block, { type: 'heading', props: { level: 2 } })
+    fireEvent.click(screen.getByRole('button', { name: 'Bulleted list' }))
+    expect(fake.updateBlock).toHaveBeenLastCalledWith(fake.block, { type: 'bulletListItem' })
+    fireEvent.click(screen.getByRole('button', { name: 'Numbered list' }))
+    expect(fake.updateBlock).toHaveBeenLastCalledWith(fake.block, { type: 'numberedListItem' })
+    fake.block = { id: 'b1', type: 'bulletListItem', props: {} }
+    fireEvent.click(screen.getByRole('button', { name: 'Bulleted list' }))
+    expect(fake.updateBlock).toHaveBeenLastCalledWith(fake.block, { type: 'paragraph' })
+    expect(fake.focus).toHaveBeenCalled()
+  })
+
+  it('marks the format button of the block under the caret as pressed', async () => {
+    await mount()
+    const bullets = screen.getByRole('button', { name: 'Bulleted list' })
+    expect(bullets).toHaveAttribute('aria-pressed', 'false')
+    fake.block = { id: 'b1', type: 'bulletListItem', props: {} }
+    act(() => { fake.selectionListener?.() })
+    expect(bullets).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Heading' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('hides the keyboard hint on touch and phone widths', () => {
+    const css = readFileSync(resolve(__dirname, 'objective-writeup-editor.css'), 'utf8')
+    expect(css).toMatch(/@media \(hover: none\), \(max-width: 767\.98px\) \{\s*\.objective-writeup__hint \{ display: none; \}/)
+  })
+
+  it('points the editor at the key hint only while the hint is rendered, across editability changes', async () => {
+    read.mockResolvedValue({ writeUp: [{ type: 'paragraph' }], updatedAt: 't1' })
+    const ui = (canEdit: boolean) => (
+      <I18nProvider><ObjectiveWriteupEditor objectiveId="o1" canEdit={canEdit} archived={false} /></I18nProvider>
+    )
+    const view = render(ui(false))
+    await act(async () => { await Promise.resolve() })
+    expect(document.querySelector('.objective-writeup__hint')).toBeNull()
+    expect(fake.domElement!.hasAttribute('aria-describedby')).toBe(false)
+
+    view.rerender(ui(true))
+    const hint = document.querySelector('.objective-writeup__hint')!
+    expect(fake.domElement!.getAttribute('aria-describedby')).toBe(hint.id)
+
+    view.rerender(ui(false))
+    expect(fake.domElement!.hasAttribute('aria-describedby')).toBe(false)
+  })
+
+  it('offers no formatting controls to a read-only reader', async () => {
+    read.mockResolvedValue({ writeUp: [{ type: 'paragraph' }], updatedAt: 't1' })
+    await mount({ canEdit: false })
+    expect(screen.queryByRole('button', { name: 'Heading' })).toBeNull()
+  })
+
+  it('steps Save down from primary once Saved, and back up on the next edit', async () => {
+    await mount()
+    const save_ = () => screen.getByRole('button', { name: 'Save' })
+    expect(save_().className).toContain('btn-primary')
+    typeOnce()
+    await act(async () => { fireEvent.click(save_()) })
+    expect(save_().className).not.toContain('btn-primary')
+    typeOnce()
+    expect(save_().className).toContain('btn-primary')
   })
 
   it('does not save on unmount: Discard after a failed save, or with an idle save pending, leaves the text unsaved', async () => {

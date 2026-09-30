@@ -63,8 +63,8 @@ const mockListWorkLines = vi.mocked(listWorkLines)
 
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
-  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arden Sample',
+  email: 'arden.sample@example.test', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const mockRole: RolesRow = {
@@ -93,7 +93,7 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 
 const BUS = [{ id: 'bu-1', name: 'Kitchen' }]
 const PEOPLE = [
-  { id: VIEWER_ID, full_name: 'Arief Said' },
+  { id: VIEWER_ID, full_name: 'Arden Sample' },
   { id: 'other-id', full_name: 'Maya Rahmawati' },
 ]
 const OBJECTIVES = [
@@ -383,7 +383,7 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     chooseFilterOption(groupSelect, 'Project/Process')
     const personSelect = screen.getByRole('combobox', { name: /person/i })
-    chooseFilterOption(personSelect, 'Arief Said')
+    chooseFilterOption(personSelect, 'Arden Sample')
     await waitFor(() => {
       const caption = screen.getByRole('status', { name: /workload summary/i })
       expect(caption.textContent).toMatch(/your work/i)

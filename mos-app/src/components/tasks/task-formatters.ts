@@ -51,5 +51,5 @@ export function taskSourceLabel(workLineName: string, objectiveName: string, adH
   return workLineName || objectiveName || adHocLabel
 }
 
-/** Longest task title any input accepts; the API caps a title at 300. */
+/** Bounds the UI title fields the API itself caps a title at 300. */
 export const TASK_TITLE_MAX_LENGTH = 200

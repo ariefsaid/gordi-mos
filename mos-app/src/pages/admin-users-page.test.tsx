@@ -407,9 +407,9 @@ describe('AdminUsersPage — the person panel reflects fresh data after a Positi
   it('re-renders the open panel against reloaded people (no stale snapshot)', async () => {
     const user = userEvent.setup()
     const base: AdminPersonRow = {
-      id: 'p-riri',
-      full_name: 'Riri',
-      email: 'riri@example.test',
+      id: 'p-nico',
+      full_name: 'Nico',
+      email: 'nico@example.test',
       archived_at: null,
       login: 'active',
       access_roles: [],
@@ -423,9 +423,9 @@ describe('AdminUsersPage — the person panel reflects fresh data after a Positi
       .mockResolvedValue([{ ...base, jabatan: [{ role_id: 'r-kitchen', role_name: 'Kitchen Lead' }] }]) // after assign
 
     renderPage()
-    await screen.findByText('Riri')
+    await screen.findByText('Nico')
 
-    await user.click(screen.getByRole('button', { name: /more actions for riri/i }))
+    await user.click(screen.getByRole('button', { name: /more actions for nico/i }))
     await user.click(screen.getByRole('menuitem', { name: /^manage person$/i }))
 
     const box = screen.getByRole('checkbox', { name: /kitchen lead/i })
