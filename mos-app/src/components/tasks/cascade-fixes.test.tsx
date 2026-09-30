@@ -602,8 +602,6 @@ describe('Fix-6 — Work-line picker options include project/daily cue', () => {
       </AuthContext.Provider>,
     )
 
-    // F17 (OD-91 #29): the Project/Process picker lives behind the "+ Add context" reveal now.
-    fireEvent.click(await screen.findByRole('button', { name: /add context/i }))
     // Wait for work-line select to appear
     await screen.findByRole('combobox', { name: /project\/process/i })
     fireEvent.click(screen.getByRole('combobox', { name: /project\/process/i }))

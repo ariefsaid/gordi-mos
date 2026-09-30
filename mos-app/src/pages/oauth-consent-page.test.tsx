@@ -343,7 +343,7 @@ describe('OAuthConsentPage', () => {
     renderPage(`/oauth/consent?authorization_id=${AUTH_ID}`, 'id')
     expect(await screen.findByRole('button', { name: 'Izinkan' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Tolak' })).toBeEnabled()
-    expect(screen.getByText(/Memperbarui uraian Sasaran dan progres hasil kunci/)).toBeInTheDocument()
+    expect(screen.getByText(/Memperbarui uraian Tujuan dan progres hasil kunci/)).toBeInTheDocument()
     expect(screen.getByText(/atau mengurus keuangan/)).toBeInTheDocument()
   })
 })

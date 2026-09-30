@@ -21,6 +21,7 @@ import { listTaskDefs } from '@/lib/db/processes'
 import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { ConfirmArchive } from './confirm-archive'
+import { loadHomeLeadId } from './default-supervisor'
 import { canEdit } from './task-permissions'
 import { liveTasksSearch, type LiveTasksQueryRef } from './tasks-navigation'
 import { createTaskRecordAdapter, createTaskFieldCommit, type TaskTeamView, type TaskRelatedRecord, type TaskViewerFieldKey } from './task-record-adapter'
@@ -989,20 +990,24 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
   const [teamDirectory, setTeamDirectory] = useState<DirectoryTeamOption[]>([])
   const [dirLoading, setDirLoading] = useState(true)
-  const [objectivesDir, setObjectivesDir] = useState<ObjectiveRow[]>([])
   const [workLinesDir, setWorkLinesDir] = useState<WorkLineRow[]>([])
   const prefillTeamId = searchParams.get('team') ?? ''
 
   useEffect(() => {
+    let live = true
     const teamsPromise = getPersonTeams(viewerId).catch(() => [])
     Promise.all([getBusinessUnits(), getPeople(), teamsPromise]).then(([, people, teams]) => {
       setPeopleDirectory(people)
       setTeamDirectory(teams)
       setDirLoading(false)
+      // Supervisor defaults to the creator's home Team lead; a choice made meanwhile wins.
+      void loadHomeLeadId(teams, viewerId).then((leadId) => {
+        if (live && leadId) setAccountablePersonId((chosen) => chosen || leadId)
+      })
     }).catch(() => setDirLoading(false))
-    // Non-blocking catalog loads — a slow catalog must never block the form.
-    listObjectives().then(setObjectivesDir).catch(() => {})
+    // Non-blocking catalog load — a slow catalog must never block the form.
     listWorkLines().then(setWorkLinesDir).catch(() => {})
+    return () => { live = false }
   }, [viewerId])
 
   // ── Form state ────────────────────────────────────────────────────────────
@@ -1011,23 +1016,14 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   const [title, setTitle] = useState(prefillTitle)
   const [teamId, setTeamId] = useState(prefillTeamId)
   const [responsiblePersonId, setResponsiblePersonId] = useState(prefillR || viewerId)
-  // Supervisor starts EMPTY, deliberately not defaulted to the creator/PIC (OD-REDESIGN-3/14/41 —
-  // PIC and Supervisor are distinct accountable roles; auto-collapsing them defeats the model).
-  // CONTEXT.md's Supervisor resolution order is explicit selection → generated-Task override →
-  // parent Project/Process A → PIC's direct manager (role matching Task BU) → PIC when no manager
-  // exists — but resolving "PIC's manager" needs a person→role→reports-to lookup this surface has
-  // no directory call for (only the viewer's OWN roles are known here, and the PIC can be reassigned
-  // to anyone). Rather than fabricate a default from data this form doesn't have, Supervisor is a
-  // required, explicit choice — the first, always-correct step of that same resolution order.
+  // Supervisor is never defaulted to the creator/PIC (OD-REDESIGN-3/14/41 — PIC and Supervisor are
+  // distinct accountable roles). It starts empty and is pre-filled with the creator's home Team
+  // lead when that is readable (see the directory-load effect); otherwise it is a required,
+  // explicit choice.
   const [accountablePersonId, setAccountablePersonId] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [description, setDescription] = useState('')
   const [workLineId, setWorkLineId] = useState('')
-  const [objectiveId, setObjectiveId] = useState('')
-  // F17 (OD-REDESIGN-91 #29): the optional Project/Process + Objective context pickers stay hidden
-  // behind ONE "+ Add context" reveal — a task needs a title, PIC, and supervisor; strategy
-  // attribution is deliberate, not a wall of defaulted selects. Once revealed it stays open.
-  const [contextRevealed, setContextRevealed] = useState(false)
 
   const selectedTeam = teamDirectory.find((team) => team.id === teamId)
   const businessUnitId = selectedTeam?.businessUnitId ?? selectedTeam?.business_unit_id ?? ''
@@ -1113,7 +1109,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
         description: description.trim() || undefined,
         dueDate: dueDate || null,
         workLineId: workLineId || null,
-        objectiveId: objectiveId || null,
+        objectiveId: workLinesDir.find((workLine) => workLine.id === workLineId)?.objective_id ?? null,
       } as CreateTaskInput & { teamId?: string | null }
       const newId = await createTask(input)
       // The create succeeded: this is no longer an unsaved draft, so the destination record must
@@ -1379,71 +1375,6 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
           )}
         </div>
 
-        {/* F17 (OD-91 #29): the optional Project/Process + Objective pickers live behind ONE
-            "+ Add context" reveal. Collapsed by default (a task needs only title/PIC/supervisor);
-            the reveal is offered only when at least one context lookup has arrived. Once opened it
-            stays open so a chosen attribution never hides itself. */}
-        {(workLinesDir.length > 0 || objectivesDir.length > 0) && !contextRevealed && (
-          <button
-            type="button"
-            className="tc-add-context"
-            onClick={() => setContextRevealed(true)}
-            disabled={submitting}
-          >
-            {t('tasks.create.addContext')}
-          </button>
-        )}
-
-        {contextRevealed && (
-          <>
-            {/* Project/Process (optional) — non-blocking; renders once lookups arrive.
-                UI term is Project/Process (OD-C-2 / ADR-0015); table stays mos.work_lines. */}
-            {workLinesDir.length > 0 && (
-              <div className="tc-field">
-                <label htmlFor="task-workline" className="tc-label">{t('tasks.filter.projectProcess')}</label>
-                <Picker
-                  id="task-workline"
-                  label={t('tasks.filter.projectProcess')}
-                  className="tc-picker"
-                  fullWidth
-                  hideLabel
-                  value={workLineId}
-                  options={[
-                    { value: '', label: t('tasks.create.none') },
-                    ...workLinesDir.map(wl => ({
-                      value: wl.id,
-                      label: `${wl.name} (${wl.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})`,
-                    })),
-                  ]}
-                  onChange={value => { setWorkLineId(value); markDirty() }}
-                  disabled={submitting}
-                />
-              </div>
-            )}
-
-            {/* Objective (optional) — non-blocking; renders once lookups arrive */}
-            {objectivesDir.length > 0 && (
-              <div className="tc-field">
-                <label htmlFor="task-objective" className="tc-label">{t('tasks.objective')}</label>
-                <Picker
-                  id="task-objective"
-                  label={t('tasks.objective')}
-                  className="tc-picker"
-                  fullWidth
-                  hideLabel
-                  value={objectiveId}
-                  options={[
-                    { value: '', label: t('tasks.create.none') },
-                    ...objectivesDir.map(obj => ({ value: obj.id, label: obj.name })),
-                  ]}
-                  onChange={value => { setObjectiveId(value); markDirty() }}
-                  disabled={submitting}
-                />
-              </div>
-            )}
-          </>
-        )}
-
         {/* Due date (optional) */}
         <div className="tc-field">
           <label htmlFor="task-due" className="tc-label">{t('tasks.create.dueDate')}</label>
@@ -1457,6 +1388,31 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
             aria-label={t('tasks.create.dueDate')}
           />
         </div>
+
+        {/* Project/Process (optional) — non-blocking; renders once the lookup arrives. The Task's
+            Objective is derived from it at submit, never picked separately. */}
+        {workLinesDir.length > 0 && (
+          <div className="tc-field">
+            <label htmlFor="task-workline" className="tc-label">{t('tasks.filter.projectProcess')}</label>
+            <Picker
+              id="task-workline"
+              label={t('tasks.filter.projectProcess')}
+              className="tc-picker"
+              fullWidth
+              hideLabel
+              value={workLineId}
+              options={[
+                { value: '', label: t('tasks.create.none') },
+                ...workLinesDir.map(workLine => ({
+                  value: workLine.id,
+                  label: `${workLine.name} (${workLine.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})`,
+                })),
+              ]}
+              onChange={value => { setWorkLineId(value); markDirty() }}
+              disabled={submitting}
+            />
+          </div>
+        )}
 
         {/* Description (optional) */}
         <div className="tc-field">

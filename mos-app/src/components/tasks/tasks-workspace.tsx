@@ -38,6 +38,8 @@ import { getPersonTeams, type TeamOption } from '@/lib/db/directory'
 import { canStartProcessForTeam } from '@/lib/db/processes'
 import { linkSignalTask } from '@/lib/db/signals'
 import { TaskOverlayContent } from './task-drawer'
+import { TaskCreateContext, type TaskCreateContextValue } from './task-create-context'
+import { loadHomeLeadId } from './default-supervisor'
 import { useCatalogRecordEntryFactory } from '@/components/catalog/use-catalog-record-overlay'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
@@ -203,6 +205,9 @@ export function TasksWorkspace({
   // `null` means the viewer Team directory is still loading; [] is an honest no-eligible-Team
   // result and must never be replaced with a BU/first-row guess.
   const [viewerTeams, setViewerTeams] = useState<readonly TeamOption[] | null>(null)
+  // The creator's home Team lead, resolved together with viewerTeams so a draft never opens
+  // between the two. Null (no lead, or the creator leads) leaves Supervisor blank.
+  const [homeLeadId, setHomeLeadId] = useState<string | null>(null)
   const [processStartTeamIds, setProcessStartTeamIds] = useState<Set<string>>(new Set())
   const [announcement, setAnnouncement] = useState('')
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
@@ -234,8 +239,11 @@ export function TasksWorkspace({
       return () => { active = false }
     }
     setViewerTeams(null)
-    getPersonTeams(viewerId).then((teams) => {
-      if (active) setViewerTeams(teams)
+    getPersonTeams(viewerId).then(async (teams) => {
+      const leadId = await loadHomeLeadId(teams, viewerId)
+      if (!active) return
+      setHomeLeadId(leadId)
+      setViewerTeams(teams)
     }).catch(() => {
       // A failed directory read is deliberately fail-closed: the draft shows no eligible Team and
       // cannot manufacture a BU. The title entry remains inline so a later retry/refresh can heal.
@@ -525,11 +533,23 @@ export function TasksWorkspace({
     controller.retry()
   }, [controller, records, viewerId])
   const onEditDue = useCallback(async (taskId: string, dueDate: string | null) => {
+    if (draftTask?.id === taskId) {
+      setDraftTask((current) => current?.id === taskId ? { ...current, due_date: dueDate } : current)
+      return
+    }
     if (!viewerId) throw new Error('inline due edit requires an authenticated viewer')
     const previous = records.find((record) => record.id === taskId)?.dueDate ?? null
     await updateTaskFields(taskId, { due_date: dueDate }, viewerId, previous)
     controller.retry()
-  }, [controller, records, viewerId])
+  }, [controller, draftTask?.id, records, viewerId])
+  const workLineObjectiveById = dataContext?.workLineObjectiveById
+  // The draft's Objective is never picked: it is the chosen Project/Process's own Objective.
+  const onEditWorkLine = useCallback(async (taskId: string, workLineId: string | null) => {
+    if (draftTask?.id !== taskId) return
+    setDraftTask((current) => current?.id === taskId
+      ? { ...current, work_line_id: workLineId, objective_id: workLineId ? workLineObjectiveById?.get(workLineId) ?? null : null }
+      : current)
+  }, [draftTask?.id, workLineObjectiveById])
   const onEditPic = useCallback(async (taskId: string, personId: string) => {
     if (draftTask?.id === taskId) {
       setDraftTask((current) => current?.id === taskId
@@ -576,6 +596,7 @@ export function TasksWorkspace({
         responsiblePersonId: draftTask.responsible_person_id,
         accountablePersonId: draftTask.accountable_person_id,
         createdBy: viewerId,
+        dueDate: draftTask.due_date,
         objectiveId: draftTask.objective_id,
         workLineId: draftTask.work_line_id,
       })
@@ -674,9 +695,8 @@ export function TasksWorkspace({
         : undefined)
     const workLineId = firstCreateParam(prefill, ['work_line_id', 'work_line', 'workLineId'])
       ?? firstCreateParam(urlPrefill, ['work_line_id', 'work_line', 'workLineId'])
-    const objectiveId = firstCreateParam(prefill, ['objective_id', 'objective', 'objectiveId'])
-      ?? firstCreateParam(urlPrefill, ['objective_id', 'objective', 'objectiveId'])
-      ?? (workLineId ? dataContext.workLineObjectiveById?.get(workLineId) ?? null : null)
+    // An Objective is only ever the chosen Project/Process's own; an objective-only prefill is ignored.
+    const objectiveId = workLineId ? dataContext.workLineObjectiveById?.get(workLineId) ?? null : null
     const sourceSignal = firstCreateParam(urlPrefill, ['sourceSignal'])
     const supervisorId = firstCreateParam(prefill, ['supervisor', 'supervisorId'])
       ?? firstCreateParam(urlPrefill, ['createSupervisor', 'supervisor', 'supervisorId'])
@@ -696,16 +716,17 @@ export function TasksWorkspace({
         ?? query.picId
         ?? viewerId
         ?? firstPerson,
-      // PIC and Supervisor are independent RACI roles. Supervisor is an explicit choice, never
-      // the viewer/PIC fallback used by the retired create path.
-      accountable_person_id: supervisorId ?? '',
+      // PIC and Supervisor are independent RACI roles. Supervisor is an explicit choice or the
+      // home Team lead (null when there is none or the creator is the lead) — never the
+      // viewer/PIC fallback used by the retired create path.
+      accountable_person_id: supervisorId ?? homeLeadId ?? '',
       consulted_person_ids: [], informed_person_ids: [],
       description: null, due_date: null, objective_id: objectiveId, work_line_id: workLineId,
       last_activity_at: now, archived_at: null, created_by: viewerId ?? '',
       created_at: now, updated_at: now, process_run_id: null, generated_from_task_def_id: null,
     })
     draftSourceSignalRef.current = sourceSignal ?? draftSourceSignalRef.current
-  }, [dataContext, draftTask, params, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
+  }, [dataContext, draftTask, homeLeadId, params, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
   // Every create entry — page button, global actions menu, command menu, keyboard shortcut, group
   // "Add" — comes through here, so a draft and an open record are never on screen together. A
   // dirty record may refuse to close; the draft opens only on a committed close, and only once
@@ -754,12 +775,9 @@ export function TasksWorkspace({
       overdueOnly: false, includeArchived: false, view: 'all', savedViewId: null,
     })
   }, [setQuery])
-  const onSort = useCallback((sort: TaskCollectionSort) => {
-    const direction = query.sort === sort
-      ? query.direction === 'ascending' ? 'descending' : 'ascending'
-      : 'ascending'
+  const onSortChange = useCallback((sort: TaskCollectionSort, direction: TaskCollectionQuery['direction']) => {
     setQuery({ sort, direction })
-  }, [query.direction, query.sort, setQuery])
+  }, [setQuery])
 
   const recordsForStats = useMemo(
     () => records.map((record) => ({ ...record, status: runtimeStatusOverrides.get(record.id) ?? record.status })),
@@ -891,7 +909,7 @@ export function TasksWorkspace({
     onAddTask,
     onRetry: retry,
     onClearFilters,
-    onSort,
+    onSortChange,
     onOverdueFilter: () => setQuery({ overdueOnly: true }),
       onClearOverdue: () => setQuery({ overdueOnly: false }),
     createHref: (() => {
@@ -907,9 +925,17 @@ export function TasksWorkspace({
   }), [
     recordOpen, draftTask, host.session, isDesktop, onAddTask,
     liveParams,
-    onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onNewTask, onOpenTask, onClearFilters, onSort,
+    onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onNewTask, onOpenTask, onClearFilters, onSortChange,
     processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink, viewerTeams,
   ])
+  // Projects & Processes the viewer can read (RLS scopes the catalog), for the create form.
+  const createContext: TaskCreateContextValue = useMemo(() => ({
+    workLineOptions: [...(dataContext?.workLinesById ?? [])].map(([id, name]) => ({
+      id, name, type: dataContext?.workLineTypeById.get(id) ?? 'project',
+    })),
+    onEditDue,
+    onEditWorkLine,
+  }), [dataContext, onEditDue, onEditWorkLine])
 
   const controls = !isDesktop ? (
     <ViewOptionsDisclosure
@@ -971,6 +997,7 @@ export function TasksWorkspace({
       <div className={`split${recordOpen ? '' : ' nodrawer'}`}>
         <section className={`assembly record-collection-view tasks-collection-surface record-collection-view--${controller.state.presentation}${drawerOpen && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
           <TaskCollectionRuntimeProvider value={runtime}>
+            <TaskCreateContext.Provider value={createContext}>
             <RecordCollectionSurface
               controller={controller}
               keepBodyWhenEmpty={draftTask != null}
@@ -989,6 +1016,7 @@ export function TasksWorkspace({
               error={{ message: t('tasks.error.load'), retry }}
               loadingLabel={t('tasks.loading')}
             />
+            </TaskCreateContext.Provider>
           </TaskCollectionRuntimeProvider>
         </section>
         {drawerOpen && drawerSlot}
