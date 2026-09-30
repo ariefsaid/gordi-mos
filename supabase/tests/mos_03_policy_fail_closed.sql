@@ -146,12 +146,12 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select throws_ok($$
   insert into mos.objectives (name) values ('Uncapable Objective')
 $$, '42501', null,
-  'objectives_insert_can_manage: a role holding no objective.manage cannot create an Objective');
+  'objectives_insert_admin: a role holding no objective.manage cannot create an Objective');
 select throws_ok($$
   update mos.objectives set name = 'Renamed by the incapable'
   where id = '00000000-0000-0000-0000-000000070002'
 $$, '42501', null,
-  'objectives_update_can_manage: USING lets the row be seen for update, WITH CHECK refuses the result — 42501, not a silent no-op');
+  'objectives_update_org_row: USING lets the row be seen for update, the guard refuses the structural column — 42501, not a silent no-op (#992 moved the refusal from WITH CHECK to mos._guard_objectives)');
 select throws_ok($$
   insert into mos.work_lines (name, type) values ('Uncapable Project','project')
 $$, '42501', null,

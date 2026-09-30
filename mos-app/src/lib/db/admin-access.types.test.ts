@@ -11,7 +11,6 @@ describe('admin access authority metadata', () => {
   it('keeps the editable matrix limited to the approved eight actions and eight role categories', () => {
     expect(AUTHORITY_ACTIONS).toEqual([
       'workline.manage',
-      'objective.manage',
       'signal.post',
       'signal.tag',
       'signal.retract',
@@ -26,7 +25,6 @@ describe('admin access authority metadata', () => {
 
   it('offers only runtime-enforceable scopes for each action', () => {
     expect(getAllowedScopes('workline.manage')).toEqual(['none', 'own_bu', 'org'])
-    expect(getAllowedScopes('objective.manage')).toEqual(['none', 'own_bu', 'org'])
     expect(getAllowedScopes('signal.post')).toEqual(['none', 'org'])
     expect(getAllowedScopes('signal.tag')).toEqual(['none', 'org'])
     expect(getAllowedScopes('signal.retract')).toEqual(['none', 'own', 'own_team', 'own_bu', 'org'])
