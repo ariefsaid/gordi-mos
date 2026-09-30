@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase'
 const schemaMock = vi.mocked(supabase.schema)
 const PERSON = '40000000-0000-0000-0000-000000000001'
 
-interface Rec { tables: string[]; selects: Array<[string, unknown]>; filters: string[] }
+type Rec = { tables: string[]; selects: Array<[string, unknown]>; filters: string[] }
 type Result = { count: number | null; error: unknown }
 
 function mockTasks(result: Result): Rec {

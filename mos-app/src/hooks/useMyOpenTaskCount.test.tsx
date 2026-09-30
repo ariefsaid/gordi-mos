@@ -7,11 +7,15 @@ vi.mock('@/lib/db/open-task-count', () => ({ getMyOpenTaskCount: vi.fn() }))
 import { useAuth } from '@/auth/use-auth'
 import { getMyOpenTaskCount } from '@/lib/db/open-task-count'
 import { useMyOpenTaskCount } from './useMyOpenTaskCount'
+import { __resetOpenTaskCountForTests } from '@/lib/open-task-count-store'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockCount = vi.mocked(getMyOpenTaskCount)
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  __resetOpenTaskCountForTests()
+})
 
 describe('useMyOpenTaskCount — the one open-task count the rail badge and Home share (#1129)', () => {
   it.each([

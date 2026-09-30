@@ -490,7 +490,7 @@ describe('Locale controls (ADR-0021 seam, OD-70 placement)', () => {
   })
 })
 
-// Rail count badges (E7 `.e7-count`) — Tasks (open count) from ONE shell aggregate. Quiet rule:
+// Rail count badges (E7 `.e7-count`) — Tasks (the viewer's own open count). Quiet rule:
 // a count that is zero or unavailable shows NO badge. The badge is
 // aria-hidden (a redundant glance cue), so the link's accessible name is unchanged.
 function renderRailNavWithCounts(initialPath: string, openTasks: number | null | undefined) {

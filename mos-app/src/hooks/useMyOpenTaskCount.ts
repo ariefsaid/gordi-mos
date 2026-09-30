@@ -1,25 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { useAuth } from '@/auth/use-auth'
-import { getMyOpenTaskCount } from '@/lib/db/open-task-count'
+import {
+  getOpenTaskCountSnapshot, subscribeOpenTaskCount, watchOpenTaskCount,
+} from '@/lib/open-task-count-store'
 
-/**
- * The viewer's open-task count, read once per mount (no polling). Null until it resolves and on
- * failure, so a consumer omits the number rather than showing a wrong one. The rail badge and
- * Home both use this hook; neither recounts.
- */
+// The viewer's open-task count: one shared result for every caller, refreshed after task writes.
+// Null until it resolves and on failure.
 export function useMyOpenTaskCount(): number | null {
   const auth = useAuth()
   const personId = auth.status === 'authenticated' ? auth.viewer?.person?.id : undefined
-  const [result, setResult] = useState<{ personId: string; count: number | null } | null>(null)
+  const snapshot = useSyncExternalStore(subscribeOpenTaskCount, getOpenTaskCountSnapshot)
 
   useEffect(() => {
-    if (!personId) return
-    let live = true
-    getMyOpenTaskCount(personId)
-      .then((count) => { if (live) setResult({ personId, count }) })
-      .catch(() => { if (live) setResult({ personId, count: null }) })
-    return () => { live = false }
+    if (personId) watchOpenTaskCount(personId)
   }, [personId])
 
-  return personId && result?.personId === personId ? result.count : null
+  return personId && snapshot?.personId === personId ? snapshot.count : null
 }
