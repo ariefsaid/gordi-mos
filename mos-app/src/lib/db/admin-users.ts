@@ -4,6 +4,7 @@
 // Throws on any PostgREST/RPC error so callers can surface failures.
 
 import { supabase } from '@/lib/supabase'
+import { UserFacingError } from '@/lib/save-error'
 import type { AdminPersonRow, CreatePersonInput, LoginStatus, RoleOption, RevenueScopeOption, TeamOption, TeamMembership } from './admin-users.types'
 
 const shared = () => supabase.schema('shared')
@@ -38,7 +39,7 @@ function surface(action: string, error: { message?: string } | null | undefined)
   // the directive is flagged unused under --max-warnings=0.)
   console.error(`[admin-users] ${action} failed`, error)
   const msg = error?.message ?? ''
-  return new Error(SAFE_RPC_MESSAGES.has(msg) ? msg : `Couldn't ${action}. Please try again.`)
+  return new UserFacingError(SAFE_RPC_MESSAGES.has(msg) ? msg : `Couldn't ${action}. Please try again.`)
 }
 
 // ── Email synthesis (FR-021) ──────────────────────────────────────────────────

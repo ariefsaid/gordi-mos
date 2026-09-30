@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { saveErrorMessage } from '@/lib/save-error'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -214,7 +215,7 @@ export function FollowUpsPage() {
       {state === 'loading' && <SkeletonRows count={5} />}
       {state === 'error' && (
         <ErrorState
-          message={error ?? t('followUps.error')}
+          message={error ? saveErrorMessage(error, t) : t('followUps.error')}
           onRetry={() => { load() }}
         />
       )}

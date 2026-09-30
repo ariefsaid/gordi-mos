@@ -6,6 +6,7 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { saveErrorMessage } from '@/lib/save-error'
 import {
   listSubmittedKitchenLogs,
   fetchPlanMap,
@@ -766,7 +767,7 @@ function KitchenReviewPageForViewer() {
       setActionError(t('kitchen.review.error.forbidden'))
       return
     }
-    setActionError(err instanceof Error ? err.message : t('kitchen.review.error.generic'))
+    setActionError(saveErrorMessage(err, t))
   }
 
   // ── ONE DataTable: one group per action_type (Production, Transfer to …),

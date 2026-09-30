@@ -1,7 +1,7 @@
 // AccessRoles — the Access section of the person panel: one checkbox per assignable access role.
 // Every row commits on toggle and reports beside itself. Admin is the one exception to direct
 // commit: granting or removing it asks first, in the shared confirm dialog, naming the person and
-// what Admin can do. Cancel writes nothing; Confirm writes once.
+// what Admin can do. Granting Ops Lead asks the same way. Cancel writes nothing; Confirm writes once.
 //
 // Guards kept from the role editor this replaces:
 //   self-assign — admin/finance/manager/supervisor are disabled on the viewer's own row;
@@ -20,6 +20,12 @@ import { isLastActiveAdmin } from './people-filter'
 
 const SELF_GUARDED_ROLES = new Set(['admin', 'finance', 'manager', 'supervisor'])
 
+const CONFIRM_COPY = {
+  adminGrant: { title: 'admin.roles.confirmGrant.title', body: 'admin.roles.confirmGrant.body', confirm: 'admin.roles.confirmGrant.confirm' },
+  adminRevoke: { title: 'admin.roles.confirmRevoke.title', body: 'admin.roles.confirmRevoke.body', confirm: 'admin.roles.confirmRevoke.confirm' },
+  opsLeadGrant: { title: 'admin.roles.confirmOpsLead.title', body: 'admin.roles.confirmOpsLead.body', confirm: 'admin.roles.confirmOpsLead.confirm' },
+} as const
+
 export interface AccessRolesProps {
   person: AdminPersonRow
   people: readonly AdminPersonRow[]
@@ -35,7 +41,7 @@ export function AccessRoles({ person, people, commits, refresh }: AccessRolesPro
   const isSelf = person.id === viewerPersonId
   const lastAdmin = isLastActiveAdmin(person, people)
   const busy = commits.busy('role:')
-  const [confirmAdmin, setConfirmAdmin] = useState<null | { wanted: boolean }>(null)
+  const [confirmAdmin, setConfirmAdmin] = useState<null | { role: 'admin' | 'ops_lead'; wanted: boolean }>(null)
 
   function commit(role: string, wanted: boolean) {
     const write = wanted ? () => grantRole(person.id, role) : () => revokeRole(person.id, role)
@@ -44,10 +50,11 @@ export function AccessRoles({ person, people, commits, refresh }: AccessRolesPro
 
   function toggle(role: string, checked: boolean) {
     const wanted = !checked
-    // Confirm only a real change to Admin. Reverting a failed Admin attempt back to the saved
-    // value writes nothing, so it needs no confirmation either.
-    if (role === 'admin' && wanted !== person.access_roles.includes('admin')) {
-      setConfirmAdmin({ wanted })
+    // Confirm only a real change to Admin, or a grant of Ops Lead. Reverting a failed attempt back
+    // to the saved value writes nothing, so it needs no confirmation either.
+    const changes = wanted !== person.access_roles.includes(role)
+    if (changes && (role === 'admin' || (role === 'ops_lead' && wanted))) {
+      setConfirmAdmin({ role, wanted })
       return
     }
     void commit(role, wanted)
@@ -94,22 +101,25 @@ export function AccessRoles({ person, people, commits, refresh }: AccessRolesPro
         </div>
       </fieldset>
 
-      {confirmAdmin && (
-        <ConfirmDialog
-          open
-          title={t(confirmAdmin.wanted ? 'admin.roles.confirmGrant.title' : 'admin.roles.confirmRevoke.title', { name: person.full_name })}
-          body={t(confirmAdmin.wanted ? 'admin.roles.confirmGrant.body' : 'admin.roles.confirmRevoke.body')}
-          confirmLabel={t(confirmAdmin.wanted ? 'admin.roles.confirmGrant.confirm' : 'admin.roles.confirmRevoke.confirm')}
-          tone="primary"
-          onConfirm={async () => {
-            const wanted = confirmAdmin.wanted
-            setConfirmAdmin(null)
-            // The row owns the outcome (Saving… → Saved, or Failed · Retry), not the dialog.
-            void commit('admin', wanted)
-          }}
-          onCancel={() => setConfirmAdmin(null)}
-        />
-      )}
+      {confirmAdmin && (() => {
+        const copy = CONFIRM_COPY[confirmAdmin.role === 'ops_lead' ? 'opsLeadGrant' : confirmAdmin.wanted ? 'adminGrant' : 'adminRevoke']
+        return (
+          <ConfirmDialog
+            open
+            title={t(copy.title, { name: person.full_name })}
+            body={t(copy.body)}
+            confirmLabel={t(copy.confirm)}
+            tone="primary"
+            onConfirm={async () => {
+              const { role, wanted } = confirmAdmin
+              setConfirmAdmin(null)
+              // The row owns the outcome (Saving… → Saved, or Failed · Retry), not the dialog.
+              void commit(role, wanted)
+            }}
+            onCancel={() => setConfirmAdmin(null)}
+          />
+        )
+      })()}
     </div>
   )
 }

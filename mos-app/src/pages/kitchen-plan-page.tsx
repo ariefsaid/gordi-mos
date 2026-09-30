@@ -24,6 +24,7 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { saveErrorMessage } from '@/lib/save-error'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useSearchParamState } from '@/lib/use-search-param-state'
 import { isItemNotOnStreamError, listActiveWipItems, listStreamItemIds } from '@/lib/db/kitchen-logs'
@@ -341,7 +342,7 @@ function PlanEditor() {
           if (gen === requestGen.current) setOfferedIds(offered)
         }, () => {})
       } else {
-        setSaveError(err instanceof Error ? `Couldn't save — ${err.message}` : "Couldn't save — please try again.")
+        setSaveError(saveErrorMessage(err, t))
       }
     } finally {
       setSavingId(null)
