@@ -71,7 +71,7 @@ describe('synthesizeEmail (AC-011 helper, FR-021)', () => {
   })
 
   it('AC-011: lowercases and replaces spaces with dashes', () => {
-    expect(synthesizeEmail('Arief Said')).toBe('arief-said@ops.gordi.local')
+    expect(synthesizeEmail('Arden Sample')).toBe('arden-sample@ops.gordi.local')
   })
 
   it('AC-011: strips non [a-z0-9-] characters', () => {
