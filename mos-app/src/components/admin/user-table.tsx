@@ -191,7 +191,7 @@ function PersonActionMenu({
         role="menuitem"
         type="button"
         tabIndex={0}
-        className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
+        className="person-menu-item w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
         onClick={() => dispatch('manage-person')}
       >
         {t('admin.people.action.manageAccess')}
@@ -204,7 +204,7 @@ function PersonActionMenu({
           role="menuitem"
           type="button"
           tabIndex={0}
-          className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
+          className="person-menu-item w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
           onClick={() => dispatch('reset-password')}
         >
           {t('admin.people.action.resetPassword')}
@@ -219,7 +219,7 @@ function PersonActionMenu({
           aria-disabled={lastAdmin ? 'true' : undefined}
           title={lastAdmin ? t('admin.people.lastAdmin') : undefined}
           className={[
-            'w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none',
+            'person-menu-item w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none',
             lastAdmin ? 'opacity-50 cursor-not-allowed' : '',
           ].filter(Boolean).join(' ')}
           onClick={() => !lastAdmin && dispatch('disable-login')}
@@ -233,7 +233,7 @@ function PersonActionMenu({
           role="menuitem"
           type="button"
           tabIndex={0}
-          className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
+          className="person-menu-item w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
           onClick={() => dispatch('enable-login')}
         >
           {t('admin.people.action.enableLogin')}
@@ -245,7 +245,7 @@ function PersonActionMenu({
           role="menuitem"
           type="button"
           tabIndex={0}
-          className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
+          className="person-menu-item w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
           onClick={() => dispatch('create-login')}
         >
           {t('admin.people.action.createLogin')}
@@ -259,7 +259,7 @@ function PersonActionMenu({
           role="menuitem"
           type="button"
           tabIndex={0}
-          className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
+          className="person-menu-item w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
           onClick={() => dispatch('restore')}
         >
           {t('admin.people.action.restore')}
@@ -272,7 +272,7 @@ function PersonActionMenu({
           aria-disabled={lastAdmin ? 'true' : undefined}
           title={lastAdmin ? t('admin.people.lastAdmin') : undefined}
           className={[
-            'w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none',
+            'person-menu-item w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none',
             lastAdmin ? 'opacity-50 cursor-not-allowed' : '',
           ].filter(Boolean).join(' ')}
           style={{ color: lastAdmin ? undefined : 'var(--destructive)' }}

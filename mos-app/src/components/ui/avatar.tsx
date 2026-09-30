@@ -39,7 +39,7 @@ export interface AvatarProps {
   placeholder?: string
   size?: AvatarSize
   type?: AvatarType
-  /** Letters shown from the name: 1 (first word) or 2 (first + last word). */
+  // Letters shown from the name: 1 (first word) or 2 (first + last word).
   initials?: 1 | 2
   /** Explicit CSS color — overrides the seed text color. */
   color?: string

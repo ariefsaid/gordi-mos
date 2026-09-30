@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import { saveErrorMessage } from '@/lib/save-error'
 import { PageFrame } from '@/shell/page-frame'
 import { PageHead } from '@/shell/page-head'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -48,15 +47,13 @@ export function FollowUpsPage() {
   const [state, setState] = useState<FetchState>('loading')
   const [active, setActive] = useState<{ id: string; verb: FollowUpTransition } | null>(null)
   const [form, setForm] = useState({ amount: '', cash_in_date: '', evidence: '', promise_date: '', note: '' })
-  const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(() => {
     let cancelled = false
     setState('loading')
-    setError(null)
     listFollowUps({ overdue: params.get('filter') === 'overdue' })
       .then((data) => { if (!cancelled) { setRows(data); setState('ready') } })
-      .catch((err: unknown) => { if (!cancelled) { setError(err instanceof Error ? err.message : String(err)); setState('error') } })
+      .catch(() => { if (!cancelled) setState('error') })
     return () => { cancelled = true }
   }, [params])
 
@@ -215,7 +212,7 @@ export function FollowUpsPage() {
       {state === 'loading' && <SkeletonRows count={5} />}
       {state === 'error' && (
         <ErrorState
-          message={error ? saveErrorMessage(error, t) : t('followUps.error')}
+          message={t('followUps.error')}
           onRetry={() => { load() }}
         />
       )}

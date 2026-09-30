@@ -162,7 +162,8 @@ describe('FollowUpsPage', () => {
 
     mockListFollowUps.mockRejectedValueOnce(new Error('network down'))
     const errorView = render(createElement(FollowUpsPage), { wrapper })
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t save. Try again.'))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load follow-ups"))
+    expect(screen.queryByText(/network down/)).toBeNull()
     expect(errorView.container.querySelector('.error-state')).toBeTruthy()
   })
 })

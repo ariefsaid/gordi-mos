@@ -41,7 +41,7 @@ export function AccessRoles({ person, people, commits, refresh }: AccessRolesPro
   const isSelf = person.id === viewerPersonId
   const lastAdmin = isLastActiveAdmin(person, people)
   const busy = commits.busy('role:')
-  const [confirmAdmin, setConfirmAdmin] = useState<null | { role: 'admin' | 'ops_lead'; wanted: boolean }>(null)
+  const [confirmRole, setConfirmRole] = useState<null | { role: 'admin' | 'ops_lead'; wanted: boolean }>(null)
 
   function commit(role: string, wanted: boolean) {
     const write = wanted ? () => grantRole(person.id, role) : () => revokeRole(person.id, role)
@@ -54,7 +54,7 @@ export function AccessRoles({ person, people, commits, refresh }: AccessRolesPro
     // to the saved value writes nothing, so it needs no confirmation either.
     const changes = wanted !== person.access_roles.includes(role)
     if (changes && (role === 'admin' || (role === 'ops_lead' && wanted))) {
-      setConfirmAdmin({ role, wanted })
+      setConfirmRole({ role, wanted })
       return
     }
     void commit(role, wanted)
@@ -101,8 +101,8 @@ export function AccessRoles({ person, people, commits, refresh }: AccessRolesPro
         </div>
       </fieldset>
 
-      {confirmAdmin && (() => {
-        const copy = CONFIRM_COPY[confirmAdmin.role === 'ops_lead' ? 'opsLeadGrant' : confirmAdmin.wanted ? 'adminGrant' : 'adminRevoke']
+      {confirmRole && (() => {
+        const copy = CONFIRM_COPY[confirmRole.role === 'ops_lead' ? 'opsLeadGrant' : confirmRole.wanted ? 'adminGrant' : 'adminRevoke']
         return (
           <ConfirmDialog
             open
@@ -111,12 +111,12 @@ export function AccessRoles({ person, people, commits, refresh }: AccessRolesPro
             confirmLabel={t(copy.confirm)}
             tone="primary"
             onConfirm={async () => {
-              const { role, wanted } = confirmAdmin
-              setConfirmAdmin(null)
+              const { role, wanted } = confirmRole
+              setConfirmRole(null)
               // The row owns the outcome (Saving… → Saved, or Failed · Retry), not the dialog.
               void commit(role, wanted)
             }}
-            onCancel={() => setConfirmAdmin(null)}
+            onCancel={() => setConfirmRole(null)}
           />
         )
       })()}

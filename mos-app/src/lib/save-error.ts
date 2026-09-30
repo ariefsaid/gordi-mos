@@ -2,7 +2,7 @@ import type { MessageKey } from '@/i18n/messages'
 import type { Translate } from '@/i18n/use-t'
 import { isNetworkError } from '@/lib/network-error'
 
-/** An error whose message the app wrote for the user (already localised or curated). */
+// An error whose message the app wrote for the user (already localised or curated).
 export class UserFacingError extends Error {}
 
 const PERMISSION_CODES = new Set(['42501', 'PGRST301'])
@@ -34,10 +34,7 @@ function classify(error: unknown): MessageKey {
   return 'error.save.generic'
 }
 
-/**
- * The text a failed write (or read) shows the user: the app's own words for the known cases, a
- * generic line otherwise. The raw error goes to the console only — never into the UI.
- */
+// The app's own words for a failed save; the raw error goes to the console, never the UI.
 export function saveErrorMessage(error: unknown, t: Translate): string {
   if (error instanceof UserFacingError) return error.message
   console.error('[save-error]', error)
