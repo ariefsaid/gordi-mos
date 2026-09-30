@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthContext, type AuthState } from '@/auth/context'
@@ -42,6 +42,7 @@ vi.mock('@/lib/agent-redirect', async (importOriginal) => ({
 import { OAuthConsentPage } from './oauth-consent-page'
 
 const AUTH_ID = 'auth-req-1'
+const ALLOW_DELAY = 600
 const DETAILS = {
   authorization_id: AUTH_ID,
   redirect_uri: 'https://agent.example.test/callback',
@@ -85,6 +86,13 @@ function readyToConsent() {
   mocks.deny.mockResolvedValue({ data: { redirect_url: 'https://agent.example.test/callback?error=access_denied' }, error: null })
 }
 
+// Allow is inert for a moment after the card shows; wait it out like a person reading would.
+async function armedAllow() {
+  const allow = await screen.findByRole('button', { name: 'Allow' })
+  await waitFor(() => expect(allow).not.toHaveAttribute('aria-disabled'), { timeout: ALLOW_DELAY * 3 })
+  return allow
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -117,21 +125,21 @@ describe('OAuthConsentPage', () => {
     expect(heading).toBeInTheDocument()
   })
 
-  it('puts focus on the heading, then Tab goes Allow then Deny', async () => {
+  it('puts focus on the heading, then Tab reaches Deny before Allow', async () => {
     const user = userEvent.setup()
     renderPage()
     const heading = await screen.findByRole('heading', { name: /Claude Desktop/ })
     await waitFor(() => expect(heading).toHaveFocus())
     await user.tab()
-    expect(screen.getByRole('button', { name: 'Allow' })).toHaveFocus()
-    await user.tab()
     expect(screen.getByRole('button', { name: 'Deny' })).toHaveFocus()
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'Allow' })).toHaveFocus()
   })
 
   it('Allow approves through the auth API without its own redirect, then returns to the agent', async () => {
     const user = userEvent.setup()
     renderPage()
-    await user.click(await screen.findByRole('button', { name: 'Allow' }))
+    await user.click(await armedAllow())
     await waitFor(() => expect(mocks.redirect).toHaveBeenCalledWith(AGENT_URL))
     expect(mocks.approve).toHaveBeenCalledWith(AUTH_ID, { skipBrowserRedirect: true })
     expect(mocks.deny).not.toHaveBeenCalled()
@@ -140,8 +148,8 @@ describe('OAuthConsentPage', () => {
   it('Enter on the focused Allow approves', async () => {
     const user = userEvent.setup()
     renderPage()
-    await screen.findByRole('button', { name: 'Allow' })
-    await user.tab()
+    const allow = await armedAllow()
+    allow.focus()
     await user.keyboard('{Enter}')
     await waitFor(() => expect(mocks.approve).toHaveBeenCalledTimes(1))
   })
@@ -171,7 +179,7 @@ describe('OAuthConsentPage', () => {
     const user = userEvent.setup()
     mocks.approve.mockReturnValue(new Promise(() => {}))
     renderPage()
-    const allow = await screen.findByRole('button', { name: 'Allow' })
+    const allow = await armedAllow()
     await user.click(allow)
     await user.click(allow)
     expect(mocks.approve).toHaveBeenCalledTimes(1)
@@ -200,12 +208,13 @@ describe('OAuthConsentPage', () => {
     expect(mocks.getDetails).not.toHaveBeenCalled()
   })
 
-  it('a viewer without agent.connect sees the reason and a disabled Allow', async () => {
+  it('a viewer without agent.connect sees only the reason and a way back, no Allow and no Deny', async () => {
     mocks.rpc.mockResolvedValue({ data: false, error: null })
     renderPage()
     expect(await screen.findByText('Ask an admin to let you connect agents.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Allow' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Deny' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Allow' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Deny' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Back to Home' })).toHaveAttribute('href', '/')
   })
 
   it('asks the authority function for agent.connect', async () => {
@@ -214,15 +223,17 @@ describe('OAuthConsentPage', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('role_authority_allows', { p_action: 'agent.connect' })
   })
 
-  it('an agent app not on the allow-list gets a neutral label, never its self-declared name, and Allow is disabled', async () => {
+  it('an agent app not on the allow-list gets a neutral label, never its self-declared name, and no Allow or Deny', async () => {
     mocks.maybeSingle.mockResolvedValue({ data: null, error: null })
     renderPage()
     expect(await screen.findByRole('heading', { name: 'Allow this agent app to connect?' })).toBeInTheDocument()
     expect(screen.queryByText(/Registered Name/)).not.toBeInTheDocument()
     expect(screen.getByText(/not yet trusted/i)).toBeInTheDocument()
     expect(screen.getByText(/An admin has to trust this agent app before it can connect/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Allow' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Deny' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Allow' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Deny' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Back to Home' })).toBeInTheDocument()
+    expect(mocks.deny).not.toHaveBeenCalled()
   })
 
   it('looks the agent app up by this request\'s client and only among enabled entries', async () => {
@@ -248,6 +259,7 @@ describe('OAuthConsentPage', () => {
     mocks.getDetails.mockResolvedValueOnce({ data: null, error: { name: 'AuthRetryableFetchError', status: 0, message: 'net' } })
     renderPage()
     const alert = await screen.findByRole('alert')
+    await waitFor(() => expect(alert.parentElement).toHaveFocus())
     await user.click(within(alert).getByRole('button', { name: /retry|try again/i }))
     expect(await screen.findByRole('button', { name: 'Allow' })).toBeEnabled()
     expect(mocks.getDetails).toHaveBeenCalledTimes(2)
@@ -257,8 +269,9 @@ describe('OAuthConsentPage', () => {
     const user = userEvent.setup()
     mocks.approve.mockResolvedValueOnce({ data: null, error: { name: 'AuthApiError', status: 500, message: 'boom' } })
     renderPage()
-    await user.click(await screen.findByRole('button', { name: 'Allow' }))
-    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    await user.click(await armedAllow())
+    const alert = await screen.findByRole('alert')
+    expect(alert.parentElement).toHaveFocus()
     expect(mocks.redirect).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.getByRole('button', { name: 'Allow' })).toBeEnabled())
     await user.click(screen.getByRole('button', { name: 'Allow' }))
@@ -270,11 +283,60 @@ describe('OAuthConsentPage', () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     mocks.approve.mockResolvedValue({ data: { redirect_url: 'javascript:alert(1)//code=SENTINEL-CODE&state=SENTINEL-STATE' }, error: null })
     renderPage()
-    await user.click(await screen.findByRole('button', { name: 'Allow' }))
+    await user.click(await armedAllow())
     expect(await screen.findByRole('alert')).toBeInTheDocument()
     expect(mocks.redirect).not.toHaveBeenCalled()
     expect(JSON.stringify(logged.mock.calls)).not.toMatch(/SENTINEL|javascript/)
     logged.mockRestore()
+  })
+
+  it.each(['../rest/v1/rpc/x', '..%2Fx', 'a/b', 'a b', '', 'x'.repeat(129)])(
+    'a malformed authorization id %j is unknown and never reaches the auth API',
+    async (id) => {
+      renderPage(`/oauth/consent?authorization_id=${encodeURIComponent(id)}`)
+      expect(await screen.findByRole('heading', { name: /expired or isn.t valid/i })).toBeInTheDocument()
+      expect(mocks.getDetails).not.toHaveBeenCalled()
+      expect(mocks.approve).not.toHaveBeenCalled()
+    },
+  )
+
+  it('Deny works at once; Allow is inert for a moment after the card shows and again after the window regains focus', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      renderPage()
+      const allow = await screen.findByRole('button', { name: 'Allow' })
+      expect(allow).toHaveAttribute('aria-disabled', 'true')
+      await user.click(allow)
+      expect(mocks.approve).not.toHaveBeenCalled()
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(ALLOW_DELAY) })
+      expect(allow).not.toHaveAttribute('aria-disabled')
+
+      // Back from another window: inert again until the delay passes.
+      act(() => { window.dispatchEvent(new Event('focus')) })
+      expect(allow).toHaveAttribute('aria-disabled', 'true')
+      await user.click(allow)
+      expect(mocks.approve).not.toHaveBeenCalled()
+      await act(async () => { await vi.advanceTimersByTimeAsync(ALLOW_DELAY) })
+      await user.click(allow)
+      await waitFor(() => expect(mocks.approve).toHaveBeenCalledTimes(1))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('Deny is live the moment the card shows', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Deny' }))
+    await waitFor(() => expect(mocks.deny).toHaveBeenCalledTimes(1))
+  })
+
+  it('the returning state says so in visible text', async () => {
+    mocks.getDetails.mockResolvedValue({ data: { redirect_url: AGENT_URL }, error: null })
+    renderPage()
+    expect(await screen.findByText('Returning you to the agent app…', { selector: 'p' })).toBeVisible()
   })
 
   it('renders Indonesian copy', async () => {
@@ -282,5 +344,6 @@ describe('OAuthConsentPage', () => {
     expect(await screen.findByRole('button', { name: 'Izinkan' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Tolak' })).toBeEnabled()
     expect(screen.getByText(/Memperbarui uraian Sasaran dan progres hasil kunci/)).toBeInTheDocument()
+    expect(screen.getByText(/atau mengurus keuangan/)).toBeInTheDocument()
   })
 })

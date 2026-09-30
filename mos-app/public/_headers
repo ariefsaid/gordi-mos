@@ -1,0 +1,5 @@
+# Cloudflare Pages response headers. MOS frames nothing of its own, so no page may be framed:
+# the agent consent step and the permission settings are clickjacking targets.
+/*
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Frame-Options: DENY

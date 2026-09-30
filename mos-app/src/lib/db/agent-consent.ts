@@ -23,6 +23,11 @@ export interface ConsentGate {
   trustedName: string | null
 }
 
+// The auth client puts the id straight into a URL path, so anything beyond a plain token
+// (a slash, `..`, an encoded separator) could aim the call at another path on the auth host.
+const AUTHORIZATION_ID = /^[A-Za-z0-9_-]{1,128}$/
+export const isAuthorizationId = (value: string | null): value is string => value !== null && AUTHORIZATION_ID.test(value)
+
 const oauth = () => supabase.auth.oauth
 const shared = () => supabase.schema('shared')
 
@@ -37,6 +42,7 @@ function statusOf(error: unknown): number | undefined {
 }
 
 export async function loadConsentRequest(authorizationId: string): Promise<ConsentLoad> {
+  if (!isAuthorizationId(authorizationId)) return { kind: 'unknown' }
   const { data, error } = await oauth().getAuthorizationDetails(authorizationId)
   if (error) {
     const status = statusOf(error)
@@ -73,6 +79,7 @@ export async function loadConsentGate(clientId: string): Promise<ConsentGate> {
 
 /** Approve or deny; returns the address to send the browser to. */
 export async function decideConsent(authorizationId: string, decision: 'approve' | 'deny'): Promise<string> {
+  if (!isAuthorizationId(authorizationId)) throw fail('follow this request', 'malformed authorization id')
   const options = { skipBrowserRedirect: true }
   const { data, error } =
     decision === 'approve'

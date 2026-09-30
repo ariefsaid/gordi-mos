@@ -13,6 +13,7 @@ import { useT } from '@/i18n/use-t'
 import { agentRedirectLabel, isSafeAgentRedirect, redirectToAgent } from '@/lib/agent-redirect'
 import {
   decideConsent,
+  isAuthorizationId,
   loadConsentGate,
   loadConsentRequest,
   type ConsentGate,
@@ -21,6 +22,10 @@ import {
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import './oauth-consent-page.css'
+
+// Allow stays inert this long after the card shows and after the window regains focus, so a
+// double-click meant for another page cannot land on it (Deny is never delayed).
+const ALLOW_DELAY_MS = 600
 
 type View =
   | { kind: 'loading' }
@@ -43,7 +48,7 @@ export function OAuthConsentPage() {
     let live = true
     const settle = (next: View) => live && setView(next)
     settle({ kind: 'loading' })
-    if (!authorizationId) {
+    if (!isAuthorizationId(authorizationId)) {
       settle({ kind: 'unknown' })
       return () => { live = false }
     }
@@ -78,9 +83,9 @@ export function OAuthConsentPage() {
 
   switch (view.kind) {
     case 'loading':
-      return frame('loading', <LoadingShell count={4} label={t('consent.loading')} />)
+      return frame('loading', <ConsentSkeleton label={t('consent.loading')} />)
     case 'redirecting':
-      return frame('loading', <LoadingShell count={2} label={t('consent.returning')} />)
+      return frame('loading', <ConsentSkeleton label={t('consent.returning')} visible />)
     case 'unknown':
       return frame(
         'empty',
@@ -89,31 +94,73 @@ export function OAuthConsentPage() {
         </EmptyState>,
       )
     case 'error':
-      return frame('error', <ErrorState message={t('consent.loadError')} onRetry={retry} />)
+      return frame('error', <FocusOnMount><ErrorState message={t('consent.loadError')} onRetry={retry} /></FocusOnMount>)
     case 'ready':
       return frame(view.gate.canConnect && view.gate.trustedName ? 'default' : 'permission',
         <ConsentCard request={view.request} gate={view.gate} onDone={() => setView({ kind: 'redirecting' })} />)
   }
 }
 
+// The loading frame has the card's shape, so the card replaces it without a jump.
+function ConsentSkeleton({ label, visible = false }: { label: string; visible?: boolean }) {
+  return (
+    <div className="consent consent--loading">
+      {visible && <p className="consent__returning">{label}</p>}
+      <LoadingShell
+        count={5}
+        label={label}
+        row={(i) => <div key={i} className={`skeleton-bar consent__skeleton consent__skeleton--${i}`} />}
+      />
+    </div>
+  )
+}
+
+// Moves a keyboard or screen-reader user to the message that just appeared.
+function FocusOnMount({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => { ref.current?.focus() }, [])
+  return <div ref={ref} tabIndex={-1} className="consent__focus">{children}</div>
+}
+
 function ConsentCard({ request, gate, onDone }: { request: ConsentRequest; gate: ConsentGate; onDone: () => void }) {
   const t = useT()
   const auth = useAuth()
   const headingId = useId()
-  const reasonId = useId()
   const headingRef = useRef<HTMLHeadingElement>(null)
   const inFlight = useRef(false)
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [armed, setArmed] = useState(false)
 
   useEffect(() => { headingRef.current?.focus() }, [])
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>
+    const arm = () => {
+      setArmed(false)
+      clearTimeout(timer)
+      timer = setTimeout(() => setArmed(true), ALLOW_DELAY_MS)
+    }
+    const onVisible = () => { if (document.visibilityState === 'visible') arm() }
+    arm()
+    window.addEventListener('focus', arm)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('focus', arm)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [])
 
   const name = gate.trustedName ?? t('consent.unnamedAgent')
   const person = auth.status === 'authenticated' ? auth.viewer.person.full_name : request.userEmail
   const reason = !gate.canConnect ? t('consent.noPermission') : !gate.trustedName ? t('consent.untrusted') : null
+  // No Allow, and no Deny that would send the browser to an agent app that is not trusted.
+  const canDecide = reason === null
 
   const decide = async (decision: 'approve' | 'deny') => {
-    if (inFlight.current) return
+    if (inFlight.current || !canDecide) return
+    if (decision === 'approve' && !armed) return
     inFlight.current = true
     setBusy(true)
     setFailed(false)
@@ -134,7 +181,7 @@ function ConsentCard({ request, gate, onDone }: { request: ConsentRequest; gate:
         {t('consent.heading', { agent: name })}
       </h2>
       {!gate.trustedName && <p className="consent__tag">{t('consent.notTrusted')}</p>}
-      <p className="consent__line">{t('consent.actsAs', { name: person, email: request.userEmail })}</p>
+      <p className="consent__line consent__line--strong">{t('consent.actsAs', { name: person, email: request.userEmail })}</p>
       <p className="consent__line">
         {t('consent.returnsTo')} <strong className="consent__host">{agentRedirectLabel(request.redirectUri)}</strong>
       </p>
@@ -154,20 +201,27 @@ function ConsentCard({ request, gate, onDone }: { request: ConsentRequest; gate:
           </ul>
         </div>
       </div>
-      {reason && <p id={reasonId} className="consent__reason">{reason}</p>}
-      {failed && <ErrorState message={t('consent.decideError')} />}
+      {reason && <p className="consent__reason">{reason}</p>}
+      {failed && <FocusOnMount><ErrorState message={t('consent.decideError')} /></FocusOnMount>}
       <div className="consent__actions">
-        <Button
-          variant="primary"
-          disabled={busy || reason !== null}
-          aria-describedby={reason ? reasonId : undefined}
-          onClick={() => void decide('approve')}
-        >
-          {t('consent.allow')}
-        </Button>
-        <Button variant="outline" disabled={busy} onClick={() => void decide('deny')}>
-          {t('consent.deny')}
-        </Button>
+        {canDecide ? (
+          <>
+            <Button variant="outline" disabled={busy} onClick={() => void decide('deny')}>
+              {t('consent.deny')}
+            </Button>
+            <Button
+              variant="primary"
+              className="consent__allow"
+              disabled={busy}
+              aria-disabled={!armed || undefined}
+              onClick={() => void decide('approve')}
+            >
+              {t('consent.allow')}
+            </Button>
+          </>
+        ) : (
+          <Link to="/" className="btn btn-outline">{t('consent.back')}</Link>
+        )}
       </div>
     </section>
   )

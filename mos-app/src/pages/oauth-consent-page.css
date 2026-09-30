@@ -18,15 +18,16 @@
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
-.consent__heading:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: var(--radius-xs); }
+/* Script-only focus target, not a control: it draws no ring (the buttons keep the global ring). */
+.consent__heading:focus, .consent__focus:focus { outline: none; }
 
 .consent__tag {
   display: inline-block;
   margin: 0 0 12px;
   padding: 2px 8px;
-  border: 1px solid color-mix(in srgb, var(--status-lost-text) 40%, var(--border));
   border-radius: var(--radius-sm);
-  color: var(--status-lost-text);
+  background: var(--secondary);
+  color: var(--foreground);
   font-size: var(--font-size-label);
   font-weight: 600;
 }
@@ -38,16 +39,16 @@
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
+.consent__line--strong { color: var(--foreground); }
 .consent__host { color: var(--foreground); font-weight: 600; }
 
 .consent__lists { display: grid; gap: 16px; margin: 20px 0; }
 .consent__subheading {
   margin: 0 0 6px;
-  font-size: var(--font-size-label);
+  font-family: var(--font-display);
+  font-size: var(--font-size-body-lg);
   font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--muted-foreground);
+  color: var(--foreground);
 }
 .consent__list { margin: 0; padding-left: 18px; list-style: disc; font-size: var(--font-size-body); line-height: 1.5; }
 .consent__list li + li { margin-top: 4px; }
@@ -61,7 +62,20 @@
   font-size: var(--font-size-body);
 }
 
-.consent .error-state { margin: 0 0 16px; padding: 10px 12px; }
+.consent .error-state { margin: 0 0 16px; padding: 0; }
+
+.consent__allow[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
+
+/* Loading frame shaped like the card: heading, two lines, two lists, buttons. */
+.consent--loading { display: grid; gap: 12px; }
+.consent__returning { margin: 0; font-family: var(--font-display); font-size: var(--font-size-heading); font-weight: 600; }
+.consent--loading .skeleton-rows { display: grid; gap: 12px; }
+.consent__skeleton { height: 14px; }
+.consent__skeleton--0 { width: 70%; height: 22px; }
+.consent__skeleton--1 { width: 100%; }
+.consent__skeleton--2 { width: 85%; }
+.consent__skeleton--3 { width: 60%; }
+.consent__skeleton--4 { width: 40%; height: 32px; }
 
 .consent__actions { display: flex; gap: 8px; }
 
