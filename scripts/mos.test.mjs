@@ -291,6 +291,29 @@ describe('logout', () => {
     assert.equal(h.calls.length, 1);
   });
 
+  it('after a 401 or 403 from the revoke, refreshes once and clears locally only if the session has ended', async () => {
+    for (const status of [401, 403]) {
+      const h = harness({ stored: creds(), handlers: [() => json(status, { message: 'nope' }), () => json(400, { code: 400, error_code: 'session_not_found' })] });
+      assert.equal(await run(['logout'], h.io), 0, `status ${status}`);
+      assert.deepEqual(JSON.parse(h.out()), { signed_out: true, already_ended: true });
+      assert.equal(h.keychain.store.size, 0);
+      assert.match(h.calls[1].url, /grant_type=refresh_token$/);
+      assert.equal(h.calls.length, 2);
+    }
+  });
+
+  it('keeps the credential after a 401 from the revoke when the refresh succeeds or fails otherwise', async () => {
+    let h = harness({ stored: creds(), handlers: [() => json(401, {}), () => tokenReply(2)] });
+    assert.equal(await run(['logout'], h.io), 1);
+    assert.equal(saved(h.keychain).refresh_token, 'refresh-2');
+    h = harness({ stored: creds(), handlers: [() => json(401, {}), () => json(400, { error_code: 'validation_failed' })] });
+    assert.equal(await run(['logout'], h.io), 1);
+    assert.equal(saved(h.keychain).refresh_token, 'refresh-1');
+    h = harness({ stored: creds(), handlers: [() => json(401, {}), () => Promise.reject(new TypeError('fetch failed'))] });
+    assert.equal(await run(['logout'], h.io), 1);
+    assert.equal(h.keychain.store.size, 1);
+  });
+
   it('is a success when nothing is stored', async () => {
     const h = harness();
     assert.equal(await run(['logout'], h.io), 0);
@@ -319,6 +342,18 @@ describe('login', () => {
     assert.equal(saved(h.keychain).access_token, 'access-1');
     assert.ok(!h.out().includes('access-1') && !h.out().includes('SENTINEL'));
     assert.ok(!h.err().includes('SENTINEL'));
+  });
+
+  it('names the target origin on stderr before asking for the email or the password', async () => {
+    const h = harness({ stdinTTY: true, handlers: [() => tokenReply(1)] });
+    const seen = [];
+    h.io.prompt = {
+      line: async () => (seen.push(['email', h.err()]), 'p@example.test'),
+      secret: async () => (seen.push(['password', h.err()]), 'pw'),
+    };
+    assert.equal(await run(['login'], h.io), 0);
+    assert.equal(seen.length, 2);
+    for (const [, err] of seen) assert.equal(err, `Signing in to ${URL_}\n`);
   });
 
   it('stores nothing when the server refuses the sign-in', async () => {
@@ -405,6 +440,16 @@ describe('keychain', () => {
     const write = sec.log.find((l) => l.args[0] === '-i');
     assert.deepEqual(write.args, ['-i']);
     assert.match(write.input, new RegExp(`^add-generic-password -U -s ${KEYCHAIN_SERVICE} -a "${URL_}" -w ${b64}\\n$`));
+  });
+
+  it('refuses a line of 4000 bytes or more before running `security` at all', async () => {
+    const sec = fakeSecurity();
+    const kc = createMacKeychain({ spawn: sec.spawn, platform: 'darwin' });
+    await kc.set(URL_, 'a'.repeat(2850));
+    assert.equal(sec.log.filter((l) => l.args[0] === '-i').length, 1);
+    const before = sec.log.length;
+    await assert.rejects(kc.set(URL_, 'a'.repeat(3000)), /too large/);
+    assert.equal(sec.log.length, before);
   });
 
   it('fails a write the keychain silently dropped', async () => {

@@ -86,6 +86,7 @@ export function resolveTarget(env) {
 
 // ── keychain (macOS `security`) ──────────────────────────────────────────────────────────────────
 
+const MAX_SECURITY_LINE = 4000;
 const ACCOUNT = /^[A-Za-z0-9:/._\-[\]%]+$/;
 
 function runSecurity(spawnFn, args, input) {
@@ -132,7 +133,10 @@ export function createMacKeychain({ spawn: spawnFn = spawn, platform = process.p
     async set(account, secret) {
       need(account);
       const enc = Buffer.from(secret, 'utf8').toString('base64url');
-      await runSecurity(spawnFn, ['-i'], `add-generic-password -U -s ${KEYCHAIN_SERVICE} -a "${account}" -w ${enc}\n`);
+      const line = `add-generic-password -U -s ${KEYCHAIN_SERVICE} -a "${account}" -w ${enc}\n`;
+      // `security -i` splits a line near 4096 bytes and runs the rest as another command.
+      if (Buffer.byteLength(line) >= MAX_SECURITY_LINE) throw new CliError('The session is too large to store in the keychain safely; nothing was stored.');
+      await runSecurity(spawnFn, ['-i'], line);
       if ((await get(account)) !== secret) throw new CliError('The keychain did not accept the session (is it unlocked?)');
     },
     async delete(account) {
@@ -303,6 +307,7 @@ async function login(ctx, flags) {
   if (!ctx.stdin?.isTTY || !ctx.stderr?.isTTY) {
     throw usage('`mos login` needs a real terminal: the password is typed there, never piped, passed as an argument or set in the environment.');
   }
+  ctx.stderr.write(`Signing in to ${ctx.supabaseUrl}\n`);
   const email = flags.email || (await ctx.prompt.line('MOS email: '));
   if (!email) throw usage('An email is required');
   const password = await ctx.prompt.secret('Password (hidden): ');
@@ -338,6 +343,17 @@ async function logout(ctx) {
     }
   }
   const r = await send(ctx, 'POST', '/auth/v1/logout?scope=local', { headers: { authorization: `Bearer ${creds.access_token}` } });
+  if (r.status === 401 || r.status === 403) {
+    // The token may simply be stale; a refresh that reports the session gone settles it.
+    try {
+      await refresh(ctx, creds);
+    } catch (e) {
+      if (SESSION_ENDED.has(e.code)) {
+        await ctx.keychain.delete(ctx.supabaseUrl);
+        return { signed_out: true, already_ended: true };
+      }
+    }
+  }
   if (!r.ok) {
     const e = apiError(r);
     throw new CliError(`The server did not confirm the sign-out (${e.message}); your credential was kept. Run \`mos logout\` again.`, {
