@@ -2418,7 +2418,7 @@ describe('Ticket #750 — AC-022 in-row PIC/Due edit follows the permission rule
     await waitFor(() => screen.getByText('Bar team task'))
 
     // PIC cell: an inline trigger opens the picker, offering self + downline.
-    const picTrigger = within(screen.getByText('Bar team task').closest('tr')!).getByRole('button', { name: /Rina Barista/ })
+    const picTrigger = within(screen.getByText('Bar team task').closest('tr')!).getByRole('button', { name: /Sample Barista/ })
     fireEvent.click(picTrigger)
     expect(screen.getByRole('combobox', { name: 'Edit task PIC' })).toHaveAttribute('aria-expanded', 'true')
     const optionLabels = screen.getAllByRole('option').map((option) => option.textContent)
