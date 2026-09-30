@@ -112,7 +112,7 @@ export type TaskRowProps = {
   isNew?: boolean
   onDiscardNewTask?: () => void
   createError?: boolean
-  onRetryCreate?: () => void
+  onRetryCreate?: (title: string) => void
   /** Total <td>/<th> count the table currently renders — the isNew row spans all of them
    * (the create form occupies the full table width, never a bent column layout). */
   columnSpan?: number

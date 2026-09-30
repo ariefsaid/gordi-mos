@@ -195,6 +195,22 @@ describe('connected agent pages', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not update this app or connection. Try again.')
   })
 
+  it('keeps the admin revoke dialog open with the curated error when the action fails', async () => {
+    const user = userEvent.setup()
+    mockRevokeAdmin.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(true)
+    renderAdminPage()
+    await screen.findByText('Ari Example')
+
+    await user.click(screen.getByRole('button', { name: 'Revoke connection' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Revoke Ari Example’s access to Northstar?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Revoke connection' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Could not update this app or connection. Try again.')
+    expect(dialog).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Revoke connection' }))
+    await waitFor(() => expect(mockRevokeAdmin).toHaveBeenCalledTimes(2))
+  })
+
   it('refreshes the list and reports when an admin revoke finds no active connection', async () => {
     const user = userEvent.setup()
     mockRevokeAdmin.mockResolvedValueOnce(false)

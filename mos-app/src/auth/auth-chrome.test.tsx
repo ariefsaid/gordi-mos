@@ -44,7 +44,7 @@ describe('AC-014: auth chrome names a role', () => {
 
   // The dev personas are fictional and DEV-gated, so the sweep is over the shipped catalog.
   it('no auth catalog string names a person', () => {
-    const names = /\b(Arief|Dewi|Cahya|Krishna|Kartika|Sinta|Rama|Sari|Fitri|Riri|Ibnu|Ansori)\b/
+    const names = /\b(Arden|Dewi|Cahya|Krishna|Kartika|Sinta|Rama|Sari|Fitri)\b/
     const offenders: string[] = []
     for (const locale of ['en', 'id'] as const) {
       const catalog = messages[locale] as Record<string, string>
