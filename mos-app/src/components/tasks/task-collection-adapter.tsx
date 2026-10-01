@@ -7,8 +7,9 @@ import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { ProcessRunRollup } from '@/lib/db/processes.types'
 import { listRunRollups, listTaskDefs } from '@/lib/db/processes'
 import {
-  getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams, getTeamsByIds, listRoleNames,
+  getBusinessUnits, getPeople, getDownlinePersonIds, getPersonBusinessUnitIds, getPersonTeams, getTeamsByIds, listRoleNames,
 } from '@/lib/db/directory'
+import { hasOrgWideAuthority } from '@/lib/role-scope'
 import type { BusinessUnitOption, PersonOption, TeamOption } from '@/lib/db/directory'
 import type { TaskTeamView } from '@/lib/team-context'
 import { deriveTaskTeamView } from '@/lib/team-context'
@@ -323,8 +324,15 @@ export interface TaskCollectionContext {
   downlinePersonIds?: readonly string[]
   businessUnitNamesById: ReadonlyMap<string, string>
   personNamesById: ReadonlyMap<string, string>
-  /** Effective Team memberships for the viewer; populated for the Team work load. */
+  /** Effective Team memberships for the viewer; populated for the Team work load — and, since
+   *  OD-TASK-3, for a non-org-wide viewer's All/Relevant load. */
   viewerTeams?: readonly TeamOption[]
+  /** Business Units of the viewer's held roles (OD-TASK-3's role half of Relevant); populated
+   *  by load for a non-org-wide viewer's All load. A Team membership carries its own BU. */
+  viewerRoleBuIds?: readonly string[]
+  /** OD-TASK-3: strict `false` scopes the All view to Relevant for this viewer (admin keeps the
+   *  full list). Absent means an unscoped hand-built context — load always sets a real boolean. */
+  viewerOrgWide?: boolean
   /** Real Team display names keyed by canonical Team id; never inferred from BU. */
   teamNamesById?: ReadonlyMap<string, string>
   /** Integrity-aware Task Team/derived BU view keyed by canonical task id. */
@@ -387,10 +395,10 @@ function isDoneWithinLiveWindow(r: TaskCollectionRecord, now: Date): boolean {
 function matchesTaskFilters(
   r: TaskCollectionRecord,
   query: TaskCollectionQuery,
-  viewerId: string | null,
-  now: Date,
-  viewerTeams: readonly TeamOption[],
+  ctx: TaskCollectionContext,
 ): boolean {
+  const viewerId = ctx.viewerId
+  const viewerTeams = ctx.viewerTeams ?? []
   if (query.view === 'my-work' && viewerId && r.picId !== viewerId && r.supervisorId !== viewerId) return false
   if (query.view === 'team-work') {
     const viewerTeamIds = new Set(viewerTeams.map((team) => team.id))
@@ -403,9 +411,23 @@ function matchesTaskFilters(
       return false
     }
   }
+  // OD-TASK-3: for a non-org-wide viewer the All view IS Relevant — the viewer as PIC or
+  // Supervisor, plus their Teams' tasks, plus their Business Units' (Teams' + roles'). A LIST
+  // scope only: read access is unchanged, RLS stays the authority, any task still opens by link.
+  if (query.view === 'all' && ctx.viewerOrgWide === false) {
+    const minePersonally = viewerId !== null && (r.picId === viewerId || r.supervisorId === viewerId)
+    const myTeamIds = new Set(viewerTeams.map((team) => team.id))
+    const myBuIds = new Set([
+      ...viewerTeams.map((team) => team.businessUnitId),
+      ...(ctx.viewerRoleBuIds ?? []),
+    ])
+    const inMyScope = (r.teamId !== null && myTeamIds.has(r.teamId))
+      || (r.businessUnitId !== null && myBuIds.has(r.businessUnitId))
+    if (!minePersonally && !inMyScope) return false
+  }
   if (query.view === 'my-pic' && viewerId && r.picId !== viewerId) return false
   if (query.view === 'my-supervisor' && viewerId && r.supervisorId !== viewerId) return false
-  if ((query.view === 'my-work' || query.view === 'team-work') && r.status === 'Done' && !isDoneWithinLiveWindow(r, now)) return false
+  if ((query.view === 'my-work' || query.view === 'team-work') && r.status === 'Done' && !isDoneWithinLiveWindow(r, ctx.now)) return false
   if (query.picId && r.picId !== query.picId) return false
   if (query.supervisorId && r.supervisorId !== query.supervisorId) return false
   // The single "Person" filter matches PIC *or* Supervisor (the person's whole involvement).
@@ -414,12 +436,13 @@ function matchesTaskFilters(
   if (query.status && r.status !== query.status) return false
   if (query.q && !r.title.toLowerCase().includes(query.q.toLowerCase())) return false
   const overdueOnly = query.overdueOnly || query.view === 'overdue'
-  if (overdueOnly && !isRecordOverdue(r, now)) return false
+  if (overdueOnly && !isRecordOverdue(r, ctx.now)) return false
   return true
 }
 
-/** True when any client-side filter is populated (drives empty vs filtered-empty). */
-function taskFiltersAreActive(query: TaskCollectionQuery): boolean {
+/** True when any client-side filter is populated (drives empty vs filtered-empty). The Relevant
+ *  scope counts: a non-org-wide All view that hides every row is filtered-empty, not empty. */
+function taskFiltersAreActive(query: TaskCollectionQuery, viewerOrgWide: boolean | undefined): boolean {
   return (
     query.q !== '' ||
     query.businessUnitId !== null ||
@@ -432,7 +455,8 @@ function taskFiltersAreActive(query: TaskCollectionQuery): boolean {
     query.view === 'team-work' ||
     query.view === 'my-pic' ||
     query.view === 'my-supervisor' ||
-    query.view === 'overdue'
+    query.view === 'overdue' ||
+    (query.view === 'all' && viewerOrgWide === false)
   )
 }
 
@@ -636,7 +660,7 @@ export function projectTaskCollection(
   const withOverrides = ctx.statusOverrides.size === 0
     ? data.records
     : data.records.map((r) => (ctx.statusOverrides.has(r.id) ? { ...r, status: ctx.statusOverrides.get(r.id)! } : r))
-  const filtered = withOverrides.filter((r) => matchesTaskFilters(r, query, ctx.viewerId, ctx.now, ctx.viewerTeams ?? []))
+  const filtered = withOverrides.filter((r) => matchesTaskFilters(r, query, ctx))
   const sorted = sortTaskRecords(filtered, query, ctx.personNamesById)
   // #569: a group with zero rows in the current filter scope does not render — an empty
   // bucket never leads the grouped table. Groups holding rows keep their exact order
@@ -647,7 +671,7 @@ export function projectTaskCollection(
     visibleRecords: sorted,
     groups,
     totalRecords: data.records.length,
-    visibleRecordsAreFiltered: taskFiltersAreActive(query),
+    visibleRecordsAreFiltered: taskFiltersAreActive(query, ctx.viewerOrgWide),
   }
 }
 
@@ -792,11 +816,17 @@ function toNameMap<T extends { id: string }>(rows: readonly T[], nameOf: (r: T) 
 async function loadTaskCollection(args: {
   query: TaskCollectionQuery
   viewerId: string | null
+  accessRoles?: readonly string[]
 }): Promise<CollectionData<TaskCollectionRecord, TaskCollectionContext>> {
   // BU/Status filtering is client-side in the projector (honest empty-vs-filtered-empty); only
   // `includeArchived` is a server concern (archived rows are excluded by default).
   const filters: TaskListFilters = { includeArchived: args.query.includeArchived }
-  const [rows, businessUnits, people, downlinePersonIds, objectives, workLines] = await Promise.all([
+  // OD-TASK-3: org-wide viewers (admin) keep the full All list; everyone else's All is Relevant,
+  // which needs the viewer's Teams + role BUs resolved at load so the list and its count agree.
+  const viewerOrgWide = hasOrgWideAuthority(args.accessRoles ?? [])
+  const needsViewerTeams = args.query.view === 'team-work'
+    || (args.query.view === 'all' && !viewerOrgWide)
+  const [rows, businessUnits, people, downlinePersonIds, objectives, workLines, viewerTeams, viewerRoleBuIds] = await Promise.all([
     listTasks(filters),
     getBusinessUnits(),
     getPeople(),
@@ -806,11 +836,12 @@ async function loadTaskCollection(args: {
     getDownlinePersonIds(args.viewerId ?? ''),
     listObjectives().catch(() => []),
     listWorkLines().catch(() => []),
+    needsViewerTeams ? getPersonTeams(args.viewerId ?? '') : Promise.resolve([]),
+    (args.query.view === 'all' && !viewerOrgWide)
+      ? getPersonBusinessUnitIds(args.viewerId ?? '')
+      : Promise.resolve([] as string[]),
   ])
   const records = rows.map(toTaskCollectionRecord)
-  const viewerTeams = args.query.view === 'team-work'
-    ? await getPersonTeams(args.viewerId ?? '')
-    : []
   const taskTeamIds = [...new Set(records.map((record) => record.teamId).filter((id): id is string => id !== null))]
   const taskTeams = taskTeamIds.length > 0 ? await getTeamsByIds(taskTeamIds) : []
   const teamsById = new Map(taskTeams.map((team) => [team.id, team]))
@@ -855,7 +886,9 @@ async function loadTaskCollection(args: {
     downlinePersonIds,
     businessUnitNamesById: toNameMap(businessUnits, (b) => b.name),
     personNamesById: toNameMap(people, (p) => p.full_name),
-    viewerTeams,
+    viewerTeams: needsViewerTeams ? viewerTeams : undefined,
+    viewerRoleBuIds: args.query.view === 'all' && !viewerOrgWide ? viewerRoleBuIds : undefined,
+    viewerOrgWide,
     teamNamesById: toNameMap(taskTeams, (team) => team.name),
     taskTeamViewsById,
     workLinesById: toNameMap(workLines, (w) => w.name),

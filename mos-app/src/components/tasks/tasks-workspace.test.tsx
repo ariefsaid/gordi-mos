@@ -45,6 +45,7 @@ vi.mock('../../lib/db/directory', () => ({
   getPersonTeams: vi.fn().mockResolvedValue([]),
   getTeamsByIds: vi.fn().mockResolvedValue([]),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getPersonBusinessUnitIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
@@ -622,7 +623,8 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByTestId('record-collection-toolbar')).toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
+    // OD-TASK-3: the member's broadest-view chip reads Relevant.
+    expect(screen.getByRole('button', { name: 'Relevant' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^filters$/i })).toBeNull()
   })
 
@@ -801,7 +803,7 @@ describe('V3 collection grammar — live presentation controls', () => {
     renderTable()
     await waitFor(() => screen.getByText('A task'))
     expect(screen.getByRole('group', { name: /task views/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Relevant' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: /table/i })).not.toBeInTheDocument()
   })
 
@@ -929,11 +931,12 @@ describe('Task 9 — group-by control in toolbar', () => {
 
 describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
   // #743 AC-002: the AR Follow-ups chip is gone; the stable scope set also includes Team work.
-  it('§Task-11 + AC-002: renders the four canonical All / My work / Team work / Overdue chips', async () => {
+  it('§Task-11 + AC-002: renders the four canonical Relevant / My work / Team work / Overdue chips', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
-    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
+    // OD-TASK-3: the member's broadest view is Relevant; an admin's reads All (toolbar test).
+    expect(screen.getByRole('button', { name: 'Relevant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'My work' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Overdue' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Team work' })).toBeInTheDocument()
@@ -970,7 +973,9 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
       makeTask({ id: 'mine', title: 'Mine task' }),
       makeTask({ id: 'shared', title: 'Shared task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' }),
     ])
-    renderTable({ savedView: makeSavedView('all') })
+    // OD-TASK-3: the org-visible set is the org-wide (admin) viewer's All; a member's All is
+    // Relevant, and Shared task is outside it.
+    renderTable({ savedView: makeSavedView('all') }, DEWI)
     await waitFor(() => screen.getByText('Mine task'))
     expect(screen.getByText('Shared task')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
@@ -979,12 +984,13 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
 
   // AC-002 (#743, W-D step 3): the retired AR view redirects to the All view — the URL loses
   // the stale param, the collection renders tasks, and no AR copy exists anywhere.
-  it('AC-002: /work/tasks?view=followups lands on the All view with no AR copy', async () => {
+  it('AC-002: /work/tasks?view=followups lands on the All view — Relevant for a member — with no AR copy', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Ordinary task' })])
     const { getLocation } = renderAt(['/work/tasks?view=followups'])
     await waitFor(() => screen.getByText('Ordinary task'))
     expect(getLocation()?.search ?? '(no location)').not.toContain('view=followups')
-    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+    // OD-TASK-3: `view=all` keeps its URL; the member's chip for it reads Relevant.
+    expect(screen.getByRole('button', { name: 'Relevant' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByText(/AR Follow-up/i)).toBeNull()
     expect(screen.queryByText(/follow-ups are coming to this workspace/i)).toBeNull()
   })
@@ -1222,7 +1228,9 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 'other', title: 'Someone else’s task', responsible_person_id: 'other-person', accountable_person_id: 'other-person' }),
     ])
-    renderTable()
+    // The broadened scope must SHOW a row again; the row is outside a member's Relevant scope,
+    // so the broadening viewer is the org-wide one (OD-TASK-3).
+    renderTable({}, DEWI)
     await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
     ensureFiltersOpen()
     fireEvent.click(screen.getByRole('button', { name: 'My work' }))
@@ -1237,11 +1245,12 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
 
 // ── PR-3 — TanStack refactor + group-by engine + group headers ────────────────
 
-// Helper: switch to the org-visible All saved view so non-viewer tasks are visible.
-// (§Task-11: the Team-work chip was removed; All is the org-visible set.)
-async function switchToAll() {
+// Helper: switch to the viewer's broadest scope saved view. OD-TASK-3: that control reads
+// Relevant for a non-org-wide viewer (the default auth here) and All for an admin — pass the
+// viewer's label. (§Task-11: the Team-work chip was removed.)
+async function switchToAll(label: 'All' | 'Relevant' = 'Relevant') {
   ensureFiltersOpen()
-  const all = screen.getByRole('button', { name: 'All' })
+  const all = screen.getByRole('button', { name: label })
   fireEvent.click(all)
   await waitFor(() => expect(all).toHaveAttribute('aria-pressed', 'true'))
 }
@@ -2545,9 +2554,11 @@ describe('Issue #749 — Tasks opens on your own work (AC-011/AC-013)', () => {
     await landingAssertions(DEWI, 'All', 'Work · Tasks')
   })
 
-  // OD-WAY-94 (3): the All default is a read default; either fact alone opens it.
-  it('OD-WAY-94 (3): a top-role director without the admin role lands on All', async () => {
-    await landingAssertions(personaAuth({ roles: [roleRow('Managing Director', null)], isManager: true, accessRoles: ['member'] }), 'All', 'Work · Tasks')
+  // OD-WAY-94 (3) + OD-TASK-3: the All default is a read default — the director still LANDS on
+  // view=all, named Relevant for a non-admin. It stays the role's DEFAULT view, so the breadcrumb
+  // carries no view leaf (same as the admin's "Work · Tasks").
+  it('OD-WAY-94 (3): a top-role director without the admin role lands on All — named Relevant', async () => {
+    await landingAssertions(personaAuth({ roles: [roleRow('Managing Director', null)], isManager: true, accessRoles: ['member'] }), 'Relevant', 'Work · Tasks')
   })
 
   it('OD-WAY-94 (3): an admin holding a non-top role lands on All', async () => {

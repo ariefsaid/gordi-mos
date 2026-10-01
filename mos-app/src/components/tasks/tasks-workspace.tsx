@@ -327,7 +327,9 @@ export function TasksWorkspace({
   }, [location.pathname, location.search, navigate])
 
   const activeViewLabels = {
-    all: t('tasks.saved.all'),
+    // OD-TASK-3: the All view is named Relevant for non-org-wide viewers (label only — the
+    // URL `view=all` and the role defaults are unchanged).
+    all: viewerOrgWide ? t('tasks.saved.all') : t('tasks.saved.relevant'),
     'my-work': t('tasks.saved.mine'),
     'team-work': t('tasks.saved.team'),
     overdue: t('tasks.saved.overdue'),
@@ -861,6 +863,7 @@ export function TasksWorkspace({
       attentionCounts={{ overdue: stats?.overdue ?? 0, blocked: stats?.blocked ?? 0, total: stats?.attentionTotal ?? 0 }}
       onAttentionOverdue={() => setQuery({ overdueOnly: true, status: null })}
       onAttentionBlocked={() => setQuery({ overdueOnly: false, status: 'Blocked' })}
+      viewerOrgWide={viewerOrgWide}
       onClearFilters={onClearFilters}
       activeQuery={state.status === 'empty' && query.includeArchived
         ? { ...taskDisclosure, hasActiveFilters: false } : taskDisclosure}
