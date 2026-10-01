@@ -630,10 +630,8 @@ export const messages = {
     'cafe.opening.viewTasks': 'View opening tasks',
     // #440: the axis the whole Café module turns on, named in every Café page head. One word,
     // because the value beside it ("Rumah Rames · Kitchen") is what carries the meaning.
-    'cafe.stream.label': 'Stream',
     // #781: the quiet action beside the stated stream, and the one-step choice's own heading —
     // both read the same "choose a production stream" job, wherever the choice actually renders.
-    'cafe.stream.switch': 'Switch',
     'cafe.stream.change': 'Change',
     'cafe.stream.changeAria': 'Change stream',
     'cafe.stream.backTo': 'Back to ${stream}',
@@ -2429,8 +2427,6 @@ export const messages = {
     'cafe.opening.start': 'Mulai pembukaan hari ini',
     'cafe.opening.teamCaption': 'Pembukaan · ${team}',
     'cafe.opening.viewTasks': 'Lihat tugas pembukaan',
-    'cafe.stream.label': 'Stream',
-    'cafe.stream.switch': 'Ganti',
     'cafe.stream.change': 'Ganti',
     'cafe.stream.changeAria': 'Ganti stream',
     'cafe.stream.backTo': 'Kembali ke ${stream}',

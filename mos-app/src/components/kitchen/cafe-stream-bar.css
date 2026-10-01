@@ -1,8 +1,8 @@
 /* CafeStreamBar — cafe-stream- namespace (C1: disjoint from kl-/kp-/kpu-/kr-/ks-/kpe-).
-   Lives in the page head's status row, so it stays one quiet line: an overline-rank label
-   ("Stream") against the stated value, with a text "Switch"/"Back to …" action beside it —
-   never a full-width control (#781: the old bordered <select> read as a mandatory choice on
-   every visit, and cost a whole extra head row on a 390px phone). */
+   Lives in the page head's status row, so it stays one quiet line: the stream as a heading with
+   a text "Change"/"Back to …" action beside it — never a "Stream:" label, never a full-width
+   control (#781: the old bordered <select> read as a mandatory choice on every visit, and cost a
+   whole extra head row on a 390px phone). */
 .cafe-stream {
   display: flex;
   align-items: baseline;
@@ -12,16 +12,7 @@
   max-width: 100%;
 }
 
-.cafe-stream__label {
-  color: var(--muted-foreground);
-  font-size: var(--font-size-overline);
-  font-weight: 600;
-  letter-spacing: 0.06em; /* §Typography Overline — one tracked voice, no per-surface drift */
-  text-transform: uppercase;
-}
-
-/* The stated value — read-only surfaces, and every surface that CAN switch: the fact reads the
-   same weight everywhere, whatever sits beside it. */
+/* The stated value: the fact reads the same weight everywhere, whatever sits beside it. */
 .cafe-stream__value {
   color: var(--foreground);
   font-size: var(--font-size-control);
@@ -30,15 +21,15 @@
   overflow-wrap: anywhere;
 }
 
-/* Heading variant (Plan): the stream is the page's subject, so the value takes the
-   sub-section heading size and the "Change" link sits beside it. */
+/* The stream is the page's subject, so the value takes the sub-section heading size and the
+   "Change" link sits beside it. */
 .cafe-stream__value--heading {
   margin: 0;
   font-size: var(--font-size-subheading);
   line-height: 1.3;
 }
 
-/* "Switch" / "Back to …" — quiet text actions, never a bordered field: the stream is already
+/* "Change" / "Back to …" — quiet text actions, never a bordered field: the stream is already
    named by `.cafe-stream__value` beside them, so neither one repeats it. Underline is the only
    affordance at rest; the shared focus ring covers keyboard/`:focus-visible`. */
 .cafe-stream__switch,

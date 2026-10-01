@@ -47,7 +47,7 @@ import { fetchDefaultStream } from '@/lib/db/default-stream'
 
 import { KitchenStockPage } from './kitchen-stock-page'
 import { rememberStream } from '@/lib/cafe-stream'
-import { resetCafeLocations } from '@/lib/cafe-opening-location'
+import { rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
 import { branchDisplayName } from '@/lib/kitchen-action-label'
 import type { KitchenStockRow } from '@/lib/db/kitchen-logs.types'
 
@@ -117,7 +117,7 @@ function startsWith(label: string) {
 }
 
 function chooseStream(optionName: string) {
-  const switchButton = screen.queryByRole('button', { name: /^switch$/i })
+  const switchButton = screen.queryByRole('button', { name: /^change stream$/i })
   if (switchButton) {
     fireEvent.click(switchButton)
     fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
@@ -263,17 +263,27 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     const { container } = render(<KitchenStockPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const head = container.querySelector('[data-testid="page-head"]')
-    expect(head?.textContent).toContain('Stream')
-    expect(within(head as HTMLElement).getByTestId('cafe-stream')).toHaveTextContent('Radiant · Bar')
+    expect(within(head as HTMLElement).getByRole('heading', { name: 'Radiant · Bar' })).toBeInTheDocument()
+    expect(head?.textContent).not.toMatch(/stream:?\s*radiant/i)
   })
 
-  it('issue 440: a stream chosen elsewhere in Café wins over the viewer\'s own default', async () => {
-    // The person switched to Radiant · Bar on Log; Stock must open on the same books rather
-    // than snapping back to their own stream and showing a different branch's numbers.
+  it('OD-CAFE-6: the home stream wins over a stream chosen elsewhere in Café', async () => {
+    rememberStream({ branch: BRANCH_RAD, activity: 'kitchen', produces: false }, 'p-1', BRANCH_RAD.id)
+    mockDefaultStream.mockResolvedValue(RADIANT_BAR)
+    mockFetchStock.mockResolvedValue(STOCK_ROWS)
+    render(<KitchenStockPage />, { wrapper })
+    await waitFor(() => expect(mockFetchStock).toHaveBeenCalled())
+    const [, stream] = mockFetchStock.mock.calls[0]
+    expect(stream).toEqual(RADIANT_BAR)
+  })
+
+  it('issue 440: with no home stream, the stream chosen elsewhere in Café is the default', async () => {
+    // The person switched to Radiant · Bar on Log; Stock must open on the same books.
     // OD-CAFE-1: "elsewhere in Café" means elsewhere AT THE SAME LOCATION, so the choice is
     // remembered against that branch — a slot another branch cannot read.
     rememberStream(RADIANT_BAR, 'p-1', BRANCH_RAD.id)
-    mockDefaultStream.mockResolvedValue(RADIANT_BAR)
+    mockDefaultStream.mockResolvedValue(null)
+    rememberCafeLocation('p-1', { branchId: BRANCH_RAD.id, branchName: BRANCH_RAD.name })
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
     await waitFor(() => expect(mockFetchStock).toHaveBeenCalled())
@@ -337,7 +347,7 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     await screen.findByText(/no stock to show/i)
 
     // The Switch action is present in the empty state — an empty stream is not a dead end.
-    const switchButton = screen.getByRole('button', { name: /^switch$/i })
+    const switchButton = screen.getByRole('button', { name: /^change stream$/i })
     expect(switchButton).toBeInTheDocument()
     expect(switchButton).not.toBeDisabled()
 

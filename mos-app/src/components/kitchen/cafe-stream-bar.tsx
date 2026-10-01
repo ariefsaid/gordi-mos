@@ -24,8 +24,8 @@
 //
 // #781 rewrite (AC-015/016, B4/B5/B12 first-look): a REQUIRED bounded choice used to render as a
 // full-width dropdown — a mandatory-looking CONTROL for a fact the surface already knows on every
-// visit but the first. It now STATES the stream as text, with a quiet "Switch" beside it only when
-// another stream at this location is actually offered (never a select, never a "Choose stream…"
+// visit but the first. OD-CAFE-6: it now STATES the stream as a heading on every Café surface, with a quiet "Change" beside it only when
+// another stream at this location is actually offered (never a select, never a "Stream:" label, never a "Choose stream…"
 // placeholder once a default exists). With no default at all (a home Team that is not a stream —
 // FR-002), it offers the location's own streams as direct one-click choices instead of a control
 // that has to be operated twice (B5) — see `CafeStreamChoices` below, which callers place in the
@@ -102,11 +102,9 @@ export interface CafeStreamBarProps {
   /** Offer "All streams" as a choice. Review only — the one surface with a cross-stream job. */
   onAllStreams?: () => void
   disabled?: boolean
-  // Plan: the stream reads as a heading with a "Change" link, no "Stream" label, no "Switch".
-  heading?: boolean
   /**
    * The person's own stream (issue 456's `useCafeStream().homeStream`), independent of whatever a
-   * session switch is currently showing. Drives the "Your Team" tag in the Switch menu and the
+   * session switch is currently showing. Drives the "Your Team" tag in the Change menu and the
    * "Back to <home>" action (item 3, B4) once a switch has moved the view away from it. Omitted on
    * Review, whose choice is deliberately cross-stream and carries no personal default to return to.
    */
@@ -114,7 +112,7 @@ export interface CafeStreamBarProps {
   /**
    * Stream keys (`streamKey(branch_id, activity)`) for every stream Team the person is a CURRENT
    * member of (`useCafeStream().myStreamKeys`) — home included, but not only home. Every one of
-   * these is tagged "Your Team" and ranked first (home first among them) in the Switch menu.
+   * these is tagged "Your Team" and ranked first (home first among them) in the Change menu.
    */
   myStreamKeys?: ReadonlySet<string>
 }
@@ -126,7 +124,6 @@ export function CafeStreamBar({
   allStreams = false,
   onAllStreams,
   disabled = false,
-  heading = false,
   homeStream = null,
   myStreamKeys = EMPTY_STREAM_KEYS,
 }: CafeStreamBarProps) {
@@ -136,10 +133,9 @@ export function CafeStreamBar({
   if (!onChange) {
     return (
       <div className="cafe-stream" data-testid="cafe-stream">
-        <span className="cafe-stream__label">{t('cafe.stream.label')}</span>
-        <span className="cafe-stream__value">
+        <h2 className="cafe-stream__value cafe-stream__value--heading">
           {allStreams ? t('kitchen.review.allStreams') : streamLabel(t, stream)}
-        </span>
+        </h2>
       </div>
     )
   }
@@ -158,15 +154,8 @@ export function CafeStreamBar({
     : null
 
   return (
-    <div className={heading ? 'cafe-stream cafe-stream--heading' : 'cafe-stream'} data-testid="cafe-stream">
-      {heading ? (
-        <h2 className="cafe-stream__value cafe-stream__value--heading">{valueLabel}</h2>
-      ) : (
-        <>
-          <span className="cafe-stream__label">{t('cafe.stream.label')}</span>
-          <span className="cafe-stream__value">{valueLabel}</span>
-        </>
-      )}
+    <div className="cafe-stream" data-testid="cafe-stream">
+      <h2 className="cafe-stream__value cafe-stream__value--heading">{valueLabel}</h2>
       {backTarget && (
         <button
           type="button"
@@ -186,16 +175,16 @@ export function CafeStreamBar({
           onAllStreams={allStreams ? undefined : onAllStreams}
           disabled={disabled}
           onChange={onChange}
-          label={heading ? t('cafe.stream.change') : undefined}
-          ariaLabel={heading ? t('cafe.stream.changeAria') : undefined}
+          label={t('cafe.stream.change')}
+          ariaLabel={t('cafe.stream.changeAria')}
         />
       )}
     </div>
   )
 }
 
-// ── The Switch menu ──────────────────────────────────────────────────────────────────────────
-// A quiet text-button trigger whose own label always reads "Switch" — the current stream is
+// ── The Change menu ──────────────────────────────────────────────────────────────────────────
+// A quiet text-button trigger whose own label always reads "Change" — the current stream is
 // already stated beside it, so the trigger does not need to repeat it, and the menu offers only
 // the OTHER choices: re-choosing the view in place would re-read it (and on Log discard a draft) (unlike the shared
 // `Select`/`Picker` controls, whose trigger IS the current value). Built on the same listbox
@@ -211,9 +200,8 @@ interface StreamSwitchMenuProps {
   onAllStreams?: () => void
   disabled: boolean
   onChange: (next: ProductionStream) => void
-  // Trigger text and accessible name; the default reads "Switch".
-  label?: string
-  ariaLabel?: string
+  label: string
+  ariaLabel: string
 }
 
 function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, onAllStreams, disabled, onChange, label, ariaLabel }: StreamSwitchMenuProps) {
@@ -330,7 +318,7 @@ function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, onAllStreams,
           }
         }}
       >
-        {label ?? t('cafe.stream.switch')}
+        {label}
       </button>
       {open && createPortal(
         <div

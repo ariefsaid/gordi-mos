@@ -51,7 +51,7 @@ import { listActiveBranches } from '@/lib/db/branches'
 import { canStartProcessForTeam } from '@/lib/db/processes'
 import { getPeople } from '@/lib/db/directory'
 import { rememberCafeOpeningTeam } from '@/lib/cafe-opening-location'
-import { CafeRootPage } from './cafe-opening-page'
+import { CafeOpeningRoot, CafeRootPage } from './cafe-opening-page'
 
 const mockGetCafeOpeningProcessId = vi.mocked(getCafeOpeningProcessId)
 const mockGetTodayOpeningForTeam = vi.mocked(getTodayOpeningForTeam)
@@ -118,7 +118,7 @@ function renderPage(accessRoles: string[] = ['ops_lead'], personId = VIEWER_ID, 
     <AuthContext.Provider value={authState(accessRoles, personId)}>
       <I18nProvider initialLocale={locale}>
         <MemoryRouter initialEntries={['/cafe']}>
-          <CafeRootPage />
+          <CafeOpeningRoot />
         </MemoryRouter>
       </I18nProvider>
     </AuthContext.Provider>,
@@ -150,6 +150,24 @@ beforeEach(() => {
   mockGetTodayOpeningForTeam.mockResolvedValue(notStarted)
 })
 
+
+describe('Café root while Opening is hidden', () => {
+  it('shows the capture surface with no Opening door row', async () => {
+    render(
+      <AuthContext.Provider value={authState()}>
+        <I18nProvider initialLocale="en">
+          <MemoryRouter initialEntries={['/cafe']}>
+            <CafeRootPage />
+          </MemoryRouter>
+        </I18nProvider>
+      </AuthContext.Provider>,
+    )
+    expect(await screen.findByTestId('cafe-capture-surface')).toBeInTheDocument()
+    expect(screen.queryByText(/start today's opening/i)).toBeNull()
+    expect(screen.queryByTestId('cafe-opening-location')).toBeNull()
+    expect(mockGetCafeOpeningProcessId).not.toHaveBeenCalled()
+  })
+})
 
 describe('Café Opening context', () => {
   it('uses the primary branch when another branch is due and has no production stream picker', async () => {
@@ -216,7 +234,7 @@ describe('Café Opening context', () => {
       <AuthContext.Provider value={authState(['ops_lead'], 'person-b')}>
         <I18nProvider>
           <MemoryRouter initialEntries={['/cafe']}>
-            <CafeRootPage />
+            <CafeOpeningRoot />
           </MemoryRouter>
         </I18nProvider>
       </AuthContext.Provider>,

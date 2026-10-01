@@ -108,21 +108,19 @@ describe('AC-063/AC-064: Café pages stay Indonesian end to end', () => {
   })
 
   it.each([
-    // #781 item 6: "Stream" is the one word for the control in BOTH catalogs now.
-    // Plan is the exception: its head is the stream-name heading plus a Change link, no label.
-    ['id', ENGLISH_TOKENS, 'Stream', 'Ganti', 'Kirim Log', 'Ayam', 'Stok'],
-    ['en', INDONESIAN_TOKENS, 'Stream', 'Change', 'Pushes', 'Chicken', 'Stock'],
-  ] as const)('renders every stream-resolved page in the %s catalog', async (locale, denyList, streamWord, changeWord, pushesWord, categoryLabel, stockLabel) => {
+    // OD-CAFE-6: every Café head is the stream-name heading plus a Change link, no "Stream" label.
+    ['id', ENGLISH_TOKENS, 'Ganti', 'Kirim Log', 'Ayam', 'Stok'],
+    ['en', INDONESIAN_TOKENS, 'Change', 'Pushes', 'Chicken', 'Stock'],
+  ] as const)('renders every stream-resolved page in the %s catalog', async (locale, denyList, changeWord, pushesWord, categoryLabel, stockLabel) => {
     for (const [name, Page] of pages) {
       const { container } = render(<MemoryRouter><I18nProvider initialLocale={locale}><Page /></I18nProvider></MemoryRouter>)
       await screen.findByText(name === 'Pushes' ? 'batch-1' : 'Dish One')
       expect(container.textContent).not.toMatch(denyList)
+      expect(container.querySelector('.cafe-stream h2')).not.toBeNull()
+      expect(container.querySelector('.cafe-stream__label')).toBeNull()
       if (name === 'Plan') {
         expect(container.querySelector('.cafe-stream h2')?.textContent).toContain('Rumah Rames')
         expect(container.querySelector('.cafe-stream button')?.textContent).toBe(changeWord)
-        expect(container.querySelector('.cafe-stream__label')).toBeNull()
-      } else {
-        expect(container.textContent).toContain(streamWord)
       }
       if (name === 'Plan') expect(container.querySelector('.dt-group-label, .dt-cards-group-label')?.textContent).toContain(categoryLabel)
       if (name === 'Log') expect(container.textContent).toContain(stockLabel)

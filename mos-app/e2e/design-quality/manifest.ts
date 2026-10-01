@@ -140,7 +140,7 @@ export type ManifestValidation = {
   errors: string[]
 }
 
-const areas = ['tasks', 'signals', 'inbox', 'cafe-opening', 'cafe-wip']
+const areas = ['tasks', 'signals', 'inbox', 'cafe-wip']
 const journeys = [
   'tasks-create',
   'tasks-filter',
@@ -149,7 +149,6 @@ const journeys = [
   'signals-feed',
   'signals-record',
   'inbox-triage',
-  'cafe-opening',
   'cafe-plan',
   'cafe-log',
   'cafe-review',
@@ -195,10 +194,6 @@ const states = [
   'open-signal',
   'retracted-tombstone',
   'task-link',
-  'assigned-location',
-  'multi-location-switch',
-  'missing-assignment',
-  'failed-configuration-load',
   'producing',
   'receiving-only',
   'denied',
@@ -336,7 +331,7 @@ export const DESIGN_QUALITY_MANIFEST: DesignQualityManifest = {
   version: '1.1.0',
   name: 'mvp-quantitative-ui-quality',
   dimensions,
-  primaryJourneys: ['tasks-create', 'tasks-record', 'signals-compose', 'inbox-triage', 'cafe-opening', 'cafe-plan', 'cafe-log'],
+  primaryJourneys: ['tasks-create', 'tasks-record', 'signals-compose', 'inbox-triage', 'cafe-plan', 'cafe-log'],
   cells,
   rules,
   lists: emptyNamedLists,

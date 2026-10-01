@@ -115,7 +115,7 @@ function idWrapper({ children }: { children: ReactNode }) {
 }
 
 function chooseStream(optionName: string) {
-  fireEvent.click(screen.getByRole('button', { name: /^switch$/i }))
+  fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
   fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
 }
 
@@ -685,7 +685,7 @@ describe('KitchenReviewPage — the stream reads in the page head (#440)', () =>
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
     expect(within(head).getByTestId('cafe-stream')).toHaveTextContent('Rumah Rames · Kitchen')
 
-    fireEvent.click(within(head).getByRole('button', { name: /^switch$/i }))
+    fireEvent.click(within(head).getByRole('button', { name: /^change stream$/i }))
     fireEvent.click(screen.getByRole('option', { name: startsWith('Radiant · Bar') }))
     await screen.findByText('Es Kopi')
     expect(screen.queryByText('Nasi Goreng')).toBeNull()

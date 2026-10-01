@@ -187,16 +187,14 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     // DD-MVP-17: /cafe/log aliases the Café root — the Today capture surface itself.
     await page.waitForURL(/\/cafe$/, { timeout: 15_000 })
 
-    // DD-MVP-11: production capture is location-bound, and location precedes stream. BAR_MEMBER
-    // has exactly ONE resolvable stream team (Rumah Rames bar), so the location resolves without
-    // asking (cafe-opening-page.tsx primary.length===1) and this call is a no-op past that check
-    // — it exists so the journey still holds for any persona whose location genuinely IS
-    // ambiguous. If BAR_MEMBER ever needed the choice, that would itself be the finding.
+    // BAR_MEMBER has exactly ONE resolvable stream team (Rumah Rames bar), so the OD-CAFE-6 ladder
+    // resolves it without asking and this call is a no-op. If BAR_MEMBER ever needed the choice,
+    // that would itself be the finding.
     await ensureStream(page)
 
     // FR-001 — the surface OPENS on their own stream, stated in the head. Resolved from the live
     // primary Team membership, through the real RPC: nothing in the URL or the click path said
-    // "Rumah Rames". FR-005 — and Switch offers the other streams AT THE RESOLVED LOCATION
+    // "Rumah Rames". FR-005 — and Change offers the other streams AT THE RESOLVED LOCATION
     // (FR-003): the default is a default, not a wall (OD-WAY-49/31). OD-CAFE-1 bound the choice to
     // the active location — Rumah Rames carries exactly two, {kitchen, bar}
     // (supabase/seed.sql shared.seed_stream_teams()), and the one already in view is not offered.

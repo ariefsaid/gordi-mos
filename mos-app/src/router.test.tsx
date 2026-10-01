@@ -47,6 +47,15 @@ function LoginStub() {
   return <div data-testid="login-page">Login</div>
 }
 
+// Café Opening is hidden: its own path lands on the Café root in one hop.
+describe('Café Opening is hidden', () => {
+  it('/cafe/opening redirects to /cafe', () => {
+    const route = shellChildren().find((r) => r.path === 'cafe/opening')!
+    expect(isRedirect(route.element)).toBe(true)
+    expect(redirectProps(route.element).to).toBe('/cafe')
+  })
+})
+
 /** The AppShell layout route's children — the canonical route table. */
 function shellChildren() {
   const protectedRoute = routeConfig.find(

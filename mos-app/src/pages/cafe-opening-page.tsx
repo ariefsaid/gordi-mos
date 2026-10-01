@@ -49,6 +49,10 @@ interface BranchTeam {
 
 const EMPTY_ACCESS_ROLES: string[] = []
 
+// Café Opening is hidden until it is tied to a real opening Process: while false, the Café root is
+// the plain Log capture surface — no Opening door row and no Opening-process dependency.
+export const CAFE_OPENING_ENABLED = false
+
 function LocationChoices({
   choices,
   onChoose,
@@ -98,12 +102,16 @@ function LocationChoices({
  * remains mounted; remounting here prevents one person's branch/panel from appearing for the
  * next person even for the render before the new location read starts.
  */
-export function CafeRootPage() {
+export function CafeOpeningRoot() {
   const auth = useAuth()
   const viewerKey = auth.status === 'authenticated'
     ? `${auth.viewer.person.id}:${auth.viewer.accessRoles.join(',')}`
     : auth.status
   return <CafeRootPageBody key={viewerKey} />
+}
+
+export function CafeRootPage() {
+  return CAFE_OPENING_ENABLED ? <CafeOpeningRoot /> : <KitchenLogPage />
 }
 
 function CafeRootPageBody() {

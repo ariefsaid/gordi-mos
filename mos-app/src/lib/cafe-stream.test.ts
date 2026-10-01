@@ -20,17 +20,33 @@ beforeEach(() => {
   rememberStream(null)
 })
 
-describe('cafe-stream — the module remembers ONE stream', () => {
-  it('a surface that resolves a stream leaves it for the next surface', () => {
-    // Log opens on the person's own stream…
-    expect(resolveCafeStream(CATALOG, RR_KITCHEN)).toEqual(RR_KITCHEN)
-    // …and Stock, mounting later with the SAME catalog, opens on it without asking again.
-    expect(resolveCafeStream(CATALOG, null)).toEqual(RR_KITCHEN)
+describe('cafe-stream — the OD-CAFE-6 ladder: home, only team, last used, ask', () => {
+  const OTHER_BAR: ProductionStream = { branch: RR, activity: 'bar' }
+
+  it('1. the home stream wins over a stream chosen earlier and over the only-team stream', () => {
+    rememberStream(RAD_BAR) // switched on another surface
+    expect(resolveCafeStream(CATALOG, RR_KITCHEN, undefined, undefined, OTHER_BAR)).toEqual(RR_KITCHEN)
   })
 
-  it('a switch outranks the person\'s own default on every later surface', () => {
-    rememberStream(RAD_BAR) // the person switched on Log
-    expect(resolveCafeStream(CATALOG, RR_KITCHEN)).toEqual(RAD_BAR)
+  it('2. with no home stream, the only Café stream Team wins over a stream chosen earlier', () => {
+    rememberStream(RAD_BAR)
+    expect(resolveCafeStream(CATALOG, null, undefined, undefined, OTHER_BAR)).toEqual(OTHER_BAR)
+  })
+
+  it('3. with neither, the stream last chosen in this session', () => {
+    rememberStream(RAD_BAR)
+    expect(resolveCafeStream(CATALOG, null)).toEqual(RAD_BAR)
+  })
+
+  it('4. with none of them, no default, so the surface asks', () => {
+    expect(resolveCafeStream(CATALOG, null)).toBeNull()
+    expect(rememberedStreamKey()).toBeNull()
+  })
+
+  it('an inferred default is never recorded: only an explicit choice seeds the shared slot', () => {
+    expect(resolveCafeStream(CATALOG, RR_KITCHEN)).toEqual(RR_KITCHEN)
+    expect(resolveCafeStream(CATALOG, null, undefined, undefined, OTHER_BAR)).toEqual(OTHER_BAR)
+    expect(rememberedStreamKey()).toBeNull()
   })
 
   it('survives a reload: the choice is persisted, not held in a component', () => {
@@ -44,13 +60,13 @@ describe('cafe-stream — the module remembers ONE stream', () => {
     expect(rememberedStreamKey()).toBeNull()
   })
 
-  it('a remembered stream that has left the catalog falls back to the own stream, never to itself', () => {
+  it('a remembered stream that has left the catalog is ignored, never resolved', () => {
     // The Radiant bar Team was archived: the pair is no longer a stream. A surface that kept
     // reading it would be reading books that no longer exist.
     rememberStream(RAD_BAR)
     const shrunk = [RR_KITCHEN]
+    expect(resolveCafeStream(shrunk, null)).toBeNull()
     expect(resolveCafeStream(shrunk, RR_KITCHEN)).toEqual(RR_KITCHEN)
-    expect(rememberedStreamKey()).toBe(`${RR.id}|kitchen`)
   })
 
   it('an own stream outside the live catalog resolves to "choose", never to a guess', () => {
@@ -61,9 +77,9 @@ describe('cafe-stream — the module remembers ONE stream', () => {
   it('does not reuse a remembered stream across authenticated identities', () => {
     rememberStream(RAD_BAR, 'person-a')
 
-    expect(resolveCafeStream(CATALOG, RR_KITCHEN, 'person-b')).toEqual(RR_KITCHEN)
-    expect(rememberedStreamKey('person-a')).toBe(`${RAD.id}|bar`)
-    expect(rememberedStreamKey('person-b')).toBe(`${RR.id}|kitchen`)
+    expect(resolveCafeStream(CATALOG, null, 'person-b')).toBeNull()
+    expect(resolveCafeStream(CATALOG, null, 'person-a')).toEqual(RAD_BAR)
+    expect(rememberedStreamKey('person-b')).toBeNull()
   })
 
   it('keeps the legacy no-identity reset able to clear all scoped slots', () => {
@@ -80,7 +96,7 @@ describe('cafe-stream — the module remembers ONE stream', () => {
   it('does not adopt a persisted legacy slot for an identified viewer', () => {
     window.sessionStorage.setItem('mos.cafe.stream', `${RAD.id}|bar`)
 
-    expect(resolveCafeStream(CATALOG, RR_KITCHEN, 'person-b')).toEqual(RR_KITCHEN)
+    expect(resolveCafeStream(CATALOG, null, 'person-b')).toBeNull()
   })
 })
 

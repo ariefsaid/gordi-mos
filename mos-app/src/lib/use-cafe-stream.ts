@@ -1,7 +1,7 @@
 // useCafeStream — the ONE bootstrap every stream-scoped Café surface runs (issue 456).
 //
 // #440 deepened the stream DECISION into `cafe-stream.ts` (resolveCafeStream: the module's
-// remembered choice, else the person's own stream, else ask). The WIRING around that decision
+// OD-CAFE-6 ladder: home stream, else the only Café Team, else the last choice, else ask). The WIRING around that decision
 // was left pasted across the surfaces: the same catalog read, the same
 // `streamCatalogFrom → resolveCafeStream(…, fetchDefaultStream)` order, the same
 // `[branches, streamOptions, stream]` state clump, and the same "set → remember" switch. Five
@@ -79,8 +79,8 @@ export interface CafeStreamCatalog {
 }
 
 export interface CafeStreamState extends CafeStreamCatalog {
-  /** Read the catalog and resolve the module's stream. Pure apart from the #440 recording. */
-  resolve: (options?: { soleTeamDefault?: boolean }) => Promise<CafeStreamCatalog>
+  /** Read the catalog and resolve the module's stream. Pure: only `setStream` records a choice. */
+  resolve: () => Promise<CafeStreamCatalog>
   /** Commit a resolved catalog to state — call it AFTER your own supersede guard. */
   adopt: (next: CafeStreamCatalog) => void
   /** The person switched. Records it module-wide so the next surface opens on it (#440). */
@@ -113,7 +113,7 @@ export function useCafeStream(): CafeStreamState {
     })
   }, [viewerId])
 
-  const resolve = useCallback(async (resolveOptions?: { soleTeamDefault?: boolean }): Promise<CafeStreamCatalog> => {
+  const resolve = useCallback(async (): Promise<CafeStreamCatalog> => {
     const [branches, pairs, myTeams] = await Promise.all([
       listActiveBranches(),
       listStreamPairs(),
@@ -135,10 +135,9 @@ export function useCafeStream(): CafeStreamState {
     )
     // fetchDefaultStream needs the branch catalog, so it runs after the parallel pair.
     const ownDefault = await fetchDefaultStream(branches)
-    // #1142 (Plan only): with no own stream, the person's only Café stream Team is the fallback.
-    // It is inferred, so it is never recorded in the shared session slot — only a choice is.
-    const soleKey = resolveOptions?.soleTeamDefault && !ownDefault && myStreamKeys.size === 1
-      ? [...myStreamKeys][0] : null
+    // OD-CAFE-6 rung 2: the person's only Café stream Team. Inferred, so never recorded in the
+    // shared session slot — only a choice is.
+    const soleKey = myStreamKeys.size === 1 ? [...myStreamKeys][0] : null
     const soleStream = soleKey
       ? options.find(option => streamKey(option.branch.id, option.activity) === soleKey) ?? null
       : null
@@ -151,11 +150,9 @@ export function useCafeStream(): CafeStreamState {
     const locationOptions = effectiveBranchId
       ? options.filter(option => option.branch.id === effectiveBranchId)
       : options
-    // Resolved against the LOCATION's catalog, so a remembered stream from elsewhere simply is not
-    // found and falls through to the person's own stream, then to null — the same safe ladder a
-    // stale pair already took, with no special case for "wrong branch".
-    const resolved = resolveCafeStream(locationOptions, ownDefault, viewerId, effectiveBranchId)
-    const stream = resolved ?? locationOptions.find(option => option === soleStream) ?? null
+    // Resolved against the LOCATION's catalog, so a stream from elsewhere simply is not found and
+    // falls through to the next rung — no special case for "wrong branch".
+    const stream = resolveCafeStream(locationOptions, ownDefault, viewerId, effectiveBranchId, soleStream)
     return {
       branches, options, locationOptions, stream,
       homeStream: ownDefault, myStreamKeys, branchId: effectiveBranchId,
