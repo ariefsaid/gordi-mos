@@ -105,7 +105,7 @@ describe('access boundary', () => {
   describe('AC-019: a Sales member deep-links to /cafe/pushes', () => {
     beforeEach(() => {
       setViewer(['member'])
-      renderAt('/cafe/pushes', <RequireAccessRole anyOf={CAFE_PUSHES_ROLES} />)
+      renderAt('/cafe/pushes', <RequireAccessRole anyOf={CAFE_PUSHES_ROLES} scope="link" />)
     })
 
     it('stays on the route — no surface, and nothing navigated', () => {
@@ -113,18 +113,18 @@ describe('access boundary', () => {
       expect(screen.queryByTestId('landing')).not.toBeInTheDocument()
     })
 
-    it('renders the page head titled for the area, and states the denial only in the panel', () => {
+    it('renders the page head titled for the page asked for, and states the denial only in the panel', () => {
       const head = screen.getByTestId('page-head')
-      expect(within(head).getByRole('heading', { level: 1 })).toHaveTextContent('Café')
+      expect(within(head).getByRole('heading', { level: 1 })).toHaveTextContent('Café · Pushes')
       expect(within(head).queryByText(/access/i)).toBeNull()
     })
 
     it('renders one quiet dashed panel: the area sentence, who to ask, one outline Back', () => {
       expect(within(panel()).getByRole('heading', { level: 2 }))
-        .toHaveTextContent('Café is outside your access')
+        .toHaveTextContent('Pushes is outside your access')
       expect(within(panel()).getByText('Ask your lead or an admin to give you access.'))
         .toBeInTheDocument()
-      const back = within(panel()).getByRole('link', { name: 'Back to Home' })
+      const back = within(panel()).getByRole('link', { name: 'Back to Café' })
       expect(back).toHaveClass('btn', 'btn-outline')
     })
 
@@ -140,7 +140,7 @@ describe('access boundary', () => {
       // The whole rendered text is the area label plus the two fixed sentences. Any figure,
       // record title or count leaking through the guard would show up as an extra digit here.
       expect(panel().textContent).toBe(
-        'Café is outside your accessAsk your lead or an admin to give you access.Back to Home',
+        'Pushes is outside your accessAsk your lead or an admin to give you access.Back to Café',
       )
     })
   })
@@ -161,6 +161,9 @@ describe('access boundary', () => {
     renderAt('/cafe/review', <RequireAccessRole anyOf={CAFE_REVIEW_ROLES} scope="link" />)
     expect(screen.getByRole('heading', { level: 2 }))
       .toHaveTextContent('Review is outside your access')
+    // The head reads as the page itself does — "Café · Review" — so a denial does not rename it.
+    expect(within(screen.getByTestId('page-head')).getByRole('heading', { level: 1 }))
+      .toHaveTextContent('Café · Review')
     // Only a link inside Café was denied and this viewer is admitted to Café itself, so the way
     // back is Café — somewhere they can work — not Home.
     const back = within(panel()).getByRole('link', { name: 'Back to Café' })
@@ -219,17 +222,17 @@ describe('access boundary', () => {
 
     it('the panel carries the class those rules target — a rule with no element is no rule', () => {
       setViewer(['member'])
-      renderAt('/cafe/pushes', <RequireAccessRole anyOf={CAFE_PUSHES_ROLES} />)
+      renderAt('/cafe/pushes', <RequireAccessRole anyOf={CAFE_PUSHES_ROLES} scope="link" />)
       expect(panel()).toHaveClass('access-boundary')
-      expect(within(panel()).getByRole('link', { name: 'Back to Home' }).parentElement)
+      expect(within(panel()).getByRole('link', { name: 'Back to Café' }).parentElement)
         .toHaveClass('empty-actions')
     })
 
-    it('Back lands on /', async () => {
+    it('Back lands on Café', async () => {
       setViewer(['member'])
-      renderAt('/cafe/pushes', <RequireAccessRole anyOf={CAFE_PUSHES_ROLES} />)
-      await userEvent.click(screen.getByRole('link', { name: 'Back to Home' }))
-      expect(screen.getByTestId('landing')).toHaveTextContent('/')
+      renderAt('/cafe/pushes', <RequireAccessRole anyOf={CAFE_PUSHES_ROLES} scope="link" />)
+      await userEvent.click(screen.getByRole('link', { name: 'Back to Café' }))
+      expect(screen.getByTestId('landing')).toHaveTextContent('/cafe')
     })
   })
 

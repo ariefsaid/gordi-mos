@@ -22,22 +22,26 @@ const mockUseIsDesktop = vi.mocked(useIsDesktop)
 
 const SCOPE_BY_ACTION: Record<string, RoleAuthorityRow['scope']> = {
   'workline.manage': 'own_bu',
-  'objective.manage': 'own_bu',
   'signal.post': 'org',
   'signal.tag': 'org',
   'signal.retract': 'own',
   'process.start': 'own_team',
   'process.close': 'own',
+  'agent.connect': 'none',
 }
 
 function authorityRows(): RoleAuthorityRow[] {
-  return AUTHORITY_ACTIONS.flatMap((action) =>
+  // The RPC still returns the retired objective.manage row; the page must load past it.
+  const retired = AUTHORITY_ROLES.map(
+    (role) => ({ action: 'objective.manage', role, scope: 'none' }) as unknown as RoleAuthorityRow,
+  )
+  return retired.concat(AUTHORITY_ACTIONS.flatMap((action) =>
     AUTHORITY_ROLES.map((role) => ({
       action,
       role,
       scope: role === 'admin' ? 'org' : role === 'member' ? SCOPE_BY_ACTION[action] : 'none',
     })),
-  )
+  ))
 }
 
 async function selectPicker(user: ReturnType<typeof userEvent.setup>, label: string, option: string) {
@@ -166,7 +170,7 @@ describe('AdminAccessPage', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Peran & izin' })).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Bagian pengaturan admin' })
-    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Orang', 'Tim', 'Peran & izin'])
+    expect(within(nav).getAllByRole('link').map((link) => link.textContent)).toEqual(['Orang', 'Tim', 'Peran & izin', 'Agen terhubung'])
     expect(screen.getByRole('link', { name: 'Dari kepemimpinan Tim' })).toBeInTheDocument()
   })
 

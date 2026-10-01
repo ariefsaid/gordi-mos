@@ -89,8 +89,8 @@ const SUPPORT_PERSON = 'support-person-id'
 const OBSERVER_PERSON = 'observer-person-id'
 
 const mockPerson: PeopleRow = {
-  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arden Sample',
+  email: 'arden.sample@example.test', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 
@@ -216,7 +216,7 @@ const DEFAULT_BUS = [
   { id: 'bu-roastery', name: 'Roastery BU' },
 ]
 const DEFAULT_PEOPLE = [
-  { id: VIEWER_ID, full_name: 'Arief Said' },
+  { id: VIEWER_ID, full_name: 'Arden Sample' },
   { id: OTHER_ID,  full_name: 'Budi Setiawan' },
   { id: SUPPORT_PERSON,  full_name: 'Sari Support' },
   { id: OBSERVER_PERSON, full_name: 'Iman Observer' },
@@ -299,7 +299,7 @@ describe('AC-067 — Tasks table (live surface) states (loading, error, empty)',
 describe('AC-060 — row renders the priority decision columns', () => {
   it('AC-060: renders title, status pill, PIC name, and due (priority columns)', async () => {
     // Fix C1: names resolved from directory. task only carries IDs.
-    // bu-ops is in DEFAULT_BUS as 'Ops Unit', VIEWER_ID is in DEFAULT_PEOPLE as 'Arief Said'.
+    // bu-ops is in DEFAULT_BUS as 'Ops Unit', VIEWER_ID is in DEFAULT_PEOPLE as 'Arden Sample'.
     const task = makeTask({
       title: 'SOP stock opname mingguan',
       business_unit_id: 'bu-ops',
@@ -314,7 +314,7 @@ describe('AC-060 — row renders the priority decision columns', () => {
     await waitFor(() => screen.getByText('SOP stock opname mingguan'))
     // Status tag (not the select option) — soft Tag (.mk-tag)
     expect(screen.getAllByText('In Progress').find(el => el.closest('.mk-tag'))).toBeTruthy()
-    expect(screen.getAllByText('Arief')[0]).toBeTruthy() // PIC first name from directory
+    expect(screen.getAllByText('Arden')[0]).toBeTruthy() // PIC first name from directory
     // Due renders (calm future date) — the decision-critical column stays in-frame.
     expect(document.querySelector('.due-calm')).toBeTruthy()
     // Wave 2c: BU/Team + Activity moved OUT of the row into the drawer.
@@ -327,7 +327,7 @@ describe('AC-060 — row renders the priority decision columns', () => {
     // under the typed-Task contract the row surfaces PIC + Supervisor only — the
     // consulted/informed ids must NOT leak as a RACI "+N" overflow.
     const task = makeTask({
-      responsible_person_id: VIEWER_ID,   // PIC = Arief Said
+      responsible_person_id: VIEWER_ID,   // PIC = Arden Sample
       accountable_person_id: OTHER_ID,    // Supervisor = Budi Setiawan
       consulted_person_ids: [SUPPORT_PERSON],
       informed_person_ids: [OBSERVER_PERSON],
@@ -335,12 +335,12 @@ describe('AC-060 — row renders the priority decision columns', () => {
     mockListTasks.mockResolvedValue([task])
     renderPage()
 
-    await waitFor(() => screen.getByText('Arief'))
+    await waitFor(() => screen.getByText('Arden'))
     const row = document.querySelector('tbody tr.task-row')!
     // PIC column renders the responsible person (first name) and names the role.
     const ownerCell = row.querySelector('.td-owner')
-    expect(ownerCell?.textContent).toContain('Arief')
-    expect(ownerCell?.querySelector('[aria-label]')?.getAttribute('aria-label')).toMatch(/PIC: Arief Said/i)
+    expect(ownerCell?.textContent).toContain('Arden')
+    expect(ownerCell?.querySelector('[aria-label]')?.getAttribute('aria-label')).toMatch(/PIC: Arden Sample/i)
     // Supervisor is its own column (OD-62) — the accountable person.
     expect(row.querySelector('.td-supervisor')?.textContent).toContain('Budi')
     // No RACI "+N" overflow or RACI grammar on a Task surface (OD-62).
@@ -481,7 +481,7 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
 
     // Now apply person filter for the viewer
     const personSelect = taskFilter(/^person$/i)
-    chooseTaskFilter(personSelect, 'Arief Said')
+    chooseTaskFilter(personSelect, 'Arden Sample')
 
     await waitFor(() => {
       expect(screen.getByText('Viewer is PIC')).toBeTruthy()
@@ -762,7 +762,7 @@ describe('Fix C1 — directory-sourced BU + Person filter options', () => {
     const personSelect = taskFilter(/^person$/i)
     const opts = taskFilterOptions(personSelect)
     // All people from directory are present, with stable display names.
-    expect(opts).toContain('Arief Said')
+    expect(opts).toContain('Arden Sample')
     expect(opts).toContain('Budi Setiawan')
     expect(opts).toContain('Sari Support')
     expect(opts).toContain('Iman Observer')
@@ -790,9 +790,9 @@ describe('Fix M2 — task count suppressed in error state', () => {
     renderPage()
     await waitFor(() => screen.getByText('Default task'))
     // Goal-oracle: the loaded count is visible. OD-REDESIGN-91 #17 makes the head meta
-    // explicitly distinguish open work from what the current view holds: "N open · M in view".
+    // explicitly distinguish open work from what the current view holds: "N open in this view · M incl. done".
     const countLine = document.querySelector('[data-testid="tasks-count-line"]')
-    expect(countLine?.textContent).toContain('2 open · 2 in view')
+    expect(countLine?.textContent).toContain('2 open in this view · 2 incl. done')
   })
 })
 
@@ -1134,7 +1134,7 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
     })
     mockListTasks.mockResolvedValueOnce([genTask, nextTask])
 
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Arief Said' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Arden Sample' }))
 
     await waitFor(() => expect(mockResolvePendingTask).toHaveBeenCalledWith('pending-1', VIEWER_ID))
     // The newly-resolved Task appears alongside the single-holder Task, still under the ONE

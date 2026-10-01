@@ -64,9 +64,12 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'tasks.filter.sortPic', // PIC A–Z
   'tasks.filter.sortStatus', // Status
   'tasks.filter.status', // Status
-  'tasks.meta.totalCount', // ${count} total
-  'tasks.noObjective', // Objective terminology is owner-held (OPEN-10 / WORK-18 / PROOF-12)
-  'tasks.objective', // Objective — id UI keeps the borrowed term today
+  // Objectives and Projects & Processes name their roles Responsible / Accountable in both
+  // locales; the Indonesian gloss for Responsible collided with PIC's ("Penanggung Jawab").
+  'catalog.column.accountable', // Accountable
+  'catalog.record.accountable', // Accountable
+  'catalog.record.responsible', // Responsible
+  'objective.keyResults.responsible', // Responsible — same word as the record field
   'tasks.pic', // PIC
   'tasks.status.label', // Status
   'tasks.supervisor', // Supervisor
@@ -102,7 +105,7 @@ describe('id catalog values are Indonesian (#410 inverse of the parity test)', (
 
   it('the remaining #410 keys stay translated (the seed defects this guard exists for)', () => {
     expect(messages.id['kitchen.pushes.col.error']).toBe('Kesalahan')
-    expect(messages.id['kitchen.pushes.col.target']).toBe('Tujuan')
+    expect(messages.id['kitchen.pushes.col.target']).toBe('Dikirim ke')
   })
 
   it('allowlist entries are live — no stale key rides the exemption list', () => {
@@ -117,9 +120,9 @@ describe('id catalog values are Indonesian (#410 inverse of the parity test)', (
   // ≠ en 'Objectives', so the title hole rode past it; these pins close that seam.
   it('ticket 755: the audit-named shell keys carry Indonesian values that name the job', () => {
     // Objectives title — shell nav child, Home door, Work page head. Not the borrowed English.
-    expect(messages.id['nav.objectives']).toBe('Sasaran')
-    expect(messages.id['home.objectives.title']).toBe('Sasaran')
-    expect(messages.id['nav.work.objectives']).toBe('Sasaran')
+    expect(messages.id['nav.objectives']).toBe('Tujuan')
+    expect(messages.id['home.objectives.title']).toBe('Tujuan')
+    expect(messages.id['nav.work.objectives']).toBe('Tujuan')
     // Café Log label — the production record.
     expect(messages.id['nav.cafe.log']).toBe('Catatan')
     // RETAIL OPS group overline.
@@ -127,5 +130,41 @@ describe('id catalog values are Indonesian (#410 inverse of the parity test)', (
     // Pushes — named for its job, never 'Antrean'.
     expect(messages.id['nav.cafe.pushes']).toBe('Kirim Log')
     expect(messages.id['nav.cafe.pushes']).not.toBe('Antrean')
+  })
+})
+
+// The Indonesian word for Objective is "Tujuan" everywhere and "Tujuan" means only Objective:
+// the old word is gone, and no non-Objective key (Café Pushes' destination column) borrows it.
+describe('id catalog: "Tujuan" is the Objective term only', () => {
+  const id = messages.id as Record<string, string>
+  it('the retired Objective word appears in no id value', () => {
+    const offenders = Object.keys(id).filter((key) => /sasaran/i.test(id[key]))
+    expect(offenders, `retired Objective word in: ${offenders.join(', ')}`).toEqual([])
+  })
+  it('Objective labels in id read Tujuan, never the borrowed English word', () => {
+    expect(id['tasks.objective']).toBe('Tujuan')
+    expect(id['catalog.column.objective']).toBe('Tujuan')
+    expect(id['catalog.record.objective']).toBe('Tujuan')
+    const borrowed = Object.keys(id).filter((key) => /\bobjectives?\b/i.test(id[key]))
+    expect(borrowed, `borrowed English Objective in id values: ${borrowed.join(', ')}`).toEqual([])
+  })
+  it('a bare "Tujuan" value belongs to an Objective key; Pushes destination uses another word', () => {
+    const bare = Object.keys(id).filter((key) => id[key] === 'Tujuan')
+    expect(bare.filter((key) => !/objective/i.test(key)), 'bare Tujuan on a non-Objective key').toEqual([])
+    expect(id['kitchen.pushes.col.target']).toBe('Dikirim ke')
+  })
+  it('Task and Objective/Project role labels do not mix', () => {
+    const en = messages.en as Record<string, string>
+    for (const key of ['tasks.pic', 'tasks.supervisor']) {
+      expect(en[key]).toMatch(/^(PIC|Supervisor)$/)
+    }
+    expect(en['catalog.column.accountable']).toBe('Accountable')
+    expect(en['catalog.record.accountable']).toBe('Accountable')
+    expect(en['catalog.record.responsible']).toBe('Responsible')
+    expect(id['catalog.column.accountable']).toBe('Accountable')
+    expect(id['catalog.record.responsible']).toBe('Responsible')
+    // The Tasks help text names PIC and Supervisor only — never the Objective-side pair.
+    expect(en['job.tasksHelp']).not.toMatch(/Responsible|Accountable/)
+    expect(id['job.tasksHelp']).not.toMatch(/Responsible|Accountable/)
   })
 })

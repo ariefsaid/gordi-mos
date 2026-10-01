@@ -371,11 +371,13 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
     await expect(attentionTrigger).toBeVisible()
 
     await attentionTrigger.click()
-    const attentionMenu = page.locator('.picker__menu[aria-label*="tasks need attention"]')
+    const attentionMenuId = await attentionTrigger.getAttribute('aria-controls')
+    expect(attentionMenuId, 'the open attention trigger names its popup').toBeTruthy()
+    const attentionMenu = page.locator(`[id="${attentionMenuId}"]`)
     await expect(attentionMenu).toBeVisible()
     const attentionOptions = attentionMenu.getByRole('option')
     expect(await attentionOptions.count(), 'Tasks filter panel #667: Attention options must be present').toBe(2)
-    await assertTapFloor(page, '.picker__menu[aria-label*="tasks need attention"] .picker__option', 'Tasks attention options #667', { axes: 'both', noOverflow: true })
+    await assertTapFloor(page, `[id="${attentionMenuId}"] .picker__option`, 'Tasks attention options #667', { axes: 'both', noOverflow: true })
     await page.keyboard.press('Escape')
 
     const saveViewTrigger = tasksToolbar.getByRole('button', { name: /^save view$/i })
@@ -393,10 +395,10 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
     await cancelButton.click()
     await page.keyboard.press('Escape')
     // Create is the one inline create form (task-create-form.tsx) mounted as a draft row with its
-    // title focused, and at phone width the one create door is the actions FAB. The title field
-    // it focuses is the create surface's tap target, so the floor is measured there.
-    await page.getByRole('button', { name: /open actions/i }).click()
-    await page.getByRole('option', { name: 'Create task', exact: true }).click()
+    // title focused. The + launcher yields on Tasks, so the one create door at every width is the
+    // page head's "+ Create task" button (the form's own submit of that name is not mounted yet).
+    // The title field it focuses is the create surface's tap target, so the floor is measured there.
+    await page.getByRole('button', { name: /^\+?\s*create task$/i }).click()
     await expect(page.getByRole('form', { name: 'Create task form' }).getByRole('textbox', { name: 'Title', exact: true })).toBeVisible()
     await assertTapFloor(page, '.tcf-title.tap-floor', 'Tasks create title #667', { axes: 'both', noOverflow: true })
     await page.keyboard.press('Escape')

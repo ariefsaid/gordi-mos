@@ -42,8 +42,9 @@ for (const locale of ['en', 'id'] as const) {
         await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ message: 'Directory unavailable' }) })
       } else await route.continue()
     })
-    await page.getByRole('button', { name: t['actionLauncher.open'], exact: true }).click()
-    await page.getByRole('option', { name: t['commandMenu.action.shareSignal'], exact: true }).click()
+    // The phone + launcher yields on /work/signals (shell/bottom-tab-bar.tsx IN_PAGE_CREATE_PATHS):
+    // the page head's Share Signal is the create door, and the composer is not open yet.
+    await page.getByRole('button', { name: t['signals.action.share'], exact: true }).click()
     const composer = page.getByTestId('signal-composer')
     const content = composer.locator('textarea')
     await content.fill(body)
@@ -65,7 +66,7 @@ for (const locale of ['en', 'id'] as const) {
     const feedRow = page.locator('main [data-signal-id][role="button"]').filter({ hasText: body })
     await feedRow.click()
     await expect(page.getByRole('heading', { name: new RegExp(body) })).toBeVisible()
-    // signal-record.tsx: "Open full page" rides the "•••" overflow menu now, not a direct button.
+    // signal-record.tsx: "Open full page" rides the overflow menu now, not a direct button.
     await page.getByRole('button', { name: t['signals.record.moreActions'], exact: true }).click()
     await page.getByRole('menuitem', { name: t['record.openFullPage'], exact: true }).click()
     await expect(page).toHaveURL(/\/work\/signals\/[0-9a-f-]{36}/)

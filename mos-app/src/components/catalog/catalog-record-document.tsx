@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useHref } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { saveErrorMessage } from '@/lib/save-error'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -22,6 +23,7 @@ import { updateWorkLine } from '@/lib/db/work-lines'
 import type { ProcessRecordData } from '@/lib/db/work-records'
 import { ProcessOccurrenceControls } from '@/components/processes/process-occurrence-controls'
 import {
+  COMPANY_WIDE_OPTION,
   objectivesCatalogActions,
   projectsProcessesCatalogActions,
   type CatalogCollectionContext,
@@ -30,7 +32,11 @@ import {
 } from './catalog-collection-adapter'
 import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogRecordEditDirectory } from './catalog-record-loader'
 import './catalog-record-document.css'
-import { allowedBusinessUnitIds, canManageForScope, useWorkWriteAuthority } from './use-work-write-authority'
+import { ObjectiveKeyResultsSection } from './objective-key-results-section'
+import { RecordHistory } from './record-history'
+import { allowedBusinessUnitIds, canEditObjectiveContentForScope, canManageForScope, useWorkWriteAuthority } from './use-work-write-authority'
+
+const ObjectiveWriteupEditor = lazy(() => import('./objective-writeup-editor').then((m) => ({ default: m.ObjectiveWriteupEditor })))
 
 export type CatalogRecordKind = 'work-line' | 'objective'
 export type CatalogRelatedKind = CatalogRecordKind | 'task'
@@ -121,6 +127,24 @@ function directoryName(
 ): string {
   if (!id) return t('catalog.notSet')
   return names?.get(id) ?? t('catalog.notAvailable')
+}
+
+function businessUnitLabel(
+  row: Pick<CatalogRow, 'businessUnitId' | 'isCompanyWide'>,
+  names: ReadonlyMap<string, string> | undefined,
+  t: ReturnType<typeof useT>,
+): string {
+  if (row.isCompanyWide) return t('catalog.companyWide')
+  return directoryName(row.businessUnitId, names, t)
+}
+
+function periodQuarterLabel(quarter: number | null | undefined, year: number | null | undefined, t: ReturnType<typeof useT>): string {
+  if (year == null) return t('catalog.notSet')
+  if (quarter === 1) return t('catalog.period.q1')
+  if (quarter === 2) return t('catalog.period.q2')
+  if (quarter === 3) return t('catalog.period.q3')
+  if (quarter === 4) return t('catalog.period.q4')
+  return t('catalog.period.wholeYear')
 }
 
 function processOwner(
@@ -242,7 +266,7 @@ export function CatalogRecordDocument({
   const canonicalHref = useHref(relatedPath(kind, id))
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
-  const { scopes } = useWorkWriteAuthority()
+  const { scopes, loading: scopesLoading, error: scopesError, retry: retryScopes } = useWorkWriteAuthority()
   const canRead = auth.status === 'authenticated'
   const [state, setState] = useState<CatalogRecordState | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'not-found'>('loading')
@@ -251,6 +275,8 @@ export function CatalogRecordDocument({
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameDraft, setRenameDraft] = useState('')
   const [reloadNonce, setReloadNonce] = useState(0)
+  // Bumped after every successful write so the History section re-reads the row the trigger just added.
+  const [historyVersion, setHistoryVersion] = useState(0)
   const [editDirectory, setEditDirectory] = useState<CatalogRecordEditDirectory | null>(null)
   const [editDirectoryError, setEditDirectoryError] = useState(false)
   const [editDirectoryRetry, setEditDirectoryRetry] = useState(0)
@@ -283,10 +309,13 @@ export function CatalogRecordDocument({
     return () => { live = false }
   }, [id, kind, onTitleResolved, viewerId, reloadNonce, canRead])
 
+  // The choices load once per record: a save refreshes `state` but must not blank them, or the
+  // field a keyboard user just edited is unmounted and focus falls to the page.
+  const hasState = state !== null
   useEffect(() => {
     setEditDirectory(null)
     setEditDirectoryError(false)
-    if (!canRead || !canManage || !state) return
+    if (!canRead || !canManage || !hasState) return
     let live = true
     void loadCatalogRecordEditDirectory(kind)
       .then((directory) => {
@@ -294,7 +323,7 @@ export function CatalogRecordDocument({
       })
       .catch(() => { if (live) setEditDirectoryError(true) })
     return () => { live = false }
-  }, [canManage, canRead, id, kind, state, editDirectoryRetry])
+  }, [canManage, canRead, id, kind, hasState, editDirectoryRetry])
 
   const dirtyRef = useRef(false)
   dirtyRef.current = fieldDirty
@@ -319,10 +348,10 @@ export function CatalogRecordDocument({
       if (kind === 'objective') await objectivesCatalogActions.rename(id, name)
       else await projectsProcessesCatalogActions.rename(id, name)
       setState((current) => current ? { ...current, row: { ...current.row, name } } : current)
+      setHistoryVersion((v) => v + 1)
       onChanged?.()
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('catalog.saveFailed')
-      setMutationError(message)
+      setMutationError(saveErrorMessage(error, t))
       throw error
     } finally {
       setBusy(false)
@@ -336,13 +365,21 @@ export function CatalogRecordDocument({
     const common = { businessUnit: 'business_unit_id', accountable: 'accountable_person_id' } as const
     setMutationError('')
     try {
-      if (key in common) {
+      if (kind === 'objective' && key === 'businessUnit') {
+        // One of: a unit, Company-wide, or neither. Picking one clears the other.
+        await updateObjective(id, text === COMPANY_WIDE_OPTION
+          ? { is_company_wide: true, business_unit_id: null }
+          : { business_unit_id: text, is_company_wide: false })
+      } else if (key in common) {
         const column = common[key as keyof typeof common]
         if (kind === 'objective') await updateObjective(id, { [column]: text })
         else await updateWorkLine(id, { [column]: text })
       } else if (kind === 'objective' && key === 'period') {
         if (text !== null && !/^\d{4}$/.test(text)) throw new Error(t('catalog.record.periodInvalid'))
-        await updateObjective(id, { period_year: text === null ? null : Number(text) })
+        // A quarter needs a year, so clearing the year clears the quarter in the same write.
+        await updateObjective(id, text === null ? { period_year: null, period_quarter: null } : { period_year: Number(text) })
+      } else if (kind === 'objective' && key === 'periodQuarter') {
+        await updateObjective(id, { period_quarter: text === null ? null : Number(text) })
       } else if (kind === 'work-line' && key === 'objective') {
         await updateWorkLine(id, { objective_id: text })
       } else if (kind === 'work-line' && key === 'responsible') {
@@ -350,6 +387,7 @@ export function CatalogRecordDocument({
       } else throw new Error(t('catalog.saveFailed'))
       const refreshed = await recordDataFor(kind, id, viewerId)
       if (refreshed) setState(refreshed)
+      setHistoryVersion((v) => v + 1)
       onChanged?.()
     } catch (error) {
       setMutationError(t('catalog.saveFailed'))
@@ -368,10 +406,10 @@ export function CatalogRecordDocument({
         ...current,
         row: { ...current.row, archived_at: archived ? new Date().toISOString() : null },
       } : current)
+      setHistoryVersion((v) => v + 1)
       onChanged?.()
     } catch (error) {
-      const message = error instanceof Error ? error.message : t('catalog.saveFailed')
-      setMutationError(message)
+      setMutationError(saveErrorMessage(error, t))
       throw error
     } finally {
       setBusy(false)
@@ -393,8 +431,9 @@ export function CatalogRecordDocument({
       .filter(([value]) => allowedBuIds === null || allowedBuIds.includes(value))
       .map(([value, label]) => ({ value, label }))
     const emptyOption = { value: '', label: t('catalog.notSet') }
+    const companyWideOption = { value: COMPANY_WIDE_OPTION, label: t('catalog.companyWide') }
     const businessUnitEditOptions = allowedBuIds === null
-      ? [emptyOption, ...businessUnitOptions]
+      ? [emptyOption, ...(kind === 'objective' ? [companyWideOption] : []), ...businessUnitOptions]
       : businessUnitOptions
     const allRelationGroups = context.relationsById.get(id)?.groups ?? []
     const relationGroups = allRelationGroups.filter((group) => !group.synthetic)
@@ -403,9 +442,10 @@ export function CatalogRecordDocument({
     const relationTasks = context.relationsById.get(id)?.tasks ?? []
     const fields: RecordFieldSpec[] = kind === 'objective'
       ? [
-          { key: 'businessUnit', label: t('catalog.record.businessUnit'), control: 'relation', value: row.businessUnitId ?? null, displayValue: directoryName(row.businessUnitId, businessUnitsById, t), editable: false },
+          { key: 'businessUnit', label: t('catalog.record.businessUnit'), control: 'relation', value: row.isCompanyWide ? COMPANY_WIDE_OPTION : row.businessUnitId ?? null, displayValue: businessUnitLabel(row, businessUnitsById, t), editable: false },
           { key: 'accountable', label: t('catalog.record.accountable'), control: 'person', value: row.accountablePersonId ?? null, displayValue: directoryName(row.accountablePersonId, allPeopleById, t), editable: false },
-          { key: 'period', label: t('catalog.record.period'), control: 'text', value: row.periodYear ?? null, displayValue: row.periodYear == null ? t('catalog.notSet') : String(row.periodYear), editable: false },
+          { key: 'period', label: t('catalog.record.period'), control: 'text', value: row.periodYear ?? null, placeholder: t('catalog.record.periodPlaceholder'), displayValue: row.periodYear == null ? t('catalog.notSet') : String(row.periodYear), editable: false },
+          { key: 'periodQuarter', label: t('catalog.record.periodQuarter'), control: 'select', value: row.periodQuarter == null ? null : String(row.periodQuarter), displayValue: periodQuarterLabel(row.periodQuarter, row.periodYear, t), editable: false },
         ]
       : [
           {
@@ -424,17 +464,30 @@ export function CatalogRecordDocument({
 
     for (const field of fields) {
       if (field.key === 'cadence' || field.key === 'owningTeam') continue
-      field.editable = canManage && row.archived_at === null && (field.key === 'period' || editDirectory !== null)
-      if (canManage && field.key !== 'period' && !editDirectory) field.readOnlyReason = t(editDirectoryError ? 'catalog.record.editChoicesError' : 'catalog.record.editChoicesLoading')
+      const needsDirectory = field.key !== 'period' && field.key !== 'periodQuarter'
+      const quarterNeedsYear = field.key === 'periodQuarter' && row.periodYear == null
+      field.editable = canManage && row.archived_at === null && !quarterNeedsYear && (!needsDirectory || editDirectory !== null)
+      if (canManage && quarterNeedsYear) field.readOnlyReason = t('catalog.record.periodQuarterNeedsYear')
+      if (field.key === 'periodQuarter') field.options = [
+        { value: '', label: t('catalog.period.wholeYear') },
+        { value: '1', label: t('catalog.period.q1') },
+        { value: '2', label: t('catalog.period.q2') },
+        { value: '3', label: t('catalog.period.q3') },
+        { value: '4', label: t('catalog.period.q4') },
+      ]
+      if (canManage && needsDirectory && !editDirectory) field.readOnlyReason = t(editDirectoryError ? 'catalog.record.editChoicesError' : 'catalog.record.editChoicesLoading')
       if (field.key === 'businessUnit') field.options = businessUnitEditOptions
       if (field.key === 'accountable' || field.key === 'responsible') field.options = [emptyOption, ...[...allPeopleById].map(([value, label]) => ({ value, label }))]
       if (field.key === 'objective') field.options = [emptyOption, ...objectiveOptions]
       }
 
+    const readOnlyNote = t(kind === 'objective' ? 'catalog.record.objectiveReadOnly' : 'catalog.record.readOnly')
+
     const tabs: RecordViewerTab[] = [
       { id: 'work', label: t('catalog.record.tabs.work') },
       { id: 'facts', label: t('catalog.record.tabs.details') },
       ...(row.type === 'process' ? [{ id: 'steps', label: t('catalog.record.tabs.steps') }] : []),
+      ...(kind === 'objective' ? [{ id: 'writeup', label: t('objective.writeUp.tab') }] : []),
     ]
 
     const actions: RecordAction[] = canManage ? [{
@@ -463,9 +516,24 @@ export function CatalogRecordDocument({
         ...(kind === 'objective' || row.type === 'project' ? [{
           id: 'work',
           label: t('catalog.record.tabs.work'),
-          render: () => linkedWorkSlot(
-            allRelationGroups, relationTasks, kind, id,
-            context.progressById.get(id) ?? { done: 0, total: 0 }, onOpenRelated, onCreateTask, t,
+          render: () => (
+            <>
+              {linkedWorkSlot(
+                allRelationGroups, relationTasks, kind, id,
+                context.progressById.get(id) ?? { done: 0, total: 0 }, onOpenRelated, onCreateTask, t,
+              )}
+              {kind === 'objective' ? (
+                <ObjectiveKeyResultsSection
+                  objectiveId={id}
+                  businessUnitId={row.businessUnitId}
+                  isCompanyWide={row.isCompanyWide}
+                  archived={row.archived_at !== null}
+                  scopes={scopes}
+                  scopesStatus={scopesError ? 'error' : scopesLoading ? 'loading' : 'ready'}
+                  onRetryScopes={retryScopes}
+                />
+              ) : null}
+            </>
           ),
         }] : []),
         ...(row.type === 'process' ? [{
@@ -503,18 +571,38 @@ export function CatalogRecordDocument({
             </div>
           ),
         }] : []),
+        ...(kind === 'objective' ? [{
+          id: 'writeup',
+          label: t('objective.writeUp.tab'),
+          render: (slotContext: { onDirtyChange?: (dirty: boolean) => void }) => (
+            <Suspense fallback={<LoadingShell label={t('objective.writeUp.loading')} />}>
+              <ObjectiveWriteupEditor
+                objectiveId={id}
+                canEdit={canEditObjectiveContentForScope(row, scopes)}
+                archived={row.archived_at !== null}
+                onDirtyChange={slotContext.onDirtyChange}
+              />
+            </Suspense>
+          ),
+        }] : []),
         {
           id: 'facts',
           label: t('catalog.record.details'),
           section: { id: 'facts', label: t('catalog.record.details'), fields },
           render: (slotContext) => (
             <>
-              {!canManage ? <p className="record-viewer__permission-note" role="note">{t('catalog.record.readOnly')}</p> : null}
+              {!canManage ? <p className="record-viewer__permission-note" role="note">{readOnlyNote}</p> : null}
               <RecordFieldList
                 section={{ id: 'facts', label: t('catalog.record.details'), fields }}
                 onCommitField={slotContext.onCommitField}
                 onDirtyChange={slotContext.onDirtyChange}
                 fieldCommitsFrozen={slotContext.fieldCommitsFrozen}
+                headingLevel={slotContext.headingLevel}
+              />
+              <RecordHistory
+                key={historyVersion}
+                table={kind === 'objective' ? 'objectives' : 'work_lines'}
+                recordId={id}
                 headingLevel={slotContext.headingLevel}
               />
             </>
@@ -526,12 +614,12 @@ export function CatalogRecordDocument({
       headerOverflowActionIds: canManage ? ['rename', 'archive'] : [],
       permission: {
         readOnly: !canManage,
-        reason: canManage ? undefined : t('catalog.record.readOnly'),
+        reason: canManage ? undefined : readOnlyNote,
         allowedActionIds: actions.map((action) => action.id),
       },
       state: 'ready',
     } satisfies RecordViewerAdapter
-  }, [busy, canManage, editDirectory, editDirectoryError, id, kind, onChanged, onCreateTask, onOpenRelated, scopes, setArchived, state, t])
+  }, [busy, canManage, editDirectory, editDirectoryError, historyVersion, id, kind, onChanged, onCreateTask, onOpenRelated, retryScopes, scopes, scopesError, scopesLoading, setArchived, state, t])
 
   const discardAndLeave = useCallback(async () => {
     resolverRef.current?.({ decision: 'allow' })

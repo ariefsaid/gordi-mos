@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { SignalDetail } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
-import { wrapSignalRecord, firstLine } from './signal-record-adapter'
+import { wrapSignalRecord, firstLine, SIGNAL_TITLE_MAX } from './signal-record-adapter'
 
 // OD-REDESIGN-90 anatomy (docs/specs/record-page-anatomy.spec.md §2.1): a Signal packs its five
 // job regions into ORDERED content slots — message → reach → discussion → facts → history — with
@@ -35,14 +35,18 @@ function makeInput(overrides: Partial<Parameters<typeof wrapSignalRecord>[0]> = 
 }
 
 describe('wrapSignalRecord (OD-REDESIGN-90 JTBD anatomy)', () => {
-  it('AC-ANAT-002: the identity title is the body first line, UNTRUNCATED (never an ellipsized slice)', () => {
+  it('AC-ANAT-002: the identity title is the body first line; a first line past the cap is cut at the cap with an ellipsis', () => {
+    const shortLine = 'Oat milk ran out during the morning rush.'
+    expect(wrapSignalRecord(makeInput({ detail: makeDetail(makeSignal({ body: shortLine })) })).title).toBe(shortLine)
     const longLine = 'Grinder 2 at HQ bar is throwing inconsistent doses — pulled it for a burr check before the morning rush.'
-    expect(longLine.length).toBeGreaterThan(80)
-    const adapter = wrapSignalRecord(makeInput({ detail: makeDetail(makeSignal({ body: longLine })) }))
-    expect(adapter.title).toBe(longLine)
-    expect(adapter.title.endsWith('…')).toBe(false)
+    expect(longLine.length).toBeGreaterThan(SIGNAL_TITLE_MAX)
+    const { title } = wrapSignalRecord(makeInput({ detail: makeDetail(makeSignal({ body: longLine })) }))
+    expect(title.endsWith('…')).toBe(true)
+    expect(title.length).toBeLessThanOrEqual(SIGNAL_TITLE_MAX + 1)
+    expect(longLine.startsWith(title.slice(0, -1))).toBe(true)
     // firstLine takes ONLY the first line — a second line never leaks into the heading.
     expect(firstLine('Line one.\nLine two.')).toBe('Line one.')
+    expect(wrapSignalRecord(makeInput({ detail: makeDetail(makeSignal({ body: 'Line one.\nLine two.' })) })).title).toBe('Line one.')
   })
 
   it('AC-ANAT-001: content leads — the ordered content slots are [message, reach, discussion, facts]; generic regions are empty', () => {

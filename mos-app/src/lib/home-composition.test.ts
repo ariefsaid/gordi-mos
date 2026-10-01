@@ -29,6 +29,8 @@ describe('Home composition authority', () => {
   })
 
   it('recognizes objective/work-line capability as a cockpit permission', () => {
+    // OD-OBJ-1 narrows ops_lead to the content tier only, but they keep workline.manage —
+    // which is what admits them here; the structural grant is admin's.
     expect(homePersona({ ...member, accessRoles: ['ops_lead'] }, [])).toBe('cockpit')
   })
 })

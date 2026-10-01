@@ -18,6 +18,10 @@ import './components/ui/Pill.css'
 // shell root as well as inside a collection page — a route-scoped stylesheet would leave the
 // shell-mounted panel unskinned.
 import './styles/drawer.css'
+// Shared desktop form grid (#959) — global for the same reason as drawer.css above: multiple
+// route trees (admin dialogs today, more lanes to follow) reference the class names without each
+// importing the stylesheet themselves.
+import './styles/form-grid.css'
 import { App } from './app.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { registerServiceWorker } from './sw-register'

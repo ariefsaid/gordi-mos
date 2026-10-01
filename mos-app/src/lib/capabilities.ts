@@ -12,21 +12,22 @@
 //
 // Ported from v4-redesign (#192, Tasks): `process.start` / `process.adopt` (ADR-0051 D8 — member
 // holds process.start per OD-REDESIGN-71iii, a Team-membership gate on the server keeps it scoped
-// to the member's own Team) and the ops_lead extension of `objective.manage` (OD-V4-1) already
-// exist in the squashed baseline's seed (20260805000006_mos_access_control.sql) — this mirror was
-// simply stale relative to it; #192 brought it current, so the rows below are no longer deferred.
+// to the member's own Team). The ops_lead rows track the ruling of the day: OD-V4-1 granted
+// `objective.manage`, and OD-OBJ-1 (#992) narrowed it — ops_lead now holds only the content tier
+// (`objective.edit_content`: an Objective's write-up and a key result's current value); the
+// structural fields are admin-only. This mirror changes in the same slice as the database grant.
 //
 // TODO(admin-editable-roles, ADR-0020 D2): replace this static map with an RPC
 // (shared.my_capabilities()) once grants become admin-editable. Until then the seed is static.
 export const ROLE_CAPABILITIES: Readonly<Record<string, readonly string[]>> = {
   admin: [
-    'objective.manage', 'workline.manage', 'followup.confirm',
+    'objective.manage', 'objective.edit_content', 'workline.manage', 'followup.confirm',
     'signal.mention_bu', 'signal.retract',
     'process.start', 'process.adopt',
   ],
   finance: ['followup.confirm', 'signal.mention_bu', 'signal.retract'],
   ops_lead: [
-    'objective.manage', 'workline.manage',
+    'objective.edit_content', 'workline.manage',
     'signal.mention_bu', 'signal.retract', 'process.start',
   ],
   // process.start (ADR-0051 D8 / OD-REDESIGN-71(iii), supabase/migrations/20260805000006):

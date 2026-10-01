@@ -14,12 +14,12 @@ import { createTaskRecordAdapter, type TaskRecordAdapterInput } from './task-rec
 // observed === declared, and evaluates the FAIL gates F1–F5. A green mechanical guard does NOT
 // substitute for this recorded pass.
 
-const DECLARED = ['content', 'checklist', 'ownership', 'activity', 'relations'] as const
+const DECLARED = ['content', 'checklist', 'ownership', 'relations', 'activity'] as const
 
 const PIC = 'p-pic'
 const SUPERVISOR = 'p-sup'
 const people: PersonOption[] = [
-  { id: PIC, full_name: 'Riri' },
+  { id: PIC, full_name: 'Nico' },
   { id: SUPERVISOR, full_name: 'Wayan Kusuma' },
 ]
 const businessUnits: BusinessUnitOption[] = [{ id: 'bu-retail', name: 'Retail Ops' }]
@@ -187,7 +187,7 @@ describe('Census Step 2.5 — Task record anatomy conformance (AC-ANAT-009)', ()
     const ownership = container.querySelector('[data-content-slot="ownership"]') as HTMLElement
     expect(container.querySelector('[data-record-header-context="true"]')).toBeNull()
     expect(observedVector(container).indexOf('ownership')).toBeLessThan(observedVector(container).indexOf('activity'))
-    expect(ownership).toHaveTextContent('Riri')
+    expect(ownership).toHaveTextContent('Nico')
     expect(ownership).toHaveTextContent('Wayan Kusuma')
     expect(ownership).toHaveTextContent('Due date')
     expect(ownership).toHaveTextContent('2026-07-25')

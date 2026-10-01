@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import {
   emptyWorkWriteScopes,
   getWorkWriteScopes,
   type WorkWriteScopes,
 } from '@/lib/db/work-authority'
+
+/** A lookup that has not answered by then counts as failed, so the viewer can retry instead of waiting. */
+export const WORK_AUTHORITY_TIMEOUT_MS = 10_000
 
 export function canCreateForScope(kind: 'work-line' | 'objective', scopes: WorkWriteScopes): boolean {
   return kind === 'work-line'
@@ -24,6 +27,21 @@ export function canManageForScope(
   return buIds.includes(businessUnitId)
 }
 
+/**
+ * May the viewer edit an Objective's write-up and key-result current values (the content tier)?
+ * Org-wide for the content org scope; otherwise only on an Objective owned by one of the viewer's
+ * own units. A Company-wide or unit-less Objective is never in a unit scope. Structure (name,
+ * unit, period, owner) is a separate, stricter authority: see `canManageForScope`.
+ */
+export function canEditObjectiveContentForScope(
+  row: { businessUnitId?: string | null; isCompanyWide?: boolean },
+  scopes: WorkWriteScopes,
+): boolean {
+  if (scopes.objective_content_org) return true
+  if (row.isCompanyWide === true || !row.businessUnitId) return false
+  return scopes.objective_content_bu_ids.includes(row.businessUnitId)
+}
+
 export function allowedBusinessUnitIds(
   kind: 'work-line' | 'objective',
   scopes: WorkWriteScopes,
@@ -40,6 +58,7 @@ export function useWorkWriteAuthority() {
   const [scopes, setScopes] = useState<WorkWriteScopes>(() => emptyWorkWriteScopes())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let live = true
@@ -50,12 +69,17 @@ export function useWorkWriteAuthority() {
       setLoading(false)
       return () => { live = false }
     }
-    getWorkWriteScopes()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('work authority lookup timed out')), WORK_AUTHORITY_TIMEOUT_MS)
+    })
+    Promise.race([getWorkWriteScopes(), timeout])
       .then((next) => { if (live) setScopes(next) })
       .catch(() => { if (live) setError(true) })
-    .finally(() => { if (live) setLoading(false) })
-    return () => { live = false }
-  }, [orgId, viewerId])
+      .finally(() => { clearTimeout(timer); if (live) setLoading(false) })
+    return () => { live = false; clearTimeout(timer) }
+  }, [orgId, viewerId, attempt])
 
-  return { scopes, loading, error }
+  const retry = useCallback(() => setAttempt((n) => n + 1), [])
+  return { scopes, loading, error, retry }
 }

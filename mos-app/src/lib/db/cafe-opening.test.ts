@@ -227,6 +227,33 @@ describe('listCafeViewerTeams', () => {
     await expect(listCafeViewerTeams('person-1')).resolves.toEqual([])
     expect(rec.fromTables).not.toContain('shared.teams')
   })
+
+  // gpt-6-luna review (74d4ebf7): a caller (kitchen-review-page's decide-rights read) needs to
+  // tell an open-ended membership apart from a finite-end one — only the former is
+  // `ops.is_stream_reviewer`-eligible — so this field must survive the read, not just the
+  // effective-dated WINDOW it's already filtered by.
+  it("surfaces each membership's effective_to — open-ended (null) vs a finite date", async () => {
+    const rec = freshRec()
+    mockSupabase({
+      'shared.team_memberships': [{
+        data: [
+          { team_id: 'team-open', is_primary: true, effective_to: null },
+          { team_id: 'team-finite', is_primary: false, effective_to: '2026-12-31' },
+        ], error: null,
+      }],
+      'shared.teams': [{
+        data: [
+          { id: 'team-open', name: 'RRS Kitchen', business_unit_id: 'bu-1', site_id: null, branch_id: 'branch-rrs', activity: 'kitchen' },
+          { id: 'team-finite', name: 'Radiant Bar', business_unit_id: 'bu-1', site_id: null, branch_id: 'branch-radiant', activity: 'bar' },
+        ], error: null,
+      }],
+    }, rec)
+
+    const result = await listCafeViewerTeams('person-1')
+
+    expect(result.find(team => team.id === 'team-open')).toMatchObject({ effective_to: null })
+    expect(result.find(team => team.id === 'team-finite')).toMatchObject({ effective_to: '2026-12-31' })
+  })
 })
 
 // ── getTodayOpeningForTeam (B1, AC-710) ───────────────────────────────────────

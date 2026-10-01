@@ -2,15 +2,15 @@ import {
   useCallback,
   useEffect,
   useId,
-  useLayoutEffect,
   useRef,
   useState,
   type FocusEventHandler,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react'
-import { createPortal, flushSync } from 'react-dom'
-import { useListboxPopover } from './use-listbox-popover'
-import { usePopoverReflow } from './use-popover-reflow'
+import { flushSync } from 'react-dom'
+import * as Popover from '@radix-ui/react-popover'
+import { Command } from 'cmdk'
+import { useT } from '@/i18n/use-t'
 import './Picker.css'
 
 export interface PickerOption {
@@ -33,6 +33,8 @@ export interface PickerProps {
   fullWidth?: boolean
   hideLabel?: boolean
   autoFocus?: boolean
+  /** Mount with the menu already open — for editors mounted by the click/key that means "open". */
+  defaultOpen?: boolean
   required?: boolean
   placeholder?: string
   /** Visible prefix for the trigger only; menu option labels stay concise. */
@@ -58,6 +60,11 @@ function focusableElements(exclude: HTMLElement | null) {
   })
 }
 
+// cmdk replaces an empty item value with its text, so a '' placeholder option could never be the
+// active item. Keys follow the option value (stable when options reorder); the prefix keeps the
+// empty placeholder's key distinct from every real value.
+const keyOf = (value: string) => (value === '' ? 'empty' : `v:${value}`)
+
 export function Picker({
   id,
   label,
@@ -70,6 +77,7 @@ export function Picker({
   fullWidth = false,
   hideLabel = false,
   autoFocus = false,
+  defaultOpen = false,
   required = false,
   placeholder,
   triggerPrefix,
@@ -82,49 +90,35 @@ export function Picker({
   onKeyDown,
   onBlur,
 }: PickerProps) {
+  const t = useT()
   const autoId = useId()
   const triggerId = id ?? autoId
-  const menuId = `${triggerId}-listbox`
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
+  const initialActive = useCallback(() => {
+    const selectable = options.filter((option) => !option.disabled)
+    const current = selectable.find((option) => option.value === value) ?? selectable[0]
+    return current ? keyOf(current.value) : ''
+  }, [options, value])
+  const [active, setActive] = useState(initialActive)
+  const [search, setSearch] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const typed = useRef({ text: '', time: 0 })
-
-  const isDisabled = useCallback((index: number) => Boolean(options[index]?.disabled), [options])
-  const selectedIndex = options.findIndex((option) => option.value === value)
+  const closeReason = useRef<PickerCloseReason>('outside')
+  const closedBy = useRef<PickerCloseReason>('outside')
 
   const close = useCallback((reason: PickerCloseReason) => {
+    closedBy.current = reason
     setOpen(false)
     onOpenChange?.(false, reason)
   }, [onOpenChange])
 
-  const selectIndex = useCallback((index: number) => {
-    const option = options[index]
-    if (!option || option.disabled) return
-    onChange(option.value)
-    close('select')
-  }, [close, onChange, options])
-
-  const {
-    listboxProps,
-    getOptionProps,
-    activeIndex,
-    setActiveIndex,
-    optionId,
-  } = useListboxPopover<HTMLDivElement>({
-    itemCount: options.length,
-    initialActive: Math.max(0, selectedIndex),
-    isDisabled,
-    onSelect: selectIndex,
-    onClose: () => close('escape'),
-  })
-
   const openPicker = useCallback(() => {
     if (disabled || busy || open) return
-    triggerRef.current?.focus()
+    setActive(initialActive())
+    setSearch('')
     setOpen(true)
     onOpenChange?.(true, undefined)
-  }, [busy, disabled, onOpenChange, open])
+  }, [busy, disabled, initialActive, onOpenChange, open])
 
   const togglePicker = useCallback(() => {
     if (disabled || busy) return
@@ -132,113 +126,39 @@ export function Picker({
     else openPicker()
   }, [busy, close, disabled, open, openPicker])
 
-  const [position, setPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 320 })
-  const place = useCallback(() => {
-    const rect = triggerRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const gap = 6
-    const margin = 12
-    const width = Math.min(Math.max(rect.width, 220), window.innerWidth - margin * 2)
-    const below = window.innerHeight - rect.bottom - margin - gap
-    const above = rect.top - margin - gap
-    const contentHeight = Math.min(320, Math.max(44, options.length * 44 + 12))
-    const flip = below < contentHeight && above > below
-    const maxHeight = Math.max(44, Math.min(contentHeight, flip ? above : below))
-    setPosition({
-      top: flip ? rect.top - gap - maxHeight : rect.bottom + gap,
-      left: Math.max(margin, Math.min(rect.left, window.innerWidth - width - margin)),
-      width,
-      maxHeight,
-    })
-  }, [options.length])
-
-  useLayoutEffect(() => {
-    if (open) place()
-  }, [open, place])
-  usePopoverReflow(open, place)
-
-  const setMenuRef = useCallback((node: HTMLDivElement | null) => {
-    menuRef.current = node
-    listboxProps.ref(node)
-  }, [listboxProps])
-
-  useEffect(() => {
-    if (!open) return
-    const outside = (event: PointerEvent) => {
-      if (!(event.target instanceof Node)) return
-      if (!menuRef.current?.contains(event.target) && !triggerRef.current?.contains(event.target)) {
-        close('outside')
-      }
-    }
-    document.addEventListener('pointerdown', outside)
-    return () => document.removeEventListener('pointerdown', outside)
-  }, [close, open])
-
-  // The overlay host owns a native bubble-phase Escape listener. Because the menu is portaled out
-  // of the field wrapper, a React stopPropagation alone would be too late; consume Escape at the
-  // menu/trigger's native capture boundary so a picker can never close its record host by accident.
+  // The overlay host owns a native bubble-phase Escape listener, so a closed trigger consumes
+  // Escape at its capture boundary; the open menu does the same through Popover's Escape hook.
   useEffect(() => {
     const trigger = triggerRef.current
-    const menu = open ? menuRef.current : null
     const consumeEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
+      if (event.key !== 'Escape' || open) return
       event.preventDefault()
       event.stopImmediatePropagation()
-      if (open) close('escape')
-      else onOpenChange?.(false, 'escape')
+      onOpenChange?.(false, 'escape')
     }
     trigger?.addEventListener('keydown', consumeEscape, true)
-    menu?.addEventListener('keydown', consumeEscape, true)
-    return () => {
-      trigger?.removeEventListener('keydown', consumeEscape, true)
-      menu?.removeEventListener('keydown', consumeEscape, true)
-    }
-  }, [close, onOpenChange, open])
-
-  useEffect(() => {
-    if (!open || activeIndex < 0) return
-    document.getElementById(optionId(activeIndex))?.scrollIntoView?.({ block: 'nearest' })
-  }, [activeIndex, open, optionId])
+    return () => trigger?.removeEventListener('keydown', consumeEscape, true)
+  }, [onOpenChange, open])
 
   const handleMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     event.stopPropagation()
-    if (event.key === 'Tab') {
-      event.preventDefault()
-      const controls = focusableElements(menuRef.current)
-      const index = triggerRef.current ? controls.indexOf(triggerRef.current) : -1
-      const next = controls[index + (event.shiftKey ? -1 : 1)]
-      flushSync(() => close('tab'))
-      ;(next ?? triggerRef.current)?.focus()
-      return
-    }
-
-    listboxProps.onKeyDown(event)
-    if (
-      event.key.length !== 1
-      || event.key === ' '
-      || event.ctrlKey
-      || event.metaKey
-      || event.altKey
-      || options.length === 0
-    ) return
-
-    const now = Date.now()
-    const repeated = now - typed.current.time < 700
-      ? typed.current.text + event.key
-      : event.key
-    typed.current = { text: repeated, time: now }
-    const query = repeated.toLocaleLowerCase()
-    const search = [...query].every((character) => character === query[0]) ? query[0] : query
-    const start = search.length === 1 ? activeIndex + 1 : Math.max(0, activeIndex)
-    for (let offset = 0; offset < options.length; offset += 1) {
-      const index = (Math.max(0, start) + offset) % options.length
-      if (!options[index].disabled && options[index].label.toLocaleLowerCase().startsWith(search)) {
-        setActiveIndex(index)
-        break
-      }
-    }
+    if (event.key !== 'Tab') return
     event.preventDefault()
+    const controls = focusableElements(menuRef.current)
+    const index = triggerRef.current ? controls.indexOf(triggerRef.current) : -1
+    const next = controls[index + (event.shiftKey ? -1 : 1)]
+    flushSync(() => close('tab'))
+    ;(next ?? triggerRef.current)?.focus()
   }
+
+  // Typed text ranks prefix matches first; hover never moves the highlight (disablePointerSelection).
+  const filter = useCallback((optionKey: string, query: string) => {
+    const text = options.find((option) => keyOf(option.value) === optionKey)?.label.toLocaleLowerCase() ?? ''
+    const needle = query.trim().toLocaleLowerCase()
+    if (!needle) return 1
+    if (text.startsWith(needle)) return 1
+    return text.includes(needle) ? 0.5 : 0
+  }, [options])
 
   const selectedLabel = options.find((option) => option.value === value)?.label
   const selectedValue = selectedLabel ?? placeholder ?? label
@@ -254,73 +174,102 @@ export function Picker({
   return (
     <div className={rootClassName}>
       {!hideLabel && <label className="picker__label" htmlFor={triggerId}>{label}</label>}
-      <button
-        id={triggerId}
-        ref={triggerRef}
-        type="button"
-        role="combobox"
-        aria-label={label}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={open ? menuId : undefined}
-        aria-describedby={describedBy}
-        aria-invalid={error || undefined}
-        aria-busy={busy || undefined}
-        aria-required={required || undefined}
-        className={['picker__trigger', triggerClassName].filter(Boolean).join(' ')}
-        title={fullValue}
-        data-full-value={fullValue}
-        disabled={disabled || busy}
-        autoFocus={autoFocus}
-        onBlur={onBlur}
-        onClick={togglePicker}
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault()
-            // Opening moves focus into the portal before native collection shortcuts run.
-            event.stopPropagation()
-            if (!open) openPicker()
-          }
-          onKeyDown?.(event)
-        }}
+      <Popover.Root
+        open={open}
+        onOpenChange={(next) => { if (!next) close(closeReason.current); closeReason.current = 'outside' }}
       >
-        <span
-          className={!selectedLabel ? 'picker__placeholder' : undefined}
-          title={fullValue}
-          data-full-value={fullValue}
-        >
-          {fullValue}
-        </span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
-      </button>
-      {open && createPortal(
-        <div
-          {...listboxProps}
-          ref={setMenuRef}
-          id={menuId}
-          aria-label={label}
-          data-escape-layer="nested"
-          className={['picker__menu', menuClassName].filter(Boolean).join(' ')}
-          style={position}
-          onKeyDown={handleMenuKeyDown}
-        >
-          {options.map((option, index) => (
-            <div
-              {...getOptionProps(index)}
-              key={option.value}
-              aria-selected={option.value === value}
-              aria-disabled={option.disabled || undefined}
-              className={['picker__option', optionClassName].filter(Boolean).join(' ')}
-              onPointerMove={() => { if (!option.disabled) setActiveIndex(index) }}
-              onClick={(event) => { event.stopPropagation(); selectIndex(index) }}
+        <Popover.Trigger asChild>
+          <button
+            id={triggerId}
+            ref={triggerRef}
+            type="button"
+            role="combobox"
+            aria-label={label}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            aria-describedby={describedBy}
+            aria-invalid={error || undefined}
+            aria-busy={busy || undefined}
+            aria-required={required || undefined}
+            className={['picker__trigger', triggerClassName].filter(Boolean).join(' ')}
+            title={fullValue}
+            data-full-value={fullValue}
+            disabled={disabled || busy}
+            autoFocus={autoFocus}
+            onBlur={onBlur}
+            onClick={(event) => { event.preventDefault(); togglePicker() }}
+            onKeyDown={(event) => {
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                event.stopPropagation()
+                if (!open) openPicker()
+              }
+              onKeyDown?.(event)
+            }}
+          >
+            <span
+              className={!selectedLabel ? 'picker__placeholder' : undefined}
+              title={fullValue}
+              data-full-value={fullValue}
             >
-              <span>{option.label}</span>
-              {option.value === value && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>}
-            </div>
-          ))}
-        </div>,
-        document.body,
-      )}
+              {fullValue}
+            </span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+          </button>
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content
+            ref={menuRef}
+            side="bottom"
+            align="start"
+            sideOffset={6}
+            collisionPadding={12}
+            data-escape-layer="nested"
+            className={['picker__menu', menuClassName].filter(Boolean).join(' ')}
+            onKeyDown={handleMenuKeyDown}
+            onEscapeKeyDown={(event) => { closeReason.current = 'escape'; event.stopPropagation() }}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault()
+              if (closedBy.current !== 'tab' && closedBy.current !== 'outside') triggerRef.current?.focus()
+            }}
+          >
+            <Command
+              className="picker__command"
+              label={t('ui.picker.filter', { label })}
+              filter={filter}
+              value={active}
+              onValueChange={setActive}
+              disablePointerSelection
+              loop
+            >
+              <Command.Input
+                className="picker__search"
+                value={search}
+                onValueChange={setSearch}
+              />
+              <Command.List className="picker__list" label={label}>
+                <Command.Empty className="picker__empty">{t('ui.picker.noMatches')}</Command.Empty>
+                {options.map((option) => (
+                  <Command.Item
+                    key={keyOf(option.value)}
+                    value={keyOf(option.value)}
+                    disabled={option.disabled}
+                    className={['picker__option', optionClassName].filter(Boolean).join(' ')}
+                    data-checked={option.value === value || undefined}
+                    onSelect={() => {
+                      onChange(option.value)
+                      close('select')
+                    }}
+                  >
+                    <span className="picker__option-label">{option.label}</span>
+                    {option.value === value && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>}
+                  </Command.Item>
+                ))}
+              </Command.List>
+            </Command>
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
     </div>
   )
 }

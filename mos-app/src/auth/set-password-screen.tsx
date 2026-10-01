@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase'
+import { useT } from '@/i18n/use-t'
+import { passwordRefusal } from './password-error'
 import { AuthShell, AuthCard } from './auth-shell'
 import { SetPasswordForm } from './set-password-form'
 
@@ -11,14 +13,10 @@ import { SetPasswordForm } from './set-password-form'
 // own write — so by the time updateUser returns, the gate is already down. Nothing here clears it,
 // and nothing can: the app has no way to lower the flag other than actually changing the password.
 export function SetPasswordScreen({ signOut }: { signOut: () => void | Promise<void> }) {
+  const t = useT()
   async function handleSubmit(password: string): Promise<string | null> {
     const { error } = await supabase.auth.updateUser({ password })
-    if (error) {
-      // weak_password carries GoTrue's own policy text, which is the useful message here. Any
-      // other error stays generic rather than passing an unallowlisted backend string through.
-      if (error.code === 'weak_password') return error.message
-      return "Couldn't set that password — try again."
-    }
+    if (error) return t(passwordRefusal(error))
 
     // ponytail: a full reload re-bootstraps AuthProvider so the cleared flag is picked up.
     // Swap for a refreshViewer() on AuthContext if the reload ever reads as jarring.

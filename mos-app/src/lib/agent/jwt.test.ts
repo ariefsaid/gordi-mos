@@ -1,7 +1,7 @@
 // T18 — _shared/jwt.ts decodeJwtClaims, extracted from compose-view/index.ts's T10 inline helper
 // so agent-chat/index.ts (T18) reuses the SAME decode (D1 — the JWT claim IS the authority).
 import { describe, it, expect } from 'vitest'
-import { decodeJwtClaims } from './../../../../supabase/functions/_shared/jwt'
+import { carriesClientId, decodeJwtClaims } from './../../../../supabase/functions/_shared/jwt'
 
 function makeJwt(payload: object): string {
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
@@ -31,5 +31,18 @@ describe('decodeJwtClaims (T18, D1)', () => {
     const jwt = makeJwt({ org_id: 'org-1', person_id: 'p'.repeat(50) })
     const claims = decodeJwtClaims(jwt)
     expect(claims.org_id).toBe('org-1')
+  })
+})
+
+describe('carriesClientId (#1005, AC-025)', () => {
+  it('is true for a token issued to an agent client, even with a null value', () => {
+    expect(carriesClientId(makeJwt({ org_id: 'o', client_id: 'client-1' }))).toBe(true)
+    expect(carriesClientId(makeJwt({ client_id: null }))).toBe(true)
+  })
+
+  it('is false for the app’s own session tokens and for unreadable input', () => {
+    expect(carriesClientId(makeJwt({ org_id: 'o', person_id: 'p', session_id: 's' }))).toBe(false)
+    expect(carriesClientId('not-a-jwt')).toBe(false)
+    expect(carriesClientId('')).toBe(false)
   })
 })

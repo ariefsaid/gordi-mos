@@ -35,7 +35,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   # recover from ancient corruption; a broken historical byte must not brick future reports.
   if [[ "$started" =~ ^[0-9]+$ ]] && [ "$started" -ge "$cutoff" ] && [ "$started" -le "$now" ]; then
     if [ -n "${extra:-}" ] || ! [[ "$duration" =~ ^[0-9]+$ ]] || \
-       ! [[ "$mode" =~ ^(full|skipped|refused)$ ]] || ! [[ "$head" =~ ^[0-9a-fA-F]{7,64}$ ]]; then
+       ! [[ "$mode" =~ ^(full|light|skipped|refused)$ ]] || ! [[ "$head" =~ ^[0-9a-fA-F]{7,64}$ ]]; then
       echo "clock: ERROR malformed ledger record" >&2
       exit 1
     fi

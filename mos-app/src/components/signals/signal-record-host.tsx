@@ -55,7 +55,7 @@ export interface SignalRecordHostProps {
   onPromote?: (to: string, state?: unknown) => void
 }
 
-type FetchState = 'loading' | 'ready' | 'error' | 'denied' | 'missing'
+type FetchState = 'loading' | 'ready' | 'error' | 'denied'
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -67,11 +67,17 @@ function errorCode(error: unknown): string {
   return typeof code === 'string' ? code : ''
 }
 
+// RLS makes "retracted/deleted" and "you may not read this" indistinguishable at the wire: both a
+// denied read (42501) and a well-formed id with no visible row (PostgREST PGRST116/"0 rows") are
+// the SAME fact from the viewer's seat — a record they cannot see. AC-046 (#775) treats both as
+// the one `denied` state so the reader gets one honest answer instead of a retry that just re-fires
+// the same denied read. Everything else (network/5xx/malformed response) stays a real `error`.
 function readFailureState(error: unknown): Exclude<FetchState, 'loading' | 'ready'> {
   const diagnostic = `${errorCode(error)} ${errorText(error)}`
-  if (/42501|permission denied|row-level security|not authorized|forbidden/i.test(diagnostic)) return 'denied'
-  if (/PGRST116|0 rows|no rows|JSON object requested.*(?:multiple|no).*rows returned/i.test(diagnostic)) return 'missing'
-  return 'error'
+  const isAccessOutcome =
+    /42501|permission denied|row-level security|not authorized|forbidden/i.test(diagnostic) ||
+    /PGRST116|0 rows|no rows|JSON object requested.*(?:multiple|no).*rows returned/i.test(diagnostic)
+  return isAccessOutcome ? 'denied' : 'error'
 }
 
 function personName(people: PersonOption[], id: string, fallback: string): string {
@@ -384,6 +390,13 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     if (detail) onTitleResolved?.(detail.signal.retracted_at ? t('signals.record.retractedTitle') : firstLine(detail.signal.body))
   }, [detail, onTitleResolved, t])
 
+  // A denied record has no in-page destination to return to — the panel closes (mirrors ✕) inside
+  // an overlay stack; a standalone page (a bookmarked/shared link) returns to the archive.
+  function goBack() {
+    if (host?.session) { void host.back(); return }
+    navigate('/work/signals')
+  }
+
   if (state === 'loading') {
     return (
       <div role="status" aria-label="Loading" aria-busy="true">
@@ -393,14 +406,10 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
   }
   if (state === 'denied') {
     return (
-      <div className="signal-record-unavailable" role="status">
-        <h2>{t('signals.record.accessDeniedTitle')}</h2>
-        <p>{t('signals.record.accessDeniedBody')}</p>
-      </div>
+      <EmptyState variant="blank" headingLevel={mode === 'page' ? 1 : 2} title={t('signals.record.accessDeniedTitle')}>
+        <Button variant="outline" onClick={goBack}>{t('record.back')}</Button>
+      </EmptyState>
     )
-  }
-  if (state === 'missing') {
-    return <ErrorState message={t('signals.record.missing')} onRetry={load} />
   }
   if (state === 'error' || !detail) {
     return <ErrorState message={t('signals.archive.error')} onRetry={load} />
@@ -819,6 +828,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
         reason={retractReason}
         onReasonChange={setRetractReason}
         reasonRequired
+        reasonMaxLength={500}
         tone="destructive"
         onConfirm={handleRetract}
         onCancel={() => { setRetractOpen(false); setRetractReason('') }}

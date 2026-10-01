@@ -199,13 +199,19 @@
   max-height: var(--control-height);
   align-items: center;
 }
-.inline-editor-control input[type="date"] {
-  height: var(--control-height);
-  max-height: var(--control-height);
+/* The due editor carries its save error beside it, so it grows (wraps) instead of clipping it. */
+.inline-editor-control--due {
+  height: auto;
+  max-height: none;
+  min-height: var(--control-height);
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  white-space: normal;
 }
 
 .tasks-inline-edit-hint {
   margin: 8px 12px 0;
+  font-size: var(--font-size-body);
 }
 
 .task-title-edit-keyhint {
@@ -265,6 +271,42 @@
   .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 0px; }
   .tasks-table:not(.tasks-table--extended) .th-due,
   .tasks-table:not(.tasks-table--extended) .td-due { display: none; }
+}
+/* A record beside the list narrows it, and the record shows every fact anyway, so the list keeps all
+   five columns for as long as they fit: PIC and Supervisor read as avatars (the first name stays in
+   the accessible name, the full name is on hover). Below that, columns drop in the order Supervisor,
+   PIC, Status, Due. Above 810px the list is wide enough for the default tier. */
+@container work-list (max-width: 809.98px) {
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(th.th-status, td.td-status) { width: 116px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(th.th-owner, td.td-owner) { width: 56px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(th.th-supervisor, td.td-supervisor) { width: 96px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(th.th-due, td.td-due) { width: 136px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.td-owner, .td-supervisor) .own-name {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+}
+@container work-list (min-width: 644px) and (max-width: 809.98px) {
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 404px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-supervisor, .td-supervisor, .th-owner, .td-owner, .th-status, .td-status, .th-due, .td-due) { display: table-cell; }
+}
+@container work-list (min-width: 548px) and (max-width: 643.98px) {
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 308px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-owner, .td-owner, .th-status, .td-status, .th-due, .td-due) { display: table-cell; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-supervisor, .td-supervisor) { display: none; }
+}
+@container work-list (min-width: 492px) and (max-width: 547.98px) {
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 252px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-status, .td-status, .th-due, .td-due) { display: table-cell; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-supervisor, .td-supervisor, .th-owner, .td-owner) { display: none; }
+}
+@container work-list (min-width: 376px) and (max-width: 491.98px) {
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 136px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-due, .td-due) { display: table-cell; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-supervisor, .td-supervisor, .th-owner, .td-owner, .th-status, .td-status) { display: none; }
+}
+@container work-list (max-width: 375.98px) {
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) { --tasks-facts-w: 0px; }
+  .split:not(.nodrawer) .tasks-table:not(.tasks-table--extended) :is(.th-supervisor, .td-supervisor, .th-owner, .td-owner, .th-status, .td-status, .th-due, .td-due) { display: none; }
 }
 /* Below 1100px the extended tier hides Supervisor by class so an optional Fields column can't
    shift it out. */
@@ -388,7 +430,7 @@
   background: var(--secondary); color: var(--muted-foreground);
   font-size: var(--font-size-overline); font-weight: 500; white-space: nowrap; flex: none;
 }
-.task-bu { display: block; font-size: var(--font-size-label); color: var(--muted-foreground); margin-top: 2px; }
+.task-team { display: block; font-size: var(--font-size-label); color: var(--muted-foreground); margin-top: 2px; }
 
 /* ── Owner cell ── */
 .owner { display: flex; align-items: center; gap: 8px; }
@@ -659,16 +701,17 @@ tr.grp td { padding: 0; }
 /* Objective above, Project/Process title below — one column, so the header's remaining controls
    keep their width and neither line has to break a word to fit a 390px phone. */
 .mgc-group-headings { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
-.mgc-objective-hint { min-width: 0; color: var(--muted-foreground); font-size: var(--font-size-label); }
+.mgc-objective-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: var(--font-size-label); }
 .mgc-objective-hint a { color: var(--primary); }
-.mgc-label { min-width: 0; font-size: var(--font-size-body-lg); font-weight: 700; color: var(--brand-navy-text); }
+.mgc-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-body-lg); font-weight: 700; color: var(--brand-navy-text); }
 .mgc-count { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
 .mgc-sub {
   background: transparent; border: 0; padding: 0; font: inherit; font-size: var(--font-size-label); font-weight: 600;
   color: var(--status-lost-text); cursor: pointer;
 }
+.mgc-group-meta { display: contents; }
 .mgc-add {
-  margin-left: auto; background: transparent; border: 0; padding: 0 4px; font: inherit;
+  margin-left: auto; flex: none; white-space: nowrap; background: transparent; border: 0; padding: 0 4px; font: inherit;
   font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); cursor: pointer;
 }
 
@@ -680,6 +723,19 @@ tr.grp td { padding: 0; }
     width: 44px;
     height: 44px;
   }
+  /* Title first: it takes the whole row beside the caret (two lines, then an ellipsis); the tag,
+     count, overdue and add share a second line beneath it. */
+  .mgc-group-head { flex-wrap: wrap; row-gap: 0; }
+  .mgc-group-headings { flex: 1 1 0; }
+  .mgc-label {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+    white-space: normal; overflow-wrap: anywhere;
+  }
+  .mgc-group-meta {
+    display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: 0 8px;
+    min-width: 0; padding-inline-start: 52px;
+  }
+  .mgc-sub { white-space: nowrap; }
   .mgc-sub,
   .mgc-add {
     min-width: 44px;

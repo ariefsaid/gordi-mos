@@ -73,6 +73,7 @@ import { DataTable, type DataTableColumn, type DataTableGroup } from '@/componen
 import { kitchenStatus } from '@/lib/kitchen-status'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
+import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { reportError } from '@/lib/telemetry'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { ConfirmDialog } from '@/components/admin/confirm-dialog'
@@ -246,6 +247,8 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   const [lines, setLines] = useState<Record<string, KitchenLogLine>>({})
   const [status, setStatus] = useState<PageStatus>({ kind: 'loading' })
   const [submitError, setSubmitError] = useState('')
+  // The capture inputs disable while a batch saves; a failed save gives focus back to the field being typed in.
+  const captureRef = useFocusRestore<HTMLDivElement>(status.kind === 'submitting', !!submitError)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [retryKey, setRetryKey] = useState(0)
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
@@ -1075,7 +1078,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
       meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
       state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : streamNonProducing ? 'read-only' : submitError ? 'validation' : 'default'}
     >
-      <div className="kl-page">
+      <div ref={captureRef} className="kl-page">
         {/* GAP-4/#9: staged-but-unsubmitted quantities must not vanish on navigation — prompt
             stay/discard when leaving the route with unsaved entries. */}
         <RouteLeaveGuard when={stagedCount > 0} message={t('kitchen.log.leave.confirm')} />
@@ -1234,7 +1237,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
             )}
             {/* A count, not a restatement of the field's own cue — and a destination: it
                 scrolls to and focuses the first line still missing its note. */}
-            {noteUnresolved && !hasBlockingError && !streamMissing && !streamNonProducing && (
+            {noteUnresolved && !streamMissing && !streamNonProducing && (
               <button
                 type="button"
                 className="kl-submit-reason kl-note-pointer"

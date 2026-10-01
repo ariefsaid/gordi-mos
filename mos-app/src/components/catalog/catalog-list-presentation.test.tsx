@@ -62,11 +62,38 @@ function renderRows(rows: CatalogRow[], contextOverrides: Partial<CatalogCollect
   )
 }
 
+// A row with an owner and an Objective. Rendered beside a row under test, it keeps those columns
+// on the page (a column empty on every row is dropped), so the test still sees the gap in its row.
+const filled: CatalogRow = { id: 'filled', name: 'Filled row', archived_at: null, type: 'project', accountablePersonId: 'person-1' }
+const filledRelations: Array<[string, Relation]> = [['filled', {
+  groups: [{ id: 'objective-9', name: 'Grow revenue', relationship: 'direct' as const, entity: 'objective' as const, taskCount: 0, done: 0, total: 0 }],
+  tasks: [],
+}]]
+
+type Relation = NonNullable<ReturnType<CatalogCollectionContext['relationsById']['get']>>
+
+function relationsWithFilled(rows: CatalogRow[], own: Array<[string, Relation]> = []) {
+  return {
+    relationsById: new Map([
+      ...rows.filter((row) => !own.some(([id]) => id === row.id)).map((row): [string, Relation] => [row.id, { groups: [], tasks: [] }]),
+      ...own,
+      ...filledRelations,
+    ]),
+  }
+}
+
 describe('CatalogListPresentation owner-cell grammar', () => {
   it('keeps lifecycle and the row action beside identity, with all lower-priority facts grouped', () => {
-    renderRows([
-      { id: 'work-0', name: 'Quarterly launch', archived_at: null, type: 'project', accountablePersonId: 'person-1' },
-    ])
+    const record: CatalogRow = { id: 'work-0', name: 'Quarterly launch', archived_at: null, type: 'project', accountablePersonId: 'person-1' }
+    renderRows([record], {
+      relationsById: new Map([[record.id, {
+        groups: [
+          { id: 'objective-1', name: 'Grow revenue', relationship: 'direct', entity: 'objective', taskCount: 0, done: 0, total: 0 },
+          { id: 'objective-2', name: 'Improve margin', relationship: 'contribution', entity: 'objective', taskCount: 1, done: 0, total: 1 },
+        ],
+        tasks: [],
+      }]]),
+    })
 
     const row = screen.getByRole('link', { name: 'Quarterly launch' })
     expect(row.querySelector('.catalog-collection__identity')).toHaveTextContent('Quarterly launch')
@@ -90,9 +117,11 @@ describe('CatalogListPresentation owner-cell grammar', () => {
   })
 
   it('keeps missing values accessible without repeating Not set across the visual row', () => {
-    renderRows([
+    const rows: CatalogRow[] = [
       { id: 'work-2', name: 'Unassigned project', archived_at: null, type: 'project', accountablePersonId: null },
-    ])
+      filled,
+    ]
+    renderRows(rows)
 
     const row = screen.getByRole('link', { name: 'Unassigned project' })
     const owner = within(row).getByRole('cell', { name: 'Accountable: Not set' })
@@ -138,12 +167,10 @@ describe('CatalogListPresentation owner-cell grammar', () => {
 
   it('keeps a Task-only relationship out of the direct Objective cell', () => {
     const record = { id: 'work-5', name: 'Shared through tasks', archived_at: null, type: 'project' as const }
-    renderRows([record], {
-      relationsById: new Map([[record.id, {
-        groups: [{ id: 'objective-2', name: 'Improve margin', relationship: 'contribution', entity: 'objective', taskCount: 1, done: 0, total: 1 }],
-        tasks: [],
-      }]]),
-    })
+    renderRows([record, filled], relationsWithFilled([record, filled], [[record.id, {
+      groups: [{ id: 'objective-2', name: 'Improve margin', relationship: 'contribution', entity: 'objective', taskCount: 1, done: 0, total: 1 }],
+      tasks: [],
+    }]]))
 
     const row = screen.getByRole('link', { name: 'Shared through tasks' })
     expect(within(row).getByRole('cell', { name: 'Objective: Not set' })).toBeInTheDocument()
@@ -152,10 +179,138 @@ describe('CatalogListPresentation owner-cell grammar', () => {
 
   it('keeps an unlinked row at Not set without inventing a contribution', () => {
     const record = { id: 'work-6', name: 'Unlinked work', archived_at: null, type: 'project' as const }
-    renderRows([record])
+    renderRows([record, filled], relationsWithFilled([record, filled]))
 
     const row = screen.getByRole('link', { name: 'Unlinked work' })
     expect(within(row).getByRole('cell', { name: 'Objective: Not set' })).toBeInTheDocument()
     expect(row).not.toHaveTextContent('Contributes to:')
+  })
+
+  it('leaves out a fact that is empty on every row, header and cells', () => {
+    const rows: CatalogRow[] = [
+      { id: 'a', name: 'Alpha', archived_at: null, type: 'project', accountablePersonId: null },
+      { id: 'b', name: 'Beta', archived_at: null, type: 'project', accountablePersonId: null },
+    ]
+    renderRows(rows)
+
+    expect(screen.queryByRole('columnheader', { name: 'Accountable' })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: 'Objective' })).toBeNull()
+    expect(screen.queryByRole('cell', { name: /^Accountable:/ })).toBeNull()
+    expect(screen.queryByRole('cell', { name: /^Objective:/ })).toBeNull()
+    expect(screen.getByRole('columnheader', { name: 'Progress' })).toBeInTheDocument()
+  })
+
+  it('keeps a fact column for every row once any row has a value', () => {
+    const rows: CatalogRow[] = [
+      { id: 'a', name: 'Alpha', archived_at: null, type: 'project', accountablePersonId: 'person-1' },
+      { id: 'b', name: 'Beta', archived_at: null, type: 'project', accountablePersonId: null },
+    ]
+    renderRows(rows)
+
+    expect(screen.getByRole('columnheader', { name: 'Accountable' })).toBeInTheDocument()
+    expect(screen.getAllByRole('cell', { name: /^Accountable:/ })).toHaveLength(2)
+  })
+
+  it('Objectives: leaves out Business Unit and Accountable when no row has one', () => {
+    const rows: CatalogRow[] = [
+      { id: 'o1', name: 'Grow revenue', archived_at: null, businessUnitId: null, accountablePersonId: null },
+      { id: 'o2', name: 'Cut waste', archived_at: null, businessUnitId: null, accountablePersonId: null },
+    ]
+    renderRows(rows, { relationsKind: 'objective' })
+
+    expect(screen.queryByRole('columnheader', { name: 'Business Unit' })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: 'Accountable' })).toBeNull()
+    expect(screen.queryByRole('cell', { name: /^Business Unit:/ })).toBeNull()
+    expect(screen.queryByRole('cell', { name: /^Accountable:/ })).toBeNull()
+  })
+
+  it('Objectives: keeps Business Unit and Accountable for every row once any row has one', () => {
+    const rows: CatalogRow[] = [
+      { id: 'o1', name: 'Grow revenue', archived_at: null, businessUnitId: 'bu-1', accountablePersonId: 'person-1' },
+      { id: 'o2', name: 'Cut waste', archived_at: null, businessUnitId: null, accountablePersonId: null },
+    ]
+    renderRows(rows, { relationsKind: 'objective' })
+
+    expect(screen.getByRole('columnheader', { name: 'Business Unit' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Accountable' })).toBeInTheDocument()
+    expect(screen.getAllByRole('cell', { name: /^Business Unit:/ })).toHaveLength(2)
+    expect(screen.getAllByRole('cell', { name: /^Accountable:/ })).toHaveLength(2)
+  })
+
+  it('keeps the headers when there are no rows to judge', () => {
+    renderRows([])
+
+    expect(screen.getByRole('columnheader', { name: 'Accountable' })).toBeInTheDocument()
+  })
+})
+
+describe('CatalogListPresentation Objective Business Unit cell', () => {
+  const objectiveContext = { relationsKind: 'objective' as const, businessUnitsById: new Map([['bu-1', 'Retail Ops']]) }
+  const cell = (name: string) => within(screen.getByRole('link', { name })).getByRole('cell', { name: /^Business Unit:/ })
+
+  it('names a unit, and shows the year and quarter beside it', () => {
+    renderRows([{ id: 'o1', name: 'Named', archived_at: null, businessUnitId: 'bu-1', periodYear: 2026, periodQuarter: 3 }], objectiveContext)
+    expect(cell('Named')).toHaveAccessibleName('Business Unit: Retail Ops')
+    expect(cell('Named')).toHaveTextContent('2026 · Q3')
+  })
+
+  it('reads Company-wide, never Not set, and is not muted', () => {
+    renderRows([{ id: 'o2', name: 'Whole company', archived_at: null, businessUnitId: null, isCompanyWide: true, periodYear: 2026 }], objectiveContext)
+    expect(cell('Whole company')).toHaveAccessibleName('Business Unit: Company-wide')
+    expect(cell('Whole company').querySelector('.catalog-collection__cell-value--muted')).toBeNull()
+    expect(cell('Whole company')).toHaveTextContent('Company-wide')
+    expect(cell('Whole company')).not.toHaveTextContent('2026 ·')
+  })
+
+  it('keeps the column when the only fact is Company-wide', () => {
+    renderRows([{ id: 'o5', name: 'Alone', archived_at: null, businessUnitId: null, isCompanyWide: true }], objectiveContext)
+    expect(cell('Alone')).toHaveAccessibleName('Business Unit: Company-wide')
+  })
+
+  it('keeps an unset Objective at muted Not set', () => {
+    // a sibling with a unit keeps the column on screen (dev hides a column that is empty on every row)
+    renderRows([{ id: 'o3', name: 'Unset', archived_at: null, businessUnitId: null, isCompanyWide: false }, { id: 'o4', name: 'Named', archived_at: null, businessUnitId: 'bu-1' }], objectiveContext)
+    expect(cell('Unset')).toHaveAccessibleName('Business Unit: Not set')
+    expect(cell('Unset').querySelector('.catalog-collection__cell-value--muted')).not.toBeNull()
+  })
+})
+
+describe('CatalogListPresentation Objective Work cell', () => {
+  const group = (id: string, name: string, relationship: 'direct' | 'contribution') =>
+    ({ id, name, relationship, entity: 'work-line' as const, taskCount: 1, done: 0, total: 1 })
+  const workCell = (name: string) => within(screen.getByRole('link', { name })).getByRole('cell', { name: /^Projects & Processes:/ })
+  const objective = (id: string, name: string): CatalogRow => ({ id, name, archived_at: null })
+  const withGroups = (rows: CatalogRow[], own: Record<string, ReturnType<typeof group>[]>) => ({
+    relationsKind: 'objective' as const,
+    relationsById: new Map(rows.map((row): [string, Relation] => [row.id, { groups: own[row.id] ?? [], tasks: [] }])),
+  })
+
+  it('names the direct Projects and Processes instead of counting them', () => {
+    const rows = [objective('o1', 'Grow revenue')]
+    renderRows(rows, withGroups(rows, { o1: [group('w1', 'Menu launch', 'direct'), group('w2', 'Daily prep', 'direct')] }))
+    expect(workCell('Grow revenue')).toHaveAccessibleName('Projects & Processes: Menu launch, Daily prep')
+    expect(workCell('Grow revenue')).not.toHaveTextContent(/Direct Projects|contributing/)
+  })
+
+  it('names work reached only through Tasks without the Linked-through-a-Task phrasing', () => {
+    const rows = [objective('o1', 'Grow revenue')]
+    renderRows(rows, withGroups(rows, { o1: [group('w1', 'Menu launch', 'contribution')] }))
+    expect(workCell('Grow revenue')).toHaveAccessibleName('Projects & Processes: Not set. Through Tasks: Menu launch')
+    expect(workCell('Grow revenue')).toHaveTextContent('Through Tasks: Menu launch')
+    expect(workCell('Grow revenue')).not.toHaveTextContent('Linked through')
+  })
+
+  it('lists direct work and, beside it, the work reached through Tasks', () => {
+    const rows = [objective('o1', 'Grow revenue')]
+    renderRows(rows, withGroups(rows, { o1: [group('w1', 'Menu launch', 'direct'), group('w2', 'Daily prep', 'contribution')] }))
+    expect(workCell('Grow revenue')).toHaveAccessibleName('Projects & Processes: Menu launch. Also through Tasks: Daily prep')
+    expect(workCell('Grow revenue')).toHaveTextContent('Also through Tasks: Daily prep')
+  })
+
+  it('reads Not set with no note for an Objective with no work', () => {
+    const rows = [objective('o1', 'Grow revenue'), objective('o2', 'Empty')]
+    renderRows(rows, withGroups(rows, { o1: [group('w1', 'Menu launch', 'direct')] }))
+    expect(workCell('Empty')).toHaveAccessibleName('Projects & Processes: Not set')
+    expect(workCell('Empty')).not.toHaveTextContent(/\d/)
   })
 })

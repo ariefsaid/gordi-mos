@@ -1,13 +1,17 @@
 // TaskCreateForm — the ONE task-creation form: Title (full width, visible
 // label) → Team/PIC/Supervisor (each with a visible label; Team + Supervisor required) →
-// derived Business unit → footer (Create task / Cancel). Field-level validation only —
+// Due date + Project/Process (both optional) → derived Business unit → footer (Create task / Cancel). Field-level validation only —
 // TaskRow (desktop, colSpan row) and MobileGroupedCards' TaskCard (phone, single column) both
 // render this SAME component; see task-row.test.tsx / mobile-grouped-cards.test.tsx for their
 // side of the delegation.
-import type { ComponentProps } from 'react'
+import type { ComponentProps, ReactElement } from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
+import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { TaskCreateForm } from './task-create-form'
+import { TaskCreateContext } from './task-create-context'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
 function makeDraft(overrides: Partial<TaskListRow> = {}): TaskListRow {
@@ -25,7 +29,10 @@ function makeDraft(overrides: Partial<TaskListRow> = {}): TaskListRow {
   }
 }
 
-function renderForm(overrides: Partial<ComponentProps<typeof TaskCreateForm>> = {}) {
+function renderForm(
+  overrides: Partial<ComponentProps<typeof TaskCreateForm>> = {},
+  wrap: (form: ReactElement) => ReactElement = (form) => form,
+) {
   const onCreate = vi.fn().mockResolvedValue(undefined)
   const onCancel = vi.fn()
   const props: ComponentProps<typeof TaskCreateForm> = {
@@ -43,7 +50,7 @@ function renderForm(overrides: Partial<ComponentProps<typeof TaskCreateForm>> = 
     onCancel,
     ...overrides,
   }
-  const utils = render(<TaskCreateForm {...props} />)
+  const utils = render(wrap(<TaskCreateForm {...props} />))
   return { ...utils, onCreate, onCancel }
 }
 
@@ -150,5 +157,147 @@ describe('TaskCreateForm — discard, busy and retry', () => {
     fireEvent.click(retry)
     await screen.findByRole('button', { name: 'Create task' })
     expect(onCreate).toHaveBeenCalledTimes(2)
+  })
+
+  it('issue 979: a failed save hands focus back to the title with its text, and one retry creates once', async () => {
+    const restore = installDisabledBlur()
+    try {
+      const onCreate = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
+      renderForm({ task: makeDraft({ title: 'Ship the launch' }), onCreate })
+      const title = screen.getByRole('textbox', { name: 'Title' })
+      title.focus()
+      fireEvent.keyDown(title, { key: 'Enter' })
+      await screen.findByRole('button', { name: /retry/i })
+      expect(onCreate).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(title).toHaveFocus())
+      expect(title).toHaveValue('Ship the launch')
+      fireEvent.click(screen.getByRole('button', { name: /retry/i }))
+      await screen.findByRole('button', { name: 'Create task' })
+      expect(onCreate).toHaveBeenCalledTimes(2)
+    } finally { restore() }
+  })
+})
+
+describe('TaskCreateForm — title length (#1034)', () => {
+  it('stops the Title at the shared limit when a long text is pasted', async () => {
+    const user = userEvent.setup()
+    renderForm()
+    const title = screen.getByRole('textbox', { name: 'Title' }) as HTMLTextAreaElement
+    await user.click(title)
+    await user.paste('x'.repeat(TASK_TITLE_MAX_LENGTH + 50))
+    expect(title.value).toHaveLength(TASK_TITLE_MAX_LENGTH)
+  })
+})
+
+describe('TaskCreateForm — Due date + Project/Process (#1029)', () => {
+  const WORK_LINES = [
+    { id: 'wl-1', name: 'Q4 Launch', type: 'project' as const },
+    { id: 'wl-2', name: 'Daily Open', type: 'process' as const },
+  ]
+  function renderWithContext(overrides: Partial<ComponentProps<typeof TaskCreateForm>> = {}) {
+    const onEditDue = vi.fn().mockResolvedValue(undefined)
+    const onEditWorkLine = vi.fn().mockResolvedValue(undefined)
+    const utils = renderForm({ task: makeDraft({ title: 'Ship the launch' }), ...overrides }, (form) => (
+      <TaskCreateContext.Provider value={{ workLineOptions: WORK_LINES, onEditDue, onEditWorkLine }}>
+        {form}
+      </TaskCreateContext.Provider>
+    ))
+    return { ...utils, onEditDue, onEditWorkLine }
+  }
+
+  it('the picked Due date reaches the draft', () => {
+    const { onEditDue } = renderWithContext()
+    fireEvent.change(screen.getByLabelText('Due date'), { target: { value: '2026-11-05' } })
+    expect(onEditDue).toHaveBeenCalledWith('new-task-1', '2026-11-05')
+  })
+
+  it('clearing the Due date sends null, not an empty string', () => {
+    const { onEditDue } = renderWithContext({ task: makeDraft({ title: 'x', due_date: '2026-11-05' }) })
+    fireEvent.change(screen.getByLabelText('Due date'), { target: { value: '' } })
+    expect(onEditDue).toHaveBeenCalledWith('new-task-1', null)
+  })
+
+  it('the Project/Process picker offers None plus the visible Projects and Processes, and reports the choice', async () => {
+    const user = userEvent.setup()
+    const { onEditWorkLine } = renderWithContext()
+    await user.click(screen.getByRole('combobox', { name: 'Project/Process' }))
+    expect(screen.getByRole('option', { name: /None/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Daily Open/ })).toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: /Q4 Launch/ }))
+    expect(onEditWorkLine).toHaveBeenCalledWith('new-task-1', 'wl-1')
+  })
+
+  it('choosing None sends null', async () => {
+    const user = userEvent.setup()
+    const { onEditWorkLine } = renderWithContext({ task: makeDraft({ title: 'x', work_line_id: 'wl-1' }) })
+    await user.click(screen.getByRole('combobox', { name: 'Project/Process' }))
+    await user.click(screen.getByRole('option', { name: /None/ }))
+    expect(onEditWorkLine).toHaveBeenCalledWith('new-task-1', null)
+  })
+
+  it('a failed Signal link locks every draft field so no edit is lost by the link-only retry (#1116)', () => {
+    const { onEditDue, onEditWorkLine } = renderWithContext({ linkError: true, onRetryLink: vi.fn() })
+    expect(screen.getByRole('alert')).toHaveTextContent('Retry')
+    for (const name of ['Team', 'PIC', 'Supervisor', 'Project/Process']) {
+      expect(screen.getByRole('combobox', { name })).toBeDisabled()
+    }
+    expect(screen.getByRole('textbox', { name: 'Title' })).toBeDisabled()
+    expect(screen.getByLabelText('Due date')).toBeDisabled()
+    expect(onEditDue).not.toHaveBeenCalled()
+    expect(onEditWorkLine).not.toHaveBeenCalled()
+  })
+
+  it('edit attempts during a link failure change nothing, and the Retry button links with the original values (#1116)', async () => {
+    const user = userEvent.setup()
+    const onRetryLink = vi.fn()
+    const { onCreate } = renderWithContext({
+      task: makeDraft({ title: 'Ship the launch', due_date: '2026-11-05' }),
+      linkError: true,
+      onRetryLink,
+    })
+    const title = screen.getByRole('textbox', { name: 'Title' })
+    await user.type(title, ' edited')
+    expect(title).toHaveValue('Ship the launch')
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(onRetryLink).toHaveBeenCalledTimes(1)
+    expect(title).toHaveValue('Ship the launch')
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('has no separate Objective field; the Objective comes from the Project/Process', () => {
+    renderWithContext()
+    expect(screen.queryByRole('combobox', { name: /objective/i })).not.toBeInTheDocument()
+  })
+
+  it('reads Title, Team, PIC, Supervisor, Due, Project/Process, then Create task', () => {
+    renderWithContext()
+    const order = [
+      screen.getByRole('textbox', { name: 'Title' }),
+      screen.getByRole('combobox', { name: 'Team' }),
+      screen.getByRole('combobox', { name: 'PIC' }),
+      screen.getByRole('combobox', { name: 'Supervisor' }),
+      screen.getByLabelText('Due date'),
+      screen.getByRole('combobox', { name: 'Project/Process' }),
+      screen.getByRole('button', { name: 'Create task' }),
+    ]
+    order.slice(1).forEach((el, i) => {
+      expect(order[i].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+  })
+
+  it('Enter in Title with a valid draft creates once and never jumps to another field', () => {
+    const { onCreate } = renderWithContext()
+    const title = screen.getByRole('textbox', { name: 'Title' })
+    title.focus()
+    fireEvent.keyDown(title, { key: 'Enter' })
+    expect(onCreate).toHaveBeenCalledTimes(1)
+    expect(onCreate).toHaveBeenCalledWith('Ship the launch')
+    expect(title).toHaveFocus()
+  })
+
+  it('hides Project/Process when the viewer can see none', () => {
+    renderForm()
+    expect(screen.queryByRole('combobox', { name: 'Project/Process' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Due date')).toBeInTheDocument()
   })
 })

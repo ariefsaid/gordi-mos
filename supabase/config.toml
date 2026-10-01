@@ -11,7 +11,7 @@ enabled = true
 port = 44321
 # Schemas to expose in your API. Tables, views and stored procedures in this schema will get API
 # endpoints. `public` and `graphql_public` schemas are included by default.
-schemas = ["public", "graphql_public", "shared", "mos", "ops", "integrations", "reporting"]
+schemas = ["public", "graphql_public", "shared", "mos", "ops", "integrations", "reporting", "api_v1"]
 # Extra schemas to add to the search_path of every request.
 extra_search_path = ["public", "extensions"]
 # The maximum number of rows returns from a view, table, or stored procedure. Limits payload size
@@ -429,6 +429,8 @@ deno_version = 2
 verify_jwt = false   # handler verifies JWT to return a typed 401 + stream a typed terminal status
 [functions.compose-view]
 verify_jwt = false   # handler verifies JWT to return a typed 401/400/422
+[functions.mcp]
+verify_jwt = false   # handler validates the agent token itself (aud, client_id, JWKS) and answers 401 + resource metadata
 
 [analytics]
 enabled = true

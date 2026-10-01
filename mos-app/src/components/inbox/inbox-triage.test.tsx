@@ -105,12 +105,15 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
     expect(screen.getByText('Title b')).toBeInTheDocument()
   })
 
+  // AC-073/#774: the source string here is the REAL one mos.fan_out_signal_mention writes
+  // ('signal_mention', not the bare 'mention' this fixture used to carry) — the mismatched
+  // literal was why every live mention row fell through to the frozen fallback title.
   it('renders actor/source title, type, attention, and a concise source line', () => {
     renderTriage({ rows: [trow('signal-1', {
       title: 'You were mentioned in a Signal',
       body: 'The freezer alarm went off\nInvestigating the grinder.',
       metadata: {
-        source: 'mention',
+        source: 'signal_mention',
         attention: 'Urgent',
         actor: { id: 'person-cahya', name: 'Cahya' },
         entity: { type: 'signal', id: 'signal-1' },
@@ -122,6 +125,20 @@ describe('InboxTriage — one chrome-free triage surface (AC-V3-006 / FR-V3-012 
     expect(within(row).getByText('Urgent')).toBeInTheDocument()
     expect(within(row).getByText('The freezer alarm went off')).toBeInTheDocument()
     expect(within(row).queryByText('Investigating the grinder.')).not.toBeInTheDocument()
+  })
+
+  // #774 does NOT implement AC-074's legacy-author resolution (deferred — it would need a batch
+  // Signal-author lookup, not a per-row one). This only pins the honest degradation for a legacy
+  // row (no `actor` in metadata — every mention notification written before #774's migration):
+  // it keeps the frozen fallback title rather than rendering "null mentioned you".
+  it('keeps the frozen fallback title on a legacy mention row with no actor metadata (pending AC-074)', () => {
+    renderTriage({ rows: [trow('signal-legacy', {
+      title: 'You were mentioned in a Signal',
+      body: 'The freezer alarm went off',
+      metadata: { source: 'signal_mention', entity: { type: 'signal', id: 'signal-legacy' } },
+    })] })
+    const row = document.querySelector('[data-notification-id="signal-legacy"]') as HTMLElement
+    expect(within(row).getByText('You were mentioned in a Signal')).toBeInTheDocument()
   })
 
   it('renders a Signal-retraction actor, localized reason, and typed Signal target', () => {

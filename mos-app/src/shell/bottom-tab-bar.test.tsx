@@ -209,6 +209,35 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
     expect(within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')).toHaveLength(0)
   })
 
+  // A door still shows where the viewer stands: the bar marks More visually, while the single
+  // aria-current stays on the breadcrumb leaf.
+  it.each(['/admin/people', '/profile'])('More reads as the current place at %s', (path) => {
+    setAuthAs(['admin'])
+    renderTabBar(path)
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('button', { name: /More/i })).toHaveClass('bottom-tab--active')
+    expect(within(nav).getAllByRole('link').some((l) => l.classList.contains('bottom-tab--active'))).toBe(false)
+  })
+
+  it('More is not marked while a primary tab is current', () => {
+    renderTabBar('/work/tasks')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getByRole('button', { name: /More/i })).not.toHaveClass('bottom-tab--active')
+  })
+
+  // A Director works no café line, so Café is not promoted at Home — but on a Café page the bar
+  // names the module they are in and marks it current.
+  it.each(['/cafe', '/cafe/review', '/cafe/pushes'])('an unaffiliated admin gets the Café tab, current, at %s', (path) => {
+    setAuthAs(['admin', 'manager'])
+    renderTabBar(path)
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(within(nav).getAllByRole('link').map((l) => l.textContent)).toEqual(['Home', 'Work', 'Café', 'Inbox'])
+    const page = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
+    expect(page).toHaveLength(1)
+    expect(page[0]).toHaveAccessibleName(/Café/)
+    expect(within(nav).getByRole('button', { name: /More/i })).not.toHaveClass('bottom-tab--active')
+  })
+
   it('More is a disclosure, not a location, at /money (finance viewer)', () => {
     setAuthAs(['finance'])
     renderTabBar('/money')
@@ -261,5 +290,29 @@ describe('a11y: every tab icon is aria-hidden', () => {
     const svgs = container.querySelectorAll('svg')
     expect(svgs.length).toBeGreaterThan(0)
     svgs.forEach((svg) => expect(svg).toHaveAttribute('aria-hidden', 'true'))
+  })
+})
+
+describe('issue 1032: one create entry on phone', () => {
+  it.each(['/work/tasks', '/work/signals', '/work/tasks/', '/work/signals/'])('%s carries its own in-page create, so the + launcher yields', (path) => {
+    renderTabBar(path)
+    expect(screen.queryByRole('button', { name: /open actions/i })).toBeNull()
+    expect(screen.getByRole('navigation', { name: 'Primary' })).not.toHaveClass('bottom-tab-bar--with-launcher')
+  })
+
+  it.each(['/', '/work/projects', '/work/objectives', '/work/tasks/abc-123', '/inbox'])(
+    '%s has no in-page create, so the + launcher stays',
+    (path) => {
+      renderTabBar(path)
+      expect(screen.getByRole('button', { name: /open actions/i })).toBeInTheDocument()
+    },
+  )
+})
+
+describe('a focused decision route', () => {
+  it('shows no tab bar and no + launcher on the agent consent page', () => {
+    renderTabBar('/oauth/consent?authorization_id=abc')
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /open|action|create/i })).toBeNull()
   })
 })

@@ -104,9 +104,15 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
     ['/admin/people', 'Admin Settings · People'],
     ['/admin/teams', 'Admin Settings · Teams'],
     ['/admin/access', 'Admin Settings · Roles & permissions'],
+    ['/admin/agents', 'Admin Settings · Connected agents'],
   ])('%s → "%s"', (path, trail) => {
     renderBC(path)
     expect(crumbText()).toBe(trail)
+  })
+
+  it('localizes the connected-agents breadcrumb in Indonesian', () => {
+    renderBC('/admin/agents', 'id')
+    expect(crumbText()).toBe('Pengaturan Admin · Agen terhubung')
   })
 
   it('/profile → "Personal Profile"', () => {
@@ -198,10 +204,10 @@ function TitleSetter({ title }: { title: string }) {
   return null
 }
 
-function renderBCNarrow(path: string, dynamicTitle?: string) {
+function renderBCNarrow(path: string, dynamicTitle?: string, locale: 'en' | 'id' = 'en') {
   setNarrow(true)
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <BreadcrumbTitleProvider>
         <MemoryRouter initialEntries={[path]}>
           <Routes>
@@ -209,6 +215,7 @@ function renderBCNarrow(path: string, dynamicTitle?: string) {
               path="*"
               element={
                 <>
+                  <TestCollectionChrome />
                   {dynamicTitle && <TitleSetter title={dynamicTitle} />}
                   <Breadcrumb />
                 </>
@@ -241,6 +248,16 @@ describe('AC-020: below rail-collapse the breadcrumb is the leaf title only (A-3
     expect(separators).toHaveLength(0)
   })
 
+  it('issue 1032: a saved view never renames the phone header — it keeps the page H1 ("Tasks" / "Tugas")', () => {
+    const { unmount } = renderBCNarrow('/work/tasks?view=mine')
+    expect(screen.getByText('Tasks')).toBeInTheDocument()
+    expect(screen.queryByText('My work')).toBeNull()
+    unmount()
+    renderBCNarrow('/work/tasks?view=overdue', undefined, 'id')
+    expect(screen.getByText('Tugas')).toBeInTheDocument()
+    expect(screen.queryByText('Terlambat')).toBeNull()
+  })
+
   it('the leaf is never empty: an unresolved record title falls back to the collection leaf', () => {
     renderBCNarrow('/work/tasks/abc-123')
     expect(screen.getByText('Tasks')).toBeInTheDocument()
@@ -257,5 +274,10 @@ describe('AC-020: below rail-collapse the breadcrumb is the leaf title only (A-3
   it('the phone header names every Admin Settings tab', () => {
     renderBCNarrow('/admin/access')
     expect(screen.getByText('Roles & permissions')).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('the phone header names and marks the connected-agents tab in Indonesian', () => {
+    renderBCNarrow('/admin/agents', undefined, 'id')
+    expect(screen.getByText('Agen terhubung')).toHaveAttribute('aria-current', 'page')
   })
 })

@@ -114,7 +114,7 @@ describe('WipItemStepper — fixed unit + change-unit affordance (FR-020/021, AC
     await user.click(screen.getByRole('button', { name: /change unit for nasi goreng/i }))
     const picker = screen.getByRole('combobox', { name: /unit for nasi goreng/i })
     await user.click(picker)
-    fireEvent.click(screen.getByRole('option', { name: 'botol' }))
+    await user.click(screen.getByRole('option', { name: 'botol' }))
     expect(onUnitChange).toHaveBeenCalledWith('u-botol')
     expect(
       screen.queryByRole('combobox', { name: /unit for nasi goreng/i }),
@@ -251,6 +251,50 @@ describe('WipItemStepper — AC-020/021/022', () => {
     fireEvent.blur(screen.getByRole('spinbutton', { name: /quantity/i }))
     expect(screen.getByText(/note required — off plan/i)).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: /note/i })).toBeInTheDocument()
+  })
+
+  // Entry is qty -> qty down the dish list. An EMPTY required note is reached through
+  // the footer pointer (or a click), not by every Tab; a note that has content stays tabbable so
+  // it can still be edited from the keyboard.
+  it('Tab from an off-plan quantity skips the empty note to the next field', async () => {
+    render(
+      <>
+        <WipItemStepper
+          itemName="Nasi Goreng"
+          line={{ ...BASE_LINE, qty_porsi: 7, error: VARIANCE_NOTE_CUE, dirty: true }}
+          movement={PRODUCE}
+          onQtyChange={vi.fn()}
+          onNotesChange={vi.fn()}
+        />
+        <input aria-label="next item quantity" />
+      </>,
+    )
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('spinbutton', { name: /quantity/i }))
+    await user.tab()
+    expect(screen.getByRole('textbox', { name: 'next item quantity' })).toHaveFocus()
+    const note = screen.getByRole('textbox', { name: /note/i })
+    note.focus()
+    expect(note).toHaveFocus()
+  })
+
+  it('a note that already has text stays in the Tab order', async () => {
+    render(
+      <>
+        <WipItemStepper
+          itemName="Nasi Goreng"
+          line={{ ...BASE_LINE, qty_porsi: 7, notes: 'kurang bahan', dirty: true }}
+          movement={PRODUCE}
+          onQtyChange={vi.fn()}
+          onNotesChange={vi.fn()}
+        />
+        <input aria-label="next item quantity" />
+      </>,
+    )
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('spinbutton', { name: /quantity/i }))
+    await user.tab()
+    expect(screen.getByRole('textbox', { name: /note/i })).toHaveFocus()
   })
 
   it('AC-022: shows the transfer-availability cap cue when capError is set (cafe-1: localized)', () => {

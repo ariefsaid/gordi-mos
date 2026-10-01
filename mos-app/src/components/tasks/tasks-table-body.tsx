@@ -12,23 +12,18 @@
 import type { ReactNode, Ref } from 'react'
 import type { To } from 'react-router-dom'
 import { Link } from 'react-router-dom'
+import type { Row, Table } from '@tanstack/react-table'
 import type { Virtualizer } from '@tanstack/react-virtual'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { ErrorState, EmptyState } from '@/components/ui/state-kit'
 import { MobileGroupedCards } from './mobile-grouped-cards'
 import type { TaskTeamOption } from './task-row'
 import type { RenderGroup } from './tasks-grouping'
+import type { TaskTreeNode } from './task-group-tree'
 import type { WorkloadSummary } from './workload-caption'
 import { WorkloadCaption } from './workload-caption'
 import { useT } from '@/i18n/use-t'
 
-type SortCol = 'task' | 'status' | 'owner' | 'due' | 'activity'
-
-// Flat visible-row model (group headers + expanded-group leaf rows) — the shape
-// the plain + virtualized bodies iterate over.
-export type FlatRow =
-  | { kind: 'header'; group: RenderGroup }
-  | { kind: 'leaf'; task: TaskListRow; leafIndex: number }
 
 // ── Skeleton row ──────────────────────────────────────────────────────────────
 // Wave 2c + AC-020 (#750): matches the 5-column decision row (Task + Status + PIC +
@@ -51,8 +46,6 @@ export type TasksTableBodyProps = {
   // ── State branches ──────────────────────────────────────────────────────
   loading: boolean
   error: string | null
-  /** Leaf (non-header) rows currently visible — drives empty/populated branching. */
-  leafTasks: TaskListRow[]
   hasActiveFilter: boolean
   isDesktop: boolean
   /** Retry the failed load (error state). */
@@ -63,25 +56,17 @@ export type TasksTableBodyProps = {
   emptyCopy: string
 
   // ── Desktop table: thead sort + select-all ────────────────────────────────
-  sortCol: SortCol
-  /** Optional fields selected in the current URL-backed view (AC-006, #743): each checked field
-   * renders a real column — header here, data cell in TaskRow. */
-  showBusinessUnit?: boolean
-  showWorkline?: boolean
-  showObjective?: boolean
-  showActivity?: boolean
-  /** Total columns the table renders right now (thead th count == body td count). Group-header
-   * rows and the virtualized pad rows use the same number — `taskTableColumnSpan` is the source. */
-  columnSpan?: number
-  /** thead column-header click → cycle the sort for that column. */
-  onSort: (col: SortCol) => void
-  /** aria-sort for a column (active col → its direction, else 'none'). */
-  ariaSort: (col: SortCol) => 'ascending' | 'descending' | 'none'
-  /** The inline sort-direction affordance for the active column (else null). */
-  sortIndicator: (col: SortCol) => ReactNode
+  /** The TanStack table instance (#997): the <thead> renders from its column-definition
+   * array (getHeaderGroups), pad-row colSpan and the `.tasks-table--extended` class derive
+   * from `table.getVisibleLeafColumns()` (FR-002) — never a hand-written fallback. Header
+   * sorting reads and toggles the table's sort state (#998). */
+  table: Table<TaskTreeNode>
 
   // ── Body row windowing + rendering ────────────────────────────────────────
-  flatRows: FlatRow[]
+  /** The table's expanded row model: group headers and the leaf rows of expanded groups. */
+  flatRows: Row<TaskTreeNode>[]
+  /** Position of each visible leaf row among the visible leaves (keyed by row id). */
+  leafIndexByRowId: ReadonlyMap<string, number>
   virtualize: boolean
   scrollRef: Ref<HTMLDivElement>
   rowVirtualizer: Virtualizer<HTMLDivElement, Element>
@@ -95,6 +80,7 @@ export type TasksTableBodyProps = {
   recordSearch: string
   now: Date
   buMap: Map<string, string>
+  teamMap: Map<string, string>
   personMap: Map<string, string>
   isCollapsed: (key: string) => boolean
   toggleCollapsed: (key: string) => void
@@ -130,13 +116,12 @@ export type TasksTableBodyProps = {
 export function TasksTableBody(props: TasksTableBodyProps) {
   const t = useT()
   const {
-    loading, error, leafTasks, hasActiveFilter, isDesktop,
+    loading, error, hasActiveFilter, isDesktop,
     onRetry, onClearFilters, emptyTitle, emptyCopy,
-    sortCol, onSort, ariaSort, sortIndicator, showBusinessUnit = false,
-    showWorkline = false, showObjective = false, showActivity = false, columnSpan,
-    flatRows, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
+    table,
+    flatRows, leafIndexByRowId, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     onOpenTask,
-    groups, recordSearch, now, buMap, personMap, isCollapsed, toggleCollapsed,
+    groups, recordSearch, now, buMap, teamMap, personMap, isCollapsed, toggleCollapsed,
     openAddTask, setOverdueOnly,
     workLineMap, objectiveMap, workloadSummary, createHref, onAssignPending, provenanceByTaskDefId,
     onEditTitle, onEditPic, onEditTeam, onEditSupervisor,
@@ -171,7 +156,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     return <ErrorState message={t('tasks.error.load')} onRetry={onRetry} />
   }
 
-  if (leafTasks.length === 0 && hasActiveFilter) {
+  if (flatRows.length === 0 && hasActiveFilter) {
     // No-results-after-filter: distinct from empty-no-tasks (AC-133 / design-plan §3)
     return (
       <EmptyState title={t('tasks.empty.filteredTitle')} copy={t('tasks.empty.filteredCopy')}>
@@ -181,7 +166,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     )
   }
 
-  if (leafTasks.length === 0) {
+  if (flatRows.length === 0) {
     // Empty-no-tasks: no filter is active (segment-aware copy)
     return (
       <EmptyState title={emptyTitle} copy={emptyCopy}>
@@ -198,6 +183,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
         onOpenTask={onOpenTask}
         now={now}
         buMap={buMap}
+        teamMap={teamMap}
         personMap={personMap}
         isCollapsed={isCollapsed}
         toggleCollapsed={toggleCollapsed}
@@ -226,8 +212,10 @@ export function TasksTableBody(props: TasksTableBodyProps) {
 
   // #743 r3: any optional Fields column on → the table drops onto its floored track
   // (`.tasks-table--extended`): class-based px floors everywhere, and the horizontal overflow
-  // lives INSIDE .tasks-scroll — never the page, never a squeezed identity column.
-  const extended = Boolean(showBusinessUnit || showWorkline || showObjective || showActivity)
+  // lives INSIDE .tasks-scroll — never the page, never a squeezed identity column. #997: the
+  // condition reads the table's visible columns (any optional column present), the same
+  // "any optional field visible" semantics the four show* booleans used to carry.
+  const extended = table.getVisibleLeafColumns().some((column) => column.columnDef.meta?.optional)
 
   return (
     <div ref={scrollRef} className={virtualize ? 'tasks-scroll tasks-scroll-virtual' : 'tasks-scroll'}>
@@ -236,67 +224,61 @@ export function TasksTableBody(props: TasksTableBodyProps) {
         className={`tasks-table record-collection-table collection-grammar-table${extended ? ' tasks-table--extended' : ''}`}
         aria-label={t('tasks.title')}
       >
+        {/* #997: the column set comes from the ONE TanStack column-definition array
+            (task-columns.tsx) via getHeaderGroups — no second hand-authored <th> list. th-task /
+            th-status / th-supervisor: the extended tier (#743 r3) pins decision columns by CLASS
+            (meta.thClass) — optional Fields columns shift every nth-child position, so
+            position-based widths land on the wrong column exactly when fields are on. */}
         <thead>
-          <tr>
-            {/* th-task / th-status / th-supervisor: the extended tier (#743 r3) pins decision
-                columns by CLASS — optional Fields columns shift every nth-child position, so
-                position-based widths land on the wrong column exactly when fields are on. */}
-            <th scope="col" className={`th-cell th-task th-sortable${sortCol === 'task' ? ' th-sorted' : ''}`} aria-sort={ariaSort('task')}>
-              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
-              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('task')}>
-                {t('tasks.label.task')}{sortIndicator('task')}
-              </button>
-            </th>
-            <th scope="col" className={`th-cell th-status th-sortable${sortCol === 'status' ? ' th-sorted' : ''}`} aria-sort={ariaSort('status')}>
-              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
-              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('status')}>
-                {t('tasks.filter.status')}{sortIndicator('status')}
-              </button>
-            </th>
-            <th scope="col" className={`th-cell th-sortable th-owner${sortCol === 'owner' ? ' th-sorted' : ''}`} aria-sort={ariaSort('owner')}>
-              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
-              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('owner')}>
-                {t('tasks.pic')}{sortIndicator('owner')}
-              </button>
-            </th>
-            <th scope="col" className="th-cell th-supervisor">{t('tasks.supervisor')}</th>
-            {showBusinessUnit ? <th scope="col" className="th-cell th-business-unit">{t('tasks.filter.businessUnit')}</th> : null}
-            {showWorkline ? <th scope="col" className="th-cell th-workline">{t('tasks.filter.projectProcess')}</th> : null}
-            {showObjective ? <th scope="col" className="th-cell th-objective">{t('tasks.objective')}</th> : null}
-            {showActivity ? <th scope="col" className="th-cell th-activity">{t('tasks.fields.activity')}</th> : null}
-            {/* Wave 2c: Due is the last decision column — it MUST stay
-                inside the first paint. The Fields chooser (AC-006, #743) may insert optional
-                columns BEFORE it; the class-based width floors keep Due measurable regardless
-                of its nth-child position. */}
-            <th scope="col" className={`th-cell th-sortable th-due${sortCol === 'due' ? ' th-sorted' : ''}`} aria-sort={ariaSort('due')}>
-              {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
-              <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={() => onSort('due')}>
-                {t('tasks.dueLabel')}{sortIndicator('due')}
-              </button>
-            </th>
-            {/* AC-020 (#750): the ⋯ row-menu column is retired — it held one action. The
-                title-edit pencil (AC-018) is rendered in the title cell. */}
-          </tr>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <tr key={headerGroup.id}>
+              {headerGroup.headers.map((header) => {
+                const meta = header.column.columnDef.meta
+                if (!meta) return null
+                const canSort = header.column.getCanSort()
+                const sorted = canSort && header.column.getIsSorted()
+                return (
+                  <th
+                    key={header.id}
+                    scope="col"
+                    className={`th-cell ${meta.thClass}${canSort ? ' th-sortable' : ''}${sorted ? ' th-sorted' : ''}`}
+                    aria-sort={canSort ? (sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none') : undefined}
+                  >
+                    {/* Real <button>: keyboard-sortable (WCAG 2.1.1 — convention audit 2026-07-18). */}
+                    {canSort ? (
+                      <button type="button" className="th-sort-btn collection-grammar-sort-button" onClick={header.column.getToggleSortingHandler()}>
+                        {t(meta.labelKey)}
+                        {sorted ? (
+                          <span className="collection-grammar-sort-indicator" aria-hidden="true">
+                            {sorted === 'asc' ? '↑' : '↓'}
+                          </span>
+                        ) : null}
+                      </button>
+                    ) : t(meta.labelKey)}
+                  </th>
+                )
+              })}
+            </tr>
+          ))}
         </thead>
         {virtualize ? (
           (() => {
             const items = rowVirtualizer.getVirtualItems()
             const totalSize = rowVirtualizer.getTotalSize()
-            // Column count follows the visible Fields (AC-006, #743); the caller passes the
-            // one authoritative span so pads can never drift from the group headers. The
-            // fallback carries the 5-column decision set — the ⋯ menu column is retired
-            // (AC-020, #750).
-            const colSpan = columnSpan ?? (showBusinessUnit ? 6 : 5)
+            // #997 (FR-002): the pad rows' colSpan derives from the table's visible leaf
+            // columns — the same number the group headers use — never from a hand-written
+            // fallback expression.
+            const colSpan = table.getVisibleLeafColumns().length
             const padTop = items.length > 0 ? items[0].start : 0
             const padBottom = items.length > 0 ? totalSize - items[items.length - 1].end : 0
             return (
               <tbody>
                 {padTop > 0 && <tr aria-hidden="true" style={{ height: padTop }}><td colSpan={colSpan} /></tr>}
                 {items.map(vi => {
-                  const fr = flatRows[vi.index]
-                  return fr.kind === 'header'
-                    ? renderGroupHeader(fr.group)
-                    : renderRow(fr.task, fr.leafIndex)
+                  const node = flatRows[vi.index].original
+                  return node.kind === 'group'
+                    ? renderGroupHeader(node.group)
+                    : renderRow(node.task, leafIndexByRowId.get(flatRows[vi.index].id)!)
                 })}
                 {padBottom > 0 && <tr aria-hidden="true" style={{ height: padBottom }}><td colSpan={colSpan} /></tr>}
               </tbody>
@@ -304,16 +286,18 @@ export function TasksTableBody(props: TasksTableBodyProps) {
           })()
         ) : (
           <tbody>
-            {flatRows.map(fr =>
-              fr.kind === 'header'
-                ? renderGroupHeader(fr.group)
-                : renderRow(fr.task, fr.leafIndex))}
+            {flatRows.map(({ id, original: node }) =>
+              node.kind === 'group'
+                ? renderGroupHeader(node.group)
+                : renderRow(node.task, leafIndexByRowId.get(id)!))}
           </tbody>
         )}
       </table>
       {/* Quiet E7-style inline-edit hint (matches the F2 activation the row wires). Sits under the
           table, muted, so the affordance is discoverable without shouting. */}
-      <p className="tasks-inline-edit-hint">{t('tasks.inlineEdit.hint')}</p>
+      {flatRows.some(({ original }) => original.kind !== 'group') && (
+        <p className="tasks-inline-edit-hint">{t('tasks.inlineEdit.hint')}</p>
+      )}
     </div>
   )
 }

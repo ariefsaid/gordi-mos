@@ -191,7 +191,7 @@ function PersonActionMenu({
         role="menuitem"
         type="button"
         tabIndex={0}
-        className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
+        className="person-menu-item w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
         onClick={() => dispatch('manage-person')}
       >
         {t('admin.people.action.manageAccess')}
@@ -204,7 +204,7 @@ function PersonActionMenu({
           role="menuitem"
           type="button"
           tabIndex={0}
-          className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
+          className="person-menu-item w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
           onClick={() => dispatch('reset-password')}
         >
           {t('admin.people.action.resetPassword')}
@@ -219,7 +219,7 @@ function PersonActionMenu({
           aria-disabled={lastAdmin ? 'true' : undefined}
           title={lastAdmin ? t('admin.people.lastAdmin') : undefined}
           className={[
-            'w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none',
+            'person-menu-item w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none',
             lastAdmin ? 'opacity-50 cursor-not-allowed' : '',
           ].filter(Boolean).join(' ')}
           onClick={() => !lastAdmin && dispatch('disable-login')}
@@ -233,7 +233,7 @@ function PersonActionMenu({
           role="menuitem"
           type="button"
           tabIndex={0}
-          className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
+          className="person-menu-item w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
           onClick={() => dispatch('enable-login')}
         >
           {t('admin.people.action.enableLogin')}
@@ -245,7 +245,7 @@ function PersonActionMenu({
           role="menuitem"
           type="button"
           tabIndex={0}
-          className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
+          className="person-menu-item w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
           onClick={() => dispatch('create-login')}
         >
           {t('admin.people.action.createLogin')}
@@ -259,7 +259,7 @@ function PersonActionMenu({
           role="menuitem"
           type="button"
           tabIndex={0}
-          className="w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
+          className="person-menu-item w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none"
           onClick={() => dispatch('restore')}
         >
           {t('admin.people.action.restore')}
@@ -272,7 +272,7 @@ function PersonActionMenu({
           aria-disabled={lastAdmin ? 'true' : undefined}
           title={lastAdmin ? t('admin.people.lastAdmin') : undefined}
           className={[
-            'w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none',
+            'person-menu-item w-full px-3 py-1.5 text-left text-sm hover:bg-accent focus:bg-accent focus:outline-none',
             lastAdmin ? 'opacity-50 cursor-not-allowed' : '',
           ].filter(Boolean).join(' ')}
           style={{ color: lastAdmin ? undefined : 'var(--destructive)' }}
@@ -485,9 +485,9 @@ function InlineSaved() {
 
 // Column widths. DO-22(c) rebalance: Person carries the dense two-line content and must never
 // be narrower than the chip columns beside it (the guard pins Person ≥ Access). While the person
-// panel is open beside the list, Login and Position step out so the rest stays readable.
+// panel is open beside the list every column stays; the chip columns give up width.
 const COL_WIDTH = { person: '30%', team: '16%', login: '12%', access: '21%', position: '21%' } as const
-const COMPACT_COL_WIDTH = { person: '42%', team: '26%', access: '32%' } as const
+const COMPACT_COL_WIDTH = { person: '30%', team: '16%', login: '13%', access: '20%', position: '21%' } as const
 
 /** The person's name as the row's keyboard door: Enter or Space on it opens the person. */
 function PersonName({ person, onOpen }: { person: AdminPersonRow; onOpen: () => void }) {
@@ -525,7 +525,8 @@ function DesktopTable({
 }) {
   const t = useT()
   const compact = selectedId !== null
-  const headClass = 'text-left px-4 text-xs font-semibold uppercase'
+  const pad = compact ? 'px-2' : 'px-4'
+  const headClass = `text-left ${pad} text-xs font-semibold uppercase`
   const headStyle = { color: 'var(--muted-foreground)', letterSpacing: '0.06em' }
   const width = compact ? COMPACT_COL_WIDTH : COL_WIDTH
   return (
@@ -538,19 +539,15 @@ function DesktopTable({
           <th scope="col" className={headClass} style={{ ...headStyle, width: width.team }}>
             {t('admin.people.col.team')}
           </th>
-          {!compact && (
-            <th scope="col" className={headClass} style={{ ...headStyle, width: COL_WIDTH.login }}>
-              {t('admin.people.col.login')}
-            </th>
-          )}
+          <th scope="col" className={headClass} style={{ ...headStyle, width: width.login }}>
+            {t('admin.people.col.login')}
+          </th>
           <th scope="col" className={headClass} style={{ ...headStyle, width: width.access }}>
             {t('admin.people.col.access')}
           </th>
-          {!compact && (
-            <th scope="col" className={headClass} style={{ ...headStyle, width: COL_WIDTH.position }}>
-              {t('admin.people.col.position')}
-            </th>
-          )}
+          <th scope="col" className={headClass} style={{ ...headStyle, width: width.position }}>
+            {t('admin.people.col.position')}
+          </th>
           {/* No dedicated Status column: archived rows are signalled inline on the name
               (line-through + 0.6 opacity). */}
           <th scope="col" className="w-10" />
@@ -568,9 +565,9 @@ function DesktopTable({
               // 52px is DESIGN.md's Data Table row spec.
               style={{ height: 52, borderBottom: '1px solid var(--border)' }}
             >
-              <td className="px-4">
+              <td className={pad}>
                 <div className="flex items-center gap-2 min-w-0">
-                  <Avatar placeholder={person.full_name} size="sm" />
+                  <Avatar placeholder={person.full_name} size="md" />
                   <div className="min-w-0">
                     <PersonName person={person} onOpen={open} />
                     {person.email && (
@@ -589,29 +586,25 @@ function DesktopTable({
                   </div>
                 </div>
               </td>
-              <td className="px-4 text-sm" style={{ color: 'var(--foreground)' }}>
+              <td className={`${pad} text-sm`} style={{ color: 'var(--foreground)' }}>
                 {primaryTeamName(person, teams) ?? (
                   <span style={{ color: 'var(--muted-foreground)' }} aria-label={t('admin.people.team.none')}>
                     —
                   </span>
                 )}
               </td>
-              {!compact && (
-                <td className="px-4">
-                  <div className="flex items-center gap-2">
-                    <LoginStatusPill status={person.login} />
-                    {justSavedId === person.id && <InlineSaved />}
-                  </div>
-                </td>
-              )}
-              <td className="px-4">
+              <td className={pad}>
+                <div className="flex items-center gap-2">
+                  <LoginStatusPill status={person.login} />
+                  {justSavedId === person.id && <InlineSaved />}
+                </div>
+              </td>
+              <td className={pad}>
                 <RoleChips roles={person.access_roles} />
               </td>
-              {!compact && (
-                <td className="px-4">
-                  <JabatanChips jabatan={person.jabatan} />
-                </td>
-              )}
+              <td className={pad}>
+                <JabatanChips jabatan={person.jabatan} />
+              </td>
               <td className="px-2 text-right">
                 <PersonActions person={person} people={people} onAction={onAction} />
               </td>
@@ -656,7 +649,7 @@ function MobileCardList({
           >
             {/* Head row: identity, status, and the card's ONE action door. */}
             <div className="flex items-center gap-2">
-              <Avatar placeholder={person.full_name} size="sm" />
+              <Avatar placeholder={person.full_name} size="lg" initials={2} />
               <div className="flex-1 min-w-0">
                 <PersonName person={person} onOpen={open} />
               </div>

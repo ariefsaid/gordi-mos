@@ -1,9 +1,8 @@
 import './TasksWorkspace.css'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
 import type { To } from 'react-router-dom'
-import { useIsNarrow } from '@/shell/use-is-narrow'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
@@ -13,6 +12,7 @@ import { useSetCollectionLeaf } from '@/shell/breadcrumb-title'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import type { PageFamilyState } from '@/shell/page-families'
+import { HelpTip } from '@/components/ui/help-tip'
 import { OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { createRecordRouteAdapter } from '@/shell/overlay-navigation'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
@@ -37,6 +37,8 @@ import { getPersonTeams, type TeamOption } from '@/lib/db/directory'
 import { canStartProcessForTeam } from '@/lib/db/processes'
 import { linkSignalTask } from '@/lib/db/signals'
 import { TaskOverlayContent } from './task-drawer'
+import { TaskCreateContext, type TaskCreateContextValue } from './task-create-context'
+import { loadHomeLeadId } from './default-supervisor'
 import { useCatalogRecordEntryFactory } from '@/components/catalog/use-catalog-record-overlay'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
@@ -45,6 +47,8 @@ import { isOwnerDirector } from '@/lib/role-scope'
 import { getTaskDefaultView } from '@/lib/task-default-view'
 import { resolveTeamContext } from '@/lib/team-context'
 import { isOverdue } from '@/lib/due-status'
+import { isOpenTask } from '@/lib/task-open'
+import { searchString, tasksSearchWithLiveQuery, type LiveTasksQueryRef } from './tasks-navigation'
 
 // D-A1 (fix work-order item 4): the Task record door is URL-addressable via the ?record= query
 // seam — the SAME grammar Signals uses (backlog R6(b) "unify on ?record="), built from the shared
@@ -91,6 +95,8 @@ export type TasksTableProps = {
   onTaskChanged?: (task: import('@/lib/db/tasks.types').TaskListRow) => void
   /** Collection callback to refetch after an archive. */
   onTaskArchived?: (id: string) => void
+  // Receives the search box's live text so an ancestor that navigates never reads a stale URL.
+  liveQueryRef?: LiveTasksQueryRef
 }
 
 function queryFromLegacySavedView(savedView: LegacySavedView | undefined): TaskCollectionQuery | undefined {
@@ -165,6 +171,7 @@ export function TasksWorkspace({
   drawerSlot,
   onTaskChanged,
   onTaskArchived,
+  liveQueryRef,
 }: TasksTableProps) {
   const t = useT()
   const navigate = useNavigate()
@@ -173,11 +180,9 @@ export function TasksWorkspace({
   const { buildEntry: buildRelatedEntry } = useCatalogRecordEntryFactory({ owner: 'tasks' })
   const auth = useAuth()
   const isDesktop = useIsDesktop()
-  const isNarrow = useIsNarrow()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const viewerOrgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
-  const currentSearch = location.search
   const initialQuery = useMemo(() => {
     const legacy = queryFromLegacySavedView(savedView)
     // The savedView prop is a compatibility bridge for URL-less embedders. Any URL state belongs
@@ -199,6 +204,9 @@ export function TasksWorkspace({
   // `null` means the viewer Team directory is still loading; [] is an honest no-eligible-Team
   // result and must never be replaced with a BU/first-row guess.
   const [viewerTeams, setViewerTeams] = useState<readonly TeamOption[] | null>(null)
+  // The creator's home Team lead, resolved together with viewerTeams so a draft never opens
+  // between the two. Null (no lead, or the creator leads) leaves Supervisor blank.
+  const [homeLeadId, setHomeLeadId] = useState<string | null>(null)
   const [processStartTeamIds, setProcessStartTeamIds] = useState<Set<string>>(new Set())
   const [announcement, setAnnouncement] = useState('')
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
@@ -230,8 +238,11 @@ export function TasksWorkspace({
       return () => { active = false }
     }
     setViewerTeams(null)
-    getPersonTeams(viewerId).then((teams) => {
-      if (active) setViewerTeams(teams)
+    getPersonTeams(viewerId).then(async (teams) => {
+      const leadId = await loadHomeLeadId(teams, viewerId)
+      if (!active) return
+      setHomeLeadId(leadId)
+      setViewerTeams(teams)
     }).catch(() => {
       // A failed directory read is deliberately fail-closed: the draft shows no eligible Team and
       // cannot manufacture a BU. The title entry remains inline so a later retry/refresh can heal.
@@ -289,6 +300,21 @@ export function TasksWorkspace({
     controller.setQuery({ ...controller.state.query, ...patch })
   }, [controller])
 
+  // The collection owns `q` and mirrors it into the URL with its own untagged REPLACE writes, which
+  // the shared echo hook (useSearchParamState) would read as outside changes and adopt over
+  // newer keystrokes. So the box follows the URL the way that hook does for outside changes: a
+  // NEW history entry (sidebar link, Back/Forward) is an outside change and its q is adopted;
+  // REPLACE writes are the collection's own and are ignored.
+  const navigationType = useNavigationType()
+  const seenLocationKey = useRef(location.key)
+  useEffect(() => {
+    if (seenLocationKey.current === location.key) return
+    seenLocationKey.current = location.key
+    if (navigationType === 'REPLACE') return
+    const urlQuery = new URLSearchParams(location.search).get('q') ?? ''
+    if (urlQuery !== controller.state.query.q) controller.setQuery({ ...controller.state.query, q: urlQuery })
+  }, [controller, location.key, location.search, navigationType])
+
   // AR Follow-ups is a retired finance surface (OD-WAY-34, #743): old links land on the All
   // view — the parser aliases view=followups to All, and this only strips the stale param from
   // the address bar (replace: no history step) so a reload cannot resurrect it.
@@ -331,6 +357,17 @@ export function TasksWorkspace({
   // OverlayHost session (route marker) supplies the focus/Back/leave-guard. This mirrors the Signals
   // archive seam exactly (signals-archive-page.tsx).
   const [params, setParams] = useSearchParams()
+  // The collection's REPLACE of a just-typed q can still be pending, so `params` may hold an older
+  // q. Every internal PUSH builds its URL from this copy, whose q is the live query's, so the
+  // search-following effect never adopts a stale q.
+  const liveQuery = controller.state.query.q
+  const liveParams = useMemo(() => tasksSearchWithLiveQuery(params, liveQuery), [params, liveQuery])
+  useEffect(() => {
+    if (!liveQueryRef) return
+    liveQueryRef.current = liveQuery
+    // Unmounted (record page mode): no search box exists, so the URL is the only truth.
+    return () => { liveQueryRef.current = null }
+  }, [liveQueryRef, liveQuery])
   // Strips a `view=` nobody chose (viewChosenRef). It reacts to `params` rather than writing at
   // mount so it always sees the settled URL, never a snapshot from before the engine's own sync.
   useEffect(() => {
@@ -375,21 +412,16 @@ export function TasksWorkspace({
 
   // The list search minus ?record= — shared by the panel's "Open full page" escalation so the
   // collection's query (view/filter/sort) survives the jump onto the canonical page.
-  const pageSearch = useCallback(() => {
-    const next = new URLSearchParams(params)
-    next.delete('record')
-    const s = next.toString()
-    return s ? `?${s}` : ''
-  }, [params])
+  const pageSearch = useCallback(
+    () => searchString(tasksSearchWithLiveQuery(params, liveQuery, ['record'])),
+    [params, liveQuery],
+  )
 
   // Collection contract onOpenTask — write ?record= before the host pushes its route marker, so one
   // Back step lands on the prior collection URL (identical to Signals' onOpenRecord).
   const onOpenTask = useCallback((taskId: string) => {
     if (!splitLayout) {
-      const next = new URLSearchParams(params)
-      next.delete('record')
-      const search = next.toString()
-      navigate({ pathname: `/work/tasks/${taskId}`, search: search ? `?${search}` : '' }, { state: { taskSurface: 'page' } })
+      navigate({ pathname: `/work/tasks/${taskId}`, search: pageSearch() }, { state: { taskSurface: 'page' } })
       return
     }
     // An explicit open is the user's intent, so it clears every "this record is closing" memory
@@ -402,10 +434,10 @@ export function TasksWorkspace({
     openedRecordRef.current = null
     suppressNextOpen.current = false
     hadTaskSession.current = false
-    const next = new URLSearchParams(params)
+    const next = new URLSearchParams(liveParams)
     next.set('record', taskId)
     setParams(next)
-  }, [navigate, params, setParams, splitLayout])
+  }, [liveParams, navigate, pageSearch, setParams, splitLayout])
 
   const taskEntry = useMemo<OverlayEntry | null>(() => {
     if (!recordId) return null
@@ -500,11 +532,23 @@ export function TasksWorkspace({
     controller.retry()
   }, [controller, records, viewerId])
   const onEditDue = useCallback(async (taskId: string, dueDate: string | null) => {
+    if (draftTask?.id === taskId) {
+      setDraftTask((current) => current?.id === taskId ? { ...current, due_date: dueDate } : current)
+      return
+    }
     if (!viewerId) throw new Error('inline due edit requires an authenticated viewer')
     const previous = records.find((record) => record.id === taskId)?.dueDate ?? null
     await updateTaskFields(taskId, { due_date: dueDate }, viewerId, previous)
     controller.retry()
-  }, [controller, records, viewerId])
+  }, [controller, draftTask?.id, records, viewerId])
+  const workLineObjectiveById = dataContext?.workLineObjectiveById
+  // The draft's Objective is never picked: it is the chosen Project/Process's own Objective.
+  const onEditWorkLine = useCallback(async (taskId: string, workLineId: string | null) => {
+    if (draftTask?.id !== taskId) return
+    setDraftTask((current) => current?.id === taskId
+      ? { ...current, work_line_id: workLineId, objective_id: workLineId ? workLineObjectiveById?.get(workLineId) ?? null : null }
+      : current)
+  }, [draftTask?.id, workLineObjectiveById])
   const onEditPic = useCallback(async (taskId: string, personId: string) => {
     if (draftTask?.id === taskId) {
       setDraftTask((current) => current?.id === taskId
@@ -551,6 +595,7 @@ export function TasksWorkspace({
         responsiblePersonId: draftTask.responsible_person_id,
         accountablePersonId: draftTask.accountable_person_id,
         createdBy: viewerId,
+        dueDate: draftTask.due_date,
         objectiveId: draftTask.objective_id,
         workLineId: draftTask.work_line_id,
       })
@@ -580,9 +625,9 @@ export function TasksWorkspace({
     if (!viewerId) throw new Error('inline title edit requires an authenticated viewer')
     await updateTaskFields(taskId, { title }, viewerId)
   }, [controller, draftTask, t, viewerId])
-  const onRetryDraftLink = useCallback(() => {
+  const onRetryDraftLink = useCallback((title: string) => {
     if (!draftTask) return
-    void onEditTitle(draftTask.id, draftTitleRef.current || draftTask.title)
+    void onEditTitle(draftTask.id, title || draftTitleRef.current || draftTask.title)
   }, [draftTask, onEditTitle])
   const onDiscardNewTask = useCallback(() => {
     returnFocusAfterDiscard.current = true
@@ -605,8 +650,8 @@ export function TasksWorkspace({
       void host.close()
       return
     }
-    if (drawerOpen) navigate({ pathname: '/work/tasks', search: currentSearch })
-  }, [currentSearch, drawerOpen, host, navigate])
+    if (drawerOpen) navigate({ pathname: '/work/tasks', search: searchString(tasksSearchWithLiveQuery(params, liveQuery)) })
+  }, [drawerOpen, host, liveQuery, navigate, params])
   // Opens the draft. It never looks at the record panel: callers decide whether one has to close
   // first, so a continuation after a close cannot find a stale "panel still open" and ask again.
   const beginNewTask = useCallback((prefillParam = '') => {
@@ -649,9 +694,8 @@ export function TasksWorkspace({
         : undefined)
     const workLineId = firstCreateParam(prefill, ['work_line_id', 'work_line', 'workLineId'])
       ?? firstCreateParam(urlPrefill, ['work_line_id', 'work_line', 'workLineId'])
-    const objectiveId = firstCreateParam(prefill, ['objective_id', 'objective', 'objectiveId'])
-      ?? firstCreateParam(urlPrefill, ['objective_id', 'objective', 'objectiveId'])
-      ?? (workLineId ? dataContext.workLineObjectiveById?.get(workLineId) ?? null : null)
+    // An Objective is only ever the chosen Project/Process's own; an objective-only prefill is ignored.
+    const objectiveId = workLineId ? dataContext.workLineObjectiveById?.get(workLineId) ?? null : null
     const sourceSignal = firstCreateParam(urlPrefill, ['sourceSignal'])
     const supervisorId = firstCreateParam(prefill, ['supervisor', 'supervisorId'])
       ?? firstCreateParam(urlPrefill, ['createSupervisor', 'supervisor', 'supervisorId'])
@@ -671,16 +715,17 @@ export function TasksWorkspace({
         ?? query.picId
         ?? viewerId
         ?? firstPerson,
-      // PIC and Supervisor are independent RACI roles. Supervisor is an explicit choice, never
-      // the viewer/PIC fallback used by the retired create path.
-      accountable_person_id: supervisorId ?? '',
+      // PIC and Supervisor are independent RACI roles. Supervisor is an explicit choice or the
+      // home Team lead (null when there is none or the creator is the lead) — never the
+      // viewer/PIC fallback used by the retired create path.
+      accountable_person_id: supervisorId ?? homeLeadId ?? '',
       consulted_person_ids: [], informed_person_ids: [],
       description: null, due_date: null, objective_id: objectiveId, work_line_id: workLineId,
       last_activity_at: now, archived_at: null, created_by: viewerId ?? '',
       created_at: now, updated_at: now, process_run_id: null, generated_from_task_def_id: null,
     })
     draftSourceSignalRef.current = sourceSignal ?? draftSourceSignalRef.current
-  }, [dataContext, draftTask, params, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
+  }, [dataContext, draftTask, homeLeadId, params, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
   // Every create entry — page button, global actions menu, command menu, keyboard shortcut, group
   // "Add" — comes through here, so a draft and an open record are never on screen together. A
   // dirty record may refuse to close; the draft opens only on a committed close, and only once
@@ -719,20 +764,19 @@ export function TasksWorkspace({
     // lands from its own render's snapshot, so the two must agree or the last one wins.
     setParams(writeCollectionQuery(taskCollectionDescriptor.query, query, next), { replace: true })
   }, [dataContext, draftTask, onNewTask, params, query, setParams, viewerTeams])
-  // The query schema owns URL cleanup, including constraints reset to neutral.
+  // The query schema owns URL cleanup, including constraints reset to neutral. "Clear filters"
+  // means clear — including the base view scope (My work / Team work / Overdue) — never a
+  // standing constraint next to copy that promises "see all tasks" (calibration finding: an
+  // empty My work view kept ?view=my-work after Clear, so the button did nothing).
   const onClearFilters = useCallback(() => {
-    const nextView = query.view === 'overdue' ? 'all' : query.view
     setQuery({
       q: '', businessUnitId: null, status: null, picId: null, supervisorId: null, personId: null,
-      overdueOnly: false, includeArchived: false, view: nextView, savedViewId: null,
+      overdueOnly: false, includeArchived: false, view: 'all', savedViewId: null,
     })
-  }, [query.view, setQuery])
-  const onSort = useCallback((sort: TaskCollectionSort) => {
-    const direction = query.sort === sort
-      ? query.direction === 'ascending' ? 'descending' : 'ascending'
-      : 'ascending'
+  }, [setQuery])
+  const onSortChange = useCallback((sort: TaskCollectionSort, direction: TaskCollectionQuery['direction']) => {
     setQuery({ sort, direction })
-  }, [query.direction, query.sort, setQuery])
+  }, [setQuery])
 
   const recordsForStats = useMemo(
     () => records.map((record) => ({ ...record, status: runtimeStatusOverrides.get(record.id) ?? record.status })),
@@ -761,9 +805,7 @@ export function TasksWorkspace({
         const attentionTaskIds = new Set([...blockedTaskIds, ...overdueTaskIds])
         return {
           total: recordsForStats.length,
-          // OD-REDESIGN-91 #17: "open" mirrors the rail badge's open-count definition
-          // (lib/db/rail-counts: not archived AND not Done) so the head and the rail agree.
-          open: recordsForStats.filter((record) => record.status !== 'Done' && record.archivedAt === null).length,
+          open: recordsForStats.filter((record) => isOpenTask({ status: record.status, archived_at: record.archivedAt })).length,
           blocked: blockedTaskIds.size,
           overdue: overdueTaskIds.size,
           attentionTotal: attentionTaskIds.size,
@@ -771,24 +813,30 @@ export function TasksWorkspace({
       })()
   // Census R2 DO-6's reserved placeholder state is gone with the AR Follow-ups view (#743):
   // every view now renders the live collection body.
-  // One create door per width. The global + launcher renders whenever the rail is collapsed
-  // (below 920px), so the labelled header button yields to it there; above that the header
-  // button is the door.
+  // The labelled header button is the in-page create door at every width (#1032); the shell's +
+  // launcher is the global one.
   // A record is open in either of two ways — the `drawerOpen` prop, or an overlay session this
-  // surface owns. The split class and the collection runtime already read both; this door read
-  // only the prop, so opening a row from the table left the create door standing beside the
-  // record's own primary action, two solid blues competing across one page.
+  // surface owns. Create task stays reachable with a record open (#751 AC-033, DESIGN.md
+  // § RecordViewer "While a record panel is open, the page head's primary drops to .btn-outline
+  // — one blue per screen") — it restyles to outline rather than disappearing, so the record's
+  // own action keeps the one filled primary without hiding a common door.
   const recordOpen = drawerOpen || host.session?.frames.at(-1)?.entry.owner === 'tasks'
-  const showNewTask = !recordOpen && state.status === 'ready' && !isNarrow
+  const showNewTask = state.status === 'ready'
   const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
+  // A saved-view scope (My work etc.) is not a filter: only a set field filter earns the
+  // "match these filters" wording.
+  const mineScope = query.view === 'my-work' || query.view === 'my-pic' || query.view === 'my-supervisor'
+  const fieldFilterSet = query.q !== '' || query.businessUnitId !== null || query.status !== null
+    || query.picId !== null || query.supervisorId !== null || query.personId !== null
+    || query.overdueOnly || query.view === 'overdue'
   const emptyTitle = query.includeArchived
     ? t('tasks.empty.archivedTitle')
-    : query.view === 'my-work'
+    : mineScope
       ? t('tasks.empty.mineTitle')
       : t('tasks.empty.noTasksTitle')
   const emptyCopy = query.includeArchived
     ? t('tasks.empty.archivedCopy')
-    : query.view === 'my-work'
+    : mineScope
       ? t('tasks.empty.mineCopy')
       : t('tasks.empty.noTasksCopy')
 
@@ -838,7 +886,7 @@ export function TasksWorkspace({
     drawerOpen: recordOpen,
     splitLayout,
     isDesktop,
-    recordSearch: currentSearch,
+    recordSearch: searchString(liveParams),
     statusOverrides: runtimeStatusOverrides,
     onOpenTask,
     onEditTitle,
@@ -857,11 +905,11 @@ export function TasksWorkspace({
     onAddTask,
     onRetry: retry,
     onClearFilters,
-    onSort,
+    onSortChange,
     onOverdueFilter: () => setQuery({ overdueOnly: true }),
       onClearOverdue: () => setQuery({ overdueOnly: false }),
     createHref: (() => {
-      const next = new URLSearchParams(params)
+      const next = new URLSearchParams(liveParams)
       next.set('create', '1')
       return { pathname: '/work/tasks', search: `?${next.toString()}` }
     })(),
@@ -871,11 +919,19 @@ export function TasksWorkspace({
       return teamId !== null && teamId !== undefined && processStartTeamIds.has(teamId)
     },
   }), [
-    currentSearch, recordOpen, draftTask, host.session, isDesktop, onAddTask,
-    params,
-    onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onNewTask, onOpenTask, onClearFilters, onSort,
+    recordOpen, draftTask, host.session, isDesktop, onAddTask,
+    liveParams,
+    onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onNewTask, onOpenTask, onClearFilters, onSortChange,
     processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink, viewerTeams,
   ])
+  // Projects & Processes the viewer can read (RLS scopes the catalog), for the create form.
+  const createContext: TaskCreateContextValue = useMemo(() => ({
+    workLineOptions: [...(dataContext?.workLinesById ?? [])].map(([id, name]) => ({
+      id, name, type: dataContext?.workLineTypeById.get(id) ?? 'project',
+    })),
+    onEditDue,
+    onEditWorkLine,
+  }), [dataContext, onEditDue, onEditWorkLine])
 
   const controls = !isDesktop ? (
     <ViewOptionsDisclosure
@@ -901,15 +957,25 @@ export function TasksWorkspace({
       family="workspace"
       title={t('tasks.title')}
       jobSentence={t('job.tasks')}
+      // #958: the sentence above is desktop-only (page-head.css hides it under 768px), so the
+      // HelpTip repeats it ahead of the glossary — phone gets purpose + terms from one glyph.
+      titleHelp={<HelpTip label={`${t('job.tasks')} ${t('job.tasksHelp')}`} />}
       headClassName="tasks-page-head"
       state={frameState}
       action={showNewTask ? (
-        <button ref={(node) => { createControlRef.current = node }} type="button" className="btn btn-primary" onClick={() => onNewTask()}>{t('tasks.new')}</button>
+        <button
+          ref={(node) => { createControlRef.current = node }}
+          type="button"
+          className={`btn ${recordOpen ? 'btn-outline' : 'btn-primary'}`}
+          onClick={() => onNewTask()}
+        >
+          {t('tasks.new')}
+        </button>
       ) : undefined}
       meta={
         // OD-REDESIGN-91 #17 (F2): counts are OPEN everywhere — the head meta reads
-        // "9 open · 11 total" (the rail badge already carries the open-count; the head now
-        // agrees). ONE muted meta sentence in the E7 grammar, a single font size (the body
+        // "9 open in this view · 11 incl. done" (the view's own count, labelled as such; the rail
+        // badge is the viewer's own open tasks, #1129). ONE muted meta sentence in the E7 grammar, a single font size (the body
         // token), every number followed by its noun (the naked-numbers guard). Live counts;
         // "—" while loading or on error. The "?" help tip is retired (#743 AC-009): its
         // sentence lives in the true-empty copy now.
@@ -927,6 +993,7 @@ export function TasksWorkspace({
       <div className={`split${recordOpen ? '' : ' nodrawer'}`}>
         <section className={`assembly record-collection-view tasks-collection-surface record-collection-view--${controller.state.presentation}${drawerOpen && splitLayout ? ' condensed' : ''}`} aria-label={t('tasks.title')}>
           <TaskCollectionRuntimeProvider value={runtime}>
+            <TaskCreateContext.Provider value={createContext}>
             <RecordCollectionSurface
               controller={controller}
               keepBodyWhenEmpty={draftTask != null}
@@ -934,17 +1001,18 @@ export function TasksWorkspace({
               empty={{
                 title: emptyTitle,
                 copy: emptyCopy,
-                create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(params); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
+                create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
               }}
               filteredEmpty={{
-                title: t('tasks.empty.filteredTitle'),
-                copy: t('tasks.empty.filteredCopy'),
+                title: fieldFilterSet ? t('tasks.empty.filteredTitle') : emptyTitle,
+                copy: fieldFilterSet ? t('tasks.empty.filteredCopy') : emptyCopy,
                 clear: onClearFilters,
-                create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(params); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
+                create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
               }}
               error={{ message: t('tasks.error.load'), retry }}
               loadingLabel={t('tasks.loading')}
             />
+            </TaskCreateContext.Provider>
           </TaskCollectionRuntimeProvider>
         </section>
         {drawerOpen && drawerSlot}

@@ -10,6 +10,7 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { saveErrorMessage } from '@/lib/save-error'
 import { formatDayMonthYear } from '@/lib/format/date'
 import { getBusinessUnits, type BusinessUnitOption } from '@/lib/db/directory'
 import {
@@ -160,7 +161,7 @@ export function BudgetPage() {
       })
       setSavedId(id)
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : 'Capture failed.')
+      setSaveError(saveErrorMessage(e, t))
     } finally {
       setSaving(false)
     }

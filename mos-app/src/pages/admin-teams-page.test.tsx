@@ -67,7 +67,7 @@ describe('AdminTeamsPage', () => {
     const bar = rowOf('Gordi HQ Bar')
     expect(within(bar).getByText('Gordi HQ · Bar')).toBeInTheDocument()
     await waitFor(() => expect(within(bar).getByText('2 active members')).toBeInTheDocument())
-    expect(within(bar).getByRole('combobox', { name: 'Lead for Gordi HQ Bar' })).toHaveTextContent('Ari Lead')
+    expect(await within(bar).findByRole('combobox', { name: 'Lead for Gordi HQ Bar' })).toHaveTextContent('Ari Lead')
     expect(screen.queryByRole('button', { name: /save/i })).toBeNull()
   })
 

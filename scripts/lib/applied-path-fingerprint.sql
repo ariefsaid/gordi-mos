@@ -30,12 +30,15 @@
 --     any two resets, so including them would make the comparison fail always rather than fail
 --     meaningfully. A table whose every column is excluded still contributes its ROW COUNT, so
 --     an added or missing row is still drift.
---   * Contents of mos.task_team_rehome_ledger, only while its table comment also carries
---     `[applied-path-content: history-dependent]`. Its rows describe the path that upgraded data
---     took, so a fresh database cannot and should not reproduce them. Both checks are required:
---     copying the marker to another table cannot suppress that table's contents. The ledger's
---     constraints, RLS posture, policies and functions remain fingerprinted; only its rows are
---     omitted.
+--   * Contents of mos.task_team_rehome_ledger and shared.record_history, only while the table's
+--     comment also carries `[applied-path-content: history-dependent]`. Their rows describe the
+--     path that upgraded data took (the rehome ledger's rewrites; a change-history trigger's
+--     coverage starting at whatever write first followed its attachment — NFR-006 of the
+--     change-history spec — so dev-seed rows carry history on a fresh build but predate it on
+--     an upgraded one), so a fresh database cannot and should not reproduce them. Both checks
+--     are required: copying the marker to another table cannot suppress that table's contents,
+--     and only the two named relations can ever hold the marker. Their constraints, RLS
+--     posture, policies and functions remain fingerprinted; only their rows are omitted.
 --   * Function BODIES. Signatures are fingerprinted (a stale overload left behind by a
 --     conditional drop is exactly the drift this exists to catch) but prosrc is not: it would
 --     dominate the artifact and add nothing a signature change does not already flag.
@@ -62,7 +65,7 @@ owned as (
     from rel r
    where r.relrowsecurity
      and not (
-       r.rel = 'mos.task_team_rehome_ledger'
+       r.rel in ('mos.task_team_rehome_ledger', 'shared.record_history')
        and position('[applied-path-content: history-dependent]' in
                     coalesce(obj_description(r.oid, 'pg_class'), '')) > 0
      )

@@ -33,6 +33,18 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
     expect(valueBlock).not.toMatch(/overflow:\s*hidden/)
   })
 
+  // #956 (owner repro: Projects & Processes → Current status → tick Include archived — "Active +
+  // archived" ran past the button, under the chevron). `.collection-toolbar__select` and
+  // `.collection-toolbar__choice` are two single-class rules of EQUAL specificity on one element
+  // (collection-toolbar.tsx renders both classes together); whichever is declared later in this
+  // file wins the cascade regardless of which one this file's comments say SHOULD win. The
+  // compound selector below is what actually keeps `max-width: none` in force — pin its presence
+  // directly, since the single-class assertion above cannot tell a live exemption from one that
+  // a later same-specificity rule silently overrides.
+  it('the choice wrapper exemption outranks the Select 180px cap on SPECIFICITY, not stylesheet order', () => {
+    expect(css).toMatch(/\.collection-toolbar__select\.collection-toolbar__choice\s*\{[^}]*max-width:\s*none;/s)
+  })
+
   it('gives inactive view controls a quiet visible hover state', () => {
     expect(css).toMatch(
       /\.collection-toolbar__view:not\(\.collection-toolbar__view--active\):hover\s*\{[^}]*background:\s*var\(--surface-tertiary\);[^}]*color:\s*var\(--foreground\);/s,
@@ -128,5 +140,16 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
       /@media\s*\(min-width:\s*1024px\)\s*and\s*\(max-width:\s*1440px\)[\s\S]*?\.collection-toolbar__action-icon\s*\{[^}]*display:\s*none;/s,
     )
     expect(css).not.toMatch(/\.collection-toolbar__action-label\s*\{[^}]*display:\s*none;/s)
+  })
+})
+
+describe('CollectionToolbar — Indonesian search field (issue 1109)', () => {
+  it('reserves room for the translated placeholder beside the icon, padding and borders', () => {
+    const minWidth = /html:lang\(id\) \.collection-toolbar__search \{\s*min-width:\s*(\d+)px/.exec(css)
+    expect(Number(minWidth?.[1])).toBeGreaterThanOrEqual(220)
+  })
+
+  it('applies the floor only from 768px up, so the phone row keeps the filter trigger clear', () => {
+    expect(css).toMatch(/@media \(min-width: 768px\) \{\s*html:lang\(id\) \.collection-toolbar__search \{\s*min-width:\s*220px/)
   })
 })

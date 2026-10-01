@@ -84,20 +84,26 @@ describe('Census Step 2.5 — Signal record anatomy conformance (AC-ANAT-009)', 
     expect(regions.filter((r) => r === 'metadata')).toHaveLength(0)
   })
 
-  it('F2 — the identity heading owns the first line and the live message owns the continuation exactly once', () => {
-    const first = 'HQ bar espresso volumes are down about 15% this week versus last week — corrected count.'
+  it('F2 — a short first line is the identity heading and the live message owns the continuation exactly once', () => {
+    const first = 'HQ bar espresso volumes are down about 15% this week.'
     const continuation = 'Investigating the grinder over the next two mornings.'
     const { container } = composeAndRender(makeSignal({ body: `${first}\n${continuation}` }))
     const h1 = container.querySelector('h1')!
     expect(h1.textContent).toBe(first)
-    expect(h1.textContent!.endsWith('…')).toBe(false)
     const message = container.querySelector('[data-content-slot="message"]')!
     const messageBody = message.querySelector('.signal-message-body')!
     expect(messageBody.textContent).toBe(continuation)
     expect(messageBody.textContent).not.toContain(first)
-    expect(container.textContent).toContain(continuation)
     // The first line is the identity heading, not a second copy of the Signal message.
     expect((container.textContent!.match(new RegExp(first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) ?? [])).toHaveLength(1)
+  })
+
+  it('a one-line message past the title cap gets a short heading and its full text in the message body', () => {
+    const { container } = composeAndRender(makeSignal({ body: LONG_BODY }))
+    const h1 = container.querySelector('h1')!
+    expect(h1.textContent!.endsWith('…')).toBe(true)
+    expect(h1.textContent!.length).toBeLessThan(LONG_BODY.length)
+    expect(container.querySelector('.signal-message-body')!.textContent).toBe(LONG_BODY)
   })
 
   it('keeps the original first line in a retracted tombstone without restoring its live continuation', () => {

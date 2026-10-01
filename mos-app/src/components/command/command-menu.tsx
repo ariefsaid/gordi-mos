@@ -44,6 +44,8 @@ export type CommandMenuProps = {
    * object palette").
    */
   mode?: CommandMenuMode
+  /** Focus target on close when the palette was opened by the ⌘K shortcut with nothing focused. */
+  returnFocusRef?: React.RefObject<HTMLElement | null>
 }
 
 type ItemGroup = { key: string; label: string; items: CommandItem[] }
@@ -114,7 +116,7 @@ const RECORD_KIND_CONFIG: Record<RecordKind, { Icon: React.ComponentType; to: ((
 // and the `+` launcher read. a11y: role=dialog + aria-modal + focus trap + Esc
 // (returns focus) — all owned by ModalShell, the single interaction owner for
 // centered dialogs.
-export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = true, mode = 'search' }: CommandMenuProps): React.JSX.Element | null {
+export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = true, mode = 'search', returnFocusRef }: CommandMenuProps): React.JSX.Element | null {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const auth = useAuth()
@@ -415,6 +417,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
       surface="centered"
       phoneMode="centered"
       className="cm-modal-surface"
+      returnFocusRef={returnFocusRef}
     >
       <div className="cm-panel">
         <div className="cm-input">

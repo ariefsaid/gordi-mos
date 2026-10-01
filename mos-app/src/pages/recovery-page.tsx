@@ -5,6 +5,7 @@ import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
 import { SetPasswordForm } from '@/auth/set-password-form'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { passwordRefusal } from '@/auth/password-error'
 
 /**
  * The dead end of a recovery link, and the way out of it.
@@ -158,6 +159,7 @@ export function RecoveryPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const auth = useAuth()
+  const t = useT()
 
   const [expired, setExpired] = useState(false)
 
@@ -178,10 +180,13 @@ export function RecoveryPage() {
 
     const { error } = await supabase.auth.updateUser({ password: newPassword })
     if (error) {
-      if (error.code === 'weak_password') return error.message
-      // Link/session errors from updateUser on a recovery link = expired/invalid link.
-      setExpired(true)
-      return null
+      const refusal = passwordRefusal(error)
+      // On a recovery link, anything that is not a nameable password rule = expired/invalid link.
+      if (refusal === 'auth.password.refused.session' || refusal === 'auth.password.refused.generic') {
+        setExpired(true)
+        return null
+      }
+      return t(refusal)
     }
 
     // #131: a recovery-link reset is the holder choosing their own password, so it satisfies the

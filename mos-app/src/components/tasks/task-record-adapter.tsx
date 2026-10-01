@@ -17,9 +17,11 @@ import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
 import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
-import { canEdit, canArchive, picOptions } from './task-permissions'
 import { isOverdue } from '@/lib/due-status'
+import { interpolate } from '@/i18n/use-t'
 import { RecordFieldList } from '@/components/records/record-viewer'
+import { canEdit, canArchive, picOptions } from './task-permissions'
+import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import type {
   RecordAction,
   RecordContentSlot,
@@ -150,6 +152,7 @@ function editableSpec(
  *  createTaskRecordAdapter and the adapter's own unit tests keep their literals; the LIVE
  *  TaskSurface passes locale-resolved strings (LocaleParityContract). */
 export interface TaskFieldLabels {
+  title: string
   businessUnit: string
   pic: string
   supervisor: string
@@ -159,6 +162,9 @@ export interface TaskFieldLabels {
   teamMigration: string
   dueDate: string
   createdBy: string
+  // AC-039/FR-029 (OD-REDESIGN-41): Supervisor's subline when it equals the parent's Accountable;
+  // `${name}` interpolates the parent's name.
+  supervisorInheritedFrom: string
 }
 
 /** i18n-able labels for the FULL Task record adapter's chrome — section titles, the
@@ -233,6 +239,7 @@ const DEFAULT_TASK_RECORD_LABELS: TaskRecordLabels = {
 }
 
 const DEFAULT_TASK_FIELD_LABELS: TaskFieldLabels = {
+  title: 'Title',
   businessUnit: 'Business Unit',
   pic: 'Person in charge (PIC)',
   supervisor: 'Supervisor',
@@ -242,6 +249,7 @@ const DEFAULT_TASK_FIELD_LABELS: TaskFieldLabels = {
   teamMigration: 'No team is assigned to this task yet (data migration).',
   dueDate: 'Due date',
   createdBy: 'Created by',
+  supervisorInheritedFrom: 'inherited from ${name}',
 }
 
 /** The honest Team field spec — Business Unit is NEVER relabelled Team; a real task.team_id lookup
@@ -253,11 +261,11 @@ export function teamOwnershipField(
   editable = false,
   teamOptions: readonly TaskTeamView[] = [],
 ): RecordFieldSpec {
+  // The current Team is always an option; "not assigned" is the last resort, never the lead.
+  const teams = team && !teamOptions.some((option) => option.id === team.id) ? [team, ...teamOptions] : teamOptions
   const options: RecordFieldOption[] = [
+    ...teams.map((option) => ({ value: option.id, label: option.label })),
     { value: '', label: labels.teamUnassigned },
-    ...teamOptions
-      .filter((option) => option.id !== team?.id)
-      .map((option) => ({ value: option.id, label: option.label })),
   ]
   const canPick = editable && teamOptions.length > 0
   return {
@@ -288,7 +296,14 @@ function ownershipFields(
   completedAt: string | null,
   completedAtLabel: string,
   labels: TaskFieldLabels = DEFAULT_TASK_FIELD_LABELS,
+  // AC-039: the resolved parent Project/Process, or null for an Ad hoc task.
+  workLine?: WorkLineRow | null,
 ): RecordFieldSpec[] {
+  const inheritsSupervisor = Boolean(
+    workLine?.accountable_person_id
+    && task.accountable_person_id
+    && workLine.accountable_person_id === task.accountable_person_id,
+  )
   return [
     teamOwnershipField(team, labels, editable, teamOptions),
     {
@@ -317,6 +332,9 @@ function ownershipFields(
       value: task.accountable_person_id,
       displayValue: personName(people, task.accountable_person_id),
       options: personOptions(people),
+      subline: inheritsSupervisor && workLine
+        ? interpolate(labels.supervisorInheritedFrom, { name: workLine.name })
+        : undefined,
     }),
     {
       key: 'createdBy',
@@ -428,10 +446,11 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
   //    relationships follow once the immediate work is in view.
   const titleField = editSpec({
     key: 'title',
-    label: 'title',
+    label: labels.title,
     control: 'text',
     value: task.title,
     displayValue: task.title,
+    maxLength: TASK_TITLE_MAX_LENGTH,
   })
   const due = dueField(task, editable, labels.dueDate, formatDate)
   const statusField = editSpec({
@@ -480,6 +499,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
       completedAt,
       L.completedAtField,
       labels,
+      workLine,
     ),
   }
 
@@ -582,8 +602,8 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     fieldSectionSlot(content),
     { id: 'checklist', label: 'Checklist', render: () => renderChecklist(detail) },
     fieldSectionSlot(ownership),
-    { id: 'activity', label: 'Activity', render: () => renderActivity(detail) },
     fieldSectionSlot(relations),
+    { id: 'activity', label: 'Activity', render: () => renderActivity(detail) },
   ]
 
   return {

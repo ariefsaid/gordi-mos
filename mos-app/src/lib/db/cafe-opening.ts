@@ -52,6 +52,14 @@ export interface CafeViewerTeam {
   /** Null when this Team is not a production stream Team (e.g. an office Team). */
   branch_id: string | null
   activity: ProductionActivity | null
+  /**
+   * Null = open-ended. `ops.is_stream_reviewer` (the DB predicate a supervisor's decide/plan
+   * write authority is checked against) admits only an open-ended membership; a finite date
+   * still counts as CURRENT for this list's own effective-dated window (comment above), so a
+   * caller that means reviewer/write authority must filter this field itself rather than
+   * trust every row this function returns.
+   */
+  effective_to: string | null
 }
 
 /**
@@ -63,13 +71,13 @@ export async function listCafeViewerTeams(personId: string): Promise<CafeViewerT
   const today = wibToday()
   const { data: memberships, error: membershipError } = await shared()
     .from('team_memberships')
-    .select('team_id,is_primary')
+    .select('team_id,is_primary,effective_to')
     .eq('person_id', personId)
     .lte('effective_from', today)
     .or(`effective_to.is.null,effective_to.gte.${today}`)
   if (membershipError) throw new Error(`listCafeViewerTeams memberships failed — ${membershipError.message}`)
 
-  const rows = (memberships ?? []) as { team_id: string; is_primary: boolean }[]
+  const rows = (memberships ?? []) as { team_id: string; is_primary: boolean; effective_to: string | null }[]
   if (rows.length === 0) return []
 
   const { data: teams, error: teamError } = await shared()
@@ -79,9 +87,13 @@ export async function listCafeViewerTeams(personId: string): Promise<CafeViewerT
     .is('archived_at', null)
   if (teamError) throw new Error(`listCafeViewerTeams teams failed — ${teamError.message}`)
 
-  const primaryById = new Map(rows.map(row => [row.team_id, row.is_primary]))
-  return ((teams ?? []) as Omit<CafeViewerTeam, 'is_primary'>[])
-    .map(team => ({ ...team, is_primary: primaryById.get(team.id) ?? false }))
+  const byTeamId = new Map(rows.map(row => [row.team_id, row]))
+  return ((teams ?? []) as Omit<CafeViewerTeam, 'is_primary' | 'effective_to'>[])
+    .map(team => ({
+      ...team,
+      is_primary: byTeamId.get(team.id)?.is_primary ?? false,
+      effective_to: byTeamId.get(team.id)?.effective_to ?? null,
+    }))
     .sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
 }
 

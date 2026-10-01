@@ -32,3 +32,16 @@ export function decodeJwtClaims(
     return {}
   }
 }
+
+// True when the payload has a client_id claim (a token issued to an agent client). Decode-only; an
+// unreadable token returns false and fails the caller's own auth.getUser check.
+export function carriesClientId(jwt: string): boolean {
+  try {
+    const payload = jwt.split('.')[1]
+    if (!payload) return false
+    const json: unknown = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
+    return typeof json === 'object' && json !== null && 'client_id' in json
+  } catch {
+    return false
+  }
+}

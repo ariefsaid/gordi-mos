@@ -9,7 +9,8 @@ import { useState } from 'react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { render, screen, waitFor, fireEvent, act, within, cleanup } from '@testing-library/react'
-import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, RouterProvider, createMemoryRouter, useLocation, useNavigate } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -18,7 +19,6 @@ import { OverlayHostProvider } from '@/shell/overlay-host'
 import { BreadcrumbTitleProvider } from '@/shell/breadcrumb-title'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
 import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 
 // ── Mock data layer ──────────────────────────────────────────────────────────
@@ -79,8 +79,8 @@ const mockCanStartProcessForTeam = vi.mocked(canStartProcessForTeam)
 
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
-  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arden Sample',
+  email: 'arden.sample@example.test', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const mockRole: RolesRow = {
@@ -124,7 +124,7 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 
 const BUS = [{ id: 'bu-1', name: 'Kitchen' }]
 const PEOPLE = [
-  { id: VIEWER_ID, full_name: 'Arief Said' },
+  { id: VIEWER_ID, full_name: 'Arden Sample' },
   { id: 'other-id', full_name: 'Budi Setiawan' },
 ]
 const VIEWER_TEAMS = [{
@@ -227,7 +227,6 @@ beforeEach(() => {
   vi.mocked(getPersonTeams).mockResolvedValue(VIEWER_TEAMS)
   vi.mocked(getTeamsByIds).mockResolvedValue([])
   localStorage.clear()
-  __resetTasksViewPrefForTests()
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
@@ -319,19 +318,36 @@ describe('D3e — Tasks create is an inline title row', () => {
     })
   })
 
-  it('carries Project Create-task work-line and objective context into the inline create payload', async () => {
+  async function createFromUrl(url: string) {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
-    mockCreateTask.mockResolvedValue('created-project-task')
-    renderTable({}, authedState, ['/work/tasks?create=1&work_line=wl-1&objective_id=obj-1'])
-
+    mockCreateTask.mockResolvedValue('created-context-task')
+    renderTable({}, authedState, [url])
     const title = await screen.findByRole('textbox', { name: /title/i })
-    fireEvent.change(title, { target: { value: 'Project task' } })
+    fireEvent.change(title, { target: { value: 'Context task' } })
     await chooseDraftSupervisor()
     fireEvent.keyDown(title, { key: 'Enter' })
     await waitFor(() => expect(mockCreateTask).toHaveBeenCalled())
-    expect(mockCreateTask.mock.calls[0][0]).toMatchObject({
-      title: 'Project task', workLineId: 'wl-1', objectiveId: 'obj-1', teamId: 'team-1', businessUnitId: 'bu-1',
+    return mockCreateTask.mock.calls[0][0]
+  }
+
+  it('carries a Project/Process into the create payload with that Project/Process\'s own Objective', async () => {
+    vi.mocked(listWorkLines).mockResolvedValue([{ id: 'wl-1', name: 'Delivery', type: 'project', objective_id: 'obj-1' }])
+    expect(await createFromUrl('/work/tasks?create=1&work_line=wl-1')).toMatchObject({
+      workLineId: 'wl-1', objectiveId: 'obj-1', teamId: 'team-1', businessUnitId: 'bu-1',
     })
+  })
+
+  it('ignores an Objective that disagrees with the chosen Project/Process', async () => {
+    vi.mocked(listWorkLines).mockResolvedValue([{ id: 'wl-1', name: 'Delivery', type: 'project', objective_id: 'obj-1' }])
+    expect(await createFromUrl('/work/tasks?create=1&work_line=wl-1&objective_id=obj-other')).toMatchObject({
+      workLineId: 'wl-1', objectiveId: 'obj-1',
+    })
+  })
+
+  it('an objective-only prefill creates a Task with no Objective', async () => {
+    const input = await createFromUrl('/work/tasks?create=1&objective_id=obj-1')
+    expect(input.workLineId ?? null).toBeNull()
+    expect(input.objectiveId ?? null).toBeNull()
   })
 
   // #900: a viewer whose role-aware default view (getTaskDefaultView) is NOT 'all' hits the SAME
@@ -430,7 +446,7 @@ describe('Create from Signal convergence', () => {
     expect(screen.getByRole('textbox', { name: /title/i })).toHaveValue('Original')
     const edited = await screen.findByRole('textbox', { name: /title/i })
     fireEvent.change(edited, { target: { value: 'Edited after failure' } })
-    fireEvent.keyDown(edited, { key: 'Enter' })
+    fireEvent.click(screen.getByRole('button', { name: /retry/i }))
     await waitFor(() => expect(mockLinkSignalTask).toHaveBeenCalledTimes(2))
     expect(mockCreateTask).toHaveBeenCalledTimes(1)
     expect(mockUpdateTaskFields).toHaveBeenCalledWith('created-retry', { title: 'Edited after failure' }, VIEWER_ID)
@@ -704,36 +720,18 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     expect(screen.getByText('Overdue mobile work')).toBeInTheDocument()
   })
 
-  // RATIFY-BEFORE-MERGE: Luna 390 audit (d) — one create door. The header "+ Create task" is the
-  // DESKTOP door; on phone the single door is the global Action Launcher FAB (DESIGN.md one-launcher
-  // rule), so the in-page header create button is hidden at phone width to kill the duplicate door.
-  it('AC-W1-D (Luna 390): desktop shows the header "+ Create task" door; phone hides it (single FAB door)', async () => {
+  // One in-page create door at every width (#1032): the header "+ Create task" stays on the page
+  // at phone and in the 768–919 band, beside the shell's + launcher, so phone matches desktop.
+  it('AC-W1-D: the header "+ Create task" door is on the page at desktop, in the 768–919 band and on phone', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Only work item' })])
 
-    // Desktop: the header create door is present.
-    stubMatchMedia(true, true)
-    const desktop = renderTable()
-    await waitFor(() => screen.getByText('Only work item'))
-    expect(screen.getByRole('button', { name: '+ Create task' })).toBeInTheDocument()
-    desktop.unmount()
-
-    // Phone: no in-page header create button — the single phone create door is the global FAB
-    // (rendered by the app shell, not this component).
-    stubMatchMedia(false, false)
-    renderTable()
-    await waitFor(() => screen.getByText('Only work item'))
-    expect(screen.queryByRole('button', { name: '+ Create task' })).toBeNull()
-  })
-
-  // DO-17 (census-sweep R2 tasks FINDING2): the shell's Action Launcher FAB exists whenever the
-  // rail is collapsed (isNarrow, <920) — so in the 768–919 band (desktop by useIsDesktop, but
-  // narrow by useIsNarrow) the header door must hide too, or BOTH create doors co-exist.
-  it('DO-17: the 768–919 band hides the header create door (FAB owns it while the rail is collapsed)', async () => {
-    mockListTasks.mockResolvedValue([makeTask({ title: 'Only work item' })])
-    stubMatchMedia(false, true, true) // not split, ≥768, but rail collapsed (<920)
-    renderTable()
-    await waitFor(() => screen.getByText('Only work item'))
-    expect(screen.queryByRole('button', { name: '+ Create task' })).toBeNull()
+    for (const [split, desktop, narrow] of [[true, true, false], [false, true, true], [false, false, true]] as const) {
+      stubMatchMedia(split, desktop, narrow)
+      const view = renderTable()
+      await waitFor(() => screen.getByText('Only work item'))
+      expect(screen.getByRole('button', { name: '+ Create task' })).toBeInTheDocument()
+      view.unmount()
+    }
   })
 
   it('AC-I-TASK: Indonesian locale translates the member disclosure and typed filter grammar', async () => {
@@ -1202,6 +1200,39 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
       expect(screen.getByText('Alpha task')).toBeInTheDocument()
     })
   })
+
+  // #1031: an empty My work with no filter set is a scope, not a filter — it must not claim
+  // "No tasks match these filters". A real filter still gets the filtered wording.
+  it('empty My work with no filters says nothing is assigned, not that filters matched nothing', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'other', title: 'Someone else’s task', responsible_person_id: 'other-person', accountable_person_id: 'other-person' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'My work' }))
+    await waitFor(() => expect(screen.getByText('No tasks assigned to you')).toBeInTheDocument())
+    expect(screen.queryByText(/match these filters/i)).not.toBeInTheDocument()
+  })
+
+  // Calibration finding (#749 lane): a viewer with nothing assigned lands on an empty My work.
+  // Its own Clear filters button left ?view=my-work standing, so clicking it did nothing — a dead
+  // button next to copy that promises "Clear filters to see all tasks."
+  it('calibration: Clear filters on an empty My work view actually broadens scope to All', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'other', title: 'Someone else’s task', responsible_person_id: 'other-person', accountable_person_id: 'other-person' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'My work' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true'))
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0))
+    fireEvent.click(screen.getAllByRole('button', { name: /clear filters/i })[0])
+    await waitFor(() => expect(screen.getByText('Someone else’s task')).toBeInTheDocument())
+    // Broadened scope means the chip state itself moved off My work, not just the row list.
+    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+  })
 })
 
 // ── PR-3 — TanStack refactor + group-by engine + group headers ────────────────
@@ -1263,20 +1294,39 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       ).toBeTruthy()
     })
 
-    it('opening a record closes the create door, so one solid primary is on screen at a time', async () => {
-      // The split class and the collection runtime both read "a record is open" as the prop OR an
-      // overlay session this surface owns; this door read only the prop. Opening a row from the
-      // table therefore left "+ Create task" standing beside the record's own primary action.
-      mockListTasks.mockResolvedValue([makeTask({ id: 'task-addr', title: 'Addressable task' })])
+    it('AC-033 (#751): opening a record restyles the create door to outline, so one FILLED primary is on screen at a time', async () => {
+      // DESIGN.md § RecordViewer, Identity and type: "While a record panel is open, the page
+      // head's primary drops to `.btn-outline` — one blue per screen." The door stays reachable
+      // (Create task is still a real, common action with a record open); it just stops competing
+      // with the record's own filled primary action.
+      const openTask = makeTask({ id: 'task-addr', title: 'Addressable task' })
+      mockGetTask.mockResolvedValue({ task: openTask, checklist: [], events: [] })
+      mockListTasks.mockResolvedValue([openTask])
       renderAt(['/work/tasks'])
       await waitFor(() => screen.getByText('Addressable task'))
-      expect(screen.getByRole('button', { name: '+ Create task' })).toBeInTheDocument()
+      const createButton = screen.getByRole('button', { name: '+ Create task' })
+      expect(createButton).toHaveClass('btn-primary')
+      expect(createButton).not.toHaveClass('btn-outline')
 
       fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
       await waitFor(() =>
         expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy(),
       )
-      expect(screen.queryByRole('button', { name: '+ Create task' })).toBeNull()
+      // Still present and clickable — restyled, not removed.
+      const createButtonWithRecordOpen = screen.getByRole('button', { name: '+ Create task' })
+      expect(createButtonWithRecordOpen).toHaveClass('btn-outline')
+      expect(createButtonWithRecordOpen).not.toHaveClass('btn-primary')
+      // The record's own action is the page's single enabled filled primary (the empty comment
+      // composer's submit is disabled).
+      await waitFor(() => screen.getByRole('button', { name: 'Mark complete' }))
+      expect(document.body.querySelectorAll('.btn-primary:not(:disabled)')).toHaveLength(1)
+
+      // Typing a comment enables Post; it must not become a second filled primary (#974).
+      fireEvent.change(screen.getByLabelText('Comment'), { target: { value: 'Looks good' } })
+      const post = screen.getByRole('button', { name: 'Post comment' })
+      expect(post).toBeEnabled()
+      expect(document.body.querySelectorAll('.btn-primary:not(:disabled)')).toHaveLength(1)
+      expect(screen.getByRole('button', { name: 'Mark complete' })).toHaveClass('btn-primary')
     })
 
     it('bookmark/refresh: rendering at /work/tasks?record=<id> restores the open task drawer', async () => {
@@ -1453,9 +1503,11 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     fireEvent.keyDown(due, { key: 'Enter' })
     await screen.findByRole('alert')
 
-    // The shortcut is ignored while a field has focus, so leave the field first. Two presses
-    // while the close is pending still ask once and open at most one draft.
-    ;(document.activeElement as HTMLElement | null)?.blur()
+    // The shortcut is ignored while a field has focus, so move focus to a control. Blurring to
+    // <body> would let the field's own failed-save recovery pull focus back into it whenever the
+    // blur-commit retry settles, swallowing the shortcut. Two presses while the close is pending
+    // still ask once and open at most one draft.
+    screen.getByRole('button', { name: '+ Create task' }).focus()
     fireEvent.keyDown(window, { key: 'n' })
     fireEvent.keyDown(window, { key: 'n' })
     expect(await screen.findByRole('dialog')).toHaveTextContent(/discard unsaved changes/i)
@@ -1768,6 +1820,24 @@ describe('Task 18 — group collapse persists (AC-132)', () => {
   })
 })
 
+describe('Issue 1105 — collapsed groups hide the row hint', () => {
+  it('the click-a-row hint shows while a group is open and is gone once every group is collapsed', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'a', title: 'Open visible', status: 'Open' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('Open visible'))
+    await switchToAll()
+    selectGroupBy('status')
+    await waitFor(() => screen.getByText('Open visible'))
+    expect(document.querySelector('.tasks-inline-edit-hint')).not.toBeNull()
+    const openHeader = Array.from(document.querySelectorAll('tr.grp')).find(g => g.textContent?.includes('Open'))!
+    fireEvent.click(openHeader.querySelector('button[aria-expanded]') as HTMLButtonElement)
+    await waitFor(() => expect(screen.queryByText('Open visible')).toBeNull())
+    expect(document.querySelector('.tasks-inline-edit-hint')).toBeNull()
+  })
+})
+
 describe('Task 18 — j/k skips group-header rows (AC-131, OBS-121)', () => {
   it('AC-131/OBS-121: j moves the leaf-row cursor and never lands on a group-header row', async () => {
     mockListTasks.mockResolvedValue([
@@ -1844,11 +1914,11 @@ describe('Task 19 — "+ Create task" pre-fill (AC-125)', () => {
     chooseFilterOption(groupSelect, 'PIC')
     await waitFor(() => {
       const groups = Array.from(container.querySelectorAll('tr.grp .glabel'))
-      expect(groups.some(g => g.textContent?.includes('Arief'))).toBe(true)
+      expect(groups.some(g => g.textContent?.includes('Arden'))).toBe(true)
     })
     const groups = Array.from(container.querySelectorAll('tr.grp'))
-    const ariefHeader = groups.find(g => g.querySelector('.glabel')?.textContent?.includes('Arief'))!
-    const addBtn = ariefHeader.querySelector('button.gadd') as HTMLButtonElement
+    const ownerHeader = groups.find(g => g.querySelector('.glabel')?.textContent?.includes('Arden'))!
+    const addBtn = ownerHeader.querySelector('button.gadd') as HTMLButtonElement
     expect(addBtn).toBeTruthy()
     // The add affordance carries the pre-fill target person as its data attribute
     expect(addBtn.getAttribute('data-prefill')).toBe(`r=${VIEWER_ID}`)
@@ -1933,8 +2003,8 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
   })
 })
 
-// ── OD-REDESIGN-91 #17: the head meta reads "N open · M in view" (counts are OPEN) ──
-describe('#17 — Tasks head meta is "N open · M in view" (open excludes Done)', () => {
+// ── OD-REDESIGN-91 #17: the head meta reads "N open in this view · M incl. done" (counts are OPEN) ──
+describe('#17 — Tasks head meta is "N open in this view · M incl. done" (open excludes Done)', () => {
   it('#17: a Done task lowers the open count but not the total', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Open one', status: 'Open' }),
@@ -1947,8 +2017,44 @@ describe('#17 — Tasks head meta is "N open · M in view" (open excludes Done)'
     await waitFor(() => expect(screen.getByText('Resolved')).toBeInTheDocument())
     // Blocked still counts as open (not Done); only the Done task is excluded from open.
     await waitFor(() =>
-      expect(screen.getByTestId('tasks-count-line').textContent?.trim()).toBe('2 open · 3 in view'),
+      expect(screen.getByTestId('tasks-count-line').textContent?.trim()).toBe('2 open in this view · 3 incl. done'),
     )
+  })
+})
+
+// #958 (review r1): the previous tests only mounted an arbitrary <span> as titleHelp; none opened
+// the REAL HelpTip on a populated page or read its copy — a caller could drop the prop entirely
+// and every existing test would still pass. This mounts the actual TasksWorkspace, clicks the
+// real "?" glyph, and asserts the rendered panel text in both locales.
+describe('Ticket #958 — the head "?" opens the purpose sentence + PIC/Supervisor/Saved views glossary', () => {
+  it('EN: states the purpose sentence and defines PIC, Supervisor and Saved views', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Existing task' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Existing task'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }))
+    const panel = screen.getByRole('note')
+    expect(panel).toHaveTextContent('Find and update the work in this view.')
+    expect(panel).toHaveTextContent('PIC is who performs and finishes the task')
+    expect(panel).toHaveTextContent('Supervisor checks in, unblocks and verifies it')
+    expect(panel).not.toHaveTextContent(/Responsible|Accountable/)
+    expect(panel).toHaveTextContent('Saved views')
+    expect(panel).toHaveTextContent('Business Unit is the team the task belongs to')
+  })
+
+  it('ID: states the localized purpose sentence and glossary', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Pekerjaan pertama' })])
+    renderTable({}, authedState, undefined, 'id')
+    await waitFor(() => screen.getByText('Pekerjaan pertama'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Bantuan' }))
+    const panel = screen.getByRole('note')
+    expect(panel).toHaveTextContent('Temukan dan perbarui pekerjaan di tampilan ini.')
+    expect(panel).toHaveTextContent('PIC adalah yang mengerjakan dan menyelesaikan tugas')
+    expect(panel).toHaveTextContent('Supervisor memantau, membuka hambatan, dan memverifikasinya')
+    expect(panel).not.toHaveTextContent(/Responsible|Accountable/)
+    expect(panel).toHaveTextContent('Tampilan tersimpan')
+    expect(panel).toHaveTextContent('Business Unit adalah tim tempat tugas ini berada')
   })
 })
 
@@ -2279,8 +2385,8 @@ describe('AC-W2C — desktop density: Due in-frame, optional cols in drawer', ()
 // ── Ticket #750 — rows/body judgment wave (AC-019 · AC-022 · AC-024) ─────────
 
 describe('Ticket #750 — AC-019 footer legend states the click grammar', () => {
-  const EN_LEGEND = 'Click a row to open it · ✎ or F2 edits the title · Enter saves · Esc discards'
-  const ID_LEGEND = 'Klik baris untuk membukanya · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan'
+  const EN_LEGEND = 'Click a row to open it · ← → move between cells · ✎ or F2 edits the title · Enter saves · Esc discards'
+  const ID_LEGEND = 'Klik baris untuk membukanya · ← → pindah antar sel · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan'
 
   it('AC-019: the legend under the table reads the new grammar in EN and in ID', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Legend task' })])
@@ -2298,7 +2404,7 @@ describe('Ticket #750 — AC-019 footer legend states the click grammar', () => 
 
 describe('Ticket #750 — AC-022 in-row PIC/Due edit follows the permission rules', () => {
   const DOWNLINE_ID = 'barista-id'
-  const DOWNLINE_PERSON = { id: DOWNLINE_ID, full_name: 'Rina Barista' }
+  const DOWNLINE_PERSON = { id: DOWNLINE_ID, full_name: 'Sample Barista' }
 
   it('AC-022: Cahya (manager above the PIC) gets a self+downline PIC picker and Due editor that save in place', async () => {
     // Cahya = the viewer; the row's PIC sits in his downline → the DB lets him edit.
@@ -2312,15 +2418,13 @@ describe('Ticket #750 — AC-022 in-row PIC/Due edit follows the permission rule
     await waitFor(() => screen.getByText('Bar team task'))
 
     // PIC cell: an inline trigger opens the picker, offering self + downline.
-    const picTrigger = document.querySelector('td.td-owner button.inline-cell-trigger') as HTMLButtonElement
-    expect(picTrigger, 'PIC cell is editable for the manager above the PIC').toBeTruthy()
+    const picTrigger = within(screen.getByText('Bar team task').closest('tr')!).getByRole('button', { name: /Sample Barista/ })
     fireEvent.click(picTrigger)
-    const picSelect = screen.getByRole('combobox', { name: 'Edit task PIC' })
-    fireEvent.click(picSelect)
+    expect(screen.getByRole('combobox', { name: 'Edit task PIC' })).toHaveAttribute('aria-expanded', 'true')
     const optionLabels = screen.getAllByRole('option').map((option) => option.textContent)
-    expect(optionLabels).toEqual(['Arief Said', 'Rina Barista'])
+    expect(optionLabels).toEqual(['Arden Sample', 'Sample Barista'])
     // Saves in place through the same updateTaskFields path the record editor uses.
-    fireEvent.click(screen.getByRole('option', { name: 'Arief Said' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Arden Sample' }))
     await waitFor(() => expect(mockUpdateTaskFields).toHaveBeenCalledWith(
       'bar-task', { responsible_person_id: VIEWER_ID }, VIEWER_ID, DOWNLINE_ID,
     ))
@@ -2455,5 +2559,148 @@ describe('Issue #749 — Tasks opens on your own work (AC-011/AC-013)', () => {
     await waitFor(() => screen.getByText('Landing task'))
     expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('searchbox', { name: 'Search tasks' })).toHaveValue('Landing')
+  })
+})
+
+// #1024: the search box shows the URL's q, including when something OUTSIDE the box changes it.
+describe('Tasks search follows outside URL changes (#1024)', () => {
+  function renderRouted(entries: string[], initialIndex?: number) {
+    const router = createMemoryRouter(
+      [{ path: '/work/tasks', element: <OverlayHostProvider><TasksWorkspace /></OverlayHostProvider> }],
+      { initialEntries: entries, initialIndex },
+    )
+    render(
+      <I18nProvider>
+        <AuthContext.Provider value={DEWI}>
+          <RouterProvider router={router} />
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+    return router
+  }
+  const box = () => screen.getByRole('searchbox', { name: 'Search tasks' })
+
+  beforeEach(() => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'a', title: 'Alpha task' }),
+      makeTask({ id: 'b', title: 'Beta task' }),
+    ])
+  })
+
+  it('the sidebar Tasks link (a plain /work/tasks) empties the box and shows every task again', async () => {
+    const router = renderRouted(['/work/tasks?q=Alpha'])
+    await waitFor(() => screen.getByText('Alpha task'))
+    expect(box()).toHaveValue('Alpha')
+    expect(screen.queryByText('Beta task')).toBeNull()
+    await act(() => router.navigate('/work/tasks'))
+    await waitFor(() => expect(box()).toHaveValue(''))
+    expect(screen.getByText('Beta task')).toBeInTheDocument()
+  })
+
+  it('Back and Forward carry the box between entries', async () => {
+    const router = renderRouted(['/work/tasks?q=Alpha', '/work/tasks?q=Beta'], 1)
+    await waitFor(() => screen.getByText('Beta task'))
+    expect(box()).toHaveValue('Beta')
+    await act(() => router.navigate(-1))
+    await waitFor(() => expect(box()).toHaveValue('Alpha'))
+    expect(screen.queryByText('Beta task')).toBeNull()
+    await act(() => router.navigate(1))
+    await waitFor(() => expect(box()).toHaveValue('Beta'))
+    expect(screen.queryByText('Alpha task')).toBeNull()
+  })
+
+  it('Clear filters empties the box', async () => {
+    renderRouted(['/work/tasks?q=zzz-no-match'])
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0))
+    fireEvent.click(screen.getAllByRole('button', { name: /clear filters/i })[0])
+    await waitFor(() => expect(box()).toHaveValue(''))
+    expect(screen.getByText('Alpha task')).toBeInTheDocument()
+  })
+
+  it('typing under a slow router keeps every character', async () => {
+    const user = userEvent.setup({ delay: 1 })
+    const router = createMemoryRouter(
+      [{
+        path: '/work/tasks',
+        loader: () => new Promise((resolveLoader) => setTimeout(() => resolveLoader(null), 25)),
+        element: <OverlayHostProvider><TasksWorkspace /></OverlayHostProvider>,
+      }],
+      { initialEntries: ['/work/tasks'] },
+    )
+    render(
+      <I18nProvider>
+        <AuthContext.Provider value={DEWI}>
+          <RouterProvider router={router} />
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+    await waitFor(() => screen.getByText('Alpha task'), { timeout: 5000 })
+    await user.type(box(), 'Alpha')
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 150))
+    expect(box()).toHaveValue('Alpha')
+    await waitFor(() => expect(router.state.location.search).toContain('q=Alpha'))
+  })
+
+  it('opening a task before the typed search reaches the URL keeps the full typed text', async () => {
+    const user = userEvent.setup({ delay: null })
+    const router = createMemoryRouter(
+      [{
+        path: '/work/tasks',
+        loader: () => new Promise((resolveLoader) => setTimeout(() => resolveLoader(null), 200)),
+        element: <OverlayHostProvider><TasksWorkspace /></OverlayHostProvider>,
+      }],
+      { initialEntries: ['/work/tasks'] },
+    )
+    render(
+      <I18nProvider>
+        <AuthContext.Provider value={DEWI}>
+          <RouterProvider router={router} />
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+    await waitFor(() => screen.getByText('Alpha task'), { timeout: 5000 })
+    await user.type(box(), 'Alpha')
+    fireEvent.click(screen.getByRole('row', { name: /Alpha task/ }))
+    await waitFor(() => expect(router.state.location.search).toContain('record='), { timeout: 5000 })
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 400))
+    expect(box()).toHaveValue('Alpha')
+    expect(router.state.location.search).toContain('q=Alpha')
+  })
+
+  it('closing the drawer before the typed search reaches the URL keeps the full typed text', async () => {
+    const user = userEvent.setup({ delay: null })
+    const router = createMemoryRouter(
+      [{
+        path: '/work/tasks',
+        loader: () => new Promise((resolveLoader) => setTimeout(() => resolveLoader(null), 200)),
+        element: <OverlayHostProvider><TasksWorkspace drawerOpen /></OverlayHostProvider>,
+      }],
+      { initialEntries: ['/work/tasks'] },
+    )
+    render(
+      <I18nProvider>
+        <AuthContext.Provider value={DEWI}>
+          <RouterProvider router={router} />
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+    await waitFor(() => screen.getByText('Alpha task'), { timeout: 5000 })
+    await user.type(box(), 'Alpha')
+    act(() => box().blur())
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    await waitFor(() => expect(router.state.location.search).toContain('q=Alpha'), { timeout: 5000 })
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 400))
+    expect(box()).toHaveValue('Alpha')
+    expect(router.state.location.search).toContain('q=Alpha')
+  })
+
+  it('typing still lands every character, filters the list and writes the URL', async () => {
+    const user = userEvent.setup({ delay: null })
+    const router = renderRouted(['/work/tasks'])
+    await waitFor(() => screen.getByText('Alpha task'))
+    await user.type(box(), 'Alpha')
+    expect(box()).toHaveValue('Alpha')
+    await waitFor(() => expect(router.state.location.search).toContain('q=Alpha'))
+    expect(screen.queryByText('Beta task')).toBeNull()
   })
 })

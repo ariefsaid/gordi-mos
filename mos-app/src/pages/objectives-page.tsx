@@ -5,7 +5,9 @@
 import { useCallback, useRef, useEffect, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { saveErrorMessage } from '@/lib/save-error'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { HelpTip } from '@/components/ui/help-tip'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useSearchParams } from 'react-router-dom'
 import { useIsDesktop } from '@/shell/use-is-desktop'
@@ -21,6 +23,7 @@ import {
   type CollectionToolbarSearch,
 } from '@/components/record-collection/collection-toolbar'
 import {
+  COMPANY_WIDE_OPTION,
   objectivesCollectionDescriptor,
   objectivesCatalogActions,
   type CatalogCollectionQuery,
@@ -112,7 +115,8 @@ export function ObjectivesPage() {
     setAdding(true)
     setAddError('')
     try {
-      if (newBusinessUnitId) await objectivesCatalogActions.create(name, newBusinessUnitId)
+      if (newBusinessUnitId === COMPANY_WIDE_OPTION) await objectivesCatalogActions.create(name, null, true)
+      else if (newBusinessUnitId) await objectivesCatalogActions.create(name, newBusinessUnitId)
       else await objectivesCatalogActions.create(name)
       setDraftOpen(false)
       createButtonRef.current?.focus()
@@ -121,7 +125,7 @@ export function ObjectivesPage() {
       controller.setQuery({ ...query, view: 'active', q: '', coverage: 'all' })
       controller.retry()
     } catch (error) {
-      setAddError(error instanceof Error ? error.message : t('catalog.addFailed'))
+      setAddError(saveErrorMessage(error, t))
     } finally {
       setAdding(false)
     }
@@ -148,7 +152,11 @@ export function ObjectivesPage() {
     open: draftOpen,
     name: newName,
     businessUnitId: newBusinessUnitId,
-    businessUnitOptions: businessUnitOptions.map((unit) => ({ value: unit.id, label: unit.name })),
+    businessUnitOptions: [
+      // Company-wide is an org-level choice: only a viewer who may create without a unit sees it.
+      ...(businessUnitRequired ? [] : [{ value: COMPANY_WIDE_OPTION, label: t('catalog.companyWide') }]),
+      ...businessUnitOptions.map((unit) => ({ value: unit.id, label: unit.name })),
+    ],
     businessUnitRequired,
     adding,
     error: addError,
@@ -274,6 +282,9 @@ export function ObjectivesPage() {
       family="management"
       title={t('nav.work.objectives')}
       jobSentence={t('job.objectives')}
+      // #958: repeats the sentence above (desktop-only, page-head.css hides it under 768px)
+      // ahead of the glossary, so phone gets purpose + terms from one glyph.
+      titleHelp={<HelpTip label={`${t('job.objectives')} ${t('job.objectivesHelp')}`} />}
       action={canManage && !isNarrow ? <Button ref={createButtonRef} variant="primary" onClick={openDraft}>{t('catalog.objectives.add')}</Button> : undefined}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>

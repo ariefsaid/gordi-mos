@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router-dom'
 import { sectionForPath } from './sections'
-import { destinationForPath, allModules, primaryModuleForViewer } from './destinations'
+import { destinationForPath, allModules, phoneModuleForViewer } from './destinations'
 import { useBreadcrumbTitle, useCollectionLeaf, useBoundaryLabel } from './breadcrumb-title'
 import { useIsNarrow } from './use-is-narrow'
 import { useAuth } from '@/auth/use-auth'
@@ -37,7 +37,7 @@ export function Breadcrumb() {
     // door, not a location — it no longer claims aria-current (that was the Rule-5 defect this
     // rebuild fixes). Every other live destination (Signals, Money, Admin, Profile, a
     // non-promoted module) has no tab, so the breadcrumb leaf owns it.
-    const promoted = viewer ? primaryModuleForViewer(viewer.affiliated, viewer.accessRoles) : null
+    const promoted = viewer ? phoneModuleForViewer(viewer.affiliated, viewer.accessRoles, pathname) : null
     const tabIds = new Set(['home', 'work', 'inbox', ...(promoted ? [promoted.id] : [])])
     leafCarriesCurrent = !tabIds.has(destination.id)
   } else {
@@ -56,6 +56,7 @@ export function Breadcrumb() {
   // must not print the screen the boundary withholds (`People` over an `Admin Settings` panel) nor
   // add ancestors the panel does not claim (breadcrumb-title.tsx, useSetBoundaryLabel).
   const crumbs: string[] = boundaryLabel ? [boundaryLabel] : [t(destination.labelKey)]
+  let collectionLeafShown = false
 
   if (boundaryLabel) {
     // The label is the whole trail. No child leaf, no record title, no saved view: none of them
@@ -71,7 +72,10 @@ export function Breadcrumb() {
     } else if (dynamicTitle) {
       crumbs.push(dynamicTitle)
     } else {
-      if (pathname.startsWith('/work/tasks') && collectionLeaf?.hasNonDefaultView) crumbs.push(collectionLeaf.label)
+      if (pathname.startsWith('/work/tasks') && collectionLeaf?.hasNonDefaultView) {
+        crumbs.push(collectionLeaf.label)
+        collectionLeafShown = true
+      }
     }
   } else if (destination.id === 'money') {
     if (pathname === '/money/detail') crumbs.push(t('breadcrumb.detail'))
@@ -91,7 +95,9 @@ export function Breadcrumb() {
   // crumbs, no separators. The trail names places the viewer navigated PAST, which a phone
   // header has no room to narrate; the leaf is never empty (a record page falls back to its
   // collection leaf until the title resolves, so the header never goes blank mid-load).
-  const leaf = crumbs[crumbs.length - 1]
+  // A saved view is a scope inside the page, never its name (#1032): on phone the header keeps the
+  // page H1 ("Tasks"), so the collection leaf is dropped from the one-title header.
+  const leaf = isNarrow && collectionLeafShown ? crumbs[crumbs.length - 2] : crumbs[crumbs.length - 1]
   if (isNarrow || crumbs.length === 1) {
     return (
       <span className="top-bar__breadcrumb-content" style={{ fontSize: 'var(--font-size-body-lg)' }}>

@@ -167,3 +167,54 @@ describe('ConfirmDialog — button emphasis by tone', () => {
     expect(screen.getByRole('button', { name: 'Reset password' })).toHaveClass('btn-primary')
   })
 })
+
+describe('ConfirmDialog reason cap', () => {
+  it('limits the reason field to reasonMaxLength characters', () => {
+    render(
+      <ConfirmDialog
+        open
+        title="Retract?"
+        body="This cannot be undone."
+        confirmLabel="Retract"
+        reasonLabel="Reason"
+        reason=""
+        onReasonChange={() => {}}
+        reasonRequired
+        reasonMaxLength={500}
+        onConfirm={vi.fn().mockResolvedValue(undefined)}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.getByLabelText(/reason/i)).toHaveAttribute('maxlength', '500')
+  })
+
+  it('leaves the reason field uncapped when no limit is given', () => {
+    render(
+      <ConfirmDialog
+        open
+        title="Archive?"
+        body="Hidden from lists."
+        confirmLabel="Archive"
+        reasonLabel="Reason"
+        reason=""
+        onReasonChange={() => {}}
+        onConfirm={vi.fn().mockResolvedValue(undefined)}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.getByLabelText(/reason/i)).not.toHaveAttribute('maxlength')
+  })
+})
+
+describe('ConfirmDialog failure text', () => {
+  it('shows the app message for a failed confirm, never the raw error', async () => {
+    const user = userEvent.setup()
+    const onConfirm = vi.fn().mockRejectedValue(new Error('PGRST116: relation "ops.x" does not exist'))
+    render(
+      <ConfirmDialog open title="Archive?" body="Body" confirmLabel="Archive" onConfirm={onConfirm} onCancel={vi.fn()} />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Archive' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t save. Try again.')
+    expect(screen.queryByText(/PGRST116|relation/)).not.toBeInTheDocument()
+  })
+})

@@ -28,7 +28,7 @@ import {
 import { translateFor, type Translate } from '@/i18n/use-t'
 import { readPersistedLocale } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import type { ObjectiveAdminRow } from '@/lib/db/objectives'
+import type { ObjectiveAdminRow, ObjectiveOwnership } from '@/lib/db/objectives'
 import type { WorkLineAdminRow } from '@/lib/db/work-lines'
 import { getBusinessUnits, getPeople, type BusinessUnitOption, type PersonOption } from '@/lib/db/directory'
 import { listProcessCollectionFacts, type ProcessCollectionFact } from '@/lib/db/work-records'
@@ -47,6 +47,12 @@ import { CatalogListPresentation } from './catalog-list-presentation'
 
 export type CatalogType = 'project' | 'process'
 
+/**
+ * Picker value for the synthetic "Company-wide" Business Unit choice. UI-only: it is mapped to
+ * `is_company_wide = true` with no unit, and is never sent to the database as a unit id.
+ */
+export const COMPANY_WIDE_OPTION = '__company_wide__'
+
 /** A managed catalog row: id + name + soft-archive flag, plus the work-line type where it applies. */
 export interface CatalogRow {
   id: string
@@ -55,9 +61,13 @@ export interface CatalogRow {
   type?: CatalogType
   objectiveId?: string | null
   businessUnitId?: string | null
+  /** An Objective owned by the whole company; never together with a Business Unit. */
+  isCompanyWide?: boolean
   accountablePersonId?: string | null
   responsiblePersonId?: string | null
   periodYear?: number | null
+  /** 1-4; only meaningful when `periodYear` is set. Null reads as the whole year. */
+  periodQuarter?: number | null
   cadenceKind?: ProcessCollectionFact['cadence_kind']
   cadenceActive?: boolean | null
   nextDueDate?: string | null
@@ -335,11 +345,7 @@ function latestActivityById(
   return latest
 }
 
-type ObjectiveCatalogSource = ObjectiveAdminRow & {
-  business_unit_id?: string | null
-  accountable_person_id?: string | null
-  period_year?: number | null
-}
+type ObjectiveCatalogSource = ObjectiveAdminRow
 
 type WorkLineCatalogSource = WorkLineAdminRow & {
   business_unit_id?: string | null
@@ -493,8 +499,10 @@ export const objectivesCollectionDescriptor = makeCatalogDescriptor({
         name: source.name,
         archived_at: source.archived_at,
         businessUnitId: source.business_unit_id ?? null,
+        isCompanyWide: source.is_company_wide === true,
         accountablePersonId: source.accountable_person_id ?? null,
         periodYear: source.period_year ?? null,
+        periodQuarter: source.period_quarter ?? null,
       }
     })
     const directory = await loadDirectoryForRows(records)
@@ -517,9 +525,11 @@ export const objectivesCollectionDescriptor = makeCatalogDescriptor({
 // export at module-eval throws when the sibling domain's mock omits it. Deferring to call-time means
 // the Objectives page never touches the work-lines mutations, and vice-versa.
 export const objectivesCatalogActions = {
-  create: (name: string, businessUnitId?: string | null) => businessUnitId
-    ? (createObjective as unknown as (value: string, ownership?: { business_unit_id?: string | null }) => Promise<unknown>)(name, { business_unit_id: businessUnitId })
-    : (createObjective as unknown as (value: string) => Promise<unknown>)(name),
+  create: (name: string, businessUnitId?: string | null, isCompanyWide?: boolean) => isCompanyWide
+    ? (createObjective as unknown as (value: string, ownership?: ObjectiveOwnership) => Promise<unknown>)(name, { is_company_wide: true })
+    : businessUnitId
+      ? (createObjective as unknown as (value: string, ownership?: ObjectiveOwnership) => Promise<unknown>)(name, { business_unit_id: businessUnitId })
+      : (createObjective as unknown as (value: string) => Promise<unknown>)(name),
   rename: (id: string, name: string) => renameObjective(id, name),
   setArchived: (id: string, archived: boolean) => setObjectiveArchived(id, archived),
 }

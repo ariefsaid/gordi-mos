@@ -75,10 +75,9 @@ jobs:
             git cat-file -e "${{ github.event.before }}" 2>/dev/null || RANGE="HEAD~1..HEAD"
           fi
           # Paths that provably cannot affect `npm run typecheck | lint:ci | test:coverage | build`.
-          # supabase/ qualifies because the unit suite mocks the client entirely — schema changes are
-          # gated by integration.yml, which has its own supabase/** filter. ADDING TO THIS LIST IS A
-          # DELIBERATE ACT: each entry is a promise that the app gate cannot see that path.
-          INERT='^(docs/|scripts/|supabase/|\.github/|\.claude/|[^/]*\.md$|[^/]*\.(jpe?g|png)$|\.gitignore$)'
+          # supabase/ is NOT inert: unit tests read migration and seed files from disk. ADDING TO THIS
+          # LIST IS A DELIBERATE ACT: each entry is a promise that the app gate cannot see that path.
+          INERT='^(docs/|scripts/|\.github/|\.claude/|[^/]*\.md$|[^/]*\.(jpe?g|png)$|\.gitignore$)'
 
           CHANGED="$(git diff --name-only "$RANGE")"
           NOT_INERT="$(printf '%s\n' "$CHANGED" | grep -Ev "$INERT" || true)"

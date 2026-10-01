@@ -87,7 +87,7 @@ const started = {
 function viewerTeam(id: string, isPrimary = false): CafeViewerTeam {
   return {
     id, name: `${id} profile`, business_unit_id: 'bu-1', site_id: null, is_primary: isPrimary,
-    branch_id: null, activity: null,
+    branch_id: null, activity: null, effective_to: null,
   }
 }
 

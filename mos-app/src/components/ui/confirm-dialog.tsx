@@ -15,6 +15,7 @@
 
 import { useState, useId, useEffect, useRef } from 'react'
 import { useT } from '@/i18n/use-t'
+import { saveErrorMessage } from '@/lib/save-error'
 import { ErrorState } from '@/components/ui/state-kit'
 import { TextInput } from '@/components/ui/text-input'
 import { ModalShell } from '@/components/ui/modal-shell'
@@ -43,6 +44,7 @@ export interface ConfirmDialogProps {
   reason?: string
   onReasonChange?: (reason: string) => void
   reasonRequired?: boolean
+  reasonMaxLength?: number
   /** Async action fired on confirm click. Throw to surface an error state. */
   onConfirm: () => Promise<void>
   /** Called on Cancel or Esc. */
@@ -61,6 +63,7 @@ export function ConfirmDialog({
   reason = '',
   onReasonChange,
   reasonRequired = false,
+  reasonMaxLength,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -120,7 +123,7 @@ export function ConfirmDialog({
       if (mountedRef.current && gen === genRef.current) setBusy(false)
     } catch (err) {
       if (mountedRef.current && gen === genRef.current) {
-        setError(err instanceof Error ? err.message : t('common.unexpectedError'))
+        setError(saveErrorMessage(err, t))
         setBusy(false)
       }
     }
@@ -157,6 +160,7 @@ export function ConfirmDialog({
               label={reasonLabel}
               required={reasonRequired}
               value={reason}
+              maxLength={reasonMaxLength}
               onChange={(event) => onReasonChange(event.target.value)}
               fullWidth
             />

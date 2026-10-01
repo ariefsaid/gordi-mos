@@ -98,4 +98,16 @@ describe('CatalogCreateForm', () => {
     expect(screen.getByText('Type')).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Type' })).toBeInTheDocument()
   })
+
+  // #959: fields declare spans on the shared form-grid instead of stretching across the page.
+  it('AC-959: Name, Type and Objective sit in the shared form-grid, Name spanning the full row', () => {
+    const { container } = renderForm(workLineDraft({ objectiveOptions: [{ value: 'o1', label: 'Growth' }] }))
+    const grid = container.querySelector('form.form-grid')
+    expect(grid).toBeInTheDocument()
+    const nameField = screen.getByLabelText(/name/i).closest('.form-grid__field')
+    expect(nameField).toHaveClass('form-grid__field--full')
+    expect(grid).toContainElement(screen.getByRole('combobox', { name: 'Type' }))
+    expect(screen.getByRole('combobox', { name: 'Type' }).closest('.form-grid__field')).not.toHaveClass('form-grid__field--full')
+    expect(grid).toContainElement(screen.getByRole('combobox', { name: 'Objective' }))
+  })
 })

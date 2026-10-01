@@ -6,6 +6,7 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { saveErrorMessage } from '@/lib/save-error'
 import {
   listSubmittedKitchenLogs,
   fetchPlanMap,
@@ -31,6 +32,11 @@ import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { listStreamCompleteness, confirmStreamComplete } from '@/lib/db/stream-completeness'
 import type { StreamCompleteness } from '@/lib/db/stream-completeness'
 import { listActiveBranches } from '@/lib/db/branches'
+// #783 (DB half #778): a supervisor reviews every stream she holds a LIVE MEMBERSHIP on, not
+// only her primary — the same read useCafeStream already runs for "Your Team" tagging.
+import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
+import type { CafeViewerTeam } from '@/lib/db/cafe-opening'
+import { isReviewerEligibleTeam } from '@/lib/kitchen-gates'
 import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 import { deriveActionLabel, movementKey, streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import type { Translate } from '@/i18n/use-t'
@@ -211,12 +217,16 @@ function KitchenReviewDecision({
   const offPlan = isOffPlan(log, planQty)
 
   function startApprove() {
-    if (!offPlan) {
-      // on-plan → approve immediately, no forced note (FR-041)
+    // #783 AC-052 (DB half #778): a reviewer note is required only when the row is off-plan
+    // AND the submitter left none — the submitter's own note already accounts for the
+    // variance, so asking a reviewer to restate it in a second box was a redundant blocking
+    // prompt on every off-plan approval, not a real safeguard. Trimmed, matching the DB's own
+    // `nullif(btrim(notes),'')` — a whitespace-only note is not an explanation.
+    if (!offPlan || log.notes?.trim()) {
       onApprove(log.id, null)
       return
     }
-    // off-plan (AC-040) → reveal the required approve-note gate
+    // off-plan, no submitter note (AC-040) → reveal the required approve-note gate
     setPending('approve')
     setNote('')
     setNoteError(false)
@@ -384,7 +394,10 @@ function KitchenReviewPageForViewer() {
   // surface uses (FR-001) — drives the filter's DEFAULT (FR-041) and, for a supervisor,
   // which rows carry decision controls.
   const [streamCatalog, setStreamCatalog] = useState<ProductionStream[]>([])
-  const [ownStreamKey, setOwnStreamKey] = useState<string | null>(null)
+  // #783 AC-051 (DB half #778): every stream Team this viewer currently holds a live
+  // membership on, PLUS her primary (folded in where this is computed, fetchQueue below) —
+  // a supervisor of TWO streams decides both, not only her primary.
+  const [myStreamKeys, setMyStreamKeys] = useState<ReadonlySet<string>>(new Set())
   const [streamFilter, setStreamFilter] = useState<string>(ALL_STREAMS)
   // #238 (FR-031): every stream's completeness state, keyed by streamKey. Read org-wide by
   // policy, so one fetch serves the filter wherever it moves.
@@ -421,7 +434,7 @@ function KitchenReviewPageForViewer() {
     setPeopleMap(new Map())
     setBranchCatalog([])
     setStreamCatalog([])
-    setOwnStreamKey(null)
+    setMyStreamKeys(new Set())
     setCompleteness(new Map())
     setLoad({ kind: 'loading' })
   }, [viewerId])
@@ -438,13 +451,19 @@ function KitchenReviewPageForViewer() {
     const gen = ++requestGen.current
     setLoad({ kind: 'loading' })
     try {
-      const [rows, branchRows, people, pairs, confirmations, itemKeys] = await Promise.all([
+      const [rows, branchRows, people, pairs, confirmations, itemKeys, myTeams] = await Promise.all([
         listSubmittedKitchenLogs(logDate),
         listActiveBranches(),
         getPeople(),
         listStreamPairs(),
         listStreamCompleteness(),
         listAllStreamItemKeys(),
+        // Only a supervisor's DECIDE rights depend on this; ops_lead/admin already decide
+        // everything, so skip the read for them. Display only: a failure drops the extra
+        // streams, never the surface (matches useCafeStream's own handling of this read).
+        isSupervisor && viewerId
+          ? listCafeViewerTeams(viewerId).catch(() => [])
+          : Promise.resolve<CafeViewerTeam[]>([]),
       ])
       const ownStream = await fetchDefaultStream(branchRows)
       // Fetch the plan baseline for every DISTINCT (branch, activity) stream present in
@@ -465,13 +484,21 @@ function KitchenReviewPageForViewer() {
       if (gen !== requestGen.current) return
       const ownKey = ownStream ? streamKey(ownStream.branch.id, ownStream.activity) : null
       const catalog = streamCatalogFrom(pairs, branchRows)
+      // #783 AC-051: every stream Team she holds an OPEN-ENDED membership on, plus her
+      // primary — matches ops.is_stream_reviewer exactly (isReviewerEligibleTeam); a
+      // finite-end membership is current for display elsewhere but not a decide right here.
+      const teamKeys = myTeams
+        .filter(isReviewerEligibleTeam)
+        .map((team) => streamKey(team.branch_id, team.activity))
+      const myKeys = new Set(teamKeys)
+      if (ownKey) myKeys.add(ownKey)
       setLogs(rows)
       setOfferedKeys(itemKeys)
       setStreamPlans(new Map(planEntries))
       setPeopleMap(new Map(people.map(p => [p.id, p.full_name])))
       setBranchCatalog(branchRows)
       setStreamCatalog(catalog)
-      setOwnStreamKey(ownKey)
+      setMyStreamKeys(myKeys)
       setCompleteness(new Map(confirmations.map(c => [streamKey(c.branch_id, c.activity), c])))
       // FR-041 filter defaults, applied once: a stream supervisor opens on THEIR stream;
       // ops_lead/admin open cross-stream. A supervisor with no stream (no live primary
@@ -521,14 +548,15 @@ function KitchenReviewPageForViewer() {
     [pendingProductionStreams],
   )
 
-  // #236 (FR-040): which rows THIS viewer may decide. ops_lead/admin decide everything;
-  // a supervisor decides their own stream's rows. Mirror of the server predicate — the
-  // guard/policy refuses regardless of what renders here (NFR-002).
+  // #236/#783 (FR-040, AC-051): which rows THIS viewer may decide. ops_lead/admin decide
+  // everything; a supervisor decides every stream she holds a live membership on — not only
+  // her primary (`myStreamKeys` folds both in; see fetchQueue). Mirror of the server
+  // predicate — the guard/policy refuses regardless of what renders here (NFR-002).
   const canDecide = useCallback(
     (log: ReviewLogRow) =>
       isLeadOrAdmin ||
-      (isSupervisor && ownStreamKey !== null && streamKey(log.branch_id, log.activity) === ownStreamKey),
-    [isLeadOrAdmin, isSupervisor, ownStreamKey],
+      (isSupervisor && myStreamKeys.has(streamKey(log.branch_id, log.activity))),
+    [isLeadOrAdmin, isSupervisor, myStreamKeys],
   )
 
   // ── #238 (FR-031): the stream in view, and whether this viewer may speak for it ────────────
@@ -547,7 +575,7 @@ function KitchenReviewPageForViewer() {
   // makes it true; this only decides whether offering the control is honest.
   const canConfirmSelected =
     selectedStream !== null &&
-    (isLeadOrAdmin || (isSupervisor && streamFilter === ownStreamKey))
+    (isLeadOrAdmin || (isSupervisor && myStreamKeys.has(streamFilter)))
 
   // FR-040/041: the displayed queue — one stream, or every stream. Display scoping only;
   // the rows a viewer may DECIDE are canDecide's (and ultimately the server's) business.
@@ -739,7 +767,7 @@ function KitchenReviewPageForViewer() {
       setActionError(t('kitchen.review.error.forbidden'))
       return
     }
-    setActionError(err instanceof Error ? err.message : t('kitchen.review.error.generic'))
+    setActionError(saveErrorMessage(err, t))
   }
 
   // ── ONE DataTable: one group per action_type (Production, Transfer to …),

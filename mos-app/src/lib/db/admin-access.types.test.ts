@@ -8,15 +8,15 @@ import {
 } from './admin-access.types'
 
 describe('admin access authority metadata', () => {
-  it('keeps the editable matrix limited to the approved seven actions and eight role categories', () => {
+  it('keeps the editable matrix limited to the approved eight actions and eight role categories', () => {
     expect(AUTHORITY_ACTIONS).toEqual([
       'workline.manage',
-      'objective.manage',
       'signal.post',
       'signal.tag',
       'signal.retract',
       'process.start',
       'process.close',
+      'agent.connect',
     ])
     expect(AUTHORITY_ROLES).toEqual([
       'member', 'team_lead', 'bu_head', 'ops_lead', 'admin', 'finance', 'manager', 'supervisor',
@@ -25,12 +25,12 @@ describe('admin access authority metadata', () => {
 
   it('offers only runtime-enforceable scopes for each action', () => {
     expect(getAllowedScopes('workline.manage')).toEqual(['none', 'own_bu', 'org'])
-    expect(getAllowedScopes('objective.manage')).toEqual(['none', 'own_bu', 'org'])
     expect(getAllowedScopes('signal.post')).toEqual(['none', 'org'])
     expect(getAllowedScopes('signal.tag')).toEqual(['none', 'org'])
     expect(getAllowedScopes('signal.retract')).toEqual(['none', 'own', 'own_team', 'own_bu', 'org'])
     expect(getAllowedScopes('process.start')).toEqual(['none', 'own_team', 'org'])
     expect(getAllowedScopes('process.close')).toEqual(['none', 'own', 'own_team', 'org'])
+    expect(getAllowedScopes('agent.connect')).toEqual(['none', 'org'])
   })
 
   it('normalizes a complete response into one stable row per approved action and role', () => {

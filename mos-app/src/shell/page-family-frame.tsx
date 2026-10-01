@@ -16,6 +16,8 @@ export interface PageFamilyFrameProps {
    *  used to pass a sentence that could never render, which reads to the next maintainer as if the
    *  sentence were live. A head without a status row still wants one. */
   jobSentence?: string
+  // #958: passthrough to PageHead.titleHelp.
+  titleHelp?: ReactNode
   count?: number | null
   meta?: ReactNode
   action?: ReactNode
@@ -46,6 +48,7 @@ export function PageFamilyFrame({
   title,
   subtitle,
   jobSentence,
+  titleHelp,
   count,
   meta,
   action,
@@ -72,6 +75,7 @@ export function PageFamilyFrame({
           title={title}
           subtitle={subtitle}
           jobSentence={jobSentence}
+          titleHelp={titleHelp}
           count={count}
           meta={meta}
           action={action}

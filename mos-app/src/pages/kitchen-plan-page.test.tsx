@@ -16,7 +16,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -56,6 +56,7 @@ vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
 // "Your Team" tagging (myStreamKeys) — empty by default here; tests that care override it.
 vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn().mockResolvedValue([]) }))
 import { fetchDefaultStream } from '@/lib/db/default-stream'
+import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 
 vi.mock('@/lib/db/kitchen-plans', () => ({
   listKitchenPlans: vi.fn(),
@@ -94,7 +95,7 @@ const OWN_STREAM = { branch: BRANCHES[0], activity: 'kitchen' as const, produces
 const RADIANT_KITCHEN = { branch: BRANCHES[1], activity: 'kitchen' as const, produces: false }
 const OWN_STREAM_BAR = { branch: BRANCHES[0], activity: 'bar' as const, produces: true }
 const RADIANT_BAR = { branch: BRANCHES[1], activity: 'bar' as const, produces: true }
-// #781: CafeStreamBar states a resolved stream as text with a quiet "Switch" beside it (opens a
+// #781: CafeStreamBar states a resolved stream as text with a quiet "Change" beside it on Plan (opens a
 // portaled listbox) — or, with no default resolved at all, offers the location's streams as
 // direct one-click buttons (CafeStreamChoices), no separate open step. `startsWith` rather than
 // an exact match because an option carries an appended tag ("— Your Team" / "— Receiving only")
@@ -104,7 +105,7 @@ function startsWith(label: string) {
 }
 
 function chooseStream(optionName: string) {
-  const switchButton = screen.queryByRole('button', { name: /^switch$/i })
+  const switchButton = screen.queryByRole('button', { name: /^change/i })
   if (switchButton) {
     fireEvent.click(switchButton)
     fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
@@ -212,6 +213,18 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
     expect(mockPlans.mock.calls[0][1]).toEqual(RADIANT_BAR)
   })
 
+  it('Plan opens straight on its stream as a heading, with a Change link and no "Stream" label', async () => {
+    mockDefaultStream.mockResolvedValue(OWN_STREAM)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.getByRole('heading', { level: 2, name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
+    expect(screen.queryByText(/^stream$/i)).toBeNull()
+    expect(screen.getByRole('button', { name: /^change/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^switch/i })).toBeNull()
+    // No chooser first: the stream is already resolved, so no stream buttons precede the list.
+    expect(screen.queryByText(/choose a production stream/i)).toBeNull()
+  })
+
   it('switching the stream in the head re-reads THAT stream\'s plan', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
@@ -226,7 +239,7 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
   it('offers only the streams of the branch the viewer is working at', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    fireEvent.click(screen.getByRole('button', { name: /^switch$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^change/i }))
     const offered = screen.getAllByRole('option').map(o => o.textContent?.trim() ?? '')
 
     // A plan row is keyed on (org, date, item, branch, activity): it belongs to ONE branch's books.
@@ -355,6 +368,40 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     // Once the error alert is shown the save has fired exactly once — now a deterministic check.
     expect(mockUpsert).toHaveBeenCalledOnce()
     // the edited row must still be on screen — no navigation on error
+    expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+    // #979: the same input is still mounted and still holds the typed amount after the rejection
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toBe(input)
+    expect(input).toBeInTheDocument()
+    expect(input).toHaveValue(15)
+    // retry (Enter on the still-typed amount) succeeds: that amount is what gets persisted
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledTimes(2))
+    expect(mockUpsert.mock.calls[1][0].qty_porsi).toBe(15)
+    expect(mockUpsert.mock.calls[1][0].wip_item_id).toBe('w1')
+    expect(await screen.findByText(/saved/i)).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(15)
+  })
+
+  it('(#981) editor search keeps real typing intact, the URL follows, and clearing empties both', async () => {
+    const user = userEvent.setup({ delay: null })
+    function Probe() {
+      return <output aria-label="url">{useLocation().search}</output>
+    }
+    render(
+      <MemoryRouter initialEntries={['/cafe/plan']}>
+        <I18nProvider><KitchenPlanPage /><Probe /></I18nProvider>
+      </MemoryRouter>,
+    )
+    await screen.findByText('Ayam Bakar')
+    const box = screen.getByRole('searchbox', { name: /find an item to plan/i })
+    await user.type(box, 'nasi goreng')
+    expect(box).toHaveValue('nasi goreng')
+    expect(screen.getByRole('status', { name: 'url' })).toHaveTextContent('?q=nasi+goreng')
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+    await user.click(box)
+    await user.keyboard('{Control>}a{/Control}{Delete}')
+    expect(box).toHaveValue('')
+    expect(screen.getByRole('status', { name: 'url' })).toHaveTextContent(/^$/)
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
   })
 
@@ -645,6 +692,60 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
 })
 
 // ── member → read-only pesanan (AC-024) ───────────────────────────────────────
+// #784 AC-057: the DB half (#778, closed) widened plan-row writes to the stream's own
+// supervisor, not only ops_lead/admin — a supervisor's Approve/Reject rights on Review
+// already worked this way (kitchen-gates.ts canReviewCafe). The frontend face-picker here
+// had not caught up: a supervisor still landed on the read-only pesanan horizon with no
+// path to the editor the database would now accept their writes through.
+describe('KitchenPlanPage — stream supervisor editor (#784 AC-057)', () => {
+  beforeEach(() => mockUseAuth.mockReturnValue(viewer(['supervisor'])))
+
+  it('a stream supervisor gets the same editable grid as ops_lead, and can save', async () => {
+    mockPlans.mockResolvedValue(PLAN_CELLS)
+    render(<KitchenPlanPage />, { wrapper })
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    expect(input).toHaveValue(12)
+    fireEvent.change(input, { target: { value: '20' } })
+    fireEvent.blur(input)
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalled())
+    expect(mockUpsert.mock.calls[0][0].qty_porsi).toBe(20)
+  })
+
+  // gpt-6-luna review (74d4ebf7): the gate above was ROLE-only — any supervisor got the
+  // editor for whatever stream she happened to be viewing, and RLS (ops.is_stream_reviewer)
+  // rejects a write on a stream she doesn't hold. The field itself must check the SELECTED
+  // stream, not only the role.
+  it("issue 783/784 hardening: her field disables on a stream she does not hold, even though her role opened the editor face", async () => {
+    mockPlans.mockResolvedValue(PLAN_CELLS)
+    render(<KitchenPlanPage />, { wrapper })
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toBeEnabled()
+
+    // Same branch, a DIFFERENT stream (bar, not her kitchen home) — she holds no membership
+    // on it at all (the default listCafeViewerTeams mock resolves []).
+    chooseStream('Rumah Rames · Bar')
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toBeDisabled()
+  })
+
+  it('issue 783/784 hardening: an OPEN-ENDED membership on that other stream keeps it writable', async () => {
+    mockPlans.mockResolvedValue(PLAN_CELLS)
+    vi.mocked(listCafeViewerTeams).mockResolvedValue([
+      {
+        id: 'team-rrs-bar', name: 'Rumah Rames Bar', business_unit_id: 'bu-1', site_id: null,
+        is_primary: false, branch_id: BRANCHES[0].id, activity: 'bar', effective_to: null,
+      },
+    ])
+    render(<KitchenPlanPage />, { wrapper })
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+
+    chooseStream('Rumah Rames · Bar')
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toBeEnabled()
+  })
+})
+
 describe('KitchenPlanPage — member pesanan (AC-024)', () => {
   beforeEach(() => mockUseAuth.mockReturnValue(viewer(['member'])))
 
@@ -712,6 +813,15 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     )
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
+  })
+
+  it('(#981) pesanan search keeps fast typing intact', async () => {
+    mockPesanan.mockResolvedValue(PESANAN)
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const box = screen.getByRole('searchbox', { name: /find an item in the plan/i })
+    await userEvent.setup({ delay: null }).type(box, 'nasi goreng')
+    expect(box).toHaveValue('nasi goreng')
   })
 
   it('(#401/I7) hydrates the pesanan search from ?q= on load (a refreshed/shared link reproduces the filtered view)', async () => {
@@ -828,6 +938,37 @@ describe('issue 455: document title', () => {
   it('titles the tab from the Café nav label, not the retired kitchen one', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.plan')))
+  })
+})
+
+// #1142: a person with no primary stream who belongs to exactly one Café team opens on it.
+describe('KitchenPlanPage — no primary stream (#1142)', () => {
+  const cafeTeam = (id: string, branchIdx: number, activity: 'kitchen' | 'bar') => ({
+    id, name: id, business_unit_id: 'bu-1', site_id: null, is_primary: false,
+    branch_id: BRANCHES[branchIdx].id, activity, effective_to: null,
+  })
+
+  it('one Café team, not primary: Plan opens on its stream, with the Change link', async () => {
+    mockDefaultStream.mockResolvedValue(null)
+    vi.mocked(listCafeViewerTeams).mockResolvedValue([cafeTeam('t-rr-kitchen', 0, 'kitchen')])
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.getByRole('heading', { level: 2, name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
+    expect(screen.queryByText(/choose a production stream/i)).toBeNull()
+    expect(screen.getByRole('button', { name: /^change/i })).toBeInTheDocument()
+    expect(mockPlans.mock.calls[0][1]).toEqual(OWN_STREAM)
+  })
+
+  it('several Café teams, none primary: Plan shows the chooser', async () => {
+    mockDefaultStream.mockResolvedValue(null)
+    vi.mocked(listCafeViewerTeams).mockResolvedValue([
+      cafeTeam('t-rr-kitchen', 0, 'kitchen'), cafeTeam('t-rr-bar', 0, 'bar'),
+    ])
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^change/i })).toBeNull()
+    expect(mockPlans).not.toHaveBeenCalled()
   })
 })
 

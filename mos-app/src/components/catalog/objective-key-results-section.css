@@ -1,0 +1,106 @@
+.objective-key-results {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.objective-key-results h3 {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+  font-weight: 650;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+/* The shared error row's own inset would push it off the section's left edge. */
+.objective-key-results > .error-state { padding-inline: 0; }
+
+.objective-key-results__list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.objective-key-results__item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-width: 0;
+}
+
+.objective-key-results__what {
+  margin: 0;
+  color: var(--foreground);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.objective-key-results__facts {
+  margin: 0;
+  color: var(--muted-foreground);
+}
+
+.objective-key-results__grid { max-width: none; }
+
+.objective-key-results__field {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+
+.objective-key-results__label {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+}
+
+.objective-key-results__owner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.objective-key-results__status {
+  min-height: 1em;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+}
+
+.objective-key-results__status[data-state='failed'] { color: var(--destructive, var(--foreground)); }
+
+.objective-key-results__retry {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.objective-key-results__progress {
+  display: grid;
+  gap: 6px;
+  color: var(--foreground);
+}
+
+.objective-key-results__track {
+  height: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--secondary, var(--border));
+  overflow: hidden;
+}
+
+.objective-key-results__fill {
+  height: 100%;
+  background: var(--primary);
+}
+
+.objective-key-results__add {
+  display: grid;
+  gap: 8px;
+  max-width: 40rem;
+}

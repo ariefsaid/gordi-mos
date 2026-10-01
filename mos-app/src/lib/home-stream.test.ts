@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   daysOverdue, overdueStreamItems, dueTodayStreamItems, blockedStreamItems,
-  failedCheckStreamItems, myWorkStreamItems, openTaskCount,
+  failedCheckStreamItems, myWorkStreamItems,
   signalStreamItems, isAttentionSignal,
   type AttentionDirectory,
 } from './home-stream'
@@ -110,16 +110,6 @@ describe('myWorkStreamItems', () => {
     expect(items.map(i => i.id)).toEqual(['t-blocked', 't-soon'])
     expect(items[0].reason).toEqual({ tone: 'blocked' })
     expect(items[1].reason).toBeUndefined()
-  })
-})
-
-describe('openTaskCount', () => {
-  it('counts owned, non-Done tasks', () => {
-    expect(openTaskCount([
-      task({ status: 'Open' }),
-      task({ status: 'Done' }),
-      task({ responsible_person_id: 'x', accountable_person_id: 'y' }),
-    ], VIEWER)).toBe(1)
   })
 })
 

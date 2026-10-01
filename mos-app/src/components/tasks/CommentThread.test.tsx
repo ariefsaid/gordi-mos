@@ -4,8 +4,8 @@ import { CommentThread, type TaskComment } from './CommentThread'
 import type { PersonOption } from '@/lib/db/directory'
 
 const people: PersonOption[] = [
-  { id: 'p1', full_name: 'Arief Said' },
-  { id: 'p2', full_name: 'Riri Kitchen' },
+  { id: 'p1', full_name: 'Arden Sample' },
+  { id: 'p2', full_name: 'Nico Kitchen' },
 ]
 
 const comments: TaskComment[] = [
@@ -17,7 +17,7 @@ describe('CommentThread (T28, AC-P3-CM-004)', () => {
     render(<CommentThread comments={comments} people={people} canPost onPost={vi.fn()} />)
 
     expect(screen.getByRole('region', { name: /comments/i })).toBeInTheDocument()
-    expect(screen.getByText('Arief Said')).toBeInTheDocument()
+    expect(screen.getByText('Arden Sample')).toBeInTheDocument()
     expect(screen.getByText('Please check this')).toBeInTheDocument()
   })
 
@@ -42,9 +42,18 @@ describe('CommentThread (T28, AC-P3-CM-004)', () => {
     })
 
     expect(screen.getByRole('listbox', { name: /select person/i })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('option', { name: /riri kitchen/i }))
+    fireEvent.click(screen.getByRole('option', { name: /nico kitchen/i }))
 
-    expect(screen.getByRole('textbox', { name: /comment/i })).toHaveValue('Please ask @riri ')
+    expect(screen.getByRole('textbox', { name: /comment/i })).toHaveValue('Please ask @nico ')
+  })
+
+  it('returns focus to the composer after a mention is picked', () => {
+    render(<CommentThread comments={[]} people={people} canPost onPost={vi.fn()} />)
+    const box = screen.getByRole('textbox', { name: /comment/i })
+    box.focus()
+    fireEvent.change(box, { target: { value: 'Please ask @' } })
+    fireEvent.click(screen.getByRole('option', { name: /nico kitchen/i }))
+    expect(box).toHaveFocus()
   })
 })
 
@@ -99,5 +108,41 @@ describe('CommentThread — leave-guard + Escape isolation (D-B2)', () => {
     fireEvent.change(box, { target: { value: 'a plain comment' } })
     fireEvent.keyDown(box, { key: 'Escape' })
     expect(hostEscape).toHaveBeenCalledTimes(1)
+  })
+
+  it('a rejected post keeps the text and focus and shows an error; a retry clears it once', async () => {
+    const onPost = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
+    render(<CommentThread comments={[]} people={people} canPost onPost={onPost} />)
+    const box = screen.getByRole('textbox', { name: /comment/i })
+
+    fireEvent.change(box, { target: { value: 'Ship it' } })
+    fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be posted/i)
+    expect(box).toHaveValue('Ship it')
+    expect(box).toHaveFocus()
+
+    fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
+    await waitFor(() => expect(box).toHaveValue(''))
+    expect(onPost).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('the field is read-only while posting, so a failed post still holds exactly the submitted text', async () => {
+    let reject!: (e: Error) => void
+    const onPost = vi.fn(() => new Promise<void>((_, r) => { reject = r }))
+    render(<CommentThread comments={[]} people={people} canPost onPost={onPost} />)
+    const box = screen.getByRole('textbox', { name: /comment/i })
+
+    fireEvent.change(box, { target: { value: 'First' } })
+    fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
+    expect(box).toHaveAttribute('readonly')
+    fireEvent.change(box, { target: { value: 'Second' } })
+    reject(new Error('offline'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not be posted/i)
+    expect(box).toHaveValue('First')
+    expect(box).not.toHaveAttribute('readonly')
+    expect(box).toHaveFocus()
   })
 })

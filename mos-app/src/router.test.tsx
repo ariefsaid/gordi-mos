@@ -308,7 +308,7 @@ describe('router — Café review + pushes are role-gated', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'cafe/pushes'),
     )!
-    expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin']} />)
+    expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin']} scope="link" />)
     expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/pushes', 'kitchen/pushes'])
   })
 })
@@ -318,7 +318,7 @@ describe('router — /admin redirects from inside AdminRoute', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'admin/people'),
     )!
-    expect(gate.children!.map((c) => c.path).sort()).toEqual(['admin', 'admin/access', 'admin/people', 'admin/teams'])
+    expect(gate.children!.map((c) => c.path).sort()).toEqual(['admin', 'admin/access', 'admin/agents', 'admin/people', 'admin/teams'])
   })
 })
 

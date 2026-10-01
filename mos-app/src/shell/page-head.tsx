@@ -6,6 +6,10 @@ export interface PageHeadProps {
   title: string
   subtitle?: string
   jobSentence?: string
+  // #958: compact, always-visible companion to jobSentence, which is desktop-only (.page-head-job
+  // below is screen-reader-only under 768px). Renders beside the title in both variants; omitted,
+  // nothing changes.
+  titleHelp?: ReactNode
   /**
    * Count/meta slot that sits on the title's baseline, immediately after it
    * ("11 tasks · 2 blocked", "Tue 17 Jun · N log entries"). Folded in from the
@@ -64,7 +68,7 @@ export interface PageHeadProps {
  * mockup `.content-header` chrome (icon + title + count pill + inline action).
  */
 export function PageHead({
-  title, subtitle, jobSentence, meta, maxWidth,
+  title, subtitle, jobSentence, titleHelp, meta, maxWidth,
   variant = 'prose', count, action, statusRow, family, headClassName,
 }: PageHeadProps) {
   const v3ClassName = family ? ' page-head--v3' : ''
@@ -82,6 +86,7 @@ export function PageHead({
             on Inbox, none on Home/Café) were the exact "several apps" tell.
             Consistent = none. */}
         <h1 className="ch-title">{title}</h1>
+        {titleHelp}
         {count != null && <span className="ch-count tabular-nums">{count}</span>}
         {/* Overdue/blocked subtotals + clearable filter chips ride beside the pill */}
         {meta && <span className="ch-meta">{meta}</span>}
@@ -113,6 +118,7 @@ export function PageHead({
         >
           {title}
         </h1>
+        {titleHelp}
         {/* Meta/count sits immediately after the title (Linear-style "Tasks · 11 tasks"),
             NOT flung to the far edge — keeps the header anchored to the content.
             Cohesion-debt 2026-07-19, item #5 (owner call): the title-adjacent slot
