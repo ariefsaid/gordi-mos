@@ -160,6 +160,19 @@
 a.rp-row__name:hover { color: var(--primary); }
 .rp-row__meta { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
 
+.rp-notice {
+  display: flex; align-items: center; gap: 8px; margin: 12px 0 0; padding: 4px 4px 4px 12px;
+  border-radius: var(--radius-sm); background: var(--secondary); font-size: var(--font-size-body);
+}
+.rp-notice > span { flex: 1; min-width: 0; }
+
+/* About field: the record field sits under the aside's own label */
+.rp-about__field .record-field { display: block; }
+.rp .rp-about__field .record-field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.rp .rp-about__field .record-field__edit { min-height: 28px; margin: 0; padding: 2px 6px 2px 0; font-size: var(--font-size-body); }
+.rp .rp-about__field .record-field__value { font-size: var(--font-size-body); padding: 0; min-height: 0; }
+.rp .rp-about__field .record-field__chip { margin: 0; padding: 0; border: 0; background: none; font-size: var(--font-size-body); }
+
 /* About + disclosure */
 .rp-aside { padding-top: 24px; }
 .rp-aside__block + .rp-aside__block { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border); }
@@ -197,6 +210,7 @@ a.rp-row__name:hover { color: var(--primary); }
   .rp-section__action { min-height: 44px; border: 1px solid var(--control-border); }
   .rp .rp-facts .record-field__edit { min-height: 44px; margin-block: -8px; }
   .rp .rp-chip .record-field__edit { min-height: 44px; margin-block: -10px; }
+  .rp .rp-about__field .record-field__edit { min-height: 44px; }
   .rp-setup__row { grid-template-columns: 20px minmax(0, 1fr); }
   .rp-setup__action { grid-column: 1 / -1; width: 100%; min-height: 44px; }
 }
