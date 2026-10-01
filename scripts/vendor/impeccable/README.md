@@ -46,3 +46,9 @@ fail-closed patch in `detector/cli/main.mjs`: a missing browser dependency or fa
 returns a non-zero exit instead of printing an error followed by a false-clean `[]` result. The
 vendored browser engine also retains Chromium's sandbox in CI; callers may provide explicit launch
 arguments only through the programmatic API when their isolated runner requires them.
+
+A second local patch lives in `detector/engines/regex/detect-text.mjs`, in the inset-shadow side-stripe
+scan: a `var(--token)` counts as chromatic when it is one of this design system's semantic colour
+tokens (`primary`, `warning`, `ring`, ...), and the selected/active/current exemption applies only to
+tab and navigation selectors, not to option, menu-item or listbox states. A refresh from upstream must
+keep both; `scripts/impeccable-side-stripe.test.sh` fails if either is lost.

@@ -420,11 +420,18 @@ const REGEX_ANALYZERS = [
 
 const CHROMATIC_SHADOW_TOKEN_RE = /(?:^|-)(?:accent|kinpaku|patina|gold|red|orange|amber|yellow|lime|green|emerald|teal|cyan|blue|indigo|violet|purple|magenta|pink|rose|coral|aqua|mint|burgundy|crimson|scarlet)(?:-|$)/i;
 
+// Semantic tokens that resolve to a chromatic colour in this design system's theme (action blue,
+// warning amber, destructive red, success green, status and brand hues). The name carries no colour
+// word, so the word list above cannot see them. Border, input, muted, secondary, surface, background,
+// foreground and text tokens are neutral and stay out. Exact names, with an optional Tailwind
+// `--color-` prefix, so `--primary-foreground` (near white) stays neutral.
+const CHROMATIC_SEMANTIC_TOKEN_RE = /^--(?:color-)?(?:primary|warning|destructive(?:-action)?|danger|success|info|ring|violet|brand-navy|brand-orange|status-(?:open|won|lost|violet)-text|field-error-text|text-accent|text-danger)$/i;
+
 function insetStripeColorIsChromatic(rawColor) {
   const color = String(rawColor || '').trim().replace(/\s*!important\s*$/i, '');
   if (/^(?:currentcolor|transparent|inherit|unset)$/i.test(color)) return false;
   const variable = color.match(/^var\(\s*(--[\w-]+)/i);
-  if (variable) return CHROMATIC_SHADOW_TOKEN_RE.test(variable[1]);
+  if (variable) return CHROMATIC_SHADOW_TOKEN_RE.test(variable[1]) || CHROMATIC_SEMANTIC_TOKEN_RE.test(variable[1]);
   if (!/^(?:#|rgba?\(|hsla?\(|hwb\(|oklch\(|oklab\(|lch\(|lab\(|color\(|[a-z]+$)/i.test(color)) return false;
   return !isNeutralAuthoredColor(color);
 }
@@ -436,6 +443,9 @@ function insetStripeColorIsChromatic(rawColor) {
 function blankCssComments(css) {
   return css.replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' '));
 }
+
+const TAB_OR_NAV_SELECTOR_RE = /(?:^|[\s>+~,(._#\['"-])(?:tabs?|tablist|tabbar|nav|navigation|rail|sidebar|breadcrumbs?|crumbs?|segment(?:ed)?|stepper|pager|pagination)(?![a-z])/i;
+const OPTION_SELECTOR_RE = /option|menuitem|listbox|combobox/i;
 
 function scanInsetStripeCss(rawContent, filePath, lineOffset = 0) {
   const content = blankCssComments(rawContent);
@@ -462,9 +472,12 @@ function scanInsetStripeCss(rawContent, filePath, lineOffset = 0) {
     const selector = match[1].trim().replace(/\s+/g, ' ');
     if (!selector) continue;
     if (/:(?:hover|focus|focus-visible|focus-within|active|checked|target)\b/i.test(selector)) continue;
-    if (/\[aria-selected\s*[*^$|~]?=\s*["']?true/i.test(selector)) continue;
-    if (/\[aria-current(?!\s*[*^$|~]?=\s*["']?false)/i.test(selector)) continue;
-    if (/(?:^|[\s._[-])(?:active|current|selected)(?![\w])/i.test(selector)) continue;
+    // The selected/active/current exemption is for tab and navigation indicators. An option, menu
+    // item or listbox state is a selection stripe like any other, so it is scanned.
+    const selectedState = /\[aria-selected\s*[*^$|~]?=\s*["']?true/i.test(selector)
+      || /\[aria-current(?!\s*[*^$|~]?=\s*["']?false)/i.test(selector)
+      || /(?:^|[\s._[-])(?:active|current|selected)(?![\w])/i.test(selector);
+    if (selectedState && TAB_OR_NAV_SELECTOR_RE.test(selector) && !OPTION_SELECTOR_RE.test(selector)) continue;
     if (/(?:^|[\s>+~,(])(?:button|hr|tr|td|th|table|blockquote|pre|code)(?![\w-])/i.test(selector)) continue;
 
     // Read the last of a repeated declaration, not the first: that is what the
