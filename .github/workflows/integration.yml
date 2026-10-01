@@ -28,7 +28,7 @@ on:
 # booted Supabase, npm-ci'd and ran in parallel on the same PR. #565 merged the `pgtap` job into
 # it so a dev PR boots the stack once. The browser then came back out of that lane: a dev PR now
 # installs no Chromium, and the guards ride this job, which already runs every spec. `db` here is
-# untouched: it is the PR→main / push-main lane and was never part of the duplication.
+# untouched: it is the PR→main lane and was never part of the duplication.
 
 # Public repo: fork PRs run this workflow. Nothing here needs to write, so the token gets
 # read-only. Actions are pinned to commit SHAs (tags are mutable — a hijacked v4 would run here).
