@@ -10,7 +10,7 @@
 --   Unassigned ...d8 (added here) holds no role      → in nobody's role-tree downline
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(17);
 
 select shared._test_seed_directory();
 insert into shared.people (id, org_id, full_name)
@@ -55,6 +55,27 @@ select throws_ok($$
   values ('member peer PIC','00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000d4',
           '00000000-0000-0000-0000-0000000000d5','00000000-0000-0000-0000-0000000000d5')
 $$, '42501', null, 'a member without the admin claim still cannot name a peer as PIC');
+
+-- ── an admin-only writer (no role at all) ──────────────────────────────────────────────────────
+-- Unassigned ...d8 holds no role, so it is in nobody's downline and has no downline. Whatever it
+-- may do comes from the admin access role alone; the same person without the claim is the control.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d8","access_roles":["admin"]}';
+select lives_ok($$
+  insert into mos.tasks (title, business_unit_id, responsible_person_id, accountable_person_id, created_by)
+  values ('admin-only assigns PIC and Supervisor','00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000d4',
+          '00000000-0000-0000-0000-0000000000d7','00000000-0000-0000-0000-0000000000d8')
+$$, 'an admin-only writer may name any other person as PIC and any other person as Supervisor');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d8","access_roles":["member"]}';
+select throws_ok($$
+  insert into mos.tasks (title, business_unit_id, responsible_person_id, accountable_person_id, created_by)
+  values ('plain member names a PIC','00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000d4',
+          '00000000-0000-0000-0000-0000000000d7','00000000-0000-0000-0000-0000000000d8')
+$$, '42501', null, 'the same person without the admin claim cannot name another person as PIC');
+select lives_ok($$
+  insert into mos.tasks (title, business_unit_id, responsible_person_id, accountable_person_id, created_by)
+  values ('plain member names a Supervisor','00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000d8',
+          '00000000-0000-0000-0000-0000000000d7','00000000-0000-0000-0000-0000000000d8')
+$$, 'Supervisor is not gated by the PIC rule: any same-org person, for every writer');
 
 -- ── update: a PIC change by an org-wide editor ──────────────────────────────────────────────────
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
