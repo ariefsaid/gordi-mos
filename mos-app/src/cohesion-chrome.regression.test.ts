@@ -368,3 +368,93 @@ describe('CHROME-MODAL: modal consolidation', () => {
     expect(css).not.toMatch(/\.confirm-box\s*\{/)
   })
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// CHROME-STRIPE: no single-side accent stripe (border-left/right, a one-axis inset shadow, a
+// thin pseudo-element bar) on an option, menu item or row. Selected/active/highlighted states
+// use a --surface-* fill, the checked mark and the focus ring (DESIGN.md, DD-MVP-14). The one
+// owner-approved exception is the 2px `--warning` rule on an Urgent or dead-letter ROW
+// (DESIGN.md §Operations event tokens); it is pinned per file and counts only go down.
+// ════════════════════════════════════════════════════════════════════════════
+describe('CHROME-STRIPE: no side-accent stripe on options, items or rows', () => {
+  const WARNING_ROW_RULE: Record<string, number> = {
+    'components/signals/signal-feed-rows.css': 1,
+    'components/signals/signal-table-presentation.css': 2,
+    'pages/kitchen-pushes-page.css': 2,
+  }
+  const NEUTRAL = /var\(--(?:border|input|row-divider|muted|secondary|surface-[\w-]+)\)|transparent|^(?:0|none|unset|initial|inherit)$/i
+  const SIDE_BORDER = /^border-(?:left|right|inline-start|inline-end)(-color)?$/
+  const isOnePxOrLess = (value: string) => /(?:^|\s)(?:0|1px|0?\.\d+px)(?:\s|$)/.test(value)
+
+
+  /** x-axis inset layers with no blur or spread, 2–12px wide: a painted left/right edge. */
+  function insetSideLayers(value: string): string[] {
+    return value
+      .split(/,(?![^(]*\))/)
+      .map((layer) => layer.trim())
+      .filter((layer) => {
+        if (!/\binset\b/i.test(layer)) return false
+        const bare = layer.replace(/\b(?:rgba?|hsla?|color-mix|var)\([^)]*\)/gi, ' ')
+        const [x = 0, y = 0, blur = 0, spread = 0] = (bare.match(/-?\d*\.?\d+(?:px)?/g) ?? []).map(parseFloat)
+        return y === 0 && blur === 0 && spread === 0 && Math.abs(x) >= 2 && Math.abs(x) <= 12
+      })
+  }
+
+  function stripesIn(css: string): { selector: string; decl: string; warning: boolean }[] {
+    const out: { selector: string; decl: string; warning: boolean }[] = []
+    for (const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const selector = rule[1].trim().replace(/\s+/g, ' ')
+      const body = rule[2]
+      for (const decl of body.split(';')) {
+        const colon = decl.indexOf(':')
+        if (colon < 0) continue
+        const prop = decl.slice(0, colon).trim().toLowerCase()
+        const value = decl.slice(colon + 1).trim()
+        let hit = false
+        if (SIDE_BORDER.test(prop)) hit = !NEUTRAL.test(value) && !isOnePxOrLess(value)
+        else if (prop === 'box-shadow') hit = insetSideLayers(value).some((layer) => !NEUTRAL.test(layer))
+        if (hit) out.push({ selector, decl: `${prop}: ${value}`, warning: /var\(--warning\)/.test(value) })
+      }
+      // Thin pseudo-element bar: at most 4px wide, full height, filled.
+      if (/::?(?:before|after)/.test(selector)) {
+        const thin = /(?:^|;)\s*(?:width|inline-size)\s*:\s*[1-4]px\s*(?:;|$)/.test(body)
+        const full = /height\s*:\s*100%|bottom\s*:\s*0|inset-block\s*:\s*0/.test(body)
+        const filled = /background(?:-color)?\s*:\s*(?!transparent|none)/.test(body)
+        if (thin && full && filled) out.push({ selector, decl: body.trim(), warning: false })
+      }
+    }
+    return out
+  }
+
+  it('CHROME-STRIPE: no CSS paints a side stripe beyond the pinned --warning row rule', () => {
+    const offenders: string[] = []
+    const stale: string[] = []
+    for (const f of listSource(SRC, ['.css'])) {
+      const rel = srcRel(f)
+      const hits = stripesIn(stripCss(readFileSync(f, 'utf8')))
+      const allowed = WARNING_ROW_RULE[rel] ?? 0
+      const warning = hits.filter((h) => h.warning)
+      for (const h of hits.filter((h) => !h.warning)) offenders.push(`${rel} ${h.selector} { ${h.decl} }`)
+      if (warning.length > allowed) {
+        for (const h of warning) offenders.push(`${rel} ${h.selector} { ${h.decl} } (ledger allows ${allowed})`)
+      }
+      if (allowed > 0 && warning.length < allowed) stale.push(`${rel} — ${warning.length} of ${allowed}`)
+    }
+    expect(
+      offenders,
+      'selected/active/highlighted use a --surface-* fill + checked mark + focus ring, never a one-colour edge line',
+    ).toEqual([])
+    expect(stale, 'debt paid — lower these WARNING_ROW_RULE counts so the ratchet tightens').toEqual([])
+  })
+
+  it('CHROME-STRIPE: no TSX style or utility class draws a side stripe', () => {
+    const offenders: string[] = []
+    for (const f of listSource(SRC, ['.tsx'])) {
+      const found = stripTsx(readFileSync(f, 'utf8')).match(
+        /\bborder(?:Left|Right|InlineStart|InlineEnd)\s*:|\bborder-[lrse]-(?:[2-9]|\[)|shadow-\[inset_|boxShadow\s*:\s*['"`]inset\s+-?[2-9]px\s+0(?:px)?\s+0/g,
+      )
+      if (found) offenders.push(`${srcRel(f)} — ${found.join(', ')}`)
+    }
+    expect(offenders).toEqual([])
+  })
+})
