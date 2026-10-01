@@ -39,6 +39,8 @@ export interface ObjectiveKeyResultsSectionProps {
   onCount?: (count: number | null) => void
   /** Each increase opens a blank key-result row for an admin. */
   openAddToken?: number
+  /** The blank row closed and the section has no Add action to take focus (it was opened from Get started). */
+  onAddClosed?: () => void
 }
 
 /**
@@ -353,7 +355,7 @@ function KeyResultRowView({ row, people, canManage, canContent, editingCurrent, 
  */
 export function ObjectiveKeyResultsSection({
   objectiveId, businessUnitId, isCompanyWide, archived, scopes, scopesStatus = 'ready', onRetryScopes,
-  hideWhenEmpty = false, onCount, openAddToken = 0,
+  hideWhenEmpty = false, onCount, openAddToken = 0, onAddClosed,
 }: ObjectiveKeyResultsSectionProps) {
   const t = useT()
   const [rows, setRows] = useState<KeyResultRow[]>([])
@@ -371,8 +373,12 @@ export function ObjectiveKeyResultsSection({
   const created = useRef<KeyResultRow | null>(null)
   const wasAdding = useRef(false)
   const focusAction = useCallback(() => {
-    requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-record-section="key-results"] .rp-section__action')?.focus())
-  }, [])
+    requestAnimationFrame(() => {
+      const action = document.querySelector<HTMLElement>('[data-record-section="key-results"] .rp-section__action')
+      if (action) action.focus()
+      else onAddClosed?.()
+    })
+  }, [onAddClosed])
 
   const canManage = !archived && canManageForScope('objective', businessUnitId, scopes)
   const canContent = !archived && canEditObjectiveContentForScope({ businessUnitId, isCompanyWide }, scopes)

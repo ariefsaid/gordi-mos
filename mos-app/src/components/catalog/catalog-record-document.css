@@ -79,11 +79,11 @@
   .rp-wl > :nth-child(3) { grid-area: count; }
   .rp-wl .rp-avatar { display: none; }
   .rp-wl__unlink { grid-area: unlink; }
-  .rp-task { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name name" "status due"; }
+  .rp-task { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "name name name" "status person due"; }
   .rp-task > :nth-child(2) { grid-area: name; }
   .rp-task > :nth-child(1) { grid-area: status; }
   .rp-task > :nth-child(4) { grid-area: due; }
-  .rp-task .rp-person { display: none; }
+  .rp-task > :nth-child(3) { grid-area: person; justify-self: start; }
 }
 
 /* A Process with no steps yet is told once, by the Get started row; the occurrence list keeps its own heading as the section title. */

@@ -7,7 +7,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { Button } from '@/components/ui/button'
 import { Picker, type PickerOption } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
-import { LoadingShell } from '@/components/ui/state-kit'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { RecordDisclosure, RecordSection } from '@/components/record/record-page-layout'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { readWriteUp, sanitizeWriteUp } from '@/lib/db/objective-writeup'
@@ -246,11 +246,14 @@ function StepForm({ workLineId, position, onSaved, onCancel }: {
   const [people, setPeople] = useState<PersonOption[]>([])
   const [touched, setTouched] = useState(false)
   const [state, setState] = useState<'idle' | 'saving' | 'failed'>('idle')
+  const [peopleFailed, setPeopleFailed] = useState(false)
+  const [peopleReload, setPeopleReload] = useState(0)
   useEffect(() => {
     let live = true
-    getPeople().then((next) => { if (live) setPeople(next) }, () => {})
+    setPeopleFailed(false)
+    getPeople().then((next) => { if (live) setPeople(next) }, () => { if (live) setPeopleFailed(true) })
     return () => { live = false }
-  }, [])
+  }, [peopleReload])
   const titleError = touched && title.trim() === ''
   const picError = touched && pic === ''
   const titleErrorId = useId()
@@ -293,6 +296,11 @@ function StepForm({ workLineId, position, onSaved, onCancel }: {
         />
         {titleError ? <span id={titleErrorId} className="objective-key-results__error" role="alert">{t('catalog.steps.nameRequired')}</span> : null}
       </div>
+      {peopleFailed ? (
+        <div className="form-grid__field form-grid__field--full">
+          <ErrorState message={t('objective.keyResults.peopleError')} onRetry={() => setPeopleReload((n) => n + 1)} />
+        </div>
+      ) : null}
       <div className="form-grid__field form-grid__field--full">
         <Picker
           label={t('catalog.steps.pic')}
@@ -365,10 +373,16 @@ export function StepsSection({ workLineId, process, people, roles, owningTeams, 
     </ol>
   ) : null
   const form = adding ? <StepForm workLineId={workLineId} position={steps.length} onSaved={onAdded} onCancel={onCancelAdd} /> : null
-  if (steps.length > STEP_DISCLOSURE_AFTER && !adding) {
+  const canAdd = canManage && !archived
+  if (steps.length > STEP_DISCLOSURE_AFTER) {
+    // A long list folds away; adding a step stays one click inside it, and an open form keeps it open.
     return (
-      <RecordDisclosure title={t('catalog.record.steps')} count={steps.length}>
-        <div className="catalog-record-document__steps-slot">{list}</div>
+      <RecordDisclosure key={adding ? 'adding' : 'folded'} title={t('catalog.record.steps')} count={steps.length} defaultOpen={adding}>
+        <div className="catalog-record-document__steps-slot">
+          {list}
+          {form}
+          {canAdd && !adding ? <button type="button" className="rp-link-btn catalog-step-add" onClick={onAdd}><span aria-hidden="true">+ </span>{t('catalog.steps.add')}</button> : null}
+        </div>
       </RecordDisclosure>
     )
   }
@@ -377,7 +391,7 @@ export function StepsSection({ workLineId, process, people, roles, owningTeams, 
       id="steps"
       title={t('catalog.record.steps')}
       count={steps.length > 0 ? steps.length : undefined}
-      action={canManage && !archived && !adding ? { label: t('catalog.steps.add'), onClick: onAdd } : undefined}
+      action={canAdd && !adding ? { label: t('catalog.steps.add'), onClick: onAdd } : undefined}
     >
       <div className="catalog-record-document__steps-slot">{list}{form}</div>
     </RecordSection>

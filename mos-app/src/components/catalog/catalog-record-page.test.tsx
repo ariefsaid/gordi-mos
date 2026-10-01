@@ -22,7 +22,7 @@ vi.mock('@/lib/db/objective-key-results', () => ({
 }))
 vi.mock('@/lib/db/directory', async (importActual) => ({
   ...(await importActual<typeof import('@/lib/db/directory')>()),
-  getPeople: async () => [{ id: 'p-dewi', full_name: 'Dewi Director' }, { id: 'p-maya', full_name: 'Maya Marketing' }],
+  getPeople: vi.fn(async () => [{ id: 'p-dewi', full_name: 'Dewi Director' }, { id: 'p-maya', full_name: 'Maya Marketing' }]),
 }))
 vi.mock('@/lib/db/record-history', async (orig) => ({ ...(await orig<typeof import('@/lib/db/record-history')>()), loadRecordHistory: vi.fn() }))
 vi.mock('@/components/processes/process-occurrence-controls', () => ({ ProcessOccurrenceControls: () => <div data-testid="occurrences" /> }))
@@ -45,6 +45,7 @@ import { updateObjective, listObjectivesAll, renameObjective, setObjectiveArchiv
 import { updateWorkLine, listWorkLinesAll } from '@/lib/db/work-lines'
 import { createProcessStep } from '@/lib/db/process-steps'
 import { listKeyResults } from '@/lib/db/objective-key-results'
+import { getPeople } from '@/lib/db/directory'
 import { loadRecordHistory } from '@/lib/db/record-history'
 import { readWriteUp } from '@/lib/db/objective-writeup'
 import { getWorkWriteScopes } from '@/lib/db/work-authority'
@@ -278,6 +279,16 @@ describe('Get started lists only what is missing, and its buttons work', () => {
     await waitFor(() => expect(within(screen.getByRole('region', { name: 'Get this Objective started' })).getByRole('button', { name: 'Link Project or Process' })).toHaveFocus())
   })
 
+  it('cancelling the blank key-result row from Get started puts focus back on the Get started button', async () => {
+    const user = userEvent.setup()
+    renderRecord()
+    const region = await screen.findByRole('region', { name: 'Get this Objective started' })
+    await user.click(within(region).getByRole('button', { name: 'Add key result' }))
+    await screen.findByRole('textbox', { name: 'Key result' })
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Get this Objective started' })).getByRole('button', { name: 'Add key result' })).toHaveFocus())
+  })
+
   it('Add key result opens a blank key-result row ready for the name', async () => {
     const user = userEvent.setup()
     renderRecord()
@@ -406,6 +417,33 @@ describe('Get started lists only what is missing, and its buttons work', () => {
     expect(document.querySelector('.btn-primary')).toHaveTextContent('Add task')
     // The Tasks section keeps its own quiet action, so guidance that left the page has a home.
     expect(within(screen.getByRole('region', { name: 'Tasks' })).getByRole('button', { name: 'Add task' })).toHaveClass('btn-ghost')
+  })
+
+  it('a Process with many steps keeps adding one click away, inside the folded list', async () => {
+    const user = userEvent.setup()
+    data = workLineData('process', { steps: 7 })
+    renderRecord('work-line')
+    const toggle = await screen.findByRole('button', { name: /^Steps/ })
+    await user.click(toggle)
+    await user.click(await screen.findByRole('button', { name: 'Add step' }))
+    await user.type(await screen.findByRole('textbox', { name: 'Step name' }), 'Lock up')
+    await user.click(screen.getByRole('combobox', { name: 'Who does it' }))
+    await user.click(await screen.findByRole('option', { name: 'Maya Marketing' }))
+    await user.click(screen.getByRole('button', { name: 'Save step' }))
+    await waitFor(() => expect(createProcessStep).toHaveBeenCalledWith({ workLineId: 'wl-1', title: 'Lock up', picPersonId: 'p-maya', position: 7 }))
+  })
+
+  it('the step form says so when the people list fails, and Try again reloads it', async () => {
+    const user = userEvent.setup()
+    data = workLineData('process', { steps: 0 })
+    vi.mocked(getPeople).mockRejectedValueOnce(new Error('down'))
+    renderRecord('work-line')
+    const region = await screen.findByRole('region', { name: 'Get this Process started' })
+    await user.click(within(region).getByRole('button', { name: 'Add first step' }))
+    const form = await screen.findByRole('form', { name: 'Add step' })
+    expect(await within(form).findByText("Couldn't load the people list.")).toBeInTheDocument()
+    await user.click(within(form).getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(within(form).queryByText("Couldn't load the people list.")).toBeNull())
   })
 
   it('a Process with no steps shows Add first step; saving a step writes it for the chosen person and clears the row', async () => {
@@ -611,6 +649,18 @@ describe('sections read like a document', () => {
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
     await user.click(within(work).getByRole('button', { name: 'Unlink Menu launch' }))
     await waitFor(() => expect(updateWorkLine).toHaveBeenCalledWith('wl-1', { objective_id: null }))
+  })
+
+  it('a failed unlink reports the failure with a retry, and announces nothing as done', async () => {
+    const user = userEvent.setup()
+    populated()
+    vi.mocked(updateWorkLine).mockRejectedValueOnce(new Error('denied'))
+    renderRecord()
+    const work = await screen.findByRole('region', { name: 'Projects & Processes' })
+    await user.click(within(work).getByRole('button', { name: 'Unlink Menu launch' }))
+    expect(await screen.findByText("Couldn't link", { exact: false })).toBeInTheDocument()
+    expect(screen.queryByText('Unlinked Menu launch.')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
   })
 
   it('Undo after an unlink links the Project again', async () => {

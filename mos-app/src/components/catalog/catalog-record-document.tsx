@@ -428,17 +428,18 @@ export function CatalogRecordDocument({
       setChooser({ purpose: 'link', status: 'error', options: [], objectiveOf: new Map(), names: new Map() })
     }
   }
-  const link = async (workLineId: string, objectiveId: string | null) => {
+  /** True once the link is written; a failure keeps its retry and reports nothing as done. */
+  const link = async (workLineId: string, objectiveId: string | null): Promise<boolean> => {
     const attempt = async () => {
       await updateWorkLine(workLineId, { objective_id: objectiveId })
       setLinkError(null)
       await refresh()
     }
-    try { await attempt() } catch { setLinkError(() => attempt) }
+    try { await attempt(); return true } catch { setLinkError(() => attempt); return false }
   }
   const unlink = async (workLine: CatalogWorkLineFact) => {
-    await link(workLine.id, null)
-    announce({ message: t('catalog.link.unlinkedNotice', { name: workLine.name }), undo: () => link(workLine.id, id) })
+    if (!(await link(workLine.id, null))) return
+    announce({ message: t('catalog.link.unlinkedNotice', { name: workLine.name }), undo: async () => { await link(workLine.id, id) } })
   }
 
   // A writer's Get started region waits for the key-result count, so it never shows a half-known list.
@@ -447,7 +448,7 @@ export function CatalogRecordDocument({
   if (!archived && isWriter && settled) {
     if (isObjective) {
       if (canManage && krCount === 0) {
-        setup.push({ id: 'targets', label: t('catalog.setup.targets.label'), reason: t('catalog.setup.targets.reason'), action: { label: t('objective.keyResults.add'), onClick: () => setAddKeyResultToken((n) => n + 1) } })
+        setup.push({ id: 'targets', label: t('catalog.setup.targets.label'), reason: t('catalog.setup.targets.reason'), action: { label: t('objective.keyResults.add'), onClick: () => { rememberOpener(); setAddKeyResultToken((n) => n + 1) } } })
       }
       if (canLink && linkedWork.length === 0) {
         setup.push({ id: 'link', label: t('catalog.setup.link.label'), reason: t('catalog.setup.link.reason'), action: { label: t('catalog.link.action'), onClick: () => { void startLink() } } })
@@ -626,6 +627,7 @@ export function CatalogRecordDocument({
               onRetryScopes={retryScopes}
               hideWhenEmpty={setup.some((item) => item.id === 'targets')}
               onCount={setKrCount}
+              onAddClosed={restoreOpener}
               openAddToken={addKeyResultToken}
             />
             <LinkedWorkSection
