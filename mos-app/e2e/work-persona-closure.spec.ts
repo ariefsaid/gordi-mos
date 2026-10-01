@@ -132,6 +132,8 @@ test('joined persona and fixture evidence: graph, current/past occurrence, and d
   // The Process record is opened by a dedicated ordinary member. This actor has no Team
   // membership and no access-role grant in the inventory; the UI must not expose the
   // owning-Team start/assignment control.
+  // A fresh page is on about:blank, where localStorage throws; load the app origin first.
+  await page.goto('login')
   await page.evaluate(() => localStorage.clear())
   await loginAs(page, RECOVERY_VIEWER.email, RECOVERY_VIEWER.password)
   await page.goto(`work/projects/${WORK_LINE_ID}`)
