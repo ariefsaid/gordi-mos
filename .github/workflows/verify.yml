@@ -1,18 +1,10 @@
 name: verify
 
 on:
-  push:
-    branches: [main]
-    # Prose-only commits cannot break the app. The PR trigger below is deliberately NOT
-    # path-filtered — `verify` is a required status check, and a check skipped by a path filter
-    # never reports, so the PR would block forever. PR-side savings come from the per-step
-    # `steps.scope.outputs.app` guard instead, which still reports the check as green.
-    paths-ignore:
-      - 'docs/**'
-      - 'review/**'
-      - '.claude/**'
-      - '**/*.md'
-      - '.gitignore'
+  # PR-only: a merge into main re-runs nothing (the PR head was gated). Deliberately NOT
+  # path-filtered — `verify` is a required status check, and a check skipped by a path filter
+  # never reports, so the PR would block forever. PR-side savings come from the per-step
+  # `steps.scope.outputs.app` guard instead, which still reports the check as green.
   pull_request:
 
 # Public repo: fork PRs run this workflow. Nothing here needs to write, so the token gets
@@ -20,12 +12,11 @@ on:
 permissions:
   contents: read
 
-# Supersede in-flight runs on the same ref. Without this every push to a branch runs to
-# completion even after the next push lands — 38 verify runs on 2026-07-30, several of them
-# already-obsolete work. Never cancel on main: post-merge runs are the record that main is green.
+# Supersede in-flight runs on the same ref: every push to a branch would otherwise run to
+# completion even after the next push lands.
 concurrency:
   group: verify-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: true
 
 defaults:
   run:
@@ -33,6 +24,9 @@ defaults:
 
 jobs:
   verify:
+    # A release PR (main → staging, head in this repo, never a fork's branch named main) carries a
+    # tree that already passed on its way into main. A skipped required check counts as passed.
+    if: ${{ !(github.event_name == 'pull_request' && github.base_ref == 'staging' && github.head_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -62,18 +56,13 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            # Explicit refspec, not `git fetch origin <branch>`: the short form only updates the
-            # remote-tracking ref when the configured refspec happens to cover it, so it can exit 0
-            # while origin/<base> stays frozen — the same fail-open that bit scripts/pre-merge-check.sh.
-            # Getting the base wrong here would silently skip the gate on a real app change.
-            git fetch --quiet --no-tags origin \
-              "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
-            RANGE="$(git merge-base "origin/${BASE_REF}" HEAD)..HEAD"
-          else
-            RANGE="${{ github.event.before }}..HEAD"
-            git cat-file -e "${{ github.event.before }}" 2>/dev/null || RANGE="HEAD~1..HEAD"
-          fi
+          # Explicit refspec, not `git fetch origin <branch>`: the short form only updates the
+          # remote-tracking ref when the configured refspec happens to cover it, so it can exit 0
+          # while origin/<base> stays frozen — the same fail-open that bit scripts/pre-merge-check.sh.
+          # Getting the base wrong here would silently skip the gate on a real app change.
+          git fetch --quiet --no-tags origin \
+            "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          RANGE="$(git merge-base "origin/${BASE_REF}" HEAD)..HEAD"
           # Paths that provably cannot affect `npm run typecheck | lint:ci | test:coverage | build`.
           # supabase/ is NOT inert: unit tests read migration and seed files from disk. ADDING TO THIS
           # LIST IS A DELIBERATE ACT: each entry is a promise that the app gate cannot see that path.
@@ -98,7 +87,7 @@ jobs:
               echo "unit suite and the build were **not run**."
               echo ""
               echo "A green check here means **nothing the app gate can observe changed** — it is"
-              echo "not a statement that the app is green. The last full run against \`main\` is."
+              echo "not a statement that the app is green. The last full run on the PR into \`main\` is."
               echo ""
               echo "Changed paths:"
               printf '%s\n' "$CHANGED" | sed 's/^/- `/;s/$/`/'
