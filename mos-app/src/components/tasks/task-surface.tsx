@@ -40,6 +40,7 @@ import { DateField } from '@/components/ui/date-field'
 import { Button } from '@/components/ui/button'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { LoadingShell, EmptyState, ErrorState } from '@/components/ui/state-kit'
+import { isOrgWideViewer } from '@/lib/role-scope'
 
 type DirectoryTeamOption = {
   id: string
@@ -158,6 +159,7 @@ function ViewSurface({
   const location = useLocation()
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
+  const viewerOrgWide = auth.status === 'authenticated' && isOrgWideViewer(auth.viewer)
   const t = useT()
   const { locale } = useI18n()
 
@@ -475,6 +477,7 @@ function ViewSurface({
       detail: { ...data, task: localTask, checklist: localChecklist },
       viewerId,
       downlineIds,
+      orgWide: viewerOrgWide,
       people: peopleDirectory,
       businessUnits: busDirectory,
       objectives: objectivesDir,
@@ -600,7 +603,7 @@ function ViewSurface({
   // Handler identities are intentionally excluded; their captured state is represented above.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    onOpenRelated, data, localTask, localChecklist, viewerId, downlineIds, peopleDirectory, busDirectory, commentDraft,
+    onOpenRelated, data, localTask, localChecklist, viewerId, downlineIds, viewerOrgWide, peopleDirectory, busDirectory, commentDraft,
     objectivesDir, linkedObjective, workLinesDir, teamDirectory, taskTeam, generatedFromLabel, comments, now, editable, t, locale,
     checklistError,
   ])

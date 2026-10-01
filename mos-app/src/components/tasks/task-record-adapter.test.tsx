@@ -302,6 +302,22 @@ describe('createTaskRecordAdapter', () => {
     expect(adapter.permission.allowedActionIds).not.toContain('complete')
   })
 
+  describe('PIC options at edit (OD-WAY-94 (1), OD-ROLE-1)', () => {
+    const everyone: PersonOption[] = [...people, { id: 'p-unrelated', full_name: 'Unrelated Person' }]
+    const picOptionIds = (overrides: Partial<TaskRecordAdapterInput>) =>
+      fieldByKey(createTaskRecordAdapter(makeInput({ people: everyone, ...overrides })), 'pic').options?.map((o) => o.value)
+
+    it('a member who is the PIC is offered only themself', () => {
+      expect(picOptionIds({ viewerId: PIC, downlineIds: [] })).toEqual([PIC])
+    })
+    it('a lead is offered themself and their downline', () => {
+      expect(picOptionIds({ viewerId: SUPERVISOR, downlineIds: [PIC] })).toEqual([PIC, SUPERVISOR])
+    })
+    it('an org-wide viewer who may edit the Task is offered every person', () => {
+      expect(picOptionIds({ viewerId: SUPERVISOR, downlineIds: [], orgWide: true })).toEqual([PIC, SUPERVISOR, 'p-unrelated'])
+    })
+  })
+
   it('AC-V3-009: a viewer who is neither PIC/Supervisor nor manager gets read-only fields', () => {
     const adapter = createTaskRecordAdapter(makeInput({ viewerId: 'stranger', downlineIds: [] }))
     expect(adapter.permission.readOnly).toBe(true)

@@ -74,6 +74,8 @@ export interface TaskCollectionRuntime {
   onEditSupervisor: (taskId: string, personId: string) => Promise<void>
   /** Effective viewer Teams offered by the inline create row. */
   teamOptions: readonly TaskTeamOption[]
+  /** The viewer holds an org-wide role: the PIC picker offers every person (OD-ROLE-1). */
+  viewerOrgWide?: boolean
   draftTask: TaskListRow | null
   onDiscardNewTask: () => void
   draftLinkError: boolean
@@ -534,7 +536,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         onEditStatus={editable && !isNew ? runtime.onEditStatus : undefined}
         onEditDue={editable && !isNew ? runtime.onEditDue : undefined}
         onEditPic={editable ? runtime.onEditPic : undefined}
-        personOptions={picOptions(context.viewerId ?? '', context.people, context.downlinePersonIds ?? [])}
+        personOptions={picOptions(context.viewerId ?? '', context.people, context.downlinePersonIds ?? [], runtime.viewerOrgWide)}
         supervisorOptions={context.people}
         teamOptions={isNew ? runtime.teamOptions : []}
         onEditTeam={isNew ? runtime.onEditTeam : undefined}
@@ -554,7 +556,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
           ? context.provenanceByTaskDefId.get(task.generated_from_task_def_id)
           : undefined}
         columnSpan={columnSpan}
-        viewerHasNoDownline={(context.downlinePersonIds?.length ?? 0) === 0}
+        viewerHasNoDownline={!runtime.viewerOrgWide && (context.downlinePersonIds?.length ?? 0) === 0}
       />
     )
   }
@@ -620,12 +622,12 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         onEditPic={runtime.onEditPic}
         onEditTeam={runtime.onEditTeam}
         onEditSupervisor={runtime.onEditSupervisor}
-        personOptions={picOptions(context.viewerId ?? '', context.people, context.downlinePersonIds ?? [])}
+        personOptions={picOptions(context.viewerId ?? '', context.people, context.downlinePersonIds ?? [], runtime.viewerOrgWide)}
         supervisorOptions={context.people}
         teamOptions={runtime.teamOptions}
         draftTaskId={runtime.draftTask?.id}
         onDiscardNewTask={runtime.onDiscardNewTask}
-        viewerHasNoDownline={(context.downlinePersonIds?.length ?? 0) === 0}
+        viewerHasNoDownline={!runtime.viewerOrgWide && (context.downlinePersonIds?.length ?? 0) === 0}
       />
       {occurrence.runId && (
         <OccurrenceAssignDialog

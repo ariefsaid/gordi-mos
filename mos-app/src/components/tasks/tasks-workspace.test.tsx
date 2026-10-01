@@ -2545,6 +2545,15 @@ describe('Issue #749 — Tasks opens on your own work (AC-011/AC-013)', () => {
     await landingAssertions(DEWI, 'All', 'Work · Tasks')
   })
 
+  // OD-ROLE-1: either org-wide fact alone opens All, whichever the other one says.
+  it('OD-ROLE-1: a top-role director without the admin role lands on All', async () => {
+    await landingAssertions(personaAuth({ roles: [roleRow('Managing Director', null)], isManager: true, accessRoles: ['member'] }), 'All', 'Work · Tasks')
+  })
+
+  it('OD-ROLE-1: an admin holding a non-top role lands on All', async () => {
+    await landingAssertions(personaAuth({ roles: [roleRow('Bar Supervisor', 'role-cafe-ops-lead')], isManager: true, accessRoles: ['admin'] }), 'All', 'Work · Tasks')
+  })
+
   it('AC-013: a URL carrying a view wins over the role default', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'late', title: 'Late task', due_date: '2020-01-01' })])
     renderCollectionAt(['/work/tasks?view=overdue'], BULAN)

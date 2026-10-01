@@ -64,6 +64,8 @@ export interface TaskRecordAdapterInput {
    *  canEdit/canArchive derive "viewer is above the PIC" from. The helper owns that derivation;
    *  this adapter never receives a viewer-global isManager. Empty for an unauthenticated viewer. */
   downlineIds: readonly string[]
+  /** The viewer holds an org-wide role (role-scope.isOrgWideViewer): the PIC picker offers everyone. */
+  orgWide?: boolean
   people: readonly PersonOption[]
   businessUnits: readonly BusinessUnitOption[]
   objectives?: readonly ObjectiveRow[]
@@ -286,6 +288,7 @@ function ownershipFields(
   editable: boolean,
   viewerId: string,
   downlineIds: readonly string[],
+  orgWide: boolean,
   people: readonly PersonOption[],
   businessUnits: readonly BusinessUnitOption[],
   team: TaskTeamView | null | undefined,
@@ -322,8 +325,9 @@ function ownershipFields(
       value: task.responsible_person_id,
       displayValue: personName(people, task.responsible_person_id),
       // Same contract as the inline picker (#742): the record's PIC picker offers the WRITER's
-      // self + downline — the only values the DB's PIC-value clause accepts from this writer.
-      options: personOptions(picOptions(viewerId, people, downlineIds)),
+      // self + downline (everyone for an org-wide viewer) — the only values the DB's PIC-value
+      // clause accepts from this writer.
+      options: personOptions(picOptions(viewerId, people, downlineIds, orgWide)),
     }),
     editableSpec(editable, {
       key: 'supervisor',
@@ -403,6 +407,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     detail,
     viewerId,
     downlineIds,
+    orgWide = false,
     people,
     businessUnits,
     objectives = [],
@@ -489,6 +494,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
       editable,
       viewerId,
       downlineIds,
+      orgWide,
       people,
       businessUnits,
       team,
