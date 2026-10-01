@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TaskSurface.css'), 'utf8')
-  .replace(/\/\*[\s\S]*?\*\//g, '')
+const read = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+const taskCss = read('src/components/tasks/task-record-document.css')
+const recordCss = read('src/components/record/record-page.css')
 
-function mediaBody(query: string): string {
+function mediaBody(css: string, query: string): string {
   const bodies: string[] = []
   let from = 0
   while (from < css.length) {
@@ -22,19 +23,18 @@ function mediaBody(query: string): string {
     bodies.push(css.slice(open + 1, i - 1))
     from = i
   }
-  expect(bodies.length, `TaskSurface.css must keep ${query}`).toBeGreaterThan(0)
+  expect(bodies.length, `stylesheet must keep ${query}`).toBeGreaterThan(0)
   return bodies.join('\n')
 }
 
 describe('Task checklist phone target contract', () => {
-  it('keeps compact desktop reorder/delete controls', () => {
-    expect(css).toMatch(/\.checklist-ctrl-btn\s*\{[^}]*width:\s*24px[^}]*height:\s*24px/)
-    expect(css).toMatch(/\.checklist-retry\s*\{[^}]*min-height:\s*24px/)
+  it('keeps a compact desktop retry control', () => {
+    expect(taskCss).toMatch(/\.checklist-retry\s*\{[^}]*min-height:\s*24px/)
   })
 
-  it('raises reorder/delete and retry controls to the two-axis phone floor', () => {
-    const phone = mediaBody('@media (max-width: 767.98px)')
-    expect(phone).toMatch(/\.checklist-ctrl-btn\s*\{[^}]*width:\s*44px[^}]*height:\s*44px/)
-    expect(phone).toMatch(/\.checklist-retry\s*\{[^}]*min-width:\s*44px[^}]*min-height:\s*44px/)
+  it('raises the row menu trigger and retry to the two-axis phone floor', () => {
+    // The row menu trigger is the shared record icon button.
+    expect(mediaBody(recordCss, '@media (max-width: 767.98px)')).toMatch(/\.rp-icon-btn\s*\{[^}]*width:\s*44px[^}]*height:\s*44px/)
+    expect(mediaBody(taskCss, '@media (max-width: 767.98px)')).toMatch(/\.checklist-retry\s*\{[^}]*min-width:\s*44px[^}]*min-height:\s*44px/)
   })
 })
